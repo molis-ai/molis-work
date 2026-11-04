@@ -10,7 +10,27 @@
 python3 -m http.server 4433 --bind 127.0.0.1 --directory docs/design
 ```
 
-再打开 `http://localhost:4433/unified-input/`。顶部斜纹条是原型控制：入口（助理、Coding、创作台、项目讨论）、用词（H4 三个方案）、中英文、深浅、重置。左边目录的字母是每块当前选的方案。
+再打开 `http://localhost:4433/unified-input/`。顶部斜纹条是原型控制：入口（助理、Coding、创作台、项目讨论）、用词（H4 三个方案）、中英文、深浅、标出组件板新增、重置。左边目录的字母是每块当前选的方案。
+
+## 和组件板对齐（2026-11-04）
+
+按[需求开发流程 §5](../../../specs/post-anticorruption-roadmap/reference/development-workflow.md)，定样用组件板 `/__ui/catalog` 现成的控件。样里的控件就是组件板的 `mw-*` 标记和样式：`board.css`、`board-icons.js`、`board-ring.js` 由 `extract-board.mjs` 从构建好的工作台样式、组件板和图标表里抽出来，不手改；`pnpm workspace:build` 之后重跑：
+
+```bash
+GIT_SHA=$(git rev-parse --short origin/main) node docs/design/unified-input/extract-board.mjs
+```
+
+用到的组件板控件：按钮（主、次、幽灵、链接、危险描边）、分体按钮 `mw-btn-group` 加 `mw-menu`（分组、快捷键、勾）、标签 `mw-tag`（发给谁、底行附件）、上传行 `mw-upload` 与进度、拖放区 `mw-drop`、状态环 `mw-status`、提示条 `mw-alert`、轻提示 `mw-toast`、弹出层 `mw-popover`（改键提示）、键帽 `mw-kbd`、字段说明 `mw-field__hint`、切换组 `mw-toggle-group`、徽标 `mw-badge`、补充的回执 `mw-receipt`。
+
+组件板没有、这次新做的三处，样里用虚线框和「新增 n」标出（顶上可以关掉），定下后先进组件板再进产品：
+
+| 编号 | 新增 | 现有的为什么不够 |
+| --- | --- | --- |
+| 1 | 多行输入框外壳（`.mwc`） | 组件板只有首页底栏的单行输入框（胶囊形，样式挂在首页外壳上），放不下「发给谁」、附件、状态几行。外观照它：`--r-composer` 圆角、`--lift-1` 阴影、聚焦时 `--line-strong` 描边；文字区沿用 `data-fit`（240px 或 40% 封顶）。里面全是现成控件 |
+| 2 | 菜单项的说明行（`.mw-menu__desc`） | `mw-menu__item` 只有名称、快捷键和勾；「打断并改向」会丢掉正在写的回复，选之前要看得到后果 |
+| 3 | 麦克风图标（`icon-mic`） | 图标表里没有；语音在第 53 批，这里只占位置 |
+
+和改之前比，看得出的变化：框里的附件是组件板的上传行（一行一个，带进度和失败原因），比原来的小块高；发送键不再写快捷键，快捷键写在 ▾ 菜单和按钮提示里；停止用 Coding 现在的危险描边按钮。方案卡、目录、对话气泡和斜纹条是评审页自己的样子，不进产品。
 
 ## 七块要定的
 
@@ -48,6 +68,5 @@ python3 -m http.server 4433 --bind 127.0.0.1 --directory docs/design
 - 回复、回执的变化、附件读取都是定时器演的；「停止」只把「AI 正在运行」关掉。
 - 状态块里的按钮（重试、查看、放回输入框）只弹一条提示。
 - 语音按钮只占位置，语音在第 53 批。
-- 控件是原型自己的样式，不是 `mw-*` 组件；做产品前换成组件板里的控件（`data-fit`、`molisDropZone`、输入回执）再核对一遍。
+- 拖放只演示组件板拖放区的样子，产品里接 `molisDropZone`；长高用 `data-fit` 的上限，没有接它的脚本。
 - 状态存在浏览器 localStorage（键 `molis-proto.unified-input.v1`），「重置」清掉。
-- 样式里的设计令牌（`base.css`）从第 03 批的 `workbench-shared-paths/styles.css` 拷来，因为那一批还没合入 main；两边合入后可以改成引用同一份。

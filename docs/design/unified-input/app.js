@@ -1,5 +1,6 @@
 // Unified input design specimen (batch 10). A standalone review page: no Home, no model, every reply and status is
-// simulated. Product work replaces these controls with mw-* parts, data-fit and the shared receipts.
+// simulated. Every control is the component board's own mw-* part (board.css, board-icons.js and board-ring.js, generated
+// by extract-board.mjs); the few parts the board lacks are marked 组件板新增 on the page and listed in the intro.
 (() => {
   "use strict";
   const KEY = "molis-proto.unified-input.v1";
@@ -15,28 +16,24 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* private window: the page still works */ } }
   const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const en = () => s.lang === "en";
+  const colon = () => (en() ? ": " : "：");
 
-  // ---- icons (Lucide paths) ----
-  const P = {
-    clip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
-    up: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>', down: '<path d="m6 9 6 6 6-6"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
-    mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>',
-    stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>', plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
-    file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
-    image: '<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
-    alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
-    off: '<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
-    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', check: '<path d="M20 6 9 17l-5-5"/>',
-    zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
-    queue: '<path d="M16 12H3"/><path d="M16 6H3"/><path d="M10 18H3"/><path d="M21 6v10a2 2 0 0 1-2 2h-5"/><path d="m16 16-2 2 2 2"/>',
-    addmsg: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h8"/><path d="M12 8v8"/>',
-    retry: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>', load: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
-    book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>', slash: '<path d="M22 2 2 22"/>',
-    at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>', arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
-    plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
-    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
-  };
-  const ic = (n, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+  // ---- board controls: every control below is the component board's own mw-* markup (board.css, board-icons.js) ----
+  const ic = (n) => `<svg aria-hidden="true"><use href="#icon-${n}"></use></svg>`;
+  const at = (o) => (o ? " " + o : "");
+  const btn = (variant, label, o = "", icon = "") => `<button type="button" class="mw-btn mw-btn--${variant} mw-btn--sm" data-slot="button"${at(o)}>${icon ? ic(icon) : ""}<span data-slot="button-label">${label}</span></button>`;
+  const menuBtn = (variant, label, o = "") => `<button type="button" class="mw-btn mw-btn--${variant} mw-btn--sm" data-slot="button"${at(o)}><span data-slot="button-label">${label}</span>${ic("chevron-down")}</button>`;
+  const iconBtn = (variant, icon, label, o = "") => `<button type="button" class="mw-btn mw-btn--${variant} mw-btn--icon mw-btn--icon-only mw-btn--sm" data-slot="button" aria-label="${label}" title="${label}"${at(o)}>${ic(icon)}<span class="mw-sr-only">${label}</span></button>`;
+  const linkBtn = (label, o = "") => `<button type="button" class="mw-btn mw-btn--link" data-slot="button"${at(o)}><span data-slot="button-label">${label}</span></button>`;
+  const FAM = { starting: "running", running: "running", generating: "running", failed: "failed", verify: "verify", interrupted: "interrupted", disconnected: "disconnected", done: "done", waiting: "waiting", unread: "unread", read: "read" };
+  const ring = (state) => `<svg class="mw-state-ring" data-mw-state="${state}" data-ring-family="${FAM[state]}" viewBox="0 0 24 24" aria-hidden="true"></svg>`;
+  const pill = (tone, state, text) => `<span class="mw-status mw-status--${tone}" data-slot="status">${ring(state)}<span>${text}</span></span>`;
+  const kbd = (k) => `<kbd class="mw-kbd">${k}</kbd>`;
+  const toggles = (label, items, act) => `<div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="${label}">${items.map(([v, text, on]) => `<button type="button" class="mw-toggle${on ? " is-current" : ""}" aria-pressed="${on}" data-act="${act}" data-v="${v}">${text}</button>`).join("")}</div>`;
+  // Parts the board does not have yet are marked where they appear: data-new="n" draws the number when the strip's
+  // "Mark new parts" is on, and the intro lists each with why the existing parts are not enough.
+  const NEW = (n) => ` data-new="${n}"`;
+  const MIC = '<symbol id="icon-mic" viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 18v3"/></symbol>';
 
   // ---- words that H4 decides (dashed underline = 待定) ----
   const WORDS = {
@@ -157,6 +154,19 @@
     studioNote: ["创作台：统筹 11-04 第 3 条写「另加明确的『打断并改向』按钮」；需求 §4 允许按钮或菜单。用户 2026-11-04 定：创作台和别处一样走 ▾ 菜单。", "Plugin Studio: decision 3 of 11-04 says “an explicit Interrupt and redirect button”; requirement §4 allows a button or a menu. Decided 2026-11-04: the Studio uses the ▾ menu like everywhere else."],
     imNote: ["项目讨论是对人说话：没有送达菜单和停止，其余（键位、草稿、附件、发给谁）一样。", "Project discussion talks to people: no delivery menu and no Stop; keys, drafts, attachments and the receiver line are the same."],
     longText: ["第一节先讲这次改了什么：输入框统一成一个，回车换行，⌘↵ 发送。\n第二节讲运行中的三种送法，各配一个例子。\n第三节列出还没定的：发给谁那一行放在哪、状态写在哪。\n第四节是迁移说明：哪些入口改了键位，第一次会有提示。\n第五节是 FAQ。\n第六节附上截图。\n第七节写验收怎么做。\n第八节留给评论。", "Section 1: what changed — one input everywhere, Enter adds a line, ⌘↵ sends.\nSection 2: the three ways to send while running, one example each.\nSection 3: what is still open — where the receiver line sits, where status goes.\nSection 4: migration — which entries changed keys; a notice comes once.\nSection 5: FAQ.\nSection 6: screenshots.\nSection 7: how acceptance works.\nSection 8: room for comments."],
+    // board alignment (2026-11-04)
+    backTo: ["改回发给助理", "Back to the Assistant"], kNew: ["换行", "new line"], dropHere: ["松开就附上", "Drop to attach"], dropSub: ["放进这一条消息", "Goes with this message"],
+    rcAdd1Body: ["当前回复或这批工具结束后读到", "Read once the current reply or tool batch ends"], rcAdd2Body: ["已在这一{turn}里读到", "Read during this {turn}"],
+    rcIntBody: ["当前回复已停下，按这句接着做；已经做的操作不撤销", "The current reply stopped and work goes on from this; actions already taken stay"],
+    rcNextBody: ["下一{turn}开始时带上；开始前可以撤回", "Goes with the next {turn}; you can take it back until then"],
+    rcLostBody: ["这一{turn}在读到它之前停止了", "This {turn} stopped before reading it"], deliveredBody: ["已送到讨论里", "Posted to the discussion"],
+    showNew: ["标出组件板新增", "Mark new parts"], newTitle: ["组件板新增（样里用虚线框和编号标出）", "New to the component board (dashed outline and number on the page)"],
+    new1: ["<b>1 · 多行输入框外壳</b>：组件板只有首页底栏的单行输入框（胶囊形，样式挂在首页外壳上），放不下「发给谁」、附件、状态这几行。外观照它来：--r-composer 圆角、--lift-1 阴影、聚焦时 --line-strong 描边；文字区沿用 data-fit（240px 或 40% 封顶）。里面的控件都是组件板现成的。", "<b>1 · Multi-row composer shell</b>: the board only has the home bar’s one-line composer (a pill styled by the home shell), which has no room for the receiver line, attachments or status. The look follows it: --r-composer radius, --lift-1 shadow, --line-strong outline on focus; the text area keeps data-fit (240px or 40% cap). Everything inside is an existing board control."],
+    new2: ["<b>2 · 菜单项的说明行</b>：mw-menu__item 只有名称、快捷键和勾。「打断并改向」会丢掉正在写的回复，选之前要看得到后果，所以三种送法各加一行说明（字号、颜色同 mw-field__hint）。", "<b>2 · Menu item description line</b>: mw-menu__item only has a name, shortcut and check. “Interrupt and redirect” throws away the reply being written, so the consequence must be visible before choosing; each of the three ways gets one line (same size and colour as mw-field__hint)."],
+    new3: ["<b>3 · 麦克风图标</b>：图标表里没有。语音在第 53 批，这里只占位置；画法照现有图标（24 格、同线宽）。", "<b>3 · Microphone icon</b>: not in the icon set. Voice comes in batch 53; this only holds its place, drawn like the other icons (24 grid, same stroke)."],
+    usedTitle: ["用到的组件板控件", "Board controls used"],
+    usedList: ["按钮（主、次、幽灵、链接、危险描边）· 分体按钮（mw-btn-group）与菜单（mw-menu、分组、快捷键、勾）· 标签（发给谁、底行附件）· 上传行与进度（框里的附件）· 拖放区 · 状态环（mw-status）· 提示条（mw-alert）· 轻提示（mw-toast）· 弹出层（改键提示）· 键帽（mw-kbd）· 字段说明（mw-field__hint）· 切换组（mw-toggle-group）· 徽标（mw-badge）· 补充的回执（mw-receipt）", "Buttons (primary, secondary, ghost, link, danger outline) · split button (mw-btn-group) and menu (mw-menu with groups, shortcuts, checks) · tags (receiver, bottom-row attachments) · upload rows and progress (attachments in the box) · drop zone · status ring (mw-status) · alert · toast · popover (key notice) · kbd · field hint · toggle group · badge · input receipts (mw-receipt)"],
+    chromeNote: ["方案卡、目录、对话气泡和顶上的斜纹条是评审页自己的样子，不进产品。", "Option cards, the contents list, the chat bubbles and the striped strip on top belong to this review page, not the product."],
   };
   const t = (k, v) => { const x = S[k]; return x ? fill(x[en() ? 1 : 0], v) : fill(k, v); };
   const tp = (k, v) => { const x = S[k]; return x ? fill(x[en() ? 1 : 0], v, true) : fill(k, v, true); };
@@ -186,136 +196,147 @@
   const receiver = (id) => { const list = RECEIVERS[s.entry]; return list[Math.min(s.target[id] || 0, list.length - 1)]; };
   const isRunning = (id, st) => entry().ai && (st === "running" || (id === "deliver" && s.running));
 
-  // ---- the composer ----
+
+  // ---- the composer: board controls inside one new part, the multi-row shell (组件板新增 1) ----
   const STATES = {
-    sending: { cls: "pending", icon: "load", text: "stSending" }, running: { cls: "", icon: "", text: "stRunning" },
-    failed: { cls: "bad", icon: "alert", text: "stFailed", act: ["retry", "retry"] }, uncertain: { cls: "pending", icon: "clock", text: "stUncertain", act: ["look", "noop"] },
-    dropped: { cls: "warn", icon: "alert", text: "stDropped", act: ["putback", "putback"] }, offline: { cls: "warn", icon: "off", text: "stOffline" },
+    sending: { tone: "progress", ring: "starting", text: "stSending" }, running: { tone: "progress", ring: "running", text: "stRunning" },
+    failed: { tone: "blocked", ring: "failed", text: "stFailed", act: ["retry", "retry"], alert: "danger", icon: "alert" },
+    uncertain: { tone: "attention", ring: "verify", text: "stUncertain", act: ["look", "noop"], alert: "warning", icon: "clock" },
+    dropped: { tone: "attention", ring: "interrupted", text: "stDropped", act: ["putback", "putback"], alert: "warning", icon: "alert" },
+    offline: { tone: "hold", ring: "disconnected", text: "stOffline", alert: "warning", icon: "cloud" },
   };
+  const capOf = (st) => t("cap" + st[0].toUpperCase() + st.slice(1));
+  const modeName = (m) => (m === "add" ? t("add") : m === "interrupt" ? t("interrupt") : t("{next}"));
   function statusHTML(st, kind) {
     const d = STATES[st]; if (!d) return "";
-    const iconH = d.icon ? ic(d.icon, "sm" + (d.icon === "load" ? " spin" : "")) : `<span class="dots"><i></i><i></i><i></i></span>`;
-    const act = d.act ? `<button type="button" class="link" data-act="${d.act[1]}">${t(d.act[0])}</button>` : "";
-    if (kind === "banner") return `<div class="banner ${d.cls}" role="status">${iconH}<span class="grow">${t(d.text)}</span>${act}</div>`;
-    return `<span class="status ${d.cls}" role="status">${iconH}<span>${t(d.text)}</span>${act}</span>`;
+    const act = d.act ? linkBtn(t(d.act[0]), `data-act="${d.act[1]}"`) : "";
+    if (kind === "banner") return `<div class="mw-alert${d.alert ? " mw-alert--" + d.alert : ""}" data-slot="alert" role="status"><strong>${capOf(st)}</strong><p>${t(d.text)}${act ? " " + act : ""}</p></div>`;
+    return `<div class="mwc__status" role="status">${pill(d.tone, d.ring, capOf(st))}<span>${t(d.text)}</span>${act}</div>`;
   }
-  function attsHTML(id, cls = "") {
+  function attsHTML(id, where) {
     const list = s.atts[id] || []; if (!list.length) return "";
-    return `<div class="atts ${cls}">${list.map((a, i) => `<span class="att ${a.st === "bad" ? "bad" : ""}">${ic(a.img ? "image" : "file", "sm")}<span>${esc(a.name)}</span>${
-      a.st === "reading" ? `<small>${t("reading")}</small><span class="bar"><i></i></span>` : a.st === "bad" ? `<small>${t("tooBig")}</small>` : `<small>${esc(a.size || "")}</small>`
-    }<button type="button" data-act="rmatt" data-i="${i}" aria-label="${tp("remove")}" title="${tp("remove")}">${ic("x", "sm")}</button></span>`).join("")}</div>`;
+    if (where === "foot") return list.map((a, i) => `<span class="mw-tag mwc__chip${a.st === "bad" ? " is-failed" : ""}" title="${esc(a.name)}${a.st === "bad" ? " · " + tp("tooBig") : ""}">${ic(a.st === "bad" ? "alert" : a.img ? "image" : "file")}<span>${esc(a.name)}</span><button type="button" data-tag-remove data-act="rmatt" data-i="${i}" aria-label="${tp("remove")} ${esc(a.name)}">${ic("x")}</button></span>`).join("");
+    return `<ul class="mw-uploads mwc__atts${where === "out" ? " mwc__atts--out" : ""}">${list.map((a, i) => `<li class="mw-upload"><span class="mw-mark">${ic(a.img ? "image" : "file")}</span><span>${esc(a.name)}${
+      a.st === "reading" ? `<div class="mw-progress" data-slot="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="60" aria-label="${esc(a.name)} ${tp("reading")}"><span style="width:60%"></span></div>`
+        : a.st === "bad" ? `<small class="is-failed">${t("tooBig")}</small>` : `<small>${esc(a.size || "")}</small>`
+    }</span>${iconBtn("ghost", "x", tp("remove") + " " + esc(a.name), `data-act="rmatt" data-i="${i}"`)}</li>`).join("")}</ul>`;
   }
   function comp(id, o = {}) {
     const E = entry(), sc = { ...s.sch, ...(o.sch || {}) }, st = o.st || null;
     const running = isRunning(id, st), mode = s.mode[id] || "add";
     const value = s.drafts[id] ?? "";
     const hasContent = value.trim() || (s.atts[id] || []).some((a) => a.st !== "bad");
-    const sendOff = !hasContent || st === "sending" || st === "uncertain" || st === "offline";
-    const rcv = receiver(id);
-    const ph = trp(E.ph);
-    // receiver
-    const toLine = sc.target === "A" ? `<div class="tline">${t("{to}")}：<span class="to"><span>${tr(rcv)}</span>${(s.target[id] || 0) ? `<button type="button" data-act="tgt0" aria-label="${tp("clear")}" title="${tp("clear")}">${ic("x", "sm")}</button>` : ""}</span></div>` : "";
-    const toChip = sc.target === "B" ? `<span class="tchip" title="${esc(trp(rcv))}">${ic("arrow", "sm")}<span>${tr(rcv)}</span>${(s.target[id] || 0) ? `<button type="button" data-act="tgt0" aria-label="${tp("clear")}">${ic("x", "sm")}</button>` : ""}</span>` : "";
-    // editor-layer pieces
+    const off = !hasContent || st === "sending" || st === "uncertain" || st === "offline" ? " disabled" : "";
+    const rcv = receiver(id), chosen = (s.target[id] || 0) > 0;
+    const open = (k) => ui.menu?.id === id && ui.menu.k === k;
+    const mark = (n) => (id.startsWith("st-") ? "" : NEW(n)); // the six state specimens repeat the same parts
+    // who it goes to: the board's tag; × goes back to the Assistant (as in batch 03)
+    const rTag = (cls = "") => `<span class="mw-tag mwc__to${cls}" title="${esc(trp(rcv))}"><span>${tr(rcv)}</span>${chosen ? `<button type="button" data-tag-remove data-act="tgt0" aria-label="${tp("backTo")}" title="${tp("backTo")}">${ic("x")}</button>` : ""}</span>`;
+    const toLine = sc.target === "A" ? `<div class="mwc__line">${t("{to}")}${colon()}${rTag()}</div>` : "";
+    const toChip = sc.target === "B" ? rTag(" mwc__to--inline") : "";
     const restored = s.restored[id] && value.trim();
-    const restoredLine = sc.editor === "A" && restored ? `<div class="restored">${ic("clock", "sm")}<span>${t("restored")}</span><button type="button" class="link" data-act="cleardraft">${t("clear")}</button></div>` : "";
-    const draftTag = sc.editor === "C" && restored ? `<span class="tag">${t("draftTag")}<button type="button" class="link" data-act="cleardraft" style="margin-left:4px">${t("clear")}</button></span>` : "";
-    // delivery modes
-    const modes = running && sc.deliver === "B" ? `<div class="modes" role="radiogroup" aria-label="${tp("modeLbl")}"><span class="lbl">${t("modeLbl")}</span>${["add", "interrupt", "next"].map((m) => `<button type="button" role="radio" aria-pressed="${mode === m}" data-act="mode" data-m="${m}">${m === "add" ? t("add") : m === "interrupt" ? t("interrupt") : t("{next}")}</button>`).join("")}</div>` : "";
-    // extension entry
-    const extBtn = sc.ext === "A" ? `<button type="button" class="ib" data-act="menu" data-k="ext" aria-haspopup="true" aria-expanded="${ui.menu?.id === id && ui.menu.k === "ext"}" aria-label="${tp("attach")}" title="${tp("attach")}">${ic("plus")}</button>` : "";
-    const extRow = sc.ext === "B" ? [`<button type="button" class="ib" data-act="pickfile" title="${tp("files")}" aria-label="${tp("files")}">${ic("clip")}</button>`, entry().ai ? `<button type="button" class="ib" data-act="sim" data-what="${tp("groupMat")}" title="${tp("groupMat")}" aria-label="${tp("groupMat")}">${ic("book")}</button>` : "", ...EXT[s.entry].plug.slice(0, 1).map((p) => `<button type="button" class="ib" data-act="sim" data-what="${esc(p[0] + " · " + (en() ? p[2] : p[1]))}" title="${esc(p[0] + " · " + (en() ? p[2] : p[1]))}" aria-label="${esc(en() ? p[2] : p[1])}">${ic("plug")}</button>`), EXT[s.entry].plug.length > 1 ? `<button type="button" class="opt" data-act="menu" data-k="ext">${t("more")}${ic("down", "sm")}</button>` : ""].join("") : "";
-    const opts = E.opts.map((p) => `<button type="button" class="opt" data-act="sim" data-what="${esc(p[en() ? 1 : 0])}"><span>${esc(p[en() ? 1 : 0])}</span>${ic("down", "sm")}</button>`).join("");
-    // right side
-    const mic = `<button type="button" class="ib" data-act="mic" ${st === "offline" ? "disabled" : ""} aria-label="${tp("mic")}" title="${tp("mic")}">${ic("mic")}</button>`;
-    const stop = running ? `<button type="button" class="stopb" data-act="stop" title="${tp("stopTip")}">${ic("stop", "sm")}${t("stop")}</button>` : "";
-    const irb = running && sc.deliver === "C" ? `<button type="button" class="irb" data-act="send" data-m="interrupt" ${sendOff ? "disabled" : ""}>${ic("zap", "sm")}${t("interrupt")}</button>` : "";
-    let sendBtn;
-    const kbd = `<span class="kbd">⌘↵</span>`;
-    let sendIcon = st === "sending" ? ic("load", "sm spin") : ic("up", "sm");
-    if (sc.states === "C" && STATES[st]?.icon && st !== "sending") sendIcon = ic(STATES[st].icon, "sm");
+    const restoredLine = sc.editor === "A" && restored ? `<p class="mw-field__hint mwc__row">${t("restored")} · ${linkBtn(t("clear"), 'data-act="cleardraft"')}</p>` : "";
+    const draftTag = sc.editor === "C" && restored ? `<span class="mw-badge mw-badge--neutral" data-slot="badge">${t("draftTag")}</span>${linkBtn(t("clear"), 'data-act="cleardraft"')}` : "";
+    const modes = running && sc.deliver === "B" ? `<div class="mwc__row">${toggles(tp("modeLbl"), ["add", "interrupt", "next"].map((m) => [m, modeName(m), mode === m]), "mode")}</div>` : "";
+    // + menu: the board's ghost icon button opening a mw-menu
+    const extBtn = sc.ext === "A" ? `<div class="mw-compose__anchor">${iconBtn("ghost", "plus", tp("attach"), `data-act="menu" data-k="ext" aria-haspopup="menu" aria-expanded="${open("ext")}"`)}${open("ext") ? menuHTML(id, "ext") : ""}</div>` : "";
+    const X = EXT[s.entry];
+    const extRow = sc.ext === "B" ? `${iconBtn("ghost", "paperclip", tp("files"), 'data-act="pickfile"')}${entry().ai ? iconBtn("ghost", "book", tp("groupMat"), `data-act="sim" data-what="${tp("groupMat")}"`) : ""}${X.plug.slice(0, 1).map((p) => iconBtn("ghost", "package", esc(p[0] + " · " + (en() ? p[2] : p[1])), `data-act="sim" data-what="${esc(p[0] + " · " + (en() ? p[2] : p[1]))}"`)).join("")}${X.plug.length > 1 ? `<div class="mw-compose__anchor">${menuBtn("ghost", t("more"), `data-act="menu" data-k="ext" aria-haspopup="menu" aria-expanded="${open("ext")}"`)}${open("ext") ? menuHTML(id, "ext") : ""}</div>` : ""}` : "";
+    const opts = E.opts.map((p) => menuBtn("ghost", esc(p[en() ? 1 : 0]), `data-act="sim" data-what="${esc(p[en() ? 1 : 0])}"`)).join("");
+    // right side, in the order DESIGN.md fixes: voice, stop, send
+    const mic = `<span class="mwc__new"${mark(3)}>${iconBtn("ghost", "mic", tp("mic"), `data-act="mic"${st === "offline" ? " disabled" : ""}`)}</span>`;
+    const stop = running ? btn("danger-outline", t("stop"), `data-act="stop" title="${tp("stopTip")}"`) : "";
+    const irb = running && sc.deliver === "C" ? btn("secondary", t("interrupt"), `data-act="send" data-m="interrupt"${off}`, "zap") : "";
+    let send;
     if (running && st !== "sending") {
-      const label = sc.deliver === "C" ? t("add") : mode === "add" ? t("add") : mode === "interrupt" ? t("interrupt") : t("{next}");
-      const k = mode === "next" ? `<span class="kbd">⌘⇧↵</span>` : mode === "add" ? kbd : "";
-      sendBtn = `<button type="button" class="send" data-act="send" data-m="${sc.deliver === "C" ? "add" : mode}" ${sendOff ? "disabled" : ""} title="${esc(label.replace(/<[^>]+>/g, ""))}">${label}${k}</button>`;
-      if (sc.deliver === "A") sendBtn = `<span class="split">${sendBtn}<button type="button" class="more" data-act="menu" data-k="modes" aria-haspopup="menu" aria-expanded="${ui.menu?.id === id && ui.menu.k === "modes"}" aria-label="${tp("modeLbl")}" title="${tp("modeLbl")}">${ic("down", "sm")}</button></span>`;
+      const m = sc.deliver === "C" ? "add" : mode;
+      const main = `<button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="send" data-m="${m}" title="${esc(tp(m === "add" ? "add" : m === "interrupt" ? "interrupt" : "{next}"))}${m === "add" ? "（⌘↵）" : m === "next" ? "（⌘⇧↵）" : ""}"${off}><span data-slot="button-label">${modeName(m)}</span></button>`;
+      send = sc.deliver === "A"
+        ? `<div class="mw-btn-group" role="group" aria-label="${tp("modeLbl")}">${main}<div class="mw-compose__anchor"><button type="button" class="mw-btn mw-btn--primary mw-btn--icon mw-btn--icon-only mw-btn--sm" data-slot="button" data-act="menu" data-k="modes" aria-haspopup="menu" aria-expanded="${open("modes")}" aria-label="${tp("modeLbl")}" title="${tp("modeLbl")}">${ic("chevron-down")}<span class="mw-sr-only">${tp("modeLbl")}</span></button>${open("modes") ? menuHTML(id, "modes") : ""}</div></div>`
+        : main;
     } else {
-      sendBtn = `<button type="button" class="send icon" data-act="send" ${sendOff ? "disabled" : ""} aria-label="${tp("send")} ⌘↵" title="${tp("send")}（⌘↵）">${sendIcon}</button>`;
+      const icon = st === "sending" ? `<span class="mw-spinner" aria-hidden="true"></span>` : ic(sc.states === "C" && STATES[st]?.icon ? STATES[st].icon : "send");
+      send = `<button type="button" class="mw-btn mw-btn--primary mw-btn--icon mw-btn--icon-only mw-btn--sm" data-slot="button" data-act="send" aria-label="${tp("send")}（⌘↵）" title="${tp("send")}（⌘↵）"${off}>${icon}<span class="mw-sr-only">${tp("send")}</span></button>`;
     }
-    const statusIn = st && sc.states === "A" ? `<div class="srow">${statusHTML(st, "line")}</div>` : "";
+    const statusIn = st && sc.states === "A" ? statusHTML(st, "line") : "";
     const banner = st && sc.states === "B" ? statusHTML(st, "banner") : "";
-    const ftoast = st && sc.states === "C" && (st === "failed" || st === "dropped" || st === "uncertain") ? `<div class="ftoast">${ic(STATES[st].icon, "sm")}${t(STATES[st].text)}</div><p class="note" style="text-align:center">${t("toastOnly")}</p>` : "";
-    const menu = popHTML(id);
-    const coach = id === "keys" && sc.keys === "A" && !s.hintSeen ? `<div class="coach" role="dialog" aria-label="${tp("kTitle")}"><span>${t("coach")}</span><button type="button" class="btn sm" data-act="gotit">${t("gotIt")}</button></div>` : "";
-    const nudge = id === "keys" && sc.keys === "C" && ui.nudge && !s.hintSeen ? `<div class="nudge" role="status">${ic("alert", "sm")}<span>${t("nudge")}</span><button type="button" class="btn sm sec" data-act="gotit">${t("gotIt")}</button></div>` : "";
-    const keyline = id === "keys" && sc.keys === "B" && s.sendCount < 3 ? `<div class="khint soft">${ic("alert", "sm")}<span>${t("keyline")}</span><button type="button" class="link" data-act="gotit" aria-label="${tp("gotIt")}">${ic("x", "sm")}</button></div>` : "";
-    return `<div class="cwrap" data-spec="${id}">
-      ${menu}${coach}${nudge}
-      ${toLine}${banner}
-      ${sc.editor === "C" ? attsHTML(id, "out") : ""}
-      <div class="cbox ${st === "failed" ? "bad" : ""} ${st === "offline" ? "off" : ""}" data-drop="${id}">
-        ${modes}${sc.editor === "A" ? attsHTML(id) : ""}${restoredLine}
-        <div class="trow">${toChip}<textarea data-cid="${id}" rows="2" placeholder="${esc(ph)}" aria-label="${esc(tp("{to}") + " " + trp(rcv))}">${esc(value)}</textarea></div>
-        <div class="ime" data-ime="${id}" hidden>${ic("alert", "sm")}<span>${t("ime")}</span></div>${statusIn}
-        <div class="foot"><div class="left">${extBtn}${extRow}${sc.editor === "B" ? attsHTML(id).replace('class="atts ', 'class="atts out ') : ""}${opts}${draftTag}</div><div class="right">${mic}${stop}${irb}${sendBtn}</div></div>
+    const ftoast = st && sc.states === "C" && STATES[st]?.act ? `<div class="mwc__toastline"><div class="mw-toast${st === "failed" ? " is-error" : ""}" data-slot="toast" role="status"><span>${t(STATES[st].text)}</span><button type="button" class="mw-toast__action" data-act="${STATES[st].act[1]}">${t(STATES[st].act[0])}</button></div><p class="mw-field__hint">${t("toastOnly")}</p></div>` : "";
+    // one-time key notices: the board's popover with a secondary button
+    const coach = id === "keys" && sc.keys === "A" && !s.hintSeen ? `<div class="mw-popover mwc__pop" data-slot="popover" role="dialog" aria-label="${tp("kTitle")}"><p>${t("coach")}</p>${btn("secondary", t("gotIt"), 'data-act="gotit"')}</div>` : "";
+    const nudge = id === "keys" && sc.keys === "C" && ui.nudge && !s.hintSeen ? `<div class="mw-popover mwc__pop" data-slot="popover" role="status"><p>${t("nudge")}</p>${btn("secondary", t("gotIt"), 'data-act="gotit"')}</div>` : "";
+    const keyline = id === "keys" && sc.keys === "B" && s.sendCount < 3 ? `<p class="mw-field__hint mwc__keys">${kbd("Enter")} ${t("kNew")} · ${kbd("⌘↵")} ${t("send")} · ${kbd("⌘⇧↵")} ${t("{next}")} ${iconBtn("ghost", "x", tp("gotIt"), 'data-act="gotit"')}</p>` : "";
+    return `<div class="mwc-wrap" data-spec="${id}">
+      ${coach}${nudge}${toLine}${banner}${sc.editor === "C" ? attsHTML(id, "out") : ""}
+      <div class="mwc${st === "failed" ? " is-failed" : ""}${st === "offline" ? " is-offline" : ""}"${mark(1)} data-drop="${id}">
+        ${modes}${sc.editor === "A" ? attsHTML(id, "in") : ""}${restoredLine}
+        <div class="mwc__text">${toChip}<textarea data-cid="${id}" data-fit rows="1" placeholder="${esc(trp(E.ph))}" aria-label="${esc(tp("{to}") + " " + trp(rcv))}">${esc(value)}</textarea></div>
+        <p class="mw-field__hint mwc__row" data-ime="${id}" hidden>${t("ime")}</p>${statusIn}
+        <div class="mwc__foot"><div class="mwc__start">${extBtn}${extRow}${sc.editor === "B" ? attsHTML(id, "foot") : ""}${opts}${draftTag}</div><div class="mwc__end">${mic}${stop}${irb}${send}</div></div>
+        <div class="mw-drop mw-drop--compact mwc__drop" data-drop-live hidden><span class="mw-mark">${ic("upload")}</span><p>${t("dropHere")}</p><small>${t("dropSub")}</small></div>
       </div>
       ${keyline}${ftoast}
     </div>`;
   }
-  function popHTML(id) {
-    if (!ui.menu || ui.menu.id !== id) return "";
-    const k = ui.menu.k, X = EXT[s.entry];
+  function menuHTML(id, k) {
+    const X = EXT[s.entry];
+    const item = (o) => `<button type="button" class="mw-menu__item" role="${o.role || "menuitem"}"${o.checked != null ? ` aria-checked="${o.checked}"` : ""}${at(o.attrs)}>${ic(o.icon)}<span data-slot="menu-item-label">${o.label}${o.desc ? `<small class="mw-menu__desc"${o.mark ? NEW(2) : ""}>${o.desc}</small>` : ""}</span>${o.key ? `<span class="mw-menu__shortcut">${o.key}</span>` : ""}${o.checked ? `<span class="mw-menu__check">${ic("check")}</span>` : ""}</button>`;
+    const group = (label, items) => (items ? `<div class="mw-menu__group" role="group" aria-label="${esc(label.replace(/<[^>]+>/g, ""))}"><div class="mw-menu__label">${label}</div>${items}</div>` : "");
+    const wrap = (end, label, inner) => `<div class="mw-compose__menu mwc__menu${end ? " mwc__menu--end" : ""}" data-compose-menu><div class="mw-menu" data-slot="menu" role="menu" aria-label="${label}">${inner}</div></div>`;
     if (k === "modes") {
       const cur = s.mode[id] || "add";
-      const item = (m, name, desc, key) => `<button type="button" class="mi" role="menuitemradio" aria-checked="${cur === m}" data-act="pickmode" data-m="${m}">${ic(m === "add" ? "addmsg" : m === "interrupt" ? "zap" : "queue")}<span class="tx"><strong>${name}</strong><small>${desc}</small></span><span class="k">${key}</span></button>`;
-      return `<div class="pop right" role="menu" aria-label="${tp("modeLbl")}">${item("add", t("addDef"), t("addDesc"), "⌘↵")}${item("interrupt", t("interrupt"), t("intDesc"), t("noKey"))}${item("next", t("{next}"), t("nextDesc"), "⌘⇧↵")}</div>`;
+      const row = (m, icon, desc, key) => item({ role: "menuitemradio", checked: cur === m, icon, label: m === "add" ? t("addDef") : modeName(m), desc: t(desc), mark: m === "add", key, attrs: `data-act="pickmode" data-m="${m}"` });
+      return wrap(true, tp("modeLbl"), row("add", "message", "addDesc", "⌘↵") + row("interrupt", "zap", "intDesc", "") + row("next", "clock", "nextDesc", "⌘⇧↵"));
     }
-    const row = (icon, label, act, extra = "") => `<button type="button" class="mi" role="menuitem" data-act="${act}" ${extra}>${ic(icon)}<span class="tx"><strong>${label}</strong></span></button>`;
     if (k === "ext") {
-      const plug = X.plug.map((p) => row("plug", `${esc(en() ? p[2] : p[1])} <small style="color:var(--muted);font-weight:400">· ${esc(p[0])}</small>`, "sim", `data-what="${esc(p[0] + " · " + (en() ? p[2] : p[1]))}"`)).join("");
-      return `<div class="pop left" role="menu"><div class="ph-h">${t("groupFiles")}</div>${row("file", t("files"), "pickfile")}${row("image", t("images"), "pickfile")}${entry().ai ? `<div class="ph-h">${t("groupMat")}</div>${row("book", en() ? "Project materials…" : "项目资料…", "sim", `data-what="${tp("groupMat")}"`)}` : ""}${plug ? `<div class="ph-h">${t("groupPlug")}</div>${plug}` : ""}<div class="foot-note">${t("extNote")}</div></div>`;
+      const byPlugin = {};
+      X.plug.forEach((p) => (byPlugin[p[0]] = (byPlugin[p[0]] || "") + item({ icon: "package", label: esc(en() ? p[2] : p[1]), attrs: `data-act="sim" data-what="${esc(p[0] + " · " + (en() ? p[2] : p[1]))}"` })));
+      return wrap(false, tp("attach"), group(t("groupFiles"), item({ icon: "paperclip", label: t("files"), attrs: 'data-act="pickfile"' }) + item({ icon: "image", label: t("images"), attrs: 'data-act="pickfile"' }))
+        + (entry().ai ? group(t("groupMat"), item({ icon: "book", label: en() ? "Project materials…" : "项目资料…", attrs: `data-act="sim" data-what="${tp("groupMat")}"` })) : "")
+        + Object.entries(byPlugin).map(([name, items]) => group(esc(name), items)).join(""));
     }
     const list = k === "slash" ? X.slash : X.at;
-    return `<div class="pop left" role="listbox"><div class="ph-h">${k === "slash" ? t("cmd") : t("mention")}</div>${list.map((p) => `<button type="button" class="mi" role="option" data-act="insert" data-v="${esc(trp(p))}">${ic(k === "slash" ? "slash" : "at", "sm")}<span class="tx"><strong>${tr(p)}</strong></span></button>`).join("")}<div class="foot-note">${t("extNote")}</div></div>`;
+    return wrap(false, k === "slash" ? tp("cmd") : tp("mention"), group(k === "slash" ? t("cmd") : t("mention"), list.map((p) => item({ icon: k === "slash" ? "hash" : "user", label: tr(p), attrs: `data-act="insert" data-v="${esc(trp(p))}"` })).join("")));
   }
+  // The conversation above the composer is a simplified stand-in (not part of this design); receipts are the board's.
+  const RC = { rcAdd1: "unread", rcAdd2: "read", rcInt: "read", rcNext: "waiting", rcLost: "unread", delivered: "read" };
   function threadHTML(id) {
     const list = (s.threads[id] || []).slice(-4);
     const rows = list.map((m, i) => {
-      if (m.ai) return `<div class="msg ai"><div class="bub">${t(m.ai)}</div></div>`;
-      const rc = m.rc ? `<span class="rcpt ${m.rc.cls || ""}">${m.rc.cls === "bad" ? ic("alert", "sm") : m.rc.cls === "pending" ? ic("clock", "sm") : ic("check", "sm")}${t(m.rc.k)}${m.rc.acts ? m.rc.acts.map((a) => ` · <button type="button" class="link" data-act="${a[1]}" data-i="${list.length - 1 - i}">${t(a[0])}</button>`).join("") : ""}</span>` : "";
-      const via = m.via ? `<span class="via">${m.via === "interrupt" ? ic("zap", "sm") : m.via === "next" ? ic("queue", "sm") : ic("addmsg", "sm")}${m.via === "add" ? t("add") : m.via === "interrupt" ? t("interrupt") : t("{next}")}</span>` : "";
-      return `<div class="msg">${via}<div class="bub">${esc(m.text)}${m.n ? ` <small>📎${m.n}</small>` : ""}</div>${rc}</div>`;
+      if (m.ai) return `<p class="mwt__ai">${t(m.ai)}</p>`;
+      const acts = m.rc?.acts ? `<div class="mw-receipt__acts">${m.rc.acts.map((a) => btn("secondary", t(a[0]), `data-act="${a[1]}" data-i="${list.length - 1 - i}"`)).join("")}</div>` : "";
+      const rc = m.rc ? `<details class="mw-receipt" data-state="${RC[m.rc.k] || "read"}"${acts ? " open" : ""}><summary><span class="mw-receipt__fact${m.rc.k === "rcLost" ? " mw-receipt__problem" : ""}">${t(m.rc.k)}</span></summary><div class="mw-receipt__body"><p>${m.via ? modeName(m.via) + " · " : ""}${t(m.rc.k + "Body")}</p>${acts}</div></details>` : "";
+      return `<div class="mwt__me">${m.via ? `<span class="mw-badge mw-badge--neutral" data-slot="badge">${modeName(m.via)}</span>` : ""}<p class="mwt__bub">${esc(m.text)}${m.n ? ` · ${ic("paperclip")}${m.n}` : ""}</p>${rc}</div>`;
     }).join("");
-    const writing = isRunning(id) && id === "deliver" ? `<div class="running"><span class="dots"><i></i><i></i><i></i></span>${t("aiWriting")}</div>` : "";
-    return `<div class="thread">${rows}${writing}</div>`;
+    const writing = isRunning(id) && id === "deliver" ? `<p class="mwt__ai">${pill("progress", "generating", t("aiWriting"))}</p>` : "";
+    return `<div class="mwt" role="log">${rows}${writing}</div>`;
   }
   function pane(id, inner, o = {}) {
     const E = entry();
-    const head = (o.sch?.target || s.sch.target) === "C" ? `${t("{to}")}：${tr(receiver(id))}` : tr(E.pane);
-    const close = s.entry === "im" ? `<button type="button" class="ib" data-act="sim" data-what="${tp("closeIM")}" title="${tp("closeIM")}" aria-label="${tp("closeIM")}" style="width:26px;height:26px">${ic("x", "sm")}</button>` : "";
+    const head = (o.sch?.target || s.sch.target) === "C" ? `${t("{to}")}${colon()}${tr(receiver(id))}` : tr(E.pane);
+    const close = s.entry === "im" ? iconBtn("ghost", "x", tp("closeIM"), `data-act="sim" data-what="${tp("closeIM")}"`) : "";
     return `<div class="spec">${o.cap ? `<div class="cap">${o.cap}</div>` : ""}<div class="pane"><div class="phd"><span class="grow">${head}</span>${close}</div>${o.thread === false ? "" : threadHTML(id)}${inner}</div></div>`;
   }
 
   // ---- blocks ----
   function schemes(block, prefix) {
-    return `<div class="schemes" role="radiogroup" aria-label="${tp(block)}">${["A", "B", "C"].map((x) => `<button type="button" class="sc" role="radio" aria-pressed="${s.sch[block] === x}" data-act="scheme" data-b="${block}" data-x="${x}"><span class="nm">${x} · ${t(prefix + "_" + x)}${REC[block] === x ? `<span class="tag out">${t("rec")}</span>` : ""}</span><span class="pro">${t(prefix + "_" + x + "p")}</span><span class="con">${t(prefix + "_" + x + "c")}</span></button>`).join("")}</div>`;
+    return `<div class="schemes" role="radiogroup" aria-label="${tp(block)}">${["A", "B", "C"].map((x) => `<button type="button" class="sc" role="radio" aria-pressed="${s.sch[block] === x}" data-act="scheme" data-b="${block}" data-x="${x}"><span class="nm">${x} · ${t(prefix + "_" + x)}${REC[block] === x ? `<span class="mw-badge mw-badge--info" data-slot="badge">${t("rec")}</span>` : ""}</span><span class="pro">${t(prefix + "_" + x + "p")}</span><span class="con">${t(prefix + "_" + x + "c")}</span></button>`).join("")}</div>`;
   }
   const head = (n, k, refs) => `<div class="bh"><span class="num">${n}</span><h2>${t(k)}</h2><span class="refs">${refs}</span></div>`;
   const BLOCKS = [
     { id: "editor", n: 1, k: "b1", refs: "UIV-01～04 · VUX-16 · VUX-18", render: () => `${head(1, "b1", "UIV-01～04 · VUX-16 · VUX-18")}<p class="lede">${t("l1")}</p>${schemes("editor", "e")}
-      <div class="tools"><span class="lbl">${t("tryIt")}：</span><button type="button" class="btn sm sec" data-act="addatts" data-id="editor">${t("tAttach")}</button><button type="button" class="btn sm sec" data-act="addbad" data-id="editor">${t("tBad")}</button><button type="button" class="btn sm sec" data-act="long" data-id="editor">${t("tLong")}</button><button type="button" class="btn sm sec" data-act="refresh" data-id="editor">${t("tRefresh")}</button><button type="button" class="btn sm sec" data-act="imedemo" data-id="editor">${t("tIme")}</button></div>
+      <div class="tools"><span class="lbl">${t("tryIt")}${colon()}</span><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="addatts" data-id="editor">${t("tAttach")}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="addbad" data-id="editor">${t("tBad")}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="long" data-id="editor">${t("tLong")}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="refresh" data-id="editor">${t("tRefresh")}</button><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="imedemo" data-id="editor">${t("tIme")}</button></div>
       <div class="stage">${pane("editor", comp("editor"))}</div><p class="note">${t("tryEditor")}</p>` },
     { id: "deliver", n: 2, k: "b2", refs: "UIV-17 · ai-input-receipts §4.1", render: () => `${head(2, "b2", "UIV-17 · ai-input-receipts §4.1")}<p class="lede">${t("l2")}</p>${schemes("deliver", "d")}
-      ${s.entry === "studio" ? `<div class="decided warn">${t("studioNote")}</div>` : ""}${s.entry === "im" ? `<div class="decided">${t("imNote")}</div>` : ""}
-      <div class="tools"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" data-act="running" ${s.running ? "checked" : ""} ${entry().ai ? "" : "disabled"}>${t("tRunning")}</label></div>
+      ${s.entry === "studio" ? `<div class="mw-alert mw-alert--warning" data-slot="alert" role="note"><p>${t("studioNote")}</p></div>` : ""}${s.entry === "im" ? `<div class="mw-alert" data-slot="alert" role="note"><p>${t("imNote")}</p></div>` : ""}
+      <div class="tools"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" class="mw-check" data-act="running" ${s.running ? "checked" : ""} ${entry().ai ? "" : "disabled"}>${t("tRunning")}</label></div>
       <div class="stage">${pane("deliver", comp("deliver"))}</div><p class="note">${t("tryDeliver")}</p>` },
     { id: "keys", n: 3, k: "b3", refs: "§4 · UIV-02", render: () => `${head(3, "b3", "§4 · UIV-02")}<p class="lede">${t("l3")}</p>${schemes("keys", "k")}
-      <div class="tools"><span class="lbl">${t("tryIt")}：</span><button type="button" class="btn sm sec" data-act="updated">${t("tUpdated")}</button></div>
+      <div class="tools"><span class="lbl">${t("tryIt")}${colon()}</span><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="updated">${t("tUpdated")}</button></div>
       <div class="stage two">${pane("keys", comp("keys"))}<div class="spec"><div class="cap">${t("kTitle")}</div><div class="pane"><table class="ktable"><thead><tr><th>${t("kKey")}</th><th>${t("kDoes")}</th></tr></thead><tbody>
-      <tr><td><kbd>Enter</kbd></td><td>${t("k1")}</td></tr><tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Enter</kbd></td><td>${t("k2")}</td></tr><tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Enter</kbd></td><td>${t("k3")}</td></tr>
-      <tr><td>—</td><td>${t("k4")}</td></tr><tr><td><kbd>Tab</kbd></td><td>${t("k5")}</td></tr><tr><td><kbd>Esc</kbd></td><td>${t("k6")}</td></tr></tbody></table></div></div></div><p class="note">${t("tryKeys")}</p>` },
+      <tr><td><kbd class="mw-kbd">Enter</kbd></td><td>${t("k1")}</td></tr><tr><td><kbd class="mw-kbd">⌘</kbd>/<kbd class="mw-kbd">Ctrl</kbd> <kbd class="mw-kbd">Enter</kbd></td><td>${t("k2")}</td></tr><tr><td><kbd class="mw-kbd">⌘</kbd>/<kbd class="mw-kbd">Ctrl</kbd> <kbd class="mw-kbd">Shift</kbd> <kbd class="mw-kbd">Enter</kbd></td><td>${t("k3")}</td></tr>
+      <tr><td>—</td><td>${t("k4")}</td></tr><tr><td><kbd class="mw-kbd">Tab</kbd></td><td>${t("k5")}</td></tr><tr><td><kbd class="mw-kbd">Esc</kbd></td><td>${t("k6")}</td></tr></tbody></table></div></div></div><p class="note">${t("tryKeys")}</p>` },
     { id: "target", n: 4, k: "b4", refs: "§4 · PWA-130", render: () => `${head(4, "b4", "§4 · PWA-130")}<p class="lede">${t("l4")}</p>${schemes("target", "t")}
-      <div class="tools"><span class="lbl">${t("tTargets")}：</span>${RECEIVERS[s.entry].map((r, i) => `<button type="button" class="btn sm ${(s.target.target || 0) === i ? "primary" : "sec"}" data-act="tgt" data-i="${i}">${tr(r)}</button>`).join("")}</div>
+      <div class="tools"><span class="lbl">${t("tTargets")}${colon()}</span>${RECEIVERS[s.entry].map((r, i) => `<button type="button" class="mw-btn mw-btn--sm mw-btn--${(s.target.target || 0) === i ? "primary" : "secondary"}" aria-pressed="${(s.target.target || 0) === i}" data-act="tgt" data-i="${i}">${tr(r)}</button>`).join("")}</div>
       <div class="stage">${pane("target", comp("target"), { thread: false })}</div>` },
     { id: "states", n: 5, k: "b5", refs: "UIV-03 · §8", render: () => `${head(5, "b5", "UIV-03 · §8")}<p class="lede">${t("l5")}</p>${schemes("states", "s")}
       <div class="stage two">${["sending", "running", "failed", "uncertain", "dropped", "offline"].map((st) => pane("st-" + st, comp("st-" + st, { st }), { cap: t("cap" + st[0].toUpperCase() + st.slice(1)), thread: st === "dropped" })).join("")}</div>` },
@@ -324,8 +345,8 @@
     { id: "h4", n: 7, k: "b7", refs: "H4", render: h4Block },
   ];
   function h4Block() {
-    const row = (n) => `<tr aria-current="${s.words === n}"><td><button type="button" class="btn sm ${s.words === n ? "primary" : "sec"}" data-act="words" data-w="${n}">${t("w" + n)}${n === "1" ? ` · ${t("rec")}` : ""}</button></td><td>${t("h" + n + "d")}</td><td>${t("h" + n + "p")}</td><td>${t("h" + n + "c")}</td></tr>`;
-    const choice = (key, a, b, va, vb) => `<div class="mini"><b style="font-weight:500">${t(key)}</b><span class="seg"><button type="button" aria-pressed="${s[a] === va}" data-act="small" data-k="${a}" data-v="${va}">${t(key + "a")}</button><button type="button" aria-pressed="${s[a] === vb}" data-act="small" data-k="${a}" data-v="${vb}">${t(key + "b")}</button></span></div>`;
+    const row = (n) => `<tr aria-current="${s.words === n}"><td><button type="button" class="mw-btn mw-btn--sm mw-btn--${s.words === n ? "primary" : "secondary"}" aria-pressed="${s.words === n}" data-act="words" data-w="${n}">${t("w" + n)}${n === "1" ? ` · ${t("rec")}` : ""}</button></td><td>${t("h" + n + "d")}</td><td>${t("h" + n + "p")}</td><td>${t("h" + n + "c")}</td></tr>`;
+    const choice = (key, a, b, va, vb) => `<div class="mini"><b style="font-weight:500">${t(key)}</b><div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="${tp(key)}">${[[va, "a"], [vb, "b"]].map(([v, x]) => `<button type="button" class="mw-toggle${s[a] === v ? " is-current" : ""}" aria-pressed="${s[a] === v}" data-act="small" data-k="${a}" data-v="${v}">${t(key + x)}</button>`).join("")}</div></div>`;
     const sm = [["sNew", "vNew"], ["sList", "vList"], ["sBg", "vBg"], ["sSub", "vSub"], ["sFrom", "vFrom"], ["sMenu", "vMenu"], ["sTo", "vTo"], ["sStop", "vStop"]];
     return `${head(7, "b7", "H4 · GLOSSARY")}<p class="lede">${t("l7")}</p>
       <table class="wtable"><thead><tr><th>${t("hScheme")}</th><th>${t("hDo")}</th><th>${t("hPro")}</th><th>${t("hCon")}</th></tr></thead><tbody>${row("1")}${row("2")}${row("3")}</tbody></table>
@@ -337,19 +358,22 @@
 
   // ---- render ----
   function render() {
-    document.documentElement.dataset.theme = s.theme;
+    document.documentElement.dataset.resolvedTheme = s.theme; document.documentElement.toggleAttribute("data-show-new", s.showNew !== false);
     document.documentElement.lang = en() ? "en" : "zh-CN";
     document.title = en() ? "Unified input specimen · Molis Work prototype" : "统一输入框定样 · Molis Work 原型";
     document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = tp(el.dataset.t); });
     const sel = document.getElementById("entry");
     sel.innerHTML = Object.entries(ENTRIES).map(([k, v]) => `<option value="${k}" ${s.entry === k ? "selected" : ""}>${esc(v.label[en() ? 1 : 0])}</option>`).join("");
-    document.querySelectorAll("#words [data-words]").forEach((b) => { b.textContent = tp("w" + b.dataset.words); b.setAttribute("aria-pressed", String(s.words === b.dataset.words)); });
-    document.querySelectorAll("#lang [data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(s.lang === b.dataset.lang)));
-    document.querySelectorAll("#theme [data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", String(s.theme === b.dataset.themeSet)));
+    const press = (b, on) => { b.setAttribute("aria-pressed", String(on)); b.classList.toggle("is-current", on); };
+    document.querySelectorAll("#words [data-words]").forEach((b) => { b.textContent = tp("w" + b.dataset.words); press(b, s.words === b.dataset.words); });
+    document.querySelectorAll("#lang [data-lang]").forEach((b) => press(b, s.lang === b.dataset.lang));
+    document.querySelectorAll("#theme [data-theme-set]").forEach((b) => press(b, s.theme === b.dataset.themeSet));
+    press(document.getElementById("shownew"), s.showNew !== false);
     document.getElementById("toc").innerHTML = BLOCKS.map((b) => `<a href="#b-${b.id}"><span class="n">${b.n}</span>${t(b.k)}${s.sch[b.id] ? `<span class="pick">${s.sch[b.id]}</span>` : ""}</a>`).join("");
-    document.getElementById("app").innerHTML = `<section class="intro"><h1>${t("title")}</h1><p><span class="tag sim">${t("status")}</span></p><p>${t("introP")}</p>
+    document.getElementById("app").innerHTML = `<section class="intro"><h1>${t("title")}</h1><p><span class="mw-badge mw-badge--neutral mwr-sim" data-slot="badge">${t("status")}</span></p><p>${t("introP")}</p>
       <p style="margin-top:12px;font-weight:600;color:var(--ink)">${t("already")}</p><ul>${["dec1", "dec2", "dec3", "dec4", "dec5"].map((k) => `<li>${t(k)}</li>`).join("")}</ul>
-      <div class="legend"><span class="h4w">${en() ? "dashed" : "虚线"}</span><span>${t("legend")}</span></div></section>${BLOCKS.map((b) => `<section class="blk" id="b-${b.id}">${b.render()}</section>`).join("")}`;
+      <div class="legend"><span class="h4w">${en() ? "dashed" : "虚线"}</span><span>${t("legend")}</span></div>
+      <div class="mwr-new"><p><b>${t("newTitle")}</b></p><ul>${["new1", "new2", "new3"].map((k) => `<li>${t(k)}</li>`).join("")}</ul><p><b>${t("usedTitle")}</b>：${t("usedList")}</p><p class="mw-field__hint">${t("chromeNote")}</p></div></section>${BLOCKS.map((b) => `<section class="blk" id="b-${b.id}">${b.render()}</section>`).join("")}`;
     fitAll();
   }
   function renderBlock(blockId) {
@@ -361,7 +385,7 @@
     if (cid) { const ta = document.querySelector(`textarea[data-cid="${cid}"]`); if (ta) { ta.focus(); const p = pos ?? ta.value.length; ta.setSelectionRange(p, p); } }
   }
   const blockOf = (id) => (id.startsWith("st-") ? "states" : id);
-  function fit(ta) { ta.style.height = "auto"; if (!ta.value) return; ta.style.height = ta.scrollHeight + 2 + "px"; }
+  function fit(ta) { ta.style.height = "auto"; if (!ta.value) return; ta.style.height = ta.scrollHeight + "px"; }
   function fitAll() { document.querySelectorAll("textarea[data-cid]").forEach(fit); }
   let toastTimer;
   function toast(msg) { const el = document.getElementById("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 2600); }
@@ -396,13 +420,13 @@
 
   document.addEventListener("click", (e) => {
     const el = e.target.closest("[data-act]");
-    if (!el) { if (ui.menu && !e.target.closest(".pop")) { const b = blockOf(ui.menu.id); ui.menu = null; renderBlock(b); } return; }
+    if (!el) { if (ui.menu && !e.target.closest(".mw-compose__menu")) { const b = blockOf(ui.menu.id); ui.menu = null; renderBlock(b); } return; }
     const a = el.dataset.act, id = specOf(el);
     if (a === "running") return;
     if (a === "scheme") { s.sch[el.dataset.b] = el.dataset.x; ui.menu = null; ui.nudge = false; save(); return renderBlock(el.dataset.b); }
     if (a === "send") return send(id, el.dataset.m);
     if (a === "menu") { ui.menu = ui.menu && ui.menu.id === id && ui.menu.k === el.dataset.k ? null : { id, k: el.dataset.k }; return renderBlock(blockOf(id)); }
-    if (a === "pickmode" || a === "mode") { s.mode[id] = el.dataset.m; ui.menu = null; save(); renderBlock(blockOf(id)); document.querySelector(`textarea[data-cid="${id}"]`)?.focus(); return; }
+    if (a === "pickmode" || a === "mode") { s.mode[id] = el.dataset.m || el.dataset.v; ui.menu = null; save(); renderBlock(blockOf(id)); document.querySelector(`textarea[data-cid="${id}"]`)?.focus(); return; }
     if (a === "pickfile") { ui.menu = null; const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true; inp.onchange = () => addFiles(id, [...inp.files].map((f) => ({ name: f.name, size: Math.max(1, Math.round(f.size / 1024)) + " KB" }))); inp.click(); return renderBlock(blockOf(id)); }
     if (a === "addatts") return addFiles(id, [{ name: en() ? "release-notes-draft.md" : "发布说明草稿.md", size: "12 KB" }, { name: en() ? "screenshot 2026-11-03.png" : "截图 2026-11-03.png", size: "340 KB" }]);
     if (a === "addbad") { (s.atts[id] = s.atts[id] || []).push({ name: en() ? "screen-recording.mov" : "录屏.mov", st: "bad" }); save(); return renderBlock(blockOf(id)); }
@@ -434,14 +458,14 @@
     const v = ta.value, pos = ta.selectionStart, ch = v[pos - 1], before = v[pos - 2];
     if ((ch === "/" && (pos === 1 || before === "\n") && EXT[s.entry].slash.length) || (ch === "@" && (pos === 1 || /\s/.test(before || "")))) { ui.menu = { id, k: ch === "/" ? "slash" : "at" }; renderBlock(blockOf(id)); }
     else if (ui.menu && (ui.menu.k === "slash" || ui.menu.k === "at") && ui.menu.id === id && !/[/@]\S*$/.test(v.slice(0, pos))) { ui.menu = null; renderBlock(blockOf(id)); }
-    else { const send = ta.closest(".cbox").querySelectorAll('[data-act="send"]'); const off = !v.trim() && !(s.atts[id] || []).some((a) => a.st !== "bad"); send.forEach((b) => { if (!id.startsWith("st-") || !["sending", "uncertain", "offline"].includes(id.slice(3))) b.disabled = off; }); }
+    else { const send = ta.closest(".mwc").querySelectorAll('[data-act="send"]'); const off = !v.trim() && !(s.atts[id] || []).some((a) => a.st !== "bad"); send.forEach((b) => { if (!id.startsWith("st-") || !["sending", "uncertain", "offline"].includes(id.slice(3))) b.disabled = off; }); }
   });
   document.addEventListener("keydown", (e) => {
     const ta = e.target.closest?.("textarea[data-cid]");
     if (e.key === "Escape" && ui.menu) { e.preventDefault(); const id = ui.menu.id; ui.menu = null; renderBlock(blockOf(id)); document.querySelector(`textarea[data-cid="${id}"]`)?.focus(); return; }
-    if (ta && e.key === "ArrowDown" && ui.menu && ui.menu.id === ta.dataset.cid) { e.preventDefault(); ta.closest(".cwrap").querySelector(".pop .mi")?.focus(); return; }
-    const mi = e.target.closest?.(".pop .mi");
-    if (mi && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); const all = [...mi.closest(".pop").querySelectorAll(".mi")]; all[(all.indexOf(mi) + (e.key === "ArrowDown" ? 1 : all.length - 1)) % all.length].focus(); return; }
+    if (ta && e.key === "ArrowDown" && ui.menu && ui.menu.id === ta.dataset.cid) { e.preventDefault(); ta.closest(".mwc-wrap").querySelector(".mw-compose__menu .mw-menu__item")?.focus(); return; }
+    const mi = e.target.closest?.(".mw-compose__menu .mw-menu__item");
+    if (mi && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); const all = [...mi.closest(".mw-menu").querySelectorAll(".mw-menu__item")]; all[(all.indexOf(mi) + (e.key === "ArrowDown" ? 1 : all.length - 1)) % all.length].focus(); return; }
     if (!ta || e.key !== "Enter") return;
     const id = ta.dataset.cid;
     if (e.isComposing || e.keyCode === 229) { const p = document.querySelector(`[data-ime="${id}"]`); if (p) { p.hidden = false; clearTimeout(p._t); p._t = setTimeout(() => { p.hidden = true; }, 1600); } return; }
@@ -451,18 +475,21 @@
   document.addEventListener("compositionstart", (e) => { const ta = e.target.closest?.("textarea[data-cid]"); if (ta) { const p = document.querySelector(`[data-ime="${ta.dataset.cid}"]`); if (p) p.hidden = false; } });
   document.addEventListener("compositionend", (e) => { const ta = e.target.closest?.("textarea[data-cid]"); if (ta) { const p = document.querySelector(`[data-ime="${ta.dataset.cid}"]`); if (p) setTimeout(() => { p.hidden = true; }, 900); } });
   // drop zone: lit while a drag is over the box, kept while crossing children
-  document.addEventListener("dragover", (e) => { const box = e.target.closest?.("[data-drop]"); if (!box) return; e.preventDefault(); box.classList.add("drop"); });
-  document.addEventListener("dragleave", (e) => { const box = e.target.closest?.("[data-drop]"); if (box && !box.contains(e.relatedTarget)) box.classList.remove("drop"); });
-  document.addEventListener("drop", (e) => { const box = e.target.closest?.("[data-drop]"); if (!box) return; e.preventDefault(); box.classList.remove("drop"); const files = [...(e.dataTransfer?.files || [])]; if (files.length) addFiles(box.dataset.drop, files.map((f) => ({ name: f.name, size: Math.max(1, Math.round(f.size / 1024)) + " KB" }))); });
+  const dropZone = (box, on) => { const z = box.querySelector(".mwc__drop"); if (z) { z.hidden = !on; z.toggleAttribute("data-dropping", on); } };
+  document.addEventListener("dragover", (e) => { const box = e.target.closest?.("[data-drop]"); if (!box) return; e.preventDefault(); dropZone(box, true); });
+  document.addEventListener("dragleave", (e) => { const box = e.target.closest?.("[data-drop]"); if (box && !box.contains(e.relatedTarget)) dropZone(box, false); });
+  document.addEventListener("drop", (e) => { const box = e.target.closest?.("[data-drop]"); if (!box) return; e.preventDefault(); dropZone(box, false); const files = [...(e.dataTransfer?.files || [])]; if (files.length) addFiles(box.dataset.drop, files.map((f) => ({ name: f.name, size: Math.max(1, Math.round(f.size / 1024)) + " KB" }))); });
   // strip
   document.getElementById("lang").addEventListener("click", (e) => { const b = e.target.closest("[data-lang]"); if (b) { s.lang = b.dataset.lang; save(); render(); } });
   document.getElementById("theme").addEventListener("click", (e) => { const b = e.target.closest("[data-theme-set]"); if (b) { s.theme = b.dataset.themeSet; save(); render(); } });
   document.getElementById("words").addEventListener("click", (e) => { const b = e.target.closest("[data-words]"); if (b) { s.words = b.dataset.words; save(); render(); } });
+  document.getElementById("shownew").addEventListener("click", () => { s.showNew = s.showNew === false; save(); render(); });
   document.getElementById("reset").addEventListener("click", () => { s = fresh(); ui.menu = null; ui.nudge = false; save(); render(); });
   // seed the state specimens so each shows its case
   const seed = { "st-sending": "把第二节改成三条要点", "st-running": "", "st-failed": "把第二节改成三条要点", "st-uncertain": "顺便把发布时间改到周四", "st-dropped": "", "st-offline": "联网后提醒我核对发布时间" };
   const seedEn = { "st-sending": "Make section two three bullet points", "st-failed": "Make section two three bullet points", "st-uncertain": "Also move the release to Thursday", "st-offline": "Remind me to check the release time once online" };
   function seedStates() { Object.keys(seed).forEach((k) => { s.drafts[k] = (en() ? seedEn[k] : seed[k]) || ""; }); s.threads["st-dropped"] = [{ text: en() ? "Also cover the sign-up endpoint" : "顺便把注册接口也覆盖一下", via: "add", rc: { cls: "bad", k: "rcLost", acts: [["again", "noop"], ["putback", "putback"]] } }]; }
+  document.body.insertAdjacentHTML("afterbegin", (window.boardIcons || "").replace("</svg>", MIC + "</svg>"));
   const baseRender = render;
   render = function () { seedStates(); baseRender(); };
   render();

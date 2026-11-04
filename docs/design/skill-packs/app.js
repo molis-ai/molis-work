@@ -26,7 +26,7 @@
       pinned: "你已把这个发布者固定为 {n}", skillsH: "这个包带的技能（{n}）", skillsLead: "技能是一套做法，告诉助理或 Coding 某类事怎么做。它不带任何权限：用到的工具和连接，仍按你给的授权来。",
       notEnabled: "装上不等于启用：装好后它们都关着，不会被用。", pickLead: "装好后要用哪些？默认都关着；打开的会让 AI 按任务自己选用。",
       cancel: "取消", install: "同意并安装", installAndEnable: "安装并启用 {n} 个", repick: "重新选文件",
-      badT: "这个包装不上", badD: "{why}。什么都没装，原来的也没动。",
+      badT: "这个包装不上", badD: "下面这几处不对，什么都没装，原来的也没动。",
       details: "看详情", whenUse: "什么时候用", whenNot: "什么时候不用", tools: "声明的工具（只是说明，不给权限）", files: "附带的文件", filesNone: "没有附带文件", bodyStart: "正文开头",
       appliesAssistant: "助理", appliesCoding: "Coding", appliesBoth: "助理和 Coding", runsScripts: "会执行脚本", uses: "用到：{c}", conn_calendar: "日历",
       ch_added: "新增", ch_body_changed: "正文变了", ch_resources_changed: "附带文件变了", ch_removed: "会移除", keptManual: "仅手动会保留", keptAuto: "照旧启用",
@@ -66,7 +66,7 @@
       pinned: "You pinned this publisher as {n}", skillsH: "Skills in this package ({n})", skillsLead: "A skill is a way of doing something, telling the assistant or Coding how to handle a kind of task. It carries no permissions: the tools and connections it uses still follow what you've allowed.",
       notEnabled: "Installing doesn't enable them: they stay off and unused until you turn them on.", pickLead: "Which ones to use once installed? All off by default; the ones you turn on are picked by AI when a task fits.",
       cancel: "Cancel", install: "Agree and install", installAndEnable: "Install and enable {n}", repick: "Choose another file",
-      badT: "This package can't be installed", badD: "{why}. Nothing was installed and nothing changed.",
+      badT: "This package can't be installed", badD: "These are wrong, so nothing was installed and nothing changed:",
       details: "Details", whenUse: "When to use", whenNot: "When not to use", tools: "Declared tools (a note, not a permission)", files: "Included files", filesNone: "No included files", bodyStart: "Start of the text",
       appliesAssistant: "Assistant", appliesCoding: "Coding", appliesBoth: "Assistant and Coding", runsScripts: "Runs scripts", uses: "Uses: {c}", conn_calendar: "calendar",
       ch_added: "New", ch_body_changed: "Text changed", ch_resources_changed: "Files changed", ch_removed: "Will be removed", keptManual: "Stays manual only", keptAuto: "Stays on",
@@ -177,7 +177,7 @@
     const pack = packOf(D.install.pack);
     const head = `<header class="sk-review__head"><h3>${esc(L(pack.title))} · ${pack.version}</h3><span class="sk-muted">${esc(t("signer", { s: D.install.signer }))}</span></header>`;
     if (P.st === "bad") {
-      return `<div class="sk-review">${head}<div class="mw-alert mw-alert--danger" data-slot="alert" role="alert"><strong>${esc(t("badT"))}</strong><p>${esc(t("badD", { why: L(D.install.bad) }))}</p><div class="sk-alert-actions">${btn(t("repick"), { size: "sm", attrs: act("sim", "repick") })}</div></div></div>`;
+      return `<div class="sk-review">${head}<div class="mw-alert mw-alert--danger" data-slot="alert" role="alert"><strong>${esc(t("badT"))}</strong><p>${esc(t("badD"))}</p><ul class="sk-problems">${D.install.bad.map((x) => `<li><code>${esc(x.path || x.skill_id)}</code>：${esc(L(x.reason))}</li>`).join("")}</ul><div class="sk-alert-actions">${btn(t("repick"), { size: "sm", attrs: act("sim", "repick") })}</div></div></div>`;
     }
     const skills = pack.skills;
     if (ui.step === "enable") {

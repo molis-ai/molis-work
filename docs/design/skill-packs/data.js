@@ -8,10 +8,14 @@ window.SKILL_DATA = {
     from: "1.4",
     signer: "acme-content-01",
     publisher: { zh: "Acme 内容", en: "Acme Content" },
-    // The upgrade view adds `change` / `kept` to these; a removed skill is listed only in the upgrade.
-    upgrade: { weekly: { change: "body_changed", kept: "auto" }, release: { kept: "manual" }, compete: { change: "added" } },
+    // The upgrade view adds `change` and the current `state` (kept as is) to these; a removed skill is listed only in the upgrade.
+    upgrade: { weekly: { change: "body_changed", kept: "auto" }, release: { change: "resources_changed", kept: "manual" }, compete: { change: "added" } },
     removed: { id: "oldweekly", name: { zh: "旧版周报模板", en: "Old weekly template" }, applies: "assistant" },
-    bad: { zh: "skills/meeting-notes/SKILL.md 在包里找不到", en: "skills/meeting-notes/SKILL.md is missing from the package" },
+    // plugin.declaration_invalid → problems: [{ skill_id?, path?, reason }], listed as they come.
+    bad: [
+      { skill_id: "meeting-notes", path: "skills/meeting-notes/SKILL.md", reason: { zh: "包里找不到", en: "missing from the package" } },
+      { skill_id: "compete", path: "skills/compete/../../secrets.txt", reason: { zh: "路径指到包外面", en: "path points outside the package" } },
+    ],
   },
   packs: [
     {

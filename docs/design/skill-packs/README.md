@@ -11,11 +11,12 @@
 
 - 需求见[技能包](../../../specs/skill-packs/spec.md)（SKP-01、02、07、08、10）。
 - 排期见[第 08 批](../../../specs/post-anticorruption-roadmap/reference/batches/08.md)。
-- 字段照 C 轨的合同设计稿 `specs/skill-packs/contract-design.md` §5～§9（在途，分支 `claude/roadmap-08-skill-pack-contract-design`）：
+- 字段照 C 轨的合同设计稿 `specs/skill-packs/contract-design.md` §5～§10（PR #1794，第 10 节已按本定样重写）：
   - 安装预览每项是 `SkillInstallPreview`；
   - 目录每行是 `SkillCatalogEntry`；
   - 不可用写 `SkillUnavailableReason`；
-  - 升级标 `change` 与 `kept_state`。
+  - 升级时每项带 `change` 与现在的 `state`（新装、新增的是 off，升级沿用）；
+  - 坏包的拒绝是 `plugin.declaration_invalid`，带 `problems: [{ skill_id?, path?, reason }]`。
 
 已定的不再问：
 
@@ -80,11 +81,11 @@ python3 -m http.server 4422 --bind 127.0.0.1 --directory docs/design
   - 每项写名字、什么时候用（`description`），以及适用于助理、Coding 还是两边。
   - 有脚本的标「会执行脚本」，用到连接器类别的标「用到：~~日历」。
   - 「看详情」里有：什么时候用和什么时候不用、声明的工具（写明只是说明、不给权限）、附带文件（路径、大小、脚本会执行）、正文开头。
-  - 升级时每项标「新增」「正文变了」「会移除」「仅手动会保留」；被移除的技能列在最后，加删除线。
-- **包有问题**：写明哪一项不对（如某个 SKILL.md 找不到），并说「什么都没装，原来的也没动」（SKP-08）。
+  - 升级时每项标「新增」「正文变了」「附带文件变了」「会移除」「仅手动会保留」（只对 `state` 是 manual 的标）；正文变了和附带文件变了都算有变化，文案分开写；被移除的技能列在最后，用已装版本的名字，加删除线。
+- **包有问题**：把合同给的 `problems` 照原样逐条列出（路径加原因，如 `skills/meeting-notes/SKILL.md`：包里找不到），并说「什么都没装，原来的也没动」（SKP-08）。
 - **从本机导入**：
   - 来源有 Claude Code、Codex、项目目录，写明扫的是哪个路径。
-  - 候选每项给文件数和大小，并标出：能不能在内置助理里用（「只有本地 Agent 能用」要写原因）、会执行脚本、已装过同名的会升级成新版本。
+  - 候选每项给文件数和大小（`file_count`、`bytes`），并标出：能不能在内置助理里用（「只有本地 Agent 能用」要写原因）、会执行脚本、已装过同名的会升级成新版本。
   - 导入到「这个项目」或「个人空间」。
   - 导入的是这一刻的拷贝。
   - 没找到时写明看的是哪个路径。

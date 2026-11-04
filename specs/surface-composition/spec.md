@@ -64,6 +64,7 @@ surface_corrections        项目库
 ```
 
 - **为什么在项目库**：位置属于项目，同一个人在两个项目里对同一位置的纠正互不影响。个人跨项目的偏好（如密度）以后再说，第一片不做。
+- **怎样建表**：经第 02 批的 storage 驱动（#1790「项目数据库归 storage」），包里不自己开库（C 轨评审 11-04）。
 - **不存组合结果**：描述只在进程内缓存（第 8 节），重启后重算；描述里本来就没有值，丢了不影响事实。
 - **不存值、不存正文**：纠正只记对象引用和形态。
 - **库结构怎样进升级链**：和 05② §8 同一个分界，看 02③ 真实 Home 重建。重建之前落，就写进第 1 版建表；重建之后落，就是一步升级，属于「新增迁移逻辑」的红线，开 PR 之前由统筹先问用户。
@@ -107,8 +108,7 @@ surface_corrections        项目库
 | 读什么 | 主人 | 用在哪 |
 | --- | --- | --- |
 | 已装、已启用插件和它们的声明、启用状态 | Plugin Runtime 的插件目录 | 每次组合 |
-| 动作是否存在、谁能调、后果（外发、费用、不可逆） | 动作目录 | 选操作；`consequence` 从动作元数据来，不由声明自称 |
-| 调用方当前能不能调某个动作 | 动作网关的授权核对（只读，不执行） | 选操作：不能调的不放（IUI §4.3），必须让人知道原因的写原因 |
+| 动作是否存在、调用方当前能不能调（`availability`）、后果（外发、费用、不可逆） | 动作目录的 `discover()`，按调用上下文给，助理的 `methods()` 也是这样用；不另开授权核对接口（C 轨评审 11-04） | 选操作：不可用的不放（IUI §4.3），必须让人知道原因的写原因；`consequence` 从动作元数据来，不由声明自称 |
 | 「等你」条目 | `modules/attention-resumption` | `attention` 位置、首页「等你」 |
 | 对象之间的关系 | Context Ledger（`ContextLedgerApi` 按边查） | 同一件事只算一次（第 6.6 节） |
 | 最近在做什么 | 观测和采集层的工作记录（第 21、28 批） | 首页「接着做」 |
@@ -117,7 +117,7 @@ surface_corrections        项目库
 
 宿主做三件事，此外不写组合逻辑：
 
-1. **造端口**：插件目录、动作目录与授权核对、主人 values 的调用、「等你」读取、Context Ledger 读取、工作记录读取、纠正表、时钟。每次调用按调用上下文造一份（照 `apps/local-host/src/placement-actions.ts` 的 `forCall`），身份、项目、安装都从调用上下文来。
+1. **造端口**：插件目录、动作目录（`discover()`，带可用性）、主人 values 的调用、「等你」读取、Context Ledger 读取、工作记录读取、纠正表、时钟。每次调用按调用上下文造一份（照 `apps/local-host/src/placement-actions.ts` 的 `forCall`），身份、项目、安装都从调用上下文来。
 2. **登记两个动作**：`surfaces.compose@1`（query，`scheduling: "concurrent"`，因为要等各插件的 values 动作）和 `surfaces.correct@1`（command，按 `expected_revision` 提交），提供方 `system.surfaces`，没有 Manifest；进动作合同快照的宿主一半（`tooling/gates/actions/host-actions.tsv`），改了跑 `pnpm actions:update`。受众第一片只给 user、plugin（05② §10 第 4 条）；外部 Agent 读文本形态，不调组合。
 3. **关闭时停**：宿主关闭或项目卸载后，在途组合不再写纠正、不再发 values 调用（照 placement 的 `closed` 检查）。
 
@@ -164,7 +164,7 @@ surface_corrections        项目库
 
 1. 取声明里的操作，按 `when.status`（用 6.5 读到的状态）和 `when.slots` 筛；
 2. 动作目录里不存在的丢掉，并记一条诊断（声明在安装时校验过，这里只防安装之后动作被移除）；
-3. 调用方当前不能调的不放；声明了必须让人知道原因的（对象被锁、等别人），放一个不可点的说明，写原因与去处；
+3. 动作目录 `discover()` 给的 `availability` 不可用的不放；声明了必须让人知道原因的（对象被锁、等别人），放一个不可点的说明，写原因与去处；
 4. 至多一个 `primary`；声明里多个都写了 primary，取第一个；
 5. 按位置补通用操作：名字片和行补「速览」「打开」，卡片补「打开」「放进」「交给」；
 6. `consequence` 从动作元数据填，不信声明；
@@ -188,7 +188,8 @@ surface_corrections        项目库
 
 - 留哪个：在「等你」里留进了「等你」的那个；别处留被派生的那个（源头）；
 - 被合并的那个不消失，挂在留下的那个下面，写一句「待办里的『回复王小姐』是同一件事」（`TextRef`，参数是两边的标题由页面填）；
-- 认哪些边：只认平台登记的几种关系类型，不按标题猜；第一片先认「由……创建」这一种，开工时核对 Context Ledger 里现有的边类型，缺的由 C 轨登记（第 12 节第 5 条）。
+- 认哪些边：只认 contracts `modules/context-ledger` 里平台关系类型表登记的类型，不按标题猜；表由 C 轨在 C-3 里加，先放 `created_from`（第 12 节第 5 条）。这条边由执行「从这件新建」的平台路径写，不由插件自称。现在 main 上已有的同类边是 `placement.derived_from`，由 `placement.convert@1` 写（`horizontal/placement/src/index.ts:608`），类型是包里自定义的字符串（`:42`），没有登记处；Inbox 的「交给」「记成想法」是不是都经这条路，开工时再核（核账第 5 节）；
+- `merged[].owner_plugin_id` 由服务按插件目录填，不用插件给的值；调用方读不了的被合并对象不放进 `merged`。
 
 ### 6.7 分组与排序
 
@@ -198,7 +199,7 @@ surface_corrections        项目库
 
 ### 6.8 revision
 
-`revision` = 对下面这些做稳定哈希：请求（调用方、项目、位置、对象）、相关插件声明的版本、规则字段的值版本、纠正的 revision、「等你」与关系读取的版本。同样的输入得到同样的 revision（IUI-04，05② SSC-07），页面拿它判断要不要重画。
+`revision` = 对下面这些做稳定哈希：请求（调用方、项目、位置、对象）、相关插件声明的版本、规则字段的值版本、调用方的授权版本（动作目录 `discover()` 给的可用性版本）、纠正的 revision、「等你」与关系读取的版本。授权要算进去：只换了授权、别的没变时，可点的操作已经不同，revision 也要变，页面才会重画（C 轨评审 11-04）。同样的输入得到同样的 revision（IUI-04，05② SSC-07），页面拿它判断要不要重画。
 
 ## 7. 基础首页（与 #1778 对齐）
 
@@ -211,7 +212,7 @@ surface_corrections        项目库
 | 跨插件，同一件事只算一次 | 「等你」条目对应的对象，经 6.6 去重；组上给计数 |
 | 「合并了哪件」 | 被合并的对象挂在留下的那个下面（第 12 节第 5 条：`SurfaceItem` 要能带被合并的对象） |
 | 行用主按钮 | 每行的 primary 操作；「等你」组之外的行只给次按钮 |
-| Inbox 停用时「少算了几件」 | 停用插件的「等你」条目不放，组上写 `excluded: [{ plugin_id, count, reason: "disabled" }]`（第 12 节第 4 条） |
+| Inbox 停用时「少算了几件」 | 停用插件的「等你」条目不放，组上写 `excluded: [{ plugin_id, count, reason: "disabled" }]`（第 12 节第 4 条）。`reason` 只有 `disabled`，没有 `forbidden`：「有几件你看不了」本身就是泄露 |
 
 「等你」只从 attention-resumption 来；呈现声明里的 `attention` 只管色点和状态标签，不产生条目（05② SSC-11）。Feed 同步来的资料不进「等你」，所以首页的「等你」本来就不把它算成工作（WBR-24、BL-098）。
 
@@ -233,7 +234,7 @@ surface_corrections        项目库
 | 「打开」 | 通用操作，去插件主区 | 有 |
 | 新项目：「还没有内容」加插件自己的开始入口 | 概况给的开始动作 | **没有**，同第 1 条 |
 | Goals 读不到：显示 2 小时前的值，标「读不到」，给「再读一次」 | 卡片 `state: "stale"`、`read_at`；行照 6.5 | 对象级有；插件卡这一级要第 4 条 |
-| Inbox 已停用：「已停用，内容都还在」，给「启用」 | 卡片 `state: "disabled"`，操作是平台的启用动作 | **没有**（第 4 条） |
+| Inbox 已停用：「已停用，内容都还在」，给「启用」 | 卡片 `state: "disabled"`，操作是平台动作 `plugins.installed.enable@1`（只给本人） | **没有**（第 4 条） |
 | 没有声明首页内容的插件：只显示名字和「打开」 | 卡片 `state: "undeclared"` | **没有**（第 4 条） |
 | Feed 的行标「本项目」「个人」 | 行的一个字段，值由 Feed 按真实项目关联给 | 字段角色里没有对应的（第 12 节第 6 条） |
 | Inbox 的「要紧 · 对上『手机排版』」 | 判断标签加理由 | 字段角色里没有对应的（第 6 条） |
@@ -256,7 +257,7 @@ surface_corrections        项目库
 | 读 | 次数 | 说明 |
 | --- | --- | --- |
 | 插件目录与声明 | 0 或 1 | 按目录版本缓存在进程里，版本变了才重读 |
-| 动作目录与授权核对 | 1 | 对本次所有候选操作一起核，不按操作逐个 |
+| 动作目录 `discover()`（带可用性） | 1 | 对本次所有候选操作一起取，不按操作逐个 |
 | 主人 values（规则字段） | 每个涉及的主人插件 1 次 | 批量，最多 50 个对象；各插件并发，各自限时 |
 | 「等你」 | 0 或 1 | 只有 `attention` 和 `home` |
 | Context Ledger | 0 或 1 | 本次所有对象的边一起查 |
@@ -331,14 +332,20 @@ surface_corrections        项目库
 
 ## 12. 要定的事
 
-前五条是合同缺口，请 C 轨在 C-2、C-3 里补；第 6 条请 D 轨一起定；第 7 条请统筹看。
+前五条是合同缺口，C 轨 2026-11-04 评审已同意收进 C-2、C-3（[#1798 评论](https://github.com/molis-ai/molis-work/pull/1798#issuecomment-6636296876)），形状照下面写；C 轨等 #1771 合入后用一个文档 PR 并进 05② 第 5、6 节，合同的写法只留那一处。第 6 条请 D 轨定；第 7 条请统筹看。
 
-1. **插件级的概况声明。** 首页每张插件卡要「一句概况、说明、前几个对象、开始入口」，05② 只有对象级的声明。建议在 `presentation` 里加 `overview`：一个 values 式的读取动作，返回 `{ summary: TextRef, note?: TextRef, subjects: ActionSubject[]（最多 5 个）, start: 动作引用[] }`；没声明就是 `undeclared` 卡。
-2. **`home` 进第一片。** 05② §6 把 `home` 列为「以后」，§10 第 3 条首页进第二片；但第 15 批第 3 项的基础首页要用这个服务（WBR §1.2「基础首页与 Work Brief 用同一份……呈现」）。建议第一片的 slot 加 `home`。另一条路是首页像 MLN-23 一样绕过服务直接画，但「等你」去重、「另有 N 件在上面」都是组合，放进页面就又是一份组合代码，不推荐。
-3. **分组标题用 `TextRef`。** `groups[].title_key?: string` 改成 `title?: TextRef`。
-4. **组和插件卡的状态。** `groups[]` 要能写：`state`（`ok`／`unreadable`／`stale`／`disabled`／`undeclared`）、`read_at`、`excluded`（少了哪个插件的几件、为什么）、`hidden_above`（另有几件在上面）、`owner_plugin_id`（插件卡这一组）。
-5. **被合并的对象。** `SurfaceItem` 加 `merged?: Array<{ subject: ActionSubject; owner_plugin_id: string; relation: string }>`；Context Ledger 登记「由……创建」这类关系类型，供 6.6 用。
-6. **两个字段角色。** Inbox 的「要紧 · 对上『手机排版』」是判断标签加理由（智能呈现 §8 第一条），Feed 的「本项目」「个人」是归属范围。05② 的 16 个角色里没有对应的。建议加 `judgment`（标签加理由）和 `scope`（`project`／`personal`），或者 D 轨认为能用现有角色画，就写明映射。
+1. **插件级的概况声明（C 轨已收）。** 首页每张插件卡要「一句概况、说明、前几个对象、开始入口」，05② 原来只有对象级的声明。
+   - 在 `presentation` 里加 `overview: { capability_id, version, note_key? }`，指向本插件自己的一个 query 动作。
+   - 输入输出 schema 由平台定死，声明者必须一字不差。输出是 `{ summary: TextRef; subjects: ActionSubject[]（≤5）; start: Array<{ capability_id; version }>（≤3） }`；`effect: "read"`，不调模型、不花钱。
+   - `note`（如 Feed 的「同步来的资料不算你接下的工作」）是不变的一句话，写在声明里作 `note_key`，动作不返回。
+   - `start` 里的动作必须在同一次注册里（`inspectActionCrossReferences` 查），后果照 6.4 从动作元数据取。
+   - Home 级插件（如 Todo）的概况动作按调用上下文给可达的项目（`project_reach`），不在输入里带项目。
+   - 没声明就是 `undeclared` 卡。
+2. **`home` 进合同的第一片（C 轨已收）。** 05② §10 第 3 条说的是消费者的第一片，首页排第二片；合同里的 `SurfaceSlotKind` 现在就带 `home`，不影响 D 轨的消费者顺序。不选的路：首页像 MLN-23 一样绕过服务直接画，那样「等你」去重、「另有 N 件在上面」又成了页面里的一份组合代码。
+3. **给人看的字都用 `TextRef`（C 轨已收）。** 不只是分组标题，「另有 N 件」「同一件事」也是。所以 C-3 排在第 14 批 A 段的 `TextRef` 合入之后。
+4. **按种类区分的组（C 轨已收）。** `SurfaceGroup = { kind: "attention" | "continue" | "plugin" | "slot"; owner_plugin_id?（只在 plugin 组）; state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared"; read_at?; excluded?; hidden_above?; title?: TextRef; items }`。`undeclared`、`disabled` 只用在 plugin 组，用错了 `assertSurfaceDescription` 拒绝；`excluded` 的 `reason` 只有 `disabled`。停用卡的「启用」引用 `plugins.installed.enable@1`。
+5. **被合并的对象（C 轨已收）。** `SurfaceItem` 加 `merged?: Array<{ subject; owner_plugin_id; relation }>`；contracts 的 `modules/context-ledger` 加平台关系类型表，先放 `created_from`，由执行「从这件新建」的平台路径写（context-program §3.3 的 `intake`）。现有的 `placement.derived_from` 怎样并进这张表，随 C-3 定。
+6. **两个字段角色（请 D 轨定）。** Inbox 的「要紧 · 对上『手机排版』」是判断标签加理由（智能呈现 §8 第一条），Feed 的「本项目」「个人」是归属。05② 的 16 个角色里没有对应的。建议加 `judgment`（标签加理由）和一个归属角色（`project`／`personal`）；归属这个角色不叫 `scope`，会和动作的 `scope`、`AssistantScope` 撞名（C 轨评审），名字由 D 轨定。D 轨认为能用现有角色画，就写明映射。
 7. **合入时机。** 本批前置写「合入在 16 的切换之后」；S-1 不改任何现有页面，只加服务和动作，是否也要等 16，请统筹定。不等的话 S-1 可以先合，消费者再等 16。
 
 ## 13. 验收编号（候选）
@@ -369,9 +376,9 @@ surface_corrections        项目库
 | 3 | 能力注册 | 两个动作在动作目录登记一次，提供方 `system.surfaces`；`compose` 等插件的 values 动作，声明 `scheduling: "concurrent"`；可信身份取自调用上下文 |
 | 4 | 合同 | 本包不改合同；用 05② 的 C-2、C-3，第 12 节的缺口由 C 轨在那两个合同 PR 里补；阶段 1，不留兼容期 |
 | 5 | 放在哪个包 | 新包 `horizontal/surfaces`，依赖 contracts 与 plugin-sdk；不进宿主（用户 2026-11-01 定） |
-| 6 | 表与存储 | 一张纠正表，在项目库，归本包；进升级链的分界照 05② §8 |
+| 6 | 表与存储 | 一张纠正表，在项目库，归本包，经 storage 驱动建表；进升级链的分界照 05② §8 |
 | 7 | 兼容与迁移 | 不加。重建之后落库结构就是红线，先问用户 |
-| 8 | 安全边界 | 碰动作网关的授权核对（只读核、不执行）；值不进描述、点击时网关再核，所以撤权不会因缓存露出。开工时在不变量表加一行：组合结果不含值、点击用当时的授权，带「拒绝」测试（撤权后描述里不带字段、点击被拒且不写业务记录） |
+| 8 | 安全边界 | 读动作目录 `discover()` 的可用性，不执行；值不进描述、点击时网关再核，所以撤权不会因缓存露出。开工时在不变量表加一行：组合结果不含值、点击用当时的授权，带「拒绝」测试（撤权后描述里不带字段、点击被拒且不写业务记录） |
 | 9 | 调用次数 | 第 8 节：每个主人一次 values，关系、「等你」、纠正各一次；页面一处一次组合，不轮询 |
 | 10 | 升级与数据 | 纠正记录随项目库保留；描述不持久，重启重算 |
 | 11 | 成果与过程项 | 不涉及：不产生成果，也不交过程项 |

@@ -366,15 +366,17 @@ interface SkillCatalogEntry {
 
 | 位置 | 合同给的 | 组件板控件 |
 | --- | --- | --- |
-| 安装与导入的确认 | 只看不选：`scope`、包版本、签名者；每项 `SkillInstallPreview`（升级时 `change`、`state`）；坏包时逐条 `problems` | `mw-item` 加展开；「会执行」「仅手动会保留」用 `mw-tag` |
+| 安装与导入的确认 | 只看不选：`scope`、包版本、签名者；每项 `SkillInstallPreview`（升级时 `change`、`state`）；坏包时逐条 `problems` | `mw-item` 加展开；「会执行」「仅手动会保留」用 `mw-badge` |
 | 确认后的启用步骤 | 每项 `state`，三档默认关；每项一次 `skills.settings.set@1`；「以后再说」不调动作 | 现有分段选择 |
-| 目录左边的列表行 | `name`、`pack.title`、`state`、`availability` | `mw-item`；状态用 `mw-tag` |
+| 目录左边的列表行 | `name`、`pack.title`、`state`、`availability` | `mw-item`；状态用 `renderStatusMark` |
 | 目录右边的详情 | `description`、`when_to_use`、`when_not_to_use`、`applies_to`、`tools`、`resources`、`runs_scripts`、`connector_categories`、`last_used`、`pack`（版本、`publisher_label`、`trust`、`scope`）、`excerpt` | `renderPreviewCard`；窄屏用 `renderSheet` |
 | 目录筛选 | 在用＝`state ≠ off` 且可用；没启用＝`off` 且可用；用不了＝不可用 | 由界面按目录项算，合同不另加字段 |
 | 不可用 | 第 8 节的原因码；`plugin_disabled` 时显示「设置保留为」当前 `state` | 文案在原型 README 的表里 |
 | 导入的候选 | 第 6 节的候选列表 | 同安装确认；`native-only` 写原因 |
 
-现在没有要「组件板新增」的。E 轨定样后若要新的控件，按 #1772 标出，由 D 轨补标本。
+状态不用 `mw-tag`：那是带关闭按钮、可以移除的标签片（D 轨共审 2026-11-04）。
+
+`mw-item` 现在只在组件板里有，技能包管理页是它在产品里的第一处用法：实现时把它搬进页面样式表，这一步由 D 轨审。除此之外没有要「组件板新增」的；E 轨定样若还要新的控件，按 #1772 标出，由 D 轨补标本。
 
 ## 11. 存量数据
 

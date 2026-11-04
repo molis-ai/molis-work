@@ -13,7 +13,7 @@ Commands you run in the terminal panel, commands the host runs after you approve
 | Class | Feature | Where to | What is sent |
 | --- | --- | --- | --- |
 | 0 | Model, image and judgement services | The service addresses you configured in Settings › Model settings and Service connections | The material for this request and your key (only to the service you configured); saving model settings adds one short connectivity check |
-| 1 | Service connections | The third-party services you connected (Gmail, GitHub, Notion, Feishu, ...) | Your authorization, and requests to read what you selected |
+| 1 | Service connections and tool installation | The service you connect, plus official release hosts and package registries for its client | Authorization and read requests to the service. Preparing or installing a tool requests package names, versions and releases for your platform. |
 | 2 | Feed sources (RSS, YouTube) | Catalog feeds and the public RSS addresses you enter | Ordinary read requests |
 | 3 | Web search (AnySearch) | `api.anysearch.com` | The search words and the page addresses to extract |
 | 4 | Pages and links you name | The addresses you give | Ordinary read requests, without your credentials |
@@ -50,6 +50,9 @@ All three exist so that the product still works in unusual environments. Only a 
 - **Where to:** each service's own host (the catalog has dozens). An optional OAuth broker (`auth.molis.ai`, a Cloudflare Worker, used only when configured, not running on your computer).
 - **Limits:** the access token comes from the connection, never from a plugin's input; redirects are not followed; each request has a time limit.
 - **Command-line tools and MCP child processes:** some connections log in through a command on your computer (`gh`, `hf`, `sentry`, `lark-cli`, ...), and that command is what goes online. The Feishu and Lark MCP connector starts a child process on your computer: it runs the version-pinned `@larksuiteoapi/lark-mcp` installed with Molis Work (no more `npx` download at run time), and the child receives only the App ID, App Secret, token, the proxy and certificate variables you already set, and basic system variables such as `HOME` and `PATH`. It does not receive your model keys or other environment variables. Each start runs it in a newly created empty working directory that only your account can write to and that is deleted afterwards: the package reads a `.env` file from its working directory, and a proxy variable written there would change where requests carrying the App Secret go, so it never runs in a shared directory such as `/tmp`.
+
+- **Installing a connection tool.** Preparing a native client already queries the official release site for the selected version and its checksum. During installation, a missing runtime can be downloaded from `nodejs.org` or GitHub. Native clients come from GitHub, `gitlab.com` or `acli.atlassian.com`. GitHub distribution can also use `api.github.com`, `raw.githubusercontent.com`, `release-assets.githubusercontent.com` and `objects.githubusercontent.com`. The downloader checks each redirect against its allowed release hosts and verifies the native archive against the SHA-256 in the plan.
+- **What package sources receive.** npm and Python tools use the index and distribution endpoints for `registry.npmjs.org` or `pypi.org` by default. A plan may instead specify a credential-free HTTPS registry or a local registry. The Microsoft Graph PowerShell module comes from PSGallery. Requests identify the package, version and release for your operating system and architecture. Installation uses a separate tool directory. Download requests carry no project content, model keys or service account tokens.
 
 ### 2. Feed sources (RSS, YouTube)
 

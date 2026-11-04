@@ -3,7 +3,7 @@ import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
+import type { SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 
 import {
   type PluginDefinition,
@@ -23,7 +23,7 @@ import {
   pluginManifestDigest,
   type PluginSupervisorReport,
 } from "@molis-ai/molis-work-plugin-runtime";
-import { nativePluginReleaseArtifact } from "../apps/local-host/src/native-plugin-release-artifact.js";
+import { nativePluginReleaseArtifact } from "../apps/local-host/dist/native-plugin-release-artifact.js";
 
 const PLUGIN_ID = "io.molis.work.release-fixture";
 const SIGNATURE = "release-fixture-publisher";

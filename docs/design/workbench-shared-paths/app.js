@@ -197,7 +197,7 @@
     if (S.query) dir = searchResults();
     else if (S.scheme === "B") dir = `<div class="tabs2" role="group"><button data-act="b" data-v="recent" aria-pressed="${S.b === "recent"}">${t("recent")}</button><button data-act="b" data-v="source" aria-pressed="${S.b === "source"}">${t("bySource")}</button></div>` + (S.b === "recent" ? recentList() : `<div class="scroll">${bySource()}</div>`);
     else if (S.scheme === "C") dir = `<div class="scroll">${workFirst()}</div>`;
-    else dir = `<div class="scroll">${bySource()}</div>`;
+    else dir = `<div class="scroll">${bySource(true)}</div>`;
     return head + `<div class="mat${S.selected ? " previewing" : ""}"><div class="dir">${dir}</div><div class="view">${S.selected ? preview(S.selected, which) : `<div class="empty">${ic("eye")}<h3>${t("pickOne")}</h3><p>${t("pickOneSub")}</p></div>`}</div></div>`;
   }
 
@@ -223,9 +223,14 @@
     }).join("");
   }
   function plainRows(items) { return items.map((i) => `<button class="row" data-act="pick" data-name="${esc(i.name)}" aria-selected="${S.selected === i.name}"><span class="tw"></span>${ic(kindIcon[i.kind])}<span class="nm">${esc(i.name)}</span>${i.parseFailed ? `<span class="tag warn">${S.lang === "zh" ? "未解析" : "Not parsed"}</span>` : `<span class="fact">${esc(i.owner ? (S.lang === "en" && i.ownerEn ? i.ownerEn : i.owner) : (S.lang === "zh" ? i.when : i.whenEn))}</span>`}</button>`).join(""); }
-  function bySource() {
+  function recentSection() {
+    const items = D.recent.map((n) => findItem(n)).filter(Boolean).slice(0, 5);
+    if (!items.length) return "";
+    return `<div class="sec-h">${ic("history", "sm")}${t("recent")}</div>${items.map((i) => `<button class="row" data-act="pick" data-name="${esc(i.name)}" aria-selected="${S.selected === i.name}"><span class="tw"></span>${ic(kindIcon[i.kind])}<span class="nm">${esc(i.name)}</span><span class="fact">${esc(i.source)}</span></button>`).join("")}`;
+  }
+  function bySource(withRecent = false) {
     const fs = folders();
-    return `${fs.length ? `<div class="sec-h">${t("localFolders")}</div>${fs.map((f) => folderBlock(f)).join("")}` : ""}
+    return `${withRecent ? recentSection() : ""}${fs.length ? `<div class="sec-h">${t("localFolders")}</div>${fs.map((f) => folderBlock(f)).join("")}` : ""}
       ${S.scenario !== "first" ? `<div class="sec-h">${t("imports")}<span class="grow"></span><button>${ic("upload", "sm")}</button></div>${plainRows(D.imports)}<div class="sec-h">${t("content")}</div>${plainRows(D.content)}` : ""}`;
   }
   function workFirst() {

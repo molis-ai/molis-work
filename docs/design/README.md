@@ -4,6 +4,12 @@
 
 | 目录 | 是什么 | 现在的地位 |
 | --- | --- | --- |
+| [workbench-shared-paths/](workbench-shared-paths/README.md) | 项目资料、输入与输出、Coding 跟随与临时查看、右侧窄窗格的可点定样（三个方案，正常与异常状态） | 方案已定（2026-11-03：按来源分组，加「最近用过」），产品未实现；里面是示例数据 |
+| [work-mainline-switch/](work-mainline-switch/README.md) | 主线顶部事项切换：切换器、列表菜单、这件事的东西、放进事项、整理主线的可点定样（三个方案，正常与异常状态） | 方案已定（2026-11-03：最近切过加折叠分组），产品未实现；里面是示例数据 |
+| [intelligent-surfaces-forms/](intelligent-surfaces-forms/README.md) | 智能呈现第一片的四种形态（名字片、行、卡片、速览）：九种状态、四个位置（插件内、对话、项目讨论、等你）的可点定样（三个方案） | 方案已定（2026-11-03：插件领头），产品未实现；里面是示例数据 |
+| [assistant-background-tasks/](assistant-background-tasks/README.md) | 个人助理的连续对话与后台任务：§12.8 的交错路径（连续交办、插问、补充、要你定、完成、回到对话）与排队、失败、停止、断线恢复的可点切片（三个方案） | 方案已定（2026-11-03：对话顶上的任务条），产品未实现；按剧本模拟 |
+| [plugin-studio-main-path/](plugin-studio-main-path/README.md) | 插件创作台主路径：从准备、想法、方案、构建、试用、安装到关掉后使用和从已装版本再改的可点切片，含组合已有能力和手动／助理接续、六种失败与恢复（三个方案） | 方案已定（2026-11-03：对话加阶段），产品未实现；按剧本模拟 |
+| [assistant-proactive-paths/](assistant-proactive-paths/README.md) | 个人助理的三条路径：安静准备与必要提醒（§4.2）、主动做法的观察试用与启用（§6.1）、多项交付的逐项核验与部分退回复核（§7.3.1），各含正常与异常情况的可点切片（每条三个方案） | 方案已定（2026-11-03：任务条里看准备、规则页里试用与回看、要求与成果对照），产品未实现；按剧本模拟 |
 | [assistant-cards/](assistant-cards/README.md) | 助理卡片与工作简报：卡片解剖、三种字的来源、19 种块、19 个卡型、三种尺寸、状态、四张简报页与窄屏的规格板 | 设计稿（2026-10-26；四项已拍板，视觉待用户验收），说明见 [specs/work-brief/design.md](../../specs/work-brief/design.md)；里面是示例数据 |
 | [runtime-and-recovery/](runtime-and-recovery/README.md) | 第 25、26 批合并定样：后台运行状态、某块暂不可用、更新与回退、安装自检、升级失败与恢复，每题两个方案加正常与异常状态 | 用户已定（2026-11-04，五题都选 A）；里面是示例数据 |
 | [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |

@@ -1,7 +1,7 @@
 // 03 · 资料、目录与工作台定样 — standalone prototype. All data is sample data (data.js); nothing calls a model or reads a folder.
 (() => {
   const D = window.protoData;
-  document.getElementById("icons").innerHTML = window.protoIcons;
+  document.getElementById("icons").innerHTML = window.mwKitSprite;
 
   const T = {
     zh: {
@@ -133,10 +133,10 @@
   function activeSide() { const ids = sideTabs().map((x) => x.id); if (!ids.includes(S.sideTab)) S.sideTab = ids[0]; return S.sideTab; }
   function strip(which, tabs, active) {
     const nav = which === "main" ? `<div class="nav"><button aria-label="back">${ic("chevron-left", "sm")}</button><button aria-label="forward">${ic("chevron-right", "sm")}</button></div>` : "";
-    const win = `<span class="seg winsel" role="group" aria-label="window"><button data-act="focus" data-v="main" aria-pressed="${S.focus === "main"}">${t("winMain")}</button><button data-act="focus" data-v="side" aria-pressed="${S.focus === "side"}">${t("winSide")}</button></span>`;
+    const win = `<span class="mw-toggle-group winsel" data-slot="toggle-group" data-seg-thumb role="group" aria-label="window"><button data-act="focus" data-v="main" aria-pressed="${S.focus === "main"}">${t("winMain")}</button><button data-act="focus" data-v="side" aria-pressed="${S.focus === "side"}">${t("winSide")}</button></span>`;
     let html = "", group = null;
     for (const tb of tabs) {
-      const tab = `<button class="tab" role="tab" aria-selected="${tb.id === active}" data-act="tab" data-pane="${which}" data-id="${tb.id}">${ic(tb.icon, "sm")}<span>${esc(tb.title)}</span>${tb.id === "home" ? "" : `<span class="x" data-act="close" data-pane="${which}" data-id="${tb.id}" aria-label="close">${ic("x", "sm")}</span>`}</button>`;
+      const tab = `<button class="tab${tb.id === "home" ? " home" : ""}" role="tab" aria-selected="${tb.id === active}"${tb.id === "home" ? ` aria-label="${esc(tb.title)}"` : ""} data-act="tab" data-pane="${which}" data-id="${tb.id}">${ic(tb.icon, "sm")}<span>${esc(tb.title)}</span>${tb.id === "home" ? "" : `<span class="x" data-act="close" data-pane="${which}" data-id="${tb.id}" aria-label="close">${ic("x", "sm")}</span>`}</button>`;
       if (tb.group) { html += `<span class="group" style="--hue:${tb.hue}"><span class="chip">${tb.group}</span>${tab}</span>`; group = tb.group; } else html += tab;
     }
     return `<div class="strip ${which}">${nav}<div class="tabs" role="tablist">${html}</div><div class="tools">${win}<button data-act="plus" data-pane="${which}" aria-label="${t("newTab")}">${ic("plus")}</button>${which === "main" ? `<button aria-label="split">${ic("columns")}</button>` : `<button data-act="side-close" aria-label="close side">${ic("x")}</button>`}</div></div>`;
@@ -144,7 +144,7 @@
 
   function render() {
     document.documentElement.lang = S.lang === "zh" ? "zh-CN" : "en";
-    document.documentElement.dataset.theme = S.theme;
+    document.documentElement.dataset.theme = S.theme; document.documentElement.dataset.resolvedTheme = S.theme;
     document.querySelectorAll("[data-t]").forEach((n) => (n.textContent = t(n.dataset.t)));
     for (const b of document.querySelectorAll("#scheme button")) b.setAttribute("aria-pressed", b.dataset.scheme === S.scheme);
     for (const b of document.querySelectorAll("#lang button")) b.setAttribute("aria-pressed", b.dataset.lang === S.lang);
@@ -180,19 +180,19 @@
     if (id === "coding") return coding();
     if (id === "pages") return pagesDoc();
     if (id === "record") return recordView(S.mainRecord, which);
-    if (id === "home") return `<div class="empty"><h3>${esc(S.lang === "zh" ? D.project.name : D.project.nameEn)}</h3><p>${t("home")}</p><span class="tag sim">${t("sim")}</span></div>`;
-    if (id === "shelf") return `<div class="phead"><h2>Shelf</h2></div><div class="list">${D.content.filter((c) => c.owner === "Shelf").map((c) => `<div class="lrow">${ic("note")}<span class="nm"><strong>${esc(c.name)}</strong><span class="fact">${esc(S.lang === "zh" ? c.when : c.whenEn)}</span></span></div>`).join("")}</div><span class="tag sim simmark">${t("sim")}</span>`;
-    return `<div class="empty"><h3>${t("talk")}</h3><span class="tag sim">${t("sim")}</span></div>`;
+    if (id === "home") return `<div class="empty"><h3>${esc(S.lang === "zh" ? D.project.name : D.project.nameEn)}</h3><p>${t("home")}</p><span class="mw-badge mw-badge--neutral tag-sim" data-slot="badge">${t("sim")}</span></div>`;
+    if (id === "shelf") return `<div class="phead"><h2>Shelf</h2></div><div class="list">${D.content.filter((c) => c.owner === "Shelf").map((c) => `<div class="lrow">${ic("note")}<span class="nm"><strong>${esc(c.name)}</strong><span class="fact">${esc(S.lang === "zh" ? c.when : c.whenEn)}</span></span></div>`).join("")}</div><span class="mw-badge mw-badge--neutral tag-sim simmark" data-slot="badge">${t("sim")}</span>`;
+    return `<div class="empty"><h3>${t("talk")}</h3><span class="mw-badge mw-badge--neutral tag-sim" data-slot="badge">${t("sim")}</span></div>`;
   }
 
   function ioLine() {
     const ins = folders().filter((f) => f.roles.includes("input")).length;
-    return `<div class="io-line">${ic("folder-tree", "sm")}<span>${t("inputs", ins)}</span><span>·</span><span>${t("output")}</span><span class="tag out">${ic("output", "sm")}${esc(outputName())}</span><button class="btn sm sec" data-act="io">${ic("settings", "sm")}${t("manage")}</button></div>`;
+    return `<div class="io-line">${ic("folder-tree", "sm")}<span>${t("inputs", ins)}</span><span>·</span><span>${t("output")}</span><span class="mw-badge mw-badge--info tag-out" data-slot="badge">${ic("output", "sm")}${esc(outputName())}</span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="io">${ic("settings", "sm")}${t("manage")}</button></div>`;
   }
 
   function materials(which) {
-    const head = `<div class="phead"><h2>${t("materials")}</h2><span class="grow"></span><button class="btn sm sec" data-act="add-folder">${ic("plus", "sm")}${t("addFolder")}</button></div>${ioLine()}<label class="search">${ic("search", "sm")}<input data-act="query" value="${esc(S.query)}" placeholder="${t("search")}" aria-label="${t("search")}"></label>`;
-    if (S.scenario === "first" && !S.extraFolder) return head + `<div class="empty">${ic("library")}<h3>${t("emptyTitle")}</h3><p>${t("emptySub")}</p><div style="display:flex;gap:8px;margin-top:6px"><button class="btn primary" data-act="add-folder">${ic("folder")}${t("addFolder")}</button><button class="btn sec">${ic("upload")}${t("importFile")}</button></div><p class="fact" style="margin-top:6px">${t("output")} <b style="font-family:var(--mono);font-weight:500">${esc(D.defaultOutput)}</b> · <button class="link" data-act="io">${t("change")}</button></p></div>`;
+    const head = `<div class="phead"><h2>${t("materials")}</h2><span class="grow"></span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="add-folder">${ic("plus", "sm")}${t("addFolder")}</button></div>${ioLine()}<label class="search">${ic("search", "sm")}<input data-act="query" value="${esc(S.query)}" placeholder="${t("search")}" aria-label="${t("search")}"></label>`;
+    if (S.scenario === "first" && !S.extraFolder) return head + `<div class="empty">${ic("library")}<h3>${t("emptyTitle")}</h3><p>${t("emptySub")}</p><div style="display:flex;gap:8px;margin-top:6px"><button class="mw-btn mw-btn--primary mw-btn--md" data-slot="button" data-act="add-folder">${ic("folder")}${t("addFolder")}</button><button class="mw-btn mw-btn--secondary mw-btn--md" data-slot="button">${ic("upload")}${t("importFile")}</button></div><p class="fact" style="margin-top:6px">${t("output")} <b style="font-family:var(--mono);font-weight:500">${esc(D.defaultOutput)}</b> · <button class="link" data-act="io">${t("change")}</button></p></div>`;
     let dir;
     if (S.query) dir = searchResults();
     else if (S.scheme === "B") dir = `<div class="tabs2" role="group"><button data-act="b" data-v="recent" aria-pressed="${S.b === "recent"}">${t("recent")}</button><button data-act="b" data-v="source" aria-pressed="${S.b === "source"}">${t("bySource")}</button></div>` + (S.b === "recent" ? recentList() : `<div class="scroll">${bySource()}</div>`);
@@ -203,14 +203,14 @@
 
   function folderBlock(f, open = true) {
     const st = folderState(f), isOpen = S.expanded.includes(f.id) && open;
-    const roles = f.roles.map((r) => `<span class="tag ${r === "output" ? "out" : ""}">${r === "output" ? t("roleOut") : t("roleIn")}</span>`).join("");
-    const stTag = st === "missing" ? `<span class="tag err">${S.lang === "zh" ? "找不到" : "Missing"}</span>` : st === "revoked" ? `<span class="tag warn">${S.lang === "zh" ? "已停止读取" : "Stopped"}</span>` : "";
+    const roles = f.roles.map((r) => `<span class="mw-badge ${r === "output" ? "mw-badge--info" : "mw-badge--neutral"}" data-slot="badge">${r === "output" ? t("roleOut") : t("roleIn")}</span>`).join("");
+    const stTag = st === "missing" ? `<span class="mw-badge mw-badge--danger tag-err" data-slot="badge">${S.lang === "zh" ? "找不到" : "Missing"}</span>` : st === "revoked" ? `<span class="mw-badge mw-badge--warning tag-warn" data-slot="badge">${S.lang === "zh" ? "已停止读取" : "Stopped"}</span>` : "";
     let body = "";
-    if (st === "missing") body = `<div class="note err">${t("missing", f.path)}<div class="acts"><button class="btn sm sec" data-act="relocate">${t("relocate")}</button><button class="btn sm ghost">${t("fromProject")}</button></div></div>`;
-    else if (st === "revoked") body = `<div class="note warn">${t("revoked")}<div class="acts"><button class="btn sm sec" data-act="resume">${t("resume")}</button></div></div>`;
+    if (st === "missing") body = `<div class="note err">${t("missing", f.path)}<div class="acts"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="relocate">${t("relocate")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button">${t("fromProject")}</button></div></div>`;
+    else if (st === "revoked") body = `<div class="note warn">${t("revoked")}<div class="acts"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="resume">${t("resume")}</button></div></div>`;
     else if (isOpen && !f.tree.length) body = `<div class="row muted" style="padding-left:30px"><span class="nm fact">${S.lang === "zh" ? "空文件夹；之后的任务写到这里" : "Empty; later tasks write here"}</span></div>`;
     else if (isOpen) {
-      body = (st === "scanning" ? `<div class="note">${t("scanning", "3,214")}<div class="progress"><i></i></div><div class="acts"><button class="btn sm sec">${t("stop")}</button></div></div>` : "") + tree(f.tree, f, f.id, 1) + (f.skipped ? `<div class="row muted" style="padding-left:30px"><span class="nm fact" style="white-space:normal">${t("skipped", f.skipped.count.toLocaleString(), S.lang === "zh" ? f.skipped.why : f.skipped.whyEn)}</span><button class="link" style="font-size:11px;white-space:nowrap">${t("showSkipped")}</button></div>` : "");
+      body = (st === "scanning" ? `<div class="note">${t("scanning", "3,214")}<div class="progress"><i></i></div><div class="acts"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button">${t("stop")}</button></div></div>` : "") + tree(f.tree, f, f.id, 1) + (f.skipped ? `<div class="row muted" style="padding-left:30px"><span class="nm fact" style="white-space:normal">${t("skipped", f.skipped.count.toLocaleString(), S.lang === "zh" ? f.skipped.why : f.skipped.whyEn)}</span><button class="link" style="font-size:11px;white-space:nowrap">${t("showSkipped")}</button></div>` : "");
     }
     return `<div class="folder-head"><button class="row" data-act="toggle" data-id="${f.id}" aria-expanded="${isOpen}"><span class="tw${isOpen ? " open" : ""}">${ic("chevron-right", "sm")}</span>${ic(isOpen ? "folder-open" : "folder")}<span class="nm">${esc(f.name)}</span>${stTag}${roles}</button></div>${body}`;
   }
@@ -219,10 +219,10 @@
       const k = key + "/" + n.name, pad = `style="padding-left:${8 + depth * 16}px"`;
       if (n.kind === "dir") { const open = S.expanded.includes(k) || S.expanded.includes(n.name); return `<button class="row" ${pad} data-act="toggle" data-id="${esc(k)}" aria-expanded="${open}"><span class="tw${open ? " open" : ""}">${ic("chevron-right", "sm")}</span>${ic(open ? "folder-open" : "folder")}<span class="nm">${esc(n.name)}</span></button>${open ? tree(n.children, f, k, depth + 1) : ""}`; }
       const sel = S.selected === n.name;
-      return `<button class="row${n.unreadable ? " muted" : ""}" ${pad} data-act="pick" data-name="${esc(n.name)}" aria-selected="${sel}"><span class="tw"></span>${ic(kindIcon[n.kind])}<span class="nm">${esc(n.name)}</span>${n.changed ? `<span class="tag out">M</span>` : ""}</button>`;
+      return `<button class="row${n.unreadable ? " muted" : ""}" ${pad} data-act="pick" data-name="${esc(n.name)}" aria-selected="${sel}"><span class="tw"></span>${ic(kindIcon[n.kind])}<span class="nm">${esc(n.name)}</span>${n.changed ? `<span class="mw-badge mw-badge--info tag-out" data-slot="badge">M</span>` : ""}</button>`;
     }).join("");
   }
-  function plainRows(items) { return items.map((i) => `<button class="row" data-act="pick" data-name="${esc(i.name)}" aria-selected="${S.selected === i.name}"><span class="tw"></span>${ic(kindIcon[i.kind])}<span class="nm">${esc(i.name)}</span>${i.parseFailed ? `<span class="tag warn">${S.lang === "zh" ? "未解析" : "Not parsed"}</span>` : `<span class="fact">${esc(i.owner ? (S.lang === "en" && i.ownerEn ? i.ownerEn : i.owner) : (S.lang === "zh" ? i.when : i.whenEn))}</span>`}</button>`).join(""); }
+  function plainRows(items) { return items.map((i) => `<button class="row" data-act="pick" data-name="${esc(i.name)}" aria-selected="${S.selected === i.name}"><span class="tw"></span>${ic(kindIcon[i.kind])}<span class="nm">${esc(i.name)}</span>${i.parseFailed ? `<span class="mw-badge mw-badge--warning tag-warn" data-slot="badge">${S.lang === "zh" ? "未解析" : "Not parsed"}</span>` : `<span class="fact">${esc(i.owner ? (S.lang === "en" && i.ownerEn ? i.ownerEn : i.owner) : (S.lang === "zh" ? i.when : i.whenEn))}</span>`}</button>`).join(""); }
   function recentSection() {
     const items = D.recent.map((n) => findItem(n)).filter(Boolean).slice(0, 5);
     if (!items.length) return "";
@@ -251,18 +251,18 @@
     const i = findItem(name); if (!i) return "";
     const f = folders().find((x) => x.id === i.sourceId), st = f && folderState(f);
     const meta = [`${t("from")} ${esc(i.source)}`, i.owner === "成果" || i.ownerEn === "Artifacts" ? t("fixedVer") : t("current"), i.lines ? t("lines", i.lines) : i.pages ? t("pagesN", i.pages) : i.size || "", t("readAt")].filter(Boolean).join(" · ");
-    const back = `<button class="btn icon sm ghost winsel-back" data-act="unpick" aria-label="back">${ic("chevron-left", "sm")}</button>`;
-    const other = which === "side" ? `<button class="btn sm sec" data-act="open-main" data-name="${esc(name)}">${ic("maximize", "sm")}${t("openMain")}</button>` : `<button class="btn sm sec" data-act="move-materials">${ic("panel", "sm")}${t("openOther")}</button>`;
-    const viewC = S.scenario === "code" && f && !f.roles.includes("output") ? `<button class="btn sm ghost" data-act="view-in-coding" data-id="${f.id}">${ic("code", "sm")}${t("inCoding")}</button>` : "";
+    const back = `<button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only winsel-back" data-slot="button" data-act="unpick" aria-label="back">${ic("chevron-left", "sm")}</button>`;
+    const other = which === "side" ? `<button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="open-main" data-name="${esc(name)}">${ic("maximize", "sm")}${t("openMain")}</button>` : `<button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="move-materials">${ic("panel", "sm")}${t("openOther")}</button>`;
+    const viewC = S.scenario === "code" && f && !f.roles.includes("output") ? `<button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-act="view-in-coding" data-id="${f.id}">${ic("code", "sm")}${t("inCoding")}</button>` : "";
     let body;
     if (st === "missing" || st === "revoked") body = `<div class="note ${st === "missing" ? "err" : "warn"}">${st === "missing" ? t("missing", f.path) : t("revoked")}</div>`;
-    else if (i.unreadable) body = `<div class="note warn">${t("unreadable")}<div class="acts"><button class="btn sm sec">${t("showInFinder")}</button></div></div>`;
-    else if (i.parseFailed) body = `<div class="note warn">${t("parseFailed")}<div class="acts"><button class="btn sm sec">${t("retryParse")}</button><button class="btn sm ghost">${t("openOriginal")}</button></div></div>`;
+    else if (i.unreadable) body = `<div class="note warn">${t("unreadable")}<div class="acts"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button">${t("showInFinder")}</button></div></div>`;
+    else if (i.parseFailed) body = `<div class="note warn">${t("parseFailed")}<div class="acts"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button">${t("retryParse")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button">${t("openOriginal")}</button></div></div>`;
     else if (i.kind === "image") body = `<div class="ph-img">${ic("image")}&nbsp;${esc(i.name)}</div>`;
     else body = (i.pages > 30 ? `<div class="note" style="margin:0 0 12px">${t("truncated", 20, i.pages)} <button class="link">${t("readAll")}</button></div>` : "") + (i.kind === "code" ? `<pre>${esc(D.previews[name] || "// …")}</pre>` : `<div class="reading">${esc(D.previews[name] || "…")}</div>`);
     const can = !(st === "missing" || st === "revoked");
     return `<div class="vhead">${back}${ic(kindIcon[i.kind])}<div class="t"><strong>${esc(i.name)}</strong><span class="fact">${meta}</span></div></div>
-      <div class="vhead" style="border-bottom:0;padding-top:8px;padding-bottom:0;flex-wrap:wrap">${can ? `<button class="btn sm primary" data-act="add" data-name="${esc(name)}">${ic("plus", "sm")}${t("addToTask")}</button>` : ""}${other}${viewC}</div>
+      <div class="vhead" style="border-bottom:0;padding-top:8px;padding-bottom:0;flex-wrap:wrap">${can ? `<button class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="add" data-name="${esc(name)}">${ic("plus", "sm")}${t("addToTask")}</button>` : ""}${other}${viewC}</div>
       <div class="vbody">${body}</div>`;
   }
   function recordView(name, which) { return `<div class="mat previewing" style="flex-direction:column"><div class="view" style="display:flex">${preview(name, which)}</div></div>`; }
@@ -272,20 +272,20 @@
     const outN = S.fault === "frozen" ? "website-v2" : outputName();
     const runAt = S.fault === "worktree" ? ".worktrees/home-hero" : S.fault === "frozen" ? "website" : outN;
     const banners = [
-      viewing ? `<div class="banner view">${ic("eye", "sm")}<span class="grow">${t("viewing", viewing.name)}</span><button class="btn sm sec" data-act="back-to-work">${t("backToWork")}</button></div>` : "",
+      viewing ? `<div class="banner view">${ic("eye", "sm")}<span class="grow">${t("viewing", viewing.name)}</span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="back-to-work">${t("backToWork")}</button></div>` : "",
       S.fault === "frozen" ? `<div class="banner frozen">${ic("clock", "sm")}<span class="grow">${t("frozen", "website", "website-v2")}</span></div>` : "",
-      S.fault === "worktree" ? `<div class="banner view">${ic("git-branch", "sm")}<span class="grow">${t("worktree")}</span><button class="btn sm sec">${ic("git-compare", "sm")}${t("seeDiff")}</button></div>` : "",
+      S.fault === "worktree" ? `<div class="banner view">${ic("git-branch", "sm")}<span class="grow">${t("worktree")}</span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button">${ic("git-compare", "sm")}${t("seeDiff")}</button></div>` : "",
     ].join("");
     const showFolder = viewing || (S.fault === "frozen" ? folders().find((f) => f.id === "website") : null) || folders().find((f) => f.roles.includes("output")) || folders()[0];
     const cites = S.chips.length ? S.chips : [{ name: "品牌指南 2026.pdf", source: "brand-assets", kind: "pdf" }];
     return `<div class="code-top"><span class="loc">${ic("output", "sm")}${t("projOut")} <b>${esc(outN)}</b></span><span class="fact">·</span><span class="loc">${ic("terminal", "sm")}${t("thisRun")} <b>${esc(runAt)}</b></span><span class="grow" style="flex:1"></span><span class="loc">${ic("git-branch", "sm")}${t("git")}</span></div>${banners}
-      <div class="code-body"><div class="files"><button class="row" data-act="loc-menu" aria-haspopup="menu">${ic("folder-tree")}<span class="nm"><b style="font-weight:500">${esc(showFolder.name)}</b></span>${viewing ? `<span class="tag">${t("readOnly")}</span>` : `<span class="tag out">${t("workDir")}</span>`}${ic("chevron-down", "sm")}</button>${tree(showFolder.tree, showFolder, "c-" + showFolder.id, 0)}</div>
+      <div class="code-body"><div class="files"><button class="row" data-act="loc-menu" aria-haspopup="menu">${ic("folder-tree")}<span class="nm"><b style="font-weight:500">${esc(showFolder.name)}</b></span>${viewing ? `<span class="mw-badge mw-badge--neutral" data-slot="badge">${t("readOnly")}</span>` : `<span class="mw-badge mw-badge--info tag-out" data-slot="badge">${t("workDir")}</span>`}${ic("chevron-down", "sm")}</button>${tree(showFolder.tree, showFolder, "c-" + showFolder.id, 0)}</div>
       <div class="work"><div class="turn"><div class="who">${t("you")}</div><p>${t("askHero")}</p></div>
         <div class="turn"><div class="who">${ic("sparkles", "sm")}${t("ai")}</div><p>${t("aiReply")}</p><p>${cites.map((c) => `<span class="cite">${ic("link", "sm")}${esc(c.name)} · ${esc(c.source)}</span>`).join(" ")}</p></div>
-        <div class="step"><span class="dotp"></span>${t("stepEditing")}</div></div></div><span class="tag sim simmark">${t("sim")}</span>`;
+        <div class="step"><span class="dotp"></span>${t("stepEditing")}</div></div></div><span class="mw-badge mw-badge--neutral tag-sim simmark" data-slot="badge">${t("sim")}</span>`;
   }
   function pagesDoc() {
-    return `<div class="vbody" style="padding:32px"><div style="max-width:68ch;margin:0 auto"><h1 style="font-size:30px;font-weight:600;letter-spacing:-.03em;margin:0 0 12px">${esc(t("docTitle"))}</h1><div class="reading">${esc(D.previews["改版方案"])}\n\n${esc(S.lang === "zh" ? "第二屏：三个真实场景（待根据访谈补齐）" : "第二屏：三个真实场景（to fill from the interviews）")}</div><div class="turn" style="margin-top:20px"><div class="who">${t("you")}</div><p>${t("writingTurn")}</p></div><p>${(S.chips.length ? S.chips : [{ name: "用户访谈 01.docx", source: "访谈记录" }]).map((c) => `<span class="cite">${ic("link", "sm")}${esc(c.name)} · ${esc(c.source)}</span>`).join(" ")}</p></div></div><span class="tag sim simmark">${t("sim")}</span>`;
+    return `<div class="vbody" style="padding:32px"><div style="max-width:68ch;margin:0 auto"><h1 style="font-size:30px;font-weight:600;letter-spacing:-.03em;margin:0 0 12px">${esc(t("docTitle"))}</h1><div class="reading">${esc(D.previews["改版方案"])}\n\n${esc(S.lang === "zh" ? "第二屏：三个真实场景（待根据访谈补齐）" : "第二屏：三个真实场景（to fill from the interviews）")}</div><div class="turn" style="margin-top:20px"><div class="who">${t("you")}</div><p>${t("writingTurn")}</p></div><p>${(S.chips.length ? S.chips : [{ name: "用户访谈 01.docx", source: "访谈记录" }]).map((c) => `<span class="cite">${ic("link", "sm")}${esc(c.name)} · ${esc(c.source)}</span>`).join(" ")}</p></div></div><span class="mw-badge mw-badge--neutral tag-sim simmark" data-slot="badge">${t("sim")}</span>`;
   }
 
   // ---------- popovers ----------
@@ -312,21 +312,21 @@
   }
   function ioPanel(anchor) {
     const fs = folders(), same = fs.find((f) => f.roles.includes("output") && f.roles.includes("input"));
-    const rows = fs.map((f) => `<div class="it">${ic("folder")}<span class="nm"><strong>${esc(f.name)} <span class="tag">${t("roleIn")}</span>${f.roles.includes("output") ? ` <span class="tag out">${t("roleOut")}</span>` : ""}</strong><span class="fact">${esc(f.path)}</span></span>${f.roles.includes("output") ? "" : `<button class="btn sm sec" data-act="set-out" data-id="${f.id}">${t("setOut")}</button>`}<button class="btn sm ghost" aria-label="${t("remove")}">${ic("trash", "sm")}</button></div>`).join("");
+    const rows = fs.map((f) => `<div class="it">${ic("folder")}<span class="nm"><strong>${esc(f.name)} <span class="mw-badge mw-badge--neutral" data-slot="badge">${t("roleIn")}</span>${f.roles.includes("output") ? ` <span class="mw-badge mw-badge--info tag-out" data-slot="badge">${t("roleOut")}</span>` : ""}</strong><span class="fact">${esc(f.path)}</span></span>${f.roles.includes("output") ? "" : `<button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="set-out" data-id="${f.id}">${t("setOut")}</button>`}<button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" aria-label="${t("remove")}">${ic("trash", "sm")}</button></div>`).join("");
     openPop(anchor, `<div class="io"><h3>${t("ioTitle")}</h3>
-      <div class="grp"><div class="grp-h">${t("ioIn")}<span class="grow"></span><button class="btn sm sec" data-act="add-folder">${ic("plus", "sm")}${t("addFolder")}</button></div>${rows || `<div class="foot">${S.lang === "zh" ? "还没有参考文件夹。" : "No reference folders yet."}</div>`}</div>
-      <div class="grp"><div class="grp-h">${t("ioOut")} · ${t("ioOne")}</div><div class="it">${ic("output")}<span class="nm"><strong>${esc(outputName())}</strong><span class="fact">${esc(outputPath())}</span></span><button class="btn sm sec" data-act="change-out">${t("change")}</button></div></div>
+      <div class="grp"><div class="grp-h">${t("ioIn")}<span class="grow"></span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="add-folder">${ic("plus", "sm")}${t("addFolder")}</button></div>${rows || `<div class="foot">${S.lang === "zh" ? "还没有参考文件夹。" : "No reference folders yet."}</div>`}</div>
+      <div class="grp"><div class="grp-h">${t("ioOut")} · ${t("ioOne")}</div><div class="it">${ic("output")}<span class="nm"><strong>${esc(outputName())}</strong><span class="fact">${esc(outputPath())}</span></span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="change-out">${t("change")}</button></div></div>
       ${same ? `<div class="foot">${t("sameDir")}</div>` : ""}<div class="foot">${t("ioFoot")}</div></div>`);
   }
   function settingsCover() {
     const pane = document.querySelector(".pane.main"); const c = document.createElement("div"); c.className = "cover";
-    c.innerHTML = `<div class="vhead"><strong>${t("projectSettings")}</strong><span style="flex:1"></span><button class="btn icon sm ghost" data-act="cover-close" aria-label="close">${ic("x", "sm")}</button></div><div class="doc"><h1>${t("projectSettings")}</h1><p class="fact">${t("settingsSub")}</p><div class="card"><h3>${t("ioTitle")}</h3>${ioLine()}<p class="fact" style="margin:4px 0 0">${t("ioFoot")}</p></div></div>`;
+    c.innerHTML = `<div class="vhead"><strong>${t("projectSettings")}</strong><span style="flex:1"></span><button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="cover-close" aria-label="close">${ic("x", "sm")}</button></div><div class="doc"><h1>${t("projectSettings")}</h1><p class="fact">${t("settingsSub")}</p><div class="card"><h3>${t("ioTitle")}</h3>${ioLine()}<p class="fact" style="margin:4px 0 0">${t("ioFoot")}</p></div></div>`;
     pane.appendChild(c); c.querySelector("button").focus();
   }
 
   // ---------- toast ----------
   let toastTimer;
-  function toast(msg, undo) { document.querySelector(".toast")?.remove(); const el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); el.innerHTML = esc(msg) + (undo ? `<button data-act="undo">${t("undo")}</button>` : ""); document.body.appendChild(el); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 4000); }
+  function toast(msg, undo) { document.querySelector(".mw-toast")?.remove(); const el = document.createElement("div"); el.className = "mw-toast"; el.setAttribute("role", "status"); el.innerHTML = esc(msg) + (undo ? `<button type="button" class="mw-toast__action mw-toast__action--primary" data-act="undo">${t("undo")}</button>` : ""); document.body.appendChild(el); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 4000); }
   let undoFn = null;
 
   // ---------- events ----------
@@ -352,7 +352,7 @@
       case "b": S.b = v.v; break;
       case "add": { const i = findItem(v.name); if (!S.chips.some((c) => c.name === i.name)) S.chips.push({ name: i.name, source: i.source, kind: i.kind }); const n = S.chips.length - 1; undoFn = () => S.chips.splice(n, 1); render(); return toast(t("added", `${i.name} · ${i.source}`), true); }
       case "unchip": S.chips.splice(+v.i, 1); break;
-      case "undo": if (undoFn) { undoFn(); undoFn = null; } document.querySelector(".toast")?.remove(); break;
+      case "undo": if (undoFn) { undoFn(); undoFn = null; } document.querySelector(".mw-toast")?.remove(); break;
       case "open-main": S.mainRecord = v.name; S.mainTab = "record"; S.focus = "main"; break;
       case "move-materials": S.materialsSide = S.materialsSide === "main" ? "side" : "main"; S.sideOpen = true; if (S.materialsSide === "side") S.sideTab = "materials"; else S.mainTab = "materials"; render(); return toast(t("moved"));
       case "view-in-coding": closePop(false); { const f = folders().find((x) => x.id === v.id); S.viewing = f && !f.roles.includes("output") ? f.id : null; if (S.scenario === "code") S.mainTab = "coding"; S.focus = "main"; break; }

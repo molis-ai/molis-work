@@ -1,4 +1,5 @@
 import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { connectorAccountControl, oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -25,6 +26,15 @@ function cliConnectionFetch(home: string, id: string): typeof fetch {
   };
 }
 
+/** The service, not the connection, said no for now: a check that ends this way is remembered with when to look again. */
+export const connectorCheckErrors = defineErrorCodes("connector.check", { rate_limited: "rate_limited" });
+
+/** A failed identity or health read as the error a check remembers: a rate limit keeps the time the service gave. */
+function readFailure(result: { message: string; failure?: string; retry_after_at?: string; retryAfterAt?: string }): Error {
+  const retry_at = result.retry_after_at ?? result.retryAfterAt;
+  return result.failure === "rate_limited" ? connectorCheckErrors.rate_limited(result.message, retry_at ? { retry_at } : undefined) : new Error(result.message);
+}
+
 interface ApiConnectionAccess {
   connection: ConnectorConnectionRecord;
   token: string;
@@ -49,7 +59,7 @@ export async function resolveApiConnection(home: string, id: string, control: Co
   const refresh = forceRefresh !== false;
   // A refresh the token endpoint refuses marks the connection (`connector-refresh-refusals.ts`); a forced refresh that succeeds clears it.
   const refreshing = async <T>(run: () => Promise<T>, refusedBy: (error: unknown) => boolean): Promise<T> => {
-    try { const value = await run(); await control.beforeEffect(); current(); if (refresh) clearRefreshRefused(home, id); return value; }
+    try { const value = await run(); await control.beforeEffect(); current(); if (refresh) clearRefreshRefused(home, connection); return value; }
     catch (error) { await control.beforeEffect(); current(); if (refusedBy(error)) markRefreshRefused(home, connection); throw error; }
   };
   return runWithMolisWorkHome(home, async () => {
@@ -120,7 +130,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
       result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
       await control.beforeEffect(); control.current();
     }
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw readFailure(result);
     const verified = { ok: true, account: result.login, verified_account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, checked_at: new Date().toISOString() };
     if (!preview) return verified;
     return { ...verified, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead) };
@@ -128,7 +138,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
   if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、Images、Functions 或 Coding 设置中运行对应功能，验证目标服务");
   const provider = runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }));
   const health = await provider.health(control);
-  if (!health.ok) throw new Error(health.message);
+  if (!health.ok) throw readFailure(health);
   if (!preview) return { ...health, checked_at: new Date().toISOString() };
   return { ...health, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead), checked_at: new Date().toISOString() };
   });

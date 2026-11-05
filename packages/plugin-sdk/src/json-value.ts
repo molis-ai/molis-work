@@ -39,3 +39,8 @@ export function canonicalJsonText(value: unknown, unsupported: "omit" | "null" |
   const json = JSON.stringify(canonicalJsonValue(value));
   return json === undefined ? undefined : serialize(JSON.parse(json));
 }
+
+/** Native JSON read comparison: preserve toJSON and JSON.stringify's value rules.
+ * Integer-shaped keys keep JavaScript's enumeration order; this is not signing text. */
+export const jsonComparisonText = (value: unknown): string => JSON.stringify(value, (_key, item: unknown) => item && typeof item === "object" && !Array.isArray(item)
+  ? Object.fromEntries(Object.keys(item).sort().map(name => [name, (item as Record<string, unknown>)[name]])) : item);

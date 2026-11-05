@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-export { canonicalJsonText } from "./json-value.js";
+export { jsonComparisonText } from "./json-value.js";
 
 /**
  * Where a floating layer goes: beside, above or below what it belongs to, kept inside the screen or the stage the person is

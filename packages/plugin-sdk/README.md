@@ -280,6 +280,6 @@ result_view: {
 
 `canonicalJsonText` 对嵌套及整数形态的键都按原始 UTF-16 码元排序，数组保序。默认先沿用 `JSON.stringify(canonicalJsonValue(value))` 的非 JSON 规则：省略值为 `undefined`、函数或 Symbol 的对象字段，数组中的这些值写成 `null`，顶层返回 `undefined`，BigInt 抛错；对象自有的 `toJSON` 仍按该路径调用。已有字节协议可明确传入 `"null"`，把不支持的标量写成 `null`；传 `"literal"` 则保留原文本序列化边界（对象字段插入 `undefined`、数组元素为空），结果不保证是合法 JSON。这两个显式选项不调用对象的 `toJSON`。这些选项只保留调用方原有规则，不为输入补做校验。
 
-浏览器代码从 `@molis-ai/molis-work-plugin-sdk/browser` 导入同一个 `canonicalJsonText`，只加载纯 JSON 模块；主入口供平台和 Node 消费者使用。
+`@molis-ai/molis-work-plugin-sdk/browser` 的 `jsonComparisonText(value)` 用于两次读取的 JSON 等价比较。它沿原生 JSON replacer 排键，保留 `toJSON`、空数组槽和不支持值的原生处理；整数形态键仍按 JavaScript 对象枚举顺序输出。Coding 直接使用这个纯比较工具，持久化摘要和签名使用主入口的 `canonicalJsonText`。
 
 FI-C-02：轮询集成的 `health(control)` 与 `sync(input, control)` 必须透传 Host 给出的本次调用控制，它不属于插件 JSON 输入。`controlledConnectorFetch(fetchImpl, control)` 为一次调用创建 fetch，组合调用信号与请求超时，在实际发送前等待 beforeEffect、同步 current。刷新、401重发和响应后写回仍须带同一次控制，不能用安装 live 检查替代原调用。

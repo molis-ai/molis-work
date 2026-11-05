@@ -22,13 +22,11 @@ export interface FloatingSize {
     height: number;
 }
 
-export declare function canonicalJsonText(value: unknown, unsupported: "null"): string;
-
-export declare function canonicalJsonText(value: unknown, unsupported?: "omit" | "null" | "literal"): string | undefined;
-
 export declare function clampTo(value: number, limit: number, length: number): number;
 
 export declare function followScroll(panel: Element, run: () => void): () => void;
+
+export declare const jsonComparisonText: (value: unknown) => string;
 
 export declare const messageOf: (error: unknown) => string;
 

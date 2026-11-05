@@ -116,6 +116,7 @@ export { connectLocalMcp } from "./connector-local-mcp-setup.js";
 export { installManagedConnectorTool, removeManagedConnectorTool } from "./connector-tool-install.js";
 export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
+export { checkConnectorConnection } from "./connector-check-service.js";
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions, connectorPluginSlotUsages } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";

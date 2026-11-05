@@ -9,7 +9,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { completeApiOAuth, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { checkConnectorConnection, completeApiOAuth, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { createFileSecretStore, homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { DatabaseSync } from "node:sqlite";
@@ -230,6 +230,10 @@ test("S-70 RAC-349 a refresh the token endpoint refuses marks the account for re
   const restarted = createPluginConnectionsPort(home, options);
   await assert.rejects(restarted.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
   assert.deepEqual([seen.length, refreshes.length], [1, 1], "after a restart it is still refused before anything is sent");
+  // A check neither asks the service (the old access token could still pass and clear the mark) nor writes over the mark.
+  await assert.rejects(checkConnectorConnection(home, account!.connection_id, () => {}), /重新登录/);
+  assert.deepEqual([seen.length, refreshes.length], [1, 1], "the check sent nothing");
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "reauth_required", "the mark is still there after the check");
   // The person reconnects the same account: the mark belonged to the connection as it was, and is gone.
   await authorize(home, "renewed-access", account!.connection_id);
   assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");

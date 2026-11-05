@@ -18,6 +18,10 @@ interface ConnectorCheckControl { signal?: AbortSignal; beforeEffect?(): void | 
 export async function checkConnectorConnection(home: string, id: string, remember: ConnectorMcpDirectory["remember"], control: ConnectorCheckControl = {}) {
   const row = withConnectorConnections(home, store => store.require(id));
   await control.beforeEffect?.(); control.signal?.throwIfAborted();
+  // S-70: an account whose refresh the token endpoint refused stays marked until the person reconnects it or a forced refresh succeeds.
+  // A check neither asks the service (the access token may still pass for a while, which would clear the mark) nor writes over the mark
+  // when it fails for another reason; it answers that the account needs logging in again.
+  if (row.auth_method === "oauth" && refreshRefused(home, row)) throw new ApiOAuthError("这个账号的登录已失效，请重新登录", row.service_id, true);
   const signal = AbortSignal.any([AbortSignal.timeout(30_000), ...(control.signal ? [control.signal] : [])]);
   let result: Awaited<ReturnType<typeof inspectMcpConnection | typeof inspectCliConnection | typeof inspectApiConnection>>;
   try {
@@ -25,8 +29,9 @@ export async function checkConnectorConnection(home: string, id: string, remembe
       : row.auth_method === "cli" ? await inspectCliConnection(home, id, false, signal) : await inspectApiConnection(home, id, false, signal);
   } catch (error) {
     await control.beforeEffect?.(); control.signal?.throwIfAborted();
-    // A refresh the token endpoint refused during the check is already remembered as such (S-70); the check leaves that mark as it is.
-    if (error instanceof ApiOAuthError && error.refused && refreshRefused(home, row)) throw error;
+    // A refresh the token endpoint refused during the check is already remembered as such (S-70); the check leaves that mark as it is,
+    // whatever else went wrong.
+    if (refreshRefused(home, row)) throw error;
     const retry_at = error instanceof ActionError && error.code === "connector.check.rate_limited" && typeof error.details?.retry_at === "string" ? error.details.retry_at : undefined;
     rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision: row.updated_at, outcome: "failed",
       authorization: error instanceof ActionError && error.code === "connector.mcp.authorization" ? "required" : "unknown",
@@ -34,6 +39,8 @@ export async function checkConnectorConnection(home: string, id: string, remembe
     throw error;
   }
   await control.beforeEffect?.(); control.signal?.throwIfAborted();
+  // A request elsewhere may have had its refresh refused while this check ran: the mark stands, a passing read does not clear it.
+  if (row.auth_method === "oauth" && refreshRefused(home, row)) throw new ApiOAuthError("这个账号的登录已失效，请重新登录", row.service_id, true);
   const checked_at = new Date().toISOString();
   const protocol = row.auth_method === "mcp" ? withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id)) : null;
   if (!rememberConnectorCheck(home, id, { at: checked_at, revision: row.updated_at, outcome: "connected",

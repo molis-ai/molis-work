@@ -10,7 +10,7 @@
 
 | 轨道 | 这条轨道独占的文件 | 主要的活 | 有效归属与协作 |
 | --- | --- | --- | --- |
-| A 助理与输入 | `apps/workbench/src/scripts/client/assistant-*.ts`（`assistant-island.ts` 已拆成 24 个）、`apps/local-host/src/assistant/`、`packages/contracts/src/services/assistant.ts`、共用输入组件、助理的词典 | 统一输入框、个人助理的引导接点、回执余项、每日简报、主动助理 | 沿原会话；借用本轨文件由本轨写手落 |
+| A 助理与输入 | `apps/workbench/src/scripts/client/assistant-*.ts`（`assistant-island.ts` 已拆成 24 个）、`apps/local-host/src/assistant/`、`packages/contracts/src/services/assistant.ts`、共用输入组件（新建的 `packages/design-system/src/composer*.ts`、`packages/plugin-sdk/src/ui/composer.ts`；D 已有文件里的导出行由 D 评审，统筹 2026-11-04 批）、助理的词典 | 统一输入框、个人助理的引导接点、回执余项、每日简报、主动助理 | 沿原会话；借用本轨文件由本轨写手落 |
 | B Coding | `plugins/native/coding/`、Git、Diff 及 Files 退役涉及的现有消费者 | harness、下一阶段、质量保证、代码现代化 | 沿原会话；独立片交接需明确记录 |
 | C1 合同与 SDK | `packages/contracts/src/platform/`、`packages/plugin-sdk/`（UI 子路径除外）、`packages/plugin-runtime/`、`tooling/gates/api/`、`tooling/gates/actions/` | 公共资料/目录、技能包、场景/角色/页面、授权及人审的合同，以及服务端批里的同步合同；沙箱包与 Runtime 的缺口；对抗式审查的 SDK 收拢；合同评审 | Claude（本机）C 轨会话；Codex 交完 02 后接手（[决定 17](decisions.md#decision-17)）；负责合同评审 |
 | C2 AI 运行时 | `horizontal/agent-host/`、`horizontal/memory/`、`vendor/prologue-sdk/` | Prologue 采用与换包窗口、记忆、Skill/Context/MCP/Tool 四份策略、子代理的 Prologue 一半 | 同 C1 的写手；Memory 原负责人和暂停保留 |

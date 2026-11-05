@@ -66,7 +66,7 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-menu__item--described > [data-slot="menu-item-label"] { display: contents; }
   .mw-menu__item--described > [data-slot="menu-item-label"] > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-menu__item--described .mw-menu__shortcut { grid-area: 1 / 3; }
-  .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; }
+  .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; word-break: keep-all; }
 
   .mw-catalog :is([data-primitive="composer"], [data-primitive="menu-desc"]) .mw-catalog__specimen { margin: 0; }
   .mw-catalog [data-primitive="composer"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
@@ -86,7 +86,7 @@ const ghostIcon = (label: string, name: Parameters<typeof icon>[0], attrs: Recor
  */
 function deliveryItems(say: Say, interruptRefused?: string): string {
   return renderMenuItem({ label: say("补充（默认）"), iconName: "message", description: say("当前回复或这批工具结束后读到，不打断"), shortcut: "⌘↵" })
-    + renderMenuItem({ label: say("打断并改向"), iconName: "zap", description: interruptRefused ?? say("丢掉正在写的回复，按这句接着做；已经做的操作不撤销"), disabled: Boolean(interruptRefused) })
+    + renderMenuItem({ label: say("打断并改向"), iconName: "zap", description: interruptRefused ?? say("丢掉这条回复，改按这句做；已做的不撤销"), disabled: Boolean(interruptRefused) })
     + renderMenuItem({ label: say("下一轮再做"), iconName: "clock", description: say("排到下一轮开头，你开下一轮时带上"), shortcut: "⌘⇧↵" });
 }
 

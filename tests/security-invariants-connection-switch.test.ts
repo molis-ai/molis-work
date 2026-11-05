@@ -8,7 +8,7 @@ import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 
 const switchAction = defineConnectorUsagesSwitchAction("example.connection.switch", "换用账号", ["connectors:management:write"], "home");
 
-test("S-108 only the person reaches a consumer's switch: Agent, MCP, workflow and plugin callers are refused", () => {
+test("S-108 RAC-2940 only the person reaches a consumer's switch: Agent, MCP, workflow and plugin callers are refused", () => {
   const others: ActionAudience[] = ["agent", "mcp", "workflow", "plugin"];
   assert.equal(actionReachesAudience(switchAction.action, switchAction.capability_id, "user"), true);
   for (const audience of others) assert.equal(actionReachesAudience(switchAction.action, switchAction.capability_id, audience), false, audience);
@@ -17,7 +17,7 @@ test("S-108 only the person reaches a consumer's switch: Agent, MCP, workflow an
   assert.equal(switchAction.action.effect, "write");
 });
 
-test("S-108 a switch input names only the two connections and the usages, never who calls or where", () => {
+test("S-108 RAC-2941 a switch input names only the two connections and the usages, never who calls or where", () => {
   const input = compileActionSchema(switchAction.action.input_schema);
   assert.equal(input({ from_connection_id: "a", to_connection_id: "b" }), true);
   assert.equal(input({ from_connection_id: "a", to_connection_id: "b", usage_ids: ["slot-1"] }), true);

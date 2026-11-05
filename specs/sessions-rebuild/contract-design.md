@@ -581,10 +581,28 @@ export interface ExternalSessionProjectAiRead {
   allowed: boolean;
   revision: number;               // 这个项目这一行的版本
   decided_at: string | null;      // 从没改过时为 null，allowed 为 false
+  counts: ExternalSessionProjectCounts;
+}
+
+export interface ExternalSessionProjectCounts {
+  filed: number;          // 「N 个会话归到这里」：下面三项之和
+  ai_readable: number;    // 「AI 能读 N 个」：工具已允许的 confirmed、automatic；不看开关，开着才这样显示
+  reported: number;       // 「另 N 个是工具报的」：工具已允许的 reported
+  /** 「另 N 个在没允许的工具里」：按工具分开，定样要写工具名。 */
+  blocked: Array<{ entry_id: ExternalToolId; display_name: string; count: number }>;
 }
 ```
 
-**看全部：** `sessions.scope.read@1` 一次带回全部项目，只给 `user`。一次 `selections()`、一次 `listWorkspaceDirectory()`、一次读表，不按项目逐个请求。
+**计数的口径。** 四项互不重叠：先看工具允不允许，不允许的都算 `blocked`，不管归属是哪种；允许的再分 `reported` 和 `ai_readable`。
+
+- 只数索引里有、没有 `gone_at` 的会话。从没允许过的工具没有索引行，`blocked` 里就没有它；这一项数的是读过之后又停掉的工具。
+- 工具允许、但目录在范围外的会话不进任何一项：范围外的不显示。
+- 待归类的不进任何项目。
+- 只有数字和工具名，没有标题和内容，所以和「范围外的不显示」不冲突；这些数字也只给 `user`，`sessions.scope.read@1` 本来就只给本人。
+
+**一次聚合。** 不按项目逐个查：一条 `GROUP BY`，按归属项目、归属状态、来源、`directory_key` 分组，再在内存里按读取范围折成每个项目四个数。`external_sessions` 上的 `reported_project_id` 是这条查询和 `view: "project"` 共用的缓存，随摘要重算。行里的「看是哪些」用 `sessions.list@1`，发到那个项目的路径。
+
+**看全部：** `sessions.scope.read@1` 一次带回全部项目，只给 `user`。一次 `selections()`、一次 `listWorkspaceDirectory()`、一次读表、一条聚合，不按项目逐个请求。
 
 **改一个项目：** `sessions.project_ai_read.set@1`，输入 `{ allowed: boolean; expected_revision: number }`，`expected_revision` 是这个项目那一行的。项目取自调用上下文，不从输入读。没有当前项目报 `sessions.project_required`，版本不符报 `sessions.scope_conflict`。
 
@@ -750,7 +768,7 @@ export interface ExternalSessionAttributionInput {
 
 `sessions.attribution.suggest@1`，输入 `{ session_keys: string[] }`，最多 100 条。服务按目录分组，同一目录一组，没有目录的一条一组；超过 20 组报 `sessions.too_many_groups`。输出每条会话的 `ExternalSessionSuggestion`，同组共用。
 
-**什么时候跑（D8）。** 只在用户打开待归类时跑，往下翻再要下一批。发现时不跑，也没有后台批量。卡片随 `sessions.list@1` 立刻显示，这个动作另发一个请求，建议到了再填进卡片，不挡页面。没到之前卡片照常能改选和先不归。待归类界面写明：标题、目录和开头几句会发给你配置的模型。实际还发你的项目名和项目目录（见下），文案要一起写上。
+**什么时候跑（D8）。** 只在用户打开待归类时跑，往下翻再要下一批。发现时不跑，也没有后台批量。卡片随 `sessions.list@1` 立刻显示，这个动作另发一个请求，建议到了再填进卡片，不挡页面。没到之前卡片照常能改选和先不归。待归类界面写明：这些会话的标题、目录和开头几句，连同你的项目名和项目目录，会发给你配置的模型；这和项目的 AI 能不能读是两件事，内容不进任何项目 AI 的对话（第 7.4 节）。
 
 **发给模型的（都是范围内的、有上限）：**
 
@@ -838,7 +856,7 @@ export interface SessionsPorts {
 
 | 表 | 主键 | 主要字段 | 性质 |
 | --- | --- | --- | --- |
-| `external_sessions` | `session_key` | `entry_id`、`location_key`、`native_id`、`seen_via`、`title`、`directory_key`、`last_activity_at`、`forked_from`、`gone_at` | 可重建索引 |
+| `external_sessions` | `session_key` | `entry_id`、`location_key`、`native_id`、`seen_via`、`title`、`directory_key`、`reported_project_id`、`last_activity_at`、`forked_from`、`gone_at` | 可重建索引 |
 | `session_directories` | `directory_key` | `path`、`kind`、`realpath_verified`、`repository_key`、`worktree_relative`、`derived_state`、`derived_project_id`、`candidates`、`directory_digest` | 可重建缓存 |
 | `session_sources` | `entry_id`、`location_key` | `state`、`reason`、`progress_cursor`、`session_count`、`skipped_count`、`completed_at`、`checked_at` | 可重建进度 |
 | `session_read_scopes` | `entry_id`、`location_key` | `allowed`、`directories`、`connection_id`、`revision`、`decided_at` | **用户决定** |
@@ -887,7 +905,7 @@ export const sessionsErrors = defineErrorCodes("sessions", {
 | S-115 | 子进程只跑登记表写明的只读命令：不经 shell，`argv` 来自登记表，只有 `{session_id}`、`{query}` 被替换；前者过 `EXTERNAL_SESSION_NATIVE_ID_PATTERN`，后者占一个元素、不以 `-` 开头；有时限、输出上限、最小环境；`detect` 不符不跑解析。列表、历史、搜索不启动 `resume`、`exec`、`delete`、`queue` 一类命令。`detect` 要运行本机程序：先过 `real_path_pattern`，不过不运行；运行时只带 `version_argv`，同样有时限、无 shell、最小环境 | 原生 ID 写成 `--dangerously…`、带分号或空格时不起进程；搜索词以 `-` 开头时不起进程；`version_pattern` 不符时不解析；走一遍列表、历史、搜索后，假工具记录下的调用里没有写命令（SRB-12）；`agent` 的真实路径不符时假工具一次都没被运行 |
 | S-116 | 外部读取返回前再核范围：收窄、停止、撤连接、关掉项目的 AI 读取许可后，在途的读取不返回内容、发现不写库、建议不写表 | 假适配在等待中收窄范围、关掉许可、解除项目目录（`linked_projects` 下，`revision` 没变），各断言 `sessions.scope_changed`、响应里没有原文、索引行数不变；`sessions.tool.search@1` 在等待中收窄，范围外的行不返回；取消后来源进度不更新；连接失效时云端来源不返回内容 |
 | S-117 | 外部会话的标题、原文、工具输出都是不可信数据：给模型时走 S-13 的 JSON 围栏，给 Agent 的输出带 `trust: "untrusted"` 并脱敏，不进系统提示和工具定义 | 标题里写伪造的结束标记和角色，留在 JSON 字符串里；原文里的密钥样式在 `agent` 受众下被脱敏；模型回了列表外的项目编号，这一项被丢弃 |
-| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着，且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下的会话是 `tool_linked` 不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量 |
+| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着，且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；非本人调 `sessions.scope.read@1` 被拒，拿不到各项目的计数；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下的会话是 `tool_linked` 不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量 |
 | S-119 | 认仓库只读文件，不跑 git：只读 `.git`、`commondir`、`gitdir` 三个文件，各不超过 4 KB，内容只留哈希，不读 `config` 与 hooks；到用户主目录或根目录停止往上找；`.git` 文件必须和仓库里的 `gitdir` 互相指着才算 worktree，否则 `repository_key` 为空 | `PATH` 上放假 `git` 并记录调用，发现、归属、范围判断之后调用次数为 0；任意目录放 `.git` 文件写 `gitdir: <已关联仓库>/.git/worktrees/x`，而仓库那边没有指回：`repository_key` 为空，不进范围，不自动归入；`gitdir:` 指向不相干的目录、没有 `commondir`、超长、含 NUL 时 `repository_key` 都为空且不报错；仓库 `config` 里写 `core.fsmonitor` 也不执行；三个文件之外的读取次数为 0 |
 
 SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行。
@@ -904,7 +922,7 @@ SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行
 | 改读取范围 | 1 | 1 | 0 | 放宽的来源每家 1 轮发现 |
 | 打开待归类 | 2（列表 + 建议，后者不挡页面） | 各 1 | 0 | 取 `opening` 最多 20 次来源读取（每组一次，可能是子进程），模型 1 次；往下翻再一轮；材料没变走缓存，这两样都不发生 |
 | 读取中询问一次 | 1 | 1 | 0 | 0；每次是完整的 `sessions.list@1`，含一遍动作发现、`listWorkspaceDirectory()`、`listRuntimeContextBindings()`。最坏：发现一直没读完、页面一直可见，稳定后每分钟 4 次（15 秒一次） |
-| 打开读取范围 Sheet | 1（全部项目的许可都在这一个响应里） | 1 | 0 | 0 |
+| 打开读取范围 Sheet | 1（全部项目的许可和计数都在这一个响应里，只给 `user`） | 1 | 0 | 0；计数是一条 `GROUP BY`，项目再多也是一条查询，不走外部工具 |
 | 改项目的 AI 读取许可 | 1（发到目标项目的路径） | 1，且要打开目标项目 | 目标项目 1 | 0 |
 | 在这个工具里搜 | 1 | 1 | 0 | 1 次命令 |
 | 确认一张卡 | 1 | 1 | 0 | 0 |
@@ -1026,7 +1044,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 17 | 需求 SRB-16 | 写「自动归入不扩大读取权限」，而 D4 让项目 AI 读到含自动归入的会话 | 已裁定：授权来自项目许可，归属只定范围，写在第 11 节 SRB-16 一行 |
 | 18 | 团队批 | 「团队项目先不开放」现在无从判断，项目没有这个标记 | 团队批接入时，`sessions.project_ai_read.set@1` 对共享项目拒绝并加测试 |
 | 19 | 路线书决策表第 11 项 | 记着 Sessions 技术方案待定 | 统筹的跨批文件，不改 |
-| 20 | 许可开关定样方案 A | 用户选 A | 全局 Sheet 改别的项目做得到，`sessions.scope.read@1` 带回全部项目（第 7.4 节），动作总数不变。定样分支 `claude/roadmap-22-permit-sample-31916b` 还没合入。关掉时那句「已经写进回答的内容不会收回」用户已定，写在第 7.4 节 |
+| 20 | 许可开关定样方案 A | 用户选 A | 全局 Sheet 改别的项目做得到，`sessions.scope.read@1` 带回全部项目（第 7.4 节），动作总数不变。`sessions.scope.read@1` 同时带回每个项目的计数。定样分支 `claude/roadmap-22-permit-sample-31916b` 还没合入，它的 README 里「行里的数字没有合同来源」和「这些目录下的会话进待归类」（后者要加「选所有目录时」，见第 7.1 节）两句待改。关掉时那句「已经写进回答的内容不会收回」用户已定，写在第 7.4 节 |
 | 21 | `bound_by` 存量 | 片 P-1 之前终端面板写下的目录关系，`bound_by` 是本人的 id，会算成本人建的 | 真实 Home 重建在 P-1 之后就没有；否则维护窗口要核一次，交主会话排 |
 | 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-118） |
 | 23 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 59 批之后另议 |

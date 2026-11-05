@@ -423,8 +423,9 @@ test("two shards cover the complete list exactly once and retain failure and qua
   assert.deepEqual(second.report?.shard, { index: 2, total: 2 });
   const firstFiles = first.report!.files.map(item => item.file).sort();
   const secondFiles = second.report!.files.map(item => item.file).sort();
-  assert.deepEqual(firstFiles, ["tests/broken.test.ts", "tests/held.test.ts", "tests/i18n.test.ts", SMOKES[1]!].sort());
-  assert.deepEqual(secondFiles, ["tests/ended.test.ts", "tests/ok.test.ts", SMOKES[0]!, SMOKES[2]!].sort());
+  // The scratch repository has no tests/ci-shard-weights.json, so every file weighs the same and the files are dealt in name order.
+  assert.deepEqual(firstFiles, ["tests/broken.test.ts", "tests/held.test.ts", "tests/ok.test.ts", SMOKES[1]!].sort());
+  assert.deepEqual(secondFiles, ["tests/ended.test.ts", "tests/i18n.test.ts", SMOKES[0]!, SMOKES[2]!].sort());
   assert.deepEqual([...firstFiles, ...secondFiles].sort(), [...list].sort(), "neither missing nor duplicated files");
   assert.equal(byFile(first.report, "held.test.ts").counted, false);
   assert.equal(byFile(first.report, "held.test.ts").status, "fail");

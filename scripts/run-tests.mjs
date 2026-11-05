@@ -13,8 +13,9 @@ import { fileURLToPath } from "node:url";
 //                           does not fail the run (the CI full suite uses 1)
 //   --bail                  stop at the first file that fails (after its retries, run at once): nothing more starts and the files
 //                           still running are stopped; the CI full suite uses it, so a red shard ends early
-//   --shard <k>/<n>         only every n-th file of the list, starting at the k-th (CI spreads one list over n jobs: the same
-//                           list in each job gives each file to exactly one of them)
+//   --shard <k>/<n>         the k-th of n parts of the list, dealt by how long the files take (tests/ci-shard-weights.json, see
+//                           scripts/run-tests/shard.mjs; CI spreads one list over n jobs: the same list in each job gives each
+//                           file to exactly one of them)
 //   --skip-macos-only       leave out the files the Linux probe marks darwin and not browser (scripts/ci-linux-probe/select.mjs),
 //                           before --shard picks: the full suite on a Linux runner (.github/workflows/full-suite.yml). A browser
 //                           file stays: its darwin mark comes from the platform check of the shared Chrome locator.
@@ -62,7 +63,8 @@ if (options.skipMacosOnly) {
 }
 if (options.shard) {
   const { index, count } = options.shard;
-  const mine = targets.filter((_, position) => position % count === index);
+  const { pickShard, readWeights } = await import("./run-tests/shard.mjs");
+  const mine = pickShard(targets, { index, count }, readWeights(root), (file) => relative(root, resolve(file)));
   if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }
   targets.splice(0, targets.length, ...mine);
 }

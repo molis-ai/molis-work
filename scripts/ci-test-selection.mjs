@@ -12,13 +12,14 @@
 //           code deleted), when a changed source file is read by no test (it cannot say who is affected), when a file the job or the
 //           selection itself depends on changed (FULL_WHEN below), when more than all but one file would be selected anyway, or when
 //           anything here fails: no base, affected-tests exits non-zero or prints something that is not its JSON;
-//   some    the selected files only, on one runner when they fit in one shard of the whole list, otherwise on two;
+//   some    the selected files only, on as many runners as they need at the size of a shard of the whole list (LEGS: three for the
+//           security invariants, two for the product subset), at least one;
 //   none    when none of its files is selected: the job is skipped.
 // When in doubt it runs more, never less: every way out of this script that is not a clean answer is `whole`.
 //
 //   node scripts/ci-test-selection.mjs --base <ref> [--root <dir>]     print the decision; in CI also write it to $GITHUB_OUTPUT
 //                                                                      and $GITHUB_STEP_SUMMARY
-// Outputs, per job (`security_…`, `product_…`): `mode` (whole, some, none), `shards` (the matrix as JSON: [1] or [1, 2]); and the
+// Outputs, per job (`security_…`, `product_…`): `mode` (whole, some, none), `shards` (the matrix as JSON: [1], [1, 2] or [1, 2, 3]); and the
 // files of `some`: `security_files` (space-separated, for scripts/run-tests.mjs) and `product_only` (an anchored regular expression
 // of the files, for `scripts/ci-product-subset.mjs --only`). Both are empty unless the mode is `some`, so an empty value means
 // "the whole list" to the jobs; only a successful some on a PR supplies a selected list or shard count.
@@ -64,6 +65,10 @@ export function securityList(packageJsonText, testFiles) {
   return [...files].sort();
 }
 
+/** How many runners each job spreads its whole list over (the matrix of the whole run in .github/workflows/ci.yml). */
+export const LEGS = { security: 3, product: 2 };
+const legsOf = (job) => Array.from({ length: LEGS[job] }, (_, index) => index + 1);
+
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -72,7 +77,7 @@ const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export function decideJob({ job, list, affected, failure }) {
   const entries = list.map((item) => (typeof item === "string" ? { file: item, browser: false } : item));
-  const whole = (reasons) => ({ mode: "whole", shards: [1, 2], files: [], reasons });
+  const whole = (reasons) => ({ mode: "whole", shards: legsOf(job), files: [], reasons });
   if (!affected) return whole([failure ?? "affected-tests gave no answer"]);
   // A missing list is not an empty one: an answer without all four is not affected-tests' whole answer, and is not trusted.
   const missing = ["tests", "full", "changes", "uncovered"].filter((key) => !Array.isArray(affected[key]));
@@ -90,13 +95,15 @@ export function decideJob({ job, list, affected, failure }) {
   const selected = entries.filter((entry) => wanted.has(entry.file));
   if (!selected.length) return { mode: "none", shards: [1], files: [], reasons: [`none of its ${entries.length} files is among the ${wanted.size} tests this change touches`] };
   if (selected.length >= entries.length - 1) return whole([`${selected.length} of its ${entries.length} files are selected`]);
-  // One runner when the selection is no bigger than a shard of the whole list (the browser smokes, which have their own budget, counted apart).
-  const half = (items) => Math.ceil(items.length / 2);
+  // As many runners as the selection needs at the size of a shard of the whole list (the browser smokes, which have their own budget,
+  // counted apart): one runner when it is no bigger than a shard, all of them when it is bigger than all but one.
+  const legs = LEGS[job];
   const smokes = entries.filter((entry) => entry.browser), others = entries.filter((entry) => !entry.browser);
-  const fits = selected.filter((entry) => entry.browser).length <= half(smokes) && selected.filter((entry) => !entry.browser).length <= half(others);
+  const needed = (chosen, listed) => (listed.length ? Math.ceil(chosen / Math.ceil(listed.length / legs)) : 0);
+  const count = Math.min(legs, Math.max(1, needed(selected.filter((entry) => entry.browser).length, smokes), needed(selected.filter((entry) => !entry.browser).length, others)));
   return {
     mode: "some",
-    shards: fits ? [1] : [1, 2],
+    shards: legsOf(job).slice(0, count),
     files: selected.map((entry) => entry.file),
     reasons: [`${selected.length} of its ${entries.length} files are among the tests this change touches`],
   };

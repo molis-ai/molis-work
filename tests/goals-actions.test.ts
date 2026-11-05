@@ -375,6 +375,11 @@ test("official MCP launcher: work records and tree proposals retain provenance a
       expected_config_version: current.config.version, expected_agreement_version: agreed.agreement.version });
     assert.equal(closed.work_status, "cancelled");
     assert.equal((await invokeWork(goalsActions.resume, { idempotency_key: "public-resume", reason: "继续实际工作" })).work_status, "open");
+    // The MCP session's supports report is its own word (PWA-144): the real user accepts the requirement through the protected entry.
+    await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
+      project_id: project.project_id, goal_id: input.goal_id, idempotency_key: "real-user-accept", authority: hostEventDecisionAuthority("web", project.project_id, "real-user", "real-user-accept"),
+      conclusion: "交付正文已核对", accepts_requirements: true, scope: { requirement_ids: ["delivered"] },
+    }));
     const finalState = await invokeWork(goalsActions.state, {});
     const completed = await invokeWork(goalsActions.close, { kind: "complete", result: "用户可查看完整报告", reason: "完成交付", idempotency_key: "public-complete",
       expected_config_version: finalState.config.version, expected_agreement_version: finalState.agreement.version });

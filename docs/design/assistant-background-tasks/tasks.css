@@ -72,5 +72,5 @@
   .shell{padding:6px 8px;grid-template-rows:minmax(0,1fr) 58px}
   .work{grid-template-columns:1fr}.work .pane2.docpane{display:none}.work.show-doc .pane2.docpane{display:flex}.work.show-doc .pane2.chat{display:none}
   .side-tabs{display:inline-flex}.island{left:8px;right:8px;width:auto;bottom:70px}.tbtn{height:44px}
-  .trow{min-height:56px}.btn{min-height:36px}
+  .trow{min-height:56px}
 }

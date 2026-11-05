@@ -22,7 +22,12 @@ export function readCurrentGoalEventRequirements(
   const extra = records.requirements.listExtraRequirements(projectId, goalId);
   const latest = new Map<string, GoalEventRequirementStatus["current_report"]>();
   const conclusions = new GoalEventStateRepository(context.repository.db).outcomes.latestConclusions(projectId, goalId);
+  // The latest report against each requirement (contradicts or unknown): an acceptance older than it no longer stands (user 2026-11-05).
+  const lastWithdrawing = new Map<string, number>();
   for (const row of records.workEvents.listLatestJudgments(projectId, goalId)) {
+    if ((row.verdict === "contradicts" || row.verdict === "unknown") && !lastWithdrawing.has(row.requirement_id)) {
+      lastWithdrawing.set(row.requirement_id, row.journal_seq);
+    }
     if (latest.has(row.requirement_id)) continue;
     latest.set(row.requirement_id, {
       event_id: row.event_id,
@@ -75,7 +80,7 @@ export function readCurrentGoalEventRequirements(
   });
   return extras.map((item) => ({
     ...item,
-    currently_satisfied: requirementCurrentlySatisfied(item),
+    currently_satisfied: requirementCurrentlySatisfied(item, lastWithdrawing.get(item.requirement_id) ?? null),
   }));
 }
 

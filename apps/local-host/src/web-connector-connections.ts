@@ -13,7 +13,7 @@ import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { activateConnectorConnection, type ConnectorActivation } from "./connector-activation.js";
-import { verifyEnabledConnection } from "./connector-check-service.js";
+import { checkSavedConnection, verifyEnabledConnection } from "./connector-check-service.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
@@ -69,7 +69,9 @@ export async function handleConnectorConnectionsHttp(
           token: body.token as string, accountLabel: typeof body.account_label === "string" ? body.account_label : null,
         }, ...(declarer ? { declarer } : {}) };
         const result = setup ? setup.submit(completion) : { connection: activateConnectorConnection(homeDirectory, completion) };
-        sendJson(response, "status" in result && result.status === "pending" ? 202 : 201, result);
+        const saved = "connection" in result && result.connection ? result.connection.connection_id : undefined;
+        const verification = saved && remember ? await checkSavedConnection(homeDirectory, saved, remember) : undefined;
+        sendJson(response, "status" in result && result.status === "pending" ? 202 : 201, { ...result, ...(verification ? { verification } : {}) });
       } catch (error) { setup?.fail(); throw error; }
       return true;
     }
@@ -98,7 +100,9 @@ export async function handleConnectorConnectionsHttp(
         const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;
         sendJson(response, 200, { ...result, ...(verification ? { verification } : {}) }); return true;
       }
-      sendJson(response, 200, { connection });
+      // A replaced key is checked like a new one; a rename is not a change to check.
+      const verification = completion && remember ? await checkSavedConnection(homeDirectory, item[1]!, remember) : undefined;
+      sendJson(response, 200, { connection, ...(verification ? { verification } : {}) });
       return true;
     }
     if (item && request.method === "DELETE") {

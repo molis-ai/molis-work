@@ -191,7 +191,7 @@ const SPECIMEN_SCRIPT = `
  * held to the area's height (`cqh` of `.mw-catalog`, whose content box leaves out its 32px and 96px padding).
  */
 const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;container-type:size}"
-  + "body.mw-catalog-page .mw-catalog__index{top:16px;max-height:calc(100cqh + 64px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}";
+  + "body.mw-catalog-page .mw-catalog__index{top:16px;max-height:calc(100cqh + 64px);overflow-y:auto;overscroll-behavior:contain}";
 
 /**
  * `say` is the page's translator and `lang` its language, which the board's own switch picks: the conditions, Assistant and

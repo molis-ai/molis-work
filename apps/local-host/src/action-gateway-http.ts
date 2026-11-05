@@ -5,6 +5,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ACTION_GATEWAY_PATH, actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { recordedCallIdField } from "./call-id-response.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
+import { actionClientAudience } from "./mcp-action-grants.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
@@ -29,6 +30,9 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
       || !(body.project_id === null || typeof body.project_id === "string" && body.project_id.trim())) throw new ActionError("actions.input_invalid", "动作传输参数无效");
     if (body.runtime_session_id !== undefined && (typeof body.runtime_session_id !== "string" || !body.runtime_session_id.trim()
       || !body.client_id.startsWith("runtime:"))) throw new ActionError("actions.input_invalid", "Runtime 会话元数据无效");
+    // Grants are matched by client id alone, and `agent:` ids are the Host's own runtimes (the built-in Agent, later a task's grant
+    // subject): a forwarding process naming one would borrow that client's grants. Nothing outside the Host may speak as them.
+    if (actionClientAudience(body.client_id) === "agent") throw new ActionError("actions.input_invalid", "内部 Agent 的身份不能经网关使用");
     // The number of the operation an invocation belongs to is the forwarding process's own and takes this one shape; a discovery has none.
     if (body.operation === "invoke" ? !isGatewayCallId(body.call_id) : body.call_id !== undefined) throw new ActionError("actions.input_invalid", "调用编号无效");
     if (body.home_id !== actionGatewayHomeId(home)) throw new ActionError("actions.home_mismatch", "连接的系统服务属于另一个 Home");

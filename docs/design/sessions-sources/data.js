@@ -77,11 +77,11 @@ window.protoData = {
     { id: "site", name: ["官网改版", "Website redesign"], dir: "~/code/site" },
   ],
 
-  // Project AI reading. n = sessions filed under the project; gap = some come from a tool that isn't allowed;
-  // reported = some only have a tool's word for it, so AI can't read them until you confirm.
+  // Project AI reading, shaped like counts in sessions.scope.read@1. n = filed; blocked = in a tool that was read and
+  // then stopped, per tool; reported = only a tool's word for it, so AI can't read them until you confirm. The rest is ai_readable.
   permitProjects: [
     { id: "molis", name: ["Molis Work", "Molis Work"], dir: "~/code/goalboard", n: 34 },
-    { id: "site", name: ["官网改版", "Website redesign"], dir: "~/code/site", n: 17, gap: { tool: "codex", n: 6 } },
+    { id: "site", name: ["官网改版", "Website redesign"], dir: "~/code/site", n: 17, blocked: [{ tool: "codex", n: 6 }] },
     { id: "billing", name: ["账单对账", "Billing reconciliation"], dir: "~/code/billing", n: 12, reported: 3 },
     { id: "notes", name: ["读书笔记", "Reading notes"], dir: "~/Documents/notes", n: 0 },
     { id: "clinic", name: ["诊所预约系统", "Clinic booking"], dir: "~/code/clinic", n: 21, team: true },
@@ -96,7 +96,7 @@ window.protoData = {
     { id: "pay", name: ["支付网关迁移", "Payment gateway migration"], dir: "~/code/pay-gw", n: 31 },
     { id: "release", name: ["发布说明自动化", "Release notes automation"], dir: "~/code/release-bot", n: 7 },
     { id: "interview", name: ["用户访谈整理", "User interview notes"], dir: "~/Documents/interviews", n: 4 },
-    { id: "ds2", name: ["设计系统 2.0", "Design system 2.0"], dir: "~/code/ui-kit", n: 19 },
+    { id: "ds2", name: ["设计系统 2.0", "Design system 2.0"], dir: "~/code/ui-kit", n: 19, blocked: [{ tool: "codex", n: 3 }, { tool: "qwen", n: 1 }], reported: 2 },
     { id: "internal", name: ["内部工具集", "Internal tools"], dir: "~/code/tools", n: 11 },
     { id: "compete", name: ["竞品跟踪", "Competitor tracking"], dir: "~/Documents/research", n: 6 },
     { id: "finance", name: ["财务模型", "Financial model"], dir: "~/Documents/finance", n: 0 },

@@ -476,21 +476,29 @@
     "Project permit row: a Setting Row has a title, a hint and a control, with no project mark and no in-row receipt for saving, on, off and failed. The receipt here explains consequences, so a passing Toast won't do");
 
   const pmTeamWhy = () => L("团队项目里不止你一个人，AI 读到的成员也可能看到，所以先不开放。你自己照常能看这些会话。", "A team project has other members who could see what its AI reads, so this isn't open yet. You can still view these sessions yourself.");
+  // counts in sessions.scope.read@1: filed = ai_readable + reported + blocked. Tools never allowed have nothing indexed,
+  // so they add to no count; blocked is only tools read and then stopped.
+  const neverRead = () => pmState() === "scene-tools" && !S.pmTools;
+  const pmFiled = (p) => (neverRead() ? 0 : p.n);
+  const pmBlocked = (p) => (S.pmTools ? [] : p.blocked || []);
+  const pmReadableN = (p) => p.n - (p.reported || 0) - pmBlocked(p).reduce((sum, x) => sum + x.n, 0);
   function pmMeta(p) {
-    const n = p.n;
+    const n = pmFiled(p);
     if (p.team) return n ? L(`${p.dir} · ${n} 个会话`, `${p.dir} · ${n} sessions`) : p.dir;
     if (!n) return L(`${p.dir} · 还没有归到这里的会话`, `${p.dir} · no sessions here yet`);
     if (!pmOn(p.id)) return L(`${p.dir} · ${n} 个会话归到这里`, `${p.dir} · ${n} sessions here`);
     if (noTools()) return L(`${p.dir} · 开着，现在读不到`, `${p.dir} · on, nothing readable right now`);
-    if (p.gap && !S.pmTools) return L(`${p.dir} · AI 能读 ${n - p.gap.n} 个；另 ${p.gap.n} 个在 ${toolName(p.gap.tool)} 里，那个工具没允许`, `${p.dir} · AI can read ${n - p.gap.n}; ${p.gap.n} more are in ${toolName(p.gap.tool)}, which isn't allowed`);
-    if (p.reported) return L(`${p.dir} · AI 能读 ${n - p.reported} 个；另 ${p.reported} 个是工具报的，你确认后才算`, `${p.dir} · AI can read ${n - p.reported}; ${p.reported} more were reported by a tool and count once you confirm them`);
+    const blocked = pmBlocked(p); const parts = [];
+    if (blocked.length) parts.push(L(`另 ${blocked.reduce((sum, x) => sum + x.n, 0)} 个在没允许的工具里（${blocked.map((x) => `${toolName(x.tool)} ${x.n}`).join("、")}）`, `${blocked.reduce((sum, x) => sum + x.n, 0)} more in tools that aren't allowed (${blocked.map((x) => `${toolName(x.tool)} ${x.n}`).join(", ")})`));
+    if (p.reported) parts.push(L(`另 ${p.reported} 个是工具报的，你确认后才算`, `${p.reported} more reported by a tool, counted once you confirm`));
+    if (parts.length) return L(`${p.dir} · AI 能读 ${pmReadableN(p)} 个；${parts.join("；")}`, `${p.dir} · AI can read ${pmReadableN(p)}; ${parts.join("; ")}`);
     return L(`${p.dir} · AI 能读这 ${n} 个会话`, `${p.dir} · AI can read these ${n} sessions`);
   }
   function pmNote(p) {
     const note = S.pmNote[p.id]; if (!note) return "";
     if (note.k === "saving") return `<p class="mw-loading" role="status">${L("正在保存…", "Saving…")}</p>`;
     if (note.k === "fail") return `${L(`没存上，${note.want ? "还是关着" : "还是开着"}。`, `Not saved; it's still ${note.want ? "off" : "on"}.`)}${btn(L("重试", "Retry"), { icon: "refresh", attrs: `data-pm-retry="${p.id}"` })}`;
-    if (note.k === "on") return `${status(L("已开", "On"), "done", null, true)}<span>${noTools() ? L("工具允许之后就读得到。", "Readable once a tool is allowed.") : L("一直有效，随时可以在这里关。", "Stays on until you turn it off here.")}</span>`;
+    if (note.k === "on") return `${status(L("已开", "On"), "done", null, true)}<span>${noTools() ? L("允许工具之后就读得到。", "Readable once a tool is allowed.") : L("一直有效，随时可以在这里关。", "Stays on until you turn it off here.")}</span>`;
     return `${status(L("已关", "Off"), "quiet", null, true)}<span>${L("之前读到的不再给 AI，在跑的读取也会停下。已经写进回答的内容不会收回；你自己照常能看。", "What was read is no longer given to AI, and reads in progress stop. Text already in its replies isn't taken back; you can still see everything yourself.")}</span>`;
   }
   const pmSwitch = (p) => `<span class="mw-switch" data-slot="switch" data-cat="Switch"><input type="checkbox" role="switch" data-pm-switch="${p.id}"${pmOn(p.id) ? " checked" : ""} aria-label="${esc(L(`允许 ${T(p.name)} 的 AI 读这里的外部会话`, `Let ${T(p.name)}'s AI read external sessions here`))}" aria-describedby="pm-meta-${p.id}"><span class="mw-switch__track" aria-hidden="true"></span></span>`;
@@ -501,7 +509,7 @@
     return pmSwitch(p);
   }
   const pmName = (p) => `<span class="ss-pm__name"><strong title="${esc(T(p.name))}">${T(p.name)}</strong>${p.id === S.cur ? badge(L("当前", "Current")) : ""}${p.team ? badge(L("团队", "Team")) : ""}</span>`;
-  const pmLook = (p) => (p.id === S.pmTarget && p.n && !p.team ? ` ${btn(L("看是哪些", "See which"), { v: "link", attrs: `data-pm-view="${p.id}"` })}` : "");
+  const pmLook = (p) => (p.id === S.pmTarget && pmFiled(p) && !p.team ? ` ${btn(L("看是哪些", "See which"), { v: "link", attrs: `data-pm-view="${p.id}"` })}` : "");
   function permitRow(p, { first = false, readOnly = false } = {}) {
     const n = S.pmNote[p.id];
     return `<div class="mw-setting ss-pm${p.team || readOnly ? " ss-pm--action" : ""}${p.id === S.pmTarget ? " is-target" : ""}${first ? "" : " rep"}" data-pm-row="${p.id}" data-cat="Setting Row" data-new="${esc(NEW_PM())}">
@@ -530,7 +538,7 @@
     let firstDone = false;
     return pmGroups(list).map((g) => `<section class="ss-pm-group"><h3>${g.name}</h3>${g.note ? `<p>${g.note}</p>` : ""}<div class="mw-settings" data-cat="Settings">${g.rows.map((p) => { const r = permitRow(p, { first: !firstDone }); firstDone = true; return r; }).join("")}</div></section>`).join("");
   }
-  const pmNoToolsAlert = () => (noTools() ? alert("info", L("还没允许读任何工具", "No tool is allowed yet"), L("开着的项目现在也读不到：这个开关只决定项目的 AI 能不能用，不会多读任何工具。", "Projects that are on can't read anything yet: this switch decides whether a project's AI may use what's read, it never reads more tools."), btn(L("选择工具", "Choose tools"), { attrs: 'data-act="pmtools"' })) : "");
+  const pmNoToolsAlert = () => (noTools() ? alert("info", neverRead() ? L("还没允许读任何工具", "No tool is allowed yet") : L("现在没有允许读的工具", "No tool is allowed right now"), L("开着的项目现在也读不到：这个开关只决定项目的 AI 能不能用，不会多读任何工具。", "Projects that are on can't read anything yet: this switch decides whether a project's AI may use what's read, it never reads more tools."), btn(L("选择工具", "Choose tools"), { attrs: 'data-act="pmtools"' })) : "");
   const pmLeadText = () => `${L("开着时，这个项目的 AI（对话、工作流、生成页面）能读归到这个项目的外部会话，列表和原文都算。默认关着，开一次一直有效，只有你能改。待归类和别的项目的会话不给。", "When on, the project's AI (conversations, workflows, generated pages) can read the external sessions filed under it: the list and the text. Off by default, stays as you set it, and only you can change it. Unsorted sessions and other projects' sessions are never included.")}`;
   const pmLead = () => `<p class="ss-pm-lead">${pmLeadText()}</p>`;
   const pmMcp = () => `<p class="ss-muted">${L("MCP 客户端除了这里，还要在它自己的授权里单独允许。", "An MCP client also needs its own authorization on top of this.")}</p>`;
@@ -560,7 +568,7 @@
     const list = pmAll().filter((p) => !q || T(p.name).toLowerCase().includes(q));
     const rows = pmGroups(list).flatMap((g) => g.rows).map((p) => {
       const n = S.pmNote[p.id];
-      return `<tr data-pm-row="${p.id}" data-pm-table="1"${p.id === S.pmTarget ? ' class="is-target"' : ""}><td><div class="ss-pm-cell">${monogram(p)}<div class="ss-pm__copy">${pmName(p)}<small class="ss-muted" id="pm-meta-${p.id}">${p.dir}</small><div class="ss-pm-note"${n ? ` data-kind="${n.k}"` : ""}>${pmNote(p)}</div></div></div></td><td class="is-num ss-pm-num">${p.n}</td><td class="is-num ss-pm-num ss-pm-ok">${pmReadable(p)}</td><td><span class="ss-pm-end">${pmEnd(p)}</span></td></tr>`;
+      return `<tr data-pm-row="${p.id}" data-pm-table="1"${p.id === S.pmTarget ? ' class="is-target"' : ""}><td><div class="ss-pm-cell">${monogram(p)}<div class="ss-pm__copy">${pmName(p)}<small class="ss-muted" id="pm-meta-${p.id}">${p.dir}</small><div class="ss-pm-note"${n ? ` data-kind="${n.k}"` : ""}>${pmNote(p)}</div></div></div></td><td class="is-num ss-pm-num">${pmFiled(p)}</td><td class="is-num ss-pm-num ss-pm-ok">${pmReadable(p)}</td><td><span class="ss-pm-end">${pmEnd(p)}</span></td></tr>`;
     }).join("");
     return `<div class="mw-dt ss-pm-table" data-cat="Data Table"><div class="mw-dt__bar"><div>${search(S.pmQ, L("搜索项目", "Search projects"), 'data-field="pmq"')}<span id="ss-pm-count">${pmCountLabel()}</span></div></div><div class="mw-dt__scroll"><table><thead><tr><th>${L("项目", "Project")}</th><th class="is-num">${L("归到这里", "Filed here")}</th><th class="is-num">${L("AI 现在读得到", "AI can read now")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
@@ -568,7 +576,7 @@
   function pmReadable(p) {
     if (p.team || !pmOn(p.id)) return "—";
     if (noTools()) return "0";
-    return String(p.n - (p.gap && !S.pmTools ? p.gap.n : 0) - (p.reported || 0));
+    return String(pmReadableN(p));
   }
   function permitFrame() {
     const back = S.pmLeft ? btn(pmBackLabel(), { icon: "chevron-left", attrs: 'data-act="pmback"' }) : "";

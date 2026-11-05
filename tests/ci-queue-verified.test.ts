@@ -129,6 +129,8 @@ test("RAC-1900 the command: answers false without the environment, writes both o
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
 /** The two test jobs that joined Verify (decision #14, 2026-10-31): on a pull request they also wait for `test-selection`. */
 const TEST_JOBS = ["security-invariants", "product-subset"];
+/** The jobs that also wait for `test-selection`: the two test jobs, and the macOS Rust and Swift checks (用户 2026-11-04), skipped on a successful `none`. */
+const SELECTED_JOBS = [...TEST_JOBS, "native-checks"];
 const BLOCKING = ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS];
 const RESULTS = ["GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
 const TEST_RESULTS = ["SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
@@ -166,6 +168,7 @@ const CASES: Case[] = [
 const contexts = (item: Case) => ({
   "github.event_name": item.event, "needs.queue-check.result": item.result, "needs.queue-check.outputs.verified": item.verified,
   "needs.test-selection.result": "success", "needs.test-selection.outputs.security_mode": "some", "needs.test-selection.outputs.product_mode": "some",
+  "needs.test-selection.outputs.native_mode": "whole",
 });
 
 test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothing else, and a blocking job is skipped only on its success and true", () => {
@@ -179,7 +182,7 @@ test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothin
   assert.deepEqual(blockingJobs(), BLOCKING, "the blocking jobs are the nine of today");
   for (const name of BLOCKING) {
     const job = jobBlock(name);
-    assert.match(job, TEST_JOBS.includes(name) ? /^    needs: \[test-selection, queue-check\]$/m : /^    needs: \[queue-check\]$/m, name);
+    assert.match(job, SELECTED_JOBS.includes(name) ? /^    needs: \[test-selection, queue-check\]$/m : /^    needs: \[queue-check\]$/m, name);
     const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(job)?.[1];
     assert.ok(condition, name);
     assert.ok(condition.startsWith("!cancelled() && "), `${name}: a cancelled run stops as before`);
@@ -316,7 +319,7 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the nine block
 
   assert.match(verify, /^    needs: \[gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, queue-check, test-selection\]$/m);
   assert.ok(verify.includes("          TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}"), "Verify receives the selector result directly");
-  for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"]]) {
+  for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"], ["NATIVE_MODE", "native_mode"]]) {
     assert.ok(verify.includes(`          ${name}: \${{ needs.test-selection.outputs.${output} }}`), `${output} reaches its own Verify verdict`);
   }
 });
@@ -334,4 +337,43 @@ test("RAC-1904 ci.yml: queue-check's word reaches nothing but the blocking jobs'
   const verify = jobBlock("verify");
   assert.match(verify, /QUEUE_CHECK_RESULT: \$\{\{ needs\.queue-check\.result \}\}/);
   assert.match(verify, /if \[ "\$GITHUB_EVENT_NAME" = "push" \] && \[ "\$QUEUE_CHECK_RESULT" = "success" \] && \[ "\$QUEUE_VERIFIED" = "true" \]; then/);
+});
+
+// 用户 2026-11-04: GitHub's macOS runners could not be had for 40 minutes, so `native-checks` (Rust and Swift) is skipped when the selection says
+// no changed file is one it reads. Only a successful `none`, on a pull request or a merge queue entry, waives it; Verify does not pass for any other
+// way it did not run, and no selection waives another blocking job's skip or failure.
+test("RAC-1907 ci.yml: native-checks is skipped only on a successful none of a pull request or a merge queue entry, and Verify accepts only that skip", () => {
+  const job = jobBlock("native-checks");
+  const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(job)?.[1];
+  assert.ok(condition);
+  const verdict = (event: string, selector: string, mode: string, queue = { result: "skipped", verified: "" }) => Boolean(evaluateExpression(condition, {
+    "github.event_name": event, "needs.queue-check.result": queue.result, "needs.queue-check.outputs.verified": queue.verified,
+    "needs.test-selection.result": selector, "needs.test-selection.outputs.native_mode": mode,
+  }));
+  for (const event of ["pull_request", "merge_group"]) {
+    assert.equal(verdict(event, "success", "none"), false, `${event}: a successful none skips it`);
+    for (const mode of ["whole", "some", "", "unknown"]) assert.equal(verdict(event, "success", mode), true, `${event}: ${JSON.stringify(mode)} runs it`);
+    for (const selector of ["failure", "cancelled", "skipped"]) assert.equal(verdict(event, selector, "none"), true, `${event}: a selector that ${selector} never waives it`);
+  }
+  for (const event of ["push", "schedule", "workflow_dispatch"]) assert.equal(verdict(event, "success", "none"), true, `${event}: a stale none waives nothing`);
+  assert.equal(verdict("push", "skipped", "", { result: "success", verified: "true" }), false, "the push the queue verified still skips, as before");
+  assert.match(jobBlock("test-selection"), /^    if: \$\{\{ github\.event_name == 'pull_request' \|\| github\.event_name == 'merge_group' \}\}$/m, "the selection runs where the skip is decided");
+
+  const script = stepScript(steps("verify")[1]!);
+  const run = (event: string, over: Record<string, string>) => runStep(script, {
+    GITHUB_EVENT_NAME: event, QUEUE_CHECK_RESULT: "skipped", QUEUE_VERIFIED: "", TEST_SELECTION_RESULT: "success", SECURITY_MODE: "some", PRODUCT_MODE: "some", NATIVE_MODE: "none",
+    ...Object.fromEntries(RESULTS.map((name) => [`${name}_RESULT`, "success"])), ...over,
+  }).status;
+  for (const event of ["pull_request", "merge_group"]) {
+    assert.equal(run(event, { NATIVE_CHECKS_RESULT: "skipped" }), 0, `${event}: the skip after a successful none passes`);
+    assert.notEqual(run(event, { NATIVE_CHECKS_RESULT: "skipped", NATIVE_MODE: "whole" }), 0, `${event}: a skip after whole fails`);
+    assert.notEqual(run(event, { NATIVE_CHECKS_RESULT: "skipped", NATIVE_MODE: "" }), 0, `${event}: a skip with no mode fails`);
+    assert.notEqual(run(event, { NATIVE_CHECKS_RESULT: "skipped", TEST_SELECTION_RESULT: "failure" }), 0, `${event}: a skip after a failed selector fails`);
+    for (const result of ["failure", "cancelled"]) assert.notEqual(run(event, { NATIVE_CHECKS_RESULT: result }), 0, `${event}: ${result} never passes, whatever the mode`);
+    // The other jobs' skips are not waived by a native none.
+    assert.notEqual(run(event, { SHELL_CHECKS_RESULT: "skipped" }), 0, `${event}: shell checks must run`);
+    assert.notEqual(run(event, { GATES_RESULT: "skipped" }), 0, `${event}: gates must run`);
+  }
+  for (const event of ["push", "schedule", "workflow_dispatch"]) assert.notEqual(run(event, { NATIVE_CHECKS_RESULT: "skipped" }), 0, `${event}: only a pull request or a queue entry may skip it`);
+  assert.equal(run("pull_request", {}), 0, "a run of it passes whatever the mode");
 });

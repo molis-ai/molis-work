@@ -1,0 +1,76 @@
+/* 21 · 工作记录原型自己的样式。界面本身全部用 mw.css（组件板现行样式的快照）；这里只有三类东西：
+ * 1. 原型控制条与「标出组件」标注——不是产品界面；
+ * 2. 两项「组件板新增」（分类条、种类色标记）的原型画法——进产品前先由 D 轨在组件板补标本；
+ * 3. 把现成组件放进设置页的拼接（间距、条目展开后的说明），只用组件板的令牌，不新造控件。 */
+
+/* ---- 1. 原型控制条（斜纹表示「不是产品」） ---- */
+.proto { position: fixed; left: 0; right: 0; bottom: 0; z-index: 200; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 16px;
+  background: repeating-linear-gradient(-45deg, var(--rail), var(--rail) 8px, var(--paper) 8px, var(--paper) 16px);
+  border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-soft); }
+.proto b { color: var(--ink); font-weight: 600; }
+.proto label { display: inline-flex; align-items: center; gap: 6px; }
+.proto select, .proto-btn, .proto-seg button { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 8px; min-height: 26px; }
+.proto-seg { display: inline-flex; }
+.proto-seg button + button { margin-left: -1px; }
+.proto-seg button[aria-pressed="true"], .proto-btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.proto-opt { color: var(--muted); }
+
+/* ---- 1. 「标出组件」：虚线框写组件板上的名字，红框是组件板新增（只在第一处写理由） ---- */
+body.cat [data-cat] { outline: 1px dashed color-mix(in srgb, var(--accent) 75%, transparent); outline-offset: 2px; position: relative; }
+body.cat [data-cat]::before { content: attr(data-cat); position: absolute; top: -9px; right: 4px; z-index: 6; padding: 0 4px; border-radius: 3px;
+  font: 500 10px/14px system-ui, sans-serif; background: var(--accent); color: var(--on-accent, #fff); pointer-events: none; white-space: nowrap; }
+body.cat .mw-switch[data-cat]::before, body.cat .mw-mark[data-cat]::before { top: -15px; right: auto; left: 0; }
+body.cat [data-new] { outline: 2px solid var(--red); outline-offset: 2px; position: relative; }
+body.cat [data-new]:not(.rep)::after { content: "组件板新增 · " attr(data-new); position: absolute; left: 0; top: calc(100% + 4px); z-index: 7; width: max-content; max-width: 300px;
+  padding: 2px 6px; border-radius: 3px; font: 500 10.5px/15px system-ui, sans-serif; background: var(--red); color: #fff; pointer-events: none; white-space: normal; }
+html[lang="en"] body.cat [data-new]:not(.rep)::after { content: "New for the component board · " attr(data-new); }
+
+/* ---- 2. 组件板新增：种类色标记（Mark 加五种 --mark-* 色之一） ---- */
+.mw-mark.wr-kind { background: var(--wr-fill); color: var(--wr-hue); box-shadow: none; }
+
+/* ---- 2. 组件板新增：分类条（按记录种类分段的占用，带图例） ---- */
+.wr-seg { display: flex; gap: 2px; height: 8px; margin-top: 16px; border-radius: 999px; overflow: hidden; background: var(--line); }
+.wr-seg i { display: block; height: 100%; background: var(--wr-hue); }
+.wr-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--ink-soft); }
+.wr-legend li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.wr-legend li::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--wr-hue); }
+.wr-legend b { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* ---- 3. 拼接：只排版，不新造控件 ---- */
+.wr-page { display: grid; gap: 24px; }
+/* 组件板标本给条目与设置行定了展示宽度（480、560）；放进设置页时撑满这一栏 */
+.wr-block .mw-items, .wr-block .mw-settings { width: 100%; grid-template-columns: minmax(0, 1fr); }
+.wr-page > .mw-tabs { margin-top: -8px; }
+.wr-block { display: grid; gap: 16px; min-width: 0; }
+.wr-block > section { display: grid; gap: 8px; min-width: 0; }
+.wr-block h2 { margin: 0; font-size: 13px; font-weight: var(--weight-title, 600); color: var(--ink); }
+.wr-block .wr-sub { margin: 0; font-size: 12px; color: var(--muted); }
+.wr-block .mw-card__panel > .mw-settings, .wr-block .mw-card__panel > .mw-items { margin: -4px -8px; }
+#app { display: contents; } /* the real settings body lays out its header and main directly */
+body { padding-bottom: 48px; }
+.mw-items > .wr-more { display: grid; gap: 6px; margin: 0 0 6px 54px; font-size: 12px; line-height: 1.6; color: var(--ink-soft); list-style: none; }
+.mw-items > .wr-more b { font-weight: 500; color: var(--ink); margin-right: 6px; }
+.wr-lock { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.wr-lock svg { width: 14px; height: 14px; }
+.wr-impact { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--ink-soft); }
+.wr-impact li { display: flex; gap: 8px; align-items: flex-start; }
+.wr-impact svg { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+.wr-impact .lose svg { color: var(--amber); }
+.wr-impact .ok svg { color: var(--green); }
+.wr-dialog-body { display: grid; gap: 16px; }
+.wr-dialog-body .mw-field .mw-ix-actions { flex-wrap: nowrap; }
+.wr-dialog-body .mw-field .mw-ix-actions > * { min-width: 0; }
+.wr-size { display: flex; align-items: baseline; gap: 8px; }
+.wr-size strong { font-size: 20px; font-weight: var(--weight-title, 600); color: var(--ink); font-variant-numeric: tabular-nums; }
+.wr-size span { font-size: 12px; color: var(--muted); }
+.wr-filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.wr-filter .mw-select { width: auto; min-width: 140px; } /* 和组件板设置行里的下拉同宽 */
+.wr-block .mw-collapsible summary .mw-status { margin-left: 8px; }
+.mw-stat .mw-meter { width: 100%; }
+@media (max-width: 600px) {
+  .proto { gap: 4px 8px; padding: 4px 8px; }
+  .proto b, .proto-opt, #p-block, #p-state { display: none; }
+  body { padding-bottom: 96px; }
+  .mw-items > .wr-more { margin-left: 10px; }
+  .wr-hide-sm { display: none; }
+}

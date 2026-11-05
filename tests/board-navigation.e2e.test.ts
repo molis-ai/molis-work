@@ -67,6 +67,9 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
       assert.ok(phone.title[0] <= phone.title[1], `${lang} ${state}: the current tab's title reads in full (${phone.title})`);
       assert.ok(phone.count, `${lang} ${state}: 全部标签 shows its whole count`);
       assert.deepEqual([phone.shown, phone.squeezed], [1, 0], `${lang} ${state}: only the current tab shows, at full width`);
+      const small = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar=${state}] :is(.tab-add-button, .tab-all-button, .titlebar-layout > .mw-btn, .tab-undo-chip)')].flatMap((b) => {
+        const box = b.getBoundingClientRect(); return box.width >= 44 && box.height >= 44 ? [] : [String(b.className).split(' ').pop() + ' ' + Math.round(box.width) + '×' + Math.round(box.height)]; })`);
+      assert.deepEqual(small, [], `${lang} ${state}: ＋, 全部标签, 布局 and the undo chip are 44 × 44 targets`);
     }
     // Nothing in the titlebar covers ＋ or 全部标签: the glyph row keeps its width and the strip gives way.
     const covered = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar] :is(.tab-add-button, .tab-all-button)')].filter((b) => b.getBoundingClientRect().width).flatMap((b) => {

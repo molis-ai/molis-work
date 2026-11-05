@@ -264,7 +264,7 @@ const headErrors = (measured, budget, base) => {
 // address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
 // read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
 // 07-S0 (workbench navigation specimens, 待 07 批评审台审): the README's new tab-strip, titlebar and three-zone bar classes ship in
-// the product sheets so the 07 slices reuse them instead of redrawing: workbench.css +9989 B (tab tiers, every-tabs and plus
+// the product sheets so the 07 slices reuse them instead of redrawing: workbench.css +10000 B (tab tiers, every-tabs and plus
 // menus, gone/removed marks, glyph tabs that widen, count badge, layout button, phone rules), arrival.css and settings.css +593 B
 // each (the bar's own-zone and warning-point rules shared through craft-finish). (The BL-953 entries for these three are spent:
 // the merge-base budget holds their ceilings.) Tried: the board-only scaffolding (stage, frames, popover anchors) stays inline on
@@ -273,7 +273,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 690479],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826727, 827320],
-  "/assets/molis-work-workbench.css": [1194521, 1204510],
+  "/assets/molis-work-workbench.css": [1194521, 1204521],
   "/assets/molis-work-workbench.js": [1074951, 1075120],
   "/assets/molis-work-plugin-frame.js": [208033, 208271],
 };

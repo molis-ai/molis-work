@@ -1,0 +1,100 @@
+/* 13 · 服务与模型连接 — 原型自己的样式。只有三类：
+   1. 原型条与页面骨架（不是产品界面）；
+   2. 示意外框：从哪里来的那一处只画到能看懂（不定样）；
+   3. 「组件板新增」：组件板和真实设置页里还没有的部分，每处在页面上带 data-board-new，README 逐条写理由。
+   颜色、圆角、阴影、字号只用 board.css 里的令牌，不新增色值。 */
+
+/* ---------- 1. 原型条与骨架 ---------- */
+html, body.proto-body { height: 100%; }
+body.proto-body { margin: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--desk); color: var(--ink); }
+#icons { display: none; }
+#app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* The real settings body is a grid of chrome + shell; here that grid moves to #app so the prototype strip can sit above it. */
+body.proto-body.project-preferences-page { display: flex; }
+body.settings-page #app { display: grid; grid-template-rows: 44px minmax(0, 1fr); }
+.proto { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; background: var(--paper); border-bottom: 1px solid var(--line-strong); font-size: 12px; color: var(--muted); }
+.proto b { color: var(--ink); font-size: 13px; font-weight: 600; margin-right: 8px; }
+.proto label { display: inline-flex; align-items: center; gap: 6px; }
+.proto .mw-select { width: auto; min-width: 0; height: 28px; font-size: 12px; }
+.proto #reset { margin-left: auto; }
+.mw-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; }
+
+/* ---------- 2. 示意外框（data-board-new="示意外框"，不定样） ---------- */
+.proto-origin { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; padding: 12px 16px 16px; background: var(--desk); }
+.proto-origin__tab { display: inline-flex; align-items: center; gap: 8px; justify-self: start; height: 32px; padding: 0 12px; border-radius: var(--radius-control, 8px); background: var(--paper); box-shadow: var(--lift-1); font-size: 13px; color: var(--ink); }
+.proto-origin__tab svg { width: 16px; height: 16px; color: var(--ink-soft); }
+.proto-origin__sheet { min-height: 0; overflow: auto; background: var(--paper); border-radius: 16px; box-shadow: var(--lift-2); padding: 32px 24px; display: grid; align-content: start; justify-items: center; gap: 16px; }
+.proto-origin__flow, .proto-composer { width: min(640px, 100%); display: grid; gap: 16px; }
+.proto-origin__title { margin: 0; font-size: 17px; font-weight: 600; }
+.proto-origin__list { display: grid; }
+.proto-msg { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink); }
+.proto-msg--me { justify-self: end; max-width: 80%; padding: 8px 12px; border-radius: 12px; background: var(--rail); }
+.proto-composer .mw-input-group { width: 100%; }
+.proto-need-done { display: flex; }
+
+/* ---------- 3. 组件板新增 ---------- */
+/* 就地展开的服务行：真实页面点服务会把列表换成详情；方案 A 留在列表里，在行下面展开。
+   行本身是真实的 settings-connection-row，展开区缩进到行名对齐，内容是真实的 settings-connector-flow。 */
+.proto-row { border-bottom: 1px solid var(--line); }
+.proto-row > .settings-connection-row { cursor: pointer; border-bottom: 0 !important; grid-template-columns: 40px minmax(0, 1fr) auto auto; }
+.proto-row > .settings-connection-row:hover { background: var(--nav-hover); }
+.proto-row__body { padding: 0 0 24px 52px; }
+/* 步骤进度说明：组件板的 mw-steps 只有圆点；连接要说出「第几步、做什么」，所以点后面跟一行字。 */
+.proto-steps { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
+.proto-steps .mw-steps { flex: none; }
+/* 连接页的列表＋详情分栏：组件板「列表＋详情」组合放进设置页正文；窄屏一次只显示一边。 */
+.proto-split { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 32px; align-items: start; }
+.proto-split .mw-dir { position: sticky; top: 0; }
+.proto-split .mw-dir-row { width: 100%; }
+.proto-split .mw-dir-row[aria-current="true"] { background: var(--nav-active); }
+.proto-back-only { display: none !important; }
+/* 原处的连接卡：一张 mw-card，标头是服务标记＋一句话，正文就是连接流程。 */
+.proto-need__head { display: flex; align-items: flex-start; gap: 12px; }
+.proto-need__head .mw-card__title { margin: 0; }
+[data-need] .mw-card__panel { display: grid; gap: 16px; }
+
+/* 动效：沿用产品的曲线与时长令牌。展开区像产品里刚打开的折叠一样升起；侧板在原处也照设置页的规则滑入。
+   计时器带来的重绘不重放进场（body.settled）。 */
+.proto-row__body { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
+body.proto-body--origin dialog.mw-sheet[open] { animation: craft-sheet-in 420ms var(--ease-quint); }
+body.settled :is(dialog.mw-dialog[open], dialog.mw-sheet[open], .proto-row__body) { animation: none !important; }
+body.settled dialog::backdrop { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .proto-row__body, body.proto-body--origin dialog.mw-sheet[open] { animation: none; } }
+
+/* 版式小件（不是新控件，只是现有控件的排布） */
+.proto-badges { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.proto-subhead { display: grid; gap: 4px; font-size: 13px; }
+.proto-subject { margin-left: auto; }
+[data-connectors-settings] .settings-heading:has(.proto-subject) { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.proto-savebar { flex-wrap: wrap; }
+.proto-savebar .mw-btn { white-space: nowrap; }
+.proto-savebar__status { margin-right: auto; min-width: 0; }
+.mw-dialog .proto-savebar__status { flex-basis: 100%; }
+.proto-adv { margin-top: 16px; }
+.proto-diag { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono, ui-monospace, monospace); color: var(--ink-soft); }
+[data-connectors-settings] .settings-connection-row__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-connector-capabilities [data-fulfillment="not"] span { color: var(--muted); }
+.mw-radio-group .mw-check-row > span { display: grid; gap: 2px; }
+
+/* 「组件板新增」标注（原型条的开关控制；不是产品界面） */
+[data-show-new] [data-board-new] { position: relative; outline: 1px dashed var(--accent); outline-offset: 4px; border-radius: 4px; }
+[data-show-new] [data-board-new]::before { content: "组件板新增 · " attr(data-board-new); position: absolute; top: -10px; right: 8px; z-index: 2; padding: 0 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-size: 11px; line-height: 18px; pointer-events: none; }
+html[lang="en"][data-show-new] [data-board-new]::before { content: "Board addition · " attr(data-board-new); }
+[data-show-new] .proto-origin[data-board-new] { outline-offset: -6px; }
+[data-show-new] .proto-origin[data-board-new]::before { content: "示意外框（不定样）"; top: 4px; }
+html[lang="en"][data-show-new] .proto-origin[data-board-new]::before { content: "Context frame (not under review)"; }
+
+@media (max-width: 760px) {
+  .proto { gap: 6px 10px; padding: 8px 12px; }
+  .proto b { width: 100%; }
+  .proto-row__body { padding-left: 0; }
+  .proto-row > .settings-connection-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .proto-row > .settings-connection-row > .mw-btn { grid-column: 3; grid-row: 1; }
+  .proto-split { grid-template-columns: minmax(0, 1fr); }
+  .proto-split .settings-connector-detail { display: none; }
+  .proto-split.has-sel .mw-dir { display: none; }
+  .proto-split.has-sel .settings-connector-detail { display: grid; }
+  .proto-split.has-sel .proto-back-only { display: inline-flex !important; }
+  .proto-origin { padding: 8px; }
+  .proto-origin__sheet { padding: 20px 16px; }
+}

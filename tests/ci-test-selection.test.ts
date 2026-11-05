@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { decideJob, FULL_WHEN, outputLines, securityList } from "../scripts/ci-test-selection.mjs";
+import { decideJob, decideNative, FULL_WHEN, NATIVE_RUN_WHEN, outputLines, securityList } from "../scripts/ci-test-selection.mjs";
 import { blockingJobs, blockingTestRuns, evaluateExpression, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -181,7 +181,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   commit("docs");
   const docs = select(root);
   assert.equal(docs.code, 0, docs.text);
-  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "" }, docs.text);
+  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none" }, docs.text);
 
   put("plugins/native/demo/src/thing.ts", "export function demoThingCount() { return 3; }\n");
   commit("demo");
@@ -191,6 +191,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   assert.equal(demo.outputs.security_files, "tests/demo-guard.test.ts");
   assert.equal(demo.outputs.product_mode, "some");
   assert.equal(demo.outputs.product_only, "^(?:tests/demo-flow\\.test\\.ts)$");
+  assert.equal(demo.outputs.native_mode, "none", "a plugin's TypeScript is not read by the Rust and Swift checks");
   assert.match(demo.text, /### Security invariants: some, 1 runner/);
 
   put("tests/security-invariants-host.test.ts", 'import test from "node:test";\ntest("still ok", () => {});\n');
@@ -204,6 +205,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   assert.equal(broken.code, 0, broken.text);
   assert.equal(broken.outputs.security_mode, "whole");
   assert.equal(broken.outputs.product_mode, "whole");
+  assert.equal(broken.outputs.native_mode, "whole", "a selection that failed runs the macOS checks");
   assert.match(broken.text, /affected-tests failed/);
 
   put("tests/ci-product-subset.txt", "tests/i18n.test.ts\n");
@@ -212,6 +214,11 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   assert.equal(badList.code, 0, badList.text);
   assert.deepEqual([badList.outputs.security_mode, badList.outputs.product_mode], ["whole", "whole"], badList.text);
   assert.match(badList.text, /the job lists could not be read/);
+  assert.equal(badList.outputs.native_mode, "none", "the native decision reads no test list: an unreadable one does not make it run");
+
+  put("apps/desktop/src-tauri/src/lib.rs", "pub fn one() -> u8 { 1 }\n");
+  commit("a Rust file");
+  assert.equal(select(root).outputs.native_mode, "whole");
 
   const usage = spawnSync(process.execPath, [path.join(root, "scripts/ci-test-selection.mjs"), "--bogus"], { encoding: "utf8" });
   assert.equal(usage.status, 2);
@@ -243,7 +250,7 @@ test("RAC-1763 end to end: a summary that cannot be written fails nothing, and a
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
 test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untrusted selections run the complete list", () => {
   const selection = jobBlock("test-selection");
-  assert.match(selection, /^    if: \$\{\{ github\.event_name == 'pull_request' \}\}$/m, "only on a pull request: a push, the nightly and manual runs and the merge queue run the whole lists");
+  assert.match(selection, /^    if: \$\{\{ github\.event_name == 'pull_request' \|\| github\.event_name == 'merge_group' \}\}$/m, "a pull request, and the merge queue for the macOS checks alone: a push, the nightly and manual runs run the whole lists");
   assert.match(selection, /^    timeout-minutes: \d+$/m);
   assert.match(selection, /fetch-depth: 2/, "HEAD^1 is in the checkout");
   assert.match(selection, /run: node scripts\/ci-test-selection\.mjs --base HEAD\^1$/m);
@@ -313,9 +320,9 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
       assert.equal(evaluate(list, scope), expected.list === "some" ? SOME[key === "security" ? "security_files" : "product_only"] : expected.list, `${what}: the files`);
     }
   }
-  // The merge queue runs exactly the blocking jobs and Verify (the two above among them, evaluated in the cases): the probe, which
-  // does not block, and the selection stay out of it.
-  for (const name of ["linux-probe", "test-selection"]) assert.match(jobBlock(name), /^    if: \$\{\{.*(?:== 'pull_request'|== 'schedule').*\}\}$/m, `${name} is not in the merge queue`);
+  // The merge queue runs the blocking jobs and Verify (the two above among them, evaluated in the cases), and the selection, which there
+  // decides only `native-checks` (RAC-1907): the probe, which does not block, stays out of it.
+  assert.match(jobBlock("linux-probe"), /^    if: \$\{\{.*(?:== 'pull_request'|== 'schedule').*\}\}$/m, "linux-probe is not in the merge queue");
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-test-selection.test.ts")), "a blocking job runs this file");
 });
 
@@ -331,11 +338,44 @@ function evaluate(expression: string, scope: { event: string; result: string; ou
 
 test("RAC-1765 ci.yml: every output the script writes is passed on by the job, and the jobs read only those", () => {
   const security = decideJob({ job: "security", list: LIST, affected: null });
-  const written = outputLines({ security, product: security }).map((line: string) => line.split("=")[0]).sort();
+  const written = outputLines({ security, product: security, native: decideNative({ affected: null }) }).map((line: string) => line.split("=")[0]).sort();
   const selection = jobBlock("test-selection");
   const passed = [...selection.matchAll(/^      ([a-z_]+): \$\{\{ steps\.select\.outputs\.([a-z_]+) \}\}$/gm)].map((match) => { assert.equal(match[1], match[2]); return match[1]!; }).sort();
   assert.deepEqual(passed, written);
   const read = [...new Set([...workflow.matchAll(/needs\.test-selection\.outputs\.([a-z_]+)/g)].map((match) => match[1]!))].sort();
   assert.deepEqual(read.filter((name) => !written.includes(name)), [], "no job reads an output that is never written");
   assert.deepEqual(written.filter((name: string) => !read.includes(name)), [], "every output is read by a job");
+});
+
+test("RAC-1766 the Rust and Swift checks run when a changed file is one they read, and are skipped for anything else", () => {
+  const change = (...paths: string[]) => decideNative({ affected: affected({ changes: paths.map((file) => ({ path: file })) }) });
+  // Written out here, one file for each kind, not read from NATIVE_RUN_WHEN, so that dropping one of them from the script is seen.
+  for (const file of [
+    "apps/desktop/src-tauri/src/lib.rs", "apps/desktop/src-tauri/Cargo.lock", "apps/desktop/package.json", "apps/desktop/adapters/tauri/src/drop_wheel.rs",
+    "apps/local-host/native/materials/JellyMaterial.swift", "apps/local-host/native/computer/Sources/main.swift", "apps/local-host/native/computer/build.sh",
+    "apps/local-host/native/materials/whisper/Package.swift", "scripts/anything.sh", "tools/helper.py", "crates/elsewhere/src/lib.rs", "other/Cargo.toml", "other/Cargo.lock",
+    "rust-toolchain.toml", "sub/rust-toolchain", "clippy.toml", "rustfmt.toml", ".cargo/config.toml", ".github/workflows/ci.yml", ".github/workflows/full-suite.yml",
+    "scripts/gates/native-checks.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "package.json", ".nvmrc", "pnpm-lock.yaml",
+  ]) {
+    const decision = change("docs/guide.md", file);
+    assert.equal(decision.mode, "whole", `${file}: ${JSON.stringify(decision)}`);
+    assert.match(decision.reasons[0]!, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  // A rename is read by both names, so moving a Rust file out of the shell, or a document into it, is seen.
+  assert.equal(decideNative({ affected: affected({ changes: [{ path: "docs/old.md", from: "apps/desktop/src-tauri/src/old.rs", status: "R" }] }) }).mode, "whole");
+  assert.equal(decideNative({ affected: affected({ changes: [{ path: "apps/desktop/src-tauri/src/new.rs", from: "docs/new.md", status: "R" }] }) }).mode, "whole");
+  // What it does not read: documents, specs, prototypes, the product's TypeScript, tests and skills.
+  const none = change("docs/system/ARCHITECTURE.md", "specs/post-anticorruption-roadmap/spec.md", "AGENTS.md", "README.md", "prototypes/onboarding/index.html",
+    "packages/design-system/src/styles/toast.ts", "plugins/native/todo/src/store.ts", "tests/board-overflow.e2e.test.ts", "skills/molis-plugin-dev/SKILL.md", "apps/workbench/src/primitive-catalog.ts",
+    "tooling/gates/README.md", "specs/BACKLOG.md");
+  assert.deepEqual(none.mode, "none", JSON.stringify(none));
+  assert.equal(change().mode, "none", "an empty change reads nothing");
+  // Every other way out runs it: no answer, a failed one, one without the changes.
+  for (const input of [{ affected: null, failure: "affected-tests failed: boom" }, { affected: null }, { affected: { tests: [], full: [], uncovered: [] } }, { affected: { changes: "docs/guide.md" } }]) {
+    assert.equal(decideNative(input as Parameters<typeof decideNative>[0]).mode, "whole", JSON.stringify(input));
+  }
+  assert.match(decideNative({ affected: null, failure: "affected-tests failed: boom" }).reasons[0]!, /affected-tests failed: boom/);
+  // The outputs name the mode and nothing else: no shards, no files.
+  assert.deepEqual(outputLines({ security: decideJob({ job: "security", list: LIST, affected: null }), product: decideJob({ job: "product", list: LIST, affected: null }), native: none }).filter((line: string) => line.startsWith("native")), ["native_mode=none"]);
+  assert.ok(NATIVE_RUN_WHEN.extensions.includes(".rs") && NATIVE_RUN_WHEN.extensions.includes(".swift"));
 });

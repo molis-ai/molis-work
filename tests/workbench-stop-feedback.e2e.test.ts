@@ -85,7 +85,7 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   const command = await backgroundCommand(browser, t);
   await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   // The background tasks are a tab of the right side since 07-S1; its badge counts the tasks not finished.
-  await browser.waitFor("!document.querySelector('[data-side-tab=\"tasks\"] [data-background-tasks-count]').hidden", 15_000);
+  await browser.waitFor("!document.querySelector('.tab-item:has([data-side-tab=\"tasks\"]) [data-background-tasks-count]').hidden", 15_000);
   await browser.click('[data-side-tab="tasks"]');
   await browser.waitFor("document.body.dataset.sideOpen === 'true' && !document.querySelector('[data-side-body=\"tasks\"]').hidden");
   const stop = ".background-task-command button", alert = "[data-background-tasks-list] [role=alert]";

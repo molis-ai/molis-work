@@ -122,9 +122,12 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
-      // Only a layout of another shape starts fresh (口径 4). One naming a plugin this project no longer offers (Goals like any
-      // other) is read as it is: that plugin's tabs stay, marked removed (removedPlugin), until it is added back or closed.
-      if (!resetLayout && isCurrent(stored)) {
+      // Only a layout of another shape starts fresh (口径 4); a plugin id neither this build nor Home knows (one from before a
+      // rename) is part of the shape. One naming a plugin this project no longer offers (Goals like any other) is read as it is:
+      // that plugin's tabs stay, marked removed (removedPlugin), until it is added back or closed.
+      const plugins = { ...PLUGIN_TAB_ICON };
+      document.querySelectorAll("[data-settings-page]").forEach(node => { plugins[node.dataset.settingsPage] = true; });
+      if (!resetLayout && isCurrent(stored, plugins)) {
         state = ops.ensureHome(stored);
       } else if (stored || resetLayout) {
         state = ops.create();
@@ -268,7 +271,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   const SEARCH_ROWS = ${JSON.stringify(searchRows())};
   // Each plugin's group colour is the hue its Manifest declares, which the Host writes into the page's plugin directory.
   const DIRECTORY_HUES = Object.fromEntries(JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
-  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, hues: DIRECTORY_HUES });
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
   // The right side, drawn from state.side; a tab closed there joins the closed groups, so ⌘⇧T reopens whichever closed last.
   const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, L });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).

@@ -1,6 +1,5 @@
 /** English copy for the side panel (specs/archive/side-panel): the shell, the browser tab, the file tab and assistant control. */
 export const SIDE_PANEL_EN: Record<string, string> = {
-  "右侧": "Right side",
   "现在没有后台任务": "No background tasks right now",
   "{n} 个后台任务没做完": "{n} background tasks not finished",
   "已关闭 {plugin}": "Closed {plugin}",

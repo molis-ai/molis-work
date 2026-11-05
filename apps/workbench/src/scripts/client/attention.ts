@@ -17,7 +17,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const { translate: L, projectId, openItem, route } = host;
   if (document.body.dataset.paneEmbedded === "true") return;
   const tab = document.querySelector('[data-side-tab="tasks"]');
-  const count = tab?.querySelector("[data-background-tasks-count]");
+  const count = tab?.parentElement?.querySelector("[data-background-tasks-count]");
   const list = document.querySelector("[data-background-tasks-list]");
   let tasks = [], key = "", reading = false, again = false;
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };

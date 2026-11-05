@@ -69,8 +69,8 @@ function sideEntries(primitives: SidePanelPrimitives, pluginTabs: readonly SideP
  */
 export function renderSideStrip(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
   const { L, icon, escapeHtml } = primitives;
-  const tab = (entry: SideEntry) => `<button class="side-panel-tab" type="button" role="tab" id="side-tab-${escapeHtml(entry.id)}" aria-controls="side-body-${escapeHtml(entry.id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.label)}"${entry.attrs}><span class="side-panel-tab-label" aria-hidden="true">${escapeHtml(entry.label)}</span>${icon(entry.glyph)}${entry.id === "tasks" ? `<span class="side-tab-badge" data-background-tasks-count aria-hidden="true" hidden>0</span>` : ""}</button>`;
-  return `<div class="side-strip" role="tablist" aria-label="${L("右侧")}" data-side-tabs>${sideEntries(primitives, pluginTabs, views).map(tab).join("")}</div>`;
+  const tab = (entry: SideEntry) => `<div class="tab-item" data-glyph-only title="${escapeHtml(entry.label)}"><button class="tab-item-trigger" type="button" role="tab" id="side-tab-${escapeHtml(entry.id)}" aria-controls="side-body-${escapeHtml(entry.id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.label)}"${entry.attrs}>${icon(entry.glyph).replace("<svg", '<svg class="tab-item-icon"')}<span class="tab-item-name" aria-hidden="true">${escapeHtml(entry.label)}</span></button>${entry.id === "tasks" ? `<span class="tab-count-badge" data-background-tasks-count aria-hidden="true" hidden>0</span>` : ""}</div>`;
+  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${L("右侧")}" data-side-tabs>${sideEntries(primitives, pluginTabs, views).map(tab).join("")}</div>`;
 }
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
@@ -99,16 +99,7 @@ html body.immersive-workbench .side-panel[hidden]{display:none}
 html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transform:none;pointer-events:auto}
 .side-strip{order:6;display:flex;align-items:center;justify-content:flex-end;gap:2px;flex:none;min-width:0;padding-right:calc(var(--sheet-inset,14px) - 8px)}
 body[data-side-open=true] .side-strip{min-width:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) - 8px)}
-.side-panel-tab{position:relative;display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;min-width:28px;padding:0 6px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:13px;white-space:nowrap;cursor:pointer;transition:background-color var(--dur-hover) var(--ease-quint),color var(--dur-hover) var(--ease-quint)}
-.side-panel-tab:is([hidden],[data-side-closed]){display:none}
-.side-panel-tab svg{width:16px;height:16px;flex:none}
-.side-panel-tab-label{display:none}
-.side-panel-tab.is-grown .side-panel-tab-label{display:inline;animation:craft-fade-in var(--dur-hover) var(--ease-quint)}
-.side-panel-tab:hover,.side-panel-tab.is-grown{background:var(--nav-hover);color:var(--ink)}
-body[data-side-open=true] .side-panel-tab[aria-selected=true]{background:var(--nav-active);color:var(--ink)}
-.side-panel-tab:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:-2px}
-.side-tab-badge{position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:var(--weight-control,500);line-height:16px;text-align:center;font-variant-numeric:tabular-nums;pointer-events:none}
-.side-tab-badge[hidden]{display:none}
+.side-strip>.tab-item:has(>[role=tab]:is([hidden],[data-side-closed])),.tab-count-badge[hidden]{display:none}
 .side-undo-chip{order:5;flex:none;max-width:220px}
 .side-undo-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-busy-mark{display:inline-flex;flex:none;width:16px;height:16px}
@@ -128,14 +119,13 @@ body:not([data-side-open=true]) .side-panel-divider{display:none}
 html body.is-side-resizing :is([data-plugin-stage],.side-panel){transition:none!important}
 body.is-side-resizing iframe,body.is-side-resizing [data-side-browser] canvas{pointer-events:none!important}
 body.is-side-resizing{cursor:col-resize;user-select:none}
-@media(pointer:coarse){.side-panel-tab{height:44px;min-width:44px}}
 @media(max-width:760px){
  html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + var(--side-gap) + var(--sheet-inset,14px))}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
  body[data-side-open=true] .side-strip{min-width:0}
  .side-panel-divider{display:none!important}
 }
-@media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body,.side-panel-tab,.side-panel-tab-label){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
+@media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
 `.replace(/\n\s*/g, "");
 
 /**
@@ -166,7 +156,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const MAC=/Mac|iP/.test(navigator.platform);
   const side=()=>getState().side;
   const buttons=()=>[...strip.querySelectorAll('[data-side-tab]')];
-  const views=()=>buttons().map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.side-panel-tab-label')?.textContent||button.dataset.sideTab}));
+  const views=()=>buttons().map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
   const tabOf=key=>side().tabs.find(tab=>tab.itemId===key);
   const offered=id=>!!id&&buttons().some(button=>button.dataset.sideTab===id&&!button.hidden);
   const tabs=()=>buttons().filter(button=>!button.hidden&&tabOf(button.dataset.sideTab));
@@ -183,7 +173,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     const src=body.dataset.sideSrc,inner=body.querySelector('[data-side-frame]');
     if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.src=src;}
   };
-  const expanded=()=>document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(b=>b.setAttribute('aria-expanded',String(open&&(!b.dataset.sidePluginOpen||current()==='plugin:'+b.dataset.sidePluginOpen))));
+  const expanded=()=>{
+    for(const button of buttons()){const item=button.parentElement;if(open&&button.getAttribute('aria-selected')==='true')item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');}
+    document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(b=>b.setAttribute('aria-expanded',String(open&&(!b.dataset.sidePluginOpen||current()==='plugin:'+b.dataset.sidePluginOpen))));
+  };
   const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
   let undo=null,undoTimer=0;
   const live=document.createElement('div');live.setAttribute('role','status');live.className='mw-sr-only';document.body.append(live);
@@ -276,14 +269,15 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(!next)return;event.preventDefault();next.focus();if(open){select(next.dataset.sideTab);save();}
   });
   let growTimer=0;
-  const grow=button=>strip.querySelectorAll('[data-side-tab]').forEach(node=>node.classList.toggle('is-grown',node===button));
+  const grow=button=>strip.querySelectorAll('[data-side-tab]').forEach(node=>node.parentElement.classList.toggle('is-grown',node===button));
+  const grown=button=>button.parentElement.classList.contains('is-grown');
   strip.addEventListener('pointerover',event=>{
-    const button=event.target.closest?.('[data-side-tab]');if(!button||button.classList.contains('is-grown'))return;
+    const button=event.target.closest?.('[data-side-tab]');if(!button||grown(button))return;
     clearTimeout(growTimer);growTimer=setTimeout(()=>grow(button),strip.querySelector('.is-grown')?0:140);
   });
   strip.addEventListener('pointerout',event=>{
     const button=event.target.closest?.('[data-side-tab]');if(!button||button.contains(event.relatedTarget))return;
-    clearTimeout(growTimer);if(!event.relatedTarget?.closest?.('[data-side-tab]')&&!button.matches(':focus-visible'))button.classList.remove('is-grown');
+    clearTimeout(growTimer);if(!event.relatedTarget?.closest?.('[data-side-tab]')&&!button.matches(':focus-visible'))button.parentElement.classList.remove('is-grown');
   });
   strip.addEventListener('focusin',event=>{const button=event.target.closest('[data-side-tab]');grow(button?.matches(':focus-visible')?button:null);});
   strip.addEventListener('focusout',event=>{if(!strip.contains(event.relatedTarget))grow(null);});
@@ -291,7 +285,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   let menuAnchor=null;
   const menuFor=button=>{
     menuAnchor=button;menu.replaceChildren();
-    const heading=document.createElement('strong');heading.textContent=button.querySelector('.side-panel-tab-label')?.textContent||'';
+    const heading=document.createElement('strong');heading.textContent=button.querySelector('.tab-item-name')?.textContent||'';
     const item=document.createElement('button');item.type='button';item.className='mw-menu__item';item.setAttribute('role','menuitem');item.dataset.sideMenu='close';
     item.innerHTML='<svg aria-hidden="true"><use href="#icon-x"></use></svg><span></span>';item.querySelector('span').textContent=L('关闭标签');
     item.addEventListener('click',()=>{menu.hidePopover();close(button);});

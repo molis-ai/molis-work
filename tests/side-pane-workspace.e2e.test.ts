@@ -42,7 +42,7 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   const before = await evaluate<number>(glyph);
   const point = await evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('${strip} [data-side-tab="browser"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
   await command("Input.dispatchMouseEvent", { type: "mouseMoved", ...point }, sessionId);
-  await waitFor(`document.querySelector('${strip} [data-side-tab="browser"]').classList.contains('is-grown') && document.querySelector('${strip} [data-side-tab="browser"] .side-panel-tab-label').checkVisibility()`, 5_000);
+  await waitFor(`document.querySelector('${strip} [data-side-tab="browser"]').closest('.tab-item').classList.contains('is-grown') && document.querySelector('${strip} [data-side-tab="browser"] .tab-item-name').checkVisibility()`, 5_000);
   assert.ok(Math.abs(await evaluate<number>(glyph) - before) < 0.5, "the tab grows leftward; its glyph stays put");
   await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 400, y: 400 }, sessionId);
 
@@ -51,6 +51,8 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === ${JSON.stringify(SHELF)}`);
   await waitFor(`document.querySelector('[data-side-body="${SHELF}"] iframe')?.contentDocument?.readyState === 'complete'`, 15_000);
   await evaluate(`document.querySelector('[data-side-body="${SHELF}"] iframe').contentWindow.__kept = true`);
+  // The tab on show is the current one while the side is open (aria-current on the tab, as on the main area's strip).
+  assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll('${strip} .tab-item[aria-current="page"] [data-side-tab]')].map(tab => tab.dataset.sideTab)`), [SHELF]);
 
   // Visit two more views, then switch around: the resident views are hidden, never loaded again.
   for (const tab of ["files", "browser"]) {
@@ -79,6 +81,7 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   await waitFor("document.body.dataset.sideOpen === 'false'");
   assert.equal(await evaluate(`${stored}.side.open`), false);
   assert.equal(await evaluate(`document.querySelector('${strip} [data-side-tab="files"]').checkVisibility()`), true);
+  assert.equal(await evaluate(`document.querySelector('${strip} .tab-item[aria-current]')`), null, "collapsed, no tab says it is on show");
   await chord("\\", "Backslash");
   await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'files'`);
 
@@ -123,7 +126,7 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, web } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const visit = (query = "") => navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/${query}` }, sessionId));
-  const tabs = "[...document.querySelectorAll('.tab-item')].map(tab => tab.dataset.plugin + (tab.dataset.itemId ? ':' + tab.dataset.itemId : ''))";
+  const tabs = "[...document.querySelectorAll('.tab-item[data-tab-id]')].map(tab => tab.dataset.plugin + (tab.dataset.itemId ? ':' + tab.dataset.itemId : ''))";
   await visit("?openPlugin=todo");
   await waitFor("document.body.dataset.desktopSurface === 'todo'", 15_000);
   await visit("?openPlugin=pages");
@@ -136,13 +139,14 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   await waitFor("document.querySelector('.tab-item[data-plugin=\"todo\"][data-tab-removed]')", 15_000);
   assert.deepEqual(await evaluate<string[]>(tabs), before, "the tab stays and nothing else moves");
   assert.match(await evaluate<string>("document.querySelector('.tab-item[data-plugin=\"todo\"]').title"), /已移除/u);
+  assert.equal(await evaluate<string>("document.querySelector('[data-plugin-group=\"todo\"][data-group-state=\"removed\"] .tab-group-tag')?.textContent ?? ''"), "已移除", "its group says it was removed");
   await click(".tab-item[data-plugin=\"todo\"] .tab-item-trigger");
   await waitFor("document.querySelector('[data-tab-removed-stage=\"todo\"]')?.checkVisibility()");
   assert.match(await evaluate<string>("document.querySelector('[data-tab-removed-stage]').textContent"), /加回这个项目/u);
 
   await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo" });
   await visit();
-  await waitFor("document.querySelector('.tab-item[data-plugin=\"todo\"]') && !document.querySelector('.tab-item[data-tab-removed]')", 15_000);
+  await waitFor("document.querySelector('.tab-item[data-plugin=\"todo\"]') && !document.querySelector('.tab-item[data-tab-removed], [data-group-state=\"removed\"]')", 15_000);
   assert.deepEqual(await evaluate<string[]>(tabs), before, "added back, the same tabs in the same places");
   await click(".tab-item[data-plugin=\"todo\"] .tab-item-trigger");
   await waitFor("document.body.dataset.desktopSurface === 'todo' && !document.querySelector('[data-tab-removed-stage]')", 15_000);

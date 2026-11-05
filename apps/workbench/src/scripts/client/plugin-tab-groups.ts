@@ -12,7 +12,7 @@ const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow
  * Plugin groups on the tab strip: drawing a plugin's automatic group, the plugin tab as the current place, closing a
  * group with a way back, and ⌘/Ctrl- or middle-click on a record opening it as a tab in its group.
  */
-export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, hues = {} }) => {
+export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, removed = () => false, hues = {} }) => {
   const HUES = { ...${JSON.stringify(SURFACE_HUES)}, ...hues };
   const SPARE = ${JSON.stringify(SPARE_HUES)};
   const hueOf = (plugin) => HUES[plugin] || SPARE[[...String(plugin)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % SPARE.length];
@@ -51,6 +51,12 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
       const count = document.createElement("span"); count.className = "tab-group-count"; count.textContent = String(items);
       count.title = L("组里还有 {n} 个标签", { n: items }); count.setAttribute("aria-hidden", "true");
       pages.querySelector('[data-tab-kind="plugin"]')?.append(count);
+    }
+    // A plugin taken out of the project keeps its group where it was, marked removed (07-S1; the look is S3's).
+    if (removed(plugin)) {
+      wrap.dataset.groupState = "removed";
+      const tag = document.createElement("span"); tag.className = "tab-group-tag"; tag.textContent = L("已移除");
+      pages.append(tag);
     }
     wrap.append(pages); parent.append(wrap);
     return end;

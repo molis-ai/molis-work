@@ -1,6 +1,6 @@
 # 原型共用的组件板实件
 
-状态：2026-11-04 起用（用户定：已选定方案、有界面的原型，都按组件板实件重做）。现在用它的有 [onboarding-full-journey](../onboarding-full-journey/README.md)（04）和 [runtime-and-recovery](../runtime-and-recovery/README.md)（25/26）。以后新画的原型也从这里取部件。
+状态：2026-11-04 起用（用户定：已选定方案、有界面的原型，都按组件板实件重做）。现在用它的有 [onboarding-full-journey](../onboarding-full-journey/README.md)（04）、[runtime-and-recovery](../runtime-and-recovery/README.md)（25/26）和 [role-scope](../role-scope/README.md)（36）。以后新画的原型也从这里取部件。
 
 `docs/design/` 下的原型不再拷贝或自写样式。产品画界面用的样式表和脚本由 `export.mjs` 生成。原型加载的就是这一份，组件板 `/__ui/catalog` 用的也是这一份：同样的 token、`mw-*` 控件、到达框架、工作台底栏和设置页。产品样式一改，重新生成后原型跟着变。
 
@@ -38,6 +38,7 @@ python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 | 成形中的项目卡 | `.cand-draft` | 04 目的、补问 | 像游戏里的任务卡：一格一个回答，正在回答的一格带强调边，空格是虚线槽 |
 | 连接线 | `.cand-bridge` | 04 模型 | 材料（或 Coding）连到模型，连上才亮 |
 | Dock 上的「暂不可用」点 | `.cand-pin-dot` | 25 某块暂不可用 | 哪一块打不开，就在去那一块的地方标出来；琥珀是要处理的，蓝是要知道的 |
+| 来源阶梯 | `.cand-scope` | 36 项目设置 › 角色（方案 C） | 一个设置的值从哪一层来：正在用的一层抬起，被盖住的变淡，空的是虚线槽，停用的划掉 |
 
 ## 没有用的
 

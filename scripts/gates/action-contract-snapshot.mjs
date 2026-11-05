@@ -335,8 +335,8 @@ const HEADERS = {
     "# input, output and traits are sha256 prefixes: input and output of the JSON Schema without its title/description annotations; traits of",
     "# the rest of the declaration (required actions, undo, background job, sources, execution policy, authorship, ...) without prose and",
     "# presentation. `-` means none.",
-    "# A row whose hash changed while its @version did not is a contract that changed under the references that pin it: bump the version, or",
-    "# say in the PR why the change cannot break a pinned reference (docs/system/CONTRACT-CHANGES.md). Say what it means for callers.",
+    "# A hash change at the same @version changes the contract for pinned callers. Describe that impact in the PR.",
+    "# During phase one, keep the current version; from the first external installation, follow docs/system/CONTRACT-CHANGES.md.",
   ],
   scenes: [
     "# Consumer scene snapshot: the built-in Manifests' judgment-consuming scenes, one row per scene_id@version.",
@@ -434,7 +434,7 @@ const named = (row) => (row.key.includes(row.cells.provider) ? row.key : `${row.
 export const describeDiff = (difference, noun = "action") => {
   const out = [];
   if (difference.inPlace.length) {
-    out.push(`${plural(difference.inPlace.length, noun)} changed shape under the SAME version (a reference that pins ${noun}@version now meets another contract: bump the version, or say why no pinned reference can break):`,
+    out.push(`${plural(difference.inPlace.length, noun)} changed shape under the SAME version (a reference that pins ${noun}@version now meets another contract: describe the effect on pinned callers in the PR; apply the version policy for the current phase):`,
       ...preview(difference.inPlace.map((entry) => `    ${entry.key}: ${entry.columns.join(", ")}`)));
   }
   // A new registered provider is its own list: it breaks every pinned reference whatever else stayed the same.

@@ -28,7 +28,7 @@
 
 | 原编号／日期 | 已定结论 | 依据与原需求 |
 | --- | --- | --- |
-| <a id="policy-a4"></a>A4 · 11-03 | 官网采用简明许可说明，区分个人或企业内部使用与须事先书面授权的对外分发、对外商业使用，并链接许可证。 | [产品建议 A4](../../../docs/product-operations/产品优化建议.md)、[官网口径与待办整理](batches/02.md#batch-02-item-5) |
+| <a id="policy-a4"></a>A4 · 11-03 | 官网采用简明许可说明，区分个人或企业内部使用与须事先书面授权的对外分发、对外商业使用，并链接许可证。11-04 已合入官网仓库，正式发布和双域验收按用户决定留到产品完整开发后。 | [产品建议 A4](../../../docs/product-operations/产品优化建议.md)、[官网口径与待办整理](batches/02.md#batch-02-item-5) |
 | <a id="policy-n3"></a>N3 · 11-03 | 安全表已有的 CI／本地证据列必须为每个测试文件注明对应测试名，缺引用时 CI 失败。 | [审查台账 N3](../../../docs/reviews/adversarial-review-2026-11-01.md)、[第 27 批](batches/27.md#batch-27-item-5) |
 | <a id="policy-n16"></a>N16 · 11-03 | 随公共截断函数接入，只检查源码中直接 `slice` 后加省略号的写法；既有数量只减不增。 | [审查台账 N16](../../../docs/reviews/adversarial-review-2026-11-01.md)、[第 06 批](batches/06.md#batch-06-item-2) |
 | <a id="policy-bl-937"></a>BL-937 · 11-03 | 重建时直接删除旧助理轮次。新库从空库开始，不迁入旧轮次，不补写 `written_by`。由 BL-928 的维护窗口执行。 | [维护待办](../../BACKLOG.md)、[第 02 批重建清理](batches/02.md#batch-02-item-3) |

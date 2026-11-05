@@ -152,7 +152,7 @@
 | 签名与公证（BL-021；产品建议 A1） | 发布、系统能力 | [26](batches/26.md)、[56](batches/56.md) | 要决策：凭据接入（你办）；现有个人 Apple 账号已定 |
 | [升级持续可用 U0～U7](../../upgrade-continuity/spec.md)；BL-413、BL-487 随真实 Home 重建核回；原 BL-581／583 的旧目录维护已并入 BL-928；BL-157 已移出 Backlog | 底层与架构、升级 | [02](batches/02.md)、[05](batches/05.md)、[25](batches/25.md)、[26](batches/26.md)、[56](batches/56.md)、[72](batches/72.md)、[SRV-8](batches/srv-8.md) | 升级链起点已定；要决策：真实 Home 重建由你说「开始」，更新／回退界面定样；具体门禁改动按开发流程处理 |
 | 运行条件：常驻、休眠后补跑、错过的怎样显示（产品建议 A5；BL-030、BL-645、BL-352） | 发布、系统能力 | [25](batches/25.md) | 直接做 |
-| 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | 口径已定，按[用户决定 A4](decisions.md#policy-a4)落实，官网尚待更新 |
+| 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | [A4](decisions.md#policy-a4) 文案已合入官网 main。用户 11-04 决定，官网正式发布与线上验收留到产品完整开发后安排 |
 | 原生组件随包预置与首次自检（产品建议 H14） | 发布、系统能力 | [26](batches/26.md)、[53](batches/53.md)、[56](batches/56.md) | 直接做 |
 | 「需要你」的菜单栏角标与系统通知（产品建议 B3），连同 Attention 还没有的稍后提醒与定时唤醒（[attention-resumption](../../../docs/modules/attention-resumption.md)） | 发布、系统能力 | [55](batches/55.md) | 要决策：界面定样 |
 | [合同兼容起点](../../../docs/system/CONTRACT-CHANGES.md)：M1 外发时记录版本、日期与提交 | 发布、系统能力 | [26](batches/26.md)、[56](batches/56.md) | 要决策：M1 的范围（[决定 18](decisions.md#decision-18)） |

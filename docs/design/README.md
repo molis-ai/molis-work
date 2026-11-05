@@ -15,6 +15,7 @@
 | [assistant-cards/](assistant-cards/README.md) | 助理卡片与工作简报：卡片解剖、三种字的来源、19 种块、19 个卡型、三种尺寸、状态、四张简报页与窄屏的规格板 | 设计稿（2026-10-26；四项已拍板，视觉待用户验收），说明见 [specs/work-brief/design.md](../../specs/work-brief/design.md)；里面是示例数据 |
 | [_catalog/](_catalog/README.md) | 过渡：第 04、25/26、36 批原型用的组件板实件（`export.mjs` 从产品构建导出样式表与脚本，`parts.js` 按组件板标记画部件，`prototype.css` 放原型控制条与「组件板新增」部件） | 按 D 轨的收拢计划并进 [kit/](kit/README.md)，只留 `kit/build.mjs` 一份脚本；新原型用 kit/，不再新加使用者 |
 | [runtime-and-recovery/](runtime-and-recovery/README.md) | 第 25、26 批合并定样：后台运行状态、某块暂不可用、更新与回退、安装自检、升级失败与恢复，选定的方案 A 加正常与异常状态 | 用户已定（2026-11-04，五题都选 A）；同日按组件板实件重做，用户已确认；里面是示例数据 |
+| [role-scope/](role-scope/README.md) | 第 36 批：角色作用范围——任务里选角色、项目设置与全局设置的角色、改了保存并使用、版本与恢复，三个方案只差项目里的角色和你的原件是什么关系，正常与异常状态都有 | 方案已定（2026-11-04：C 默认跟随，改了才覆盖；个人工作也能用角色）；按组件板实件画，产品未实现；里面是示例数据 |
 | [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |
 | [project-arrival-flow/](project-arrival-flow/README.md) | 打开 Molis Work：项目选择页、Welcome 与新建项目引导的高保真设计、可交互原型、状态与深色/窄屏图、三段动效录屏 | 当前的**参考原型**（2026-10-01 用户认可），生产实现见 [specs/archive/project-arrival-flow](../../specs/archive/project-arrival-flow/spec.md)。原型里的项目、材料、整理结果都是示例数据 |
 | [soft-workbench/](soft-workbench/README.md) | 用户认可的 Soft Workbench 高保真原型（首页、目标、信息流、新手引导） | 当前视觉语言的**参考原型**；已按 [specs/archive/soft-workbench-rollout](../../specs/archive/soft-workbench-rollout/spec.md) 落到生产。原型里的数据、AI 回复和 localStorage 都是演示 |
@@ -25,6 +26,7 @@
 | [service-connections/](service-connections/README.md) | 服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒 | 用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据 |
 | [sessions-sources/](sessions-sources/README.md) | 第 22 批外部会话定样：发现会话、归属建议、查看历史三块，各两到三个方案，含读取中、来源没读成、没有会话、模型不可用、改选后来了新建议、读到一半断了、这一版读不了、已停止读取；按组件板实件做 | 用户已定（2026-11-04：B 按时间排加来源条、B 待归类集中处理、A 原文对话，记在 [Sessions 需求 §8](../../specs/sessions-rebuild/spec.md#8-决策记录)）；产品未实现；里面是示例数据 |
 | [workbench-navigation/](workbench-navigation/README.md) | 第 07 批第 1 项：标签与标签组、分屏、右侧、底栏的统一导航和个人插件入口的可点定样（标签与窗格三个方案，个人插件入口两个方案；召回、关组撤销、记录不在、插件被移除、没能启动、独看、窄屏） | 用户已选（2026-11-04：标签与窗格 A，整体分区选分法一，个人插件进底栏右边），记在[产品治理 §4.6.1](../../specs/product-flow-governance/spec.md#461-工作台导航的界面定样第-07-批2026-11-04)；产品未实现；里面是示例数据 |
+| [generated-page-adoption/](generated-page-adoption/README.md) | 第 37 批第 1 项生成页面的可点定样：草稿、检查与隔离、采用前确认与分步进度、页面里的真实操作、你改过的地方、版本与恢复、退回基础首页；用户已选 B「现在和草稿并排」（A、C 留着对照），十一种状态；生成的页面是首页自己的内容，不当插件 | 用户 2026-11-04 已选 B；产品未实现；里面是示例数据 |
 | [appearance-selection/](appearance-selection/README.md) | 第 14 批外观选择与应用规则的可点定样：设置 › 界面与语言里的皮肤、字体、等宽、语言与恢复，三个方案（点了就换／在这个窗口试／旁边样张），含字体加载慢与失败、方案没通过检查、另一个窗口刚改过、系统语言还没有；中英文、浅深色 | 用户已选定（2026-11-04：方案 C，记在[字体皮肤语言需求 §12](../../specs/font-and-skin-system/spec.md#12-决策记录)）；产品未实现；Folio 配色与圆润字体是代替品，里面是示例数据 |
 | [kit/](kit/README.md) | 组件板实件，各原型共用一份：从构建结果生成的 `kit.css`／`kit.js`（色板、`mw-*` 控件、状态环、差异视图、过程折叠、图标表与真实渲染函数）和生成脚本 | 现行；`pnpm build` 后 `node docs/design/kit/build.mjs` 重新生成，不手改；组件板变了由 D 轨重生成 |
 | [coding-frame/](coding-frame/README.md) | Coding 样张共用框架 `coding-proto.js`／`.css`：原型控制条、Coding 外壳、恢复框架和「标出组件板新增」开关，叠在 kit 和 12 的布局层上 | 现行；B 轨维护，33、35-2 在用 |

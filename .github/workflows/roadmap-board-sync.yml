@@ -1,0 +1,57 @@
+# Publishes the roadmap claim board (issue #1743) as a static file, so the public
+# progress page at molis-ai.github.io/molis-work does not depend on the shared,
+# per-IP limit of the unauthenticated GitHub API.
+#
+# The issue's title and body are never interpolated into a command: they only
+# reach disk as JSON written by the script.
+
+name: Roadmap board sync
+
+on:
+  issues:
+    types: [edited]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+
+# A later edit replaces a run that is still waiting, so the last write has the
+# newest body. A run in progress is left to finish.
+concurrency:
+  group: roadmap-board-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || github.event.issue.number == 1743
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Pinned: this job holds a write token, and gh-pages is pushed without review.
+      # Changing the script means changing this hash, which goes through a PR.
+      - uses: actions/checkout@v6
+        with:
+          ref: db6a671053776b808bae3f28fa3cfa713cfd5d6b
+          path: pages
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: board-data
+          path: board
+      - name: Write board.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I pages/tools/board_json.py board/board.json
+      - name: Commit if changed
+        working-directory: board
+        run: |
+          git add board.json
+          if git diff --cached --quiet; then
+            echo "board.json is unchanged"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "Update roadmap board"
+          git push origin HEAD:board-data

@@ -240,20 +240,24 @@ html[lang="en"][data-show-new] [data-board-new]::after { content: "Board additio
   .gp-guide__steps em { display: none; }
   .gp-compare { gap: 6px; }
   .gp-stat { padding: 8px 10px; }
-  /* Table rows become two-line cards: item and its status on one line, the rest below. */
+}
+.gp-table .gp-noexec { display: block; margin-bottom: 4px; max-width: 8em; margin-left: auto; white-space: normal; line-height: 1.3; }
+.gp-page { container-type: inline-size; }
+@container (max-width: 760px) {
+  /* Table rows become two-line cards by the card's own width: item and its action on one line, status and the rest below. */
   .gp-table thead { display: none; }
   .gp-table table, .gp-table tbody { display: block; }
   .gp-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; }
   .gp-table tr::after { content: ""; flex-basis: 100%; order: 2; }
   .gp-table td { padding: 0; }
   .gp-table .gp-title { flex: 1 1 0; min-width: 0; order: 0; }
-  .gp-table .gp-st { order: 1; }
+  .gp-table .gp-st { order: 3; }
   .gp-table .gp-who, .gp-table .gp-pr, .gp-table .gp-due { order: 3; font-size: 12px; color: var(--muted); }
-  .gp-table .gp-act { order: 4; margin-left: auto; }
+  .gp-table .gp-act { order: 1; margin-left: auto; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .gp-table .gp-noexec { display: inline; margin: 0; max-width: none; white-space: nowrap; }
   .gp-table tbody tr + tr { box-shadow: inset 0 1px 0 var(--line); }
   .gp-table tbody tr + tr td { box-shadow: none; }
   .gp-table tr.gp-rowmsg { display: block; padding-top: 0; box-shadow: none !important; }
   .gp-table tr.gp-rowmsg::after { content: none; }
   .gp-table tr.gp-rowmsg td { display: block; }
 }
-.gp-table .gp-noexec { display: block; margin-bottom: 4px; max-width: 8em; margin-left: auto; white-space: normal; line-height: 1.3; }

@@ -133,7 +133,7 @@ test("RAC-2922 real AgentHost registration accepts ordinary/fixed starts and ref
   const input = { session: own, directory, role_id: "reader", task: "Read the attached material" };
   const plain = { material_id: "ordinary", title: "Ordinary", text: "An ordinary note" };
   const fixed = { material_id: "fixed", title: "Fixed", text: "An immutable version", source_artifact_id: "actual-fixed", source_version: 7 };
-  assert.deepEqual([agent.startRun.version, agent.readRun.version, agent.readSession.version, agent.waitRun.version], [3, 4, 4, 4]);
+  assert.deepEqual([agent.startRun.version, agent.readRun.version, agent.readSession.version, agent.waitRun.version], [1, 1, 1, 1]);
   for (const materials of [[plain], [fixed], [plain, fixed]]) {
     await actions.invoke(agent.startRun, [runtimeId, { ...input, text_materials: materials }]);
     assert.deepEqual(starts.at(-1)!.text_materials, materials, "each legal shape actually reached adapter.start");

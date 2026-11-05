@@ -38,11 +38,11 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     const a = await connect("a"), b = await connect("b"), reader = await connect("a", "read");
     const available = (await a.listTools()).tools.map(row => row.name);
     for (const name of ["list", "get", "update", "delete", "templates", "folders.create", "folders.update", "folders.delete", "import.preview", "import", "ai", "extract", "promote", "documents.import", "generations.list", "generations.get", "generate"]) assert.ok(available.includes(tool(`pages.${name}`)));
-    // W4-2-12: the new strict output is version 2; the old tool is absent, with no alias.
+    // W4-2-12 N26: the strict output is current at version 1; retired version 2 has no alias.
     assert.ok(available.includes(tool("pages.create", 1)));
-    assert.equal(available.includes(tool("pages.create")), false);
-    assert.equal((await a.callTool({ name: tool("pages.create"), arguments: { title: "Old binding" } })).isError, true);
-    const { document } = await call(a, "pages.create", { title: "External", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "MCP content" }] }] } }, 2);
+    assert.equal(available.includes(tool("pages.create", 2)), false);
+    assert.equal((await a.callTool({ name: tool("pages.create", 2), arguments: { title: "Old binding" } })).isError, true);
+    const { document } = await call(a, "pages.create", { title: "External", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "MCP content" }] }] } }, 1);
     assert.deepEqual((await call(reader, "pages.get", { id: document.id })).document.body, document.body);
     assert.deepEqual((await call(b, "pages.list", {})).documents, []);
     assert.equal((await b.callTool({ name: tool("pages.get"), arguments: { id: document.id } })).isError, true);

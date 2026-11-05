@@ -261,9 +261,10 @@ const headErrors = (measured, budget, base) => {
 // N53/N54 D half (#1811, admitted by the coordinator on 2026-11-05): pages stop sending reads that can only fail. plugin-frame.js
 // +238 B: the frames a page mounts at once share one in-flight surfaces read per address, and a page with no project asks none;
 // workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
-// address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
-// read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
-// BL-912 (07-S4a, awaiting the 07 batch review desk): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
+// address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings; the workbench.js
+// ceiling is spent too and the BL-912 entry below takes its place.) Tried: the shared read is one Map with no expiry timer, the
+// project check reads the body's existing data-project-id, no new helper or asset.
+// BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
 // table, the attribute is read in the statement that already chose the default; the N53/N54 workbench.js entry is spent (the
 // merge-base budget holds its ceiling) and is replaced by this one.

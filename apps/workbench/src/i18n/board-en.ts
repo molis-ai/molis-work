@@ -142,4 +142,8 @@ export const BOARD_EN: Record<string, string> = {
   "标题栏": "Titlebar",
   "主区标签条与「＋」，右上是右侧那排图标，最右端是「布局」。异常态：记录不在、插件已移除、没能启动、刚关掉一组、放不下。": "The main strip and ＋, the right side's glyphs at the top right, Layout at the far end. When something is wrong: a record gone, a plugin removed, one that didn't start, a group just closed, too many tabs.",
   "异常": "Something wrong",
+  "两张样式表里的同一排图标": "One glyph row in both sheets",
+  "项目页与打开页各自的样式表都带这排图标，画出来一样。": "The project page's sheet and the arrival page's each carry this row and draw it the same.",
+  "同一排图标，打开页的样式表画的：": "The same row, drawn by the arrival page's sheet:",
+  "打开页样式表里的图标标签": "Glyph tabs in the arrival sheet",
 };

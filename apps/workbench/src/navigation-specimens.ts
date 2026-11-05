@@ -46,7 +46,8 @@ function tab(L: Say, o: TabOptions): string {
 /** A plugin's group: its head tab in the plugin's colour, a hairline, then its records a step lighter. */
 function group(L: Say, id: PluginId, records: readonly (Omit<TabOptions, "glyph"> & { glyph?: PluginIconName })[], options: { headCurrent?: boolean; removed?: boolean; active?: boolean } = {}): string {
   const plugin = P[id], name = L(plugin.name);
-  const head = tab(L, { label: name, glyph: plugin.glyph, head: true, current: options.headCurrent });
+  // A removed plugin says so in its head's name too: the tag beside it is inside the tablist, where a reader does not read it.
+  const head = tab(L, { label: name, glyph: plugin.glyph, head: true, current: options.headCurrent, ...(options.removed ? { readerLabel: `${name} · ${L("已移除")}` } : {}) });
   const rows = records.map((record) => tab(L, { glyph: plugin.glyph, ...record })).join("");
   const removed = options.removed ? `<span class="tab-group-tag">${escapeHtml(L("已移除"))}</span>` : "";
   return `<div class="tab-group tab-plugin-group" data-plugin-group="${id}" data-active="${Boolean(options.active ?? records.some((r) => r.current))}"${options.removed ? ' data-group-state="removed"' : ""} style="${hueVars(plugin.hue)}">`
@@ -97,7 +98,7 @@ function allTabsMenu(L: Say, id: string, hidden = false): string {
 }
 
 function allTabsButton(L: Say, controls: string, open: boolean): string {
-  return `<button type="button" class="tab-all-button" data-nav-menu-for="${controls}" aria-haspopup="menu" aria-expanded="${open}" aria-controls="${controls}" aria-label="${escapeHtml(L("全部标签"))} · ${escapeHtml(L("{n} 张", { n: 12 }))}">${icon("rows")}<span>${escapeHtml(L("全部标签"))}</span><span class="tab-all-count">12</span></button>`;
+  return `<button type="button" class="tab-text-button tab-all-button" data-nav-menu-for="${controls}" aria-haspopup="menu" aria-expanded="${open}" aria-controls="${controls}" aria-label="${escapeHtml(L("全部标签"))} · ${escapeHtml(L("{n} 张", { n: 12 }))}">${icon("rows")}<span>${escapeHtml(L("全部标签"))}</span><span class="tab-all-count">12</span></button>`;
 }
 
 function plusRow(L: Say, pid: PluginId, where = "", warn = false): string {
@@ -119,8 +120,8 @@ function plusMenu(L: Say, id: string, hidden = false, wrong = false): string {
 function layoutMenu(L: Say, id: string, hidden = false): string {
   const item = (label: string, iconName: PluginIconName, shortcut?: string, disabled?: boolean) => renderMenuItem({ label: L(label), iconName, ...(shortcut ? { shortcut } : {}), ...(disabled ? { disabled } : {}) });
   return `<div class="mw-menu tab-menu" id="${id}" data-nav-popover role="menu" aria-label="${escapeHtml(L("布局 · 主区"))}"${hidden ? " hidden" : ""}><p class="tab-menu-head" aria-hidden="true">${escapeHtml(L("布局 · 主区"))}</p>`
-    + renderMenuGroup({ items: item("向右分屏", "columns") + item("向下分屏", "rows") + item("把这张标签移到右侧", "sidebar") + item("独看这一栏", "maximize", "⌘⇧↵") })
-    + renderMenuGroup({ items: item("合并成一栏", "frame", undefined, true) + item("收起右侧", "sidebar", "⌘\\") + item("均分宽度", "columns", undefined, true) + item("关闭这一栏", "x") })
+    + renderMenuGroup({ items: item("向右分屏", "columns") + item("向下分屏", "frame") + item("把这张标签移到右侧", "arrow") + item("独看这一栏", "maximize", "⌘⇧↵") })
+    + renderMenuGroup({ items: item("合并成一栏", "minus", undefined, true) + item("收起右侧", "panel", "⌘\\") + item("均分宽度", "columns", undefined, true) + item("关闭这一栏", "x") })
     + renderMenuGroup({ label: L("切到"), items: renderMenuItem({ label: L("主区"), checked: true }) + renderMenuItem({ label: L("右侧"), checked: false }) })
     + `</div>`;
 }
@@ -199,7 +200,7 @@ function partSpecimens(L: Say): string {
   const undo = specimen("undo", "6", L("撤销关闭小签"), L("关掉一组后留 6 秒，组色底，固定在标签条可见区的末端；⌘⇧T 也能恢复。"),
     `<div class="mw-navs__narrow">${strip(L("主区的标签"), mainTabs(L), { end: undoChip(L) })}</div><p class="mw-navs__live" role="status" data-nav-live></p>`);
   const solo = specimen("solo", "7", L("独看小签"), L("独看时别的栏先收起；点它或再按 ⌘⇧↵ 回来。"),
-    strip(L("主区的标签"), group(L, "goals", [{ label: r.goal1, current: true }]), { end: `<button type="button" class="tab-solo-chip">${icon("maximize")}<span>${escapeHtml(L("独看中 · 显示全部"))}</span></button>` }));
+    strip(L("主区的标签"), group(L, "goals", [{ label: r.goal1, current: true }]), { end: `<button type="button" class="tab-text-button tab-solo-chip">${icon("maximize")}<span>${escapeHtml(L("独看中 · 显示全部"))}</span></button>` }));
   const plus = specimen("plus", "8", L("「＋」菜单的行"), L("只负责打开。已经开着的写出在哪一栏；悬停或聚焦时行尾出现「在旁边打开」（⌥↵）。"),
     `<div class="mw-navs__row">${plusButton(L, "nav-plus-open", true)}</div>${plusMenu(L, "nav-plus-open", false, true)}`);
   const marks = specimen("marks", "9", L("标签的异常标记"), L("划掉＝记录不在；琥珀小点＝没能启动；组上「已移除」。标签都留着，不自动关、不挪位。"),
@@ -211,11 +212,19 @@ function partSpecimens(L: Say): string {
   const badge = specimen("badge", "13", L("数字角标"), L("后台任务图标上没做完的数，读屏名写出几个没做完。"), `<div class="mw-navs__row mw-navs__row--end">${sideGlyphs(L)}</div>`);
   const layout = specimen("layout", "14", L("标题栏右端的「布局」按钮"), L("28px，前面一条细分隔线；右侧收起时前面是右侧那排图标。菜单作用于焦点所在的那一栏。"),
     `<div class="mw-navs__row mw-navs__row--end">${sideGlyphs(L)}${layoutButton(L, "nav-layout-open", true)}</div><div class="mw-navs__row mw-navs__row--end">${layoutMenu(L, "nav-layout-open")}</div>`);
-  return tiers + unfocused + overflow + undo + solo + plus + marks + phone + grow + badge + layout;
+  return tiers + unfocused + overflow + undo + solo + plus + marks + phone + grow + badge + sheetSpecimen(L) + layout;
+}
+
+/** The glyph row drawn by whichever sheet this frame loads: the board shows it once in each, one above the other, to show they match. */
+function sheetSpecimen(L: Say): string {
+  return specimen("sheets", "12 · 13", L("两张样式表里的同一排图标"), L("项目页与打开页各自的样式表都带这排图标，画出来一样。"),
+    `<div class="mw-navs__row mw-navs__row--end" data-nav-sheet-row>${sideGlyphs(L, { current: "talk", grown: "shelf" })}</div>`);
 }
 
 /** The frame the board's 工作台导航 section loads, in the board's language. */
-export function renderMolisWorkNavigationSpecimen(L: Say, htmlLang: string): string {
+export function renderMolisWorkNavigationSpecimen(L: Say, htmlLang: string, sheet: "workbench" | "arrival" = "workbench"): string {
+  // The arrival sheet has the glyph row but not the project page's tab rules, so its frame draws only that row.
+  const arrival = sheet === "arrival";
   const bars = specimen("bar", "15 · 16", L("三段新底栏"), L("左：只有图标的切换器，细线后面是 Dock，最前面是项目首页。中：输入框。右：钉住的个人插件，后面是项目圆钮。"),
     `<p class="mw-navs__state">${escapeHtml(L("正常"))}</p><div class="mw-navs__bar">${bar(L, "ok")}</div><p class="mw-navs__state">${escapeHtml(L("个人插件没能启动"))}</p><div class="mw-navs__bar">${bar(L, "wrong")}</div>`);
   const bars2 = specimen("titlebar", "", L("标题栏"), L("主区标签条与「＋」，右上是右侧那排图标，最右端是「布局」。异常态：记录不在、插件已移除、没能启动、刚关掉一组、放不下。"),
@@ -227,12 +236,12 @@ export function renderMolisWorkNavigationSpecimen(L: Say, htmlLang: string): str
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(L("工作台导航"))} · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
-  <link rel="stylesheet" href="/assets/molis-work-workbench.css">
+  <link rel="stylesheet" href="/assets/molis-work-${arrival ? "arrival" : "workbench"}.css">
   <style>${FRAME_STYLES}</style>
 </head>
-<body class="immersive-workbench mw-navs-page">
+<body class="${arrival ? "arrival-page " : ""}immersive-workbench mw-navs-page" data-nav-sheet="${sheet}">
   ${renderIconSprite()}
-  <main class="mw-navs" data-nav-board>${partSpecimens(L)}${bars2}${bars}</main>
+  <main class="mw-navs" data-nav-board>${arrival ? sheetSpecimen(L) : `${partSpecimens(L)}${bars2}${bars}`}</main>
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}${NAVIGATION_FRAME_SCRIPT}</script>
 </body>
 </html>`;
@@ -259,6 +268,7 @@ body.mw-navs-page{margin:0;background:var(--desk);color:var(--ink)}
 .mw-navs__narrow{max-width:520px;min-width:0}
 .mw-navs__phone{max-width:375px;min-width:0}
 body.mw-navs-page .mw-navs__phone .tab-pane-switch{display:inline-flex}
+body.mw-navs-page .mw-navs__phone .tab-pane-switch>.mw-toggle{min-height:44px}
 .mw-navs .tab-strip{min-width:0}
 .mw-navs__titlebar{display:flex;align-items:center;gap:8px;height:40px;min-width:0;padding:0 8px}
 .mw-navs__history{display:flex;gap:2px;flex:none}
@@ -275,16 +285,18 @@ body.mw-navs-page .mw-navs__phone .tab-pane-switch{display:inline-flex}
 .mw-navs .workbench-bar{height:var(--dock-h);padding:0;background:transparent}
 .mw-navs .bar-composer textarea{resize:none}
 html body.mw-navs-page .workbench-bar .mw-navs__fold{display:none}
-@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{height:auto;min-height:52px;flex-wrap:wrap;padding:0}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
+@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{height:auto;min-height:52px;padding:0}.mw-navs__main{flex-basis:0}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
 
 /** The board's section: the frame above, in the board's language, as tall as what it draws. */
 export function renderNavigationSection(L: Say, lang: "zh" | "en"): string {
   return `<section class="mw-catalog__section" id="navigation" data-primitive="navigation"><h2>${escapeHtml(L("工作台导航"))}</h2>`
     + `<p class="mw-nav-section__note">${escapeHtml(L("07-1 定样的组件板新增：标签条、标题栏与三段底栏的零件，以及它们组合成的整条样张。"))}</p>`
-    + `<iframe class="mw-nav-frame" data-nav-frame src="/__ui/catalog/navigation?lang=${lang}" title="${escapeHtml(L("工作台导航样例"))}" loading="lazy"></iframe></section>`;
+    + `<iframe class="mw-nav-frame" data-nav-frame src="/__ui/catalog/navigation?lang=${lang}" title="${escapeHtml(L("工作台导航样例"))}" loading="lazy"></iframe>`
+    + `<p class="mw-nav-section__note">${escapeHtml(L("同一排图标，打开页的样式表画的："))}</p>`
+    + `<iframe class="mw-nav-frame" data-nav-frame src="/__ui/catalog/navigation?lang=${lang}&amp;sheet=arrival" title="${escapeHtml(L("打开页样式表里的图标标签"))}" loading="lazy"></iframe></section>`;
 }
 
-export const NAVIGATION_SECTION_STYLES = ".mw-nav-section__note{margin:0 0 12px;color:var(--muted);font-size:12px}.mw-nav-frame{display:block;width:100%;height:2600px;border:0;border-radius:12px;background:var(--desk)}";
+export const NAVIGATION_SECTION_STYLES = ".mw-nav-section__note{margin:0 0 12px;color:var(--muted);font-size:12px}.mw-nav-frame{display:block;width:100%;height:2600px;border:0;border-radius:12px;background:var(--desk)}.mw-nav-section__note+.mw-nav-frame{height:180px}";
 
 /** The section's program and the frame's, written in `src/browser/board/navigation-*.ts` and bundled into `dist/` when the package builds. */
 export const NAVIGATION_SECTION_SCRIPT = readFileSync(new URL("./board-navigation-section.js", import.meta.url), "utf8").trim();

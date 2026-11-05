@@ -63,6 +63,12 @@ function watchGlyphs(row: Element): void {
     if (grown().length) grow(item); else timer = window.setTimeout(() => grow(item), REST_MS);
   });
   row.addEventListener("pointerleave", () => { clearTimeout(timer); for (const item of grown()) item.classList.remove("is-grown"); });
+  // Keyboard focus widens at once (the sheet keys the width on the class alone, so the product sets it the same way).
+  row.addEventListener("focusin", (event) => {
+    const node = target(event), item = node?.closest(GLYPH);
+    if (item && node?.matches(":focus-visible")) { clearTimeout(timer); grow(item); }
+  });
+  row.addEventListener("focusout", (event) => { target(event)?.closest(GLYPH)?.classList.remove("is-grown"); });
 }
 
 if (board) {

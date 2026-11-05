@@ -1,0 +1,58 @@
+/* 25 / 26 · arranging the catalog's parts for these views ([编排]), plus the drawn macOS menu bar and desktop
+   ([原型] — the system's, not ours). The product frames and controls come from ../_catalog/dist/arrival.css and
+   settings.css; approved parts the catalog lacks, and the prototype strip, from ../_catalog/prototype.css. Tokens only. */
+
+/* [编排] the same arrangement 04 uses: the assistant's mark beside a title, a row of buttons, rows inside a card */
+.q-head { display: flex; align-items: center; gap: 12px; }
+.q-head .mw-avatar { flex: none; width: 32px; height: 32px; background: var(--accent-soft); color: var(--accent-strong); }
+.q-head .mw-avatar svg { width: 16px; height: 16px; }
+.q-head h1 { margin: 0; }
+.q-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mw-alert .q-row, .mw-alert .ob-sources, .mw-alert .mw-check-row, .mw-alert .mw-progress { margin-top: 8px; }
+.welcome-q .mw-alert { max-width: 520px; margin-top: 16px; }
+.q-known .mw-dir-row__icon, .rr-inset .mw-dir-row__icon { background: none; }
+.land-scroll { height: 100%; overflow: auto; padding: 32px 24px 48px; }
+.land-scroll .mw-brief, .land-scroll > .mw-alert { max-width: 720px; margin-inline: auto; }
+.land-head { display: flex; align-items: center; gap: 16px; }
+.land-head .project-monogram { width: 48px; height: 48px; border-radius: 50%; font-size: 18px; }
+.land-head .mw-brief__title { margin: 0; }
+.mw-brief__list .mw-dir-row--meta { grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.mw-brief__list .mw-dir-row__icon { display: grid; place-items: center; width: 32px; height: 32px; margin: 0; background: none; }
+
+/* [编排] stacked notices above the brief or in the panel; a card's own rows; the in-place explanation */
+.rr-stack { display: grid; gap: 12px; }
+.mw-brief > .rr-stack { margin-bottom: 8px; }
+.rr-sec h3 { margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control); }
+.rr-fact { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rr-center { min-height: 100%; display: grid; place-items: center; }
+.rr-center .mw-empty { max-width: 480px; }
+.rr-list { margin: 0 0 12px; padding-left: 18px; color: var(--ink-soft); font-size: 13px; line-height: 1.8; }
+.settings-section h3 { margin: 12px 0 4px; font-size: 13px; font-weight: var(--weight-title); }
+.settings-document > .mw-alert, .settings-document > .q-row { margin-block: 12px; }
+
+/* [编排] the menu-bar panel: the catalog's popover surface, sized for a menu-bar extra */
+.rr-panel { position: fixed; top: 72px; right: 16px; z-index: 30; width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 96px); overflow: auto; display: grid; gap: 12px; padding: 12px; }
+.rr-panel__head { display: flex; align-items: center; gap: 8px; }
+.rr-panel__head > svg { width: 18px; height: 18px; }
+.rr-panel__head .mw-status { margin-left: auto; }
+.rr-panel__foot { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.rr-panel .mw-dir-row--meta { grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; column-gap: 10px; }
+
+/* [原型] the macOS menu bar and desktop — drawn, not our product */
+/* [原型] the settings sheet lays out body > header + shell; the prototype's #app wrapper takes that grid instead */
+body.proto-on.settings-page { display: block; padding-top: 40px; box-sizing: border-box; }
+body.proto-on.settings-page #app { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+body.rr-desk-page { min-height: 100dvh; background: linear-gradient(160deg, color-mix(in srgb, var(--hue-indigo) 35%, var(--desk)), color-mix(in srgb, var(--hue-cyan) 25%, var(--desk))); }
+.mac-bar { position: fixed; top: 40px; left: 0; right: 0; z-index: 20; height: 28px; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: color-mix(in srgb, var(--paper) 72%, transparent); backdrop-filter: blur(20px); color: var(--ink); font-size: 13px; }
+.mac-bar__app { font-weight: var(--weight-title); }
+.mac-bar__item { position: relative; display: grid; place-items: center; width: 28px; height: 22px; border: 0; border-radius: 4px; background: none; color: inherit; }
+.mac-bar__item svg { width: 15px; height: 15px; }
+button.mac-bar__item:hover, .mac-bar__item.is-on { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.mac-bar__item.cand-pin-dot::before { top: 2px; right: 2px; }
+.mac-bar__time { padding-left: 8px; font-variant-numeric: tabular-nums; }
+.mac-desk { position: fixed; inset: 68px 0 0 0; }
+
+@media (max-width: 759px) {
+  .land-scroll { padding: 20px 16px 40px; }
+  .rr-panel { top: 76px; right: 8px; width: calc(100vw - 16px); }
+}

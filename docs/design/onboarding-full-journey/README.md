@@ -1,18 +1,20 @@
 # Onboarding 全程：可点的定样（路线书第 04 批）
 
-状态：用户已批准（2026-11-04，按「让版面说话」重做后的第二版）。用户否掉了先前的三版（独立引导页、对话加方案草稿、在工作台里就地准备），定下全程都用打开软件时那套沉浸式全屏框架；这一版按它重做。产品代码还没写。
+状态：用户已批准版面（2026-11-04，按「让版面说话」重做后的第二版）；同日按组件板实件重做，用户已确认。用户否掉了先前的三版（独立引导页、对话加方案草稿、在工作台里就地准备），定下全程都用打开软件时那套沉浸式全屏框架；这一版按它重做。产品代码还没写。
 
-这是参考原型，不是产品界面。需求来源是[场景搭建与渐进式 Onboarding](../../../specs/onboarding-coverage/spec.md)（§3.1～3.15、ONB-01～49）和[视觉体验 · 文案与按需帮助](../../../specs/visual-ui-experience/spec.md#copy-guidance)（VUX-51～59），排期见[第 04 批](../../../specs/post-anticorruption-roadmap/reference/batches/04.md)。框架照产品现有的到达样式（`apps/workbench/src/styles/arrival.ts`，来历见 [project-arrival-flow](../project-arrival-flow/README.md)）画；配色与图标取自第 03 批原型 `docs/design/workbench-shared-paths`（分支 `claude/roadmap-03-shared-design`，尚未合入），这里拷了一份（`base.css`、`icons.js`），没有改它。用户拍板后，定下的细节写进原需求 §10 的决策记录，再进产品代码（届时换成 `mw-*` 控件）。
+这是参考原型，不是产品界面。需求来源是[场景搭建与渐进式 Onboarding](../../../specs/onboarding-coverage/spec.md)（§3.1～3.15、ONB-01～49）和[视觉体验 · 文案与按需帮助](../../../specs/visual-ui-experience/spec.md#copy-guidance)（VUX-51～59），排期见[第 04 批](../../../specs/post-anticorruption-roadmap/reference/batches/04.md)。框架、控件、图标、token 和动效都是产品自己的：页面加载 [`../_catalog/`](../_catalog/README.md) 生成的产品样式表（`arrival.css`）、图标 sprite 和到达动效脚本，部件用组件板的 `mw-*` 标记。组件板上还没有的已选定部件标「组件板新增」，交 D 轨补标本。本目录只剩版面编排（`proto.css`）、示例数据（`data.js`）和交互（`app.js`）。定下的细节写进原需求 §10 的决策记录。
 
 ## 怎么打开
 
-在仓库根目录运行，然后打开 <http://127.0.0.1:4411>：
+在仓库根目录运行，然后打开 <http://127.0.0.1:4431/onboarding-full-journey/>：
 
 ```sh
-python3 -m http.server 4411 --bind 127.0.0.1 --directory docs/design/onboarding-full-journey
+pnpm build
+node docs/design/_catalog/export.mjs
+python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 ```
 
-也可以直接用浏览器打开本目录的 `index.html`。顶上一条斜纹是**原型控制**，不是产品的一部分：切场景、状态、中英文和浅深色；「从头再来」清掉本页记住的进度。
+第二步生成产品样式（`docs/design/_catalog/dist/`，不入库）。不跑这一步，页面没有样式。顶上一条斜纹是**原型控制**，不是产品的一部分：切场景、状态、中英文和浅深色；「从头再来」清掉本页记住的进度。
 
 ## 框架：和第一次打开软件时一样
 
@@ -28,10 +30,10 @@ python3 -m http.server 4411 --bind 127.0.0.1 --directory docs/design/onboarding-
 
 - **让版面说话**：页面上只留问题、回答和必须让人知道的事（隐私一句、失败原因与处理方式）。原来每步的引导段落、底栏中间的状态行、选项下的小字说明、来源标记都去掉；较长的解释收进标题旁的「?」，一点就开，不占版面。
 - **陪伴**：每个问题前有助理的标记，像是同一个人在一路问你；右边的项目卡随回答一格格填上（像游戏里的任务卡），正在回答的那一格有一条强调边，已就绪数用一个圆环表示（如 4/8）。空格是虚线槽，不写「待定」。
-- **分块与层次**：同一类东西放进同一个容器（目的输入和例子一框、已知事项一框、采用会做的事一框、方案里的成员 / 插件 / 首页 / 设置各一段）；选项是带边框和图标块的卡片，选中时换成强调边、浅底和实心圆点，不再整块填黑。
+- **分块与层次**：同一类东西放进同一个容器（目的输入和例子一框、已知事项一框、采用会做的事一框、方案里的成员 / 插件 / 首页 / 设置各一段）；选项用组件板的 `mw-choice`。
 - **颜色区分种类**：每类事物固定一种颜色的图标块（目的蓝、材料琥珀、模型紫、整理绿、给谁看青、多久玫红、成员靛、首页灰），在项目卡、方案、采用、项目页里都一样，扫一眼就知道是哪一类。
 - **进度**：底栏步骤条写出每步的名字（窄于 1280 只留当前一步的名字，窄于 760 收起、改在纸顶上显示「3/9 · 目的」和一条进度线）；采用用一个大圆环数「已完成 / 全部」。
-- **按钮**：主按钮有轻微的上光与投影、悬停上浮一点，↵ 放在带边框的键帽里；次按钮白底带边框；所有按钮都有可见边界。
+- **按钮**：组件板的 `mw-btn`，主按钮带 ↵ 键帽（`mw-btn__key`）；所有按钮都有可见边界。
 - **建好后的项目页**：限宽 720 居中。顶部是项目标记、名字和一行数字（材料、成员、频率）与一个状态胶囊；下面一张「第一期」任务卡，三段小步骤（研究员读订阅源 → 编辑写成文档 → 你过目）和「开始」；再下面左右两块「带进来的」「团队」；「以后再设」折叠成一行，展开才见。
 
 右边的「景」随步骤换：
@@ -49,6 +51,27 @@ python3 -m http.server 4411 --bind 127.0.0.1 --directory docs/design/onboarding-
 | 工作目录、回去（从页面进入） | 选文件夹、多给的授权 | Coding 页面缩略：缺的两项和你写的那句 |
 
 做完以后才离开这个框架，进入项目（首页其余部分是占位）。
+
+## 按组件板实件重做（2026-11-04）
+
+版面和每一处选择都照批准的那一版，不动；换的只是部件，间距、阴影、动效、反馈和颜色都来自组件板。
+
+| 原来自画的 | 现在用的 |
+| --- | --- |
+| 拷来的 `base.css`、`parts.css`、`immersive.css`、`icons.js` | 产品的 `arrival.css`、图标 sprite、`foundation.js`（字标打字、标语轮换、状态环） |
+| 自画的按钮、键帽 | `mw-btn`（primary / secondary / ghost / link，`--sm` / `--lg`）、`mw-btn__key` |
+| 选项卡片（强调边、浅底、实心圆点） | `mw-choice`：选中是石墨底加勾，这是组件板现在的样子，和批准稿看上去不同 |
+| 每步的「说明」框 | `mw-hint`：标题旁的「?」，点开是弹层 |
+| 输入框、下拉框、复选框 | `mw-input`、`mw-select`、`mw-check-row` 与 `mw-check` |
+| 文件树 | 到达页的 `mw-file-group`、`mw-file-row`；文件名是 `mw-btn--link` |
+| 列表行、已知事项、方案各段 | `mw-dir-row`；成员头像 `mw-avatar` |
+| 失败、提醒、成功 | `mw-alert`（danger / warning / success），技术细节折进 `mw-collapsible` |
+| 状态与进度 | `mw-status`（带状态环）、`mw-badge`、`mw-progress`、`mw-skeleton`、`mw-spinner` |
+| 读取与整理两段 | 产品的 `ob-phases` |
+| 建好后的项目页 | 产品工作台底栏（插件切换、Dock、助理输入框、项目选择）与 `mw-brief`：第一期在 `mw-brief__focus` 里，三段用 `mw-goal-track`；空项目用 `mw-empty` |
+| 轻提示 | `mw-toast` |
+
+组件板上没有、按 token 画在 `../_catalog/prototype.css` 的「组件板新增」：带名字的步骤条、种类色块、进度圆环、成形中的项目卡、连接线。清单与来由见 [`_catalog`](../_catalog/README.md#组件板新增交-d-轨补标本)。
 
 ## 推荐走一遍
 
@@ -69,5 +92,5 @@ python3 -m http.server 4411 --bind 127.0.0.1 --directory docs/design/onboarding-
 ## 占位与模拟边界
 
 - **项目首页是占位**：首页长什么样，要等第 03 批的「智能呈现」定样后补上（原需求 §3.10）。成员的「改」只演示入口，没有展开职责与资料范围的编辑；这一块要接第 03 批的助理路径，同样等它定样后补。
-- 所有文件夹、文件、模型、摘要、成员和采用结果都是示例数据（`data.js`），用定时器模拟读取、整理和采用。没有读任何真实文件夹、没有调用模型，也没有连真实 Home。密钥输入框不保存任何内容。进度存在浏览器的 `localStorage`（`molis-proto.onboarding-full-journey.v3`），不代表产品的持久化、授权或恢复已经做好。
+- 所有文件夹、文件、模型、摘要、成员和采用结果都是示例数据（`data.js`），用定时器模拟读取、整理和采用。没有读任何真实文件夹、没有调用模型，也没有连真实 Home。密钥输入框不保存任何内容。进度存在浏览器的 `localStorage`（`molis-proto.onboarding-full-journey.v4`），不代表产品的持久化、授权或恢复已经做好。
 - `window.protoJump` 只用于截图时直接跳到某个状态，不是产品接口。

@@ -17,7 +17,7 @@ export const TOAST_STYLES = `
   .mw-toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 14px; top: 16.5px; }
   .mw-toast.is-error { animation: mw-toast-in var(--dur-move, 250ms) var(--ease-quint) both, mw-toast-nudge var(--dur-arrive, 420ms) var(--ease-quint) var(--dur-hover, 130ms); }
   .mw-toast__action {
-    min-height: 28px; margin-block: -5px; margin-inline-end: -6px; padding: 0 12px; border: 0; border-radius: 999px;
+    min-height: 28px; margin-block: -5px; margin-inline-end: -4px; padding: 0 12px; border: 0; border-radius: 999px;
     background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer;
     transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
   }

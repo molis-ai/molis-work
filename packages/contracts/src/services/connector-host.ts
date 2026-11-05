@@ -1,8 +1,9 @@
 import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 export type { ConnectorCheckObservation, ConnectorCallObservation, ConnectorObservations, ConnectorConnectionStatus } from "./connector-status.js";
-export { defineConnectorUsagesAction, CONNECTOR_USAGES_INPUT_TYPE, CONNECTOR_USAGES_OUTPUT_TYPE, CONNECTOR_USAGES_INPUT_SCHEMA, CONNECTOR_USAGE_SCHEMA, CONNECTOR_USAGES_OUTPUT_SCHEMA } from "./connector-usages.js";
-export type { ConnectorUsage, ConnectorUsagesInput } from "./connector-usages.js";
+export { defineConnectorUsagesAction, CONNECTOR_USAGES_INPUT_TYPE, CONNECTOR_USAGES_OUTPUT_TYPE, CONNECTOR_USAGES_INPUT_SCHEMA, CONNECTOR_USAGE_SCHEMA, CONNECTOR_USAGES_OUTPUT_SCHEMA,
+  defineConnectorUsagesSwitchAction, CONNECTOR_USAGES_SWITCH_INPUT_TYPE, CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE, CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA, CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA } from "./connector-usages.js";
+export type { ConnectorUsage, ConnectorUsagesInput, ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult } from "./connector-usages.js";
 
 export const servicesConnectorHostContract = {
   contractId: "io.molis.work.service.connector-host.v1",
@@ -27,6 +28,9 @@ export interface ConnectorHealth {
   status: "connected" | "disconnected" | "error" | "needs_auth";
   message: string;
   action?: string;
+  /** Same meaning as on a failed poll result; a rate limit sets `rate_limited` and, when known, `retryAfterAt`. */
+  failure?: ConnectorFailureKind;
+  retryAfterAt?: string;
 }
 
 export type ConnectorFailureKind =

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN" class="booting">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>工作台导航定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="shell.css?v=32">
+</head>
+<body class="immersive-workbench">
+  <div id="icons" hidden></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b data-t="protoTitle"></b>
+    <label><span data-t="scheme"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="scheme"><button type="button" class="mw-toggle" data-v="A"></button><button type="button" class="mw-toggle" data-v="B"></button><button type="button" class="mw-toggle" data-v="C"></button></span>
+    </label>
+    <label><span data-t="homeOpt"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="home"><button type="button" class="mw-toggle" data-v="1"></button><button type="button" class="mw-toggle" data-v="2"></button></span>
+    </label>
+    <label><span data-t="scenario"></span><select id="scene"></select></label>
+    <label><span data-t="state"></span><select id="state"></select></label>
+    <label><span data-t="lang"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="lang"><button type="button" class="mw-toggle" data-v="zh">中</button><button type="button" class="mw-toggle" data-v="en">EN</button></span>
+    </label>
+    <label><span data-t="theme"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="theme"><button type="button" class="mw-toggle" data-v="light" data-t="light"></button><button type="button" class="mw-toggle" data-v="dark" data-t="dark"></button></span>
+    </label>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="explainBtn" aria-pressed="true"><span data-t="explainToggle"></span></button>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset" data-t="reset"></button>
+  </div>
+  <div class="app" id="app"></div>
+  <aside class="explain" id="explain" aria-label="原型说明"></aside>
+  <script src="../kit/kit.js"></script>
+  <script src="data.js?v=32"></script>
+  <script src="app.js?v=32"></script>
+</body>
+</html>

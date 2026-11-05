@@ -1,7 +1,7 @@
 import {
   AGENT_MCP_DESTINATION_ID,
   NOUL_POSITIVE_THRESHOLD,
-  filterSuggestedBehaviorIds,
+  filterSuggestedOptionIds,
   functionOutputKeys,
   mapJudgmentChoice,
   type JudgmentRuleDescribe,
@@ -172,7 +172,7 @@ export class FunctionsService {
     // whether a referenced business action is currently authorized and prepared.
     const targets = functionOutputKeys(current).map(key => current.scene_map[key] ?? key);
     const suggested = outcome === "ok" && current.scene_id !== AGENT_MCP_DESTINATION_ID && (current.scene_id || Object.keys(current.scene_map).length)
-      ? filterSuggestedBehaviorIds(targets, targets, mapJudgmentChoice(current, result)) : [];
+      ? filterSuggestedOptionIds(targets, targets, mapJudgmentChoice(current, result)) : [];
     const outputKey = current.primitive === "choice" ? result.choice : current.primitive === "noul" && result.noul !== null ? result.noul >= NOUL_POSITIVE_THRESHOLD ? "true" : "false" : null;
     const action = outcome === "ok" && outputKey ? current.action_map?.[outputKey] : undefined;
     await context.before_result?.(current);

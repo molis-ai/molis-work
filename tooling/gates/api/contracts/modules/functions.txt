@@ -83,7 +83,7 @@ export type JudgmentRuleActionMap = Readonly<Record<string, import("@molis-ai/mo
 export interface JudgmentRuleAuthoringCatalog {
     readonly subjects: readonly JudgmentRuleAuthoringSubject[];
     readonly destinations: readonly JudgmentRuleAuthoringDestination[];
-    readonly behaviors: readonly JudgmentRuleAuthoringOption[];
+    readonly options: readonly JudgmentRuleAuthoringOption[];
 }
 
 export interface JudgmentRuleAuthoringDestination {
@@ -94,7 +94,7 @@ export interface JudgmentRuleAuthoringDestination {
     readonly configure_at: string;
     readonly effect: string;
     readonly subject_kinds: readonly string[];
-    readonly behavior_ids: readonly string[];
+    readonly option_ids: readonly string[];
     readonly scene_version?: number;
     readonly provider_id?: string;
     readonly availability?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
@@ -103,7 +103,7 @@ export interface JudgmentRuleAuthoringDestination {
 export type JudgmentRuleAuthoringDestinationKind = "event" | "mcp";
 
 export interface JudgmentRuleAuthoringOption {
-    readonly behavior_id: string;
+    readonly option_id: string;
     readonly title: string;
     readonly hint?: string;
     readonly effect: "read" | "write";
@@ -269,13 +269,13 @@ export interface TypeSafeProvider {
     evaluate(apiKey: string, record: JudgmentRuleRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
 }
 
-export declare function choiceCriteriaFollowContext(keys: readonly string[], catalogBehaviorIds: readonly string[]): boolean;
+export declare function choiceCriteriaFollowContext(keys: readonly string[], catalogOptionIds: readonly string[]): boolean;
 
-export declare function defaultFeedCaptureBehaviorIds(canAdmit: boolean): string[];
+export declare function defaultFeedCaptureOptionIds(canAdmit: boolean): string[];
 
-export declare function defaultInboxNextBehaviorIds(active: boolean): string[];
+export declare function defaultInboxNextOptionIds(active: boolean): string[];
 
-export declare function filterSuggestedBehaviorIds(offered: readonly string[], allowed: readonly string[], choice: string | null | undefined): string[];
+export declare function filterSuggestedOptionIds(offered: readonly string[], allowed: readonly string[], choice: string | null | undefined): string[];
 
 export declare function functionOutputKeys(record: {
     readonly primitive: JudgmentRulePrimitive;

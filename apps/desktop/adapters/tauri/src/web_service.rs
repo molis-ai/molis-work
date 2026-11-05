@@ -177,6 +177,15 @@ fn replace_owned_web_child(
     Ok(())
 }
 
+/// 现在的本机服务是不是这个桌面应用拉起的；是的话退出时一起停。
+pub(crate) fn desktop_owns_web_service(state: &WebServiceState) -> bool {
+    state
+        .owned_child
+        .lock()
+        .map(|child| child.is_some())
+        .unwrap_or(false)
+}
+
 pub(crate) fn stop_owned_web_service(state: &WebServiceState) -> bool {
     let child = state
         .owned_child

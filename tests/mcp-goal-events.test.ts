@@ -1,6 +1,6 @@
 // R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
 import { managementGoals } from "./goal-management-caller.js";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -13,7 +13,7 @@ import { molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDa
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-plugin-goals/contract";
-import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
+import { GoalProjectApplication, boardSnapshot, goalApplicationOf } from "./fixtures/goal-application.js";
 
 function localType() {
   return {
@@ -480,6 +480,11 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     );
     assert.equal(JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id, limit: 100 })).events.length, prior.events.length);
 
+    // The session's supports report is its own word (PWA-144): the person accepts the requirement through the protected entry before closing.
+    await host.withProject(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }), runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
+      project_id: project.project_id, goal_id, idempotency_key: "note-accept", authority: hostEventDecisionAuthority("web", project.project_id, "web-user", "note-accept"),
+      conclusion: "开场我试过可玩", accepts_requirements: true, scope: { requirement_ids: ["ready"] },
+    }));
     const ready = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     const closed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.closure.submit__v1", {
       goal_id, idempotency_key: "note-close", kind: "complete",

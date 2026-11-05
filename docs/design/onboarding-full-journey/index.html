@@ -1,31 +1,34 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Onboarding 全程定样 · Molis Work 原型</title>
-  <link rel="stylesheet" href="base.css?v=20">
-  <link rel="stylesheet" href="parts.css?v=30">
-  <link rel="stylesheet" href="immersive.css?v=32">
+  <!-- The product's own theme bootstrap and arrival stylesheet, exported by ../_catalog/export.mjs (run it first). -->
+  <script src="../_catalog/dist/theme.js"></script>
+  <link rel="stylesheet" href="../_catalog/dist/arrival.css">
+  <link rel="stylesheet" href="../_catalog/prototype.css">
+  <link rel="stylesheet" href="proto.css?v=5">
 </head>
-<body>
-  <div id="icons"></div>
+<body class="arrival-page immersive-workbench proto-on" data-arrival="onboard">
+  <script src="../_catalog/dist/sprite.js"></script>
   <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
     <b id="p-title"></b>
-    <label><span id="p-scenario"></span><select id="scenario"></select></label>
-    <label><span id="p-fault"></span><select id="fault"></select></label>
+    <label><span id="p-scenario"></span><select class="mw-select" data-slot="select" id="scenario"></select></label>
+    <label><span id="p-fault"></span><select class="mw-select" data-slot="select" id="fault"></select></label>
     <label><span id="p-lang"></span>
-      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="lang"><button type="button" class="mw-toggle" data-lang="zh">中</button><button type="button" class="mw-toggle" data-lang="en">EN</button></span>
     </label>
     <label><span id="p-theme"></span>
-      <span class="seg" id="theme"><button type="button" data-theme-set="light"></button><button type="button" data-theme-set="dark"></button></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="theme"><button type="button" class="mw-toggle" data-theme-set="light"></button><button type="button" class="mw-toggle" data-theme-set="dark"></button></span>
     </label>
-    <button type="button" class="btn sm sec" id="reset"></button>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset"><span data-slot="button-label"></span></button>
   </div>
   <div id="app"></div>
-  <div id="live" class="sr" aria-live="polite"></div>
-  <script src="icons.js"></script>
-  <script src="data.js?v=20"></script>
-  <script src="app.js?v=31"></script>
+  <div id="live" class="mw-sr-only" aria-live="polite"></div>
+  <script src="../_catalog/dist/foundation.js"></script>
+  <script src="../_catalog/parts.js"></script>
+  <script src="data.js?v=21"></script>
+  <script src="app.js?v=40"></script>
 </body>
 </html>

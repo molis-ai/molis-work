@@ -214,6 +214,13 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 
 `scripts/gates/native-checks.mjs`（开头的注释是口径的出处）。这几项不是数字，没有基线：通过，或者失败，每个告警都算错误。CI 里 `native-checks` 任务（macOS）跑 Rust 和 Swift，`shell-checks` 任务（Linux）跑 shell 与 Python，两个都在 `Verify` 的 `needs` 里；本机 `node scripts/gates/native-checks.mjs rust|swift|shell|python`。
 
+**`native-checks` 只在相关改动时跑**（用户 2026-11-04 在弹窗里批准；改 CI 属红线，已问过）。原因：GitHub 的 macOS arm64 托管机器容量不够，任务排了约 40 分钟也领不到机器（「The job was not acquired by Runner of type hosted even after multiple attempts」），随后被取消，`Verify` 跟着红，PR 和合并队列里的条目都被堵。做法照 `security-invariants`、`product-subset` 已有的写法：`test-selection` 作业（`scripts/ci-test-selection.mjs`）多出一个 `native_mode`（`whole` 或 `none`），`native-checks` 的条件和 `Verify` 都读它：
+
+- **只有选择明确说 `none` 才放行**：事件是 `pull_request` 或 `merge_group`，`test-selection` 成功，`native_mode` 是 `none`，`native-checks` 被跳过，`Verify` 才算通过。选择作业失败、取消、被跳过，或 mode 为空、未知，`native-checks` 照旧要跑，跳过也不通过。直推 main、每晚和手动运行不看选择，照旧跑；合并队列已验过的 push main 照旧由 `queue-check` 放行（现行逻辑没动）。
+- **合并队列里也按同样的规则跳过**：`test-selection` 因此也在 `merge_group` 上跑（队列里的 `security-invariants`、`product-subset` 不读它，照旧整套）。它对队列条目用 `--base HEAD^1`，比的是这一条自己的改动。
+- **照旧要跑的改动**（`scripts/ci-test-selection.mjs` 的 `NATIVE_RUN_WHEN`；名单宁可宽，不可漏；改名按新旧两个路径都看；删除也算）：`apps/desktop/` 和 `apps/local-host/native/` 下任何文件；任何 `.rs`、`.swift`、`.sh`、`.py`；`.github/workflows/`；`scripts/gates/native-checks.mjs`、`tests/native-checks.test.mjs`、`scripts/ci-test-selection.mjs`；`Cargo.toml`、`Cargo.lock`、`rust-toolchain(.toml)`、`clippy.toml`、`rustfmt.toml`（任何目录）和 `.cargo/`；仓库根目录下不是 Markdown 的文件。其余（文档、spec、原型、产品的 TypeScript、测试、技能）跳过。
+- **要加新的触发路径**：改 `NATIVE_RUN_WHEN`，并在 `tests/ci-test-selection.test.ts`（RAC-1766）的清单里写出这个文件；工作流这一半钉在 `tests/ci-queue-verified.test.ts`（RAC-1907）。
+
 | 检查 | 命令 | 范围与说明 |
 | --- | --- | --- |
 | Rust 格式 | `rustfmt --check` | 所有被跟踪的 `.rs`。`apps/desktop` 之外的 `.rs` 文件直接失败（不在检查范围里的代码不许悄悄加进来） |

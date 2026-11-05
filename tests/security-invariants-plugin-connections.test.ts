@@ -237,6 +237,9 @@ async function githubStandIn(t: TestContext) {
   const server = createServer({ key, cert }, (request, response) => {
     seen.push({ path: request.url, method: request.method, authorization: request.headers.authorization, cookie: request.headers.cookie, agent: request.headers["user-agent"] });
     if (request.url === "/moved") { response.writeHead(302, { location: "https://evil.example/collect", "set-cookie": "a=b" }); response.end(); return; }
+    // `/busy` is always unavailable; `/busy-twice` is unavailable for its first two requests.
+    const busy = request.url === "/busy" || request.url === "/busy-twice" && seen.filter(entry => entry.path === "/busy-twice").length <= 2;
+    if (busy) { response.writeHead(503, { "content-type": "application/json" }); response.end("{}"); return; }
     response.writeHead(200, { "content-type": "application/json", "set-cookie": "session=1", "x-ratelimit-remaining": "59", "x-oauth-scopes": "repo" });
     response.end('{"login":"someone"}');
   });
@@ -310,4 +313,33 @@ test("S-57 every request opens its own connection, so a call that lost its autho
   allowed = false;
   await assert.rejects(revoked, (error: unknown) => !String((error as Error).message).includes(BEARER_VALUE));
   assert.deepEqual([seen.length, connections()], [2, 2], "the refused request was not sent");
+});
+
+test("ASC-53 a short break is ridden out for a read only: at most two resends, one at a time, never a write, and none once the call ends", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "connections-home-")); t.after(() => rm(home, { recursive: true, force: true }));
+  const { seen, testServer, lookup } = await githubStandIn(t);
+  const target = { plugin_id: "io.molis.work.example.connectionsport", install_id: "install-asc53", slot_id: "github", service_id: "github" };
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: BEARER_VALUE }));
+  withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "github", serviceId: "github", connectionId: connection.connection_id }));
+  const port = createPluginConnectionsPort(home, { lookup, allowAddress: () => true, testServer });
+  const sent = (path: string) => seen.filter(entry => entry.path === path).length;
+  // A read that meets two 503s gets through on the third send, with the credential each time.
+  const recovered = await port.request(target, dispatch("https://api.github.com/busy-twice"));
+  assert.equal(recovered.status, 200);
+  assert.equal(sent("/busy-twice"), 3);
+  assert.ok(seen.filter(entry => entry.path === "/busy-twice").every(entry => entry.authorization === `Bearer ${BEARER_VALUE}`));
+  // Bounded: a service that stays down is asked three times in all, and its answer goes back to the plugin as it is.
+  assert.equal((await port.request(target, dispatch("https://api.github.com/busy"))).status, 503);
+  assert.equal(sent("/busy"), 3);
+  // A write is sent once: whether it took effect is for the caller to check, not for the Host to guess by sending it again.
+  assert.equal((await port.request(target, dispatch("https://api.github.com/busy", { method: "POST", body: "{}" }))).status, 503);
+  assert.equal(seen.filter(entry => entry.path === "/busy" && entry.method === "POST").length, 1);
+  // A call that ends while it waits to resend sends nothing more.
+  const ending = new AbortController(), before = sent("/busy");
+  const stopped = port.request(target, dispatch("https://api.github.com/busy", { signal: ending.signal }));
+  while (sent("/busy") === before) await new Promise(resolve => setTimeout(resolve, 20));
+  ending.abort(new Error("call ended"));
+  await assert.rejects(stopped);
+  await new Promise(resolve => setTimeout(resolve, 2_700));
+  assert.equal(sent("/busy"), before + 1, "nothing was resent after the call ended");
 });

@@ -1,33 +1,30 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN" data-theme="light" data-resolved-theme="light" data-skin="soft" data-density="standard">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>服务与模型连接定样 · Molis Work 原型</title>
-  <link rel="stylesheet" href="base.css?v=5">
-  <link rel="stylesheet" href="parts.css?v=5">
-  <link rel="stylesheet" href="conn.css?v=5">
+  <!-- board.css：组件板与设置页的产品样式快照（只读，见 README「怎样重新生成」）；conn.css：原型条、示意外框和「组件板新增」。 -->
+  <link rel="stylesheet" href="board.css?v=6">
+  <link rel="stylesheet" href="conn.css?v=6">
 </head>
 <body>
   <div id="icons"></div>
   <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
     <b id="p-title"></b>
-    <label><span id="p-block"></span><select id="block"></select></label>
-    <label><span id="p-plan"></span><select id="plan"></select></label>
-    <label><span id="p-fault"></span><select id="fault"></select></label>
-    <label id="origin-wrap"><span id="p-origin"></span><select id="origin"></select></label>
-    <label><span id="p-lang"></span>
-      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
-    </label>
-    <label><span id="p-theme"></span>
-      <span class="seg" id="theme"><button type="button" data-theme-set="light"></button><button type="button" data-theme-set="dark"></button></span>
-    </label>
-    <button type="button" class="btn sm sec" id="reset"></button>
+    <label><span id="p-block"></span><select class="mw-select" id="block"></select></label>
+    <label><span id="p-plan"></span><select class="mw-select" id="plan"></select></label>
+    <label><span id="p-fault"></span><select class="mw-select" id="fault"></select></label>
+    <label id="origin-wrap"><span id="p-origin"></span><select class="mw-select" id="origin"></select></label>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="语言 / Language" id="lang"></div>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="外观 / Look" id="theme"></div>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="标注 / Notes" id="notes"></div>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset"><span data-slot="button-label"></span></button>
   </div>
   <div id="app"></div>
-  <div id="live" class="sr" aria-live="polite"></div>
-  <script src="icons.js"></script>
-  <script src="data.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <div id="live" class="mw-sr-only" aria-live="polite"></div>
+  <script src="board.js?v=6"></script>
+  <script src="data.js?v=6"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

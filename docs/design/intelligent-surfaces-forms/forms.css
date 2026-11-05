@@ -1,27 +1,18 @@
 /* Four basic forms prototype: additions on top of ../workbench-shared-paths/styles.css. Not production CSS. */
-:root{--h-goals:#3c6e98;--h-inbox:#8a5a9e;--h-coding:#2f7a70;--h-textstat:#7a6a52}
-:root[data-theme=dark]{--h-goals:#8fb8dc;--h-inbox:#c9a2db;--h-coding:#7cc4b8;--h-textstat:#c8b796}
+/* Plugin colours from the board palette (--hue-*), the same assignment as batch 15; the platform assigns them (DESIGN Colour). */
+:root{--h-goals:var(--hue-blue);--h-inbox:var(--hue-mint);--h-coding:var(--hue-purple);--h-textstat:var(--hue-gray)}
 .stage{position:fixed;inset:40px 0 0 0;overflow:auto;padding:14px}
 .frame{background:var(--paper);border-radius:var(--r-sheet);box-shadow:var(--sheet-shadow);min-height:calc(100% - 4px);position:relative;overflow:hidden}
 .fhead{display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border-bottom:1px solid var(--line);font-weight:600}
 .fhead .fact{font-weight:400}
 .simnote{margin-left:auto}
-/* status ring (simplified; product uses the 12-segment ring from status-ring-system) */
-.ring{width:13px;height:13px;border-radius:50%;border:2px solid var(--faint);flex:none;position:relative;display:inline-block}
-.ring.running{border-color:var(--accent);border-right-color:transparent;animation:spin 1.6s linear infinite}
-.ring.decide,.ring.accept{border-color:var(--amber)}.ring.decide:after,.ring.accept:after{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--amber)}
-.ring.failed{border-color:var(--red)}.ring.failed:after{content:"";position:absolute;left:3.5px;top:1px;width:2px;height:5px;background:var(--red);border-radius:1px}
-.ring.partial{border-color:var(--green);border-left-color:var(--amber);border-bottom-color:var(--amber)}
-.ring.done{border-color:var(--green);background:var(--green)}
-.ring.stale,.ring.none{border-style:dashed}
-@keyframes spin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.ring.running{animation:none}}
+/* status rings come from the board (kitRing → renderStateRing in ../workbench-shared-paths/kit-bridge.js) */
 .own{width:18px;height:18px;border-radius:5px;display:inline-grid;place-items:center;flex:none;background:color-mix(in srgb,var(--hue) 16%,transparent);color:var(--hue)}
 .own .i{width:12px;height:12px}
 .own.lg{width:28px;height:28px;border-radius:8px}.own.lg .i{width:16px;height:16px}
-.stag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:var(--r-tag);font-size:11px;font-weight:500;white-space:nowrap;background:var(--rail);color:var(--ink-soft)}
-.stag.running{background:var(--accent-soft);color:var(--accent-strong)}.stag.decide,.stag.accept{background:var(--amber-soft);color:var(--amber)}.stag.failed{background:var(--red-soft);color:var(--red)}
-.stag.partial{background:color-mix(in srgb,var(--green) 14%,transparent);color:var(--green)}.stag.stale{background:transparent;border:1px dashed var(--line-strong);color:var(--muted)}
+/* State tags are the board's status mark (mw-status); the state picks its tone, the words stay the caller's own. */
+.stag{flex:none}.stag.running{--status-tone:var(--tone-progress)}.stag.decide,.stag.accept,.stag.verify{--status-tone:var(--tone-attention)}.stag.failed{--status-tone:var(--tone-blocked)}
+.stag.partial{--status-tone:var(--tone-done)}.stag.stale{--status-tone:var(--tone-quiet);background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong)}
 .judge{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:var(--r-tag);font-size:11px;font-weight:500;white-space:nowrap;background:color-mix(in srgb,var(--h-inbox) 12%,transparent);color:var(--h-inbox)}
 .who{display:inline-grid;place-items:center;width:18px;height:18px;font-size:10px;font-weight:600;flex:none;background:var(--rail);color:var(--ink-soft)}
 .who.hu{border-radius:50%}.who.ai{border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-strong)}
@@ -39,14 +30,14 @@
 /* ---------- row ---------- */
 .row2{display:flex;align-items:center;gap:10px;min-height:52px;padding:6px 10px;border-radius:var(--r-row);position:relative}
 .row2:hover,.row2:focus-within{background:var(--hover)}
-.row2 .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.row2 .tx{flex:1;min-width:min(9em,40%);display:flex;flex-direction:column;gap:1px}
 .row2 .tx strong{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row2 .tx .m{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;gap:6px;align-items:center}
 .row2 .tx .m>span{flex:none;white-space:nowrap}.row2 .tx .m>span:last-child{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.row2 .rt{display:flex;align-items:center;gap:6px;flex:none}
+.row2 .rt{display:flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}.row2 .rt>*{flex:none}.row2 .rt>.judge{display:block;line-height:20px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .s-C .row2 .tx{flex-direction:row;align-items:baseline;gap:10px}.s-C .row2 .tx strong{flex:0 1 auto;min-width:5em;max-width:65%}.s-C .row2 .tx .snip{flex:1 1 0;min-width:0;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.s-C .row2 .rt .btn{opacity:0;transition:opacity var(--dur-hover)}.s-C .row2:hover .rt .btn,.s-C .row2:focus-within .rt .btn{opacity:1}
-@media (hover:none){.s-C .row2 .rt .btn{opacity:1}}
+.s-C .row2 .rt .mw-btn{opacity:0;transition:opacity var(--dur-hover)}.s-C .row2:hover .rt .mw-btn,.s-C .row2:focus-within .rt .mw-btn{opacity:1}
+@media (hover:none){.s-C .row2 .rt .mw-btn{opacity:1}}
 .row2.gone strong{color:var(--faint);font-weight:400}
 .row2.done-receipt{min-height:40px;color:var(--muted);font-size:12px}
 /* ---------- card ---------- */
@@ -71,10 +62,10 @@
 .card2.gone{border-style:dashed;background:transparent}
 .thumb{width:96px;height:64px;border-radius:8px;flex:none;background:repeating-linear-gradient(135deg,var(--rail),var(--rail) 6px,var(--soft) 6px,var(--soft) 12px);border:1px solid var(--line);display:grid;place-items:center;font-size:10px;color:var(--muted)}
 .s-C .thumb.wide{width:100%;height:120px}
-.prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}.prog .bar{flex:1;height:6px;border-radius:3px;background:var(--rail);overflow:hidden;max-width:180px}.prog .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
-.prog.partial .bar i{background:var(--green)}
+.prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}.prog .mw-progress{flex:1;max-width:180px}
+.prog.partial .mw-progress>span{background:var(--green)}
 .cons{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--amber)}
-.btn.busy{opacity:.6;pointer-events:none}
+.mw-btn.busy{opacity:.6;pointer-events:none}
 .receipt{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--r-row);background:var(--soft);font-size:12px;color:var(--ink-soft);max-width:480px}
 .receipt .link{font-size:12px}
 /* ---------- peek ---------- */
@@ -83,7 +74,7 @@
 .pk .loc{padding:0 14px 8px;font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center}
 .pk .pb{padding:4px 14px 12px;max-height:280px;overflow:auto}
 .pk .pf{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line);flex-wrap:wrap}
-.pk .req{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:var(--r-row);background:var(--soft);margin:5px 0}.pk .req .ring{margin-top:3px}.pk .req div{display:flex;flex-direction:column}
+.pk .req{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:var(--r-row);background:var(--soft);margin:5px 0}.pk .req .ring{margin-top:2px}.pk .req div{display:flex;flex-direction:column}
 .pk .quote{margin:0;padding:8px 10px;border-left:2px solid var(--line-strong);background:var(--soft);border-radius:0 8px 8px 0;white-space:pre-wrap;line-height:1.6}
 .pk .quote.mono,.diff{font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
 .diff{border:1px solid var(--line);border-radius:8px;overflow:hidden}.diff .fn{padding:4px 10px;background:var(--soft);border-bottom:1px solid var(--line);font-size:11px;color:var(--muted)}
@@ -122,9 +113,10 @@
   .stage{padding:8px}
   .spec{grid-template-columns:1fr;padding:4px 10px 20px}.spec .h{display:none}.spec .c{padding:8px 0;border-bottom:0}.spec .c.lab{padding-top:16px;border-top:1px solid var(--line);flex-direction:row;gap:8px;align-items:baseline}.spec .c.cardcol{grid-column:auto}
   .two{grid-template-columns:1fr}.two .lst{border-right:0;border-bottom:1px solid var(--line)}.two .det{padding:16px}
-  .thread{padding:14px 12px 30px}.row2{min-height:56px}.btn{min-height:36px}
+  .thread{padding:14px 12px 30px}.row2{min-height:56px}
   .card2{max-width:none}.pop.pk{left:8px!important;right:8px;top:auto!important;bottom:8px;width:auto}
   .sidepk{width:100%}
   .row2 .rt .stag{display:none}
 }
 .det .thumb{max-width:360px}
+@media (max-width:600px){.row2 .rt>.judge{display:none}}

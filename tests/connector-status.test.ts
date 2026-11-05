@@ -10,7 +10,7 @@ const caller: ActionCallContext = { actor_id: "status-user", audience: "agent", 
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers: { "x-oauth-scopes": "read:user, notifications" } });
 type Status = {
   configuration: { state: string; enabled: boolean };
-  connectivity: { state: string; current?: boolean; last_check?: { at: string; revision: string } };
+  connectivity: { state: string; current?: boolean; retry_at?: string; last_check?: { at: string; revision: string; code?: string; retry_at?: string } };
   authorization: { service: { state: string; scopes: string[] | null; scope_state: string }; work: { state: string; missing_permissions: string[] } };
   capabilities: { state: string; entries: Array<{ capability_id: string; available: boolean; reason?: string }> };
   last_call?: { outcome: string; current_revision: boolean; action: { capability_id: string }; actor_id: string };
@@ -231,4 +231,30 @@ test("ASC-10 ASC-25: changing credentials during an account read rejects the old
   release.resolve(); await refused;
   assert.equal((await read(home.host, row.connection_id)).connectivity.state, "unchecked");
   assert.equal((await read(home.host, row.connection_id)).connectivity.last_check, undefined);
+});
+
+test("ASC-53 PF-A04: a check the service rate limits is remembered with when to look again, not as a broken connection", async t => {
+  // A catalog service's identity read (Slack's auth.test) reports the rate limit; GitHub's and Gmail's health reads get it with the next contract slice.
+  const home = await openTestHome(t), row = withConnectorConnections(home.home, store => store.createToken({ serviceId: "slack", displayName: "Work", token: "fixture-status-secret" }));
+  t.mock.method(globalThis, "fetch", async () => new Response("{}", { status: 429, headers: { "retry-after": "120", "content-type": "application/json" } }));
+  const before = Date.now();
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorManagementActions.check, { connection_id: row.connection_id }));
+  const limited = await read(home.host, row.connection_id);
+  assert.equal(limited.connectivity.state, "failed");
+  assert.equal(limited.connectivity.last_check?.code, "connector.check.rate_limited");
+  const retryAt = Date.parse(limited.connectivity.retry_at ?? "");
+  assert.ok(retryAt >= before + 110_000 && retryAt <= Date.now() + 130_000, `retry_at follows Retry-After: ${limited.connectivity.retry_at}`);
+  assert.equal(limited.authorization.service.state, "unknown", "a rate limit says nothing about the account");
+  assert.doesNotMatch(JSON.stringify(limited), /fixture-status-secret/);
+  // Once the time has passed it is an ordinary failed check that can be checked again.
+  t.mock.method(Date, "now", () => retryAt + 1_000);
+  assert.equal((await read(home.host, row.connection_id)).connectivity.retry_at, undefined);
+});
+
+test("ASC-53: a service asking to be left alone for a day is looked at again within the hour", async t => {
+  const home = await openTestHome(t), row = withConnectorConnections(home.home, store => store.createToken({ serviceId: "slack", displayName: "Work", token: "fixture-status-secret" }));
+  t.mock.method(globalThis, "fetch", async () => new Response("{}", { status: 429, headers: { "retry-after": "86400", "content-type": "application/json" } }));
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorManagementActions.check, { connection_id: row.connection_id }));
+  const retryAt = Date.parse((await read(home.host, row.connection_id)).connectivity.retry_at ?? "");
+  assert.ok(retryAt <= Date.now() + 60 * 60 * 1000 + 5_000, "an outside Retry-After is taken at no more than an hour");
 });

@@ -311,6 +311,9 @@ export interface IntegrationProviderPort {
     status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
     message: string;
     action?: string;
+    /** Same meaning as on a failed sync result: why it failed, and when the provider allows the next request. */
+    failure?: IntegrationProviderFailure;
+    retryAfterAt?: string;
   }>;
   sync(input: {
     cursor: unknown;

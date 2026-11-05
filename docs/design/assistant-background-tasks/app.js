@@ -1,6 +1,6 @@
 // 03 · 连续对话与后台任务定样 — a scripted, clickable slice. Nothing calls a model or a Home; every task state is simulated.
 (() => {
-  document.getElementById("icons").innerHTML = window.protoIcons;
+  document.getElementById("icons").innerHTML = window.mwKitSprite;
   const T = {
     zh: {
       protoTitle: "原型 · 模拟数据", scheme: "方案", fault: "情况", lang: "语言", theme: "外观", light: "浅", dark: "深", reset: "重置", step: "剧本",
@@ -103,7 +103,7 @@
   const chip = (x) => `<button class="chip" data-act="task" data-id="${x.id}" aria-label="${esc(OWN[x.owner].name)} · ${esc(x.title)} · ${esc(stLabel(x))}">${ownTile(x)}<span class="nm">${esc(x.title)}</span><span class="sd ${ring(x.state) === "accept" ? "accept" : ring(x.state)}"></span></button>`;
   function trow(x) {
     const unread = ["done", "failed", "wait"].includes(x.state) && S.view !== "task:" + x.id;
-    return `<button class="trow" data-act="task" data-id="${x.id}" aria-current="${S.view === "task:" + x.id}"><span class="ring ${ring(x.state)}"></span><span class="tx"><strong>${esc(x.title)}</strong><span class="fact">${esc(stLabel(x))} · ${esc(stepLine(x))}</span></span>${unread ? `<span class="unread" aria-label="unread"></span>` : ""}${ownTile(x)}</button>`;
+    return `<button class="trow" data-act="task" data-id="${x.id}" aria-current="${S.view === "task:" + x.id}">${kitRing(ring(x.state))}<span class="tx"><strong>${esc(x.title)}</strong><span class="fact">${esc(stLabel(x))} · ${esc(stepLine(x))}</span></span>${unread ? `<span class="unread" aria-label="unread"></span>` : ""}${ownTile(x)}</button>`;
   }
   function listHtml() {
     const l = tasks(); if (!l.length) return `<div class="empty" style="padding:16px"><p class="fact">${t("noTasks")}</p></div>`;
@@ -111,37 +111,37 @@
     return `${now.length ? `<div class="lh">${t("now")}</div>${now.map(trow).join("")}` : ""}${done.length ? `<div class="lh">${t("earlier")}</div>${done.map(trow).join("")}` : ""}`;
   }
   function detailHtml(x) {
-    const steps = x.steps.map((s, i) => `<div class="st ${i < x.cur ? "" : i === x.cur && !["done"].includes(x.state) ? "cur" : "todo"}"><span class="ring ${i < x.cur || x.state === "done" ? "done" : i === x.cur ? ring(x.state) : "none"}"></span>${esc(s)}</div>`).join("");
+    const steps = x.steps.map((s, i) => `<div class="st ${i < x.cur ? "" : i === x.cur && !["done"].includes(x.state) ? "cur" : "todo"}">${kitRing(i < x.cur || x.state === "done" ? "done" : i === x.cur ? ring(x.state) : "none")}${esc(s)}</div>`).join("");
     const running = ["running", "wait"].includes(x.state);
     const ctl = [];
     if (x.state === "wait") ctl.push(decisionHtml(true));
-    if (running) ctl.push(`<div class="inrow"><textarea id="addtxt" rows="1" placeholder="${t("addPh")}" aria-label="${t("add")}">${S.step === 2 && x.id === "t1" ? esc(t("supp")) : ""}</textarea><button class="btn sec" data-act="add" data-id="${x.id}">${t("add")}</button></div>`);
+    if (running) ctl.push(`<div class="inrow"><textarea id="addtxt" rows="1" placeholder="${t("addPh")}" aria-label="${t("add")}">${S.step === 2 && x.id === "t1" ? esc(t("supp")) : ""}</textarea><button class="mw-btn mw-btn--secondary mw-btn--md" data-slot="button" data-act="add" data-id="${x.id}">${t("add")}</button></div>`);
     const btns = [];
-    if (x.state === "running") btns.push(`<button class="btn sm sec" data-act="pause" data-id="${x.id}">${t("pause")}</button>`);
-    if (x.state === "paused") btns.push(`<button class="btn sm primary" data-act="resume" data-id="${x.id}">${t("resume")}</button>`);
-    if (["running", "wait", "paused", "queued"].includes(x.state)) btns.push(`<button class="btn sm danger" data-act="stop" data-id="${x.id}">${t("stop")}</button>`);
-    if (x.owner === "coding" && x.state !== "stopped") btns.push(`<button class="btn sm sec" data-act="sim" data-label="${t("takeover")}">${t("takeover")}</button>`);
-    if (running && S.scheme !== "C") btns.push(`<button class="btn sm ghost" data-act="talk" data-id="${x.id}">${ic("review", "sm")}${t("talkTo")}</button>`);
-    if (x.state === "done" && !S.accepted) btns.unshift(`<button class="btn sm primary" data-act="accept">${t("accept")}</button><button class="btn sm sec" data-act="sim" data-label="${t("again")}">${t("again")}</button>`);
-    if (x.state === "failed") btns.unshift(`<button class="btn sm primary" data-act="sim" data-label="${t("retry")}">${t("retry")}</button><button class="btn sm sec" data-act="sim" data-label="${t("seeWhy")}">${t("seeWhy")}</button>`);
-    return `<div style="display:flex;gap:8px;align-items:center"><span class="ring ${ring(x.state)}"></span><h3>${esc(x.title)}</h3></div>
-      <dl class="kv"><dt>${t("status")}</dt><dd><span class="stag ${ring(x.state) === "accept" ? "accept" : ring(x.state) === "failed" ? "failed" : ring(x.state) === "running" ? "running" : ""}">${esc(stLabel(x))}</span></dd><dt>${["queued", "unknown", "wait"].includes(x.state) ? t("waitFor") : t("nowDoing")}</dt><dd>${esc(stepLine(x))}</dd><dt>${t("expect")}</dt><dd>${esc(x.expect)}</dd><dt>${t("scope")}</dt><dd>${t("scopeV")}</dd><dt>${t("who")}</dt><dd style="display:flex;gap:6px;align-items:center"><span class="who ai">AI</span>${esc(OWN[x.owner].name)}</dd><dt>${t("src")}</dt><dd class="fact">“${esc(x.src)}”</dd>${x.adds.length ? `<dt>${t("yourAdds")}</dt><dd>${x.adds.map((a) => `“${esc(a)}” <span class="rcpt ${S.step >= 4 ? "" : "pending"}">${ic(S.step >= 4 ? "check" : "clock", "sm")}${S.step >= 4 ? t("rcptUsed") : t("rcptGot")}</span>`).join("<br>")}</dd>` : ""}<dt>${t("used")}</dt><dd class="fact">${x.used} <span class="tag sim">${t("sim")}</span></dd></dl>
+    if (x.state === "running") btns.push(`<button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="pause" data-id="${x.id}">${t("pause")}</button>`);
+    if (x.state === "paused") btns.push(`<button class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="resume" data-id="${x.id}">${t("resume")}</button>`);
+    if (["running", "wait", "paused", "queued"].includes(x.state)) btns.push(`<button class="mw-btn mw-btn--danger mw-btn--sm" data-slot="button" data-act="stop" data-id="${x.id}">${t("stop")}</button>`);
+    if (x.owner === "coding" && x.state !== "stopped") btns.push(`<button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("takeover")}">${t("takeover")}</button>`);
+    if (running && S.scheme !== "C") btns.push(`<button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-act="talk" data-id="${x.id}">${ic("review", "sm")}${t("talkTo")}</button>`);
+    if (x.state === "done" && !S.accepted) btns.unshift(`<button class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="accept">${t("accept")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("again")}">${t("again")}</button>`);
+    if (x.state === "failed") btns.unshift(`<button class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("retry")}">${t("retry")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("seeWhy")}">${t("seeWhy")}</button>`);
+    return `<div style="display:flex;gap:8px;align-items:center">${kitRing(ring(x.state))}<h3>${esc(x.title)}</h3></div>
+      <dl class="kv"><dt>${t("status")}</dt><dd><span class="mw-status stag ${ring(x.state) === "accept" ? "accept" : ring(x.state) === "failed" ? "failed" : ring(x.state) === "running" ? "running" : ""}">${esc(stLabel(x))}</span></dd><dt>${["queued", "unknown", "wait"].includes(x.state) ? t("waitFor") : t("nowDoing")}</dt><dd>${esc(stepLine(x))}</dd><dt>${t("expect")}</dt><dd>${esc(x.expect)}</dd><dt>${t("scope")}</dt><dd>${t("scopeV")}</dd><dt>${t("who")}</dt><dd style="display:flex;gap:6px;align-items:center"><span class="who ai">AI</span>${esc(OWN[x.owner].name)}</dd><dt>${t("src")}</dt><dd class="fact">“${esc(x.src)}”</dd>${x.adds.length ? `<dt>${t("yourAdds")}</dt><dd>${x.adds.map((a) => `“${esc(a)}” <span class="rcpt ${S.step >= 4 ? "" : "pending"}">${ic(S.step >= 4 ? "check" : "clock", "sm")}${S.step >= 4 ? t("rcptUsed") : t("rcptGot")}</span>`).join("<br>")}</dd>` : ""}<dt>${t("used")}</dt><dd class="fact">${x.used} <span class="mw-badge mw-badge--neutral tag-sim" data-slot="badge">${t("sim")}</span></dd></dl>
       <div class="steps">${steps}</div>${x.state === "done" ? resultCard(x, true) : ""}${ctl.join("")}<div class="ctrls">${btns.join("")}</div>`;
   }
   function decisionHtml(inDetail) {
     const a = S.decision;
     const opts = [["yes", t("decYes")], ["no", t("decNo")], ["later", t("decLater")]];
-    return `<div class="decide${a ? " answered" : ""}"><div class="q">${a ? "" : ic("question", "sm") + " "}${t("decQ")}</div>${a ? `<div class="mini">${ic("check", "sm")}${esc(t("decAnswered", opts.find((o) => o[0] === a)[1]))}<span style="flex:1"></span><button class="link" data-act="undo-dec">${S.lang === "zh" ? "改" : "Change"}</button></div>` : `<div class="fact">${t("decWhy")}</div><div class="opts">${opts.map((o, i) => `<button class="btn sm ${i === 0 ? "primary" : "sec"}" data-act="decide" data-v="${o[0]}">${esc(o[1])}</button>`).join("")}</div>`}<div class="bind">${ic("pin", "sm")}${esc(t("decBind", t("t2")))}${inDetail ? "" : ""}</div></div>`;
+    return `<div class="decide${a ? " answered" : ""}"><div class="q">${a ? "" : ic("question", "sm") + " "}${t("decQ")}</div>${a ? `<div class="mini">${ic("check", "sm")}${esc(t("decAnswered", opts.find((o) => o[0] === a)[1]))}<span style="flex:1"></span><button class="link" data-act="undo-dec">${S.lang === "zh" ? "改" : "Change"}</button></div>` : `<div class="fact">${t("decWhy")}</div><div class="opts">${opts.map((o, i) => `<button class="mw-btn mw-btn--sm ${i === 0 ? "mw-btn--primary" : "mw-btn--secondary"}" data-slot="button" data-act="decide" data-v="${o[0]}">${esc(o[1])}</button>`).join("")}</div>`}<div class="bind">${ic("pin", "sm")}${esc(t("decBind", t("t2")))}${inDetail ? "" : ""}</div></div>`;
   }
   function resultCard(x, compact) {
     const ok = x.state === "done";
     if (ok && S.accepted) return `<div class="receipt">${ic("check", "sm")}<span>${S.lang === "zh" ? "已验收「定价页改成三档」" : "Accepted “Pricing page in three tiers”"}</span></div>`;
-    return `<div class="card2" style="--hue:var(--h-coding);max-width:none"><div class="strip2">${ownTile(x)}<span>Coding</span><span class="fact">· 09:52</span><span style="flex:1"></span><span class="stag ${ok ? "accept" : "failed"}">${esc(stLabel(x))}</span></div><div class="inner"><div class="hd"><span class="tt">${esc(t("resTitle"))}</span></div><p class="sum">${esc(ok ? t("resSum") : t("failSum"))}</p>${ok && !compact ? `<div class="shots"><span class="thumb">1440</span><span class="thumb">1024</span><span class="thumb">390</span></div>` : ""}<div class="ft">${ok ? `<button class="btn sm primary" data-act="accept">${t("accept")}</button><button class="btn sm sec" data-act="sim" data-label="${t("again")}">${t("again")}</button>` : `<button class="btn sm primary" data-act="sim" data-label="${t("retry")}">${t("retry")}</button><button class="btn sm sec" data-act="sim" data-label="${t("seeWhy")}">${t("seeWhy")}</button>`}${compact ? "" : `<button class="btn sm ghost" data-act="task" data-id="t1">${S.lang === "zh" ? "看过程" : "See steps"}</button>`}</div></div></div>`;
+    return `<div class="card2" style="--hue:var(--h-coding);max-width:none"><div class="strip2">${ownTile(x)}<span>Coding</span><span class="fact">· 09:52</span><span style="flex:1"></span><span class="mw-status stag ${ok ? "accept" : "failed"}">${esc(stLabel(x))}</span></div><div class="inner"><div class="hd"><span class="tt">${esc(t("resTitle"))}</span></div><p class="sum">${esc(ok ? t("resSum") : t("failSum"))}</p>${ok && !compact ? `<div class="shots"><span class="thumb">1440</span><span class="thumb">1024</span><span class="thumb">390</span></div>` : ""}<div class="ft">${ok ? `<button class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="accept">${t("accept")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("again")}">${t("again")}</button>` : `<button class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("retry")}">${t("retry")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("seeWhy")}">${t("seeWhy")}</button>`}${compact ? "" : `<button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-act="task" data-id="t1">${S.lang === "zh" ? "看过程" : "See steps"}</button>`}</div></div></div>`;
   }
   // in-conversation live card (option C)
   function tcard(x) {
     const open = S.expanded === x.id;
-    return `<div class="tcard" id="card-${x.id}" style="--hue:var(--h-${x.owner === "coding" ? "coding" : "goals"})"><div class="strip2">${ownTile(x)}<span>${esc(OWN[x.owner].name)}</span><span style="flex:1"></span><span class="stag ${ring(x.state) === "accept" ? "accept" : ring(x.state) === "failed" ? "failed" : ring(x.state) === "running" ? "running" : ""}">${esc(stLabel(x))}</span></div><div class="inner">${open ? detailHtml(x) : `<div class="hd"><span class="ring ${ring(x.state)}"></span><span class="tt">${esc(x.title)}</span></div><div class="fact">${esc(stepLine(x))}</div><div class="ft"><button class="btn sm sec" data-act="expand" data-id="${x.id}">${S.lang === "zh" ? "展开" : "Expand"}</button></div>`}${open ? `<div class="ft"><button class="btn sm ghost" data-act="expand" data-id="${x.id}">${S.lang === "zh" ? "收起" : "Collapse"}</button></div>` : ""}</div></div>`;
+    return `<div class="tcard" id="card-${x.id}" style="--hue:var(--h-${x.owner === "coding" ? "coding" : "goals"})"><div class="strip2">${ownTile(x)}<span>${esc(OWN[x.owner].name)}</span><span style="flex:1"></span><span class="mw-status stag ${ring(x.state) === "accept" ? "accept" : ring(x.state) === "failed" ? "failed" : ring(x.state) === "running" ? "running" : ""}">${esc(stLabel(x))}</span></div><div class="inner">${open ? detailHtml(x) : `<div class="hd">${kitRing(ring(x.state))}<span class="tt">${esc(x.title)}</span></div><div class="fact">${esc(stepLine(x))}</div><div class="ft"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="expand" data-id="${x.id}">${S.lang === "zh" ? "展开" : "Expand"}</button></div>`}${open ? `<div class="ft"><button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-act="expand" data-id="${x.id}">${S.lang === "zh" ? "收起" : "Collapse"}</button></div>` : ""}</div></div>`;
   }
 
   // ---------- conversation ----------
@@ -164,33 +164,33 @@
   function scriptedLine() { return S.step === 0 ? t("u1") : S.step === 1 ? t("u2") : ""; }
   function composer() {
     const tgt = S.target ? task(S.target) : null;
-    const chipsC = S.scheme === "C" && tasks().length ? `<div class="runrow">${tasks().map((x) => `<button class="rchip" data-act="jump" data-id="${x.id}"><span class="ring ${ring(x.state)}"></span>${esc(x.title)}<span class="fact">${esc(stLabel(x))}</span></button>`).join("")}</div>` : "";
-    return `${chipsC}<div class="comp"><div class="target">${t("sendTo")}<span class="to">${tgt ? ownTile(tgt) + esc(t("toTask", tgt.title)) + `<button data-act="untalk" aria-label="${t("back")}">${ic("x", "sm")}</button>` : `<span class="av ai" style="width:16px;height:16px;font-size:9px;border-radius:4px">AI</span>${t("toAssistant")}`}</span></div><div class="inrow"><textarea id="msg" rows="1" aria-label="${t("send")}">${esc(scriptedLine())}</textarea>${typing ? `<button class="btn sec" data-act="stopreply">${t("stopReply")}</button>` : ""}<button class="btn primary icon" data-act="send" aria-label="${t("send")}">${ic("send", "sm")}</button></div></div>`;
+    const chipsC = S.scheme === "C" && tasks().length ? `<div class="runrow">${tasks().map((x) => `<button class="rchip" data-act="jump" data-id="${x.id}">${kitRing(ring(x.state))}${esc(x.title)}<span class="fact">${esc(stLabel(x))}</span></button>`).join("")}</div>` : "";
+    return `${chipsC}<div class="comp"><div class="target">${t("sendTo")}<span class="to">${tgt ? ownTile(tgt) + esc(t("toTask", tgt.title)) + `<button data-act="untalk" aria-label="${t("back")}">${ic("x", "sm")}</button>` : `<span class="av ai" style="width:16px;height:16px;font-size:9px;border-radius:4px">AI</span>${t("toAssistant")}`}</span></div><div class="inrow"><textarea id="msg" rows="1" aria-label="${t("send")}">${esc(scriptedLine())}</textarea>${typing ? `<button class="mw-btn mw-btn--secondary mw-btn--md" data-slot="button" data-act="stopreply">${t("stopReply")}</button>` : ""}<button class="mw-btn mw-btn--primary mw-btn--md mw-btn--icon-only" data-slot="button" data-act="send" aria-label="${t("send")}">${ic("send", "sm")}</button></div></div>`;
   }
   function summaryBtn() {
     const c = counts();
-    return `${ic("list", "sm")}<span class="cnt"><b>${t("tasks")}</b></span>${c.run ? `<span class="cnt"><span class="ring running"></span>${t("running")} ${c.run}</span>` : ""}${c.q ? `<span class="cnt"><span class="ring none"></span>${t("queued")} ${c.q}</span>` : ""}${c.you ? `<span class="cnt you"><span class="ring accept"></span>${t("waitYou")} ${c.you}</span>` : ""}`;
+    return `${ic("list", "sm")}<span class="cnt"><b>${t("tasks")}</b></span>${c.run ? `<span class="cnt">${kitRing("running")}${t("running")} ${c.run}</span>` : ""}${c.q ? `<span class="cnt">${kitRing("none")}${t("queued")} ${c.q}</span>` : ""}${c.you ? `<span class="cnt you">${kitRing("accept")}${t("waitYou")} ${c.you}</span>` : ""}`;
   }
   function chatPane() {
     const inTask = S.view.startsWith("task:") && S.scheme === "A" ? task(S.view.slice(5)) : null;
     const newN = messages().filter((m) => m.k > S.seenAt && m.html.includes("m2 new")).length;
-    const banner = S.fault === "offline" && S.step >= 2 ? (S.offline ? `<div class="banner2" role="status">${ic("alert", "sm")}<span class="grow">${t("offline")}</span><button class="btn sm sec" data-act="reconnect">${t("reconnect")}</button></div>` : "") : "";
-    const head = `<div class="ph2">${ic("sparkles", "sm")}${t("assistant")}<span class="grow"></span><span class="seg side-tabs"><button data-act="mdoc" aria-pressed="${S.showDoc}">${S.lang === "zh" ? "文稿" : "Doc"}</button><button data-act="mchat" aria-pressed="${!S.showDoc}">${t("assistant")}</button></span><span class="tag sim">${t("sim")}</span></div>`;
+    const banner = S.fault === "offline" && S.step >= 2 ? (S.offline ? `<div class="banner2" role="status">${ic("alert", "sm")}<span class="grow">${t("offline")}</span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="reconnect">${t("reconnect")}</button></div>` : "") : "";
+    const head = `<div class="ph2">${ic("sparkles", "sm")}${t("assistant")}<span class="grow"></span><span class="mw-toggle-group side-tabs" data-slot="toggle-group" data-seg-thumb role="group"><button data-act="mdoc" aria-pressed="${S.showDoc}">${S.lang === "zh" ? "文稿" : "Doc"}</button><button data-act="mchat" aria-pressed="${!S.showDoc}">${t("assistant")}</button></span><span class="mw-badge mw-badge--neutral tag-sim" data-slot="badge">${t("sim")}</span></div>`;
     const strip = S.scheme === "A" && tasks().length ? `<div class="tstrip"><button data-act="list" aria-expanded="${S.open}">${summaryBtn()}<span style="flex:1"></span>${ic(S.open ? "chevron-down" : "chevron-right", "sm")}</button></div>` : "";
-    if (inTask) return `${head}${banner}<div class="backbar"><button class="btn sm ghost" data-act="back">${ic("chevron-left", "sm")}${t("back")}</button>${newN ? `<span class="newcount">${t("newMsgs", newN)}</span>` : ""}<span style="flex:1"></span>${ownTile(inTask)}</div><div class="tdet">${detailHtml(inTask)}</div>${composer()}`;
+    if (inTask) return `${head}${banner}<div class="backbar"><button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-act="back">${ic("chevron-left", "sm")}${t("back")}</button>${newN ? `<span class="newcount">${t("newMsgs", newN)}</span>` : ""}<span style="flex:1"></span>${ownTile(inTask)}</div><div class="tdet">${detailHtml(inTask)}</div>${composer()}`;
     return `${head}${banner}${strip}${convHtml()}${S.scheme === "A" && S.open ? `<div class="tlist" role="listbox">${listHtml()}</div>` : ""}${composer()}`;
   }
   function island() {
     if (S.scheme !== "B" || !S.open) return "";
     const x = S.view.startsWith("task:") ? task(S.view.slice(5)) : null;
     const newN = messages().filter((m) => m.k > S.seenAt).length && x ? messages().filter((m) => m.k > S.seenAt).length : 0;
-    return `<div class="island" role="dialog" aria-label="${t("tasks")}"><div class="ih">${x ? `<button class="btn icon sm ghost" data-act="tolist" aria-label="${t("tasks")}">${ic("chevron-left", "sm")}</button>` : ""}<span>${x ? esc(x.title) : t("tasks")}</span><span style="flex:1"></span>${newN ? `<span class="fact">${t("back")} · ${t("newMsgs", newN)}</span>` : ""}<button class="btn icon sm ghost" data-act="close-island" aria-label="close">${ic("x", "sm")}</button></div><div class="ib">${x ? `<div class="tdet" style="padding:6px 8px">${detailHtml(x)}</div>` : listHtml()}</div></div>`;
+    return `<div class="island" role="dialog" aria-label="${t("tasks")}"><div class="ih">${x ? `<button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="tolist" aria-label="${t("tasks")}">${ic("chevron-left", "sm")}</button>` : ""}<span>${x ? esc(x.title) : t("tasks")}</span><span style="flex:1"></span>${newN ? `<span class="fact">${t("back")} · ${t("newMsgs", newN)}</span>` : ""}<button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="close-island" aria-label="close">${ic("x", "sm")}</button></div><div class="ib">${x ? `<div class="tdet" style="padding:6px 8px">${detailHtml(x)}</div>` : listHtml()}</div></div>`;
   }
 
   function render(keepScroll = true) {
     const conv = document.getElementById("conv"), st = conv ? conv.scrollTop : 0, atBottom = conv ? conv.scrollHeight - conv.scrollTop - conv.clientHeight < 40 : true;
     const draft = document.getElementById("msg"), dv = draft && draft.dataset.dirty ? draft.value : null;
-    document.documentElement.lang = S.lang === "zh" ? "zh-CN" : "en"; document.documentElement.dataset.theme = S.theme;
+    document.documentElement.lang = S.lang === "zh" ? "zh-CN" : "en"; document.documentElement.dataset.theme = S.theme; document.documentElement.dataset.resolvedTheme = S.theme;
     document.querySelectorAll("[data-t]").forEach((n) => (n.textContent = t(n.dataset.t)));
     for (const b of document.querySelectorAll("#scheme button")) b.setAttribute("aria-pressed", b.dataset.scheme === S.scheme);
     for (const b of document.querySelectorAll("#lang button")) b.setAttribute("aria-pressed", b.dataset.lang === S.lang);
@@ -198,8 +198,8 @@
     document.getElementById("fault").innerHTML = ["none", "queue", "fail", "offline"].map((v) => `<option value="${v}"${v === S.fault ? " selected" : ""}>${t("f_" + v)}</option>`).join("");
     document.getElementById("stepcap").textContent = `${S.step}/6 · ${t("steps")[S.step]}`;
     const c = counts();
-    document.getElementById("app").innerHTML = `<div class="work${S.showDoc ? " show-doc" : ""} s-B"><section class="pane2 docpane"><div class="ph2">${ic("note", "sm")}${t("doc")}<span class="grow"></span><span class="tag sim">${t("sim")}</span></div><div class="doc"><h1>${t("doc")}</h1><div class="line" style="width:88%"></div><div class="line" style="width:72%"></div><div class="line" style="width:80%"></div><div class="line" style="width:60%"></div></div></section><section class="pane2 chat s-B">${chatPane()}</section></div>
-      <div class="bar3"><button class="btn sm sec">${ic("note", "sm")}Pages</button><span class="grow"></span>${S.scheme === "B" && tasks().length ? `<button class="tbtn" data-act="list" aria-expanded="${S.open}">${summaryBtn()}</button>` : ""}<span class="mono">网</span></div>${island()}`;
+    document.getElementById("app").innerHTML = `<div class="work${S.showDoc ? " show-doc" : ""} s-B"><section class="pane2 docpane"><div class="ph2">${ic("note", "sm")}${t("doc")}<span class="grow"></span><span class="mw-badge mw-badge--neutral tag-sim" data-slot="badge">${t("sim")}</span></div><div class="doc"><h1>${t("doc")}</h1><div class="line" style="width:88%"></div><div class="line" style="width:72%"></div><div class="line" style="width:80%"></div><div class="line" style="width:60%"></div></div></section><section class="pane2 chat s-B">${chatPane()}</section></div>
+      <div class="bar3"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button">${ic("note", "sm")}Pages</button><span class="grow"></span>${S.scheme === "B" && tasks().length ? `<button class="tbtn" data-act="list" aria-expanded="${S.open}">${summaryBtn()}</button>` : ""}<span class="mono">网</span></div>${island()}`;
     const nc = document.getElementById("conv");
     if (nc) nc.scrollTop = keepScroll && !atBottom ? st : nc.scrollHeight; // updates never pull a reader who scrolled up
     if (dv !== null) { const d = document.getElementById("msg"); d.value = dv; d.dataset.dirty = "1"; }
@@ -208,7 +208,7 @@
 
   // ---------- actions ----------
   let toastT;
-  function toast(msg) { document.querySelector(".toast")?.remove(); const el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); el.textContent = msg; document.body.appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 3500); }
+  function toast(msg) { document.querySelector(".mw-toast")?.remove(); const el = document.createElement("div"); el.className = "mw-toast"; el.setAttribute("role", "status"); el.textContent = msg; document.body.appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 3500); }
   function goStep(n) {
     n = Math.max(0, Math.min(6, n));
     if (n < S.step) { S = { ...fresh(), scheme: S.scheme, lang: S.lang, theme: S.theme, fault: S.fault }; }

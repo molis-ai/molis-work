@@ -4,6 +4,7 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WORK_EXECUTOR_ROLES, workExecutorRoleOf, type ActionCallContext, type ActionDefinition, type WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { codingManifest, codingRouteActions, DEFAULT_SESSION_TITLE } from "@molis-ai/molis-work-plugin-coding";
@@ -105,6 +106,38 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });
+  }
+});
+
+// Covers only the executor's default directory part of CHO-37; telling the two directories apart on the page, "back to the work
+// directory", and real reads and writes in A with B untouched come with the input/output directories (batches 05②, 06, 07).
+test("CHO-37 batch 12 item 1: a folder picked for browsing does not move where the Assistant's rounds run", { timeout: 60_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "coding-executor-dir-"));
+  const browse = await mkdtemp(join(tmpdir(), "coding-executor-browse-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "执行目录", actor_id: "web-user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "web-user" });
+  catalog.close();
+  const preferred = { workspace_id: "preferred", canonical_path: await realpath(home), realpath_verified: true as const, display_name: "preferred" };
+  const other = { workspace_id: "browse", canonical_path: await realpath(browse), realpath_verified: true as const, display_name: "browse" };
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => preferred, workspacesFor: async () => [preferred, other] });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "projects:settings"] };
+  const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
+  const invoke = <Output>(role: WorkExecutorRole, input: unknown) => client.invoke(owner, roles[role], input) as Promise<Output>;
+  try {
+    await seedConfiguredModels(home, undefined, undefined, withCatalog);
+    assert.equal((await client.invoke(owner, projectSettingsCapabilities.selectBrowsingWorkspace, ["browse"]) as { workspace_id: string }).workspace_id, "browse");
+    assert.equal((await client.invoke(owner, projectSettingsCapabilities.browsingWorkspace, []) as { workspace_id: string } | null)?.workspace_id, "browse",
+      "the person is looking at the other folder");
+    assert.equal((await invoke<{ workspace_id: string | null }>("state", {})).workspace_id, "preferred", "the Assistant is told rounds run in the preferred folder");
+    const opened = await invoke<{ session_id: string }>("session.open", { title: "", mode: "execute" });
+    const own = await client.invoke(owner, find("coding.read-session"), { session_id: opened.session_id }) as { configuration: { workspace_id: string } | null };
+    assert.equal(own.configuration?.workspace_id, "preferred", "the round the Assistant starts runs in the preferred folder, not the browsed one");
+  } finally {
+    await host.close();
+    await rm(home, { recursive: true, force: true });
+    await rm(browse, { recursive: true, force: true });
   }
 });
 

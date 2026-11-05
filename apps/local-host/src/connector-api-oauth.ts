@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import type { OAuthGrant, OAuthTokenRequestDeclaration, PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { isDeclaredOAuth } from "@molis-ai/molis-work-plugin-sdk/oauth";
 import { withConnectorConnections } from "./connector-connection-store.js";
+import { rememberVerifiedAccount } from "./connector-observations.js";
 import { connectorProductAuth, connectorBrokerOrigin } from "./connector-product-auth.js";
 import { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthContextValue, oauthEndpointFingerprint, oauthExpiry,
   oauthKept, oauthSecretRequired, oauthTokenRequest, resolveOAuthSettings, type OAuthRequestDescription, type OAuthResolvedSettings } from "./connector-oauth-declarations.js";
@@ -397,6 +398,7 @@ export async function commitApiOAuth(home: string, state: string, config: OAuthC
     credentials, protocol: saved, declaration: { plugin: config.plugin!, fingerprint: config.fingerprint! }, input: { connectionId: config.connectionId, serviceId: config.serviceId,
       displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
       refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true } });
+  if (result.status === "connected") rememberVerifiedAccount(home, config.connectionId, { login: label, ...(config.context.account_id ? { account_id: config.context.account_id } : {}) });
   if (result.status !== "pending") finishOAuthReturn(home, config.returnTo, state, { connected: config.connectionId });
   return { service_id: config.serviceId, ...result, ...(config.returnTo ? { return_to: config.returnTo } : {}) };
 }

@@ -117,7 +117,8 @@ export interface ModelProviderHealth {
   detail: string;
   /**
    * The last real check of this provider (address, format, model and key together). Absent when it was never checked, so
-   * "never verified" and "verified" stay apart; `current` is false once the provider or its key changed after the check.
+   * "never verified" and "verified" stay apart; `current` is false once the provider or its key changed after the check. Projected
+   * from the last check of the `model-api` connection that holds the key, by its `subject`; not kept as a record of its own.
    */
   last_check?: ModelProviderCheck;
 }
@@ -125,7 +126,11 @@ export interface ModelProviderHealth {
 export interface ModelProviderCheck {
   at: string;
   outcome: "connected" | "failed";
-  /** A stable reason when it failed, e.g. `model_provider.key_rejected`, `model_provider.rate_limited`, `model_provider.quota_exhausted`. */
+  /**
+   * A stable reason when it failed: one of the `model_provider.*` codes the Host declares (`key_rejected`, `rate_limited`, `request_refused`,
+   * `provider_failed`, `unreachable`, `timed_out`, `response_invalid`, `check_failed`). `rate_limited` covers an exhausted account as well
+   * while the model path reports the status only.
+   */
   code?: string;
   /** Set when the service asked to wait (rate limit). */
   retry_at?: string;

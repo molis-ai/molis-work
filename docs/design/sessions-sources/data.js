@@ -28,6 +28,7 @@ window.protoData = {
       ],
       states: [
         { id: "pending", name: ["有建议待确认", "Suggestions waiting"] },
+        { id: "arriving", name: ["卡片先到，建议随后到", "Cards first, suggestions follow"] },
         { id: "failed", name: ["建议没生成（模型不可用）", "No suggestion (model unavailable)"] },
         { id: "changed", name: ["你改选后来了新建议", "Late suggestion after you changed it"] },
         { id: "done", name: ["都处理完了", "All sorted"] },
@@ -50,12 +51,74 @@ window.protoData = {
         { id: "gap", name: ["这个工具暂不支持读取", "Tool not supported yet"] },
       ],
     },
+    {
+      id: "permit", name: ["项目 AI 读取", "Project AI reading"],
+      options: [
+        { id: "A", name: ["A Sheet 分两页，全部项目一张表", "A Two-page Sheet, every project in one list"], rec: true },
+        { id: "B", name: ["B Sheet 顶上是当前项目，其他只看", "B Current project on top, others view-only"] },
+        { id: "C", name: ["C 项目总览放进主区", "C Project overview in the main area"] },
+      ],
+      states: [
+        { id: "agent", name: ["第一次碰到：AI 要读被挡", "First meeting: AI is stopped"] },
+        { id: "scene", name: ["第一次碰到：场景未就绪", "First meeting: scene not ready"] },
+        { id: "scene-tools", name: ["场景未就绪：还没允许工具", "Scene not ready: no tool allowed"] },
+        { id: "none", name: ["没有项目", "No projects"] },
+        { id: "one", name: ["一个项目", "One project"] },
+        { id: "many", name: ["很多项目（28 个）", "Many projects (28)"] },
+        { id: "tooloff", name: ["开着，但工具没允许", "On, but no tool allowed"] },
+        { id: "team", name: ["团队项目暂不开放", "Team projects not open yet"] },
+        { id: "fail", name: ["切换失败，就地重试", "Switch failed, retry in place"] },
+      ],
+    },
   ],
 
   projects: [
     { id: "molis", name: ["Molis Work", "Molis Work"], dir: "~/code/goalboard" },
     { id: "site", name: ["官网改版", "Website redesign"], dir: "~/code/site" },
   ],
+
+  // Project AI reading. n = sessions attributed to the project; gap = some of them come from a tool that isn't allowed.
+  permitProjects: [
+    { id: "molis", name: ["Molis Work", "Molis Work"], dir: "~/code/goalboard", n: 34 },
+    { id: "site", name: ["官网改版", "Website redesign"], dir: "~/code/site", n: 17, gap: { tool: "codex", n: 6 } },
+    { id: "billing", name: ["账单对账", "Billing reconciliation"], dir: "~/code/billing", n: 12 },
+    { id: "notes", name: ["读书笔记", "Reading notes"], dir: "~/Documents/notes", n: 0 },
+    { id: "clinic", name: ["诊所预约系统", "Clinic booking"], dir: "~/code/clinic", n: 21, team: true },
+    { id: "ops", name: ["运营周报", "Ops weekly"], dir: "~/Documents/ops", n: 8, team: true },
+    { id: "dash", name: ["数据看板", "Data dashboard"], dir: "~/code/dash", n: 9 },
+    { id: "mobile", name: ["移动端重构", "Mobile rewrite"], dir: "~/code/mobile", n: 26 },
+    { id: "contracts", name: ["合同模板库", "Contract templates"], dir: "~/Documents/contracts", n: 3 },
+    { id: "support", name: ["客服知识库", "Support knowledge base"], dir: "~/code/support-kb", n: 14 },
+    { id: "hiring", name: ["招聘流程", "Hiring process"], dir: "~/Documents/hiring", n: 2 },
+    { id: "q4", name: ["季度规划", "Quarterly plan"], dir: "~/Documents/q4", n: 5 },
+    { id: "brand", name: ["品牌手册", "Brand book"], dir: "~/Documents/brand", n: 1 },
+    { id: "pay", name: ["支付网关迁移", "Payment gateway migration"], dir: "~/code/pay-gw", n: 31 },
+    { id: "release", name: ["发布说明自动化", "Release notes automation"], dir: "~/code/release-bot", n: 7 },
+    { id: "interview", name: ["用户访谈整理", "User interview notes"], dir: "~/Documents/interviews", n: 4 },
+    { id: "ds2", name: ["设计系统 2.0", "Design system 2.0"], dir: "~/code/ui-kit", n: 19 },
+    { id: "internal", name: ["内部工具集", "Internal tools"], dir: "~/code/tools", n: 11 },
+    { id: "compete", name: ["竞品跟踪", "Competitor tracking"], dir: "~/Documents/research", n: 6 },
+    { id: "finance", name: ["财务模型", "Financial model"], dir: "~/Documents/finance", n: 0 },
+    { id: "landing", name: ["活动落地页", "Campaign landing pages"], dir: "~/code/landing", n: 8 },
+    { id: "market", name: ["插件市场", "Plugin marketplace"], dir: "~/code/market", n: 15 },
+    { id: "audit", name: ["2026 下半年安全审计及供应商问卷回复", "Second-half 2026 security audit and vendor questionnaire replies"], dir: "~/Documents/security/audit-2026-h2", n: 10 },
+    { id: "docs", name: ["文档站", "Docs site"], dir: "~/code/docs", n: 13 },
+    { id: "mail", name: ["邮件营销", "Email marketing"], dir: "~/code/mailers", n: 2 },
+    { id: "trip", name: ["旅行计划", "Trip planning"], dir: "~/Documents/trip", n: 1 },
+    { id: "home", name: ["家庭账本", "Household ledger"], dir: "~/Documents/ledger", n: 0 },
+    { id: "paper", name: ["论文修订", "Paper revisions"], dir: "~/Documents/paper", n: 3 },
+  ],
+  // Which projects each state shows, and which start switched on. Off is the default everywhere else.
+  permitSets: {
+    base: { ids: ["molis", "site", "billing", "notes"], on: [] },
+    one: { ids: ["molis"], on: [] },
+    tooloff: { ids: ["molis", "site", "billing"], on: ["molis"] },
+    team: { ids: ["clinic", "ops", "molis", "site"], on: [] },
+    fail: { ids: ["molis", "site", "billing"], on: ["site"] },
+    many: { ids: null, on: ["site", "billing", "ds2"] },
+    none: { ids: [], on: [] },
+  },
+  recentForScene: ["s1", "s2", "s9"],
 
   // kind → icon on the board's Mark: cli=terminal, cloud=cloud, ide=code
   tools: [

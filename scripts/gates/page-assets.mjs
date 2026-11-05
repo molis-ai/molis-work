@@ -277,9 +277,12 @@ const headErrors = (measured, budget, base) => {
 // T-01 integration: rebase the already approved account deltas onto main a00f5ba1.
 // The integrated measurement adds exactly the same account bytes: +410 / +452 / +39629 / +54.
 // Upstream growth is already in main; this rebases the admission and grants no additional growth.
+// K-07 (2026-11-06, explicitly approved): arrival side panels follow the stage grid above the wrapping bar.
+// Scoped selectors were shortened; arrival.css adds exactly 273 B over 690296, with no new asset.
+// Main #1747 reduced workbench.css by 4 B; preserve its approved +452 B on the new 1194521 B base.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 690296],
-  "/assets/molis-work-workbench.css": [1194525, 1194977],
+  "/assets/molis-work-arrival.css": [689886, 690569],
+  "/assets/molis-work-workbench.css": [1194521, 1194973],
   "/assets/molis-work-workbench.js": [1075120, 1114749],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };

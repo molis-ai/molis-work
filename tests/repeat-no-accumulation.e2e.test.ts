@@ -17,7 +17,7 @@ test("VUX-36: splitting and closing, switching plugins, the side panel and the A
   const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   const measure = () => domCounters(command, sessionId);
   const split = async () => {
-    await evaluate("document.querySelector('.tab-pane.is-focused [data-tab-split], [data-titlebar-tabs] [data-tab-split]').click()");
+    await evaluate("document.querySelector('[data-layout-open]').click()");
     await waitFor("document.querySelector('[data-layout-split=right]')", 10_000);
     await evaluate("document.querySelector('[data-layout-split=right]').click()");
     await waitFor("document.querySelectorAll('.tab-pane').length >= 2", 10_000);

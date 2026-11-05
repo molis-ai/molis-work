@@ -82,14 +82,17 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     closed.push({ record, until: Date.now() + UNDO_MS, reopen: reopenIt });
     if (closed.length > 10) closed.shift();
   };
-  const reopen = () => {
-    const last = closed.pop();
-    if (!last) return false;
-    if (last.reopen) return last.reopen() !== false;
-    ops.reopenPluginGroup(getState(), last.record);
+  /** Reopen what closed last, or one chosen from the 刚关掉的 list of ＋ (recent, newest first). */
+  const reopen = (entry = closed.at(-1)) => {
+    const at = closed.indexOf(entry);
+    if (at < 0) return false;
+    closed.splice(at, 1);
+    if (entry.reopen) return entry.reopen() !== false;
+    ops.reopenPluginGroup(getState(), entry.record);
     apply(); persist();
     return true;
   };
+  const recent = () => closed.slice(-5).reverse();
   /** The way back after closing a group, at the end of the strip it was closed in. */
   const undoChip = (pane) => {
     const last = closed.at(-1);
@@ -143,5 +146,5 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
   };
   window.addEventListener("click", openInBackground, true);
   window.addEventListener("auxclick", openInBackground, true);
-  return { shows, render, close, keep, reopen, undoChip, menu, hueOf, openBehind };
+  return { shows, render, close, keep, reopen, recent, undoChip, menu, hueOf, openBehind };
 }`;

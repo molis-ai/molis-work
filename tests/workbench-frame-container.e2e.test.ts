@@ -57,7 +57,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   await b.waitFor("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]')");
   await b.evaluate("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]').click()");
   await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && !!window.molisPluginFrames");
-  await b.click('[data-titlebar-tabs] [data-tab-split]'); await b.click('[data-layout-split=right]');
+  await b.click('[data-layout-open]'); await b.click('[data-layout-split=right]');
   await b.waitFor("document.querySelectorAll('iframe.tab-content-frame').length===2");
   try { await b.click('[data-plugin-strip] [data-plugin-id=feed]'); }
   catch (error) {
@@ -297,7 +297,8 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home], [data-tab-workspace] .tab-item[data-tab-kind=home]'))");
+  // 07-S2: the project home is not a tab; the titlebar's strip is drawn once its ＋ is there.
+  await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-add-button'))");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.body.dataset.desktopSurface === 'goals' && !document.querySelector('.tab-item[data-tab-kind=mother]')");
   await evaluate("document.querySelector('[data-board-view-tab=canvas]')?.click()");

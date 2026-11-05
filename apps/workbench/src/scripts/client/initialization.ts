@@ -66,6 +66,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
+      open: (plugin, origin) => openSurfaceEntry(plugin, origin),
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
@@ -337,7 +338,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const askedSurface = new URLSearchParams(location.search).get("openSurface");
     if (askedSurface && /^app-[a-f0-9-]{36}$/.test(askedSurface)) {
       const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
-      setTimeout(() => [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface)?.click(), 0);
+      setTimeout(() => { const entry = [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface); if (entry) openSurfaceEntry(askedSurface, entry); }, 0);
     }
     const missingPage = new URLSearchParams(location.search).get("missing");
     if (missingPage) {

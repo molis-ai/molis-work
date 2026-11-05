@@ -12,7 +12,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   const exclusive = "(document.querySelector('[data-tab-workspace]').dataset.exclusive || '')";
   const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
@@ -27,10 +27,10 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click('[data-dock-pin="inbox"]');
   await waitFor(shows("goals"));
   await click('[data-dock-pin="goals"]');
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   // Home is where panes start: pressing it again changes nothing.
   await click('[data-dock-pin="home"]');
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
 
   // Settings: named in the switcher and the title, not claimed by the Dock underneath.
   await click('[data-directory-open="settings"]');
@@ -45,7 +45,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   // 1. Esc.
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-  await waitFor(`${exclusive} === '' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')`);
+  await waitFor(`${exclusive} === '' && document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')`);
   // 2. The same menu entry again, and the menu closes with it.
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings'`);

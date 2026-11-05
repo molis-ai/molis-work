@@ -29,8 +29,8 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-title]').textContent"), core.title);
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-outcome]').textContent"), core.outcome);
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-status]').textContent"), "已完成");
-  await click('[data-titlebar-tabs] [data-tab-split]');
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-layout-split]')].map(x=>x.dataset.layoutSplit)"), ["right","bottom","left","top"]);
+  await click('[data-layout-open]');
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-layout-split]')].map(x=>x.dataset.layoutSplit)"), ["right","bottom"], "07-S2: the titlebar's one layout menu splits right or down (copy table)");
   await click('[data-layout-split="bottom"]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelector('[data-direction=column]')");
   // Each pane is a page of its own, so both panes load the whole workbench before showing the Frame.

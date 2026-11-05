@@ -123,7 +123,7 @@ for (const destination of ["home", "settings"] as const) {
     await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
     await waitFor("globalThis.__refreshHeld === true", 10_000);
     await click(destination === "home" ? '[data-dock-pin="home"]' : '[data-directory-open="settings"]');
-    await waitFor(destination === "home" ? "document.querySelector('.tab-item[data-tab-kind=home][aria-current]') && document.body.dataset.desktopSurface === 'home'"
+    await waitFor(destination === "home" ? "document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')"
       : "document.querySelector('[data-tab-workspace]').dataset.exclusive === 'settings'");
     const title = await evaluate<string>("document.title");
     assert.match(title, destination === "home" ? /^项目首页/ : /^设置/);

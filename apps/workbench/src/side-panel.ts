@@ -146,12 +146,15 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
  * document gets the target as it is (`{ type: "molis:side-target", target }`, to that frame and this origin only), and its
  * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`), both through the S-30 checks.
- * Answers `{ open(key, target), restore() }`: open (or recall) a view, and draw the side again from a state the workspace replaced.
+ * Answers `{ open(key, target), restore(), toggle(), isOpen() }`: open (or recall) a view, draw the side again from a state the
+ * workspace replaced, and collapse or open it as ⌘\ does. On a project page the workspace also hands in `paneSrc(tab)`, the
+ * address of the pane page that shows a main tab moved here, `glyph(plugin)`, its tab's glyph, and `toMain(tabId)`, which
+ * moves such a tab back (the menu of its tab offers it).
  * A reopened tab takes the focus when the strip had it, so Delete and ⌘⇧T go back and forth on one tab.
  * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
  * and focus from a click leaves the widths as they are).
  */
-export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,L=globalThis.L})=>{
+export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!strip||!stage)return null;
   stage.setAttribute('data-plugin-stage','');
@@ -161,7 +164,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const MAC=/Mac|iP/.test(navigator.platform);
   const side=()=>getState().side;
   const buttons=()=>[...strip.querySelectorAll('[data-side-tab]')];
-  const views=()=>buttons().map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
+  const views=()=>buttons().filter(button=>!button.hasAttribute('data-side-pane')).map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
   const tabOf=key=>side().tabs.find(tab=>tab.itemId===key);
   const offered=id=>!!id&&buttons().some(button=>button.dataset.sideTab===id&&!button.hidden);
   const tabs=()=>buttons().filter(button=>!button.hidden&&tabOf(button.dataset.sideTab));
@@ -169,7 +172,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
   divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',L('调整侧栏宽度'));divider.setAttribute('aria-controls',panel.id);
   panel.after(divider);
-  let open=false,closing=null,trigger=null,known=new Set();
+  let open=false,closing=null,trigger=null;
   const size=()=>Math.min(Math.max(innerWidth*side().ratio,360),innerWidth*.55);
   const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
   const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current()==='discussion',theme:document.documentElement.dataset.resolvedTheme},location.origin);
@@ -177,6 +180,23 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(body.dataset.sideBody==='discussion'&&frame&&!frame.getAttribute('src'))frame.src='/im?embedded=1'+(projectId?'&project='+encodeURIComponent(projectId):'');
     const src=body.dataset.sideSrc,inner=body.querySelector('[data-side-frame]');
     if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.src=src;}
+    const pane=body.querySelector('iframe[data-side-pane-src]');if(pane&&!pane.getAttribute('src'))pane.src=pane.dataset.sidePaneSrc;
+  };
+  // A main tab moved here (kind "pane", 07-S2) has no tab the server drew: its glyph tab leads the strip and its body holds the
+  // workbench's own pane page (paneSrc), loaded the first time it shows; moved back or closed, both go.
+  const drawPanes=()=>{
+    const moved=side().tabs.filter(tab=>tab.kind==='pane'),keys=new Set(moved.map(tab=>tab.itemId));
+    strip.querySelectorAll('[data-side-pane]').forEach(button=>{if(keys.has(button.dataset.sideTab))return;button.parentElement.remove();panel.querySelector('[data-side-body="'+CSS.escape(button.dataset.sideTab)+'"]')?.remove();});
+    for(const tab of moved.slice().reverse()){
+      if(!paneSrc||strip.querySelector('[data-side-tab="'+CSS.escape(tab.itemId)+'"]'))continue;
+      const item=document.createElement('div'),button=document.createElement('button'),name=document.createElement('span'),body=document.createElement('div'),inner=document.createElement('iframe');
+      item.className='tab-item';item.dataset.glyphOnly='';item.title=tab.title;
+      button.type='button';button.className='tab-item-trigger';button.role='tab';button.tabIndex=-1;button.dataset.sideTab=tab.itemId;button.dataset.sidePane='';button.dataset.sidePlugin=tab.plugin;button.ariaLabel=tab.title;
+      button.innerHTML=glyph(tab.plugin);name.className='tab-item-name';name.ariaHidden='true';name.textContent=tab.title;button.append(name);item.append(button);strip.prepend(item);
+      body.className='side-panel-body';body.role='tabpanel';body.ariaLabel=tab.title;body.dataset.sideBody=tab.itemId;body.hidden=true;
+      inner.className='side-pane-frame';inner.title=tab.title;inner.dataset.paneOwner='side';inner.dataset.sidePaneSrc=paneSrc(tab);body.append(inner);
+      (panel.querySelector('[data-side-body]')?.parentElement||panel).append(body);
+    }
   };
   const expanded=()=>{
     for(const button of buttons()){const item=button.parentElement;if(open&&button.getAttribute('aria-selected')==='true')item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');}
@@ -196,7 +216,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     strip.before(chip);
   };
   const draw=(target)=>{
-    const id=current();
+    drawPanes();const id=current();
     for(const button of buttons()){const on=button.dataset.sideTab===id;button.toggleAttribute('data-side-closed',!tabOf(button.dataset.sideTab));button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
     for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin));}}
     expanded();imVisible();drawUndo();
@@ -292,14 +312,17 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   let menuAnchor=null;
   const menuFor=button=>{
     menuAnchor=button;menu.replaceChildren();
-    const heading=document.createElement('strong');heading.textContent=button.querySelector('.tab-item-name')?.textContent||'';
-    const item=document.createElement('button');item.type='button';item.className='mw-menu__item';item.setAttribute('role','menuitem');item.dataset.sideMenu='close';
-    item.innerHTML='<svg aria-hidden="true"><use href="#icon-x"></use></svg><span></span>';item.querySelector('span').textContent=L('关闭标签');
-    item.addEventListener('click',()=>{menu.hidePopover();close(button);});
-    menu.append(heading,item);menu.showPopover();
+    const heading=document.createElement('strong');heading.textContent=button.querySelector('.tab-item-name')?.textContent||'';menu.append(heading);
+    const add=(key,icon,label,run)=>{const item=document.createElement('button');item.type='button';item.className='mw-menu__item';item.setAttribute('role','menuitem');item.dataset.sideMenu=key;
+      item.innerHTML='<svg aria-hidden="true"><use href="#icon-'+icon+'"></use></svg><span></span>';item.querySelector('span').textContent=L(label);
+      item.addEventListener('click',()=>{menu.hidePopover();run();});menu.append(item);};
+    // A tab moved here from the main area goes back the same way it came (07-S2).
+    if(toMain&&button.hasAttribute('data-side-pane'))add('to-main','arrow','移到主区',()=>toMain(tabOf(button.dataset.sideTab)?.id));
+    add('close','x','关闭标签',()=>close(button));
+    menu.showPopover();
     const box=button.getBoundingClientRect();
     menu.style.left=Math.max(8,Math.min(box.right-menu.offsetWidth,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.round(box.bottom+6)+'px';
-    item.focus();
+    menu.querySelector('button')?.focus();
   };
   strip.addEventListener('contextmenu',event=>{const button=event.target.closest?.('[data-side-tab]');if(!button)return;event.preventDefault();menuFor(button);});
   menu.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();menu.hidePopover();menuAnchor?.focus({preventScroll:true});}});
@@ -343,17 +366,18 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   divider.addEventListener('dblclick',()=>{ops.setSideRatio(getState(),.35);paint();save();});
   addEventListener('resize',paint);
   document.body.dataset.sideOpen='false';
-  // The views the page offers settle the side's tabs; a view it offers later (a plugin added) joins, one closed here stays closed.
-  const settle=(only)=>{const list=views();ops.syncSide(getState(),list,only);known=new Set(list.map(view=>view.key));};
+  // The views the page offers settle the side's tabs; a view it offers later (a plugin added) joins, and one the person closed stays
+  // closed, across a reload too: the state remembers it (side.closed).
+  const settle=()=>{ops.syncSide(getState(),views());drawPanes();};
   settle();
   (${SIDE_CONTEXT_FACTORY})({panel,strip,select,current});
-  document.addEventListener('molis-work:plugins-changed',()=>{settle(new Set(views().map(view=>view.key).filter(key=>!known.has(key))));draw();save();});
+  document.addEventListener('molis-work:plugins-changed',()=>{settle();draw();save();});
   new MutationObserver(()=>draw()).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});
   paint();select(current());
   (window.requestIdleCallback||setTimeout)(()=>strip.querySelectorAll('[data-side-keys]').forEach(tab=>load(panel.querySelector('[data-side-body="'+tab.dataset.sideTab+'"]'))),{timeout:4000});
   // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again.
   const restore=()=>{settle();paint();if(side().open!==open)setOpen(side().open);else draw();};
-  return {open:(key,target)=>request({tab:key,target}),restore};
+  return {open:(key,target)=>request({tab:key,target}),restore,toggle,isOpen:()=>open};
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");
 
 /** The side on a page without a tab workspace (the way in): the same rules and the same pane, held by the page alone. */

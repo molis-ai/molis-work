@@ -166,7 +166,7 @@ test('Artifact tabs restore the exact item after switching, reload and split', {
   await click('[data-plugin-id=home]');
   await click(`[data-tab-id="${a}"]`); await waitFor(isA);
   await reloadPage(); await waitFor(isA, 10_000);
-  await click('[data-tab-split]'); await click('[data-layout-split=right]');
+  await click('[data-layout-open]'); await click('[data-layout-split=right]');
   await waitFor("[...document.querySelectorAll('iframe.tab-content-frame')].some(frame => frame.contentDocument?.querySelector('[data-artifact-id=\"polish/a\"][data-artifact-version=\"1\"]'))", 20_000);
   } catch (error) { console.error(error); throw error; }
 });
@@ -185,7 +185,7 @@ test('Search opens an owner record in the visible split pane without creating a 
   assert.equal(await dataset.evaluate("document.querySelector('[data-dataset-id] strong').textContent"), '分屏查找这份数据');
   const id = await dataset.evaluate<string>("document.querySelector('[data-dataset-id]').dataset.datasetId");
   await click('[data-plugin-id=home]');
-  await click('[data-tab-split]'); await click('[data-layout-split=right]');
+  await click('[data-layout-open]'); await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const targetPane = await evaluate<string>("document.querySelector('.tab-pane.is-focused').dataset.tabPane");
   const ownerFrame = `iframe.tab-content-frame[data-pane-owner="${targetPane}"]:not([hidden])`;

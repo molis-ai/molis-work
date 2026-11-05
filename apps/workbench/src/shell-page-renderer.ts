@@ -192,7 +192,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     },
     body_html: `
   ${renderIconSprite()}
-  ${renderPluginDirectoryData(directory)}
+  ${renderPluginDirectoryData(directory, offered.map(entry => entry.id))}
   <div class="app">
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell, view.home_plugin_nav, sideTabs)}

@@ -37,7 +37,7 @@ const KINDS: Record<string, string> = {
   ".tab-item-trigger": "tab",
   ".tab-item-close": "tab close",
   ".tab-add-button": "open plugin",
-  ".tab-split-button": "layout",
+  "[data-layout-open]": "layout", // 07-S2: the titlebar's one layout button replaces each strip's
   "[data-home-plugin-open]": "home tool",
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",
@@ -253,8 +253,8 @@ type SwitcherOps = { floor: number; tileHeight: number; textRoom: number; button
 type StripMenu = { shown: boolean; missing: string[]; rows: number[]; parts: Array<{ label: string; w: number; h: number; dot?: number }> };
 const STRIP_MENUS = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const tabMenu = document.querySelector("[data-workspace-tab-menu]"), layout = document.querySelector("[data-workspace-layout]");
-  const close = async () => { for (const menu of [tabMenu, layout]) if (menu.matches(":popover-open")) menu.hidePopover(); await wait(100); };
+  const tabMenu = document.querySelector("[data-workspace-tab-menu]"), layout = document.querySelector("[data-workspace-layout]"), plus = document.querySelector("[data-workspace-open-menu]");
+  const close = async () => { for (const menu of [tabMenu, layout, plus]) if (menu.matches(":popover-open")) menu.hidePopover(); await wait(100); };
   const read = (menu, present) => {
     const shown = menu.matches(":popover-open");
     const controls = shown ? [...menu.querySelectorAll("button, summary, a[href], input")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) : [];
@@ -267,8 +267,9 @@ const STRIP_MENUS = `(async () => {
   };
   const out = {};
   document.querySelector(".tab-add-button").click(); await wait(300);
-  out["the open-plugin menu"] = read(tabMenu, ["[data-tab-menu-action=open-home]"]); await close();
-  document.querySelector(".tab-split-button").click(); await wait(300);
+  // 07-S2: ＋ has a menu of its own that only opens plugins; the project home is the Dock's, not one of its rows.
+  out["the open-plugin menu"] = read(plus, ["[data-tab-menu-action^=open-]", "input"]); await close();
+  document.querySelector("[data-layout-open]").click(); await wait(300);
   out["the layout menu"] = read(layout, ["[data-layout-split=right]", "[data-layout-action=equal]"]); await close();
   document.querySelector(".tab-item-trigger").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })); await wait(300);
   out["a tab's menu"] = read(tabMenu, ["[data-tab-menu-action=pin]", "[data-tab-menu-action=new-group]", "[data-tab-menu-action=close]"]);

@@ -286,7 +286,7 @@ export function renderDirectoryPluginSections(
   return `${plugins}${settingsSection}`;
 }
 
-/** The title bar: the way back, the work area's tabs, the Home tools, and at its right end the right side's tabs (side-panel.ts). */
+/** The title bar: the way back, the work area's tabs, the Home tools, the right side's tabs (side-panel.ts) and, at its right end, the one layout button (07-S2, 口径 6). */
 export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, homePlugins: readonly HomePluginNavigationEntry[] = [], sideTabs: readonly SidePanelPluginTab[] = []): string {
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}>
@@ -301,6 +301,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
     ${renderHomePluginNavigation(undefined, homePlugins)}
     ${renderSideStrip(primitives, sideTabs, { tasks: true })}
+    <span class="titlebar-layout">${renderButton({ label: L("布局"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": "false", title: L("布局") } })}</span>
   </header>`;
 }
 

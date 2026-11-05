@@ -290,7 +290,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
       const id = pin.dataset.dockPin;
       // Pressed again while its plugin is showing, an entry of the bar puts back what was there before it.
       if (host.leavePlugin?.(id)) return;
-      railItem(id)?.click();
+      host.open?.(id, railItem(id));
       return;
     }
     // Choosing a plugin in the switcher (or the market or studio at its head) closes it; the Dock buttons keep it open.

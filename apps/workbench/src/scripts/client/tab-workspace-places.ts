@@ -17,31 +17,36 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
     if (!entry) { entry = { stack: [], index: -1 }; tabHistory.set(paneId, entry); }
     return entry;
   };
-  // A plugin's page is a place, and so is a record opened on it ("plugin:<id>|<record>"): Back from a note is its list.
-  const placeId = (pane) => pane?.activeTabId || (pane?.viewPlugin ? "plugin:" + pane.viewPlugin + (openRecords[pane.viewPlugin] ? "|" + openRecords[pane.viewPlugin] : "") : null);
+  // A plugin's page is a place, and so is a record opened on it ("plugin:<id>|<record>"): Back from a note is its list. The
+  // project home, shown by a pane with neither, is "plugin:home".
+  const placeId = (pane) => !pane ? null : pane.activeTabId || (pane.viewPlugin ? "plugin:" + pane.viewPlugin + (openRecords[pane.viewPlugin] ? "|" + openRecords[pane.viewPlugin] : "") : "plugin:home");
+  const showPage = (pane, plugin) => { pane.viewPlugin = plugin === "home" ? null : plugin; pane.activeTabId = null; };
   const historyId = (pane) => state.exclusive ? "cover:" + state.exclusive + (coverPlace ? "|" + coverPlace : "") : placeId(pane);
   const coverOf = (id) => String(id).startsWith("cover:") ? String(id).slice("cover:".length).split("|")[0] : "";
-  const keptPlace = (pane, id) => String(id).startsWith("plugin:") ? pane.tabs.some((tab) => tab.kind === "plugin" && tab.plugin === pluginOfPlace(pane, id)) : String(id).startsWith("cover:") || pane.tabs.some((tab) => tab.id === id);
+  const keptPlace = (pane, id) => id === "plugin:home" || (String(id).startsWith("plugin:") ? pane.tabs.some((tab) => tab.kind === "plugin" && tab.plugin === pluginOfPlace(pane, id)) : String(id).startsWith("cover:") || pane.tabs.some((tab) => tab.id === id));
   const pluginOfPlace = (pane, id) => String(id).startsWith("plugin:") ? String(id).slice("plugin:".length).split("|")[0]
     : String(id).startsWith("cover:") ? null : pane.tabs.find((tab) => tab.id === id)?.plugin || null;
-  const pruneHistory = (pane) => {
-    const entry = paneHistory(pane.id);
+  // A history keeps only the places still there (\`kept\`): a pane's, or the right side's tabs under "side".
+  const prunePlaces = (key, kept) => {
+    const entry = paneHistory(key);
     const next = [];
     let index = -1;
     for (let i = 0; i < entry.stack.length; i++) {
       const id = entry.stack[i];
-      if (!keptPlace(pane, id) || next[next.length - 1] === id) continue;
+      if (!kept(id) || next[next.length - 1] === id) continue;
       next.push(id);
       if (i <= entry.index) index = next.length - 1;
     }
     entry.stack = next;
     entry.index = index;
   };
-  const rememberTab = (pane) => {
-    const id = historyId(pane);
-    if (!id) return;
-    pruneHistory(pane);
-    const entry = paneHistory(pane.id);
+  const pruneHistory = (pane) => prunePlaces(pane.id, (id) => keptPlace(pane, id));
+  const sideKept = (key) => state.side.tabs.some((tab) => tab.itemId === key);
+  const sideColumn = () => column === "side" && !state.exclusive && Boolean(sidePane?.isOpen());
+  const rememberTab = (pane) => { const id = historyId(pane); if (id) rememberPlace(pane.id, id, (place) => keptPlace(pane, place)); };
+  const rememberPlace = (key, id, kept) => {
+    prunePlaces(key, kept);
+    const entry = paneHistory(key);
     if (entry.stack[entry.index] === id) return;
     if (historyLock) {
       // A step through history already moved the index; settle on the matching entry nearest to it.
@@ -58,10 +63,10 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
     const back = document.querySelector("[data-workspace-history=back]");
     const forward = document.querySelector("[data-workspace-history=forward]");
     if (!back || !forward) return;
-    const pane = ops.focused(state);
+    const pane = ops.focused(state), inSide = sideColumn();
     if (!pane) { back.disabled = true; forward.disabled = true; return; }
-    pruneHistory(pane);
-    const entry = paneHistory(pane.id);
+    if (inSide) prunePlaces("side", sideKept); else pruneHistory(pane);
+    const entry = paneHistory(inSide ? "side" : pane.id);
     // A cover can always be stepped out of, even when nothing was visited before it.
     back.disabled = entry.index <= 0 && !state.exclusive;
     forward.disabled = entry.index < 0 || entry.index >= entry.stack.length - 1;
@@ -97,12 +102,11 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
         // Say what the page will show before showing it, so history settles on this entry and not its neighbour.
         if (record) openRecords[plugin] = record; else delete openRecords[plugin];
         saveRecords();
-        pane.viewPlugin = plugin;
-        pane.activeTabId = null;
+        showPage(pane, plugin);
         apply();
         persist();
         // A page shown for the first time reopens its record on its own; otherwise put the page where the entry says.
-        if (!firstShow) {
+        if (!firstShow && plugin !== "home") {
           const open = topLevelSurface(plugin)?.dataset.expanded === "true";
           if (record && (shown !== record || !open)) jumpToRecord(plugin, record, true);
           else if (!record && open) { applyPluginDefault(plugin); surfaceShows.set(plugin, "page"); }
@@ -115,6 +119,14 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
   };
   const goHistory = (delta) => {
     const pane = ops.focused(state);
+    if (sideColumn()) {
+      prunePlaces("side", sideKept);
+      const entry = paneHistory("side"), i = entry.index + delta;
+      if (i < 0 || i >= entry.stack.length) return false;
+      entry.index = i; historyLock = true;
+      try { sidePane.open(entry.stack[i]); } finally { historyLock = false; persistHistory(); syncHistoryButtons(); }
+      return true;
+    }
     if (!pane) return false;
     pruneHistory(pane);
     const entry = paneHistory(pane.id);
@@ -190,7 +202,7 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
       paneHistory(after.id).index = back.index;
       historyLock = true;
       try {
-        if (String(back.id).startsWith("plugin:")) { after.viewPlugin = pluginOfPlace(after, back.id); after.activeTabId = null; }
+        if (String(back.id).startsWith("plugin:")) showPage(after, pluginOfPlace(after, back.id));
         else ops.activate(state, after.id, back.id);
         apply();
         persist();

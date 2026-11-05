@@ -33,7 +33,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
   await browser.click("[data-tab-menu-action=new-group]");
   await browser.click(".tab-group-label");
   await browser.waitFor("!!document.querySelector('.tab-group[data-collapsed=true]')");
-  await browser.click("[data-tab-split]"); await browser.click('[data-layout-split="right"]');
+  await browser.click("[data-layout-open]"); await browser.click('[data-layout-split="right"]');
   await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const key = "molis-work-tab-workspace:" + browser.projectId;
   await browser.evaluate(`(() => { const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)}));
@@ -45,7 +45,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     throw error;
   }
   const saved = await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`);
-  const before = JSON.parse(saved) as { panes: Array<{ tabs: Array<{ kind: string; itemId?: string }>; groups: Array<{ collapsed: boolean }> }> };
+  const before = JSON.parse(saved) as { panes: Array<{ tabs: Array<{ kind: string; itemId?: string }>; groups: Array<{ collapsed: boolean }>; viewPlugin?: string | null }> };
   assert.equal(before.panes.length, 3);
   assert.ok(before.panes.every(pane => pane.tabs.some(tab => tab.kind === "item" && tab.itemId === "CORE")));
   assert.ok(before.panes.some(pane => pane.groups.some(group => group.collapsed)));
@@ -68,7 +68,8 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 1", 15_000);
     const current = JSON.parse(await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)) as typeof before;
     assert.equal(current.panes.length, 1, change);
-    assert.ok(current.panes.every(pane => pane.tabs.every(tab => tab.kind === "home")), change + " starts from current Home rather than converting the old item");
+    // 07-S2 (口径 3, 4): the project home is no longer a tab; a fresh workspace is one pane with no tab and no plugin page.
+    assert.ok(current.panes.every(pane => pane.tabs.length === 0 && pane.viewPlugin === null), change + " starts from current Home rather than converting the old item");
     assert.equal(await browser.evaluate("document.querySelector('.tab-item[data-tab-kind=mother], .tab-item[data-preview]')"), null);
   }
 });
@@ -160,9 +161,10 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
       sessionStorage.setItem('molis-work-ui:other-project:current','preserved');
     })()`);
     await load(prefix);
-    const reset = await page.evaluate<{ panes: Array<{ tabs: Array<{ kind: string }> }> }>(`JSON.parse(localStorage.getItem(${JSON.stringify(key)}))`);
+    const reset = await page.evaluate<{ panes: Array<{ tabs: Array<{ kind: string }>; viewPlugin: string | null }> }>(`JSON.parse(localStorage.getItem(${JSON.stringify(key)}))`);
     assert.equal(reset.panes.length, 1);
-    assert.ok(reset.panes[0]!.tabs.every(tab => tab.kind === "home"));
+    // 07-S2 (口径 3): the fresh workspace shows the project home with no tab for it.
+    assert.deepEqual([reset.panes[0]!.tabs.length, reset.panes[0]!.viewPlugin], [0, null]);
     assert.equal(await page.evaluate(`sessionStorage.getItem(${JSON.stringify(ui)})`), null);
     assert.equal(await page.evaluate(`(sessionStorage.getItem(${JSON.stringify(history)})||'').includes('old-pane')`), false);
     assert.equal(await page.evaluate("localStorage.getItem('molis-work-tab-workspace:other-project')"), "preserved");
@@ -184,7 +186,7 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     await feed.click(`[data-feed-task="${source.source_id}"]`);
     await feed.waitFor(`document.querySelector('[data-feed-workbench]').dataset.selectedSource===${JSON.stringify(source.source_id)}`);
     await page.wait(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)})),pane=state.panes.find(p=>p.id===state.focusedPaneId);return pane.viewPlugin==='feed' && pane.tabs.find(tab=>tab.kind==='plugin' && tab.plugin==='feed')?.view===${JSON.stringify(source.source_id)};})()`);
-    await page.click('[data-titlebar-tabs] [data-tab-split]');
+    await page.click('[data-layout-open]');
     await page.click('[data-layout-split="right"]');
     const feedPanes = "document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"] iframe[data-plugin-frame=feed]'))";
     await page.wait(feedPanes, { timeoutMs: 30_000 });

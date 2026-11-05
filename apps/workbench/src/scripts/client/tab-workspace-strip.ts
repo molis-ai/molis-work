@@ -5,12 +5,11 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
   const tabShareMin = ${tabShareMin.toString()};
   const tabScrollAllotment = ${tabScrollAllotment.toString()};
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
-  const tabLabel = (tab) => tab.plugin === "home" ? (personal ? L("个人首页") : L("项目首页"))
-    : tab.kind === "plugin" ? L(ops.pluginTitle(tab.plugin)) : tab.title;
+  const tabLabel = (tab) => tab.kind === "plugin" ? L(ops.pluginTitle(tab.plugin)) : tab.title;
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   const appendTab = (parent, pane, tab) => {
-    if (personal && tab.kind === "home") return; const selected = tab.id === pane.activeTabId || pluginGroups.shows(pane, tab), label = tabLabel(tab);
+    const selected = tab.id === pane.activeTabId || pluginGroups.shows(pane, tab), label = tabLabel(tab);
     const button = document.createElement("div");
     button.className = "tab-item" + (selected ? " is-active" : "");
     button.dataset.tabId = tab.id;
@@ -73,8 +72,8 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     // for the next layout. Reusing it can alternate between sharing and hug.
     const scrollPad = scroll.querySelector("[data-tab-scroll-pad]");
     if (scrollPad) scrollPad.style.width = "0px";
-    // Home and plugin tabs keep their names; the item tabs share what is left.
-    const flexTabs = [...scroll.querySelectorAll('.tab-item:not([data-pinned]):not([data-tab-kind="home"]):not([data-tab-kind="plugin"])')].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"], .is-tab-drag-source'));
+    // Plugin tabs keep their names; the item tabs share what is left.
+    const flexTabs = [...scroll.querySelectorAll('.tab-item:not([data-pinned]):not([data-tab-kind="plugin"])')].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"], .is-tab-drag-source'));
     const slot = scroll.querySelector("[data-tab-reorder-slot]:not([data-tab-slot-leaving], .is-group)");
     const flexNodes = slot ? flexTabs.concat(slot) : flexTabs;
     const clearShare = () => {
@@ -242,7 +241,8 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     scrollArea.append(pad);
     const undo = pluginGroups.undoChip(pane);
     if (undo) fragment.append(undo);
-    if (!pane.tabs.length) {
+    // A pane of its own with nothing in it says how to fill it; the titlebar's strip over the project home says nothing.
+    if (!pane.tabs.length && !strip.hasAttribute("data-titlebar-tabs")) {
       const empty = document.createElement("p");
       empty.className = "tab-pane-empty-hint";
       empty.textContent = L("从下方切换插件，或把标签拖进来。");
@@ -259,13 +259,8 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
         fragment.append(spacer);
       }
       const add = document.createElement("button"); add.type = "button"; add.className = "tab-add-button"; add.dataset.tabAdd = pane.id;
-      add.setAttribute("aria-label", L("打开插件")); add.title = L("打开插件"); add.setAttribute("aria-haspopup", "menu");
+      add.setAttribute("aria-label", L("打开")); add.title = L("打开"); add.setAttribute("aria-haspopup", "menu"); add.setAttribute("aria-expanded", "false");
       add.innerHTML = '<svg aria-hidden="true"><use href="#icon-plus"></use></svg>'; fragment.append(add);
-      const split = document.createElement("button");
-      split.type = "button"; split.className = "tab-split-button"; split.dataset.tabSplit = pane.id;
-      split.title = L("布局与分屏"); split.setAttribute("aria-label", split.title);
-      split.innerHTML = '<svg aria-hidden="true"><use href="#icon-grid"></use></svg>';
-      fragment.append(split);
     }
     strip.replaceChildren(fragment);
     scrollArea.scrollLeft = scrollLeft;
@@ -320,11 +315,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     if (focusPane) { activate(focusPane.dataset.focusPane); return true; }
     if (!paneId) return;
     const add = event.target.closest("[data-tab-add]");
-    if (add) { openTabMenu(paneId, add); return true; }
-    const split = event.target.closest("[data-tab-split]");
-    if (split) {
-      openLayoutMenu(paneId, split); return true;
-    }
+    if (add) { openPlusMenu(paneId, add); return true; }
     if (event.target.closest("[data-cover-close]")) {
       event.preventDefault();
       closeCover();
@@ -360,7 +351,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       }
       state.focusedPaneId = paneId;
       const railButton = document.querySelector('[data-dock] [data-plugin-id="' + CSS.escape(pluginTab.dataset.plugin) + '"]');
-      if (railButton && ops.shownPlugin(pane) !== pluginTab.dataset.plugin) railButton.click();
+      if (railButton && ops.shownPlugin(pane) !== pluginTab.dataset.plugin) host.openEntry?.(pluginTab.dataset.plugin, railButton);
       else activate(paneId, pluginTab.dataset.tabId);
       focusActiveTab();
       return true;

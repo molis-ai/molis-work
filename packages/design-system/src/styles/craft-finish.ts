@@ -3,6 +3,7 @@ import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
 import { ASSISTANT_PROCESS_STYLES } from "./assistant-process.js";
 import { DROPDOWN, MOTION_STYLES } from "./motion.js";
 import { CRAFT_BAR_STYLES } from "./craft-finish-bar.js";
+import { BAR_ZONE_STYLES } from "./bar-zones.js";
 import { CRAFT_ASSISTANT_STYLES } from "./craft-finish-assistant.js";
 import { CRAFT_PAGES_STYLES } from "./craft-finish-pages.js";
 
@@ -28,7 +29,7 @@ import { CRAFT_PAGES_STYLES } from "./craft-finish-pages.js";
 
 
 /** The finish layer's rules, in the order they cascade: the parts are cut between sections and joined as they were written. */
-const CRAFT_BASE_STYLES = CRAFT_BAR_STYLES + CRAFT_ASSISTANT_STYLES + CRAFT_PAGES_STYLES;
+const CRAFT_BASE_STYLES = CRAFT_BAR_STYLES + BAR_ZONE_STYLES + CRAFT_ASSISTANT_STYLES + CRAFT_PAGES_STYLES;
 
 /** Under automation (headless review, e2e) the layer holds still so geometry reads settle at once. */
 const STILL_RESET = `

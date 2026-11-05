@@ -263,17 +263,19 @@ const headErrors = (measured, budget, base) => {
 // workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
 // address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
 // read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
-// 07-S1 (specs/product-flow-governance §4.6.2, the right side joins the tab workspace; 待 07 批评审台审): workbench.js +9013 B,
-// plugin-frame.js +76 B. The side's own state rules (withSidePane: tabs, open, width, close and reopen, the saved-shape check)
-// and its controller now ship in the tab workspace's script: the title-bar strip with its rest-to-grow names, the tab menu,
-// the undo chip and its place in the workspace's ⌘⇧T list, ⌘\, the background-tasks tab, and the removed-plugin tab state;
-// plugin frames hand ⌘\ up (+76 B). Tried: the side's old stand-alone script left the bundle (the tab workspace builds the
-// controller), the title bar's background-tasks button and its popover menu went, the panel's header and close button went,
-// and the side's comments are not shipped; arrival.css (-5437 B) and workbench.css (-253 B) fell and are lowered here. The
-// entries before this one are spent (the merge-base budget holds their ceilings) and are deleted.
+// 07-S0 (workbench navigation specimens, 待 07 批评审台审): the README's new tab-strip, titlebar and three-zone bar classes ship in
+// the product sheets so the 07 slices reuse them instead of redrawing: workbench.css +10000 B (tab tiers, every-tabs and plus
+// menus, gone/removed marks, glyph tabs that widen, count badge, layout button, phone rules), arrival.css and settings.css +593 B
+// each (the bar's own-zone and warning-point rules shared through craft-finish). (The BL-953 entries for these three are spent:
+// the merge-base budget holds their ceilings.) Tried: the board-only scaffolding (stage, frames, popover anchors) stays inline on
+// the board's frame page; selectors reuse the existing tab, menu, input-group and dock-pin classes; comments are not in the sheet.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1075120, 1084133],
-  "/assets/molis-work-plugin-frame.js": [208271, 208347],
+  "/assets/molis-work-arrival.css": [689886, 690479],
+  "/assets/molis-work-plugins/coding.css": [74624, 75514],
+  "/assets/molis-work-settings.css": [826727, 827320],
+  "/assets/molis-work-workbench.css": [1194521, 1204521],
+  "/assets/molis-work-workbench.js": [1074951, 1075120],
+  "/assets/molis-work-plugin-frame.js": [208033, 208271],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -90,7 +90,7 @@ MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/central-account.test.mjs
 
 ## WORK-04 第三方登录与本机回跳
 
-Google/GitHub 使用中央事务和受控 mock。浏览器从账号弹窗打开独立授权窗口，桌面复用既有系统浏览器端口；发起 URL 必须为当前配置的 Auth 来源和对应提供方 browser-start 路径。没有新增桌面 IPC 或任意网络代理。Auth 回到精确 `/account/callback` 后，Host 校验 state、事务、提供方、当前尝试和中央状态，完成 PKCE 换取；原弹窗通过受保护查询更新。回跳页不含 Token、控制头、脚本或外链资源。
+Google/GitHub 使用中央事务和受控 mock。浏览器从账号弹窗打开独立授权窗口，桌面复用既有系统浏览器端口；发起 URL 必须为当前配置的 Auth 来源和对应提供方 browser-start 路径。没有新增桌面 IPC 或任意网络代理。Auth 回到精确 `/account/callback` 后，Host 校验 state、事务、提供方、当前尝试和中央状态，完成 PKCE 换取；原弹窗通过受保护查询更新。回跳只返回纯文本完成/取消提示，不含 Token、控制头、HTML、脚本或外链资源。
 
 - **WUA-13** 两种提供方均可实际授权登录；GitHub 无邮箱身份可用；原页面完成更新，桌面桥只传受控 URL。证明：`scripts/account-provider.test.mjs`。
 - **WUA-14** 非导航、错误来源/state/事务、额外字段、重放、取消竞争、重启及不可信提供方 URL 均拒绝；不能安装迟到 Token。证明：`tests/security-invariants-account-host.test.ts`「S-112」、`scripts/account-provider.test.mjs`。
@@ -294,3 +294,7 @@ K-07 的最终本地定向批次 33/33 文件通过，包含 Workbench README �
 Full 同时发现 K-08：新增 account 包缺少随包分发的 LICENSE。补入与根许可证逐字节一致的普通文件，沿用仓库许可，不改许可条款；`tests/license-materials.test.ts` 2/2、`tests/runtime-payload.test.ts` 3/3 通过。
 
 K-09 为 WORK-03 已启用登录入口后留下的旧断言。**T01-ACCOUNT-ENTRY-01**：项目菜单中的账号按钮可点击，在当前项目打开账号表单，关闭后焦点返回账号按钮；除入口可用状态及提示外，Goals 页面标记不变。`tests/project-home-start.e2e.test.ts` 6/6 通过；`tests/goals-page-golden.test.ts` 70 项通过、2 项按既有设计仅供生成的分支跳过。66 份原快照先与独立构建 main 9f00fd0dad 的输出逐一核对，只对其中 16 份整页快照推导去掉 disabled、替换“暂未开放”提示的预期，再与候选输出逐字节比较；未用候选 RECORD 重录。主线原来的 Goals、项目入口和运行载荷三文件均通过，对照与失败历史保留在中央交付记录。
+
+K-10 为第三方回跳生成了未登记的整页。改为纯文本完成/取消提示，保留缓存、来源、内容类型与 CSP 限制，不增加页面例外。**T01-CALLBACK-01**：两种提供方的回跳只返回无凭据的 `text/plain`，原账号弹窗恢复登录；拒绝路径与取消、重启行为保持。`scripts/account-provider.test.mjs` 的真实 Auth/Host、mock 提供方、浏览器弹窗和桌面桥通过；Host 必跑与相关 59 文件 653/653，含原整页门禁和 S-112；相对 main 637a4c841 的健康门禁通过。
+
+K-11 为 `account-session` 和 `security-invariants-account-host` 同时进入产品子集及必需安全作业，违反原 CI 去重规则。仅移除产品子集里的重复登记，两文件仍由 `pnpm test:security` 的准确文件名及 `security-invariants-*.test.ts` 模式执行，客户端测试保留在产品子集；未改工作流、测试、断言或重试。规划与执行器 36/36，干净主线规划对照 17/17。首轮账号 Full 16 分片已收齐：1,650/1,657 文件通过，7 个持续失败文件对应 K-07～K-11，另 5 个文件首次失败、重试通过；57 个 macOS 文件被 Linux 排除。七个持续失败均已按本地证据逐项修复，仍须等待最终 head 的 Full。

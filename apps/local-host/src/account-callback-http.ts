@@ -17,9 +17,9 @@ export async function handleAccountCallbackHttp(request: IncomingMessage, respon
   try {
     const result = await account.authenticate(origin, stop.signal, (auth, control) =>
       auth.callback(new URL(url.pathname + url.search, origin), request.headers.origin, control));
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer",
+    response.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer",
       "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'", "x-content-type-options": "nosniff" });
-    response.end(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Molis Work</title><h1>${result.status === "COMPLETE" ? "验证完成" : "验证已取消"}</h1><p>请回到 Molis Work，可关闭此窗口。</p></html>`);
+    response.end(`Molis Work\n\n${result.status === "COMPLETE" ? "验证完成" : "验证已取消"}\n请回到 Molis Work，可关闭此窗口。\n`);
   } finally { response.off("close", disconnected); }
   return true;
 }

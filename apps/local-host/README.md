@@ -325,7 +325,7 @@ MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-
 
 中央账号的 WORK-03 凭据入口由 `src/account-auth-http.ts` 固定分派，`horizontal/account` 负责邮箱/手机认证编排；不登记为动作，也不允许浏览器注入中央身份、Token 或客户端配置。验证命令及验收见 [账号规范](../../specs/unified-account/spec.md)。
 
-WORK-04 的 `/account/callback` 是受本机 Host 约束的导航入口，由 `src/account-callback-http.ts` 校验请求形态、`horizontal/account` 复核发起状态与中央结果。此入口只完成原 Host 的一次认证，不返回会话或控制凭据；拒绝测试见 S-112。
+WORK-04 的 `/account/callback` 是受本机 Host 约束的导航入口，由 `src/account-callback-http.ts` 校验请求形态、`horizontal/account` 复核发起状态与中央结果。此入口只完成原 Host 的一次认证，返回不缓存的纯文本完成/取消提示，不生成独立 HTML 页面或返回会话、控制凭据；拒绝测试见 S-112，响应与原弹窗恢复见 `scripts/account-provider.test.mjs` 的 T01-CALLBACK-01。
 
 WORK-05 的资料更新与登录方式读取映射到 `system.account` 动作提供方；再次验证、绑定/换绑/解绑和改密仍经固定认证窄入口。证明只存 Host 内存并绑定原登录及操作目标，浏览器仅取得短时句柄；权限、来源和退出后拒绝见 S-113，真实 Auth 与 Chrome 联调见 `scripts/account-management.test.mjs`。
 

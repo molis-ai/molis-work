@@ -41,7 +41,15 @@ async function callback(url, status = 200, init = {}) {
     }); req.on('error', reject); req.end();
   });
   assert.equal(r.status, status, r.text);
-  if (status === 200) { assert.equal(r.headers['referrer-policy'], 'no-referrer'); assert.match(r.text, /Molis Work/); assert.doesNotMatch(r.text, /accessToken|refreshToken|<script/); }
+  if (status === 200) {
+    // T01-CALLBACK-01: the callback acknowledges in plain text; account UI stays in the original workbench.
+    assert.equal(r.headers['content-type'], 'text/plain; charset=utf-8');
+    assert.equal(r.headers['cache-control'], 'no-store'); assert.equal(r.headers['referrer-policy'], 'no-referrer');
+    assert.equal(r.headers['x-content-type-options'], 'nosniff');
+    assert.equal(r.headers['content-security-policy'], "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+    assert.match(r.text, /^Molis Work\n\n验证(?:完成|已取消)\n请回到 Molis Work，可关闭此窗口。\n$/);
+    assert.doesNotMatch(r.text, /accessToken|refreshToken|<|>/);
+  }
   return r.text;
 }
 async function grant(method, outcome = 'SUCCESS', accountId = 'mock-' + method.toLowerCase() + '-local') {
@@ -79,10 +87,10 @@ try {
     const p = await grant(method); const wrong = new URL(p.url); wrong.searchParams.set('state', randomBytes(32).toString('base64url'));
     await callback(wrong, 403); await callback(p.url, 403, { headers: { Origin: 'https://wrong.example' } });
     await callback(p.url + '&clientId=other', 403); await callback(p.url, 403, { headers: { 'Sec-Fetch-Mode': 'cors' } });
-    await callback(p.url); const view = await api('/session'); assert.equal(view.state, 'AUTHENTICATED');
+    assert.match(await callback(p.url), /验证完成/); const view = await api('/session'); assert.equal(view.state, 'AUTHENTICATED');
     await callback(p.url, 403); await logout();
   }
-  const cancelled = await grant('GOOGLE', 'CANCEL'); await callback(cancelled.url); assert.equal((await api('/session')).state, 'ANONYMOUS');
+  const cancelled = await grant('GOOGLE', 'CANCEL'); assert.match(await callback(cancelled.url), /验证已取消/); assert.equal((await api('/session')).state, 'ANONYMOUS');
   const late = await grant('GITHUB'); let entered, release; const arrived = new Promise(r => { entered = r; }); barrier = { enter: entered, wait: new Promise(r => { release = r; }) };
   const callbackPending = callback(late.url, 400); await arrived; await api('/auth/transactions/' + late.tx.handle + '/cancel', {}); release(); await callbackPending;
   assert.equal((await api('/session')).state, 'ANONYMOUS');
@@ -107,7 +115,13 @@ try {
     await clickText('使用 ' + name + ' 登录'); await page.wait("document.querySelector('.account-form')?.textContent.includes('浏览器')");
     if (desktop) { const url = await page.evaluate('globalThis.__openedProvider'); assert.ok(url.startsWith(authOrigin + '/api/v2/auth/external/github/browser-start?ticket=')); providerPage = await browser.page(); await providerPage.command('Page.navigate', { url }); }
     else { const targets = (await browser.command('Target.getTargets')).targetInfos; const target = targets.find(t => t.type === 'page' && !beforeTargets.has(t.targetId)); assert.ok(target); providerPage = await browser.page(target.targetId); }
-    await providerPage.wait("Boolean(document.querySelector('button[name=outcome]'))"); await providerPage.click('button[name=outcome][value=SUCCESS]');
+    await providerPage.wait("Boolean(document.querySelector('button[name=outcome]'))"); await providerPage.command('Network.enable');
+    // Observe the navigation response before the opener closes its completed popup; do not inspect a destroyed document.
+    const [returned] = await Promise.all([
+      browser.event('Network.responseReceived', event => event.response?.url.startsWith(origin + '/account/callback?')),
+      providerPage.click('button[name=outcome][value=SUCCESS]'),
+    ]);
+    assert.equal(returned.response.mimeType, 'text/plain');
     await page.wait("document.querySelector('.account-form')?.textContent.includes('退出登录')");
     assert.equal((await api('/session')).state, 'AUTHENTICATED'); await clickText('退出登录'); await page.wait("document.querySelector('.account-message').textContent.includes('已退出')");
     await clickText('返回登录'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");

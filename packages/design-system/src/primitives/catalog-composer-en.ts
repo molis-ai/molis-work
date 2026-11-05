@@ -45,7 +45,7 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "打断并改向": "Interrupt and redirect",
   "丢掉正在写的回复，按这句接着做；已经做的操作不撤销": "Drops the reply being written and goes on from this; actions already taken stay",
   "下一轮再做": "Do it next turn",
-  "排到下一轮开头，由你开启下一轮时带上": "Waits for the start of the next turn, which you start",
+  "排到下一轮开头，你开下一轮时带上": "Waits for the start of the next turn, which you start",
   "没发出去：连接被重置。文字还在，可以改了再发": "Not sent: the connection was reset. Your text is kept; edit it and send again",
   "没能确认是否送到，正在核对；先别重复发": "Could not confirm it arrived; checking now. Don't send it twice",
   "查看": "Details",

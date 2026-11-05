@@ -62,11 +62,13 @@ test("N30 IM and Memory descriptors publish the current first-version identities
 test("B2 R2-04 native JSON read comparison bundles for browsers and preserves toJSON and unsupported values", () => {
   const bundle = buildSync({ stdin: { contents: `import { jsonComparisonText } from '@molis-ai/molis-work-plugin-sdk/browser'; scope.compare = jsonComparisonText;`, resolveDir: process.cwd() },
     bundle: true, platform: "browser", format: "iife", write: false });
-  const scope: { compare?: (value: unknown) => string } = {};
+  const scope: { compare?: (value: unknown) => string | undefined } = {};
   new Function("scope", bundle.outputFiles[0]!.text)(scope);
+  assert.ok(scope.compare);
+  const compare = scope.compare;
   const input = { date: new Date("2026-01-01T00:00:00Z"), "2": 2, "10": 10, nested: { z: 1, a: 2 }, missing: undefined,
     array: [, undefined, () => 1, Symbol("value")], custom: { toJSON() { return { z: 3, a: 4 }; } } };
-  assert.equal(scope.compare!(input), '{"2":2,"10":10,"array":[null,null,null,null],"custom":{"a":4,"z":3},"date":"2026-01-01T00:00:00.000Z","nested":{"a":2,"z":1}}');
-  assert.equal(scope.compare!(undefined), undefined);
-  assert.throws(() => scope.compare!(1n), TypeError);
+  assert.equal(compare(input), '{"2":2,"10":10,"array":[null,null,null,null],"custom":{"a":4,"z":3},"date":"2026-01-01T00:00:00.000Z","nested":{"a":2,"z":1}}');
+  assert.equal(compare(undefined), undefined);
+  assert.throws(() => compare(1n), TypeError);
 });

@@ -26,7 +26,7 @@ export declare function clampTo(value: number, limit: number, length: number): n
 
 export declare function followScroll(panel: Element, run: () => void): () => void;
 
-export declare const jsonComparisonText: (value: unknown) => string;
+export declare const jsonComparisonText: (value: unknown) => string | undefined;
 
 export declare const messageOf: (error: unknown) => string;
 

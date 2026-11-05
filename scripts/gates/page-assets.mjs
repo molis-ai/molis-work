@@ -274,15 +274,14 @@ const headErrors = (measured, budget, base) => {
 // WORK-06 (2026-11-05, explicitly approved by the user): tenant/member/platform forms reuse the account UI and pagination; +8,918 bytes over 1,092,002, minified in the same bundle with no new assets.
 // WORK-07 (2026-11-05, explicitly approved by the user): subscription, seat and platform forms share cards, fields and error states; +10,408 bytes over 1,100,920, minified into the existing bundle. No other assets grow.
 // WORK-08 (2026-11-05, explicitly approved by the user up to +2,374 bytes): entitlement sources reuse subscription UI and the request helper; final +2,340 bytes over 1,111,328 after removing invalid cross-batch revision comparison. Other assets unchanged.
+// T-01 integration: rebase the already approved account deltas onto main a00f5ba1.
+// The integrated measurement adds exactly the same account bytes: +410 / +452 / +39629 / +54.
+// Upstream growth is already in main; this rebases the admission and grants no additional growth.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.css": [74624, 75514],
-  "/assets/molis-work-settings.css": [826705, 826748],
-  // K-05 reuses the responsive bar; tighten the prior admission by 42 bytes.
-  "/assets/molis-work-arrival.css": [689755, 690165],
-  "/assets/molis-work-workbench.css": [1194394, 1194846],
-  // K-03: user approved up to +537 bytes; shared design-system disclosure finishes at +531 (1113668 → 1114199), no new assets.
-  "/assets/molis-work-workbench.js": [1074570, 1114199],
-  "/assets/molis-work-plugin-frame.js": [208033, 208087],
+  "/assets/molis-work-arrival.css": [689886, 690296],
+  "/assets/molis-work-workbench.css": [1194525, 1194977],
+  "/assets/molis-work-workbench.js": [1075120, 1114749],
+  "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

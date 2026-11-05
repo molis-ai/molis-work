@@ -10,6 +10,7 @@
 | [assistant-background-tasks/](assistant-background-tasks/README.md) | 个人助理的连续对话与后台任务：§12.8 的交错路径（连续交办、插问、补充、要你定、完成、回到对话）与排队、失败、停止、断线恢复的可点切片（三个方案） | 方案已定（2026-11-03：对话顶上的任务条），产品未实现；按剧本模拟 |
 | [plugin-studio-main-path/](plugin-studio-main-path/README.md) | 插件创作台主路径：从准备、想法、方案、构建、试用、安装到关掉后使用和从已装版本再改的可点切片，含组合已有能力和手动／助理接续、六种失败与恢复（三个方案） | 方案已定（2026-11-03：对话加阶段），产品未实现；按剧本模拟 |
 | [assistant-proactive-paths/](assistant-proactive-paths/README.md) | 个人助理的三条路径：安静准备与必要提醒（§4.2）、主动做法的观察试用与启用（§6.1）、多项交付的逐项核验与部分退回复核（§7.3.1），各含正常与异常情况的可点切片（每条三个方案） | 方案已定（2026-11-03：任务条里看准备、规则页里试用与回看、要求与成果对照），产品未实现；按剧本模拟 |
+| [basic-home/](basic-home/README.md) | 基础首页（第 15 批）：不装 Work Brief 也能用的项目首页，插件卡与「等你」「接着做」的排法，空项目、读不到、停用、后台刷新、Work Brief 接管与失败回退、写文稿时不被打断（三个方案；四种形态照用 03 的插件领头） | 方案已定（2026-11-04：先等你和接着做，再插件卡片表），产品未实现；按示例数据模拟 |
 | [assistant-cards/](assistant-cards/README.md) | 助理卡片与工作简报：卡片解剖、三种字的来源、19 种块、19 个卡型、三种尺寸、状态、四张简报页与窄屏的规格板 | 设计稿（2026-10-26；四项已拍板，视觉待用户验收），说明见 [specs/work-brief/design.md](../../specs/work-brief/design.md)；里面是示例数据 |
 | [runtime-and-recovery/](runtime-and-recovery/README.md) | 第 25、26 批合并定样：后台运行状态、某块暂不可用、更新与回退、安装自检、升级失败与恢复，每题两个方案加正常与异常状态 | 用户已定（2026-11-04，五题都选 A）；里面是示例数据 |
 | [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |
@@ -20,8 +21,12 @@
 | [work-records/](work-records/README.md) | 工作记录的可点定样：记了什么、保留与清理、占用、覆盖与缺口四块定下的方案，用组件板实件画（样式是组件板现行样式的生成快照），含首次接入、暂停、期限过短、清理失败、磁盘满、断线与截断等状态 | 用户已定（2026-11-04，四块都选推荐方案，同日按组件板实件重做并确认）；产品未实现；里面是示例数据 |
 | [coding-execution-states/](coding-execution-states/README.md) | 第 12 批 Coding 执行的可点定样：目录（执行目录、临时查看、冻结、输出不见了）、规则和模式（只读提示与切换、规则来源）、恢复（失败、结果未知、取消、超时、被系统结束、重启后、等待前一步，沿用 04 的恢复框架）、计划卡与任务板按位置编号；每块 A／B／C 三个方案，中英文、浅深色 | 用户已选定（2026-11-04：目录 C，其余 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
 | [service-connections/](service-connections/README.md) | 服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒 | 用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据 |
+| [sessions-sources/](sessions-sources/README.md) | 第 22 批外部会话定样：发现会话、归属建议、查看历史三块，各两到三个方案，含读取中、来源没读成、没有会话、模型不可用、改选后来了新建议、读到一半断了、这一版读不了、已停止读取；按组件板实件做 | 用户已定（2026-11-04：B 按时间排加来源条、B 待归类集中处理、A 原文对话，记在 [Sessions 需求 §8](../../specs/sessions-rebuild/spec.md#8-决策记录)）；产品未实现；里面是示例数据 |
 | [generated-page-adoption/](generated-page-adoption/README.md) | 第 37 批第 1 项生成页面的可点定样：草稿、检查与隔离、采用前确认与分步进度、页面里的真实操作、你改过的地方、版本与恢复、退回基础首页；用户已选 B「现在和草稿并排」（A、C 留着对照），十一种状态；生成的页面是首页自己的内容，不当插件 | 用户 2026-11-04 已选 B；产品未实现；里面是示例数据 |
 | [kit/](kit/README.md) | 组件板实件，各原型共用一份：从构建结果生成的 `kit.css`／`kit.js`（色板、`mw-*` 控件、状态环、差异视图、过程折叠、图标表与真实渲染函数）和生成脚本 | 现行；`pnpm build` 后 `node docs/design/kit/build.mjs` 重新生成，不手改；组件板变了由 D 轨重生成 |
+| [coding-frame/](coding-frame/README.md) | Coding 样张共用框架 `coding-proto.js`／`.css`：原型控制条、Coding 外壳、恢复框架和「标出组件板新增」开关，叠在 kit 和 12 的布局层上 | 现行；B 轨维护，33、35-2 在用 |
+| [coding-env-recovery/](coding-env-recovery/README.md) | 第 33 批 Coding 任务与环境恢复的可点定样：环境与临时副本、预算与重试、重启后接着做、本轮结果；每块 A／B／C，沿用 12 的恢复 A 和 04 的失败框架 | 用户已选定（2026-11-04：四块都是 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
+| [coding-daily-basics/](coding-daily-basics/README.md) | 第 35 批第 2 项 Coding A 期的可点定样：命令与说明文件、图片、代码理解工具、写后检查与格式化；每块 A／B／C，审查卡用组件板的差异视图 | 用户已选定（2026-11-04：四块都是 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
 | [molis-work-onboarding/](molis-work-onboarding/proposal.md) | 「从已有工作开始」的引导与项目创建方案 | 流程与数据边界仍有效；视觉由 Soft Workbench 引导窗口取代 |
 | [ui-renewal-2026-09-21/](ui-renewal-2026-09-21/README.md) | 设计讨论、研究与共识 | 历史参考 |
 | [immersive-workbench/](immersive-workbench/README.md) | 画布中心工作台原型（Linear 方向） | 历史原型，视觉已被取代 |

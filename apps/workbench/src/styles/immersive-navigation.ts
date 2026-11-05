@@ -63,13 +63,13 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   }
   body.immersive-workbench .assistant-composer:popover-open { display: flex; inset: auto; margin: 0; }
   body.immersive-workbench .assistant-composer-input {
-    flex: 1; min-width: 0; height: 28px; min-height: 0; margin: 0; padding: 0;
+    flex: 1; box-sizing: border-box; min-width: 0; min-height: 28px; max-height: min(48px, var(--composer-h, 50px)); margin: 0; padding: 4px 0;
     border: 0; border-radius: 0; background: transparent; color: var(--ink);
-    font: inherit; font-size: 13px; line-height: 28px;
+    font: inherit; font-size: 13px; line-height: 20px;
     appearance: none; -webkit-appearance: none; box-shadow: none;
   }
-  body.immersive-workbench .assistant-composer-input::placeholder { color: var(--faint); opacity: 1; }
-  body.immersive-workbench input.assistant-composer-input:is(:hover, :focus, :focus-visible) {
+  body.immersive-workbench .assistant-composer-input::placeholder { color: var(--faint); opacity: 1; white-space: nowrap; }
+  body.immersive-workbench textarea.assistant-composer-input:is(:hover, :focus, :focus-visible) {
     outline: none; outline-offset: 0; border: 0; box-shadow: none; background: transparent;
   }
   body.immersive-workbench .assistant-composer :is(.mw-select, .mw-select-picker, .mw-select-picker__trigger) {

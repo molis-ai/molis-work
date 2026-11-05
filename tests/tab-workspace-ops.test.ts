@@ -709,6 +709,25 @@ test("PFG-22 closing a side tab is undone in place, and an open of the same view
   assert.deepEqual(sideKeys(state), ["files", "browser", "plugin:shelf/main", "tasks"]);
 });
 
+// 07-S1 review, small fix 3: closing the last tab collapses the side; putting it back is the side as it was, open on it.
+test("PFG-22 putting back the tab whose close collapsed the side opens the side again; one closed while collapsed does not", () => {
+  const state = ops.create();
+  ops.syncSide(state, [sideViews[0]]);
+  ops.openSide(state, "files", sideViews);
+  const record = ops.closeSideTab(state, ops.sideActive(state).id);
+  assert.equal(state.side.open, false, "no tab left, the side collapses");
+  assert.equal(record.collapsed, true);
+  ops.reopenSideTab(state, record);
+  assert.equal(state.side.open, true);
+  assert.equal(ops.sideActive(state).itemId, "files");
+  ops.syncSide(state, sideViews);
+  ops.setSideOpen(state, false);
+  const quiet = ops.closeSideTab(state, state.side.tabs.find((tab) => tab.itemId === "browser").id);
+  assert.equal(quiet.collapsed, false);
+  ops.reopenSideTab(state, quiet);
+  assert.equal(state.side.open, false, "a tab closed with the side collapsed comes back with the side still collapsed");
+});
+
 test("PFG-22 closing the last side tab collapses the side", () => {
   const state = ops.create();
   ops.syncSide(state, sideViews.slice(0, 1));

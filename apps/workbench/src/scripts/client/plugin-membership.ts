@@ -25,12 +25,13 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   const LISTS = ['settings', 'project-settings'];
   const rowsOf = (root, list) => [...root.querySelectorAll('[data-directory-panel="' + list + '"] [data-settings-section]')];
 
-  /* The parts of the page that depend on the project's plugins, as the page shows them: once brought in line they are the server's; if they differ, load again. */
+  /* The parts of the page that depend on the project's plugins, as the page shows them: once brought in line they are the server's; if they differ, load again.
+     A removed plugin's side tab, kept and marked by the page itself, is not one of them. */
   const unfollowed = (root) => [
     keys(tiles(root), (tile) => tile.dataset.pluginTile),
     keys(root.querySelectorAll('.directory-content-scroll > *'), (node) => node.dataset.pluginSection || node.dataset.directoryPanel || node.className),
     keys(LISTS.flatMap((list) => rowsOf(root, list)), (node) => node.dataset.settingsSection),
-    keys(root.querySelectorAll('[data-side-tab]'), (node) => node.dataset.sideTab),
+    keys(root.querySelectorAll('[data-side-tab]:not([data-side-removed])'), (node) => node.dataset.sideTab),
   ].join('|');
   // A plugin's stage page. The workbench moves the pages it shows out of the pool, so "there" means anywhere on the page.
   // A stage is a surface not inside another one, on both sides: Goals' sits in the canvas shell, not directly in the pool.

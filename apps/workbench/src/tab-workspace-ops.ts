@@ -608,14 +608,16 @@ export function withPluginGroups(base, settlePane, loose) {
  * shows and how wide it is are kept with the rest, so a reload, a project switch and a collapse keep them (PFG-22, PFG-24).
  * A view is a document that stays where it is: these rules only say which one shows; nothing here loads or rebuilds one.
  * (The function ships as its own text, so what each rule does is said here, not inside it.)
- * - syncSide(state, views, only): settle the tabs on the views the page offers now (`views`, in their declared order): a tab
- *   whose view is gone leaves, a view the page newly offers gets its tab where its order puts it. `only` limits the views that
- *   may join (a view closed in this page stays closed when the plugins change); without it every offered view without a tab
- *   joins, as on a page load.
+ * - syncSide(state, views, only, keep): settle the tabs on the views the page offers now (`views`, in their declared order): a
+ *   tab whose view is gone leaves, unless `keep(tab)` says to hold it (a plugin taken out of the project keeps its tabs where
+ *   they were, marked removed, as the main area's do: 口径 4); a view the page newly offers gets its tab where its order puts
+ *   it. `only` limits the views that may join (a view closed in this page stays closed when the plugins change); without it
+ *   every offered view without a tab joins, as on a page load.
  * - openSide(state, key, views): bring a view forward: the tab it has is chosen (never a second one); one without gets it back.
  * - selectSide(state, key): choose a tab without opening or closing the side (a collapsed side remembers it for the next open).
  * - closeSideTab(state, tabId): close a tab; the answer is what puts it back (`reopenSideTab`), the record a closed plugin group
- *   has too. reopenSideTab puts it back where it was; a view that got its tab again meanwhile is not doubled.
+ *   has too. reopenSideTab puts it back where it was; a view that got its tab again meanwhile is not doubled. A close that
+ *   collapsed the side (its last tab) says so (`collapsed`), and putting that tab back opens the side again, as it was.
  */
 export function withSidePane(base) {
   const uid = () => "t" + Math.random().toString(36).slice(2, 10);
@@ -623,9 +625,9 @@ export function withSidePane(base) {
   const createSide = () => ({ id: "side", tabs: [], activeTabId: null, open: false, ratio: .35 });
   const tabOf = (side, key) => side.tabs.find((tab) => tab.itemId === key) || null;
   const viewTab = (view) => ({ id: uid(), kind: "side", plugin: view.plugin || "", itemId: view.key, title: view.title || view.key });
-  const syncSide = (state, views, only) => {
+  const syncSide = (state, views, only, keep = () => false) => {
     const side = state.side, offered = new Set(views.map((view) => view.key));
-    side.tabs = side.tabs.filter((tab) => offered.has(tab.itemId));
+    side.tabs = side.tabs.filter((tab) => offered.has(tab.itemId) || keep(tab));
     views.forEach((view, index) => {
       const tab = tabOf(side, view.key);
       if (tab) { tab.title = view.title || tab.title; tab.plugin = view.plugin || ""; return; }
@@ -653,10 +655,10 @@ export function withSidePane(base) {
   const closeSideTab = (state, tabId) => {
     const side = state.side, index = side.tabs.findIndex((tab) => tab.id === tabId);
     if (index < 0) return null;
-    const [tab] = side.tabs.splice(index, 1), active = side.activeTabId === tabId;
+    const [tab] = side.tabs.splice(index, 1), active = side.activeTabId === tabId, collapsed = side.open && !side.tabs.length;
     if (active) side.activeTabId = (side.tabs[index] || side.tabs[index - 1])?.id || null;
     if (!side.tabs.length) side.open = false;
-    return { paneId: side.id, side: true, plugin: tab.plugin, title: tab.title, tab, index, active };
+    return { paneId: side.id, side: true, plugin: tab.plugin, title: tab.title, tab, index, active, collapsed };
   };
   const reopenSideTab = (state, record) => {
     const side = state.side;
@@ -664,6 +666,7 @@ export function withSidePane(base) {
     if (!record?.tab) return null;
     if (!tab) { tab = record.tab; side.tabs.splice(Math.min(record.index, side.tabs.length), 0, tab); }
     if (record.active || !side.tabs.some((candidate) => candidate.id === side.activeTabId)) side.activeTabId = tab.id;
+    if (record.collapsed) side.open = true;
     return tab;
   };
   const setSideOpen = (state, open) => { state.side.open = Boolean(open) && state.side.tabs.length > 0; return state.side.open; };

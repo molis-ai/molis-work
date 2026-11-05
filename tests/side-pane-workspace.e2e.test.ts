@@ -3,6 +3,8 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
 // 07-S1 (specs/product-flow-governance PFG-22, PFG-24; §4.6.2 口径 1, 4): the right side is one pane of the project's tab
 // workspace. Its tabs are glyphs at the right end of the title bar, there whether the side is open or collapsed; ⌘\ / Ctrl+\
@@ -180,7 +182,7 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
   const { waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const evidence = reviewEvidenceUrl("07-s1-side-pane/"); await mkdir(evidence, { recursive: true });
   const shot = async (name: string) => writeFile(new URL(name + ".png", evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
-  for (const lang of ["zh", "en"] as const) for (const theme of ["light", "dark"] as const) for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]] as const) {
+  for (const lang of ["zh", "en"] as const) for (const theme of ["light", "dark"] as const) for (const [width, height] of [[1440, 900], [1024, 768], [700, 900], [390, 844]] as const) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 760 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
@@ -193,4 +195,119 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
     await new Promise(resolve => setTimeout(resolve, 450));
     await shot(name + "-tasks");
   }
+
+  // The badge's first time in the product (design README 13): two tasks not finished, one running and one waiting on the
+  // person. The attention read answers with them; everything else in it is the Host's own answer.
+  const at = new Date().toISOString();
+  const rows = [
+    { project_id: projectId, project_name: "Demo", surface: "coding", id: "shot-running", title: "整理发布说明", state: "running", updated_at: at, waiting: false, standing: [{ text: "你负责 {n} 步", count: 2 }], commands: [] },
+    { project_id: projectId, project_name: "Demo", surface: "coding", id: "shot-waiting", title: "检查迁移脚本", state: "waiting", updated_at: at, waiting: true, standing: [{ text: "等你审查" }], commands: [] },
+  ];
+  await command("Fetch.enable", { patterns: [{ urlPattern: "*/api/attention*", requestStage: "Response" }] }, sessionId);
+  const stop = browser.on("Fetch.requestPaused", (event, session) => {
+    if (session !== sessionId) return;
+    const requestId = String(event.requestId);
+    void (async () => {
+      const { body, base64Encoded } = await command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId }, sessionId);
+      const answer = JSON.parse(base64Encoded ? Buffer.from(body, "base64").toString("utf8") : body) as Record<string, unknown>;
+      await command("Fetch.fulfillRequest", { requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "application/json" }], body: Buffer.from(JSON.stringify({ ...answer, background_tasks: rows })).toString("base64") }, sessionId);
+    })();
+  });
+  t.after(() => { stop(); });
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
+  for (const lang of ["zh", "en"] as const) for (const [width, height] of [[1440, 900], [700, 900]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
+    await waitFor(`document.querySelector('${strip} [data-background-tasks-count]')?.textContent === '2' && !document.querySelector('${strip} [data-background-tasks-count]').hidden`, 15_000);
+    await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+    await waitFor("document.querySelectorAll('[data-background-tasks-list] .background-task').length === 2");
+    await new Promise(resolve => setTimeout(resolve, 450));
+    await shot(`${lang}-light-${width}-tasks-badge`);
+  }
+});
+
+// 07-S1 review B3: from 601 to 760 the side's strip is a row of its own, as on a phone (S3 sets its final look), so every tab,
+// the background tasks with their count among them, shows; on the narrowest phone, where it still scrolls, the current tab is
+// kept in view.
+test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phone's strip keeps the current tab in view", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const shown = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility())`;
+  const outside = `(() => { const box = document.querySelector('${strip}').getBoundingClientRect(); return ${shown}.filter(tab => { const at = tab.getBoundingClientRect(); return at.left < Math.max(0, box.left) - 0.5 || at.right > Math.min(innerWidth, box.right) + 0.5; }).map(tab => tab.dataset.sideTab); })()`;
+  for (const width of [601, 700, 760]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+    await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
+    await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+    const tabs = await evaluate<string[]>(`${shown}.map(tab => tab.dataset.sideTab)`);
+    assert.ok(tabs.includes("tasks") && tabs.length >= 6, `${width}: ${JSON.stringify(tabs)}`);
+    assert.deepEqual(await evaluate<string[]>(outside), [], `${width}: every tab is inside the strip and the window`);
+    assert.equal(await evaluate<boolean>(`(() => { const s = document.querySelector('${strip}'); return s.scrollWidth <= s.clientWidth + 1; })()`), true, `${width}: nothing scrolled out of sight`);
+    const rows = await evaluate<{ strip: number; tabs: number }>(`(() => ({ strip: document.querySelector('${strip}').getBoundingClientRect().top, tabs: document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().top }))()`);
+    assert.ok(rows.strip > rows.tabs, `${width}: the side's strip is on a row below the main tabs (${JSON.stringify(rows)})`);
+    const stage = await evaluate<number>("document.querySelector('[data-plugin-stage]').getBoundingClientRect().top - document.querySelector('.immersive-titlebar').getBoundingClientRect().bottom");
+    assert.ok(stage >= -0.5, `${width}: the work starts below the taller title bar (${stage})`);
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 320, height: 720, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
+  const ends = await evaluate<string[]>(`${shown}.map(tab => tab.dataset.sideTab)`);
+  for (const tab of [ends[0], ends.at(-1)]) {
+    await waitFor(`(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(tab)} }, cancelable: true })), document.querySelector('${strip} [aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(tab)})`, 5_000);
+    await waitFor(`!${outside}.includes(${JSON.stringify(tab)})`, 3_000);
+  }
+});
+
+// 07-S1 review, small fix 2: a plugin taken out of the project keeps its side tab where it was, marked removed, as the main
+// area's tabs are; its view says how to bring the plugin back, and once it is added back the tab works again.
+test("PFG-22 a plugin taken out of the project keeps its side tab in place, marked removed, and it works again once added back", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, web } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const visit = () => navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  const VIEW = "plugin:lingguang/side";
+  const order = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.sideTab)`;
+  await visit();
+  await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"]')`, 15_000);
+  const before = await evaluate<string[]>(order);
+
+  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang" });
+  await visit();
+  await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"][data-side-removed]')`, 15_000);
+  assert.deepEqual(await evaluate<string[]>(order), before, "the tab stays and nothing else moves");
+  assert.match(await evaluate<string>(`document.querySelector('${strip} [data-side-tab="${VIEW}"]').getAttribute('aria-label')`), /已移除/u);
+  assert.equal(await evaluate(`${stored}.side.tabs.some(tab => tab.itemId === ${JSON.stringify(VIEW)})`), true, "the workspace keeps it");
+  await click(`${strip} [data-side-tab="${VIEW}"]`);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && [...document.querySelectorAll('[data-side-removed-body]')].find(body => body.dataset.sideBody === ${JSON.stringify(VIEW)})?.checkVisibility()`);
+  assert.match(await evaluate<string>("document.querySelector('[data-side-removed-body]').textContent"), /加回这个项目/u);
+
+  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang" });
+  await visit();
+  await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"]:not([data-side-removed])') && !document.querySelector('[data-side-removed], [data-side-removed-body]')`, 15_000);
+  assert.deepEqual(await evaluate<string[]>(order), before, "added back, the same tabs in the same places");
+  assert.equal(await evaluate(`${JSON.stringify(VIEW)} === document.querySelector('${strip} [aria-selected=true]')?.dataset.sideTab`), true, "still the side's current tab");
+});
+
+// 07-S1 review B2: ⌘\ / Ctrl+\ is the side's only when nothing under the caret took it. Pages clears a selection's formatting
+// with it; in a Pages document the formatting goes and the side stays as it was.
+test("PFG-22 ⌘\\ in a Pages document clears the selection's formatting and leaves the side alone", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const store = openPagesStore(homeDirectory);
+  const page = (() => { try { return store.create({ project_id: projectId!, title: "Format", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Bold words", marks: [{ type: "strong" }] }] }] } }); } finally { store.close(); } })();
+  const frame = await pluginFrameBrowser(t, browser, "pages");
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
+  await frame.waitFor("document.querySelector('[data-pages-editor] .ProseMirror strong')", 20_000);
+  const side = await evaluate<string>("document.body.dataset.sideOpen");
+  await frame.evaluate("(() => { const p=document.querySelector('[data-pages-editor] .ProseMirror p');p.closest('.ProseMirror').focus();const range=document.createRange();range.selectNodeContents(p);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange')); })()");
+  await frame.waitFor("getSelection().toString() === 'Bold words'");
+  const mac = await evaluate<boolean>("/Mac|iP/.test(navigator.platform)");
+  for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "\\", code: "Backslash", windowsVirtualKeyCode: 220, modifiers: mac ? 4 : 2 }, sessionId);
+  await frame.waitFor("!document.querySelector('[data-pages-editor] .ProseMirror strong') && document.querySelector('[data-pages-editor] .ProseMirror p').textContent === 'Bold words'", 5_000);
+  await evaluate("new Promise(resolve => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 50))");
+  assert.equal(await evaluate("document.body.dataset.sideOpen"), side, "the side neither opened nor closed");
 });

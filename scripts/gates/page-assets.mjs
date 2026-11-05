@@ -277,8 +277,11 @@ const headErrors = (measured, budget, base) => {
 // 07-S1 (the right side joins the tab workspace, 待 07 批评审台审; stacked on 07-S0, so keyed on its budget): workbench.js
 // +9930 B: the side's rules in the workspace state (withSidePane: open, select, close and reopen through the shared closed
 // stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background tasks as a side view
-// with its count, and a removed plugin's tabs kept and marked with the stage that says how to add it back. plugin-frame.js
-// +76 B: Mod+Backslash handed up from a frame. The sheets fall (workbench.css -1411 B, arrival.css -5247 B): the side's own
+// with its count, and a removed plugin's tabs kept and marked with the stage that says how to add it back. After the review
+// (B1-B3 and its small fixes) it is +12340 B: a removed plugin's side tab drawn in place, the strip keeping its current tab in
+// view, ⌘\ heard after an editor, and a collapse undone with its tab. That is over 10 KB, so its ceiling waits for the user's
+// decision and is not written here. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the character typed.
+// The sheets fall (workbench.css -1245 B against 07-S0's new budget, arrival.css -5247 B): the side's own
 // tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab classes, less the narrow strip's scroll. (The N53/N54 entries
 // for these two scripts are spent once 07-S0 lands: its budget holds their ceilings.) Tried: the side reuses the workspace's
 // persist, closed stack and removed-plugin check instead of keeping its own; the old side-tab, side-ratio and discussion-ratio
@@ -289,7 +292,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [826727, 827274],
   "/assets/molis-work-workbench.css": [1194521, 1204439],
   "/assets/molis-work-workbench.js": [1075120, 1085050],
-  "/assets/molis-work-plugin-frame.js": [208271, 208347],
+  "/assets/molis-work-plugin-frame.js": [208271, 208400],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

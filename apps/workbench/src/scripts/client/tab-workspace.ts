@@ -270,7 +270,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   const DIRECTORY_HUES = Object.fromEntries(JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
   const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
   // The right side, drawn from state.side; a tab closed there joins the closed groups, so ⌘⇧T reopens whichever closed last.
-  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, L });
+  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, removed: removedPlugin, L });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", () => apply());
   let cancelRecordJump = null;

@@ -168,9 +168,9 @@
     else if (r.state !== "done") {
       const dis = ctx.revoked;
       const nb = ctx.draft ? `<small class="gp-muted gp-noexec">${L("预览中不执行", "Not run in preview")}</small>` : "";
-      action = nb + btn("secondary", L("标完成", "Mark done"), { "data-act": "row-done", "data-id": key, ...(dis ? { title: L("这个页面不能再改待办", "This page can no longer change to-dos") } : {}) }, { disabled: dis, icon: "check" });
+      action = nb + btn("secondary", L("标完成", "Mark done"), { "data-act": "row-done", "data-id": key, "aria-label": L("标完成", "Mark done"), ...(dis ? { title: L("这个页面不能再改待办", "This page can no longer change to-dos") } : {}) }, { disabled: dis, icon: "check" });
     }
-    const cells = `<td class="gp-title"><button type="button" class="gp-link" data-act="open-item">${esc(T(r.title))}</button></td><td class="gp-st">${mark(stateTone, ringState, st.done ? L("完成了", "Done") : T(r.stateLabel))}</td><td class="gp-who">${esc(person(r.who))}</td>${pr}<td class="gp-due"><span class="mw-num">${esc(T(r.due))}</span></td><td class="gp-act">${action}</td>`;
+    const cells = `<td class="gp-title"><button type="button" class="gp-link" data-act="open-item" title="${esc(T(r.title))}">${esc(T(r.title))}</button></td><td class="gp-st">${mark(stateTone, ringState, st.done ? L("完成了", "Done") : T(r.stateLabel))}</td><td class="gp-who">${esc(person(r.who))}</td>${pr}<td class="gp-due"><span class="mw-num">${esc(T(r.due))}</span></td><td class="gp-act">${action}</td>`;
     let extra = "";
     if (st.confirm) extra = `<tr class="gp-rowmsg"><td colspan="6"><div class="gp-confirm" role="group" aria-label="${L("预览中不执行", "Not run in preview")}"><span>${ic("info")}${esc(L("预览中不执行，待办没有改。采用以后才能真的把它标完成。", "Not run in preview, so To-dos is unchanged. Once you adopt this page, this button will really mark it done."))}</span>${btn("primary", L("知道了", "Got it"), { "data-act": "row-cancel", "data-id": key }, { key: "↵" })}</div></td></tr>`;
     if (st.error) extra = `<tr class="gp-rowmsg"><td colspan="6">${alertBox("danger", L("没标上", "Not marked"), L("小林刚改过这一项，待办里的内容和页面上看到的不一样了。刷新这一行再看。", "Lin just changed this item, so it no longer matches what the page shows. Refresh the row and look again."), btn("secondary", L("刷新这一行", "Refresh this row"), { "data-act": "row-refresh", "data-id": key }, { icon: "refresh" }))}</td></tr>`;

@@ -11,7 +11,7 @@
     const D = cfg.data;
     const BLOCKS = D.blocks.map((b) => b.id);
     const fresh = () => ({
-      block: BLOCKS[0], scheme: { ...D.decided }, state: Object.fromEntries(D.blocks.map((b) => [b.id, D.states[b.id][0][0]])),
+      block: BLOCKS[0], scheme: { ...D.initial, ...D.decided } /* initial: where an undecided block opens */, state: Object.fromEntries(D.blocks.map((b) => [b.id, D.states[b.id][0][0]])),
       lang: "zh", mode: "execute", draft: "", files: false, board: false, marks: false, v: {}, busy: null, ...(cfg.extra ? cfg.extra() : {}),
     });
     const transient = (s) => ({ ...s, v: {}, busy: null });

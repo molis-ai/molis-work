@@ -276,6 +276,8 @@ result_view: {
 
 工作流在成功返回后保存有界呈现和原结果；重开记录不会套用新版插件的声明。缺字段时省略对应正文或链接，无声明的旧记录只确认动作已返回，原数据可展开查看。声明不能将失败或仍在运行的工作声称为业务完成；例如启动任务的摘要应写“任务已启动”。对象页面仍负责当前读取权限、已删除对象和恢复。原生工作台插件可处理已有的 `molis-work:select-item` 事件打开准确对象，无需为每个结果增加 Host 分支。
 
-`canonicalJsonValue(value)` 为请求比较及指纹生成返回一份按 `localeCompare` 递归排序对象键的值，保留字段值和数组顺序，不修改输入。值为 `undefined` 的对象字段仍保留在返回值中，后续调用 `JSON.stringify` 时才按 JSON 标准省略。它不负责验证输入或序列化非 JSON 类型。
+`canonicalJsonValue(value)` 返回一份按原始 UTF-16 码元递归排序对象键的值，保留字段值和数组顺序，不修改输入。值为 `undefined` 的对象字段仍保留在返回值中；它不验证输入或序列化非 JSON 类型。JavaScript 枚举对象时会把整数形态的键重新按数值排序，因此摘要和签名应使用 `canonicalJsonText(value)` 直接生成稳定文本。
+
+`canonicalJsonText` 对嵌套及整数形态的键都按原始 UTF-16 码元排序，数组保序。默认先沿用 `JSON.stringify(canonicalJsonValue(value))` 的非 JSON 规则：省略值为 `undefined`、函数或 Symbol 的对象字段，数组中的这些值写成 `null`，顶层返回 `undefined`，BigInt 抛错；对象自有的 `toJSON` 仍按该路径调用。已有字节协议可明确传入 `"null"`，把不支持的标量写成 `null`；传 `"literal"` 则保留原文本序列化边界（对象字段插入 `undefined`、数组元素为空），结果不保证是合法 JSON。这两个显式选项不调用对象的 `toJSON`。这些选项只保留调用方原有规则，不为输入补做校验。
 
 FI-C-02：轮询集成的 `health(control)` 与 `sync(input, control)` 必须透传 Host 给出的本次调用控制，它不属于插件 JSON 输入。`controlledConnectorFetch(fetchImpl, control)` 为一次调用创建 fetch，组合调用信号与请求超时，在实际发送前等待 beforeEffect、同步 current。刷新、401重发和响应后写回仍须带同一次控制，不能用安装 live 检查替代原调用。

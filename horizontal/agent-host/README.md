@@ -76,7 +76,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - MCP 连接的 Host 解析结果可带同步 `assertCurrent`；这是本次原来源/世代的可信运行期闭包，不进入 SDK 配置。连接、刷新和工具调用在后续等待、实际网络派发及结果交付前复查同一闭包，不以新世代替换旧快照。回归：`tests/connector-mcp.test.ts` 的 RAC2885 Agent source withdrawal 两组真实交错。
 - 不负责：编码业务含义、角色与提示词正文、模型选择与凭据、批准决定本身。
 - 公开入口：`@molis-ai/molis-work-service-agent-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/agent-host`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：依赖合同、同目录适配端口与 storage 的排他所有权技术端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`（共用对象判断）；第三方依赖见 `package.json`。方向：依赖合同、底层共享包、同目录适配端口与 storage 的排他所有权技术端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录 Action 的工具时限取提供方 `execution.timeout_ms` 与 Agent 入口上限中的较小者；完整声明参与冻结合同，不按能力名称猜测成本。
   - 仓库里唯一依赖 `@prologue/sdk` 的包。

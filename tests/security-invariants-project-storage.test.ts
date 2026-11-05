@@ -3,14 +3,14 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 // S-102: a project's storage directory is <projects directory>/<project_id>; a project id is one plain directory name, so a catalog row
 // (an edited or restored catalog) can never point a file operation (delete, rename, source-state scan) outside that directory.
 
 const insertRow = (home: string, projectId: string) => {
-  const db = new Database(join(home, "projects", "catalog.db"));
+  const db = openTestSqlite(join(home, "projects", "catalog.db"));
   try {
     db.prepare("INSERT INTO projects (project_id, display_name, source, data_class, created_at, updated_at) VALUES (?, 'x', 'created', 'user', 't', 't')").run(projectId);
   } finally { db.close(); }
@@ -32,7 +32,7 @@ test("S-102 a catalog row whose project id is not a plain directory name is refu
       assert.throws(() => catalog.listProjects(), guarded, `listProjects with ${JSON.stringify(id)} in the catalog`);
       await assert.rejects(catalog.deleteProject({ project_id: id, actor_id: "tester", delete_confirmed: true, idempotency_key: `delete-${id}` }), guarded, `deleteProject ${JSON.stringify(id)}`);
       await assert.rejects(catalog.removeDemoProject({ project_id: id, actor_id: "tester", delete_confirmed: true, idempotency_key: `demo-${id}` }), guarded, `removeDemoProject ${JSON.stringify(id)}`);
-      const db = new Database(join(home, "projects", "catalog.db"));
+      const db = openTestSqlite(join(home, "projects", "catalog.db"));
       try { db.prepare("DELETE FROM projects WHERE project_id = ?").run(id); } finally { db.close(); }
     }
     assert.equal(readFileSync(join(victim, "keep.txt"), "utf8"), "keep", "the directory next to the projects directory is untouched");

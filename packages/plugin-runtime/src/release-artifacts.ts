@@ -42,9 +42,7 @@ export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRunti
   /** `declaredAttention`'s statements, prepared once: the Inbox asks it of every running installation on each check. */
   private attention?: ReturnType<PluginRuntimeReleaseArtifactDatabase["prepare"]>;
   private archived?: ReturnType<PluginRuntimeReleaseArtifactDatabase["prepare"]>;
-  constructor(private readonly db: PluginRuntimeReleaseArtifactDatabase) {
-    db.exec(PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL);
-  }
+  constructor(private readonly db: PluginRuntimeReleaseArtifactDatabase) {}
 
   get(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): PluginRuntimeReleaseArtifact | null {
     const row = this.db.prepare(`SELECT artifact_json FROM plugin_runtime_release_artifacts

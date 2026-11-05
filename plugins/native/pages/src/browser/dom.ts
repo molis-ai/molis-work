@@ -1,3 +1,5 @@
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+export { escapeHtml };
 /** The icon sprite entry the design system draws (`#icon-<name>`). */
 export const ICON = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 
@@ -32,9 +34,6 @@ export function required<T extends Element = HTMLElement>(root: ParentNode, sele
 }
 
 export const stop = (event: Event) => { event.preventDefault(); event.stopPropagation(); };
-
-export const escapeHtml = (value: unknown) => String(value ?? "")
-  .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 /** What a failure says: its own words, or the page's fallback. */
 export const said = (error: unknown, fallback: string): string => (error instanceof Error && error.message) || fallback;

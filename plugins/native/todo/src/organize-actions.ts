@@ -1,3 +1,4 @@
+import { createActionDefinition, nullableSchema as nullable, objectSchema as object, arraySchema } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { TODO_PROJECT_PLUGIN_ID, type TodoBatch } from "./contract.js";
@@ -13,9 +14,7 @@ export const TODO_BATCH_SUBJECT_KIND = "todo_batch";
 
 const text = { type: "string" };
 const id = { ...text, minLength: 1, maxLength: 200 };
-const nullable = (schema: object) => ({ anyOf: [schema, { type: "null" }] });
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-const array = (items: unknown, extra: Record<string, unknown> = {}) => ({ type: "array", items, ...extra });
+const array = (items: unknown, extra: Record<string, unknown> = {}) => ({ ...arraySchema(items), ...extra });
 const date = { ...text, pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
 const time = { ...text, pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$" };
 const choices = (entries: readonly (readonly [string, string])[], title?: string) => ({ oneOf: entries.map(([value, name]) => ({ const: value, title: name })), ...(title ? { title } : {}) });
@@ -47,8 +46,8 @@ const decision = object({ candidate_id: id, action: choices([["add", "加入待�
 
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   permissions: readonly string[], extra: Partial<ActionDefinition["action"]> = {}): ActionDefinition<I, O> {
-  return withProjectReach({ capability_id: `todo.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "home",
-    audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input, output_schema: output, ...extra } });
+  return withProjectReach(createActionDefinition<I, O>(`todo.${name}`, operation, { title, description, scope: "home",
+    audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input, output_schema: output, ...extra }));
 }
 const READ = ["todo:read"], WRITE = ["todo:read", "todo:write"];
 

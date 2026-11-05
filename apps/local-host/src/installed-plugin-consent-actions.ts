@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
@@ -48,14 +49,13 @@ const reachView = { type: "object", additionalProperties: false,
     consent: { anyOf: [consentView, { type: "null" }] }, error: { type: ["string", "null"] } } };
 const reachSelection = { type: "object", additionalProperties: false, required: ["plugin_id", "snapshot"],
   properties: { plugin_id: { type: "string", pattern: PLUGIN_ID, maxLength: 160 }, snapshot: { type: "string", minLength: 1, maxLength: 1000 } } };
-const reachAction = (name: "list" | "grant" | "revoke", title: string): ActionDefinition => ({
-  capability_id: "plugins.project_reach." + name, version: 1, operation: name === "list" ? "query" : "command", action: { ...metadata, scope: "project", title,
+const reachAction = (name: "list" | "grant" | "revoke", title: string): ActionDefinition => createActionDefinition("plugins.project_reach." + name, name === "list" ? "query" : "command", { ...metadata, scope: "project", title,
     description: "本人在当前项目设置里管理一个 Home 签名包读写此项目的同意。", kind: name === "list" ? "query" : "operation",
     effect: name === "list" ? "read" : "write", permissions: [name === "list" ? PLUGIN_CONSENT_READ : PLUGIN_CONSENT_WRITE],
     input_schema: name === "list" ? { type: "object", properties: {}, additionalProperties: false } : reachSelection,
     output_schema: name === "list" ? { type: "object", additionalProperties: false, required: ["plugins", "project_name", "capabilities"], properties: {
       plugins: { type: "array", items: reachView }, project_name: { type: "string" }, capabilities: { type: "array", items: reachCapability } } }
-      : { type: "object", additionalProperties: false, required: ["plugin"], properties: { plugin: reachView } } } });
+      : { type: "object", additionalProperties: false, required: ["plugin"], properties: { plugin: reachView } } });
 export const projectReachActions = {
   list: reachAction("list", "查看 Home 插件对当前项目的同意") as ActionDefinition<Record<string, never>, ReachOverview>,
   grant: reachAction("grant", "同意 Home 插件读写当前项目") as ActionDefinition<ProjectReachSelection, { plugin: ProjectReachView }>,

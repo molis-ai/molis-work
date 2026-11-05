@@ -1,3 +1,4 @@
+import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import { runtimeReleaseBytes } from "./connector-tool-download.js";
 import { toolInstallErrors } from "./connector-tool-process.js";
 import type { NativeToolSource } from "./connector-tool-source.js";
@@ -11,7 +12,6 @@ export function nativeTarget() {
 }
 interface ReleaseAsset { name: string; browser_download_url: string; digest?: string }
 interface GitHubRelease { tag_name: string; assets: ReleaseAsset[] }
-const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 async function releaseJson(url: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
   const text = (await nativeReleaseBytes(url, 4 * 1024 * 1024, signal)).toString("utf8");
   let value: unknown;

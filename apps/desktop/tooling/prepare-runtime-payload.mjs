@@ -21,8 +21,8 @@ try {
   const node = path.join(staged, "runtime", "node");
   // Resolve from the payload, never the checkout's node_modules. No install scripts or network here.
   execFileSync(node, ["--input-type=module", "-e", `
-    const { default: Database } = await import('better-sqlite3');
-    const db = new Database(':memory:'); db.exec('SELECT 1'); db.close();
+    const { openSqliteConnection } = await import('@molis-ai/molis-work-storage');
+    const db = openSqliteConnection(':memory:'); db.exec('SELECT 1'); db.close();
     await import('node-pty'); await import('ws');
     await import('@molis-ai/molis-work-app-local-host');
   `], { cwd: staged, stdio: "pipe" });

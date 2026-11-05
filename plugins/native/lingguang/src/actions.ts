@@ -1,3 +1,4 @@
+import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { randomUUID } from "node:crypto";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
@@ -11,7 +12,6 @@ import { cutCharacters, cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-un
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
 const ids = { type: "array", minItems: 1, maxItems: 100, uniqueItems: true, items: id };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const spark = object({ id, project_id: id, title: text, body: text, source_kind: { const: "manual" }, status: { enum: ["inbox", "discarded"] }, created_at: text, updated_at: text });
 const conversation = object({ id, project_id: id, spark_ids: { type: "array", items: id }, created_at: text, updated_at: text });
 const message = object({ id, conversation_id: id, role: { enum: ["user", "assistant", "stub"] }, body: text, created_at: text });
@@ -28,11 +28,11 @@ interface LingguangHostMaterial { text: string; title?: string; file_name?: stri
 const material = object({ text, title: text, file_name: text, source_url: text, partial: { type: "boolean" }, issues: { type: "array", items: text } }, ["text"]);
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return { capability_id: `lingguang.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
-    kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
+  return createActionDefinition<I, O>(`lingguang.${name}`, operation, { title, description, ...(execution ? { execution } : {}),
+    audiences: ["user", "workflow", "agent", "mcp"],
     permissions, subject_kinds: ["lingguang_spark"], input_schema: input, output_schema: output,
     // A reply waits on a model, and reading a file or page on its source: neither holds the project's queue.
-    ...(CONCURRENT.has(name) ? { scheduling: "concurrent" as const } : {}) } };
+    ...(CONCURRENT.has(name) ? { scheduling: "concurrent" as const } : {}) });
 }
 const declaring = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<ActionDefinition["action"]>): ActionDefinition<I, O> =>
   ({ ...definition, action: { ...definition.action, ...extra } });

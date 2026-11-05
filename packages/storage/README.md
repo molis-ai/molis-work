@@ -47,7 +47,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 已有 v2 vault 的 backend 在 entries 为空时也保持绑定：正常重开不按新的环境偏好切换，原 key 缺失/无效即拒绝，不生成替代值；只有从未存在 vault 的首次初始化走原选择规则。单独空 vault inspection 的无密文依赖结论不代表 vault 外的 owner payload 没有依赖。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk`。后者提供凭据封套读取时的对象判断。其他运行依赖见 [package.json](package.json)。
 
 `createEvidenceContentStore` 为 Feed 与研究等消费者保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。历史 `molis-work-feed/sha256/...` 引用、密钥引用、恢复 overlay、密文格式及 `feed_runtime_blobs` 表名保持不变；旧的 `createFeedSearch*` 三个导出名已删，只剩 `createSearch*` 一套，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
 
@@ -70,6 +70,8 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 ## 开发要求
 
+项目连接从 `openSqliteConnection` 打开，返回 storage 的 `SqliteDatabase` 接口；它只打开连接，不建表。需要项目库的日志和 WAL 设置时由 `LocalSqliteStorage` 配置。测试从 test-kit 的 `/sqlite` 入口取得同一驱动。基线检查在持有该库的驱动上执行。
+
 `inspectMemoryLedger` 只读当前完整账本与可信 actor 的 personal/project-default 偏好；缺文件只返回 absent，不授予 fresh 资格。源库及 WAL/SHM 不经 SQLite 打开，私有副本使用同一基线与 contracts 完整性规则，源字节/模式/侧车保持。`inspectSnapshotSqlite` 只检查已有 standalone 归档，复用 backup 的 owner/schema/完整性检查，不初始化或切 WAL。恢复 key 与证据只读端口复用原密封 owner，不创建替代 key。`retainStorageOwner` 将 Catalog 寿命与 SDK 单 borrow 分开，pending 拒绝正常打开/借用，恢复 owner 不能启动 SDK。直接回归：`tests/home-restore-owner-inspection.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。
 
 `backupSnapshotSqlite` 只读源库、使用 SQLite backup API 包含已提交 WAL，在私有副本核 owner 版本、schema、integrity/外键并刷盘；`copySnapshotFile` 与摘要端口拒绝链接、特殊文件和读取期间的改动，普通文件使用有界内存流式复制，默认在返回前刷盘。持离线 lease 的快照 owner 可明确延后私有副本的刷盘，先认证实际副本，再在发布前刷齐每个文件；认证或刷盘失败均不发布，不能把这个参数用于省略成功产物的持久化。调用方须先排除所有权锁及其侧车，不能打开它们做摘要。Home 路径、存储集合、同 Home lease 和原 key 策略由 Host 编排，不在 storage 复制业务名单；原 key 只记身份，不导出。回归包含 `tests/home-snapshot-content.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts` 与 `tests/security-invariants-home-snapshot-lifecycle.test.ts`。
@@ -79,7 +81,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
 - 不负责：Module schema 的业务含义、跨 Module 查询；搜索来源的发现、同步与权限（归 `horizontal/search`）。
 - 公开入口：`@molis-ai/molis-work-storage`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/storage`。
-- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 密钥与正文存储跟随创建时的 Home，不靠切换全局变量混用目录。
   - 钥匙串主密钥读取失败后，同一进程、Home 与配置停止自动重试；不改密文、不自动降级到文件存储。

@@ -1,3 +1,4 @@
+import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingRunControlInput, controlInput } from "./run-inputs.js";
@@ -7,7 +8,6 @@ const session = { session_id: id };
 const round = { session_id: id, run_id: id };
 /** A session's fields, drafts and selections stay the route's own validation; the contract names the identity it acts on. */
 const open = (properties: Record<string, unknown>, required: readonly string[] = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required });
-const closed = (properties: Record<string, unknown>, required: readonly string[] = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const result: ActionSchema = { type: "object" };
 const READS: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 /** Starting, steering and planning rounds change files in authorized directories: only the person at this computer does that. */
@@ -16,8 +16,8 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 type Translate = { toInput(request: PluginRouteRequest): Record<string, unknown>; toRequest(input: Record<string, unknown>): Pick<PluginRouteRequest, "params" | "query" | "body"> & { method: PluginRouteMethod } };
 function define(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", version = 1): ActionDefinition<Record<string, unknown>, unknown> {
-  return { capability_id: `coding.${name}`, version, operation, action: { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}), kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: result } };
+  return createActionDefinition<Record<string, unknown>, unknown>(`coding.${name}`, operation, { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}),
+    audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: result }, version);
 }
 const body = (request: PluginRouteRequest) => request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {};
 const params = (input: Record<string, unknown>) => ({ ...(typeof input.session_id === "string" ? { sessionId: input.session_id } : {}), ...(typeof input.run_id === "string" ? { runId: input.run_id } : {}) });

@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
@@ -15,7 +16,6 @@ export interface Fillable {
   readonly request: Record<string, unknown>;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 /** `id`, `project_id`, `item_ids`: a reference is looked up, never invented. */
 const REFERENCE = /(^|_)ids?$/u;
 /** Set by the Host from the call, or by the one who creates; never by what a passage says. */

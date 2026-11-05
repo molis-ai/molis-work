@@ -3,7 +3,7 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -20,7 +20,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   // What waits on the person shows in the dock's one bell; nothing waits yet.
   assert.equal(await evaluate("document.querySelector('[data-assistant-attention]').hidden"), true, "no bell while nothing waits");
   assert.equal(await evaluate("document.querySelector('[data-plugin-notifications]')"), null, "the title bar has no bell of its own");
-  const db = new Database(databasePath), repository = new SqlitePluginEventsRepository(db);
+  const db = openTestSqlite(databasePath), repository = new SqlitePluginEventsRepository(db);
   t.after(() => db.close());
   const installs = new SqlitePluginRuntimeRepository(db).list();
   const source = installs.find(record => record.plugin_id === "io.molis.work.coding")!;

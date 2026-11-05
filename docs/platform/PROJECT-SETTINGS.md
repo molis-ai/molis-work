@@ -8,9 +8,9 @@ Contract：`@molis-ai/molis-work-contracts/modules/projects` 的 `projectSetting
 
 | 设置项 | Capability ID | 返回 |
 | --- | --- | --- |
-| 已关联目录 | `projects.settings.workspaces.read.v1` | `readonly ProjectWorkspaceRef[]` |
-| 当前浏览目录 | `projects.settings.browsing-workspace.read.v1` | `ProjectWorkspaceRef \| null` |
-| 项目的 Agent 运行时 | `projects.settings.runtime.read.v1` | `string \| null`（运行时标识，`null` 是 Home 默认） |
+| 已关联目录 | `projects.settings.workspaces.read` | `readonly ProjectWorkspaceRef[]` |
+| 当前浏览目录 | `projects.settings.browsing-workspace.read` | `ProjectWorkspaceRef \| null` |
+| 项目的 Agent 运行时 | `projects.settings.runtime.read` | `string \| null`（运行时标识，`null` 是 Home 默认） |
 
 两个能力分别写入 Manifest `capabilities.consumes`。调用统一为 `context.services.actions.invoke(capability, [], control)`，事先可用 `context.services.actions.availability(capability)` 只读检查。未声明的项在 Plugin Runtime 拒绝；Host 未装配的项返回不可用。不存在全量设置读取、通配授权或任意 key 查询。调用不接受项目编号；Host 根据当前 runtime 的项目返回，显式只投影 `workspace_id / canonical_path / realpath_verified / display_name`，不返回 catalog 的其他项目关联。
 
@@ -26,7 +26,7 @@ const candidates = await context.services!.capabilities!.invoke(projectSettingsC
 
 ## 项目的 Agent 运行时
 
-项目的新会话、方法与 MCP 服务跑在哪个运行时：人在「项目设置 → 常规」里选（`projects.settings.runtime.select.v1`，只有本机用户、`projects:settings`），没选就是平台运行时目录的 Home 默认（`defaultAgentRuntime`：目录顺序里第一个能开会话的）。读取与解析只有一处写法：`resolveProjectRuntime(目录, 读到的选择)`（`contracts/services/agent-host`）。选定的运行时不在目录里、或开不了会话时，新会话与项目的方法、MCP 设置被拒绝，错误说出运行时的名字并指向项目设置，不悄悄换成别的运行时；Characters 的动作目录同样为空。已建的会话仍跑在建它时的运行时上。设置页的选择器只在有一个以上运行时、或已选的运行时不可用时出现，后一种情形里可以改选或恢复默认。读取需要在 Manifest `capabilities.consumes` 里声明；没有任何插件能改这个选择。存储见 `docs/system/HOME-DATA.md`。
+项目的新会话、方法与 MCP 服务跑在哪个运行时：人在「项目设置 → 常规」里选（`projects.settings.runtime.select`，只有本机用户、`projects:settings`），没选就是平台运行时目录的 Home 默认（`defaultAgentRuntime`：目录顺序里第一个能开会话的）。读取与解析只有一处写法：`resolveProjectRuntime(目录, 读到的选择)`（`contracts/services/agent-host`）。选定的运行时不在目录里、或开不了会话时，新会话与项目的方法、MCP 设置被拒绝，错误说出运行时的名字并指向项目设置，不悄悄换成别的运行时；Characters 的动作目录同样为空。已建的会话仍跑在建它时的运行时上。设置页的选择器只在有一个以上运行时、或已选的运行时不可用时出现，后一种情形里可以改选或恢复默认。读取需要在 Manifest `capabilities.consumes` 里声明；没有任何插件能改这个选择。存储见 `docs/system/HOME-DATA.md`。
 
 ## 数据和刷新
 
@@ -34,7 +34,7 @@ const candidates = await context.services!.capabilities!.invoke(projectSettingsC
 
 受保护的项目 Web 页面使用 `/projects/<id>/api/project-settings/workspaces` GET 读取列表与选择、POST `{ workspace_id }` 切换；关联及目录选择器复用既有 `/api/workspaces`、`/api/workspaces/pick`。这些是可信 Host UI 路由，不是给插件绕过 Manifest 的 SDK。插件经 `services.actions` 调这些具名动作。读接口不提供写设置能力。
 
-Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。Files/Git 从设置读取；Workspace Artifact 连线不再控制它们。旧安装数据和历史 Artifact 保留但不再更新，也不迁移。旧 `projects.workspaces.list.v1 / projects.workspace.read.v1` 为已有调用方保留兼容；后者仍是执行目录默认值语义，不等于浏览选择。新消费者使用设置能力。
+Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。Files/Git 从设置读取；Workspace Artifact 连线不再控制它们。旧安装数据和历史 Artifact 保留但不再更新，也不迁移。旧 `projects.workspaces.list / projects.workspace.read` 为已有调用方保留兼容；后者仍是执行目录默认值语义，不等于浏览选择。新消费者使用设置能力。
 
 Files/Git 每次读取检查当前浏览目录，异步读取后再次核对；Host 在伴随插件请求前同步 Files 的设置状态，使旧目录的当前快照输出失效，历史固定版本保留。工作面打开或点击刷新后重新读取当前选择。
 

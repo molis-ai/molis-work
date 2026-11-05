@@ -103,11 +103,11 @@ test("RAC-327 there is no host start hook for initial files: Shelf puts its samp
   // The sample appears on the first start and not again after the person removed it: tests/shelf-owner-files.test.ts, "the first start writes the sample".
 });
 
-test("RAC-328 Images' generated images are written through ownerFiles under a required images:files:write: jobs.start is version 3 and jobs.delete version 2, both carry it, and no second files service is left", () => {
+test("RAC-328 Images' generated images are written through ownerFiles under a required images:files:write: jobs.start and jobs.delete use the reset version 1, both carry it, and no second files service is left", () => {
   const permission = imagesManifest.permissions.find(item => item.permission === "images:files:write");
   assert.equal(permission?.required, true, "without it a job cannot save its images, so it is not one the person can leave out");
   assert.deepEqual(imagesManifest.owner_files, { store_name: "images", entries: [{ name: "assets", kind: "directory" }], read_permission: "images:read", write_permission: "images:files:write" });
-  assert.equal(imagesActions.start.version, 3); assert.equal(imagesActions.delete.version, 2);
+  assert.equal(imagesActions.start.version, 1); assert.equal(imagesActions.delete.version, 1);
   for (const action of [imagesActions.start, imagesActions.delete]) assert.ok(action.action.permissions.includes("images:files:write"), action.capability_id);
   for (const [name, action] of Object.entries(imagesActions)) {
     if (action !== imagesActions.start && action !== imagesActions.delete) assert.equal(action.action.permissions.includes("images:files:write"), false, `${name} writes no files`);

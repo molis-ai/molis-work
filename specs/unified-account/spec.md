@@ -4,7 +4,7 @@
 
 后续执行按 Auth 仓库 `docs/unified-account/implementation-plan.md` 第 11 节，T-01 至 T-07 状态以其交付台账为准。本仓库仍遵守 [AGENTS.md](../../AGENTS.md)、[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)和[并行开发规范](../../docs/system/PARALLEL-DEVELOPMENT.md)；当前先做集成收尾，代码与合同变化后须核对对应版本的验证证据。
 
-T-01 接续记录见文末；本轮已整理本地提交并集成主线，本轮具名本地复验及记录已完成，保留主线同样复现的 K-06。功能分支尚未推送、合入主线或运行最终 head CI Full。
+T-01 接续记录见文末；本轮已整理本地提交并集成主线，本轮具名本地复验及记录已完成；K-06 的测试合同已修正，接续结果见文末。功能分支尚未推送、合入主线或运行最终 head CI Full。
 
 ## 本轮范围
 
@@ -268,3 +268,13 @@ WORK-09 最终门禁：相对 `origin/main` 的健康、包边界、公开 API�
 首次 UI 生命周期因未设置专用 Chrome 在启动前失败，补设后在主线与集成版均 3/3。唯一剩余 K-06 是 `tests/security-invariants-sandbox-signed-background.test.ts` 的 RAC2875：确认丢失时请求次数 3、预期 1，干净主线 `a00f5ba1` 与当前版均 18/19，相同断言失败；未放宽断言，根因和修复仍待处理。旧三项基线失败及 K-02 的文件本轮通过。
 
 视觉采集两边各 13/13；66 图完全一致，22 份样式快照仅账号入口 opacity 0.45 → 1。零容差比较退出 1，差异已核对，未修改阈值。报告在忽略的 `.impeccable/qa/review/visual/t01-integration/`。CI Full、Verify、K-06 处置和最终评审仍是 T-01 待办；推送、开 PR 依 AGENTS.md 和用户授权另行执行，准确日志摘要以 Auth 交付记录为准。
+
+
+## K-06 重试合同接续（2026-11-05）
+
+主线 `c916a1f53` 已按 ASC-53 给 GET/HEAD 增加至多两次重发，旧 RAC2875 仍要求 GET 只发一次。本轮只改 `tests/fixtures/signed-background.ts` 和 `tests/security-invariants-sandbox-signed-background.test.ts`，保留产品行为及安全边界。
+
+- **K06-01** GET 回执持续丢失时严格发送 3 次，保持 trusted unknown、已提交的两条数据库记录与文件，并拒绝继续写失败记录；预发送拒绝不增加请求。证明：签名后台用例的 GET 场景。
+- **K06-02** POST 回执丢失只发送 1 次，同样保持 unknown 与数据、不重发、不继续失败记账。证明：同文件的 POST 场景。
+
+本分支修复提交 `c9d6628c271ea812a9c7423b4869cda03aa8fbd6`，三个相关文件 40/40、健康门禁通过。独立评审分支 `codex/k06-background-retry-contract` 基于主线 `d8232983`，仅两个文件；其提交与独立构建/验证记录统一由 Auth `docs/unified-account/delivery.md` 第 9 节持有。没有把它的主线版本或定向结果当作账号分支已重新集成最新 main、重跑全部 327 文件或完成 CI Full。旧轮次的 3484/3485 和原始失败保留作历史证据，远端评审与最终集成验收仍待执行。

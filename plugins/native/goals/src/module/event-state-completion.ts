@@ -12,7 +12,8 @@ import {
   decisionCommitsToCurrentAgreement,
   decisionHasEffect,
   pendingBlocksCompletion,
-  requirementCurrentlySatisfied,
+  requirementOnlySelfReported,
+  requirementRejected,
 } from "./event-state-authorization.js";
 import { agreementView } from "./event-state-owner-records.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
@@ -49,11 +50,27 @@ export function completionUnmetReasons(input: {
     });
   }
   for (const requirement of input.requirements) {
-    if (requirementCurrentlySatisfied(requirement)) continue;
+    if (requirement.currently_satisfied) continue;
+    if (requirementRejected(requirement)) {
+      reasons.push({
+        code: "goals.event_closure.requirement_rejected",
+        message: `你没有认可要求「${requirement.statement}」`,
+        requirement_id: requirement.requirement_id,
+      });
+      continue;
+    }
     if (requirement.human_decision_required) {
       reasons.push({
         code: "goals.event_closure.human_decision_required",
         message: `要求「${requirement.statement}」需要仍然有效的可信用户结论`,
+        requirement_id: requirement.requirement_id,
+      });
+      continue;
+    }
+    if (requirementOnlySelfReported(requirement)) {
+      reasons.push({
+        code: "goals.event_closure.requirement_self_reported",
+        message: `要求「${requirement.statement}」只有报告者自己说满足，需要你认可`,
         requirement_id: requirement.requirement_id,
       });
       continue;
@@ -84,7 +101,7 @@ export function completionUnmetReasons(input: {
   ) {
     reasons.push({
       code: "goals.event_closure.human_approval_required",
-      message: "当前 Goal 已有明确的人工验收约定，完成前需要可信用户结论",
+      message: "项目规定完成要你批准：认可要求不算批准，请在这一轮单独批准完成",
     });
   }
   for (const risk of input.context.blocking_risks) {
@@ -129,11 +146,12 @@ export function syncClosedState(
 }
 
 /**
- * Whether the person has given the nod the project's approval rule asks for. A nod is a trusted conclusion of the person, and it is
- * good for the agreement they were shown and the round of work they were told about, no longer: a decision counts only if it was
- * recorded since the Goal was last reopened or resumed and its commitment is the agreement as it stands, word for word. Any change
- * to the agreement, or a new round, asks for it again. It comes in two kinds, judged the same way: an accepted conclusion on a
- * requirement that still stands, through the decision that wrote it, and the latest decision about completing, when it authorizes it.
+ * Whether the person has given the nod the project's approval rule asks for: the latest trusted decision about completing, when it
+ * authorizes completing. It is good for the agreement they were shown and the round of work they were told about, no longer: it
+ * counts only if it was recorded since the Goal was last reopened or resumed and its commitment is the agreement as it stands, word
+ * for word. Any change to the agreement, or a new round, asks for it again. Accepting a requirement only says that requirement is met
+ * and never stands in for this nod (user decision 2026-11-05: accepting requirements and approving completion are separate), and
+ * whoever clicks complete is not it either: the closure itself is no decision.
  */
 function hasCurrentHumanApproval(
   requirements: GoalEventRequirementStatus[],
@@ -141,23 +159,13 @@ function hasCurrentHumanApproval(
   decisions: AppliedDecisionWithRound[],
 ): boolean {
   const inRound = decisions.filter((item) => item.in_current_round);
-  const forThisAgreement = new Set(
-    inRound.filter((item) => decisionCommitsToCurrentAgreement(item, requirements, outcome)).map((item) => item.decision_id),
-  );
-  // An accepted conclusion counts through the decision that wrote it, whichever decision that is, for as long as it stands.
-  if (requirements.some((item) =>
-    item.user_conclusion?.verdict === "accepted"
-    && forThisAgreement.has(item.user_conclusion.decision_id)
-    && requirementCurrentlySatisfied(item))) {
-    return true;
-  }
-  // The latest decision about completing counts when it authorizes it. What it does decides that, not the action its scope names:
-  // a decision that names complete but only accepts a requirement is an acceptance and counts only as one.
+  // What a decision does decides it, not the action its scope names: one that names complete but only accepts a requirement is an
+  // acceptance, and an acceptance is not an approval to complete.
   const latest = currentActionDecision(inRound, "complete");
   return Boolean(
     latest
     && decisionHasEffect(latest, "authorize_action", "complete")
-    && forThisAgreement.has(latest.decision_id),
+    && decisionCommitsToCurrentAgreement(latest, requirements, outcome),
   );
 }
 

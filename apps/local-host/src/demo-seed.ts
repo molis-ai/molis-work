@@ -26,6 +26,8 @@ type DemoAct = <Result = unknown>(capability: string, input: object, version?: n
 
 /** What the sample asks of the actions it calls: reading and writing Goals, the Context Ledger write and the artifact read a deliverable needs. */
 const DEMO_PERMISSIONS = ["goals:read", "goals:write", "context-ledger:write", "artifacts:read"];
+/** The person's decision: the one action the sample asks as the person through a protected entry, with `goals:decide`. */
+const DEMO_DECIDE = "goals.decisions.record";
 
 async function versions(act: DemoAct, goalId: string) {
   const state = await act<{ config: { version: number }; agreement: { version: number } }>("goals.state.read", { goal_id: goalId });
@@ -73,7 +75,17 @@ async function reportProgress(
   });
 }
 
-async function closeComplete(act: DemoAct, goalId: string, key: string, result: string, reason: string) {
+/**
+ * Completes a Goal the way a person would: they accept the requirements its reports back (a report alone is the reporter's own word and
+ * meets nothing, PWA-144), then it is closed.
+ */
+async function closeComplete(act: DemoAct, goalId: string, key: string, result: string, reason: string, requirementIds: string[]) {
+  await act("goals.decisions.record", {
+    ...writeContext(goalId, `${key}-accept`),
+    conclusion: "看过报告，认可这些要求已经满足",
+    effects: [{ kind: "accept_requirements" }],
+    scope: { requirement_ids: requirementIds },
+  });
   await act("goals.closure.submit", {
     ...writeContext(goalId, `${key}-close`),
     kind: "complete",
@@ -111,7 +123,14 @@ async function withDemoGoals(databasePath: string, projectId: string, body: (act
   try {
     const client = host.actionClient(molisWorkHostProjectReference({ projectId, databasePath }));
     const caller = { actor_id: DEMO_ACTOR, actor_kind: "user" as const, audience: "user" as const, project_id: projectId, permissions: DEMO_PERMISSIONS };
-    await body(async (capability, input, version = 1) => await client.invoke(caller, { capability_id: capability, version }, input) as never);
+    // The person's own decision comes through a protected entry that says where it came from; the sample's stands in for the web page.
+    const person = (key: string) => ({ ...caller, permissions: [...DEMO_PERMISSIONS, "goals:decide"],
+      user_action: { source: "web", conversation_ref: "demo:goals", message_ref: `demo:${key}` } });
+    await body(async (capability, input, version = 1) => await client.invoke(
+      capability === DEMO_DECIDE ? person(String((input as { idempotency_key?: unknown }).idempotency_key)) : caller,
+      { capability_id: capability, version },
+      input,
+    ) as never);
   } finally {
     await host.close();
     await fs.promises.rm(home, { recursive: true, force: true });
@@ -558,7 +577,7 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
     body: "演示项目用当前事件记录说明这项工作为什么可以算完成。",
     idempotency_key: "demo-core-note",
   });
-  await closeComplete(act, "CORE", "demo-core", "可用的生命周期记录", "约定要求已有支持事实，演示收尾");
+  await closeComplete(act, "CORE", "demo-core", "可用的生命周期记录", "约定要求已有支持事实，演示收尾", ["CORE-C1"]);
   // CORE's deliverable (specs/artifact-positioning A5): the second version of the record registered above, handed in through Goals.
   await act("goals.deliverables.add", { goal_id: "CORE", reference: { artifact_id: DEMO_CORE_ARTIFACT_ID, version: 2 } });
   await act("goals.note", {
@@ -624,7 +643,7 @@ async function seedDemoOpenWork(act: DemoAct): Promise<void> {
     "退出日常列表，需要时再打开归档",
     "GRAPH-C1",
   );
-  await closeComplete(act, "GRAPH", "demo-graph", "画布关系已经可扫", "演示收尾，把已完成关系图移出日常列表");
+  await closeComplete(act, "GRAPH", "demo-graph", "画布关系已经可扫", "演示收尾，把已完成关系图移出日常列表", ["GRAPH-C1"]);
   await act("goals.archive.set", {
     goal_id: "GRAPH",
     archived: true,

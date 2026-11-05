@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
@@ -20,6 +20,13 @@ async function recordDelivery(actions: BoundActionClient, goal_id: string) {
     requirement_bindings: [{ type_id: "delivery", requirement_id: "delivered" }] });
   await actions.invoke(goalsActions.report, { goal_id, idempotency_key: `report-${goal_id}`, events: [{ type_id: "delivery", type_version: 1,
     title: "Delivered result", fields: { body: "The agreed result is available" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
+}
+
+/** The report is the reporter's own word (PWA-144): the person accepts the delivered requirement through the protected entry. */
+async function acceptDelivery(host: MolisWorkLocalHost, ref: ReturnType<typeof molisWorkHostProjectReference>, project_id: string, goal_id: string) {
+  await host.withProject(ref, r => goalApplicationOf(r).goalEvents.recordTrustedDecision({ project_id, goal_id, idempotency_key: `accept-${goal_id}`,
+    authority: hostEventDecisionAuthority("web", project_id, "user", `accept-${goal_id}`), conclusion: "The delivered result is accepted",
+    accepts_requirements: true, scope: { requirement_ids: ["delivered"] } }));
 }
 
 for (const graph of [
@@ -133,6 +140,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     await assert.rejects(bound.invoke(goalsActions.active, { goal_id: "done", reason: "Finish this Goal", actor_id: caller.actor_id, idempotency_key: "active-done" } as never), { code: "actions.input_invalid" });
     await bound.invoke(goalsActions.active, { goal_id: "done", reason: "Finish this Goal", idempotency_key: "active-done" });
     await recordDelivery(bound, "done");
+    await acceptDelivery(host, ref, project.project_id, "done");
     const state = await bound.invoke(goalsActions.state, { goal_id: "done" });
     const closed = await bound.invoke(goalsActions.close, { goal_id: "done", kind: "complete", result: "Delivered the agreed work", reason: "Delivered", expected_config_version: state.config.version,
       expected_agreement_version: state.agreement.version, idempotency_key: "complete" });
@@ -193,6 +201,7 @@ test("Web lifecycle routes obey live policy and the user's confirmation", async 
     const restored = await request("/trash", { ...trash, trashed: false }); assert.equal(restored.status, 200);
     assert.equal((await restored.json() as { status: string }).status, "restored");
     await recordDelivery(bound, "web-goal");
+    await acceptDelivery(host, ref, project.project_id, "web-goal");
     const state = await bound.invoke(goalsActions.state, { goal_id: "web-goal" });
     const closed = await bound.invoke(goalsActions.close, { goal_id: "web-goal", kind: "complete", result: "Delivered the web work", reason: "Complete", expected_config_version: state.config.version,
       expected_agreement_version: state.agreement.version, idempotency_key: "close" });

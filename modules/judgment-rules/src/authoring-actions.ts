@@ -62,8 +62,8 @@ export const functionContextActions = {
   }, ["id", "scene_id", "scene_version", "provider_id", "binding_id", "expected_revision", "enabled"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
   catalog: define<Record<string, never>, { catalog: JudgmentRuleAuthoringCatalog }>("catalog", "判断规则可用场景", "读取当前调用者范围内的消费场景、对象与结果选项；不可用项带原因，目录不授予执行权限。", input({}), {
     type: "object", properties: { catalog: { type: "object", properties: {
-      subjects: { type: "array", items: { type: "object" } }, destinations: { type: "array", items: { type: "object" } }, behaviors: { type: "array", items: { type: "object" } },
-    }, required: ["subjects", "destinations", "behaviors"] } }, required: ["catalog"],
+      subjects: { type: "array", items: { type: "object" } }, destinations: { type: "array", items: { type: "object" } }, options: { type: "array", items: { type: "object" } },
+    }, required: ["subjects", "destinations", "options"] } }, required: ["catalog"],
   }),
   usages: define<{ id: string }, { usages: ActionSceneUsage[] }>("usages", "判断规则实际使用位置", "读取当前范围由消费场景保存的真实绑定与可用状态；草稿没有生效绑定。", input({ id }, ["id"]), {
     type: "object", properties: { usages: { type: "array", items: { type: "object", properties: { scene_id: id }, required: ["scene_id"] } } }, required: ["usages"],

@@ -113,7 +113,7 @@ connectors.setup.prepare	1	system.connectors	command	operation	home	write	-	agen
 connectors.setup.resolve	1	system.connectors	command	operation	home	write	-	agent	connectors:management:write	connector	-	-	e3b5144a4126	a2c799262a3c	-
 connectors.usages.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:management:read	connector	-	-	a343ab264882	5f20b95f01d0	-
 connectors.usages.switch	1	system.connectors	command	operation	home	write	concurrent	user	connectors:management:write	connector	-	-	e252a0385cf9	c74bb0f81d27	-
-functions.authoring.catalog	1	system.functions	query	query	home	read	-	agent,mcp,user,workflow	functions:manage	-	-	-	d746974fa9af	80d5bc6ba3f2	-
+functions.authoring.catalog	1	system.functions	query	query	home	read	-	agent,mcp,user,workflow	functions:manage	-	-	-	d746974fa9af	3fb77bfd3549	-
 functions.authoring.configure	1	system.functions	command	operation	home	write	-	agent,mcp,user,workflow	functions:manage	-	-	-	edd82b576d7e	c4c6715b3c37	-
 functions.authoring.create	1	system.functions	command	operation	home	write	-	agent,mcp,plugin,user,workflow	functions:manage	-	-	-	5c778898fba7	d0e7a29830c7	-
 functions.authoring.delete	1	system.functions	command	operation	home	irreversible	-	agent,mcp,user,workflow	functions:manage	-	-	-	f5e4f9940b23	c4c6715b3c37	-

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN" class="booting">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>工作台分区比较 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="shell.css?v=30">
+  <link rel="stylesheet" href="zones.css?v=1">
+</head>
+<body class="immersive-workbench zones">
+  <div id="icons" hidden></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b data-t="title"></b>
+    <label><span data-t="planL"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="plan"><button type="button" class="mw-toggle" data-v="1"></button><button type="button" class="mw-toggle" data-v="2"></button><button type="button" class="mw-toggle" data-v="now"></button></span>
+    </label>
+    <label><span data-t="sideL"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="side"><button type="button" class="mw-toggle" data-v="open"></button><button type="button" class="mw-toggle" data-v="closed"></button></span>
+    </label>
+    <label><span data-t="langL"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="lang"><button type="button" class="mw-toggle" data-v="zh">中</button><button type="button" class="mw-toggle" data-v="en">EN</button></span>
+    </label>
+    <label><span data-t="themeL"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="theme"><button type="button" class="mw-toggle" data-v="light"></button><button type="button" class="mw-toggle" data-v="dark"></button></span>
+    </label>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="notes"><span data-t="notesL"></span></button>
+    <a class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" href="./" data-t="backL"></a>
+  </div>
+  <div class="app" id="app"></div>
+  <div class="zlayer" id="zlayer" aria-hidden="true"></div>
+  <aside class="explain" id="explain" aria-label="分区说明"></aside>
+  <script src="../kit/kit.js"></script>
+  <script src="zones.js?v=1"></script>
+</body>
+</html>

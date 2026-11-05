@@ -415,7 +415,12 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.match(html, /activeRequest\?\.controller\.abort\(\)/);
   assert.match(html, /if \(activeRequest\) return;/);
   assert.match(html, /load\(\{ showLoading: true \}\)/);
-  assert.match(html, /window\.setInterval\(refresh, 2500\)/);
+  // N54: the timers follow the window's visibility (tests/capsule-polling.test.ts runs them); the cadence is named, not a bare 2500.
+  assert.match(html, /const VISIBLE_REFRESH_MS = 2500;/);
+  assert.match(html, /const HIDDEN_REFRESH_MS = 30000;/);
+  assert.match(html, /window\.setInterval\(refresh, VISIBLE_REFRESH_MS\)/);
+  assert.match(html, /document\.addEventListener\("visibilitychange"/);
+  assert.match(html, /response\.status === 404/);
   assert.match(html, /prefers-reduced-motion: reduce/);
   assert.match(html, /molis-work:capsule-view:v1/);
   assert.match(html, /expandedGoals\.get\(projectId\)/);

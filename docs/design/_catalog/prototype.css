@@ -1,0 +1,104 @@
+/* Shared by the prototypes under docs/design/ that are built on the component board's real parts.
+   Load it after the product stylesheet exported to ./dist/. Tokens only (palette.ts, through the exported sheet).
+   [原型]       the prototype control strip and toast placement — not product UI.
+   [组件板新增] parts the user approved that the catalog does not have yet. Each is handed to D track to become a
+               specimen on /__ui/catalog; until then the prototypes draw them from here. */
+/* [原型] control strip, above the product frame */
+.proto { position: fixed; inset: 0 0 auto 0; z-index: 80; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px; overflow-x: auto;
+  background: repeating-linear-gradient(-45deg, var(--surface-soft), var(--surface-soft) 8px, var(--rail) 8px, var(--rail) 16px); border-bottom: 1px dashed var(--line-strong); color: var(--ink-soft); font-size: 12px; }
+.proto b, .proto > span { white-space: nowrap; color: var(--ink); }
+.proto label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.proto .mw-select { height: 28px; min-height: 28px; font-size: 12px; }
+/* the strip's toggles and button keep a visible edge and a lifted selected state in both themes (#1801 review) */
+.proto .mw-toggle-group { padding: 2px; border-radius: 8px; background: var(--control-fill); box-shadow: inset 0 0 0 1px var(--control-border); }
+.proto .mw-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 12%, var(--paper)); color: var(--ink); box-shadow: 0 0 0 1px var(--control-border); }
+.proto #reset { box-shadow: inset 0 0 0 1px var(--control-border); }
+body.proto-on .arrival { height: calc(100dvh - 40px); margin-top: 40px; }
+.proto-toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 96px; z-index: 70; width: max-content; max-width: calc(100vw - 32px); }
+
+/* [组件板新增] named step strip — mw-steps with each step's name, done steps ticked and clickable (user 2026-11-04: 步骤条写出每步的名字) */
+.cand-steps { display: flex; align-items: center; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.cand-steps button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px 0 6px; border: 0; border-radius: var(--r-control); background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: var(--weight-control); cursor: pointer; transition: background var(--dur-hover) var(--ease-standard), color var(--dur-hover) var(--ease-standard); }
+.cand-steps button:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
+.cand-steps button:disabled { cursor: default; }
+.cand-steps .dot { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--rail); color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.cand-steps .dot svg { width: 12px; height: 12px; }
+.cand-steps .is-done .dot { background: var(--ink); color: var(--paper); }
+.cand-steps .is-wait .dot { background: var(--amber-soft); color: var(--amber); }
+.cand-steps [aria-current="step"] { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
+.cand-steps [aria-current="step"] .dot { background: var(--accent); color: var(--paper); }
+.cand-steps li + li::before { content: ""; display: inline-block; width: 8px; height: 1px; margin-right: 4px; vertical-align: middle; background: var(--line-strong); }
+@media (max-width: 1279px) { .cand-steps li:not(:has([aria-current])) .name { display: none; } .cand-steps button { padding-right: 6px; } .cand-steps [aria-current] { padding-right: 10px; } }
+@media (max-width: 899px) { .cand-steps { display: none; } }
+.cand-progress { display: none; }
+@media (max-width: 899px) { .cand-progress { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; } .cand-progress .mw-progress { flex: 1; } }
+
+/* [组件板新增] kind tile — one product hue per kind of thing (goal blue, materials orange, model purple …), same everywhere (user 2026-11-04: 颜色区分种类) */
+.cand-kind { --kind: var(--hue-gray); display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: var(--r-control); background: color-mix(in srgb, var(--kind) 14%, var(--paper)); color: var(--kind); }
+.cand-kind svg { width: 14px; height: 14px; }
+.cand-kind.is-lg { width: 40px; height: 40px; border-radius: var(--r-row); }
+.cand-kind.is-lg svg { width: 18px; height: 18px; }
+.cand-kind.is-mute { background: var(--rail); color: var(--muted); }
+.mw-dir-row__icon:has(> .cand-kind) { background: none; }
+
+/* [组件板新增] progress ring — "4 / 8 ready" on the draft card, and the big ring while adopting (user 2026-11-04) */
+.cand-ring { --p: 0; --ring: var(--accent); display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 50%;
+  background: conic-gradient(var(--ring) calc(var(--p) * 1%), var(--rail) 0); transition: --p var(--dur-move) var(--ease-standard); }
+.cand-ring > span { display: grid; place-items: center; width: calc(100% - 6px); height: calc(100% - 6px); border-radius: 50%; background: var(--paper); color: var(--ink); font-size: 10px; font-weight: var(--weight-title); font-variant-numeric: tabular-nums; }
+.cand-ring.is-lg { width: 128px; height: 128px; }
+.cand-ring.is-lg > span { width: calc(100% - 12px); height: calc(100% - 12px); font-size: 13px; color: var(--muted); }
+.cand-ring.is-lg b { display: block; font-size: 32px; line-height: 1; color: var(--ink); }
+.cand-ring.is-ok { --ring: var(--green); }
+.cand-ring.is-fail { --ring: var(--amber); }
+
+/* [组件板新增] project draft card — the project taking shape, one slot per answer; the slot being answered has an accent edge (user 2026-11-04: 像游戏里的任务卡) */
+.cand-draft { display: grid; gap: 4px; }
+.cand-draft__head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.cand-draft__head strong { flex: 1; min-width: 0; font-size: 15px; font-weight: var(--weight-title); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cand-draft__head strong.is-ph { color: var(--muted); font-weight: var(--weight-control); }
+.cand-draft__head .project-monogram { width: 32px; height: 32px; border-radius: 50%; font-size: 13px; }
+.cand-draft__head .project-monogram.is-empty { background: var(--rail); color: var(--muted); }
+.cand-draft__row { position: relative; display: grid; grid-template-columns: 28px 72px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 44px; padding: 6px 10px; border-radius: var(--r-row); transition: background var(--dur-moment) var(--ease-standard); }
+.cand-draft__row .k { color: var(--muted); font-size: 12px; }
+.cand-draft__row .v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ink); }
+.cand-draft__row .slot { display: block; height: 20px; border: 1px dashed var(--line-strong); border-radius: var(--r-tag); }
+.cand-draft__row.is-now { background: var(--surface-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.cand-draft__row.is-flash { animation: cand-flash var(--dur-reveal) var(--ease-standard); }
+@keyframes cand-flash { from { background: var(--accent-soft); } }
+.cand-avatars { display: inline-flex; }
+.cand-avatars .mw-avatar { width: 24px; height: 24px; font-size: 11px; box-shadow: 0 0 0 2px var(--paper); }
+.cand-avatars .mw-avatar + .mw-avatar { margin-left: -6px; }
+
+/* [组件板新增] connection line — materials (or Coding) to the model; lights up once connected (user 2026-11-04) */
+.cand-bridge { display: grid; grid-template-columns: auto minmax(48px, 1fr) auto; align-items: center; gap: 16px; padding: 32px 8px; }
+.cand-bridge__node { display: grid; justify-items: center; gap: 8px; font-size: 13px; font-weight: var(--weight-control); }
+.cand-bridge__node.is-off { color: var(--muted); }
+.cand-bridge__wire { height: 2px; border-radius: 1px; background: repeating-linear-gradient(90deg, var(--line-strong) 0 6px, transparent 6px 12px); }
+.cand-bridge__wire.is-live { background: var(--green); }
+
+
+/* [组件板新增] a Dock pin's "unavailable" dot — the part that cannot open right now is marked where you reach it (25, user 2026-11-04 scheme A) */
+.cand-pin-dot { position: relative; }
+.cand-pin-dot::before { content: ""; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--desk); }
+.cand-pin-dot.is-info::before { background: var(--blue); }
+
+@media (max-width: 759px) { .cand-draft__row { grid-template-columns: 28px 64px minmax(0, 1fr) auto; } }
+@media (prefers-reduced-motion: reduce) { .cand-draft__row.is-flash { animation: none; } .cand-ring { transition: none; } }
+
+/* [组件板新增] source ladder — where a setting's value comes from, nearest layer first; the one in use is lifted, the
+   ones it covers stay readable but quiet, empty layers are dashed slots (36 role scope, pending the user's pick) */
+.cand-scope { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.cand-scope li { display: grid; gap: 2px; min-width: 0; padding: 6px 10px; border: 1px solid transparent; border-radius: var(--r-control); font-size: 12px; transition: background var(--dur-moment) var(--ease-standard), box-shadow var(--dur-moment) var(--ease-standard); }
+.cand-scope li + li { position: relative; margin-left: 14px; }
+.cand-scope li + li::before { content: ""; position: absolute; left: -12px; top: 50%; width: 8px; height: 8px; border-top: 1.5px solid var(--line-strong); border-right: 1.5px solid var(--line-strong); transform: translateY(-50%) rotate(45deg); }
+.cand-scope .k { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.cand-scope .v { color: var(--ink-soft); font-weight: var(--weight-control); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cand-scope .is-on { background: var(--paper); border-color: var(--line); box-shadow: var(--lift-1); }
+.cand-scope .is-on .k { color: var(--accent-strong); }
+.cand-scope .is-on .v { color: var(--ink); }
+.cand-scope .is-under .v { color: var(--muted); }
+.cand-scope .is-empty { border: 1px dashed var(--line-strong); }
+.cand-scope .is-empty .v { color: var(--faint); font-weight: inherit; }
+@media (max-width: 599px) { .cand-scope { display: grid; grid-template-columns: 1fr 1fr; } .cand-scope li + li { margin-left: 0; } .cand-scope li + li::before { display: none; } }
+.cand-scope .is-off { border: 1px dashed var(--line-strong); }
+.cand-scope .is-off .v { color: var(--faint); text-decoration: line-through; }

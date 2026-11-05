@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-resolved-theme="light" data-skin="soft" data-density="standard">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>外部会话定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="mw.css?v=10">
+  <link rel="stylesheet" href="proto.css?v=10">
+</head>
+<body>
+  <div id="icons" hidden></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b id="p-title"></b>
+    <label><span id="p-block"></span><select id="block"></select></label>
+    <label><span id="p-opt"></span><select id="opt"></select></label>
+    <label><span id="p-state"></span><select id="state"></select></label>
+    <span class="proto-seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
+    <span class="proto-seg" id="theme"><button type="button" data-theme-set="light"></button><button type="button" data-theme-set="dark"></button></span>
+    <button type="button" class="proto-btn" id="cat" aria-pressed="false"></button>
+    <button type="button" class="proto-btn" id="reset"></button>
+  </div>
+  <div id="app"></div>
+  <div id="live" class="mw-sr-only" aria-live="polite"></div>
+  <script src="mw-icons.js?v=10"></script>
+  <script src="data.js?v=10"></script>
+  <script src="app.js?v=10"></script>
+</body>
+</html>

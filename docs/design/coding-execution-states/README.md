@@ -7,10 +7,26 @@
 ## 怎么打开
 
 ```bash
-python3 -m http.server 4413 --bind 127.0.0.1 --directory docs/design/coding-execution-states
+python3 -m http.server 4416 --bind 127.0.0.1 --directory docs/design
 ```
 
-然后打开 <http://127.0.0.1:4413/>。顶上的斜纹条是原型控制，不是产品界面：先选「块」，再切「方案」A／B／C 和「状态」，中英文、浅深色都能换；「重置」回到初始。
+然后打开 <http://127.0.0.1:4416/coding-execution-states/>（要从 `docs/design` 起服务，因为组件板的实件在旁边的 `../kit/`）。顶上的斜纹条是原型控制，不是产品界面：先选「块」，再切「方案」A／B／C 和「状态」，中英文、浅深色都能换；「重置」回到初始。
+
+## 用组件板的实件画
+
+原型不再手抄色值和控件样子，直接用组件板（`/__ui/catalog`）的代码，用各原型共用的一份（[`docs/design/kit/`](../kit/README.md)）：`kit.css` 是 design-system 的 `VISUAL_FOUNDATION_STYLES` 加 `MOTION_STYLES`（色板、阴影层级、圆角、时长与曲线、`mw-*` 控件、提示条、状态环、四种进场和落定的底色），`kit.js` 是主题启动脚本、视觉基础的客户端脚本（按下回弹、分段滑块、状态环动画、主题切换）、图标表，以及 plugin-sdk 与 design-system 的渲染函数（`renderButton`、`renderStatusMark`、`renderBadge`、`renderStateRing`、`renderMenu`、`renderToggleGroup` 等）。`styles.css` 只管布局，颜色、阴影、时长、曲线全部引用组件板的变量。
+
+- **空间与留白**：间距只用 4／8／12／16／24／32；对话列最宽 760、左右 32；文件栏 240（1050 以下 220），任务板 300；命令、计划、任务板都放进带细边和浅阴影的容器。
+- **光与阴影**：桌面底色上的纸面 14px 内缩、14 圆角、`--sheet-shadow`；输入框 15 圆角 `--lift-2`；弹层 `--lift-3`；当前步与出问题的任务卡用描边加 `--shadow-raised` 抬起。
+- **色彩分工**：Molis 核对过的用绿底（`--green-soft`），AI 对自己的说明用淡强调色底加虚线边，等人处理的用琥珀底（`--amber-soft`），失败用红底；状态一律用组件板的状态环和状态词，不自画图标。
+- **动效与曲线**：按下 130ms、移动 250ms、进场 420ms、落定 640ms；曲线 `--ease-quint`、`--ease-spring`；只动 transform 和 opacity。切换块、方案、状态时整屏只升起一次，列表逐行错开 32ms、最多 12 行；弹层从触发按钮那边长出来；抽屉从两侧滑入；减少动态效果时全部关掉。
+- **反馈**：「先核对」「核对」按下后按钮原地转圈、宽度不变，0.9 秒后那一行带落定底色出现「核对过」，底部出提示条；换模式、发送、撤销都有带状态环的提示条，提示条停在输入框上方，不盖住输入框的按钮。
+
+组件板改了以后，先 `pnpm build`，再重新生成：
+
+```bash
+node docs/design/kit/build.mjs
+```
 
 ## 复用了什么
 
@@ -84,4 +100,4 @@ python3 -m http.server 4413 --bind 127.0.0.1 --directory docs/design/coding-exec
 
 - 不读文件夹、不跑命令、不调模型；文件树、命令、时间、退出信息、规则文件都是示例。按钮的后果用底部提示说明。
 - 「技术细节」里的 `exit cancelled`、`exit timed-out`、`exit none (a signal ended it)` 是当前 vendored SDK 真实给出的结束说法，`exit ?` 表示什么都没收到。
-- 方案、状态、语言、外观记在本机 `localStorage` 的 `molis-proto.coding-execution-states.v1`，读不到就从初始状态开始。
+- 方案、状态、语言记在本机 `localStorage` 的 `molis-proto.coding-execution-states.v2`，读不到就从初始状态开始；外观由组件板的主题脚本记在 `molis-work:theme`。

@@ -39,7 +39,7 @@ const ASSIST = "body.immersive-workbench:not([data-pane-embedded])";
 export const TOUCH_TARGET_STYLES = `
   @media (max-width: 600px), (pointer: coarse) {
     ${SHELL} { --dock-btn: 44px; --menu-row: 44px; }
-    ${SHELL} .bar-composer .assistant-composer-input { height: 44px; font-size: 16px; line-height: 44px; }
+    ${SHELL} .bar-composer .assistant-composer-input { min-height: 44px; max-height: 44px; padding-block: 12px; font-size: 16px; line-height: 20px; }
     ${SHELL} .bar-composer [data-assistant-send] { width: 44px; height: 44px; min-height: 44px; }
     ${SHELL} .bar-composer .bar-composer-attach { position: relative; justify-content: center; min-width: 44px; height: 44px; padding: 0; }
     ${SHELL} .plugin-picker-trigger { justify-content: center; min-width: 44px; }

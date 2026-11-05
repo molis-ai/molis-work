@@ -28,7 +28,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 const BAD_KEYS: readonly unknown[] = ["", "a/b", "a:b", "line\nbreak", "tab\there", "del\u007f", "x".repeat(129), 7, null];
 
 const manifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "Connection records", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "Connection records", kind: "app",
   publisher: { publisher_id: "example", signature: "connection-records" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: [{ permission: "connections:use", required: false, reason: "连接服务测试声明" }],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

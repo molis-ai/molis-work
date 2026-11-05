@@ -26,7 +26,7 @@ export const goalsCollectionAction = { ...goalAction<Record<string, never>, Goal
   "goals.collection.read", "读取完整目标集合", "读取当前、归档和回收站目标的完整集合、关系与绑定。包含原状态说明，不生成 HTML 或修改目标", "query", object({}),
   object({ snapshot: boardSnapshotSchema, active_goal_id: nullable(text), goals: items, archived_goals: items, trashed_goals: items,
     counts: object(Object.fromEntries(GOALS_PRESENTATION_STATES.map(status => [status, count]))), input_bindings: inputs,
-    policy_bindings: policies, events })), version: 2 };
+    policy_bindings: policies, events })), version: 1 };
 export function createGoalsCollectionActionHandler(projectId: string, ports: GoalsDocumentReadPorts): ActionHandlerBinding {
   return { ...goalsCollectionAction, handle: () => buildGoalsDocumentCollection(ports, projectId) };
 }

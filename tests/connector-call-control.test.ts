@@ -59,7 +59,7 @@ async function gmailRuntime(t: TestContext, transport: typeof fetch) {
     action: { title: "Pull Gmail", description: "Exercise the current account source", scope: "project", kind: "operation", subject_kinds: [], audiences: ["user"],
       permissions: PERMISSIONS, scheduling: "concurrent", input_schema: { type: "object", properties: { record_key: { type: "string" } }, required: ["record_key"], additionalProperties: false }, output_schema: {} } };
   let delivered = 0;
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "Controlled Gmail", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Controlled Gmail", kind: "app",
     publisher: { publisher_id: "example", signature: "controlled-gmail-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: PERMISSIONS.map(permission => ({ permission, required: false, reason: "Pull a bound source" })), capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action],

@@ -127,7 +127,7 @@ function startInput(roleId: string): AgentStartInput {
 }
 
 const authority = { manifest, authorizedDirectories: [DIRECTORY] };
-const pluginManifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "Fixture", kind: "app",
+const pluginManifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "Fixture", kind: "app",
   publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, agent: manifest };
 
@@ -656,7 +656,7 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
     Object.values(agentHostCapabilities)
       .map((entry) => entry.capability_id)
       .filter((id) => id.includes("command")),
-    ["agent.command-output.v1"],
+    ["agent.command-output"],
   );
 
   // Deciding an approval is deliberately not a Capability.

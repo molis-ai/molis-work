@@ -53,7 +53,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   let context: PluginStartContext, borrowed: PluginAgentClient | undefined;
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name: "Awaited Agent", version: "1.0.0", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name: "Awaited Agent", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "awaited-agent" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [grant, "storage:private"].map(permission => ({ permission, required: true, reason: "Run the declared role and store its answer" })),
     capabilities: { provides: [], consumes: [agentHostCapabilities.readSession.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [run, serial, denied, query],

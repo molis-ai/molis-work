@@ -15,7 +15,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 const caller = { actor_id: "identity-test", audience: "user" as const, project_id: "p", permissions: [] };
 
 function manifest(pluginId: string, signature: string): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Identity fixture", kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "Identity fixture", kind: "app",
     publisher: { publisher_id: "identity", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } };
 }

@@ -81,7 +81,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 - **继续**：能从一版新建自己的工作对象的插件写 `continue`（`defineArtifactContinueAction` 的命令）；产出的类型和只读的类型（`artifacts.consumes`）上都可以写。
 - **能继续哪些导入的文件**：成果库把导入的文件列给「从这一版继续」时，名单是登记表里该类型的续写者，再按续写者声明的 `consumes[].file` 过滤：`extensions` 是它能读的小写、带点的扩展名（非空、不重复），`stored_text: true` 表示导入时只存了正文的文件（原件过大）只要正文非空也算；没写 `file` 就收所有文件，写了 `file` 必须同时写 `continue`。声明只决定列不列，续写动作仍走动作授权，声明扩展名的插件也拿不到文件正文；宿主里不点名任何插件的文件类型。过滤在 `apps/local-host/src/artifact-type-registry.ts` 的 `continuerReadsFile`，形状检查在 `packages/plugin-sdk/src/artifact-declarations.ts`。成果类型登记表由全部有效安装的 Manifest 派生，类型 id 与链接种类在整个 Home 里只有一个属主（S-81、S-82）。
 - **都在本插件里**：这些引用只认本 Manifest 的 `actions`，同时核对种类与 `operation`（预览、比较是查询，固定、继续是命令）；指向别的插件的动作、不存在的动作、种类不对的动作都被拒绝。
-- **v1 不能产出成果类型**：v1 Manifest 不能声明动作，也就没有预览，所以要进成果库就用 `schema_version: 2`。只在插件之间交换数据、不需要人留存的，声明成 `process_items`（过程项），不进成果库，也就不要名称和预览。
+- **成果要有预览**：现行 Manifest 的 `schema_version` 和 `host_api_version` 都是 1。产出成果类型的插件在同一份声明里提供预览动作。只在插件之间交换数据、不需要人留存的，声明成 `process_items`（过程项），不进成果库，也就不要名称和预览。
 
 跨插件的规则（一种类型一个 owner、一种对象至多一个固定者、哪些类型可以没有「继续」）仍只对内置插件，由 `tests/artifact-type-gate.test.ts` 守。2026-10-18 改：插件不分官方与第三方、待遇一样，这条「只对内置」的做法要在防腐线里改成对所有插件一致，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。校验的测试在 `tests/action-artifact-references.test.ts`。
 
@@ -471,7 +471,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 `parsePluginPackageManifest` 校验原 wire；签名和 `manifest.json` 都保留该形状。宿主读取资源后用 SDK 的唯一派生 helper 生成 workspace:none 的 roles/prompts 和顶层 tools:[] methods，整份有效清单再经 `parsePluginManifest`。id 为 UTF-8 JSON tuple `[plugin_id,kind,name]` 的完整 SHA-256，展示名字不截断；Agent 声明的数字 version 固定为 1，来源版本以完整包 SemVer 为准。包不能塞入完整 AgentManifest、工具、目录、MCP、子 Agent 或执行权限；没有新增 `agent:run`。
 
-预览 @4 列出每项 kind、名字及前 200 个 Unicode 码点。升级按同身份条目全文比较，标明新增、正文已变化、移除，摘要相同也显示尾部变化。确认使用原 held 签名包；取消不安装或登记。角色资料与方法沿助理现有材料入口选择和 `assistant.methods.read@2` 读取；它们及包内元数据都以固定不可信说明后的 JSON 数据进入上下文，不加入 system/role prompt 或 inlineMethods。角色资料允许用户覆盖，返回 effective/user_revision；方法不增加编辑账。精确来源含 plugin_id、完整 plugin_version、publisher_signature、kind/entry_id 与当前安装/世代/范围；失效需重选，不自动换最新版。本次 handoff 得到接受回执后才记角色使用，后续撤销保留当时历史，新的读取和交付仍复核。真实模型质量须另验。
+预览 @4 列出每项 kind、名字及前 200 个 Unicode 码点。升级按同身份条目全文比较，标明新增、正文已变化、移除，摘要相同也显示尾部变化。确认使用原 held 签名包；取消不安装或登记。角色资料与方法沿助理现有材料入口选择和 `assistant.methods.read@1` 读取；它们及包内元数据都以固定不可信说明后的 JSON 数据进入上下文，不加入 system/role prompt 或 inlineMethods。角色资料允许用户覆盖，返回 effective/user_revision；方法不增加编辑账。精确来源含 plugin_id、完整 plugin_version、publisher_signature、kind/entry_id 与当前安装/世代/范围；失效需重选，不自动换最新版。本次 handoff 得到接受回执后才记角色使用，后续撤销保留当时历史，新的读取和交付仍复核。真实模型质量须另验。
 
 **集成包**（BL-530）：给 Feed 当来源的外部集成也是沙箱包，`payload.files` 只有 `manifest.json`、`contract.json`、`plugin.mjs` 三个文件，没有界面和提示词。清单是 Integration Plugin 的：`kind: "integration"`，入口 `./plugin.mjs`，权限只有 `storage:private`，运行范围写 `runtime: { scope: "home" }`（集成的来源是 Home 的，与 BL-628 的 Home 包同一条），没有路由和视图，作者另外写自己的一个连接服务和它的一个集成（`connection_services`、`integrations` 各一项，现在只收 `kind: "source"`）。平台请求表（`CONNECTOR_REQUEST_SERVICES`）里有的服务不写 `origins`，没有的必须写：一到八个正好是 `https://主机[:端口]` 的公开域名，带账号的请求只能发到这些来源（S-95）。合同只有平台定的操作，`kind`、输入输出 schema 和权限与 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 一字不差：`integration.health`、`integration.poll`，可选 `integration.account`；`errors` 和 `examples` 是作者的。拉取时插件经 `sdk.connections.request("source", …)` 用来源的账号，只能 GET 或 HEAD，这次调用结束就不能再用；游标是插件自己的文字，Feed 存着、下次原样交回。装的时候走与别的签名包同一条预览、确认：预览列出包写的来源，并拿包的插件 ID、服务 ID、集成 ID 对 Home 的集成登记查一遍，撞了内置或已装的就拒（`plugin.integration_declaration_conflict`，点名撞的 id 和占着它的插件），确认时再查一次。装上后代码在 Home 的沙箱实例里跑，它运行时登记才有它的来源；停用、卸载、发布者被撤销时它的 id 放掉，用它的 Feed 来源拉取得 `plugin.integration_unavailable`，人的连接记录和 Feed 来源都留着，再启用就接着拉。集成包不出动作、不进个人插件名单。设置页的服务卡片、粘贴凭据的新建连接读这个 Home 的集成登记，所以包声明的服务有它的卡片、能新建连接，卸载后卡片随之消失（人建好的连接记录留着）。
 
@@ -552,7 +552,7 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 
 `service_id` 只能是平台登记了的服务（`CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail，目录里发到固定地址的服务，如 Google Calendar、Microsoft Graph 系、Notion、Slack、Discord、GitLab、Figma、Linear、ClickUp、monday.com；一项可以有几个来源，如 Cloudflare 的 API 与控制台；还有按租户分地址的 Salesforce、Jira、Confluence，地址是人连接时的那个租户站点，绑定后用 `describe(slot_id)` 读 `origin`；先用应用凭据换令牌的飞书、Lark、企业微信不在里面）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放，只认这里装着的、Manifest 里声明了这个按安装绑定的槽与服务；人在「服务连接 › 插件用的账号」里选）；没绑时请求照发，不带凭据。
 
-一条记录一个账号（例如每个订阅来源各用一个账号）时，槽写 `"binding": "per_record"`：人在某个项目里为插件的一条记录选账号（`connectors.plugin_slot.bind@2`，只对 `user`，项目取调用上下文），插件发请求时写 `record_key`（至多 128 个字符，不含 `/`、`:` 和控制字符），只在本项目的调用里有效；`describe(slot_id, record_key)` 读有没有绑、账号显示名和状态，看不到是哪条连接；插件删记录时用 `release(slot_id, record_key)` 解除，之后这条记录的请求不带凭据。插件不能绑账号。不写 `binding` 就是按安装（`installation`）：一个安装一个账号，各项目共用。绑了 OAuth 账号的请求得到 401 时，宿主刷新一次令牌、把同一个请求重发一次；第二次还是 401 就原样交回，插件看到的只有 `status`，看不到令牌。
+一条记录一个账号（例如每个订阅来源各用一个账号）时，槽写 `"binding": "per_record"`：人在某个项目里为插件的一条记录选账号（`connectors.plugin_slot.record.bind@1`，只对 `user`，项目取调用上下文），插件发请求时写 `record_key`（至多 128 个字符，不含 `/`、`:` 和控制字符），只在本项目的调用里有效；`describe(slot_id, record_key)` 读有没有绑、账号显示名和状态，看不到是哪条连接；插件删记录时用 `release(slot_id, record_key)` 解除，之后这条记录的请求不带凭据。插件不能绑账号。不写 `binding` 就是按安装（`installation`）：一个安装一个账号，各项目共用。绑了 OAuth 账号的请求得到 401 时，宿主刷新一次令牌、把同一个请求重发一次；第二次还是 401 就原样交回，插件看到的只有 `status`，看不到令牌。
 
 在本插件自己声明了 `connections:use` 的并发动作（`scheduling: "concurrent"`）里调：
 

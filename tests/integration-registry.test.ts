@@ -21,10 +21,10 @@ import { definePollingIntegrationPlugin, parsePluginManifest, pollingIntegration
 import { rssIntegrationManifest, rssSourcePresentation } from "@molis-ai/molis-work-integration-rss";
 import { gmailIntegrationManifest, gmailSourcePresentation } from "@molis-ai/molis-work-integration-gmail";
 
-test("RAC-2507 presentation declarations use schema/API 2 and the packaged JSON keeps the same unreleased plugin identity", () => {
+test("RAC-2507 presentation declarations use schema/API 1 and the packaged JSON keeps the same unreleased plugin identity", () => {
   assert.equal(rssIntegrationManifest.version, "1.0.0");
-  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, schema_version: 1, host_api_version: 1 }), /source_presentations 需要 schema_version 2/u);
-  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, host_api_version: 1 }), /host_api_version 与之相同/u);
+  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, schema_version: 2, host_api_version: 2 }), /schema_version 与 host_api_version 必须都是 1/u);
+  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, host_api_version: 2 }), /schema_version 与 host_api_version 必须都是 1/u);
   for (const [id, manifest] of [["rss", rssIntegrationManifest], ["gmail", gmailIntegrationManifest]] as const) {
     assert.deepEqual(parsePluginManifest(JSON.parse(source(`plugins/official-integrations/${id}/manifest.json`))), parsePluginManifest(manifest));
   }
@@ -153,9 +153,9 @@ const service = (id: string, extra: Partial<PluginConnectionServiceDeclaration> 
 
 function manifestOf(pluginId: string, services: readonly PluginConnectionServiceDeclaration[], integrations: readonly PluginIntegrationDeclaration[]): PluginManifest {
   return {
-    schema_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "integration",
+    schema_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "integration",
     publisher: { publisher_id: "io.example", signature: "example-signature-v1" },
-    host_api_version: 2,
+    host_api_version: 1,
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
     permissions: [{ permission: "network:api.example.com", required: true, reason: "read the fixture service" }],
     capabilities: { provides: [`connector.driver.${pluginId}.v1`], consumes: ["connector.host.v1"] },

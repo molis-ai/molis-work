@@ -20,7 +20,7 @@ export function streamProbe(scope: "home" | "project" = "home") {
     route: async (_request: PluginRouteRequest): Promise<PluginRouteResponse> => ({ status: 200, body: { value: "direct" } }),
   };
   const definition: PluginDefinition = {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "Stream probe", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Stream probe", kind: "app",
       publisher: { publisher_id: "example", signature: "stream-probe" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
       permissions: [{ permission: "storage:private", required: true, reason: "Store the action's result" }],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action],

@@ -67,7 +67,7 @@ Pages 现有 18 项业务动作与 4 项内容协议适配共用同一注册和�
 
 已接通 LocalHost 共同组合根：旧 typed capability 与 ActionService 共用一个 Kernel registry、项目 Runtime 和执行队列；Host 在调用期间关联可信身份与业务 Runtime。注册实例以项目作用域区分，同插件可同时在多个项目激活，关闭一个项目只撤回其实例。Coding/Builder/生成插件的生产 PluginPlatform 已注入该 registry，但其启动仍有页面驱动路径，尚未完成独立于 UI 的自动激活。
 
-现有四项工作区能力已补全 schema 与描述，旧内部调用与 MCP 共用注册及校验，删除重复参数检查：`projects.workspaces.list.v1`、`projects.workspace.read.v1`、`projects.settings.workspaces.read.v1`、`projects.settings.browsing-workspace.read.v1`。Files、Git、Coding、Workspace、Plugin Builder 原有消费者继续通过同一 typed 入口调用。
+现有四项工作区能力已补全 schema 与描述，旧内部调用与 MCP 共用注册及校验，删除重复参数检查：`projects.workspaces.list`、`projects.workspace.read`、`projects.settings.workspaces.read`、`projects.settings.browsing-workspace.read`。Files、Git、Coding、Workspace、Plugin Builder 原有消费者继续通过同一 typed 入口调用。
 
 生产 LocalMcpServer 已接受共同目录的动作工具、返回结构化结果，并实时读取能力与工具开关。Native MCP 发布 Pages/Form/Dataset/PPT Artifact 已改用 Host 的项目实例，清除了自行 new LocalProjectDatabase / GoalProjectApplication 的旁路。旧平台工具目录及 Native MCP 适配表仍在迁移期并存，尚未清除。
 
@@ -105,7 +105,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | plugins/native/text-stats | [src/actions.ts](../../../plugins/native/text-stats/src/actions.ts) | 固定快照统计、纯文本统计 → Runtime 自动注册 | 原 HTTP 薄转发、独立标准 MCP；真实 Files 快照接线 | 业务查询已迁移并验证；流程步骤、使用位置与对外授权由共同机制承担（见「[存量插件的共同收尾](verification.md#存量插件的共同收尾2026-09-27)」） |
 | plugins/native/work | 已下线（SC-4）：包与 `sessions.*` 动作、首页「说一句」（`home.talk.prepare`）一并删除，重做见 BL-177 | — | — | 本行原先记录的迁移不再适用；历史见 Git |
 | plugins/native/workflows | 原 11 项流程/运行 HTTP | [src/actions.ts](../../../plugins/native/workflows/src/actions.ts) `workflows.*` → 项目注册；站点经调用者自身授权的内容动作读写 | 工作台 HTTP 薄转发；Agent/MCP 按精确授权使用 | 管理与运行动作已迁移；F4 交接固定身份并先落盘再交付，同步竞争只交付一次、中断重试复用原结果且不重复调模型，Pages/灵光接收按交付键幂等（`tests/workflows-handoff-idempotency.test.ts`）。新增「判断规则」交接：用调用者可运行的已发布 Choice 规则把关，勾选结果才原样交出，否则停下并记录判断（`tests/workflows-judgment-link.test.ts`，编辑器已在浏览器实操）。新增「动作步骤」：目录里接受 workflow 调用、输入为平铺字段的命令即可作为一站（按提供方分组，宿主无名单），每个字段从交过来的标题/正文/来源/链接/日期取值或填固定值，保存与每次运行都按当前合同校验；动作不能做第一站；调用前落盘尝试标记，目录在进入提供方前拒绝的调用不留痕迹，提供方报错或中断则停在「结果未确认」，需人核对后明确重新执行（`tests/workflows-action-steps.test.ts`，含宿主不认识的工单插件；浏览器 1280/390 实操：Feed →模板转换→ 灵光「记下灵光」真实写入并显示结果） |
-| 原 plugins/native/workspace（已移除） | 退役的浏览目录选择（state/select 两条 Runtime 路由），生产已不安装 | 由 Host 项目设置 `projects.settings.browsing-workspace.read.v1` 等工作区动作取代 | 无生产消费方；旧选择由 `ProjectBrowsingSettings` 一次性从原私有存储迁入 | 包、依赖声明、锁文件条目、Files/Git 废弃的来源常量与专属测试已删除；旧选择迁移路径保留 |
+| 原 plugins/native/workspace（已移除） | 退役的浏览目录选择（state/select 两条 Runtime 路由），生产已不安装 | 由 Host 项目设置 `projects.settings.browsing-workspace.read` 等工作区动作取代 | 无生产消费方；旧选择由 `ProjectBrowsingSettings` 一次性从原私有存储迁入 | 包、依赖声明、锁文件条目、Files/Git 废弃的来源常量与专属测试已删除；旧选择迁移路径保留 |
 | plugins/official-integrations/catalog | Feed 连接器驱动；设置页账号检查（旧 `whoami` 行为） | 账号检查改为连接器系统动作 `connectors.account.read`（[connector-account-actions.ts](../../../apps/local-host/src/connector-account-actions.ts)）；清单删除旧 behaviors 声明 | 设置页账号检查路由薄转发；Agent/MCP 按精确授权 | 账号检查已迁移并验证（`tests/connector-account-actions.test.ts`、connectors 设置 HTTP）；取数仍是 Feed 来源驱动，不是对外动作 |
 | plugins/official-integrations/github | Feed 连接器驱动；设置页账号检查（旧 `whoami` 行为） | 账号检查改为连接器系统动作 `connectors.account.read`（[connector-account-actions.ts](../../../apps/local-host/src/connector-account-actions.ts)）；清单删除旧 behaviors 声明 | 设置页账号检查路由薄转发；Agent/MCP 按精确授权 | 账号检查已迁移并验证（`tests/connector-account-actions.test.ts`、connectors 设置 HTTP）；取数仍是 Feed 来源驱动，不是对外动作 |
 | plugins/official-integrations/gmail | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |

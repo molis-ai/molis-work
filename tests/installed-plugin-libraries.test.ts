@@ -42,7 +42,7 @@ function probe(options: ProbeOptions = {}) {
     action: { ...shape, title: "记一行", description: "把一行字写进插件自己的库", kind: "operation",
       input_schema: { type: "object", additionalProperties: false, required: ["text"], properties: { text: { type: "string" } } }, output_schema: { type: "string" } } };
   const started: Array<PluginHostServices | undefined> = [];
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version, name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version, name: id, kind: "app",
     publisher: { publisher_id: "molis", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [STORAGE, READ, WRITE], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     actions: [note], databases: { home: { ...LIBRARY, ...library } },

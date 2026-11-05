@@ -34,7 +34,7 @@ function sceneProbe(short: string, scenePermissions: readonly string[]) {
     retained: undefined as (() => unknown) | undefined, bindings: new Map<string, ActionSceneBinding>() };
   const table: PluginDatabaseDeclaration = { store_name: short, version: 1, read_permission: read, write_permission: write,
     schema: `CREATE TABLE ${short}_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);` };
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", read, write, A_WRITE, L_WRITE, "attention:read"].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], action_scenes: [scene],

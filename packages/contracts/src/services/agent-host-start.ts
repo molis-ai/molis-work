@@ -198,7 +198,7 @@ export interface AgentSessionOwner {
   actor_id: string;
 }
 
-/** What a plugin asks a session to be created with (`agent.session.create.v1`). */
+/** What a plugin asks a session to be created with (`agent.session.create`). */
 export type AgentCreateSessionInput = { title: string } & (
   | { workspace?: "required"; directory: AgentWorkingDirectory; role_id?: string }
   | { workspace: "none"; directory?: never; role_id: string }
@@ -383,7 +383,7 @@ interface AgentStartInputFields {
   budget?: AgentRunBudget;
 }
 
-/** What a plugin asks a Run to be started with (`agent.run.start.v1`): no identity, no role; the Host adds both. */
+/** What a plugin asks a Run to be started with (`agent.run.start`): no identity, no role; the Host adds both. */
 export type AgentStartInput = AgentStartInputFields & AgentWorkspace;
 
 /** The Host's request to a runtime: the plugin's input, who it is for (from the call) and the role the Host froze. Host and adapters only. */

@@ -74,7 +74,7 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
   const ledger = createFeedContentLedger(store, { collect: input => runWithMolisWorkHome(home, () => evidence.collect(input)) });
   const permissions = ["feed:read", "feed:write", "evidence:collect"].map(permission => ({ permission, required: true, reason: "The reference ledger" }));
   const actions = Object.values(feedContentLedgerActions);
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.test.feed-home", name: "Feed Home (test)", version: "1.0.0", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.test.feed-home", name: "Feed Home (test)", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "fixture-feed-home" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions,
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
   async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
@@ -101,7 +101,7 @@ function goalsStandIn(known: readonly string[], asked: GoalsAsked): PluginDefini
   const create = answering(goalEntryActions.create, { type: "object", required: ["goal", "replayed"] });
   const confirm = answering(goalEntryActions.inputsConfirm, { type: "object", required: ["binding", "replayed"] });
   const goals = new Set(known);
-  return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.goals", name: "Goals (test)", version: "1.0.0", kind: "app",
+  return { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.goals", name: "Goals (test)", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "fixture-goals" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["goals:read", "goals:write"].map(permission => ({ permission, required: true, reason: "The Goal contract and the promotion" })), capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [contract, goalEntryActions.directoryItem, create, confirm] },
@@ -740,13 +740,13 @@ test("RAC-2665 a Runtime Feed adds an account source with no account: the same s
   assert.deepEqual([kept.status, kept.enabled], ["disconnected", 0], "the deleted source stays deleted");
 });
 
-test("RAC-2664 feed.sources.update@2 changes a source's own fields only: an account is not one of them, and @1 is gone", async t => {
+test("RAC-2664 feed.sources.update@1 changes a source's own fields only: an account is not one of them, and retired @2 is gone", async t => {
   const f = await connecting(t), account = f.connect();
   f.bind(account.connection_id);
   const who = caller([...WRITE, "sources:pull_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
-  assert.equal(feedSourceActions.update.version, 2);
+  assert.equal(feedSourceActions.update.version, 1);
   await assert.rejects(update({ source_id: f.sourceId, connection_id: account.connection_id }), { code: "actions.input_invalid" });
-  await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 1 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);
+  await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 2 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);
   await update({ source_id: f.sourceId, name: "Renamed", description: "Work notifications" });
   const row = f.row();
   assert.deepEqual([row.name, JSON.parse(String(row.config_json)), row.credential_ref], ["Renamed", {}, null]);

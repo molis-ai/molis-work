@@ -18,7 +18,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 function probe(manifestTweak?: (manifest: PluginManifest) => void) {
   const manifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: ID, version: "1.0.0", name: "Frozen probe", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: ID, version: "1.0.0", name: "Frozen probe", kind: "app",
     publisher: { publisher_id: "molis", signature: "frozen-manifest-probe" },
     entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },

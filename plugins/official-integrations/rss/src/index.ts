@@ -14,13 +14,13 @@ export function rssSourcePresentation({ cursor }: SourcePresentationInput): Sour
 }
 
 export const rssIntegrationManifest = {
-  schema_version: 2,
+  schema_version: 1,
   plugin_id: "io.molis.work.integration.rss",
   version: "1.0.0",
   name: "RSS",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-  host_api_version: 2,
+  host_api_version: 1,
   source_presentations: ["rss-http"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [

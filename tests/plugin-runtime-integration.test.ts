@@ -271,8 +271,8 @@ function probeView(pluginId: string): UiContribution {
 
 function probeManifest(pluginId: string, extra: Partial<PluginManifest> = {}): PluginManifest {
   return {
-    schema_version: 2,
-    host_api_version: 2,
+    schema_version: 1,
+    host_api_version: 1,
     plugin_id: pluginId,
     version: "1.0.0",
     name: pluginId,

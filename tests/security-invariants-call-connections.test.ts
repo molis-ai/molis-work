@@ -217,7 +217,7 @@ async function brokerLeavesRefresh(t: TestContext, leaves: "cancelled" | "stoppe
     } };`);
     const runner = await createSandboxRunner({ bundlePath, contract, grants: { connections: [SLOT] }, services: {},
       identity: { projectId: "home", installationId: "fixture-integration", pluginId, namespace: "installed" } });
-    const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Controlled integration", kind: "integration",
+    const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "Controlled integration", kind: "integration",
       publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }], permissions: [],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } };
     const proxy = sandboxIntegrationContribution({ manifest, operations: [SANDBOX_INTEGRATION_OPERATIONS.poll],

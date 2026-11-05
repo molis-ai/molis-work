@@ -89,7 +89,7 @@ export function homeProbe(name = "homeprobe", version = "1.0.0") {
   const seen: Array<Pick<ActionExecutionContext, "project_id" | "page_context">> = [];
   const behavior = { ask: async (context: PluginStartContext) => (await context.services!.model!.complete(instructed(instruction, "  原始材料\n"))).text,
     stop: async (_context: PluginStartContext) => {} };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version, name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version, name, kind: "app",
     publisher: { publisher_id: "example", signature: `home-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "Home 探针的声明授权" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

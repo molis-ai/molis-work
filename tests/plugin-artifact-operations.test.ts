@@ -19,7 +19,7 @@ const ACTOR = "installed-person";
 
 function manifest(): PluginManifest {
   const preview = artifactPreview(PLUGIN, TYPE);
-  return { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "Operations test", kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "Operations test", kind: "app",
     publisher: { publisher_id: "molis", signature: "test-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["artifact:read", "artifact:write"].map(permission => ({ permission, required: true, reason: "Fixed versions" })),
     capabilities: { provides: [], consumes: [] }, ui: { contributions: [] }, actions: [preview.definition],

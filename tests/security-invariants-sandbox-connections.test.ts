@@ -22,7 +22,7 @@ const code = (expected: string) => (error: unknown) => (error as { code?: string
 const BEARER = "fixture-bearer-for-s60";
 
 const manifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox connections probe", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox connections probe", kind: "app",
   publisher: { publisher_id: "example", signature: "probe-sbxconnections" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: ["storage:private", "connections:use"].map(permission => ({ permission, required: true, reason: "probe" })),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

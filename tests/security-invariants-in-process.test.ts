@@ -15,7 +15,7 @@ const PINNED = { level: "pinned", publisher_key_id: FINGERPRINT } as const;
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
 function manifest(pluginId = "io.molis.work.example.inproc", signature = "inproc-label"): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "In-process fixture", kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "In-process fixture", kind: "app",
     publisher: { publisher_id: "inproc", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } };
 }

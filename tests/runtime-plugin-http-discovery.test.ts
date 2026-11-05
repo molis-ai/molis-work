@@ -177,7 +177,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
   const result = (value: number) => ({ doubled: value * 2, report: { title: "Opaque data", body_markdown: "**unchanged**", run_id: "unrelated" } });
   let starts = 0;
   const definition: PluginDefinition = {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Unfamiliar",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "Unfamiliar",
       kind: "app", publisher: { publisher_id: "example", signature: "runtime-http-discovery" },
       entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
@@ -266,7 +266,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: project.project_id } });
     assert.ok(started.platform);
     const definition: PluginDefinition = {
-      manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Web Note",
+      manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "Web Note",
         kind: "app", publisher: { publisher_id: "example", signature: "web-note-example" },
         entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
         capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

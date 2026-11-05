@@ -86,7 +86,7 @@ export type GitOperation =
  * Preparing starts a Host review and returns its identity, never permission to execute: a person approves each one.
  */
 export const prepareGitOperationCapability = {
-  capability_id: "projects.workspace.git.operation.prepare.v1", version: 1, operation: "command",
+  capability_id: "projects.workspace.git.operation.prepare", version: 1, operation: "command",
   action: /* @__PURE__ */ gitHostAction("发起 Git 操作的审查", "按调用方看到的仓库修订，为一次提交、分支、推送、PR、合并、拉取或解决冲突发起宿主审查；只返回审查身份，用户批准后才执行，期间仓库变化会被拒绝", "operation", "review:git-operation",
     /* @__PURE__ */ object({ workspace_id: id, operation_id: operationId, revision: id, operation: gitOperation }), reviewIdentity),
 } as ActionDefinition<{ workspace_id: string; operation_id: string; revision: string; operation: GitOperation }, { review_id: string }>;
@@ -105,14 +105,14 @@ export interface GitOperationRecord {
   decided_at: string | null;
 }
 export const readGitOperationsCapability = {
-  capability_id: "projects.workspace.git.operations.v1", version: 1, operation: "query",
+  capability_id: "projects.workspace.git.operations", version: 1, operation: "query",
   action: /* @__PURE__ */ gitHostAction("读取 Git 操作记录", "读取一个已授权工作目录里各次 Git 操作的审查结果和产出；不把等待或未知当作成功", "query", "workspace:read",
     /* @__PURE__ */ object({ workspace_id: id }), { type: "array", items: gitOperationRecord }),
 } as ActionDefinition<{ workspace_id: string }, readonly GitOperationRecord[]>;
 
 /** Preparing returns a Host review identity, never permission to execute. */
 export const prepareGitIndexCapability = {
-  capability_id: "projects.workspace.git.prepare-index.v1", version: 1, operation: "command",
+  capability_id: "projects.workspace.git.prepare-index", version: 1, operation: "command",
   action: /* @__PURE__ */ gitHostAction("发起暂存审查", "按调用方看到的修订，为暂存或取消暂存一个文件发起宿主审查；只返回审查身份，用户批准后才改动暂存区，磁盘文件不改写", "operation", "review:git-index",
     /* @__PURE__ */ object({ workspace_id: id, path: filePath, action: { enum: ["stage", "unstage"] }, revision: id, operation_id: id }), reviewIdentity),
 } as ActionDefinition<{ workspace_id: string; path: readonly string[]; action: "stage" | "unstage"; revision: string; operation_id: string }, { review_id: string }>;
@@ -123,7 +123,7 @@ export type { WriterWorktree, WriterFileTarget, PreparedWriterDirectory, WriterI
 
 /** Read-only, project-scoped projections of terminal SDK-backed Git reviews. */
 export const readGitResultsCapability = {
-  capability_id: "projects.workspace.git.results.v1", version: 1, operation: "query",
+  capability_id: "projects.workspace.git.results", version: 1, operation: "query",
   action: /* @__PURE__ */ gitHostAction("读取暂存审查结果", "读取一个已授权工作目录里已经结束的暂存与取消暂存审查；等待中或结果未知的不列出", "query", "workspace:read",
     /* @__PURE__ */ object({ workspace_id: id }), { type: "array", items: gitReviewedResult }),
 } as ActionDefinition<{ workspace_id: string }, readonly GitReviewedResult[]>;

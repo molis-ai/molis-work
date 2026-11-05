@@ -22,7 +22,7 @@ async function scheduleSdk(t: Parameters<typeof openTestHome>[0], home: TestHome
   const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({ actions,
     project_id: project.project_id, actor_id: "schedule-sdk-owner", artifacts: owner.artifacts, processItems: owner.processItems,
     ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, actions }));
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.schedule-sdk", version: "1.0.0", name: "Schedule consumer", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.fixture.schedule-sdk", version: "1.0.0", name: "Schedule consumer", kind: "app",
     publisher: { publisher_id: "fixture", signature: "schedule-sdk" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "schedule:read", required: true, reason: "Read the original task" }, { permission: "schedule:write", required: true, reason: "Save the authorized task" }],
     capabilities: { provides: [], consumes: [subject.create.capability_id, subject.archive.capability_id, subject.list.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
@@ -113,7 +113,7 @@ test("W3-09-1-01 T1: page, actual MCP tool and the bound plugin SDK action clien
 test("W3-09-1-01 T4: the Agent service records refusals, requires its original plugin identity and leaves successful reads unrecorded", { timeout: 60_000 }, async t => {
   let actions: BoundActionClient | undefined;
   const definition: PluginDefinition = {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.cross-entry-service", version: "1.0.0", name: "Typed service fixture", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.cross-entry-service", version: "1.0.0", name: "Typed service fixture", kind: "app",
       publisher: { publisher_id: "fixture", signature: "typed-service-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
       permissions: [], capabilities: { provides: [], consumes: [service.createSession.capability_id, service.listRuntimes.capability_id] },
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },

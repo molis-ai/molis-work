@@ -27,7 +27,7 @@ const LOCAL: SandboxEffects = { materials: ["fetch_local"] }, ORIGINAL: SandboxE
 const PART = 256 * 1024;
 const PERMISSIONS = ["storage:private", "materials:read", "materials:fetch_local", "materials:original"];
 const manifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox local and original probe", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox local and original probe", kind: "app",
   publisher: { publisher_id: "example", signature: "probe-sbxlocaloriginal" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: PERMISSIONS.map(permission => ({ permission, required: true, reason: "probe" })),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

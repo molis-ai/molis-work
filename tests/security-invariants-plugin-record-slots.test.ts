@@ -7,7 +7,7 @@ import { connectionsProbe, grantConnections } from "./fixtures/connections-runti
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // S-71 (docs/system/SECURITY-INVARIANTS.md), the page's half (T-121, FI-7b): where a plugin shows one of its records, the person reads and
-// chooses that record's account through the Host's record-slot path, which calls `connectors.plugin_slot.read@2` / `bind@2` as the person
+// chooses that record's account through the Host's record-slot path, which calls `connectors.plugin_slot.record.read@1` / `connectors.plugin_slot.record.bind@1` as the person
 // in the project the page names. The page names the plugin, the slot and the record; the installation is the Host's to find there, a name
 // more is refused, and a project with two installations of the plugin is refused rather than one picked.
 
@@ -72,7 +72,7 @@ test("S-71 RAC-2666 the record-slot path binds and reads a record's account as t
   assert.equal((await post(one.project_id, absent)).status, 404);
   assert.equal((await f.request(`${PATH}?${new URLSearchParams({ project: one.project_id, plugin_id: absent.plugin_id, slot_id: "github", record_key: "src-1" })}`)).status, 404);
   assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: install.install_id, project_id: one.project_id, record_key: "src-1" }), absent.plugin_id, "github")), null);
-  // An installation slot is not a record's: the path does not bind it (bind@2 refuses a slot not declared per_record).
+  // An installation slot is not a record's: the path does not bind it (connectors.plugin_slot.record.bind@1 refuses a slot not declared per_record).
   assert.equal((await post(one.project_id, { ...body, plugin_id: whole.id })).status, 400);
   assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: wholeInstall.install_id, project_id: one.project_id, record_key: "src-1" }), whole.id, "github")), null);
   assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: wholeInstall.install_id }), whole.id, "github")), null);

@@ -39,7 +39,7 @@ async function fixture(t: TestContext) {
     const command: ActionDefinition = { ...target, capability_id: name + ".run", action: { ...target.action, audiences: ["user"], permissions: [], input_schema: { type: "object" }, output_schema: {} } };
     const read: ActionDefinition = { ...command, capability_id: name + ".read", operation: "query", action: { ...command.action, kind: "query" } };
     let context: PluginStartContext, work: (directory: PluginActionDirectory) => Promise<unknown> = async () => null, borrowed: PluginActionDirectory | undefined;
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name, version: "1.0.0", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name, version: "1.0.0", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture-" + name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [...declare ? ["actions:invoke"] : [], ...write ? ["dependency:write"] : []].map(permission => ({ permission, required: true, reason: "Call a public dependency" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [command, read] },

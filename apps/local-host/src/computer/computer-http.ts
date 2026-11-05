@@ -21,7 +21,7 @@ interface ComputerHttpPorts {
   readonly shelf: () => ComputerShelf;
 }
 
-/** What putting a record on the Shelf needs: `shelf.items.admit@2` and `shelf.items.delete@1`, found in the action directory. */
+/** What putting a record on the Shelf needs: `shelf.items.admit@1` and `shelf.items.delete@1`, found in the action directory. */
 export interface ComputerShelf {
   admit(input: { title: string; text: string } | { filename: string; mime: string; bytes_base64: string }): Promise<{ item: { item_id: string } }>;
   remove(itemId: string): Promise<unknown>;

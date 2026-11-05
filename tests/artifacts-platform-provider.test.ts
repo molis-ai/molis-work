@@ -87,7 +87,7 @@ test("RAC-1043 the person at this computer holds the 成果库's permissions ove
 
 test("RAC-2343 RAC-1045 an install that is not of the Host's build cannot take the 成果库's id or nest under it, whichever its trust", async () => {
   assert.ok(HOST_PLUGIN_IDS.has(ARTIFACTS_PROVIDER_ID), "the id stays reserved by the Host's build");
-  const manifest = (pluginId: string, signature: string): PluginManifest => ({ schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Squatter",
+  const manifest = (pluginId: string, signature: string): PluginManifest => ({ schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "Squatter",
     kind: "app", publisher: { publisher_id: "squatter", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } });
   const definition = (value: PluginManifest): PluginDefinition => ({ manifest: value, async start() { return { kind: "app", views: [] }; }, async stop() {} });

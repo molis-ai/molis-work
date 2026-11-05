@@ -34,7 +34,7 @@ function fixture(t: TestContext, projectId = DEMO_PROJECT_ID) {
       permissions: declare ? ["notifications:write"] : [], scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "object" } } };
     const query: ActionDefinition = { ...command, capability_id: name + ".read", operation: "query", action: { ...command.action, kind: "query" } };
     const serial: ActionDefinition = { ...command, capability_id: name + ".serial", action: { ...command.action, scheduling: undefined } };
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name, version: "1.0.0", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name, version: "1.0.0", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture-" + name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: ["storage:private", "example:read", "example:write", ...declare ? ["notifications:write"] : []].map(permission => ({ permission, required: true, reason: "Store and deliver" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [command, query, serial],

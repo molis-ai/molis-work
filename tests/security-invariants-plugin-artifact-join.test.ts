@@ -43,7 +43,7 @@ function probe(short: string, grants: readonly string[], peer?: () => PluginHost
       output_schema: { type: "boolean" } } });
   // `act` waits and declares what the plugin holds; `serial` declares it but does not wait; `loose` waits but does not declare it; `peek` is a query.
   const act = define("act", grants, true), serial = define("serial", grants, false), loose = define("loose", [], true), peek = define("peek", grants, true, "query");
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", read, write, ...grants].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [preview.type], consumes: [] }, ui: { contributions: [] },

@@ -62,7 +62,7 @@ export const shelfActions = {
     "把本机界面选中的整个文件夹复制进置物架，最多 32 MB", "command",
     object({ name: { type: "string", minLength: 1, maxLength: 500 }, entries: { type: "array", minItems: 1, items: object({ relative: { type: "string", minLength: 1, maxLength: 1000 },
       bytes_base64: text, mime: { type: "string", maxLength: 200 } }, ["relative", "bytes_base64"]) } }),
-    object({ item }), write, LOCAL), version: 2 },
+    object({ item }), write, LOCAL), version: 1 },
   capture: define<{ url: string }, { item: ShelfItemRecord }>("items.capture", "抓取网页放进 Shelf",
     "抓取一个公开网页或本机网页的正文，存成置物架里的一份材料；局域网地址不抓，抓不到时只保存链接", "command",
     object({ url: { type: "string", minLength: 1, maxLength: 4096 } }), object({ item }), [...write, "materials:fetch", "materials:fetch_local"], SHARED),

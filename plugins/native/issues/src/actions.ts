@@ -19,7 +19,7 @@ const properties = { id, title, type, description, image_count: { type: "integer
 };
 const issue = object({ ...properties, images });
 const rules = "个人 Home 的问题记录，切换项目不改变数据。保留用户原话与追问答复，不润色、分析或给解决办法；按描述和截图起简洁标题，类型为 Bug、体验问题或功能需求。新记录可撤销，之后可在详情里修改。只在用户明确要求时修改或删除；先读取当前版本。取消、冲突或提交结果未知时不自动重复写入。";
-function action<Input, Output>(name: string, label: string, effect: "read" | "write" | "irreversible", input_schema: ActionSchema, output_schema: ActionSchema, contractVersion = 2,
+function action<Input, Output>(name: string, label: string, effect: "read" | "write" | "irreversible", input_schema: ActionSchema, output_schema: ActionSchema, contractVersion = 1,
   audiences: ActionDefinition<Input, Output>["action"]["audiences"] = ["user", "agent", "mcp"], extra: Partial<ActionDefinition<Input, Output>["action"]> = {}): ActionDefinition<Input, Output> {
   return { capability_id: `issues.${name}`, version: contractVersion, operation: effect === "read" ? "query" : "command",
     action: { effect, kind: effect === "read" ? "query" : "operation", scope: "home", audiences, subject_kinds: ["issue"], title: label, description: rules,
@@ -28,7 +28,7 @@ function action<Input, Output>(name: string, label: string, effect: "read" | "wr
 // A new record can be taken back while nobody has changed it, so an Assistant asked to record one may save it directly.
 const undo = { capability_id: "issues.discard", version: 1, input: { id: "id", expected_version: "version" } };
 const page = object({ url: { type: ["string", "null"], maxLength: 500 }, title: { type: ["string", "null"], maxLength: 200 } });
-const prepare = action<IssueDraft, { draft_id: string }>("prepare", "准备问题草稿", "write", object({ draft_id: id, description, images, page }, ["draft_id", "description"]), object({ draft_id: id }), 3, ["user"]);
+const prepare = action<IssueDraft, { draft_id: string }>("prepare", "准备问题草稿", "write", object({ draft_id: id, description, images, page }, ["draft_id", "description"]), object({ draft_id: id }), 1, ["user"]);
 const cancel = action<{ draft_id: string }, { saved_id: string | null }>("cancel_capture", "取消问题草稿", "write", object({ draft_id: id }), object({ saved_id: { type: ["string", "null"] } }), 1, ["user"]);
 // The page's own naming (ISSUE-50, ISSUE-51): one bounded call to the Host's text model, made inside the action.
 const naming = (permission: string) => ({ permissions: [permission, "model:invoke"], scheduling: "concurrent" as const, execution: { cost: "metered" as const } });
@@ -52,7 +52,7 @@ export const issuesActions = {
   list: action<IssueList, IssueListResult>("list", "查看问题列表", "read", object({ type, limit: { type: "integer", minimum: 1, maximum: 100 }, cursor }, []),
     object({ items: { type: "array", items: object(properties), maxItems: 100 }, next_cursor: { anyOf: [{ type: "null" }, cursor] } })),
   read: action<{ id: string }, Issue>("read", "查看问题详情", "read", object({ id }), issue),
-  create: action<IssueCreate, Issue>("create", "记录问题", "write", object({ title, type, description, images }, ["title", "type", "description"]), issue, 2, undefined, { undo }),
+  create: action<IssueCreate, Issue>("create", "记录问题", "write", object({ title, type, description, images }, ["title", "type", "description"]), issue, 1, undefined, { undo }),
   update: action<IssueUpdate, Issue>("update", "修改问题", "write", object({ id, expected_version: version, title, type, description, images }, ["id", "expected_version"]), issue),
   delete: action<IssueDelete, { id: string; deleted: true }>("delete", "删除问题", "irreversible", object({ id, expected_version: version }), object({ id, deleted: { const: true } }), 1),
 };

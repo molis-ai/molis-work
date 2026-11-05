@@ -81,7 +81,7 @@
 ## 项目工作目录与浏览目录进入统一动作；外部 MCP 条目跨重启（2026-09-27）
 
 - 工作目录的加入、修复、解除是项目设置，不属于某个插件：新增 Host 提供方「项目工作目录」（`system.project-workspaces`）的 `projects.workspaces.add/repair/unlink`，权限 `projects:settings`，只对本机用户开放。修复与解除沿用原 `repairProjectWorkspace/unlinkProjectWorkspace`，连同使用该目录的会话一起迁移，中途失败回滚（错误码 `workspace.*` 映射为原来的 503）；只由会话使用、尚无目录登记的文件夹，按页面同一规则（`sessionWorkspaceId`）识别。Work 的 `/api/workspaces…` 路由只校验确认并转发，状态码不变；最初放在 Work 插件里时，未启用 Sessions 的项目会被「此项目未启用该插件」拒绝，已改到 Host。
-- 浏览目录选择新增 `projects.settings.browsing-workspace.select.v1`（本机用户、`projects:settings`），项目设置与 Coding 的 `/api/project-settings/workspaces` POST 转发到它；只接受当前项目已关联且可用的目录。
+- 浏览目录选择新增 `projects.settings.browsing-workspace.select`（本机用户、`projects:settings`），项目设置与 Coding 的 `/api/project-settings/workspaces` POST 转发到它；只接受当前项目已关联且可用的目录。
 - 外部 MCP：保存过的服务上次提供的工具（名称、形状、描述，不含凭据）记在 Home `config/external-mcp-tools.json`；项目目录第一次被读取时带回，重连前显示不可用及原因，不会自行启动进程或发起连接；已移除的服务不会带回。
 - 验证：`tests/workspace-project-actions.test.ts`（原完整旅程：加入、冲突、修复迁移 2 条会话、启动、解除 3 条会话；新增：未启用 Sessions 的项目仍可加入目录与选择浏览目录，拒绝其他项目的目录，未知目录 404）。该文件在 main 上原本因夹具未启用 Sessions、首页不显示工作目录行而失败，夹具已补启用。`tests/external-mcp-actions.test.ts` 新增重启情形。Files/Git/Coding 工作区相关 HTTP 用例通过。浏览器实操（1280）：项目设置「工作目录」加入两个文件夹 → 选择第二个用于浏览，调用记录显示「关联工作目录 · 项目工作目录 · 你」与「选择浏览工作区」成功；外部笔记连接后重启服务，直接打开能力库即见 save_note「不可用」及重连说明。
 - 仍为本机界面、不作为动作：原生文件夹选择窗口、终端面板、连接器令牌/设备码/OAuth（携带密钥）。

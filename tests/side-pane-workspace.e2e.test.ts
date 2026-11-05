@@ -34,7 +34,7 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   assert.ok(shown.includes(SHELF) && shown.includes("tasks"), JSON.stringify(shown));
   assert.equal(await evaluate("document.querySelector('[data-background-tasks]')"), null);
   assert.equal(await evaluate(`document.querySelector('${strip} [data-tab-add], ${strip} [aria-label*="新"]')`), null);
-  const edge = await evaluate<number>(`innerWidth - document.querySelector('${strip} [role=tab]:not([hidden]):last-of-type').getBoundingClientRect().right`);
+  const edge = await evaluate<number>(`innerWidth - [...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).at(-1).getBoundingClientRect().right`);
   assert.ok(edge >= 0 && edge < 24, `the strip ends at the right of the title bar (${edge}px left)`);
 
   // Resting on a glyph writes its name before it; the glyph does not move.

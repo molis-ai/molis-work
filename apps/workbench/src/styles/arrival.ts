@@ -38,6 +38,8 @@ export const ARRIVAL_STYLES = String.raw`
   .arrival:not([data-screen="chooser"]) .arrival-titlebar .mw-caption { opacity: 0; visibility: hidden; pointer-events: none; }
   .arrival[data-screen="chooser"] .arrival-titlebar .mw-caption { transition-delay: 0s; }
   .arrival-tools { display: flex; align-items: center; gap: 2px; }
+  /* One row with the right side's tabs at its end (07-S1): the strip is a flex row of its own. */
+  .arrival-global { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
   .arrival-tools .mw-btn { color: var(--ink-soft); }
   .arrival-tools .mw-btn:hover:not(:disabled) { color: var(--ink); }
   .arrival[data-screen="opening"] .arrival-tools { visibility: hidden; }

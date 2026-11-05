@@ -228,8 +228,8 @@ export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled
  * The bottom bar replaces the rail. Left, where you go: the switcher — it names where you are (one chip per pane
  * when split) and opens, under search and the two buttons that get more plugins (the market, the plugin studio), every
  * plugin, each with the button that keeps it in the Dock — then the plugins chosen to stay; the two sit in one tray.
- * Centre: the resident Assistant, only an input. Right: the side panel's button (Shelf, 灵光, files, the browser, the
- * computer and the project's discussion beside the work, specs/side-shelf §3.1) in its tray, then the project as a round button
+ * Centre: the resident Assistant, only an input. Right: the right side's switch (until 07-S4b removes it; it opens and
+ * collapses the same side as the title bar's tabs and ⌘\, side-panel.ts) in its tray, then the project as a round button
  * whose menu holds the project and the person — switching, search, settings, capabilities.
  */
 export function renderWorkbenchBar(

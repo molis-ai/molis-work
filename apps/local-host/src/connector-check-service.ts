@@ -29,9 +29,7 @@ export async function checkConnectorConnection(home: string, id: string, remembe
       : row.auth_method === "cli" ? await inspectCliConnection(home, id, false, signal) : await inspectApiConnection(home, id, false, signal);
   } catch (error) {
     await control.beforeEffect?.(); control.signal?.throwIfAborted();
-    // A refresh the token endpoint refused during the check is already remembered as such (S-70); the check leaves that mark as it is,
-    // whatever else went wrong.
-    if (refreshRefused(home, row)) throw error;
+    // A refused refresh stays as it is whatever else went wrong: `rememberConnectorCheck` writes nothing over it (S-70).
     const retry_at = error instanceof ActionError && error.code === "connector.check.rate_limited" && typeof error.details?.retry_at === "string" ? error.details.retry_at : undefined;
     rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision: row.updated_at, outcome: "failed",
       authorization: error instanceof ActionError && error.code === "connector.mcp.authorization" ? "required" : "unknown",

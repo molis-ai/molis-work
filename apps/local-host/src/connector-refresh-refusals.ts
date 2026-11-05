@@ -1,14 +1,16 @@
 import type { ConnectorCheckObservation, ConnectorConnectionRecord, ConnectorConnectionState } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { replacedOAuthShape } from "./connector-oauth-shape.js";
-import { rememberConnectorCheck, withConnectorObservations } from "./connector-observations.js";
+import { REFRESH_REFUSED, rememberConnectorCheck, withConnectorObservations } from "./connector-observations.js";
 
 // Connections whose token endpoint refused a refresh (S-70; slice s57-connections-extension X3, hub ruling 2026-10-24; kept across a restart
 // since batch 13, ASC-49). The mark is the connection's last check, remembered like any other: `failed`, authorization `required`, code
 // `connector.refresh_refused`. It is tied to the connection's revision, so reconnecting (which changes `updated_at`) leaves it behind, and a
-// refresh that succeeds replaces it with a passing check. Until one of those, requests that carry the connection are refused before they
-// are sent, and the token endpoint is not asked again, restart or not.
+// refresh that succeeds replaces it with a passing check; no other check is written over it (`rememberConnectorCheck`). Until one of
+// those, the requests that read this mark are refused before they are sent and the token endpoint is not asked again, restart or not:
+// a plugin's `services.connections`, a source's pull with its own account (S-95) and the slot reads. The Host's own readers of an API
+// account (`resolveApiConnection` for settings and previews) are not gated by it: a 401 there may still ask the token endpoint once.
 
-export const REFRESH_REFUSED = "connector.refresh_refused";
+export { REFRESH_REFUSED };
 
 type Revisioned = Pick<ConnectorConnectionRecord, "connection_id" | "updated_at">;
 
@@ -26,7 +28,7 @@ export function markRefreshRefused(home: string, connection: Revisioned): void {
 export function clearRefreshRefused(home: string, connection: Revisioned): void {
   if (!refreshRefused(home, connection)) return;
   rememberConnectorCheck(home, connection.connection_id, { at: new Date().toISOString(), revision: connection.updated_at, outcome: "connected",
-    authorization: "verified" });
+    authorization: "verified" }, { clearsRefreshRefusal: true });
 }
 
 /** Whether this revision of the connection had its refresh refused. `check` is the connection's last check, when the caller already read it. */

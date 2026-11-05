@@ -150,7 +150,7 @@ export { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
 export { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
 export { startSharedRefresh } from "./connector-shared-refresh.js";
 export { publicOAuthFetch } from "./connector-oauth-send.js";
-export { readConnectorAccount } from "./connector-account-actions.js";
+export { connectorAccountActionProvider, readConnectorAccount } from "./connector-account-actions.js";
 export { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 export { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthClientAuth, oauthContextValue, oauthDeviceRequest, oauthEndpoint, oauthEndpointFingerprint, oauthExpiry, oauthKept, oauthMethodOption, oauthPinnedTenant, oauthScope, oauthSecretRequired, oauthTenantOrigin, oauthTokenRequest, resolveOAuthSettings } from "./connector-oauth-declarations.js";
 export { listConnectorConnectionViews } from "./connector-connection-views.js";

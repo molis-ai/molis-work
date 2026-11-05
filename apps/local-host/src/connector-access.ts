@@ -39,8 +39,8 @@ export function boundedRetryAt(value: string | undefined, now = Date.now()): str
 }
 
 /** A failed identity or health read as the error a check remembers: a rate limit keeps the time the service gave, bounded. */
-function readFailure(result: { message: string; failure?: string; retry_after_at?: string; retryAfterAt?: string }): Error {
-  const retry_at = boundedRetryAt(result.retry_after_at ?? result.retryAfterAt);
+function readFailure(result: { message: string; failure?: string; retryAfterAt?: string }): Error {
+  const retry_at = boundedRetryAt(result.retryAfterAt);
   return result.failure === "rate_limited" ? connectorCheckErrors.rate_limited(result.message, retry_at ? { retry_at } : undefined) : new Error(result.message);
 }
 

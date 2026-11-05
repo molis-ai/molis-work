@@ -7,11 +7,23 @@ export function withConnectorObservations<T>(home: string, operation: (store: Co
   try { return operation(new ConnectorObservationStore(db)); } finally { db.close(); }
 }
 
-/** A check cannot make a changed or disabled connection look current. The caller separately rechecks its authority. */
-export function rememberConnectorCheck(home: string, id: string, value: ConnectorCheckObservation): boolean {
+/** The code a connection's last check carries while the token endpoint has refused its refresh (S-70, `connector-refresh-refusals.ts`). */
+export const REFRESH_REFUSED = "connector.refresh_refused";
+
+/**
+ * A check cannot make a changed or disabled connection look current. The caller separately rechecks its authority. Every entry that
+ * writes a check comes through here, so S-70 holds in this one place: while this revision's last check is a refused refresh, no other
+ * check is written over it (a read that still passes on the old access token, a check that failed for another reason); only a forced
+ * refresh that went through clears it (`clearsRefreshRefusal`), and reconnecting changes the revision.
+ */
+export function rememberConnectorCheck(home: string, id: string, value: ConnectorCheckObservation, options: { clearsRefreshRefusal?: boolean } = {}): boolean {
   const current = withConnectorConnections(home, store => store.get(id));
   if (!current?.enabled || current.disconnected_at || current.updated_at !== value.revision) return false;
-  withConnectorObservations(home, store => store.check(id, value)); return true;
+  return withConnectorObservations(home, store => {
+    const last = store.read(id).check;
+    if (last?.code === REFRESH_REFUSED && last.revision === value.revision && value.code !== REFRESH_REFUSED && !options.clearsRefreshRefusal) return false;
+    store.check(id, value); return true;
+  });
 }
 
 /**

@@ -48,11 +48,20 @@ export function modelCheckReason(raw: string): ModelProviderCheckReason {
   return "check_failed";
 }
 
-/** Remember a check of the provider as it is stored now. Nothing is remembered for a provider whose key has no connection. */
-export function rememberModelCheck(home: string, provider: ModelProviderRecord, outcome: "connected" | "failed", reason?: ModelProviderCheckReason): void {
+/** The connection holding the provider's key, and its version, read before the check runs; none when the key has no connection. */
+export interface ModelCheckTarget { connection_id: string; revision: string }
+export function modelCheckTarget(home: string, provider: ModelProviderRecord): ModelCheckTarget | undefined {
   const connection = withConnectorConnections(home, store => store.list("model-api").find(row => row.credential_ref === provider.credential_ref));
-  if (!connection) return;
-  rememberConnectorCheck(home, connection.connection_id, { at: new Date().toISOString(), revision: connection.updated_at, outcome,
+  return connection ? { connection_id: connection.connection_id, revision: connection.updated_at } : undefined;
+}
+
+/**
+ * Remember a check against the key's version read before it ran (`modelCheckTarget`): a key replaced while the model answered is a
+ * new version, and `rememberConnectorCheck` writes nothing for an older one, so the old key's result never lands on the new key.
+ */
+export function rememberModelCheck(home: string, provider: ModelProviderRecord, target: ModelCheckTarget | undefined, outcome: "connected" | "failed", reason?: ModelProviderCheckReason): void {
+  if (!target) return;
+  rememberConnectorCheck(home, target.connection_id, { at: new Date().toISOString(), revision: target.revision, outcome,
     authorization: outcome === "connected" ? "verified" : reason === "key_rejected" ? "required" : "unknown",
     ...(reason ? { code: `model_provider.${reason}` } : {}), subject: { kind: "model-provider", id: provider.provider_id, revision: modelCheckRevision(provider) } });
 }

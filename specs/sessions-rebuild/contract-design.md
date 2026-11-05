@@ -317,7 +317,7 @@ SRB-13 的测试至少覆盖：中断后重扫行数不变、两个 `location_ke
 | --- | --- | --- | --- | --- | --- |
 | `sessions.list@1` | query／read | `user`、`agent`、`workflow`、`mcp`、`plugin` | `sessions:read` | `concurrent` | C-2 |
 | `sessions.history.read@1` | query／read | `user`、`agent`、`workflow`、`mcp`、`plugin` | `sessions:history` | `concurrent` | C-2 |
-| `sessions.scope.read@1` | query／read | `user` | `sessions:read` | 不声明 | C-2 |
+| `sessions.scope.read@1` | query／read | `user` | `sessions:read` | `concurrent` | C-2 |
 | `sessions.scope.set@1` | command／write | `user` | `sessions:manage` | 不声明 | C-2 |
 | `sessions.project_ai_read.set@1` | command／write | `user` | `sessions:manage` | 不声明 | C-2 |
 | `sessions.discovery.run@1` | command／write | `user` | `sessions:manage` | 不声明（只排队，立刻返回） | C-2 |
@@ -391,7 +391,7 @@ export type ExternalSessionSourceState =
 
 export interface ExternalSessionSource {
   entry_id: ExternalToolId;
-  location_key: string | null;   // 还没允许时可能没有
+  location_key: string | null;   // 本机来源总有值；云端来源没选连接时才空
   display_name: string;
   state: ExternalSessionSourceState;
   reason: ExternalSessionSourceReason | null;
@@ -465,7 +465,7 @@ export interface ExternalSessionEntry {
 | --- | --- | --- |
 | 找会话 | 标题、目录、工具名 | `sessions.search.entries@1`，`defineSearchEntriesAction` 声明的来源，`content: "summary"`，`scope: "home"`，`audiences: ["user"]`。经 `search.query` 查，`project_id` 为空，算个人内容 |
 | 在一个会话里找 | 这个会话的正文 | `sessions.history.read@1` 的 `query`（第 6.3 节） |
-| 在这个工具里搜 | 工具自带搜索的（登记表 `search` 不是缺口的，现在是 Grok Build、Droid、Amp） | `sessions.tool.search@1` |
+| 在这个工具里搜 | 工具自带搜索的（登记表 `search` 不是缺口的，现在只有 Droid；Grok Build、Amp 有搜索命令，输出格式核过后加入） | `sessions.tool.search@1` |
 
 全文索引不做，原文不进任何索引。以后要做另议，做的话是本人开启。
 
@@ -481,7 +481,7 @@ export interface ExternalSessionEntry {
 
 场景套组把 `sessions.list@1` 写成 `requires` 的可选依赖。
 
-**就绪判断**（D4 带来的变化，由主会话转交第 20 批）：要同时满足两条，由外壳以本人身份调 `sessions.scope.read@1` 判断：
+**就绪判断**（D4 带来的变化，由主会话转交第 20 批）：要同时满足两条，由外壳以本人身份调 `sessions.scope.read@1` 判断，不要计数：
 
 1. `sources` 里至少有一项 `allowed` 为真且 `adapter` 是 `available`；
 2. `project_ai_reads` 里 `current` 为真的那一行 `allowed` 是 `true`。
@@ -506,6 +506,9 @@ export interface ExternalSessionReadScope {
   revision: number;
   decided_at: string;
 }
+
+/** sessions.scope.read@1 的输入：Sheet 要计数，就绪判断不要。 */
+export interface ExternalSessionScopeReadInput { include_counts?: boolean }
 
 export interface ExternalSessionScopeView {
   sources: Array<ExternalSessionReadScope & { adapter: "available" | "none" }>;
@@ -548,16 +551,18 @@ export interface ExternalSessionScopeSetInput {
 
 ### 7.3 异步返回前怎样再核
 
-外部读取前后范围可能变。四处用同一个函数 `assertInScope(session, caller)`，全程同步、不让出。
+外部读取前后范围可能变。四处用同一个函数 `assertInScope(session, caller, snapshot)`，全程同步、不让出。
 
-**它不看版本号短路，每次按当前状态重算：** 读范围行，同步调 `listWorkspaceDirectory()` 算这个会话还在不在范围内；`user` 以外的调用者再核项目许可，以及会话是否还以 `confirmed` 或 `automatic` 归这个项目。原因：`linked_projects` 的范围跟着项目目录变，解除目录、删除项目都不经 `sessions.scope.set@1`，`revision` 不变。
+**它不看版本号短路，每次按当前状态重算：** 用项目快照（第 8.1 节）和范围行，算这个会话还在不在范围内；`user` 以外的调用者再核项目许可，以及会话是否还以 `confirmed` 或 `automatic` 归这个项目。原因：`linked_projects` 的范围跟着项目目录变，解除目录、删除项目都不经 `sessions.scope.set@1`，`revision` 不变。
+
+**一批取一次快照。** 核查写在 `projects.read(snapshot => { … })` 的回调里：回调是同步的，取一次快照，逐行比完就给出结果，中间不 await。一批 N 行只读一遍目录表，安全上和逐行重读等价。
 
 | 路径 | 等待前 | 等待后 |
 | --- | --- | --- |
-| `sessions.history.read@1` | 解析 `session_key`，`assertInScope` | `await caller.beforeEffect()`，再 `assertInScope`，**之后不再 await**，直接返回。失败抛 `sessions.scope_changed`，不带内容 |
+| `sessions.history.read@1` | 解析 `session_key`，`assertInScope` | `await caller.beforeEffect()`，再在 `projects.read` 的回调里 `assertInScope`，回调给出结果后**不再等别的**，直接返回。失败抛 `sessions.scope_changed`，不带内容 |
 | `sessions.tool.search@1` | 核来源已允许 | 同上；结果逐行过 `assertInScope`，范围外的行去掉 |
-| AI 建议 | 只把范围内的材料交给模型 | `await caller.beforeEffect()`，写建议的事务里 `assertInScope`；范围外的结果丢弃，不写 |
-| 后台发现 | 读范围 | 每批写库的事务里逐行重算范围，范围外的不写；来源已不允许时整批丢弃 |
+| AI 建议 | 只把范围内的材料交给模型 | `await caller.beforeEffect()`，`projects.read` 的回调里开写建议的事务，事务里 `assertInScope`；范围外的结果丢弃，不写 |
+| 后台发现 | 读范围 | 每批取一次快照，写库的事务里逐行重算范围，范围外的不写；来源已不允许时整批丢弃 |
 
 云端来源多核一条：连接仍在且 `enabled`（`ports.connections.current`）。
 
@@ -581,7 +586,7 @@ export interface ExternalSessionProjectAiRead {
   allowed: boolean;
   revision: number;               // 这个项目这一行的版本
   decided_at: string | null;      // 从没改过时为 null，allowed 为 false
-  counts: ExternalSessionProjectCounts;
+  counts: ExternalSessionProjectCounts | null;   // 没要 include_counts 时为 null
 }
 
 export interface ExternalSessionProjectCounts {
@@ -593,7 +598,7 @@ export interface ExternalSessionProjectCounts {
 }
 ```
 
-**计数的口径。** 四项互不重叠：先看工具允不允许，不允许的都算 `blocked`，不管归属是哪种；允许的再分 `reported` 和 `ai_readable`。
+**计数的口径。** `ai_readable`、`reported`、`blocked` 三项互不重叠，`filed` 是它们之和：先看工具允不允许，不允许的都算 `blocked`，不管归属是哪种；允许的再分 `reported` 和 `ai_readable`。
 
 - 只数索引里有、没有 `gone_at` 的会话。从没允许过的工具没有索引行，`blocked` 里就没有它；这一项数的是读过之后又停掉的工具。
 - 工具允许、但目录在范围外的会话不进任何一项：范围外的不显示。
@@ -602,7 +607,7 @@ export interface ExternalSessionProjectCounts {
 
 **一次聚合。** 不按项目逐个查：一条 `GROUP BY`，按归属项目、归属状态、来源、`directory_key` 分组，再在内存里按读取范围折成每个项目四个数。`external_sessions` 上的 `reported_project_id` 是这条查询和 `view: "project"` 共用的缓存，随摘要重算。行里的「看是哪些」用 `sessions.list@1`，发到那个项目的路径。
 
-**看全部：** `sessions.scope.read@1` 一次带回全部项目，只给 `user`。一次 `selections()`、一次 `listWorkspaceDirectory()`、一次读表、一条聚合，不按项目逐个请求。
+**看全部：** `sessions.scope.read@1` 一次带回全部项目，只给 `user`。一次项目快照（第 8.1 节，含绑定，所以 `reported` 不会是旧的）、一次读表，要计数时再加一条聚合，不按项目逐个请求。
 
 **改一个项目：** `sessions.project_ai_read.set@1`，输入 `{ allowed: boolean; expected_revision: number }`，`expected_revision` 是这个项目那一行的。项目取自调用上下文，不从输入读。没有当前项目报 `sessions.project_required`，版本不符报 `sessions.scope_conflict`。
 
@@ -633,18 +638,26 @@ export interface ExternalSessionProjectCounts {
 `horizontal/sessions` 不依赖 `modules/projects`，由宿主注入端口：
 
 ```ts
-projects: Pick<ProjectsQueryApi, "listWorkspaceDirectory" | "selections">;
-/** 工具报的绑定，只读（D1）。这些绑定不一定经本人确认，名字不写「确认」。 */
-bindings: { listRuntimeContextBindings(): RuntimeContextBindingRecord[] };
+/** 借目录库读一次。回调是同步的，读到的就是此刻的状态。 */
+projects: { read<T>(operation: (snapshot: SessionProjectSnapshot) => T): Promise<T> };
 /** 认目录：真实路径与所在仓库，只读 `.git` 相关的三个文件，见第 8.2 节。 */
 directories: { identify(path: string): { real_path: string; repository_key: string | null; worktree_relative: string | null } | null };
+
+export interface SessionProjectSnapshot {
+  directories: ProjectWorkspaceDirectoryRecord[];   // listWorkspaceDirectory()
+  projects: ProjectSelection[];                     // selections()
+  /** 工具报的绑定，只读（D1）。这些绑定不一定经本人确认，名字不写「确认」。 */
+  bindings: RuntimeContextBindingRecord[];          // listRuntimeContextBindings()
+}
 ```
 
-`ProjectsQueryApi` 是 `packages/contracts/src/modules/projects.ts` 的公开合同，`modules/private-work-context` 用的同一份。不用 `projects.workspaces.list@1`：它只回当前项目，要全局关系就得按项目逐个调（N52 那一类）。
+宿主的 `withCatalog`（`apps/local-host/src/web-catalog-access.ts`）是异步借用一条长开连接，`projects.read` 就是包一层：回调在 `withCatalog` 里同步跑。Host 关停时 `withCatalog` 抛错，`projects.read` 随之失败，读取不返回内容，发现这一批不写，都按被取消处理。
 
-`listRuntimeContextBindings()` 是 `modules/private-work-context` 已有的读取，宿主注入，一次读完。Sessions 不读它的表，也不回写。
+快照里的项目和目录来自 `ProjectsQueryApi`，这是 `packages/contracts/src/modules/projects.ts` 的公开合同，`modules/private-work-context` 用的同一份。不用 `projects.workspaces.list@1`：它只回当前项目，要全局关系就得按项目逐个调（N52 那一类）。
 
-一次列表读一遍 `listWorkspaceDirectory()` 和 `listRuntimeContextBindings()`，算出摘要。摘要变了才重算派生归属（第 8.2 节）。
+`listRuntimeContextBindings()` 是 `modules/private-work-context` 已有的读取，宿主放进快照。Sessions 不读它的表，也不回写。
+
+一次列表取一次快照，算出摘要。摘要变了才重算派生归属（第 8.2 节）。
 
 **目录来源（片 P-1，第 10.1 节）。** `linked_projects` 和自动归入只认本人建的目录关系。Projects 给出这个判断，Sessions 不比 actor：
 
@@ -659,15 +672,22 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
 
 | 写入口 | 算不算本人建的 |
 | --- | --- |
-| `projects.workspaces.add`、`repair`（本人） | 算 |
+| `projects.workspaces.add`、`repair`（本人，只给 `user`） | 算 |
 | Onboarding 选目录（`web-onboarding.ts`） | 算 |
 | 工作树目录授权（`system-agent-service.ts` 的 `authorizeWriterDirectory`，经本人审查通过） | 算 |
 | `context_bind`（`project-binding-commands.ts` 的两处 `upsertWorkspaceMembership`） | 不算 |
 | 终端面板绑定时带的 `cwd`（走同一段代码） | 不算 |
 
-不加列：沿用 `bound_by`，绑定这条路写入时带 `binding:` 前缀，所以 `projects/catalog.db` 版本不变，不碰真实 Home 的库。`upsert` 不再用工具的值覆盖本人的值；本人再连一次，工具带进来的关系升为本人的。`person_project_ids` 是 Projects 由 `bound_by` 算出来的，判法只在 Projects 一处。
+不加列：沿用 `bound_by`，所以 `projects/catalog.db` 版本不变，不碰真实 Home 的库。规则：
 
-代价：片 P-1 之前终端面板写下的行，`bound_by` 是本人的 id，分不出来，会算成本人建的。真实 Home 如果在 P-1 之后才重建，这些行就没有了；否则要在维护窗口核一次，这一步见第 12 节。
+- **判法是白名单：** `bound_by` 等于 `LOCAL_PERSON_ACTOR_ID` 才算本人建的，别的值一律不算。读取范围是权限边界，不能默认放行：新增的写入口忘了标记，结果是不算，不是算。P-1 要核表里算的三处写的都是这个值（Onboarding、工作树授权已是，`add`、`repair` 取调用者）。团队批再扩。
+- **标记在 Projects 内部加：** `modules/projects/src/index.ts` 的 `lifecycle.upsertWorkspaceMembership` 这个入口写 `binding:<actor>`，`project-binding-commands.ts` 不拼字符串。`requiredActorId` 和事件里的 actor 用原值。
+- **不降级：** `upsert` 不用工具的值覆盖本人的值；本人再连一次，工具带进来的关系升为本人的。
+- **工具只能解除工具带进来的：** `context_unbind` 走的 `lifecycle.unlinkWorkspaceMembership`，遇到本人建的关系不解除，只解除这个会话的绑定。这样读取范围既不会被工具放大，也不会被工具收窄。
+
+`person_project_ids` 由 Projects 算，判法只在 Projects 一处。
+
+代价：片 P-1 之前 `context_bind` 写下的行不是本人的 id，自动不算；但终端面板写下的行 `bound_by` 是本人的 id，分不出来，会算成本人建的。真实 Home 如果在 P-1 之后才重建，这些行就没有了；否则要在维护窗口核一次，这一步见第 12 节。
 
 ### 8.2 归属怎样算
 
@@ -680,16 +700,20 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
 | 1 | 有单条决定：归到某项目，且项目还在 | `confirmed` |
 | 2 | 有单条决定：先不归 | `unfiled`，`left_unfiled`，不再请 AI 建议 |
 | 3 | 有单条决定，但项目已不在 | `unfiled`，`project_gone`，不自动换项目 |
-| 4 | 有工具报的 Runtime 绑定，且项目还在 | `reported`，只有本人的列表显示，界面写「工具报的，不是你确认的」；本人确认或改选后走第 1 行 |
-| 5 | 目录或仓库匹配到唯一项目，关系是本人建的 | `automatic`，依据是这条目录关系 |
-| 6 | 匹配到多个项目，含同一仓库连着两个项目 | `unfiled`，`ambiguous`，候选是这几个项目，走 AI 建议 |
-| 7 | 曾匹配、现在没有了（缓存重建后分不出，退成第 9 行） | `unfiled`，`relation_gone` |
-| 8 | 只匹配到工具带进项目的目录 | `unfiled`，`tool_linked`，候选是这个项目，走 AI 建议 |
+| 4 | 目录或仓库匹配到唯一项目，关系是本人建的 | `automatic`，依据是这条目录关系；有绑定也一样，绑定只作附加说明 |
+| 5 | 匹配到多个项目，含同一仓库连着两个项目 | `unfiled`，`ambiguous`，候选是这几个项目，走 AI 建议 |
+| 6 | 没有本人目录关系，有工具报的 Runtime 绑定，且项目还在 | `reported`，只有本人的列表显示，界面写「工具报的，不是你确认的」；本人确认或改选后走第 1 行 |
+| 7 | 只匹配到工具带进项目的目录 | `unfiled`，`tool_linked`，候选是这个项目，走 AI 建议 |
+| 8 | 曾匹配、现在没有了（缓存重建后分不出，退成第 9 行） | `unfiled`，`relation_gone` |
 | 9 | 没有匹配，或目录已不存在、认不出 | `unfiled`，`no_relation`，走 AI 建议 |
 
-**第 4 行（D1）。** 绑定可能是工具自己报的，不是本人确认的，所以不写成 `confirmed`。这条依据只算归属，不带任何读取权：工具没允许就读不到，项目 AI 没许可就读不到。绑定的键没有账号和位置，所以只用于本机来源；同一绑定命中两个 `location_key` 时不算，走第 5 行。终端面板的绑定里 `stable_work_context_id` 可能是面板号，对不上原生 ID 就自然不命中。本人在 Sessions 改选后第 1 行优先，不回写绑定，所以连着的工具调用仍落在旧项目，改归属的 Dialog 要写这一句。
+**目录关系排在绑定前面。** 从项目打开的终端和 MCP 连上的会话，工具都会报绑定，而它们多数就在本人连的目录下。排在前面它们才是 `automatic`，才算自动归入；工具也改不了结果：本人目录下的会话，工具绑到别的项目，项目 AI 的范围不变。
 
-**第 5、6 行怎样算（D2）。** 分两步。先找匹配的项目，一个已关联目录符合下面任一条就算匹配：
+**绑定指向另一个项目时（第 4 行，用户 2026-11-06 定）。** 会话唯一匹配本人目录时仍是 `automatic`，归那个目录的项目。本人列表的行上提示「工具报的是另一个项目」，数据在 `tool_reported_other`，别的受众的输出里没有这个字段。工具左右不了归属。
+
+**第 6 行（D1）。** 绑定可能是工具自己报的，不是本人确认的，所以不写成 `confirmed`。这条依据只算归属，不带任何读取权：工具没允许就读不到，项目 AI 没许可就读不到。绑定的键没有账号和位置，所以只用于本机来源；同一绑定命中两个 `location_key` 时不算，走下一行。终端面板的绑定里 `stable_work_context_id` 可能是面板号，对不上原生 ID 就自然不命中。本人在 Sessions 改选后第 1 行优先，不回写绑定，所以连着的工具调用仍落在旧项目，改归属的 Dialog 要写这一句。
+
+**第 4、5 行怎样算（D2）。** 分两步。先找匹配的项目，一个已关联目录符合下面任一条就算匹配：
 
 1. 路径：会话目录的真实路径等于已关联目录，或在它之下。按路径段比，不比字符串前缀。
 2. worktree：两者 `repository_key` 相同，且会话目录相对自己工作树根的路径，等于已关联目录相对它工作树根的路径，或在它之下。已关联目录就是仓库根时，这个仓库的任何 worktree 都算。
@@ -704,7 +728,7 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
 | `/wt/feature/packages/a`（`/repo` 的 worktree） | 匹配（第 2 条） |
 | `/repo/packages/b`、`/wt/feature/packages/b` | 不匹配：同一仓库，但不在已关联的位置。不进 `linked_projects`，不自动归入 |
 
-`realpath_verified` 为假的关联不进候选。上面的「已关联目录」只算 `person_project_ids` 里的项目；只被工具带进来的走第 8 行。
+`realpath_verified` 为假的关联不进候选。上面的「已关联目录」只算 `person_project_ids` 里的项目；只被工具带进来的走第 7 行。
 
 **认仓库，只读文件，绝不跑 git（S-119）。** `repository_key` 是公共 git 目录真实路径的 SHA-256 前 24 位。规则只有一种写法：
 
@@ -714,6 +738,7 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
   1. `gitdir:` 一行指向的目录，形状是 `<公共目录>/worktrees/<名字>`；
   2. 那里有 `commondir` 文件，解析出的目录就是上面的公共目录；
   3. 那里的 `gitdir` 文件指回这个 `.git` 文件。互相指着才算，只有单向指认的是伪造。
+- 三个文件里的路径可能是相对的：`.git` 里的 `gitdir:` 相对 `.git` 所在目录，`commondir` 和 `gitdir` 文件相对它们自己所在的目录。解析后都取真实路径再比。
 - 少一件，`repository_key` 都为空。没有 `commondir` 的（子模块）也是空：它不算 worktree，路径规则照常管它。
 - 只碰 `.git`、`commondir`、`gitdir` 这三个文件，每个不超过 4 KB。不读 `config`、hooks 或任何别的文件，内容不外传，只留哈希。
 - 读不了、格式不对、路径不存在：`repository_key` 为空，不报错。
@@ -730,7 +755,9 @@ export type ExternalSessionAttribution =
   | { state: "confirmed"; project: ProjectSelection; basis: "user_chose" | "suggestion_accepted"; decided_at: string;
       later_suggestion?: ExternalSessionSuggestion }
   | { state: "reported"; project: ProjectSelection; source: { kind: "runtime_binding"; runtime_id: string }; reported_at: string }
-  | { state: "automatic"; project: ProjectSelection; evidence: { kind: "directory" | "repository"; path: string } }
+  | { state: "automatic"; project: ProjectSelection; evidence: { kind: "directory" | "repository"; path: string };
+      /** 只给本人：工具报的是另一个项目，只作提示，不改归属。 */
+      tool_reported_other?: { project: ProjectSelection; runtime_id: string } }
   | { state: "unfiled";
       reason: "no_relation" | "tool_linked" | "ambiguous" | "relation_gone" | "project_gone" | "left_unfiled";
       candidates: ProjectSelection[];
@@ -838,8 +865,7 @@ export interface SessionsPorts {
     /** 云端适配经它发请求，凭据由宿主按引用解析，不进服务包。 */
     request(connectionId: string, request: SessionServiceRequest, signal: AbortSignal): Promise<SessionServiceResponse>;
   };
-  projects: Pick<ProjectsQueryApi, "listWorkspaceDirectory" | "selections">;
-  bindings: { listRuntimeContextBindings(): RuntimeContextBindingRecord[] };
+  projects: { read<T>(operation: (snapshot: SessionProjectSnapshot) => T): Promise<T> };
   directories: { identify(path: string): { real_path: string; repository_key: string | null; worktree_relative: string | null } | null };
   suggester: SessionAttributionSuggester | null;
   searchChanged(): void;
@@ -865,7 +891,7 @@ export interface SessionsPorts {
 | `session_suggestions` | `session_key` | `status`、`project_id`、`alternatives`、`reason`、`evidence`、`input_digest`、`prompt_version`、`created_at` | 可重算 |
 | `session_meta` | `key` | `scope_revision`、库版本 | 控制 |
 
-索引：`external_sessions(last_activity_at DESC, session_key)`、`external_sessions(directory_key)`。
+索引：`external_sessions(last_activity_at DESC, session_key)`、`external_sessions(directory_key, last_activity_at DESC, session_key)`、`external_sessions(reported_project_id, last_activity_at DESC, session_key)`、`session_attributions(project_id)`、`session_directories(derived_project_id)`。`view: "project"` 按派生归属、单条决定、`reported_project_id` 三路取同一键集的页，合并后减去被单条决定改走的行。
 
 会话不进成果库，也不是过程项；冷启动整理出的内容按各主人的流程写（需求 §7 第 11 项）。
 
@@ -905,7 +931,7 @@ export const sessionsErrors = defineErrorCodes("sessions", {
 | S-115 | 子进程只跑登记表写明的只读命令：不经 shell，`argv` 来自登记表，只有 `{session_id}`、`{query}` 被替换；前者过 `EXTERNAL_SESSION_NATIVE_ID_PATTERN`，后者占一个元素、不以 `-` 开头；有时限、输出上限、最小环境；`detect` 不符不跑解析。列表、历史、搜索不启动 `resume`、`exec`、`delete`、`queue` 一类命令。`detect` 要运行本机程序：先过 `real_path_pattern`，不过不运行；运行时只带 `version_argv`，同样有时限、无 shell、最小环境 | 原生 ID 写成 `--dangerously…`、带分号或空格时不起进程；搜索词以 `-` 开头时不起进程；`version_pattern` 不符时不解析；走一遍列表、历史、搜索后，假工具记录下的调用里没有写命令（SRB-12）；`agent` 的真实路径不符时假工具一次都没被运行 |
 | S-116 | 外部读取返回前再核范围：收窄、停止、撤连接、关掉项目的 AI 读取许可后，在途的读取不返回内容、发现不写库、建议不写表 | 假适配在等待中收窄范围、关掉许可、解除项目目录（`linked_projects` 下，`revision` 没变），各断言 `sessions.scope_changed`、响应里没有原文、索引行数不变；`sessions.tool.search@1` 在等待中收窄，范围外的行不返回；取消后来源进度不更新；连接失效时云端来源不返回内容 |
 | S-117 | 外部会话的标题、原文、工具输出都是不可信数据：给模型时走 S-13 的 JSON 围栏，给 Agent 的输出带 `trust: "untrusted"` 并脱敏，不进系统提示和工具定义 | 标题里写伪造的结束标记和角色，留在 JSON 字符串里；原文里的密钥样式在 `agent` 受众下被脱敏；模型回了列表外的项目编号，这一项被丢弃 |
-| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着，且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；非本人调 `sessions.scope.read@1` 被拒，拿不到各项目的计数；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下的会话是 `tool_linked` 不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量 |
+| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定和本人目录关系之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着，且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；非本人调 `sessions.scope.read@1` 被拒，拿不到各项目的计数；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下的会话是 `tool_linked` 不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；`context_unbind` 解除不了本人建的目录关系；`bound_by` 不是本人 id 的行（含旧的 `<客户端>:<会话>`）不算本人建的；本人目录下的会话，工具绑到别的项目：仍是 `automatic`、归本人目录的项目，项目 AI 的范围不变，`reported` 计数不变，本人的行带 `tool_reported_other`，非本人的输出没有这个字段；Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量 |
 | S-119 | 认仓库只读文件，不跑 git：只读 `.git`、`commondir`、`gitdir` 三个文件，各不超过 4 KB，内容只留哈希，不读 `config` 与 hooks；到用户主目录或根目录停止往上找；`.git` 文件必须和仓库里的 `gitdir` 互相指着才算 worktree，否则 `repository_key` 为空 | `PATH` 上放假 `git` 并记录调用，发现、归属、范围判断之后调用次数为 0；任意目录放 `.git` 文件写 `gitdir: <已关联仓库>/.git/worktrees/x`，而仓库那边没有指回：`repository_key` 为空，不进范围，不自动归入；`gitdir:` 指向不相干的目录、没有 `commondir`、超长、含 NUL 时 `repository_key` 都为空且不报错；仓库 `config` 里写 `core.fsmonitor` 也不执行；三个文件之外的读取次数为 0 |
 
 SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行。
@@ -916,19 +942,20 @@ SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行
 | --- | --- | --- | --- | --- |
 | 打开列表 | 1 | 1 遍（动作网关照常） | 服务长开，0 | 0（过期时后台排一次，不在请求里） |
 | 翻下一页 | 1 | 1 | 0 | 0 |
-| 打开一个会话 | 1 | 1 | 0 | 1 次读取 |
+| 打开一个会话 | 1 | 1 | 0 | 1 次读取；项目快照 2 次（等待前后） |
 | 往上读 | 1 | 1 | 0 | 1 次读取，同文件走短缓存 |
 | 会话内搜索 | 1 | 1 | 0 | 1 次流式扫描 |
 | 改读取范围 | 1 | 1 | 0 | 放宽的来源每家 1 轮发现 |
 | 打开待归类 | 2（列表 + 建议，后者不挡页面） | 各 1 | 0 | 取 `opening` 最多 20 次来源读取（每组一次，可能是子进程），模型 1 次；往下翻再一轮；材料没变走缓存，这两样都不发生 |
-| 读取中询问一次 | 1 | 1 | 0 | 0；每次是完整的 `sessions.list@1`，含一遍动作发现、`listWorkspaceDirectory()`、`listRuntimeContextBindings()`。最坏：发现一直没读完、页面一直可见，稳定后每分钟 4 次（15 秒一次） |
+| 读取中询问一次 | 1 | 1 | 0 | 0；每次是完整的 `sessions.list@1`，含一遍动作发现和一次项目快照。最坏：发现一直没读完、页面一直可见，稳定后每分钟 4 次（15 秒一次） |
 | 打开读取范围 Sheet | 1（全部项目的许可和计数都在这一个响应里，只给 `user`） | 1 | 0 | 0；计数是一条 `GROUP BY`，项目再多也是一条查询，不走外部工具 |
+| 第 20 批判断就绪 | 1（不带计数，不做聚合） | 1 | 0 | 0 |
 | 改项目的 AI 读取许可 | 1（发到目标项目的路径） | 1，且要打开目标项目 | 目标项目 1 | 0 |
 | 在这个工具里搜 | 1 | 1 | 0 | 1 次命令 |
 | 确认一张卡 | 1 | 1 | 0 | 0 |
 | 发现一轮 | 0 | 0（后台不走动作发现） | 0 | 每来源分页，一批写一个事务；全局并发 2，同来源 1 |
 
-- 列表里 `listWorkspaceDirectory()`、`listRuntimeContextBindings()` 各读一次，N 条行不逐条查项目。来源状态一个查询。
+- 列表里取一次项目快照，N 条行不逐条查项目；尾检一批一次。来源状态一个查询。
 - 认仓库一个目录一次。会话目录只在发现时认；列表请求只在摘要变了时认新连的目录，尾检不读文件，用表里存的。
 - 后台发现不走动作目录，不按条目请求，避开 N48 那类空转。
 - 没有定时器：第 34 批的发现只由四件事触发，即范围变化、用户点重试、打开列表时过期、启动时接上没读完的来源。持续跟进是采集层的事。
@@ -945,7 +972,7 @@ SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行
 | --- | --- | --- | --- | --- |
 | **C-1 登记表与派生**（BL-955） | `platform/external-tools`；第 4.3、4.4 节；`tests/action-external-tools.test.ts`；GLOSSARY 两词 | 新增 `tooling/gates/api/contracts/platform/external-tools.txt`；改 `platform/app-host.txt`、`modules/characters.txt` | `packages/contracts/package.json` 的导出；`plugin-terminal-runtimes.ts` 等第 4.4 节七处。不动动作，不跑 `actions:update` | 第 02 批交完、C 轨交接 |
 | **C-2 读取合同** | `services/sessions`：身份、来源状态、列表（含归属类型）、历史、读取范围、项目 AI 读取许可、权限、错误码常量 | 新增 `tooling/gates/api/contracts/services/sessions.txt` | `packages/contracts/package.json` 的导出 | C-1 |
-| **P-1 目录来源** | `ProjectWorkspaceDirectoryRecord.person_project_ids`；绑定写入带 `binding:` 前缀；`upsert` 不降级本人的值（第 8.1 节） | 改 `modules/projects.txt` | `modules/projects/src/workspace-repository.ts`、`modules/projects/src/workspace.ts`、`modules/private-work-context/src/project-binding-commands.ts`、`tests/project-catalog.test.ts` | 第 02 批交完。不依赖 C-1，可以和它并行 |
+| **P-1 目录来源** | `ProjectWorkspaceDirectoryRecord.person_project_ids`；白名单判法；绑定写入在 Projects 内部带 `binding:`；`upsert` 不降级本人的值；工具解除不了本人的关系（第 8.1 节） | 改 `modules/projects.txt` | `modules/projects/src/index.ts`、`modules/projects/src/workspace-repository.ts`、`modules/projects/src/workspace.ts`、`tests/project-catalog.test.ts` | 第 02 批交完。不依赖 C-1，可以和它并行 |
 | **C-3 归属与搜索合同** | `attribution.*` 动作、`search.entries`、`tool.search` | 改 `services/sessions.txt` | 无 | C-2 |
 
 `ExternalSessionRow` 带 `attribution`，所以归属类型在 C-2，C-3 只加写动作。
@@ -968,7 +995,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | S-2 | A 组适配，逐家在实装版本上复核，改登记表的 `checked` 和实际接入方式 |
 | S-3 | 归属与建议 |
 | S-4 | 搜索来源 |
-| S-5 | 工作台界面（入口随第 03 批；「外部会话原文」先由 D 轨补标本）；读取范围 Sheet 两页；`project-ai-read` 路由；`open_project_ai_read` 的浮层 |
+| S-5 | 工作台界面（入口随第 03 批；「外部会话原文」先由 D 轨补标本）；读取范围 Sheet 两页；`project-ai-read` 路由；`open_project_ai_read` 的浮层；项目设置里本人连的目录和工具带进来的目录分开显示，后者给确认入口 |
 | S-6 | B 组适配；D 组保持缺口 |
 
 其余后续批次要接的：
@@ -1045,9 +1072,11 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 18 | 团队批 | 「团队项目先不开放」现在无从判断，项目没有这个标记 | 团队批接入时，`sessions.project_ai_read.set@1` 对共享项目拒绝并加测试 |
 | 19 | 路线书决策表第 11 项 | 记着 Sessions 技术方案待定 | 统筹的跨批文件，不改 |
 | 20 | 许可开关定样方案 A | 用户选 A | 全局 Sheet 改别的项目做得到，`sessions.scope.read@1` 带回全部项目（第 7.4 节），动作总数不变。`sessions.scope.read@1` 同时带回每个项目的计数。定样分支 `claude/roadmap-22-permit-sample-31916b` 还没合入，它的 README 里「行里的数字没有合同来源」和「这些目录下的会话进待归类」（后者要加「选所有目录时」，见第 7.1 节）两句待改。关掉时那句「已经写进回答的内容不会收回」用户已定，写在第 7.4 节 |
-| 21 | `bound_by` 存量 | 片 P-1 之前终端面板写下的目录关系，`bound_by` 是本人的 id，会算成本人建的 | 真实 Home 重建在 P-1 之后就没有；否则维护窗口要核一次，交主会话排 |
+| 21 | `bound_by` 存量 | 片 P-1 之前终端面板写下的目录关系，`bound_by` 是本人的 id，会算成本人建的；`context_bind` 的旧行不是本人 id，白名单下自动不算 | 真实 Home 重建在 P-1 之后就没有；否则维护窗口要核一次，交主会话排 |
 | 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-118） |
-| 23 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 59 批之后另议 |
+| 23 | 绑定指向另一个项目 | 会话在本人连的 A 目录下，工具绑到 B | 已定（2026-11-06）：仍 `automatic` 归 A，行上提示「工具报的是另一个项目」，写在第 8.2 节、S-118 |
+| 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | **要进定样**：两种目录分开显示，后者给确认入口；实现列在片 S-5 |
+| 25 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 59 批之后另议 |
 
 ## 13. 已定
 

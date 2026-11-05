@@ -117,6 +117,19 @@ test("RAC-2915: the restore SQLite reader detects an actual source-path replacem
 });
 
 test("RAC-2915: the restore SQLite reader preserves original version, I/O, busy and cancellation errors", async t => {
+  const damaged = standaloneArchive(t);
+  writeFileSync(damaged.file, "not a SQLite archive");
+  const source = openTestSqlite(damaged.file);
+  let nativeError: Error | undefined;
+  try {
+    assert.throws(() => source.pragma("user_version"), error => {
+      assert.ok(error instanceof Error && "code" in error);
+      assert.equal(error.code, "SQLITE_NOTADB");
+      nativeError = error;
+      return true;
+    });
+  } finally { source.close(); }
+  assert.ok(nativeError);
   for (const kind of ["version", "missing-file", "busy", "cancelled"] as const) await t.test(kind, t => {
     const f = standaloneArchive(t);
     if (kind === "missing-file") rmSync(f.file);
@@ -128,7 +141,8 @@ test("RAC-2915: the restore SQLite reader preserves original version, I/O, busy 
       try {
         locker.exec("BEGIN EXCLUSIVE");
         assert.throws(() => inspectSnapshotSqlite(f.file), error => {
-          assert.ok(error instanceof Database.SqliteError);
+          assert.ok(error instanceof Error && "code" in error);
+          assert.equal(Object.getPrototypeOf(error), Object.getPrototypeOf(nativeError));
           assert.equal(error.code, "SQLITE_BUSY");
           assert.equal(error instanceof ActionError, false);
           return true;
@@ -137,7 +151,7 @@ test("RAC-2915: the restore SQLite reader preserves original version, I/O, busy 
     }
     if (kind === "cancelled") {
       const abort = new AbortController();
-      const reason = new Database.SqliteError("original owner cancellation", "SQLITE_NOTADB");
+      const reason = nativeError;
       assert.throws(() => inspectSnapshotSqlite(f.file, { signal: abort.signal, inspect() {
         abort.abort(reason);
         throw reason;

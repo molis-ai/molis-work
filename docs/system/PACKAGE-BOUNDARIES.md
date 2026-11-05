@@ -235,10 +235,11 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `apps/cli` | 应用 | 4 | 159 | `command-dispatch.ts` 63 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `apps/desktop` | 应用 | 11 | 1,239 | `capsule-shell.ts` 548 | 1 | 6 | 1 | 在用 | 中 | 已审 |
-| `apps/local-host` | 应用 | 653 | 65,025 | `assistant/assistant-service.ts` 1,837 | 1 | 62 | 2 | 在用 | 深 | 待审 |
+| `apps/local-host` | 应用 | 717 | 72,831 | `browser/browser-host.ts` 784 | 1 | 58 | 2 | 在用 | 深 | 待审 |
 | `apps/mcp` | 应用 | 16 | 956 | `runtime-context-tools.ts` 193 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `apps/server` | 应用 | 5 | 192 | `main.ts` 81 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
 | `apps/workbench` | 应用 | 303 | 51,590 | `i18n/en.ts` 3,266 | 2 | 31 | 1 | 在用 | 深 | 已审 |
+| `horizontal/account` | 横向 | 14 | 1,225 | `session-manager.ts` 262 | 1 | 1 | 1 | 在用 | 中 | 待审 |
 | `horizontal/agent-host` | 横向 | 96 | 13,630 | `adapters/prologue-stream.ts` 723 | 1 | 2 | 1 | 在用 | 深 | 已审 |
 | `horizontal/connector-host` | 横向 | 5 | 754 | `connection-store.ts` 396 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,300 | `index.ts` 425 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
@@ -255,7 +256,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `packages/contracts` | 基础 | 139 | 21,034 | `modules/goals.ts` 776 | 63 | 0 | 67 | 在用 | 深 | 待审 |
+| `packages/contracts` | 基础 | 123 | 18,797 | `platform/actions.ts` 776 | 58 | 0 | 63 | 在用 | 深 | 待审 |
 | `packages/design-system` | 基础 | 97 | 15,500 | `styles/primitives.ts` 1,258 | 1 | 2 | 5 | 在用 | 深 | 已审 |
 | `packages/im-ui` | 基础 | 23 | 1,730 | `views.ts` 168 | 1 | 3 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 14 | 1,879 | `action-service.ts` 487 | 2 | 2 | 1 | 在用 | 深 | 已审 |

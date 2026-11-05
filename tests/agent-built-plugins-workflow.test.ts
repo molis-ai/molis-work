@@ -318,8 +318,8 @@ test('the designer runs the person’s edit from “Prompt 与 Character”, and
       assert.equal(build.phase, 'choosing', build.error ?? '');
       const designer = h.requests.find(request => request.role === 'designer')!;
       assert.match(designer.instruction, /所有候选都用暖色。$/);
-      assert.equal(designer.promptVersion, BUILDER_PROMPTS.designer.version + '+user.1');
-      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, BUILDER_PROMPTS.designer.version + '+user.1', 'the run record says which text ran');
+      assert.equal(designer.promptVersion, 'designer/1+user.1');
+      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/1+user.1', 'N31: the run persists the origin label and user revision that actually ran');
       assert.equal(registry.uses('io.molis.work.plugin-builder/builder-designer')[0]?.user_revision, 1, 'the register records the use');
       registry.reset('io.molis.work.plugin-builder/builder-designer', 1, 'person');
       assert.deepEqual(builderPrompts(home)('designer', BUILDER_PROMPTS.designer), BUILDER_PROMPTS.designer, 'after “恢复默认” the shipped text runs again');

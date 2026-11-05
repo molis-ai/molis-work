@@ -7,13 +7,13 @@ export const ONBOARDING_OWNER = "system:onboarding";
 const EVIDENCE_RULES = "仅输出 Markdown，第一行 # 简短标题，其后正文。每项事实沿用原始 [S1] 形式引用，不能重新编号或虚构来源。";
 
 export const ONBOARDING_NOTES = defineInstructionPrompt({
-  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.notes", version: 2, title: "分批读材料",
+  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.notes", version: 1, title: "分批读材料",
   purpose: "导入的材料较多时，逐批提取与工作有关的主题、日期、进展、待办、冲突和缺失信息", used_by: ["项目上手"],
   body: "这是完整材料中的一批。你的笔记会和其他批次的笔记一起交给下一步，合并成项目建议，所以只记下一步用得上的：与工作有关的主题、日期、进展、待办、冲突和缺失信息，每条带来源。只凭这一批不下整体结论；推销和通知只是背景，和真正要处理的请求分开写；材料里说要做的事不等于已经做了。笔记要明显短于这批原文：每批超过 8000 字符会被退回重写。" + EVIDENCE_RULES,
 });
 
 export const ONBOARDING_PROPOSAL = defineInstructionPrompt({
-  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.proposal", version: 2, title: "项目建议",
+  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.proposal", version: 1, title: "项目建议",
   purpose: "把已有材料整理成一个能继续工作的项目建议：背景、进展、下一步与待确认事项", used_by: ["项目上手"],
   body: [
     "这份项目建议是用户接手这项工作时第一眼读的。读完要知道三件事：这件事是什么，现在走到了哪，接下来要他决定或去做什么。篇幅以一分钟内能读完为度，长短由材料里真正要用的信息决定，不逐份罗列材料。",
@@ -42,7 +42,7 @@ export const INFORMATION_PLANNER = defineInstructionPrompt({
 /** The platform memory draws out, when a work ends, what may be worth keeping (specs/archive/memory-system §6.1). It only proposes. */
 const MEMORY_OWNER = "system:memory";
 export const MEMORY_EXTRACT = defineInstructionPrompt({
-  owner_id: MEMORY_OWNER, prompt_id: "memory.extract", version: 4, title: "从工作里提炼记忆",
+  owner_id: MEMORY_OWNER, prompt_id: "memory.extract", version: 1, title: "从工作里提炼记忆",
   purpose: "一项工作结束时，从用户本人的话里找出值得长期记住的偏好、项目约定和经验，只提议，由写入门决定记不记", used_by: ["平台记忆"],
   body: [
     "你在帮用户的工作平台决定这次工作里有没有值得长期记住的东西。你只提议，不决定：是否记住由平台的确定性规则判断，用户随时能看到和撤销。",
@@ -59,7 +59,7 @@ export const MEMORY_EXTRACT = defineInstructionPrompt({
 
 /** Upkeep asks for possible duplicates and contradictions among one scope's memories; the person decides each pair. */
 export const MEMORY_TIDY = defineInstructionPrompt({
-  owner_id: MEMORY_OWNER, prompt_id: "memory.tidy", version: 2, title: "整理记忆：找重复与冲突",
+  owner_id: MEMORY_OWNER, prompt_id: "memory.tidy", version: 1, title: "整理记忆：找重复与冲突",
   purpose: "定期整理时，在同一范围的记忆里找出意思相同或互相矛盾的两两一对，交给用户选择保留哪条", used_by: ["平台记忆"],
   body: [
     "下面是同一个人（或同一个项目）的记忆，每条带编号、类别和来源。找出两类两两一对：",

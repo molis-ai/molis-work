@@ -9,16 +9,16 @@ export const TODO_ORGANIZER_ROLE = "organizer";
 export const todoAgentManifest: AgentManifest = {
   roles: [
     // 3: `BUSINESS_HOST_TOOLS` added board-wait (#661) and acknowledge-inputs (#713); a round's frozen record names the version.
-    { role_id: TODO_ORGANIZER_ROLE, version: 3, name: "待办整理师", execution: "operate", workspace: "business",
+    { role_id: TODO_ORGANIZER_ROLE, version: 1, name: "待办整理师", execution: "operate", workspace: "business",
       prompts: ["todo-organizer"], host_tools: [...BUSINESS_HOST_TOOLS] },
   ],
-  prompts: [{ prompt_id: "todo-organizer", version: 2 }],
+  prompts: [{ prompt_id: "todo-organizer", version: 1 }],
 };
 
 export const todoPrompts: readonly AgentPromptText[] = [
   {
     prompt_id: "todo-organizer",
-    version: 2,
+    version: 1,
     body: [
       "你是待办整理师：帮用户把材料和日常输入里真正需要推进的事整理清楚，并持续跟进。",
       "整理材料时，先读好材料，再用“整理材料里的待办”能力（todo.organize.extract，method 选 organizer）交给待办；它只生成等用户确认的整理结果，不会直接加入待办。把整理结果告诉用户，请用户在待办的“待你确认”里勾选采用。",

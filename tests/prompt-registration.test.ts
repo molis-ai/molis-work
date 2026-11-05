@@ -137,7 +137,7 @@ test("Plugin Builder's designer and code Agents are registered as the prompts th
   const known = registered();
   for (const name of ["designer", "experience", "ui", "review", "implement", "revise", "repair", "acceptance"]) assert.ok(known.has(`io.molis.work.plugin-builder/builder-${name}`), name);
   const designer = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.prompts.find(prompt => prompt.prompt_id === "builder-designer")!;
-  assert.equal(designer.version, 31000, "RAC-2934：登记版本随 designer/3.10.0 变化，默认更新时才会提示用户");
+  assert.equal(designer.version, 1, "N31：当前设计者正文从统一起点的第 1 版登记");
   const roles = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.roles;
   assert.deepEqual(roles.map(role => [role.role_id, role.prompt_ids.length]), [["designer", 4], ["coder", 4]], "两个 Agent 作为 Character 列出");
   assert.deepEqual(roles.find(role => role.role_id === "designer")!.prompt_ids, ["builder-designer", "builder-experience", "builder-ui", "builder-review"]);
@@ -164,10 +164,8 @@ const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, s
   "system:contextual/contextual.draft": [[1, "4b887167a46f0e24"]],
   "io.molis.work.plugin-builder/choose.capability": [[1, "9d814fb0b2f16a3b"]],
   "io.molis.work.plugin-builder/choose.component": [[1, "30528fb1319325ba"]],
-  // Coding's executing role learns to wait on something outside (P3c, specs/prologue-adoption §4.6.8). v2 on MiniMax-M3 with
-  // tests/coding-external-wait-live.test.ts, 4 tasks x 3 runs: T1 2/3, T2 0/3, T3 0/3, T4 3/3; each failure and whether it is the
-  // design, the model or unsure: specs/prologue-adoption §6.0e.
-  "io.molis.work.coding/coding-background": [[1, "ffceea0d45170e35"], [2, "1c6292f9e8eeaba8"]],
+  // N31: the current wording starts at 1. Earlier evaluations remain in specs/prologue-adoption §6.0e.
+  "io.molis.work.coding/coding-background": [[1, "1c6292f9e8eeaba8"]],
 };
 const fingerprint = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 

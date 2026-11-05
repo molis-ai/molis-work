@@ -15,10 +15,7 @@ export interface TaskGrantCategoryReference {
     group_id?: string;
 }
 
-export interface TaskGrantCategoryState extends TaskGrantCategoryReference {
-    plugin_id?: string;
-    title: string;
-    description: string;
+export interface TaskGrantCategoryState extends TaskGrantCategory {
     status: "granted" | "needs_confirmation" | "unavailable";
 }
 

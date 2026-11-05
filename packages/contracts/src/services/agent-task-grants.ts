@@ -22,13 +22,19 @@ export const servicesAgentTaskGrantsContract = {
 /** A plugin's key for one of its tasks. No `:`, so the Host's composed subject cannot be confused with another's. */
 export const TASK_GRANT_SUBJECT_KEY_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$";
 
-/** One read category: a provider's read group, or (`group_id` left out) a whole provider that declares no groups. */
+/**
+ * One read category: a provider's read group, or (`group_id` left out) a whole provider that declares no groups. Leaving it out for a
+ * provider that declares groups names nothing, and `set` refuses the whole call.
+ */
 export interface TaskGrantCategoryReference {
   provider_id: string;
   group_id?: string;
 }
 
-/** A category this project offers now, as the person's switches show it. */
+/**
+ * A category this project offers now, as the person's switches show it. `title` and `description` are the provider's own words as
+ * declared (in Chinese for a Manifest); the Workbench shows their English from the provider's `ui.translations`, never this answer.
+ */
 export interface TaskGrantCategory extends TaskGrantCategoryReference {
   plugin_id?: string;
   /** The group's title, or the provider's for a whole provider. */
@@ -43,10 +49,7 @@ export interface TaskGrantCategory extends TaskGrantCategoryReference {
  * what changed is not readable until they allow the category again. `unavailable`: the provider is off or gone; the grant is kept
  * and reads again when it is back unchanged.
  */
-export interface TaskGrantCategoryState extends TaskGrantCategoryReference {
-  plugin_id?: string;
-  title: string;
-  description: string;
+export interface TaskGrantCategoryState extends TaskGrantCategory {
   status: "granted" | "needs_confirmation" | "unavailable";
 }
 
@@ -66,7 +69,10 @@ export interface TaskGrantSetRequest {
   expected_revision: string;
 }
 
-/** A plugin may leave out `plugin_install_id` (it is always its own); naming another installation is refused. */
+/**
+ * A plugin may leave out `plugin_install_id` (it is always its own); naming another installation is refused. The person's call must
+ * name it, since a key is only unique within one installation.
+ */
 export interface TaskGrantClearRequest {
   plugin_install_id?: string;
   key: string;
@@ -88,7 +94,8 @@ export interface TaskGrantListResult {
   subjects: TaskGrantSubject[];
 }
 
-const id = { type: "string", minLength: 1, maxLength: 256 } as const;
+/** The platform's limit on a provider id (`PROVIDER_ID_LIMIT`), used for every id here. */
+const id = { type: "string", minLength: 1, maxLength: 512 } as const;
 const words = { type: "string", maxLength: 2000 } as const;
 const key = { type: "string", pattern: TASK_GRANT_SUBJECT_KEY_PATTERN } as const;
 const categoryReference = { type: "object", required: ["provider_id"], additionalProperties: false, properties: { provider_id: id, group_id: id } } as const;
@@ -108,7 +115,7 @@ export const agentTaskGrantActions = {
   set: {
     capability_id: "agent.task_grants.set", version: 1, operation: "command",
     action: { title: "设置任务能读的数据", description: "把一个后台任务能读的类别换成这些：按此刻目录里每一类的只读动作记下授权；空列表就是全部撤回。只有本人能设。", kind: "operation", scope: "project", effect: "write",
-      audiences: ["user"], permissions: [], subject_kinds: [],
+      audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
       input_schema: { type: "object", required: ["plugin_install_id", "key", "categories", "expected_revision"], additionalProperties: false, properties: {
         plugin_install_id: id, key, categories: { type: "array", maxItems: 200, items: categoryReference }, expected_revision: { type: "string", maxLength: 256 } } },
       output_schema: subject },

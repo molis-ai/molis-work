@@ -185,6 +185,12 @@ export interface ConnectorCheckObservation {
         login: string;
         account_id?: string;
     };
+    retry_at?: string;
+    subject?: {
+        kind: "model-provider";
+        id: string;
+        revision: string;
+    };
 }
 
 export type ConnectorConnectionAuthMethod = "oauth" | "token" | "cli" | "mcp" | "none";
@@ -220,6 +226,7 @@ export interface ConnectorConnectionStatus {
         observed_at?: string;
         last_check?: ConnectorCheckObservation;
         current?: boolean;
+        retry_at?: string;
     };
     authorization: {
         service: {

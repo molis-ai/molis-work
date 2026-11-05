@@ -1,6 +1,6 @@
 # 助理三条路径定样
 
-状态：方案已定（2026-11-03，用户选路径 1 A 任务条里看准备、路径 2 A 规则页里试用与回看、路径 3 B 要求与成果对照），记入 [`specs/proactive-assistant/spec.md`](../../../specs/proactive-assistant/spec.md) §4.2、§6.1、§7.3.1 末尾的定样决定。产品没有实现；整页是按剧本演的模拟，不连 Home、不调模型，来源、判断、用量和证据全是写死的示例。
+状态：方案已定（2026-11-03，用户选路径 1 A 任务条里看准备、路径 2 A 规则页里试用与回看、路径 3 B 要求与成果对照），记入 [`specs/proactive-assistant/spec.md`](../../../specs/proactive-assistant/spec.md) §4.2、§6.1、§7.3.1 末尾的定样决定。11-04 按组件板实件重做，用户确认：版面与选定的方案不变，零件换成组件板的 `mw-*`（共用的 `docs/design/kit/`）。产品没有实现；整页是按剧本演的模拟，不连 Home、不调模型，来源、判断、用量和证据全是写死的示例。
 
 需求出处：[`specs/proactive-assistant/spec.md`](../../../specs/proactive-assistant/spec.md) §4.2（准备与通知分开判断，PWA-141）、§6.1（主动规则的观察试用，PWA-142～143）、§7.3.1（逐项证据与返工复核，PWA-144～147）。路线书第 03 批交付项 3 要求这三条路径各给两到三个方案，带正常和异常状态，标明模拟部分。
 
@@ -10,7 +10,7 @@
 python3 -m http.server 4410 --bind 127.0.0.1 --directory docs/design
 ```
 
-再打开 `http://localhost:4410/assistant-proactive-paths/`。顶部斜纹条是原型控制：路径（1／2／3）、方案、剧本（上一步／下一步）、情况、中英文、深浅、重置。每条路径记住自己选的方案。
+再打开 `http://localhost:4410/assistant-proactive-paths/`。顶部带斜纹边的一条是原型控制：路径（1／2／3）、方案、剧本（上一步／下一步）、情况、中英文、深浅、重置。每条路径记住自己选的方案。
 
 三条路径都沿用已定的样子：助理窗格顶上的任务条（[`assistant-background-tasks/`](../assistant-background-tasks/README.md) 方案 A）、表单与确认卡（[`intelligent-surfaces-forms/`](../intelligent-surfaces-forms/README.md)）。方案之间只差下面表里写的那一件事。
 
@@ -88,5 +88,5 @@ python3 -m http.server 4410 --bind 127.0.0.1 --directory docs/design
 - 所有来源、判断、用量和证据是写死的示例，只跟着剧本走。
 - 输入框不处理任何话；「下一步」代替你在对话里说的那句。
 - 「看准备记录」「看样本来源」「打开证据」只定位到页内，不打开真实对象。
-- 控件是原型自己的样式，不是 `mw-*` 组件；做产品前换成组件板里的控件再核对一遍。PWA-147 要求用真实材料再走一遍，这一页不能替代那条产品实操证据。
+- 按钮、标签、分段、状态记号、状态环和提示条用的是组件板实件（共用的 `docs/design/kit/`）；三条路径的版面还是原型的写法。PWA-147 要求用真实材料再走一遍，这一页不能替代那条产品实操证据。
 - 状态存在浏览器 localStorage（键 `molis-proto.assistant-proactive-paths.v1`），「重置」清掉。

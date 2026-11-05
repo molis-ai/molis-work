@@ -152,7 +152,7 @@
 | 签名与公证（BL-021；产品建议 A1） | 发布、系统能力 | [26](batches/26.md)、[56](batches/56.md) | 要决策：凭据接入（你办）；现有个人 Apple 账号已定 |
 | [升级持续可用 U0～U7](../../upgrade-continuity/spec.md)；BL-413、BL-487 随真实 Home 重建核回；原 BL-581／583 的旧目录维护已并入 BL-928；BL-157 已移出 Backlog | 底层与架构、升级 | [02](batches/02.md)、[05](batches/05.md)、[25](batches/25.md)、[26](batches/26.md)、[56](batches/56.md)、[72](batches/72.md)、[SRV-8](batches/srv-8.md) | 升级链起点已定；要决策：真实 Home 重建由你说「开始」，更新／回退界面定样；具体门禁改动按开发流程处理 |
 | 运行条件：常驻、休眠后补跑、错过的怎样显示（产品建议 A5；BL-030、BL-645、BL-352） | 发布、系统能力 | [25](batches/25.md) | 直接做 |
-| 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | 口径已定，按[用户决定 A4](decisions.md#policy-a4)落实，官网尚待更新 |
+| 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | [A4](decisions.md#policy-a4) 文案已合入官网 main。用户 11-04 决定，官网正式发布与线上验收留到产品完整开发后安排 |
 | 原生组件随包预置与首次自检（产品建议 H14） | 发布、系统能力 | [26](batches/26.md)、[53](batches/53.md)、[56](batches/56.md) | 直接做 |
 | 「需要你」的菜单栏角标与系统通知（产品建议 B3），连同 Attention 还没有的稍后提醒与定时唤醒（[attention-resumption](../../../docs/modules/attention-resumption.md)） | 发布、系统能力 | [55](batches/55.md) | 要决策：界面定样 |
 | [合同兼容起点](../../../docs/system/CONTRACT-CHANGES.md)：M1 外发时记录版本、日期与提交 | 发布、系统能力 | [26](batches/26.md)、[56](batches/56.md) | 要决策：M1 的范围（[决定 18](decisions.md#decision-18)） |
@@ -222,7 +222,7 @@
 | F 首次使用与发布 | BL-106、BL-107（引导里的项目简介与后台继续，随 onboarding-coverage）、BL-108（MCP 启动器找不到 Home 的服务）；BL-110（桌面里管理项目导航卡住）、BL-126（维护六收尾核对，随真实 Home 维护） | [04](batches/04.md)、[25](batches/25.md)、[26](batches/26.md)、[44](batches/44.md)、[56](batches/56.md) |
 | 服务端批（[服务端批](server-batch.md#server-batch)） | BL-070（Outbox，随同步合同） | [SRV-1](batches/srv-1.md) |
 | 工程流程（统筹） | BL-142、BL-143、BL-412（偶发失败的用例）、BL-565（共享核心 PR 的全量证据进 required CI）、BL-328（真实模型小评测的命令） | [02](batches/02.md) |
-| 11-03 补点名 | BL-880：07 随 Feed／工作台迁移，门禁决定只挡该片；BL-900：05 区分非持久编辑器字段与持久化结果合同后整理，原 R-B 不改决定保留；BL-925：仅第三个双实例插件出现时再评，见 [暂缓与条件项](deferred.md#section-8) | [05](batches/05.md)、[07](batches/07.md) |
+| 11-03 补点名 | BL-880：Feed 投影随 #1725 迁回插件，门禁改动用户 2026-11-04 确认接受，07-3 已完成；BL-900：05 区分非持久编辑器字段与持久化结果合同后整理，原 R-B 不改决定保留；BL-925：仅第三个双实例插件出现时再评，见 [暂缓与条件项](deferred.md#section-8) | [05](batches/05.md)、[07](batches/07.md) |
 | 11-03 补点名（连接器与门禁） | BL-914（安全不变量门禁核对「代码」列点名的文件存在、证据片段出现在点名的测试里，与 BL-569 同片）、BL-919（Feed 的测试夹具与 e2e 改按记录绑定驱动账号来源，只动测试）、BL-920（连接用途报告显示插件名、槽的用途说明和项目名）：27；BL-917（Feed 的目录连接器账号来源，如 Notion）：60，随服务矩阵先定哪些连接器能按来源拉取 | [27](batches/27.md)、[60](batches/60.md) |
 | 11-02 补点名 | PG-011、PG-017 的 BL-491、493、710～714、916 已在 01 [核回](batches/01.md#baseline-01)；BL-814 已在 02 [核回夜间耗时](batches/02.md#r72-timing)；另有未完成的BL-701、910、915、918（沙箱包的可选权限、终端、卸载、生图上限），BL-812（平台包吞掉的错误）、BL-901（插件包 `./contract` 的 API 快照）、BL-911（委托调用的受众）、BL-913（终端记录的坏值）；BL-692～694（外部集成，随服务接入收尾）；BL-912（Home 包在标签条上的图标）；BL-803、819、821（Goals 认本人、读坏时的报错） | [01](batches/01.md)、[27](batches/27.md)、[60](batches/60.md)、[61](batches/61.md) |
 

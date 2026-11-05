@@ -49,7 +49,9 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-composer__start { flex: 1; }
   .mw-composer__end { flex: none; }
   /* The menu hangs from the input box's top right, not from the ▾ button, so it can be as wide as the box and never leave it. */
-  .mw-composer .mw-compose__anchor { position: static; }
+  .mw-composer__end .mw-compose__anchor { position: static; }
+  /* While its menu is open the ▾ stays pressed, the same fill as the primary button's :active. */
+  .mw-composer .mw-btn--primary[aria-expanded="true"]:not(:disabled) { background: color-mix(in srgb, var(--action) 82%, var(--action-ink)); }
   .mw-composer .mw-compose__menu { top: auto; right: 0; bottom: calc(100% + 6px); left: auto; width: min(340px, 100%); }
   .mw-composer .mw-compose__menu .mw-menu { width: 100%; min-width: 0; animation-name: craft-rise-from-bar; }
   .mw-composer[data-state="failed"] .mw-composer__box { box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent), var(--lift-1); }
@@ -68,7 +70,7 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-menu__item--described > [data-slot="menu-item-label"] { display: contents; }
   .mw-menu__item--described > [data-slot="menu-item-label"] > span { grid-area: 1 / 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-menu__item--described .mw-menu__shortcut { grid-area: 1 / 3; }
-  .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; word-break: keep-all; }
+  .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; word-break: keep-all; overflow-wrap: anywhere; }
 
   .mw-catalog :is([data-primitive="composer"], [data-primitive="menu-desc"]) .mw-catalog__specimen { margin: 0; }
   .mw-catalog [data-primitive="composer"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
@@ -184,5 +186,6 @@ export function menuDescSection(say: Say): string {
     ${specimen(escapeHtml(say("带快捷键 · 送达方式")), renderMenu({ items: renderMenuGroup({ label: modes, items: deliveryItems(say) }) }))}
     ${specimen(escapeHtml(say("不可选并写原因")), renderMenu({ items: renderMenuGroup({ label: modes, items: deliveryItems(say, say("这个对象不支持打断：它一次只做完一整轮")) }) }))}
     ${specimen(escapeHtml(say("不带快捷键 · 添加")), add)}
+    ${specimen(escapeHtml(say("长说明没有标点 · 在框内折行")), renderMenu({ items: renderMenuGroup({ items: renderMenuItem({ label: say("合并到上一条"), iconName: "message", description: say("把这句话接在你上一条还没被读到的消息后面一起送给助理而不另起一条") }) }) }))}
   </div>`);
 }

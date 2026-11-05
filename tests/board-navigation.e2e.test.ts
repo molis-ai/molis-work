@@ -10,7 +10,7 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 // tablist/tab, menus menu/menuitem), in Chinese and English, and nothing runs past the window at 1440, 1024 or 390.
 // MOLIS_WORK_BOARD_SHOTS=1 also writes full-page shots (both themes) into the ignored review folder.
 
-const SPECIMENS = ["tiers", "unfocused", "all-tabs", "undo", "solo", "plus", "marks", "pane-switch", "grow", "badge", "layout", "titlebar", "bar"];
+const SPECIMENS = ["tiers", "unfocused", "all-tabs", "undo", "solo", "plus", "marks", "pane-switch", "grow", "badge", "sheets", "layout", "titlebar", "bar"];
 const WIDTHS = [1440, 1024, 390] as const;
 const CJK = /[㐀-鿿]/;
 const SPILL = `(() => { const W = document.documentElement.clientWidth;
@@ -50,33 +50,53 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
     else assert.ok(CJK.test(seen.words));
     assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), true, `${lang} ${width}px: the page does not scroll sideways`);
     for (const spill of await evaluate<string[]>(SPILL)) spills.push(`${lang} ${width}px ${spill}`);
-    // The pane switch shows on a phone only (and in its own narrow specimen).
+    // The pane switch shows on a phone only (and in its own narrow specimen), and there each half is a 44px target.
     assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-nav-titlebar=ok] .tab-pane-switch')).display !== 'none'"), width <= 760);
+    const switchHeights = await evaluate<number[]>(`[...document.querySelectorAll('${width <= 760 ? "[data-nav-titlebar=ok], " : ""}[data-nav-specimen=pane-switch]')].flatMap((at) => [...at.querySelectorAll('.tab-pane-switch > .mw-toggle')].map((t) => Math.round(t.getBoundingClientRect().height)))`);
+    assert.ok(switchHeights.length && switchHeights.every((h) => h >= 44), `${lang} ${width}px: the pane switch's halves are 44px targets (${switchHeights})`);
+    // A folded glyph tab is 32px wide on a desk and a 44 × 44 target on a phone.
+    assert.deepEqual(await evaluate("(() => { const box = document.querySelector('[data-nav-specimen=badge] .tab-item[data-glyph-only]').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()"), width <= 760 ? [44, 44] : [32, 26]);
+    // The shot is taken with the whole page in the viewport: captured beyond it, Chrome left out a masked strip (the overflow
+    // fade) that crossed the viewport's bottom edge, and the undo specimen came out with its tabs missing.
     if (shots) for (const theme of ["light", "dark"] as const) {
       await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
-      await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
       const height = await evaluate<number>("document.documentElement.scrollHeight");
-      const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 } }, sessionId);
+      await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width, height: await evaluate<number>("document.documentElement.scrollHeight"), scale: 1 } }, sessionId);
       await writeFile(join(shots, `navigation-${width}-${lang}-${theme}.png`), Buffer.from(shot.data, "base64"));
+      await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
     }
   }
   assert.deepEqual(spills, [], "a part runs past the window");
 
-  // A glyph-only tab widens after a short rest, and its name is then shown; the glyph row keeps its right edge.
+  // A glyph-only tab widens after a short rest, and its name is then shown; the glyph itself stays where it was.
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog/navigation?lang=zh` }, sessionId));
   await waitFor("!!document.querySelector('[data-nav-specimen=badge] [data-glyph-only]')", 15_000);
-  const grow = await evaluate<{ before: number; after: number; name: string; right: number; rightAfter: number }>(`(async () => {
+
+  // A removed plugin's group greys although its hue is written inline: its wash and its head's glyph take the faint grey.
+  const removed = await evaluate<{ wash: string; expectedWash: string; glyph: string; faint: string; reader: string }>(`(() => {
+    const group = document.querySelector('[data-nav-specimen=marks] [data-group-state=removed]'), probe = document.createElement('i');
+    probe.style.cssText = 'color: var(--faint); background: color-mix(in srgb, var(--faint) 14%, transparent)'; group.parentElement.append(probe);
+    const seen = { wash: getComputedStyle(group).backgroundColor, expectedWash: getComputedStyle(probe).backgroundColor, glyph: getComputedStyle(group.querySelector('[data-tab-kind=plugin] .tab-item-icon')).color,
+      faint: getComputedStyle(probe).color, reader: group.querySelector('[data-tab-kind=plugin] [role=tab]').getAttribute('aria-label') };
+    probe.remove(); return seen; })()`);
+  assert.equal(removed.wash, removed.expectedWash, "the removed group's wash is the grey, not its hue");
+  assert.equal(removed.glyph, removed.faint, "the removed group's head glyph is the grey");
+  assert.equal(removed.reader, "Feed · 已移除", "the head's name says the plugin was removed");
+
+  const grow = await evaluate<{ before: number; after: number; name: string; glyphMoved: number }>(`(async () => {
     const row = document.querySelector('[data-nav-specimen=badge] [data-nav-glyph-row]'), item = row.querySelectorAll('.tab-item')[2];
-    const before = item.getBoundingClientRect().width, right = row.getBoundingClientRect().right, glyph = item.querySelector('.tab-item-icon').getBoundingClientRect().right;
+    const before = item.getBoundingClientRect().width, glyph = item.querySelector('.tab-item-icon').getBoundingClientRect().left;
     item.querySelector('.tab-item-trigger').dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
     await new Promise((resolve) => setTimeout(resolve, 260));
-    return { before, after: item.getBoundingClientRect().width, name: getComputedStyle(item.querySelector('.tab-item-name')).display, right: Math.round(right), rightAfter: Math.round(row.getBoundingClientRect().right),
-      glyphMoved: Math.round(item.querySelector('.tab-item-icon').getBoundingClientRect().right - glyph) };
+    return { before, after: item.getBoundingClientRect().width, name: getComputedStyle(item.querySelector('.tab-item-name')).display,
+      glyphMoved: item.querySelector('.tab-item-icon').getBoundingClientRect().left - glyph };
   })()`);
   assert.ok(grow.after > grow.before + 20, `the tab widened (${grow.before} → ${grow.after})`);
   assert.equal(grow.name, "block");
-  assert.equal(grow.rightAfter, grow.right, "the row grows leftward from its right edge");
+  assert.ok(Math.abs(grow.glyphMoved) <= 0.5, `the tab grows leftward and its glyph does not move (moved ${grow.glyphMoved}px)`);
 
   // A menu button opens its menu; Esc closes it and gives the focus back to the button.
   const menu = await evaluate<{ opened: boolean; focusInside: boolean; closed: boolean; back: boolean }>(`(async () => {
@@ -87,9 +107,31 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
   })()`);
   assert.deepEqual(menu, { opened: true, focusInside: true, closed: true, back: true });
 
+  // The glyph row is drawn by the arrival page's sheet too, without the project page's tab rules, and looks the same.
+  const GLYPHS = `[...document.querySelectorAll('[data-nav-sheet-row] .tab-item')].map((tab) => {
+    const keys = ['width', 'height', 'paddingLeft', 'paddingRight', 'borderRadius', 'backgroundColor', 'color', 'boxShadow', 'fontSize', 'fontWeight'];
+    const pick = (el, names) => names.map((name) => name + ':' + getComputedStyle(el)[name]).join(';');
+    const badge = tab.querySelector('.tab-count-badge');
+    return [pick(tab, keys), pick(tab.querySelector('.tab-item-icon'), ['width', 'height', 'color']), pick(tab.querySelector('.tab-item-name'), ['display']), badge ? pick(badge, ['width', 'height', 'top', 'right', 'fontSize', 'backgroundColor']) : ''].join(' | ');
+  })`;
+  for (const theme of ["light", "dark"] as const) {
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
+    const drawn: string[][] = [];
+    for (const sheet of ["workbench", "arrival"]) {
+      await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog/navigation?lang=zh&sheet=${sheet}` }, sessionId));
+      await waitFor("document.readyState === 'complete' && !!document.querySelector('[data-nav-sheet-row] .tab-item')", 15_000);
+      assert.equal(await evaluate<string>("document.querySelector('link[rel=stylesheet]').getAttribute('href')"), `/assets/molis-work-${sheet}.css`);
+      drawn.push(await evaluate<string[]>(GLYPHS));
+    }
+    assert.equal(drawn[0]?.length, 5);
+    assert.deepEqual(drawn[1], drawn[0], `${theme}: the arrival sheet draws the glyph row as the project page's does`);
+  }
+  await command("Emulation.setEmulatedMedia", { features: [] }, sessionId);
+
   // The board itself lists the section and loads the frame in its own language.
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=en` }, sessionId));
   await waitFor("document.readyState === 'complete' && !!document.querySelector('#navigation [data-nav-frame]')", 15_000);
   assert.deepEqual(await evaluate("[document.querySelector('#navigation h2').textContent, new URL(document.querySelector('[data-nav-frame]').src).searchParams.get('lang'), !!document.querySelector('.mw-catalog__index a[href=\"#navigation\"]')]"),
     ["Workbench navigation", "en", true]);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('#navigation [data-nav-frame]')].map((frame) => new URL(frame.src).searchParams.get('sheet'))"), [null, "arrival"]);
 });

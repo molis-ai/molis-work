@@ -18,7 +18,7 @@ export function handleComponentBoardHttp(request: IncomingMessage, response: Ser
   const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(L, locale));
   const page = url.pathname === "/__ui/catalog" ? () => board(isWebLocale(lang) ? lang : currentLocale())
     : url.pathname === "/__ui/catalog/bar" ? renderMolisWorkBarSpecimen
-      : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(L, htmlLang()))
+      : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(L, htmlLang(), url.searchParams.get("sheet") === "arrival" ? "arrival" : "workbench"))
       : url.pathname === "/__ui/catalog/conditions" ? () => {
         const options = parseConditionFrame(url.searchParams);
         return runWithLocale(options.lang, () => renderMolisWorkConditionsSpecimen(options, { L, htmlLang, clientI18nScript }));

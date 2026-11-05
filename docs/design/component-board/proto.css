@@ -1,0 +1,25 @@
+/*
+ * docs/design 原型共用的外壳：原型控制条与页面底色。不是产品界面，也不是组件。
+ * 只用组件板的令牌（dist/board.css 里的 --page / --paper / --surface-soft / --rail / --line / --ink-* / --r-* / --lift-* / --dur-* / --ease-*），不写 hex，不另立令牌表。
+ * 控制条里的控件就是组件板的 mw-toggle-group、mw-select、mw-btn；斜纹只说明「这一条不是产品」。
+ */
+html, body { margin: 0; min-height: 100%; }
+body.proto-page { background: var(--page); color: var(--ink); }
+.proto-strip {
+  position: fixed; inset: 0 0 auto 0; z-index: 60; height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  overflow-x: auto; scrollbar-width: none;
+  background: repeating-linear-gradient(-45deg, var(--surface-soft) 0 8px, var(--rail) 8px 16px);
+  border-bottom: 1px dashed var(--line-strong);
+}
+.proto-strip::-webkit-scrollbar { display: none; }
+.proto-strip > b { font-size: 12px; white-space: nowrap; }
+.proto-strip label, .proto-strip .proto-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; flex: none; }
+.proto-strip .mw-select { width: auto; min-width: 0; }
+.proto-strip .mw-toggle-group, .proto-strip .mw-btn { flex: none; }
+/* 组件板的样式表让页面本身不滚（产品在各栏里滚）；原型照样在舞台里滚。 */
+.proto-stage { position: fixed; inset: 48px 0 0 0; overflow: auto; padding: 24px 16px 96px; }
+.proto-toasts { position: fixed; inset: auto 0 24px 0; display: flex; justify-content: center; pointer-events: none; z-index: 70; }
+.proto-toasts > * { pointer-events: auto; }
+/* 工作面：组件板「空间」标本里的那张纸（--paper、--r-sheet、--sheet-shadow），原型的内容放在上面。 */
+.proto-sheet { max-width: 920px; margin: 0 auto; padding: 4px 0 8px; background: var(--paper); border-radius: var(--r-sheet); box-shadow: var(--sheet-shadow); }
+@media (max-width: 640px) { .proto-stage { padding: 12px 8px 96px; } .proto-sheet { padding: 0; } }

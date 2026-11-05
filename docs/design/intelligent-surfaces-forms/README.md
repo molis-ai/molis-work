@@ -1,6 +1,6 @@
 # 智能呈现：四种基础形态定样
 
-状态：方案已定（2026-11-03，用户选 B：插件领头），记入 [`specs/intelligent-surfaces/spec.md`](../../../specs/intelligent-surfaces/spec.md) §15 决策记录。产品没有实现；页面里全是示例数据，不连 Home、不调模型。
+状态：方案已定（2026-11-03，用户选 B：插件领头），记入 [`specs/intelligent-surfaces/spec.md`](../../../specs/intelligent-surfaces/spec.md) §15 决策记录。11-04 按组件板实件重做，用户确认：版面与选定的方案不变，零件换成组件板的 `mw-*`（共用的 `docs/design/kit/`）。产品没有实现；页面里全是示例数据，不连 Home、不调模型。
 
 需求出处：[`specs/intelligent-surfaces/spec.md`](../../../specs/intelligent-surfaces/spec.md) 第一片（§13）：名字片、行、卡片、速览四种形态；Goals、Inbox、Coding 三个插件；落在插件内、对话、项目讨论、等你四处；只有确定组合。§13 写明这四种形态和 Work Brief、基础首页要用的公共呈现组件是同一套，所以这里定的也是那一套的样子。
 
@@ -10,7 +10,7 @@
 python3 -m http.server 4410 --bind 127.0.0.1 --directory docs/design
 ```
 
-再打开 `http://localhost:4410/intelligent-surfaces-forms/`。顶部斜纹条是原型控制：方案、位置、异常、中英文、深浅、重置。
+再打开 `http://localhost:4410/intelligent-surfaces-forms/`。顶部带斜纹边的一条是原型控制：方案、位置、异常、中英文、深浅、重置。
 
 ## 三个方案
 
@@ -52,5 +52,5 @@ python3 -m http.server 4410 --bind 127.0.0.1 --directory docs/design
 
 - 对象、状态、操作结果都是 `data.js` 里的示例；「执行」只等 0.65 秒再写回执，没有动作网关。
 - 进行中的卡片不会实时更新（活卡在第二片）。
-- 状态环是简化画法；控件是原型自己的样式，不是 `mw-*` 组件。做产品前换成组件板里的控件，并按 IUI-21 在组件板加「呈现形态」一节。
+- 按钮、标签、分段、状态记号、状态环、进度条和提示条用的是组件板实件（共用的 `docs/design/kit/`）；名字片、行、卡片、速览这四种形态本身还是原型的写法，做产品时按 IUI-21 在组件板加「呈现形态」一节。
 - 状态存在浏览器 localStorage（键 `molis-proto.intelligent-surfaces-forms.v1`），「重置」清掉。

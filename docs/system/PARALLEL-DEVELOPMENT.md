@@ -219,7 +219,7 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 
 ## 9. 共享 Agent 锁与真实 Home
 
-- 一个 Home 同一时刻只有一个进程能跑 Agent。创建 Agent 执行适配器时，会在 `<Home>/agent-runtime/.molis-runtime-owner.db` 上取独占事务，适配器关闭时才释放（`horizontal/agent-host/src/adapters/prologue-storage-owner.ts`、`prologue-node.ts` 的 `createPrologueNodeAdapter`；目录由 `apps/local-host/src/system-agent-service.ts` 的 `storageRoot` 给出）。别的进程拿不到，得到 `agent.storage_busy`，提示「Agent 执行服务正由另一个进程使用」。
+- 一个 Home 同一时刻只有一个执行进程。宿主在任何业务初始化之前就在 `<Home>/agent-runtime/.molis-runtime-owner.db` 上取独占事务（`apps/local-host/src/home-storage-lifetime.ts` 的 `ensureHomeStorageOwner`，底下是 `horizontal/agent-host/src/adapters/prologue-storage-owner.ts`），Agent 借用同一个 owner，关掉全部资源后才释放；空闲的宿主也一直占着。同一个 Home 再起一个宿主或离线操作会拿不到，得到 `storage.owner.busy`（Agent 侧是 `agent.storage_busy`，提示「Agent 执行服务正由另一个进程使用」）。
 - 所以两个服务不要同时指向真实 Home 跑 Agent：主检出的 4207、另一会话的服务（如 4208）、安装版的常驻服务（4173）轮流用。报 `agent.storage_busy` 时，用 `lsof -nP | grep molis-runtime-owner.db` 找持有者，和对方商量，不去停别人的服务。重启服务会释放锁，对方可能趁空档拿走。
 - 测试和预览用自己的 Home：`MOLIS_WORK_HOME=<目录>`。`scripts/run-tests.mjs` 就是这样给每次运行一个临时 Home 的。预览真实数据时用 Home 的拷贝，不直接指向 `~/.molis-work`。
 - 动真实 Home 的库（升级、清理、删数据）不属于普通开发，要用户当次说可以（spec §1 里 10-02 至 10-07 的各行）。

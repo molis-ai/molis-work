@@ -36,7 +36,7 @@ textarea.idea:focus,.say textarea:focus{outline:0;border-color:color-mix(in srgb
 .examples{display:flex;gap:6px;flex-wrap:wrap}
 .q{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:var(--r-card);background:var(--soft)}
 .q .qt{font-weight:600}.q .why{font-size:12px;color:var(--muted)}
-.opt{display:flex;gap:6px;flex-wrap:wrap}.opt .btn[aria-pressed=true]{background:var(--action);color:var(--action-ink);border-color:transparent}
+.opt{display:flex;gap:6px;flex-wrap:wrap}.opt .mw-btn[aria-pressed=true]{background:var(--action);color:var(--action-ink);box-shadow:var(--lift-1)}
 /* candidates */
 .cands{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .cand{border:1px solid var(--line-strong);border-radius:var(--r-card);overflow:hidden;display:flex;flex-direction:column;background:var(--paper)}
@@ -98,7 +98,7 @@ table.names{width:100%;border-collapse:collapse;font-size:12.5px}table.names th{
   .cols.a,.cols.c{grid-template-columns:1fr}.cols.a .col.side,.cols.c .col.side{display:none}.cols.show-side .col.side{display:flex}.cols.show-side .col.main{display:none}
   .col+.col{border-left:0}.surf{padding:14px}.cands{grid-template-columns:1fr}.diffbox{grid-template-columns:1fr}
   .drawer{top:auto;left:8px;right:8px;width:auto;height:60%}
-  .btn{min-height:36px}.navrow{padding:8px 12px}
+  .navrow{padding:8px 12px}
 }
 .lh{padding:4px 0 0;font-size:11px;font-weight:500;color:var(--muted)}
 .mini{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft)}
@@ -106,7 +106,6 @@ table.names{width:100%;border-collapse:collapse;font-size:12.5px}table.names th{
 .i.up{transform:rotate(180deg)}
 .stepper button:disabled{opacity:.55;cursor:default}
 @media (max-width:760px){.mswitch{display:inline-flex}.shead h1{font-size:14px}}
-.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .board .bitem{width:100%;min-width:0}.board .bitem .cap{flex:0 1 auto;min-width:0;max-width:58%;overflow:hidden;text-overflow:ellipsis}
 .col.side .scroll{overflow-x:hidden}
 .cap{overflow:hidden;text-overflow:ellipsis}

@@ -2,7 +2,7 @@ import { errorMessage } from "../dom.js";
 import { status } from "./request.js";
 import type { Page } from "./page.js";
 
-/** The project has one current directory: where new rounds run and what Files and Git show. Choosing it here sets it for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it. */
+/** The project has one current directory: where the page's new rounds run and what Files and Git show (rounds the Assistant starts use the project's preferred directory, batch 12 item 1). Choosing it here sets it for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it. */
 export async function useProjectWorkspace(page: Page, id: string) {
   const { L, host, lifetime, root } = page;
   try {

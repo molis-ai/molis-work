@@ -200,7 +200,7 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.ok(touch, "a phone's width or a coarse pointer makes the Dock, resident, discussion and directory buttons 44px");
   assert.match(touch, /\[data-assistant-send\] \{ width: 44px; height: 44px; min-height: 44px; \}/, "send is 44px on touch");
   assert.match(touch, /\.bar-composer \.bar-composer-attach \{[^}]*min-width: 44px; height: 44px;/, "attach is 44px on touch");
-  assert.match(touch, /\.bar-composer \.assistant-composer-input \{ height: 44px;/, "the input is 44px tall on touch");
+  assert.match(touch, /\.bar-composer \.assistant-composer-input \{ min-height: 44px;/, "the input is 44px tall on touch");
   assert.match(touch, /\.navigator-project-selector \{ grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; \}/, "the project mark is 44px on touch");
   assert.match(touch, /\.plugin-picker-trigger \{[^}]*min-width: 44px;/, "the plugin switcher is 44px wide on touch");
   // The 「材料」 chip left the line for the strip above it (context-program §21.2 point 1); the rest keep their sizes.

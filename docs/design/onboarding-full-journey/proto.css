@@ -1,0 +1,90 @@
+/* 04 · arranging the catalog's parts for this layout ([编排]); no new look of its own.
+   The product frame and controls come from ../_catalog/dist/arrival.css; approved parts the catalog lacks, and the
+   prototype strip, from ../_catalog/prototype.css. Tokens only. */
+/* [编排] the question: the assistant's mark beside the title (mw-avatar + mw-hint) */
+.q-head { display: flex; align-items: center; gap: 12px; }
+.q-head .mw-avatar { flex: none; width: 32px; height: 32px; background: var(--accent-soft); color: var(--accent-strong); }
+.q-head .mw-avatar svg { width: 16px; height: 16px; }
+.q-head h1 { margin: 0; }
+.q-help { max-width: 480px; }
+.q-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.q-col { display: grid; gap: 12px; max-width: 480px; }
+.welcome-q .mw-choice-group, .welcome-q .welcome-options { flex-wrap: wrap; }
+.q-goal { display: grid; gap: 12px; padding: 16px; border-radius: var(--r-card); background: var(--paper); box-shadow: var(--lift-1); max-width: 520px; }
+.q-goal .mw-input { height: 44px; font-size: 15px; }
+.q-count { display: flex; align-items: baseline; gap: 8px; }
+.q-count strong { font-size: 32px; font-weight: var(--weight-title); letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
+.q-count span { color: var(--muted); font-size: 13px; }
+.q-fieldset { display: grid; gap: 8px; border: 0; margin: 0; padding: 0; }
+.q-fieldset legend { padding: 0 0 8px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control); }
+.q-known { max-width: 520px; }
+.q-known .mw-dir-row__icon, .scene-list .mw-dir-row__icon { background: none; }
+.welcome-q .mw-alert, .welcome-q .mw-collapsible { max-width: 520px; }
+.mw-alert .q-row { margin-top: 4px; }
+.mw-alert > .mw-collapsible { margin-top: 4px; }
+
+/* [编排] the right-hand scene: product .ob-right card holding catalog rows */
+.ob-right .mw-file-group + .mw-file-group { margin-top: 12px; }
+.ob-right .mw-file-row__detail { padding: 8px 12px 8px 44px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.ob-right .mw-file-row__detail .q-row { margin-top: 6px; }
+.scene-list { display: grid; gap: 2px; }
+.scene-list .mw-dir-row { cursor: default; }
+.scene-sec + .scene-sec { margin-top: 20px; }
+.scene-sec h3 { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control); letter-spacing: .02em; }
+.summary-sec { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; }
+.summary-sec + .summary-sec { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.summary-sec h3 { margin: 0 0 4px; font-size: 13px; font-weight: var(--weight-title); }
+.summary-sec p, .summary-sec li { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.7; }
+.summary-sec ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.summary-sec li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.summary-skel { display: grid; gap: 16px; }
+.summary-skel .mw-skeleton { display: block; height: 10px; }
+.kept { display: grid; justify-items: center; gap: 12px; padding: 24px 0; text-align: center; }
+.kept strong { font-size: 15px; }
+.ob-preview .mw-brief { max-width: 720px; margin-inline: auto; }
+.land-scroll { height: 100%; overflow: auto; padding: 32px 24px 48px; }
+.land-scroll .mw-brief { max-width: 720px; margin-inline: auto; }
+.land-head { display: flex; align-items: center; gap: 16px; }
+.land-head .project-monogram { width: 48px; height: 48px; border-radius: 50%; font-size: 18px; }
+.land-head .mw-brief__title { margin: 0; }
+.land-head .q-row { color: var(--muted); font-size: 12px; }
+.land-head .q-row svg { width: 14px; height: 14px; }
+.land-head > :last-child { margin-left: auto; }
+.mw-brief__focus header .mw-btn { margin-left: auto; }
+.coding-origin { max-width: 520px; margin: 0 auto; display: grid; gap: 16px; padding-top: 48px; }
+
+/* [编排] Coding thumbnail (from Coding's gap) */
+.coding-mini .mw-dir-row { cursor: default; }
+.coding-mini .q-goal { margin-top: 16px; }
+
+@media (max-width: 759px) {
+  .q-goal, .q-col, .q-known { max-width: none; }
+  .land-scroll { padding: 20px 16px 40px; }
+  .land-head { flex-wrap: wrap; }
+  .land-head > :last-child { margin-left: 0; flex-basis: 100%; }
+}
+
+/* [编排] a file's name opens its detail: the catalog's link button, set where mw-file-row puts the name */
+.mw-file-row__name.mw-btn { justify-content: flex-start; height: auto; min-height: 0; padding: 0; color: var(--ink); font-weight: var(--weight-body); text-decoration: none; }
+.mw-file-row__name.mw-btn:hover { text-decoration: underline; }
+/* [编排] mw-dir-row with a leading mark inside the brief's lists, the same grid .ob-source gives it */
+.mw-brief__list .mw-dir-row--meta { grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.mw-brief__list .mw-dir-row__icon { display: grid; place-items: center; width: 32px; height: 32px; margin: 0; background: none; }
+
+
+/* [编排] the file list (user 2026-11-04, same as 33-2): single-line rows, and only the list scrolls inside its frame.
+   Wide, the frame is the product's .ob-right already. Stacked (≤980), the materials step keeps the question, count and
+   buttons still and gives the rest of the sheet to the list, instead of scrolling the sheet as one. */
+.mw-file-row__label > label.mw-file-row__label { flex: none; }
+.mw-file-row__name.mw-btn { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+@media (max-width: 980px) {
+  .welcome.onboard[data-ob-view="materials"] { display: flex; flex-direction: column; overflow: hidden; }
+  [data-ob-view="materials"] .ob-left { flex: none; padding-bottom: 16px; }
+  [data-ob-view="materials"] .welcome-scene { display: flex; align-items: stretch; flex: 1; min-height: 0; padding-bottom: 16px; }
+  [data-ob-view="materials"] .ob-right { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+}
+@media (max-width: 980px) and (max-height: 560px) {
+  /* too short to hold both: fall back to one scroll, the list keeps a usable height */
+  .welcome.onboard[data-ob-view="materials"] { display: block; overflow: auto; }
+  [data-ob-view="materials"] .ob-right { max-height: 320px; }
+}

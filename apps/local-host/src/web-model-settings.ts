@@ -3,8 +3,8 @@ import type { ModelApiFormat, ModelPromptCacheMode, ModelRecord, ModelThinkingMo
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
-import { commitModelProvider, modelSetupOffer, planConnectionCheck, verifyModelConnection, type ModelProviderSave } from "./model-provider-setup.js";
-import { modelCheckCode, rememberModelCheck, withModelChecks } from "./model-provider-checks.js";
+import { commitModelProvider, modelCheckProblem, modelSetupOffer, planConnectionCheck, verifyModelConnection, type ModelProviderSave } from "./model-provider-setup.js";
+import { modelCheckReason, rememberModelCheck, withModelChecks } from "./model-provider-checks.js";
 
 /** Global settings reuse the catalog's configuration and Host-owned secret store. */
 export async function handleModelSettingsHttp(
@@ -35,8 +35,10 @@ export async function handleModelSettingsHttp(
       let result: Awaited<ReturnType<typeof testConfiguredModel>>;
       try { result = await testConfiguredModel(selection); }
       catch (error) {
-        if (homeDirectory) rememberModelCheck(homeDirectory, selection.provider, "failed", modelCheckCode(error instanceof Error ? error.message : ""));
-        throw error;
+        const raw = error instanceof Error ? error.message : "";
+        if (homeDirectory) rememberModelCheck(homeDirectory, selection.provider, "failed", modelCheckReason(raw));
+        // The person reads the same reason a save would give, not the provider's raw error (PF-A04).
+        throw new Error(modelCheckProblem(raw));
       }
       if (homeDirectory) rememberModelCheck(homeDirectory, selection.provider, "connected");
       sendLocalWebJson(response, 200, result);

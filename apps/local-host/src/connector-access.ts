@@ -29,9 +29,18 @@ function cliConnectionFetch(home: string, id: string): typeof fetch {
 /** The service, not the connection, said no for now: a check that ends this way is remembered with when to look again. */
 export const connectorCheckErrors = defineErrorCodes("connector.check", { rate_limited: "rate_limited" });
 
-/** A failed identity or health read as the error a check remembers: a rate limit keeps the time the service gave. */
+/** The longest wait a service's `Retry-After` is taken at: a far-off time from outside would leave "check again" unusable for that long. */
+const LONGEST_RETRY_WAIT_MS = 60 * 60 * 1000;
+
+/** The time a service gave to come back, no later than an hour from now; none when it is unreadable or already past. */
+export function boundedRetryAt(value: string | undefined, now = Date.now()): string | undefined {
+  const at = value === undefined ? Number.NaN : Date.parse(value);
+  return Number.isFinite(at) && at > now ? new Date(Math.min(at, now + LONGEST_RETRY_WAIT_MS)).toISOString() : undefined;
+}
+
+/** A failed identity or health read as the error a check remembers: a rate limit keeps the time the service gave, bounded. */
 function readFailure(result: { message: string; failure?: string; retry_after_at?: string; retryAfterAt?: string }): Error {
-  const retry_at = result.retry_after_at ?? result.retryAfterAt;
+  const retry_at = boundedRetryAt(result.retry_after_at ?? result.retryAfterAt);
   return result.failure === "rate_limited" ? connectorCheckErrors.rate_limited(result.message, retry_at ? { retry_at } : undefined) : new Error(result.message);
 }
 

@@ -395,7 +395,7 @@ test("英文界面里，检查失败的原因也是英文", async () => {
   } finally { await standIn.close(); }
 });
 
-test("PF-A04 上次检查跟着供应商走：保存时的检查记下来，改名不算变，换了到达方式就不算当前；手动测试失败也记下原因，不带密钥", async () => {
+test("PF-A04 ASC-53 上次检查跟着供应商走：保存时的检查记下来，改名不算变，换了到达方式就不算当前；手动测试失败也记下原因，不带密钥", async () => {
   const standIn = await startModelStandIn(goodKey);
   try {
     await withHost(async ({ origin, save, providers }) => {
@@ -422,6 +422,10 @@ test("PF-A04 上次检查跟着供应商走：保存时的检查记下来，改�
         headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": controlToken },
         body: JSON.stringify({ model_id: "model-a" }) });
       assert.equal(tested.status, 400);
+      // The manual test says what a save would say, in words, not the provider's raw error.
+      const testedText = await tested.text();
+      assert.match(testedText, /服务拒绝了这个 API Key（401）/);
+      assert.doesNotMatch(testedText, /MODEL_HTTP_ERROR|provider rejected/);
       const listed = await providers();
       const failed = listed.health.find(entry => entry.provider_id === "q")?.last_check;
       assert.equal(failed?.outcome, "failed");

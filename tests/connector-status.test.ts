@@ -234,7 +234,8 @@ test("ASC-10 ASC-25: changing credentials during an account read rejects the old
 });
 
 test("ASC-53 PF-A04: a check the service rate limits is remembered with when to look again, not as a broken connection", async t => {
-  const home = await openTestHome(t), row = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-status-secret" }));
+  // A catalog service's identity read (Slack's auth.test) reports the rate limit; GitHub's and Gmail's health reads get it with the next contract slice.
+  const home = await openTestHome(t), row = withConnectorConnections(home.home, store => store.createToken({ serviceId: "slack", displayName: "Work", token: "fixture-status-secret" }));
   t.mock.method(globalThis, "fetch", async () => new Response("{}", { status: 429, headers: { "retry-after": "120", "content-type": "application/json" } }));
   const before = Date.now();
   await assert.rejects(home.host.homeActionClient().invoke(caller, connectorManagementActions.check, { connection_id: row.connection_id }));
@@ -248,4 +249,12 @@ test("ASC-53 PF-A04: a check the service rate limits is remembered with when to 
   // Once the time has passed it is an ordinary failed check that can be checked again.
   t.mock.method(Date, "now", () => retryAt + 1_000);
   assert.equal((await read(home.host, row.connection_id)).connectivity.retry_at, undefined);
+});
+
+test("ASC-53: a service asking to be left alone for a day is looked at again within the hour", async t => {
+  const home = await openTestHome(t), row = withConnectorConnections(home.home, store => store.createToken({ serviceId: "slack", displayName: "Work", token: "fixture-status-secret" }));
+  t.mock.method(globalThis, "fetch", async () => new Response("{}", { status: 429, headers: { "retry-after": "86400", "content-type": "application/json" } }));
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorManagementActions.check, { connection_id: row.connection_id }));
+  const retryAt = Date.parse((await read(home.host, row.connection_id)).connectivity.retry_at ?? "");
+  assert.ok(retryAt <= Date.now() + 60 * 60 * 1000 + 5_000, "an outside Retry-After is taken at no more than an hour");
 });

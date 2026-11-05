@@ -1,5 +1,14 @@
 import { actionReachesAudience, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ConnectorConnectionStatus, ConnectorObservations } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorCheckObservation, ConnectorConnectionStatus, ConnectorObservations } from "@molis-ai/molis-work-contracts/services/connector-host";
+
+/**
+ * What a check says about the connection itself. A model provider's check (`subject`) uses the connection's key with the provider's own
+ * address and model: it speaks for the key when it passed or the key was refused, but a wrong model name or an unreachable address is the
+ * provider's fault, so it leaves the connection as it was rather than showing every use of the same key as failed.
+ */
+function connectionCheck(check: ConnectorCheckObservation | undefined): ConnectorCheckObservation | undefined {
+  return !check?.subject || check.outcome === "connected" || check.authorization === "required" ? check : undefined;
+}
 
 /** Only owner facts and the actual caller's directory determine this view. */
 export function projectConnectorStatus(input: {
@@ -8,7 +17,8 @@ export function projectConnectorStatus(input: {
   noAuthentication: boolean; live?: boolean; now?: number;
 }): ConnectorConnectionStatus {
   const { observations, revision, actions, caller, active } = input;
-  const check = observations.check?.revision === revision ? observations.check : undefined;
+  const last = connectionCheck(observations.check);
+  const check = last?.revision === revision ? last : undefined;
   const recentCall = observations.call?.revision === revision && (!check || observations.call.at > check.at) ? observations.call : undefined;
   const connectivity = !active ? "disconnected" : input.live === false ? check?.outcome === "failed" ? "failed" : "disconnected"
     : recentCall ? recentCall.outcome === "unknown" ? "unknown" : "connected" : check?.outcome ?? (input.live ? "connected" : "unchecked");
@@ -25,8 +35,8 @@ export function projectConnectorStatus(input: {
     configuration: { state: input.configured ? "complete" : "incomplete", enabled: input.enabled, revision, source: input.source },
     connectivity: { state: connectivity, source: input.live !== undefined ? "connection-owner-live" : recentCall ? "business-call" : "connection-check",
       ...(recentCall || check ? { observed_at: recentCall?.at ?? check!.at } : {}),
-      ...(observations.check ? { last_check: observations.check, current: observations.check.revision === revision && active } : {}),
-      // The service is rate limiting: the check failed for its reason, and it is looked at again after this time.
+      ...(last ? { last_check: last, current: last.revision === revision && active } : {}),
+      // Projected from the check, not kept apart: the service is rate limiting, and the time it gave has not passed yet.
       ...(check?.outcome === "failed" && check.retry_at && connectivity === "failed" && Date.parse(check.retry_at) > (input.now ?? Date.now()) ? { retry_at: check.retry_at } : {}) },
     authorization: {
       service: { state: input.noAuthentication ? "not-required" : check?.authorization ?? (input.live ? "verified" : "unknown"),

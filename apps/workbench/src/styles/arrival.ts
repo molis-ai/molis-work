@@ -63,7 +63,6 @@ export const ARRIVAL_STYLES = String.raw`
   @media (min-width: 601px) {
     html body.immersive-workbench.arrival-page .arrival-bar:not([data-bar="chooser"]) { grid-template-columns: auto minmax(0, 1fr) auto; }
   }
-  @media (max-width: 900px) { .arrival-bar .mw-steps { display: none; } }
   .arrival-bar .mw-btn--lg { min-height: 38px; padding-inline: 16px; border-radius: var(--r-control, 8px); }
   .arrival-bar .mw-btn--ghost.arrival-back { padding-inline: 12px 14px; color: var(--ink-soft); }
   .arrival-bar .mw-btn--ghost.arrival-back:hover:not(:disabled) { color: var(--ink); }
@@ -297,11 +296,10 @@ export const ARRIVAL_STYLES = String.raw`
     .chooser-dir { min-height: 104px; }
     .chooser-foot { display: none; }
   }
-  @media (max-width: 600px) {
-    /* A phone's bar is two rows (the assistant on one, the rest on the other), the workbench's own geometry. */
+  @media (max-width: 900px) {
+    /* Narrow windows, including landscape phones: keep the assistant above the actions instead of squeezing three columns. */
     html body.immersive-workbench.arrival-page .arrival { grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) auto; }
     html body.immersive-workbench.arrival-page .arrival > .arrival-bar { grid-row: 3; }
-    .arrival-titlebar { padding-left: 14px; }
     .mw-bar-context__text, .mw-btn__key { display: none; }
     /* The three blocks never share a cell: the status on its own row, the way back and the actions below it (the actions wrap rather than run under it). */
     html body.immersive-workbench.arrival-page .arrival-bar { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; gap: 4px 8px; padding-block: 8px max(8px, env(safe-area-inset-bottom)); }
@@ -314,6 +312,9 @@ export const ARRIVAL_STYLES = String.raw`
     .arrival-bar .arrival-back [data-slot="button-label"] { display: none; }
     .arrival-bar .arrival-back:not(:has(svg)) [data-slot="button-label"] { display: inline; }
     .mw-bar-status__text small { display: none; }
+  }
+  @media (max-width: 600px) {
+    .arrival-titlebar { padding-left: 14px; }
     .welcome-q, .onboard .welcome-scene { padding-inline: 28px; }
     .ob-model { grid-template-columns: 16px minmax(0, 1fr); } .ob-model > .mw-btn { grid-column: 2; justify-self: start; }
     .welcome-q h1 { font-size: 24px; }

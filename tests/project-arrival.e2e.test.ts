@@ -284,6 +284,7 @@ test("a brief that cannot be read says so where it would be, the project still o
   assert.equal(await evaluate("location.pathname"), `/projects/${projectId}/`);
 });
 
+// K05-01: the personal-space primary action remains on screen in longer translations.
 test("in English the chooser lays out cleanly too: longer words, the same room", { timeout: 300_000 }, async t => {
   const chooser = await openChooser(t);
   if (!chooser) return;
@@ -429,6 +430,7 @@ const SCREENS: Array<{ name: string; width: number; height?: number }> = [
   { name: "900", width: 900, height: 700 }, { name: "768", width: 768, height: 800 }, { name: "600", width: 600, height: 800 }, { name: "390 phone", width: 390, height: 844 }, { name: "375 phone", width: 375, height: 667 }, { name: "320 phone", width: 320, height: 568 }, { name: "phone, sideways", width: 667, height: 375 },
 ];
 
+// K05-02: landscape phones keep every chooser action visible and reachable.
 test("every state of the chooser lays out cleanly at every width, in light and dark: nothing overlaps, is cut off, or out of reach", { timeout: 600_000 }, async t => {
   const chooser = await openChooser(t);
   if (!chooser) return;

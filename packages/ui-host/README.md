@@ -97,3 +97,5 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
 `scope.watchRevision(read, refresh)` 复用可见轮询，每两秒核对不透明 revision；首次进入、变更和断线恢复后重新读取事实。refresh 返回 false 表示当前忙，下一轮保留变更继续尝试；隐藏和卸载释放请求与定时器。真实消费者是 Files/Git。revision 由插件服务端的 `services.ui.invalidate()` 推动（PG-061）。
+
+受保护的同源读取可在 `UiRequestInit` 显式设置 `control: true`；请求助手只使用页面拥有的控制 Token，仍移除调用方提供的同名头，且不为 GET 领取一次性写键。普通 GET 默认不附加控制 Token。对应拒绝测试为 `tests/ui-request-client.test.ts` 的 WUA-10 用例。

@@ -1,3 +1,4 @@
+import { ACCOUNT_EN } from "./account-en.js";
 import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../judgment-rules/en.js";
 import { GAP_EN } from "./gap-en.js";
@@ -18,6 +19,7 @@ import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  ...ACCOUNT_EN,
   "角色资料": "Role material",
   "角色资料与方法": "Role materials and methods",
   "新增正文": "Body added",

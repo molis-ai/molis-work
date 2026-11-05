@@ -90,6 +90,7 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     const headers: Record<string, string> = {};
     for (const [name, value] of Object.entries(init.headers ?? {})) if (!controlHeaders.includes(name.toLowerCase())) headers[name] = value;
     if (!read) Object.assign(headers, writeHeaders(init.key));
+    else if (init.control) headers["x-molis-work-control-token"] = ports.token();
     const options: UiFetchInit = { method, headers, cache: "no-store" };
     if (init.signal) options.signal = init.signal;
     if (init.keepalive) options.keepalive = true;

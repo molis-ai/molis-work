@@ -252,9 +252,15 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const summon=(id,toggle)=>offered(id)&&(open&&current()===id&&toggle?setOpen(false):setOpen(true,{tab:id,focus:'content'}),save(),1);
   document.addEventListener('click',event=>{const button=event.target.closest?.('[data-side-plugin-open]');if(button)summon('plugin:'+button.dataset.sidePluginOpen,1);});
   const keyed=keys=>{const tab=[...strip.querySelectorAll('[data-side-keys]')].find(button=>button.dataset.sideKeys===keys);return tab&&summon(tab.dataset.sideTab,panel.contains(document.activeElement));};
+  // ⌘\ / Ctrl+\ by the character typed (on a German or JIS layout that key types something else), heard last: a key an editor
+  // took (Pages clears formatting with it) is the editor's, and a terminal keeps Ctrl+\ for itself.
+  addEventListener('keydown',e=>{
+    if(e.repeat||e.isComposing||e.defaultPrevented||e.key!=='\\'||!(MAC?e.metaKey:e.ctrlKey)||e.shiftKey||e.altKey)return;
+    if(e.target?.closest?.('[data-tui-pane],.xterm'))return;
+    e.preventDefault();toggle();
+  });
   addEventListener('keydown',e=>{
     if(e.repeat||e.isComposing)return;
-    if(e.code==='Backslash'&&(MAC?e.metaKey:e.ctrlKey)&&!e.shiftKey&&!e.altKey){e.preventDefault();toggle();return;}
     if(!remember&&e.key?.toLowerCase()==='t'&&e.shiftKey&&!e.altKey&&(e.metaKey||e.ctrlKey)&&undo){e.preventDefault();reopen(undo.record);return;}
     if(keyed((e.metaKey||e.ctrlKey?'Mod+':'')+(e.shiftKey?'Shift+':'')+(e.altKey?'Alt+':'')+String(e.code).replace(/^Key/,'')))e.preventDefault();
   },true);

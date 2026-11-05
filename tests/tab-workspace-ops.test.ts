@@ -258,7 +258,7 @@ test("W1-18-TAB-FORMAT-01: current grouped items and nested panes remain valid a
   ops.openItem(state, "pages", "DOC", "Document");
   ops.splitPane(state, state.focusedPaneId, "bottom", "copy");
   const restored = JSON.parse(JSON.stringify(state));
-  assert.equal(isCurrentTabWorkspace(restored, { home: true, goals: true, pages: true }), true);
+  assert.equal(isCurrentTabWorkspace(restored), true);
   ops.ensureHome(restored);
   assert.equal(restored.panes.length, 3);
   assert.equal(restored.panes[0].groups[0].collapsed, true);
@@ -350,11 +350,24 @@ test("W1-18-TAB-FORMAT-01: unsupported saved shapes are rejected instead of beco
     state => { state.panes[0].tabs[0].preview = true; },
     state => { state.panes[0].collapsed = { goals: true }; },
     state => { state.panes[0].tabs[0] = { id: "saved", plugin: "task", kind: "item", goalId: "CORE", title: "Core" }; },
-    state => { state.panes[0].tabs[0] = { id: "saved", plugin: "task", kind: "item", itemId: "CORE", title: "Core" }; },
+    state => { state.panes[0].tabs[0] = { id: "saved", plugin: "", kind: "item", itemId: "CORE", title: "Core" }; },
   ]) {
     const state = ops.create(); alter(state);
-    assert.equal(isCurrentTabWorkspace(state, { home: true, goals: true }), false);
+    assert.equal(isCurrentTabWorkspace(state), false);
   }
+});
+
+// 口径 4 (07-S1 review B1): a plugin id is a value in a tab, not the layout's shape. A layout naming a plugin this build and
+// Home no longer know (one uninstalled from Home) is read as it is; the page draws that plugin's tabs removed.
+test("PFG-22 a saved layout naming a plugin nobody knows any more is still current, tabs, split and side as they were", () => {
+  const state = ops.create();
+  ops.openItem(state, "gone-plugin", "entry-1", "Entry");
+  ops.openBeside(state, "goals", "CORE", "Core");
+  state.panes[0].viewPlugin = "gone-plugin";
+  state.side.tabs.push({ id: "side-gone", kind: "side", plugin: "gone-plugin", itemId: "plugin:gone-plugin/side", title: "Gone" });
+  const saved = JSON.parse(JSON.stringify(state));
+  assert.equal(isCurrentTabWorkspace(saved), true);
+  assert.deepEqual(saved, JSON.parse(JSON.stringify(state)), "nothing in it is changed by reading it");
 });
 
 test("fresh project-root navigation lands leftover plugin views on home", () => {

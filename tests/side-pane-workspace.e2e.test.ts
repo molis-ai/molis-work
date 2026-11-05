@@ -37,6 +37,25 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   const edge = await evaluate<number>(`innerWidth - [...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).at(-1).getBoundingClientRect().right`);
   assert.ok(edge >= 0 && edge < 24, `the strip ends at the right of the title bar (${edge}px left)`);
 
+  // A context tab (Pages' comments) leaves and comes back with its plugin, as the page the server renders after a picker
+  // change says: the whole glyph tab goes and comes, never an empty item or a bare trigger.
+  const context = await evaluate<string | null>(`document.querySelector('${strip} [data-side-context-owner]')?.dataset.sideTab ?? null`);
+  assert.ok(context, "the project has a context tab on the right");
+  const membership = (drop: boolean) => evaluate(`(async () => { window.__sideErrors ??= []; if (!window.__sideWatch) { window.__sideWatch = true; addEventListener('error', event => window.__sideErrors.push(String(event.message))); }
+    const next = new DOMParser().parseFromString(await molisWorkRequest(location.pathname, { as: 'text', headers: { accept: 'text/html' } }), 'text/html');
+    if (${drop}) next.querySelector('[data-side-tabs] [data-side-tab=${JSON.stringify(context)}]').closest('.tab-item').remove();
+    document.dispatchEvent(new CustomEvent('molis-work:plugins-changed', { detail: { came: [], gone: [], next, failed: false } })); })()`);
+  const items = `[...document.querySelector('${strip}').children].map(node => node.matches('.tab-item') && node.querySelectorAll(':scope > [role=tab]').length === 1 ? node.querySelector('[role=tab]').dataset.sideTab : 'stray ' + node.outerHTML.slice(0, 80))`;
+  const placed = await evaluate<string[]>(items);
+  await membership(true);
+  await waitFor(`!document.querySelector('${strip} [data-side-tab=${JSON.stringify(context)}]')`);
+  assert.ok(!(await evaluate<string[]>(items)).some(item => item.startsWith("stray")), JSON.stringify(await evaluate(items)));
+  await membership(false);
+  await waitFor(`document.querySelector('${strip} [data-side-tab=${JSON.stringify(context)}]')`);
+  const back = await evaluate<string[]>(items);
+  assert.deepEqual(back, placed, "back in its place, a whole glyph tab");
+  assert.deepEqual(await evaluate("window.__sideErrors"), []);
+
   // Resting on a glyph writes its name before it; the glyph does not move.
   const glyph = `document.querySelector('${strip} [data-side-tab="browser"] svg').getBoundingClientRect().right`;
   const before = await evaluate<number>(glyph);

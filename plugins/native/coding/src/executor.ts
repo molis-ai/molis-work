@@ -33,9 +33,11 @@ interface SessionRead {
 const known = (mode: string) => {
   if (!CODING_EXECUTOR_MODES.some(entry => entry.id === mode)) throw executorErrors.executor_mode_unknown(`Coding 没有「${mode}」这种方式`);
 };
-/** The directory new rounds run in, picked as the page's directory read picks it: the project's browsing workspace, else its preferred one. */
-const currentWorkspace = async (api: PluginActionClient) =>
-  await unlessMissing(api.invoke(projectSettingsCapabilities.browsingWorkspace, []), null) ?? await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null);
+/**
+ * The directory a round the Assistant starts runs in: the project's preferred one. Not the folder Files and Git browse — looking around
+ * there must not move where work runs (batch 12 item 1, BL-023).
+ */
+const currentWorkspace = async (api: PluginActionClient) => await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null);
 /** The session's next-round settings as Coding keeps them, or null when none were chosen. */
 const kept = (a: CodingActivation, sessionId: string): Settings | null => {
   const saved = a.context.services?.storage?.get(`configuration:${sessionId}`);
@@ -46,7 +48,7 @@ async function settings(call: CodingActionCall, own: Settings | null, mode?: str
   if (own) return mode === undefined ? own : { ...own, intent: mode };
   const model = call.execution.models.list()[0], workspace = await currentWorkspace(call.api);
   if (!model) throw executorErrors.executor_unprepared("Coding 还没有可用的模型，先在模型设置里添加");
-  if (!workspace) throw executorErrors.executor_unprepared("Coding 需要先为这个项目选择工作目录：在项目设置里选择，或打开 Coding 选择");
+  if (!workspace) throw executorErrors.executor_unprepared("Coding 需要先为这个项目关联工作目录：在项目设置里关联");
   return { intent: mode ?? DEFAULT_MODE, provider_id: model.provider_id, model_id: model.model_id, workspace_id: workspace.workspace_id };
 }
 /** Saved to the session itself, so the page starts its next round the same way. */

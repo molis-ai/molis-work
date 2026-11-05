@@ -1,0 +1,92 @@
+/* 35-2 additions on top of 12's layout layer and ../coding-frame/coding-proto.css. Tokens only; every part marked "board addition" in app.js. */
+
+/* Slash menu: the board's mw-menu, wider, with the command in mono on the left */
+.mw-menu.cmdmenu{width:min(440px,calc(100vw - 32px));max-height:min(460px,70vh);overflow:auto}
+.mw-menu .slash{flex:none;min-width:88px;font:500 12px/1 var(--font-mono,ui-monospace,monospace);color:var(--ink-soft)}
+.mw-menu__item small{display:block;margin-top:2px;font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mw-menu .foot{padding:8px 12px;font-size:12px;line-height:1.5;color:var(--muted)}
+.palette-search{padding:8px 8px 4px}
+.palette-search .mw-input{width:100%}
+
+/* A command in the composer, its argument the rest of the line */
+.cmdchip{display:flex;align-items:center;gap:8px;margin:10px 12px 0;padding:2px 2px 2px 10px;width:max-content;max-width:calc(100% - 24px);border-radius:8px;background:var(--accent-soft,color-mix(in srgb,var(--accent) 10%,var(--paper)));animation:craft-rise var(--dur-move) var(--ease-quint) both}
+.cmdchip__name{display:inline-flex;align-items:center;gap:6px;font:500 12px/1 var(--font-mono,ui-monospace,monospace);color:var(--accent-strong,var(--accent))}
+.cmdchip__src{font-size:11px;color:var(--muted)}
+.tech.expanded{padding:8px 4px 0}
+.cmdrow{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:0 4px 8px}
+.cmdpick{display:inline-flex;align-items:center;gap:4px;border:0;cursor:pointer;font:500 12px/1 var(--font-mono,ui-monospace,monospace);transition:background var(--dur-hover) var(--ease-quint)}
+.cmdpick:hover{background:var(--nav-hover)}
+.cmdpick.is-more{font-family:var(--font)}
+.cmdpick .mw-kbd{margin-left:2px}
+
+/* Images: one drawn stand-in (three bars) for a screenshot; the real product shows the stored copy */
+.thumb{position:relative;display:inline-grid;align-content:start;gap:4px;flex:none;padding:7px;border-radius:8px;overflow:hidden;cursor:zoom-in;background:hsl(var(--h) 40% 92%);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 8%,transparent);transition:transform var(--dur-hover) var(--ease-quint),box-shadow var(--dur-hover) var(--ease-quint)}
+.thumb:hover{transform:translateY(-1px);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 12%,transparent),var(--shadow-soft)}
+.thumb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.thumb i{display:block;height:4px;border-radius:2px;background:hsl(var(--h) 30% 70%)}
+.thumb i:nth-child(1){width:70%;height:6px;background:hsl(var(--h) 35% 45%)}
+.thumb i:nth-child(2){width:45%}
+.thumb i:nth-child(3){width:28%;height:8px;margin-top:2px;border-radius:3px;background:hsl(var(--h) 55% 50%)}
+.thumb.is-big{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--amber) 60%,transparent)}
+:root[data-theme="dark"] .thumb{background:hsl(var(--h) 18% 22%)}
+:root[data-theme="dark"] .thumb i{background:hsl(var(--h) 14% 42%)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .thumb{background:hsl(var(--h) 18% 22%)}:root:not([data-theme="light"]) .thumb i{background:hsl(var(--h) 14% 42%)}}
+.you__imgs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.imgtray{display:flex;gap:8px;padding:10px 12px 0;overflow-x:auto;scrollbar-width:thin}
+.imgtray__item{display:flex;align-items:center;gap:8px;flex:none;max-width:240px;padding:4px 2px 4px 4px;border-radius:10px;background:var(--surface-soft);animation:craft-rise var(--dur-move) var(--ease-quint) both}
+.imgtray__meta{display:grid;gap:2px;min-width:0;font-size:12px}
+.imgtray__meta b{font-weight:500;color:var(--ink-soft)}
+.imgtray__meta small{font-size:11px;color:var(--faint);white-space:nowrap}
+.imgchips{display:flex;flex-wrap:wrap;gap:6px;padding:0 4px 8px}
+.imgchip{display:flex;align-items:center;gap:8px;max-width:260px;height:36px;padding:0 2px 0 4px;border-radius:8px;background:var(--paper);box-shadow:0 0 0 1px var(--line);font-size:12px;color:var(--ink-soft)}
+.imgchip .thumb{padding:4px;gap:2px}
+.imgchip small{color:var(--faint);white-space:nowrap}
+.box.is-drop{transition:box-shadow var(--dur-move) var(--ease-quint)}
+.pending{display:grid;gap:10px;padding:8px 16px 16px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft)}
+.pending__head{display:flex;align-items:center;gap:8px;min-height:36px;font-size:12px;font-weight:500;color:var(--muted)}
+.pending__imgs{display:flex;flex-wrap:wrap;gap:12px}
+.pending figure{display:grid;gap:6px;margin:0;max-width:180px}
+.pending figcaption{font-size:12px;color:var(--muted)}
+.pending .acts{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Code-understanding chip in the composer footer (tools B) */
+.langchip{display:inline-flex;align-items:center;gap:6px;border:0;cursor:pointer;font:500 12px/1 var(--font);font-variant-numeric:tabular-nums;transition:background var(--dur-hover) var(--ease-quint)}
+.langchip:hover{background:var(--nav-hover)}
+.langchip.is-warn{background:color-mix(in srgb,var(--amber) 14%,var(--paper));color:var(--amber)}
+.mw-menu.wide .list{margin:4px 0}
+.mw-menu.wide .list .row{padding-left:12px}
+
+/* Review card: the board's diff view with the after-write checks */
+.rv{min-width:0;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft);overflow:hidden}
+.rv[data-craft-new]{box-shadow:0 0 0 1px color-mix(in srgb,var(--green) 40%,transparent),var(--shadow-soft)}
+.rv__head{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 10px 0 16px;min-width:0}
+.rv__head b{font-weight:500;font-size:13px;min-width:0}
+.rv__head .grow{flex:1}
+.rv__checks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:8px 16px;box-shadow:inset 0 1px 0 var(--line);background:var(--surface-soft)}
+.rv__checks.is-quiet{background:transparent}
+.rv__checks .fact{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.rv__checks small{font-size:11px;color:var(--faint);white-space:nowrap}
+.rv__errs{padding:0 16px 8px;background:var(--surface-soft)}
+.rv .chk.is-err{color:var(--red)}
+.rv .chk.is-err .grow{color:var(--ink-soft)}
+.rv .chk .mono{font:500 12px var(--font-mono,ui-monospace,monospace);color:var(--red)}
+.rv .mw-diff{min-width:0;border-radius:0;box-shadow:inset 0 1px 0 var(--line)}
+.rv .mw-diff .mw-diff-rows{border:0;border-radius:0}
+.rv__checks small,.rv .chk small{overflow:hidden;text-overflow:ellipsis}
+.rv .chk .grow{min-width:0}
+.rv__section{padding:8px 16px;box-shadow:inset 0 1px 0 var(--line)}
+.rv__section h3{margin:4px 0;font-size:12px;font-weight:500;color:var(--muted)}
+.rv__foot{padding:10px 16px;box-shadow:inset 0 1px 0 var(--line);font-size:12px;color:var(--muted)}
+/* checks B: the failing lines marked in place */
+.rv .mw-diff-rows li.has-err{box-shadow:inset 3px 0 0 var(--red)}
+.rv .mw-diff-rows li.errnote{display:flex;align-items:center;gap:6px;min-height:28px;padding:2px 16px 2px 72px;background:color-mix(in srgb,var(--red) 6%,var(--paper));font-size:12px;color:var(--ink-soft)}
+.rv .mw-diff-rows li.errnote .ic{color:var(--red)}
+.rv .mw-diff-rows li.errnote .mono{font:500 12px var(--font-mono,ui-monospace,monospace);color:var(--red)}
+
+@media (max-width:760px){
+  .langchip .long{display:none}
+  .rv__checks small{display:none}
+  .rv .chk small{display:none}
+  .rv__head{flex-wrap:wrap;padding:8px 10px 8px 12px}
+  .imgtray__item{max-width:200px}
+}

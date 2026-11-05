@@ -1,0 +1,91 @@
+/* 03 · 按需帮助定样 — layout only. Frame from ../workbench-shared-paths/styles.css; tokens, mw-* controls, popover
+   lift, alert, empty, field and toast from ../kit/kit.css. No colour, shadow, duration or curve is defined here. */
+
+/* Schedule page */
+.sch{display:flex;flex-direction:column;min-height:0;flex:1}
+.sch .phead .own{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:color-mix(in srgb,var(--hue-orange) 14%,transparent);color:var(--hue-orange);flex:none}
+.sch .crumb{display:flex;align-items:center;gap:6px;padding:0 16px 8px;font-size:12px;color:var(--muted)}
+.sch .crumb .link{font-weight:500}
+.sch .body{flex:1;min-height:0;overflow:auto;padding:4px 16px 28px}
+.sch .inner{max-width:640px;display:flex;flex-direction:column;gap:16px}
+.help-btn{white-space:nowrap}
+.help-btn[aria-expanded=true]{background:var(--nav-active)}
+
+/* Form */
+.sch form{display:flex;flex-direction:column;gap:14px}
+.lab{display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:500;font-size:13px}
+.lab .link{font-size:12px}
+.lab .link[aria-expanded=true]{text-decoration:underline;text-underline-offset:3px}
+.sch .mw-input,.sch .mw-textarea,.sch .mw-select{width:100%}
+.sch .mw-textarea{min-height:76px;resize:vertical}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+
+/* The facts that stay visible while help is closed (VUX-56) */
+.facts{border-radius:var(--r-card);background:var(--surface-soft);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.facts h3{margin:0 0 6px;font-size:12px;font-weight:500;color:var(--muted)}
+.fact-row{display:flex;align-items:center;gap:10px;min-height:32px}
+.fact-row .ico{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none;background:var(--paper);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--line)}
+.fact-row .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fact-row .tx small{color:var(--muted);font-size:12px;margin-left:6px}
+.fact-row.warn .ico{background:var(--amber-soft);color:var(--amber);box-shadow:none}
+.fact-row.out .ico{background:color-mix(in srgb,var(--hue-pink) 14%,var(--paper));color:var(--hue-pink);box-shadow:none}
+.fact-row.ok .ico{background:color-mix(in srgb,var(--hue-green) 14%,var(--paper));color:var(--hue-green);box-shadow:none}
+.fact-row .mw-btn{flex:none}
+.acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.acts .why{font-size:12px;color:var(--muted)}
+
+/* Help content, shared by all three schemes */
+.hc{display:flex;flex-direction:column;gap:14px;font-size:13px;line-height:1.65}
+.hc h4{margin:0 0 4px;font-size:13px;font-weight:600}
+.hc p{margin:0;color:var(--ink-soft);max-width:60ch}
+.hc ul{margin:0;padding-left:18px;color:var(--ink-soft);display:flex;flex-direction:column;gap:2px}
+.hc section{scroll-margin-top:12px;border-radius:var(--r-control);transition:background var(--dur-hover) var(--ease-quint),box-shadow var(--dur-hover) var(--ease-quint)}
+.hc section.hl{background:color-mix(in srgb,var(--accent-soft) 60%,transparent);box-shadow:0 0 0 6px color-mix(in srgb,var(--accent-soft) 60%,transparent)}
+.hc .next{display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1px solid var(--line)}
+.hc .next .fact{max-width:52ch}
+.hc .mw-collapsible summary{padding:4px 0}
+.hhead{display:flex;align-items:center;gap:8px;min-width:0}
+.hhead strong{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* A · popover card beside its entry */
+.hpop{position:fixed;z-index:45;width:min(380px,calc(100vw - 24px));max-height:min(62vh,520px);display:flex;flex-direction:column;background:var(--popover);border-radius:var(--r-card);box-shadow:var(--lift-3);animation:craft-drop var(--dur-move) var(--ease-quint)}
+.hpop .hhead{padding:10px 10px 6px 14px}
+.hpop .hc{overflow:auto;padding:4px 14px 12px}
+.hpop .hfoot{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--line)}
+.hpop .hfoot .grow{flex:1}
+
+/* B · help as a tab in the side pane */
+.hside{display:flex;flex-direction:column;min-height:0;flex:1}
+.hside .hhead{padding:14px 16px 8px}
+.hside .hc{flex:1;overflow:auto;padding:4px 16px 24px}
+.hside .ctx{margin:0 16px 8px;padding:6px 10px;border-radius:var(--r-control);background:var(--surface-soft);font-size:12px;color:var(--muted)}
+
+/* C · help opens in place */
+.hinline{border-radius:var(--r-card);background:var(--surface-soft);padding:12px 14px;animation:craft-rise var(--dur-move) var(--ease-quint)}
+.hinline .hhead{margin-bottom:8px}
+.hinline.small{padding:10px 12px;font-size:12.5px}
+
+/* First use: one quiet line, skippable (ONB-48) */
+.tip{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 12px;border-radius:var(--r-card);background:var(--accent-soft);color:var(--ink)}
+.tip .tx{flex:1;min-width:0}
+
+/* Preparation (reuses the 04 immersive frame; drawn here only as far as this path needs) */
+.prep{position:fixed;inset:40px 0 0 0;z-index:50;background:var(--desk);display:grid;grid-template-rows:56px minmax(0,1fr) 72px;animation:craft-fade-in var(--dur-move) var(--ease-quint)}
+.prep .top{display:flex;align-items:center;gap:10px;padding:0 20px}
+.prep .top .grow{flex:1}
+.prep .paper{margin:0 auto;width:min(720px,calc(100vw - 32px));background:var(--paper);border-radius:var(--r-sheet);box-shadow:var(--sheet-shadow);padding:32px 36px;overflow:auto;display:flex;flex-direction:column;gap:16px}
+.prep h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.prep .why2{color:var(--ink-soft);max-width:56ch;margin:0}
+.prep .choices{display:flex;flex-wrap:wrap;gap:8px}
+.prep .foot{display:flex;align-items:center;gap:10px;padding:0 20px;justify-content:space-between}
+.prep .keep{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:var(--r-control);background:var(--surface-soft);font-size:12px;color:var(--muted)}
+.tag-reuse{margin-left:6px}
+
+@media (max-width:1180px){.row2{grid-template-columns:minmax(0,1fr)}.fact-row{align-items:flex-start;padding:4px 0}.fact-row .tx{white-space:normal}.fact-row .tx small{display:block;margin:2px 0 0}}
+@media (max-width:760px){
+  .sch .body{padding:4px 12px 24px}.sch .phead{padding:12px 12px 8px}.sch .crumb{padding:0 12px 8px}
+  .help-btn .lbl{display:inline}.hpop .hfoot .fact{visibility:hidden}
+  /* A on a phone: the card becomes a bottom sheet above the bar (DESIGN ≤600px popovers) */
+  .hpop{left:8px!important;right:8px;top:auto!important;bottom:124px;width:auto;max-height:58vh;animation-name:craft-rise-from-bar}
+  .prep{grid-template-rows:52px minmax(0,1fr) 72px}.prep .paper{padding:20px 18px;width:calc(100vw - 16px)}.prep .top{padding:0 10px}.prep .foot{padding:0 10px}
+}

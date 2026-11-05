@@ -154,6 +154,55 @@
 
 三个方案共用的部分照定样实施：右侧是同一套窗格；「＋」只负责打开、写明落点、带「在旁边打开」；召回不重开；关组撤销；记录不在、插件被移除、没能启动时标签留着；独看；窄屏只显示焦点那一栏。实现时同步 `DESIGN.md` 的标签条与底栏段落。
 
+#### 4.6.2 实施拆片与开工前检查（第 07 批 07-1，2026-11-05）
+
+依据 main `cee87ece0` 的只读清点（[第 07 批](../post-anticorruption-roadmap/reference/batches/07.md)第 07-1 行）。实现按下表分层开 PR，每个 PR 合入后产品自洽（不留「首页没了入口」这类半成品），后一片叠在前一片的分支上。
+
+**实施口径（第 07 批主会话 11-05 定，不改 §4.6.1 的产品决定）：**
+
+1. 右侧是工作区状态里的一栏：现在的右栏闭包状态（开关、当前页签、宽度，`molis:side-tab`、`molis:side-ratio`）并进 `molis-work-tab-workspace:<项目>` 的同一份状态，标签、组、撤销、恢复、返回走同一套操作。右侧的常驻插件视图不走「非首栏一个 iframe」那条会重载的路径，挪位不丢草稿。
+2. 「独看」是新的状态字段，不复用 `exclusive`（`exclusive` 是市场、设置这类覆盖层）。
+3. 项目首页不再是 `kind: "home"` 标签；从 Dock 最前面的「项目首页」进。去掉首页标签的那一片同时给出 Dock 入口，不让首页一时没有入口。
+4. 浏览器里存的标签布局换形状，读不懂的整份丢弃重建，不写兼容读取（阶段 1，[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)）；`molis:side-tab`、`molis:side-ratio` 旧值直接忽略。
+5. 右栏对外的四个名字保持不变：`body[data-side-open]`、`--side-panel-width`、`molis:side-open`、`molis:side-browser-control`。A 轨文件（`apps/workbench/src/scripts/client/assistant-*.ts`）读它们；要改名由 A 轨落。
+6. 「窗格按钮」指每条标签条上的「布局与分屏」按钮，移到标题栏最右端的「布局」。
+7. 后台任务图标上的数是没做完的任务数（在跑的加等你的）。
+8. 召回跨栏找已打开的那一份，焦点移过去并提示落点；底栏、「＋」、切换器、深链都调这一个公共打开／激活，不再经隐藏按钮的 DOM 点击中转，「＋」也不再从页面结构读插件名单。
+9. 装进 Home 的包进切换器「个人」组与「＋」菜单，由宿主给出的插件目录带上，和别的插件同一种条目，不按插件名分支；图标取包在 stage 视图声明的 `icon`，没有才用 `package`（BL-912）。
+10. 标签恢复时按插件名删 Goals 的特例（BL-1032）随状态层一并去掉。
+11. `apps/workbench/src/scripts/client/navigation-feed.ts` 改名为 `navigation-surfaces.ts`（`CLIENT_NAVIGATION_SURFACES_SCRIPT`），它管的是工作面切换，与 Feed 无关。
+12. 新增的页面事件登记在 `packages/contracts/src/platform/dom-events.ts`，`PAGE_STATE_OWNERS` 的文件清单跟着改；不改动作合同。
+
+**拆片：**
+
+| 片 | 做什么 | 主要文件 | 顺序 |
+| --- | --- | --- | --- |
+| S0 组件板标本 | 定样 README「组件板新增」1、2、3、6～10、12～16 做成 `/__ui/catalog` 标本；底栏样张先换成三段的新结构 | `apps/workbench/src/primitive-catalog.ts`、新的导航标本文件、`packages/design-system/src/styles/`、`apps/workbench/src/i18n/` | 第一个；D 轨合审后进产品 |
+| S1 状态与操作 | 首页退出标签（带 Dock 入口）；右侧与独看进状态；跨栏召回；移到右侧、合并、均分；BL-1032 | `tab-workspace-ops.ts`、`scripts/client/tab-workspace{,-panes,-places}.ts` | 与 S0 同时 |
+| S2 右侧并入窗格 | 右栏内容成为右侧那一栏的标签；图标靠右、停留或聚焦原地展开、收起时留在标题栏、没有「＋」；后台任务成为右侧图标标签；⌘\ | `side-panel*.ts`、`plugin-place.ts`、`attention.ts`、`immersive-shell.ts`、`arrival/shell.ts` | S0、S1 之后 |
+| S3 标签条与菜单 | 方案 A 的标签条（两档、最窄 96px、全部标签、焦点栏、撤销与独看小签、异常标记、窄屏「主区｜右侧」）；「＋」菜单；标签右键；标题栏「布局」 | `tab-workspace-strip.ts`、`tab-workspace-menus.ts`、`plugin-tab-groups.ts`、`tab-strip-share.ts`、`styles/tab-*.ts` | S2 之后 |
+| S4 底栏三段与个人插件 | S4a：BL-912 包图标（可先做）；S4b：底栏左中右、个人插件进切换器与「＋」、去掉标题栏与到达页的工具位 | S4a：`apps/local-host/src/installed-stage-section.ts`、`home-plugin-http.ts`；S4b：`immersive-shell.ts`、`navigation-presentation.ts`、`home-plugin-navigation.ts`、`arrival/` | S4a 随时；S4b 在 S3 之后 |
+| S5 收尾 | `DESIGN.md` 标签条与底栏两段；`navigation-feed.ts` 改名；用例与产品子集扫尾 | `DESIGN.md`、`browser-assets.ts`、`tests/` | 最后 |
+
+**开工前检查（需求开发流程第 4 节）：**
+
+| # | 结论 |
+| --- | --- |
+| 1 事实主人 | 标签、窗格、焦点、独看都是工作台的页面状态，只存在浏览器里；内容、草稿、滚动归插件（§4.6「内容提供方」）。右栏不再自记第二份打开状态 |
+| 2 插件同等待遇 | 装进 Home 的包、内置 Home 级插件和项目插件走同一条打开路径与同一种目录条目；图标由包声明（BL-912）；去掉按插件名删 Goals 的特例（BL-1032），不新增按插件名的分支 |
+| 3 能力注册 | 不新增动作；打开、激活、召回是工作台页面里的公共操作 |
+| 4 合同 | 不改动作合同、Manifest 和 SDK；新增页面事件登记 `dom-events.ts` 并 `pnpm api:update`（这一项若改到 contracts 的快照，单独开一个小 PR 先合） |
+| 5 放在哪个包 | `apps/workbench`；BL-912 在 `apps/local-host`；标本与共用样式在 `packages/design-system` 与组件板 |
+| 6 表与存储 | 不涉及库表；只有浏览器 `localStorage`／`sessionStorage` |
+| 7 兼容与迁移 | 不加：旧布局读不懂就丢弃重建（口径 4），写进 PR |
+| 8 安全边界 | 不放宽：侧栏框架仍经 `/api/host/plugin-pages` 登记与撤销，页面关了授权就收回；分屏 iframe 的 `workbench-pane-*` 消息校验不动，碰到就同步 `tests/security-invariants-pane-messages.test.ts` |
+| 9 调用次数 | 切换标签、召回、移栏、收起右侧不重读已有内容、不重建常驻视图；PR 里写一次操作发几个请求 |
+| 10 升级与数据 | 升级后标签布局可能重建一次（口径 4），业务数据不受影响 |
+| 11 成果与过程项 | 不涉及 |
+| 12 页面与外壳 | 只改工作台外壳的位置；页面资源有增有删，每片 PR 写 `page-assets` 的前后数字；单个资源一次涨超过 10 KB 先问用户 |
+| 13 错误 | 不新增错误码 |
+| 14 冲突面 | 枢纽 `immersive-shell.ts`、`shell-page-renderer.ts`、`i18n/en.ts`、`dom-events.ts`：S2、S3、S4b 依次叠分支；D 轨文件（design-system、i18n、`DESIGN.md`）由本批写手按片认领；A 轨文件不碰（口径 5）；在途的 #1846 改 `styles/immersive-navigation.ts` 与 `arrival/shell.ts`，S2 开工前核一次 |
+
 ### 4.7 项目首页整合进 Work Brief（2026-10-27 用户已定）
 
 [Work Brief](../work-brief/spec.md)从简报内容插件扩展为项目综合信息呈现插件，与项目首页统一设计。未安装／启用时平台保留基础首页：没有已打开插件或用户返回首页时，展示可用插件卡片和各插件的内容概览、建议与继续入口，不依赖模型或生成简报。安装启用后由 Work Brief 通过通用挂载承接综合首页，统一组织变化、建议、简报与 Onboarding 生成的交互页面。

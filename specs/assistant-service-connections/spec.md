@@ -843,7 +843,7 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 | 13 | 错误 | `connector.check.rate_limited` 与 `model_provider.*` 用 `defineErrorCodes` 声明，前缀与文件主人一致；没有新的 Error 子类 |
 | 14 | 冲突面 | 只动 D 轨这批的 connector、model-provider 文件和它们的测试；`docs/system/SECURITY-INVARIANTS.md` 只改 S-70 一行；没有别的在途 PR 改这些文件（#1817 由本分支接替） |
 
-### 13.4 合同设计稿：多账号切换与健康检查的限流（第 13 批第二片，2026-11-05，待合同台合审）
+### 13.4 合同设计稿：多账号切换与健康检查的限流（第 13 批第二片，2026-11-05；合同台 11-05 合审方向同意，按其意见改过）
 
 用户 11-05 定换账号做成多账号切换（§13.2）。现在已有的：同一服务可以连多条连接；`connectors.usages.read@1` 从各使用方汇总「谁在用这条连接」，每个使用方用 `defineConnectorUsagesAction` 声明自己的那一份（插件连接槽 `connectors.plugin_slot.usages`、模型提供方 `models.connection.usages` 等）；单个插件位置可以用 `connectors.plugin_slot.bind@1/@2` 换账号。缺的是「把用到 A 的地方换成 B」一次办完，以及 GitHub、Gmail 健康检查报不出限流。
 
@@ -851,14 +851,24 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 
 - `packages/contracts/src/services/connector-usages.ts` 加 `defineConnectorUsagesSwitchAction(id, title, permissions, scope)`，带自己的 `input_type`／`output_type`（`molis.connector-usages-switch.input.v1`／`.output.v1`），和读的那一对并列：
   - 输入 `{ from_connection_id, to_connection_id, usage_ids?: string[] }`。`usage_ids` 取自同一使用方读出的 `usage_id`，不给就是这个使用方里用到 A 的全部。
-  - 输出 `{ switched: string[]; refused: Array<{ usage_id: string; reason: string }> }`：换过去的和没换的（如这个位置要求的权限 B 没有）分开说，不整体失败。
+  - 输出 `{ switched: string[]; refused: Array<{ usage_id: string; code: string }> }`：换过去的和没换的分开说，不整体失败。`code` 是稳定的错误码（`<主人>.<原因>`，如 `connector.plugin_slots.scope_missing`、`model_provider.origin_mismatch`，按错误主人表），由界面翻成人话，不放自由文本。
   - `audiences: ["user"]`、`operation: "command"`、`effect: "write"`：只有人能决定插件或模型用哪个账号，Agent、MCP、插件页面都不能（和 `connectors.plugin_slot.bind` 一样）。
+- **嵌套调用用本人的身份。** 汇总动作调各使用方的 switch 动作时，带的是本人的调用上下文（操作者、项目都从本人的上下文来，用 `retainActionAuthority` 嵌套，和 `connectors.usages.read@1` 一样），不是 `system.connectors` 的系统身份。使用方照常按 `user` 受众核，并且只认从汇总动作嵌套进来的这一条本人调用；被插件、Agent、MCP 直接调，或以系统身份嵌套调，一律拒。插件声明的 switch 动作因此拿不到比本人更大的权。
+- **换账号不扩大授权。**
+  - 宿主持有的插件连接槽：每个位置换到 B 之前，过 `connectors.plugin_slot.bind@2`（按安装的是 `@1`）同一份核对——这个安装在 Manifest 里声明了这个槽、服务一致、B 的范围、T-134 的钉；直接复用那份实现（`assertDeclared` 与绑定写入），不另写一份。过不了的这个位置进 `refused`。
+  - 插件自己记着连接的：插件的 switch 只改它自己的记录。平台调插件的 switch 之前，先按「按调用给连接」（S-95）的同一套规则判断 B 能不能给这个安装；给不了，这个使用方整份进 `refused`，不调它。插件以后实际用 B 时，照旧逐次按 S-95 核，不因为换过就把 B 发给它。
+- **记录。** 每换一个位置，由那件事实的主人记一条（谁、什么时候、从 A 到 B）：连接槽由连接主人记，模型提供方由模型设置记，插件的由插件记；汇总动作自己不另存记录。被取消或撤权以后，还没换的不再换、不写；已经换了的不回滚，如实列在 `switched` 里。
 - 平台汇总动作 `connectors.usages.switch@1`（`system.connectors` 提供，`audiences: ["user"]`，权限 `connectors:management:write`）：先核 A、B 是同一服务、B 已连通且不是别的安装专用（T-134 的钉）；再按目录找声明了这对类型的使用方，每个使用方调一次，把结果合起来。一次操作的请求数等于使用方个数，不按位置逐条请求（N42～N56）。B 在中途变了（停用、移除、换版本），还没换的使用方不再换，已换的如实报。
 - 先接的两个使用方：插件连接槽（宿主持有的绑定，按安装和按记录两种都换，`targetScope` 不变）；模型提供方（把用 A 那把密钥的提供方改用 B 的密钥，换前按 B 的 `target_origin` 核对地址，不合的放进 `refused`）。插件自己记着连接的，照同样的声明自己接，平台不替它改（插件同等待遇）。
 - 账号本身不动：A 留着、照常可用；页面在 A 已没人用时提示可以移除。重新登录仍只落回原账号；登录回来发现是另一个账号时，页面给「把它加成另一个账号并切过去」，走的是新建连接加上面这个动作，不放宽 W5-11 规则 8。
 
-**二、健康检查报出限流。** `IntegrationProviderPort.health` 的结果（`packages/contracts/src/platform/plugin.ts`）和 `ConnectorHealth`（`services/connector-host.ts`）各加两个可选字段：`failure?: ConnectorFailureKind`、`retryAfterAt?: string`，和同步结果已有的同名字段同义。GitHub、Gmail 的提供方在 429（或 GitHub 的限流头）时填上，宿主照目录服务的做法记成 `connector.check.rate_limited` 并带等待时间（最多一小时）。
+**二、健康检查报出限流。** `IntegrationProviderPort.health` 的结果（`packages/contracts/src/platform/plugin.ts`）和 `ConnectorHealth`（`services/connector-host.ts`）各加两个可选字段：`failure?: ConnectorFailureKind`、`retryAfterAt?: string`，和同步结果已有的同名字段同义。GitHub、Gmail 的提供方在 429（或 GitHub 的限流头）时填上，宿主照目录服务的做法记成 `connector.check.rate_limited` 并带等待时间（最多一小时）。字段对应：插件这一侧沿用同步结果的 `retryAfterAt`（`platform/plugin.ts` 里已有的写法），宿主投影成 #1816 的检查记录与连接状态里的 `retry_at`；`ConnectorHealth` 也用 `retryAfterAt`，不出现第三种写法。
 
 **三、版本与兼容。** 都是新增：新动作、新的可选字段，没有改已有动作的输入输出，不升已有版本；M1 之前，不留兼容期。合同代码（上面两处类型与 `defineConnectorUsagesSwitchAction`、两份 API 快照）单独一个小 PR；汇总动作和两个使用方的实现、`pnpm actions:update` 在它合入之后。
 
-**四、拒绝要有测试的。** 非 `user` 受众调不到；A、B 不是同一服务、B 未连通或钉给别的安装时，什么都不换；调用被取消或撤权后，还没换的不再换（`beforeEffect` 后才写）；模型提供方的地址和 B 的固定地址不合时只拒这一个。
+**四、拒绝要有测试的。** 这是授权边界（谁能决定插件、模型用哪个账号），合同小 PR 把下面几条登记进 `docs/system/SECURITY-INVARIANTS.md`：并进 `connectors.plugin_slot.bind` 所在的那一行，或新开一行（编号避开在途 PR 已用的号）。
+- 非 `user` 受众调不到汇总动作；使用方的 switch 被插件、Agent、MCP 直接调，或以系统身份嵌套调，被拒。
+- A、B 不是同一服务、B 未连通或钉给别的安装时，什么都不换。
+- 连接槽的位置过不了 `plugin_slot.bind` 的核对时只拒这一个；模型提供方的地址和 B 的固定地址不合时只拒这一个。
+- 这个安装不能获准用 B 时，插件的 switch 不被调用、整份进 `refused`；就算插件自己改了记录，它用 B 发请求时仍被拒（S-95）。
+- 调用被取消或撤权后，还没换的不再换（`beforeEffect` 后才写），已换的如实报、不回滚。

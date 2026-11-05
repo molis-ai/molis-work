@@ -63,19 +63,21 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
-  // New Goal is the Goals page's one graphite button, like every list page's first create action
+  // New Goal is the Goals page's one ink-blue button, like every list page's first create action
   // (DESIGN.md → Plugin stage; specs/archive/plugin-e2e-review/spec.md §4 X5, kept by the user after #108):
-  // graphite --action fill, --action-ink text and glyph, 8px control corners, no outline.
-  assert.equal(create.bg, "rgb(41, 42, 44)", "New Goal is the graphite primary action");
+  // ink-blue --action fill (#2d4f6c), --action-ink text and glyph, 10px control corners, no outline.
+  // Values follow #1741: it made --action ink blue (DESIGN.md "Ink blue `--action`", the Primary button entry) and
+  // made the default skin 柔雾, whose controls are 10px; the earlier graphite #292a2c and 8px no longer apply.
+  assert.equal(create.bg, "rgb(45, 79, 108)", "New Goal is the ink-blue primary action");
   assert.equal(create.color, "rgb(255, 255, 255)");
   assert.equal(create.icon, create.color);
-  assert.equal(create.radius, "8px");
+  assert.equal(create.radius, "10px");
   assert.equal(create.border, "rgba(0, 0, 0, 0)", "New Goal has no outline");
   const filter = await evaluate<{ bg: string; color: string; radius: string; icon: string; height: number; width: number; border: string }>("(()=>{const button=document.querySelector('[data-tree-filter-trigger]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,height:Math.round(button.getBoundingClientRect().height),width:Math.round(button.getBoundingClientRect().width),border:s.borderTopColor};})()");
   // The filter stays a quiet toolbar control: the ink-4% wash, ink text and glyph, same corners, no outline.
-  assert.equal(filter.bg, "color(srgb 0.160784 0.164706 0.172549 / 0.04)", "Filter keeps the quiet control wash");
-  assert.equal(filter.color, "rgb(41, 42, 44)");
-  assert.equal(filter.icon, "rgb(41, 42, 44)");
+  assert.equal(filter.bg, "color(srgb 0.121569 0.168627 0.215686 / 0.04)", "Filter keeps the quiet control wash");
+  assert.equal(filter.color, "rgb(31, 43, 55)");
+  assert.equal(filter.icon, "rgb(31, 43, 55)");
   assert.equal(filter.radius, create.radius);
   assert.equal(filter.border, create.border);
   // Standard density controls are 32px tall (DESIGN.md → Density); compact keeps 28px. With room, the filter is named

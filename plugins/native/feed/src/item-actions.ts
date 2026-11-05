@@ -1,3 +1,4 @@
+import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
@@ -8,16 +9,15 @@ const id = { type: "string", minLength: 1, maxLength: 200 };
 const revision = { type: "integer", minimum: 1 };
 const item = { type: "object", properties: { item_id: { type: "string" }, revision: { type: "integer" }, disposition: { type: "string" } }, required: ["item_id", "revision"] };
 const itemResult: ActionSchema = { type: "object", properties: { item }, required: ["item"] };
-const closed = (properties: Record<string, unknown>, required: string[]): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 /** Promotion writes through these Goals actions, so it is unavailable wherever they are: a project without Goals cannot promote. */
 const GOALS_ACTIONS_FOR_PROMOTION: ActionReference[] = ["goals.directory.read", "goals.create", "goals.inputs.confirm"]
   .map(capability_id => ({ capability_id, version: 1, provider_id: "io.molis.work.goals" }));
 /** What an item action declares beyond the common shape: that it may run beside the queue, the actions it depends on, and that its records are a Session's (as Goals' own commands are). */
 interface ItemActionExtras { scheduling?: "concurrent"; required_actions?: ActionReference[]; authorship?: "session" }
 function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[], extras: ItemActionExtras = {}, version = 1): ActionDefinition<Input, Output> {
-  return { capability_id: `feed.items.${suffix}`, version, operation: "command", action: { title, description, kind: "operation", scope: "project", ...extras,
+  return createActionDefinition<Input, Output>(`feed.items.${suffix}`, "command", { title, description, ...extras,
     audiences: ["user", "agent", "workflow", "mcp"], permissions,
-    subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
+    subject_kinds: ["feed_item"], input_schema: input, output_schema: output }, version);
 }
 
 export interface FeedItemResult { item: FeedItemRecord }

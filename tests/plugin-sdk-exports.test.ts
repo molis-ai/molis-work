@@ -121,3 +121,15 @@ test("R2-04: the public browser formatter keeps both Error messages and thrown v
   assert.equal(messageOf("cancelled"), "cancelled");
   assert.equal(messageOf(null), "null");
 });
+
+
+test("R2-04: shared HTML escaping preserves text, attributes and existing entities", async () => {
+  const { escapeHtml } = await import("@molis-ai/molis-work-plugin-sdk/ui");
+  assert.equal(escapeHtml(`<img title="Tom's & tea">`), "&lt;img title=&quot;Tom&#039;s &amp; tea&quot;&gt;");
+  assert.equal(escapeHtml("&amp; &#039;"), "&amp;amp; &amp;#039;");
+  assert.equal(escapeHtml("中文 😀"), "中文 😀");
+  assert.equal(escapeHtml(null), "");
+  assert.equal(escapeHtml(undefined), "");
+  assert.equal(escapeHtml(0), "0");
+  assert.equal(escapeHtml({ toString: () => "<custom>" }), "&lt;custom&gt;");
+});

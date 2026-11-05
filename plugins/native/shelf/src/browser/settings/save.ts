@@ -1,3 +1,5 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+export { messageOf };
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { labelOf, panelChordOf, panelLabel, PANEL_DEFAULTS, sameChord, samePanel } from "./keys.js";
 import type { Chord, Settings, SettingsPage } from "./types.js";
@@ -7,8 +9,6 @@ export const invoke = (name: string, payload?: unknown): Promise<unknown> => {
   const fn = globalThis.__TAURI__?.core?.invoke;
   return typeof fn === "function" ? fn(name, payload) : Promise.resolve(null);
 };
-
-export const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
 
 export function say(scope: ParentNode, selector: string, message: string): void {
   const node = scope.querySelector<HTMLElement>(selector);
@@ -129,4 +129,3 @@ export async function save(page: SettingsPage, scope: ParentNode, patch: ShelfSe
     throw error;
   }
 }
-

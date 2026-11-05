@@ -386,6 +386,7 @@ export const WORKSPACE_PACKAGES = [
       "functions.evaluate"
     ],
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"
     ]
   }),
@@ -398,6 +399,7 @@ export const WORKSPACE_PACKAGES = [
       "agent.run.start"
     ],
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"
     ],
     extraDependencies: {

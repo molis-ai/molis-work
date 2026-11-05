@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { setTimeout } from "node:timers/promises";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginBackgroundClient, PluginJobDeclaration, PluginProjectDatabase, PluginScheduleClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -13,14 +14,14 @@ const WAKE_OBJECT = "sources";
  * needs everything a tick does, so it declares the same permissions; the platform lets a call use a service only if the action says so.
  */
 export function feedWakeAction(tick: ActionDefinition): ActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply> {
-  return { capability_id: "feed.sources.wake", version: 1, operation: "command", action: {
+  return createActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply>("feed.sources.wake", "command", {
     title: "拉取到期来源", description: "平台的定时器叫醒 Feed：拉取已到期的来源，并更新各来源的下次拉取时间",
-    kind: "operation", scope: "project", audiences: ["plugin"], scheduling: "concurrent", permissions: tick.action.permissions, subject_kinds: [],
+    audiences: ["plugin"], scheduling: "concurrent", permissions: tick.action.permissions, subject_kinds: [],
     execution: { timeout_ms: 660_000 },
     input_schema: { type: "object", properties: { job_id: text, plugin_id: text, capability_id: text, object_ref: text, due_at: text },
       required: ["job_id", "plugin_id", "capability_id", "object_ref", "due_at"], additionalProperties: false },
     output_schema: { type: "object", properties: { status: { enum: ["ok", "failed", "plugin_unavailable"] }, detail: { type: "string" } }, additionalProperties: false },
-  } };
+  });
 }
 
 /** The job that asks the clock: kept while the activation runs, because the clock takes a registration only from an installation that is running. */

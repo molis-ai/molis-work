@@ -43,7 +43,8 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   const point = await evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('${strip} [data-side-tab="browser"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
   await command("Input.dispatchMouseEvent", { type: "mouseMoved", ...point }, sessionId);
   await waitFor(`document.querySelector('${strip} [data-side-tab="browser"]').closest('.tab-item').classList.contains('is-grown') && document.querySelector('${strip} [data-side-tab="browser"] .tab-item-name').checkVisibility()`, 5_000);
-  assert.ok(Math.abs(await evaluate<number>(glyph) - before) < 0.5, "the tab grows leftward; its glyph stays put");
+  const after = await evaluate<number>(glyph);
+  assert.ok(Math.abs(after - before) < 0.5, `the tab grows leftward; its glyph stays put (its right edge ${before} → ${after})`);
   await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 400, y: 400 }, sessionId);
 
   // A glyph opens the side on its tab.

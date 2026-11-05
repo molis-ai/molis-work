@@ -3,7 +3,7 @@
   "assets": {
     "/assets/inter-latin-variable.woff2": 48256,
     "/assets/molis-work-arrival.css": 690479,
-    "/assets/molis-work-capabilities.js": 54350,
+    "/assets/molis-work-capabilities.js": 54258,
     "/assets/molis-work-knowledge.js": 26940,
     "/assets/molis-work-pages-editor.js": 708426,
     "/assets/molis-work-plugin-frame.js": 208271,
@@ -48,8 +48,8 @@
     "/assets/molis-work-plugins/todo.js": 54057,
     "/assets/molis-work-plugins/workflows.css": 40735,
     "/assets/molis-work-plugins/workflows.js": 71581,
-    "/assets/molis-work-settings.css": 827324,
-    "/assets/molis-work-workbench.css": 1204514,
+    "/assets/molis-work-settings.css": 827320,
+    "/assets/molis-work-workbench.css": 1204510,
     "/assets/molis-work-workbench.js": 1075120,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }

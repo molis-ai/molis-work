@@ -33,7 +33,7 @@ var records = {
 window.__posts = [];
 window.__delay = null;
 window.__handle = async (method, path, body) => {
-  if (method === "GET" && path === "/api/functions/catalog") return { status: 200, body: { catalog: { subjects: [], destinations: [], behaviors: [] } } };
+  if (method === "GET" && path === "/api/functions/catalog") return { status: 200, body: { catalog: { subjects: [], destinations: [], options: [] } } };
   if (method === "GET" && path === "/api/functions") return { status: 200, body: { functions: Object.values(records) } };
   const one = path.match(/^\\/api\\/functions\\/([^/]+)$/);
   if (method === "GET" && one && records[decodeURIComponent(one[1])]) return { status: 200, body: { function: records[decodeURIComponent(one[1])] } };

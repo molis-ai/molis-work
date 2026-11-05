@@ -118,7 +118,7 @@ test("RAC-1048 the person's permissions over the 成果库 come from the module'
 test("RAC-1049 the judgment rule authoring catalog lists the 成果库's actions as the platform's, not as a plugin's", async t => {
   const { actions } = await hitsOf(t, host => host);
   const directory = await actions.discover({ ...person, audience: "agent" });
-  const behaviors = liveHostJudgmentRuleAuthoringCatalog(directory).behaviors.filter(behavior => "action_ref" in behavior && behavior.action_ref.provider_id === ARTIFACTS_PROVIDER_ID);
-  assert.ok(behaviors.length > 0, "the Agent can be offered 成果库 actions");
-  for (const behavior of behaviors) { assert.equal(behavior.source, "system"); assert.equal(behavior.plugin_id, ARTIFACTS_PROVIDER_ID); assert.equal(behavior.plugin_title, ARTIFACTS_PROVIDER_TITLE); }
+  const options = liveHostJudgmentRuleAuthoringCatalog(directory).options.filter(option => "action_ref" in option && option.action_ref.provider_id === ARTIFACTS_PROVIDER_ID);
+  assert.ok(options.length > 0, "the Agent can be offered 成果库 actions");
+  for (const option of options) { assert.equal(option.source, "system"); assert.equal(option.plugin_id, ARTIFACTS_PROVIDER_ID); assert.equal(option.plugin_title, ARTIFACTS_PROVIDER_TITLE); }
 });

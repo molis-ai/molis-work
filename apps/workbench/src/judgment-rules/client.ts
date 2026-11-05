@@ -73,7 +73,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   let listSeq = 0;
   let usagesSeq = 0;
   const configReads = new WeakMap();
-  let cat = { subjects: [], destinations: [], behaviors: [] };
+  let cat = { subjects: [], destinations: [], options: [] };
   const keepListScroll = (paint) => {
     const top = list?.scrollTop || 0;
     paint();
@@ -101,18 +101,18 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const matches = cat.destinations.filter(row => matchesScene(row, ref));
     return matches.length === 1 ? matches[0] : id ? {
       destination_id: id, scene_version: ref.scene_version, provider_id: ref.scene_provider_id,
-      kind: "event", title: L("原用途不可用"), when: "", subject_kinds: [], behavior_ids: [],
+      kind: "event", title: L("原用途不可用"), when: "", subject_kinds: [], option_ids: [],
       availability: { available: false, reason: L(matches.length > 1 ? "请为原用途选择具体版本。" : "当前范围未注册原用途，请检查插件状态或重新选择。") },
     } : null;
   };
-  const behaviorMatches = (row, dst, rec = sel) => {
+  const optionMatches = (row, dst, rec = sel) => {
     const dest = destOf(dst, rec);
     return row.destination_id === dst && (!row.scene_version || row.scene_version === dest?.scene_version)
       && (!row.provider_id || row.provider_id === dest?.provider_id);
   };
-  const behaviorOf = (id, dst = destKey()) => cat.behaviors.find((row) => row.behavior_id === id && behaviorMatches(row, dst))
-    || cat.behaviors.find((row) => row.behavior_id === id && !row.destination_id) || {
-    behavior_id: id,
+  const optionOf = (id, dst = destKey()) => cat.options.find((row) => row.option_id === id && optionMatches(row, dst))
+    || cat.options.find((row) => row.option_id === id && !row.destination_id) || {
+    option_id: id,
     title: id,
     effect: "read",
     source: "system",
@@ -121,12 +121,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     subject_kinds: [],
     clickable: true,
   };
-  const behaviorTitle = (beh) => beh.source === "mcp" && beh.hint
+  const optionTitle = (beh) => beh.source === "mcp" && beh.hint
     ? L(beh.hint).split(/[。\\n]/)[0]
     : L(beh.title);
   const outputLabel = (rec, key) => {
-    const beh = cat.behaviors.find((row) => row.behavior_id === key && (!row.destination_id || behaviorMatches(row, rec.scene_id, rec)));
-    if (beh) return behaviorTitle(beh);
+    const beh = cat.options.find((row) => row.option_id === key && (!row.destination_id || optionMatches(row, rec.scene_id, rec)));
+    if (beh) return optionTitle(beh);
     const criterion = Array.isArray(rec.criteria) && rec.criteria.find((row) => row.key === key);
     return criterion?.description || key;
   };
@@ -136,7 +136,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (dest?.title) return L(dest.title) + (dest.scene_version ? " · v" + dest.scene_version : "");
     return id === "home.dock" ? L("首页") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : L("还没选");
   };
-  const behaviorIds = () => new Set(cat.behaviors.filter(row => !row.destination_id || behaviorMatches(row, destKey())).map((row) => row.behavior_id));
+  const optionIds = () => new Set(cat.options.filter(row => !row.destination_id || optionMatches(row, destKey())).map((row) => row.option_id));
   const matchesSubjects = (beh, kinds) => {
     if (!kinds.length || !beh.subject_kinds?.length) return true;
     return (beh.subject_kinds || []).some((kind) => kinds.includes(kind));
@@ -144,15 +144,15 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const hints = (dst, kinds) => {
     const dest = destOf(dst);
     const match = (row) => matchesSubjects(row, kinds);
-    if (!dst) return kinds.length ? cat.behaviors.filter(row => !row.destination_id && match(row)) : [];
-    if (dst === "agent.mcp" || dest?.kind === "mcp") return cat.behaviors.filter(row => row.destination_id === "agent.mcp" && match(row));
-    return (dest?.behavior_ids || []).map((id) => behaviorOf(id, dst)).filter(match);
+    if (!dst) return kinds.length ? cat.options.filter(row => !row.destination_id && match(row)) : [];
+    if (dst === "agent.mcp" || dest?.kind === "mcp") return cat.options.filter(row => row.destination_id === "agent.mcp" && match(row));
+    return (dest?.option_ids || []).map((id) => optionOf(id, dst)).filter(match);
   };
   const defaultChoiceRows = () => [{ key: "yes", description: "" }, { key: "no", description: "" }];
   const followContext = (keys) => {
     if (!keys.length) return true;
     if (keys.length === 2 && keys[0] === "yes" && keys[1] === "no") return true;
-    const ids = behaviorIds();
+    const ids = optionIds();
     return keys.every((key) => ids.has(key));
   };
   const currentChoiceMap = () => {
@@ -185,7 +185,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!critHint || prim(sel) !== "choice") return;
     const dest = destOf(dst);
     const follow = followContext(readKeys());
-    if (dest && dest.kind === "event" && follow && hinted.length >= 2 && readKeys().every((key) => behaviorIds().has(key))) {
+    if (dest && dest.kind === "event" && follow && hinted.length >= 2 && readKeys().every((key) => optionIds().has(key))) {
       critHint.textContent = L("已按用途提供动作。请补充每个动作的选择条件；切换用途会更新默认动作，自定义结果会保留。");
     } else if (dest && dest.kind === "event" && follow && hinted.length < 2) {
       critHint.textContent = dst === "home.dock" && !api
@@ -216,10 +216,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const dest = destOf(dst);
     const eventDest = Boolean(dest && dest.kind === "event");
     const follow = followContext(keys);
-    const hasCatalogKeys = keys.some((key) => behaviorIds().has(key));
+    const hasCatalogKeys = keys.some((key) => optionIds().has(key));
     let nextMap = sel.scene_map || {};
     if (follow && eventDest && hinted.length >= 2) {
-      applyChoiceRows(hinted.map((row) => ({ key: row.behavior_id, description: row.title || "" })));
+      applyChoiceRows(hinted.map((row) => ({ key: row.option_id, description: row.title || "" })));
       nextMap = {};
     } else if (follow && hasCatalogKeys && dst !== "agent.mcp") {
       applyChoiceRows(defaultChoiceRows());
@@ -332,7 +332,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!dst || dst === "agent.mcp") return true;
     const dest = destOf(dst, rec);
     if (dest?.availability?.available === false) return false;
-    const pool = dest?.behavior_ids || [];
+    const pool = dest?.option_ids || [];
     if (!pool.length) return false;
     const kind = prim(rec);
     const keys = kind === "noul"
@@ -342,7 +342,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         : [];
     if (!keys.length) return false;
     const map = rec.scene_map || {};
-    return keys.every((key) => pool.includes(map[key] || key) && behaviorOf(map[key] || key).availability?.available !== false);
+    return keys.every((key) => pool.includes(map[key] || key) && optionOf(map[key] || key).availability?.available !== false);
   };
   const addScoreRow = (value) => {
     const row = document.createElement("div");
@@ -389,9 +389,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     remove.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     const label = document.createElement("label");
     label.className = "functions-field functions-option-condition";
-    const beh = cat.behaviors.find((item) => item.behavior_id === key && (!item.destination_id || behaviorMatches(item, destKey())));
+    const beh = cat.options.find((item) => item.option_id === key && (!item.destination_id || optionMatches(item, destKey())));
     const caption = document.createElement("span");
-    caption.textContent = beh ? behaviorTitle(beh) : L("结果") + " · " + (key || "");
+    caption.textContent = beh ? optionTitle(beh) : L("结果") + " · " + (key || "");
     label.append(caption, desc);
     const advanced = document.createElement("details");
     advanced.className = "functions-option-key";

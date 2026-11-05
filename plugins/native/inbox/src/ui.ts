@@ -12,7 +12,7 @@ import {
   INBOX_DONE_OPTION_ID,
   INBOX_COMPOSE_OPTION_ID,
   INBOX_VERIFY_OPTION_ID,
-  defaultInboxNextBehaviorIds,
+  defaultInboxNextOptionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { buildInboxUiEntries, isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
 
@@ -171,7 +171,7 @@ function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
     return `<button class="mw-btn mw-btn--secondary" type="button" data-inbox-action="open" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("重新打开")}</button>`;
   }
   // Recommendations do not remove the person's other valid choices.
-  return defaultInboxNextBehaviorIds(true).map(id => writeButton(entry, id, entry.suggested_behavior_ids.includes(id), p)).join("");
+  return defaultInboxNextOptionIds(true).map(id => writeButton(entry, id, entry.suggested_behavior_ids.includes(id), p)).join("");
 }
 
 function renderMaterialActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
@@ -188,12 +188,12 @@ function renderNextSuggestion(entry: InboxUiEntry, p: InboxUiPrimitives): string
   return `<p class="inbox-next-suggestion">${p.escape(label)} <small>v${judgment.function_version} · ${p.escape(p.formatDate(judgment.created_at))}</small><button class="mw-btn mw-btn--ghost" type="button" data-inbox-evaluate="${p.escape(entry.entry_id)}">${p.text("重新判断")}</button></p>`;
 }
 
-function writeButton(entry: InboxUiEntry, behaviorId: string, primary: boolean, p: InboxUiPrimitives): string {
-  if (behaviorId === INBOX_DISMISS_OPTION_ID) {
+function writeButton(entry: InboxUiEntry, optionId: string, primary: boolean, p: InboxUiPrimitives): string {
+  if (optionId === INBOX_DISMISS_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
     return `<button class="${cls}" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`;
   }
-  if (behaviorId !== INBOX_DONE_OPTION_ID) return "";
+  if (optionId !== INBOX_DONE_OPTION_ID) return "";
   const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
   return `<button class="${cls}" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("标记已处理")}</button>`;
 }

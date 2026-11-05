@@ -272,8 +272,8 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 690479],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
-  "/assets/molis-work-settings.css": [826731, 827324],
-  "/assets/molis-work-workbench.css": [1194525, 1204514],
+  "/assets/molis-work-settings.css": [826727, 827320],
+  "/assets/molis-work-workbench.css": [1194521, 1204510],
   "/assets/molis-work-workbench.js": [1074951, 1075120],
   "/assets/molis-work-plugin-frame.js": [208033, 208271],
 };

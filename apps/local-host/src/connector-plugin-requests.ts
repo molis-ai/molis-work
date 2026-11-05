@@ -7,7 +7,7 @@ import { pluginBindingScope, type ConnectorConnectionStore } from "@molis-ai/mol
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { CallConnection, CallConnectionsPort, PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionTarget } from "@molis-ai/molis-work-plugin-runtime";
 import { resolveApiConnection } from "./connector-access.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { credentialHeader, gatewayUrl } from "./connector-request-credentials.js";
 import { shownState } from "./connector-refresh-refusals.js";
@@ -123,7 +123,7 @@ export function createCallConnectionsPort(home: string, options: PluginConnectio
       return withConnectorConnections(home, store => {
         const connection = store.get(call.connection_id!);
         if (!connection || pinnedToAnother(store, connection.connection_id, call.install_id)) return { bound: true, state: "disconnected" as const };
-        return { bound: true, display_name: connection.display_name, state: connection.service_id === call.service_id ? shownState(home, connection, store.state(connection)) : "disconnected" };
+        return { bound: true, display_name: connection.display_name, state: connection.service_id === call.service_id ? shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) : "disconnected" };
       });
     },
   };
@@ -188,7 +188,7 @@ function describeBinding(home: string, target: PluginConnectionTarget): PluginCo
     const connection = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     if (!connection) return { bound: false };
     if (pinnedToAnother(store, connection.connection_id, target.install_id)) return { bound: true, state: "disconnected" };
-    const state = connection.service_id === target.service_id ? shownState(home, connection, store.state(connection)) : "disconnected";
+    const state = connection.service_id === target.service_id ? shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) : "disconnected";
     const origin = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, target.service_id) && CONNECTOR_REQUEST_SERVICES[target.service_id]!.tenant
       ? store.targetOrigin(connection.connection_id) : null;
     const needsReconnect = state === "connected" && !origin && Boolean(CONNECTOR_REQUEST_SERVICES[target.service_id]?.tenant);
@@ -212,7 +212,7 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
  * publisher's verified signature. A package of another publisher that declares the same service later is another installation, so
  * it never gets the account the first one was given. A built-in or platform service's connection has no pin and is judged as before.
  */
-function pinnedToAnother(store: ConnectorConnectionStore, connection_id: string, install_id: string): boolean {
+export function pinnedToAnother(store: ConnectorConnectionStore, connection_id: string, install_id: string): boolean {
   const pin = store.declarers.get(connection_id);
   return pin !== null && pin.install_id !== install_id;
 }
@@ -225,7 +225,7 @@ function usableConnection(home: string, store: ConnectorConnectionStore, connect
   : { connection_id: string; auth_method: "token" | "oauth" } {
   const connection = store.get(connection_id);
   if (connection && pinnedToAnother(store, connection.connection_id, install_id)) throw pluginRequestErrors.connection_unavailable("所绑定的账号不是为这个插件建的，请在设置里为它新建连接");
-  const usable = connection && connection.service_id === service_id && shownState(home, connection, store.state(connection)) === "connected"
+  const usable = connection && connection.service_id === service_id && shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) === "connected"
     && (connection.auth_method === "token" || connection.auth_method === "oauth") && service.credential[connection.auth_method] !== undefined;
   if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");
   const pinned = store.targetOrigin(connection.connection_id);

@@ -12,8 +12,8 @@ import {
   decisionCommitsToCurrentAgreement,
   decisionHasEffect,
   pendingBlocksCompletion,
-  requirementCurrentlySatisfied,
   requirementOnlySelfReported,
+  requirementRejected,
 } from "./event-state-authorization.js";
 import { agreementView } from "./event-state-owner-records.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
@@ -50,7 +50,15 @@ export function completionUnmetReasons(input: {
     });
   }
   for (const requirement of input.requirements) {
-    if (requirementCurrentlySatisfied(requirement)) continue;
+    if (requirement.currently_satisfied) continue;
+    if (requirementRejected(requirement)) {
+      reasons.push({
+        code: "goals.event_closure.requirement_rejected",
+        message: `你没有认可要求「${requirement.statement}」`,
+        requirement_id: requirement.requirement_id,
+      });
+      continue;
+    }
     if (requirement.human_decision_required) {
       reasons.push({
         code: "goals.event_closure.human_decision_required",

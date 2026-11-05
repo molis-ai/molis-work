@@ -1485,6 +1485,32 @@ test("close without agreement version is rejected; human extra unknown after acc
     const afterUnknown = data.app.goalEvents.readState(BOARD, goalId);
     assert.equal(afterUnknown.work_status, "open");
     assert.equal(afterUnknown.requirements[0]?.currently_satisfied, false);
+    // 用户 11-05 定：反证收回后要重新认可, for a requirement that asks for the person's decision as for any other. The worker
+    // reporting support again does not restore the acceptance the unknown report took back; the person accepting again does.
+    reportSupport(data.app, goalId, "rep-human-again", "human-buy");
+    const afterAgain = data.app.goalEvents.readState(BOARD, goalId);
+    assert.equal(afterAgain.requirements[0]?.user_conclusion?.verdict, "accepted");
+    assert.equal(afterAgain.requirements[0]?.currently_satisfied, false);
+    const heldAgain = data.app.goalEvents.submitClosure({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-human-again", kind: "complete", reason: "执行者又说满足", result: "已确认",
+      ...versions(data.app, goalId),
+    });
+    assert.equal(heldAgain.completion_applied, false);
+    assert.deepEqual(heldAgain.unmet_reasons.map((reason) => reason.code), ["goals.event_closure.human_decision_required"]);
+    data.app.goalEvents.recordTrustedDecision({
+      project_id: BOARD, goal_id: goalId, idempotency_key: "dec-human-extra-again",
+      authority: hostEventDecisionAuthority("web", BOARD, "web-user", "dec-human-extra-again"),
+      conclusion: "我再次确认购买体验", accepts_requirements: true,
+      scope: { requirement_ids: ["human-buy"] },
+    });
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).requirements[0]?.currently_satisfied, true);
+    const reaccepted = data.app.goalEvents.submitClosure({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-human-reaccepted", kind: "complete", reason: "用户再次确认", result: "已确认",
+      ...versions(data.app, goalId),
+    });
+    assert.equal(reaccepted.completion_applied, true);
   } finally {
     close(data);
   }
@@ -1855,6 +1881,7 @@ test("revoked concern acceptance cannot unblock, while a current matching approv
     // Besides the person's acceptance of the requirement (readyGoal, PWA-144), the two decisions about the concern; the later one is current.
     const aboutConcern = (items: typeof revokedState.applied_decisions) => items.filter((item) => item.scope.concern_ids.length > 0);
     assert.equal(revokedState.applied_decisions.length, 3);
+    assert.equal(revokedState.current_decisions.length, 2);
     assert.equal(aboutConcern(revokedState.applied_decisions).length, 2);
     assert.equal(aboutConcern(revokedState.current_decisions).length, 1);
     assert.equal(aboutConcern(revokedState.current_decisions)[0]?.effects.some((effect) => effect.kind === "reject_concerns"), true);
@@ -2064,11 +2091,17 @@ test("an earlier superseded completion is not revived over the later effective o
     assert.equal(operationCount(data.app, "superseded-completion", "completion_reopened"), 2);
     assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
     assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1], [1, 1], [0, 0], [0, 0]]);
+    // 用户 11-05 定：反证收回后要重新认可. The worker reporting support again leaves the requirement awaiting the person's acceptance:
+    // the acceptance stays on record, but the contradicting report took it back, and only the person can give it again.
     reportSupport(data.app, "superseded-completion", "rep-round-restored", "round-req");
     const restored = data.app.goalEvents.readState(BOARD, "superseded-completion");
     assert.equal(restored.work_status, "open");
     assert.equal(restored.completion_effect, false);
-    assert.equal(restored.requirements[0]?.currently_satisfied, true);
+    assert.equal(restored.requirements[0]?.current_report?.verdict, "supports");
+    assert.equal(restored.requirements[0]?.user_conclusion?.verdict, "accepted");
+    assert.equal(restored.requirements[0]?.currently_satisfied, false);
+    personAccepts(data.app, "superseded-completion", "accept-round-restored", ["round-req"]);
+    assert.equal(data.app.goalEvents.readState(BOARD, "superseded-completion").requirements[0]?.currently_satisfied, true);
     assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
     assert.equal(operationCount(data.app, "superseded-completion", "completion_reopened"), 2);
     assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1], [1, 1], [0, 0], [0, 0]]);
@@ -2143,6 +2176,7 @@ test("project human-approval policy blocks completion until a current user autho
 
 const APPROVAL_REQUIRED = "goals.event_closure.human_approval_required";
 const SELF_REPORTED = "goals.event_closure.requirement_self_reported";
+const REJECTED = "goals.event_closure.requirement_rejected";
 
 function requireProjectApproval(app: GoalProjectApplication, key: string) {
   app.goals.commands.saveProjectPolicy({
@@ -2250,11 +2284,19 @@ test("under the project human-approval rule an accepted requirement conclusion n
     assert.equal(tryComplete(data.app, revised, "close-revised-allowed", runtime).completion_applied, true);
 
     // A later rejection of the same requirement withdraws the acceptance: the requirement is no longer met, and the rule still holds.
+    // The close names the rejection rather than asking for an acceptance the person has just turned down (user decision 2026-11-05).
     const rejected = supportedGoal(data.app, "rejected", "rejected-req", false);
     conclude(rejected, "rejected-req", "accept-rejected", true);
     conclude(rejected, "rejected-req", "reject-rejected", false);
     assert.equal(data.app.goalEvents.readState(BOARD, rejected).requirements[0]?.user_conclusion?.verdict, "rejected");
-    assert.deepEqual(reasonCodes(tryComplete(data.app, rejected, "close-rejected", runtime)), [SELF_REPORTED, APPROVAL_REQUIRED]);
+    const heldRejected = tryComplete(data.app, rejected, "close-rejected", runtime);
+    assert.deepEqual(reasonCodes(heldRejected), [REJECTED, APPROVAL_REQUIRED]);
+    assert.equal(heldRejected.unmet_reasons[0]?.message, "你没有认可要求「结果可以检查」");
+    // The worker reporting support again does not undo the person's rejection; only the person accepting it again does.
+    reportSupport(data.app, rejected, "rep-rejected-again", "rejected-req");
+    assert.deepEqual(reasonCodes(tryComplete(data.app, rejected, "close-rejected-again", runtime)), [REJECTED, APPROVAL_REQUIRED]);
+    conclude(rejected, "rejected-req", "accept-rejected-again", true);
+    assertHeldForApproval(data.app, rejected, "close-rejected-accepted", "a rejection the person took back by accepting again");
   } finally {
     close(data);
   }
@@ -2873,10 +2915,21 @@ test("under the project human-approval rule an acceptance given before later fac
       // Nobody resumes it: a report against the requirement ends the completion, and fresh support makes the Goal ready again.
       reportSupport(data.app, goalId, "rep-accepted-reopened-against", requirementId, "contradicts");
       assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open", `${how}: the report against the requirement reopened it`);
+      // 用户 11-05 定：反证收回后要重新认可. The report against the requirement took the acceptance back. It stays on record, but the
+      // worker's fresh support does not bring it back: the requirement awaits the person's acceptance again, whoever clicks complete.
       reportSupport(data.app, goalId, "rep-accepted-reopened-again", requirementId);
-      assertAcceptanceStands(data.app, goalId, requirementId, `${how}: reopened`, accepted.decision.decision_id);
-      assertHeldForApproval(data.app, goalId, "close-accepted-reopened-before", `${how}: reopened by later facts, earlier acceptance`);
-      acceptRequirements(data.app, goalId, "accept-reopened-again", [requirementId], how);
+      const withdrawn = requirementState(data.app, goalId, requirementId);
+      assert.equal(withdrawn?.user_conclusion?.decision_id, accepted.decision.decision_id, `${how}: the acceptance is still on record`);
+      assert.equal(withdrawn?.current_report?.verdict, "supports", `${how}: the worker supports it again`);
+      assert.equal(withdrawn?.currently_satisfied, false, `${how}: but the acceptance was taken back`);
+      for (const [suffix, closer] of [["runtime", RUNTIME], ["person", PERSON]] as const) {
+        const held = tryComplete(data.app, goalId, `close-accepted-reopened-before-${suffix}`, closer);
+        assert.equal(held.completion_applied, false, `${how}: reopened, ${closer.actor_kind} clicking complete`);
+        assert.deepEqual(reasonCodes(held), [SELF_REPORTED, APPROVAL_REQUIRED], `${how}: reopened, ${closer.actor_kind} clicking complete`);
+      }
+      // Accepting again in the new round meets the requirement again, and still is not the approval.
+      const again = acceptRequirements(data.app, goalId, "accept-reopened-again", [requirementId], how);
+      assertAcceptanceStands(data.app, goalId, requirementId, `${how}: accepted again`, again.decision.decision_id);
       assertHeldForApproval(data.app, goalId, "close-accepted-reopened-accepted", `${how}: accepted again in the new round`);
       authorizeComplete(data.app, goalId, "allow-accepted-reopened-again");
       assert.equal(tryComplete(data.app, goalId, "close-accepted-reopened-2", RUNTIME).completion_applied, true, `${how}: authorized again`);
@@ -3075,7 +3128,8 @@ test("a decision whose scope names complete but whose only effect is accepting a
       conclusion: "不接受这条要求", accepts_requirements: false, scope: { requirement_ids: [requirementId] },
     });
     assert.equal(requirementState(data.app, goalId, requirementId)?.user_conclusion?.verdict, "rejected");
-    assert.deepEqual(reasonCodes(tryComplete(data.app, goalId, "close-effect-scope", RUNTIME)), [SELF_REPORTED, APPROVAL_REQUIRED], "the acceptance withdrawn");
+    // The person turned it down, so the close says so instead of asking for their acceptance (user decision 2026-11-05).
+    assert.deepEqual(reasonCodes(tryComplete(data.app, goalId, "close-effect-scope", RUNTIME)), [REJECTED, APPROVAL_REQUIRED], "the acceptance withdrawn");
     personAccepts(data.app, goalId, "accept-effect-scope-again", [requirementId]);
     authorizeComplete(data.app, goalId, "allow-effect-scope");
     assert.equal(tryComplete(data.app, goalId, "close-effect-scope-after", RUNTIME).completion_applied, true, "an authorization releases it");

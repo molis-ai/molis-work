@@ -1,6 +1,7 @@
 /** Existing Goal document copy; user content is never translated. */
 export const GOALS_DOCUMENT_EN: Record<string, string> = {
   "待你认可：{text}": "Awaiting your acceptance: {text}",
+  "你没有认可：{text}": "You did not accept: {text}",
   "核对交付物": "Check deliverables",
   "固定结果尚未核对，请先核对交付物。": "The pin result is still unknown. Check the deliverables before continuing.",
   "交付物清单未读回，请重新核对。": "The deliverable list could not be read. Check again.",

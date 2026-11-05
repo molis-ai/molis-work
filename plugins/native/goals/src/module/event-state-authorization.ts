@@ -286,22 +286,32 @@ export function scopedRequirementCommitmentsMatch(
 /**
  * Whether a requirement is met now. Only a trusted conclusion of the person meets it, whether or not the requirement asks for their
  * decision: a report is the reporter's own word (`independent_verification: false`), and a requirement backed by nothing but the
- * worker's own "supports" is not met (PWA-144; user decision 2026-11-04). A later report that contradicts it, or says it is unknown,
- * takes the conclusion back. Reports backed by checkable evidence wait for the evidence contract of batch 24-3 (BL-1036).
+ * worker's own "supports" is not met (PWA-144; user decision 2026-11-04). Any report recorded after the conclusion that contradicts the
+ * requirement, or says it is unknown, takes the conclusion back for good: a later "supports" from the worker does not bring it back,
+ * and the person has to accept again (user decision 2026-11-05: withdrawn acceptance needs accepting again). The same holds for a
+ * requirement that asks for the person's decision. `lastWithdrawingReportSeq` is the journal position of the latest such report, if
+ * any. Reports backed by checkable evidence wait for the evidence contract of batch 24-3 (BL-1036).
  */
-export function requirementCurrentlySatisfied(requirement: GoalEventRequirementStatus): boolean {
-  if (requirement.user_conclusion?.verdict !== "accepted") return false;
-  const report = requirement.current_report;
-  return !(
-    report
-    && (report.verdict === "contradicts" || report.verdict === "unknown")
-    && report.journal_seq > requirement.user_conclusion.journal_seq
-  );
+export function requirementCurrentlySatisfied(
+  requirement: Pick<GoalEventRequirementStatus, "user_conclusion">,
+  lastWithdrawingReportSeq: number | null,
+): boolean {
+  const conclusion = requirement.user_conclusion;
+  if (conclusion?.verdict !== "accepted") return false;
+  return lastWithdrawingReportSeq === null || lastWithdrawingReportSeq < conclusion.journal_seq;
 }
 
-/** Whether the only thing behind a requirement is the reporter's own "supports", with no trusted conclusion of the person. */
+/** Whether the person's current conclusion on the requirement turns it down. */
+export function requirementRejected(requirement: GoalEventRequirementStatus): boolean {
+  return requirement.user_conclusion?.verdict === "rejected";
+}
+
+/**
+ * Whether what stands behind an unmet requirement is the reporter's own "supports": nobody has accepted it, or the acceptance was
+ * withdrawn by a later report against it, and the person has not turned it down.
+ */
 export function requirementOnlySelfReported(requirement: GoalEventRequirementStatus): boolean {
-  return requirement.current_report?.verdict === "supports" && requirement.user_conclusion?.verdict !== "accepted";
+  return requirement.current_report?.verdict === "supports" && !requirement.currently_satisfied && !requirementRejected(requirement);
 }
 
 function scopeAppliesToComplete(scope: GoalEventScope): boolean {

@@ -98,7 +98,7 @@ To update progress without a new fact, call `goals.progress.record` with `summar
 
 ## Ask the person to accept what you report
 
-A supporting Runtime report never meets a requirement by itself: until the person accepts it, the requirement stays a gap and completion is held with `goals.event_closure.requirement_self_reported` (or `human_decision_required` when the requirement is marked so). Request that decision once the work is ready, naming every requirement it covers; replace the requirement IDs with the actual active ones.
+A supporting Runtime report never meets a requirement by itself: until the person accepts it, the requirement stays a gap and completion is held with `goals.event_closure.requirement_self_reported` (or `human_decision_required` when the requirement is marked so). A later report that contradicts the requirement, or says it is unknown, takes an earlier acceptance back; reporting `supports` again does not restore it, and the person has to accept again. A requirement the person turned down holds completion with `goals.event_closure.requirement_rejected`. Request that decision once the work is ready, naming every requirement it covers; replace the requirement IDs with the actual active ones.
 
 ```javascript
 await act("goals.decisions.request", {

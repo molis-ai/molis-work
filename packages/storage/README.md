@@ -49,7 +49,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 工作区依赖：`@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk`。后者提供凭据封套读取时的对象判断。其他运行依赖见 [package.json](package.json)。
 
-`createEvidenceContentStore` 为 Feed 与研究等消费者保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。历史 `molis-work-feed/sha256/...` 引用、密钥引用、恢复 overlay、密文格式及 `feed_runtime_blobs` 表名保持不变；旧的 `createFeedSearch*` 三个导出名已删，只剩 `createSearch*` 一套，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
+`createEvidenceContentStore` 为 Feed 与研究等消费者保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。Feed 正文只使用 `feed/evidence/`，显式选择根目录的研究消费者也只使用自己的该目录；共用 `system:feed:evidence-content-key:v1` 一把密钥。缺钥、错钥或损坏密文拒绝读取和同内容写入，不生成恢复副本或替代密钥。`molis-work-feed/sha256/...` 引用、现行密文格式及 `feed_runtime_blobs` 表名保持不变；旧的 `createFeedSearch*` 三个导出名已删，只剩 `createSearch*` 一套，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
 
 ## 本地开发
 
@@ -83,7 +83,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 - 公开入口：`@molis-ai/molis-work-storage`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/storage`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 密钥与正文存储跟随创建时的 Home，不靠切换全局变量混用目录。
+  - 密钥与正文存储跟随创建时的 Home，不靠切换全局变量混用目录。证据正文只有一把密钥、一个目录；已有正文缺钥或认证失败时原错误传回，密文与密钥记录不变。环境口令只用 `molis-work-secretstore-v1` 派生，旧盐不参与读取（第 02 批 N30/N36）；真实切换沿原重建窗口。
   - 钥匙串主密钥读取失败后，同一进程、Home 与配置停止自动重试；不改密文、不自动降级到文件存储。
   - 已有现行外层第1版 vault（AES-GCM封条仍为v2）（包括 entries 为空）时必须读取它绑定的原有有效密钥；缺失或无效即拒绝读取、写入和后端诊断，不生成替代 key。恢复原 key 后可重新打开。回归见 [secret-store-missing-key.test.ts](../../tests/secret-store-missing-key.test.ts)。
   - 密文快照预检必须只读，不创建锁/目录/key；密文中有任一条认证失败就整体拒绝，不能因活 vault 损坏而拒绝检查健康快照。明确恢复读取仍核原 key、普通单链接文件及调用 owner 的引用归属。

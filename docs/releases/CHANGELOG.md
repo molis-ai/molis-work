@@ -6,6 +6,7 @@
 
 ### 升级须知（需要动手）
 
+- **第 02 批 Feed 证据和搜索回到统一起点。** 证据只读写 `feed/evidence/` 与一把现行密钥，搜索意图只用 `feed-intent-v1`；不再读取恢复副本或尝试旧环境口令盐。已有正文缺钥、错钥或损坏时拒绝，原文件不变。此变更须随约定维护窗口先验证完整备份可恢复，再干净重建真实 Home；不要把此构建直接用于旧 Home 的就地升级。实际现场完成另记。
 - **第 02 批统一插件与动作版本。** 插件清单的 `schema_version` 和 `host_api_version` 都填 1，使用当前完整声明；填 2 的清单会被拒绝。内置清单和宿主快照中，101 个原为 @2～@8 的动作回到 @1。工作流步骤、绑定、外部脚本应按现行目录逐项核对输入输出：名字保留的动作若曾固定在旧 @1，现在会直接对上现行形状，版本号本身不会拒绝这条旧引用。真实 Home 在约定维护窗口重建。
 - Agent 及项目工作区动作的名字不再带 `.vN`。单条记录绑定的 `connectors.plugin_slot.read@2`、`connectors.plugin_slot.bind@2` 分别改为 `connectors.plugin_slot.record.read@1`、`connectors.plugin_slot.record.bind@1`；按安装绑定仍用原 `read@1`、`bind@1`。MCP 客户端须重新发现工具，例如 `molis_work_v1_action_projects.workspace.read.v1__v1` 改为 `molis_work_v1_action_projects.workspace.read__v1`，`molis_work_v1_action_feed.items.promote__v2` 改为 `molis_work_v1_action_feed.items.promote__v1`。按旧名调用会失败。本节 10 月条目保留当时的版本变化；更新固定引用时请使用这次复位后的目录。
 

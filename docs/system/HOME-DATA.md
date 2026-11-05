@@ -211,8 +211,8 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/workspace-git-actions.ts:52`：Git 操作审查产生的细节文字，按项目与操作 id 存；同一进程里的保存排队写 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | purge |
 | `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 1（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
 | `feed/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | purge |
-| `feed/evidence/blobs/**`、`feed/evidence-recovered-v2/blobs/**` | `packages/storage/src/adapters/evidence-content.ts:46-47`（恢复根目录是 `<根>-recovered-v2`，`:47`）：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>` | 加密文件 · 无存储版本 | 必备份，但没有 `secrets.json` 加 Keychain 主密钥就读不出（密钥引用 `system:feed:evidence-content-key:v1`、`:v2`，`:15-16`） | purge |
-| `alchemist/projects/<id>/search-content/`，及其 `-recovered-v2` | `apps/local-host/src/alchemist-search.ts:23`：同一个证据存储，根目录换了 | 加密文件 · 无存储版本 | 必备份，同上需要密钥 | purge（`alchemist` 目录） |
+| `feed/evidence/blobs/**` | `packages/storage/src/adapters/evidence-content.ts`：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>`；只有此目录 | 加密文件 · 无存储版本 | 必备份，读取要求 `secrets.json`、其原后端主密钥和唯一正文密钥引用 `system:feed:evidence-content-key:v1`；缺钥、错钥或损坏密文拒绝，不另写副本。已删除的恢复目录按未知数据拒绝快照；真实切换沿第 02 批重建窗口 | purge |
+| `alchemist/projects/<id>/search-content/` | `apps/local-host/src/alchemist-search.ts:23`：同一个证据存储，根目录换了 | 加密文件 · 无存储版本 | 必备份，同上需要密钥 | purge（`alchemist` 目录） |
 
 ### 6.2 文件型状态
 

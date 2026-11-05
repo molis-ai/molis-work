@@ -36,11 +36,10 @@ test("RAC-2915: the actual current Catalog, including its context ledger, passes
   }
 });
 
-test("RAC-2915: archived evidence authenticates through the owner's recovery overlay and original master without the live vault", { timeout: 30_000 }, async t => {
+test("RAC-2915 N36: archived evidence authenticates through its single directory and original master without the live vault", { timeout: 30_000 }, async t => {
   const f = await restoreFixture(t), root = join(f.home, "feed", "evidence");
   const content = createEvidenceContentStore({ rootDirectory: root, secretStore: createLazyFileSecretStore(f.home) });
-  const text = "Original evidence recovered by the actual owner", ref = content.write(text).contentRef, digest = ref.split("/").at(-1)!;
-  writeFileSync(join(root, "blobs", digest.slice(0, 2), digest + ".blob"), "damaged historical body");
+  const text = "Original evidence kept by its actual owner", ref = content.write(text).contentRef, digest = ref.split("/").at(-1)!;
   assert.equal(content.write(text).contentRef, ref); assert.equal(content.read(ref), text);
   await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
   const feed = join(f.snapshot, "data", "feed"), vault = readFileSync(join(feed, "secrets.json"), "utf8");
@@ -53,7 +52,7 @@ test("RAC-2915: archived evidence authenticates through the owner's recovery ove
   assertExistingHomeKeyReference(f.home, reference);
   assert.throws(() => assertExistingHomeKeyReference(f.home, { ...reference, location: "home:outside-owner.key" }));
   assert.throws(() => assertExistingHomeKeyReference(f.home, { ...reference, sha256: "0".repeat(64) }));
-  const current = join(feed, "evidence-recovered-v2", "blobs", digest.slice(0, 2), digest + ".blob"), bytes = readFileSync(current);
+  const current = join(feed, "evidence", "blobs", digest.slice(0, 2), digest + ".blob"), bytes = readFileSync(current);
   writeFileSync(current, "damaged current body");
   assert.throws(() => inspectEvidenceContentSnapshot(f.home, feed, vault), { code: "storage.evidence_snapshot.invalid" });
   writeFileSync(current, bytes);

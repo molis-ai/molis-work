@@ -64,8 +64,8 @@ const FORMAT_VERSION = 1;
 const ALG = "aes-256-gcm" as const;
 const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
 const KEYCHAIN_ACCOUNT = "install-master-key";
-/** Historical key-derivation constant. Changing the string would invalidate existing ciphertext. */
-const ENV_KEY_SALT = "goalboard-feed-secretstore-v1";
+/** Passphrase derivation for the clean Home starting point; no earlier salt is tried. */
+const ENV_KEY_SALT = "molis-work-secretstore-v1";
 
 /** On-disk sealed entry (v2). */
 interface SealedV2 {

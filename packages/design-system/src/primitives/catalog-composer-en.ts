@@ -43,7 +43,7 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "补充（默认）": "Supplement (default)",
   "当前回复或这批工具结束后读到，不打断": "Read once the current reply or tool batch ends; nothing is cut off",
   "打断并改向": "Interrupt and redirect",
-  "丢掉这条回复，改按这句做；已做的不撤销": "Drops this reply and follows this one instead; nothing is undone",
+  "丢掉正在写的回复，改按这句做；已做的不撤销": "Drops the reply in progress and follows this instead; nothing is undone",
   "下一轮再做": "Do it next turn",
   "排到下一轮开头，你开下一轮时带上": "Waits for the start of the next turn, which you start",
   "没发出去：连接被重置。文字还在，可以改了再发": "Not sent: the connection was reset. Your text is kept; edit it and send again",

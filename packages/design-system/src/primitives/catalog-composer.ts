@@ -48,8 +48,10 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-composer__start, .mw-composer__end { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .mw-composer__start { flex: 1; }
   .mw-composer__end { flex: none; }
-  .mw-composer .mw-compose__menu { top: auto; bottom: calc(100% + 6px); }
-  .mw-composer .mw-compose__menu .mw-menu { min-width: min(300px, calc(100vw - 48px)); max-width: min(360px, calc(100vw - 48px)); animation-name: craft-rise-from-bar; }
+  /* The menu hangs from the input box's top right, not from the ▾ button, so it can be as wide as the box and never leave it. */
+  .mw-composer .mw-compose__anchor { position: static; }
+  .mw-composer .mw-compose__menu { top: auto; right: 0; bottom: calc(100% + 6px); left: auto; width: min(340px, 100%); }
+  .mw-composer .mw-compose__menu .mw-menu { width: 100%; min-width: 0; animation-name: craft-rise-from-bar; }
   .mw-composer[data-state="failed"] .mw-composer__box { box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent), var(--lift-1); }
   .mw-composer[data-state="disabled"] .mw-composer__box { background: var(--wash); box-shadow: 0 0 0 1px var(--line); }
   .mw-composer[data-state="disabled"] .mw-composer__input:not(#mw-composer) { color: var(--muted); cursor: not-allowed; }
@@ -71,7 +73,7 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-catalog :is([data-primitive="composer"], [data-primitive="menu-desc"]) .mw-catalog__specimen { margin: 0; }
   .mw-catalog [data-primitive="composer"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
   /* The specimen whose ▾ menu is open keeps room above itself for it, so the menu stays inside its own cell. */
-  .mw-catalog [data-catalog-menu-room] { padding-top: var(--catalog-menu-room, 200px); }
+  .mw-catalog [data-catalog-menu-room] { padding-top: var(--catalog-menu-room, 240px); }
   .mw-catalog [data-catalog-focus] .mw-composer__box { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
   .mw-catalog [data-primitive="menu-desc"] .mw-menu { position: static; display: grid; width: min(340px, 100%); }
   .mw-catalog [data-primitive="menu-desc"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); align-items: start; }
@@ -86,7 +88,7 @@ const ghostIcon = (label: string, name: Parameters<typeof icon>[0], attrs: Recor
  */
 function deliveryItems(say: Say, interruptRefused?: string): string {
   return renderMenuItem({ label: say("补充（默认）"), iconName: "message", description: say("当前回复或这批工具结束后读到，不打断"), shortcut: "⌘↵" })
-    + renderMenuItem({ label: say("打断并改向"), iconName: "zap", description: interruptRefused ?? say("丢掉这条回复，改按这句做；已做的不撤销"), disabled: Boolean(interruptRefused) })
+    + renderMenuItem({ label: say("打断并改向"), iconName: "zap", description: interruptRefused ?? say("丢掉正在写的回复，改按这句做；已做的不撤销"), disabled: Boolean(interruptRefused) })
     + renderMenuItem({ label: say("下一轮再做"), iconName: "clock", description: say("排到下一轮开头，你开下一轮时带上"), shortcut: "⌘⇧↵" });
 }
 

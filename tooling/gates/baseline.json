@@ -15,7 +15,7 @@
     },
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 209,
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 261,
-    "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
+    "function apps/local-host/src/home-actions.ts#homeActionProvider": 180,
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 191,
     "class apps/local-host/src/home-plugins.ts#HomePluginHost": {
       "lines": 280,
@@ -33,7 +33,7 @@
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 156,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 153,
     "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 188,
-    "file apps/workbench/src/i18n/en.ts": 3208,
+    "file apps/workbench/src/i18n/en.ts": 3210,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "file horizontal/memory/src/service.ts": 1151,
     "class horizontal/memory/src/service.ts#MemoryService": {
@@ -42,7 +42,7 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "file packages/design-system/src/styles/momentum.ts": 819,
-    "file packages/design-system/src/styles/primitives.ts": 1240,
+    "file packages/design-system/src/styles/primitives.ts": 1268,
     "class packages/kernel/src/action-service.ts#ActionService": {
       "lines": 442,
       "methods": 16
@@ -350,10 +350,8 @@
     "plugins/native/goals/src/project-policy-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3
   },
-  "oldNamesTotal": 1,
-  "oldNames": {
-    "packages/storage/src/adapters/file-secret-store.ts": 1
-  },
+  "oldNamesTotal": 0,
+  "oldNames": {},
   "scriptConstantsTotal": 95,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,

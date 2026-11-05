@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Which files of the two test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull request runs (T-130).
+// Which files of the two test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull request runs (T-130),
+// and whether the macOS job `native-checks` (Rust and Swift) runs at all, on a pull request and in the merge queue (用户 2026-11-04).
 // Both block (decision #14). On a PR, some runs selected files, whole runs both complete shards, and only a successful none
 // skips the corresponding job. Verify reads the selector result and both modes to authorize those skips. Selector faults retain
 // the complete runs. The merge queue, direct pushes, nightly and manual runs run both lists whole.
@@ -49,6 +50,19 @@ export const FULL_WHEN = {
 /** A file at the root of the repository that is not a Markdown document (a config of the install, the build or the tests). */
 const ROOT_CONFIG = /^[^/]+$/;
 
+/**
+ * What makes `native-checks` (rustfmt, clippy, cargo test, the Swift type check, on a macOS runner whose capacity is scarce) run: the
+ * desktop shell, any Rust, Swift, shell or Python file (an added, changed, renamed or deleted one), the Swift helpers under
+ * apps/local-host/native/, the workflows, the script and tests of the checks and of this selection, the Rust toolchain and its caches,
+ * and any file at the root that is not a Markdown document. The list errs wide: a change outside it is one the job cannot see.
+ */
+export const NATIVE_RUN_WHEN = {
+  prefixes: ["apps/desktop/", "apps/local-host/native/", ".github/workflows/", ".cargo/"],
+  files: ["scripts/gates/native-checks.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs"],
+  extensions: [".rs", ".swift", ".sh", ".py"],
+  names: ["Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", "clippy.toml", ".clippy.toml", "rustfmt.toml", ".rustfmt.toml"],
+};
+
 const matches = (file, entry) => (entry.endsWith("/") || entry.endsWith("-") ? file.startsWith(entry) : file === entry);
 
 /** The test files the root package.json `test:security` names, its globs expanded over `testFiles`. */
@@ -62,6 +76,23 @@ export function securityList(packageJsonText, testFiles) {
     for (const file of testFiles) if (pattern.test(file)) files.add(file);
   }
   return [...files].sort();
+}
+
+/**
+ * The decision for `native-checks`: `none` only when affected-tests answered and no changed path (a rename counts by both names) is one the
+ * job reads; `whole` (the job runs) for every other way out, a failure of affected-tests included.
+ */
+export function decideNative({ affected, failure }) {
+  const whole = (reasons) => ({ mode: "whole", reasons });
+  if (!affected) return whole([failure ?? "affected-tests gave no answer"]);
+  if (!Array.isArray(affected.changes)) return whole(["affected-tests answered without changes"]);
+  const changed = [...new Set(affected.changes.flatMap((change) => [change.path, change.from].filter(Boolean)))];
+  const reads = (file) => NATIVE_RUN_WHEN.prefixes.some((prefix) => file.startsWith(prefix)) || NATIVE_RUN_WHEN.files.includes(file)
+    || NATIVE_RUN_WHEN.extensions.some((extension) => file.endsWith(extension)) || NATIVE_RUN_WHEN.names.includes(file.split("/").pop())
+    || (ROOT_CONFIG.test(file) && !file.endsWith(".md"));
+  const touched = changed.filter(reads);
+  if (touched.length) return whole([`the job reads these changed files: ${touched.join(", ")}`]);
+  return { mode: "none", reasons: [`none of the ${changed.length} changed files is one the Rust and Swift checks read`] };
 }
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -105,9 +136,8 @@ export function decideJob({ job, list, affected, failure }) {
 /** The outputs the workflow reads, as `name=value` lines. */
 export function outputLines(decisions) {
   const lines = [];
-  for (const [job, decision] of Object.entries(decisions)) {
-    lines.push(`${job}_mode=${decision.mode}`, `${job}_shards=${JSON.stringify(decision.shards)}`);
-  }
+  for (const job of ["security", "product"]) lines.push(`${job}_mode=${decisions[job].mode}`, `${job}_shards=${JSON.stringify(decisions[job].shards)}`);
+  if (decisions.native) lines.push(`native_mode=${decisions.native.mode}`);
   lines.push(`security_files=${decisions.security.mode === "some" ? decisions.security.files.join(" ") : ""}`);
   lines.push(`product_only=${decisions.product.mode === "some" ? `^(?:${decisions.product.files.map(escape).join("|")})$` : ""}`);
   return lines;
@@ -115,9 +145,9 @@ export function outputLines(decisions) {
 
 function summary(decisions, base) {
   const out = [`## PR test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. The merge queue runs both whole and waits for them.`, ""];
-  const titles = { security: "Security invariants", product: "Product subset" };
+  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks" };
   for (const [job, decision] of Object.entries(decisions)) {
-    out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
+    out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : job === "native" ? " (runs)" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
     for (const reason of decision.reasons) out.push(`- ${reason}`);
     if (decision.mode === "some") out.push("", ...decision.files.map((file) => `- \`${file}\``));
     out.push("");
@@ -148,6 +178,7 @@ if (isMain) {
   } catch (error) {
     failure = `affected-tests failed: ${String(error?.stderr || error?.message || error).trim().split("\n")[0]}`;
   }
+  const nativeAnswer = affected, nativeFailure = failure;
   let lists = null;
   try {
     const testFiles = readdirSync(path.join(root, "tests")).map((name) => `tests/${name}`);
@@ -162,6 +193,8 @@ if (isMain) {
   const decisions = {
     security: decideJob({ job: "security", list: lists?.security ?? [], affected, failure }),
     product: decideJob({ job: "product", list: lists?.product ?? [], affected, failure }),
+    // The native checks read no test list: only whether the change touches what they check, so a list that could not be read does not change it.
+    native: decideNative({ affected: nativeAnswer, failure: nativeFailure }),
   };
   const lines = outputLines(decisions);
   const text = summary(decisions, base);

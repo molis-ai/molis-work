@@ -274,11 +274,11 @@ const headErrors = (measured, budget, base) => {
 // strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
 // weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
 // 07-S1 (the right side joins the tab workspace, 待 07 批评审台审; stacked on 07-S0, so keyed on its budget): workbench.js
-// +9734 B: the side's rules in the workspace state (withSidePane: open, select, close and reopen through the shared closed
+// +9930 B: the side's rules in the workspace state (withSidePane: open, select, close and reopen through the shared closed
 // stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background tasks as a side view
 // with its count, and a removed plugin's tabs kept and marked with the stage that says how to add it back. plugin-frame.js
-// +76 B: Mod+Backslash handed up from a frame. The sheets fall (workbench.css -1630 B, arrival.css -5349 B): the side's own
-// tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab classes. (The N53/N54 entries
+// +76 B: Mod+Backslash handed up from a frame. The sheets fall (workbench.css -1411 B, arrival.css -5247 B): the side's own
+// tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab classes, less the narrow strip's scroll. (The N53/N54 entries
 // for these two scripts are spent once 07-S0 lands: its budget holds their ceilings.) Tried: the side reuses the workspace's
 // persist, closed stack and removed-plugin check instead of keeping its own; the old side-tab, side-ratio and discussion-ratio
 // keys are dropped, not read; the rules' comments sit above the function, not in the shipped body.
@@ -287,7 +287,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826727, 827274],
   "/assets/molis-work-workbench.css": [1194521, 1203872],
-  "/assets/molis-work-workbench.js": [1075120, 1084854],
+  "/assets/molis-work-workbench.js": [1075120, 1085050],
   "/assets/molis-work-plugin-frame.js": [208271, 208347],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

@@ -374,7 +374,7 @@ export interface ExternalSessionRow {
 - `view: "project"` 没有当前项目时报 `sessions.project_required`。
 - 每次都按当前读取范围过滤，范围外的行不返回（第 7 节）。`user` 以外的调用者另按第 7.4 节核许可。
 - 打开列表不等发现。来源过期（默认 5 分钟）且调用者是 `user` 时，服务去重后在后台排一次发现，不阻塞这次返回。Agent、MCP 调用不触发，防止循环调用变成频繁起子进程；带 `query_only` 的调用（首页聚合这样调）也不触发。
-- 非本人调用不漏全局信息：`unfiled_count` 是 `null`；`sources` 只留当前项目有会话的来源，`session_count` 是这个项目里的数，`skipped_count`、`progress`、`location_key` 不给。用户接了哪些工具、别的项目和待归类有多少，都看不到。`title` 过 SDK 的密钥脱敏，理由同第 6.3 节。
+- 非本人调用不漏全局信息：`unfiled_count` 是 `null`；`sources` 只留当前项目有会话的来源，`session_count` 是这个项目里 `confirmed`、`automatic` 的数，`skipped_count`、`progress`、`location_key` 不给。用户接了哪些工具、别的项目和待归类有多少，都看不到。`title` 过 SDK 的密钥脱敏，理由同第 6.3 节。
 - 页面不用第二个请求：`sources`、`unfiled_count` 都在这一个响应里。
 
 ### 6.2 来源状态
@@ -550,7 +550,7 @@ export interface ExternalSessionScopeSetInput {
 
 外部读取前后范围可能变。四处用同一个函数 `assertInScope(session, caller)`，全程同步、不让出。
 
-**它不看版本号短路，每次按当前状态重算：** 读范围行，同步调 `listWorkspaceDirectory()` 算这个会话还在不在范围内；`user` 以外的调用者再核项目许可和会话是否还归这个项目。原因：`linked_projects` 的范围跟着项目目录变，解除目录、删除项目都不经 `sessions.scope.set@1`，`revision` 不变。
+**它不看版本号短路，每次按当前状态重算：** 读范围行，同步调 `listWorkspaceDirectory()` 算这个会话还在不在范围内；`user` 以外的调用者再核项目许可，以及会话是否还以 `confirmed` 或 `automatic` 归这个项目。原因：`linked_projects` 的范围跟着项目目录变，解除目录、删除项目都不经 `sessions.scope.set@1`，`revision` 不变。
 
 | 路径 | 等待前 | 等待后 |
 | --- | --- | --- |
@@ -595,15 +595,15 @@ export interface ExternalSessionProjectAiRead {
 | 调用者 | 要什么 | 能读到什么 |
 | --- | --- | --- |
 | `user` | 读取范围 | `project`、`unfiled`、`all` 全部 |
-| `agent`、`workflow`、`plugin`（生成页面，以及声明了这项依赖的插件） | 读取范围，加当前项目的许可开着；插件还要 Manifest 的 `capabilities.consumes` 和权限，所有插件同等待遇 | 只有 `view: "project"`，只到归属当前项目的会话（`confirmed`、`automatic`、`reported`），列表和原文一样 |
+| `agent`、`workflow`、`plugin`（生成页面，以及声明了这项依赖的插件） | 读取范围，加当前项目的许可开着；插件还要 Manifest 的 `capabilities.consumes` 和权限，所有插件同等待遇 | 只有 `view: "project"`，只到归属当前项目的 `confirmed`、`automatic` 会话，列表和原文一样 |
 | `mcp` | 同上，再加 S-08 的逐客户端授权 | 同上 |
 
 - 许可关着：报 `sessions.project_ai_read_off`（`forbidden`），`details.next_step` 是 `open_project_ai_read`。不返回空列表。
 - 非本人用 `unfiled`、`all`：`actions.forbidden`。
 - 读不归当前项目的会话：`sessions.not_found`，不透露它存在。
-- 关掉后在途的调用在第 7.3 节的尾检处被拒。
+- 关掉后在途的调用在第 7.3 节的尾检处被拒。关掉时界面写「已经写进回答的内容不会收回」：AI 已写出的内容收不回，别让人以为关掉能撤回。
 - 许可不扩大读取范围：工具没允许、目录在范围外时，开着许可也读不到。
-- `reported`（工具报的）也算归属，这是 2026-11-06 的裁定。所以本人开了许可、这个工具也允许读取时，工具能经绑定让自己的会话进这个项目 AI 的可读范围。它改不了读取范围，也改不了本人的决定。
+- `reported`（工具报的）不进项目 AI 的可读范围，许可开着也一样：它只显示在本人的列表里，标「工具报的，不是你确认的」。本人确认后变成 `confirmed`，这时才算。所以工具不能经绑定让自己的会话进项目 AI 的范围。别的受众读这样的会话报 `sessions.not_found`。
 - 项目删除时这一行随 `ProjectDataDeclaration` 清掉（第 8.5 节）。
 - AI 归属建议不看这个许可：它由本人打开待归类时触发，材料不进项目 AI 的上下文，界面单独写明（第 8.4 节）。
 - 团队项目先不开放。项目现在没有团队标记，所以合同里不写判断；团队批接入时，这个动作要对共享项目拒绝，并加一条拒绝测试。这一步记在第 12 节。
@@ -662,7 +662,7 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
 | 1 | 有单条决定：归到某项目，且项目还在 | `confirmed` |
 | 2 | 有单条决定：先不归 | `unfiled`，`left_unfiled`，不再请 AI 建议 |
 | 3 | 有单条决定，但项目已不在 | `unfiled`，`project_gone`，不自动换项目 |
-| 4 | 有工具报的 Runtime 绑定，且项目还在 | `reported`，界面写「工具报的，不是你确认的」，本人可确认或改选 |
+| 4 | 有工具报的 Runtime 绑定，且项目还在 | `reported`，只有本人的列表显示，界面写「工具报的，不是你确认的」；本人确认或改选后走第 1 行 |
 | 5 | 目录或仓库匹配到唯一项目，关系是本人建的 | `automatic`，依据是这条目录关系 |
 | 6 | 匹配到多个项目，含同一仓库连着两个项目 | `unfiled`，`ambiguous`，候选是这几个项目，走 AI 建议 |
 | 7 | 曾匹配、现在没有了（缓存重建后分不出，退成第 9 行） | `unfiled`，`relation_gone` |
@@ -887,7 +887,7 @@ export const sessionsErrors = defineErrorCodes("sessions", {
 | S-115 | 子进程只跑登记表写明的只读命令：不经 shell，`argv` 来自登记表，只有 `{session_id}`、`{query}` 被替换；前者过 `EXTERNAL_SESSION_NATIVE_ID_PATTERN`，后者占一个元素、不以 `-` 开头；有时限、输出上限、最小环境；`detect` 不符不跑解析。列表、历史、搜索不启动 `resume`、`exec`、`delete`、`queue` 一类命令。`detect` 要运行本机程序：先过 `real_path_pattern`，不过不运行；运行时只带 `version_argv`，同样有时限、无 shell、最小环境 | 原生 ID 写成 `--dangerously…`、带分号或空格时不起进程；搜索词以 `-` 开头时不起进程；`version_pattern` 不符时不解析；走一遍列表、历史、搜索后，假工具记录下的调用里没有写命令（SRB-12）；`agent` 的真实路径不符时假工具一次都没被运行 |
 | S-116 | 外部读取返回前再核范围：收窄、停止、撤连接、关掉项目的 AI 读取许可后，在途的读取不返回内容、发现不写库、建议不写表 | 假适配在等待中收窄范围、关掉许可、解除项目目录（`linked_projects` 下，`revision` 没变），各断言 `sessions.scope_changed`、响应里没有原文、索引行数不变；`sessions.tool.search@1` 在等待中收窄，范围外的行不返回；取消后来源进度不更新；连接失效时云端来源不返回内容 |
 | S-117 | 外部会话的标题、原文、工具输出都是不可信数据：给模型时走 S-13 的 JSON 围栏，给 Agent 的输出带 `trust: "untrusted"` 并脱敏，不进系统提示和工具定义 | 标题里写伪造的结束标记和角色，留在 JSON 字符串里；原文里的密钥样式在 `agent` 受众下被脱敏；模型回了列表外的项目编号，这一项被丢弃 |
-| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定之后，不改读取范围，不产生 `automatic`。项目 AI 的读取要许可开着，且只到归属当前项目的会话，含 `reported`；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下的会话是 `tool_linked` 不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；Runtime 绑定显示 `reported` 不是 `confirmed`；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量 |
+| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着，且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下的会话是 `tool_linked` 不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量 |
 | S-119 | 认仓库只读文件，不跑 git：只读 `.git`、`commondir`、`gitdir` 三个文件，各不超过 4 KB，内容只留哈希，不读 `config` 与 hooks；到用户主目录或根目录停止往上找；`.git` 文件必须和仓库里的 `gitdir` 互相指着才算 worktree，否则 `repository_key` 为空 | `PATH` 上放假 `git` 并记录调用，发现、归属、范围判断之后调用次数为 0；任意目录放 `.git` 文件写 `gitdir: <已关联仓库>/.git/worktrees/x`，而仓库那边没有指回：`repository_key` 为空，不进范围，不自动归入；`gitdir:` 指向不相干的目录、没有 `commondir`、超长、含 NUL 时 `repository_key` 都为空且不报错；仓库 `config` 里写 `core.fsmonitor` 也不执行；三个文件之外的读取次数为 0 |
 
 SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行。
@@ -997,7 +997,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | SRB-13 | 身份、去重、七个状态、进度 | 34 用真实来源制造中断 |
 | SRB-14 | 第 8.1、8.2 节，含子目录、worktree、同仓库两项目、单仓多包、伪造 worktree、工具带进来的目录的反例；S-119 | P-1；34 |
 | SRB-15 | 第 8.4 节 | 34 |
-| SRB-16 | 第 8.5 节、第 7.4 节、S-118。授权来自项目许可，归属只定范围；所以许可开着时，项目新连目录会让 AI 可读的会话变多 | 34 |
+| SRB-16 | 第 8.5 节、第 7.4 节、S-118。授权来自项目许可，归属只定范围；所以许可开着时，本人给项目新连目录会让 AI 可读的会话变多。工具做不到这一点：工具带进来的目录不算，工具报的绑定不进 AI 的可读范围 | P-1；34 |
 | SRB-17 | 登记停止方式；`activity` 三态是它的前提 | 59 |
 | SRB-18 | 不涉及 | 59 |
 
@@ -1026,9 +1026,9 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 17 | 需求 SRB-16 | 写「自动归入不扩大读取权限」，而 D4 让项目 AI 读到含自动归入的会话 | 已裁定：授权来自项目许可，归属只定范围，写在第 11 节 SRB-16 一行 |
 | 18 | 团队批 | 「团队项目先不开放」现在无从判断，项目没有这个标记 | 团队批接入时，`sessions.project_ai_read.set@1` 对共享项目拒绝并加测试 |
 | 19 | 路线书决策表第 11 项 | 记着 Sessions 技术方案待定 | 统筹的跨批文件，不改 |
-| 20 | 许可开关定样方案 A | 用户选 A | 全局 Sheet 改别的项目做得到，`sessions.scope.read@1` 带回全部项目（第 7.4 节），动作总数不变。定样分支 `claude/roadmap-22-permit-sample-31916b` 还没合入，「已经写进回答的不会收回」那句用户没定，稿子没写 |
+| 20 | 许可开关定样方案 A | 用户选 A | 全局 Sheet 改别的项目做得到，`sessions.scope.read@1` 带回全部项目（第 7.4 节），动作总数不变。定样分支 `claude/roadmap-22-permit-sample-31916b` 还没合入。关掉时那句「已经写进回答的内容不会收回」用户已定，写在第 7.4 节 |
 | 21 | `bound_by` 存量 | 片 P-1 之前终端面板写下的目录关系，`bound_by` 是本人的 id，会算成本人建的 | 真实 Home 重建在 P-1 之后就没有；否则维护窗口要核一次，交主会话排 |
-| 22 | 已定裁定之间 | 裁定 3 让 `reported` 算归属，所以工具能让自己的会话进项目 AI 的可读范围；P4 的本意是别让工具不经本人变大。两条都按字面写了（第 7.4 节）：前提是本人开了许可、工具已允许读取 | 想再收紧，改成 `reported` 不进项目 AI 的范围，只改第 7.4 节和 S-118 各一句，交主会话问用户 |
+| 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-118） |
 | 23 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 59 批之后另议 |
 
 ## 13. 已定
@@ -1040,7 +1040,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | D1 | Sessions 自己存单条决定；已有 Runtime 绑定只读进来作归属依据，不回写，不带任何读取权；显示成工具报的，不写成本人确认（P4） | 第 8.1、8.2 节 |
 | D2 | 子目录和 git worktree 都算；同一仓库连两个项目算不唯一；只读 `.git`、`commondir`、`gitdir`，互相指着才算 worktree（P3），绝不跑 git；`linked_projects` 和自动归入只认本人建的目录关系，工具带进来的目录下的会话进待归类（P4）；`linked_projects` 含 worktree；已删、认不出的不算进 `linked_projects`，选「所有目录」时才看得到并走 AI 建议 | 第 7.1、8.2 节，S-119 |
 | D3 | 跨会话只搜标题、目录、工具名；内容进单个会话搜；工具自带搜索的加「在这个工具里搜」；全文索引不做 | 第 6.4 节，SRB-02 |
-| D4 | 读取权与归属分开：每个项目一个 AI 读取许可，默认关，只有本人能改；`agent`、`workflow`、`plugin` 要它，且只到当前项目已归属的会话；MCP 另需 S-08；待归类和全部只有本人；团队项目先不开放 | 第 6.5、7.4 节，S-118 |
+| D4 | 读取权与归属分开：每个项目一个 AI 读取许可，默认关，只有本人能改；`agent`、`workflow`、`plugin` 要它，且只到当前项目的 `confirmed`、`automatic` 会话，工具报的不算；MCP 另需 S-08；待归类和全部只有本人；团队项目先不开放 | 第 6.5、7.4 节，S-118 |
 | D5 | 页面只在有来源在读且可见时询问，逐步拉长；隐藏即停、失败退避、读完即停 | 第 9.5 节 |
 | D6 | 读取范围归 Sessions，云端只存 `connection_id`，读取时另核连接有效 | 第 7.1、7.3 节 |
 | D7 | 时间窗不做，没有字段，记为能力缺口 | 第 7.1 节 |

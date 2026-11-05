@@ -226,10 +226,6 @@ test("real event closure stays distinct; after an explicit continue the old appr
       mixed.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER")?.user_conclusion?.decision_id,
       original.decision_id,
     );
-    // MIXED-C1 has only the worker's own "supports" behind it (PWA-144): the person accepts it in the round that ended, before the
-    // Goal is continued. An acceptance in the new round would itself be a fresh nod under the project rule; given in the old round it
-    // keeps MIXED-C1 met after the continue and belongs, like the original approval, to the round that ended.
-    const accepted = acceptMixedCriterion(app, "accept-mixed-c1-completed");
     app.goalEvents.resumeWork({
       project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "continue-approved-current-scope",
@@ -252,6 +248,9 @@ test("real event closure stays distinct; after an explicit continue the old appr
       const state = app.goalEvents.readState(BOARD, "MIXED-OWNER");
       return { expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
     };
+    // MIXED-C1 has only the worker's own "supports" behind it (PWA-144): the person accepts it in the new round. Accepting a
+    // requirement is not the approval to complete (user decision 2026-11-05), so it does not stand in for a fresh nod.
+    const accepted = acceptMixedCriterion(app, "accept-mixed-c1-completed");
     // The project asks for the person's nod before completing. The nod given before the Goal was continued belongs to the round
     // that ended, so the close is held for that alone; the imported policy requirement keeps its conclusion.
     const held = app.goalEvents.submitClosure({

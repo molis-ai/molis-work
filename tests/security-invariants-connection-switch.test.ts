@@ -26,8 +26,12 @@ test("S-108 RAC-2941 a switch input names only the two connections and the usage
   }
   assert.equal(input({ to_connection_id: "b" }), false);
   assert.equal(input({ from_connection_id: "", to_connection_id: "b" }), false);
+  assert.equal(input({ from_connection_id: "a", to_connection_id: "b", usage_ids: [] }), false);
   const output = compileActionSchema(switchAction.action.output_schema!);
   assert.equal(output({ switched: ["slot-1"], refused: [{ usage_id: "slot-2", code: "connector.plugin_slots.slot_undeclared" }] }), true);
-  // A refusal says which usage and a stable code; free text or a credential has no place to go.
-  assert.equal(output({ switched: [], refused: [{ usage_id: "slot-2", code: "x", message: "token abc" }] }), false);
+  // A refusal says which usage and a stable `<owner>.<reason>` code; free text or a credential has no place to go.
+  assert.equal(output({ switched: [], refused: [{ usage_id: "slot-2", code: "connector.plugin_slots.slot_undeclared", message: "token abc" }] }), false);
+  for (const code of ["这个账号已经失效", "the account was revoked", "connector", "Connector.Slot", "connector.plugin slots"]) {
+    assert.equal(output({ switched: [], refused: [{ usage_id: "slot-2", code }] }), false, code);
+  }
 });

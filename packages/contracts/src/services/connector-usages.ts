@@ -1,3 +1,4 @@
+import { ACTION_ERROR_CODE } from "../platform/action-errors.js";
 import { ACTION_REFERENCE_SCHEMA, type ActionDefinition, type ActionReference } from "../platform/actions.js";
 
 /** Each consumer reports its own live saved references; this is not a second binding store. */
@@ -36,14 +37,14 @@ export interface ConnectorUsagesSwitchInput {
 }
 export interface ConnectorUsagesSwitchResult {
   switched: string[];
-  /** `code` is a stable `<owner>.<reason>` error code the page words; never free text. */
+  /** `code` is a stable `<owner>.<reason>` error code (`ACTION_ERROR_CODE`) the page words; never free text. */
   refused: Array<{ usage_id: string; code: string }>;
 }
 const connectionId = { ...text, maxLength: 160 };
 export const CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA = { type: "object", properties: { from_connection_id: connectionId, to_connection_id: connectionId,
-  usage_ids: { type: "array", items: text, maxItems: 1000 } }, required: ["from_connection_id", "to_connection_id"], additionalProperties: false };
+  usage_ids: { type: "array", items: text, minItems: 1, maxItems: 1000 } }, required: ["from_connection_id", "to_connection_id"], additionalProperties: false };
 export const CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA = { type: "object", properties: { switched: { type: "array", items: text },
-  refused: { type: "array", items: { type: "object", properties: { usage_id: text, code: { ...text, maxLength: 200 } }, required: ["usage_id", "code"], additionalProperties: false } } },
+  refused: { type: "array", items: { type: "object", properties: { usage_id: text, code: { type: "string", maxLength: 200, pattern: ACTION_ERROR_CODE.source } }, required: ["usage_id", "code"], additionalProperties: false } } },
   required: ["switched", "refused"], additionalProperties: false };
 
 export function defineConnectorUsagesSwitchAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult> {

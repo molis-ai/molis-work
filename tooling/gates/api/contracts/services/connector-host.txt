@@ -111,6 +111,7 @@ export declare const CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA: {
                 minLength: number;
                 maxLength: number;
             };
+            minItems: number;
             maxItems: number;
         };
     };
@@ -142,9 +143,9 @@ export declare const CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA: {
                         maxLength: number;
                     };
                     code: {
-                        maxLength: number;
                         type: string;
-                        minLength: number;
+                        maxLength: number;
+                        pattern: string;
                     };
                 };
                 required: string[];

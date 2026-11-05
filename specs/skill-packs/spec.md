@@ -1,6 +1,6 @@
 # 技能包与个人助理 / Coding 的装配
 
-状态：需求已整理，尚未实现（2026-10-18；2026-10-19 改为「没有 runtime、只有 Manifest 的插件」，不再设第二套安装与注册路径）。实现归会话④（需求）。目标完成程度为**内部完整**：一个只有内容、没有运行时、动作和存储的插件可以安装，个人助理与 Coding 能按同一份目录发现、选择、按精确版本使用；技能不授予权限，业务效果仍走动作授权与审查。
+状态：需求已整理，尚未实现（2026-10-18；2026-10-19 改为「没有 runtime、只有 Manifest 的插件」，不再设第二套安装与注册路径；2026-11-04 安装预览、启用和管理的界面已定样，见 §9）。实现归会话④（需求）。目标完成程度为**内部完整**：一个只有内容、没有运行时、动作和存储的插件可以安装，个人助理与 Coding 能按同一份目录发现、选择、按精确版本使用；技能不授予权限，业务效果仍走动作授权与审查。
 
 2026-10-19 改动记录：原稿的 `pack.json` 与宿主 `SkillPackRegistry` 是插件之外的第二条安装、信任和注册路径，违反 2026-10-18 用户定的「插件不分官方、个人、创作台生成还是第三方，待遇一样；缺什么补进平台，不给某个插件在宿主里开私路」（`AGENTS.md` 硬约束，`specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行），也与 [plugin-platform-v2](../plugin-platform-v2/spec.md) S1「内容包是一种只有内容的声明形态」不一致。现在技能包就是一个没有 runtime 的插件：技能写在 Manifest 的方法声明里（`AgentSkillDeclaration` 加字段），走同一条插件安装、信任、启用、卸载路径。验收编号 SKP-01～SKP-12 全部保留，其中 SKP-01、SKP-02、SKP-04、SKP-08 的措辞随新设计改了；没有整条删除的编号（原稿没有一条只对旧设计成立）。
 
@@ -10,8 +10,8 @@
 
 现状有三个具体断点：
 
-1. **个人助理只看见“有可用动作的插件”提供的方法。** `apps/local-host/src/assistant/assistant-service.ts` 的 `methods()` 用当前范围里可用动作的提供方过滤；一个只有方法、没有动作的包不会出现在“可用的方法”里。
-2. **Coding 有自己的方法路径。** `plugins/native/coding/src/roles.ts` 的 `skills` 是包内 `codingMethods`；项目里的方法经 `coding.discover-methods` → `agent.discoverSkills` → `coding.install-method` → `agent.installSkill` 安装。它和个人助理的 `methods` 是两条路径，没有共同的目录。
+1. **个人助理只看见“有可用动作的插件”提供的方法。** `apps/local-host/src/assistant/assistant-work-reads.ts` 的 `methods()`（2026-11-04 核对：过滤已从 `assistant-service.ts` 搬到这里） 用当前范围里可用动作的提供方过滤；一个只有方法、没有动作的包不会出现在“可用的方法”里。
+2. **Coding 有自己的方法路径。** `plugins/native/coding/src/roles.ts` 的 `skills` 是包内 `codingSkills`（`plugins/native/coding/src/skills.ts`；2026-11-04 核对，原名 `codingMethods`）；项目里的方法经 `coding.discover-methods` → `agent.discoverSkills` → `coding.install-method` → `agent.installSkill` 安装。它和个人助理的 `methods` 是两条路径，没有共同的目录。
 3. **Skill 合同太薄。** `AgentSkillDeclaration` 只有 `skill_id`、`version`、`name`、`summary`、`tools`；没有 `description`（什么时候触发）、`when_to_use`、`references/`、`scripts/`、`assets/`，也没有 `applies_to`。助理只能凭 summary 选，Coding 只能靠内置或项目目录。
 
 ## 2. 范围与非目标
@@ -76,8 +76,8 @@ argument_hint: "<周期，可选>"
 
 **目录**：不新建注册表。平台已有的方法目录（宿主按插件 Manifest 的 `methods` 登记，助理经 `assistant.methods.read` 读取）就是共同目录，技能包的技能进的是这一份：
 
-- **个人助理**：技能是 `methods`，owner 是插件 id；助理列 `name` + `summary`/`description`，需要时用 `assistant.methods.read` 读正文。今天 `AssistantService.methods()`（`apps/local-host/src/assistant/assistant-service.ts`）只保留「所属插件在这个范围里有可用动作」的方法，所以没有动作的技能包助理看不见；这个过滤要改成「插件已安装且在本项目启用」。助理的 `/` 选择仍可把正文作为这一轮材料。
-- **Coding**：`applies_to` 包含 `coding` 时，从同一份方法目录里取，注册为可安装方法（复用 `agent.installSkill` 的目录/候选机制），或按项目设置在起跑时注入 `agent.skills`；角色只看到自己工具范围内的技能。Coding 自己的 `codingMethods` 与 `coding.discover-methods` 路径并到这份目录上，不并存两条。
+- **个人助理**：技能是 `methods`，owner 是插件 id；助理列 `name` + `summary`/`description`，需要时用 `assistant.methods.read` 读正文。今天 `methods()`（`apps/local-host/src/assistant/assistant-work-reads.ts`）只保留「所属插件在这个范围里有可用动作」的方法，所以没有动作的技能包助理看不见；这个过滤要改成「插件已安装且在本项目启用」。助理的 `/` 选择仍可把正文作为这一轮材料。
+- **Coding**：`applies_to` 包含 `coding` 时，从同一份方法目录里取，注册为可安装方法（复用 `agent.installSkill` 的目录/候选机制），或按项目设置在起跑时注入 `agent.skills`；角色只看到自己工具范围内的技能。Coding 自己的 `codingSkills` 与 `coding.discover-methods` 路径并到这份目录上，不并存两条。
 - **其他 Agent**：按 `agent.skills`/`methods` 的现有规则读取。
 
 **生效**：安装 → 项目启用/选择 → 起跑时冻结精确 id/version → 这一轮使用；运行中的轮次不因升级改绑。技能不授予权限，权限仍来自动作授权。
@@ -119,9 +119,24 @@ argument_hint: "<周期，可选>"
 
 ## 8. 关联
 
+- 合同设计（第 08 批，2026-11-04 设计稿）：[contract-design.md](contract-design.md)
 - 插件声明与宿主装配：[plugin-platform-v2](../plugin-platform-v2/spec.md)
 - 助理如何使用 Skill：[proactive-assistant](../proactive-assistant/spec.md) §5
 - Coding 角色与方法：[coding-plugin](../coding-plugin/spec.md)、[next-requirements](../coding-plugin/next-requirements.md) A2/A4
 - 作者手册与评测：[ai-development-handbook](../ai-development-handbook/spec.md)
 - 连接器占位符：[assistant-service-connections](../assistant-service-connections/spec.md)
-- 相关代码：`apps/local-host/src/assistant/assistant-service.ts`、`plugins/native/coding/src/roles.ts`、`plugins/native/coding/src/routes-setup.ts`、`packages/contracts/src/platform/plugin-agent.ts`
+- 相关代码：`apps/local-host/src/assistant/assistant-work-reads.ts`、`plugins/native/coding/src/roles.ts`、`plugins/native/coding/src/routes-setup.ts`、`packages/contracts/src/platform/plugin-agent.ts`
+
+## 9. 决策记录
+
+- **2026-11-04 用户定样（第 08 批「先定样：安装预览、启用和管理」）**：选 **A 的启用步骤＋C 的目录**。可点原型与状态表见 [docs/design/skill-packs/](../../docs/design/skill-packs/README.md)。
+  - **安装与导入**：安装确认里只看技能、不选。确认里列出每个技能的用途、适用于助理还是 Coding、会不会执行脚本、用到的连接器类别；详情里有什么时候用、声明的工具、附带文件和正文开头；升级时标出新增、正文变了、会移除、仅手动会保留。点「同意并安装」后，同一块就地换成「在这个项目里用哪些」：每项三档（关／自动／仅手动），默认关，上面三句话说明三档；可「以后再说」。从本机导入走同一个步骤。
+  - **目录**：设置里「技能」一节是左边列表、右边详情。列表每行带状态（自动／仅手动／关／用不了），可搜索、按在用／没启用／用不了筛选。详情里是：三档单选（每档一句说明）、什么时候用和不用、声明的工具、附带文件、正文开头与打开全文、最近一次被用、所在包与整包的停用和卸载。窄屏先列表，点进去看详情。
+  - **用不了**：每种原因写一句话，给一件能做的事（照合同的不可用原因码），和启用状态分开显示。插件停用、发布者撤销、正文或资源坏了的，三档变灰。
+  - **改状态**：立即生效，提示里可以撤销；保存失败就地说「什么都没改」并给重试。
+  - **否掉的**：
+    - A 的目录（按包分组、行末三档分段）：用户更要列表加完整详情，技能多了好找；
+    - B 在安装确认里一并用开关选：把「同意权限」和「让 AI 用」并进一个按钮，三档也拆成开关加勾选两个控件；
+    - C 装完不启用、要另去目录：装完还要再走一趟。
+  - **代价**：目录里改状态要先点进详情。
+  - **组件板新增**（定下后先补标本再进产品，交 D 轨）：条目行下面的三档分段、条目行里的折叠详情、列表＋详情的整页、提示里的按钮、状态旁的链接按钮。

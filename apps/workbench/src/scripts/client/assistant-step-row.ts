@@ -86,7 +86,7 @@ export const ASSISTANT_THREAD_REPLY_SCRIPT = String.raw`
     try {
       const status = await api("/threads/start", "POST", { target: { provider_id: message.source.plugin_id, subject_kind: message.object.kind, subject_id: message.object.id,
         thread_id: message.thread.thread_id }, message_id: message.thread.message_id, draft: message.thread.draft });
-      await loadWorks();
+      await loadWorks(true);
       if (status && status.work_id) await switchTo(status.work_id);
       setPanel(true);
     } catch (error) { setPanel(true); showError(error); }

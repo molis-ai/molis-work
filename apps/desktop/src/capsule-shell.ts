@@ -147,6 +147,15 @@ export const CAPSULE_STYLES = `
   .capsule__project-wrap .mw-select-picker__trigger { height: 30px; }
 `;
 
+/**
+ * The capsule window is hidden almost all the time, so what the script asks the Host follows what the window shows (N54, batch 07-2a).
+ * Shown: a read every 2.5 s and the elapsed-time text every second. Hidden (`document.hidden`, which WKWebView flips when the shell's
+ * `hide()`/`show()` order the window out and in): no elapsed text, and a read every 30 s rather than none, because every read also sets
+ * the menu-bar title and tooltip, which stay on screen with the capsule closed. Back to visible: one read at once, then the fast cadence.
+ * A 404 means the project (or the Host's copy of it) is gone: the timers stop for good and the panel says so; showing the window again,
+ * or "Retry now", reads the page itself again (its project list is what went stale), and any successful read resumes the polling.
+ * tests/capsule-polling.test.ts runs this script on a fake clock and counts the requests.
+ */
 export const CAPSULE_CLIENT_SCRIPT = `
 (() => {
   const root = document.querySelector("[data-capsule]");
@@ -180,6 +189,11 @@ export const CAPSULE_CLIENT_SCRIPT = `
   let lastHeight = null;
   let requestSequence = 0;
   let activeRequest = null;
+  const VISIBLE_REFRESH_MS = 2500;
+  const HIDDEN_REFRESH_MS = 30000;
+  let refreshTimer = null;
+  let elapsedTimer = null;
+  let polling = true;
   const selectedTabs = new Map(
     Object.entries(savedView.projects || {}).map(([id, value]) => [id, value?.selectedTab || null]),
   );
@@ -407,6 +421,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
       : null;
     snapshot = next;
     clearLoading();
+    if (!polling) { polling = true; startTimers(); }
     root.dataset.error = "false";
     projectSelects.forEach((select) => { select.value = next.project.project_id; });
     document.querySelectorAll("[data-capsule-open-board]").forEach((button) => { button.dataset.path = "/projects/" + encodeURIComponent(next.project.project_id); });
@@ -433,6 +448,8 @@ export const CAPSULE_CLIENT_SCRIPT = `
       path: next.state.action_path,
     }).catch(() => {});
   };
+  // The one network read in this program: the capsule state and the page probe both go through it.
+  const readNoStore = (url, signal) => fetch(url, { cache: "no-store", signal });
   const load = async ({ showLoading = false } = {}) => {
     if (!projectId) {
       clearLoading();
@@ -447,10 +464,11 @@ export const CAPSULE_CLIENT_SCRIPT = `
     activeRequest = { requestId, controller };
     if (showLoading) setLoading(requestedProjectId);
     try {
-      const response = await fetch(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule"), {
-        cache: "no-store",
-        signal: controller.signal,
-      });
+      const response = await readNoStore(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule"), controller.signal);
+      if (response.status === 404 && requestId === requestSequence && requestedProjectId === projectId) {
+        stopPolling();
+        return;
+      }
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || L("无法读取工作状态"));
       if (requestId !== requestSequence || requestedProjectId !== projectId) return;
@@ -458,6 +476,8 @@ export const CAPSULE_CLIENT_SCRIPT = `
       render(payload);
     } catch (error) {
       if (controller.signal.aborted || requestId !== requestSequence || requestedProjectId !== projectId) return;
+      // After a 404 only an outside nudge (the "online" event) reads again; a failure then is the ordinary "reconnecting", so it polls again.
+      if (!polling) { polling = true; startTimers(); }
       clearLoading();
       root.dataset.error = "true";
       root.dataset.state = "disconnected";
@@ -477,6 +497,39 @@ export const CAPSULE_CLIENT_SCRIPT = `
     if (activeRequest) return;
     load();
   };
+  const stopTimers = () => {
+    if (refreshTimer !== null) window.clearInterval(refreshTimer);
+    if (elapsedTimer !== null) window.clearInterval(elapsedTimer);
+    refreshTimer = null;
+    elapsedTimer = null;
+  };
+  const startTimers = () => {
+    stopTimers();
+    if (!polling) return;
+    if (document.hidden) {
+      refreshTimer = window.setInterval(refresh, HIDDEN_REFRESH_MS);
+      return;
+    }
+    refreshTimer = window.setInterval(refresh, VISIBLE_REFRESH_MS);
+    elapsedTimer = window.setInterval(syncElapsed, 1000);
+  };
+  const stopPolling = () => {
+    polling = false;
+    stopTimers();
+    clearLoading();
+    const gone = L("这个项目已不在 Molis Work 里。点「立即重试」重新读取项目列表。");
+    root.dataset.error = "true";
+    root.dataset.state = "disconnected";
+    setText("[data-capsule-status-text]", L("项目已不在"));
+    setText("[data-capsule-error-detail]", gone);
+    setCapsuleHeight(252);
+    // "/projects/" is the shell's own "just bring the main window forward": the menu bar must not open the project that is gone.
+    invoke?.("capsule_update_menu_bar", { title: L("项目已不在"), tooltip: gone, path: "/projects/" }).catch(() => {});
+  };
+  // The page itself is fetched first: a Host that is restarting would turn the reload into an error page with no script in it.
+  const reloadPage = () => {
+    readNoStore(location.href).then((response) => { if (response.ok) location.reload(); }).catch(() => {});
+  };
 
   projectSelects.forEach((select) => {
     select.value = projectId;
@@ -494,7 +547,21 @@ export const CAPSULE_CLIENT_SCRIPT = `
     const openButton = eventTarget?.closest("[data-capsule-open-board]");
     if (openButton) openPath(openButton.dataset.path);
     const retryButton = eventTarget?.closest("[data-capsule-retry]");
-    if (retryButton) load({ showLoading: true });
+    if (retryButton) {
+      if (polling) load({ showLoading: true });
+      else reloadPage();
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!polling) {
+      if (!document.hidden) reloadPage();
+      return;
+    }
+    if (!document.hidden) {
+      refresh();
+      syncElapsed();
+    }
+    startTimers();
   });
   tabsRoot?.addEventListener("keydown", (event) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -514,8 +581,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
   });
   load({ showLoading: true });
   window.addEventListener("online", () => load({ showLoading: true }));
-  window.setInterval(refresh, 2500);
-  window.setInterval(syncElapsed, 1000);
+  startTimers();
 })();`;
 
 function projectOptions(projects: CapsuleProjectNavigation[]): string {

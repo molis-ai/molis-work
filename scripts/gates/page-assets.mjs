@@ -257,12 +257,14 @@ const headErrors = (measured, budget, base) => {
 // smaller than what it replaced; no new asset.
 // BL-952 (2026-11-04): the selection reader skips headings inside a closed dialog or a hidden element, +56 B on workbench.js and on
 // plugin-frame.js (the same reader). Tried: one `closest` test with a short selector, no feature check, no second path.
+// N53 (2026-11-05, #1812, 统筹 11-05 放行): the Assistant shares a works read in flight, per address, and a read after its own change
+// waits for one that starts after it, +381 B on workbench.js. Tried: no cache, no new helper; one guard and one follow-up chain.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [678758, 689755],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [816992, 826705],
   "/assets/molis-work-workbench.css": [1179610, 1194394],
-  "/assets/molis-work-workbench.js": [1074514, 1074570],
+  "/assets/molis-work-workbench.js": [1074570, 1074951],
   "/assets/molis-work-plugin-frame.js": [207977, 208033],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

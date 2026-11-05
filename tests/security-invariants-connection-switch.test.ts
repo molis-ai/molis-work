@@ -137,3 +137,27 @@ test("S-108 RAC-2945 a switch called off part way changes nothing more: what was
   code("actions.cancelled"));
   assert.equal(bound(), 2, "the first was switched before the call was called off; the second still has the first account");
 });
+
+test("S-108 RAC-2946 a consumer switch called directly does every check itself: two services, an account not connected and one made for another package are refused, and an Agent or MCP is refused by audience", { timeout: 60_000 }, async t => {
+  const { home, client, a, b, image, keyOf } = await modelHome(t);
+  const [work, pinned] = withConnectorConnections(home.home, store => [
+    store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-switch-direct-a" }),
+    store.createToken({ serviceId: "github", displayName: "Made for another package", token: "fixture-switch-direct-b" }),
+  ]);
+  withConnectorConnections(home.home, store => {
+    store.bind({ scopeId: pluginBindingScope({ install_id: "install-direct" }), pluginId: "io.molis.work.example.switch", slotId: "account", serviceId: "github", connectionId: work!.connection_id });
+    store.declarers.pin(pinned!.connection_id, { plugin_id: "io.molis.work.example.other", install_id: "install-other", plugin_title: "Other" });
+  });
+  const direct = (consumer: typeof modelProviderSwitch, from: string, to: string, caller: ActionCallContext = user) =>
+    client.invoke(caller, { capability_id: consumer.capability_id, version: consumer.version, provider_id: "system.connectors" }, { from_connection_id: from, to_connection_id: to }) as Promise<{ switched: string[]; refused: Array<{ usage_id: string; code: string }> }>;
+  for (const consumer of [modelProviderSwitch, connectorPluginSlotSwitch]) {
+    for (const audience of ["agent", "mcp"] as const) await assert.rejects(direct(consumer, a.connection_id, b.connection_id, { ...user, audience }), undefined, `${consumer.capability_id} for ${audience}`);
+    await assert.rejects(direct(consumer, a.connection_id, image.connection_id), code("connector.switch.service_mismatch"));
+  }
+  const slot = await direct(connectorPluginSlotSwitch, work!.connection_id, pinned!.connection_id);
+  assert.deepEqual(slot, { switched: [], refused: [{ usage_id: usage("install-direct", "io.molis.work.example.switch", "account"), code: "connector.plugin_slots.connection_pinned" }] });
+  assert.equal(withConnectorConnections(home.home, store => store.pluginBindings(work!.connection_id).length), 1, "the slot keeps its account");
+  withConnectorConnections(home.home, store => store.disconnect(b.connection_id));
+  for (const consumer of [modelProviderSwitch, connectorPluginSlotSwitch]) await assert.rejects(direct(consumer, a.connection_id, b.connection_id), code("connector.switch.target_unavailable"));
+  assert.deepEqual([await keyOf("here"), await keyOf("there")], [a.credential_ref, a.credential_ref], "no provider took another key");
+});

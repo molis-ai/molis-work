@@ -111,7 +111,7 @@ export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: s
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
 export interface PluginManifest {
-  /** 1 is the original shape. 2 adds ports, events, views, commands, routes and agent. */
+  /** The current Manifest format; all plugins declare version 1. */
   schema_version: 1;
   plugin_id: string;
   version: string;

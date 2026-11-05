@@ -204,7 +204,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 装进项目的 Skill（界面叫「方法」） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-coding-method`；宿主能力 `agent.skills.*` |
 | 写后检查器：每个项目、每个已授权工作区一份，带版本 | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-write-checkers`；动作 `agent.write_checkers.list`、`agent.write_checkers.save`，受众只有人（`specs/prologue-adoption/spec.md` §6.0p.2） |
 
-三类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.settings.workspaces.read.v1`），这里只引用它。
+三类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.settings.workspaces.read`），这里只引用它。
 
 ## 图片生成插件
 

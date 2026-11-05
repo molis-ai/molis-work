@@ -1,9 +1,12 @@
 /* 03 · 按需帮助定样 — layout only. Frame from ../workbench-shared-paths/styles.css; tokens, mw-* controls, popover
-   lift, alert, empty, field and toast from ../kit/kit.css. No colour, shadow, duration or curve is defined here. */
+   lift, alert, empty, field and toast from ../kit/kit.css. No colour, shadow, duration or curve is defined here.
+   The kit has no layer tokens; the two layers here are named once and sit between the shared frame's own: its
+   popovers (.pop 40) and its prototype strip (.proto 50, 40px tall), under its toast (60). */
+:root{--help-layer-card:45;--help-layer-prep:50;--help-proto-h:40px;--help-sheet-gap:16px}
 
 /* Schedule page */
 .sch{display:flex;flex-direction:column;min-height:0;flex:1}
-.sch .phead .own{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:color-mix(in srgb,var(--hue-orange) 14%,transparent);color:var(--hue-orange);flex:none}
+.sch .phead .own{width:24px;height:24px;border-radius:var(--r-tag);display:grid;place-items:center;background:color-mix(in srgb,var(--hue-orange) 14%,transparent);color:var(--hue-orange);flex:none}
 .sch .crumb{display:flex;align-items:center;gap:6px;padding:0 16px 8px;font-size:12px;color:var(--muted)}
 .sch .crumb .link{font-weight:500}
 .sch .body{flex:1;min-height:0;overflow:auto;padding:4px 16px 28px}
@@ -14,8 +17,8 @@
 /* Form */
 .sch form{display:flex;flex-direction:column;gap:14px}
 .lab{display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:500;font-size:13px}
-.lab .link{font-size:12px}
-.lab .link[aria-expanded=true]{text-decoration:underline;text-underline-offset:3px}
+.lab .mw-btn--link{font-size:12px}
+.lab .mw-btn--link[aria-expanded=true]{text-decoration:underline;text-underline-offset:3px}
 .sch .mw-input,.sch .mw-textarea,.sch .mw-select{width:100%}
 .sch .mw-textarea{min-height:76px;resize:vertical}
 .row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
@@ -24,7 +27,7 @@
 .facts{border-radius:var(--r-card);background:var(--surface-soft);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
 .facts h3{margin:0 0 6px;font-size:12px;font-weight:500;color:var(--muted)}
 .fact-row{display:flex;align-items:center;gap:10px;min-height:32px}
-.fact-row .ico{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none;background:var(--paper);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--line)}
+.fact-row .ico{width:24px;height:24px;border-radius:var(--r-tag);display:grid;place-items:center;flex:none;background:var(--paper);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--line)}
 .fact-row .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fact-row .tx small{color:var(--muted);font-size:12px;margin-left:6px}
 .fact-row.warn .ico{background:var(--amber-soft);color:var(--amber);box-shadow:none}
@@ -41,16 +44,21 @@
 .hc ul{margin:0;padding-left:18px;color:var(--ink-soft);display:flex;flex-direction:column;gap:2px}
 .hc section{scroll-margin-top:12px;border-radius:var(--r-control);transition:background var(--dur-hover) var(--ease-quint),box-shadow var(--dur-hover) var(--ease-quint)}
 .hc section.hl{background:color-mix(in srgb,var(--accent-soft) 60%,transparent);box-shadow:0 0 0 6px color-mix(in srgb,var(--accent-soft) 60%,transparent)}
-.hc .next{display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1px solid var(--line)}
+.next{display:flex;flex-direction:column;gap:6px}
+.hc .next{padding-top:12px;border-top:1px solid var(--line)}
 .hc .next .fact{max-width:52ch}
 .hc .mw-collapsible summary{padding:4px 0}
 .hhead{display:flex;align-items:center;gap:8px;min-width:0}
 .hhead strong{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* A · popover card beside its entry */
-.hpop{position:fixed;z-index:45;width:min(380px,calc(100vw - 24px));max-height:min(62vh,520px);display:flex;flex-direction:column;background:var(--popover);border-radius:var(--r-card);box-shadow:var(--lift-3);animation:craft-drop var(--dur-move) var(--ease-quint)}
+.hpop{position:fixed;z-index:var(--help-layer-card);width:min(380px,calc(100vw - 24px));max-height:min(62vh,520px);display:flex;flex-direction:column;background:var(--popover);border-radius:var(--r-card);box-shadow:var(--lift-3);animation:craft-drop var(--dur-move) var(--ease-quint)}
 .hpop .hhead{padding:10px 10px 6px 14px}
 .hpop .hc{overflow:auto;padding:4px 14px 12px}
+.hpop>.next{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px;row-gap:2px;padding:10px 14px;border-top:1px solid var(--line)}
+.hpop>.next h4{margin:0;font-size:13px;font-weight:600}
+.hpop>.next .fact{grid-column:1;font-size:12px;margin:0}
+.hpop>.next>div{grid-column:2;grid-row:1/span 2}
 .hpop .hfoot{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--line)}
 .hpop .hfoot .grow{flex:1}
 
@@ -63,14 +71,14 @@
 /* C · help opens in place */
 .hinline{border-radius:var(--r-card);background:var(--surface-soft);padding:12px 14px;animation:craft-rise var(--dur-move) var(--ease-quint)}
 .hinline .hhead{margin-bottom:8px}
-.hinline.small{padding:10px 12px;font-size:12.5px}
+.hinline.small{padding:10px 12px;font-size:12px}
 
 /* First use: one quiet line, skippable (ONB-48) */
 .tip{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 12px;border-radius:var(--r-card);background:var(--accent-soft);color:var(--ink)}
 .tip .tx{flex:1;min-width:0}
 
 /* Preparation (reuses the 04 immersive frame; drawn here only as far as this path needs) */
-.prep{position:fixed;inset:40px 0 0 0;z-index:50;background:var(--desk);display:grid;grid-template-rows:56px minmax(0,1fr) 72px;animation:craft-fade-in var(--dur-move) var(--ease-quint)}
+.prep{position:fixed;inset:var(--help-proto-h) 0 0 0;z-index:var(--help-layer-prep);background:var(--desk);display:grid;grid-template-rows:56px minmax(0,1fr) 72px;animation:craft-fade-in var(--dur-move) var(--ease-quint)}
 .prep .top{display:flex;align-items:center;gap:10px;padding:0 20px}
 .prep .top .grow{flex:1}
 .prep .paper{margin:0 auto;width:min(720px,calc(100vw - 32px));background:var(--paper);border-radius:var(--r-sheet);box-shadow:var(--sheet-shadow);padding:32px 36px;overflow:auto;display:flex;flex-direction:column;gap:16px}
@@ -81,11 +89,22 @@
 .prep .keep{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:var(--r-control);background:var(--surface-soft);font-size:12px;color:var(--muted)}
 .tag-reuse{margin-left:6px}
 
+/* Prototype strip: outline the parts this page adds to the component board (same marking as service-connections) */
+[data-show-new] [data-board-new]{position:relative;outline:1px dashed var(--accent);outline-offset:4px;border-radius:var(--r-tag)}
+[data-show-new] [data-board-new]::before{content:"组件板新增 · " attr(data-board-new);position:absolute;top:-10px;right:8px;z-index:2;padding:0 6px;border-radius:var(--r-tag);background:var(--accent-soft);color:var(--accent);font-size:11px;line-height:18px;pointer-events:none;white-space:nowrap}
+html[lang="en"][data-show-new] [data-board-new]::before{content:"Board addition · " attr(data-board-new)}
+[data-show-new] .hpop[data-board-new]{position:fixed;border-radius:var(--r-card)}
+[data-show-new] .hc[data-board-new]{outline-offset:-2px}
+[data-show-new] .hc[data-board-new]::before{top:2px}
+
 @media (max-width:1180px){.row2{grid-template-columns:minmax(0,1fr)}.fact-row{align-items:flex-start;padding:4px 0}.fact-row .tx{white-space:normal}.fact-row .tx small{display:block;margin:2px 0 0}}
 @media (max-width:760px){
   .sch .body{padding:4px 12px 24px}.sch .phead{padding:12px 12px 8px}.sch .crumb{padding:0 12px 8px}
-  .help-btn .lbl{display:inline}.hpop .hfoot .fact{visibility:hidden}
+  .help-btn .lbl{display:inline}.hpop>.next .fact{display:none}
   /* A on a phone: the card becomes a bottom sheet above the bar (DESIGN ≤600px popovers) */
-  .hpop{left:8px!important;right:8px;top:auto!important;bottom:124px;width:auto;max-height:58vh;animation-name:craft-rise-from-bar}
+  .hpop{left:8px!important;right:8px;top:auto!important;bottom:124px;width:auto;max-height:50vh;animation-name:craft-rise-from-bar}
+  /* half the screen at most, so a few rows of the facts and the save button show above it as the page scrolls; the
+     side-pane move sits in the header as an icon, leaving the height to the text */
+  .hpop .hhead strong{margin-right:36px}.hpop .hfoot{position:absolute;top:6px;right:46px;padding:0;border:0}.hpop .hfoot .fact{display:none}.hpop .hfoot .lbl{display:none}
   .prep{grid-template-rows:52px minmax(0,1fr) 72px}.prep .paper{padding:20px 18px;width:calc(100vw - 16px)}.prep .top{padding:0 10px}.prep .foot{padding:0 10px}
 }

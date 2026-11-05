@@ -7,7 +7,7 @@
   const KEY = "molis-proto.on-demand-help.v1";
   const SCENES = ["missing", "ready", "first", "helpfail", "prepclosed"];
   const fresh = () => ({ scheme: "A", lang: "zh", theme: "light", scene: "missing", help: null, sideOpen: false, focus: "main",
-    model: false, prep: null, sideForHelp: false, prepLeft: false, tipSkipped: false, tipOpen: false, helpRetried: false,
+    notes: false, model: false, prep: null, sideForHelp: false, prepLeft: false, tipSkipped: false, tipOpen: false, helpRetried: false,
     form: { name: "", when: "mon9", what: "", to: "" } });
   let S = load(), pop = null, toastT;
   function load() { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return fresh(); } }
@@ -21,8 +21,11 @@
   // ---------- copy ----------
   const T = () => ({
     protoTitle: L("按需帮助 · 原型", "On-demand help · prototype"), scheme: L("方案", "Scheme"), scene: L("情况", "Case"),
-    reopen: L("重新打开这一页", "Reopen this page"), lang: L("语言", "Language"), theme: L("外观", "Theme"), light: L("浅", "Light"), dark: L("深", "Dark"), reset: L("重置", "Reset"),
+    reopen: L("重新打开这一页", "Reopen this page"), lang: L("语言", "Language"), theme: L("外观", "Theme"), light: L("浅", "Light"), dark: L("深", "Dark"), reset: L("重置", "Reset"), notes: L("标出组件板新增", "Mark board additions"),
   });
+  // The parts this page adds to the component board carry data-board-new; the strip toggle outlines them (README lists why).
+  const NEW_EN = { "按钮按下态": "Button pressed state", "每次运行会": "Each-run facts", "帮助内容": "Help content", "帮助卡片": "Help card" };
+  const isNew = (name) => `data-board-new="${S.lang === "zh" ? name : NEW_EN[name]}"`;
   const SCHEMES = () => ({ A: L("A 就近卡片，长的转右栏", "A Card beside the entry, long help moves to the side"), B: L("B 右栏里的帮助标签", "B A help tab in the side pane"), C: L("C 就地展开", "C Opens in place") });
   const SCENE_NAMES = () => ({ missing: L("新建任务，还没连模型", "New task, no model yet"), ready: L("已有配置，直接用", "Already set up"), first: L("第一次打开这一页", "First time on this page"),
     helpfail: L("帮助内容读不到", "Help can't be loaded"), prepclosed: L("补配置中途关掉了", "Preparation closed midway") });
@@ -45,20 +48,23 @@
     const modelRow = S.model
       ? `<div class="fact-row ok"><span class="ico">${ic("sparkles", "sm")}</span><span class="tx">${L("用 MiniMax-M3 写周报", "Writes the report with MiniMax-M3")}<small>${L("约每次 ¥0.02，按服务商计费", "about ¥0.02 a run, billed by the provider")}</small></span></div>`
       : `<div class="fact-row warn"><span class="ico">${ic("alert", "sm")}</span><span class="tx">${L("还没连接写文字用的模型", "No text model connected yet")}<small>${L("只影响按时运行，可以先存草稿", "Only running on time is affected; you can save a draft")}</small></span>${btn("secondary", L("连接模型", "Connect a model"), `data-act="prep" data-from="facts"`)}</div>`;
-    return `<section class="facts" aria-label="${L("每次运行会做的事", "What each run does")}"><h3>${L("每次运行会", "Each run will")}</h3>
+    return `<section class="facts" ${isNew("每次运行会")} aria-label="${L("每次运行会做的事", "What each run does")}"><h3>${L("每次运行会", "Each run will")}</h3>
       <div class="fact-row"><span class="ico">${ic("note", "sm")}</span><span class="tx">${L("读取 Pages「周会纪要」", "Read Pages “Meeting notes”")}<small>${L("只读这一份", "only this one")}</small></span></div>
       ${modelRow}
       <div class="fact-row out"><span class="ico">${ic("mail", "sm")}</span><span class="tx">${L("发邮件给 3 人", "Email 3 people")}<small>${L("会发到项目外，发出后收不回", "leaves the project and can't be recalled")}</small></span></div></section>`;
   }
 
   // ---------- help bodies ----------
-  function helpBody(topic, focusId) {
-    if (S.scene === "helpfail" && !S.helpRetried) {
+  // 「还差一步」: the one place in help that leads into preparation (VUX-57). The card keeps it under the scrolling
+  // text so it is never below the fold; the side pane and the in-place form show it at the end of the text.
+  const nextHtml = () => (S.model ? "" : `<div class="next"><h4>${L("要按时运行，还差一步", "One step before it can run on time")}</h4><p class="fact">${L("看帮助不会改任何设置。选这一项才去连接模型；连好回到这里，你写的都在。", "Reading help changes nothing. Choose this to connect a model; you come back here with everything you wrote.")}</p><div>${btn("primary", L("连接模型", "Connect a model"), `data-act="prep" data-from="help"`, "sparkles")}</div></div>`);
+  const failed = () => S.scene === "helpfail" && !S.helpRetried;
+  function helpBody(topic, focusId, withNext = true) {
+    if (failed()) {
       return `<div class="mw-empty mw-empty--error" data-slot="empty"><span class="mw-empty__mark">${ic("circle-alert")}</span><strong>${L("帮助没读出来", "Help didn't load")}</strong><p>${L("这一页照常能用；每次运行会做的事一直写在表单下面。", "This page still works; what each run does stays listed under the form.")}</p><div class="mw-empty__actions">${btn("secondary", L("再试一次", "Try again"), `data-act="help-retry"`, "refresh")}</div></div>`;
     }
     const t = TOPICS()[topic];
-    const next = S.model ? "" : `<div class="next"><h4>${L("要按时运行，还差一步", "One step before it can run on time")}</h4><p class="fact">${L("看帮助不会改任何设置。选下面这一项，才去连接模型；连好回到这里，你写的都在。", "Reading help changes nothing. Choose this to connect a model; you come back here with everything you wrote.")}</p><div>${btn("primary", L("连接模型", "Connect a model"), `data-act="prep" data-from="help"`, "sparkles")}</div></div>`;
-    return `<div class="hc">${t.sections.map((s) => `<section id="h-${s.id}" class="${s.id === focusId ? "hl" : ""}"><h4>${s.h}</h4>${s.body}</section>`).join("")}${next}</div>`;
+    return `<div class="hc" ${isNew("帮助内容")}>${t.sections.map((s) => `<section id="h-${s.id}" class="${s.id === focusId ? "hl" : ""}"><h4>${s.h}</h4>${s.body}</section>`).join("")}${withNext ? nextHtml() : ""}</div>`;
   }
   const helpTitle = (topic) => (topic === "who" ? L("帮助 · 以谁的身份运行", "Help · Whose permission") : L("帮助 · 定时任务", "Help · Scheduled tasks"));
   const helpHead = (closeAct, topic = "page") => `<div class="hhead">${ic("question", "sm")}<strong>${helpTitle(topic)}</strong><button type="button" class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="${closeAct}" aria-label="${L("关闭帮助", "Close help")}">${ic("x", "sm")}</button></div>`;
@@ -70,7 +76,7 @@
   }
   function inline(topic) {
     if (S.scheme !== "C" || !S.help || S.help.topic !== topic) return "";
-    if (topic === "who") return `<div class="hinline small" id="help-region" role="region" aria-label="${L("帮助", "Help")}">${helpHead("help-close", "who")}<div class="hc">${TOPICS().page.sections.find((x) => x.id === "who").body}</div></div>`;
+    if (topic === "who") return `<div class="hinline small" id="help-region" role="region" aria-label="${L("帮助", "Help")}">${helpHead("help-close", "who")}<div class="hc" ${isNew("帮助内容")}>${TOPICS().page.sections.find((x) => x.id === "who").body}</div></div>`;
     return `<div class="hinline" id="help-region" role="region" aria-label="${L("帮助", "Help")}">${helpHead("help-close")}${helpBody("page")}</div>`;
   }
   function page() {
@@ -81,7 +87,7 @@
       ? `<div class="mw-alert mw-alert--warning" data-slot="alert" role="status"><strong>${L("连接模型还没做完", "Connecting a model isn't finished")}</strong><p>${L("选好的服务商「MiniMax」留着，接着做只差检查连接。", "Your chosen provider “MiniMax” is kept; only the connection check is left.")}</p><div class="acts">${btn("secondary", L("接着连接", "Continue connecting"), `data-act="prep" data-from="resume"`)}</div></div>` : "";
     return `<div class="sch">
       <div class="phead"><span class="own">${ic("timer", "sm")}</span><h2>${L("定时任务", "Scheduled tasks")}</h2><span class="grow"></span>
-        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm help-btn" data-slot="button" data-act="help" data-topic="page" id="help-entry" aria-expanded="${helpOpen && S.help.topic === "page"}" aria-controls="help-region">${ic("question", "sm")}<span class="lbl">${L("帮助", "Help")}</span></button></div>
+        <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm help-btn" data-slot="button" ${isNew("按钮按下态")} data-act="help" data-topic="page" id="help-entry" aria-expanded="${helpOpen && S.help.topic === "page"}" aria-controls="help-region">${ic("question", "sm")}<span class="lbl">${L("帮助", "Help")}</span></button></div>
       <div class="crumb"><button class="link" data-act="sim" data-l="${L("回到列表", "Back to list")}">${L("定时任务", "Scheduled tasks")}</button>${ic("chevron-right", "sm")}<span>${L("新建", "New")}</span></div>
       <div class="body" id="sch-body"><div class="inner">
         ${tipHtml()}${prepNote}${inline("page")}
@@ -92,7 +98,7 @@
           </div>
           <label class="mw-field"><span class="lab">${L("做什么", "What to do")}</span><textarea class="mw-textarea" data-f="what" placeholder="${esc(smp.what)}">${esc(f.what)}</textarea></label>
           <label class="mw-field"><span class="lab">${L("发给谁", "Send to")}</span><input class="mw-input" data-f="to" value="${esc(f.to)}" placeholder="${esc(smp.to)}"></label>
-          <div class="mw-field"><span class="lab">${L("以谁的身份运行", "Runs with whose permission")}<button type="button" class="link" data-act="help" data-topic="who" id="who-entry" aria-expanded="${whoOpen}" aria-controls="help-region">${L("了解此项", "About this")}</button></span>
+          <div class="mw-field"><span class="lab">${L("以谁的身份运行", "Runs with whose permission")}<button type="button" class="mw-btn mw-btn--link" data-slot="button" data-act="help" data-topic="who" id="who-entry" aria-expanded="${whoOpen}" aria-controls="help-region">${L("了解此项", "About this")}</button></span>
             <select class="mw-select" aria-label="${L("以谁的身份运行", "Runs with whose permission")}"><option>${L("我（只限这个任务给出的范围）", "Me (only what this task names)")}</option></select></div>
           ${inline("who")}
           ${factsHtml()}
@@ -153,6 +159,8 @@
     for (const b of document.querySelectorAll("#scheme button")) b.setAttribute("aria-pressed", b.dataset.scheme === S.scheme);
     for (const b of document.querySelectorAll("#lang button")) b.setAttribute("aria-pressed", b.dataset.lang === S.lang);
     for (const b of document.querySelectorAll("#theme button")) b.setAttribute("aria-pressed", b.dataset.themeSet === S.theme);
+    document.querySelector("#notes button").setAttribute("aria-pressed", S.notes);
+    document.documentElement.toggleAttribute("data-show-new", S.notes);
     document.getElementById("schemecap").textContent = SCHEMES()[S.scheme];
     const sel = document.getElementById("scene"); sel.innerHTML = SCENES.map((v) => `<option value="${v}"${v === S.scene ? " selected" : ""}>${esc(SCENE_NAMES()[v])}</option>`).join("");
     const scroll = document.getElementById("sch-body")?.scrollTop ?? 0;
@@ -164,13 +172,22 @@
   }
 
   // ---------- A: the card beside its entry ----------
-  function closePop(restore = true) { if (!pop) return; const back = pop.back; pop.el.remove(); pop = null; S.help = null; if (restore) document.getElementById(back)?.focus(); syncExpanded(); save(); }
+  function dropPop() { if (!pop) return; pop.el.remove(); pop = null; roomForSheet(0); }
+  function closePop(restore = true) { if (!pop) return; const back = pop.back; dropPop(); S.help = null; if (restore) document.getElementById(back)?.focus(); syncExpanded(); save(); }
+  // On a phone the card is a sheet over the lower page. The page gets that much extra room at its end, so the facts
+  // and 「保存并启用」 can still be scrolled above the sheet while it is open (VUX-56).
+  function roomForSheet(px) {
+    const body = document.getElementById("sch-body"); if (!body) return;
+    body.style.paddingBottom = px ? `calc(var(--help-sheet-gap) + ${px}px)` : "";
+    body.style.scrollPaddingBottom = px ? px + "px" : "";
+  }
   function openPop(topic, anchorId) {
-    if (pop) pop.el.remove();
+    dropPop();
     const anchor = document.getElementById(anchorId);
     const el = document.createElement("div"); el.className = "hpop"; el.id = "help-region"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", L("帮助", "Help"));
     const short = topic === "who";
-    el.innerHTML = `${helpHead("help-close", topic)}${short ? `<div class="hc">${TOPICS().page.sections.find((x) => x.id === "who").body}</div>` : helpBody("page")}<div class="hfoot"><span class="grow fact">Esc ${L("关闭", "closes")}</span>${btn("ghost", L("在右栏继续看", "Keep reading in the side pane"), `data-act="help-to-side"`, "sidebar")}</div>`;
+    el.setAttribute("data-board-new", S.lang === "zh" ? "帮助卡片" : NEW_EN["帮助卡片"]);
+    el.innerHTML = `${helpHead("help-close", topic)}${short ? `<div class="hc" ${isNew("帮助内容")}>${TOPICS().page.sections.find((x) => x.id === "who").body}</div>` : helpBody("page", null, false)}${short || failed() ? "" : nextHtml()}<div class="hfoot"><span class="grow fact">Esc ${L("关闭", "closes")}</span>${btn("ghost", L("在右栏继续看", "Keep reading in the side pane"), `data-act="help-to-side" aria-label="${L("在右栏继续看", "Keep reading in the side pane")}"`, "sidebar")}</div>`;
     document.body.appendChild(el);
     // Beside the form column when there is room, so the card never covers the fields or the facts under them
     // (VUX-56); otherwise under its entry. On a phone the stylesheet turns it into a sheet above the bar.
@@ -183,6 +200,7 @@
     if (top + h > innerHeight - 84) top = Math.max(48, innerHeight - 84 - h);
     left = Math.min(Math.max(8, left), innerWidth - w - 8);
     el.style.left = left + "px"; el.style.top = top + "px";
+    if (innerWidth <= 760) { const b = document.getElementById("sch-body")?.getBoundingClientRect(); if (b) roomForSheet(Math.max(0, b.bottom - el.getBoundingClientRect().top)); }
     pop = { el, back: anchorId }; S.help = { topic, back: anchorId };
     syncExpanded(); save();
     el.setAttribute("tabindex", "-1"); el.focus();
@@ -226,11 +244,11 @@
     if (scene !== "first") S.form = { name: smp.name, when: "mon9", what: smp.what, to: smp.to };
     if (scene === "ready") S.model = true;
     if (scene === "prepclosed") { S.prepLeft = true; }
-    if (pop) { pop.el.remove(); pop = null; }
+    dropPop();
   }
 
   // Leaving preparation early keeps its progress and the task's draft (ONB-48); focus goes back to where it started.
-  function leavePrep() { S.prepLeft = !!S.prep?.provider; const back = S.prep?.back; S.prep = null; if (S.prepLeft) S.scene = "prepclosed"; render(); (back === "facts" ? document.querySelector(".facts [data-act=prep]") : document.getElementById("help-entry"))?.focus(); }
+  function leavePrep() { S.prepLeft = !!S.prep?.provider; const back = S.prep?.back; S.prep = null; if (S.prepLeft) S.scene = "prepclosed"; render(); (back === "facts" ? document.querySelector(".facts [data-act=prep]") : document.getElementById(back) || document.getElementById("help-entry"))?.focus(); }
 
   // ---------- events ----------
   document.addEventListener("input", (e) => { const k = e.target.dataset?.f; if (k) { S.form[k] = e.target.value; save(); } });
@@ -239,29 +257,30 @@
     const k = e.target.dataset?.f; if (k) { S.form[k] = e.target.value; save(); }
   });
   document.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-act],[data-scheme],[data-lang],[data-theme-set],#reset,#reopen");
+    const b = e.target.closest("[data-act],[data-scheme],[data-lang],[data-theme-set],[data-notes],#reset,#reopen");
     if (pop && !e.target.closest(".hpop") && !(b && (b.id === pop.back))) closePop(false);
     if (!b || b.disabled) return;
     if (b.id === "reset") { try { localStorage.removeItem(KEY); } catch { /* ignore */ } S = fresh(); applyScene("missing"); return render(); }
-    if (b.id === "reopen") { if (pop) { pop.el.remove(); pop = null; } S.prep = null; if (S.help) putSideBack(); S.help = null; render(); return toast(S.scene === "first" && S.tipSkipped ? L("重新打开：跳过的提示不再出现，「帮助」还在右上角", "Reopened: the skipped tip stays away; Help is still top right") : L("重新打开了这一页，填过的内容还在", "Reopened; what you filled in is still there")); }
-    if (b.dataset.scheme) { if (pop) { pop.el.remove(); pop = null; } S.scheme = b.dataset.scheme; S.help = null; S.sideOpen = false; S.focus = "main"; return render(); }
+    if (b.id === "reopen") { dropPop(); S.prep = null; if (S.help) putSideBack(); S.help = null; render(); return toast(S.scene === "first" && S.tipSkipped ? L("重新打开：跳过的提示不再出现，「帮助」还在右上角", "Reopened: the skipped tip stays away; Help is still top right") : L("重新打开了这一页，填过的内容还在", "Reopened; what you filled in is still there")); }
+    if (b.dataset.notes) { S.notes = !S.notes; return render(); }
+    if (b.dataset.scheme) { dropPop(); S.scheme = b.dataset.scheme; S.help = null; S.sideOpen = false; S.focus = "main"; return render(); }
     if (b.dataset.lang) {
-      if (pop) { pop.el.remove(); pop = null; }
+      dropPop();
       // The example text follows the language; anything the person typed stays as typed.
       const before = sample(); S.lang = b.dataset.lang; const after = sample();
       for (const k of ["name", "what", "to"]) if (S.form[k] === before[k]) S.form[k] = after[k];
       S.help = null; return render();
     }
-    if (b.dataset.themeSet) { S.theme = b.dataset.themeSet; const had = pop && S.help; if (pop) { pop.el.remove(); pop = null; } const h = S.help; render(); if (had) openPop(h.topic, h.back); return; }
+    if (b.dataset.themeSet) { S.theme = b.dataset.themeSet; const had = pop && S.help; dropPop(); const h = S.help; render(); if (had) openPop(h.topic, h.back); return; }
     const a = b.dataset.act;
     switch (a) {
       case "help": e.preventDefault(); return openHelp(b.dataset.topic, b.id);
       case "help-close": e.stopPropagation(); return closeHelp();
-      case "help-retry": S.helpRetried = true; if (pop) { const h = S.help; pop.el.remove(); pop = null; return openPop(h.topic, h.back); } return render();
-      case "help-to-side": { const h = S.help; pop.el.remove(); pop = null; S.help = h; if (!S.sideOpen) S.sideForHelp = true; S.sideOpen = true; if (innerWidth <= 760) S.focus = "side"; render(); const r = document.getElementById("help-region"); r?.setAttribute("tabindex", "-1"); r?.focus(); return; }
+      case "help-retry": S.helpRetried = true; if (pop) { const h = S.help; dropPop(); return openPop(h.topic, h.back); } return render();
+      case "help-to-side": { const h = S.help; dropPop(); S.help = h; if (!S.sideOpen) S.sideForHelp = true; S.sideOpen = true; if (innerWidth <= 760) S.focus = "side"; render(); const r = document.getElementById("help-region"); r?.setAttribute("tabindex", "-1"); r?.focus(); return; }
       case "tip-skip": S.tipSkipped = true; render(); document.getElementById("help-entry")?.focus(); return toast(L("不再提示；随时点「帮助」都能找回", "Won't show again; Help is always there"));
       case "tip-see": { const smp = sample(); S.form = { name: smp.name, when: "mon9", what: smp.what, to: smp.to }; S.tipSkipped = true; render(); return toast(L("已填好一个例子，可以照着改", "An example is filled in; edit it as you like")); }
-      case "prep": if (pop) { pop.el.remove(); pop = null; } S.prep = { step: 1, from: b.dataset.from, provider: S.scene === "prepclosed" ? "MiniMax" : null, back: b.dataset.from === "facts" ? "facts" : "help-entry" }; if (S.help) putSideBack(); S.help = null; render(); document.querySelector(".prep [data-act=pick-provider]")?.focus(); return;
+      case "prep": dropPop(); S.prep = { step: 1, from: b.dataset.from, provider: S.scene === "prepclosed" ? "MiniMax" : null, back: b.dataset.from === "facts" ? "facts" : S.help?.back || "help-entry" }; if (S.help) putSideBack(); S.help = null; render(); document.querySelector(".prep [data-act=pick-provider]")?.focus(); return;
       case "pick-provider": S.prep.provider = b.dataset.v; render(); document.getElementById("prep-primary")?.focus(); return;
       case "prep-check": S.prep.step = "done"; render(); document.getElementById("prep-primary")?.focus(); return;
       case "prep-back": S.prep = null; S.model = true; S.prepLeft = false; render(); document.getElementById("save")?.focus(); return toast(L("已连接 MiniMax-M3，回到刚才的定时任务", "MiniMax-M3 connected; back on your scheduled task"));
@@ -279,7 +298,7 @@
     if (S.prep) { e.preventDefault(); return leavePrep(); }
     if (S.help) { e.preventDefault(); closeHelp(); }
   });
-  addEventListener("resize", () => { if (pop) { const h = S.help; pop.el.remove(); pop = null; openPop(h.topic, h.back); } });
+  addEventListener("resize", () => { if (pop) { const h = S.help; dropPop(); openPop(h.topic, h.back); } });
 
   let stored = null; try { stored = localStorage.getItem(KEY); } catch { /* no storage */ }
   if (!stored) applyScene("missing");

@@ -6,7 +6,7 @@
   <title>按需帮助定样 · Molis Work 原型</title>
   <link rel="stylesheet" href="../kit/kit.css?v=2">
   <link rel="stylesheet" href="../workbench-shared-paths/styles.css?v=7">
-  <link rel="stylesheet" href="help.css?v=6">
+  <link rel="stylesheet" href="help.css?v=10">
 </head>
 <body>
   <div id="icons" hidden></div>
@@ -24,11 +24,12 @@
     <label><span data-t="theme"></span>
       <span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="theme"><button type="button" data-theme-set="light" data-t="light"></button><button type="button" data-theme-set="dark" data-t="dark"></button></span>
     </label>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="notes"><button type="button" data-notes="1" data-t="notes"></button></span>
     <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset" data-t="reset"></button>
   </div>
   <main class="app" id="app"></main>
   <script src="../kit/kit.js?v=1"></script>
   <script src="../workbench-shared-paths/kit-bridge.js?v=2"></script>
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

@@ -569,27 +569,27 @@ function renderItemActions(item: FeedUiItem, inboxActive: boolean, promoteAvaila
 
 function dispositionButton(
   item: FeedUiItem,
-  behaviorId: string,
+  optionId: string,
   primary: boolean,
   inboxActive: boolean,
   p: FeedUiPrimitives,
 ): string {
   const itemId = p.escape(item.item_id);
   const revision = item.revision;
-  if (behaviorId === INBOX_ADMIT_OPTION_ID) {
+  if (optionId === INBOX_ADMIT_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
     return `<button class="${cls}" type="button" data-feed-action="inbox" data-feed-item-id="${itemId}" data-feed-revision="${revision}"${inboxActive ? " disabled" : ""}>${p.icon("inbox")}${inboxActive ? p.text("已加入 Inbox") : p.text("加入 Inbox")}</button>`;
   }
-  if (behaviorId === FEED_SAVE_OPTION_ID) {
+  if (optionId === FEED_SAVE_OPTION_ID) {
     const saved = item.disposition === "saved";
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
     return `<button class="${cls}" type="button" data-feed-action="save" data-feed-item-id="${itemId}" data-feed-revision="${revision}"${saved ? " disabled" : ""}>${saved ? p.text("已保存为资料") : p.text("保存为资料")}</button>`;
   }
-  if (behaviorId === FEED_PROMOTE_OPTION_ID) {
+  if (optionId === FEED_PROMOTE_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
     return `<button class="${cls}" type="button" data-feed-action="promote" data-feed-item-id="${itemId}" data-feed-revision="${revision}">${p.icon("target")}${item.linked_goal_id ? p.text("查看 Goal") : p.text("升格为 Goal")}</button>`;
   }
-  if (behaviorId !== FEED_ARCHIVE_OPTION_ID) return "";
+  if (optionId !== FEED_ARCHIVE_OPTION_ID) return "";
   const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
   return `<button class="${cls}" type="button" data-feed-action="archive" data-feed-item-id="${itemId}" data-feed-revision="${revision}">${p.text("忽略")}</button>`;
 }

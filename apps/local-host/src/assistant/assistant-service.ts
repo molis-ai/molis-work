@@ -21,7 +21,7 @@ import { AGENT_STEER_MODES } from "@molis-ai/molis-work-contracts/services/agent
 import { assistantErrors } from "./assistant-errors.js";
 import type { MemoryChange } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
-import { inputsOf, withdrawInput } from "./assistant-inputs.js";
+import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-inputs.js";
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
@@ -187,6 +187,8 @@ export class AssistantService {
     try {
       const created = !input.work_id;
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice);
+      // Before the input hold and the material links: a work with no session yet has no round to interrupt or wait behind.
+      if (!created) assertRoundToAddress(Boolean(work.executor.kind === "plugin" ? work.executor.session_id : work.session_id), input.delivery);
       if (work.reply_target && caller.thread_request !== work.thread_round?.attempt_id) throw assistantErrors.scope("请在原评论内继续这项讨论");
       if (created && input.executor_session_id) work = await adoptSession(this.store, this.actorId, work, await this.dispatcher.executorOf(work), input.executor_session_id);
       if (!writtenBy && !input.written_by && work.executor.kind === "assistant") {

@@ -86,12 +86,17 @@ test("UIC-03 UIC-12 UIV-17: delivery reaches the round as chosen, is refused whe
   assert.ok(["做完再加一页总结", "打断它", "排到下一轮"].every(text => waiting.includes(text)), `UIV-17 all three wait for the next round: ${JSON.stringify(waiting)}`);
   assert.equal((await service.send({ work_id: workId, text: "开始下一轮", request_id: id("next"), delivery: "next-boundary" }, {})).outcome, "started", "补充 with nothing under way starts the next round, as with no delivery");
 
-  // UIV-17: a work that never had a round has nothing to interrupt or wait behind; refused before a session is opened.
+  // UIV-17: a work that never had a round has nothing to interrupt or wait behind; refused before anything is written —
+  // no session, no input hold, no link to the material it carried.
   const empty = store.create({ actor_id: "web-user", title: "还没开始", scope: { kind: "personal" }, origin: null });
+  const note = { material_id: "m1", kind: "object" as const, title: "背景", explicit: true, object: { kind: "note", id: "bg", version: 4 }, text: "背景" };
   for (const delivery of ["interrupt", "after-run"] as const) {
-    await assert.rejects(service.send({ work_id: empty.work_id, text: "先别做", request_id: id(`empty-${delivery}`), delivery }, {}), code("assistant.state"), `UIV-17 ${delivery} with no round is refused`);
+    await assert.rejects(service.send({ work_id: empty.work_id, text: "先别做", request_id: id(`empty-${delivery}`), delivery, materials: [note] }, {}), code("assistant.state"), `UIV-17 ${delivery} with no round is refused`);
   }
-  assert.equal(store.get("web-user", empty.work_id).session_id, null, "UIV-17 no session was opened for them");
+  const untouched = store.get("web-user", empty.work_id);
+  assert.equal(untouched.session_id, null, "UIV-17 no session was opened for them");
+  assert.equal(untouched.continuation_hold, undefined, "UIV-17 no input hold was written");
+  assert.deepEqual(store.relations.forWork({ work_id: empty.work_id, project_id: null }), [], "UIV-17 no material link was written");
 });
 
 test("UIC-12 UIV-17: the HTTP Send refuses delivery on a new work, with an answer, or with a value it does not know, before anything is written", { timeout: 60_000 }, async t => {

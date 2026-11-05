@@ -157,11 +157,14 @@ export class AssistantInputs {
  * person starts and says so (`queued`), just as when the round ends while they are on their way. 补充 (`next-boundary`, or
  * none) goes on as before: it starts a round when none is under way.
  */
-export function addressesRound(intent?: SendIntent): boolean { return intent?.delivery === "interrupt" || intent?.delivery === "after-run"; }
+export function addressesRound(delivery?: AgentSteerMode): boolean { return delivery === "interrupt" || delivery === "after-run"; }
 
-/** A work that never had a round has none to interrupt or wait behind: refused before a session is opened, never turned into a start. */
-export function assertRoundToAddress(hasRound: boolean, intent?: SendIntent): void {
-  if (!hasRound && addressesRound(intent)) throw assistantErrors.state("这项工作还没有开始过一轮，没有可以打断或排在后面的；这句话没有发送，可以直接发出开始第一轮");
+/**
+ * A work that never had a round has none to interrupt or wait behind, and is refused, never turned into a start. The Send
+ * checks a work with no session yet before it writes anything; the dispatch checks a session that has no round.
+ */
+export function assertRoundToAddress(hasRound: boolean, delivery?: AgentSteerMode): void {
+  if (!hasRound && addressesRound(delivery)) throw assistantErrors.state("这项工作还没有开始过一轮，没有可以打断或排在后面的；这句话没有发送，可以直接发出开始第一轮");
 }
 
 /**

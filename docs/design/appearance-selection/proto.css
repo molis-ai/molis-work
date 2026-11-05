@@ -1,0 +1,156 @@
+/* 14 · 外观选择与应用规则 — 原型自己的样式。只有三类：
+   1. 原型条与页面骨架（不是产品界面）；
+   2. 「组件板新增」：组件板和真实设置页里还没有的部分，每处在页面上带 data-board-new，README 逐条写理由；
+   3. 示意外观的字族（圆润字体是代替品，正式字体待决策第 23 项）。
+   Folio 与「蓝绿工作台」的颜色由 app.js 按 data.js 生成到 #look-rules（就像皮肤文件被读进来），这里不写色值。
+   其余颜色、圆角、阴影、时长与曲线只用 kit.css／settings.css 里的令牌。 */
+
+/* ---------- 1. 原型条与骨架 ---------- */
+html, body.proto-body { height: 100%; }
+body.proto-body { margin: 0; display: flex !important; flex-direction: column; overflow: hidden; background: var(--desk); color: var(--ink); }
+#app { flex: 1; min-height: 0; display: grid; grid-template-rows: 44px minmax(0, 1fr); }
+.proto { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; background: var(--paper); border-bottom: 1px solid var(--line-strong); font-size: 12px; color: var(--muted); }
+.proto b { color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); margin-right: 8px; }
+.proto label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.proto .mw-select { width: auto; min-width: 0; height: 28px; font-size: 12px; }
+.proto #reset { margin-left: auto; }
+/* The toast's placement is the host's: inset and auto margins, never a transform (the toast animates its own transform). */
+.proto-toasts { position: fixed; inset-inline: 16px; bottom: 24px; z-index: 60; display: flex; justify-content: center; pointer-events: none; }
+.proto-toasts .mw-toast { pointer-events: auto; }
+
+/* ---------- 3. 示意字族 ---------- */
+:root {
+  --proto-font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Inter Variable", Inter, "Noto Sans SC", system-ui, sans-serif;
+  --proto-font-rounded: "SF Pro Rounded", ui-rounded, "Yuanti SC", "Hiragino Maru Gothic ProN", var(--proto-font-system);
+  --proto-font-serif: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --proto-font-mono-system: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --proto-font-mono-menlo: Menlo, Monaco, monospace;
+}
+:root[data-face="rounded"], :root[data-face="rounded"] body { --font: var(--proto-font-rounded); }
+:root[data-mono="menlo"], :root[data-mono="menlo"] body { --font-mono: var(--proto-font-mono-menlo); --mono: var(--proto-font-mono-menlo); }
+.proto-face--system { font-family: var(--proto-font-system); }
+.proto-face--rounded { font-family: var(--proto-font-rounded); }
+.proto-face--reading { font-family: var(--proto-font-serif); }
+.proto-face--mono-system { font-family: var(--proto-font-mono-system); }
+.proto-face--mono-menlo { font-family: var(--proto-font-mono-menlo); }
+
+/* ---------- 版式小件（现有控件的排布，不是新控件） ---------- */
+.settings-section > h2 + .proto-scope { margin: 0 0 4px; font-size: 12px; line-height: 18px; color: var(--muted); }
+.settings-setting-row.proto-stack { flex-direction: column; align-items: stretch; gap: 10px; }
+.proto-stack .setting-value { display: grid; justify-content: stretch; justify-items: start; gap: 8px; width: 100%; }
+.proto-fonts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 4px 24px; width: 100%; margin: 0; padding: 0; border: 0; }
+.proto-fonts .mw-check-row { align-items: flex-start; }
+.proto-fonts .mw-check-row > span { display: grid; gap: 2px; }
+.proto-fonts .proto-sample { font-size: 15px; line-height: 22px; color: var(--ink); letter-spacing: 0; }
+.proto-fonts .proto-sample.proto-face--reading { font-size: 16px; line-height: 26px; }
+.proto-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 4px 0 0; font-size: 12px; line-height: 18px; color: var(--muted); }
+.proto-hint .mw-btn { min-height: 0; }
+.proto-feedback { padding: 4px 0 12px; }
+.proto-feedback .mw-alert ul { margin: 6px 0 0; padding-left: 18px; }
+.proto-feedback .mw-alert li + li { margin-top: 2px; }
+.proto-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.proto-lib { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- 2. 组件板新增 ---------- */
+/* 外观卡：选外观要先看得见它的颜色、圆角和推荐字体；mw-choice 只放一个词，装不下这些。
+   整张卡是一个按钮（aria-pressed），更多操作是卡角的独立按钮。在用、试用中、没通过检查用 mw-badge 说，不只靠颜色。 */
+.proto-skins { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 12px; padding: 12px 0 8px; }
+.proto-skin { position: relative; }
+.proto-skin__pick {
+  display: grid; gap: 10px; width: 100%; padding: 8px 8px 12px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--r-card, 12px); background: var(--paper); color: var(--ink); font: inherit;
+  box-shadow: var(--lift-1);
+  transition: border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint);
+}
+.proto-skin__pick:hover { border-color: var(--line-strong); box-shadow: var(--lift-2); }
+.proto-skin__pick:active { transform: scale(.985); }
+.proto-skin__pick:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+.proto-skin__pick[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--lift-1); }
+.proto-skin[data-trial] .proto-skin__pick { border-color: var(--accent); border-style: dashed; }
+.proto-skin__view { position: relative; display: block; height: 76px; border-radius: calc(var(--r-card, 12px) - 4px); overflow: hidden; background: var(--sw0); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sw3) 10%, transparent); }
+.proto-skin__view i { position: absolute; display: block; }
+.proto-skin__view .w { left: 12px; top: 12px; right: 28px; bottom: -6px; border-radius: var(--sw-r, 8px); background: var(--sw1); box-shadow: 0 1px 2px color-mix(in srgb, var(--sw3) 12%, transparent); }
+.proto-skin__view .t { left: 22px; top: 22px; width: 46%; height: 6px; border-radius: 3px; background: var(--sw3); opacity: .82; }
+.proto-skin__view .l { left: 22px; top: 34px; width: 58%; height: 4px; border-radius: 2px; background: var(--sw3); opacity: .22; }
+.proto-skin__view .l2 { top: 43px; width: 40%; }
+.proto-skin__view .b { left: 22px; top: 54px; width: 38px; height: 12px; border-radius: var(--sw-r, 6px); background: var(--sw2); }
+.proto-skin__view .d { top: 56px; width: 8px; height: 8px; border-radius: 50%; }
+.proto-skin__view .d1 { left: 68px; background: var(--sw4, transparent); }
+.proto-skin__view .d2 { left: 80px; background: var(--sw5, transparent); }
+.proto-skin__text { display: grid; gap: 2px; padding: 0 4px; min-width: 0; }
+.proto-skin__name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 14px; font-weight: var(--weight-control, 500); line-height: 20px; }
+.proto-skin__name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proto-skin__meta { font-size: 12px; line-height: 18px; color: var(--muted); }
+.proto-skin__badges { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 4px; min-height: 20px; }
+.proto-skin__more { position: absolute; top: 12px; right: 12px; }
+.proto-skin__more .mw-btn { background: color-mix(in srgb, var(--paper) 88%, transparent); }
+.proto-skin .mw-menu { position: absolute; top: 44px; right: 8px; z-index: 5; min-width: 180px; }
+
+/* 试用条（方案 B）：这个窗口正在试一套外观时，钉在设置页底部，说清只影响这里，并给「还原」「用上」。
+   组件板的 mw-bar-status 说状态，但没有带确认动作、钉在页底的条。 */
+.proto-trialbar {
+  position: sticky; bottom: 16px; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
+  margin: 16px 0 0; padding: 12px 12px 12px 16px; border: 1px solid var(--line-strong); border-radius: var(--r-card, 12px);
+  background: var(--popover, var(--paper)); box-shadow: var(--lift-3);
+  animation: craft-rise var(--dur-move) var(--ease-quint) both;
+}
+.proto-trialbar__text { flex: 1 1 260px; display: grid; gap: 2px; min-width: 0; }
+.proto-trialbar__text strong { display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; font-weight: var(--weight-control, 500); }
+.proto-trialbar__text strong .mw-state-ring { flex: none; }
+.proto-trialbar__text small { font-size: 12px; line-height: 18px; color: var(--muted); }
+.proto-trialbar__text ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 18px; color: var(--ink-soft); }
+.proto-trialbar__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.proto-trialbar[data-tone="danger"] { border-color: color-mix(in srgb, var(--red) 40%, var(--line-strong)); }
+.proto-trialbar[data-tone="warning"] { border-color: color-mix(in srgb, var(--amber) 45%, var(--line-strong)); }
+
+/* 样张卡（方案 C）：一张 mw-card，正文按候选外观画（颜色、字、圆角都换），页面本身不变。
+   组件板的卡片正文跟着页面外观走，没有「在另一套外观里画」的卡。 */
+.proto-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 24px; align-items: start; padding: 12px 0 8px; }
+.proto-split .proto-skins { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); padding-top: 0; }
+.proto-split > .proto-specimen { position: sticky; top: 16px; }
+.proto-specimen .mw-card__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.proto-specimen .mw-card__header h3 { margin: 0; font-size: 14px; line-height: 20px; font-weight: var(--weight-control, 500); }
+.proto-specimen .mw-card__header small { display: block; font-size: 12px; line-height: 18px; color: var(--muted); }
+.proto-specimen__canvas { display: grid; gap: 12px; padding: 16px; border-radius: calc(var(--r-card, 12px) - 2px); background: var(--desk); color: var(--ink); font-family: var(--font); transition: background-color var(--dur-move) var(--ease-quint); }
+.proto-specimen__sheet { display: grid; gap: 10px; padding: 14px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-1); }
+.proto-specimen__sheet h4 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: 15px; line-height: 22px; font-weight: var(--weight-title, 600); }
+.proto-specimen__rows { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.proto-specimen__rows li { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 6px; border-radius: var(--radius-control, 8px); font-size: 13px; }
+.proto-specimen__rows li:first-child { background: var(--nav-active); }
+.proto-specimen__rows li span:last-child { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.proto-specimen__read { margin: 0; font-size: 14px; line-height: 1.65; color: var(--ink-soft); }
+.proto-specimen__read.proto-face--reading { font-size: 15px; line-height: 1.8; }
+.proto-specimen__code { margin: 0; padding: 8px 10px; border-radius: var(--radius-control, 8px); background: var(--rail); font: 12px/1.6 var(--font-mono); color: var(--ink); white-space: pre; overflow: auto; }
+.proto-specimen__btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.proto-specimen .mw-card__footer { display: grid; gap: 10px; }
+.proto-specimen__status { font-size: 12px; line-height: 18px; color: var(--muted); }
+.proto-specimen__status ul { margin: 4px 0 0; padding-left: 18px; color: var(--ink-soft); }
+.proto-specimen__btns--end { justify-content: flex-end; }
+dialog.mw-sheet .proto-specimen { box-shadow: none; }
+.proto-sheet-close { display: flex; justify-content: center; margin: -4px 0 8px; }
+
+/* 换外观的淡入：外观换掉时整页从旧样子淡到新样子，用产品的曲线与时长；减少动态效果时直接换。 */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-move); animation-timing-function: var(--ease-quint); }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } .proto-trialbar { animation: none; } }
+body.settled .proto-trialbar { animation: none; }
+
+/* 「组件板新增」与「示意」标注（原型条的开关控制；不是产品界面） */
+[data-show-new] [data-board-new] { position: relative; outline: 1px dashed var(--accent); outline-offset: 4px; border-radius: 4px; }
+[data-show-new] [data-board-new]::after { content: "组件板新增 · " attr(data-board-new); position: absolute; top: -10px; right: 8px; z-index: 6; padding: 0 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font: 500 11px/18px var(--proto-font-system); pointer-events: none; white-space: nowrap; }
+html[lang="en"][data-show-new] [data-board-new]::after { content: "Board addition · " attr(data-board-new); }
+/* The outline must not undo the sticky parts. */
+[data-show-new] .proto-trialbar[data-board-new], [data-show-new] .proto-split > .proto-specimen[data-board-new] { position: sticky; }
+.proto-sample-tag { display: none; }
+[data-show-new] .proto-sample-tag { display: inline-flex; }
+
+@media (max-width: 760px) {
+  .proto { gap: 6px 10px; padding: 8px 12px; }
+  .proto b { width: 100%; }
+  .proto-skins { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
+  .proto-skin__view { height: 64px; }
+  .proto-split { grid-template-columns: minmax(0, 1fr); }
+  .proto-split > .proto-specimen { display: none; }
+  .proto-trialbar { bottom: 8px; padding: 12px; }
+  .proto-trialbar__actions { width: 100%; margin-left: 0; }
+  .proto-trialbar__actions .mw-btn { flex: 1 1 auto; justify-content: center; }
+}

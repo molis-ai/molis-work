@@ -257,13 +257,22 @@ const headErrors = (measured, budget, base) => {
 // smaller than what it replaced; no new asset.
 // BL-952 (2026-11-04): the selection reader skips headings inside a closed dialog or a hidden element, +56 B on workbench.js and on
 // plugin-frame.js (the same reader). Tried: one `closest` test with a short selector, no feature check, no second path.
+// WORK-03 (2026-11-05, explicitly approved by the user): product-local account forms and protected GET.
+// Reuses existing controls and request helper, minifies the typed browser program, and adds no served asset.
+// Exact growth: workbench.js +6876 B, plugin-frame.js +54 B, each stylesheet +452 B; see specs/unified-account/spec.md.
+// WORK-04 (2026-11-05, explicitly approved by the user): provider window/native opener, cancellation and result polling.
+// Reuses the same dialog, request helper and existing native bridge; minified into workbench.js, +1562 B more (8438 B total).
+// WORK-05 (2026-11-05, explicitly approved by the user): profile and security forms share verification helpers, minified in the existing bundle. +8,994 bytes over 1,083,008; no other asset changes.
+// WORK-06 (2026-11-05, explicitly approved by the user): tenant/member/platform forms reuse the account UI and pagination; +8,918 bytes over 1,092,002, minified in the same bundle with no new assets.
+// WORK-07 (2026-11-05, explicitly approved by the user): subscription, seat and platform forms share cards, fields and error states; +10,408 bytes over 1,100,920, minified into the existing bundle. No other assets grow.
+// WORK-08 (2026-11-05, explicitly approved by the user up to +2,374 bytes): entitlement sources reuse subscription UI and the request helper; final +2,340 bytes over 1,111,328 after removing invalid cross-batch revision comparison. Other assets unchanged.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [678758, 689755],
-  "/assets/molis-work-plugins/coding.css": [74624, 75514],
-  "/assets/molis-work-settings.css": [816992, 826705],
-  "/assets/molis-work-workbench.css": [1179610, 1194394],
-  "/assets/molis-work-workbench.js": [1074514, 1074570],
-  "/assets/molis-work-plugin-frame.js": [207977, 208033],
+  // K-05 reuses the responsive bar; tighten the prior admission by 42 bytes.
+  "/assets/molis-work-arrival.css": [689755, 690165],
+  "/assets/molis-work-workbench.css": [1194394, 1194846],
+  // K-03: user approved up to +537 bytes; shared design-system disclosure finishes at +531 (1113668 → 1114199), no new assets.
+  "/assets/molis-work-workbench.js": [1074570, 1114199],
+  "/assets/molis-work-plugin-frame.js": [208033, 208087],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

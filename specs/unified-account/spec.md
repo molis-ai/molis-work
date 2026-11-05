@@ -278,3 +278,11 @@ WORK-09 最终门禁：相对 `origin/main` 的健康、包边界、公开 API�
 - **K06-02** POST 回执丢失只发送 1 次，同样保持 unknown 与数据、不重发、不继续失败记账。证明：同文件的 POST 场景。
 
 本分支修复提交 `c9d6628c271ea812a9c7423b4869cda03aa8fbd6`，三个相关文件 40/40、健康门禁通过。独立评审分支 `codex/k06-background-retry-contract` 基于主线 `d8232983`，仅两个文件；其提交与独立构建/验证记录统一由 Auth `docs/unified-account/delivery.md` 第 9 节持有。没有把它的主线版本或定向结果当作账号分支已重新集成最新 main、重跑全部 327 文件或完成 CI Full。旧轮次的 3484/3485 和原始失败保留作历史证据，远端评审与最终集成验收仍待执行。
+
+## T-01 远端评审与最终集成（2026-11-06）
+
+本轮已将主线 `d82329833844a7dee4c7df56a2d9568b636d9957` 合入账号分支。`action-read-compatibility` 的冲突同时保留账号参数拒绝和主线动作版本 1 的断言；公开 API 与动作快照按构建结果核对，中央合同仍为 1.1.0。整体构建、相对该主线的健康、包边界、67 份公开 API 快照、48 个合同测试文件、资源、版本与逐提交密钥扫描通过。资源仍为 51 项、7,442,218 字节，无新增增长授权。
+
+独立前置评审为 [K-06 #1842](https://github.com/molis-ai/molis-work/pull/1842)、[既有资源放行 #1843](https://github.com/molis-ai/molis-work/pull/1843)、[FTS 整数处理 #1844](https://github.com/molis-ai/molis-work/pull/1844)；中央服务为 [Auth #2](https://github.com/molis-ai/auth/pull/2)，Club 为 [#27](https://github.com/molis-ai/molis-club/pull/27)。前置与账号最终集成的 CI 必须分别绑定实际提交，不能把排队或运行中写成通过；最新运行链接、结果和最终源码摘要统一维护于 Auth 的交付台账。
+
+本轮 11 个定向文件 131/131，六个 Work 账号专项脚本及三端切换/回退联合脚本通过。外部服务保持 mock，账号/租户/订阅/权益验证真实实现；仅临时 Home/D1 和合成数据。未操作真实 Home、真实存量或生产部署，未运行 live。Auth/Club 当前没有仓库 CI 工作流，其本地与联合证据不称为远端 CI。

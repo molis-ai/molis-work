@@ -359,49 +359,49 @@ test("choice options follow destination context unless keys are custom", () => {
 
 // The rule that decides which suggestions the page offers lives in the page script alone (it was once also a function in the contracts
 // that nothing but tests called). This runs the real script text in Node, not a pattern match, and needs no browser.
-test("the rules page suggests behaviors by the real page rule: destination, version and subject kind", () => {
+test("the rules page suggests options by the real page rule: destination, version and subject kind", () => {
   const from = "const matchesScene = ", to = "const defaultChoiceRows = ";
   const script = FUNCTIONS_CLIENT_FACTORY_SCRIPT;
   assert.equal(script.split(from).length, 2, "start anchor appears exactly once");
   assert.equal(script.split(to).length, 2, "end anchor appears exactly once");
   const rule = script.slice(script.indexOf(from), script.indexOf(to));
   const build = (selected: Record<string, unknown> | undefined, catalog: JudgmentRuleAuthoringCatalog) => new Function("L", "cat", "sel", "destKey",
-    rule + "\nreturn { suggestedBehaviors: hints, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
-    suggestedBehaviors: (destinationId: string, kinds: string[]) => { behavior_id: string; title: string; action_ref?: { capability_id: string } }[];
-    destOf: (id: string) => { behavior_ids: string[] } | null;
+    rule + "\nreturn { suggestedOptions: hints, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
+    suggestedOptions: (destinationId: string, kinds: string[]) => { option_id: string; title: string; action_ref?: { capability_id: string } }[];
+    destOf: (id: string) => { option_ids: string[] } | null;
   };
-  const behavior = (behavior_id: string, title: string, extra: Record<string, unknown>) => ({ behavior_id, title, effect: "read" as const, source: "plugin" as const,
+  const option = (option_id: string, title: string, extra: Record<string, unknown>) => ({ option_id, title, effect: "read" as const, source: "plugin" as const,
     plugin_id: "example.review", plugin_title: "Review", subject_kinds: [] as string[], clickable: true, ...extra });
   const scene = (scene_version: number) => ({ destination_id: "example.review", scene_version, provider_id: "example.review", kind: "event" as const, title: "Review", when: "Note submitted",
-    configure_at: "", effect: "", subject_kinds: ["note"], behavior_ids: ["ack", "later"] });
+    configure_at: "", effect: "", subject_kinds: ["note"], option_ids: ["ack", "later"] });
   const catalog: JudgmentRuleAuthoringCatalog = {
     subjects: [],
-    destinations: [scene(1), scene(2), { destination_id: "agent.mcp", kind: "mcp", title: "Agent", when: "", configure_at: "", effect: "", subject_kinds: [], behavior_ids: ["a.generic", "a.note", "a.feed"] }],
-    behaviors: [
-      behavior("ack", "ack", { destination_id: "example.review", scene_version: 1, provider_id: "example.review", subject_kinds: ["note"] }),
-      behavior("later", "later", { destination_id: "example.review", scene_version: 1, provider_id: "example.review", subject_kinds: ["note"] }),
-      behavior("ack", "Version two approval", { destination_id: "example.review", scene_version: 2, provider_id: "example.review", subject_kinds: ["note"] }),
-      behavior("later", "Version two deferral", { destination_id: "example.review", scene_version: 2, provider_id: "example.review", subject_kinds: ["note"] }),
-      behavior("a.generic", "Generic", { destination_id: "agent.mcp", action_ref: { capability_id: "generic.read" } }),
-      behavior("a.note", "Note", { destination_id: "agent.mcp", subject_kinds: ["note"], action_ref: { capability_id: "note.read" } }),
-      behavior("a.feed", "Feed", { destination_id: "agent.mcp", subject_kinds: ["feed_item"], action_ref: { capability_id: "feed.read" } }),
-      behavior("other-scene-symbol", "Other scene", { destination_id: "other.scene" }),
+    destinations: [scene(1), scene(2), { destination_id: "agent.mcp", kind: "mcp", title: "Agent", when: "", configure_at: "", effect: "", subject_kinds: [], option_ids: ["a.generic", "a.note", "a.feed"] }],
+    options: [
+      option("ack", "ack", { destination_id: "example.review", scene_version: 1, provider_id: "example.review", subject_kinds: ["note"] }),
+      option("later", "later", { destination_id: "example.review", scene_version: 1, provider_id: "example.review", subject_kinds: ["note"] }),
+      option("ack", "Version two approval", { destination_id: "example.review", scene_version: 2, provider_id: "example.review", subject_kinds: ["note"] }),
+      option("later", "Version two deferral", { destination_id: "example.review", scene_version: 2, provider_id: "example.review", subject_kinds: ["note"] }),
+      option("a.generic", "Generic", { destination_id: "agent.mcp", action_ref: { capability_id: "generic.read" } }),
+      option("a.note", "Note", { destination_id: "agent.mcp", subject_kinds: ["note"], action_ref: { capability_id: "note.read" } }),
+      option("a.feed", "Feed", { destination_id: "agent.mcp", subject_kinds: ["feed_item"], action_ref: { capability_id: "feed.read" } }),
+      option("other-scene-symbol", "Other scene", { destination_id: "other.scene" }),
     ],
   };
   // Chosen by id alone, with two versions registered: the page does not guess, it offers nothing.
   const unpinned = build(undefined, catalog);
-  assert.deepEqual(unpinned.suggestedBehaviors("example.review", ["note"]), []);
-  assert.deepEqual(unpinned.destOf("example.review")?.behavior_ids, []);
+  assert.deepEqual(unpinned.suggestedOptions("example.review", ["note"]), []);
+  assert.deepEqual(unpinned.destOf("example.review")?.option_ids, []);
   // Pinned to version 2 and its provider: that version's own labels, in the destination's order.
   const pinned = build({ scene_id: "example.review", scene_version: 2, scene_provider_id: "example.review" }, catalog);
-  assert.equal(pinned.suggestedBehaviors("example.review", ["note"])[0]?.title, "Version two approval");
-  assert.deepEqual(pinned.suggestedBehaviors("example.review", ["note"]).map(row => row.title), ["Version two approval", "Version two deferral"]);
+  assert.equal(pinned.suggestedOptions("example.review", ["note"])[0]?.title, "Version two approval");
+  assert.deepEqual(pinned.suggestedOptions("example.review", ["note"]).map(row => row.title), ["Version two approval", "Version two deferral"]);
   // Agent: filtered by subject kind, never another scene's symbol, everything when no kind is chosen.
-  assert.deepEqual(unpinned.suggestedBehaviors("agent.mcp", ["note"]).map(row => row.action_ref?.capability_id), ["generic.read", "note.read"]);
-  assert.equal(unpinned.suggestedBehaviors("agent.mcp", []).length, 3);
+  assert.deepEqual(unpinned.suggestedOptions("agent.mcp", ["note"]).map(row => row.action_ref?.capability_id), ["generic.read", "note.read"]);
+  assert.equal(unpinned.suggestedOptions("agent.mcp", []).length, 3);
   // No destination: nothing to suggest without one; unregistered destination: nothing either.
-  assert.deepEqual(unpinned.suggestedBehaviors("", ["note"]), []);
-  assert.deepEqual(unpinned.suggestedBehaviors("unregistered.scene", []), []);
+  assert.deepEqual(unpinned.suggestedOptions("", ["note"]), []);
+  assert.deepEqual(unpinned.suggestedOptions("unregistered.scene", []), []);
 });
 
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
@@ -556,14 +556,14 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.deepEqual(listed.functions, []);
   const catalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
     catalog: {
-      destinations: Array<{ destination_id: string; configure_at: string; kind: string; when?: string; behavior_ids?: string[]; availability?: { available: boolean; code?: string } }>;
-      behaviors: Array<{ behavior_id: string; source: string; effect: string; action_ref?: { capability_id: string; version: number; provider_id: string } }>;
+      destinations: Array<{ destination_id: string; configure_at: string; kind: string; when?: string; option_ids?: string[]; availability?: { available: boolean; code?: string } }>;
+      options: Array<{ option_id: string; source: string; effect: string; action_ref?: { capability_id: string; version: number; provider_id: string } }>;
     };
   };
   assert.deepEqual(catalog.catalog.destinations.map(row => row.destination_id), ["agent.mcp"], "global authoring lists actual registered scenes only");
-  assert.ok(catalog.catalog.behaviors.some(row => row.action_ref?.capability_id === "functions.invoke"));
-  assert.ok(catalog.catalog.behaviors.every(row => row.action_ref?.provider_id && row.action_ref.version > 0));
-  assert.equal(catalog.catalog.behaviors.some(row => row.behavior_id === "molis_work_v1_form_create" || row.behavior_id === "feed.save"), false,
+  assert.ok(catalog.catalog.options.some(row => row.action_ref?.capability_id === "functions.invoke"));
+  assert.ok(catalog.catalog.options.every(row => row.action_ref?.provider_id && row.action_ref.version > 0));
+  assert.equal(catalog.catalog.options.some(row => row.option_id === "molis_work_v1_form_create" || row.option_id === "feed.save"), false,
     "global authoring must not invent unavailable project actions or legacy MCP aliases");
   const created = await fetch(`${origin}/api/functions`, {
     method: "POST",

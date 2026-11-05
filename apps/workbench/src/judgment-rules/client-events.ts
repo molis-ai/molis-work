@@ -145,11 +145,11 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
   form.addEventListener("click", (event) => {
     const paletteAdd = event.target.closest("[data-palette-add]");
     if (paletteAdd && sel?.status !== "published" && prim(sel) === "choice") {
-      const beh = behaviorOf(paletteAdd.dataset.paletteAdd);
+      const beh = optionOf(paletteAdd.dataset.paletteAdd);
       sel = { ...sel, scene_map: sceneMap(), action_map: actionMap() };
-      if (beh.action_ref && destKey() === "agent.mcp") sel.action_map[beh.behavior_id] = beh.action_ref;
-      if (!readKeys().includes(beh.behavior_id)) {
-        addChoice(beh.behavior_id, behaviorTitle(beh));
+      if (beh.action_ref && destKey() === "agent.mcp") sel.action_map[beh.option_id] = beh.action_ref;
+      if (!readKeys().includes(beh.option_id)) {
+        addChoice(beh.option_id, optionTitle(beh));
       }
       paintPalette(sel);
       renderMap(sel);

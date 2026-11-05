@@ -123,8 +123,10 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + var(--side-gap) + var(--sheet-inset,14px))}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
  body[data-side-open=true] .side-strip{min-width:0}
+ .side-strip{flex:0 1 auto;max-width:100%;padding-block:2px;overflow-x:auto;scrollbar-width:none;justify-content:safe flex-end}
  .side-panel-divider{display:none!important}
 }
+@media(min-width:601px) and (max-width:760px){.immersive-titlebar>.side-strip{max-width:40%}}
 @media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
 `.replace(/\n\s*/g, "");
 
@@ -145,6 +147,9 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * document gets the target as it is (`{ type: "molis:side-target", target }`, to that frame and this origin only), and its
  * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`), both through the S-30 checks.
  * Answers `{ open(key, target), restore() }`: open (or recall) a view, and draw the side again from a state the workspace replaced.
+ * A reopened tab takes the focus when the strip had it, so Delete and ⌘⇧T go back and forth on one tab.
+ * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
+ * and focus from a click leaves the widths as they are).
  */
 export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,L=globalThis.L})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
@@ -231,6 +236,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(!ops.reopenSideTab(getState(),record))return false;
     if(undo?.record===record)undo=null;
     if(record.active&&open)select(record.tab.itemId);else draw();
+    if(strip.contains(document.activeElement))buttons().find(button=>button.dataset.sideTab===record.tab.itemId)?.focus({preventScroll:true});
     save();return true;
   };
   const close=button=>{
@@ -279,7 +285,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     const button=event.target.closest?.('[data-side-tab]');if(!button||button.contains(event.relatedTarget))return;
     clearTimeout(growTimer);if(!event.relatedTarget?.closest?.('[data-side-tab]')&&!button.matches(':focus-visible'))button.parentElement.classList.remove('is-grown');
   });
-  strip.addEventListener('focusin',event=>{const button=event.target.closest('[data-side-tab]');grow(button?.matches(':focus-visible')?button:null);});
+  strip.addEventListener('pointerdown',()=>clearTimeout(growTimer));
+  strip.addEventListener('focusin',event=>{const button=event.target.closest('[data-side-tab]');if(button?.matches(':focus-visible'))grow(button);});
   strip.addEventListener('focusout',event=>{if(!strip.contains(event.relatedTarget))grow(null);});
   const menu=document.createElement('div');menu.className='mw-menu mw-menu--context side-tab-menu';menu.setAttribute('popover','manual');menu.setAttribute('role','menu');document.body.append(menu);
   let menuAnchor=null;

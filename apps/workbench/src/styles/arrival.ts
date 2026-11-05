@@ -37,7 +37,7 @@ export const ARRIVAL_STYLES = String.raw`
   /* Only the chooser shows the caption. */
   .arrival:not([data-screen="chooser"]) .arrival-titlebar .mw-caption { opacity: 0; visibility: hidden; pointer-events: none; }
   .arrival[data-screen="chooser"] .arrival-titlebar .mw-caption { transition-delay: 0s; }
-  .arrival-tools { display: flex; align-items: center; gap: 2px; }
+  .arrival-tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
   /* One row with the right side's tabs at its end (07-S1): the strip is a flex row of its own. */
   .arrival-global { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
   .arrival-tools .mw-btn { color: var(--ink-soft); }
@@ -297,6 +297,8 @@ export const ARRIVAL_STYLES = String.raw`
     html body.immersive-workbench.arrival-page .arrival { grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) auto; }
     html body.immersive-workbench.arrival-page .arrival > .arrival-bar { grid-row: 3; }
     .arrival-titlebar { padding-left: 14px; }
+    /* The right side's 44px glyphs share the row with the Home tools (07-S1): the brand keeps its mark, the name gives way. */
+    .arrival:not([data-screen="welcome"]) .arrival-brand > .mw-wordmark { display: none; }
     .mw-bar-context__text, .mw-btn__key { display: none; }
     /* The three blocks never share a cell: the status on its own row, the way back and the actions below it (the actions wrap rather than run under it). */
     html body.immersive-workbench.arrival-page .arrival-bar { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; gap: 4px 8px; padding-block: 8px max(8px, env(safe-area-inset-bottom)); }

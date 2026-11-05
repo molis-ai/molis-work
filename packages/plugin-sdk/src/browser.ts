@@ -136,6 +136,4 @@ export function followScroll(panel: Element, run: () => void): () => void {
 export { GAP as FLOATING_GAP, MARGIN as FLOATING_MARGIN, clampTo, pick as pickSide, placeStacked };
 
 /** Text to show for an error raised by a client action, including a thrown string. */
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+export const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);

@@ -286,3 +286,7 @@ WORK-09 最终门禁：相对 `origin/main` 的健康、包边界、公开 API�
 独立前置评审为 [K-06 #1842](https://github.com/molis-ai/molis-work/pull/1842)、[既有资源放行 #1843](https://github.com/molis-ai/molis-work/pull/1843)、[FTS 整数处理 #1844](https://github.com/molis-ai/molis-work/pull/1844)；中央服务为 [Auth #2](https://github.com/molis-ai/auth/pull/2)，Club 为 [#27](https://github.com/molis-ai/molis-club/pull/27)。前置与账号最终集成的 CI 必须分别绑定实际提交，不能把排队或运行中写成通过；最新运行链接、结果和最终源码摘要统一维护于 Auth 的交付台账。
 
 本轮 11 个定向文件 131/131，六个 Work 账号专项脚本及三端切换/回退联合脚本通过。外部服务保持 mock，账号/租户/订阅/权益验证真实实现；仅临时 Home/D1 和合成数据。未操作真实 Home、真实存量或生产部署，未运行 live。Auth/Club 当前没有仓库 CI 工作流，其本地与联合证据不称为远端 CI。
+
+后续账号 Full 暴露 K-07：K-05 的双行底栏遮挡侧栏撤销控件，干净主线 Chrome 156 对照通过。本轮修复遵循 **T01-LAYOUT-01**：进入页的侧栏和分隔条限制在实际内容网格，手机、横屏和桌面宽度及明暗主题均不能覆盖底栏；原 ISSUE-45 的真实提交、图片摘要和撤销恢复继续通过。证明用例为 `tests/issue-draft-preview.e2e.test.ts`，最终 CI 结果与失败历史由 Auth 交付记录持有。T-01 在最终 head 的门禁、Full 和评审完成前保持未完成。
+
+K-07 的最终本地定向批次 33/33 文件通过，包含 Workbench README 的必跑与界面用例，图片草稿文件 5/5。构建、相对 d8232983 的健康、包边界、密钥扫描和文档引用检查通过；未改提示时长或重试上限。精简选择器后的 arrival.css 为 690,569 字节，比已批准的 690,296 多 273 字节，无新增资源，其他资源不变；该新增额度仍待用户确认，尚未修改门禁。视觉对照和最终 head 的远端验收继续记录于中央台账。

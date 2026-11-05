@@ -8,6 +8,7 @@
 const board = document.querySelector<HTMLElement>("[data-nav-board]");
 const REST_MS = 140;
 const GLYPH = ".tab-item[data-glyph-only]";
+const UNDO_MS = 6000;
 
 const target = (event: Event) => (event.target instanceof Element ? event.target : null);
 const tabsOf = (list: Element) => [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
@@ -43,7 +44,8 @@ function undo(chip: HTMLElement): void {
   const live = chip.closest(".mw-navs__stage")?.querySelector("[data-nav-live]");
   chip.hidden = true;
   if (live) live.textContent = chip.dataset.reopened ?? "";
-  setTimeout(() => { chip.hidden = false; if (live) live.textContent = ""; }, 2400);
+  // The product's chip stays 6 s after a group closes; the board brings it back after as long, to be tried again.
+  setTimeout(() => { chip.hidden = false; if (live) live.textContent = ""; }, UNDO_MS);
 }
 
 function step(event: KeyboardEvent, list: HTMLElement[], at: number, forward: boolean): void {
@@ -124,5 +126,12 @@ if (board) {
   });
 
   for (const row of board.querySelectorAll("[data-nav-glyph-row], .tab-strip")) watchGlyphs(row);
+  // 全部标签 shows when its strip cannot hold its tabs (a phone always shows it, in the sheet): the board measures as the product will.
+  for (const button of board.querySelectorAll<HTMLElement>("[data-nav-when-full]")) {
+    const scroll = button.closest(".tab-strip")?.querySelector(".tab-scroll");
+    if (!scroll) continue;
+    const measure = () => button.toggleAttribute("data-nav-fits", scroll.scrollWidth <= scroll.clientWidth);
+    new ResizeObserver(measure).observe(scroll);
+  }
   board.querySelector("[data-nav-composer]")?.addEventListener("submit", (event) => event.preventDefault());
 }

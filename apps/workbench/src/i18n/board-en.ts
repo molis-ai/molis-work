@@ -80,6 +80,7 @@ export const BOARD_EN: Record<string, string> = {
   "发布周": "Launch week",
   "这个 Goal 已经不在了": "This Goal is no longer here",
   "{n} 张": "{n} tabs",
+  "1 张": "1 tab",
   "找标签": "Find a tab",
   "全部标签": "All tabs",
   "在旁边打开": "Open beside",

@@ -68,6 +68,12 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
       assert.ok(phone.count, `${lang} ${state}: 全部标签 shows its whole count`);
       assert.deepEqual([phone.shown, phone.squeezed], [1, 0], `${lang} ${state}: only the current tab shows, at full width`);
     }
+    // Nothing in the titlebar covers ＋ or 全部标签: the glyph row keeps its width and the strip gives way.
+    const covered = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar] :is(.tab-add-button, .tab-all-button)')].filter((b) => b.getBoundingClientRect().width).flatMap((b) => {
+      b.scrollIntoView({ block: 'center' }); const box = b.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return hit && b.contains(hit) ? [] : [b.className + ' under ' + (hit ? hit.className : 'nothing')]; })`);
+    await evaluate("window.scrollTo(0, 0)");
+    assert.deepEqual(covered, [], `${lang} ${width}px: the titlebar's ＋ and 全部标签 are not covered`);
     // A folded glyph tab is 32px wide on a desk and a 44 × 44 target on a phone.
     assert.deepEqual(await evaluate("(() => { const box = document.querySelector('[data-nav-specimen=badge] .tab-item[data-glyph-only]').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()"), width <= 760 ? [44, 44] : [32, 26]);
     // The shot is taken with the whole page in the viewport: captured beyond it, Chrome left out a masked strip (the overflow
@@ -114,7 +120,7 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
 
   // A menu button opens its menu; Esc closes it and gives the focus back to the button.
   const menu = await evaluate<{ opened: boolean; focusInside: boolean; closed: boolean; back: boolean }>(`(async () => {
-    const button = document.querySelector('[data-nav-titlebar=ok] .titlebar-layout-button'), menu = document.getElementById(button.getAttribute('aria-controls'));
+    const button = document.querySelector('[data-nav-titlebar=ok] .titlebar-layout > .mw-btn'), menu = document.getElementById(button.getAttribute('aria-controls'));
     button.click(); const opened = !menu.hidden && button.getAttribute('aria-expanded') === 'true', focusInside = menu.contains(document.activeElement);
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return { opened, focusInside, closed: menu.hidden, back: document.activeElement === button };

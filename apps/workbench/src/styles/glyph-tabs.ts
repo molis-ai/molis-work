@@ -13,7 +13,8 @@
 const T = ".tab-glyph-row>.tab-item[data-glyph-only]";
 
 export const GLYPH_TAB_STYLES = `
-.tab-glyph-row{display:flex;align-items:center;justify-content:flex-end;gap:4px;min-width:0}
+/* The row keeps its width: its tabs are fixed, so it is the strip before it that gives way, never the row over its neighbours. */
+.tab-glyph-row{display:flex;flex:none;align-items:center;justify-content:flex-end;gap:4px}
 ${T}{--glyph-tab:32px;box-sizing:border-box;position:relative;display:flex;align-items:center;flex:0 0 auto;width:var(--glyph-tab);min-width:var(--glyph-tab);max-width:var(--glyph-tab);height:26px;padding:0;border:0;border-radius:6px;background:color-mix(in srgb,var(--nav-hover) 55%,var(--nav-bg));color:var(--ink-soft);font-size:12px;font-weight:400;box-shadow:none;transition:background-color var(--dur-move) var(--ease-quint),box-shadow var(--dur-move) var(--ease-quint),color var(--dur-hover) var(--ease-quint)}
 ${T}:not([aria-current]):is(:hover,.is-grown){background:var(--nav-hover);color:var(--ink)}
 ${T}:active:not([aria-current]){background:var(--nav-press,var(--nav-active))}
@@ -30,7 +31,8 @@ ${T}.is-grown .tab-item-name{display:block;animation:tab-name-in var(--dur-hover
 @keyframes tab-name-in{from{opacity:0}}
 /* The count of unfinished work on a glyph (background tasks). */
 .tab-count-badge{position:absolute;top:-1px;right:-1px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600;line-height:15px;text-align:center;font-variant-numeric:tabular-nums;pointer-events:none}
-/* A touch target folds to 44 × 44, as the generic tab grows to 44px high there; the open padding follows from the same width. */
-@media (max-width:760px),(pointer:coarse){${T}{--glyph-tab:44px;height:44px;border-radius:12px}}
+/* A touch target folds to 44 × 44, as the generic tab grows to 44px high there; the open padding follows from the same width.
+   The corner stays: a pointer changes a target's size, not its shape. */
+@media (max-width:760px),(pointer:coarse){${T}{--glyph-tab:44px;height:44px}}
 @media (prefers-reduced-motion:reduce){${T},${T} .tab-item-name{transition:none;animation:none}}
 `;

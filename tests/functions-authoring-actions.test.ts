@@ -79,10 +79,10 @@ test("publication checks live scene contracts and retains drafts after missing, 
     // tests/functions-plugin.test.ts) suggests nothing; a pinned version and provider match one, whose first suggestion is its own label.
     const destinations = catalog.destinations.filter(row => row.destination_id === scene.scene_id);
     assert.deepEqual(destinations.map(row => [row.scene_version, row.provider_id]), [[1, "example.review"], [2, "example.review"]], "old ID-only selection must not guess among versions");
-    const labelled = (version: number) => catalog.behaviors.filter(row => row.destination_id === scene.scene_id && row.scene_version === version && row.provider_id === "example.review");
-    assert.equal(destinations.find(row => row.scene_version === 2)?.behavior_ids[0], "ack");
-    assert.equal(labelled(2).find(row => row.behavior_id === "ack")?.title, "Version two approval");
-    assert.equal(labelled(1).find(row => row.behavior_id === "ack")?.title, "ack", "version one declares no label");
+    const labelled = (version: number) => catalog.options.filter(row => row.destination_id === scene.scene_id && row.scene_version === version && row.provider_id === "example.review");
+    assert.equal(destinations.find(row => row.scene_version === 2)?.option_ids[0], "ack");
+    assert.equal(labelled(2).find(row => row.option_id === "ack")?.title, "Version two approval");
+    assert.equal(labelled(1).find(row => row.option_id === "ack")?.title, "ack", "version one declares no label");
     const { function: pinned } = await actions.invoke(authoring.create, { primitive: "noul", name: "Pinned version" });
     await assert.rejects(actions.invoke(authoring.update, { id: pinned.id, patch: { scene_id: scene.scene_id, scene_version: 2 } }), { code: "functions.invalid" });
     await actions.invoke(authoring.update, { id: pinned.id, patch: { instructions: "Review", scene_id: scene.scene_id, scene_version: 2, scene_provider_id: "wrong-provider",

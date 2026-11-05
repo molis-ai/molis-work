@@ -99,6 +99,20 @@ function reportSupport(app: GoalProjectApplication, goalId: string, key: string,
   });
 }
 
+/**
+ * The person accepts the named requirements through the protected Web entry. A report is the reporter's own word and meets nothing
+ * (PWA-144), so a Goal's requirements are met by this. It only says those requirements are met: it authorizes nothing, and under the
+ * project's human-approval rule it is not the approval to complete (user decision 2026-11-05: accepting requirements and approving
+ * completion are separate).
+ */
+function personAccepts(app: GoalProjectApplication, goalId: string, key: string, requirementIds: string[]) {
+  return app.goalEvents.recordTrustedDecision({
+    project_id: BOARD, goal_id: goalId, idempotency_key: key,
+    authority: hostEventDecisionAuthority("web", BOARD, "web-user", key), conclusion: "看过结果，认可这些要求已经满足",
+    accepts_requirements: true, scope: { requirement_ids: requirementIds },
+  });
+}
+
 test("intent without agreement can record work but explicit complete does not apply", () => {
   const data = fixture();
   try {
@@ -161,6 +175,7 @@ test("ordinary support does not auto-complete; unknown and failed closes are rec
       new_requirements: [{ requirement_id: "playable", statement: "有一段可体验故事" }],
     });
     reportSupport(data.app, goalId, "report-ok", "playable");
+    personAccepts(data.app, goalId, "accept-ok", ["playable"]);
     const afterReport = data.app.goalEvents.readState(BOARD, goalId);
     assert.equal(afterReport.completion_effect, false);
     assert.equal(afterReport.gaps.length, 0);
@@ -438,6 +453,7 @@ test("related counter-evidence reopens completion and leaves other requirements 
         ],
       }],
     });
+    personAccepts(data.app, goalId, "accept-both", ["alpha", "beta"]);
     const closed = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-two",
       kind: "complete", reason: "两项都支持", result: "可体验", ...versions(data.app, goalId),
@@ -526,6 +542,7 @@ test("cancel needs no fake evidence; ordinary reports do not resume; stale versi
         return true;
       },
     );
+    personAccepts(data.app, goalId, "accept-can", ["can-req"]);
     const first = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-retry",
       kind: "complete", reason: "继续后完成", result: "可用", ...versions(data.app, goalId),
@@ -575,6 +592,7 @@ test("parent needs its own integration result; old completion and ancestor auto-
     configure(data.app, "parent-event", "cfg-parent");
     configure(data.app, "child-event", "cfg-child");
     reportSupport(data.app, "child-event", "rep-child", "child-out");
+    personAccepts(data.app, "child-event", "accept-child", ["child-out"]);
     const childClosed = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: "child-event", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-child",
       kind: "complete", reason: "子项完成", result: "子结果", ...versions(data.app, "child-event"),
@@ -587,6 +605,7 @@ test("parent needs its own integration result; old completion and ancestor auto-
     });
     assert.equal(parentTooEarly.completion_applied, false);
     reportSupport(data.app, "parent-event", "rep-parent", "parent-int");
+    personAccepts(data.app, "parent-event", "accept-parent", ["parent-int"]);
     const parentClosed = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: "parent-event", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-parent",
       kind: "complete", reason: "父 Goal 自己整合", result: "整合说明", ...versions(data.app, "parent-event"),
@@ -881,6 +900,7 @@ test("complete then cancel then resume stays consistent; invalid kind has no wri
     const goalId = created.goal.goal_id;
     configure(data.app, goalId, "cfg-resume", { new_requirements: [{ requirement_id: "resume-req", statement: "可回读" }] });
     reportSupport(data.app, goalId, "rep-resume", "resume-req");
+    personAccepts(data.app, goalId, "accept-resume", ["resume-req"]);
     const version = data.app.goalEvents.readState(BOARD, goalId).config.version;
     const completed = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-ok",
@@ -1207,6 +1227,7 @@ test("later comparable decision is current; old cite cannot undo a later rejecti
     const goalId = created.goal.goal_id;
     configure(data.app, goalId, "cfg-later", { new_requirements: [{ requirement_id: "later-req", statement: "可回读" }] });
     reportSupport(data.app, goalId, "rep-later", "later-req");
+    personAccepts(data.app, goalId, "accept-later", ["later-req"]);
     data.app.goalEvents.recordTrustedDecision({
       project_id: BOARD, goal_id: goalId, idempotency_key: "later-deny",
       authority: hostEventDecisionAuthority("management", BOARD, "review-user", "later-deny"),
@@ -1270,6 +1291,7 @@ test("same-millisecond closures keep this-event receipt and journal-seq current 
     const goalId = created.goal.goal_id;
     configure(app, goalId, "cfg-ms", { new_requirements: [{ requirement_id: "ms-req", statement: "可回读" }] });
     reportSupport(app, goalId, "rep-ms", "ms-req");
+    personAccepts(app, goalId, "accept-ms", ["ms-req"]);
     const completed = app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-ms",
       kind: "complete", result: "具体结果已可回读", reason: "先完成", ...versions(app, goalId),
@@ -1354,6 +1376,7 @@ test("replacing a non-empty draft outcome needs a specific cited change; user ap
         ],
       }],
     });
+    personAccepts(data.app, goalId, "accept-buy", ["buy-req", "buy-keep"]);
     const closed = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "close-buy", kind: "complete", result: "购买完成", reason: "已支持",
@@ -1462,6 +1485,32 @@ test("close without agreement version is rejected; human extra unknown after acc
     const afterUnknown = data.app.goalEvents.readState(BOARD, goalId);
     assert.equal(afterUnknown.work_status, "open");
     assert.equal(afterUnknown.requirements[0]?.currently_satisfied, false);
+    // 用户 11-05 定：反证收回后要重新认可, for a requirement that asks for the person's decision as for any other. The worker
+    // reporting support again does not restore the acceptance the unknown report took back; the person accepting again does.
+    reportSupport(data.app, goalId, "rep-human-again", "human-buy");
+    const afterAgain = data.app.goalEvents.readState(BOARD, goalId);
+    assert.equal(afterAgain.requirements[0]?.user_conclusion?.verdict, "accepted");
+    assert.equal(afterAgain.requirements[0]?.currently_satisfied, false);
+    const heldAgain = data.app.goalEvents.submitClosure({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-human-again", kind: "complete", reason: "执行者又说满足", result: "已确认",
+      ...versions(data.app, goalId),
+    });
+    assert.equal(heldAgain.completion_applied, false);
+    assert.deepEqual(heldAgain.unmet_reasons.map((reason) => reason.code), ["goals.event_closure.human_decision_required"]);
+    data.app.goalEvents.recordTrustedDecision({
+      project_id: BOARD, goal_id: goalId, idempotency_key: "dec-human-extra-again",
+      authority: hostEventDecisionAuthority("web", BOARD, "web-user", "dec-human-extra-again"),
+      conclusion: "我再次确认购买体验", accepts_requirements: true,
+      scope: { requirement_ids: ["human-buy"] },
+    });
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).requirements[0]?.currently_satisfied, true);
+    const reaccepted = data.app.goalEvents.submitClosure({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-human-reaccepted", kind: "complete", reason: "用户再次确认", result: "已确认",
+      ...versions(data.app, goalId),
+    });
+    assert.equal(reaccepted.completion_applied, true);
   } finally {
     close(data);
   }
@@ -1491,6 +1540,7 @@ test("requirement acceptance pending blocks close; suggestion does not; revise e
         ],
       }],
     });
+    personAccepts(data.app, goalId, "accept-pending", ["alpha", "beta"]);
     data.app.goalEvents.requestDecision({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "ask-suggest",
       question: "要不要换个标题？",
@@ -1555,11 +1605,13 @@ test("requirement acceptance pending blocks close; suggestion does not; revise e
         ],
       }],
     });
-    data.app.goalEvents.submitClosure({
+    personAccepts(data.app, otherId, "accept-revise", ["keep", "change"]);
+    const completedBeforeRevise = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: otherId, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "close-before-revise", kind: "complete", reason: "先完成", result: "可用",
       ...versions(data.app, otherId),
     });
+    assert.equal(completedBeforeRevise.completion_applied, true);
     const empty = attempt(() => data.app.goalEvents.setAgreement({
       project_id: BOARD, goal_id: otherId, actor_id: "web-user", actor_kind: "user",
       idempotency_key: "agree-empty", ...versions(data.app, otherId), outcome: "两段都可用",
@@ -1691,7 +1743,8 @@ function appliedClosureFlags(store: LocalProjectDatabase, goalId: string): Array
   return rows.map((row) => [Number(row.completion_applied), Number(row.superseded)]);
 }
 
-function readyGoal(app: GoalProjectApplication, goalId: string, requirementId: string) {
+/** A Goal whose one requirement the worker reports as supported and, unless `accepted` is false, the person accepts (PWA-144). */
+function readyGoal(app: GoalProjectApplication, goalId: string, requirementId: string, accepted = true) {
   app.goalEvents.createIntent({
     project_id: BOARD, goal_id: goalId, title: goalId, outcome: "可检查的具体结果",
     actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: `intent-${goalId}`,
@@ -1700,6 +1753,7 @@ function readyGoal(app: GoalProjectApplication, goalId: string, requirementId: s
     new_requirements: [{ requirement_id: requirementId, statement: "结果可以检查" }],
   });
   reportSupport(app, goalId, `rep-${goalId}`, requirementId);
+  if (accepted) personAccepts(app, goalId, `accept-ready-${goalId}`, [requirementId]);
 }
 
 function openBlockingConcern(
@@ -1824,9 +1878,13 @@ test("revoked concern acceptance cannot unblock, while a current matching approv
     assert.equal(concern?.cited_decision_id, null);
     assert.equal(revokedState.work_status, "open");
     assert.equal(revokedState.completion_effect, false);
-    assert.equal(revokedState.applied_decisions.length, 2);
-    assert.equal(revokedState.current_decisions.length, 1);
-    assert.equal(revokedState.current_decisions[0]?.effects.some((effect) => effect.kind === "reject_concerns"), true);
+    // Besides the person's acceptance of the requirement (readyGoal, PWA-144), the two decisions about the concern; the later one is current.
+    const aboutConcern = (items: typeof revokedState.applied_decisions) => items.filter((item) => item.scope.concern_ids.length > 0);
+    assert.equal(revokedState.applied_decisions.length, 3);
+    assert.equal(revokedState.current_decisions.length, 2);
+    assert.equal(aboutConcern(revokedState.applied_decisions).length, 2);
+    assert.equal(aboutConcern(revokedState.current_decisions).length, 1);
+    assert.equal(aboutConcern(revokedState.current_decisions)[0]?.effects.some((effect) => effect.kind === "reject_concerns"), true);
     assert.ok(revokedState.applied_decisions.some((item) => item.decision_id === approved.decision.decision_id));
     assert.equal(fulfillment(data.app, "revoked-concern"), "unmet");
   } finally {
@@ -2033,11 +2091,17 @@ test("an earlier superseded completion is not revived over the later effective o
     assert.equal(operationCount(data.app, "superseded-completion", "completion_reopened"), 2);
     assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
     assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1], [1, 1], [0, 0], [0, 0]]);
+    // 用户 11-05 定：反证收回后要重新认可. The worker reporting support again leaves the requirement awaiting the person's acceptance:
+    // the acceptance stays on record, but the contradicting report took it back, and only the person can give it again.
     reportSupport(data.app, "superseded-completion", "rep-round-restored", "round-req");
     const restored = data.app.goalEvents.readState(BOARD, "superseded-completion");
     assert.equal(restored.work_status, "open");
     assert.equal(restored.completion_effect, false);
-    assert.equal(restored.requirements[0]?.currently_satisfied, true);
+    assert.equal(restored.requirements[0]?.current_report?.verdict, "supports");
+    assert.equal(restored.requirements[0]?.user_conclusion?.verdict, "accepted");
+    assert.equal(restored.requirements[0]?.currently_satisfied, false);
+    personAccepts(data.app, "superseded-completion", "accept-round-restored", ["round-req"]);
+    assert.equal(data.app.goalEvents.readState(BOARD, "superseded-completion").requirements[0]?.currently_satisfied, true);
     assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
     assert.equal(operationCount(data.app, "superseded-completion", "completion_reopened"), 2);
     assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1], [1, 1], [0, 0], [0, 0]]);
@@ -2083,6 +2147,7 @@ test("project human-approval policy blocks completion until a current user autho
       new_requirements: [{ requirement_id: "approval-req", statement: "结果可以检查" }],
     });
     reportSupport(data.app, goalId, "rep-approval-policy", "approval-req");
+    personAccepts(data.app, goalId, "accept-approval-policy", ["approval-req"]);
     const blocked = data.app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "close-approval-policy", kind: "complete", result: "结果可以检查",
@@ -2110,6 +2175,8 @@ test("project human-approval policy blocks completion until a current user autho
 });
 
 const APPROVAL_REQUIRED = "goals.event_closure.human_approval_required";
+const SELF_REPORTED = "goals.event_closure.requirement_self_reported";
+const REJECTED = "goals.event_closure.requirement_rejected";
 
 function requireProjectApproval(app: GoalProjectApplication, key: string) {
   app.goals.commands.saveProjectPolicy({
@@ -2118,14 +2185,18 @@ function requireProjectApproval(app: GoalProjectApplication, key: string) {
   });
 }
 
-/** A Goal whose one requirement the work already supports, so the project's approval rule is the only thing left to satisfy. */
-function supportedGoal(app: GoalProjectApplication, key: string, requirementId: string): string {
+/**
+ * A Goal whose one requirement the work supports and, unless `accepted` is false, the person has accepted (PWA-144), so the project's
+ * approval rule is the only thing left to satisfy. The acceptance is not that approval (user decision 2026-11-05).
+ */
+function supportedGoal(app: GoalProjectApplication, key: string, requirementId: string, accepted = true): string {
   const created = app.goalEvents.createIntent({
     project_id: BOARD, title: `需要你点头 ${key}`, outcome: "结果可以检查",
     actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: `intent-${key}`,
   });
   configure(app, created.goal.goal_id, `cfg-${key}`, { new_requirements: [{ requirement_id: requirementId, statement: "结果可以检查" }] });
   reportSupport(app, created.goal.goal_id, `rep-${key}`, requirementId);
+  if (accepted) personAccepts(app, created.goal.goal_id, `accept-supported-${key}`, [requirementId]);
   return created.goal.goal_id;
 }
 
@@ -2172,7 +2243,9 @@ test("under the project human-approval rule the person who clicks complete is no
   }
 });
 
-test("under the project human-approval rule an accepted requirement conclusion that still stands releases it, and a revised or rejected one does not", () => {
+// User decision 2026-11-05: accepting requirements and approving completion are separate. An accepted conclusion on a requirement only
+// says the requirement is met; it no longer releases the project's approval rule, whether it still stands, was revised or was rejected.
+test("under the project human-approval rule an accepted requirement conclusion no longer releases it, standing, revised or rejected (user decision 2026-11-05: accepting requirements and approving completion are separate)", () => {
   const data = fixture();
   try {
     requireProjectApproval(data.app, "policy-conclusion");
@@ -2184,32 +2257,46 @@ test("under the project human-approval rule an accepted requirement conclusion t
       scope: { requirement_ids: [requirementId] },
     });
 
-    // An accepted conclusion on the requirement is enough on its own: no decision about the complete action is recorded here.
-    const standing = supportedGoal(data.app, "standing", "standing-req");
-    assert.deepEqual(reasonCodes(tryComplete(data.app, standing, "close-standing", runtime)), [APPROVAL_REQUIRED]);
+    // The accepted conclusion meets the requirement and nothing more: no decision about the complete action is recorded, so the
+    // close is held for the approval alone, and only an authorization to complete releases it.
+    const standing = supportedGoal(data.app, "standing", "standing-req", false);
+    assert.deepEqual(reasonCodes(tryComplete(data.app, standing, "close-standing", runtime)), [SELF_REPORTED, APPROVAL_REQUIRED]);
     const accepted = conclude(standing, "standing-req", "accept-standing", true);
     assert.equal(accepted.decision.scope.action, null, "the conclusion is about the requirement, not about completing");
-    assert.equal(tryComplete(data.app, standing, "close-standing-after", runtime).completion_applied, true);
+    assert.equal(requirementState(data.app, standing, "standing-req")?.currently_satisfied, true, "the conclusion meets the requirement");
+    assertHeldForApproval(data.app, standing, "close-standing-after", "an accepted conclusion that still stands");
+    authorizeComplete(data.app, standing, "allow-standing");
+    assert.equal(tryComplete(data.app, standing, "close-standing-allowed", runtime).completion_applied, true);
 
-    // The conclusion was given to the requirement as it stood. Once the requirement is revised it no longer counts, however fresh
-    // the supporting work is, and a new conclusion on the revised requirement releases it again.
-    const revised = supportedGoal(data.app, "revised", "revised-req");
+    // The conclusion was given to the requirement as it stood. Once the requirement is revised it no longer meets it, however fresh
+    // the supporting work is; a new conclusion on the revised requirement meets it again but still does not release the rule.
+    const revised = supportedGoal(data.app, "revised", "revised-req", false);
     conclude(revised, "revised-req", "accept-revised", true);
     data.app.goalEvents.setAgreement({
       project_id: BOARD, goal_id: revised, actor_id: "web-user", actor_kind: "user", idempotency_key: "revise-revised",
       ...versions(data.app, revised), revise_requirements: [{ requirement_id: "revised-req", statement: "改写后的要求" }],
     });
     reportSupport(data.app, revised, "rep-revised-again", "revised-req");
-    assert.deepEqual(reasonCodes(tryComplete(data.app, revised, "close-revised", runtime)), [APPROVAL_REQUIRED]);
+    assert.deepEqual(reasonCodes(tryComplete(data.app, revised, "close-revised", runtime)), [SELF_REPORTED, APPROVAL_REQUIRED]);
     conclude(revised, "revised-req", "accept-revised-again", true);
-    assert.equal(tryComplete(data.app, revised, "close-revised-after", runtime).completion_applied, true);
+    assertHeldForApproval(data.app, revised, "close-revised-after", "a new conclusion on the revised requirement");
+    authorizeComplete(data.app, revised, "allow-revised");
+    assert.equal(tryComplete(data.app, revised, "close-revised-allowed", runtime).completion_applied, true);
 
-    // A later rejection of the same requirement withdraws the acceptance.
-    const rejected = supportedGoal(data.app, "rejected", "rejected-req");
+    // A later rejection of the same requirement withdraws the acceptance: the requirement is no longer met, and the rule still holds.
+    // The close names the rejection rather than asking for an acceptance the person has just turned down (user decision 2026-11-05).
+    const rejected = supportedGoal(data.app, "rejected", "rejected-req", false);
     conclude(rejected, "rejected-req", "accept-rejected", true);
     conclude(rejected, "rejected-req", "reject-rejected", false);
     assert.equal(data.app.goalEvents.readState(BOARD, rejected).requirements[0]?.user_conclusion?.verdict, "rejected");
-    assert.deepEqual(reasonCodes(tryComplete(data.app, rejected, "close-rejected", runtime)), [APPROVAL_REQUIRED]);
+    const heldRejected = tryComplete(data.app, rejected, "close-rejected", runtime);
+    assert.deepEqual(reasonCodes(heldRejected), [REJECTED, APPROVAL_REQUIRED]);
+    assert.equal(heldRejected.unmet_reasons[0]?.message, "你没有认可要求「结果可以检查」");
+    // The worker reporting support again does not undo the person's rejection; only the person accepting it again does.
+    reportSupport(data.app, rejected, "rep-rejected-again", "rejected-req");
+    assert.deepEqual(reasonCodes(tryComplete(data.app, rejected, "close-rejected-again", runtime)), [REJECTED, APPROVAL_REQUIRED]);
+    conclude(rejected, "rejected-req", "accept-rejected-again", true);
+    assertHeldForApproval(data.app, rejected, "close-rejected-accepted", "a rejection the person took back by accepting again");
   } finally {
     close(data);
   }
@@ -2310,6 +2397,7 @@ test("under the project human-approval rule an authorization given before later 
     reportSupport(data.app, goalId, "rep-reopened-against", "reopened-req", "contradicts");
     assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open", "the report against the requirement reopened it");
     reportSupport(data.app, goalId, "rep-reopened-again", "reopened-req");
+    personAccepts(data.app, goalId, "accept-reopened-again", ["reopened-req"]);
     assertHeldForApproval(data.app, goalId, "close-reopened-before", "reopened by later facts, earlier approval");
     authorizeComplete(data.app, goalId, "allow-reopened-again");
     assert.equal(tryComplete(data.app, goalId, "close-reopened-2", RUNTIME).completion_applied, true);
@@ -2342,9 +2430,11 @@ test("under the project human-approval rule an authorization to complete is for 
     const goalId = supportedGoal(data.app, "added", "added-req");
     authorizeComplete(data.app, goalId, "allow-added");
 
-    // The runtime adds a requirement without citing anything, which is allowed, and the work supports it. The person never saw it.
+    // The runtime adds a requirement without citing anything, which is allowed, and the work supports it. The person accepts the new
+    // requirement, which meets it but is not an approval (user decision 2026-11-05): the authorization never covered this agreement.
     changeAgreement(data.app, goalId, "add-added", RUNTIME, { new_requirements: [{ requirement_id: "added-new", statement: "新加的要求" }] });
     reportSupport(data.app, goalId, "rep-added-new", "added-new");
+    personAccepts(data.app, goalId, "accept-added-new", ["added-new"]);
     assertHeldForApproval(data.app, goalId, "close-added-before", "requirement added, earlier approval");
 
     authorizeComplete(data.app, goalId, "allow-added-again");
@@ -2362,6 +2452,7 @@ test("under the project human-approval rule a requirement revised after the auth
     authorizeComplete(data.app, goalId, "allow-revised-agreement");
     changeAgreement(data.app, goalId, "revise-agreement", PERSON, { revise_requirements: [{ requirement_id: "revised-agreement-req", statement: "改写后的要求" }] });
     reportSupport(data.app, goalId, "rep-revised-agreement-again", "revised-agreement-req");
+    personAccepts(data.app, goalId, "accept-revised-agreement-again", ["revised-agreement-req"]);
     assertHeldForApproval(data.app, goalId, "close-revised-before", "requirement revised, earlier approval");
     authorizeComplete(data.app, goalId, "allow-revised-agreement-again");
     assert.equal(tryComplete(data.app, goalId, "close-revised", RUNTIME).completion_applied, true);
@@ -2378,6 +2469,7 @@ test("under the project human-approval rule an outcome rewritten after the autho
     authorizeComplete(data.app, goalId, "allow-rewritten-agreement");
     changeAgreement(data.app, goalId, "rewrite-agreement", PERSON, { outcome: "改写后的结果" });
     reportSupport(data.app, goalId, "rep-rewritten-agreement-again", "rewritten-agreement-req");
+    personAccepts(data.app, goalId, "accept-rewritten-agreement-again", ["rewritten-agreement-req"]);
     assertHeldForApproval(data.app, goalId, "close-rewritten-before", "outcome rewritten, earlier approval");
     authorizeComplete(data.app, goalId, "allow-rewritten-agreement-again");
     assert.equal(tryComplete(data.app, goalId, "close-rewritten", RUNTIME).completion_applied, true);
@@ -2393,6 +2485,7 @@ test("under the project human-approval rule a requirement retired after the auth
     const goalId = supportedGoal(data.app, "retired", "retired-keep");
     changeAgreement(data.app, goalId, "add-retired", RUNTIME, { new_requirements: [{ requirement_id: "retired-drop", statement: "之后会退休的要求" }] });
     reportSupport(data.app, goalId, "rep-retired-drop", "retired-drop");
+    personAccepts(data.app, goalId, "accept-retired-drop", ["retired-drop"]);
     authorizeComplete(data.app, goalId, "allow-retired");
 
     // What remains is still supported, so the approval is the only thing missing.
@@ -2439,6 +2532,7 @@ test("under the project human-approval rule an authorization to complete that al
     authorizeNaming("allow-named-scope");
     changeAgreement(data.app, goalId, "add-named-scope", RUNTIME, { new_requirements: [{ requirement_id: "named-scope-second", statement: "第二条要求" }] });
     reportSupport(data.app, goalId, "rep-named-scope-second", "named-scope-second");
+    personAccepts(data.app, goalId, "accept-named-scope-second", ["named-scope-second"]);
     assertHeldForApproval(data.app, goalId, "close-named-scope-before", "requirement added, earlier approval that names a requirement");
     authorizeNaming("allow-named-scope-again");
     assert.equal(tryComplete(data.app, goalId, "close-named-scope", RUNTIME).completion_applied, true);
@@ -2485,6 +2579,7 @@ test("under the project human-approval rule an authorization given for the curre
     // The agreement changes first and the person then approves it as it stands: this approval is for the current agreement.
     changeAgreement(data.app, goalId, "add-standing", RUNTIME, { new_requirements: [{ requirement_id: "standing-approval-new", statement: "新加的要求" }] });
     reportSupport(data.app, goalId, "rep-standing-new", "standing-approval-new");
+    personAccepts(data.app, goalId, "accept-standing-new", ["standing-approval-new"]);
     assertHeldForApproval(data.app, goalId, "close-standing-before", "agreement changed, no approval yet");
     authorizeComplete(data.app, goalId, "allow-standing");
 
@@ -2495,6 +2590,7 @@ test("under the project human-approval rule an authorization given for the curre
     assert.equal(held.completion_applied, false);
     assert.deepEqual(reasonCodes(held), ["goals.event_closure.requirement_unsupported"]);
     reportSupport(data.app, goalId, "rep-standing-again", "standing-approval-new");
+    personAccepts(data.app, goalId, "accept-standing-new-again", ["standing-approval-new"]);
     assert.equal(tryComplete(data.app, goalId, "close-standing", RUNTIME).completion_applied, true);
   } finally {
     close(data);
@@ -2565,10 +2661,12 @@ test("under the project human-approval rule an authorization to complete that al
       const goalId = supportedGoal(data.app, "mixed-added", "mixed-added-req");
       authorizeAndAccept(data.app, goalId, "allow-mixed-added", ["mixed-added-req"], how);
 
-      // The runtime adds a requirement without citing anything, which is allowed, and the work supports it. The person never saw
-      // it, and the addition leaves the conclusion they gave on the first requirement as it was.
+      // The runtime adds a requirement without citing anything, which is allowed, and the work supports it. The person accepts the new
+      // requirement, which meets it but is not an approval (user decision 2026-11-05), and the addition leaves the conclusion they gave
+      // on the first requirement as it was.
       changeAgreement(data.app, goalId, "add-mixed-added", RUNTIME, { new_requirements: [{ requirement_id: "mixed-added-new", statement: "新加的要求" }] });
       reportSupport(data.app, goalId, "rep-mixed-added-new", "mixed-added-new");
+      personAccepts(data.app, goalId, "accept-mixed-added-new", ["mixed-added-new"]);
       assert.equal(requirementState(data.app, goalId, "mixed-added-req")?.user_conclusion?.verdict, "accepted", how);
       assert.equal(requirementState(data.app, goalId, "mixed-added-req")?.currently_satisfied, true, how);
       assertHeldForApproval(data.app, goalId, "close-mixed-added-before", `${how}: requirement added, earlier approval that also accepted a requirement`);
@@ -2590,6 +2688,7 @@ test("under the project human-approval rule an authorization to complete that al
       const goalId = supportedGoal(data.app, "mixed-other", "mixed-other-first");
       changeAgreement(data.app, goalId, "add-mixed-other", RUNTIME, { new_requirements: [{ requirement_id: "mixed-other-second", statement: "第二条要求" }] });
       reportSupport(data.app, goalId, "rep-mixed-other-second", "mixed-other-second");
+      personAccepts(data.app, goalId, "accept-mixed-other-second", ["mixed-other-second"]);
       // Each change below is to the other requirement or to what the agreement binds, so the conclusion on the first requirement
       // stands through all of them. What each one ends is the authorization.
       const standing = (what: string) => {
@@ -2600,6 +2699,7 @@ test("under the project human-approval rule an authorization to complete that al
       authorizeAndAccept(data.app, goalId, "allow-mixed-other-1", ["mixed-other-first"], how);
       changeAgreement(data.app, goalId, "revise-mixed-other", PERSON, { revise_requirements: [{ requirement_id: "mixed-other-second", statement: "改写后的第二条要求" }] });
       reportSupport(data.app, goalId, "rep-mixed-other-second-again", "mixed-other-second");
+      personAccepts(data.app, goalId, "accept-mixed-other-second-again", ["mixed-other-second"]);
       standing("the other requirement revised");
       assertHeldForApproval(data.app, goalId, "close-mixed-other-revised", `${how}: the other requirement revised, earlier approval`);
 
@@ -2625,11 +2725,13 @@ test("under the project human-approval rule an authorization to complete that al
   }
 });
 
-// A person's acceptance of a requirement is a nod of the same kind as an authorization to complete (the second decision of
-// 2026-10-09 in specs/goal-closure-identity): under the project rule it counts for the agreement it was given for and for the round
-// it was given in. It reaches the Goal in three shapes and the rule must not tell them apart: the plain acceptance; the answer to a
-// requirement_acceptance request, which is what the protocol has the runtime ask for; and an acceptance whose scope names complete
-// although its only effect is the acceptance, which is not an authorization.
+// A person's acceptance of a requirement says that requirement is met, and nothing more. It used to count under the project rule as a
+// nod of the same kind as an authorization to complete (the second decision of 2026-10-09 in specs/goal-closure-identity); the user
+// decided on 2026-11-05 that the two are separate: accepting requirements and approving completion are separate, and only a trusted
+// authorization to complete in the current round releases the project's rule. The acceptance reaches the Goal in three shapes and none
+// of them releases the rule: the plain acceptance; the answer to a requirement_acceptance request, which is what the protocol has the
+// runtime ask for; and an acceptance whose scope names complete although its only effect is the acceptance, which is not an
+// authorization.
 const ACCEPT_ONLY = [
   "a plain acceptance",
   "an answer to a requirement_acceptance request",
@@ -2674,7 +2776,7 @@ test("an acceptance of a requirement commits to the whole agreement as it stood,
   for (const how of ACCEPT_ONLY) {
     const data = fixture();
     try {
-      const goalId = supportedGoal(data.app, "accepted-commitment", "accepted-commitment-first");
+      const goalId = supportedGoal(data.app, "accepted-commitment", "accepted-commitment-first", false);
       changeAgreement(data.app, goalId, "add-accepted-commitment", RUNTIME, { new_requirements: [{ requirement_id: "accepted-commitment-second", statement: "第二条要求", human_decision_required: true }] });
       const accepted = acceptRequirements(data.app, goalId, "accept-commitment", ["accepted-commitment-first"], how);
       assert.deepEqual(accepted.decision.scope.requirement_ids, ["accepted-commitment-first"], `${how}: the acceptance is about one requirement`);
@@ -2694,7 +2796,7 @@ test("an acceptance of one requirement is reused on that requirement, not on the
   for (const how of ACCEPT_ONLY) {
     const data = fixture();
     try {
-      const goalId = supportedGoal(data.app, "accepted-reuse", "accepted-reuse-first");
+      const goalId = supportedGoal(data.app, "accepted-reuse", "accepted-reuse-first", false);
       changeAgreement(data.app, goalId, "add-accepted-reuse", RUNTIME, { new_requirements: [{ requirement_id: "accepted-reuse-second", statement: "第二条要求" }] });
       const accepted = acceptRequirements(data.app, goalId, "accept-reuse", ["accepted-reuse-first"], how);
       assert.equal(accepted.decision.commitment.requirements.length, 2, `${how}: it commits to the whole agreement`);
@@ -2716,29 +2818,32 @@ test("an acceptance of one requirement is reused on that requirement, not on the
   }
 });
 
-test("under the project human-approval rule an acceptance of a requirement belongs to its round: once the Goal is resumed the person accepts or authorizes again", () => {
+test("under the project human-approval rule an acceptance of a requirement does not release it in any round; only an authorization to complete given in the round does (user decision 2026-11-05: accepting requirements and approving completion are separate)", () => {
   for (const how of ACCEPT_ONLY) {
     const data = fixture();
     try {
       requireProjectApproval(data.app, "policy-accepted-round");
       const requirementId = "accepted-round-req";
-      const goalId = supportedGoal(data.app, "accepted-round", requirementId);
+      const goalId = supportedGoal(data.app, "accepted-round", requirementId, false);
 
-      // The acceptance alone releases the first close, and finishing a close does not use it up: a second close in the same round is
-      // released by it too.
+      // The acceptance meets the requirement in the round it was given in, but alone it releases nothing.
       const first = acceptRequirements(data.app, goalId, "accept-round-1", [requirementId], how);
-      assert.equal(tryComplete(data.app, goalId, "close-accepted-round-1", RUNTIME).completion_applied, true, `${how}: the round it was given in`);
+      assertAcceptanceStands(data.app, goalId, requirementId, `${how}: the round it was given in`, first.decision.decision_id);
+      assertHeldForApproval(data.app, goalId, "close-accepted-round-1-before", `${how}: the round it was given in, acceptance alone`);
+      // An authorization releases the close, and finishing a close does not use it up: a second close in the same round is released too.
+      authorizeComplete(data.app, goalId, "allow-accepted-round-1");
+      assert.equal(tryComplete(data.app, goalId, "close-accepted-round-1", RUNTIME).completion_applied, true, `${how}: authorized in its round`);
       assert.equal(tryComplete(data.app, goalId, "close-accepted-round-1-again", RUNTIME).completion_applied, true, `${how}: a second close in the same round`);
 
-      // Resumed, the requirement is still accepted, since nobody withdrew that, and the work supports it again. What the person
-      // accepted was the completion of a round that is over, so the acceptance does not release this one.
+      // Resumed, the requirement is still accepted, since nobody withdrew that, and the work supports it again. Neither the acceptance
+      // nor the authorization of the round that is over releases this one.
       resumeGoal(data.app, goalId, "resume-accepted-round-1");
       reportSupport(data.app, goalId, "rep-accepted-round-2", requirementId);
       assertAcceptanceStands(data.app, goalId, requirementId, `${how}: resumed`, first.decision.decision_id);
       assertHeldForApproval(data.app, goalId, "close-accepted-round-2-before", `${how}: resumed, earlier acceptance`);
 
       // A runtime that cites the earlier acceptance may reuse it on the requirement, but a citation is leave to act on a decision and
-      // not a conclusion of the person's: it does not bring the acceptance into the new round.
+      // not a conclusion of the person's, and an acceptance is not an approval anyway.
       const cited = attempt(() => data.app.goalEvents.citeDecision({
         project_id: BOARD, goal_id: goalId, ...RUNTIME, idempotency_key: "cite-accepted-round-1",
         decision_id: first.decision.decision_id, scope: { requirement_ids: [requirementId] },
@@ -2746,17 +2851,21 @@ test("under the project human-approval rule an acceptance of a requirement belon
       assert.equal(cited.accepted, true, `${how}: the citation itself is allowed`);
       assertHeldForApproval(data.app, goalId, "close-accepted-round-2-cited", `${how}: resumed, earlier acceptance cited`);
 
-      // An acceptance given in the new round releases it. One recorded after that completion but before the next resume belongs to
-      // the round that is over: a round ends with the resume, not with the completion.
+      // An acceptance given in the new round does not release it either; an authorization given in it does.
       acceptRequirements(data.app, goalId, "accept-round-2", [requirementId], how);
-      assert.equal(tryComplete(data.app, goalId, "close-accepted-round-2", RUNTIME).completion_applied, true, `${how}: accepted again`);
+      assertHeldForApproval(data.app, goalId, "close-accepted-round-2-accepted", `${how}: accepted again in the new round`);
+      authorizeComplete(data.app, goalId, "allow-accepted-round-2");
+      assert.equal(tryComplete(data.app, goalId, "close-accepted-round-2", RUNTIME).completion_applied, true, `${how}: authorized in the new round`);
+
+      // One recorded after that completion but before the next resume stands on the requirement into the next round, and still
+      // releases nothing there.
       const late = acceptRequirements(data.app, goalId, "accept-round-2-late", [requirementId], how);
       resumeGoal(data.app, goalId, "resume-accepted-round-2");
       reportSupport(data.app, goalId, "rep-accepted-round-3", requirementId);
       assertAcceptanceStands(data.app, goalId, requirementId, `${how}: resumed again`, late.decision.decision_id);
       assertHeldForApproval(data.app, goalId, "close-accepted-round-3-before", `${how}: resumed again, the acceptances of the rounds before`);
 
-      // An authorization to complete is the other kind of nod and releases the new round as well. The acceptance stays what it was.
+      // An authorization to complete is the nod the rule asks for and releases the new round. The acceptance stays what it was.
       authorizeComplete(data.app, goalId, "allow-accepted-round-3");
       assert.equal(tryComplete(data.app, goalId, "close-accepted-round-3", RUNTIME).completion_applied, true, `${how}: authorized instead`);
     } finally {
@@ -2765,13 +2874,13 @@ test("under the project human-approval rule an acceptance of a requirement belon
   }
 });
 
-test("under the project human-approval rule an acceptance given before a cancelled Goal was resumed does not count in the new round", () => {
+test("under the project human-approval rule an acceptance given before a cancelled Goal was resumed does not count in the new round, nor does a fresh one (user decision 2026-11-05)", () => {
   for (const how of ACCEPT_ONLY) {
     const data = fixture();
     try {
       requireProjectApproval(data.app, "policy-accepted-cancelled");
       const requirementId = "accepted-cancelled-req";
-      const goalId = supportedGoal(data.app, "accepted-cancelled", requirementId);
+      const goalId = supportedGoal(data.app, "accepted-cancelled", requirementId, false);
       const accepted = acceptRequirements(data.app, goalId, "accept-cancelled", [requirementId], how);
       data.app.goalEvents.submitClosure({
         project_id: BOARD, goal_id: goalId, ...RUNTIME, idempotency_key: "cancel-accepted-cancelled", kind: "cancel",
@@ -2780,58 +2889,78 @@ test("under the project human-approval rule an acceptance given before a cancell
       resumeGoal(data.app, goalId, "resume-accepted-cancelled");
       assertAcceptanceStands(data.app, goalId, requirementId, `${how}: resumed after cancel`, accepted.decision.decision_id);
       assertHeldForApproval(data.app, goalId, "close-accepted-cancelled-before", `${how}: resumed after cancel, earlier acceptance`);
+      // Accepting again in the new round meets the requirement again and still is not an approval.
       acceptRequirements(data.app, goalId, "accept-cancelled-again", [requirementId], how);
-      assert.equal(tryComplete(data.app, goalId, "close-accepted-cancelled", RUNTIME).completion_applied, true, `${how}: accepted again`);
+      assertHeldForApproval(data.app, goalId, "close-accepted-cancelled-accepted", `${how}: accepted again in the new round`);
+      authorizeComplete(data.app, goalId, "allow-accepted-cancelled");
+      assert.equal(tryComplete(data.app, goalId, "close-accepted-cancelled", RUNTIME).completion_applied, true, `${how}: authorized`);
     } finally {
       close(data);
     }
   }
 });
 
-test("under the project human-approval rule an acceptance given before later facts reopened a completed Goal does not count in the new round", () => {
+test("under the project human-approval rule an acceptance given before later facts reopened a completed Goal does not count in the new round, nor does a fresh one (user decision 2026-11-05)", () => {
   for (const how of ACCEPT_ONLY) {
     const data = fixture();
     try {
       requireProjectApproval(data.app, "policy-accepted-reopened");
       const requirementId = "accepted-reopened-req";
-      const goalId = supportedGoal(data.app, "accepted-reopened", requirementId);
+      const goalId = supportedGoal(data.app, "accepted-reopened", requirementId, false);
       const accepted = acceptRequirements(data.app, goalId, "accept-reopened", [requirementId], how);
+      assertHeldForApproval(data.app, goalId, "close-accepted-reopened-0", `${how}: acceptance alone`);
+      authorizeComplete(data.app, goalId, "allow-accepted-reopened");
       assert.equal(tryComplete(data.app, goalId, "close-accepted-reopened-1", RUNTIME).completion_applied, true, how);
 
       // Nobody resumes it: a report against the requirement ends the completion, and fresh support makes the Goal ready again.
       reportSupport(data.app, goalId, "rep-accepted-reopened-against", requirementId, "contradicts");
       assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open", `${how}: the report against the requirement reopened it`);
+      // 用户 11-05 定：反证收回后要重新认可. The report against the requirement took the acceptance back. It stays on record, but the
+      // worker's fresh support does not bring it back: the requirement awaits the person's acceptance again, whoever clicks complete.
       reportSupport(data.app, goalId, "rep-accepted-reopened-again", requirementId);
-      assertAcceptanceStands(data.app, goalId, requirementId, `${how}: reopened`, accepted.decision.decision_id);
-      assertHeldForApproval(data.app, goalId, "close-accepted-reopened-before", `${how}: reopened by later facts, earlier acceptance`);
-      acceptRequirements(data.app, goalId, "accept-reopened-again", [requirementId], how);
-      assert.equal(tryComplete(data.app, goalId, "close-accepted-reopened-2", RUNTIME).completion_applied, true, `${how}: accepted again`);
+      const withdrawn = requirementState(data.app, goalId, requirementId);
+      assert.equal(withdrawn?.user_conclusion?.decision_id, accepted.decision.decision_id, `${how}: the acceptance is still on record`);
+      assert.equal(withdrawn?.current_report?.verdict, "supports", `${how}: the worker supports it again`);
+      assert.equal(withdrawn?.currently_satisfied, false, `${how}: but the acceptance was taken back`);
+      for (const [suffix, closer] of [["runtime", RUNTIME], ["person", PERSON]] as const) {
+        const held = tryComplete(data.app, goalId, `close-accepted-reopened-before-${suffix}`, closer);
+        assert.equal(held.completion_applied, false, `${how}: reopened, ${closer.actor_kind} clicking complete`);
+        assert.deepEqual(reasonCodes(held), [SELF_REPORTED, APPROVAL_REQUIRED], `${how}: reopened, ${closer.actor_kind} clicking complete`);
+      }
+      // Accepting again in the new round meets the requirement again, and still is not the approval.
+      const again = acceptRequirements(data.app, goalId, "accept-reopened-again", [requirementId], how);
+      assertAcceptanceStands(data.app, goalId, requirementId, `${how}: accepted again`, again.decision.decision_id);
+      assertHeldForApproval(data.app, goalId, "close-accepted-reopened-accepted", `${how}: accepted again in the new round`);
+      authorizeComplete(data.app, goalId, "allow-accepted-reopened-again");
+      assert.equal(tryComplete(data.app, goalId, "close-accepted-reopened-2", RUNTIME).completion_applied, true, `${how}: authorized again`);
     } finally {
       close(data);
     }
   }
 });
 
-test("under the project human-approval rule an acceptance of a requirement is for the agreement it was given for: a change anywhere in the agreement needs a new one", () => {
+test("under the project human-approval rule an acceptance of a requirement does not release it, whatever the agreement does; an authorization for the agreement as it stands does (user decision 2026-11-05: accepting requirements and approving completion are separate)", () => {
   for (const how of ACCEPT_ONLY) {
     const data = fixture();
     try {
       requireProjectApproval(data.app, "policy-accepted-agreement");
       const first = "accepted-agreement-first", second = "accepted-agreement-second";
-      const goalId = supportedGoal(data.app, "accepted-agreement", first);
+      const goalId = supportedGoal(data.app, "accepted-agreement", first, false);
       changeAgreement(data.app, goalId, "add-accepted-agreement", RUNTIME, { new_requirements: [{ requirement_id: second, statement: "第二条要求" }] });
       reportSupport(data.app, goalId, "rep-accepted-agreement-second", second);
+      personAccepts(data.app, goalId, "accept-agreement-second", [second]);
       // Each change below, the outcome apart, is to the other requirement, to what the agreement binds or adds a requirement, so the
-      // acceptance on the first requirement stands through it and the work supports everything. What each one ends is the approval,
-      // and it is the whole agreement that counts, not the requirement that was accepted.
+      // acceptance on the first requirement stands through it and every requirement is met. The acceptance releases nothing at any point.
       const heldBy = (what: string, key: string) => {
         assertAcceptanceStands(data.app, goalId, first, `${how}: ${what}`);
         assertHeldForApproval(data.app, goalId, key, `${how}: ${what}, earlier acceptance`);
       };
 
       acceptRequirements(data.app, goalId, "accept-agreement-1", [first], how);
+      heldBy("nothing changed", "close-accepted-agreement-unchanged");
       changeAgreement(data.app, goalId, "revise-accepted-agreement", PERSON, { revise_requirements: [{ requirement_id: second, statement: "改写后的第二条要求" }] });
       reportSupport(data.app, goalId, "rep-accepted-agreement-second-again", second);
+      personAccepts(data.app, goalId, "accept-agreement-second-again", [second]);
       heldBy("the other requirement revised", "close-accepted-agreement-revised");
 
       acceptRequirements(data.app, goalId, "accept-agreement-2", [first], how);
@@ -2847,71 +2976,86 @@ test("under the project human-approval rule an acceptance of a requirement is fo
       heldBy("an event type bound", "close-accepted-agreement-bound");
 
       // Rewriting the outcome expires the support and the conclusion of every requirement, whatever the project asks for, so the
-      // acceptance on the first requirement does not stand here, and neither does what the commitment says.
+      // acceptance on the first requirement does not stand here: the work supports it again and the person accepts it again.
       acceptRequirements(data.app, goalId, "accept-agreement-4", [first], how);
       changeAgreement(data.app, goalId, "rewrite-accepted-agreement", PERSON, { outcome: "改写后的结果" });
       reportSupport(data.app, goalId, "rep-accepted-agreement-outcome", first);
       assert.equal(requirementState(data.app, goalId, first)?.user_conclusion, null, `${how}: the rewrite expired the conclusion`);
-      assertHeldForApproval(data.app, goalId, "close-accepted-agreement-outcome", `${how}: the outcome rewritten, earlier acceptance`);
+      acceptRequirements(data.app, goalId, "accept-agreement-4b", [first], how);
+      heldBy("the outcome rewritten", "close-accepted-agreement-outcome");
 
-      // The runtime adds a requirement without citing anything, which is allowed, and the work supports it. The person never saw it.
+      // The runtime adds a requirement without citing anything, which is allowed, and the work supports it; the person accepts it.
       acceptRequirements(data.app, goalId, "accept-agreement-5", [first], how);
       changeAgreement(data.app, goalId, "add-accepted-agreement-third", RUNTIME, { new_requirements: [{ requirement_id: "accepted-agreement-third", statement: "新加的要求" }] });
       reportSupport(data.app, goalId, "rep-accepted-agreement-third", "accepted-agreement-third");
+      personAccepts(data.app, goalId, "accept-agreement-third", ["accepted-agreement-third"]);
       heldBy("a requirement added", "close-accepted-agreement-added");
 
-      // An acceptance given for the agreement as it stands now releases it, though it names one requirement.
+      // An acceptance given for the agreement as it stands now does not release it either; an authorization given for it does.
       acceptRequirements(data.app, goalId, "accept-agreement-6", [first], how);
-      assert.equal(tryComplete(data.app, goalId, "close-accepted-agreement", RUNTIME).completion_applied, true, `${how}: accepted for the current agreement`);
+      heldBy("accepted for the current agreement", "close-accepted-agreement-current");
+      authorizeComplete(data.app, goalId, "allow-accepted-agreement");
+      assert.equal(tryComplete(data.app, goalId, "close-accepted-agreement", RUNTIME).completion_applied, true, `${how}: authorized for the current agreement`);
     } finally {
       close(data);
     }
   }
 });
 
-// The rule compares what the person approved with the agreement as it is now, word for word (the commitment), and not how it got
-// there. An agreement changed and then changed back is the agreement they approved, so what they gave for it counts again. What does
-// not come back is an acceptance that the requirement's own rule has already ended: rewriting the requirement it is on, or the
-// outcome, expires the conclusion, whatever the project asks for, and writing the old text back does not return it.
-test("under the project human-approval rule an agreement changed and then changed back is the agreement the person approved, so what they gave for it counts again", () => {
+// The rule compares the authorization the person gave with the agreement as it is now, word for word (the commitment), and not how it
+// got there. An agreement changed and then changed back is the agreement they approved, so their authorization counts again. An
+// acceptance of a requirement never counted as that approval (user decision 2026-11-05), and it does not come back once the
+// requirement's own rule has ended it: rewriting the requirement it is on, or the outcome, expires the conclusion, whatever the project
+// asks for, and writing the old text back does not return it.
+test("under the project human-approval rule an agreement changed and then changed back is the agreement the person approved, so their authorization counts again; an acceptance never does (user decision 2026-11-05)", () => {
   const SHAPES = [...ACCEPT_ONLY, "an authorization to complete"] as const;
   for (const how of SHAPES) {
     const data = fixture();
     try {
       requireProjectApproval(data.app, "policy-restored");
-      const nod = (goalId: string, key: string, requirementIds: string[]) => how === SHAPES[3]
+      const authorizing = how === SHAPES[3];
+      const nod = (goalId: string, key: string, requirementIds: string[]) => authorizing
         ? authorizeComplete(data.app, goalId, key)
         : acceptRequirements(data.app, goalId, key, requirementIds, how);
+      // Written back: an authorization releases the close again; an acceptance was never the approval, so it takes an authorization.
+      const writtenBack = (goalId: string, key: string, what: string) => {
+        if (authorizing) {
+          assert.equal(tryComplete(data.app, goalId, key, RUNTIME).completion_applied, true, `${how}: ${what}`);
+          return;
+        }
+        assertHeldForApproval(data.app, goalId, `${key}-held`, `${how}: ${what}`);
+        authorizeComplete(data.app, goalId, `allow-${key}`);
+        assert.equal(tryComplete(data.app, goalId, key, RUNTIME).completion_applied, true, `${how}: ${what}, authorized`);
+      };
 
       // Another requirement is rewritten and then written back.
       const other = supportedGoal(data.app, "restored-other", "restored-other-first");
       changeAgreement(data.app, other, "add-restored-other", RUNTIME, { new_requirements: [{ requirement_id: "restored-other-second", statement: "第二条要求" }] });
       reportSupport(data.app, other, "rep-restored-other-second", "restored-other-second");
+      personAccepts(data.app, other, "accept-restored-other-second", ["restored-other-second"]);
       nod(other, "nod-restored-other", ["restored-other-first"]);
       changeAgreement(data.app, other, "rewrite-restored-other", PERSON, { revise_requirements: [{ requirement_id: "restored-other-second", statement: "改成别的第二条要求" }] });
       reportSupport(data.app, other, "rep-restored-other-second-b", "restored-other-second");
+      personAccepts(data.app, other, "accept-restored-other-second-b", ["restored-other-second"]);
       assertHeldForApproval(data.app, other, "close-restored-other-b", `${how}: another requirement rewritten`);
       changeAgreement(data.app, other, "restore-restored-other", PERSON, { revise_requirements: [{ requirement_id: "restored-other-second", statement: "第二条要求" }] });
       reportSupport(data.app, other, "rep-restored-other-second-c", "restored-other-second");
-      assert.equal(tryComplete(data.app, other, "close-restored-other", RUNTIME).completion_applied, true, `${how}: the other requirement written back`);
+      personAccepts(data.app, other, "accept-restored-other-second-c", ["restored-other-second"]);
+      writtenBack(other, "close-restored-other", "the other requirement written back");
 
       // The outcome is rewritten and then written back. A rewritten outcome expires every requirement's support and conclusion, so
-      // the work has to support them again and an acceptance does not come back.
+      // the work has to support them again, the person accepts them again, and an earlier acceptance does not come back.
       const outcome = supportedGoal(data.app, "restored-outcome", "restored-outcome-req");
       nod(outcome, "nod-restored-outcome", ["restored-outcome-req"]);
       changeAgreement(data.app, outcome, "rewrite-restored-outcome", PERSON, { outcome: "改成别的结果" });
       reportSupport(data.app, outcome, "rep-restored-outcome-b", "restored-outcome-req");
+      personAccepts(data.app, outcome, "accept-restored-outcome-b", ["restored-outcome-req"]);
       assertHeldForApproval(data.app, outcome, "close-restored-outcome-b", `${how}: the outcome rewritten`);
       changeAgreement(data.app, outcome, "restore-restored-outcome", PERSON, { outcome: "结果可以检查" });
       reportSupport(data.app, outcome, "rep-restored-outcome-c", "restored-outcome-req");
-      if (how === SHAPES[3]) {
-        assert.equal(tryComplete(data.app, outcome, "close-restored-outcome", RUNTIME).completion_applied, true, `${how}: the outcome written back`);
-      } else {
-        assert.equal(requirementState(data.app, outcome, "restored-outcome-req")?.user_conclusion, null, `${how}: the rewrite expired the acceptance`);
-        assertHeldForApproval(data.app, outcome, "close-restored-outcome", `${how}: the outcome written back`);
-        nod(outcome, "nod-restored-outcome-again", ["restored-outcome-req"]);
-        assert.equal(tryComplete(data.app, outcome, "close-restored-outcome-after", RUNTIME).completion_applied, true, `${how}: accepted again`);
-      }
+      assert.equal(requirementState(data.app, outcome, "restored-outcome-req")?.user_conclusion, null, `${how}: the rewrite expired the acceptance`);
+      personAccepts(data.app, outcome, "accept-restored-outcome-c", ["restored-outcome-req"]);
+      writtenBack(outcome, "close-restored-outcome", "the outcome written back");
 
       // The requirement itself is rewritten and then written back.
       const itself = supportedGoal(data.app, "restored-itself", "restored-itself-req");
@@ -2920,41 +3064,43 @@ test("under the project human-approval rule an agreement changed and then change
       reportSupport(data.app, itself, "rep-restored-itself-b", "restored-itself-req");
       changeAgreement(data.app, itself, "restore-restored-itself", PERSON, { revise_requirements: [{ requirement_id: "restored-itself-req", statement: "结果可以检查" }] });
       reportSupport(data.app, itself, "rep-restored-itself-c", "restored-itself-req");
-      if (how === SHAPES[3]) {
-        // An authorization is not tied to a requirement, so it counts again once the agreement is what it was.
-        assert.equal(tryComplete(data.app, itself, "close-restored-itself", RUNTIME).completion_applied, true, `${how}: the requirement written back`);
-      } else {
-        assert.equal(requirementState(data.app, itself, "restored-itself-req")?.user_conclusion, null, `${how}: the rewrite withdrew the acceptance on it`);
-        assertHeldForApproval(data.app, itself, "close-restored-itself", `${how}: the accepted requirement written back`);
-        nod(itself, "nod-restored-itself-again", ["restored-itself-req"]);
-        assert.equal(tryComplete(data.app, itself, "close-restored-itself-after", RUNTIME).completion_applied, true, `${how}: accepted again`);
-      }
+      assert.equal(requirementState(data.app, itself, "restored-itself-req")?.user_conclusion, null, `${how}: the rewrite withdrew the acceptance on it`);
+      assert.deepEqual(reasonCodes(tryComplete(data.app, itself, "close-restored-itself-unaccepted", RUNTIME)).includes(SELF_REPORTED), true, `${how}: the requirement written back needs accepting again`);
+      // An authorization is not tied to a requirement, so it counts again once the agreement is what it was and the requirement is met.
+      personAccepts(data.app, itself, "accept-restored-itself-c", ["restored-itself-req"]);
+      writtenBack(itself, "close-restored-itself", "the requirement written back");
     } finally {
       close(data);
     }
   }
 });
 
-test("under the project human-approval rule an acceptance given for the current agreement keeps releasing it until the agreement or the round changes", () => {
+test("under the project human-approval rule an acceptance given for the current agreement does not release it however long it stands; an authorization does (user decision 2026-11-05: accepting requirements and approving completion are separate)", () => {
   for (const how of ACCEPT_ONLY) {
     const data = fixture();
     try {
       requireProjectApproval(data.app, "policy-accepted-standing");
-      const goalId = supportedGoal(data.app, "accepted-standing", "accepted-standing-first");
-      // The agreement changes first and the person then accepts it as it stands: this acceptance is for the current agreement,
-      // though it names the first requirement only.
+      const goalId = supportedGoal(data.app, "accepted-standing", "accepted-standing-first", false);
+      // The agreement changes first and the person then accepts it as it stands, though the acceptance names the first requirement only.
       changeAgreement(data.app, goalId, "add-accepted-standing", RUNTIME, { new_requirements: [{ requirement_id: "accepted-standing-second", statement: "第二条要求" }] });
       reportSupport(data.app, goalId, "rep-accepted-standing-second", "accepted-standing-second");
-      assertHeldForApproval(data.app, goalId, "close-accepted-standing-before", `${how}: agreement changed, no acceptance yet`);
+      personAccepts(data.app, goalId, "accept-standing-second", ["accepted-standing-second"]);
+      assert.deepEqual(reasonCodes(tryComplete(data.app, goalId, "close-accepted-standing-before", RUNTIME)), [SELF_REPORTED, APPROVAL_REQUIRED], `${how}: no acceptance of the first yet`);
       acceptRequirements(data.app, goalId, "accept-standing", ["accepted-standing-first"], how);
+      assertHeldForApproval(data.app, goalId, "close-accepted-standing-accepted", `${how}: accepted for the current agreement`);
 
-      // A note, and an attempt held back for another reason, do not use the acceptance up or change what it was given for.
+      // A note, and an attempt held back for another reason, change nothing: the acceptance still meets its requirement and still
+      // releases nothing.
       data.app.goalEvents.recordNote({ project_id: BOARD, goal_id: goalId, ...RUNTIME, idempotency_key: "note-accepted-standing", body: "接受之后的一条记录" });
       reportSupport(data.app, goalId, "rep-accepted-standing-against", "accepted-standing-second", "contradicts");
       const held = tryComplete(data.app, goalId, "close-accepted-standing-held", RUNTIME);
       assert.equal(held.completion_applied, false, how);
-      assert.deepEqual(reasonCodes(held), ["goals.event_closure.requirement_unsupported"], how);
+      assert.deepEqual(reasonCodes(held), ["goals.event_closure.requirement_unsupported", APPROVAL_REQUIRED], how);
       reportSupport(data.app, goalId, "rep-accepted-standing-again", "accepted-standing-second");
+      personAccepts(data.app, goalId, "accept-standing-second-again", ["accepted-standing-second"]);
+      assertAcceptanceStands(data.app, goalId, "accepted-standing-first", `${how}: after the note and the held attempt`);
+      assertHeldForApproval(data.app, goalId, "close-accepted-standing-after", `${how}: still only accepted`);
+      authorizeComplete(data.app, goalId, "allow-accepted-standing");
       assert.equal(tryComplete(data.app, goalId, "close-accepted-standing", RUNTIME).completion_applied, true, how);
     } finally {
       close(data);
@@ -2967,20 +3113,24 @@ test("a decision whose scope names complete but whose only effect is accepting a
   try {
     requireProjectApproval(data.app, "policy-effect-scope");
     const requirementId = "effect-scope-req";
-    const goalId = supportedGoal(data.app, "effect-scope", requirementId);
+    const goalId = supportedGoal(data.app, "effect-scope", requirementId, false);
     const accepted = acceptRequirements(data.app, goalId, "accept-effect-scope", [requirementId], ACCEPT_ONLY[2]);
     assert.equal(accepted.decision.scope.action, "complete");
     assert.equal(accepted.decision.effects.some((effect) => effect.kind === "authorize_action"), false);
 
-    // It releases the rule the way an acceptance does, through the requirement. When the person withdraws that, nothing is left: a
-    // decision is judged by its effects and not by the action its scope names, or it would keep authorizing completion on its own.
+    // A decision is judged by its effects and not by the action its scope names: it meets the requirement and does not release the
+    // rule. When the person withdraws it, the requirement is no longer met either.
+    assertAcceptanceStands(data.app, goalId, requirementId, "the acceptance whose scope names complete", accepted.decision.decision_id);
+    assertHeldForApproval(data.app, goalId, "close-effect-scope-accepted", "an acceptance whose scope names complete");
     data.app.goalEvents.recordTrustedDecision({
       project_id: BOARD, goal_id: goalId, idempotency_key: "withdraw-effect-scope",
       authority: hostEventDecisionAuthority("web", BOARD, "web-user", "withdraw-effect-scope"),
       conclusion: "不接受这条要求", accepts_requirements: false, scope: { requirement_ids: [requirementId] },
     });
     assert.equal(requirementState(data.app, goalId, requirementId)?.user_conclusion?.verdict, "rejected");
-    assertHeldForApproval(data.app, goalId, "close-effect-scope", "the acceptance withdrawn");
+    // The person turned it down, so the close says so instead of asking for their acceptance (user decision 2026-11-05).
+    assert.deepEqual(reasonCodes(tryComplete(data.app, goalId, "close-effect-scope", RUNTIME)), [REJECTED, APPROVAL_REQUIRED], "the acceptance withdrawn");
+    personAccepts(data.app, goalId, "accept-effect-scope-again", [requirementId]);
     authorizeComplete(data.app, goalId, "allow-effect-scope");
     assert.equal(tryComplete(data.app, goalId, "close-effect-scope-after", RUNTIME).completion_applied, true, "an authorization releases it");
   } finally {
@@ -2988,7 +3138,7 @@ test("a decision whose scope names complete but whose only effect is accepting a
   }
 });
 
-test("under the project human-approval rule a requirement that needs the person's acceptance stays accepted when the Goal is resumed, but the rule asks for a nod again", () => {
+test("under the project human-approval rule a requirement that needs the person's acceptance stays accepted when the Goal is resumed, but the rule asks for an authorization again", () => {
   const data = fixture();
   try {
     requireProjectApproval(data.app, "policy-human-requirement");
@@ -3000,8 +3150,8 @@ test("under the project human-approval rule a requirement that needs the person'
     configure(data.app, goalId, "cfg-human-requirement", { new_requirements: [{ requirement_id: requirementId, statement: "要人验收的要求", human_decision_required: true }] });
     reportSupport(data.app, goalId, "rep-human-requirement", requirementId);
 
-    // An authorization to complete is the nod the rule asks for, but the requirement still needs its own acceptance. Accepting it is
-    // both: it releases the requirement and the rule.
+    // An authorization to complete is the nod the rule asks for, but the requirement still needs its own acceptance; the two are
+    // separate (user decision 2026-11-05), and with both the close goes through.
     authorizeComplete(data.app, goalId, "allow-human-requirement");
     const authorized = tryComplete(data.app, goalId, "close-human-requirement-authorized", RUNTIME);
     assert.equal(authorized.completion_applied, false);
@@ -3010,24 +3160,28 @@ test("under the project human-approval rule a requirement that needs the person'
     assert.equal(tryComplete(data.app, goalId, "close-human-requirement", RUNTIME).completion_applied, true);
 
     // Resumed with nothing new, the requirement stays accepted, which is the requirement's own rule and not the project's. What the
-    // project asks for is a nod for this round, and neither the acceptance nor the authorization was given in it.
+    // project asks for is an authorization for this round, and none was given in it.
     resumeGoal(data.app, goalId, "resume-human-requirement");
     reportSupport(data.app, goalId, "rep-human-requirement-2", requirementId);
     assertAcceptanceStands(data.app, goalId, requirementId, "resumed", accepted.decision.decision_id);
     assertHeldForApproval(data.app, goalId, "close-human-requirement-2", "resumed, earlier acceptance and authorization");
 
-    // Either nod releases it, and the requirement needs nothing more. A change to the agreement is the same: the requirement stays
-    // accepted, and the rule asks for a nod for the agreement as it is.
+    // An authorization releases it, and the requirement needs nothing more. A change to the agreement is the same: the requirement
+    // stays accepted, and the rule asks for an authorization for the agreement as it is; an acceptance is not one.
     authorizeComplete(data.app, goalId, "allow-human-requirement-2");
     assert.equal(tryComplete(data.app, goalId, "close-human-requirement-3", RUNTIME).completion_applied, true);
     resumeGoal(data.app, goalId, "resume-human-requirement-2");
     reportSupport(data.app, goalId, "rep-human-requirement-3", requirementId);
     acceptRequirements(data.app, goalId, "accept-human-requirement-2", [requirementId], ACCEPT_ONLY[1]);
+    assertHeldForApproval(data.app, goalId, "close-human-requirement-3b", "accepted again in the new round");
     changeAgreement(data.app, goalId, "add-human-requirement", RUNTIME, { new_requirements: [{ requirement_id: "human-requirement-extra", statement: "新加的要求" }] });
     reportSupport(data.app, goalId, "rep-human-requirement-extra", "human-requirement-extra");
+    personAccepts(data.app, goalId, "accept-human-requirement-extra", ["human-requirement-extra"]);
     assertAcceptanceStands(data.app, goalId, requirementId, "a requirement added");
     assertHeldForApproval(data.app, goalId, "close-human-requirement-4", "a requirement added, earlier acceptance");
     acceptRequirements(data.app, goalId, "accept-human-requirement-3", [requirementId], ACCEPT_ONLY[2]);
+    assertHeldForApproval(data.app, goalId, "close-human-requirement-4b", "accepted for the current agreement");
+    authorizeComplete(data.app, goalId, "allow-human-requirement-3");
     assert.equal(tryComplete(data.app, goalId, "close-human-requirement-5", RUNTIME).completion_applied, true);
   } finally {
     close(data);
@@ -3054,6 +3208,9 @@ test("without the project rule an acceptance of a requirement is not limited to 
     resumeGoal(data.app, goalId, "resume-unruled-2");
     changeAgreement(data.app, goalId, "add-unruled", RUNTIME, { new_requirements: [{ requirement_id: "unruled-extra", statement: "新加的要求" }] });
     reportSupport(data.app, goalId, "rep-unruled-extra", "unruled-extra");
+    // The added requirement has only the worker's own supports behind it (PWA-144), so the person accepts it; the earlier acceptance
+    // of the first one still stands through the change.
+    personAccepts(data.app, goalId, "accept-unruled-extra", ["unruled-extra"]);
     assert.equal(tryComplete(data.app, goalId, "close-unruled-3", RUNTIME).completion_applied, true, "a requirement added: the acceptance still stands");
   } finally {
     close(data);
@@ -3220,4 +3377,47 @@ test("RAC-1264: an unreadable Goal event type stops readState", () => {
       (error: unknown) => error instanceof ActionError && error.code === "goals.storage.record_unreadable" && error.kind === "internal",
     );
   } finally { close(data); }
+});
+
+// PWA-144 (user decision 2026-11-04): a requirement backed by nothing but the reporter's own "supports" is not met, whoever reports it
+// and however often; only the person's acceptance meets it, and a later contradicting report takes that back.
+test("PWA-144: the worker's own supports never meets a requirement; the person's acceptance does", () => {
+  const data = fixture();
+  try {
+    const goalId = "self-claim";
+    readyGoal(data.app, goalId, "self-claim-req", false);
+    // A second worker and a report spoken in the person's kind both stay the reporter's word.
+    data.app.goalEvents.report({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-2", actor_kind: "runtime", idempotency_key: "rep-self-claim-other",
+      events: [{ type_id: "delivery", type_version: 1, title: "另一个执行者也说完成了", fields: { piece: "可用入口" },
+        judgments: [{ requirement_id: "self-claim-req", verdict: "supports" }] }],
+    });
+    data.app.goalEvents.report({
+      project_id: BOARD, goal_id: goalId, ...PERSON, idempotency_key: "rep-self-claim-person",
+      events: [{ type_id: "delivery", type_version: 1, title: "报告里说满足", fields: { piece: "可用入口" },
+        judgments: [{ requirement_id: "self-claim-req", verdict: "supports" }] }],
+    });
+    const claimed = requirementState(data.app, goalId, "self-claim-req");
+    assert.equal(claimed?.current_report?.verdict, "supports");
+    assert.equal(claimed?.currently_satisfied, false, "a supports report alone does not meet it");
+    for (const closer of [RUNTIME, PERSON]) {
+      const held = tryComplete(data.app, goalId, `close-self-claim-${closer.actor_kind}`, closer);
+      assert.equal(held.completion_applied, false, `${closer.actor_kind} clicking complete`);
+      assert.deepEqual(reasonCodes(held), ["goals.event_closure.requirement_self_reported"], `${closer.actor_kind} clicking complete`);
+    }
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open");
+
+    acceptRequirements(data.app, goalId, "accept-self-claim", ["self-claim-req"], ACCEPT_ONLY[0]);
+    assert.equal(requirementState(data.app, goalId, "self-claim-req")?.currently_satisfied, true, "the person's acceptance meets it");
+    assert.equal(tryComplete(data.app, goalId, "close-self-claim", RUNTIME).completion_applied, true);
+
+    // A later supports report changes nothing; a later contradicting one takes the acceptance back and reopens the Goal.
+    reportSupport(data.app, goalId, "rep-self-claim-again", "self-claim-req");
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "completed");
+    reportSupport(data.app, goalId, "rep-self-claim-against", "self-claim-req", "contradicts");
+    assert.equal(requirementState(data.app, goalId, "self-claim-req")?.currently_satisfied, false);
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open");
+  } finally {
+    close(data);
+  }
 });

@@ -115,6 +115,21 @@ export interface ModelProviderHealth {
   credential_status?: "present" | "missing" | "unavailable";
   /** Shown next to the provider. Empty when ready. */
   detail: string;
+  /**
+   * The last real check of this provider (address, format, model and key together). Absent when it was never checked, so
+   * "never verified" and "verified" stay apart; `current` is false once the provider or its key changed after the check.
+   */
+  last_check?: ModelProviderCheck;
+}
+
+export interface ModelProviderCheck {
+  at: string;
+  outcome: "connected" | "failed";
+  /** A stable reason when it failed, e.g. `model_provider.key_rejected`, `model_provider.rate_limited`, `model_provider.quota_exhausted`. */
+  code?: string;
+  /** Set when the service asked to wait (rate limit). */
+  retry_at?: string;
+  current: boolean;
 }
 
 /**

@@ -6,11 +6,20 @@ export type ModelApiFormat = "anthropic-messages" | "openai-chat-completions";
 
 export type ModelPromptCacheMode = "off" | "best-effort" | "required";
 
+export interface ModelProviderCheck {
+    at: string;
+    outcome: "connected" | "failed";
+    code?: string;
+    retry_at?: string;
+    current: boolean;
+}
+
 export interface ModelProviderHealth {
     provider_id: string;
     status: ModelProviderStatus;
     credential_status?: "present" | "missing" | "unavailable";
     detail: string;
+    last_check?: ModelProviderCheck;
 }
 
 export interface ModelProviderRecord {

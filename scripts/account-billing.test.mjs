@@ -1,6 +1,6 @@
 import { createAccountSessionManager, createAccountAuthentication } from "@molis-ai/molis-work-service-account";
 
-// WUA-23 WUA-24 WUA-25 and S-114: real Host/Auth, mock providers, subscription and seat actions and browser paths.
+// WUA-23 WUA-24 WUA-25 and S-115: real Host/Auth, mock providers, subscription and seat actions and browser paths.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';

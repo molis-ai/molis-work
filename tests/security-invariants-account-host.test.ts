@@ -1,4 +1,4 @@
-// S-109/110 / WUA-02/03/04/06: the owning Host protects cloud identity, persisted credentials and session writes.
+// S-109/S-110 / WUA-02/03/04/06: the owning Host protects cloud identity, persisted credentials and session writes.
 import assert from "node:assert/strict";
 import { randomBytes, createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, stat, mkdir, writeFile } from "node:fs/promises";
@@ -399,7 +399,7 @@ test("S-113: sensitive account routes reject injected proofs, foreign entry and 
 });
 
 
-test("S-113 WUA-20/22: tenant action routes refuse caller identity, arbitrary query, body and untrusted source", { timeout: 60_000 }, async t => {
+test("S-114 WUA-20/22: tenant action routes refuse caller identity, arbitrary query, body and untrusted source", { timeout: 60_000 }, async t => {
   const account = identity(), calls: string[] = [];
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async url => {
     const path = new URL(String(url)).pathname;
@@ -421,7 +421,7 @@ test("S-113 WUA-20/22: tenant action routes refuse caller identity, arbitrary qu
   assert.equal(calls.length, count, "refused requests never reach the tenant owner");
 });
 
-test("S-114 WUA-25: billing actions reject injected ownership, malformed quantities and untrusted requests before the central owner", { timeout: 60_000 }, async t => {
+test("S-115 WUA-25: billing actions reject injected ownership, malformed quantities and untrusted requests before the central owner", { timeout: 60_000 }, async t => {
   const account = identity(), calls: string[] = [];
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async url => {
     const path = new URL(String(url)).pathname;
@@ -444,7 +444,7 @@ test("S-114 WUA-25: billing actions reject injected ownership, malformed quantit
   assert.equal(calls.length, count, "refused inputs never reach billing routes");
 });
 
-// WORK09-01 / S-109/110: prior personal-branch credentials are retained but never promoted.
+// WORK09-01 / S-109/S-110: prior personal-branch credentials are retained but never promoted.
 test("WORK09-01: personal SecretStore, native capability and browser cookie cannot bootstrap or revive a central login", { timeout: 60_000 }, async t => {
   const account = identity("cutover");
   let calls = 0;

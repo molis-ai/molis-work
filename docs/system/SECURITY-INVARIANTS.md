@@ -126,8 +126,8 @@
 | S-111 | 注册、登录与找回仅经 Host 认证窄入口；拒绝错误来源、缺少控制头、注入身份/客户端/证明、错误步骤或句柄。取消及重启使原事务失效，换取 Token 中的迟到完成不可安装会话。 | `apps/local-host/src/account-auth-http.ts`、`horizontal/account/src/authentication.ts` | `tests/security-invariants-account-host.test.ts`「S-111」 | `scripts/account-authentication.test.mjs`（WUA-11） |
 | S-112 | 账号第三方回跳只接受精确本机地址的无正文 GET 导航，以 Host 保留的 state、事务、提供方和当前尝试校验，向 Auth 确认真正结果后一次性完成；错误来源、未知或重放回调、取消及重启后完成均拒绝。浏览器和桌面只打开经过校验的 Auth 地址，不安装 Token。 | `apps/local-host/src/account-callback-http.ts`、`horizontal/account/src/provider.ts`、`horizontal/account/src/authentication.ts` | `tests/security-invariants-account-host.test.ts`「S-112」 | `scripts/account-provider.test.mjs`（WUA-14） |
 | S-113 | 账号敏感操作只接收 Host 临时句柄；拒绝浏览器注入证明、错误来源，以及退出后或重新登录后使用旧句柄。绑定、换绑、解绑和改密验证固定到原会话与操作目标，凭据不进入动作目录。 | `horizontal/account/src/authentication-management.ts`、`apps/local-host/src/account-auth-http.ts` | `tests/security-invariants-account-host.test.ts`「S-113」 | `scripts/account-management.test.mjs`（WUA-17） |
-| S-113 | 租户与平台管理只走固定动作与中央权限；拒绝伪造 actor、未知或重复查询、GET 正文、缺少幂等键及错误来源，不改变本机 Home 身份。 | `horizontal/account/src/management-actions.ts`、`apps/local-host/src/account-host.ts` | `tests/security-invariants-account-host.test.ts`「S-113」 | `scripts/account-tenants.test.mjs`（WUA-20/22） |
-| S-114 | 订阅与席位页面复用固定动作网关；拒绝用户/租户主体注入、非法数量/查询、GET 正文和错误来源，中央权限是唯一授权依据。 | `horizontal/account/src/management-actions.ts`、`apps/local-host/src/account-host.ts` | `tests/security-invariants-account-host.test.ts`「S-114」 | `scripts/account-billing.test.mjs`（WUA-23/24/25） |
+| S-114 | 租户与平台管理只走固定动作与中央权限；拒绝伪造 actor、未知或重复查询、GET 正文、缺少幂等键及错误来源，不改变本机 Home 身份。 | `horizontal/account/src/management-actions.ts`、`apps/local-host/src/account-host.ts` | `tests/security-invariants-account-host.test.ts`「S-114」 | `scripts/account-tenants.test.mjs`（WUA-20/22） |
+| S-115 | 订阅与席位页面复用固定动作网关；拒绝用户/租户主体注入、非法数量/查询、GET 正文和错误来源，中央权限是唯一授权依据。 | `horizontal/account/src/management-actions.ts`、`apps/local-host/src/account-host.ts` | `tests/security-invariants-account-host.test.ts`「S-115」 | `scripts/account-billing.test.mjs`（WUA-23/24/25） |
 
 ### S-15 插件权限
 

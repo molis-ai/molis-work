@@ -2626,6 +2626,7 @@ export interface PluginAgentRunInput {
     task: string;
     workspace_id?: string;
     timeout_ms?: number;
+    grant_subject?: string;
 }
 
 export interface PluginAgentRunResult {
@@ -3456,6 +3457,7 @@ export interface PluginManifest {
     notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
+    read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
 }
 
 export interface PluginManifestDatabases {
@@ -3904,6 +3906,13 @@ export interface PluginProjectsClient {
     exist(ids: readonly string[], options?: {
         readonly signal?: AbortSignal;
     }): Promise<Readonly<Record<string, boolean>>>;
+}
+
+export interface PluginReadGroupDeclaration {
+    readonly group_id: string;
+    readonly title: string;
+    readonly description: string;
+    readonly actions: readonly string[];
 }
 
 export interface PluginRequirementDeclaration {

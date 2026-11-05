@@ -275,7 +275,7 @@
   const arriving = () => S.block === "owner" && st("owner") === "arriving" && opt("owner") === "B";
   const waitingOn = () => found().filter(pending).filter((s) => D.suggestions[s.id]);
   const suggWaiting = (s) => arriving() && D.suggestions[s.id] && waitingOn().indexOf(s) >= S.arrived;
-  const sortDisclosure = () => L("打开这里时，这些会话的标题、目录和开头几句会发给你配置的模型，用来给建议。这和项目的 AI 能不能读是两件事：内容不进任何项目 AI 的对话。", "Opening this sends these sessions' titles, folders and first few lines to the model you configured, to make suggestions. That's separate from what a project's AI may read: nothing here enters any project AI's conversation.");
+  const sortDisclosure = () => L("打开这里时，这些会话的标题、目录和开头几句，连同你的项目名和项目目录，会发给你配置的模型，用来给建议。这和项目的 AI 能不能读是两件事：内容不进任何项目 AI 的对话。", "Opening this sends these sessions' titles, folders and first few lines, along with your project names and folders, to the model you configured, to make suggestions. That's separate from what a project's AI may read: nothing here enters any project AI's conversation.");
   function suggBody(s, fresh) {
     if (suggWaiting(s)) return `<div class="ss-sugg-wait" aria-hidden="true"><span class="mw-skeleton" data-cat="Skeleton" style="width:88%"></span><span class="mw-skeleton" style="width:64%"></span></div>`;
     const g = suggestionFor(s);
@@ -483,6 +483,7 @@
     if (!pmOn(p.id)) return L(`${p.dir} · ${n} 个会话归到这里`, `${p.dir} · ${n} sessions here`);
     if (noTools()) return L(`${p.dir} · 开着，现在读不到`, `${p.dir} · on, nothing readable right now`);
     if (p.gap && !S.pmTools) return L(`${p.dir} · AI 能读 ${n - p.gap.n} 个；另 ${p.gap.n} 个在 ${toolName(p.gap.tool)} 里，那个工具没允许`, `${p.dir} · AI can read ${n - p.gap.n}; ${p.gap.n} more are in ${toolName(p.gap.tool)}, which isn't allowed`);
+    if (p.reported) return L(`${p.dir} · AI 能读 ${n - p.reported} 个；另 ${p.reported} 个是工具报的，你确认后才算`, `${p.dir} · AI can read ${n - p.reported}; ${p.reported} more were reported by a tool and count once you confirm them`);
     return L(`${p.dir} · AI 能读这 ${n} 个会话`, `${p.dir} · AI can read these ${n} sessions`);
   }
   function pmNote(p) {
@@ -567,7 +568,7 @@
   function pmReadable(p) {
     if (p.team || !pmOn(p.id)) return "—";
     if (noTools()) return "0";
-    return String(p.gap && !S.pmTools ? p.n - p.gap.n : p.n);
+    return String(p.n - (p.gap && !S.pmTools ? p.gap.n : 0) - (p.reported || 0));
   }
   function permitFrame() {
     const back = S.pmLeft ? btn(pmBackLabel(), { icon: "chevron-left", attrs: 'data-act="pmback"' }) : "";

@@ -77,11 +77,12 @@ window.protoData = {
     { id: "site", name: ["官网改版", "Website redesign"], dir: "~/code/site" },
   ],
 
-  // Project AI reading. n = sessions attributed to the project; gap = some of them come from a tool that isn't allowed.
+  // Project AI reading. n = sessions filed under the project; gap = some come from a tool that isn't allowed;
+  // reported = some only have a tool's word for it, so AI can't read them until you confirm.
   permitProjects: [
     { id: "molis", name: ["Molis Work", "Molis Work"], dir: "~/code/goalboard", n: 34 },
     { id: "site", name: ["官网改版", "Website redesign"], dir: "~/code/site", n: 17, gap: { tool: "codex", n: 6 } },
-    { id: "billing", name: ["账单对账", "Billing reconciliation"], dir: "~/code/billing", n: 12 },
+    { id: "billing", name: ["账单对账", "Billing reconciliation"], dir: "~/code/billing", n: 12, reported: 3 },
     { id: "notes", name: ["读书笔记", "Reading notes"], dir: "~/Documents/notes", n: 0 },
     { id: "clinic", name: ["诊所预约系统", "Clinic booking"], dir: "~/code/clinic", n: 21, team: true },
     { id: "ops", name: ["运营周报", "Ops weekly"], dir: "~/Documents/ops", n: 8, team: true },

@@ -147,7 +147,8 @@ dialog.mw-sheet[open] { transition: opacity var(--dur-move, 250ms) var(--ease-qu
 @starting-style { dialog.mw-sheet[open]:not(.ss-still) { opacity: 0; transform: translateX(32px); } }
 dialog.mw-sheet:has(> .proto) { height: calc(100dvh - var(--tab-strip-h, 32px) - var(--proto-h, 40px)); max-height: calc(100dvh - var(--tab-strip-h, 32px) - var(--proto-h, 40px)); border-radius: 16px 0 0 16px; }
 #ss-sheet-title:focus { outline: none; }
-.ss-sheet-tabs { padding: 4px 24px 0; }
+.ss-sheet-tabs { padding: 4px 24px 8px; border-bottom: 1px solid var(--line); }
+.ss-sheet-tabs + .mw-form__body { padding-top: 16px; }
 .ss-sheet-tabs .mw-tabs__tab b { margin-left: 4px; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .ss-sheet-panel { display: grid; gap: 16px; animation: craft-fade-in var(--dur-hover, 130ms) var(--ease-quint, ease) both; }
 .ss-sheet-panel .mw-alert { margin: 0; }
@@ -229,7 +230,7 @@ dialog.mw-sheet:has(> .proto) { height: calc(100dvh - var(--tab-strip-h, 32px) -
   .ss-step small { grid-column: 2; }
   .ss-owner .mw-btn { margin-left: 0; }
   dialog.mw-sheet:has(> .proto) { inset: 0 0 auto 0; height: calc(100dvh - var(--proto-h, 76px)); max-height: calc(100dvh - var(--proto-h, 76px)); border-radius: 0; }
-  .ss-sheet-tabs { padding: 4px 16px 0; }
+  .ss-sheet-tabs { padding: 4px 16px 8px; }
   .ss-log .mw-alert, .ss-mock .ss-step { max-width: 526px; }
 .ss-log .ss-quiet-note { margin-left: 0; }
   .ss-pm { padding-inline: 12px; }

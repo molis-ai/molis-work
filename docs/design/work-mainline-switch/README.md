@@ -1,6 +1,6 @@
 # 主线：顶部事项切换定样
 
-状态：方案已定（2026-11-03，用户选 C：最近切过加折叠分组），记入 [`specs/work-mainline/spec.md`](../../../specs/work-mainline/spec.md) §9 第 3 条与 MLN-23。产品没有实现；页面里全是示例数据，不连 Home、不调模型。
+状态：方案已定（2026-11-03，用户选 C：最近切过加折叠分组），记入 [`specs/work-mainline/spec.md`](../../../specs/work-mainline/spec.md) §9 第 3 条与 MLN-23。11-04 按组件板实件重做，用户确认：版面与选定的方案不变，零件换成组件板的 `mw-*`（共用的 `docs/design/kit/`）。产品没有实现；页面里全是示例数据，不连 Home、不调模型。
 
 需求出处：[`specs/work-mainline/spec.md`](../../../specs/work-mainline/spec.md)（MLN-01～23）。位置和基本交互需求里已经定了：切换器在标题栏行最前、一个窗口一个，点开是锚定的原地列表菜单，手机上变成底部弹层。所以这里只比**列表菜单怎么排**。
 
@@ -12,7 +12,7 @@
 python3 -m http.server 4410 --bind 127.0.0.1 --directory docs/design
 ```
 
-再打开 `http://localhost:4410/work-mainline-switch/`。顶部斜纹条是原型控制，不是产品界面：切方案、状态（正常／还没有事项／事项很多）、中英文、深浅、重置。
+再打开 `http://localhost:4410/work-mainline-switch/`。顶部带斜纹边的一条是原型控制，不是产品界面：切方案、状态（正常／还没有事项／事项很多）、中英文、深浅、重置。
 
 ## 三个方案
 
@@ -47,4 +47,4 @@ python3 -m http.server 4410 --bind 127.0.0.1 --directory docs/design
 - 事项、分组、关系、对象页都是 `data.js` 里的示例；对象页只画了占位。
 - 「切走再切回保留草稿、滚动、选区」只演示了标签与右侧的保留，没有真的编辑器。
 - 状态存在浏览器 localStorage（键 `molis-proto.work-mainline-switch.v1`），「重置」清掉。
-- 控件用的是原型自己的样式，不是 `mw-*` 组件；做产品之前换成组件板里的控件再核对一遍。
+- 按钮、标签、分段、状态环和提示条用的是组件板实件（共用的 `docs/design/kit/`）；切换器菜单的行和分组还是原型的写法，做产品时按组件板的菜单核对一遍。

@@ -235,7 +235,7 @@ for (const invalidation of ["disable", "publisher", "generation", "version", "ca
   });
 }
 
-test("RAC-2642 S-105 read@2 checks source after the asynchronous effect fence and writes no use", { ...mac, timeout: 120_000 }, async t => {
+test("RAC-2642 S-105 read@1 checks source after the asynchronous effect fence and writes no use", { ...mac, timeout: 120_000 }, async t => {
   const f = await modelConsumer(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let read = false;
   const readMethod = f.service.reads.readMethod.bind(f.service.reads);
@@ -245,7 +245,7 @@ test("RAC-2642 S-105 read@2 checks source after the asynchronous effect fence an
     const caller = await f.h.host.localPersonContext(f.h.reference);
     const selection = { method_id: f.role.method_id, version: f.role.version, default_ref: f.role.default_ref, installation: f.role.installation };
     const pending = f.h.client.invoke({ ...caller, audit_actor_id: `assistant:${work.work_id}`, validate_authority: async () => { if (read) { entered.resolve(); await release.promise; } } },
-      { capability_id: "assistant.methods.read", version: 2, provider_id: "io.molis.work.assistant.rules" }, selection);
+      { capability_id: "assistant.methods.read", version: 1, provider_id: "io.molis.work.assistant.rules" }, selection);
     const refused = assert.rejects(pending, /来源已失效|没有登记|插件|停用/);
     await Promise.race([entered.promise, pending.then(() => assert.fail("handoff completed before expected barrier"), error => { throw error; }), new Promise<never>((_resolve, reject) => { const timer = setTimeout(() => reject(new Error("expected barrier not reached")), 10_000); timer.unref(); })]); await f.h.control("disable", { plugin_id: PACKAGE_PLUGIN_ID }); release.resolve(); await refused;
     assert.equal(f.requests.length, 0); assert.deepEqual(homeAgentDefinitions(f.h.home).uses(f.prompt.key), []);
@@ -319,7 +319,7 @@ test("RAC-2641/2642 S-105 on-demand signed JSON is data and cannot authorize a p
     } })) });
   const requests: string[] = [];
   const plan = [
-    { name: "read-capability", input: { capability_id: "assistant.methods.read", version: 2, provider_id: "io.molis.work.assistant.rules", input: { method_id: role.method_id, default_ref: role.default_ref, installation: role.installation } } },
+    { name: "read-capability", input: { capability_id: "assistant.methods.read", version: 1, provider_id: "io.molis.work.assistant.rules", input: { method_id: role.method_id, default_ref: role.default_ref, installation: role.installation } } },
     { name: "read-capability", input: { capability_id: "fixture.private.read", version: 1, provider_id, input: {} } },
     { name: "change-capability", input: { capability_id: "fixture.private.write", version: 1, provider_id, input: {} } },
   ];

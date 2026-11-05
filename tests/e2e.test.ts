@@ -435,7 +435,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         for (const capability_id of ["goals.create", "goals.note", "goals.list", "goals.state.read", "goals.events.list", "goals.events.read", "goals.events.configure", "goals.events.report", "goals.progress.record", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set", "goals.closure.submit", "goals.work.resume"]) {
           const granted = await securePost(origin, token, "/api/settings/mcp/actions", {
             client_id: "runtime:codex", project_id: created.project.project_id, capability_id,
-            provider_id: "io.molis.work.goals", version: ["goals.events.list", "goals.events.read"].includes(capability_id) ? 2 : 1, enabled: true,
+            provider_id: "io.molis.work.goals", version: 1, enabled: true,
           });
           assert.equal(granted.status, 200, await granted.clone().text());
         }

@@ -6,6 +6,9 @@
 
 ### 升级须知（需要动手）
 
+- **第 02 批统一插件与动作版本。** 插件清单的 `schema_version` 和 `host_api_version` 都填 1，使用当前完整声明；填 2 的清单会被拒绝。内置清单和宿主快照中，101 个原为 @2～@8 的动作回到 @1。工作流步骤、绑定、外部脚本应按现行目录逐项核对输入输出：名字保留的动作若曾固定在旧 @1，现在会直接对上现行形状，版本号本身不会拒绝这条旧引用。真实 Home 在约定维护窗口重建。
+- Agent 及项目工作区动作的名字不再带 `.vN`。单条记录绑定的 `connectors.plugin_slot.read@2`、`connectors.plugin_slot.bind@2` 分别改为 `connectors.plugin_slot.record.read@1`、`connectors.plugin_slot.record.bind@1`；按安装绑定仍用原 `read@1`、`bind@1`。MCP 客户端须重新发现工具，例如 `molis_work_v1_action_projects.workspace.read.v1__v1` 改为 `molis_work_v1_action_projects.workspace.read__v1`，`molis_work_v1_action_feed.items.promote__v2` 改为 `molis_work_v1_action_feed.items.promote__v1`。按旧名调用会失败。本节 10 月条目保留当时的版本变化；更新固定引用时请使用这次复位后的目录。
+
 - **远程 MCP 连接绑定声明来源**（2026-11-01，T-068 BL-790）：旧远程连接没有来源 pin 时不能继续使用，须在服务连接里新增连接，并重新选择 Agent 的工具连接；平台不按服务名自动补来源或迁移。已带合法 pin 的连接正常重启后仍可发起新操作，重启前 pending/held 或停用再启用前的在途操作失效。飞书/Lark stdio 和 Figma 本机例外保持；本片没有动作 id、版本或 MCP 工具名变更。
 
 - **Goals 工作终端的 open/list 升到 @2**（2026-10-31，T-148）：`goals.terminal.open@2` 新增可选的 `resume_session_id`，`goals.terminal.list@2` 的每行新增 `program`；`close/prompt` 仍为 @1。固定旧 open/list@1 的调用方（工作流步骤、绑定或脚本）保留原引用并收到能力未注册/版本失效，须显式重选 @2；平台不自动换号，也不提供旧版本别名。四个动作仍只给 `user`，没有 MCP 工具；HTTP 路径、权限与会话格式拒绝规则不变，产品/包版本不变。

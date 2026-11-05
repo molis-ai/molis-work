@@ -1,0 +1,57 @@
+/* Three assistant paths prototype. Builds on ../workbench-shared-paths/styles.css, the decided form styles in
+   ../intelligent-surfaces-forms/forms.css and the decided task strip in ../assistant-background-tasks/tasks.css.
+   Not production CSS. */
+.shell{grid-template-rows:auto minmax(0,1fr)}
+.pathbar{display:flex;align-items:baseline;gap:10px;padding:0 4px;min-width:0}
+.pathbar b{font-weight:600}.pathbar .fact{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.box{border:1px solid var(--line-strong);border-radius:var(--r-card);padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--paper)}
+.box.warn{border-color:color-mix(in srgb,var(--amber) 45%,var(--line));background:color-mix(in srgb,var(--amber-soft) 50%,var(--paper))}
+.box .bh{display:flex;align-items:center;gap:8px;font-weight:600}
+.row3{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.wscroll{flex:1;min-height:0;overflow:auto}
+.docwrap{display:grid;grid-template-columns:minmax(0,1fr);min-height:100%}
+.docwrap.withlog{grid-template-columns:minmax(0,1fr) 300px}
+.docwrap.withreqs{grid-template-columns:300px minmax(0,1fr)}
+.doc h3{margin:24px 0 8px;font-size:15px;font-weight:600}
+.doc p{line-height:1.75;max-width:66ch}
+/* path 1 */
+.agenda{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px;line-height:1.6}
+.agenda li .stag{margin-left:6px}
+.chg{display:inline-flex;align-items:center;height:18px;margin-left:6px;padding:0 6px;border-radius:9px;font-size:10.5px;font-weight:600;background:var(--accent-soft);color:var(--accent-strong)}
+.plog,.reqs{border-left:1px solid var(--line);padding:14px 14px 20px;display:flex;flex-direction:column;gap:10px;background:var(--soft);min-width:0}
+.reqs{border-left:0;border-right:1px solid var(--line)}
+.plog .lh,.reqs .lh{padding:0;font-size:12px}
+.jrow{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:var(--r-card);background:var(--paper);border:1px solid var(--line)}
+.jrow.ask{border-color:color-mix(in srgb,var(--amber) 45%,var(--line))}.jrow.dup,.jrow.rev{opacity:.92}
+.jsrc{display:flex;align-items:center;gap:6px;font-weight:500;font-size:12.5px;min-width:0}.jsrc span{min-width:0}
+.kv.j{grid-template-columns:40px minmax(0,1fr);font-size:12px}
+.tdet2{display:flex;flex-direction:column;gap:8px;padding:10px}
+.tdet2 .lh{padding:2px 2px 0}
+.tstrip .tl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* path 2 */
+.rrow{display:flex;align-items:center;gap:8px;margin:-4px 0 8px}
+.rule{padding:12px 14px;border-radius:var(--r-card);background:var(--soft)}
+.rule ins{text-decoration:none;background:var(--accent-soft);color:var(--accent-strong);border-radius:4px;padding:0 2px}
+.sect{display:flex;flex-direction:column;gap:10px;margin-top:20px}.sect h3{margin:0}
+.cnts{display:flex;gap:14px;flex-wrap:wrap;align-items:baseline;font-size:12.5px}.cnts b{font-size:16px;font-weight:600;margin-right:2px}
+.srow{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-card);background:var(--paper)}
+.srow .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.srow .tx strong{font-weight:500}
+.srow .stag{flex:none;margin-top:1px}
+.srow.flagged{border-color:color-mix(in srgb,var(--amber) 45%,var(--line));background:color-mix(in srgb,var(--amber-soft) 40%,var(--paper))}
+/* path 3 */
+.req{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-card);background:var(--paper);cursor:pointer}
+.req.on{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)}
+.req .rh{display:flex;align-items:center;gap:8px}.req .rh strong{font-weight:600}
+.req .row3{margin-top:4px}
+.sumrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.annsum{margin:-4px 0 8px;padding:10px 12px;border-radius:var(--r-card);background:var(--soft)}
+.rsec{position:relative;border-radius:var(--r-card);padding:2px 0 8px;transition:background var(--dur-fast) var(--ease)}
+.rsec.hl{background:color-mix(in srgb,var(--accent-soft) 55%,transparent);box-shadow:0 0 0 8px color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+.gap{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:9px;font-size:11px;background:var(--red-soft);color:var(--red)}
+p.gap{display:block;height:auto;padding:6px 10px;border-radius:var(--r-control)}
+.src{color:var(--accent);font-weight:600}
+.anno{display:flex;align-items:center;gap:6px;margin-top:6px;max-width:66ch;padding:6px 10px;border:1px dashed var(--line-strong);border-radius:var(--r-control);background:var(--paper);font:inherit;font-size:12px;color:var(--ink-soft);text-align:left}
+.anno.on{border-style:solid;border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.chg-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:12.5px;line-height:1.6}
+@media (max-width:1180px){.docwrap.withlog,.docwrap.withreqs{grid-template-columns:minmax(0,1fr)}.plog{border-left:0;border-top:1px solid var(--line)}.reqs{border-right:0;border-bottom:1px solid var(--line)}}
+@media (max-width:760px){.shell{padding:6px 8px}.pathbar .fact{display:none}.doc{padding:20px 16px}}

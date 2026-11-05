@@ -256,3 +256,4 @@ html[lang="en"][data-show-new] [data-board-new]::after { content: "Board additio
   .gp-table tr.gp-rowmsg::after { content: none; }
   .gp-table tr.gp-rowmsg td { display: block; }
 }
+.gp-table .gp-noexec { display: block; margin-bottom: 4px; max-width: 8em; margin-left: auto; white-space: normal; line-height: 1.3; }

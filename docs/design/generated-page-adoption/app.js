@@ -157,21 +157,23 @@
   }
 
   function rowHtml(r, ctx) {
-    const st = P.rows[r.id] || {};
+    const key = ctx.draft ? "d-" + r.id : r.id;
+    const st = P.rows[key] || {};
     const pr = ctx.showPR ? `<td class="gp-pr">${prBlocked(ctx) ? mark("blocked", "blocked", L("已拦下", "Blocked")) : ctx.depOff ? `<span class="gp-muted">—</span>` : mark(r.prTone === "blocked" ? "blocked" : r.prTone === "hold" ? "hold" : r.prTone === "done" ? "done" : "idle", r.prTone === "blocked" ? "failed" : r.prTone === "hold" ? "waiting" : r.prTone === "done" ? "done" : "draft", T(r.pr))}</td>` : "";
     const now = st.done ? "done" : r.state;
     const stateTone = { progress: "progress", blocked: "blocked", idle: "idle", done: "done" }[now];
     const ringState = { progress: "running", blocked: "blocked", idle: "draft", done: "done" }[now];
     let action = "";
-    if (st.done) action = `<span class="gp-rowdone">${mark("done", "done", L("已标完成", "Marked done"))}${btn("link", L("撤销", "Undo"), { "data-act": "row-undo", "data-id": r.id })}</span>`;
+    if (st.done) action = `<span class="gp-rowdone">${mark("done", "done", L("已标完成", "Marked done"))}${btn("link", L("撤销", "Undo"), { "data-act": "row-undo", "data-id": key })}</span>`;
     else if (r.state !== "done") {
       const dis = ctx.revoked;
-      action = btn("secondary", L("标完成", "Mark done"), { "data-act": "row-done", "data-id": r.id, ...(dis ? { title: L("这个页面不能再改待办", "This page can no longer change to-dos") } : {}) }, { disabled: dis, icon: "check" });
+      const nb = ctx.draft ? `<small class="gp-muted gp-noexec">${L("预览中不执行", "Not run in preview")}</small>` : "";
+      action = nb + btn("secondary", L("标完成", "Mark done"), { "data-act": "row-done", "data-id": key, ...(dis ? { title: L("这个页面不能再改待办", "This page can no longer change to-dos") } : {}) }, { disabled: dis, icon: "check" });
     }
     const cells = `<td class="gp-title"><button type="button" class="gp-link" data-act="open-item">${esc(T(r.title))}</button></td><td class="gp-st">${mark(stateTone, ringState, st.done ? L("完成了", "Done") : T(r.stateLabel))}</td><td class="gp-who">${esc(person(r.who))}</td>${pr}<td class="gp-due"><span class="mw-num">${esc(T(r.due))}</span></td><td class="gp-act">${action}</td>`;
     let extra = "";
-    if (st.confirm) extra = `<tr class="gp-rowmsg"><td colspan="6"><div class="gp-confirm" role="group" aria-label="${L("确认", "Confirm")}"><span>${ic("info")}${esc(L(`这会真的把${Q(T(r.title))}标完成，写进待办。`, `This really marks ${Q(T(r.title))} done in To-dos.`))}</span>${btn("ghost", L("算了", "Cancel"), { "data-act": "row-cancel", "data-id": r.id })}${btn("primary", L("标完成", "Mark done"), { "data-act": "row-commit", "data-id": r.id }, { key: "↵" })}</div></td></tr>`;
-    if (st.error) extra = `<tr class="gp-rowmsg"><td colspan="6">${alertBox("danger", L("没标上", "Not marked"), L("小林刚改过这一项，待办里的内容和页面上看到的不一样了。刷新这一行再看。", "Lin just changed this item, so it no longer matches what the page shows. Refresh the row and look again."), btn("secondary", L("刷新这一行", "Refresh this row"), { "data-act": "row-refresh", "data-id": r.id }, { icon: "refresh" }))}</td></tr>`;
+    if (st.confirm) extra = `<tr class="gp-rowmsg"><td colspan="6"><div class="gp-confirm" role="group" aria-label="${L("预览中不执行", "Not run in preview")}"><span>${ic("info")}${esc(L("预览中不执行，待办没有改。采用以后才能真的把它标完成。", "Not run in preview, so To-dos is unchanged. Once you adopt this page, this button will really mark it done."))}</span>${btn("primary", L("知道了", "Got it"), { "data-act": "row-cancel", "data-id": key }, { key: "↵" })}</div></td></tr>`;
+    if (st.error) extra = `<tr class="gp-rowmsg"><td colspan="6">${alertBox("danger", L("没标上", "Not marked"), L("小林刚改过这一项，待办里的内容和页面上看到的不一样了。刷新这一行再看。", "Lin just changed this item, so it no longer matches what the page shows. Refresh the row and look again."), btn("secondary", L("刷新这一行", "Refresh this row"), { "data-act": "row-refresh", "data-id": key }, { icon: "refresh" }))}</td></tr>`;
     return `<tr data-row="${r.id}"${st.error ? ' class="gp-row--error"' : ""}${st.flash ? ' class="gp-row--flash"' : ""}>${cells}</tr>${extra}`;
   }
 
@@ -507,14 +509,11 @@
       case "who": P.filter.who = el.value; break;
       case "compare": P.filter.compare = el.checked; break;
       case "row-done": {
-        const sample = P.draft && P.draft.data === "sample" && el.closest(".gp-draftbody, .gp-col--draft, .gp-guide");
-        if (sample) { toast(L("示例内容，没有写入", "Sample content; nothing was saved")); return; }
         const inDraft = !!el.closest(".gp-draftbody, .gp-col--draft, .gp-guide");
         if (inDraft) { st(id).confirm = true; break; }
         if (F("actionfail") && !st(id).failedOnce) { st(id).error = true; st(id).failedOnce = true; announce(L("没标上", "Not marked")); break; }
         st(id).done = true; announce(L("已标完成", "Marked done")); break;
       }
-      case "row-commit": P.rows[id] = { done: true }; announce(L("已标完成", "Marked done")); break;
       case "row-cancel": P.rows[id] = {}; break;
       case "row-undo": P.rows[id] = {}; toast(L("已撤销，待办里改回进行中", "Undone; the to-do is back in progress")); break;
       case "row-refresh": P.rows[id] = { flash: true, failedOnce: true }; render(); later(900, () => { delete P.rows[id].flash; render(); }); return;

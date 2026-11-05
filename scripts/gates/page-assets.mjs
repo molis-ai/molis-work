@@ -263,14 +263,14 @@ const headErrors = (measured, budget, base) => {
 // workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
 // address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
 // read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
-// 07-S0 (workbench navigation specimens, #1852, 待 07 批评审台审): the README's new
-// tab-strip, titlebar and three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
-// workbench.css +9918 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button, phone rules with the phone
-// titlebar's strip (6615 B), the
-// glyph row with its own tab and count (2760 B, glyph-tabs.ts) and the bar zones (547 B). arrival.css +3303 B: the same glyph
-// row, which the arrival titlebar draws without the project page's tab rules, and the bar zones. settings.css +547 B: the bar
-// zones through craft-finish. (The BL-953 entries for these three are spent: the merge-base budget holds their ceilings.)
-// Tried: the board-only scaffolding stays inline on the board's frame page; the new class names drop the
+// 07-S0 (workbench navigation specimens; 07 批评审台与 D 轨合审审过（#1852）): the README's new tab-strip, titlebar and
+// three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
+// workbench.css +9524 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
+// the phone titlebar's strip (6241 B), the glyph row with its own tab and count (2736 B, glyph-tabs.ts) and the bar zones (547 B).
+// arrival.css +3283 B: the same glyph row, which the arrival titlebar draws without the project page's tab rules, and the bar
+// zones. settings.css +547 B: the bar zones through craft-finish. (The BL-953 entries for these three are spent: the merge-base
+// budget holds their ceilings.) Tried: the board-only scaffolding stays inline on the board's frame page; the layout button is
+// the ghost icon .mw-btn and "open beside" the switcher row's button, not classes of their own; the new class names drop the
 // body.immersive-workbench prefix where no rule competes (it stays on the tab, group and toggle overrides); one class for the
 // strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
 // weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
@@ -287,10 +287,10 @@ const headErrors = (measured, budget, base) => {
 // persist, closed stack and removed-plugin check instead of keeping its own; the old side-tab, side-ratio and discussion-ratio
 // keys are dropped, not read; the rules' comments sit above the function, not in the shipped body.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 693189],
+  "/assets/molis-work-arrival.css": [689886, 693169],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826727, 827274],
-  "/assets/molis-work-workbench.css": [1194521, 1204439],
+  "/assets/molis-work-workbench.css": [1194521, 1204045],
   "/assets/molis-work-workbench.js": [1075120, 1085050],
   "/assets/molis-work-plugin-frame.js": [208271, 208400],
 };

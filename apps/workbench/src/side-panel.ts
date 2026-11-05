@@ -99,7 +99,7 @@ html body.immersive-workbench .side-panel[hidden]{display:none}
 html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transform:none;pointer-events:auto}
 .side-strip{order:6;display:flex;align-items:center;justify-content:flex-end;gap:2px;flex:none;min-width:0;padding-right:calc(var(--sheet-inset,14px) - 8px)}
 body[data-side-open=true] .side-strip{min-width:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) - 8px)}
-.side-strip>.tab-item:has(>[role=tab]:is([hidden],[data-side-closed])),.tab-count-badge[hidden]{display:none}
+.side-strip>.tab-item:has(>[role=tab]:is([hidden],[data-side-closed])){display:none}
 .side-undo-chip{order:5;flex:none;max-width:220px}
 .side-undo-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-busy-mark{display:inline-flex;flex:none;width:16px;height:16px}

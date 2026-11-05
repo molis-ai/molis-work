@@ -28,6 +28,8 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 通道使用 Runtime 的 `webBaseUrl`（默认 `http://127.0.0.1:4173`）和同一 Home 已有控制凭据，只接受数字 loopback HTTP，拒绝重定向；常驻服务校验 Home/实例、从原目录解析项目，并使用原逐客户端动作授权。项目/主体更换或 MCP 关闭会取消旧请求，连接丢失不自动重试或退回本地执行。服务离线时只列出连接工具，其余调用返回 `actions.service_unavailable`。MCP 目录只有平台工具（连接与受信管理入口）加已授权的动作，没有旧名称或旧开关；Files/Git 的跨调用者成果归属仍未完成。
 
+中央账号由 `src/account-host.ts` 为同一 Host 装配，协议 owner 是 `horizontal/account`；可信配置、安全读取及本地身份边界见 [中央账号服务](../../docs/horizontal/account.md)。账号入口改动另跑 `tests/account-client.test.ts`、`tests/account-session.test.ts` 与 `tests/security-invariants-account-host.test.ts`。
+
 ## 从哪里读代码
 
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。
@@ -320,3 +322,13 @@ MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-
 后台类别权限从受理时的真实 MCP allowed refs 固定来源，再与当前精确 grants/声明求交；新授予的同权限动作不能救活旧任务。Alchemist HTTP 的请求 signal 只约束本次传输控制，正常响应结束后已受理工作仍检查 Host/项目/原动作权限。搜索派出在 DNS 后、TLS 请求体前及后续请求复核同一调用，SearchEvidence/secret/opaque/content 写入保留最终同步检查。回归见 `tests/security-invariants-alchemist-resumption.test.ts`、`tests/search-effect-authority.test.ts`、`tests/action-background-authority.test.ts`。
 
 公共模型服务的原图由 `plugin-model-images.ts` 在 Host 私有临时目录适配现有 Prologue intake，路径由 Host 生成、目录 0700、文件 0600，调用结束清除源副本；SDK 继续负责图片格式和 intake 资源回收。`hostTextGeneration` 返回实际 dispatch 快照的同步复核函数，成功与可记账失败保留原推理事实；公共服务的 `choices()` 复用 `configuredModelChoices`，不解密或联网。回归见 `tests/security-invariants-plugin-model-materials.test.ts`、`tests/prologue-inference-images.test.ts`。
+
+中央账号的 WORK-03 凭据入口由 `src/account-auth-http.ts` 固定分派，`horizontal/account` 负责邮箱/手机认证编排；不登记为动作，也不允许浏览器注入中央身份、Token 或客户端配置。验证命令及验收见 [账号规范](../../specs/unified-account/spec.md)。
+
+WORK-04 的 `/account/callback` 是受本机 Host 约束的导航入口，由 `src/account-callback-http.ts` 校验请求形态、`horizontal/account` 复核发起状态与中央结果。此入口只完成原 Host 的一次认证，不返回会话或控制凭据；拒绝测试见 S-111。
+
+WORK-05 的资料更新与登录方式读取映射到 `system.account` 动作提供方；再次验证、绑定/换绑/解绑和改密仍经固定认证窄入口。证明只存 Host 内存并绑定原登录及操作目标，浏览器仅取得短时句柄；权限、来源和退出后拒绝见 S-112，真实 Auth 与 Chrome 联调见 `scripts/account-management.test.mjs`。
+
+WORK-06 的个人/租户选择、定向邀请、角色管理、交接与平台租户操作经现有账号入口和同一动作目录接入，中央负责权限与版本；不切换本地 Home。专项验证：`MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-tenants.test.mjs`（临时 Home/D1、Chrome，外部服务 mock）。
+
+WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-billing.test.mjs` 运行（按机器 browser 时段包裹）。使用真实 Auth/Host、临时 Home/D1 和 Chrome，外部服务 mock。平台库存只读合同为 Auth 1.1.0，席位写操作仍由租户管理角色授权。

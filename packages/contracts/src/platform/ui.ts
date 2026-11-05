@@ -651,6 +651,8 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
  * `cache: "no-store"` and none is ever sent twice by the helper: whether to ask again is the person's decision.
  */
 export interface UiRequestInit {
+  /** Include the page control token on a protected same-origin GET; no one-time write key is added. */
+  readonly control?: boolean;
   /** Default: `POST` when there is a `body`, otherwise `GET`. */
   readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** Sent as JSON. A `GET` carries none. */

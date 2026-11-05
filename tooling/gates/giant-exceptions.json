@@ -102,7 +102,7 @@
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3208
+      "size": 3210
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
@@ -146,13 +146,13 @@
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",
-      "reason": "网页服务的装配根：返回创建服务的函数，内含 HTTP 服务、本机宿主、周期调度、侧栏浏览器登记、PTY 挂接与关停，是进程的装配；装配根的职责就是把这些放在一处。",
-      "size": 156
+      "reason": "网页服务的装配根：返回创建服务的函数，内含 HTTP 服务、本机宿主、周期调度、侧栏浏览器登记、PTY 挂接与关停，是进程的装配；装配根的职责就是把这些放在一处。WORK-01 在同一 Host 装配中增加账号绑定与受保护入口，两行随资源生命周期管理。",
+      "size": 158
     },
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": {
       "kind": "cohesive-unit",
-      "reason": "createLocalWebServerFactory 返回的创建函数本身，与外层函数是同一段装配（同一段计两次），一起标明。",
-      "size": 153
+      "reason": "createLocalWebServerFactory 返回的创建函数本身，与外层函数是同一段装配（同一段计两次），一起标明。WORK-01 在同一 Host 装配中增加账号绑定与受保护入口，两行随资源生命周期管理。",
+      "size": 155
     },
     "function plugins/native/goals/src/page/capsule-items.ts#createCapsuleItemProjection": {
       "kind": "cohesive-unit",
@@ -267,7 +267,7 @@
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
       "kind": "cohesive-unit",
       "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。",
-      "size": { "lines": 303, "methods": 23 }
+      "size": { "lines": 304, "methods": 23 }
     },
     "file packages/plugin-runtime/src/index.ts": {
       "kind": "cohesive-unit",

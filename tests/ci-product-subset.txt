@@ -478,3 +478,7 @@ tests/declared-stages.test.ts
 tests/view-placement-declarations.test.ts
 # BL-635 RAC-1115: every name the workbench entry gives out has an importer outside the workbench, or a listed reason to stay.
 tests/workbench-entry-exports.test.ts
+
+tests/account-client.test.ts
+tests/account-session.test.ts
+tests/security-invariants-account-host.test.ts

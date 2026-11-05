@@ -237,6 +237,10 @@
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",
       "import": "./dist/platform/plugin-attention.js"
+    },
+    "./services/account": {
+      "types": "./dist/services/account.d.ts",
+      "import": "./dist/services/account.js"
     }
   },
   "files": [

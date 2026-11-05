@@ -205,6 +205,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-module-shelf",
       "@molis-ai/molis-work-plugin-runtime",
       "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-service-account",
       "@molis-ai/molis-work-service-agent-host",
       "@molis-ai/molis-work-service-connector-host",
       "@molis-ai/molis-work-service-runtime-host",
@@ -384,6 +385,10 @@ export const WORKSPACE_PACKAGES = [
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-storage"
     ]
+  }),
+  entry("horizontal/account", "@molis-ai/molis-work-contracts/services/account", {
+    maturity: "slice",
+    capabilities: ["account.central-client.v1"]
   }),
   entry("horizontal/agent-host", "@molis-ai/molis-work-contracts/services/agent-host", {
     maturity: "production",

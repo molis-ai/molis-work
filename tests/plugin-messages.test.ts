@@ -47,18 +47,18 @@ test("RAC-750 the shared declaration check accepts a Plugin's own stable keys an
   assert.match(translations("x")[0] ?? "", /必须为对象/);
 });
 
-const manifestWith = (extra: Record<string, unknown>, schema_version = 2) => ({
-  schema_version, host_api_version: schema_version, plugin_id: "io.molis.work.example.notes", version: "1.0.0", name: "Notes", kind: schema_version === 1 ? "native" : "app",
+const manifestWith = (extra: Record<string, unknown>) => ({
+  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.notes", version: "1.0.0", name: "Notes", kind: "app",
   publisher: { publisher_id: "acme", signature: "acme-notes" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-  ui: { contributions: [], ...extra }, ...(schema_version === 1 ? {} : { actions: [] }),
+  ui: { contributions: [], ...extra }, actions: [],
 });
 
 test("RAC-751 reading a Manifest refuses a bad word declaration, so an install never carries one", () => {
   assert.deepEqual(parsePluginManifest(manifestWith({ messages: NOTES })).ui.messages, NOTES);
   assert.throws(() => parsePluginManifest(manifestWith({ messages: { "保存": { zh: "保存", en: "Save" } } })), /ui\.messages/);
   assert.throws(() => parsePluginManifest(manifestWith({ messages: { "goals.tree.title": { zh: "目标", en: "Goals" } } })), /必须以插件自己的名字/);
-  assert.throws(() => parsePluginManifest(manifestWith({ messages: NOTES }, 1)), /ui\.messages/, "the first Manifest version has no words block");
+  assert.throws(() => parsePluginManifest({ ...manifestWith({ messages: NOTES }), schema_version: 2 }), /schema_version/, "valid words cannot make a retired Manifest version installable");
 });
 
 test("RAC-752 a built-in and an installed Plugin register their words the same way; stable keys are page-wide, Chinese-keyed translations are not", () => {

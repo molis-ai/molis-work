@@ -54,8 +54,8 @@ window.protoData = {
     ] },
   ],
   members: [
-    { id: "pa", av: ["助", "PA"], hue: "#3c6e98", name: ["个人助理", "Personal assistant"], role: ["接待和接续，跨项目同一个；在这个项目里只读这个项目的资料", "Greets and follows up — the same one across projects; here it only reads this project's materials"], existing: true },
-    { id: "res", av: ["研", "R"], hue: "#367556", name: ["研究员", "Researcher"], role: ["读订阅源和材料，记下本周变化", "Reads feeds and materials, notes this week's changes"], skill: ["产品变化跟踪", "Product change tracking"], can: ["读网页、读订阅源", "Read web pages and feeds"], out: ["变化清单（交给编辑）", "Change list (to the editor)"] },
-    { id: "ed", av: ["编", "E"], hue: "#8c5f0c", name: ["编辑", "Editor"], role: ["把变化写成一篇观察", "Writes the changes up as an observation"], skill: ["周报写作", "Weekly write-up"], can: ["写 Pages 文档", "Write Pages documents"], out: ["Pages 文档", "Pages document"] },
+    { id: "pa", av: ["助", "PA"], hue: "blue", name: ["个人助理", "Personal assistant"], role: ["接待和接续，跨项目同一个；在这个项目里只读这个项目的资料", "Greets and follows up — the same one across projects; here it only reads this project's materials"], existing: true },
+    { id: "res", av: ["研", "R"], hue: "green", name: ["研究员", "Researcher"], role: ["读订阅源和材料，记下本周变化", "Reads feeds and materials, notes this week's changes"], skill: ["产品变化跟踪", "Product change tracking"], can: ["读网页、读订阅源", "Read web pages and feeds"], out: ["变化清单（交给编辑）", "Change list (to the editor)"] },
+    { id: "ed", av: ["编", "E"], hue: "orange", name: ["编辑", "Editor"], role: ["把变化写成一篇观察", "Writes the changes up as an observation"], skill: ["周报写作", "Weekly write-up"], can: ["写 Pages 文档", "Write Pages documents"], out: ["Pages 文档", "Pages document"] },
   ],
 };

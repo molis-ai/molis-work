@@ -22,6 +22,12 @@ export function renderWorkbenchRefreshDocument(request: Pick<WorkbenchDocumentRe
   return request.body_html === '' ? '' : `<!doctype html><html><body${renderAttributes(request.body_attributes)}>${request.body_html}</body></html>`;
 }
 
+/**
+ * The product has no favicon. Without a link every top-level page asks `/favicon.ico` and gets a 404 (adversarial review
+ * N53); an empty `data:` icon (the page CSP allows `img-src data:`) answers it in the page, so nothing is requested.
+ */
+export const NO_FAVICON_LINK = '<link rel="icon" href="data:,">';
+
 /** Stable document shell, shared by native and installed app surfaces. */
 export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string {
   return `${request.preamble_html ?? ''}<!doctype html>
@@ -29,6 +35,7 @@ export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest)
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${NO_FAVICON_LINK}
   ${request.head_before_title_html ?? ''}
   <title>${escapeHtml(request.title)}</title>
   ${request.head_html ?? ''}

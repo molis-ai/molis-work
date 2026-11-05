@@ -2380,6 +2380,8 @@ export interface IntegrationProviderPort {
         status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
         message: string;
         action?: string;
+        failure?: IntegrationProviderFailure;
+        retryAfterAt?: string;
     }>;
     sync(input: {
         cursor: unknown;

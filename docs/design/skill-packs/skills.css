@@ -1,0 +1,141 @@
+/*
+ * 第 08 批原型的版式。条目行、按钮、徽标、开关、勾选、单选、分段选择、折叠、预览卡、提示、空状态、页签都是组件板的 mw-*（dist/board.css），这里只排位置。
+ * 只用组件板的令牌：--page / --paper / --surface-soft / --line / --ink / --ink-soft / --muted / --faint / --accent / --accent-soft / --r-* / --sheet-shadow / --dur-* / --ease-*。
+ * 标「组件板新增」的几处在 README 里写了理由，交 D 轨补标本。
+ */
+@keyframes sk-arrive { from { opacity: 0; transform: translateY(4px); } }
+
+.sk-muted { color: var(--muted); font-size: 13px; margin: 0; }
+.sk-small { font-size: 12px; }
+.sk-spacer { flex: 1; }
+.sk-lead { margin: 0; font-size: 13px; line-height: 1.55; color: var(--ink-soft); max-width: 640px; }
+.sk-lead--strong { display: flex; align-items: flex-start; gap: 8px; color: var(--ink); }
+.sk-lead--strong svg { width: 15px; height: 15px; flex: none; margin-top: 2px; color: var(--accent); }
+.sk-line { margin: 0; font-size: 13px; color: var(--ink); }
+.sk-h { margin: 4px 0 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+.sk-h4, .sk-group h4 { margin: 0; font-size: 12px; font-weight: var(--weight-control, 560); color: var(--muted); }
+
+/* 设置页外壳（原型里画成一页；产品里是现有的设置，「技能」是「插件」旁边的一节） */
+.sk-sheet { max-width: 960px; }
+.sk-sheet__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 20px 28px 4px; }
+.sk-sheet__head h1 { margin: 0; font-size: 18px; font-weight: var(--weight-title, 600); }
+.sk-tabs { padding: 0 20px; border-bottom: 1px solid var(--line); }
+.sk-body { padding: 20px 28px 36px; display: grid; gap: 16px; min-width: 0; }
+
+/* 安装审阅（现有的那一块，原型里缩短了）与导入 */
+.sk-review { display: grid; gap: 14px; min-width: 0; }
+.sk-review__head { display: grid; gap: 4px; }
+.sk-review__head h3 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+.sk-group { display: grid; gap: 6px; min-width: 0; }
+.sk-skills { gap: 10px; }
+.sk-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; padding-top: 6px; }
+.sk-actions--start { justify-content: flex-start; padding-top: 0; }
+.sk-actions--center { justify-content: center; }
+.sk-problems { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 2px; font-size: 13px; }
+.sk-problems code { overflow-wrap: anywhere; }
+.sk-alert-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.mw-alert > p + .sk-alert-actions { margin-top: 0; }
+.sk-explain { margin: 0; padding-left: 18px; display: grid; gap: 2px; font-size: 13px; color: var(--ink-soft); max-width: 640px; }
+.sk-source { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sk-path { font-size: 12px; color: var(--muted); }
+.sk-scope { margin: 0; }
+
+/* 条目行：标题、说明、徽标一行，详情折叠在下面；末尾放控件 */
+.sk-items { width: 100%; grid-template-columns: minmax(0, 1fr); }
+.sk-row { align-items: flex-start; flex-wrap: wrap; row-gap: 0; }
+.mw-item.sk-row > .sk-main { flex: 1 1 0; }
+.sk-row > .sk-mark { margin-top: 2px; }
+.sk-mark { flex: none; }
+.sk-main { display: grid !important; gap: 4px; min-width: 0; }
+.sk-row .sk-main small { white-space: normal; color: var(--muted); }
+.sk-row .mw-item__end { align-self: center; }
+.sk-row[data-off] .sk-main strong, .sk-row[data-gone] .sk-main strong { color: var(--muted); }
+.sk-row[data-gone] .sk-main strong { text-decoration: line-through; }
+.sk-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
+.sk-tags .mw-badge { max-width: 100%; white-space: normal; height: auto; min-height: 20px; }
+.sk-under { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.sk-name { font-size: 13px; }
+.sk-na { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.sk-na .mw-status { white-space: normal; height: auto; min-height: 22px; max-width: 100%; text-align: start; }
+/* 不可用那行的「去连接」一类：组件板的链接按钮；触控高度用内边距撑出、不占行高（同组件板提示里诊断号的写法） */
+.sk-na .mw-btn--link { min-height: 0; padding-block: var(--reach, 10px); margin-block: calc(-1 * var(--reach, 10px)); }
+.sk-fail { margin-top: 4px; }
+
+/* 组件板新增 · 条目行里的折叠详情：组件板的 mw-collapsible 放进条目行，做成一行安静的「看详情」 */
+.sk-row > .sk-more { flex: 1 0 100%; padding: 0 0 0 44px; }
+.sk-more > summary { padding: 4px 0; font-size: 12px; }
+.sk-dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 6px 0 2px; font-size: 13px; max-width: 640px; }
+.sk-dl dt { color: var(--muted); font-size: 12px; }
+.sk-dl dd { margin: 0 0 8px; color: var(--ink); min-width: 0; }
+.sk-dl dd:last-child { margin-bottom: 0; }
+.sk-files { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.sk-files li { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.sk-files code { overflow-wrap: anywhere; }
+.sk-files span { color: var(--muted); font-size: 12px; }
+.sk-code-list { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.sk-excerpt { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--ink-soft); }
+
+/* 组件板新增 · 条目行末尾的三档分段（关／自动／仅手动）：用组件板的 mw-toggle-group，放进条目行末尾 */
+.sk-state { flex: none; }
+.sk-pair { display: inline-flex; align-items: center; gap: 12px; }
+.sk-pair .mw-check-row { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+
+/* 目录 */
+.sk-cat__head { display: grid; gap: 6px; }
+.sk-cat__head h2 { margin: 0; font-size: 16px; font-weight: var(--weight-title, 600); }
+.sk-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sk-search { position: relative; display: inline-flex; align-items: center; flex: 0 1 240px; min-width: 160px; }
+.sk-search > svg { position: absolute; left: 10px; width: 14px; height: 14px; color: var(--muted); pointer-events: none; }
+.sk-search .mw-input { width: 100%; padding-left: 30px; }
+.sk-filter { flex: none; }
+.sk-nomatch { padding: 24px 4px; }
+.sk-packgroup { display: grid; gap: 8px; min-width: 0; }
+.sk-pack { display: flex; align-items: center; gap: 10px; padding: 4px 6px 0 2px; min-width: 0; }
+.sk-pack__text { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.sk-pack__text strong { font-size: 13px; }
+.sk-pack__text small { font-size: 12px; color: var(--muted); }
+
+/* C：左边列表、右边一个技能的全部 */
+.sk-body--wide { max-width: none; }
+.sk-split { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 20px; align-items: start; min-width: 0; }
+.sk-split__list { min-width: 0; }
+/* 组件板新增 · 列表＋详情的行：li 保留列表项身份，里面一个真按钮占满整行（读屏能读出「第几项、共几项」，回车和空格由按钮自己处理） */
+.mw-item.sk-pick-item { padding: 0; min-height: 0; }
+.sk-pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 6px 6px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+.sk-pick:hover { background: var(--nav-hover, var(--surface-soft)); }
+.sk-pick[aria-current="true"] { background: var(--surface-soft); }
+.sk-pick:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: -2px; }
+.sk-pick__text { display: grid; gap: 1px; flex: 1 1 0; min-width: 0; }
+.sk-pick__text strong { font-size: 13px; font-weight: var(--weight-control, 560); white-space: normal; overflow: visible; text-overflow: clip; }
+/* 副标题（所在的包）只占一行：放不下就截断，悬停给全文；技能名照常折行，不截断 */
+.sk-pick__text small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); font-size: 12px; }
+.sk-pick__end { flex: none; display: flex; }
+.sk-split__detail { display: grid; gap: 14px; align-content: start; min-width: 0; padding: 4px 4px 4px 20px; border-left: 1px solid var(--line); }
+/* 只在页面里换内容时（选中另一项、装完换成启用步骤）进场；首次打开、刷新不播，免得停在透明 */
+.sk-enter { animation: sk-arrive var(--dur-move) var(--ease-quint); }
+@media (prefers-reduced-motion: reduce) { .sk-enter { animation: none; } }
+.sk-split__detail header { display: grid; gap: 6px; }
+.sk-split__detail h3 { margin: 0; font-size: 16px; font-weight: var(--weight-title, 600); }
+.sk-split__detail[data-off] h3 { color: var(--muted); }
+.sk-how-wrap[data-disabled] { opacity: .5; pointer-events: none; }
+.sk-how { margin: 0; }
+.sk-preview { max-width: 640px; }
+.sk-packline { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.sk-back { display: none; justify-self: start; }
+
+@media (max-width: 900px) {
+  .sk-split { grid-template-columns: minmax(0, 1fr); }
+  .sk-split__detail { border-left: 0; padding: 0; }
+  .sk-split:not([data-detail]) .sk-split__detail { display: none; }
+  .sk-split[data-detail] .sk-split__list { display: none; }
+  .sk-back { display: inline-flex; }
+}
+@media (max-width: 640px) {
+  .sk-sheet__head { padding: 16px 16px 4px; }
+  .sk-tabs { padding: 0 8px; }
+  .sk-body { padding: 16px 16px 28px; }
+  /* 窄屏：条目行末尾的控件挪到文字下面，占满一行 */
+  .sk-row > .mw-item__end { flex-basis: 100%; padding: 8px 0 0 44px; justify-content: flex-start; }
+  .sk-search { flex-basis: 100%; }
+  .sk-more > summary { padding: 10px 0 6px; }
+}

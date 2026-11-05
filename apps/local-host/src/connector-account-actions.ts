@@ -23,6 +23,7 @@ import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import type { ConnectorActionInspector } from "./connector-status-view.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { rememberConnectorCheck } from "./connector-observations.js";
+import { refreshRefused } from "./connector-refresh-refusals.js";
 
 export const CONNECTOR_PROVIDER_ID = "system.connectors";
 
@@ -109,7 +110,9 @@ export function connectorAccountActionProvider(home: string, remember: Connector
     definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
     handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home), { capability_id: connectorAccountActions.read.capability_id, version: 1,
       handle: async (caller, input) => {
-        const id = (input as { connection_id: string }).connection_id, revision = withConnectorConnections(home, store => store.get(id)?.updated_at);
+        const id = (input as { connection_id: string }).connection_id, row = withConnectorConnections(home, store => store.get(id)), revision = row?.updated_at;
+        // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.
+        if (row?.auth_method === "oauth" && refreshRefused(home, row)) throw accountErrors.needs_auth("这个账号的登录已失效，请重新登录");
         await caller.beforeEffect();
         const result = await readConnectorAccount(home, id, { signal: caller.signal ?? AbortSignal.any([]), beforeEffect: () => caller.beforeEffect(), current: () => caller.signal?.throwIfAborted() });
         await caller.beforeEffect(); caller.signal?.throwIfAborted();

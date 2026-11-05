@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog, renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, buildMolisWorkWebView, createLocalHostCapsule } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, buildGoalMomentumView, goalMomentumInput } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, buildGoalMomentumView, goalMomentumInput, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const { buildCapsuleSnapshot } = createLocalHostCapsule(renderDesktopCapsuleShell);
@@ -31,6 +32,12 @@ test("reported work and an applied closure reach momentum activity, completion c
   try {
     const reportId = await recordWork("WORKING-GOAL", "只记录工作");
     await recordWork("DONE-GOAL", "记录并完成");
+    // The runtime's supports report is its own word (PWA-144): the person accepts the requirement through the protected entry before it closes.
+    await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
+      project_id: project.project_id, goal_id: "DONE-GOAL", idempotency_key: "DONE-GOAL:accept",
+      authority: hostEventDecisionAuthority("web", project.project_id, "user", "DONE-GOAL:accept"),
+      conclusion: "交付正文我核对过", accepts_requirements: true, scope: { requirement_ids: ["DONE-GOAL:delivered"] },
+    }));
     const state = await actions.invoke(goalsActions.state, { goal_id: "DONE-GOAL" });
     const closed = await actions.invoke(goalsActions.close, { goal_id: "DONE-GOAL", kind: "complete", result: "交付已完成",
       reason: "唯一要求已有支持", idempotency_key: "DONE-GOAL:close",

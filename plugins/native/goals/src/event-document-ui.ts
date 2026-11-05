@@ -113,8 +113,14 @@ function currentJudgment(state: GoalEventStateView | undefined, L: GoalsDocument
   if (concern) return { lead: L("待解决：{text}", { text: concern.title }), action: L("查看问题与风险"), form: "concern" };
   const unmet = state.closure && !state.closure.completion_applied ? state.closure.unmet_reasons[0] : null;
   if (unmet) return { lead: unmet.message, action: L("查看完成要求"), reader: "requirements" };
-  const human = state.requirements.find((item) => item.human_decision_required && item.user_conclusion?.verdict !== "accepted");
+  const rejected = state.requirements.find((item) => !item.currently_satisfied && item.user_conclusion?.verdict === "rejected");
+  if (rejected) return { lead: L("你没有认可：{text}", { text: rejected.statement }), action: L("查看完成要求"), reader: "requirements" };
+  const human = state.requirements.find((item) => item.human_decision_required && !item.currently_satisfied);
   if (human) return { lead: L("待你验收：{text}", { text: human.statement }), action: L("查看完成要求"), reader: "requirements" };
+  // Only the reporter's own "supports" is behind it (PWA-144), or a later report took the acceptance back (user 2026-11-05): the
+  // person's acceptance meets it, so the next step is their decision.
+  const claimed = state.requirements.find((item) => item.current_report?.verdict === "supports" && !item.currently_satisfied);
+  if (claimed) return { lead: L("待你认可：{text}", { text: claimed.statement }), action: L("记录决定"), form: "decision" };
   const requirement = state.requirements.find((item) => !item.currently_satisfied);
   if (requirement) return { lead: L("尚待完成：{text}", { text: requirement.statement }), action: L("查看完成要求"), reader: "requirements" };
   const gap = state.gaps[0];

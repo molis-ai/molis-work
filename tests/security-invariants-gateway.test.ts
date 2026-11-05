@@ -117,3 +117,24 @@ test("S-07 the action gateway takes the number of an operation only on an invoca
     origin, "content-type": "application/json", "x-molis-work-call-id": id, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
   assert.notEqual(stranger.headers.get("x-molis-work-call-id"), id, "a number in a request header is not read");
 });
+
+test("S-08 the action gateway refuses a forwarding process that names itself as one of the Host's own Agents, and records nothing", { timeout: 60_000 }, async t => {
+  const { home, origin } = await startResidentHost(t);
+  const post = (body: unknown) => fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify(body), headers: {
+    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
+  const log = () => { try { return readFileSync(join(home, "logs", "action-calls.jsonl"), "utf8"); } catch { return ""; } };
+  const envelope = { home_id: homeId(home), project_id: null };
+  const instance = (await (await post({ ...envelope, client_id: "runtime:codex", operation: "discover" })).json() as { instance_id: string }).instance_id;
+  // The built-in Agent's id, and the shape a task's grant subject takes (specs/proactive-assistant/schedule-task-reads.md §3.1).
+  for (const client_id of ["agent:prologue", "agent:task:project:install:task", "agent:"]) {
+    for (const body of [{ ...envelope, client_id, operation: "discover" },
+      { ...envelope, client_id, operation: "invoke", instance_id: instance, call_id: randomUUID(), capability: { capability_id: "nobody.provides.this", version: 1 }, input: {} }]) {
+      const answer = await post(body);
+      assert.equal(answer.status, 400, `${client_id} ${body.operation}`);
+      assert.equal((await answer.json() as { code: string }).code, "actions.input_invalid", `${client_id} ${body.operation}`);
+    }
+  }
+  assert.equal(log(), "", "a refused identity made no call, so no row was written");
+  // A Runtime and a cross-device member still reach the Host.
+  for (const client_id of ["runtime:codex", "runtime:cross-device:member"]) assert.equal((await post({ ...envelope, client_id, operation: "discover" })).status, 200, client_id);
+});

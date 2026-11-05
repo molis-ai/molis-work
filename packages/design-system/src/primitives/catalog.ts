@@ -10,7 +10,7 @@ import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";
 import { advancedFieldSection, badgeSection, buttonSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
 import { directorySection, layoutSection } from "./catalog-layout.js";
-import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, writeChinese, type Say } from "./catalog-composer.js";
+import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, writeChinese, type Say } from "./catalog-composer.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
@@ -208,7 +208,7 @@ function iconSection(): string {
 
 /**
  * `plugins` fills the icon inventory's plugin rows; the design system keeps no list of plugins (PG-075), so omitted means none.
- * `say` is the page's translator: the sections written through it (the unified input's three parts) follow the board's language.
+ * `say` is the page's translator: the sections written through it (the unified input's parts) follow the board's language.
  */
 export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say } = {}): string {
   const say = options.say ?? writeChinese;
@@ -216,7 +216,6 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${paletteSection()}
     ${typefaceSection()}
     ${iconSection()}
-    ${micSection(say)}
     ${iconInventorySection(options.plugins ?? [])}${renderStateRingCatalog()}
     ${craftSection()}
     ${motionSection()}

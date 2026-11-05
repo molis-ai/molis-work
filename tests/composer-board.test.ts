@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { COMPOSER_BOARD_EN, listedIconNames, renderIconSprite, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
+import { COMPOSER_BOARD_EN, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 
-// The unified input's three new board parts (specs/unified-input-voice/implementation-plan.md §3.6, UIC-04): the multi-row
-// composer shell, the menu item's description line and the microphone glyph. K0c's renderComposer() and K2's client use these
-// class names, so the board pins them.
+// The unified input's new board parts (specs/unified-input-voice/implementation-plan.md §3.6, UIC-04): the multi-row composer
+// shell and the menu item's description line (the microphone glyph comes with K0c). K0c's renderComposer() and K2's client use
+// these class names, so the board pins them.
 
 const sectionOf = (html: string, id: string) => {
   const start = html.indexOf(`<section class="mw-catalog__section" id="${id}"`);
@@ -23,7 +22,6 @@ test("UIC-04: the board has a composer section with every state on one attribute
   assert.match(composer, /<textarea class="mw-composer__input" data-fit rows="1"/, "the text area grows with data-fit");
   assert.match(composer, /class="mw-btn-group" role="group"[^>]*>.*data-compose-menu-toggle/s, "running sends from a split button with a ▾ menu");
   assert.match(composer, /mw-btn--danger-outline/, "stop is the danger-outline button");
-  assert.match(composer, /href="#icon-mic"/, "the microphone sits in the bar");
   // Seen through the board's English: no specimen text is left without a translation.
   const english = renderPrimitiveCatalog({ say: (text, values = {}) => {
     assert.ok(text in COMPOSER_BOARD_EN || /^(助理|发送|补充|停止|重试|失败|运行中|待确认|不可用|聚焦|让助理做点什么…)$/.test(text), `English for ${text}`);
@@ -40,13 +38,4 @@ test("UIC-04: a menu item's description line sits under its name; an unavailable
   const board = sectionOf(renderPrimitiveCatalog(), "menu-desc");
   assert.match(board, /mw-menu__shortcut/, "with shortcuts");
   assert.ok((board.match(/mw-menu__item--described"[^>]*disabled/g)?.length ?? 0) >= 2, "unavailable items with reasons");
-});
-
-test("UIC-04: the microphone is in the icon set, the sprite and the board at 16 and 20px", () => {
-  assert.ok((PLUGIN_ICON_NAMES as readonly string[]).includes("mic"));
-  assert.ok(listedIconNames().includes("mic"));
-  assert.match(renderIconSprite(), /<symbol id="icon-mic" viewBox="0 0 24 24">/);
-  const mic = sectionOf(renderPrimitiveCatalog(), "mic");
-  assert.match(mic, /--mic-size: 16px/);
-  assert.match(mic, /--mic-size: 20px/);
 });

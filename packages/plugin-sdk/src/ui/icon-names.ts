@@ -12,7 +12,7 @@ export const PLUGIN_ICON_NAMES = [
   "copy", "database", "dot", "download", "edit", "evidence", "external", "eye", "eye-off", "file", "filter", "flag",
   "folder", "folder-open", "folder-tree", "git-branch", "git-compare", "frame", "globe", "grid", "grip", "hash",
   "history", "home", "idea", "image", "impact", "inbox", "info", "input", "key", "library", "link", "list",
-  "list-ordered", "lock", "logout", "mail", "maximize", "message", "mic", "minus", "moon", "more", "network", "note",
+  "list-ordered", "lock", "logout", "mail", "maximize", "message", "minus", "moon", "more", "network", "note",
   "output", "package", "panel", "paperclip", "pause", "pin", "pin-off", "play", "plus", "question", "ready", "redo",
   "refresh", "rejected", "review", "risk", "rows", "rss", "save", "search", "send", "settings", "share", "shield",
   "sidebar", "sparkles", "star", "sun", "switch", "system", "tag", "target", "terminal", "text", "timer", "trash",

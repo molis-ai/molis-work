@@ -35,6 +35,9 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
             requirement_bindings: [{ type_id: "delivery", requirement_id: "delivered" }] });
           await actions.invoke(goalsActions.report, { goal_id: "G1", idempotency_key: "delivery-report", events: [{ type_id: "delivery", type_version: 1,
             title: "Ready", fields: { body: "Pinned result" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
+          // A report alone is the reporter's own word (PWA-144): the person accepts the requirement through the protected entry before completing.
+          await client.invoke({ ...user, user_action: { source: "web", conversation_ref: "goal-pin", message_ref: "accept-delivered" } }, goalsActions.decide,
+            { goal_id: "G1", idempotency_key: "accept-delivered", conclusion: "Delivered result accepted", accepts_requirements: true, scope: { requirement_ids: ["delivered"] } });
           const state = await actions.invoke(goalsActions.state, { goal_id: "G1" });
           const closed = await actions.invoke(goalsActions.close, { goal_id: "G1", kind: "complete", result: "Ready", reason: "Done",
             expected_config_version: state.config.version, expected_agreement_version: state.agreement.version, idempotency_key: "complete" });

@@ -29,7 +29,7 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     title: "插件判断：核对研究", description: "检查原材料", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: ["fixture:inbox"], subject_kinds: ["inbox_entry"],
     input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
   const inputs: string[] = [];
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.inbox-current", version: "1.0.0", name: "Inbox 判断插件",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.inbox-current", version: "1.0.0", name: "Inbox 判断插件",
     kind: "app", publisher: { publisher_id: "example", signature: "inbox-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: "fixture:inbox", required: true, reason: "运行插件判断" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => { assert.ok(_caller.permissions.includes("fixture:inbox")); inputs.push((input as { content: string }).content); return { status: "ok", suggested_behavior_ids: ["inbox.verify"] }; } }] }; } });

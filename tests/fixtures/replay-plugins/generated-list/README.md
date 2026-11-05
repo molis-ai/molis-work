@@ -11,3 +11,5 @@
 原始 TypeScript 与生成测试按相对路径原文保存在 [source.json](source.json)，是模型输出数据，不作为仓库实现导入或还原执行。回放只执行已签包的真实 bundle；bundle 仅保存在原签包和 v1/v2 的 files 内，不另留可执行的展开副本；原产品签名在 [release/signed-package.json](release/signed-package.json)。[v1.json](v1.json)／[v2.json](v2.json) 沿原批准方案用临时测试发布者重新签名，只改版本及升级兼容声明，源代码、界面和提示词不变，不保存私钥。包自带签名校验，不另建证据或状态清单。
 
 固定输入与预期见上级 [corpus.json](../corpus.json)，原简报见 [brief.md](brief.md)。运行不需要模型、账号或外部网络。macOS 经真实沙箱／CLI 安装预览、确认 pin、同安装升级和 Host 关闭重开；其他平台明确报告 unsupported，不能称沙箱回放通过。原失败不被后续成功覆盖，最终承载 CI／Full 与实际采用另行结算。
+
+第 02 批复位清单格式后，回放用的 v1/v2 两份包各自保留插件发布版本，两者使用同一临时测试发布者重新签名。只更新回放包的清单格式与测试发布者，原始签包和生成源码仍可按以上路径核对。

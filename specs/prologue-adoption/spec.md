@@ -109,7 +109,7 @@
 | 9 | 写后诊断 | ④ | — | SDK 只给缝（官方编码包的可选工具），Molis 不用官方包，也没有按文件的检查器 | 见 §4.4 |
 | 10 | 文字增量、停止与错误 | ④ | 原本存在（能力未用） | 共享推理已有 `onProgress`；灵光已有 NDJSON 与断连取消，但对话不走它 | 见 §4.5 |
 | 11 | 结构化生成 | ④ | — | Alchemist 把 schema 写进提示词，再用容忍围栏的解码与 zod；SDK `local` 校验不容忍围栏，`native` 只有 OpenAI 兼容线支持 | 见 §4.5 |
-| 12 | 变化等待口 | ④ | 原本存在 | 助理工作运行中每 1.2 秒读整个工作；Schedule 每 400 毫秒读 Run；`agent.run.wait.v1` 已有 | 见 §4.5；`runViewVersion` 已随 §4.1 扩充 |
+| 12 | 变化等待口 | ④ | 原本存在 | 助理工作运行中每 1.2 秒读整个工作；Schedule 每 400 毫秒读 Run；`agent.run.wait` 已有 | 见 §4.5；`runViewVersion` 已随 §4.1 扩充 |
 | 13 | Coding 子代理交回与续做 | ③+④ | 升级后才出现 | 新包对后台子任务**总是**回灌；`dispatch-subagent` 的 `yield` 对模型可见，让出后的叫醒绕过 Molis 的启动索引、派出检查、项目工作与审查桥，重启后会被判为「缺少宿主启动索引」而挡住会话 | 先拒绝 `yield`（§4.1）；再接通（§4.6） |
 | 14 | 助理 Work 委托的交回与续做 | ② | 原本存在 | 子工作在父工作这一轮结束后才完成时：不通知人、不续做父工作，父工作只在下一轮主动查询时才知道 | 见 §4.6 |
 | 15 | 休眠 | ③/④ | 升级后才有 | — | 见 §4.7 |
@@ -388,7 +388,7 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 | `boards.attemptOf(run)` | 视图投影用，不另暴露 | 操作卡、待答问题、动作调用编号挂回节点都经它推出（跨线 X2、X3） |
 | 错误码 `TASKBOARD_NOT_BOUND`、`TASKBOARD_STALE_GENERATION`、`TASKBOARD_CONTINUATION_CONFLICT`、`WAIT_ALREADY_ARMED`、`WAIT_CHECKER_UNKNOWN`、`WAIT_CONDITION_INVALID` | `agent.collaboration_not_bound`、`agent.collaboration_stale`、`agent.collaboration_conflict`、`agent.collaboration_wait_armed`、`agent.collaboration_checker_unknown`、`agent.collaboration_condition_invalid`（以主人名开头，W3-02；在 `tooling/gates/error-owners.json` 的 `agent` 名下登记） | 给人的原因文字由 Host 写 |
 
-**动作（不新增 typed capability，防腐决定 #1）**：`agent.collaboration.read.v1`（`kind: query`、`operation: query`、`effect: read`：按 `board_id` 或 `run_id` 读视图）；`agent.collaboration.revise.v1`（`kind: operation`、`operation: command`、`effect: write`：人修订计划，带 `expected_version`，沿用现有修订种类并加取消节点、重试节点；P4 替换 `agent.run.step-board.amend.v1`）；`agent.collaboration.control.v1`（`kind: operation`、`operation: command`、`effect: write`：`kind: "cancel-wait" | "continue-now" | "retry" | "resolve-reconciliation"`，带 `expected_version` 与节点 / 等待 / 接续引用；`continue-now` 带 `on_early_continue: keep | cancel`）。actor、项目、安装都从调用上下文取。旧的 `agent.waits.read/await/resume/cancel.v1`、`agent.run.step-board.amend.v1` 在 P4 没有调用方后同一批删除（阶段一不留兼容）；以后这几个动作的形状变了就升 `version`，同一个 PR 里先 `pnpm build` 再 `pnpm actions:update`；MCP 不改已有工具名。revise 现行是 `agent.collaboration.revise.v2`（回执 3d-3 加 insert 的 `origin`，#700）。
+**动作（不新增 typed capability，防腐决定 #1）**：`agent.collaboration.read`（`kind: query`、`operation: query`、`effect: read`：按 `board_id` 或 `run_id` 读视图）；`agent.collaboration.revise.v1`（`kind: operation`、`operation: command`、`effect: write`：人修订计划，带 `expected_version`，沿用现有修订种类并加取消节点、重试节点；P4 替换 `agent.run.step-board.amend.v1`）；`agent.collaboration.control`（`kind: operation`、`operation: command`、`effect: write`：`kind: "cancel-wait" | "continue-now" | "retry" | "resolve-reconciliation"`，带 `expected_version` 与节点 / 等待 / 接续引用；`continue-now` 带 `on_early_continue: keep | cancel`）。actor、项目、安装都从调用上下文取。旧的 `agent.waits.read/await/resume/cancel.v1`、`agent.run.step-board.amend.v1` 在 P4 没有调用方后同一批删除（阶段一不留兼容）；以后这几个动作的形状变了就升 `version`，同一个 PR 里先 `pnpm build` 再 `pnpm actions:update`；MCP 不改已有工具名。revise 现行是 `agent.collaboration.revise`（回执 3d-3 加 insert 的 `origin`，#700）。
 
 **输入、待答问题、操作卡挂到同一张图（跨线 X1–X3）**：
 
@@ -430,7 +430,7 @@ P1 冻结的是语义（§4.6.9）。这一节写 P3 在 Molis 一侧具体怎�
 | 派出复核 | `collaborationHost.admitDispatch`：沿用 `verifySubagentStart` 的角色、目录核对，再跑这一跑的 `beforeDispatch`（授权、安装、停用）。拒绝就带原因码 | 共享用量账的预留这一刀不做，PA-07 的预算一半留到 P4（那里有工作级额度） |
 | 接续起跑 | 不给 `startContinuation`。接续满足后停在 `eligible`；Coding 插件看到它，用接续的请求键起跑（`startAgentRun` 的 `agent.idempotencyKey` 填请求键，`collaboration` 填接续所在的那一步）。这一轮走 Coding 自己的 `startRound`，所以照常经过宿主开跑前的全部复核 | §4.6.9 写由协作口起跑。改的理由：Coding 一轮开始时插件还要做自己的账（会话状态、跟随这一跑、委派的接受、标题），宿主替它起跑会漏掉这些；SDK 明确支持「App 看图事件，自己用请求键起」这条路，开跑的唯一入口仍是同一个。助理在 P4 若要宿主直接起跑，再接协作口 |
 | 人排队等另一个会话那一轮 | 宿主在排队会话的那一块上以 app 身份 `arm` 一个等待，条件是同一张板上那一轮的节点（`node`），`onFailure: block`。排进去的那一轮的请求体由 Coding 自己存（`queued:<wait>`），等待上不挂数据（`HeldWait` 没有 `data`）。人不等了、直接开始那一轮（开跑请求带 `queued_work_id`，接过那一项）时，宿主撤掉这条等待（`queueTakenOver`），那边做完不会再起一轮 | — |
-| 等待的读与控制 | 新合同子路径 `services/agent-collaboration`，两个动作和一个等待：<br>• `agent.collaboration.read.v1`（动作）：每个会话一条视图，是它还要紧的最近一条等待（还在等，或接续还没被接上、没被放弃）；<br>• `agent.collaboration.await.v1`（typed，`operation: wait`，在 `agentHostCapabilities.awaitContinuations`：动作不能是等待）：项目里可以接着做或留给人的接续，最多等 25 秒；<br>• `agent.collaboration.control.v1`（动作）：本刀只做 `cancel-wait`、`continue-now`。等待已经结束、它那一步留给人决定时（失败、到期、要核对），`cancel-wait` 把那一步交还（SDK 没有别的出口），视图从此不再列它。<br>旧的 `agent.waits.read/await/resume/cancel` 只有 Coding 在调，同一刀删掉 | §4.6.9 只列了 read / revise / control。`await` 是加的：Coding 要「等到有一条能接着做」而不轮询。`revise`（替换 `step-board.amend`）、`control` 的 `retry` / `resolve-reconciliation` 留到 P4。P1 写过「不新增 typed」：`await` 是 typed，因为动作的 operation 只有 query、command，长等待的先例是 `agent.run.wait.v1`；它顶替旧的四个 typed（`agent.waits.*`），净减 3，旧 id 不留别名（统筹 2026-10-15 同意）。要做成动作，得等动作合同加上 wait 这种 operation |
+| 等待的读与控制 | 新合同子路径 `services/agent-collaboration`，两个动作和一个等待：<br>• `agent.collaboration.read`（动作）：每个会话一条视图，是它还要紧的最近一条等待（还在等，或接续还没被接上、没被放弃）；<br>• `agent.collaboration.await`（typed，`operation: wait`，在 `agentHostCapabilities.awaitContinuations`：动作不能是等待）：项目里可以接着做或留给人的接续，最多等 25 秒；<br>• `agent.collaboration.control`（动作）：本刀只做 `cancel-wait`、`continue-now`。等待已经结束、它那一步留给人决定时（失败、到期、要核对），`cancel-wait` 把那一步交还（SDK 没有别的出口），视图从此不再列它。<br>旧的 `agent.waits.read/await/resume/cancel` 只有 Coding 在调，同一刀删掉 | §4.6.9 只列了 read / revise / control。`await` 是加的：Coding 要「等到有一条能接着做」而不轮询。`revise`（替换 `step-board.amend`）、`control` 的 `retry` / `resolve-reconciliation` 留到 P4。P1 写过「不新增 typed」：`await` 是 typed，因为动作的 operation 只有 query、command，长等待的先例是 `agent.run.wait`；它顶替旧的四个 typed（`agent.waits.*`），净减 3，旧 id 不留别名（统筹 2026-10-15 同意）。要做成动作，得等动作合同加上 wait 这种 operation |
 | 让出 | 删 `subagentYieldGuard`。`dispatch-subagent` 带 `yield` 按 SDK 走：派出、这一步等孩子那一步、收工；孩子那一步结束，接续 `eligible`，Coding 起下一轮 | PA-23 的「不开放私有自动续做」改由 PA-08、PA-11 证明 |
 | 宿主代用户发的「优先」notice | 不再发成信，改由宿主直接告诉范围重叠、此刻正在跑的那几轮（宿主来源的补充）。理由有两条：agents 受众的信只能在相邻的步骤之间走；`people` 受众的信又到不了对方的模型那里。没有在跑的会话不再收到这句话：它下一轮开跑时，项目工作摘要会写出重叠 | — |
 | 信交给收件人 | 「子任务一律不能发信」删掉：能不能发、发给谁由 SDK 的位置检查决定（同一项目的会话在项目板上是兄弟，子任务是会话那一块的孩子）。宿主的发信钩子只留三件事：说清不能发的（发给自己、发给别的项目、发给子任务）、把「范围重叠的会话」换成名单、群发上限 5 个。收件人还没有在项目板上的那一块时（它从没跑过一轮），发信之前先给它放上（`place`），不然 SDK 找不到它的位置。会话的信件列表只列四种信（request、notice、reply、handoff），宿主给正在跑的那一轮的 inject 不算信。宿主仍负责把信交给收件人正在跑的那一轮，孩子的跑也算在内（`watchChild` 给每个孩子都登记了 steer）；没在跑的主会话，信留到它下一轮的收件箱。Runtime 自己写回的信（`inject`：子任务回报、等待带回的结果）由 SDK 自己交 | — |
@@ -589,7 +589,7 @@ SDK 专题见[§6.0l App-tools 外部等待](coordination-records.md#60l-app-too
 
 | 编号 | 标准 | 拒绝或反例 | 用例 |
 | --- | --- | --- | --- |
-| PA-25 | 人在项目设置里存检查器，版本从 1 起，带 `expected_version` 改 | Agent 一轮里的工具、MCP 客户端、工作流、别的插件调 `agent.write_checkers.save.v1` 都被拒，配置不变；版本过时的保存被拒 | `tests/coding-checkers-settings.test.ts` |
+| PA-25 | 人在项目设置里存检查器，版本从 1 起，带 `expected_version` 改 | Agent 一轮里的工具、MCP 客户端、工作流、别的插件调 `agent.write_checkers.save` 都被拒，配置不变；版本过时的保存被拒 | `tests/coding-checkers-settings.test.ts` |
 | PA-26 | 只能给此刻已授权、`realpath_verified` 的工作区存；撤回授权后写入观察写「未检查：工作区授权已撤回」，不起审查 | 给没授权的工作区存被拒；撤回后零审查、零进程 | `tests/coding-checkers-settings.test.ts` |
 | PA-27 | 检查用的 argv 与配置逐项相同，只把 `{file}` 换成写入回执里的路径 | 写入的文件里写着 `// checker: rm -rf .`、`package.json` 里有 scripts，argv 照旧；写入调用多带 `command` 字段被写入工具的合同拒 | `tests/coding-diagnose-after-write.test.ts` |
 | PA-28 | `{file}` 作为一个完整参数；`-rf.js` 写成 `./-rf.js`；带空格、`;` 的路径原样是一个参数 | `--file={file}`、`{file}` 出现两次、配置带 `grants` 或 `env_allowlist`、时长超出 1,000–60,000、`executable` 带路径、空白或 shell 符号或是 `NEVER_RUN` 里的名字、`cwd` 首尾带空白、以盘符加分隔符开头（含 normalize 之后才露出来的 `./ /etc`、`./C:/x`）或落在 `.git`、`node_modules`、`.prologue` 里的保存都被拒，拒绝的提示语按类核对；`.github/workflows`、`node_modules_cache`、`C:x` 照存 | `tests/coding-checkers-settings.test.ts`、`tests/security-invariants-checkers.test.ts` |
@@ -631,7 +631,7 @@ Prologue #45（写后检查交回一条命令）和 #47（执行器拿到检查�
 
 A2-1 另外三条：
 
-- **动作 id 是 `agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`**，不是 `agent.checkers.*`：id 会出现在动作目录、Agent 的工具清单和 MCP 工具名里，「checkers」在那里和等待用的条件检查器分不开。代码和存储 kind 都叫 write-checker，`docs/system/GLOSSARY.md` 把「写后检查器」和「等待检查器」分开写。
+- **动作 id 是 `agent.write_checkers.list`、`agent.write_checkers.save`**，不是 `agent.checkers.*`：id 会出现在动作目录、Agent 的工具清单和 MCP 工具名里，「checkers」在那里和等待用的条件检查器分不开。代码和存储 kind 都叫 write-checker，`docs/system/GLOSSARY.md` 把「写后检查器」和「等待检查器」分开写。
 - **SSOT 写明例外。** `docs/SSOT-MATRIX.md` 第 6 节原来说横向服务只存技术状态；改成照实写：`agent-host` 另外保存人保存的 Agent 配置，只有外部 MCP 服务器、装进项目的 Skill、写后检查器三类，各在「Agent Host 保存的人的配置」表里有一行；不顺带搬家，也不扩大范围。
 - **安全不变量随 A2-2 登记。** 保存时的校验（受众、已授权工作区、`{file}` 的写法、时长、cwd）不是安全边界；边界在 A2-2 的执行器上，执行时再核一次授权。所以 §6.0p.6 那一行和 `tests/security-invariants-checkers.test.ts` 随 A2-2 加。
 
@@ -650,7 +650,7 @@ A2-1 做到的（PA-25 全部，PA-26 与 PA-28 中保存的那一半，用例 `
 - **`cwd` 跑的就是写的那个目录。** 保存时拒首尾带空白的（SDK 的 `normalizeRelativePath` 先去掉首尾空白再查，存下的和跑的会是两个目录）、以盘符加分隔符开头的（`C:/x`、`C:\x`，和 SDK 的 `/^[A-Za-z]:[\\/]/` 一字不差；`C:x`、`a:b` 在 macOS 和 Linux 上是根下的普通目录名，SDK 照跑，所以照存）、出根的，和落在 `.git`、`node_modules`、`.prologue` 里的（SDK 的 `PROTECTED_SEGMENTS`，按整段比：`.github/workflows`、`node_modules_cache` 照存）。存下的是 SDK 规范化之后的写法：`./tools` 存成 `tools`，尾部的 `/` 去掉（`src/` 存成 `src`，`./` 存成 `.`）。执行器拿存下的目录和写入的路径逐字比，带着斜杠存下，这个检查器对哪个文件都不生效，模型还会被告知“没有适用的检查器”（评审 #822）。
 - **这些规则先抄、等 SDK 导出。** 上面几条 SDK 都没有导出，`write-checker-actions.ts` 先抄一份，逐条注明出处（`prepareCommand`、`runCommand` 的 `NEVER_RUN`、`normalizeRelativePath` 的 `PROTECTED_SEGMENTS`）。BL-220 请 Prologue 导出一个判定函数（如 `checkAfterWriteCommand({ executable, argv, cwd, timeoutMs })`），保存时调它，导出以后删掉抄的。（第一版只拒路径和受保护目录，统筹复审 #757 时指出 `npx eslint`、`eslint;rm`、`rm`、` /etc` 仍然存得进、跑不了，10-19 补齐。复审 #757 第二版时又指出两处：空白和盘符是在 normalize 之前查的，`./ /etc`、`./C:/x` 存下来是 ` /etc`、`C:/x`；盘符规则比 SDK 宽。统筹 10-19 定：这两项改在 normalize 之后、对要存下的值查，盘符收窄到和 SDK 一样；原则是保存时拒的和 SDK 执行时拒的一条对一条，以后换成 SDK 导出的判定函数，行为不变。）
 - **去掉 `env_allowlist`。** 合同、schema、存储的形状里都删掉；带它的保存是 `actions.input_invalid`。存储只认现行的字段，存量里带这一项的记录读不了（A2-1 没有页面，开发机之外没有存量）。
-- **两个动作升到第 2 版，id 不变。** 输入输出的形状变了（少了 `env_allowlist`），按 `docs/system/CONTRACT-CHANGES.md` 第 3 节第 3 条升 `version`；不留第 1 版（阶段一不留兼容期），id 照 `agent.project-work.queue.v1` 的先例不改。受众只有 `user`、还没有页面调它，没有工作流步骤、MCP 工具或 Skill 固定过第 1 版。
+- **两个动作升到第 2 版，id 不变。** 输入输出的形状变了（少了 `env_allowlist`），按 `docs/system/CONTRACT-CHANGES.md` 第 3 节第 3 条升 `version`；不留第 1 版（阶段一不留兼容期），id 照 `agent.project-work.queue` 的先例不改。受众只有 `user`、还没有页面调它，没有工作流步骤、MCP 工具或 Skill 固定过第 1 版。
 - **设置放平台的项目设置。** A2-3 的设置页放在平台自己的项目设置节里，和工作区授权在一起，不挂在 Coding 的设置页上；执行器按会话的声明启用，不按插件名（§6.0p.2 跟着改）。
 
 用例：`tests/coding-checkers-settings.test.ts` 的 PA-28 加了这几种拒绝。
@@ -741,7 +741,7 @@ A2-1 做到的（PA-25 全部，PA-26 与 PA-28 中保存的那一半，用例 `
 | 用户 10-17 · Q3 同意（[§6.0q](diagnostic-records.md#60q-p4-助理一半-a4work-视图按合同取委派上限是一张表存量用一次性脚本2026-10-17) 第 4 条） | 在真实 Home 助理数据的只读拷贝上演练：只拷助理库和 Prologue 的库文件，先列出会改多少项，再在拷贝上跑一遍；不读密钥，不碰 Home 主密钥的钥匙串条目；跑完删拷贝。真实的库只在装下一个版本时、和维护八同一步写，那时再问用户 | 演练不写真实数据；真正的写入和维护在同一次安装里 |
 | 统筹 10-17 · Q4 不是（[§6.0q](diagnostic-records.md#60q-p4-助理一半-a4work-视图按合同取委派上限是一张表存量用一次性脚本2026-10-17) 第 6 条） | A4 只改代码和脚本；3 号基线（删 `assistant_jobs`）另做一片，节奏跟维护八和 BL-157 的门禁走 | 改基线要带维护，会动真实 Home |
 | 统筹 10-18 定 · A2 对照 #45、#47 的四处（§6.0p.10） | 一次写入只跑配置里第一个适用的检查器；截断用 SDK 的 `config.tool.observation`；观察是 SDK 写的，Molis 只写「未检查」的原因；审查卡用 `isAfterWriteCheckOperationKey` 认，名和版本按执行器记下的（run，`operationKey`）读 | SDK 的缝一次只收一条命令、自己截断、自己写观察；键只在一轮里唯一，拿命令反查要靠保存时多一条唯一规则 |
-| 统筹 10-18 定 · A2-1 的 id 与 SSOT（§6.0p.10） | 动作 id `agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`，受众只有 `user`；SSOT 写明 `agent-host` 只另存三类人保存的 Agent 配置（MCP、Skill、写后检查器）；安全不变量随 A2-2 | id 会进动作目录、工具清单和 MCP 工具名，「checkers」和等待检查器分不开；保存时的校验不是边界，边界在执行器 |
+| 统筹 10-18 定 · A2-1 的 id 与 SSOT（§6.0p.10） | 动作 id `agent.write_checkers.list`、`agent.write_checkers.save`，受众只有 `user`；SSOT 写明 `agent-host` 只另存三类人保存的 Agent 配置（MCP、Skill、写后检查器）；安全不变量随 A2-2 | id 会进动作目录、工具清单和 MCP 工具名，「checkers」和等待检查器分不开；保存时的校验不是边界，边界在执行器 |
 
 ### 7.8 工作规则
 

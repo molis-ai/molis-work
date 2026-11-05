@@ -48,7 +48,7 @@ function consentProbe() {
     audiences: ["user"], permissions: [run], subject_kinds: [], input_schema: { type: "object", additionalProperties: false, required: ["mode", "action", "input"],
       properties: { mode: { enum: ["own", "invoke", "query", "delegate"] }, action: { enum: ["list", "revoke"] }, input: { type: "object" } } },
   } };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "Consent entry probe", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Consent entry probe", kind: "app",
     publisher: { publisher_id: "example", signature: "consent-entry-probe" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: true, reason: "Exercise an authorized plugin's clients" })),
     capabilities: { provides: [], consumes: Object.values(pluginConsentActions).map(item => item.capability_id) },
@@ -97,7 +97,7 @@ test("RAC-393-PAGE RAC-393-DELEGATE S-77 a real plugin page with user_action and
 
 test("RAC-390-LIVE S-77 a running Host reconciles a revoked default on the next project request and never rebinds it", async t => {
   const id = "io.molis.work.example.consentreader", signature = "consent-reader", source = { plugin_id: "io.molis.work.files", port: "before" };
-  const reader: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "Consent reader", kind: "app",
+  const reader: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Consent reader", kind: "app",
     publisher: { publisher_id: "example", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "artifact:read", required: true, reason: "Read the explicitly agreed snapshot input" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [{ artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION }] },

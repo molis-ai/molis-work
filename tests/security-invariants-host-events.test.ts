@@ -34,7 +34,7 @@ const OWNER: ActionCallContext = { actor_id: "owner", project_id: DEMO_PROJECT_I
 
 function manifestFor(pluginId: string, subscribes: PluginEventSubscribeDeclaration[], actions: ActionDefinition[] = [],
   permissions: PluginPermissionDeclaration[] = []): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${pluginId.split(".").at(-1)}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     events: { publishes: [{ event_type_id: `${pluginId}.noted`, type_version: 1 }], subscribes }, actions, upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };

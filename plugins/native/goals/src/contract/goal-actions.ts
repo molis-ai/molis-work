@@ -33,7 +33,7 @@ export const goalPluginActions = {
       next_cursor: { type: ["string", "null"] }, observed_event_cursor: count }), true), "candidates"),
   /** Version 2 (S8): the output no longer carries the board's name. */
   contract: { ...goalAction<GoalReadActionInput, GoalContractView>("goals.contract.read", "读取目标约定与历史资料",
-    "读取指定目标的原始约定、上级覆盖、关系、生效规则、项目长期说明和相关结构提案；包含归档及回收站目标。当前工作状态通过 goals.state.read 读取", "query", goalInput, goalContractSchema, true), version: 2 },
+    "读取指定目标的原始约定、上级覆盖、关系、生效规则、项目长期说明和相关结构提案；包含归档及回收站目标。当前工作状态通过 goals.state.read 读取", "query", goalInput, goalContractSchema, true), version: 1 },
   state: goalAction<GoalReadActionInput, GoalEventStateView>("goals.state.read", "读取目标状态", "读取当前约定、要求、报告摘要、决定及收尾状态；历史正文通过事件读取", "query", goalInput, goalStateSchema, true),
   progress: goalAction<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>("goals.progress.record", "记录目标进展", "记录基于当前目标事件游标的进展与下一步；事务内核对预期 Goal 版本。可附成果引用，引用不代表成果内容已验证", "command",
     object({ ...base, based_on_cursor: count, summary: identifier, next_step: text, next_actor: text,

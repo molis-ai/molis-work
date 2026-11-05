@@ -26,7 +26,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 function manifest(extra: Partial<PluginManifest> & Record<string, unknown>, permissions = ["connections:use"]): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.connectionsmanifest", version: "1.0.0", name: "Connections", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.connectionsmanifest", version: "1.0.0", name: "Connections", kind: "app",
     publisher: { publisher_id: "example", signature: "connections-manifest" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: false, reason: "连接服务测试声明" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, ...extra,

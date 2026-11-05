@@ -74,7 +74,7 @@ test("RAC-400 the management entry refuses an unregistered Goals tool as missing
       project_id: env.project.project_id, call_id: randomUUID(), capability, input }) });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   };
-  const refused = await post({ capability_id: "goals.board.initialize", version: 2 }, { idempotency_key: randomUUID() });
+  const refused = await post({ capability_id: "goals.board.initialize", version: 1 }, { idempotency_key: randomUUID() });
   assert.equal(refused.body.code, "actions.missing", JSON.stringify(refused.body));
   assert.ok(refused.status >= 400 && refused.status < 500, `a refusal the caller can read, not a failure: ${refused.status}`);
   assert.deepEqual(goalFacts(), before, "the refused initialize created no Goal table, board or Goal fact");

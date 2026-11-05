@@ -35,7 +35,7 @@ async function started(t: Parameters<typeof serveHomeRuntime>[0], probe = projec
   return { ...served, ...granted, probe, remove, exist: (ids: string[]) => action.invoke(probe.caller(), probe.exist, { ids }) as Promise<Record<string, boolean>> };
 }
 
-const manifestWithout = (declared: boolean): PluginManifest => ({ schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.projectsunit", version: "1.0.0", name: "projectsunit", kind: "app",
+const manifestWithout = (declared: boolean): PluginManifest => ({ schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.projectsunit", version: "1.0.0", name: "projectsunit", kind: "app",
   publisher: { publisher_id: "example", signature: "projects-unit" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: declared ? [{ permission: PLUGIN_PROJECTS_EXIST_PERMISSION, required: false, reason: "Ask" }] : [],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] });

@@ -202,7 +202,7 @@ function probe(version: string, options: ProbeOptions = {}): PluginDefinition {
     : {};
   return {
     manifest: {
-      schema_version: 2, host_api_version: 2, plugin_id: ID, version, name: ID, kind: "app",
+      schema_version: 1, host_api_version: 1, plugin_id: ID, version, name: ID, kind: "app",
       publisher: { publisher_id: "molis", signature: "lifecycle-probe-binding" },
       entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },

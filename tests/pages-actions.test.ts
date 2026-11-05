@@ -226,10 +226,10 @@ const selection = (over: Record<string, unknown>, request_id = "req-1") => ({ re
   object: { kind: "pages_document", id: "doc-1", version: 3, title: "留存计划" }, granularity: "range",
   targets: [{ kind: "text_range", role: "paragraph", text: "接口先不改，只加一层适配。" }], ...over } }) as never;
 
-test("W4-2-06 W4-2-12: 存为文档 is declared on pages.create@2 with its own deterministic offers query, and the declarations check", () => {
-  assert.equal(actions.create.version, 2);
-  // RAC-633-MIG-01: only creation and the revised subject reader have version 2; all other contracts stay at version 1.
-  for (const action of Object.values(actions)) assert.equal(action.version, ["pages.create", "pages.subject.read"].includes(action.capability_id) ? 2 : 1, action.capability_id);
+test("W4-2-06 W4-2-12: 存为文档 is declared on pages.create@1 with its own deterministic offers query, and the declarations check", () => {
+  assert.equal(actions.create.version, 1);
+  // RAC-633-MIG-01: the current directory exposes the revised shapes at the common starting version.
+  for (const action of Object.values(actions)) assert.equal(action.version, 1, action.capability_id);
   const intake = actions.create.action.intake!;
   assert.deepEqual([intake.intake_id, intake.verb, intake.material_field, intake.effect, intake.prepare], ["document", "存为文档", "markdown", undefined, { capability_id: "pages.intake.offers", version: 1 }]);
   assert.ok(intake.examples.length >= 1 && intake.examples.length <= 3);
@@ -243,7 +243,7 @@ test("W4-2-06: the offer is the whole input of pages.create from the selection: 
     const offerOf = async (over: Record<string, unknown>, request = "req-1") => (await bound.invoke(actions.intakeOffers, selection(over, request))).offers;
     // Under a heading: the nearest heading names it; the text is the selection, then where it came from.
     const [under] = await offerOf({ heading_path: ["方案", "兼容性"] });
-    assert.deepEqual([under!.offer_id, under!.title, under!.action], ["document", "存为文档", { capability_id: "pages.create", version: 2 }]);
+    assert.deepEqual([under!.offer_id, under!.title, under!.action], ["document", "存为文档", { capability_id: "pages.create", version: 1 }]);
     assert.deepEqual(under!.input, { title: "兼容性", markdown: "接口先不改，只加一层适配。\n\n摘自『留存计划』", request_id: "req-1" });
     assert.deepEqual(under!.editable, ["title", "markdown"]);
     // No heading: the selection's own first line, without a list marker.

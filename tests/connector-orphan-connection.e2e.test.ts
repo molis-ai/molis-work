@@ -32,7 +32,7 @@ async function diagnosticStatus(url: string): Promise<number | "unreachable"> {
 /** What a signed integration package declares; `attach` reads the declarations only, nothing runs. */
 function packageManifest(): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Orphan probe", kind: "integration",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Orphan probe", kind: "integration",
     publisher: { publisher_id: "example", signature: newPublisher().identity },
     entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }],

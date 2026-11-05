@@ -8,7 +8,7 @@ import type { PluginDefinition, PluginEventDeliveryContext } from '@molis-ai/mol
 export const EVENT_BOARD = 'crash-board', EVENT_SOURCE = 'io.molis.work.event-source', EVENT_SUBSCRIBER = 'io.molis.work.event-subscriber', EVENT_TYPE = EVENT_SOURCE + '.changed';
 export function eventCrashDefinition(id: string, handler?: (context: PluginEventDeliveryContext) => void | Promise<void>): PluginDefinition {
   const publishes = id === EVENT_SOURCE ? [{ event_type_id: EVENT_TYPE, type_version: 1 }] : [];
-  return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: '1.0.0', name: id, kind: 'app',
+  return { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: '1.0.0', name: id, kind: 'app',
     publisher: { publisher_id: 'fixture', signature: id }, entrypoints: [{ deployment: 'local', entrypoint: './event.mjs' }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [id + '.main'], views: [{ view_id: 'main', slot: 'stage', title: 'Main' }] },

@@ -31,7 +31,7 @@ const diffPrimitives = (locale: ActionLocale) => ({ ...pagePrimitives(locale), t
 
 const source: PluginDefinition & { outputs?: PluginOutputsClient } = {
   manifest: {
-    schema_version: 2, host_api_version: 2, plugin_id: SOURCE, version: "1.0.0", name: SOURCE, kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: SOURCE, version: "1.0.0", name: SOURCE, kind: "app",
     publisher: { publisher_id: "molis", signature: `${SOURCE}-binding` },
     entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "artifact:write", required: true, reason: "Hand on a snapshot" }],

@@ -42,7 +42,7 @@ const DEPENDENCY: ActionDefinition<Record<string, never>, string> = {
 };
 
 function manifestOf(pluginId: string, signature: string): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
     publisher: { publisher_id: "molis", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: WRITE, required: true, reason: "保存记录" }], capabilities: { provides: [], consumes: [DEPENDENCY.capability_id] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [SAVE, READ] };

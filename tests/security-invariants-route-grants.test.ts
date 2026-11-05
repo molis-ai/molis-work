@@ -13,7 +13,7 @@ const OWNER_PERMISSION = "home:write";
 /** A plugin whose `owned` route declares a permission the person also holds as owner; optional, so its installation is not given it. */
 function ownerNamedRoute(scope: "home" | "project") {
   const id = `io.molis.work.example.owner-route-${scope}`, reached: string[] = [];
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: `Owner route ${scope}`,
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: `Owner route ${scope}`,
     kind: "app", publisher: { publisher_id: "example", signature: `owner-route-${scope}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: OWNER_PERMISSION, required: false, reason: "A route that names one of the person's own permissions" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

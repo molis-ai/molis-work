@@ -36,7 +36,7 @@ export async function pluginSchedulerFixture(t: TestContext, options: { director
     let onWake: (caller: ActionExecutionContext, input: unknown) => Promise<unknown> = async () => ({ detail: "done" });
     const wake: ActionDefinition = { capability_id: wakeupId, version: 1, operation: "command", action: { ...command.action, audiences: ["plugin"], scheduling: "concurrent",
       input_schema: { type: "object" }, output_schema: { type: "object" } } };
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name, version: "1.0.0", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name, version: "1.0.0", kind: "app",
       publisher: { publisher_id: "probe", signature: "probe-" + name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: ["storage:private", "schedule:read", "schedule:write"].map(permission => ({ permission, required: true, reason: "保存任务与闹钟" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [command, wake], background: { jobs: [], wakeups: [{ action: { capability_id: wakeupId, version: 1 }, reason: "Execute a scheduled task" }] },

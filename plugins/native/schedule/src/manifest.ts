@@ -16,8 +16,8 @@ export const SCHEDULE_PLUGIN_ID = "io.molis.work.schedule";
 export const SCHEDULE_PROJECT_PLUGIN_ID = "schedule";
 
 export const scheduleManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: SCHEDULE_PLUGIN_ID,
   version: "0.3.0",
   name: "Schedule",

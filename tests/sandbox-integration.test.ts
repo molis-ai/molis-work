@@ -32,7 +32,7 @@ const SERVICE = service("example-feed", { origins: ["https://api.example-feed.co
 
 function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Feed probe", kind: "integration",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Feed probe", kind: "integration",
     publisher: { publisher_id: "io.example", signature: "example-signature-v1" },
     entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }],

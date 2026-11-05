@@ -16,7 +16,7 @@ const action: ActionDefinition = { capability_id: 'fixture.future.read', version
 function futurePlugin(): PluginRegistration {
   const id = 'io.molis.work.future', contribution = id + '.panel';
   return { project_plugin_id: 'future', catalog_order: 1, summary: 'Future plugin',
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: '1.0.0', name: 'Future', kind: 'native',
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: '1.0.0', name: 'Future', kind: 'native',
       publisher: { publisher_id: 'fixture', signature: 'fixture' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }],
       permissions: [{ permission: 'fixture:read', required: false, reason: 'read fixture' }], actions: [action],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },

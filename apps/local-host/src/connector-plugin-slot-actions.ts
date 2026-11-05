@@ -9,8 +9,8 @@ import { shownState } from "./connector-refresh-refusals.js";
 // Which of the person's accounts a plugin installation's connection slot uses (`services.connections`, S0b-2, S-57). Only the person
 // binds: the audience is `user`, so neither a plugin page nor an Agent nor MCP can choose the account a plugin sends requests with.
 // Binding checks the installation's Manifest (BL-350): an installation of that plugin in the caller's project (or the Home's) that
-// declares the slot, for that service and with that kind of binding; the plugin's send checks the declaration again. Version 1 binds an
-// `installation` slot: one account for the installation, in every project. Version 2 binds a `per_record` slot (S-71 provisional): one
+// declares the slot, for that service and with that kind of binding; the plugin's send checks the declaration again. The installation action binds an
+// `installation` slot: one account for the installation, in every project. The record action binds a `per_record` slot (S-71 provisional): one
 // account for one of the plugin's records, in the caller's project.
 
 const slot = {
@@ -45,12 +45,12 @@ export const connectorPluginSlotActions = {
       connection_id: { anyOf: [{ type: "string", pattern: "^[a-z0-9-]{1,100}$" }, { type: "null" }] } },
     required: ["install_id", "plugin_id", "slot_id", "service_id", "connection_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { connection: { type: ["object", "null"] } }, required: ["connection"], additionalProperties: false } } } as ActionDefinition<SlotInput & { service_id: string; connection_id: string | null }, { connection: ConnectorConnectionView | null }>,
-  readRecord: { capability_id: "connectors.plugin_slot.read", version: 2, operation: "query", action: { ...metadata, scope: "project",
+  readRecord: { capability_id: "connectors.plugin_slot.record.read", version: 1, operation: "query", action: { ...metadata, scope: "project",
     title: "查看插件记录的账号", description: "读取本项目里一个插件安装按记录绑定的连接槽上，某条记录绑定的账号；没有绑定时插件为这条记录发的请求不带凭据。不返回凭据。",
     kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ],
     input_schema: { type: "object", properties: record, required: ["install_id", "plugin_id", "slot_id", "record_key"], additionalProperties: false },
     output_schema: result } } as ActionDefinition<RecordInput, { connection: ConnectorConnectionView | null }>,
-  bindRecord: { capability_id: "connectors.plugin_slot.bind", version: 2, operation: "command", action: { ...metadata, scope: "project",
+  bindRecord: { capability_id: "connectors.plugin_slot.record.bind", version: 1, operation: "command", action: { ...metadata, scope: "project",
     title: "为插件的一条记录选择账号", description: "在本项目里，把本人的一条已连通的服务连接绑定到插件安装按记录绑定的连接槽上的一条记录，或传 connection_id: null 解除绑定。只认这个项目（或 Home）里安装、在 Manifest 里声明为 per_record 的槽。插件看不到凭据。",
     kind: "operation", effect: "write", permissions: [CONNECTOR_MANAGEMENT_WRITE],
     input_schema: { type: "object", properties: { ...record, ...binding }, required: ["install_id", "plugin_id", "slot_id", "record_key", "service_id", "connection_id"], additionalProperties: false },
@@ -96,11 +96,11 @@ export function connectorPluginSlotHandlers(home: string, declarations: PluginSl
         : store.bind({ scopeId: pluginSlotScope(input.install_id), pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id }));
       return { connection: bound(home, input) };
     } },
-    { capability_id: connectorPluginSlotActions.readRecord.capability_id, version: 2, handle: (caller, value) => {
+    { capability_id: connectorPluginSlotActions.readRecord.capability_id, version: 1, handle: (caller, value) => {
       const input = value as RecordInput;
       return { connection: bound(home, input, recordScope(caller, input)) };
     } },
-    { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: 2, handle: async (caller, value) => {
+    { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: 1, handle: async (caller, value) => {
       const input = value as BindInput<RecordInput>, scope = recordScope(caller, input);
       if (input.connection_id !== null) await assertDeclared(declarations, caller, input, "per_record");
       await caller.beforeEffect();

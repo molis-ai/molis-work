@@ -50,7 +50,7 @@ function launchProbe(name: string, options: { terminal?: boolean; ownerFiles?: b
     query: define(where, "query", "query", ["user"], declared), others: define(where, "others", "command", ["agent", "workflow", "mcp", "plugin"], declared) });
   const actions = Object.fromEntries(halves.map(where => [where, actionsOf(where)])) as Record<Where, ReturnType<typeof actionsOf>>;
   const required = options.ownerFiles ? ["storage:private", files.read, files.write] : [];
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `launch-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [...required.map(permission => ({ permission, required: true, reason: "启动终端探针" })),
       ...(options.terminal === false ? [] : [{ permission: TERMINAL, required: false, reason: "启动终端探针" }]), { permission: WORKSPACE, required: false, reason: "启动终端探针" }],
@@ -468,7 +468,7 @@ test("RAC-2556 S-103 revoking terminal:run or workspace:read, or cancelling the 
 
 test("RAC-2557 S-103 a sandboxed package that asks for terminal:run is stopped before its code starts, in a project and in the Home", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "terminal-sandbox-"));
-  const manifest = (id: string, required: boolean): PluginManifest => ({ schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id.split(".").pop()!, kind: "app",
+  const manifest = (id: string, required: boolean): PluginManifest => ({ schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id.split(".").pop()!, kind: "app",
     publisher: { publisher_id: "example", signature: `sandbox-${id}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "probe" }, { permission: TERMINAL, required, reason: "probe" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } });

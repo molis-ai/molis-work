@@ -96,10 +96,10 @@ function agentOptionIds(catalog: ReturnType<typeof liveHostJudgmentRuleAuthoring
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.option_ids ?? [];
 }
 
-test("GitHub Integration Manifest is schema 2; its account check is the connector action", () => {
+test("GitHub Integration Manifest is schema 1; its account check is the connector action", () => {
   const parsed = parsePluginManifest(githubIntegrationManifest);
-  assert.equal(parsed.schema_version, 2);
-  assert.equal(parsed.host_api_version, 2);
+  assert.equal(parsed.schema_version, 1);
+  assert.equal(parsed.host_api_version, 1);
   assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
 });
 

@@ -20,7 +20,7 @@ test("unknown SDK plugin prepares real actions, Home revalidates exact input and
   const offers = defineSubjectOffersAction("unknown.note.offers", ["note"], "笔记可用动作", ["note:read"], [
     { offer_id: "notes.replace", title: "整理笔记", action: { capability_id: write.capability_id, version: 1 } },
   ]);
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.offer-notes", version: "1.0.0", name: "Notes",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.offer-notes", version: "1.0.0", name: "Notes",
     kind: "app", publisher: { publisher_id: "example", signature: "example-offer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["note:read", "note:write"].map(permission => ({ permission, required: false, reason: "读写原笔记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [write, offers] },
     async start() { return { kind: "app", actions: [{ ...write, handle: (_caller, value) => {

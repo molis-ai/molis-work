@@ -37,7 +37,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
   let writes = 0;
   let releaseOffers!: () => void;
   const offersReady = new Promise<void>(resolve => { releaseOffers = resolve; });
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.browser-offers", version: "1.0.0", name: "材料标记",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.browser-offers", version: "1.0.0", name: "材料标记",
     kind: "app", publisher: { publisher_id: "example", signature: "example-browser-offers" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["fixture:read", "fixture:write"].map(permission => ({ permission, required: false, reason: "处理自己的材料标记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [offers, write] },
     async start() { return { kind: "app", actions: [{ ...offers, handle: async (_caller, value) => {

@@ -84,4 +84,4 @@ AI来源修改已有对象时，提交动作schema声明的读取版本（`expec
 
 Goals 事件拒绝的现行 code 使用 goals.<原前缀>.<原因>，例如 goals.event_config.version_conflict、goals.event_progress.stale_goal、goals.event_http.unexpected_field。消息、kind 与 details 保持原含义；不读取或返回旧前缀。
 
-规划 issue.code 的现行 enum 为 goals.planning.*；包含该输出的 goals.planning.impact、goals.planning.graph.check、goals.tree.check、goals.tree.decide 均为版本2。MCP树检查名为 molis_work_v1_action_goals.tree.check__v2；发现与授权应固定当前版本，旧工具名不再提供。semantic_review.review_action固定goals.planning.impact@2。
+规划 issue.code 的现行 enum 为 goals.planning.*；包含该输出的 goals.planning.impact、goals.planning.graph.check、goals.tree.check、goals.tree.decide 均为版本2。MCP树检查名为 molis_work_v1_action_goals.tree.check__v1；发现与授权应固定当前版本，旧工具名不再提供。semantic_review.review_action固定goals.planning.impact@2。

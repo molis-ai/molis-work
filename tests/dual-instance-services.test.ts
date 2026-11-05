@@ -39,7 +39,7 @@ function servicesProbe() {
       scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } });
   const actions = { home: action("home"), project: action("project") };
   const owner_files: PluginOwnerFilesDeclaration = { store_name: NAME, entries: [{ name: "notes", kind: "directory" }], read_permission: FILES_READ, write_permission: FILES_WRITE };
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: NAME, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: NAME, kind: "app",
     publisher: { publisher_id: "example", signature: `dual-${NAME}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", FILES_READ, FILES_WRITE, DATA_READ, DATA_WRITE, ...USED].map(permission => ({ permission, required: true, reason: "双实例服务探针" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: Object.values(actions),

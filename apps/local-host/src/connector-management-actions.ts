@@ -35,7 +35,7 @@ export const connectorManagementActions = {
     title: "检查服务连接", description: "检查所选连接的真实账号或 MCP 握手与能力；刷新共同目录。只作连接与身份检查，不执行服务业务工具或业务写入。失败保留原任务和连接，不换账号。",
     kind: "query", effect: "read", scheduling: "concurrent", permissions: [CONNECTOR_MANAGEMENT_READ],
     input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" } }, required: ["connection_id"], additionalProperties: false }, output_schema: output } } as ActionDefinition,
-  control: { capability_id: "connectors.connection.control", version: 2, operation: "command", action: { ...metadata,
+  control: { capability_id: "connectors.connection.control", version: 1, operation: "command", action: { ...metadata,
     title: "启用或停用连接", description: "按明确的连接和读取到的修订启用或停用。停用保留凭据和配置，之后可以再启用；启用后检查连接再使用。移除是另一个动作 connectors.connection.remove。",
     kind: "operation", effect: "write", scheduling: "concurrent", permissions: [CONNECTOR_MANAGEMENT_WRITE],
     input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" }, expected_revision: { type: "string", minLength: 1 }, action: { type: "string", enum: ["enable", "disable"] } }, required: ["connection_id", "expected_revision", "action"], additionalProperties: false }, output_schema: output } } as ActionDefinition,

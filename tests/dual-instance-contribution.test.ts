@@ -37,7 +37,7 @@ const subscribes = [{ event_type_id: "io.molis.work.files.refreshed", type_versi
 const inputs = [{ port: "snapshot", artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION, optional: true }];
 
 function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "双实例示例", kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "双实例示例", kind: "app",
     publisher: { publisher_id: "molis", signature: "dual-example" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     actions: [homeRead.definition, projectRead.definition], action_scenes: [scene],

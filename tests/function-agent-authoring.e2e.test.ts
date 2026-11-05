@@ -42,7 +42,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     input_schema: { type: "object", properties: { state: { enum: ["reviewed", "later"] } }, required: ["state"], additionalProperties: false },
   } };
   const privateAction = { ...read, capability_id: "unknown.user-only", action: { ...read.action, audiences: ["user" as const] } };
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.agent-notes", version: "1.0.0", name: "原插件笔记",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.agent-notes", version: "1.0.0", name: "原插件笔记",
     kind: "app", publisher: { publisher_id: "example", signature: "agent-notes" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:read", "notes:write"].map(permission => ({ permission, required: false, reason: "访问原笔记" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read, write, privateAction] },

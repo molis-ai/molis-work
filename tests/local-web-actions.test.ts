@@ -32,7 +32,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   const definition = defineSubjectContextAction("newcomer.notes.context", "newcomer-note", "新插件事项", ["newcomer:read"]);
   let reads = 0;
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.newcomer", version: "1.0.0", name: "新插件事项",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer", version: "1.0.0", name: "新插件事项",
     kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "newcomer:read", required: false, reason: "读取这份原始材料" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => {
@@ -111,7 +111,7 @@ test("scene-only plugins obtain local-user discovery and configuration from thei
   const scene = { scene_id: "scene-only.review", version: 1, title: "审核位置", description: "插件自有消费场景", trigger: "提交审核", scope: "project" as const,
     permissions: ["scene-only:read"], configuration_permissions: ["scene-only:configure"], subject_kinds: [],
     input_schema: { type: "object", properties: {} }, result_schema: { type: "object", properties: {} } };
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.scene-only", version: "1.0.0", name: "仅消费场景",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.scene-only", version: "1.0.0", name: "仅消费场景",
     kind: "app", publisher: { publisher_id: "example", signature: "scene-only" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [...scene.permissions, ...scene.configuration_permissions].map(permission => ({ permission, required: false, reason: "原消费场景授权" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], action_scenes: [scene] },
@@ -146,7 +146,7 @@ test("a Runtime plugin registered under its plugin_id gets its local-user grants
   const shape = { scope: "project" as const, audiences: ["user" as const], permissions: ["shared:read"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } };
   const pluginRead: ActionDefinition<Record<string, never>, string> = { capability_id: "shared.plugin-read", version: 1, operation: "query", action: { ...shape, title: "插件读取", description: "插件自己的动作", kind: "query" } };
   const hostRead: ActionDefinition<Record<string, never>, string> = { capability_id: "shared.host-read", version: 1, operation: "query", action: { ...shape, title: "宿主读取", description: "宿主另外登记的、同名提供方的动作", kind: "query" } };
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "同名提供方", kind: "app",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "同名提供方", kind: "app",
     publisher: { publisher_id: "example", signature: "shared-id" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "shared:read", required: false, reason: "读取" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] }, actions: [pluginRead] }, async start() { return { kind: "app", actions: [{ ...pluginRead, handle: () => "plugin" }] }; } });
@@ -183,7 +183,7 @@ test("a scene-only plugin registered under its plugin_id obtains local-user disc
   const scene = { scene_id: "scene-id.review", version: 1, title: "审核位置", description: "插件自有消费场景", trigger: "提交审核", scope: "project" as const,
     permissions: ["scene-id:read"], configuration_permissions: ["scene-id:configure"], subject_kinds: [],
     input_schema: { type: "object", properties: {} }, result_schema: { type: "object", properties: {} } };
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.scene-id", version: "1.0.0", name: "仅消费场景",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.scene-id", version: "1.0.0", name: "仅消费场景",
     kind: "app", publisher: { publisher_id: "example", signature: "scene-id" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [...scene.permissions, ...scene.configuration_permissions].map(permission => ({ permission, required: false, reason: "原消费场景授权" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], action_scenes: [scene] },
@@ -439,7 +439,7 @@ test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action
   const { reference } = await project("路由写下的权限");
   const definition = defineSubjectContextAction("capped.notes.context", "capped-note", "路由上限", ["capped:read"]);
   let reads = 0;
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.capped", version: "1.0.0", name: "路由上限",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.capped", version: "1.0.0", name: "路由上限",
     kind: "app", publisher: { publisher_id: "example", signature: "example-capped" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "capped:read", required: false, reason: "读取" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => {
@@ -473,7 +473,7 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   const hostTarget = { capability_id: "functions.invoke", version: 1, provider_id: "system.functions" };
   const counts = { entry: 0, source: 0, other: 0, write: 0, metered: 0 };
   const sourceCallers: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext[] = [];
-  const manifest = (plugin_id: string, actions: ActionDefinition[]): PluginManifest => ({ schema_version: 2 as const, host_api_version: 2 as const, plugin_id, name: plugin_id, version: "1.0.0", kind: "app" as const,
+  const manifest = (plugin_id: string, actions: ActionDefinition[]): PluginManifest => ({ schema_version: 1 as const, host_api_version: 1 as const, plugin_id, name: plugin_id, version: "1.0.0", kind: "app" as const,
     publisher: { publisher_id: "example", signature: "stage-authority" }, entrypoints: [{ deployment: "local" as const, entrypoint: "./index.js" }],
     permissions: ["stage-source:read", "actions:delegate"].map(permission => ({ permission, required: true, reason: "Read declared source" })), actions,
     capabilities: { provides: [], consumes: [source.capability_id, write.capability_id, metered.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } });

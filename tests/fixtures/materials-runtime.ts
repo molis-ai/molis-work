@@ -19,7 +19,7 @@ export function materialsProbe(name = "materialsprobe", options: { permissions?:
     source: async (context: PluginStartContext, _caller: ActionExecutionContext): Promise<unknown> => context.services!.materials!.readSource!("http://127.0.0.1/"),
   };
   const definition: PluginDefinition = { execution: options.execution, manifest: {
-    schema_version: 2, host_api_version: 2, plugin_id: id, version: options.version ?? "1.0.0", name, kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: id, version: options.version ?? "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `materials-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "材料服务测试声明" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read, source, serial, plain],

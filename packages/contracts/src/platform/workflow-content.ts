@@ -26,7 +26,7 @@ export interface WorkflowItemRef { readonly plugin: string; readonly item_id: st
 export interface WorkflowStartItem { readonly item_id: string; readonly title: string; readonly caption: string; readonly at: string | null }
 /** The version each role of the protocol is at now. A role changes shape only by raising its own number here: a station declares
  * every role at this version (the platform refuses another), so a saved reference to an older one stays pinned and reports why. */
-export const WORKFLOW_CONTENT_VERSIONS = { list: 1, read: 1, receive: 2, create: 1 } as const;
+export const WORKFLOW_CONTENT_VERSIONS = { list: 1, read: 1, receive: 1, create: 1 } as const;
 
 export interface WorkflowReceiveInput extends WorkflowPayload {
   /** One delivery. A receiver makes one object for a request id and returns that same object when the id arrives again (a retry

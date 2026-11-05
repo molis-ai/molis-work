@@ -209,8 +209,8 @@ test("W4-2-03 W4-2-04: 存为文档 is made at once by Pages, in Pages too, and 
     assert.equal((await invoke<{ documents: PagesDocument[] }>("pages.list", {})).documents.some(item => item.id === document.id), true);
     // The call that made it says so (`created_version`, which the undo reads); a retry does not.
     const fields = { title: "直接调用", markdown: "正文", request_id: "req-direct" };
-    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields, 2)).created_version, 1);
-    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields, 2)).created_version, undefined);
+    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields, 1)).created_version, 1);
+    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields, 1)).created_version, undefined);
   } finally { await close(); }
 });
 

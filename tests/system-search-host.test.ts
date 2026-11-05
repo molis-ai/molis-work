@@ -118,7 +118,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     // A plugin nobody told the Host about joins by declaring the protocol, through the real Plugin Runtime.
     const entries = defineSearchEntriesAction("newcomer.search.entries", [{ kind: "newcomer-note", title: "新插件笔记", surface: "newcomer" }], "新插件笔记", ["newcomer:read"]);
     const reader = defineSubjectContextAction("newcomer.subject.read", "newcomer-note", "新插件笔记", ["newcomer:read"]);
-    const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.newcomer-search", version: "1.0.0", name: "新插件",
+    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer-search", version: "1.0.0", name: "新插件",
       kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "newcomer:read", required: false, reason: "读取笔记" }], actions: [entries, reader], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
       async start() { return { kind: "app", actions: [

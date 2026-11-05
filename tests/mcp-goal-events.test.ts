@@ -120,7 +120,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(state.latest_reports[0]?.event_id, reported.events[0]?.event_id);
     assert.equal(state.config.types.length, 1);
 
-    const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id }));
+    const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.deepEqual(listed.events.map((item: { kind: string }) => item.kind), ["system", "configuration", "report"]);
     assert.equal(listed.events[0]?.kind, "system");
     assert.equal(listed.events[0]?.payload.operation, "intent_created");
@@ -128,7 +128,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(listed.events[1]?.kind, "configuration");
     assert.equal(listed.events[1]?.payload.config_version, 1);
     assert.ok(Array.isArray(listed.events[1]?.payload.types));
-    const read = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v2", {
+    const read = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v1", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(read.kind, "report");
@@ -148,7 +148,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     const reopened = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     assert.equal(reopened.config.version, 1);
     assert.equal(reopened.latest_reports[0]?.title, "做出了开场片段");
-    const oldBody = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v2", {
+    const oldBody = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v1", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(oldBody.payload.piece, "开场洞穴");
@@ -162,13 +162,13 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id, expected_version: 1, idempotency_key: "cfg-2", types: [v2],
     });
-    const stillOld = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v2", {
+    const stillOld = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.read__v1", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(stillOld.type.version, 1);
     assert.equal(stillOld.payload.entry, undefined);
 
-    const beforeInvalid = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id }));
+    const beforeInvalid = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     await assert.rejects(
       () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", {
         goal_id, idempotency_key: "bad-batch",
@@ -179,7 +179,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
       }),
       (error: unknown) => error instanceof ActionError && error.code === "goals.event_report.missing_required_field",
     );
-    const afterInvalid = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id }));
+    const afterInvalid = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.equal(afterInvalid.events.length, beforeInvalid.events.length);
 
     const beforeReject = afterInvalid.events.length;
@@ -222,7 +222,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
       () => mcp!.callTool("molis_work_v1_action_goals.note__v1", { goal_id, body: "覆盖身份", idempotency_key: "note-undef", actor_id: undefined }),
       { code: "actions.input_invalid" },
     );
-    const afterReject = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id }));
+    const afterReject = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id }));
     assert.equal(afterReject.events.length, beforeReject);
 
     const persisted = await managementGoals(host.actionClient(molisWorkHostProjectReference({
@@ -469,7 +469,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
       () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", { ...batch, progress: { summary: "不同进展" } }),
       (error: unknown) => error instanceof ActionError && /幂等|重复|idempot|conflict|冲突/i.test(error.message),
     );
-    const prior = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id, limit: 100 }));
+    const prior = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 }));
     await assert.rejects(
       () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", {
         goal_id, idempotency_key: "bad-progress",
@@ -478,7 +478,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
       }),
       { code: "actions.input_invalid" },
     );
-    assert.equal(JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id, limit: 100 })).events.length, prior.events.length);
+    assert.equal(JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 })).events.length, prior.events.length);
 
     // The session's supports report is its own word (PWA-144): the person accepts the requirement through the protected entry before closing.
     await host.withProject(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }), runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({

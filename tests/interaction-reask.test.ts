@@ -155,7 +155,7 @@ test("D5: the HTTP send refuses a re-ask without a work, or one that is also an 
 test("D5: Coding re-asks only a closed question of a run of this session, with the draft its page kept", async () => {
   const question = { pending_id: "p1", pending_revision: 1, kind: "questionnaire", prompt: "约复盘会", options: [], allows_free_text: false,
     questions: [{ index: 0, prompt: "时长", type: "number" as const, required: true, options: [], multiple: false, allow_other: false, unit: "分钟" }] };
-  const api = (answerable: boolean) => ({ invoke: async (capability: { capability_id: string }) => capability.capability_id === "agent.session.read.v1"
+  const api = (answerable: boolean) => ({ invoke: async (capability: { capability_id: string }) => capability.capability_id === "agent.session.read"
     ? { runs: [{ session_id: "rt-1", run_id: "run-1" }] }
     : { awaiting_input: [{ ...question, answerable, ...(answerable ? {} : { unavailable_reason: "这条问题已过期，不能提交原答案" }) }] } }) as never;
   const storage = new Map([["question-drafts:s1", JSON.stringify({ [JSON.stringify(["run-1", "p1", 1])]: { n0: "45" } })]]);

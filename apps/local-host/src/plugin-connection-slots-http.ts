@@ -119,7 +119,7 @@ async function recordSlotInstallation(host: MolisWorkLocalHost, reference: Local
 
 /**
  * 插件按记录用的账号 (T-121, FI-7b): where a plugin shows one of its records, the person reads (`GET`) or chooses (`POST`) the account bound
- * to that record's `per_record` slot, through `connectors.plugin_slot.read@2` / `bind@2` as the person. `?project=` names the project the
+ * to that record's `per_record` slot, through `connectors.plugin_slot.record.read@1` / `connectors.plugin_slot.record.bind@1` as the person. `?project=` names the project the
  * page is in; the installation is the Host's to find there, never the page's to say. The actions check the slot's declaration again.
  */
 async function handleRecordSlotHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost,

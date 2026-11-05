@@ -38,7 +38,7 @@ const noteType = (over: Part = {}): Part => ({
   artifact_type_id: TYPE_ID, schema_version: 1, title: "笔记",
   preview: reference(preview), pin: reference(pin), compare: reference(compare), continue: reference(resume), ...over,
 });
-/** A v2 Manifest producing the type (and consuming `consumes`), with `actions` as its action list. */
+/** A Manifest producing the type (and consuming `consumes`), with `actions` as its action list. */
 function producing(type: Part, actions: ReadonlyArray<unknown> = ALL, consumes: ReadonlyArray<unknown> = []): Record<string, unknown> {
   return declarationManifest({ actions, artifacts: { produces: [type], consumes } });
 }
@@ -156,24 +156,15 @@ test("declarations that are not what the shape rules expect do not make the chec
   assert.equal(refusal(declarationManifest({ artifacts: { produces: [noteType({ preview: null, pin: 1, compare: [], continue: "x" })], consumes: [] }, actions: ALL }))?.code, "plugin.declaration_invalid");
 });
 
-// ---- (d) schema_version 1 cannot declare actions, so it cannot produce a type -------------------------------------------
-
-/** What `parsePluginManifest` takes of a v1 Manifest: the identity and nothing of the v2 blocks. */
-function v1Manifest(artifacts: Part): Record<string, unknown> {
-  return { ...declarationManifest({ artifacts }), schema_version: 1, host_api_version: 1 };
-}
-
-test("a v1 Manifest that produces a type is refused: it cannot declare the preview the type needs", () => {
-  const needsV2 = `成果类型 ${KEY} 需要 schema_version 2：产出成果类型要有显示名和本插件的预览动作，v1 Manifest 不能声明动作`;
-  assertRefused(v1Manifest({ produces: [{ artifact_type_id: TYPE_ID, schema_version: 1 }], consumes: [] }), [needsV2]);
-  assertRefused(v1Manifest({ produces: [noteType()], consumes: [] }), [needsV2]);
-  assertRefused(v1Manifest({ produces: [{ artifact_type_id: TYPE_ID, schema_version: 1, title: "笔记", preview: reference(preview) }], consumes: [] }), [needsV2]);
-});
-
-test("a v1 Manifest that only reads types parses, unless it names a continue action it cannot declare", () => {
-  assert.equal(manifestProblems(v1Manifest({ produces: [], consumes: [{ artifact_type_id: "other.file", schema_version: 1 }] })), "");
-  assert.equal(manifestProblems(v1Manifest({ produces: [], consumes: [] })), "");
-  assertRefused(v1Manifest({ produces: [], consumes: [{ artifact_type_id: "other.file", schema_version: 1, continue: reference(resume) }] }), ["成果类型 other.file@1 的继续动作需要 schema_version 2"]);
+test("N26: produced and consumed types require declarations for the actions they name", () => {
+  const input = (artifacts: Part) => declarationManifest({ artifacts, actions: [] });
+  const result = (artifacts: Part) => manifestProblems(input(artifacts));
+  assert.match(result({ produces: [{ artifact_type_id: TYPE_ID, schema_version: 1 }], consumes: [] }), /缺少显示名/);
+  assert.match(result({ produces: [noteType()], consumes: [] }), /不是本插件声明的预览查询/);
+  assert.match(result({ produces: [noteType({ preview: undefined })], consumes: [] }), /预览/);
+  assert.equal(result({ produces: [], consumes: [{ artifact_type_id: "other.file", schema_version: 1 }] }), "");
+  assert.equal(result({ produces: [], consumes: [] }), "");
+  assert.match(result({ produces: [], consumes: [{ artifact_type_id: "other.file", schema_version: 1, continue: reference(resume) }] }), /不是本插件声明的继续命令/);
 });
 
 // ---- (e) Runtime applies it on install, from the same parser ------------------------------------------------------------

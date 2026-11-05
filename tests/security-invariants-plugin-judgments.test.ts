@@ -47,7 +47,7 @@ function probe(short: string, options: ProbeOptions = {}) {
   // `wait` declares the write permission, `bare` is concurrent without it, `serial` declares it but does not wait, `look` is a query.
   const wait = define("wait", "command", write ? [JW] : [], "concurrent"), bare = define("bare", "command", [], "concurrent");
   const serial = define("serial", "command", write ? [JW] : []), look = define("look", "query", []);
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", `${short}:read`, `${short}:write`, ...grants].map(permission => ({ permission, required: true, reason: "记自己场景的判断" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [wait, bare, serial, look],

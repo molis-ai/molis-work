@@ -38,7 +38,7 @@ function probe() {
   judgment.action.output_schema = empty;
   const scene: ActionSceneDefinition = { scene_id: "optionaldual.arrived", version: 1, title: "到达", description: "可选消费", scope: "project", trigger: "arrived",
     permissions: [STORAGE, OPTIONAL], configuration_permissions: [STORAGE], subject_kinds: [], event_schema: empty, input_schema: empty, result_schema: empty };
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: ID, version: "1.0.0", name: "双实例可选权限", kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: ID, version: "1.0.0", name: "双实例可选权限", kind: "app",
     publisher: { publisher_id: "example", signature: "optional-dual-test" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: STORAGE, required: true, reason: "探针数据" }, { permission: OPTIONAL, required: false, reason: "可关闭的能力" },
       { permission: DELEGATE, required: false, reason: "运行时首次使用的可选目录" }],

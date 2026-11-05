@@ -26,7 +26,7 @@ const refused = (code: string) => (error: unknown) => error instanceof ActionErr
 
 function exampleManifest(): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.stays", version: "1.0.0", name: "Stays on", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.stays", version: "1.0.0", name: "Stays on", kind: "app",
     publisher: { publisher_id: "someone", signature: "stays-on-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, always_on: true,
   };

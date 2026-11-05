@@ -159,7 +159,7 @@
   function rowHtml(r, ctx) {
     const key = ctx.draft ? "d-" + r.id : r.id;
     const st = P.rows[key] || {};
-    const pr = ctx.showPR ? `<td class="gp-pr">${prBlocked(ctx) ? mark("blocked", "blocked", L("已拦下", "Blocked")) : ctx.depOff ? `<span class="gp-muted">—</span>` : mark(r.prTone === "blocked" ? "blocked" : r.prTone === "hold" ? "hold" : r.prTone === "done" ? "done" : "idle", r.prTone === "blocked" ? "failed" : r.prTone === "hold" ? "waiting" : r.prTone === "done" ? "done" : "draft", T(r.pr))}</td>` : "";
+    const pr = ctx.showPR ? `<td class="gp-pr"${prBlocked(ctx) || ctx.depOff ? "" : ` title="${esc(T(r.pr))}"`}>${prBlocked(ctx) ? mark("blocked", "blocked", L("已拦下", "Blocked")) : ctx.depOff ? `<span class="gp-muted">—</span>` : mark(r.prTone === "blocked" ? "blocked" : r.prTone === "hold" ? "hold" : r.prTone === "done" ? "done" : "idle", r.prTone === "blocked" ? "failed" : r.prTone === "hold" ? "waiting" : r.prTone === "done" ? "done" : "draft", T(r.pr))}</td>` : "";
     const now = st.done ? "done" : r.state;
     const stateTone = { progress: "progress", blocked: "blocked", idle: "idle", done: "done" }[now];
     const ringState = { progress: "running", blocked: "blocked", idle: "draft", done: "done" }[now];

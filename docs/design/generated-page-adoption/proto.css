@@ -244,32 +244,44 @@ html[lang="en"][data-show-new] [data-board-new]::after { content: "Board additio
 .gp-table .gp-noexec { display: block; margin-bottom: 4px; max-width: 8em; margin-left: auto; white-space: normal; line-height: 1.3; }
 .gp-page { container-type: inline-size; }
 @container (max-width: 760px) {
-  /* Table rows become two-line cards by the card's own width. Line 1: item name (truncates), state, PR state, action
-     with its "not run in preview" note under it. Line 2: owner and due date only. A state never drops below the name. */
+  /* Table rows become two-line cards by the card's own width (the page in use and the draft alike, 1440 / 1180 / 390).
+     Line 1 is "what it is, what state": the item name takes all the room the state tag leaves and truncates on one
+     line (full name on hover); a state never drops below the name. Line 2 is "its facts and what you can do": owner,
+     due and PR state on the left; on the right "not run in preview [✓ Mark done]", the note left of the button, one
+     line, the button keeps its words. When line 2 runs out of room the due date goes first, then the owner, and last
+     the PR state's words truncate (full text on hover); name, state and the labelled button always stay
+     (DESIGN.md "A row is one line"). */
   .gp-table thead { display: none; }
   .gp-table table, .gp-table tbody { display: block; }
-  .gp-table tr { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 10px; padding: 10px 12px; }
-  .gp-table tr::after { content: ""; flex-basis: 100%; order: 4; }
-  .gp-table td { padding: 0; }
-  .gp-table .gp-title { flex: 1 1 0; min-width: 0; order: 0; overflow: hidden; white-space: nowrap; line-height: 28px; }
-  .gp-table .gp-title .gp-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-  .gp-table .gp-st { order: 1; line-height: 28px; }
-  .gp-table .gp-pr { order: 2; line-height: 28px; }
-  .gp-table .gp-act { order: 3; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
-  .gp-table .gp-noexec { display: block; margin: 0; max-width: none; font-size: 11px; white-space: nowrap; }
-  .gp-table .gp-who, .gp-table .gp-due { order: 5; font-size: 12px; color: var(--muted); }
+  .gp-table tr:not(.gp-rowmsg) { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr) auto auto; grid-template-areas: "title title title title title st" "who due pr . act act"; align-items: center; gap: 2px 0; padding: 6px 12px; }
+  .gp-page .mw-table-wrap.gp-table td { padding: 0; } /* beats the compact page's .mw-table td padding */
+  /* Gaps are cell padding, not column gaps, so a dropped column leaves no double gap. */
+  .gp-page .mw-table-wrap.gp-table :is(td.gp-title, td.gp-who, td.gp-due) { padding-right: 10px; }
+  .gp-page .mw-table-wrap.gp-table td.gp-act { padding-left: 10px; }
+  .gp-table .gp-title { grid-area: title; min-width: 0; overflow: hidden; white-space: nowrap; line-height: 24px; }
+  .gp-table .gp-title .gp-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gp-table .gp-st { grid-area: st; line-height: 24px; }
+  .gp-table .gp-who { grid-area: who; }
+  .gp-table .gp-due { grid-area: due; }
+  .gp-table .gp-who, .gp-table .gp-due { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 20px; color: var(--muted); }
+  .gp-table .gp-pr { grid-area: pr; min-width: 0; overflow: hidden; white-space: nowrap; line-height: 20px; }
+  .gp-table .gp-pr .mw-status { max-width: 100%; box-sizing: border-box; }
+  .gp-table .gp-pr .mw-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .gp-table .gp-act { grid-area: act; justify-self: end; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .gp-table .gp-noexec { display: block; margin: 0; max-width: none; font-size: 11px; line-height: 16px; white-space: nowrap; }
   .gp-table tbody tr + tr { box-shadow: inset 0 1px 0 var(--line); }
   .gp-table tbody tr + tr td { box-shadow: none; }
-  .gp-table tr.gp-rowmsg { display: block; padding-top: 0; box-shadow: none !important; }
-  .gp-table tr.gp-rowmsg::after { content: none; }
-  .gp-table tr.gp-rowmsg td { display: block; }
+  .gp-table tr.gp-rowmsg { display: block; padding: 0 12px; box-shadow: none !important; }
+  .gp-page .mw-table-wrap.gp-table tr.gp-rowmsg td { display: block; padding: 0 0 6px; }
 }
-@container (max-width: 560px) {
-  /* Narrow card (phone, or half width near 1180): name, state and the action stay on line 1 (the name may wrap to two lines, the state stays level with its first line); the PR state moves to line 2 with owner and due. */
-  .gp-table .gp-title { white-space: normal; line-height: 20px; padding: 0; }
-  .gp-table .gp-title .gp-link { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; }
-  .gp-table .gp-st { line-height: 28px; }
-  .gp-table .gp-pr { order: 5; line-height: 20px; }
-  .gp-table .gp-act [data-slot="button-label"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .gp-table .gp-noexec { max-width: 6em; white-space: normal; text-align: right; line-height: 1.25; }
+/* Only the draft's table carries the PR state and the "not run in preview" note; the page in use keeps owner and due. */
+@container (max-width: 400px) {
+  .gp-table:has(td.gp-pr) .gp-due { display: none; }
+}
+@container (max-width: 340px) {
+  .gp-table:has(td.gp-pr) .gp-who { display: none; }
+}
+/* Phones and coarse pointers: 44px controls, the small row button included (DESIGN.md "Density"). */
+@media (max-width: 760px), (pointer: coarse) {
+  .gp-table .gp-act .mw-btn { min-height: 44px; }
 }

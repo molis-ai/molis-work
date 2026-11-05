@@ -21,6 +21,8 @@ const PINNED_GROWN = `${W} .tab-strip .tab-item[data-pinned].is-grown`;
 const LAYOUT = ".titlebar-layout-button";
 const SWITCH = `${W} .tab-pane-switch`;
 const EASE = "var(--dur-hover) var(--ease-quint)";
+// Keyed on the strip that leads with the pane switch (the new titlebar), so today's titlebar strip is not changed until S3 moves onto it.
+const BAR = `${W} [data-titlebar-tabs]:has(>.tab-pane-switch)`;
 
 export const WORKBENCH_NAVIGATION_STYLES = `
 /* Two tiers in a group: the head names the plugin in its colour (tab-groups.ts), its tabs stay at the base weight, a hairline between them. */
@@ -83,6 +85,12 @@ ${LAYOUT}:active{background:var(--nav-active)}
 ${LAYOUT}:disabled{color:var(--faint);background:none;cursor:default}
 @media (max-width:760px){
 ${SWITCH}{display:inline-flex}
+/* The titlebar's strip on a phone: the switch and the strip's chips on one row, the current tab alone on the next, as wide as the
+   strip so its title reads in full; the other tabs, pinned ones too, are reached from 全部标签, which a phone always shows. */
+${BAR}{flex-wrap:wrap;gap:4px;height:auto}
+${BAR}>.tab-scroll{order:1;flex:1 0 100%;width:auto}
+${BAR} :is(.tab-item:not([aria-current]),.tab-group:not(:has([aria-current])),.tab-group-sep,.tab-group-tag){display:none}
+${BAR} :is(.tab-group,.tab-group-pages,.tab-item[aria-current]){flex:1;min-width:0;max-width:none}
 /* Each half is a 44px target; the current one is told by a ring as well as the chip, which is faint against the track in the dark. */
 ${SWITCH}>.mw-toggle{min-height:44px}
 ${SWITCH}>.mw-toggle.is-current{box-shadow:var(--shadow-soft),inset 0 0 0 1px var(--line-strong)}

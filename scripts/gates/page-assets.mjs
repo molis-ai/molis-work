@@ -263,9 +263,10 @@ const headErrors = (measured, budget, base) => {
 // workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
 // address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
 // read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
-// 07-S0 (workbench navigation specimens; admitted by the 07 review desk, 07 批评审台审过（#1852）, 2026-11-05): the README's new
+// 07-S0 (workbench navigation specimens, #1852, 待 07 批评审台审): the README's new
 // tab-strip, titlebar and three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
-// workbench.css +9351 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button, phone rules (6048 B), the
+// workbench.css +9918 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button, phone rules with the phone
+// titlebar's strip (6615 B), the
 // glyph row with its own tab and count (2760 B, glyph-tabs.ts) and the bar zones (547 B). arrival.css +3303 B: the same glyph
 // row, which the arrival titlebar draws without the project page's tab rules, and the bar zones. settings.css +547 B: the bar
 // zones through craft-finish. (The BL-953 entries for these three are spent: the merge-base budget holds their ceilings.)
@@ -277,7 +278,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693189],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826727, 827274],
-  "/assets/molis-work-workbench.css": [1194521, 1203872],
+  "/assets/molis-work-workbench.css": [1194521, 1204439],
   "/assets/molis-work-workbench.js": [1074951, 1075120],
   "/assets/molis-work-plugin-frame.js": [208033, 208271],
 };

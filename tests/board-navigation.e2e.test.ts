@@ -54,6 +54,20 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
     assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-nav-titlebar=ok] .tab-pane-switch')).display !== 'none'"), width <= 760);
     const switchHeights = await evaluate<number[]>(`[...document.querySelectorAll('${width <= 760 ? "[data-nav-titlebar=ok], " : ""}[data-nav-specimen=pane-switch]')].flatMap((at) => [...at.querySelectorAll('.tab-pane-switch > .mw-toggle')].map((t) => Math.round(t.getBoundingClientRect().height)))`);
     assert.ok(switchHeights.length && switchHeights.every((h) => h >= 44), `${lang} ${width}px: the pane switch's halves are 44px targets (${switchHeights})`);
+    // On a phone the titlebar's strip gives the current tab a row of its own: its title reads in full, 全部标签 shows its whole
+    // count, and no tab is squeezed to nothing (the others are reached from 全部标签), in both states.
+    if (width <= 760) for (const state of ["ok", "wrong"]) {
+      const phone = await evaluate<{ title: [number, number]; count: boolean; squeezed: number; shown: number }>(`(() => {
+        const bar = document.querySelector('[data-nav-titlebar=${state}]'), strip = bar.querySelector('[data-titlebar-tabs]'), edge = strip.getBoundingClientRect();
+        const name = strip.querySelector('.tab-item[aria-current] .tab-item-name'), button = strip.querySelector('.tab-all-button'), count = button.querySelector('.tab-all-count');
+        const inside = (el, box) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= box.left - 0.5 && b.right <= box.right + 0.5; };
+        const shown = [...strip.querySelectorAll('.tab-item')].filter((tab) => getComputedStyle(tab).display !== 'none');
+        return { title: [name.scrollWidth, name.clientWidth], count: inside(count, button.getBoundingClientRect()) && inside(button, edge) && count.scrollWidth <= count.clientWidth,
+          squeezed: shown.filter((tab) => tab.getBoundingClientRect().width < 44).length, shown: shown.length }; })()`);
+      assert.ok(phone.title[0] <= phone.title[1], `${lang} ${state}: the current tab's title reads in full (${phone.title})`);
+      assert.ok(phone.count, `${lang} ${state}: 全部标签 shows its whole count`);
+      assert.deepEqual([phone.shown, phone.squeezed], [1, 0], `${lang} ${state}: only the current tab shows, at full width`);
+    }
     // A folded glyph tab is 32px wide on a desk and a 44 × 44 target on a phone.
     assert.deepEqual(await evaluate("(() => { const box = document.querySelector('[data-nav-specimen=badge] .tab-item[data-glyph-only]').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()"), width <= 760 ? [44, 44] : [32, 26]);
     // The shot is taken with the whole page in the viewport: captured beyond it, Chrome left out a masked strip (the overflow

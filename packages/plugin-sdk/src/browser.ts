@@ -1,8 +1,9 @@
 /// <reference lib="dom" />
+export { canonicalJsonText } from "./json-value.js";
 
 /**
  * Where a floating layer goes: beside, above or below what it belongs to, kept inside the screen or the stage the person is
- * working in. A leaf with no import and no use of Node, so a page bundle (the Pages editor) can take it by itself:
+ * working in. Uses only the SDK's own browser-safe files and no Node modules, so a page bundle can take it by itself:
  * `@molis-ai/molis-work-plugin-sdk/browser`. The toolbar that sits next to a selection, the editor's own menus and the
  * popovers in a split pane all place themselves with these, in one way.
  */

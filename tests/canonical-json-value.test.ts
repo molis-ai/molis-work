@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { canonicalJsonText, canonicalJsonValue } from "@molis-ai/molis-work-plugin-sdk";
 import { servicesImContract } from "@molis-ai/molis-work-contracts/services/im";
 import { servicesMemoryContract } from "@molis-ai/molis-work-contracts/services/memory";
+import { buildSync } from "esbuild";
 
 test("CLN-06 canonical JSON keeps existing request comparison and fingerprint inputs", () => {
   const input = Object.freeze({ z: Object.freeze([{ b: 2, a: 1 }, undefined, null]), a: { z: undefined, c: false, b: "" } });
@@ -56,4 +57,12 @@ test("N30 IM and Memory descriptors publish the current first-version identities
   assert.equal(servicesImContract.schemaVersion, 1);
   assert.equal(servicesMemoryContract.contractId, "io.molis.work.service.memory.v1");
   assert.equal(servicesMemoryContract.schemaVersion, 1);
+});
+
+test("N4 browser entry bundles the shared canonicalizer without Node dependencies and executes its bytes", () => {
+  const bundle = buildSync({ stdin: { contents: `import { canonicalJsonText } from '@molis-ai/molis-work-plugin-sdk/browser'; scope.result = canonicalJsonText({'2':2,'10':{'é':1,e:2}});`, resolveDir: process.cwd() },
+    bundle: true, platform: "browser", format: "iife", write: false });
+  const scope: { result?: string } = {};
+  new Function("scope", bundle.outputFiles[0]!.text)(scope);
+  assert.equal(scope.result, '{"10":{"e":2,"é":1},"2":2}');
 });

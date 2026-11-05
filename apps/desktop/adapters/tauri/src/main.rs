@@ -36,7 +36,10 @@ use tauri::{
     webview::PageLoadEvent,
     LogicalSize, Manager, PhysicalPosition, PhysicalRect, PhysicalSize, State, Url, WindowEvent,
 };
-use web_service::{ensure_molis_work_web, stop_owned_web_service, web_healthy, WebServiceState};
+use web_service::{
+    desktop_owns_web_service, ensure_molis_work_web, stop_owned_web_service, web_healthy,
+    WebServiceState,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum CapsuleLocale {
@@ -91,10 +94,17 @@ impl CapsuleLocale {
         }
     }
 
-    fn tray_actions(self) -> (&'static str, &'static str) {
-        match self {
-            Self::Zh => ("打开当前目标", "退出 Molis Work"),
-            Self::En => ("Open current Goal", "Quit Molis Work"),
+    /// 桌面是本机服务的主人（用户 2026-11-04 定）：服务由桌面拉起时，退出一起停；
+    /// 服务是命令行装的常驻服务或别的入口拉起的，退出菜单写明它会继续运行。
+    fn tray_actions(self, desktop_owns_host: bool) -> (&'static str, &'static str) {
+        match (self, desktop_owns_host) {
+            (Self::Zh, true) => ("打开当前目标", "退出 Molis Work"),
+            (Self::Zh, false) => ("打开当前目标", "退出 Molis Work（后台服务继续运行）"),
+            (Self::En, true) => ("Open current Goal", "Quit Molis Work"),
+            (Self::En, false) => (
+                "Open current Goal",
+                "Quit Molis Work (background service keeps running)",
+            ),
         }
     }
 }
@@ -209,6 +219,7 @@ fn current_capsule_locale(state: &CapsuleStatusState) -> Result<CapsuleLocale, S
 }
 
 fn update_capsule_tray_menu(
+    app: &tauri::AppHandle,
     state: &CapsuleStatusState,
     locale: CapsuleLocale,
 ) -> Result<(), String> {
@@ -216,7 +227,8 @@ fn update_capsule_tray_menu(
     let Some(items) = items.as_ref() else {
         return Ok(());
     };
-    let (open_current, quit) = locale.tray_actions();
+    let owns_host = desktop_owns_web_service(app.state::<WebServiceState>().inner());
+    let (open_current, quit) = locale.tray_actions(owns_host);
     items
         .open_molis_work
         .set_text(open_current)
@@ -233,7 +245,7 @@ fn sync_capsule_locale(
     locale: CapsuleLocale,
 ) -> Result<(), String> {
     *state.locale.lock().map_err(|error| error.to_string())? = locale;
-    update_capsule_tray_menu(state, locale)?;
+    update_capsule_tray_menu(app, state, locale)?;
     let (title, tooltip) = locale.default_status();
     set_capsule_connection_status(app, title, tooltip)?;
     if let Some(capsule) = app.get_webview_window("capsule") {
@@ -274,6 +286,26 @@ fn set_capsule_connection_status(
 
 fn should_keep_window_on_close(label: &str) -> bool {
     label == "main"
+}
+
+fn refresh_tray_quit_item(app: &tauri::AppHandle) {
+    let state = app.state::<CapsuleStatusState>();
+    let locale = current_capsule_locale(state.inner()).unwrap_or_default();
+    let _ = update_capsule_tray_menu(app, state.inner(), locale);
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+/// 点 Dock 图标（或在访达里再打开一次）时，主窗口没在显示就把它拿出来；
+/// 菜单栏的工作胶囊开着不算主窗口在显示。
+fn should_show_main_on_reopen(main_visible: bool) -> bool {
+    !main_visible
 }
 
 fn should_attempt_web_recovery(consecutive_failures: u8, owns_web_child: bool) -> bool {
@@ -337,11 +369,7 @@ fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>
                     continue;
                 }
                 consecutive_failures = consecutive_failures.saturating_add(1);
-                let owns_web_child = service_state
-                    .owned_child
-                    .lock()
-                    .map(|child| child.is_some())
-                    .unwrap_or(false);
+                let owns_web_child = desktop_owns_web_service(service_state.inner());
                 if !should_attempt_web_recovery(consecutive_failures, owns_web_child) {
                     continue;
                 }
@@ -349,7 +377,10 @@ fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>
                 let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
                 let (title, tooltip) = locale.recovering_status();
                 let _ = set_capsule_connection_status(&app, title, tooltip);
-                if ensure_molis_work_web(resource_dir.as_deref(), service_state.inner()).is_ok() {
+                let recovered =
+                    ensure_molis_work_web(resource_dir.as_deref(), service_state.inner()).is_ok();
+                refresh_tray_quit_item(&app);
+                if recovered {
                     consecutive_failures = 0;
                     let (title, tooltip) = locale.synced_status();
                     let _ = set_capsule_connection_status(&app, title, tooltip);
@@ -814,7 +845,8 @@ fn shelf_apply_hotkeys(
 fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     let state = app.state::<CapsuleStatusState>();
     let locale = current_capsule_locale(state.inner()).unwrap_or_default();
-    let (open_current, quit) = locale.tray_actions();
+    let owns_host = desktop_owns_web_service(app.state::<WebServiceState>().inner());
+    let (open_current, quit) = locale.tray_actions(owns_host);
     let open_molis_work_item =
         MenuItem::with_id(app, "open_molis_work", open_current, true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
@@ -852,11 +884,7 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
                     .filter(|value| !value.is_empty())
                     .unwrap_or_else(|| "/projects/".into());
                 if path == "/projects/" {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.unminimize();
-                        let _ = window.set_focus();
-                    }
+                    show_main_window(app);
                 } else {
                     let _ = open_main_window(app, &path);
                 }
@@ -925,6 +953,7 @@ fn main() {
       let resource_dir = app.path().resource_dir().ok();
       let service_state = app.state::<WebServiceState>();
       let result = ensure_molis_work_web(resource_dir.as_deref(), service_state.inner());
+      refresh_tray_quit_item(app.handle());
       if let Some(window) = app.get_webview_window("main") {
         match result {
           Ok(()) => {
@@ -998,6 +1027,16 @@ fn main() {
     .build(tauri::generate_context!())
     .expect("error while building Molis Work desktop");
     app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = event {
+            let main_visible = app
+                .get_webview_window("main")
+                .and_then(|window| window.is_visible().ok())
+                .unwrap_or(false);
+            if should_show_main_on_reopen(main_visible) {
+                show_main_window(app);
+            }
+        }
         if matches!(event, tauri::RunEvent::Exit) {
             let web_service = app.state::<WebServiceState>();
             web_service.shutting_down.store(true, Ordering::Release);
@@ -1011,9 +1050,10 @@ mod tests {
     use super::{
         anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_molis_work_url,
         molis_work_reload_url, normalized_capsule_height, should_attempt_web_recovery,
-        should_keep_window_on_close, stop_owned_web_service, validated_molis_work_path,
-        CapsuleLocale, WebServiceState,
+        should_keep_window_on_close, should_show_main_on_reopen, stop_owned_web_service,
+        validated_molis_work_path, CapsuleLocale, WebServiceState,
     };
+    use crate::web_service::desktop_owns_web_service;
     use std::process::Command;
     use tauri::{PhysicalPosition, PhysicalRect, PhysicalSize, Url};
 
@@ -1104,11 +1144,11 @@ mod tests {
             "http://127.0.0.1:4173/desktop/capsule?desktop=1&locale=en"
         );
         assert_eq!(
-            CapsuleLocale::En.tray_actions(),
+            CapsuleLocale::En.tray_actions(true),
             ("Open current Goal", "Quit Molis Work")
         );
         assert_eq!(
-            CapsuleLocale::Zh.tray_actions(),
+            CapsuleLocale::Zh.tray_actions(true),
             ("打开当前目标", "退出 Molis Work")
         );
     }
@@ -1159,5 +1199,40 @@ mod tests {
         state.owned_child.lock().unwrap().replace(child);
         assert!(stop_owned_web_service(&state));
         assert!(!stop_owned_web_service(&state));
+    }
+
+    // 用户 2026-11-04 定：桌面是本机服务的主人。桌面拉起的服务退出一起停，
+    // 别处起的常驻服务退出后继续运行，退出菜单要写明。
+    #[test]
+    fn quit_item_says_plainly_when_a_service_the_desktop_did_not_start_keeps_running() {
+        let state = WebServiceState::default();
+        assert!(!desktop_owns_web_service(&state));
+        assert_eq!(
+            CapsuleLocale::Zh
+                .tray_actions(desktop_owns_web_service(&state))
+                .1,
+            "退出 Molis Work（后台服务继续运行）"
+        );
+        assert_eq!(
+            CapsuleLocale::En.tray_actions(false).1,
+            "Quit Molis Work (background service keeps running)"
+        );
+        let child = Command::new("/bin/sleep").arg("30").spawn().unwrap();
+        state.owned_child.lock().unwrap().replace(child);
+        assert!(desktop_owns_web_service(&state));
+        assert_eq!(
+            CapsuleLocale::Zh
+                .tray_actions(desktop_owns_web_service(&state))
+                .1,
+            "退出 Molis Work"
+        );
+        assert!(stop_owned_web_service(&state));
+        assert!(!desktop_owns_web_service(&state));
+    }
+
+    #[test]
+    fn dock_reopen_brings_back_a_hidden_main_window_only() {
+        assert!(should_show_main_on_reopen(false));
+        assert!(!should_show_main_on_reopen(true));
     }
 }

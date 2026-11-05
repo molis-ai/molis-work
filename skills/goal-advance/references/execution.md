@@ -96,9 +96,9 @@ The receipt returns `events`, `work_status`, `gaps`, `progress_summary`, cursors
 
 To update progress without a new fact, call `goals.progress.record` with `summary`, optional `next_step/next_actor`, the current `goal_event_cursor` as `based_on_cursor`, and a new key. Do not invent an empty report merely to save text.
 
-## Human acceptance only when the requirement calls for it
+## Ask the person to accept what you report
 
-When a current requirement has `human_decision_required=true`, a supporting Runtime report still leaves a human acceptance gap. Request that specific decision; replace the requirement ID with the actual active one.
+A supporting Runtime report never meets a requirement by itself: until the person accepts it, the requirement stays a gap and completion is held with `goals.event_closure.requirement_self_reported` (or `human_decision_required` when the requirement is marked so). A later report that contradicts the requirement, or says it is unknown, takes an earlier acceptance back; reporting `supports` again does not restore it, and the person has to accept again. A requirement the person turned down holds completion with `goals.event_closure.requirement_rejected`. Request that decision once the work is ready, naming every requirement it covers; replace the requirement IDs with the actual active ones.
 
 ```javascript
 await act("goals.decisions.request", {
@@ -114,7 +114,7 @@ await act("goals.decisions.request", {
 });
 ```
 
-This optional branch is for a requirement already configured for human acceptance; it does not change the earlier example's default. Show the Goal page (the connection's `goal_url_template` with this Goal's ID) and the concrete decision awaiting the user. The user records acceptance or rejection in the protected interface. If that page needs starting, follow [service-start.md](service-start.md); continue unrelated work meanwhile.
+Show the Goal page (the connection's `goal_url_template` with this Goal's ID) and the concrete decision awaiting the user. The user records acceptance or rejection in the protected interface. If that page needs starting, follow [service-start.md](service-start.md); continue unrelated work meanwhile.
 
 Then read `goals.state.read` and use its actual requirement conclusions and pending decisions. Runtime cannot invoke `event_decide`, copy the user's wording into a fake identity, or treat “request saved” as “accepted.” A rejected decision leaves the requirement unmet.
 

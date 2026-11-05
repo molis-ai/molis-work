@@ -10,6 +10,7 @@ import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";
 import { advancedFieldSection, badgeSection, buttonSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
 import { directorySection, layoutSection } from "./catalog-layout.js";
+import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, writeChinese, type Say } from "./catalog-composer.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
@@ -205,12 +206,17 @@ function iconSection(): string {
   return section("icons", "图标", `<div class="mw-icon-lib">${groups}</div>`);
 }
 
-/** `plugins` fills the icon inventory's plugin rows; the design system keeps no list of plugins (PG-075), so omitted means none. */
-export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[] } = {}): string {
+/**
+ * `plugins` fills the icon inventory's plugin rows; the design system keeps no list of plugins (PG-075), so omitted means none.
+ * `say` is the page's translator: the sections written through it (the unified input's three parts) follow the board's language.
+ */
+export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say } = {}): string {
+  const say = options.say ?? writeChinese;
   const sections = `
     ${paletteSection()}
     ${typefaceSection()}
     ${iconSection()}
+    ${micSection(say)}
     ${iconInventorySection(options.plugins ?? [])}${renderStateRingCatalog()}
     ${craftSection()}
     ${motionSection()}
@@ -226,6 +232,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${tagInputSection()}
     ${formSection()}
     ${dropZoneSection()}
+    ${composerSection(say)}
     ${badgeSection()}
     ${statSection()}
     ${feedbackSection()}
@@ -233,6 +240,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${calendarSection()}
     ${overlaySection()}
     ${menuSection()}
+    ${menuDescSection(say)}
     ${tabsSection()}
     ${directorySection()}
     ${rowsSection()}
@@ -240,7 +248,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${dataTableSection()}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections)}
-    <style>${CATALOG_PATTERN_STYLES}</style>
+    <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

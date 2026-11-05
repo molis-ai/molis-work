@@ -45,3 +45,4 @@ export {
   type MwBriefOptions,
 } from "./arrival.js";
 export { renderPrimitiveCatalog, PRIMITIVE_CATALOG_IDS, type CatalogPluginIcon } from "./catalog.js";
+export { COMPOSER_BOARD_EN } from "./catalog-composer-en.js";

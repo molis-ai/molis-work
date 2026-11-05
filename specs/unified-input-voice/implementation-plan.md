@@ -143,6 +143,31 @@ type ComposerMaterial =
 
 每处都看浅深色、中英文、1440／1024／390；动效用现有的曲线与时长 token，不新加。原型里的 `.mwc*` 与 `mw-menu__desc` 是参照，不照抄进产品。
 
+**K1 定下的类名与结构**（标本在 `packages/design-system/src/primitives/catalog-composer.ts`，组件板 `#composer`、`#menu-desc`、`#mic` 三节；K0c 的 `renderComposer()` 与 K2 的客户端照这份拼，不另起类名）：
+
+```html
+<div class="mw-composer" data-slot="composer" data-state="…">        <!-- 没有 data-state 是常态 -->
+  <div class="mw-composer__to"><span>发给：</span><span class="mw-tag"><span>对象</span><button data-tag-remove>×</button></span></div>
+  <div class="mw-composer__box">                                      <!-- 圆角 --r-composer、阴影 --lift-1；:focus-within 换 --line-strong 描边 -->
+    <ul class="mw-uploads mw-composer__files"><li class="mw-upload">…</li></ul>   <!-- 附件条：组件板的上传行，一行一个 -->
+    <p class="mw-field__hint mw-composer__restore">已恢复… · <button class="mw-btn mw-btn--link">清空</button></p>
+    <div class="mw-composer__text"><textarea class="mw-composer__input" data-fit rows="1"></textarea></div>
+    <div class="mw-composer__status" role="status"><span class="mw-status …">…</span><span>说明</span><button class="mw-btn mw-btn--link">动作</button></div>
+    <div class="mw-composer__foot">
+      <div class="mw-composer__start">＋ 菜单（mw-compose__anchor）、场景控件</div>
+      <div class="mw-composer__end">麦克风（ghost 图标钮）、停止（danger-outline）、发送（图标钮，或运行中是 mw-btn-group：补充 + ▾ 的 mw-compose__menu）</div>
+    </div>
+  </div>
+</div>
+```
+
+- **状态只用一个属性** `.mw-composer[data-state]`：`sending`（发送键转圈、不可点）、`running`（出现停止与送达分体按钮）、`failed`（框描边换成红色调）、`unconfirmed`（待确认，发送键不可点）、`disabled`（框底换 `--wash`，写字区 `disabled`）；聚焦只靠 `:focus-within`，不设属性。状态行里的文字与动作由挂载页给，组件只摆位置。
+- **写字区**沿用 `textarea[data-fit]`（`FIELD_FIT_STYLES`）：两行起，到 240px 或窗口 40% 后框内滚动；`.mw-composer__input` 只改最小高度为两行、去边框。手机宽度与粗指针下字号 16px，底行按钮 44px。
+- **框里的菜单**往上开（`.mw-composer .mw-compose__menu` 贴底行上方，入场用现有的 `craft-rise-from-bar`）。
+- **菜单说明行**：`renderMenuItem({ description })` 输出 `button.mw-menu__item.mw-menu__item--described > [data-slot=menu-item-label] > span + small.mw-menu__desc`；不可选的项照旧 `disabled`，原因写在说明行里（说明行保持 `--muted`，不随禁用变淡）。
+- **麦克风**：图标名 `mic`（Lucide `Mic`），在 SDK `PLUGIN_ICON_NAMES` 与图标表「动作」组；16px 与 20px 两个尺寸都在 `#mic`。
+- 这些规则现在是组件板自己的样式（`COMPOSER_BOARD_STYLES`，不在页面样式表里，与 `catalog-patterns.ts` 的写法相同）；K2 第一次在产品里用时，连同它用到的 `mw-upload`、`mw-tag`、`mw-btn-group` 规则一起搬进页面样式表，页面资源增长在 K2 与 K3 合并落地时计。
+
 ## 4. 安全不变量的变化
 
 按 [SECURITY-INVARIANTS](../../docs/system/SECURITY-INVARIANTS.md) 第 3 节加一行。测试要先在没有保护的代码上红过。

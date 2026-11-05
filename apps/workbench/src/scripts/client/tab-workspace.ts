@@ -127,6 +127,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       // that plugin's tabs stay, marked removed (removedPlugin), until it is added back or closed.
       const plugins = { ...PLUGIN_TAB_ICON };
       document.querySelectorAll("[data-settings-page]").forEach(node => { plugins[node.dataset.settingsPage] = true; });
+      document.querySelectorAll("[data-plugin-tile]").forEach(node => { plugins[node.dataset.pluginTile] = true; }); // Home's plugins, added here or not
       if (!resetLayout && isCurrent(stored, plugins)) {
         state = ops.ensureHome(stored);
       } else if (stored || resetLayout) {

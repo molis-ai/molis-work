@@ -255,17 +255,20 @@ const headErrors = (measured, budget, base) => {
 // Tried: each skin rule is written once over shared `--sk-*` tokens; the board's own samples stay inlined on the board page;
 // the palette switch was removed from the board instead of shipped; the soft-fog commit's rewrite of buttons and badges is
 // smaller than what it replaced; no new asset.
+// BL-953 (A track): the home bar's input is a growing textarea, not a one-line input: arrival.css +132 B, workbench.css +132 B, settings.css
+// +43 B (the phone rule). Tried: the field's own sizing comes from the shared data-fit rule, so only the bar's line height, ceiling and
+// one-line prompt are written; the comments are not in the sheet.
 // N53/N54 D half (#1811, admitted by the coordinator on 2026-11-05): pages stop sending reads that can only fail. plugin-frame.js
 // +238 B: the frames a page mounts at once share one in-flight surfaces read per address, and a page with no project asks none;
 // workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
-// address. (The BL-952 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared read
-// is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
+// address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
+// read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [678758, 689755],
+  "/assets/molis-work-arrival.css": [689755, 689887],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
-  "/assets/molis-work-settings.css": [816992, 826705],
-  "/assets/molis-work-workbench.css": [1179610, 1194394],
-  "/assets/molis-work-workbench.js": [1074570, 1074739],
+  "/assets/molis-work-settings.css": [826705, 826748],
+  "/assets/molis-work-workbench.css": [1194394, 1194526],
+  "/assets/molis-work-workbench.js": [1074951, 1075120],
   "/assets/molis-work-plugin-frame.js": [208033, 208271],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

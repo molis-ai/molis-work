@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN" data-resolved-theme="light" data-show-new>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>统一输入框定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="board.css?v=2">
+  <link rel="stylesheet" href="input.css?v=2">
+</head>
+<body>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b data-t="protoTitle"></b>
+    <label><span data-t="entry"></span><select class="mw-select" id="entry"></select></label>
+    <span class="proto__item"><span data-t="words"></span>
+      <span class="mw-toggle-group" role="group" id="words"><button type="button" class="mw-toggle" data-words="1"></button><button type="button" class="mw-toggle" data-words="2"></button><button type="button" class="mw-toggle" data-words="3"></button></span>
+    </span>
+    <span class="proto__item"><span data-t="lang"></span>
+      <span class="mw-toggle-group" role="group" id="lang"><button type="button" class="mw-toggle" data-lang="zh">中</button><button type="button" class="mw-toggle" data-lang="en">EN</button></span>
+    </span>
+    <span class="proto__item"><span data-t="theme"></span>
+      <span class="mw-toggle-group" role="group" id="theme"><button type="button" class="mw-toggle" data-theme-set="light" data-t="light"></button><button type="button" class="mw-toggle" data-theme-set="dark" data-t="dark"></button></span>
+    </span>
+    <span class="mw-toggle-group" role="group"><button type="button" class="mw-toggle" id="shownew" data-t="showNew"></button></span>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" id="reset" data-t="reset"></button>
+  </div>
+  <div class="page">
+    <nav class="toc" id="toc" aria-label="目录"></nav>
+    <main id="app"></main>
+  </div>
+  <div class="mw-toast proto-toast" data-slot="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="board-icons.js?v=2"></script>
+  <script src="board-ring.js?v=2"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>

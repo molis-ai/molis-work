@@ -1,4 +1,4 @@
-// WUA-06 WUA-07 WUA-08 WUA-09 S-109: WORK-02/UAS-09/10/11/25/26/38: one Host owns durable sessions, refresh rotation and local-first logout.
+// WUA-06 WUA-07 WUA-08 WUA-09 S-110: WORK-02/UAS-09/10/11/25/26/38: one Host owns durable sessions, refresh rotation and local-first logout.
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
@@ -313,7 +313,7 @@ test("WUA-07 WUA-09: out-of-order explicit activity responses cannot roll back t
 });
 
 
-test("WUA-08 WUA-09 S-109: completion after cancellation or logout cleans issued tokens before any identity query", async () => {
+test("WUA-08 WUA-09 S-110: completion after cancellation or logout cleans issued tokens before any identity query", async () => {
   for (const action of ["cancel", "logout", "completion-cancelled"] as const) {
     const h = harness(), attempt = h.manager.beginLogin(control()), completion = new AbortController();
     assert.equal(Object.isFrozen(attempt), true);
@@ -328,7 +328,7 @@ test("WUA-08 WUA-09 S-109: completion after cancellation or logout cleans issued
   }
 });
 
-test("WUA-08 WUA-09 S-109: forged attempts and malformed tokens cannot initiate cleanup revocation", async () => {
+test("WUA-08 WUA-09 S-110: forged attempts and malformed tokens cannot initiate cleanup revocation", async () => {
   const h = harness(), real = h.manager.beginLogin(control()); h.manager.cancelLogin(real);
   const forged = { ...real, assertCurrent() { assert.fail("forged attempts must not run"); } };
   await assert.rejects(h.manager.completeLogin(forged, h.tokens, control()), { code: "account.invalid_request" });
@@ -336,7 +336,7 @@ test("WUA-08 WUA-09 S-109: forged attempts and malformed tokens cannot initiate 
   assert.equal(h.calls.length, 0); assert.equal(h.store.record, null); await h.manager.close();
 });
 
-test("WUA-08 WUA-09 S-109: duplicate or superseded completion cannot revoke an already adopted login", async () => {
+test("WUA-08 WUA-09 S-110: duplicate or superseded completion cannot revoke an already adopted login", async () => {
   const h = harness(), superseded = h.manager.beginLogin(control()), adopted = h.manager.beginLogin(control());
   await h.manager.completeLogin(adopted, h.tokens, control()); const saved = structuredClone(h.store.record);
   await assert.rejects(h.manager.completeLogin(adopted, h.tokens, control()), { code: "account.invalid_request" });

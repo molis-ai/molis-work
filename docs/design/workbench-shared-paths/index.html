@@ -1,17 +1,18 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>资料与工作台定样 · Molis Work 原型</title>
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="../kit/kit.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
-  <div id="icons"></div>
+  <div id="icons" hidden></div>
   <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
     <b data-t="protoTitle"></b>
     <label><span data-t="scheme"></span>
-      <span class="seg" id="scheme">
+      <span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="scheme">
         <button type="button" data-scheme="A" title="已定（2026-11-03）">A ✓</button><button type="button" data-scheme="B">B</button><button type="button" data-scheme="C">C</button>
       </span>
     </label>
@@ -22,16 +23,17 @@
       <select id="fault"></select>
     </label>
     <label><span data-t="lang"></span>
-      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
     </label>
     <label><span data-t="theme"></span>
-      <span class="seg" id="theme"><button type="button" data-theme-set="light" data-t="light"></button><button type="button" data-theme-set="dark" data-t="dark"></button></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="theme"><button type="button" data-theme-set="light" data-t="light"></button><button type="button" data-theme-set="dark" data-t="dark"></button></span>
     </label>
-    <button type="button" class="btn sm sec" id="reset" data-t="reset"></button>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset" data-t="reset"></button>
   </div>
   <div class="app" id="app"></div>
-  <script src="icons.js"></script>
+  <script src="../kit/kit.js?v=1"></script>
+  <script src="kit-bridge.js?v=2"></script>
   <script src="data.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

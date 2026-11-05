@@ -1,4 +1,4 @@
-// WUA-13/14/15 and S-111: real Host, real Auth, mock providers, browser/native-bridge paths.
+// WUA-13/14/15 and S-112: real Host, real Auth, mock providers, browser/native-bridge paths.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';

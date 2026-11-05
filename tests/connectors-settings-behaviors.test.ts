@@ -516,9 +516,12 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
         body: JSON.stringify({ service_id: "github", display_name: "工作 GitHub", token: TOKEN }),
       });
       assert.equal(created.status, 201);
-      const createdBody = await created.json() as { connection: { connection_id: string; state: string } };
+      const createdBody = await created.json() as { connection: { connection_id: string; state: string }; verification?: { available: boolean } };
       assert.equal(JSON.stringify(createdBody).includes(TOKEN), false);
       assert.equal(createdBody.connection.state, "connected");
+      // ASC-45 PF-A04: a saved key is checked once right away, so the page shows it works without another click.
+      assert.equal(createdBody.verification?.available, true);
+      assert.deepEqual(githubCalls, ["https://api.github.com/user"], "the save's own check is one read of the account");
       const connectionId = createdBody.connection.connection_id;
       const connectedPage = await (await fetch(`${origin}/settings/connectors`)).text();
       assert.match(connectedPage, /工作 GitHub/);
@@ -532,7 +535,7 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
       assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId, connectorControl()),
         { connection_id: connectionId, service_id: "github", login: "octocat", scopes: ["notifications"] });
-      assert.deepEqual(githubCalls, ["https://api.github.com/user"]);
+      assert.deepEqual(githubCalls, ["https://api.github.com/user", "https://api.github.com/user"], "the account read is one more request, nothing else");
       const disconnected = await fetch(`${origin}/api/settings/connectors/connections/${connectionId}`, {
         method: "DELETE",
         headers: headers(),

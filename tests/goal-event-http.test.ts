@@ -459,6 +459,12 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
         judgments: [{ requirement_id: "closed-result", verdict: "supports" }],
       }],
     });
+    // A report is only the reporter's own word (PWA-144): the person accepts the requirement through the protected entry before closing.
+    app.goalEvents.recordTrustedDecision({
+      project_id: BOARD, goal_id: goalId, idempotency_key: "accept-closed-result",
+      authority: hostEventDecisionAuthority("web", BOARD, "web-user", "accept-closed-result"),
+      conclusion: "结果已交付，我核对过", accepts_requirements: true, scope: { requirement_ids: ["closed-result"] },
+    });
     const ready = app.goalEvents.readState(BOARD, goalId);
     const closed = app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "do-complete",
@@ -755,6 +761,12 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
         { requirement_id: "r-two", verdict: "supports" },
       ],
     }],
+  });
+  // The runtime's "supports" is its own word (PWA-144): the person accepts both requirements first, and the replacement below expires those acceptances.
+  app.goalEvents.recordTrustedDecision({
+    project_id: BOARD, goal_id: goalId, idempotency_key: "accept-expire",
+    authority: hostEventDecisionAuthority("web", BOARD, "web-user", "accept-expire"),
+    conclusion: "两条要求我都核对过", accepts_requirements: true, scope: { requirement_ids: ["r-one", "r-two"] },
   });
   const closed = app.goalEvents.submitClosure({
     project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",

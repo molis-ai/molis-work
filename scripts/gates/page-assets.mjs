@@ -255,6 +255,14 @@ const headErrors = (measured, budget, base) => {
 // Tried: each skin rule is written once over shared `--sk-*` tokens; the board's own samples stay inlined on the board page;
 // the palette switch was removed from the board instead of shipped; the soft-fog commit's rewrite of buttons and badges is
 // smaller than what it replaced; no new asset.
+// BL-953 (A track): the home bar's input is a growing textarea, not a one-line input: arrival.css +132 B, workbench.css +132 B, settings.css
+// +43 B (the phone rule). Tried: the field's own sizing comes from the shared data-fit rule, so only the bar's line height, ceiling and
+// one-line prompt are written; the comments are not in the sheet.
+// N53/N54 D half (#1811, admitted by the coordinator on 2026-11-05): pages stop sending reads that can only fail. plugin-frame.js
+// +238 B: the frames a page mounts at once share one in-flight surfaces read per address, and a page with no project asks none;
+// workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
+// address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
+// read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
 // BL-952 (2026-11-04): the selection reader skips headings inside a closed dialog or a hidden element, +56 B on workbench.js and on
 // plugin-frame.js (the same reader). Tried: one `closest` test with a short selector, no feature check, no second path.
 // WORK-03 (2026-11-05, explicitly approved by the user): product-local account forms and protected GET.
@@ -267,6 +275,8 @@ const headErrors = (measured, budget, base) => {
 // WORK-07 (2026-11-05, explicitly approved by the user): subscription, seat and platform forms share cards, fields and error states; +10,408 bytes over 1,100,920, minified into the existing bundle. No other assets grow.
 // WORK-08 (2026-11-05, explicitly approved by the user up to +2,374 bytes): entitlement sources reuse subscription UI and the request helper; final +2,340 bytes over 1,111,328 after removing invalid cross-batch revision comparison. Other assets unchanged.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/coding.css": [74624, 75514],
+  "/assets/molis-work-settings.css": [826705, 826748],
   // K-05 reuses the responsive bar; tighten the prior admission by 42 bytes.
   "/assets/molis-work-arrival.css": [689755, 690165],
   "/assets/molis-work-workbench.css": [1194394, 1194846],

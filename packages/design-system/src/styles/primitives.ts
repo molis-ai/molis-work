@@ -51,7 +51,7 @@ export const PRIMITIVE_STYLES = `
   .mw-btn svg { width: 14px; height: 14px; flex: none; }
   .mw-btn--sm { min-height: 28px; }
   .mw-btn--md { min-height: 32px; }
-  .mw-btn--lg { min-height: 36px; padding-inline: 16px; font-size: 15px; }
+  .mw-btn--lg { min-height: 36px; padding-inline: 16px; }
   .mw-btn--lg svg { width: 16px; height: 16px; }
   .mw-btn--icon, .mw-btn--icon-only {
     width: var(--control-h, 28px);

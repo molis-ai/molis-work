@@ -1,6 +1,6 @@
 # 防腐后路线书 · 执行目录
 
-状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施按轨道写手，谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
+状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话独立安排、派写手（[决定 26](reference/decisions.md#decision-26)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
 
 **当前入口：[01 主线核账](reference/batches/01.md#baseline-01) · [本人试用单](reference/acceptance-01.md)。** 01 已按主线核实并交单；实际试用、真实 Home 和后续批次另计。
 
@@ -56,7 +56,7 @@
 | [18](reference/batches/18.md) | [Schedule 查询前置](reference/batches/18.md#batch-18-item-1) |
 | [19](reference/batches/19.md) | [Work Brief 首页与简报核心](reference/batches/19.md#batch-19-item-1) |
 | [20](reference/batches/20.md) | [场景与生成页面公共合同](reference/batches/20.md#batch-20-item-1) |
-|  | [场景套组声明](reference/batches/20.md#batch-20-item-2) |
+|  | [场景包声明](reference/batches/20.md#batch-20-item-2) |
 | [21](reference/batches/21.md) | [观测采集设计与评测案例](reference/batches/21.md#batch-21-item-1) |
 | [22](reference/batches/22.md) | [Sessions 来源与历史合同](reference/batches/22.md#batch-22-item-1) |
 | [23](reference/batches/23.md) | [同步与团队共同设计 → SRV-1](reference/batches/23.md#batch-23-item-1) |
@@ -100,7 +100,7 @@
 | [43](reference/batches/43.md) | [项目助理团执行与交付](reference/batches/43.md#batch-43-item-1) |
 |  | [Dataset 汇总、追加与规模性能](reference/batches/43.md#batch-43-item-2) |
 | [44](reference/batches/44.md) | [首次／项目场景闭环](reference/batches/44.md#batch-44-item-1) |
-|  | [官方场景套组：行业观察与写作、写代码](reference/batches/44.md#batch-44-item-2) |
+|  | [官方场景包：行业观察与写作、写代码](reference/batches/44.md#batch-44-item-2) |
 | [45](reference/batches/45.md) | [情境 W4 创建与准备声明](reference/batches/45.md#batch-45-item-1) |
 |  | [通用任务引导与场景复用](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [正式插件交付的平台前置](reference/batches/46.md#batch-46-item-1) |
@@ -113,7 +113,7 @@
 | [50](reference/batches/50.md) | [双身份协作实证 → SRV-3](reference/batches/50.md#batch-50-item-1) |
 | [51](reference/batches/51.md) | [每日简报、设置与中断恢复](reference/batches/51.md#batch-51-item-1) |
 |  | [初始日报与工作接续 Skill](reference/batches/51.md#batch-51-item-2) |
-|  | [官方场景套组：个人事务与每日简报](reference/batches/51.md#batch-51-item-3) |
+|  | [官方场景包：个人事务与每日简报](reference/batches/51.md#batch-51-item-3) |
 | [52](reference/batches/52.md) | [回执与交互余项](reference/batches/52.md#batch-52-item-1) |
 |  | [智能呈现第二片](reference/batches/52.md#batch-52-item-2) |
 |  | [主线第二片](reference/batches/52.md#batch-52-item-3) |

@@ -38,7 +38,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-tag button:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
   .mw-tag button:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 0; }
   .mw-tag svg { width: 12px; height: 12px; }
-  .mw-tags__suggest { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mw-tags__suggest { display: flex; flex-wrap: wrap; gap: 8px; }
   .mw-tag--add { gap: 4px; padding: 0 8px 0 6px; background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); cursor: pointer; }
   .mw-tag--add:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
   .mw-tag--add:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 1px; }
@@ -67,7 +67,7 @@ export const CATALOG_PATTERN_STYLES = `
   @container (max-width: 400px) { .mw-stats > div { grid-template-columns: minmax(0, 1fr); } }
   .mw-stat { display: grid; align-content: start; gap: 4px; padding: 16px; ${SURFACE}; }
   .mw-stat > p { margin: 0; font-size: 12px; color: var(--muted); }
-  .mw-stat strong { font-size: 28px; line-height: 36px; font-weight: var(--weight-title, 600); color: var(--ink); letter-spacing: -.01em; }
+  .mw-stat strong { font-size: 24px; line-height: 32px; font-weight: var(--weight-title, 600); color: var(--ink); letter-spacing: -.01em; }
   .mw-stat strong small { margin-left: 4px; font-size: 13px; font-weight: var(--weight-control, 500); letter-spacing: 0; color: var(--muted); }
   .mw-stat__delta { display: flex; align-items: center; gap: 6px; min-height: 20px; font-size: 12px; color: var(--muted); }
   .mw-stat__delta .mw-badge { gap: 2px; padding: 0 6px 0 4px; font-variant-numeric: tabular-nums; }
@@ -80,7 +80,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-stat__trend line + line { stroke: var(--accent); stroke-width: 6; }
   .mw-stat .mw-progress { margin-top: 16px; }
 
-  .mw-items { display: grid; width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
+  .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
   .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
   .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }

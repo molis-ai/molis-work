@@ -65,7 +65,8 @@ function contextPage() {
   const top: Record<string, unknown> = { addEventListener() {}, dispatchEvent: () => true };
   top.parent = top;
   const document = {
-    body: element({ append() {} }), documentElement: element(), activeElement: null, createElement: () => element(),
+    // The page has a project open (the shell writes data-project-id): a page choosing one reads no declared surfaces (#1811, N53).
+    body: element({ append() {}, dataset: { projectId: "project-a" } }), documentElement: element(), activeElement: null, createElement: () => element(),
     querySelector: () => null, getElementById: () => null, dispatchEvent: () => true, querySelectorAll: () => [],
     addEventListener: (type: string, fn: (event: unknown) => void) => { (documentListeners[type] ||= []).push(fn); },
   };

@@ -1,6 +1,6 @@
 import { createAccountSessionManager, createAccountAuthentication } from "@molis-ai/molis-work-service-account";
 import { createRequire } from "node:module";
-// WUA-16/17/18 and S-112: real Host, real Auth, mock providers, browser/native-bridge paths.
+// WUA-16/17/18 and S-113: real Host, real Auth, mock providers, browser/native-bridge paths.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';

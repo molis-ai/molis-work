@@ -1,0 +1,87 @@
+/* Layout additions shared by the Coding samples built on coding-proto.js (33, 35-2), on top of
+   coding-execution-states/styles.css. Colours, shadows, radii, durations and curves are the component board's tokens only. */
+
+/* Prototype strip: the "mark board additions" switch */
+.proto .marks{gap:6px}
+.proto .marks .mw-check{margin:0}
+
+/* Board additions (workflow §5): outlined and labelled only while the switch is on */
+html.show-new [data-new]{outline:1.5px dashed color-mix(in srgb,var(--accent) 70%,transparent);outline-offset:3px;position:relative}
+html.show-new [data-new]::before{content:"组件板新增 · " attr(data-new);position:absolute;z-index:5;left:0;top:-22px;max-width:min(520px,90vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 8px;border-radius:6px;background:var(--accent);color:var(--paper);font:500 11px/16px var(--font);pointer-events:none}
+html.show-new:lang(en) [data-new]::before{content:"Board addition · " attr(data-new)}
+
+/* Files column footer (33 env scheme C) */
+.c-dir__foot{margin-top:auto;padding:8px}
+.envp{display:grid;gap:2px;padding:8px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft)}
+.envp.is-err{box-shadow:0 0 0 1px color-mix(in srgb,var(--red) 40%,transparent),var(--shadow-soft)}
+.envp.is-wait{box-shadow:0 0 0 1px color-mix(in srgb,var(--amber) 45%,transparent),var(--shadow-soft)}
+.envp__head{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 4px;font-size:12px;font-weight:500;color:var(--ink-soft)}
+.envp__row{display:flex;align-items:center;gap:8px;min-height:24px;padding:0 4px;font-size:12px;color:var(--muted);min-width:0}
+.envp__row b{font-weight:500;color:var(--ink-soft)}
+.envp__row .mw-state-ring{flex:none}
+
+/* Process lines (VUX-13 process fold) */
+.proc{padding:0 4px}
+.proc .pf-group>summary{display:flex;align-items:center;gap:6px}
+.proc .pf-line,.proc .pf-step>summary{display:flex;align-items:center;gap:6px;min-height:22px;color:var(--muted)}
+.proc .pf-line .meter{flex:0 0 120px;margin:0}
+.proc .mw-state-ring{flex:none}
+
+/* A checklist row holding a label and its value on one line */
+.row .kv{display:flex;gap:12px;min-width:0}
+.row .kv b{flex:none;width:96px;font-weight:500;color:var(--ink-soft)}
+.row .kv .ell{color:var(--muted)}
+
+/* Attempts and budget (33 budget) */
+.attempt{display:grid;gap:8px;padding:4px 12px 12px 46px;font-size:12px;color:var(--muted)}
+.attempt__line{display:flex;align-items:center;gap:6px;min-width:0;color:var(--ink-soft)}
+.attempt .meter{margin:0}
+.attempt__why{line-height:1.5}
+.attempt__past{display:flex;align-items:center;gap:6px;padding:4px 0 0}
+.attempt .acts{padding:0}
+.meter i.hot{background:var(--amber)}
+.sumchip .mw-badge{display:inline-flex;align-items:center;gap:4px;border:0;cursor:pointer;font:inherit;font-size:12px}
+.sumchip .mw-badge:hover{background:var(--nav-hover)}
+
+/* "Stopped here" on the plan (33 resume B) */
+.stop-at{display:inline-flex;align-items:center;gap:4px;flex:none;padding:0 8px;height:22px;border-radius:999px;background:color-mix(in srgb,var(--amber) 14%,var(--paper));color:var(--amber);font-size:12px;font-weight:500}
+
+/* Closing report (33 report A) */
+.report{display:grid;gap:4px;padding:8px 16px 16px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft)}
+.report.is-accepted{box-shadow:0 0 0 1px color-mix(in srgb,var(--green) 40%,transparent),var(--shadow-soft)}
+.report__head{display:flex;align-items:center;gap:8px;min-height:40px}
+.report section{display:grid;gap:2px;padding:8px 0 4px;box-shadow:inset 0 1px 0 var(--line)}
+.report h3{margin:0 0 4px;font-size:12px;font-weight:500;color:var(--muted)}
+.report .acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:8px}
+.chk{display:flex;align-items:center;gap:8px;min-height:32px;font-size:13px;color:var(--ink-soft);min-width:0}
+.chk .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chk.is-quiet{color:var(--muted)}
+.chk .mw-state-ring{flex:none}
+.chk-sub{padding:0 12px 8px;font-size:12px;color:var(--muted)}
+.bcard .chk{padding:0 12px}
+.ver{display:inline-flex;align-items:center;gap:4px;flex:none;font:500 11px var(--font-mono,ui-monospace,monospace);color:var(--muted);font-variant-numeric:tabular-nums}
+.row .ver{margin-left:auto}
+
+/* Five-rung status ladder (33 report B) */
+.ladder{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.rung{display:flex;align-items:flex-start;gap:8px;padding:10px;border-radius:10px;background:var(--surface-soft);min-width:0}
+.rung span{display:grid;gap:2px;min-width:0}
+.rung b{font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rung small{font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rung.is-on{background:color-mix(in srgb,var(--green) 10%,var(--paper))}
+.rung.is-on b{color:var(--ink)}
+.rung .mw-state-ring{flex:none;margin-top:1px}
+
+@media (max-width:760px){
+  .ladder{grid-template-columns:1fr 1fr}
+  .row .kv b{width:72px}
+  .attempt{padding-left:12px}
+}
+
+/* Conversation items never push the column wider than the screen: long code scrolls inside its own box */
+.c-column>*{min-width:0}
+.c-column .rise>*{min-width:0;max-width:100%}
+.box__foot .cap.ell{min-width:0}
+@media (max-width:560px){.hint{flex-wrap:wrap;padding:8px 8px 8px 12px}.hint .grow{flex:1 1 calc(100% - 32px);white-space:normal}.hint .acts{flex:1 1 100%;flex-wrap:wrap;justify-content:flex-end;min-width:0}}
+@media (max-width:560px){.round>.ell{white-space:normal;line-height:24px}.round:has(.sumchip)::after{display:none}}
+@media (max-width:560px){.box__foot .cap.ell{display:none}}

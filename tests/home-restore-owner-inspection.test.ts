@@ -10,7 +10,7 @@ import { createHomeSnapshot, restoreHomeSnapshot } from "@molis-ai/molis-work-ap
 import { assertExistingHomeKeyReference, createEvidenceContentStore, createLazyFileSecretStore, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, inspectMemoryLedger, openMemoryLedger, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { restoreFixture } from "./fixtures/home-restore.js";
 import { homeStorageTree, homeBusinessTree } from "./fixtures/home-storage-files.js";
-import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
+import { captureSqliteError, smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
 
 test("RAC-2915: the actual current Catalog, including its context ledger, passes zero-write archive inspection", { timeout: 30_000 }, async t => {
   const f = await restoreFixture(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
@@ -120,16 +120,9 @@ test("RAC-2915: the restore SQLite reader preserves original version, I/O, busy 
   const damaged = standaloneArchive(t);
   writeFileSync(damaged.file, "not a SQLite archive");
   const source = openTestSqlite(damaged.file);
-  let nativeError: Error | undefined;
-  try {
-    assert.throws(() => source.pragma("user_version"), error => {
-      assert.ok(error instanceof Error && "code" in error);
-      assert.equal(error.code, "SQLITE_NOTADB");
-      nativeError = error;
-      return true;
-    });
-  } finally { source.close(); }
-  assert.ok(nativeError);
+  let nativeError: Error;
+  try { nativeError = captureSqliteError(() => source.pragma("user_version"), "SQLITE_NOTADB"); }
+  finally { source.close(); }
   for (const kind of ["version", "missing-file", "busy", "cancelled"] as const) await t.test(kind, t => {
     const f = standaloneArchive(t);
     if (kind === "missing-file") rmSync(f.file);

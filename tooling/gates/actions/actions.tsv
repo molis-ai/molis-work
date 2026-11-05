@@ -7,8 +7,8 @@
 # input, output and traits are sha256 prefixes: input and output of the JSON Schema without its title/description annotations; traits of
 # the rest of the declaration (required actions, undo, background job, sources, execution policy, authorship, ...) without prose and
 # presentation. `-` means none.
-# A row whose hash changed while its @version did not is a contract that changed under the references that pin it: bump the version, or
-# say in the PR why the change cannot break a pinned reference (docs/system/CONTRACT-CHANGES.md). Say what it means for callers.
+# A hash change at the same @version changes the contract for pinned callers. Describe that impact in the PR.
+# During phase one, keep the current version; from the first external installation, follow docs/system/CONTRACT-CHANGES.md.
 capability_id	version	provider	registered_provider	operation	kind	scope	effect	scheduling	audiences	permissions	subjects	input_type	output_type	input	output	traits
 alchemist.annotations.create	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	0715d57827a0	b5e48a58d83e	-
 alchemist.annotations.list	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	2a9535fa5002	68adca6374cd	-

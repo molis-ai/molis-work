@@ -448,6 +448,8 @@ export const CAPSULE_CLIENT_SCRIPT = `
       path: next.state.action_path,
     }).catch(() => {});
   };
+  // The one network read in this program: the capsule state and the page probe both go through it.
+  const readNoStore = (url, signal) => fetch(url, { cache: "no-store", signal });
   const load = async ({ showLoading = false } = {}) => {
     if (!projectId) {
       clearLoading();
@@ -462,10 +464,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
     activeRequest = { requestId, controller };
     if (showLoading) setLoading(requestedProjectId);
     try {
-      const response = await fetch(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule"), {
-        cache: "no-store",
-        signal: controller.signal,
-      });
+      const response = await readNoStore(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule"), controller.signal);
       if (response.status === 404 && requestId === requestSequence && requestedProjectId === projectId) {
         stopPolling();
         return;
@@ -529,7 +528,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
   };
   // The page itself is fetched first: a Host that is restarting would turn the reload into an error page with no script in it.
   const reloadPage = () => {
-    fetch(location.href, { cache: "no-store" }).then((response) => { if (response.ok) location.reload(); }).catch(() => {});
+    readNoStore(location.href).then((response) => { if (response.ok) location.reload(); }).catch(() => {});
   };
 
   projectSelects.forEach((select) => {

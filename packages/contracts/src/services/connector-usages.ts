@@ -21,3 +21,33 @@ export function defineConnectorUsagesAction(id: string, title: string, permissio
     audiences: ["user", "agent", "mcp"], permissions, subject_kinds: ["connector"], input_type: CONNECTOR_USAGES_INPUT_TYPE, output_type: CONNECTOR_USAGES_OUTPUT_TYPE,
     input_schema: CONNECTOR_USAGES_INPUT_SCHEMA, output_schema: CONNECTOR_USAGES_OUTPUT_SCHEMA } };
 }
+
+/**
+ * Move a consumer's live references from one connection of a service to another (spec assistant-service-connections §13.4).
+ * Each consumer declares its own switch, paired with its usages read; `connectors.usages.switch@1` reaches it only as a
+ * nested call carrying the person's own context. Only a person decides which account a plugin or model uses.
+ */
+export const CONNECTOR_USAGES_SWITCH_INPUT_TYPE = "molis.connector-usages-switch.input.v1";
+export const CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE = "molis.connector-usages-switch.output.v1";
+export interface ConnectorUsagesSwitchInput {
+  from_connection_id: string; to_connection_id: string;
+  /** `usage_id`s this consumer reported for `from_connection_id`; absent means all of them. */
+  usage_ids?: string[];
+}
+export interface ConnectorUsagesSwitchResult {
+  switched: string[];
+  /** `code` is a stable `<owner>.<reason>` error code the page words; never free text. */
+  refused: Array<{ usage_id: string; code: string }>;
+}
+const connectionId = { ...text, maxLength: 160 };
+export const CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA = { type: "object", properties: { from_connection_id: connectionId, to_connection_id: connectionId,
+  usage_ids: { type: "array", items: text, maxItems: 1000 } }, required: ["from_connection_id", "to_connection_id"], additionalProperties: false };
+export const CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA = { type: "object", properties: { switched: { type: "array", items: text },
+  refused: { type: "array", items: { type: "object", properties: { usage_id: text, code: { ...text, maxLength: 200 } }, required: ["usage_id", "code"], additionalProperties: false } } },
+  required: ["switched", "refused"], additionalProperties: false };
+
+export function defineConnectorUsagesSwitchAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult> {
+  return { capability_id: id, version: 1, operation: "command", action: { title, description: "把本模块里用到一个账号的地方换成同一服务的另一个账号；换过去的与没换的分开列出，账号本身不动。", kind: "operation", effect: "write", scope,
+    audiences: ["user"], permissions, subject_kinds: ["connector"], input_type: CONNECTOR_USAGES_SWITCH_INPUT_TYPE, output_type: CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE,
+    input_schema: CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA, output_schema: CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA } };
+}

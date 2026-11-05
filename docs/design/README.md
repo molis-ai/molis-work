@@ -23,6 +23,9 @@
 | [service-connections/](service-connections/README.md) | 服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒 | 用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据 |
 | [sessions-sources/](sessions-sources/README.md) | 第 22 批外部会话定样：发现会话、归属建议、查看历史三块，各两到三个方案，含读取中、来源没读成、没有会话、模型不可用、改选后来了新建议、读到一半断了、这一版读不了、已停止读取；按组件板实件做 | 用户已定（2026-11-04：B 按时间排加来源条、B 待归类集中处理、A 原文对话，记在 [Sessions 需求 §8](../../specs/sessions-rebuild/spec.md#8-决策记录)）；产品未实现；里面是示例数据 |
 | [kit/](kit/README.md) | 组件板实件，各原型共用一份：从构建结果生成的 `kit.css`／`kit.js`（色板、`mw-*` 控件、状态环、差异视图、过程折叠、图标表与真实渲染函数）和生成脚本 | 现行；`pnpm build` 后 `node docs/design/kit/build.mjs` 重新生成，不手改；组件板变了由 D 轨重生成 |
+| [coding-frame/](coding-frame/README.md) | Coding 样张共用框架 `coding-proto.js`／`.css`：原型控制条、Coding 外壳、恢复框架和「标出组件板新增」开关，叠在 kit 和 12 的布局层上 | 现行；B 轨维护，33、35-2 在用 |
+| [coding-env-recovery/](coding-env-recovery/README.md) | 第 33 批 Coding 任务与环境恢复的可点定样：环境与临时副本、预算与重试、重启后接着做、本轮结果；每块 A／B／C，沿用 12 的恢复 A 和 04 的失败框架 | 用户已选定（2026-11-04：四块都是 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
+| [coding-daily-basics/](coding-daily-basics/README.md) | 第 35 批第 2 项 Coding A 期的可点定样：命令与说明文件、图片、代码理解工具、写后检查与格式化；每块 A／B／C，审查卡用组件板的差异视图 | 用户已选定（2026-11-04：四块都是 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
 | [molis-work-onboarding/](molis-work-onboarding/proposal.md) | 「从已有工作开始」的引导与项目创建方案 | 流程与数据边界仍有效；视觉由 Soft Workbench 引导窗口取代 |
 | [ui-renewal-2026-09-21/](ui-renewal-2026-09-21/README.md) | 设计讨论、研究与共识 | 历史参考 |
 | [immersive-workbench/](immersive-workbench/README.md) | 画布中心工作台原型（Linear 方向） | 历史原型，视觉已被取代 |

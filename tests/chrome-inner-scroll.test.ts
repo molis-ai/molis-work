@@ -86,7 +86,7 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link\[aria-current\] svg \{ color: var\(--ink\)/);
   assert.match(workbench, /\.assistant-composer \{[\s\S]*width: min\(480px, calc\(100vw - 88px\)\);[\s\S]*max-height: min\(620px, 85vh\);[\s\S]*border-radius: 16px;[\s\S]*flex-direction: row;/);
   assert.match(workbench, /:not\(\.assistant-composer-input\)/);
-  assert.match(workbench, /input\.assistant-composer-input:is\(:hover, :focus, :focus-visible\) \{[\s\S]*outline: none;[\s\S]*border: 0;/);
+  assert.match(workbench, /textarea\.assistant-composer-input:is\(:hover, :focus, :focus-visible\) \{[\s\S]*outline: none;[\s\S]*border: 0;/);
   assert.match(workbench, /\.assistant-composer:popover-open \{ display: flex; inset: auto; margin: 0; \}/);
   assert.match(workbench, /\.workspace-chrome\.project-island \{/);
   assert.match(workbench, /\.workspace-chrome\.project-island \{[\s\S]*flex: none;/);

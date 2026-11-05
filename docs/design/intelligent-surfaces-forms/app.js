@@ -1,7 +1,7 @@
 // 03 · 智能呈现四种基础形态定样 — standalone prototype on sample data (data.js). Nothing calls a model or a Home.
 (() => {
   const D = window.isData;
-  document.getElementById("icons").innerHTML = window.protoIcons;
+  document.getElementById("icons").innerHTML = window.mwKitSprite;
   const T = {
     zh: {
       protoTitle: "原型 · 模拟数据", scheme: "方案", pos: "位置", fault: "异常", lang: "语言", theme: "外观", light: "浅", dark: "深", reset: "重置",
@@ -82,7 +82,7 @@
     const label = `${ownName(o)} · ${L(o, "title")}${stLabel(o) ? " · " + stLabel(o) : ""}`;
     let inner;
     if (o.undeclared) inner = `${ic(own(o).icon, "sm")}<span class="nm">${esc(L(o, "title"))}</span>`;
-    else if (S.scheme === "A") inner = `<span class="ring ${o.state}"></span><span class="nm">${esc(L(o, "title"))}</span>`;
+    else if (S.scheme === "A") inner = `${kitRing(o.state)}<span class="nm">${esc(L(o, "title"))}</span>`;
     else if (S.scheme === "B") inner = `${ownTile(o)}<span class="nm">${esc(L(o, "title"))}</span>${attention(o.state) ? `<span class="sd ${o.state}"></span>` : ""}`;
     else inner = `<span class="nm">${esc(L(o, "title"))}</span>${attention(o.state) ? `<span class="sd ${o.state}" style="width:6px;height:6px;border-radius:50%"></span>` : ""}`;
     return `<button type="button" class="chip${o.state === "stale" ? " gone" : ""}" data-act="chip" data-id="${id}" aria-label="${esc(label)}">${inner}</button>`;
@@ -90,10 +90,10 @@
 
   // ---------- operations ----------
   function opBtn(id, op, i, size = "sm") {
-    const cls = op.danger ? "danger" : i === 0 ? "primary" : "sec";
-    return `<button type="button" class="btn ${size} ${cls}" data-act="op" data-id="${id}" data-op="${op.id}">${esc(op[S.lang])}</button>${op.consequence ? `<span class="cons">${ic("info", "sm")}${esc(L(op, "consequence"))}</span>` : ""}`;
+    const cls = op.danger ? "danger" : i === 0 ? "primary" : "secondary";
+    return `<button type="button" class="mw-btn mw-btn--${size === "sm" ? "sm" : "md"} mw-btn--${cls}" data-slot="button" data-act="op" data-id="${id}" data-op="${op.id}">${esc(op[S.lang])}</button>${op.consequence ? `<span class="cons">${ic("info", "sm")}${esc(L(op, "consequence"))}</span>` : ""}`;
   }
-  const moreBtn = (id) => `<button type="button" class="btn icon sm ghost" data-act="more" data-id="${id}" aria-label="${t("more")}">${ic("more", "sm")}</button>`;
+  const moreBtn = (id) => `<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="more" data-id="${id}" aria-label="${t("more")}">${ic("more", "sm")}</button>`;
   function receipt(id) {
     const base = D.objects[id] || extra[id], op = (base.ops || []).find((x) => x.id === S.done[id]);
     if (!op) return "";
@@ -107,13 +107,13 @@
     if (o.state === "denied") return `<div class="row2 gone"${sel}>${ic("lock")}<span class="tx"><strong>${t("noAccess")}</strong><span class="m"><span>${esc(t("noAccessBody", ownName(o)))}</span></span></span></div>`;
     if (o.state === "deleted") return `<div class="row2 gone">${ic(own(o).icon)}<span class="tx"><strong>${esc(L(o, "title"))}</strong><span class="m"><span>${esc(ownName(o))} · ${t("s_deleted")}</span></span></span></div>`;
     if (S.done[id] && !opts.keep) return receipt(id);
-    if (o.undeclared) return `<div class="row2">${ownTile(o)}<span class="tx"><strong>${esc(L(o, "title"))}</strong><span class="m"><span>${esc(ownName(o))}</span></span></span><span class="rt"><button class="btn sm sec" data-act="open" data-id="${id}">${t("open")}</button></span></div>`;
-    const tag = attention(o.state) && o.state !== "running" ? `<span class="stag ${o.state}">${stLabel(o)}</span>` : "";
+    if (o.undeclared) return `<div class="row2">${ownTile(o)}<span class="tx"><strong>${esc(L(o, "title"))}</strong><span class="m"><span>${esc(ownName(o))}</span></span></span><span class="rt"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="open" data-id="${id}">${t("open")}</button></span></div>`;
+    const tag = attention(o.state) && o.state !== "running" ? `<span class="mw-status stag ${o.state}">${stLabel(o)}</span>` : "";
     const judge = o.judge ? `<span class="judge">${esc(L(o, "judge"))}</span>` : "";
     const prim = (o.ops || [])[0];
     const title = `<strong><button class="link" style="color:inherit;font-weight:inherit;max-width:100%;overflow:hidden;text-overflow:ellipsis" data-act="peek" data-id="${id}">${esc(L(o, "title"))}</button></strong>`;
     let lead = "", meta;
-    if (S.scheme === "A") { lead = `<span class="ring ${o.state}"></span>`; meta = `<span>${esc(ownName(o))}</span>·<span>${esc(L(o, "time"))}</span>${o.who ? "·" + whoHtml(o) : ""}`; }
+    if (S.scheme === "A") { lead = `${kitRing(o.state)}`; meta = `<span>${esc(ownName(o))}</span>·<span>${esc(L(o, "time"))}</span>${o.who ? "·" + whoHtml(o) : ""}`; }
     else if (S.scheme === "B") { lead = ownTile(o, "lg"); meta = `<span>${esc(L(o, "time"))}</span>${o.who ? "·" + whoHtml(o) : ""}`; }
     if (S.scheme === "C") {
       return `<div class="row2"${sel}><span class="tx">${title}<span class="snip">${esc(L(o, "summary"))}</span></span><span class="rt">${judge}${tag}<span class="fact">${esc(L(o, "time"))}</span>${prim ? opBtn(id, prim, 0) : ""}${moreBtn(id)}</span></div>`;
@@ -124,32 +124,32 @@
   // ---------- card ----------
   function bodyBits(o) {
     let b = "";
-    if (o.progress) b += `<div class="prog ${o.state}"><span>${esc(L(o.progress, "label"))} ${o.progress.done}/${o.progress.total}</span><span class="bar"><i style="width:${(o.progress.done / o.progress.total) * 100}%"></i></span></div>`;
-    if (o.step) b += `<div class="prog"><span>${S.lang === "zh" ? `第 ${o.step.n} 步，共 ${o.step.of} 步` : `Step ${o.step.n} of ${o.step.of}`}</span><span class="bar"><i style="width:${(o.step.n / o.step.of) * 100}%"></i></span></div>`;
+    if (o.progress) b += `<div class="prog ${o.state}"><span>${esc(L(o.progress, "label"))} ${o.progress.done}/${o.progress.total}</span><div class="mw-progress" data-slot="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${o.progress.total}" aria-valuenow="${o.progress.done}"><span style="width:${(o.progress.done / o.progress.total) * 100}%"></span></div></div>`;
+    if (o.step) b += `<div class="prog"><span>${S.lang === "zh" ? `第 ${o.step.n} 步，共 ${o.step.of} 步` : `Step ${o.step.n} of ${o.step.of}`}</span><div class="mw-progress" data-slot="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${o.step.of}" aria-valuenow="${o.step.n}"><span style="width:${(o.step.n / o.step.of) * 100}%"></span></div></div>`;
     return b;
   }
   function card(id, opts = {}) {
     const o = obj(id); if (!o) return "";
     const why = opts.why ? `<div class="why">${ic("info", "sm")}${t("why")}${esc(t(opts.why))}</div>` : "";
     if (o.state === "denied") return `<div class="card2 gone"><div class="hd">${ic("lock")}<span class="tt">${t("noAccess")}</span></div><p class="sum fact" style="margin:0">${esc(t("noAccessBody", ownName(o)))}</p></div>`;
-    if (o.state === "deleted") return `<div class="card2 gone"><div class="hd">${ic(own(o).icon)}<span class="tt" style="color:var(--faint);font-weight:500">${esc(t("deletedBody", L(o, "title")))}</span><span class="stag">${t("s_deleted")}</span></div></div>`;
+    if (o.state === "deleted") return `<div class="card2 gone"><div class="hd">${ic(own(o).icon)}<span class="tt" style="color:var(--faint);font-weight:500">${esc(t("deletedBody", L(o, "title")))}</span><span class="mw-status stag">${t("s_deleted")}</span></div></div>`;
     if (S.done[id]) return receipt(id);
-    if (o.undeclared) return `<div class="card2"><div class="hd">${ownTile(o)}<span class="tt">${esc(L(o, "title"))}</span><button class="btn sm sec" data-act="open" data-id="${id}">${t("open")}</button></div><div class="sub">${esc(ownName(o))} · <span class="tag sim">${t("s_undeclared")}</span></div><p class="fact" style="margin:0">${t("fallbackNote")}</p></div>`;
-    const tag = attention(o.state) ? `<span class="stag ${o.state}">${stLabel(o)}</span>` : "";
+    if (o.undeclared) return `<div class="card2"><div class="hd">${ownTile(o)}<span class="tt">${esc(L(o, "title"))}</span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="open" data-id="${id}">${t("open")}</button></div><div class="sub">${esc(ownName(o))} · <span class="mw-badge mw-badge--neutral tag-sim" data-slot="badge">${t("s_undeclared")}</span></div><p class="fact" style="margin:0">${t("fallbackNote")}</p></div>`;
+    const tag = attention(o.state) ? `<span class="mw-status stag ${o.state}">${stLabel(o)}</span>` : "";
     const ops = (o.ops || []).map((op, i) => opBtn(id, op, i)).join("") + moreBtn(id);
     const thumb = o.media ? `<span class="thumb${S.scheme === "C" ? " wide" : ""}">${S.lang === "zh" ? "截图" : "Screenshot"}</span>` : "";
     const judge = o.judge ? `<span class="judge">${esc(L(o, "judge"))}</span>` : "";
     const sum = `<p class="sum">${esc(L(o, "summary"))}</p>`;
-    if (S.scheme === "A") return `<div class="card2"><div class="hd"><span class="ring ${o.state}"></span><span class="tt"><button class="link" style="color:inherit;font-weight:inherit" data-act="peek" data-id="${id}">${esc(L(o, "title"))}</button></span>${tag}</div><div class="sub">${ic(own(o).icon, "sm")}<span>${esc(ownName(o))}</span>·<span>${esc(L(o, "time"))}</span>${o.who ? "·" + whoHtml(o) : ""}</div>${judge ? `<div>${judge}</div>` : ""}<div class="body"><div>${sum}${bodyBits(o)}</div>${thumb}</div><div class="ft">${ops}</div>${why}</div>`;
+    if (S.scheme === "A") return `<div class="card2"><div class="hd">${kitRing(o.state)}<span class="tt"><button class="link" style="color:inherit;font-weight:inherit" data-act="peek" data-id="${id}">${esc(L(o, "title"))}</button></span>${tag}</div><div class="sub">${ic(own(o).icon, "sm")}<span>${esc(ownName(o))}</span>·<span>${esc(L(o, "time"))}</span>${o.who ? "·" + whoHtml(o) : ""}</div>${judge ? `<div>${judge}</div>` : ""}<div class="body"><div>${sum}${bodyBits(o)}</div>${thumb}</div><div class="ft">${ops}</div>${why}</div>`;
     if (S.scheme === "B") return `<div class="card2" ${hue(o)}><div class="strip2">${ownTile(o)}<span>${esc(ownName(o))}</span><span class="fact">· ${esc(L(o, "time"))}</span><span style="flex:1"></span>${tag}</div><div class="inner"><div class="hd"><span class="tt"><button class="link" style="color:inherit;font-weight:inherit" data-act="peek" data-id="${id}">${esc(L(o, "title"))}</button></span></div>${o.who ? `<div class="sub">${whoHtml(o)}</div>` : ""}${judge ? `<div>${judge}</div>` : ""}<div class="body"><div>${sum}${bodyBits(o)}</div>${thumb}</div><div class="ft">${ops}</div>${why}</div></div>`;
-    return `<div class="card2">${thumb ? `<div class="lead">${thumb}</div>` : ""}<div class="inner"><div class="tt2"><button class="link" style="color:inherit;font-weight:inherit;text-align:left" data-act="peek" data-id="${id}">${esc(L(o, "title"))}</button></div>${judge ? `<div>${judge}</div>` : ""}${sum}${bodyBits(o)}<div class="ft">${ops}</div>${why}</div><div class="foot"><span class="grow"><span class="ring ${o.state}"></span><span>${stLabel(o)}</span>·${ic(own(o).icon, "sm")}<span>${esc(ownName(o))}</span>·<span>${esc(L(o, "time"))}</span></span>${o.who ? `<span class="grow" style="flex:none;max-width:45%">${whoHtml(o)}</span>` : ""}</div></div>`;
+    return `<div class="card2">${thumb ? `<div class="lead">${thumb}</div>` : ""}<div class="inner"><div class="tt2"><button class="link" style="color:inherit;font-weight:inherit;text-align:left" data-act="peek" data-id="${id}">${esc(L(o, "title"))}</button></div>${judge ? `<div>${judge}</div>` : ""}${sum}${bodyBits(o)}<div class="ft">${ops}</div>${why}</div><div class="foot"><span class="grow">${kitRing(o.state)}<span>${stLabel(o)}</span>·${ic(own(o).icon, "sm")}<span>${esc(ownName(o))}</span>·<span>${esc(L(o, "time"))}</span></span>${o.who ? `<span class="grow" style="flex:none;max-width:45%">${whoHtml(o)}</span>` : ""}</div></div>`;
   }
 
   // ---------- peek ----------
   function peekBody(o) {
     const p = o.peek || {};
     if (o.state === "stale") return `<p class="fact">${esc(L(o, "summary"))}</p>${bodyBits(o)}`;
-    if (p.type === "reqs") return p.items.map((r) => `<div class="req"><span class="ring ${r.s}"></span><div><strong style="font-weight:500">${esc(L(r, "t"))}</strong><span class="fact">${esc(L(r, "ev"))}</span></div></div>`).join("");
+    if (p.type === "reqs") return p.items.map((r) => `<div class="req">${kitRing(r.s)}<div><strong style="font-weight:500">${esc(L(r, "t"))}</strong><span class="fact">${esc(L(r, "ev"))}</span></div></div>`).join("");
     if (p.type === "text") return `<p class="quote${p.mono ? " mono" : ""}">${esc(L(p, "body"))}</p>${o.media ? `<div class="thumb" style="width:100%;height:110px;margin-top:8px">${S.lang === "zh" ? "截图" : "Screenshot"}</div>` : ""}`;
     if (p.type === "diff") return `<div class="diff"><div class="fn">${esc(p.file)}</div>${p.lines.map(([k, l]) => `<div class="l ${k === "+" ? "add" : k === "-" ? "del" : ""}">${esc(k + " " + l)}</div>`).join("")}</div>`;
     if (p.type === "shots") return `<div class="shots"><span class="thumb">${S.lang === "zh" ? "首页" : "Home"}</span><span class="thumb">${S.lang === "zh" ? "功能页" : "Features"}</span><span class="thumb" style="border-style:dashed">${S.lang === "zh" ? "定价页 · 未改" : "Pricing · not yet"}</span></div><p class="fact">${esc(L(o, "summary"))}</p>`;
@@ -157,11 +157,11 @@
   }
   function peekHtml(id) {
     const o = obj(id);
-    const lead = S.scheme === "B" || o.undeclared ? ownTile(o) : S.scheme === "A" ? `<span class="ring ${o.state}"></span>` : "";
-    const tag = attention(o.state) ? `<span class="stag ${o.state}">${stLabel(o)}</span>` : "";
-    return `<div class="ph">${lead}<strong>${esc(L(o, "title"))}</strong>${tag}${S.scheme === "C" ? `<button class="btn icon sm ghost" data-act="peek-close" aria-label="${t("close")}">${ic("x", "sm")}</button>` : ""}</div>
+    const lead = S.scheme === "B" || o.undeclared ? ownTile(o) : S.scheme === "A" ? `${kitRing(o.state)}` : "";
+    const tag = attention(o.state) ? `<span class="mw-status stag ${o.state}">${stLabel(o)}</span>` : "";
+    return `<div class="ph">${lead}<strong>${esc(L(o, "title"))}</strong>${tag}${S.scheme === "C" ? `<button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="peek-close" aria-label="${t("close")}">${ic("x", "sm")}</button>` : ""}</div>
       <div class="loc">${ic(own(o).icon, "sm")}${esc(L(o, "locate"))}</div><div class="pb">${o.undeclared ? `<p class="fact">${t("fallbackNote")}</p>` : peekBody(o)}</div>
-      <div class="pf"><button class="btn sm primary" data-act="open" data-id="${id}">${ic("external", "sm")}${t("openAt")}</button>${o.undeclared ? "" : `<button class="btn sm sec" data-act="sim" data-label="${t("putIn")}">${t("putIn")}</button><button class="btn sm sec" data-act="sim" data-label="${t("handTo")}">${t("handTo")}</button>`}</div>`;
+      <div class="pf"><button class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="open" data-id="${id}">${ic("external", "sm")}${t("openAt")}</button>${o.undeclared ? "" : `<button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("putIn")}">${t("putIn")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="sim" data-label="${t("handTo")}">${t("handTo")}</button>`}</div>`;
   }
   let pop = null, hoverT = null, leaveT = null;
   function closePop(restore) { clearTimeout(hoverT); if (!pop) return; const b = pop.back; pop.el.remove(); pop = null; if (restore && b && document.contains(b)) b.focus(); }
@@ -194,16 +194,16 @@
   function specView() {
     const head = `<div class="h">${t("colState")}</div><div class="h">${t("colChip")}</div><div class="h">${t("colRow")}</div><div class="h cardcol">${t("colCard")}</div>`;
     const cells = D.stateOrder.map((st) => { const id = D.stateObj[st], o = obj(id); return `<div class="c lab"><span>${t("s_" + st)}</span><span class="fact">${esc(ownName(o))}</span></div><div class="c chipcol">${chip(id)}</div><div class="c rowcol">${row(id, { keep: true })}</div><div class="c cardcol">${card(id)}</div>`; }).join("");
-    return `<div class="fhead">${t("p_spec")}<span class="tag sim simnote">${t("sim")}</span></div><div class="spec">${head}${cells}</div>`;
+    return `<div class="fhead">${t("p_spec")}<span class="mw-badge mw-badge--neutral tag-sim simnote" data-slot="badge">${t("sim")}</span></div><div class="spec">${head}${cells}</div>`;
   }
   function pluginView() {
     const list = ["inbox", "inbox2", "inbox3"], sel = obj(S.sel) ? S.sel : "inbox", o = obj(sel);
     let det;
     if (o.state === "denied") det = card(sel);
-    else det = `<div style="display:flex;gap:8px;align-items:center">${o.judge ? `<span class="judge">${esc(L(o, "judge"))}</span>` : ""}${attention(o.state) ? `<span class="stag ${o.state}">${stLabel(o)}</span>` : ""}</div><h2>${esc(L(o, "title"))}</h2><div class="fact" style="display:flex;gap:6px;align-items:center">${whoHtml(o)}·<span>${esc(L(o, "time"))}</span></div>${o.peek ? `<div class="pk">${peekBody(o)}</div>` : `<p>${esc(L(o, "summary"))}</p>`}
+    else det = `<div style="display:flex;gap:8px;align-items:center">${o.judge ? `<span class="judge">${esc(L(o, "judge"))}</span>` : ""}${attention(o.state) ? `<span class="mw-status stag ${o.state}">${stLabel(o)}</span>` : ""}</div><h2>${esc(L(o, "title"))}</h2><div class="fact" style="display:flex;gap:6px;align-items:center">${whoHtml(o)}·<span>${esc(L(o, "time"))}</span></div>${o.peek ? `<div class="pk">${peekBody(o)}</div>` : `<p>${esc(L(o, "summary"))}</p>`}
       <div class="ft" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${S.done[sel] ? receipt(sel) : (o.ops || []).map((op, i) => opBtn(sel, op, i, "")).join("")}</div>
       ${sel === "inbox" ? `<div class="mount"><div class="mh">${ic("target", "sm")}${t("mountReq")}</div><div>${chip("goal")}</div></div><div class="mount"><div class="mh">${ic("code", "sm")}${t("mountWho")}</div>${S.done.inbox === "handoff" ? `<div>${chip("run2")}</div>` : `<div class="fact">${t("mountWhoEmpty")}</div>`}</div><div class="fact">${ic("info", "sm")} ${t("mountOnly")}</div>` : ""}`;
-    return `<div class="fhead">${ic("inbox", "sm")}${t("inboxTitle")}<span class="tag sim simnote">${t("sim")}</span></div><div class="two"><div class="lst" role="listbox" aria-label="${t("inboxTitle")}"><div class="lsth">${t("today")}</div>${list.map((id) => row(id, { selectable: true, keep: true, noOp: true })).join("")}</div><div class="det">${det}</div></div>`;
+    return `<div class="fhead">${ic("inbox", "sm")}${t("inboxTitle")}<span class="mw-badge mw-badge--neutral tag-sim simnote" data-slot="badge">${t("sim")}</span></div><div class="two"><div class="lst" role="listbox" aria-label="${t("inboxTitle")}"><div class="lsth">${t("today")}</div>${list.map((id) => row(id, { selectable: true, keep: true, noOp: true })).join("")}</div><div class="det">${det}</div></div>`;
   }
   function msg(who, name, time, body, me) {
     const av = who === "ai" ? `<span class="av ai">AI</span>` : `<span class="av">${esc(name.slice(0, 1))}</span>`;
@@ -212,19 +212,19 @@
   }
   function chatView() {
     const a = `<div class="txt">${chip("run")} ${t("chatA1")}${chip("goal")} ${t("chatA2")}</div>${card("goal", { why: "whyGoal" })}<div class="txt">${t("chatA3")}</div>${card("inbox", { why: "whyInbox" })}<div class="txt">${t("chatA4")}</div>${row("failed")}<div class="txt">${t("chatA5")} ${chip("undeclared")}${t("chatA5b")}</div>`;
-    return `<div class="fhead">${ic("sparkles", "sm")}${t("assistant")}<span class="tag sim simnote">${t("sim")}</span></div><div class="thread">${msg("h", t("you"), "", esc(t("chatQ")), true)}${msg("ai", t("assistant"), "09:30", a)}</div>`;
+    return `<div class="fhead">${ic("sparkles", "sm")}${t("assistant")}<span class="mw-badge mw-badge--neutral tag-sim simnote" data-slot="badge">${t("sim")}</span></div><div class="thread">${msg("h", t("you"), "", esc(t("chatQ")), true)}${msg("ai", t("assistant"), "09:30", a)}</div>`;
   }
   function imView() {
     const body = msg("h", t("lin"), "09:02", `<div class="txt">${t("im1")}</div>${card("report", { why: "whyReport" })}`) + msg("h", t("you"), "09:10", `<div class="txt">${t("im2")}<strong>@Coding</strong> ${t("im2b")}</div>${card("failed", { why: "whyFailed" })}`) + msg("h", t("zhou"), "09:21", `<div class="txt">${t("im3")}</div>${card("inbox")}`);
-    return `<div class="fhead">${ic("review", "sm")}${t("imTitle")}<span class="simnote" style="display:flex;gap:8px;align-items:center"><label class="fact" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="member" ${S.member ? "checked" : ""}>${t("imMember")}</label><span class="tag sim">${t("sim")}</span></span></div><div class="thread">${body}</div>`;
+    return `<div class="fhead">${ic("review", "sm")}${t("imTitle")}<span class="simnote" style="display:flex;gap:8px;align-items:center"><label class="fact" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-act="member" ${S.member ? "checked" : ""}>${t("imMember")}</label><span class="mw-badge mw-badge--neutral tag-sim" data-slot="badge">${t("sim")}</span></span></div><div class="thread">${body}</div>`;
   }
   function waitView() {
     const list = ids(["goal", "inbox", "report", "failed"]).filter((id) => attention(obj(id).state) || obj(id).state === "denied");
-    return `<div class="fhead">${ic("waiting", "sm")}${t("waitTitle", list.filter((id) => !S.done[id]).length)}<span class="tag sim simnote">${t("sim")}</span></div><div class="wait"><div class="bar2">${ic("info", "sm")}<span>${t("waitNote")}</span><span style="flex:1"></span><span class="degrade">${ic("rows", "sm")}${t("degrade")}</span></div>${list.map((id) => row(id)).join("")}</div>`;
+    return `<div class="fhead">${ic("waiting", "sm")}${t("waitTitle", list.filter((id) => !S.done[id]).length)}<span class="mw-badge mw-badge--neutral tag-sim simnote" data-slot="badge">${t("sim")}</span></div><div class="wait"><div class="bar2">${ic("info", "sm")}<span>${t("waitNote")}</span><span style="flex:1"></span><span class="degrade">${ic("rows", "sm")}${t("degrade")}</span></div>${list.map((id) => row(id)).join("")}</div>`;
   }
 
   function render() {
-    document.documentElement.lang = S.lang === "zh" ? "zh-CN" : "en"; document.documentElement.dataset.theme = S.theme;
+    document.documentElement.lang = S.lang === "zh" ? "zh-CN" : "en"; document.documentElement.dataset.theme = S.theme; document.documentElement.dataset.resolvedTheme = S.theme;
     document.querySelectorAll("[data-t]").forEach((n) => (n.textContent = t(n.dataset.t)));
     for (const b of document.querySelectorAll("#scheme button")) b.setAttribute("aria-pressed", b.dataset.scheme === S.scheme);
     for (const b of document.querySelectorAll("#lang button")) b.setAttribute("aria-pressed", b.dataset.lang === S.lang);
@@ -239,7 +239,7 @@
 
   // ---------- events ----------
   let toastT;
-  function toast(msg) { document.querySelector(".toast")?.remove(); const el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); el.textContent = msg; document.body.appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 3500); }
+  function toast(msg) { document.querySelector(".mw-toast")?.remove(); const el = document.createElement("div"); el.className = "mw-toast"; el.setAttribute("role", "status"); el.textContent = msg; document.body.appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 3500); }
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-act],[data-scheme],[data-lang],[data-theme-set]");
     if (pop && !e.target.closest(".pop,.sidepk") && !(b && b === pop.back)) closePop(false);

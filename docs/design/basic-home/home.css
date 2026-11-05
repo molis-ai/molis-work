@@ -1,0 +1,170 @@
+/* Basic home prototype (batch 15) — layout layer only. Every button, status mark, badge, alert, empty state, spinner, tab,
+   card frame, toast, toggle group and the motion come from ../kit/kit.css (the component board's VISUAL_FOUNDATION_STYLES,
+   MOTION_STYLES and palette). This file places them: spacing 4/8/12/16/24/32, type 11/12/13/15/17, corners 6/8/10/12/14/16,
+   the four durations and two curves. Not production CSS. */
+html,body{height:100%}
+body{margin:0;background:var(--desk);color:var(--ink);font:400 13px/1.5 var(--font);letter-spacing:-.011em;overflow:hidden;-webkit-font-smoothing:antialiased}
+svg:not([class]),.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:14px;height:14px}.ic.xs{width:12px;height:12px}
+.ell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grow{flex:1;min-width:0}
+.cap{font-size:12px;color:var(--muted)}
+.faint{color:var(--faint)}
+.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* Plugin colours: one hue per plugin from the board palette (--hue-*). A sample assignment; the plugin palette is a
+   component-board addition (05② co-review: the platform assigns it, separate from status colours). */
+[data-hue=goals]{--ph:var(--hue-blue);--ph-fill:var(--hue-blue-fill);--ph-soft:var(--hue-blue-soft)}
+[data-hue=inbox]{--ph:var(--hue-mint);--ph-fill:var(--hue-mint-fill);--ph-soft:var(--hue-mint-soft)}
+[data-hue=coding]{--ph:var(--hue-purple);--ph-fill:var(--hue-purple-fill);--ph-soft:var(--hue-purple-soft)}
+[data-hue=pages]{--ph:var(--hue-slate);--ph-fill:var(--hue-slate-fill);--ph-soft:var(--hue-slate-soft)}
+[data-hue=todo]{--ph:var(--hue-yellow);--ph-fill:var(--hue-yellow-fill);--ph-soft:var(--hue-yellow-soft)}
+[data-hue=feed]{--ph:var(--hue-brown);--ph-fill:var(--hue-brown-fill);--ph-soft:var(--hue-brown-soft)}
+[data-hue=none]{--ph:var(--muted);--ph-fill:var(--faint);--ph-soft:var(--control-fill)}
+
+/* ── Prototype strip: outside the product, striped so it never reads as UI. ── */
+.proto{position:fixed;inset:0 0 auto 0;height:48px;display:flex;align-items:center;gap:16px;padding:0 16px;z-index:40;overflow-x:auto;scrollbar-width:none;
+  background:repeating-linear-gradient(-45deg,var(--surface-soft),var(--surface-soft) 8px,var(--rail) 8px,var(--rail) 16px);box-shadow:inset 0 -1px 0 var(--line-strong)}
+.proto b{font-size:12px;font-weight:600;white-space:nowrap}
+.proto label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);white-space:nowrap}
+.proto select{height:28px;border-radius:8px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);padding:0 8px;font:inherit;font-size:12px}
+.proto .mw-toggle-group{padding:2px;gap:2px;border-radius:10px}.proto .mw-toggle{min-height:24px;padding:0 10px;font-size:12px}
+.proto .sname{font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* ── Desk: the work sheet and the assistant sheet side by side, 14px of desk around 14px-corner sheets. ── */
+.desk{position:fixed;inset:48px 0 0 0;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px}
+.sheet{min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--paper);border-radius:14px;box-shadow:var(--sheet-shadow,var(--surface-shadow));overflow:hidden;position:relative}
+.switch-narrow{display:none}
+
+/* Tabs: the workbench's own tab strip (mw-tabs), a plugin's mark beside its tab name. */
+.tabbar{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 12px;flex:none;box-shadow:inset 0 -1px 0 var(--line);min-width:0}
+.tabbar .mw-tabs__list{min-width:0;overflow-x:auto;scrollbar-width:none}
+.tabbar .mw-tabs__tab{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;position:relative}
+.tdot{width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:2px}
+.scroll{flex:1;min-height:0;overflow:auto}
+
+/* ── Home column ── */
+.home{max-width:1120px;padding:24px 32px 32px;display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-content:start}
+.hhead{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;min-width:0}
+.hhead h1{margin:2px 0 0;font-size:17px;font-weight:600;letter-spacing:-.02em}
+.hhead .facts{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;min-width:0}
+.hhead>div{min-width:0}
+.hhead .mw-spinner{width:14px;height:14px}
+.lede{margin:-12px 0 0;max-width:70ch;line-height:1.7;font-size:13px;color:var(--ink-soft)}
+.hsec{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0}
+.hsec__h{display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600}
+.note{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--muted);line-height:1.5}
+
+/* Banners: one line, a soft wash in the kind's own tone; the words ellipsize, the actions stay. */
+.banner{display:flex;align-items:center;gap:12px;min-height:44px;padding:6px 8px 6px 12px;border-radius:10px;font-size:13px;min-width:0;animation:craft-rise var(--dur-move) var(--ease-quint) both}
+.banner .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tone-wait{background:color-mix(in srgb,var(--amber) 12%,var(--paper));color:var(--ink)}.tone-wait>.ic{color:var(--amber)}
+.tone-info{background:color-mix(in srgb,var(--accent) 8%,var(--paper));color:var(--ink)}.tone-info>.ic{color:var(--accent-strong)}
+
+/* A list of things is a container on paper with a light lift; each row one line of name, one line of facts. */
+.list{border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft);overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 8px 6px 12px;min-width:0}
+.list .row+.row,.list .row+.receipt,.list .receipt+.row,.list .receipt+.receipt{box-shadow:inset 0 1px 0 var(--line)}
+.row .tx{flex:1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
+.row .ttl{display:block;max-width:100%;padding:0;border:0;background:none;color:var(--ink);font:inherit;font-weight:500;text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:4px}
+.row .ttl:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.row .ttl:focus-visible{outline:var(--focus-stroke);outline-offset:2px}
+.row .meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);min-width:0;white-space:nowrap}
+.row .meta .by{overflow:hidden;text-overflow:ellipsis}
+.row .rt{display:flex;align-items:center;gap:8px;flex:none;min-width:0}
+.row .judge{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.row .t{flex:none;width:40px;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.row.is-stale .ttl{color:var(--ink-soft)}
+.row.is-landed{animation:landed var(--dur-moment) var(--ease-quint)}
+@keyframes landed{from{background:color-mix(in srgb,var(--accent) 10%,var(--paper))}to{background:transparent}}
+/* The plugin leads (03 option B): a 28px tile in the plugin's soft hue with its glyph in the plugin's ink. */
+.ptile{width:28px;height:28px;flex:none;display:inline-grid;place-items:center;border-radius:8px;background:var(--ph-soft);color:var(--ph)}
+.ptile .ic{width:14px;height:14px}
+.ptile.sm{width:20px;height:20px;border-radius:6px}.ptile.sm .ic{width:12px;height:12px}
+.is-off .ptile{background:var(--control-fill);color:var(--faint)}
+/* A finished operation folds the row into its receipt: a green check, what happened, undo. */
+.receipt{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 8px 4px 12px;font-size:13px;color:var(--ink-soft);animation:craft-rise var(--dur-move) var(--ease-quint) both}
+.receipt>.ic{color:var(--green)}
+.m-tag{display:none}
+
+/* Plugin cards: the board's Card frame with the plugin band as its header (03 option B). */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-items:start}
+.pcard.mw-card{display:flex;flex-direction:column;min-width:0;border-radius:12px}
+.pband{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 8px 0 12px;background:var(--ph-soft)}
+.pband b{font-weight:600;white-space:nowrap}
+.pbody{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:12px}
+.pov{margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft)}
+.prows{display:grid;margin:0 -12px}
+.prows .row{min-height:48px}
+.prows .row+.row,.prows .row+.receipt,.prows .receipt+.row{box-shadow:inset 0 1px 0 var(--line)}
+.pfoot{display:flex;gap:8px;align-items:center;padding-top:4px}
+.pcard.is-off .pband{background:var(--surface-soft)}
+.pcard.is-off .pband b{color:var(--muted)}
+.pcard .mw-alert{font-size:12px;padding:8px 12px}
+
+/* Empty state: the board's mw-empty inside a dashed frame on the soft surface. */
+.start{border-radius:12px;background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--line)}
+.start .mw-empty{padding:16px}
+
+/* Option C: today's timeline and a plugin column. */
+.cgrid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
+.plist .row{min-height:48px}
+
+/* Pages doc (the tab you can be writing in). */
+.doc{max-width:640px;padding:32px;display:grid;gap:12px}
+.doc h1{margin:0;font-size:17px;font-weight:600}
+.doc h3{margin:8px 0 0;font-size:13px;font-weight:600}
+.doc .line{height:10px;border-radius:999px;background:var(--rail)}
+.doc p{margin:0;line-height:1.7}
+.cur{display:inline-block;width:1.5px;height:1.1em;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* Assistant sheet: conversation pieces and the composer (DESIGN composer: paper, 15px corners, --lift-2). */
+.chat-head{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px 0 16px;flex:none;font-weight:600;box-shadow:inset 0 -1px 0 var(--line)}
+.conv{flex:1;min-height:0;overflow:auto;padding:16px;display:grid;gap:12px;align-content:start}
+.you{justify-self:end;max-width:86%;padding:8px 12px;border-radius:12px;background:var(--surface-soft);line-height:1.6}
+.ai{display:grid;gap:8px;line-height:1.6}
+.ai .who{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--muted)}
+.ai p{margin:0}
+.ccard .mw-card__panel{padding:12px;display:grid;gap:8px}
+.ccard .pband{min-height:36px;font-size:12px}
+.ccard .tt{font-weight:600;color:var(--ink)}
+.ccard .sum{margin:0;color:var(--ink-soft)}
+.meter{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.meter .bar{flex:1;height:4px;border-radius:999px;background:var(--rail);overflow:hidden}
+.meter .bar i{display:block;height:100%;background:var(--green);transition:width var(--dur-arrive) var(--ease-quint)}
+.ccard .receipt,.ai>.receipt{border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent)}
+.compose{flex:none;padding:0 12px 12px}
+.box{border-radius:15px;background:var(--paper);box-shadow:var(--lift-2,var(--shadow-raised))}
+.box textarea{display:block;width:100%;box-sizing:border-box;border:0;background:transparent;resize:none;min-height:44px;padding:12px 16px 4px;outline:none;font:inherit;color:var(--ink)}
+.box textarea::placeholder{color:var(--faint)}
+.box__foot{display:flex;justify-content:flex-end;padding:4px 8px 8px}
+
+/* Toast: the shared graphite capsule, placed by inset and auto margins (never by transform). */
+.toast-slot{position:fixed;left:16px;right:16px;bottom:24px;display:flex;justify-content:center;pointer-events:none;z-index:70}
+.toast-slot .mw-toast{pointer-events:auto;margin:0 auto}
+
+/* First reveal of a view: pieces rise once, at most twelve, 32ms apart. */
+.is-arriving .rise{animation:craft-rise var(--dur-arrive) var(--ease-quint) both;animation-delay:calc(var(--i,0) * 32ms)}
+
+@media (max-width:1180px){.cgrid{grid-template-columns:minmax(0,1fr)}.home{padding:24px 24px 32px}.row .judge{display:none}.desk{grid-template-columns:minmax(0,1fr) 320px}}
+@media (max-width:900px){
+  .desk{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:8px}
+  .switch-narrow{display:flex}
+  .desk.show-chat .docpane,.desk:not(.show-chat) .chat{display:none}
+}
+@media (max-width:600px){
+  .desk{padding:8px 0 0;gap:8px}
+  .switch-narrow{padding:0 16px}
+  .sheet{border-radius:14px 14px 0 0}
+  .home{padding:16px 16px 24px;gap:16px}
+  .pgrid{grid-template-columns:minmax(0,1fr)}
+  .row .rt .mw-badge,.row .rt .d-tag{display:none}
+  .m-tag{display:inline-flex}
+  .hhead .facts{flex-basis:100%}
+  .row .meta .by{display:none}
+  .row .t{width:34px}
+  .mw-btn{min-height:40px}
+  .banner{flex-wrap:wrap;padding-top:8px;padding-bottom:8px}.banner .grow{white-space:normal;flex-basis:calc(100% - 28px)}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.row.is-landed{box-shadow:inset 3px 0 0 var(--accent)}}

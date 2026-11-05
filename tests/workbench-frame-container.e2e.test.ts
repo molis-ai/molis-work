@@ -259,6 +259,17 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId } = browser;
+  // T01-FRAME-01: a Frame redraw can replace the ready preview between two CDP calls.
+  // Capture readiness, content and forbidden controls together, with the original 10 s deadline.
+  const readPreview = (ready: string, forbidden: string) => evaluate<{ text: string; hasForbidden: boolean; surface: string; expanded: number }>(`new Promise((resolve, reject) => {
+    const deadline = Date.now() + 10000;
+    const read = () => {
+      const block = document.querySelector('[data-frame-block].is-expanded');
+      if (block?.querySelector(${JSON.stringify(ready)})) return resolve({ text: block.textContent || '', hasForbidden: !!block.querySelector(${JSON.stringify(forbidden)}), surface: document.body.dataset.desktopSurface, expanded: document.querySelectorAll('[data-frame-block].is-expanded').length });
+      if (Date.now() >= deadline) reject(new Error('Frame preview did not become ready: ' + ${JSON.stringify(ready)}));
+      else setTimeout(read, 16);
+    }; read();
+  })`);
   // T405-FULL-01: the running Host keeps ownership while this fixture enables its project plugins.
   const owner = new LocalHostHttpClient({ origin, controlToken: browser.controlToken });
   for (const plugin_id of ["feed", "inbox"] as const) {
@@ -354,19 +365,19 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]') && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 3);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=feed] > p').click()");
-  await waitFor("document.querySelector('[data-frame-block].is-expanded .frame-reading .feed-rich-content')");
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /只验证引用/);
-  assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded .feed-detail-actions, [data-frame-block].is-expanded [data-open-source-record], [data-frame-block].is-expanded [data-feed-action]')"), null);
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goals");
-  assert.equal(await evaluate("document.querySelectorAll('[data-frame-block].is-expanded').length"), 1);
+  const feedPreview = await readPreview('.frame-reading .feed-rich-content', '.feed-detail-actions, [data-open-source-record], [data-feed-action]');
+  assert.match(feedPreview.text, /只验证引用/);
+  assert.equal(feedPreview.hasForbidden, false);
+  assert.equal(feedPreview.surface, "goals");
+  assert.equal(feedPreview.expanded, 1);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=artifact]').click()");
-  await waitFor("document.querySelector('[data-frame-block].is-expanded .frame-reading .artifact-facts')");
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /example\.note/);
-  assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded .artifact-actions, [data-frame-block].is-expanded .artifact-raw')"), null);
+  const artifactPreview = await readPreview('.frame-reading .artifact-facts', '.artifact-actions, .artifact-raw');
+  assert.match(artifactPreview.text, /example\.note/);
+  assert.equal(artifactPreview.hasForbidden, false);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=inbox]').click()");
-  await waitFor("document.querySelector('[data-frame-block].is-expanded [data-frame-reading=inbox]')");
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /你手工加入/);
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /查看原消息并处理/);
+  const inboxPreview = await readPreview('[data-frame-reading=inbox]', '[data-frame-block-retry]');
+  assert.match(inboxPreview.text, /你手工加入/);
+  assert.match(inboxPreview.text, /查看原消息并处理/);
   await evaluate(`(() => {
     const canvas = document.querySelector("[data-frame-canvas]");
     const event = new Event("drop", { bubbles: true, cancelable: true });

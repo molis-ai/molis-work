@@ -263,12 +263,16 @@ const headErrors = (measured, budget, base) => {
 // workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
 // address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
 // read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
+// BL-912 (07-S4a, awaiting the 07 batch review desk): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
+// one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
+// table, the attribute is read in the statement that already chose the default; the N53/N54 workbench.js entry is spent (the
+// merge-base budget holds its ceiling) and is replaced by this one.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689755, 689887],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826705, 826748],
   "/assets/molis-work-workbench.css": [1194394, 1194526],
-  "/assets/molis-work-workbench.js": [1074951, 1075120],
+  "/assets/molis-work-workbench.js": [1075120, 1075157],
   "/assets/molis-work-plugin-frame.js": [208033, 208271],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

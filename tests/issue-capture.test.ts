@@ -53,7 +53,7 @@ test("ISSUE-36 ISSUE-39 a capture always creates the draft's record and keeps th
   assert.deepEqual(store.read(existing.id), existing, "a capture never touches another record");
   // The contract no longer carries an edit target: a draft can only become a new record, so its undo can only take that back.
   const prepare = issuesActions.prepare, schema = prepare.action.input_schema as { properties: Record<string, unknown> };
-  assert.equal(prepare.version, 3); assert.equal(schema.properties.target, undefined); assert.ok(schema.properties.page);
+  assert.equal(prepare.version, 1); assert.equal(schema.properties.target, undefined); assert.ok(schema.properties.page);
   await assert.rejects(drafts.prepare({ draft_id: crypto.randomUUID(), description: "x", page: { url: "x".repeat(501), title: null } }, caller), { code: "actions.input_invalid" });
 });
 

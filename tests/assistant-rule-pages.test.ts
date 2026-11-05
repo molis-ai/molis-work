@@ -29,20 +29,20 @@ async function setup(t: TestContext) {
 }
 
 const addByAction = (home: TestHome, input: object) => home.host.homeActionClient().invoke(person,
-  { capability_id: "assistant.rules.add", version: 2, provider_id: ASSISTANT_RULES_PROVIDER }, input) as Promise<{ rules: AssistantRule[] }>;
+  { capability_id: "assistant.rules.add", version: 1, provider_id: ASSISTANT_RULES_PROVIDER }, input) as Promise<{ rules: AssistantRule[] }>;
 
-test("PG036-01: the Host offers add@2, refuses the old add@1 without writing, and keeps the rule written through the new version", async t => {
+test("PG036-01: the Host offers add@1, refuses retired add@2 without writing, and keeps the rule written through the new version", async t => {
   const { home } = await setup(t);
   const before = (await home.web.get<RulePages>("/api/assistant/rules")).rules;
   const actions = home.host.homeActionClient();
   const directory = (await actions.discover(person))
     .filter(view => view.provider.provider_id === ASSISTANT_RULES_PROVIDER && view.capability_id.startsWith("assistant.rules."));
   assert.deepEqual(directory.map(view => [view.capability_id, view.version]).sort(), [
-    ["assistant.rules.add", 2], ["assistant.rules.list", 1], ["assistant.rules.remove", 1],
+    ["assistant.rules.add", 1], ["assistant.rules.list", 1], ["assistant.rules.remove", 1],
   ]);
   const input = quiet(["home"]);
   await assert.rejects(actions.invoke(person,
-    { capability_id: "assistant.rules.add", version: 1, provider_id: ASSISTANT_RULES_PROVIDER }, input), { code: "actions.missing" });
+    { capability_id: "assistant.rules.add", version: 2, provider_id: ASSISTANT_RULES_PROVIDER }, input), { code: "actions.missing" });
   assert.deepEqual((await home.web.get<RulePages>("/api/assistant/rules")).rules, before, "the rejected old reference writes no rule");
   const added = await addByAction(home, input);
   assert.deepEqual(added.rules.map(rule => [rule.kind, rule.surfaces, rule.label]), [["quiet", ["home"], input.label]]);

@@ -34,6 +34,13 @@ test("Manifest gates individual settings; host scopes and projects records, reje
   try {
     const a = client("a"), b = client("b");
     await a.invoke(projectsCapabilities.listWorkspaces, []);
+    // N29: check registration independently of the caller's audience. The selector is restricted to the person.
+    const registered = host.status().capabilities;
+    for (const id of ["projects.workspaces.list", "projects.settings.workspaces.read",
+      "projects.settings.browsing-workspace.read", "projects.settings.browsing-workspace.select"]) {
+      assert.ok(registered.some(row => row.capability_id === id && row.version === 1 && row.action), id);
+      assert.ok(!registered.some(row => row.capability_id === id + ".v1"), id + ".v1");
+    }
     // Files reads the current directory only; Coding reads the current directory (one directory for new rounds, Files and Git) as well as the list.
     assert.deepEqual([settings.workspaces, settings.browsingWorkspace].map(item => filesManifest.capabilities.consumes.includes(item.capability_id)), [false, true]);
     assert.deepEqual([settings.workspaces, settings.browsingWorkspace].map(item => codingManifest.capabilities.consumes.includes(item.capability_id)), [true, true]);

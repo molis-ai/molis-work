@@ -178,7 +178,7 @@ export interface AgentManifest {
    *
    * Optional, and normally absent: the working directory is a **Host fact**.
    * The Host authorizes it, verifies its realpath, and passes it on the start
-   * request; a Plugin reads it through `projects.workspace.read.v1`, not
+   * request; a Plugin reads it through `projects.workspace.read`, not
    * through a port. Declaring it here does not make the Host believe it —
    * start authority checks the directory either way.
    */

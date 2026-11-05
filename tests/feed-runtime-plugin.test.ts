@@ -740,13 +740,13 @@ test("RAC-2665 a Runtime Feed adds an account source with no account: the same s
   assert.deepEqual([kept.status, kept.enabled], ["disconnected", 0], "the deleted source stays deleted");
 });
 
-test("RAC-2664 feed.sources.update@1 changes a source's own fields only: an account is not one of them, and @1 is gone", async t => {
+test("RAC-2664 feed.sources.update@1 changes a source's own fields only: an account is not one of them, and retired @2 is gone", async t => {
   const f = await connecting(t), account = f.connect();
   f.bind(account.connection_id);
   const who = caller([...WRITE, "sources:pull_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
-  assert.equal(feedSourceActions.update.version, 2);
+  assert.equal(feedSourceActions.update.version, 1);
   await assert.rejects(update({ source_id: f.sourceId, connection_id: account.connection_id }), { code: "actions.input_invalid" });
-  await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 1 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);
+  await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 2 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);
   await update({ source_id: f.sourceId, name: "Renamed", description: "Work notifications" });
   const row = f.row();
   assert.deepEqual([row.name, JSON.parse(String(row.config_json)), row.credential_ref], ["Renamed", {}, null]);

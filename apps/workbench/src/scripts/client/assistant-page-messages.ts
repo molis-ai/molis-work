@@ -38,7 +38,7 @@ export const ASSISTANT_PAGE_MESSAGES_PART = String.raw`  /* ─── What plugi
   document.addEventListener("molis:assistant-open", async (event) => {
     const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
     const named = typeof detail.work_id === "string" && detail.work_id ? detail.work_id : "";
-    if (named && !works.some((work) => work.work_id === named)) await loadWorks();
+    if (named && !works.some((work) => work.work_id === named)) await loadWorks(true);
     // The work on show reads itself again, so a card just placed in it shows now.
     if (named && works.some((work) => work.work_id === named)) await (named === curId ? reload().then(poll) : switchTo(named));
     else if (detail.new === true || named) await switchTo(null);

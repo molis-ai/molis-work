@@ -121,8 +121,8 @@ export function planConnectionCheck(catalog: MolisWorkProjectCatalog, home: stri
   return { provider: { ...record, credential_ref: existing?.credential_ref || "pending-check" }, model, api_key: apiKey };
 }
 
-/** What the person reads when a check fails: a reason they can act on, from the error's code only, never its text. */
-function modelCheckFailure(raw: string): string {
+/** Why a check failed, in words the person can act on: from the error's code only, never its text. Shared by saving and by "test". */
+export function modelCheckProblem(raw: string): string {
   const code = /^(MODEL_[A-Z_]+)/.exec(raw)?.[1];
   const status = Number(/\((\d{3})\)/.exec(raw)?.[1] ?? 0);
   const reason = code === "MODEL_HTTP_ERROR" ? httpReason(status)
@@ -131,13 +131,19 @@ function modelCheckFailure(raw: string): string {
     : code === "MODEL_RESPONSE_INVALID" || raw === "模型返回了空内容" ? L("服务有回应，但不是这个 API 格式该有的内容。检查 Base URL 和 API 格式有没有选对。")
     : /超时/.test(raw) ? L("一直没有等到回应。检查地址和网络后重试。")
     : L("检查没有完成（{code}）。", { code: code ?? "unknown" });
-  return L("连接检查没有通过，所以没有保存。{reason} 填写的内容还在，改好后可以再保存。", { reason });
+  return reason;
+}
+
+/** What the person reads when the check before a save fails: nothing was saved, and what they typed is still there. */
+function modelCheckFailure(raw: string): string {
+  return L("连接检查没有通过，所以没有保存。{reason} 填写的内容还在，改好后可以再保存。", { reason: modelCheckProblem(raw) });
 }
 
 function httpReason(status: number): string {
   if (status === 401 || status === 403) return L("服务拒绝了这个 API Key（{status}）。检查 Key 有没有填对、是不是这个地址的 Key。", { status });
   if (status === 404) return L("服务找不到这个地址或模型（404）。检查 Base URL 和模型 ID 有没有写对。");
   if (status === 400 || status === 422) return L("服务不接受这次请求（{status}）。多半是模型 ID 写错了，也可能是 API 格式选得不对。", { status });
+  // The model path hands back the status only, so a throttle and an exhausted account read the same here (`model-provider-checks.ts`).
   if (status === 429) return L("服务说请求太多或额度用完了（429）。稍后再试，或看看账户额度。");
   if (status >= 500) return L("服务那边出错了（{status}）。稍后再试。", { status });
   return L("服务拒绝了这次请求（{status}）。", { status });

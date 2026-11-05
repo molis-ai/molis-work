@@ -60,6 +60,7 @@ export function renderInteractionExample(): string {
     .mw-ix-specimen { width: min(620px, 100%); }
     .mw-ix-specimen--wide { grid-column: 1 / -1; }
     .mw-ix-composer-specimen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: min(560px, 100%); }
+    .mw-ix-composer-specimen .mw-ix-steps { flex-wrap: wrap; max-width: 100%; }
     .mw-ix-composer-specimen__pill { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 6px; height: 50px; padding: 0 14px; border-radius: var(--r-composer, 15px); background: var(--paper); box-shadow: var(--lift-2); color: var(--muted); }
   </style>
   <div class="mw-catalog__specimens">

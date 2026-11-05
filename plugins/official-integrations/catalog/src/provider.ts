@@ -16,6 +16,8 @@ export type CatalogWhoamiResult =
       failure: "needs_auth" | "network" | "provider" | "rate_limited" | "configuration";
       message: string;
       http_status?: number;
+      /** When the service asked to be retried (HTTP 429 `Retry-After`, or a minute when it did not say). */
+      retryAfterAt?: string;
     };
 
 function liveFailure(
@@ -110,6 +112,7 @@ export async function catalogWhoami(input: {
       failure: failure.failure === "stale_history" ? "provider" : failure.failure,
       message: failure.message,
       ...(failure.httpStatus != null ? { http_status: failure.httpStatus } : {}),
+      ...(failure.retryAfterAt ? { retryAfterAt: failure.retryAfterAt } : {}),
     };
   }
 }

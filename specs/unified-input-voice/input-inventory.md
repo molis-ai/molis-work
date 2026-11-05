@@ -18,7 +18,7 @@
 | 输入框 | 元素与主人文件 | 文字与草稿 | 附件 | 发送键与输入法 | 送达（运行中再发） | 目标显示 | 扩展 | 语音 | 共用 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 助理（首页底栏） | `assistant-dock.ts:87`；脚本 `scripts/client/assistant-island.ts`、`assistant-composer.ts`、`assistant-send.ts` | 底栏固定高度；草稿存宿主、按「工作」分（`/works/:id/draft`），刷新恢复 | 有：`data-assistant-attach` 菜单（`assistant-attachments.ts`） | **Enter 发**，Shift+Enter 换行；防 isComposing 与 229（`assistant-island.ts:634`） | 运行中发送即「补充」，带回执（`createInputReceipts`）；输入框旁**没有**送达方式菜单；停止在别处 | 「下一次发送给哪项工作」文字与 × | `/` 命令菜单、`@` 提及（`assistant-mention.ts`）；仅内部，无公开注册点 | 无 | 回执、`data-fit` 回退脚本、`molisDropZone` |
-| Coding 主任务框 | `plugins/native/coding/src/ui.ts`（`form[data-coding-composer]`）；`browser/main/mount-submit.ts`、`draft.ts`、`slash-menu.ts`、`input-receipts.ts` | 长高；草稿 sessionStorage、按会话分（`draft.ts:18-42`），关标签页即丢 | 有：「补充上下文」菜单 | **Cmd/Ctrl+Enter 发**，Enter 换行；防 isComposing（`mount-submit.ts:29`），斜杠菜单另防 229（`slash-menu.ts:213`） | **有**送达方式下拉：补充（这步做完后读）／打断（丢弃当前回复）／下一轮再做（`messages.ts:103-105`，`ui.ts:341`），带回执 | 会话、模型、方式选择 | `/` 命令菜单；仅内部 | 无 | 回执、`data-fit` |
+| Coding 主任务框 | `plugins/native/coding/src/ui.ts`（`form[data-coding-composer]`）；`browser/main/mount-submit.ts`、`draft.ts`、`slash-menu.ts`、`input-receipts.ts` | 长高；草稿存服务端、按会话分（`routes-sessions.ts` 的 `draft:<session_id>`），sessionStorage 只是本窗口的缓冲（`browser/draft.ts:18-54`）；2026-11-04 更正，原写「关标签页即丢」不对 | 有：「补充上下文」菜单 | **Cmd/Ctrl+Enter 发**，Enter 换行；防 isComposing（`mount-submit.ts:29`），斜杠菜单另防 229（`slash-menu.ts:213`） | **有**送达方式下拉：补充（这步做完后读）／打断（丢弃当前回复）／下一轮再做（`messages.ts:103-105`，`ui.ts:341`），带回执 | 会话、模型、方式选择 | `/` 命令菜单；仅内部 | 无 | 回执、`data-fit` |
 | Coding 委托子任务 | `coding/src/ui.ts:217` `data-coding-delegate-task`，对话框内 | 固定 5 行，用主任务框内容预填；无草稿 | 无 | 按钮；无键位 | 不适用（一次性） | 对话框说明 | 无 | 无 | 无 |
 | IM 群聊／话题回复 | `packages/im-ui/src/page.ts:5-12`；`browser/controller-page.ts`、`controller-navigate.ts`、`drafts.ts` | 长高但被自己的 CSS 压到 130px／75px；草稿 localStorage、按成员＋房间／话题分，刷新恢复，发送成功才清 | 无 | **Enter 发**，Shift+Enter 换行；防 isComposing 与 229（`controller-page.ts:41-46`）；Esc 在输入框内关掉整个讨论面板（`:52-60`） | 无（对象是同伴，不是 AI） | 文字标签「发到 主群」「回复 话题名」 | `@` 按钮弹成员列表；引用回复；私有 | 无 | `data-fit` |
 | 灵光聊天（含首页侧面） | `plugins/native/lingguang/src/ui.ts:115-123`；`browser/chat.ts` | 长高；**无草稿**，进入头脑风暴时清空（`chat.ts:66`） | 无 | **Cmd/Ctrl+Enter 发**，Enter 换行；**无**输入法检查（`chat.ts:124-129`） | 无；运行中再发被静默丢弃；有「停止」 | 上方带入卡片，输入框附近没有「发给谁」 | 无 | 无 | `data-fit`、`mw-textarea` |
@@ -44,7 +44,7 @@
 **各写一份**
 - 发送键：Enter 发＝助理、IM、创作台、Shelf 终端行；Cmd/Ctrl+Enter 发＝Coding、灵光、Issues、Pages 评论、工作流交接；无键位＝评审反馈、Jelly。
 - 输入法防护：IM 最全（isComposing＋229）；助理、Coding 斜杠菜单也全；创作台、Issues、Pages、Shelf、Coding 发送键只查 isComposing；灵光、工作流交接、通用动作表单的 Cmd/Ctrl+Enter 完全不查。Todo 快速添加有自己的一份。
-- 草稿：助理（宿主、按工作）、Coding（sessionStorage、按会话）、IM（localStorage、按成员＋目标）、Pages（localStorage、按项目＋文档＋评论串）、Issues（localStorage 单键）、评审（sessionStorage）、图片（sessionStorage、按项目）；灵光、创作台、Shelf、Jelly 无。键规则互不相同，没有一份是需求要的「入口＋会话」统一命名，也没有公共草稿库。
+- 草稿：助理（宿主、按工作）、Coding（服务端、按会话，窗口里另有 sessionStorage 缓冲）、IM（localStorage、按成员＋目标）、Pages（localStorage、按项目＋文档＋评论串）、Issues（localStorage 单键）、评审（sessionStorage）、图片（sessionStorage、按项目）；灵光、创作台、Shelf、Jelly 无。键规则互不相同，没有一份是需求要的「入口＋会话」统一命名，也没有公共草稿库。
 - 防连点与失败文案：IM 最完整（含「未能确认发送结果」）；Pages 和 Issues 有幂等重试；灵光、创作台只有错误提示，空内容与忙时静默返回。
 - 扩展点（`@`、`/`、资料、模型和方式）：全部私有，没有任何一个走公开合同或 SDK。
 
@@ -58,7 +58,7 @@
 | §4：Esc 只退局部菜单 | IM 输入框内按 Esc 关掉整个讨论面板（`controller-page.ts:52-60`） |
 | UIV-02：输入法选词不误发 | 灵光、工作流交接、通用动作表单（`plugin-component-part.ts:113`）的 Cmd/Ctrl+Enter 不查 isComposing；创作台、Issues、Pages、Shelf、Coding 发送键缺 229 |
 | UIV-03：失败保留、结果不确定有提示、空内容与忙时有反馈 | IM 完整满足；灵光、创作台空内容与忙时静默返回，无「不确定」状态；灵光运行中再发被静默丢弃 |
-| UIV-04：草稿按入口＋会话分，刷新与重启后恢复，不串写 | 没有统一实现；sessionStorage 的（Coding、评审、图片）关标签页即丢；灵光、创作台、Shelf、Jelly 无草稿，灵光进入时主动清空 |
+| UIV-04：草稿按入口＋会话分，刷新与重启后恢复，不串写 | 没有统一实现；只存 sessionStorage 的（评审、图片）关标签页即丢（Coding 草稿存服务端，不丢）；灵光、创作台、Shelf、Jelly 无草稿，灵光进入时主动清空 |
 | UIV-05～10：语音 | 全部缺 |
 | UIV-13～15：插件通过公共合同注册扩展 | 全部缺；现有扩展都是各插件私有 DOM |
 | UIV-17 / ai-input-receipts §4.1：补充（默认）／打断并改向／这一轮结束后再做 | 只有 Coding 有三种送达方式菜单；助理只有隐含的补充；创作台发送即打断，默认语义与需求相反；其余入口没有 |

@@ -44,7 +44,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // and releases the pipe.
     await cleanup("Chrome exit", async () => { await harness?.close(); });
     await cleanup("HTTP server", async () => {
-      if (!server?.listening) return;
+      // The factory owns resources before listen(), including when Chrome startup fails.
+      if (!server) return;
       const closed = new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
       server.closeAllConnections();
       // Upgraded sockets are not covered by closeAllConnections.

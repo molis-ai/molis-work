@@ -23,6 +23,15 @@ function close(data: { directory: string; store: LocalProjectDatabase }) {
   rmSync(data.directory, { recursive: true, force: true });
 }
 
+/** The person accepts MIXED-C1 alone through the protected entry; the decision authorizes no action. */
+function acceptMixedCriterion(app: GoalProjectApplication, key: string) {
+  return app.goalEvents.recordTrustedDecision({
+    project_id: BOARD, goal_id: "MIXED-OWNER", idempotency_key: key,
+    authority: hostEventDecisionAuthority("web", BOARD, "web-user", key),
+    conclusion: "结果我打开看过，确实可读", accepts_requirements: true, scope: { requirement_ids: ["MIXED-C1"] },
+  });
+}
+
 test("a fresh project's createIntent is immediately writable", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-fresh-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
@@ -125,6 +134,9 @@ test("still-valid same-scope complete approval satisfies imported policy after t
   const data = openHistory("approved");
   try {
     const { app, store, path } = data;
+    // MIXED-C1 has only the worker's own "supports" behind it, which meets nothing (PWA-144): the person accepts it first. The acceptance
+    // authorizes nothing, so the complete approval that meets the imported policy is still the original one.
+    const accepted = acceptMixedCriterion(app, "accept-mixed-c1-approved");
     const mixed = app.goalEvents.readState(BOARD, "MIXED-OWNER");
     const policy = mixed.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER");
     const original = mixed.current_decisions.find((item) =>
@@ -138,7 +150,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     assert.equal(policy?.user_conclusion?.actor_id, original.actor_id);
     assert.equal(policy?.user_conclusion?.received_at, original.recorded_at);
     assert.equal(mixed.requirements.find((item) => item.requirement_id === "MIXED-C1")?.currently_satisfied, true);
-    assert.deepEqual(mixed.current_decisions.map((item) => item.decision_id), [original.decision_id]);
+    assert.deepEqual(mixed.current_decisions.map((item) => item.decision_id), [original.decision_id, accepted.decision.decision_id]);
     const trustedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_trusted_decisions").get() as { n: number }).n;
     const appliedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_applied_decisions").get() as { n: number }).n;
     const conclusionsBefore = store.db.prepare(
@@ -177,7 +189,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     });
     assert.equal(closed.completion_applied, true);
     const after = app.goalEvents.readState(BOARD, "MIXED-OWNER");
-    assert.deepEqual(after.current_decisions.map((item) => item.decision_id), [original.decision_id]);
+    assert.deepEqual(after.current_decisions.map((item) => item.decision_id), [original.decision_id, accepted.decision.decision_id]);
     assert.equal((store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_trusted_decisions").get() as { n: number }).n, trustedBefore);
     assert.equal((store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_applied_decisions").get() as { n: number }).n, appliedBefore);
 
@@ -214,6 +226,10 @@ test("real event closure stays distinct; after an explicit continue the old appr
       mixed.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER")?.user_conclusion?.decision_id,
       original.decision_id,
     );
+    // MIXED-C1 has only the worker's own "supports" behind it (PWA-144): the person accepts it in the round that ended, before the
+    // Goal is continued. An acceptance in the new round would itself be a fresh nod under the project rule; given in the old round it
+    // keeps MIXED-C1 met after the continue and belongs, like the original approval, to the round that ended.
+    const accepted = acceptMixedCriterion(app, "accept-mixed-c1-completed");
     app.goalEvents.resumeWork({
       project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "continue-approved-current-scope",
@@ -247,7 +263,7 @@ test("real event closure stays distinct; after an explicit continue the old appr
     assert.deepEqual(held.unmet_reasons.map((reason) => reason.code), ["goals.event_closure.human_approval_required"]);
     const heldState = app.goalEvents.readState(BOARD, "MIXED-OWNER");
     assert.equal(heldState.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER")?.currently_satisfied, true);
-    assert.deepEqual(heldState.current_decisions.map((item) => item.decision_id), [original.decision_id]);
+    assert.deepEqual(heldState.current_decisions.map((item) => item.decision_id), [original.decision_id, accepted.decision.decision_id]);
 
     const fresh = app.goalEvents.recordTrustedDecision({
       project_id: BOARD, goal_id: "MIXED-OWNER", idempotency_key: "fresh-nod-after-continue",
@@ -264,7 +280,7 @@ test("real event closure stays distinct; after an explicit continue the old appr
     assert.equal(closed.completion_applied, true);
     assert.deepEqual(
       app.goalEvents.readState(BOARD, "MIXED-OWNER").current_decisions.map((item) => item.decision_id),
-      [fresh.decision.decision_id],
+      [accepted.decision.decision_id, fresh.decision.decision_id],
     );
   } finally {
     close(data);

@@ -173,16 +173,16 @@
 11. `apps/workbench/src/scripts/client/navigation-feed.ts` 改名为 `navigation-surfaces.ts`（`CLIENT_NAVIGATION_SURFACES_SCRIPT`），它管的是工作面切换，与 Feed 无关。
 12. 新增的页面事件登记在 `packages/contracts/src/platform/dom-events.ts`，`PAGE_STATE_OWNERS` 的文件清单跟着改；不改动作合同。
 
-**拆片：**
+**拆片：** 按用户看得到的功能切，每片自带它要的状态改动，不先合一层没人用的状态。除 S0、S4a 外都改 `tab-workspace-ops.ts`、`scripts/client/tab-workspace*.ts` 与 `immersive-shell.ts`，所以 S1→S2→S3→S4b→S5 依次叠分支、各开一个 PR（每个 PR 不超过约 50 个文件），合入顺序同此。
 
 | 片 | 做什么 | 主要文件 | 顺序 |
 | --- | --- | --- | --- |
-| S0 组件板标本 | 定样 README「组件板新增」1、2、3、6～10、12～16 做成 `/__ui/catalog` 标本；底栏样张先换成三段的新结构 | `apps/workbench/src/primitive-catalog.ts`、新的导航标本文件、`packages/design-system/src/styles/`、`apps/workbench/src/i18n/` | 第一个；D 轨合审后进产品 |
-| S1 状态与操作 | 首页退出标签（带 Dock 入口）；右侧与独看进状态；跨栏召回；移到右侧、合并、均分；BL-1032 | `tab-workspace-ops.ts`、`scripts/client/tab-workspace{,-panes,-places}.ts` | 与 S0 同时 |
-| S2 右侧并入窗格 | 右栏内容成为右侧那一栏的标签；图标靠右、停留或聚焦原地展开、收起时留在标题栏、没有「＋」；后台任务成为右侧图标标签；⌘\ | `side-panel*.ts`、`plugin-place.ts`、`attention.ts`、`immersive-shell.ts`、`arrival/shell.ts` | S0、S1 之后 |
-| S3 标签条与菜单 | 方案 A 的标签条（两档、最窄 96px、全部标签、焦点栏、撤销与独看小签、异常标记、窄屏「主区｜右侧」）；「＋」菜单；标签右键；标题栏「布局」 | `tab-workspace-strip.ts`、`tab-workspace-menus.ts`、`plugin-tab-groups.ts`、`tab-strip-share.ts`、`styles/tab-*.ts` | S2 之后 |
-| S4 底栏三段与个人插件 | S4a：BL-912 包图标（可先做）；S4b：底栏左中右、个人插件进切换器与「＋」、去掉标题栏与到达页的工具位 | S4a：`apps/local-host/src/installed-stage-section.ts`、`home-plugin-http.ts`；S4b：`immersive-shell.ts`、`navigation-presentation.ts`、`home-plugin-navigation.ts`、`arrival/` | S4a 随时；S4b 在 S3 之后 |
-| S5 收尾 | `DESIGN.md` 标签条与底栏两段；`navigation-feed.ts` 改名；用例与产品子集扫尾 | `DESIGN.md`、`browser-assets.ts`、`tests/` | 最后 |
+| S0 组件板标本 | 定样 README「组件板新增」1、2、3、6～10、12～16 做成 `/__ui/catalog` 标本，含三段的新底栏（静态样张，产品底栏到 S4b 再接） | `apps/workbench/src/primitive-catalog.ts`、新的导航标本文件、`packages/design-system/src/styles/`、`apps/workbench/src/i18n/` | 第一个合入；D 轨合审 |
+| S1 右侧并入窗格 | 右侧成为工作区状态里的一栏：讨论、灵光、Shelf、项目资料、浏览器、电脑和插件侧视图都是它的标签，组、撤销、恢复、返回同一套；图标靠右、停留或聚焦原地展开、收起时留在标题栏、没有「＋」；后台任务成为右侧带数的图标标签；⌘\ 收起或打开；口径 1、4、5、7、10 | `side-panel*.ts`、`plugin-place.ts`、`attention.ts`、`tab-workspace-ops.ts`、`scripts/client/tab-workspace*.ts`、`immersive-shell.ts`、`arrival/shell.ts` | S0 的标本合入后再合 |
+| S2 打开、召回与布局 | 首页退出标签并在 Dock 最前面给入口；「＋」只负责打开（搜索、三段、落点、在旁边打开 ⌥↵、键位提示）；标签右键接走固定、分组、移到右侧、并排看；标题栏最右「布局」按钮与菜单（分屏、移栏、独看 ⌘⇧↵、合并、收起右侧、均分、关闭、切到），去掉每条标签条上的布局按钮；跨栏召回与提示；口径 2、3、6、8 | `tab-workspace-ops.ts`、`tab-workspace-menus.ts`、`tab-workspace-strip.ts`、`tab-workspace-plugins.ts`、`navigation-presentation.ts`、`immersive-shell.ts` | S1 之后 |
+| S3 标签条方案 A | 组头与条目两档、最窄 96px 再横滚、「全部标签」、焦点栏与非焦点栏的当前标签、撤销小签固定在可见区末端、独看小签、三种异常标记、窄屏「主区｜右侧」与固定标签收进「全部标签」 | `tab-workspace-strip.ts`、`plugin-tab-groups.ts`、`tab-strip-share.ts`、`styles/tab-workspace.ts`、`styles/tab-groups.ts` | S2 之后 |
+| S4 底栏三段与个人插件 | S4a：BL-912 包图标（不碰上面那批文件，随时做）；S4b：底栏左（只有图标的切换器、Dock）中（输入框）右（钉住的个人插件、项目圆钮），个人插件进切换器「个人」组与「＋」（口径 9），没能启动的在 Dock 与切换器带琥珀点，去掉标题栏与到达页的个人工具位 | S4a：`apps/local-host/src/installed-stage-section.ts`、`home-plugin-http.ts`；S4b：`immersive-shell.ts`、`navigation-presentation.ts`、`home-plugin-navigation.ts`、`arrival/` | S4a 随时；S4b 在 S3 之后 |
+| S5 收尾 | `DESIGN.md` 标签条与底栏两段；口径 11 的改名；用例与产品子集扫尾 | `DESIGN.md`、`browser-assets.ts`、`tests/` | 最后 |
 
 **开工前检查（需求开发流程第 4 节）：**
 
@@ -201,7 +201,7 @@
 | 11 成果与过程项 | 不涉及 |
 | 12 页面与外壳 | 只改工作台外壳的位置；页面资源有增有删，每片 PR 写 `page-assets` 的前后数字；单个资源一次涨超过 10 KB 先问用户 |
 | 13 错误 | 不新增错误码 |
-| 14 冲突面 | 枢纽 `immersive-shell.ts`、`shell-page-renderer.ts`、`i18n/en.ts`、`dom-events.ts`：S2、S3、S4b 依次叠分支；D 轨文件（design-system、i18n、`DESIGN.md`）由本批写手按片认领；A 轨文件不碰（口径 5）；在途的 #1846 改 `styles/immersive-navigation.ts` 与 `arrival/shell.ts`，S2 开工前核一次 |
+| 14 冲突面 | 枢纽 `immersive-shell.ts`、`shell-page-renderer.ts`、`i18n/en.ts`、`dom-events.ts`：S1、S2、S3、S4b 依次叠分支；D 轨文件（design-system、i18n、`DESIGN.md`）由本批写手按片认领；A 轨文件不碰（口径 5）；在途的 #1846 改 `styles/immersive-navigation.ts` 与 `arrival/shell.ts`，S1 合入前核一次 |
 
 ### 4.7 项目首页整合进 Work Brief（2026-10-27 用户已定）
 

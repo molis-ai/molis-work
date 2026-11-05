@@ -152,7 +152,7 @@
 | 签名与公证（BL-021；产品建议 A1） | 发布、系统能力 | [26](batches/26.md)、[56](batches/56.md) | 要决策：凭据接入（你办）；现有个人 Apple 账号已定 |
 | [升级持续可用 U0～U7](../../upgrade-continuity/spec.md)；BL-413、BL-583、BL-487 随真实 Home 重建核回；BL-157 已移出 Backlog | 底层与架构、升级 | [02](batches/02.md)、[05](batches/05.md)、[25](batches/25.md)、[26](batches/26.md)、[56](batches/56.md)、[72](batches/72.md)、[SRV-8](batches/srv-8.md) | 升级链起点已定；要决策：真实 Home 重建由你说「开始」，更新／回退界面定样；具体门禁改动按开发流程处理 |
 | 运行条件：常驻、休眠后补跑、错过的怎样显示（产品建议 A5；BL-030、BL-645、BL-352） | 发布、系统能力 | [25](batches/25.md) | 直接做 |
-| 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | 要决策：口径（你） |
+| 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | [A4](decisions.md#policy-a4) 文案已合入官网 main。用户 11-04 决定，官网正式发布与线上验收留到产品完整开发后安排 |
 | 原生组件随包预置与首次自检（产品建议 H14） | 发布、系统能力 | [26](batches/26.md)、[53](batches/53.md)、[56](batches/56.md) | 直接做 |
 | 「需要你」的菜单栏角标与系统通知（产品建议 B3），连同 Attention 还没有的稍后提醒与定时唤醒（[attention-resumption](../../../docs/modules/attention-resumption.md)） | 发布、系统能力 | [55](batches/55.md) | 要决策：界面定样 |
 | [合同兼容起点](../../../docs/system/CONTRACT-CHANGES.md)：M1 外发时记录版本、日期与提交 | 发布、系统能力 | [26](batches/26.md)、[56](batches/56.md) | 要决策：M1 的范围（[决定 18](decisions.md#decision-18)） |
@@ -195,7 +195,7 @@
 
 | 来源 | 对应批次／条件 | 决策 |
 | --- | --- | --- |
-| 翻译：BL-118、BL-455～464、BL-545、BL-546、BL-567 | [16](batches/16.md)、[55](batches/55.md) | 直接做 |
+| 翻译：BL-118、BL-455～457、BL-459～464、BL-545、BL-546、BL-567 | [16](batches/16.md)、[55](batches/55.md) | 直接做 |
 | 写后检查：BL-160、BL-171、BL-220、BL-390，以及 BL-301～303 | [24](batches/24.md)、[31](batches/31.md) | 直接做 |
 | Prologue 上游：BL-031、BL-137、BL-172、BL-173、BL-175、BL-176 | [31](batches/31.md)、[61](batches/61.md)；最近的实际换包窗口 | 直接做 |
 | 记忆误记与默认：BL-037、BL-093 | [24](batches/24.md)、[31](batches/31.md)；[Memory 原暂停](#memory-paused) | 直接做 |
@@ -203,7 +203,7 @@
 | [术语表](../../../docs/system/GLOSSARY.md) §5～6 的 R-A／R-B／R-C 与文档旧称 | [02](batches/02.md)、[27](batches/27.md)；R-A 按所在包改；R-B1～8 不做，R-B9 存量随真实 Home 重建、不迁移 | 直接做 |
 | 助理对外用词（H4）：工作、工作简报、任务、受托工作、子工作 | [10](batches/10.md)；实施前定并写术语表 | 要决策：用词在 10 开工前定，写进术语表 |
 | 工程流程：W2-16 与新成员从零上手（[并行开发 §12](../../../docs/system/PARALLEL-DEVELOPMENT.md)） | [02](batches/02.md)；统筹负责，不占产品轨道 | 直接做：统筹做 |
-| [对抗式审查台账 R1～R8／N1～N56](../../../docs/reviews/adversarial-review-2026-11-01.md)、版本归一与重复调用整治 | [01](batches/01.md)、[02](batches/02.md)、[05](batches/05.md)、[06](batches/06.md)、[07](batches/07.md)、[27](batches/27.md)、[46](batches/46.md)；N12／N14 先定主人／合同，N3／N16 等未定门禁仍待决；#1727 实际采用先核回，N56 与宿主首片同 PR；[PR 对照](requirement-prs.md#recent-requirement-prs) | 要决策：N12 文档记录协议归谁、N14 版本字段的合同、N3／N16 等当时没定的门禁、N47 由 Runtime 主人定、BL-880 的门禁改动；N34 复位 0.1.0 前你先删 GitHub 旧 release 与 tag；其余按台账已定的做 |
+| [对抗式审查台账 R1～R8／N1～N56](../../../docs/reviews/adversarial-review-2026-11-01.md)、版本归一与重复调用整治 | [01](batches/01.md)、[02](batches/02.md)、[05](batches/05.md)、[06](batches/06.md)、[07](batches/07.md)、[27](batches/27.md)、[46](batches/46.md)；N12／N14 先定主人／合同，N3／N16 范围已定，分别在 27／06 实施；#1727 实际采用先核回，N56 与宿主首片同 PR；[PR 对照](requirement-prs.md#recent-requirement-prs) | 要决策：N12 文档记录协议归谁、N14 版本字段的合同、N47 由 Runtime 主人定、BL-880 的门禁改动；N34 复位 0.1.0 前你先删 GitHub 旧 release 与 tag；其余按台账已定的做 |
 
 <a id="section-3-8"></a>
 
@@ -215,7 +215,7 @@
 | --- | --- | --- |
 | 随防腐线收 | BACKLOG §8 全部：BL-080、081、085、086、088、117、121～124、127、324、531、532、635、637～639、646、647、657、680、695；§5、§7 里挂着防腐切片或 PG 的：BL-072、130、136、178、375、378、381、382、386、500、505、507、508、520、522、525～527、530、550、568、575～577、579～582、584、586～589、616、617、619～623、625～628。其中 BL-130 随 W6-03 的 Skill 重写一起核；11-03 新加进 §8 的 BL-927、928、930～944 与 §1 的 BL-929 同样在内，逐条去处写在 [02](batches/02.md) 第 1、3 项 | [01](batches/01.md)、[02](batches/02.md) |
 | A 助理与输入 | BL-033（确认卡与建议卡的 Tab 顺序）、BL-393（输入法用例，已随 T-044 做完）；BL-032（只说不做时续做一次）、BL-042（真实模型跑搜索）；BL-038（动态交互的待定参数）、BL-101（侧栏浏览器的输入） | [10](batches/10.md)、[32](batches/32.md)、[63](batches/63.md) |
-| B Coding | BL-246（问卷回执一闪而过）、BL-310～313（QA-009～012 的真实链路证明）、BL-540（判断一轮被切断的时间界限）；BL-051（子任务预算与重试）、BL-182（重试记成本人的补充）、BL-566（成果正文的读取边界）；BL-141（Coding 客户端翻译）随 16 的 C 段 | [12](batches/12.md)、[16](batches/16.md)、[33](batches/33.md) |
+| B Coding | BL-246（问卷回执一闪而过）、BL-310～313（QA-009～012 的真实链路证明）、BL-540（判断一轮被切断的时间界限）；BL-051（子任务预算与重试）、BL-182（重试记成本人的补充）、BL-566（成果正文的读取边界）；BL-141（Coding 客户端翻译）已做（11-04 提前作为 B 轨真缺陷做掉，键仍是现行的 `coding.*`，16 的 C 段照常一起切换） | [12](batches/12.md)、[16](batches/16.md)、[33](batches/33.md) |
 | C 平台与 Prologue | BL-323（`remember` 待认可时的工具结果）、BL-367（插件 `stop` 钩子没有时限）、BL-569（安全不变量门禁漏扫 e2e 用例）、BL-392（Runtime 显示名散在几处）；BL-371（运行时能力加会话间发信，随子代理）、BL-034（没接的 Prologue 能力，按窗口清单逐项挑）；BL-052（五家原生 Agent 实操，随 Sessions 重做）、BL-166（技能包定制）、BL-128（引用声明的语义一致性，等你定） | [24](batches/24.md)、[27](batches/27.md)、[31](batches/31.md)、[59](batches/59.md)、[61](batches/61.md) |
 | D 外观与语言 | BL-041（无项目时没有搜索入口）、BL-138（窄问卷卡的标题）、BL-543（设置地址把查询参数原样带过去）、BL-544（侧视图插件框没加载完就能点）；BL-139（「开始」译成 Started）随 C 段 | [07](batches/07.md)、[16](batches/16.md)、[27](batches/27.md) |
 | E 插件 | BL-129（首页事项不分撤不回，随情境 W4）；BL-039（片段级动作只有四个插件提供，随 W5、W6） | [45](batches/45.md)、[68](batches/68.md) |

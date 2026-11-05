@@ -26,6 +26,7 @@
 - [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；59 项验收与 21 组设计机制。原视觉工作实现中，输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。2026-11-02 补全产品文案与按需帮助：减少常驻解释，名称、按钮和下一步易懂，与渐进式引导接续（VUX-51～59）；新增需求尚未实现或验收。负责人：Claude（2026-10-19 起接手实现）；本次需求维护：Codex。
 - [intelligent-surfaces](intelligent-surfaces/spec.md)：智能呈现与操作层（Intelligent UI）。插件声明对象的字段、形态、操作和允许别人放东西的挂载位；平台的确定组合加上助理在候选内的组合，把插件内容、平台内容、MCP 与 Skill 拼成此刻最合适的展示与操作面，注入插件内、插件之间、对话、项目讨论、首页、Shelf、等你等位置。2026-11-02 需求已整理，尚未实现；负责人未分配，轨道见正文（合同 C1、组合服务 C3、组件 D）。
 - [shared-sources-and-surfaces](shared-sources-and-surfaces/spec.md)：公共来源与呈现合同（路线书 05 ②）。资料身份、多个输入目录配一个输出目录、浏览与执行和撤权、智能呈现声明、组合服务的公开合同与 SDK 共用校验；设计稿，没有实现，合同归 C 轨、组件归 D 轨。
+- [surface-composition](surface-composition/spec.md)：确定组合平台服务（路线书 15 ①）。新的 horizontal 包按调用方、位置和对象排出操作面描述（形态、字段、操作、分组），不调模型；宿主只装配；基础首页的三组怎样给。设计稿，没有实现；C3 写稿，合同缺口交 C 轨，首页一节请 D 轨共审。
 - [work-mainline](work-mainline/spec.md)：主线。事项是平台的轻量容器（可以只起名字，Goal、待办等可以变成事项），用户把手头的事项按自己的分组和顺序排好，从顶部切换器一下切到某件事，工作台状态、相关对象、助理范围与等你随之切换；插件对象的内容仍归插件。
 - [upgrade-continuity](upgrade-continuity/spec.md)：升级后持续可用。库的升级链从统一起点起算（先快照、再升级、失败回退、只影响主人），新程序先在副本上演练再替换，从 M1 起合同有过渡期、保存的引用自动接上，每个发布版本留金样 Home 回放；用户只感觉到功能升级。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。

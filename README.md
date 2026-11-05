@@ -91,7 +91,7 @@ The Graph is for when the list is no longer enough. Parent/child describes struc
 
 ### You confirm material changes
 
-A Runtime can propose new work or a new dependency as a structure proposal and can record a concern that blocks completion. It cannot quietly replace an agreed outcome or weaken its requirements, and it cannot fill in a user identity. Trusted user decisions are recorded in Host Web or the management entry. The Decision Center puts the question, why it matters now, the evidence or the gap, and what each choice changes in one place.
+A Runtime can propose new work or a new dependency as a structure proposal and can record a concern that blocks completion. It cannot quietly replace an agreed outcome or weaken its requirements, and it cannot fill in a user identity. Trusted user decisions are recorded in Host Web or the management entry. Each decision card shows the question, why a decision is needed, the evidence behind the recommendation, and what each choice would change.
 
 ### Keep the terminal on the Goal
 

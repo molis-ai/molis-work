@@ -5,7 +5,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
     row.className = "functions-palette-row";
     const body = document.createElement("span");
     const title = document.createElement("strong");
-    title.textContent = behaviorTitle(beh);
+    title.textContent = optionTitle(beh);
     const meta = document.createElement("small");
     const bits = [sourceLabel(beh.source)];
     if (beh.plugin_title && beh.source !== "system") bits.push(beh.plugin_title);
@@ -19,7 +19,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
     const add = document.createElement("button");
     add.type = "button";
     add.className = "mw-btn mw-btn--ghost";
-    add.dataset.paletteAdd = beh.behavior_id;
+    add.dataset.paletteAdd = beh.option_id;
     add.textContent = L("加入");
     add.disabled = beh.availability?.available === false;
     row.append(body, effect, add);
@@ -33,8 +33,8 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
     const kinds = readKinds();
     const used = new Set(readKeys());
     const query = (paletteFind?.value || "").trim().toLocaleLowerCase();
-    const fresh = hints(dst, kinds).filter((row) => row && !used.has(row.behavior_id))
-      .filter((row) => !query || [row.title, row.hint, row.plugin_title, row.behavior_id].join(" ").toLocaleLowerCase().includes(query));
+    const fresh = hints(dst, kinds).filter((row) => row && !used.has(row.option_id))
+      .filter((row) => !query || [row.title, row.hint, row.plugin_title, row.option_id].join(" ").toLocaleLowerCase().includes(query));
     if (!fresh.length) {
       const hint = document.createElement("p");
       hint.className = "functions-hint";
@@ -55,7 +55,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
       });
       groups.forEach((groupItems, label) => {
         const group = document.createElement("div");
-        group.className = "functions-behavior-group";
+        group.className = "functions-option-group";
         const name = document.createElement("span");
         name.textContent = label;
         group.append(name);
@@ -79,7 +79,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
     mapPanel.querySelector("[data-functions-map-hint]").textContent = L(agentDest
       ? "可为每个结果选择推荐能力，也可只返回判断。推荐不会自动执行动作。"
       : "每个结果都需要对应一个动作，才能在所选页面启用。");
-    const pool = agentDest ? hints(dst, readKinds()) : (dest.behavior_ids || []).map(id => behaviorOf(id));
+    const pool = agentDest ? hints(dst, readKinds()) : (dest.option_ids || []).map(id => optionOf(id));
     const map = agentDest ? rec.action_map || {} : rec.scene_map || {};
     const rows = kind === "noul"
       ? [
@@ -106,7 +106,7 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const sourceLabel = (source) => s
       select.append(empty);
       pool.forEach((beh) => {
         const option = document.createElement("option");
-        option.value = agentDest ? actionRef(beh.action_ref) : beh.behavior_id;
+        option.value = agentDest ? actionRef(beh.action_ref) : beh.option_id;
         option.textContent = beh.title + (agentDest ? " · " + beh.plugin_title + " · v" + beh.action_ref.version : "")
           + (beh.availability?.available === false ? " · " + beh.availability.reason : "");
         option.disabled = beh.availability?.available === false;

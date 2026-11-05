@@ -19,10 +19,10 @@ import {
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-  filterSuggestedBehaviorIds,
+  filterSuggestedOptionIds,
   mapJudgmentChoice,
-  defaultInboxNextBehaviorIds,
-  defaultFeedCaptureBehaviorIds,
+  defaultInboxNextOptionIds,
+  defaultFeedCaptureOptionIds,
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
@@ -102,9 +102,9 @@ async function publishChoice(
   return { service, published };
 }
 
-test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plus unknowns", () => {
+test("filterSuggestedOptionIds keeps registered Choice keys and drops talk plus unknowns", () => {
   assert.deepEqual(
-    filterSuggestedBehaviorIds(
+    filterSuggestedOptionIds(
       [HOME_CONTINUE_OPTION_ID, INBOX_DONE_OPTION_ID],
       [HOME_CONTINUE_OPTION_ID, INBOX_DONE_OPTION_ID],
       HOME_CONTINUE_OPTION_ID,
@@ -112,7 +112,7 @@ test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plu
     [HOME_CONTINUE_OPTION_ID],
   );
   assert.deepEqual(
-    filterSuggestedBehaviorIds(
+    filterSuggestedOptionIds(
       [HOME_CONTINUE_OPTION_ID],
       [HOME_CONTINUE_OPTION_ID],
       "not-a-behavior",
@@ -122,14 +122,14 @@ test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plu
 });
 
 test("Feed disposition defaults are offered until a valid choice selects them", () => {
-  assert.deepEqual(defaultFeedCaptureBehaviorIds(true), [
+  assert.deepEqual(defaultFeedCaptureOptionIds(true), [
     INBOX_ADMIT_OPTION_ID,
     FEED_SAVE_OPTION_ID,
     FEED_PROMOTE_OPTION_ID,
     FEED_ARCHIVE_OPTION_ID,
     FEED_OPEN_OPTION_ID,
   ]);
-  assert.deepEqual(defaultFeedCaptureBehaviorIds(false), []);
+  assert.deepEqual(defaultFeedCaptureOptionIds(false), []);
   assert.deepEqual(visibleFeedDispositionIds([], true), [
     INBOX_ADMIT_OPTION_ID,
     FEED_SAVE_OPTION_ID,
@@ -207,12 +207,12 @@ test("authoring derives exact Agent capabilities from the supplied directory wit
   const userOnly = { ...catalogAction("private.user"), action: { ...first.action, audiences: ["user" as const] } };
   const catalog = liveHostJudgmentRuleAuthoringCatalog([first, second, unavailable, userOnly]);
   assert.deepEqual(catalog.destinations.map(row => row.destination_id), ["agent.mcp"]);
-  assert.equal(catalog.behaviors.length, 3);
-  assert.deepEqual(catalog.behaviors.map(row => row.action_ref), [first, second, unavailable].map(row => ({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id })));
-  assert.equal(new Set(catalog.behaviors.map(row => row.behavior_id)).size, 3);
-  assert.equal(catalog.behaviors[2]?.availability?.available, false);
-  assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, [], "an empty directory cannot expose builtins or legacy aliases");
-  assert.equal(liveHostJudgmentRuleAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).behaviors[0]?.behavior_id === catalog.behaviors[0]?.behavior_id, false);
+  assert.equal(catalog.options.length, 3);
+  assert.deepEqual(catalog.options.map(row => row.action_ref), [first, second, unavailable].map(row => ({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id })));
+  assert.equal(new Set(catalog.options.map(row => row.option_id)).size, 3);
+  assert.equal(catalog.options[2]?.availability?.available, false);
+  assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().options, [], "an empty directory cannot expose builtins or legacy aliases");
+  assert.equal(liveHostJudgmentRuleAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).options[0]?.option_id === catalog.options[0]?.option_id, false);
 });
 
 test("authoring names the owning plugin by its plugin id, never by the installation that registered it", () => {
@@ -236,23 +236,23 @@ test("authoring names the owning plugin by its plugin id, never by the installat
   const offered = scene(host, { scene_id: "example.offered", recommendation_source: "subject-offers" });
   const finite = scene(consumer, { scene_id: "example.finite", result_schema: { type: "object", properties: { suggested_behavior_ids: { type: "array", items: { enum: ["example.one"] } } } } });
   const catalog = liveHostJudgmentRuleAuthoringCatalog([read, finish, offers, system], [offered, finite]);
-  const behavior = (match: (row: (typeof catalog.behaviors)[number]) => boolean) => catalog.behaviors.find(match)!;
+  const option = (match: (row: (typeof catalog.options)[number]) => boolean) => catalog.options.find(match)!;
 
-  const agentRead = behavior(row => row.action_ref?.capability_id === "notes.read");
+  const agentRead = option(row => row.action_ref?.capability_id === "notes.read");
   assert.equal(agentRead.plugin_id, "io.example.notes", "an Agent action names its plugin, not the installation behind plugin-install-abc");
   assert.equal(agentRead.action_ref?.provider_id, "plugin-install-abc", "the pinned action reference keeps the registration it will be invoked on");
-  assert.equal(behavior(row => row.action_ref?.capability_id === "system.read").plugin_id, "system-host", "a provider without a plugin id is named by its provider id");
+  assert.equal(option(row => row.action_ref?.capability_id === "system.read").plugin_id, "system-host", "a provider without a plugin id is named by its provider id");
 
-  const offer = behavior(row => row.destination_id === "example.offered");
+  const offer = option(row => row.destination_id === "example.offered");
   assert.equal(offer.title, "Finish note");
   assert.equal(offer.plugin_id, "io.example.notes", "a subject offer names the plugin that offers it, not the scene's provider or the installation");
   assert.equal(offer.provider_id, "home-host", "the scene's provider id still says who owns the consumer scene");
   assert.equal(offer.effect, "write");
 
-  const fixed = behavior(row => row.behavior_id === "example.one");
+  const fixed = option(row => row.option_id === "example.one");
   assert.equal(fixed.plugin_id, "io.example.consumer", "a scene's finite recommendation names the consuming plugin");
   assert.equal(fixed.provider_id, "plugin-install-def", "the scene registration stays in provider_id");
-  assert.ok(catalog.behaviors.every(row => !/^plugin-install-/.test(row.plugin_id)), "no installation id is presented as a plugin id");
+  assert.ok(catalog.options.every(row => !/^plugin-install-/.test(row.plugin_id)), "no installation id is presented as a plugin id");
 });
 
 test("Home preserves declared navigation and bound suggestions without inventing actions", () => {
@@ -355,15 +355,15 @@ test("Agent suggestions respect subject contracts and exclude other scenes", () 
   const note = { ...catalogAction("note.read"), action: { ...generic.action, subject_kinds: ["note"] } };
   const feed = { ...catalogAction("feed.read"), action: { ...generic.action, subject_kinds: ["feed_item"] } };
   const base = liveHostJudgmentRuleAuthoringCatalog([generic, note, feed]);
-  const catalog = { ...base, behaviors: [...base.behaviors, { ...base.behaviors[0]!, behavior_id: "other-scene-symbol", destination_id: "other.scene", action_ref: undefined }] };
+  const catalog = { ...base, options: [...base.options, { ...base.options[0]!, option_id: "other-scene-symbol", destination_id: "other.scene", action_ref: undefined }] };
   // The page filters these rows by the chosen subject kinds (tests/functions-plugin.test.ts runs that rule); the catalog carries each
   // suggestion with its own subject kinds, hangs only Agent capabilities under agent.mcp, and keeps another scene's symbol out.
-  const agent = catalog.behaviors.filter(row => row.destination_id === "agent.mcp");
+  const agent = catalog.options.filter(row => row.destination_id === "agent.mcp");
   assert.deepEqual(agent.map(row => [row.action_ref?.capability_id, row.subject_kinds]), [["generic.read", []], ["note.read", ["note"]], ["feed.read", ["feed_item"]]]);
-  assert.deepEqual(catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids, agent.map(row => row.behavior_id));
-  assert.equal(catalog.behaviors.find(row => row.behavior_id === "other-scene-symbol")?.destination_id, "other.scene");
-  assert.ok(!agent.some(row => row.behavior_id === "other-scene-symbol"));
-  assert.deepEqual(catalog.behaviors.filter(row => !row.destination_id), [], "no scene-less suggestion exists to offer without a destination");
+  assert.deepEqual(catalog.destinations.find(row => row.destination_id === "agent.mcp")?.option_ids, agent.map(row => row.option_id));
+  assert.equal(catalog.options.find(row => row.option_id === "other-scene-symbol")?.destination_id, "other.scene");
+  assert.ok(!agent.some(row => row.option_id === "other-scene-symbol"));
+  assert.deepEqual(catalog.options.filter(row => !row.destination_id), [], "no scene-less suggestion exists to offer without a destination");
   assert.equal(catalog.destinations.some(row => row.destination_id === "unregistered.scene"), false);
 });
 
@@ -425,7 +425,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-home-dock-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const created = await catalog.createProject({ display_name: "卡底绑定", actor_id: "test" });
-  // The Home dock's choices are the Inbox's behaviors: they exist while the project has the Inbox (FI-6: a Runtime plugin of the project, not always there).
+  // The Home dock's choices are the Inbox's options: they exist while the project has the Inbox (FI-6: a Runtime plugin of the project, not always there).
   for (const plugin_id of ["feed", "inbox"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const token = "home-dock-test-token-0123456789012345";
@@ -538,7 +538,7 @@ test("all builtin action declarations feed the Agent palette without maintaining
   const actual = liveHostJudgmentRuleAuthoringCatalog(directory);
   const expected = directory.filter(row => row.action.audiences.some(audience => audience === "agent" || audience === "mcp"));
   assert.ok(expected.length > 0);
-  assert.equal(actual.behaviors.length, expected.length);
-  for (const action of expected) assert.ok(actual.behaviors.some(row => row.action_ref?.capability_id === action.capability_id
+  assert.equal(actual.options.length, expected.length);
+  for (const action of expected) assert.ok(actual.options.some(row => row.action_ref?.capability_id === action.capability_id
     && row.action_ref.version === action.version && row.action_ref.provider_id === action.provider.provider_id), action.capability_id);
 });

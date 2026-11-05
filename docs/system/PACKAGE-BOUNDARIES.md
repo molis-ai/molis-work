@@ -153,6 +153,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
   - 合法跳过：只在 PR、选择器明确成功且对应 mode 为 `none` 时跳过该作业。`Verify` 直接读取选择器结果和两个 mode，分别核每项的 skipped；some/whole、空或未知 mode、选择失败取消都不能豁免。
   - 其他事件：合并队列、直推 main、每晚和手动运行不挑，整张清单两片；合并队列已验过的 push main 和别的挡合并作业一样跳过（`queue-check`）。
   - `security-invariants` 作业按同一个办法挑 `test:security` 的文件。
+  - `native-checks`（macOS 的 Rust 和 Swift 检查）读同一个选择的 `native_mode`：`none` 才跳过，PR 和合并队列条目都适用（用户 2026-11-04 批准，规则与触发路径见 `tooling/gates/README.md`「Rust、Swift、shell 与 Python」；`tests/ci-test-selection.test.ts` RAC-1766、`tests/ci-queue-verified.test.ts` RAC-1907）。
   - 规则钉在 `tests/ci-test-selection.test.ts`（`gates` 作业里跑）。
 - **本机**：`node scripts/ci-product-subset.mjs --list` 只列会跑什么、哪些被隔离、哪些已到期，什么也不跑；`--only <正则>` 限定文件，可以在本机试一两个文件（本机的结果不是 Linux 结果，摘要里会写明）。
 - **并入 `Verify`**（决定 #14，本次窄合同）：`product-subset` 和 `security-invariants` 在 `verify` 作业的 `needs` 和它最后一步的检查里，没有 `continue-on-error`，作业名不再写「not required yet」；`tests/ci-product-subset.test.ts` 和 `tests/ci-queue-verified.test.ts`（RAC-1901 到 RAC-1903）钉住这个状态。必需检查仍然只有 `Verify`，名字与分支保护都不变。`test-selection` 和 `queue-check` 是辅助 needs，不算九项必须成功的测试结果；失败的选择器不妨碍整套实际成功的结果通过。

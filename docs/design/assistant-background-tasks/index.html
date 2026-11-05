@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>连续对话与后台任务定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../workbench-shared-paths/styles.css?v=3">
+  <link rel="stylesheet" href="../intelligent-surfaces-forms/forms.css?v=5">
+  <link rel="stylesheet" href="tasks.css?v=3">
+</head>
+<body>
+  <div id="icons"></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b data-t="protoTitle"></b>
+    <label><span data-t="scheme"></span>
+      <span class="seg" id="scheme"><button type="button" data-scheme="A" title="已定（2026-11-03）">A ✓</button><button type="button" data-scheme="B">B</button><button type="button" data-scheme="C">C</button></span>
+    </label>
+    <label><span data-t="step"></span>
+      <button type="button" class="btn sm sec" id="prev" data-t="prev"></button><span id="stepcap" style="min-width:150px"></span><button type="button" class="btn sm primary" id="next" data-t="next"></button>
+    </label>
+    <label><span data-t="fault"></span><select id="fault"></select></label>
+    <label><span data-t="lang"></span>
+      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
+    </label>
+    <label><span data-t="theme"></span>
+      <span class="seg" id="theme"><button type="button" data-theme-set="light" data-t="light"></button><button type="button" data-theme-set="dark" data-t="dark"></button></span>
+    </label>
+    <button type="button" class="btn sm sec" id="reset" data-t="reset"></button>
+  </div>
+  <main class="shell" id="app"></main>
+  <script src="../workbench-shared-paths/icons.js"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>

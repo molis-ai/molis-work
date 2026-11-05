@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coding 执行定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="styles.css?v=2">
+</head>
+<body>
+  <div id="icons"></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b data-t="protoTitle"></b>
+    <label><span data-t="block"></span>
+      <select id="block"></select>
+    </label>
+    <label><span data-t="scheme"></span>
+      <span class="seg" id="scheme">
+        <button type="button" data-scheme="A">A</button><button type="button" data-scheme="B">B</button><button type="button" data-scheme="C">C</button>
+      </span>
+    </label>
+    <span class="sname" id="sname"></span>
+    <label><span data-t="state"></span>
+      <select id="state"></select>
+    </label>
+    <label><span data-t="lang"></span>
+      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
+    </label>
+    <label><span data-t="theme"></span>
+      <span class="seg" id="theme"><button type="button" data-theme-set="light" data-t="light"></button><button type="button" data-theme-set="dark" data-t="dark"></button></span>
+    </label>
+    <button type="button" class="btn sm sec" id="reset" data-t="reset"></button>
+  </div>
+  <div class="app" id="app"></div>
+  <script src="icons.js"></script>
+  <script src="data.js?v=2"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>

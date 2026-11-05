@@ -1,7 +1,7 @@
 // 03 · 顶部事项切换定样 — standalone prototype on sample data (data.js). Nothing calls a model or a Home.
 (() => {
   const D = window.mlData;
-  document.getElementById("icons").innerHTML = window.protoIcons;
+  document.getElementById("icons").innerHTML = window.mwKitSprite;
   const T = {
     zh: {
       protoTitle: "原型 · 模拟数据", scheme: "方案", lang: "语言", theme: "外观", light: "浅", dark: "深", reset: "重置", fault: "状态",
@@ -57,7 +57,7 @@
   // ---------- shell ----------
   function chip() {
     const c = item(S.current);
-    const inner = c ? `<span class="ring ${c.status || "none"}" aria-hidden="true"></span><span class="nm">${esc(c.name)}</span>${c.waiting ? `<span class="wcount" aria-label="${t("waitingYou", c.waiting)}">${c.waiting}</span>` : ""}` : `${ic("grid", "sm")}<span class="nm proj">${esc(D.project)}</span>`;
+    const inner = c ? `${kitRing(c.status || "none")}<span class="nm">${esc(c.name)}</span>${c.waiting ? `<span class="wcount" aria-label="${t("waitingYou", c.waiting)}">${c.waiting}</span>` : ""}` : `${ic("grid", "sm")}<span class="nm proj">${esc(D.project)}</span>`;
     return `<button class="mlsw" data-act="menu" aria-haspopup="menu" aria-expanded="${!!pop}">${inner}${ic("chevron-down", "sm")}</button>`;
   }
   function mainTabs() { const c = item(S.current); return c ? c.tabs : [{ id: "home", kind: "home", title: S.lang === "zh" ? "项目首页" : "Project home" }, { id: "hero-none", kind: "coding", title: S.lang === "zh" ? "首页改版：换成新的首屏" : "首页改版：换成新的首屏" }]; }
@@ -69,7 +69,7 @@
     return `<div class="strip ${which}">${which === "main" ? `<div class="nav"><button aria-label="back">${ic("chevron-left", "sm")}</button><button aria-label="forward">${ic("chevron-right", "sm")}</button></div>` : ""}<div class="tabs" role="tablist">${html}</div><div class="tools"><button aria-label="new tab">${ic("plus")}</button>${which === "side" ? `<button data-act="side-close" aria-label="close">${ic("x")}</button>` : ""}</div></div>`;
   }
   function render() {
-    document.documentElement.lang = S.lang === "zh" ? "zh-CN" : "en"; document.documentElement.dataset.theme = S.theme;
+    document.documentElement.lang = S.lang === "zh" ? "zh-CN" : "en"; document.documentElement.dataset.theme = S.theme; document.documentElement.dataset.resolvedTheme = S.theme;
     document.querySelectorAll("[data-t]").forEach((n) => (n.textContent = t(n.dataset.t)));
     for (const b of document.querySelectorAll("#scheme button")) b.setAttribute("aria-pressed", b.dataset.scheme === S.scheme);
     for (const b of document.querySelectorAll("#lang button")) b.setAttribute("aria-pressed", b.dataset.lang === S.lang);
@@ -92,23 +92,23 @@
   function objPage(tb) {
     if (!tb) return "";
     const c = item(S.current);
-    const put = `<button class="btn sm sec" data-act="put-menu" data-title="${esc(tb.title)}" data-kind="${tb.kind}" data-owner="${esc(tb.owner || "")}">${ic("plus", "sm")}${t("putIn")}${ic("chevron-down", "sm")}</button>`;
+    const put = `<button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="put-menu" data-title="${esc(tb.title)}" data-kind="${tb.kind}" data-owner="${esc(tb.owner || "")}">${ic("plus", "sm")}${t("putIn")}${ic("chevron-down", "sm")}</button>`;
     let body = `<div class="line" style="width:90%"></div><div class="line" style="width:76%"></div><div class="line" style="width:84%"></div>`;
-    if (tb.kind === "goal") body = `<div class="fact" style="margin-bottom:6px">${t("goalReq")}</div>${[t("req1"), t("req2"), t("req3")].map((r, i) => `<div class="req"><span class="ring ${i === 0 ? "done" : i === 1 ? "progress" : "none"}"></span>${esc(r)}</div>`).join("")}`;
+    if (tb.kind === "goal") body = `<div class="fact" style="margin-bottom:6px">${t("goalReq")}</div>${[t("req1"), t("req2"), t("req3")].map((r, i) => `<div class="req">${kitRing(i === 0 ? "done" : i === 1 ? "progress" : "none")}${esc(r)}</div>`).join("")}`;
     if (tb.kind === "coding") body = `<div class="step"><span class="dotp"></span>${t("codingRun")}</div>` + body;
     if (tb.kind === "todo") body = `<p>${t("todoBody")}</p>` + body;
     if (tb.kind === "home") body = `<p class="fact">${t("noneHint")}</p>` + body;
-    return `<div class="obj"><div class="kind">${ic(kindIcon[tb.kind] || "home", "sm")}${esc(tb.owner || t("proj"))}<span style="flex:1"></span>${tb.kind !== "home" ? put : ""}</div><h1>${esc(tb.title)}</h1>${body}</div><span class="tag sim simmark">${t("sim")}</span>`;
+    return `<div class="obj"><div class="kind">${ic(kindIcon[tb.kind] || "home", "sm")}${esc(tb.owner || t("proj"))}<span style="flex:1"></span>${tb.kind !== "home" ? put : ""}</div><h1>${esc(tb.title)}</h1>${body}</div><span class="mw-badge mw-badge--neutral tag-sim simmark" data-slot="badge">${t("sim")}</span>`;
   }
   function sideBody(id) {
-    if (id !== "things") return `<div class="empty"><h3>${id === "materials" ? t("materials") : t("talk")}</h3><span class="tag sim">${t("sim")}</span></div>`;
+    if (id !== "things") return `<div class="empty"><h3>${id === "materials" ? t("materials") : t("talk")}</h3><span class="mw-badge mw-badge--neutral tag-sim" data-slot="badge">${t("sim")}</span></div>`;
     const c = item(S.current); if (!c) return "";
     const groups = {};
     for (const th of c.things) (groups[th.kind] ||= []).push(th);
     const rows = Object.entries(groups).map(([k, list]) => `<div class="kh">${t(kindLabel[k])}</div>` + list.map((th) => {
       const idx = c.things.indexOf(th);
-      if (th.gone) return `<div class="tr gone">${ic(th.gone === "denied" ? "lock" : "circle-alert")}<span class="nm"><strong>${th.gone === "denied" ? t("denied") : t("gone")}</strong><span class="fact">${t("rel_" + th.rel)}</span></span><span class="acts" style="opacity:1"><button class="btn sm sec" data-act="rel-remove" data-i="${idx}">${t("removeRel")}</button></span></div>`;
-      return `<div class="tr">${ic(kindIcon[th.kind])}<span class="nm"><strong>${esc(th.title)}</strong><span class="fact">${esc(L(th, "owner"))} · ${t("rel_" + th.rel)}${th.running ? ` · <span class="run">${S.lang === "zh" ? "在跑" : "Running"}</span>` : ""}</span></span><span class="acts"><button class="btn sm sec" data-act="open-thing" data-i="${idx}">${t("open")}</button>${th.rel === "put" ? `<button class="btn icon sm ghost" data-act="rel-remove" data-i="${idx}" aria-label="${t("removeRel")}">${ic("x", "sm")}</button>` : ""}</span></div>`;
+      if (th.gone) return `<div class="tr gone">${ic(th.gone === "denied" ? "lock" : "circle-alert")}<span class="nm"><strong>${th.gone === "denied" ? t("denied") : t("gone")}</strong><span class="fact">${t("rel_" + th.rel)}</span></span><span class="acts" style="opacity:1"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="rel-remove" data-i="${idx}">${t("removeRel")}</button></span></div>`;
+      return `<div class="tr">${ic(kindIcon[th.kind])}<span class="nm"><strong>${esc(th.title)}</strong><span class="fact">${esc(L(th, "owner"))} · ${t("rel_" + th.rel)}${th.running ? ` · <span class="run">${S.lang === "zh" ? "在跑" : "Running"}</span>` : ""}</span></span><span class="acts"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="open-thing" data-i="${idx}">${t("open")}</button>${th.rel === "put" ? `<button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="rel-remove" data-i="${idx}" aria-label="${t("removeRel")}">${ic("x", "sm")}</button>` : ""}</span></div>`;
     }).join("")).join("");
     return `<div class="phead"><h2>${t("things")}</h2></div><div class="things" style="overflow:auto;flex:1">${rows}</div>`;
   }
@@ -125,7 +125,7 @@
   }
   function row(i, extra = "") {
     const done = i.done;
-    return `<button class="mi2" role="menuitem" data-act="switch" data-id="${i.id}" aria-current="${S.current === i.id}" ${extra}><span class="ring ${i.status || "none"}"></span><span class="nm"><strong>${i.pinned ? ic("pin", "sm") + " " : ""}${esc(i.name)}</strong><span class="fact">${i.source ? esc(S.lang === "en" && i.sourceEn ? i.sourceEn : i.source) + " · " : ""}${esc(L(i, "last"))}</span></span>${i.running ? `<span class="run"></span>` : ""}${i.waiting ? `<span class="wcount" aria-label="${t("waitingYou", i.waiting)}">${i.waiting}</span>` : ""}${!done && !i.source ? `<span class="btn sm ghost" role="button" data-act="mark-done" data-id="${i.id}" title="${t("markDone")}">${ic("check", "sm")}</span>` : ""}</button>`;
+    return `<button class="mi2" role="menuitem" data-act="switch" data-id="${i.id}" aria-current="${S.current === i.id}" ${extra}>${kitRing(i.status || "none")}<span class="nm"><strong>${i.pinned ? ic("pin", "sm") + " " : ""}${esc(i.name)}</strong><span class="fact">${i.source ? esc(S.lang === "en" && i.sourceEn ? i.sourceEn : i.source) + " · " : ""}${esc(L(i, "last"))}</span></span>${i.running ? `<span class="run"></span>` : ""}${i.waiting ? `<span class="wcount" aria-label="${t("waitingYou", i.waiting)}">${i.waiting}</span>` : ""}${!done && !i.source ? `<span class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" role="button" data-act="mark-done" data-id="${i.id}" title="${t("markDone")}">${ic("check", "sm")}</span>` : ""}</button>`;
   }
   function menuHtml(q = "") {
     const match = (i) => !q || i.name.toLowerCase().includes(q.toLowerCase());
@@ -140,8 +140,8 @@
     }
     if (doneItems.length) list += `<button class="fold" data-act="fold" data-id="done" aria-expanded="${S.openGroups.includes("done")}">${ic(S.openGroups.includes("done") ? "chevron-down" : "chevron-right", "sm")}${t("done")}<span class="fact">${doneItems.length}</span></button>${S.openGroups.includes("done") ? doneItems.map((i) => row(i)).join("") : ""}`;
     const head = `<label class="search" style="margin:4px 4px 6px">${ic("search", "sm")}<input data-act="mq" value="${esc(q)}" placeholder="${t("search")}" aria-label="${t("search")}"></label>`;
-    const foot = `<div class="newrow" id="newrow" hidden><input id="newname" placeholder="${t("namePh")}" aria-label="${t("namePh")}"><span class="seg" id="newsrc"><button data-v="" aria-pressed="true">${t("light2")}</button><button data-v="Goal" aria-pressed="false">${t("asGoal")}</button><button data-v="待办" aria-pressed="false">${t("asTodo")}</button></span><button class="btn sm primary" data-act="create">${t("create")}</button></div>
-      <div class="mlfoot"><button class="btn sm sec" data-act="new">${ic("plus", "sm")}${t("newItem")}</button><button class="btn sm sec" data-act="organize">${ic("rows", "sm")}${t("organize")}</button><span style="flex:1"></span>${S.current ? `<button class="btn sm ghost" data-act="none">${t("noItem")}</button>` : ""}</div>`;
+    const foot = `<div class="newrow" id="newrow" hidden><input id="newname" placeholder="${t("namePh")}" aria-label="${t("namePh")}"><span class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group" id="newsrc"><button data-v="" aria-pressed="true">${t("light2")}</button><button data-v="Goal" aria-pressed="false">${t("asGoal")}</button><button data-v="待办" aria-pressed="false">${t("asTodo")}</button></span><button class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="create">${t("create")}</button></div>
+      <div class="mlfoot"><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="new">${ic("plus", "sm")}${t("newItem")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="organize">${ic("rows", "sm")}${t("organize")}</button><span style="flex:1"></span>${S.current ? `<button class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-act="none">${t("noItem")}</button>` : ""}</div>`;
     if (S.scheme === "B") return `<div class="mlmenu wide">${head}<div class="cols"><div class="body">${list}</div><div class="peek" id="peek">${peek(S.current || live()[0]?.id)}</div></div>${foot}</div>`;
     return `<div class="mlmenu">${head}<div class="body">${list}</div>${foot}</div>`;
   }
@@ -160,14 +160,14 @@
     closePop(false);
     const el = document.createElement("div"); el.className = "pop"; el.setAttribute("role", "menu");
     const its = live(); const cur = item(S.current);
-    el.innerHTML = `<div class="cap">${t("putIn")}</div>${[...(cur ? [cur] : []), ...its.filter((i) => i !== cur)].map((i) => `<button class="mi" data-act="put" data-id="${i.id}" data-title="${esc(title)}" data-kind="${kind}" data-owner="${esc(owner)}"><span class="ring ${i.status || "none"}"></span><span>${esc(i.name)}</span>${i === cur ? `<small>${S.lang === "zh" ? "当前" : "Current"}</small>` : ""}</button>`).join("")}`;
+    el.innerHTML = `<div class="cap">${t("putIn")}</div>${[...(cur ? [cur] : []), ...its.filter((i) => i !== cur)].map((i) => `<button class="mi" data-act="put" data-id="${i.id}" data-title="${esc(title)}" data-kind="${kind}" data-owner="${esc(owner)}">${kitRing(i.status || "none")}<span>${esc(i.name)}</span>${i === cur ? `<small>${S.lang === "zh" ? "当前" : "Current"}</small>` : ""}</button>`).join("")}`;
     document.body.appendChild(el); pop = { el, back: anchor };
     const r = anchor.getBoundingClientRect(); el.style.left = Math.max(8, r.right - el.offsetWidth) + "px"; el.style.top = r.bottom + 6 + "px"; el.querySelector("button")?.focus();
   }
 
   // ---------- actions ----------
   let toastTimer, undoFn = null;
-  function toast(msg, undo, extra = "") { document.querySelector(".toast")?.remove(); const el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); el.innerHTML = esc(msg) + extra + (undo ? `<button data-act="undo">${t("undo")}</button>` : ""); document.body.appendChild(el); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 5000); }
+  function toast(msg, undo, extra = "") { document.querySelector(".mw-toast")?.remove(); const el = document.createElement("div"); el.className = "mw-toast"; el.setAttribute("role", "status"); el.innerHTML = esc(msg) + extra + (undo ? `<button type="button" class="mw-toast__action mw-toast__action--primary" data-act="undo">${t("undo")}</button>` : ""); document.body.appendChild(el); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 5000); }
   function doSwitch(id) {
     const from = item(S.current);
     S.prev = S.current; S.current = id;
@@ -180,7 +180,7 @@
 
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-act],[data-scheme],[data-lang],[data-theme-set],#newsrc button");
-    if (pop && !e.target.closest(".pop,.toast") && !(b && pop.back === b)) closePop(false);
+    if (pop && !e.target.closest(".pop,.mw-toast") && !(b && pop.back === b)) closePop(false);
     if (!b) return;
     if (b.dataset.scheme) { S.scheme = b.dataset.scheme; closePop(false); return render(); }
     if (b.dataset.lang) { S.lang = b.dataset.lang; return render(); }
@@ -190,7 +190,7 @@
     switch (a) {
       case "menu": e.stopPropagation(); if (pop) return closePop(); return openMenu(b);
       case "switch": if (e.target.closest('[data-act="mark-done"]')) return; return doSwitch(v.id);
-      case "back-prev": document.querySelector(".toast")?.remove(); return doSwitch(S.prev);
+      case "back-prev": document.querySelector(".mw-toast")?.remove(); return doSwitch(S.prev);
       case "none": return doSwitch(null);
       case "fold": { const i = S.openGroups.indexOf(v.id); if (i >= 0) S.openGroups.splice(i, 1); else S.openGroups.push(v.id); return refreshMenu(); }
       case "mark-done": { e.stopPropagation(); const it = S.items.find((x) => x.id === v.id); if (!it) return; it.done = true; it.status = "done"; undoFn = () => { it.done = false; it.status = null; }; refreshMenu(); save(); return toast(t("doneMoved", it.name), true); }
@@ -205,7 +205,7 @@
       case "rel-remove": { const c = item(S.current), [th] = c.things.splice(+v.i, 1); undoFn = () => c.things.splice(+v.i, 0, th); render(); return toast(t("removed", th.title || t("denied")), true); }
       case "put-menu": e.stopPropagation(); return putMenu(b, v.title, v.kind, v.owner);
       case "put": { closePop(false); const it = item(v.id); if (!it.things.some((x) => x.title === v.title)) it.things.push({ kind: v.kind, title: v.title, owner: v.owner, rel: "put" }); render(); return toast(t("put", v.title, it.name)); }
-      case "undo": if (undoFn) { undoFn(); undoFn = null; } document.querySelector(".toast")?.remove(); if (pop) refreshMenu(); break;
+      case "undo": if (undoFn) { undoFn(); undoFn = null; } document.querySelector(".mw-toast")?.remove(); if (pop) refreshMenu(); break;
       case "org-close": document.querySelector(".cover")?.remove(); return;
       case "org-add": S.groups.push({ id: "g" + Date.now(), name: S.lang === "zh" ? "新的一组" : "New group" }); return organize();
       case "org-del": { const gi = S.groups.findIndex((g) => g.id === v.id); if (S.groups.length < 2) return; const g = S.groups[gi], into = S.groups[gi === 0 ? 1 : gi - 1]; S.items.forEach((i) => { if (i.group === g.id) i.group = into.id; }); S.groups.splice(gi, 1); organize(); return toast(t("merged", L(g, "name"), L(into, "name"))); }
@@ -222,10 +222,10 @@
   function organize(focusId) {
     document.querySelector(".cover")?.remove();
     const pane = document.querySelector(".pane.main"), c = document.createElement("div"); c.className = "cover";
-    c.innerHTML = `<div class="vhead"><strong>${t("orgTitle")}</strong><span style="flex:1"></span><button class="btn sm sec" data-act="org-add">${ic("plus", "sm")}${t("addGroup")}</button><button class="btn icon sm ghost" data-act="org-close" aria-label="${t("close")}">${ic("x", "sm")}</button></div>
+    c.innerHTML = `<div class="vhead"><strong>${t("orgTitle")}</strong><span style="flex:1"></span><button class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" data-act="org-add">${ic("plus", "sm")}${t("addGroup")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="org-close" aria-label="${t("close")}">${ic("x", "sm")}</button></div>
       <p class="fact" style="padding:10px 24px 4px;margin:0">${t("orgSub")}</p>
-      <div class="org">${S.groups.map((g) => `<div class="col" data-group="${g.id}"><h3><span contenteditable="true" spellcheck="false" data-rename="${g.id}">${esc(L(g, "name"))}</span><span class="fact">${ordered(g.id).length}</span><span style="flex:1"></span>${S.groups.length > 1 ? `<button class="btn icon sm ghost" data-act="org-del" data-id="${g.id}" aria-label="${t("delGroup")}">${ic("trash", "sm")}</button>` : ""}</h3>
-        ${S.items.filter((i) => i.group === g.id && !i.done).map((i) => `<div class="card2" draggable="true" tabindex="0" data-card="${i.id}"><span class="ring ${i.status || "none"}"></span><span class="nm"><strong>${esc(i.name)}</strong><span class="fact">${esc(L(i, "last"))}</span></span>${i.waiting ? `<span class="wcount">${i.waiting}</span>` : ""}<span class="mv"><button class="btn icon sm ghost" data-act="org-move" data-id="${i.id}" data-dir="up" aria-label="up">${ic("chevron-down", "sm up")}</button><button class="btn icon sm ghost" data-act="org-move" data-id="${i.id}" data-dir="down" aria-label="down">${ic("chevron-down", "sm")}</button></span></div>`).join("")}</div>`).join("")}</div>`;
+      <div class="org">${S.groups.map((g) => `<div class="col" data-group="${g.id}"><h3><span contenteditable="true" spellcheck="false" data-rename="${g.id}">${esc(L(g, "name"))}</span><span class="fact">${ordered(g.id).length}</span><span style="flex:1"></span>${S.groups.length > 1 ? `<button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="org-del" data-id="${g.id}" aria-label="${t("delGroup")}">${ic("trash", "sm")}</button>` : ""}</h3>
+        ${S.items.filter((i) => i.group === g.id && !i.done).map((i) => `<div class="card2" draggable="true" tabindex="0" data-card="${i.id}">${kitRing(i.status || "none")}<span class="nm"><strong>${esc(i.name)}</strong><span class="fact">${esc(L(i, "last"))}</span></span>${i.waiting ? `<span class="wcount">${i.waiting}</span>` : ""}<span class="mv"><button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="org-move" data-id="${i.id}" data-dir="up" aria-label="up">${ic("chevron-down", "sm up")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only" data-slot="button" data-act="org-move" data-id="${i.id}" data-dir="down" aria-label="down">${ic("chevron-down", "sm")}</button></span></div>`).join("")}</div>`).join("")}</div>`;
     pane.appendChild(c);
     (focusId ? c.querySelector(`[data-card="${focusId}"]`) : c.querySelector("button"))?.focus();
     let drag = null;

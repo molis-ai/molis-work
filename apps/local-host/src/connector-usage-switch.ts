@@ -6,9 +6,12 @@ import { shownState } from "./connector-refresh-refusals.js";
 // Moving what uses one account of a service to another account of it (spec assistant-service-connections §13.4, S-108). Each consumer
 // declares its own switch beside its usages read; this action finds them in the directory and calls each once with the person's own
 // context. Only the person decides which account a plugin or a model uses, so every switch here is `user` only. The accounts stay.
+// Each consumer the Host holds checks everything itself (the same service, the account switched to connected, its T-134 pin, the
+// declaration a bind would ask for, the model's address), so calling it directly gives no more than calling it through here.
 
 export const connectionSwitchErrors = defineErrorCodes("connector.switch", {
   same_connection: "invalid", connection_missing: "not_found", service_mismatch: "invalid", target_unavailable: "conflict", consumer_unavailable: "conflict", consumer_failed: "conflict",
+  consumer_unsupported: "forbidden",
 });
 
 /**
@@ -67,6 +70,9 @@ export function connectorUsagesSwitchHandler(home: string, clientFor?: (caller: 
       const at: Source = { capability_id: consumer.capability_id, version: consumer.version, provider_id: consumer.provider.provider_id };
       if (!stopped) try { switchTarget(home, input.from_connection_id, input.to_connection_id); } catch (error) { stopped = refusalCode(error, connectionSwitchErrors.target_unavailable); }
       if (stopped) { report.failed.push({ ...at, code: stopped }); continue; }
+      // Only the Host's own consumers for now: one a plugin declares cannot yet tell this nested call from a direct one, and B is not
+      // checked against S-95 for it, so it is never called (BL-1045; the hub, 2026-11-05).
+      if (!consumer.provider.provider_id.startsWith("system.")) { report.failed.push({ ...at, code: connectionSwitchErrors.consumer_unsupported("").code }); continue; }
       if (!consumer.availability.available) { report.failed.push({ ...at, code: connectionSwitchErrors.consumer_unavailable("").code }); continue; }
       try {
         const result = await client.invoke(nested, at, input) as ConnectorUsagesSwitchResult;

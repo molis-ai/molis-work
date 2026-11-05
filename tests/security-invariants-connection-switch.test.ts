@@ -9,7 +9,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { connectorAccountActionProvider, connectorPluginSlotSwitch, connectorUsagesSwitchAction, modelProviderSwitch, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { ActionError, actionReachesAudience, type ActionAudience, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { defineConnectorUsagesSwitchAction } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_USAGES_SWITCH_INPUT_TYPE, CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE, defineConnectorUsagesSwitchAction } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -74,7 +74,7 @@ async function modelHome(t: TestContext) {
 
 test("S-108 RAC-2942 an Agent or MCP cannot switch; two services, the same account or an account not connected moves nothing", { timeout: 60_000 }, async t => {
   const { home, client, a, b, image, keyOf } = await modelHome(t);
-  for (const audience of ["agent", "mcp"] as const) await assert.rejects(switchAll(client, a.connection_id, b.connection_id, { ...user, audience }));
+  for (const audience of ["agent", "mcp"] as const) await assert.rejects(switchAll(client, a.connection_id, b.connection_id, { ...user, audience }), code("actions.forbidden"), audience);
   await assert.rejects(switchAll(client, a.connection_id, image.connection_id), code("connector.switch.service_mismatch"));
   await assert.rejects(switchAll(client, a.connection_id, a.connection_id), code("connector.switch.same_connection"));
   withConnectorConnections(home.home, store => store.disconnect(b.connection_id));
@@ -151,7 +151,7 @@ test("S-108 RAC-2946 a consumer switch called directly does every check itself: 
   const direct = (consumer: typeof modelProviderSwitch, from: string, to: string, caller: ActionCallContext = user) =>
     client.invoke(caller, { capability_id: consumer.capability_id, version: consumer.version, provider_id: "system.connectors" }, { from_connection_id: from, to_connection_id: to }) as Promise<{ switched: string[]; refused: Array<{ usage_id: string; code: string }> }>;
   for (const consumer of [modelProviderSwitch, connectorPluginSlotSwitch]) {
-    for (const audience of ["agent", "mcp"] as const) await assert.rejects(direct(consumer, a.connection_id, b.connection_id, { ...user, audience }), undefined, `${consumer.capability_id} for ${audience}`);
+    for (const audience of ["agent", "mcp"] as const) await assert.rejects(direct(consumer, a.connection_id, b.connection_id, { ...user, audience }), code("actions.forbidden"), `${consumer.capability_id} for ${audience}`);
     await assert.rejects(direct(consumer, a.connection_id, image.connection_id), code("connector.switch.service_mismatch"));
   }
   const slot = await direct(connectorPluginSlotSwitch, work!.connection_id, pinned!.connection_id);
@@ -160,4 +160,14 @@ test("S-108 RAC-2946 a consumer switch called directly does every check itself: 
   withConnectorConnections(home.home, store => store.disconnect(b.connection_id));
   for (const consumer of [modelProviderSwitch, connectorPluginSlotSwitch]) await assert.rejects(direct(consumer, a.connection_id, b.connection_id), code("connector.switch.target_unavailable"));
   assert.deepEqual([await keyOf("here"), await keyOf("there")], [a.credential_ref, a.credential_ref], "no provider took another key");
+});
+
+test("S-108 RAC-2947 a switch a plugin declares is never called: it goes into failed until the platform can tell a nested call (BL-1045)", { timeout: 30_000 }, async t => {
+  const { home, a, b } = await slotHome(t);
+  const pluginConsumer = { capability_id: "example.connection.switch", version: 1, provider: { provider_id: "io.molis.work.example.switch", title: "Example" },
+    action: { input_type: CONNECTOR_USAGES_SWITCH_INPUT_TYPE, output_type: CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE }, availability: { available: true } };
+  const client = { discover: async () => [pluginConsumer], invoke: async () => assert.fail("a plugin's switch is not called") };
+  const aggregate = connectorAccountActionProvider(home, () => {}, undefined, undefined, () => client as never).handlers.find(entry => entry.capability_id === connectorUsagesSwitchAction.capability_id)!;
+  const report = await aggregate.handle({ ...user, beforeEffect: async () => {} } as never, { from_connection_id: a.connection_id, to_connection_id: b.connection_id });
+  assert.deepEqual(report, { results: [], failed: [{ capability_id: "example.connection.switch", version: 1, provider_id: "io.molis.work.example.switch", code: "connector.switch.consumer_unsupported" }] });
 });

@@ -5,7 +5,7 @@ import { lastConnectorCheck, withConnectorConnections } from "./connector-connec
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { pinnedToAnother, pluginSlotScope, targetScope } from "./connector-plugin-requests.js";
 import { shownState } from "./connector-refresh-refusals.js";
-import { refusalCode, switchTarget } from "./connector-usage-switch.js";
+import { connectionSwitchErrors as switchErrors, refusalCode, switchTarget } from "./connector-usage-switch.js";
 
 // Which of the person's accounts a plugin installation's connection slot uses (`services.connections`, S0b-2, S-57). Only the person
 // binds: the audience is `user`, so neither a plugin page nor an Agent nor MCP can choose the account a plugin sends requests with.
@@ -161,14 +161,15 @@ export function connectorPluginSlotSwitchHandler(home: string, declarations: Plu
   return { ...connectorPluginSlotSwitch, handle: async (caller, value) => {
     const input = value as ConnectorUsagesSwitchInput;
     const { to } = switchTarget(home, input.from_connection_id, input.to_connection_id);
-    const uses = slotUses(home, caller, input.from_connection_id)?.uses ?? new Map<string, SlotUse>();
+    const found = slotUses(home, caller, input.from_connection_id), uses = found?.uses ?? new Map<string, SlotUse>();
+    const pinned = withConnectorConnections(home, store => new Set([...uses.values()].filter(use => pinnedToAnother(store, to.connection_id, use.install_id)).map(use => use.usage_id)));
     const result: ConnectorUsagesSwitchResult = { switched: [], refused: [] }, ready: SlotUse[] = [];
     for (const usage_id of input.usage_ids ?? [...uses.keys()]) {
       const use = uses.get(usage_id);
       try {
         if (!use) throw pluginSlotErrors.usage_missing("这个账号没有这处使用位置");
         if (use.project_id !== undefined && use.project_id !== caller.project_id) throw pluginSlotErrors.project_required("按记录绑定的账号要在它所在的项目里换");
-        if (withConnectorConnections(home, store => pinnedToAnother(store, to.connection_id, use.install_id))) throw pluginSlotErrors.connection_pinned("要换成的账号是为另一个插件建的");
+        if (pinned.has(usage_id)) throw pluginSlotErrors.connection_pinned("要换成的账号是为另一个插件建的");
         await assertDeclared(declarations, caller, { ...use, service_id: to.service_id }, use.project_id === undefined ? "installation" : "per_record");
         ready.push(use);
       } catch (error) { caller.signal?.throwIfAborted(); result.refused.push({ usage_id, code: refusalCode(error, pluginSlotErrors.switch_failed) }); }
@@ -176,9 +177,16 @@ export function connectorPluginSlotSwitchHandler(home: string, declarations: Plu
     for (const use of ready) {
       await caller.beforeEffect();
       try {
-        withConnectorConnections(home, store => { for (const scope of use.scopes) {
-          if (store.binding(scope, use.plugin_id, use.slot_id)?.connection_id === input.from_connection_id) store.bind({ scopeId: scope, pluginId: use.plugin_id, slotId: use.slot_id, serviceId: to.service_id, connectionId: to.connection_id });
-        } });
+        // Asked again at the write, in the one open this use takes: the account switched to may have been disconnected, marked (S-70)
+        // or pinned to another package meanwhile, and the slot may have been bound to something else.
+        withConnectorConnections(home, store => {
+          const now = store.get(to.connection_id);
+          if (!now || shownState(home, now, store.state(now), lastConnectorCheck(store, now.connection_id)) !== "connected") throw switchErrors.target_unavailable("要换成的账号现在不可用，请先连好它");
+          if (pinnedToAnother(store, to.connection_id, use.install_id)) throw pluginSlotErrors.connection_pinned("要换成的账号是为另一个插件建的");
+          for (const scope of use.scopes) {
+            if (store.binding(scope, use.plugin_id, use.slot_id)?.connection_id === input.from_connection_id) store.bind({ scopeId: scope, pluginId: use.plugin_id, slotId: use.slot_id, serviceId: to.service_id, connectionId: to.connection_id });
+          }
+        });
         result.switched.push(use.usage_id);
       } catch (error) { result.refused.push({ usage_id: use.usage_id, code: refusalCode(error, pluginSlotErrors.switch_failed) }); }
     }

@@ -12,12 +12,13 @@
 | [assistant-proactive-paths/](assistant-proactive-paths/README.md) | 个人助理的三条路径：安静准备与必要提醒（§4.2）、主动做法的观察试用与启用（§6.1）、多项交付的逐项核验与部分退回复核（§7.3.1），各含正常与异常情况的可点切片（每条三个方案） | 方案已定（2026-11-03：任务条里看准备、规则页里试用与回看、要求与成果对照），产品未实现；按剧本模拟 |
 | [basic-home/](basic-home/README.md) | 基础首页（第 15 批）：不装 Work Brief 也能用的项目首页，插件卡与「等你」「接着做」的排法，空项目、读不到、停用、后台刷新、Work Brief 接管与失败回退、写文稿时不被打断（三个方案；四种形态照用 03 的插件领头） | 方案已定（2026-11-04：先等你和接着做，再插件卡片表），产品未实现；按示例数据模拟 |
 | [assistant-cards/](assistant-cards/README.md) | 助理卡片与工作简报：卡片解剖、三种字的来源、19 种块、19 个卡型、三种尺寸、状态、四张简报页与窄屏的规格板 | 设计稿（2026-10-26；四项已拍板，视觉待用户验收），说明见 [specs/work-brief/design.md](../../specs/work-brief/design.md)；里面是示例数据 |
-| [runtime-and-recovery/](runtime-and-recovery/README.md) | 第 25、26 批合并定样：后台运行状态、某块暂不可用、更新与回退、安装自检、升级失败与恢复，每题两个方案加正常与异常状态 | 用户已定（2026-11-04，五题都选 A）；里面是示例数据 |
+| [_catalog/](_catalog/README.md) | 过渡：第 04、25/26、36 批原型用的组件板实件（`export.mjs` 从产品构建导出样式表与脚本，`parts.js` 按组件板标记画部件，`prototype.css` 放原型控制条与「组件板新增」部件） | 按 D 轨的收拢计划并进 [kit/](kit/README.md)，只留 `kit/build.mjs` 一份脚本；新原型用 kit/，不再新加使用者 |
+| [runtime-and-recovery/](runtime-and-recovery/README.md) | 第 25、26 批合并定样：后台运行状态、某块暂不可用、更新与回退、安装自检、升级失败与恢复，选定的方案 A 加正常与异常状态 | 用户已定（2026-11-04，五题都选 A）；同日按组件板实件重做，用户已确认；里面是示例数据 |
 | [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |
 | [project-arrival-flow/](project-arrival-flow/README.md) | 打开 Molis Work：项目选择页、Welcome 与新建项目引导的高保真设计、可交互原型、状态与深色/窄屏图、三段动效录屏 | 当前的**参考原型**（2026-10-01 用户认可），生产实现见 [specs/archive/project-arrival-flow](../../specs/archive/project-arrival-flow/spec.md)。原型里的项目、材料、整理结果都是示例数据 |
 | [soft-workbench/](soft-workbench/README.md) | 用户认可的 Soft Workbench 高保真原型（首页、目标、信息流、新手引导） | 当前视觉语言的**参考原型**；已按 [specs/archive/soft-workbench-rollout](../../specs/archive/soft-workbench-rollout/spec.md) 落到生产。原型里的数据、AI 回复和 localStorage 都是演示 |
 | [taste.md](taste.md) | 历次纠偏抽出的验收口径 | 仍在用；视觉条目已按 Soft Workbench 更新 |
-| [onboarding-full-journey/](onboarding-full-journey/README.md) | Onboarding 全程的可点定样：首次使用、新项目、已有项目加做法、从 Coding 的缺项进入再回去；全部画在打开软件时那套沉浸式全屏框架里（开场大字、一问一景、底栏步骤条与 ↵），含失败、改范围、部分采用失败与重启接续 | 用户已批准（2026-11-04）；产品未实现；首页与成员编辑是占位，里面是示例数据 |
+| [onboarding-full-journey/](onboarding-full-journey/README.md) | Onboarding 全程的可点定样：首次使用、新项目、已有项目加做法、从 Coding 的缺项进入再回去；全部画在打开软件时那套沉浸式全屏框架里（开场大字、一问一景、底栏步骤条与 ↵），含失败、改范围、部分采用失败与重启接续 | 用户已批准（2026-11-04）；同日按组件板实件重做，用户已确认；产品未实现；首页与成员编辑是占位，里面是示例数据 |
 | [work-records/](work-records/README.md) | 工作记录的可点定样：记了什么、保留与清理、占用、覆盖与缺口四块定下的方案，用组件板实件画（样式是组件板现行样式的生成快照），含首次接入、暂停、期限过短、清理失败、磁盘满、断线与截断等状态 | 用户已定（2026-11-04，四块都选推荐方案，同日按组件板实件重做并确认）；产品未实现；里面是示例数据 |
 | [coding-execution-states/](coding-execution-states/README.md) | 第 12 批 Coding 执行的可点定样：目录（执行目录、临时查看、冻结、输出不见了）、规则和模式（只读提示与切换、规则来源）、恢复（失败、结果未知、取消、超时、被系统结束、重启后、等待前一步，沿用 04 的恢复框架）、计划卡与任务板按位置编号；每块 A／B／C 三个方案，中英文、浅深色 | 用户已选定（2026-11-04：目录 C，其余 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
 | [service-connections/](service-connections/README.md) | 服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒 | 用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据 |

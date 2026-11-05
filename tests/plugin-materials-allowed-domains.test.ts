@@ -10,7 +10,7 @@ import { createPluginMaterialsClient, runInPluginAction, type PluginMaterialsDis
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 
 const manifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.domainsprobe", version: "1.0.0", name: "Domains probe", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.domainsprobe", version: "1.0.0", name: "Domains probe", kind: "app",
   publisher: { publisher_id: "example", signature: "probe-domains" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: ["storage:private", "materials:fetch"].map(permission => ({ permission, required: true, reason: "probe" })),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

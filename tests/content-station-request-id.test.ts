@@ -76,8 +76,8 @@ test("W4-6-01 every station refuses the old input shape, a missing or out-of-ran
   const workflow = f.as("workflow");
   for (const { plugin, actions, payload } of STATIONS) {
     await t.test(plugin, async () => {
-      assert.equal(actions.receive.version, 2);
-      assert.equal(actions.receive.action.input_type, "molis.workflow.content.receive.input.v2");
+      assert.equal(actions.receive.version, 1);
+      assert.equal(actions.receive.action.input_type, "molis.workflow.content.receive.input.v1");
       for (const version of [actions.list.version, actions.read.version, actions.create?.version ?? 1]) assert.equal(version, 1, "only receive moved");
       const invalid = { code: "actions.input_invalid" };
       await assert.rejects(workflow.invoke(actions.receive, { payload, context: { instance_id: "run", step: 1 } } as never), invalid);

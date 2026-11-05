@@ -17,7 +17,7 @@
 // package is installed/upgraded by the resident Host's CLI and read again after a real Host restart; it never uses pluginFixtures.
 // Nothing reads or writes a real Home: every sample gets its own temporary one.
 import { execFile, execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -78,7 +78,7 @@ function expectAnswer(action, result) {
 async function replayPackage(sample) {
   const steps = { load: null, uninstalled: null, preview: null, install: null, before: null, run: null, upgrade: null, run_after_upgrade: null, restart: null, restarted_read: null };
   if (process.platform !== "darwin") return { id: sample.id, ok: false, status: "unsupported", steps, error: "signed-package replay requires the macOS sandbox" };
-  const scratch = mkdtempSync(path.join(tmpdir(), "replay-signed-package-")), home = path.join(scratch, "home");
+  const scratch = mkdtempSync(path.join(realpathSync(tmpdir()), "replay-signed-package-")), home = path.join(scratch, "home");
   const isolated = { MOLIS_WORK_HOME: home, MOLIS_WORK_SECRET_BACKEND: "file", MOLIS_WORK_ENCRYPTION_KEY: "" };
   const earlier = Object.fromEntries(Object.keys(isolated).map(key => [key, process.env[key]]));
   Object.assign(process.env, isolated);

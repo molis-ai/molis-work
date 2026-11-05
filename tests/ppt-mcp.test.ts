@@ -26,8 +26,8 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
     let errors='';transport.stderr?.on('data',data=>{errors+=String(data);});
     try{await client.connect(transport);}catch(error){throw new Error(`${String(error)}\n${errors}`);}return client;
   };
-  // W4-6-07 RAC-633-MIG-01: content.receive and subject.read have version 2; the other tools keep version 1.
-  const tool=(name:string)=>molisWorkActionToolName({capability_id:`ppt.${name}`,version:['content.receive','subject.read'].includes(name)?2:1});
+  // W4-6-07 RAC-633-MIG-01 N26: the reset keeps every current tool at version 1.
+  const tool=(name:string)=>molisWorkActionToolName({capability_id:`ppt.${name}`,version:1});
   const call=async(client:Client,name:string,args:Record<string,unknown>={})=>{
     const result=await client.callTool({name:tool(name),arguments:args});assert.equal(result.isError,false,JSON.stringify(result));return result.structuredContent as any;
   };

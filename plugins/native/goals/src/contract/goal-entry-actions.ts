@@ -56,7 +56,6 @@ export const GOALS_TREE_SUBMIT_RESULT: ActionResultView = {
 function userOnly<Input, Output>(definition: ActionDefinition<Input, Output>, permissions?: string[]): ActionDefinition<Input, Output> {
   return { ...definition, action: { ...definition.action, audiences: ["user"], ...(permissions ? { permissions } : {}) } };
 }
-const versioned = <Input, Output>(definition: ActionDefinition<Input, Output>, version: number): ActionDefinition<Input, Output> => ({ ...definition, version });
 
 const initialize = goalAction<{ idempotency_key: string }, InitializeBoardOutput>("goals.board.initialize", "初始化目标资料库",
   "在当前可信管理上下文中为本项目初始化尚不存在的目标资料库；不创建项目目录绑定，不覆盖已有资料库，重试保留原请求键", "command",
@@ -79,20 +78,20 @@ const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>("goa
  * declares and handles these same objects. Calls still go through the action gateway, which checks the caller and picks the provider.
  */
 export const goalEntryActions = {
-  /** Version 2 (S8): the project's name is the directory's, not Goals', so the input no longer carries a title. */
-  initialize: versioned(userOnly(initialize), 2),
+  /** The project's name is the directory's, not Goals', so the input no longer carries a title. */
+  initialize: userOnly(initialize),
   treeSubmit,
   treeRead: goalAction<Business<GoalTreeProposalListQuery>, GoalTreeProposalListResult>("goals.tree.read", "读取结构提案",
     "读取当前项目的结构提案；可按提案 ID 或根目标筛选", "query", tree.treeReadInputSchema, tree.treeReadResultSchema),
-  treeCheck: versioned(goalAction<Business<GoalTreeProposalCheckInput>, GoalTreeProposalCheckResult>("goals.tree.check", "检查结构提案",
-    "检查提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更", "command", tree.treeCheckInputSchema, tree.treeCheckResultSchema), 2),
-  treeDecide: versioned(userOnly(treeDecide, ["goals:decide"]), 2),
+  treeCheck: goalAction<Business<GoalTreeProposalCheckInput>, GoalTreeProposalCheckResult>("goals.tree.check", "检查结构提案",
+    "检查提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更", "command", tree.treeCheckInputSchema, tree.treeCheckResultSchema),
+  treeDecide: userOnly(treeDecide, ["goals:decide"]),
   active: goalAction<{ goal_id: string; reason: string; idempotency_key: string }, ReturnType<GoalsCommandApi["setActiveGoal"]>>("goals.active.set", "设为当前目标",
     "选择当前未完成且不在归档/回收站的目标；不启动工作，不改变完成状态", "command",
     object({ goal_id: identifier, reason: identifier, idempotency_key: identifier }), object({ active_goal_id: text, observed_event_cursor: count, replayed: boolean })),
-  /** Version 2 (S8): the board in the snapshot no longer carries a name. */
-  snapshot: versioned(goalAction<Record<string, never>, BoardSnapshot>("goals.snapshot.read", "读取项目目标完整快照",
-    "读取当前项目的目标资料：全部目标、关系、规划方法、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema), 2),
+  /** The board in the snapshot no longer carries a name. */
+  snapshot: goalAction<Record<string, never>, BoardSnapshot>("goals.snapshot.read", "读取项目目标完整快照",
+    "读取当前项目的目标资料：全部目标、关系、规划方法、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
   decide: userOnly(decide, ["goals:decide"]),
   guidanceRead: goalAction<Record<string, never>, ProjectGuidanceView>("goals.guidance.read", "读取项目长期说明", "读取已确认的长期说明、停用项、完整修订和当前 Runtime Prompt 前缀", "query",
     object({}), object({ entries: array(projectGuidanceEntrySchema), inactive_entries: array(projectGuidanceEntrySchema), revisions: array(projectGuidanceRevisionSchema),

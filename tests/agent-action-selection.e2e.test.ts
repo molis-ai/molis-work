@@ -27,7 +27,7 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
     title: "读取校验笔记", description: "读取此插件的原始笔记", kind: "query", scope: "project", audiences: ["agent"], permissions: ["notes:read"], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
   const write: ActionDefinition = { ...read, capability_id: "unknown.character-notes.write", operation: "command", action: { ...read.action, title: "修改校验笔记", kind: "operation", permissions: ["notes:write"] } };
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.character-actions", version: "1.0.0", name: "校验笔记插件", kind: "app",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.character-actions", version: "1.0.0", name: "校验笔记插件", kind: "app",
     publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:read", "notes:write"].map(permission => ({ permission, required: false, reason: "访问原笔记" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read, write] },

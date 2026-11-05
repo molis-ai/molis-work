@@ -159,7 +159,7 @@ test("S-31 a plugin cannot name the project itself: a project on a control the H
   const where: ActionDefinition<Record<string, never>, string | null> = { capability_id: "relay.where", version: 1, operation: "query",
     action: { title: "在哪个项目", description: "说出这次调用所在的项目", scope: "home", permissions: ["relay:read"], kind: "query",
       audiences: ["user"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } };
-  const relay: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "relay", kind: "app",
+  const relay: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "relay", kind: "app",
     publisher: { publisher_id: "example", signature: "home-relay" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "探针" }, { permission: "relay:read", required: true, reason: "探针" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [where],

@@ -19,7 +19,7 @@ const ALWAYS_ON = { kind: "always_on", subject: consentSubject.alwaysOn() } as c
 
 function manifest(version: string, extra: Partial<PluginManifest> = {}): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version, name: "Always-on fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version, name: "Always-on fixture", kind: "app",
     publisher: { publisher_id: "someone", signature: "always-on-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     ...extra,
@@ -96,9 +96,9 @@ test("RAC-384 S-34 an upgrade that newly declares always_on is installed, and as
   assert.deepEqual(consents.consents(PLUGIN_ID), [], "an upgrade is not a consent");
 });
 
-test("S-34 the SDK reads always_on only as a v2 boolean", () => {
+test("S-34 the SDK reads always_on only as a v1 boolean", () => {
   assert.equal(parsePluginManifest(manifest("1.0.0", { always_on: true })).always_on, true);
   assert.throws(() => parsePluginManifest({ ...manifest("1.0.0"), always_on: "yes" }), (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_invalid");
-  const v1 = { ...manifest("1.0.0"), schema_version: 1, host_api_version: 1, kind: "native", always_on: true };
-  assert.throws(() => parsePluginManifest(v1), (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message.includes("always_on"));
+  const v2 = { ...manifest("1.0.0"), schema_version: 2, host_api_version: 2, kind: "native", always_on: true };
+  assert.throws(() => parsePluginManifest(v2), (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_invalid" && error.message.includes("schema_version"));
 });

@@ -749,7 +749,7 @@ export const EN: Record<string, string> = {
   "状态": "Status",
   "已开启": "On",
   "未开启": "Off",
-  "开始": "Started",
+  "开始": "Begin",
   "阻塞": "Blocked",
   "当时报告的阻塞": "Blocker reported at the time",
   "这条历史记录不会自动成为当前阻塞。": "This historical record does not automatically become a current blocker.",

@@ -8,7 +8,7 @@ import { JELLY_MESSAGES } from "./messages.js";
 import { JELLY_EN } from "./en.js";
 export const jellyManifest: PluginManifest = {
   summary: "日历与笔记，按天安排。",
-  schema_version: 2, host_api_version: 2, plugin_id: JELLY_PLUGIN_ID, version: "0.3.0", name: "Jelly", kind: "native",
+  schema_version: 1, host_api_version: 1, plugin_id: JELLY_PLUGIN_ID, version: "0.3.0", name: "Jelly", kind: "native",
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

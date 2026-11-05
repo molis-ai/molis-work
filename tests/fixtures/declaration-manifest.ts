@@ -10,8 +10,8 @@ export const DECLARATION_PLUGIN_ID = "io.molis.work.declaration-rules";
  */
 export function declarationManifest(parts: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
-    schema_version: 2,
-    host_api_version: 2,
+    schema_version: 1,
+    host_api_version: 1,
     plugin_id: DECLARATION_PLUGIN_ID,
     version: "1.0.0",
     name: "Declaration rules",

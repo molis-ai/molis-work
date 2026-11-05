@@ -47,7 +47,7 @@ const draw: ActionDefinition<Record<string, never>, { card: string; question: st
 function probe() {
   const given: { interaction?: PluginInteractionClient } = {};
   const definition: PluginDefinition = {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: PROBE, version: "1.0.0", name: "Interaction probe", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: PROBE, version: "1.0.0", name: "Interaction probe", kind: "app",
       publisher: { publisher_id: "example", signature: "interaction-probe" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, actions: [draw], artifacts: { produces: [], consumes: [] }, ui: { contributions: [], views: [] } },
     async start(context) {

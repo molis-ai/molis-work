@@ -60,7 +60,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     const own: ActionDefinition = { capability_id: `${name}.list`, version: 1, operation: "query", action: { title: name, description: "Lists through the workspace read", kind: "query", scope: "project",
       audiences: ["user"], permissions: ["workspace:read"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "object" },
       required_actions: [{ capability_id: readFile.capability_id, version: readFile.version }] } };
-    return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
+    return { manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
         publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
         permissions: [{ permission: "workspace:read", required: false, reason: "Reads the linked folder" }], capabilities: { provides: [], consumes },
         artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: ownAction ? [own] : [], routes: [] },

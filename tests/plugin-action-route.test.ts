@@ -31,7 +31,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   let calls = 0, failStart = false;
   const contexts: PluginStartContext[] = [];
   const definition: PluginDefinition = {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.unfamiliar", version: "1.0.0", name: "Unfamiliar", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.unfamiliar", version: "1.0.0", name: "Unfamiliar", kind: "app",
       publisher: { publisher_id: "example", signature: "example-unfamiliar" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: ["unknown.backend"] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
       actions: [action], routes: [{ route_id: action.capability_id, method: "POST", path: "/double" }] },

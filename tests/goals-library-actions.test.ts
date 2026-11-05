@@ -22,7 +22,7 @@ async function fixture(projectId: string, plugin?: CallerPlugin) {
     close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
-test("PLIB-15 board initialization (version 2, no name) keeps original receipts and requires trusted management through the registered action", async () => {
+test("PLIB-15 board initialization (version 1, no name) keeps original receipts and requires trusted management through the registered action", async () => {
   // A plugin that holds the Goals permissions, started by the Host.
   const initializer = callerPlugin("boardinitializer", "project", { "goals:read": true, "goals:write": true });
   const f = await fixture("initial", initializer); const { host, ref, caller, client, block } = f;
@@ -38,7 +38,7 @@ test("PLIB-15 board initialization (version 2, no name) keeps original receipts 
     await assert.rejects(client.invoke({ ...caller, user_action: undefined }, goalsActions.initialize, input), { code: "goals.management_required" });
     await assert.rejects(client.invoke({ ...caller, user_action: { ...caller.user_action!, source: "web" } }, goalsActions.initialize, input), { code: "goals.management_required" });
     await assert.rejects(client.invoke(caller, goalsActions.initialize, { ...input, project_id: "other" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(client.invoke(caller, goalsActions.initialize, { ...input, title: "版本 1 收的名称" } as never), { code: "actions.input_invalid" }, "the name version 1 took is refused");
+    await assert.rejects(client.invoke(caller, goalsActions.initialize, { ...input, title: "旧形状收的名称" } as never), { code: "actions.input_invalid" }, "the old name field is refused");
     await assert.rejects(client.invoke({ ...caller, project_id: "other" }, goalsActions.initialize, input), { code: "actions.scope_mismatch" });
     block(goalsActions.initialize.capability_id);
     await assert.rejects(client.invoke(caller, goalsActions.initialize, input), { code: "actions.plugin_disabled" });
@@ -53,12 +53,12 @@ test("PLIB-15 board initialization (version 2, no name) keeps original receipts 
   } finally { await f.close(); }
 });
 
-test("PLIB-15 the four actions whose contracts carried the board's name are at version 2 in the project's directory, with no version 1 beside them", async () => {
+test("PLIB-15 the four actions whose contracts carried the board's name each have only version 1 in the project directory", async () => {
   const f = await fixture("versions");
   try {
     const entries = await f.client.discover(f.caller);
     for (const definition of [goalsActions.initialize, goalsActions.snapshot, goalsActions.contract, goalsActions.collection]) {
-      assert.deepEqual(entries.filter(entry => entry.capability_id === definition.capability_id).map(entry => entry.version), [2], definition.capability_id);
+      assert.deepEqual(entries.filter(entry => entry.capability_id === definition.capability_id).map(entry => entry.version), [1], definition.capability_id);
     }
   } finally { await f.close(); }
 });

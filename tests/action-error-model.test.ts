@@ -255,7 +255,7 @@ test("a Runtime route answers a failure with the status of its kind: the platfor
   const fail: ActionDefinition<{ case: number }, never> = { capability_id: "failing.run", version: 1, operation: "command",
     action: { title: "失败", description: "按编号抛出一种失败", scope: "home", permissions: ["failing:write"], kind: "operation", audiences: ["user"], subject_kinds: [],
       input_schema: { type: "object", additionalProperties: false, required: ["case"], properties: { case: { type: "integer" } } } } };
-  const failing: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "failing", kind: "app",
+  const failing: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "failing", kind: "app",
     publisher: { publisher_id: "example", signature: "home-failing" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "探针" }, { permission: "failing:write", required: true, reason: "探针" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [fail],

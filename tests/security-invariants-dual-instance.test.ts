@@ -21,7 +21,7 @@ const action = (capability_id: string, scope: "home" | "project"): ActionDefinit
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } });
 const homeAction = action("dual.home-read", "home"), projectAction = action("dual.project-read", "project");
 // Same plugin id, version and publisher signature, so the same installation identity; the actions are disjoint, so each half is a whole plugin today.
-const half = (definition: ActionDefinition<Record<string, never>, string>, answer: string) => definePlugin({ manifest: { schema_version: 2, host_api_version: 2,
+const half = (definition: ActionDefinition<Record<string, never>, string>, answer: string) => definePlugin({ manifest: { schema_version: 1, host_api_version: 1,
   plugin_id: PLUGIN_ID, version: "1.0.0", name: "双实例探针", kind: "app", publisher: { publisher_id: "example", signature: "dual-instance" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: PERMISSION, required: false, reason: "两个实例用同一个权限名" }],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },

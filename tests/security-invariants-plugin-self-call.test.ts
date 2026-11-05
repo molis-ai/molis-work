@@ -28,7 +28,7 @@ function selfCallProbe(name: string, options: { consumes?: readonly string[]; de
     input_schema: { type: "object" }, output_schema: { type: "string" } } });
   const actions = { outer: action("outer", ALL), inner: action("inner", ALL), userOnly: action("user_only", ["user"]) };
   const contexts: PluginStartContext[] = [], seen: Record<string, ActionExecutionContext[]> = {}, behavior: Record<string, Behavior> = {}, started: Array<Promise<unknown>> = [];
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `self-call-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "Keep what a call returned" },
       ...(options.delegate ? [{ permission: DELEGATE, required: false, reason: "Call other actions as the person who asked" },

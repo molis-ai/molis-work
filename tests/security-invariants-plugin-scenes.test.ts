@@ -109,7 +109,7 @@ async function setup(t: TestContext) {
     write();
   };
   const definition: PluginDefinition = { manifest: {
-    schema_version: 2, host_api_version: 2, plugin_id: ID, version: "1.0.0", name: "Scene probe", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: ID, version: "1.0.0", name: "Scene probe", kind: "app",
     publisher: { publisher_id: "sceneprobe", signature: "sceneprobe-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
     permissions: ["storage:private", "artifact:read", "artifact:write", "model:invoke", PERMISSION].map(permission => ({ permission, required: true, reason: "场景验证" })),
     capabilities: { provides: [], consumes: consumedDefinitions.map(value => value.capability_id) }, artifacts: { produces: [preview.type], consumes: [] }, ui: { contributions: [] },

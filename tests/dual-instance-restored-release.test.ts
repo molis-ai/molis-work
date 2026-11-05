@@ -25,7 +25,7 @@ const HOME_HALF = action("home"), PROJECT_HALF = action("project");
 /** Both halves share one Manifest; the project half redeems only its own action. */
 function build(version: string): PluginDefinition {
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version, name: "Dual restored fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version, name: "Dual restored fixture", kind: "app",
     publisher: { publisher_id: "example", signature: "dual-restored-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     actions: [HOME_HALF, PROJECT_HALF],

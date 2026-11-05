@@ -23,8 +23,8 @@ export const FEED_PROJECT_PLUGIN_ID = "feed";
  * (`databases.home`). The two halves share this Manifest and each answers only its own actions; every permission is required.
  */
 export const feedManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: FEED_PLUGIN_ID,
   version: "0.3.0",
   name: "Feed",

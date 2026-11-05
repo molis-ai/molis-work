@@ -28,7 +28,7 @@ const OBSERVE: PluginPermissionDeclaration = { permission: HOST_CONNECTIONS_OBSE
 const PAYLOAD = { connection_id: "conn-1" };
 
 function manifestFor(pluginId: string, subscribes: PluginEventSubscribeDeclaration[], permissions: PluginPermissionDeclaration[]): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${pluginId.split(".").at(-1)}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     events: { publishes: [], subscribes }, actions: [], upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } } as PluginManifest;
@@ -158,7 +158,7 @@ function asker(name: string, permissions: string[]) {
   const action: ActionDefinition<{ connection_id: string }, unknown> = { capability_id: `${name}.ask`, version: 1, operation: "command", action: {
     title: "Ask", description: "连接可用性探针", kind: "operation", scope: "home", scheduling: "concurrent", audiences: ["user"], permissions: ["storage:private"],
     subject_kinds: [], input_schema: { type: "object", properties: { connection_id: { type: "string" } }, required: ["connection_id"], additionalProperties: false } } };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `ask-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", "actions:invoke", ...permissions].map(permission => ({ permission, required: true, reason: "连接可用性探针" })),
     capabilities: { provides: [], consumes: [connectorManagementActions.availability.capability_id] }, artifacts: { produces: [], consumes: [] },

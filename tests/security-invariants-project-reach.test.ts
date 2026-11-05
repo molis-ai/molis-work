@@ -30,7 +30,7 @@ function reachProbe(options: { consumes?: readonly string[] } = {}) {
     input_schema: { type: "object" }, output_schema: { type: "object" }, ...(reach ? { project_reach: "person" as const } : {}) } });
   const actions = { list: action("list", true), plain: action("plain", false), outer: action("outer", false) };
   const contexts: PluginStartContext[] = [], seen: ActionExecutionContext[] = [], behavior: Record<string, Behavior> = {};
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: KEEPS, version: "1.0.0", name: PROBE, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: KEEPS, version: "1.0.0", name: PROBE, kind: "app",
     publisher: { publisher_id: "example", signature: "project-reach-probe" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "Keep what a call returned" },
       { permission: PROJECT_REACH_PERMISSION, required: false, reason: "See the person's projects" }],

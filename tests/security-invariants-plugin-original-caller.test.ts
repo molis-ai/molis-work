@@ -68,7 +68,7 @@ function probe() {
   const define = (operation: string, title: string): ActionDefinition<{ target: Target; name: string }, boolean> => ({
     capability_id: `${ID}.${operation}`, version: 1, operation: "command", action: { ...shape, title, description: title, kind: "operation" } });
   const writeAction = define("write", "等测试放行后写一项"), leave = define("leave", "返回之后再写一项"), announce = define("announce", "发一个事件就返回"), output = define("output", "更新输出端口就返回");
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: ID, version: "1.0.0", name: ID, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: ID, version: "1.0.0", name: ID, kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-callerprobe" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", READ, WRITE, "artifact:read", "artifact:write"].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
@@ -132,7 +132,7 @@ function listener(probeServices: () => PluginHostServices) {
     action: { scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], scheduling: "concurrent", title: "用探针的服务写一项",
       description: "用探针的服务写一项", kind: "operation", input_schema: { type: "object", additionalProperties: false, required: ["target", "name"],
         properties: { target: { type: "string", enum: [...TARGETS] }, name: { type: "string" } } }, output_schema: { type: "boolean" } } };
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: LISTENER, version: "1.0.0", name: LISTENER, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: LISTENER, version: "1.0.0", name: LISTENER, kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-callerlistener" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", "artifact:read"].map(permission => ({ permission, required: true, reason: "记下听到的" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

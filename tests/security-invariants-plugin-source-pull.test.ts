@@ -76,7 +76,7 @@ async function fixture(t: TestContext, integrations?: IntegrationRegistry) {
     const run = action("run", permissions), serial = action("serial", permissions, { concurrent: false }), plain = action("plain", []), query = action("query", permissions, { query: true });
     const contexts: Array<{ services: PluginHostServices | undefined }> = [];
     let work: (services: PluginHostServices, caller: ActionExecutionContext) => Promise<unknown> = async () => null;
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name, version: "1.0.0", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name, version: "1.0.0", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture-" + name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: permissions.map(permission => ({ permission, required: true, reason: "Pull sources" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [run, serial, plain, query] },
@@ -372,7 +372,7 @@ test("S-97 RAC-1019: repository.read refuses what is not a repository and a sour
 test("RAC-2507 a pure presentation rechecks the original consumer authority after its provider await", { timeout: 30_000 }, async t => {
   const registry = new IntegrationRegistry();
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let presentations = 0;
-  const definition = definePollingIntegrationPlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.deferred-presentation", version: "1.0.0", name: "Pure display",
+  const definition = definePollingIntegrationPlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.deferred-presentation", version: "1.0.0", name: "Pure display",
     kind: "integration", publisher: { publisher_id: "example", signature: "deferred-display" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, source_presentations: ["deferred-display"] },
     createProvider() { throw new Error("a display cannot bind a source"); }, async presentSource() { presentations++; entered.resolve(); await release.promise; return { home_url: "https://example.com/" }; } });

@@ -31,7 +31,7 @@ function fixture(t: TestContext, projectId = DEMO_PROJECT_ID) {
     const id = "io.molis.work.example." + name;
     const read: ActionDefinition = { capability_id: name + ".installations", version: 1, operation: "query", action: { title: "Installations", description: "Read public installation metadata", kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "array" } } };
     let context: PluginStartContext, borrowed: PluginInstallationClient | undefined;
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name, version: "1.0.0", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name, version: "1.0.0", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture-" + name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: declare ? [{ permission: "plugins:read", required: false, reason: "Read installations in this project" }] : [],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read] },

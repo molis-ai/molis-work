@@ -28,7 +28,7 @@ const unavailableInFixture: Record<string, string> = {
   "git.operations@1": "actions.dependency_missing",
   "git.pr-support@1": "actions.dependency_missing",
   "git.results@1": "actions.dependency_missing",
-  "git.state@2": "actions.dependency_missing",
+  "git.state@1": "actions.dependency_missing",
   "git.summary@1": "actions.dependency_missing",
 };
 
@@ -62,7 +62,7 @@ async function probe(t: test.TestContext, databasePath: string, projectId: strin
         // authenticated reads and their output are exercised against real Auth by account-management.test.mjs.
         await assert.rejects(client.invoke({ ...caller, project_id: null }, view, {}), { code: "account.invalid_configuration" });
         continue;
-      } else if (view.capability_id === "plugins.project_reach.list" && view.version === 2) {
+      } else if (view.capability_id === "plugins.project_reach.list" && view.version === 1) {
         // T145: even a read needs the project's actual settings door, not an invented user_action or a forbidden allowlist.
         await assert.rejects(client.invoke(caller, view, {}), { code: "actions.forbidden", message: "项目同意只接受本人在对应项目设置里的操作" });
         const response = await web.request(`/projects/${encodeURIComponent(projectId)}/api/settings/plugin-project-reach/list`, { method: "POST", body: {} });

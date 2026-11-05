@@ -1445,7 +1445,7 @@ f9e5b4fb 的普通 CI 40251451657 在 Package boundaries（job 121344061019）�
 
 ### 2026-10-26 Foundation 合入 batch-41：读取合同与原失败保留
 
-短合同（实现前）：将 #1064 的 `1f124ddd2` 与 main `29f1ffd4` 合成，仍由同一 Agent/Host/Memory 主人执行，不改变首期范围、存储版本或授权默认。双方分别在 `agent.run.read.v1`、`agent.session.read.v1`、`agent.run.wait.v1` 的 @2 改了输出形状；按 `docs/system/CONTRACT-CHANGES.md` 阶段一，合成三个读取口为 @3，拒绝旧 @1/@2，能力 id 不变。start 保留 @2、subagents.list 保留主干 @2、inputs.send 保留 v3@3。沿用主干严格嵌套 schema，保留 Memory 的可选 original_input 和开放 Context 字段，不能删除正文来源、contexts/selected/retrievals/recording_error 或信任输入 source:person。
+短合同（实现前）：将 #1064 的 `1f124ddd2` 与 main `29f1ffd4` 合成，仍由同一 Agent/Host/Memory 主人执行，不改变首期范围、存储版本或授权默认。双方分别在 `agent.run.read`、`agent.session.read`、`agent.run.wait` 的 @2 改了输出形状；按 `docs/system/CONTRACT-CHANGES.md` 阶段一，合成三个读取口为 @3，拒绝旧 @1/@2，能力 id 不变。start 保留 @2、subagents.list 保留主干 @2、inputs.send 保留 v3@3。沿用主干严格嵌套 schema，保留 Memory 的可选 original_input 和开放 Context 字段，不能删除正文来源、contexts/selected/retrievals/recording_error 或信任输入 source:person。
 
 允许改动仅为本次六处合并冲突、当前调用说明、原 Agent/Context 针对性测试及由原工具生成的合同快照；保留安全测试双方并集。原已批 Workbench +3193 B 与 Coding +612 B 只迁到准确新主干的精确基点；主干已经消费的增长不叠加，资源值须由最终 build 实测后更新。验证三个读取口不让旧版本进入 Runtime、原件和完整 Context 经真实入口保留、错误嵌套字段仍拒绝，再跑必要集成、原门禁和最终 CI/Full。
 

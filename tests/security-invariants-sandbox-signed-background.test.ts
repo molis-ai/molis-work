@@ -50,7 +50,7 @@ function dependency() {
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const action: ActionDefinition = {capability_id:'fixture.bgwait',version:1,operation:'command',action:{title:'Held effect',description:'Controlled real dependency',kind:'operation',scope:'home',
     scheduling:'concurrent',permissions:['fixture:write'],audiences:['user','plugin'],subject_kinds:[],input_schema:{type:'string'},output_schema:{type:'string'},execution:{cost:'none',timeout_ms:60000}}};
-  const definition: PluginDefinition = {manifest:{schema_version:2,host_api_version:2,plugin_id:'io.molis.work.example.bgdependency398',version:'1.0.0',name:'Dependency',kind:'app',
+  const definition: PluginDefinition = {manifest:{schema_version:1,host_api_version:1,plugin_id:'io.molis.work.example.bgdependency398',version:'1.0.0',name:'Dependency',kind:'app',
     publisher:{publisher_id:'fixture',signature:'fixture-background398'},entrypoints:[{deployment:'local',entrypoint:'./entry.mjs'}],permissions:[{permission:'fixture:write',required:true,reason:'Controlled fixture effect'}],
     capabilities:{provides:[],consumes:[]},artifacts:{produces:[],consumes:[]},ui:{contributions:[]},actions:[action]},
     async start(){return {kind:'app',actions:[{...action,async handle(caller,input){entered.resolve();await release.promise;await caller.beforeEffect();return input}}]}}};

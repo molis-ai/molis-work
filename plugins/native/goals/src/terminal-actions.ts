@@ -31,10 +31,10 @@ function terminalAction<Input, Output>(id: string, version: number, title: strin
 type OpenInput = { goal_id: string; key?: string; runtime?: string; resume_session_id?: string; command?: string; args?: string[]; workspace_id?: string };
 export const goalsTerminalActions = {
   list: terminalAction<{ goal_id: string }, { panels: PanelRow[]; read_only: boolean }>(
-    "goals.terminal.list", 2, "读取目标的工作终端", "列出本人在这个目标上打开过的工作终端与它们是否在运行；上层目标的终端只读", "query",
+    "goals.terminal.list", 1, "读取目标的工作终端", "列出本人在这个目标上打开过的工作终端与它们是否在运行；上层目标的终端只读", "query",
     ["goals:read", "terminal:run"], object(goal), object({ panels: array(panel), read_only: boolean })),
   open: terminalAction<OpenInput, { panel_id: string; key: string; started: boolean }>(
-    "goals.terminal.open", 2, "打开目标的工作终端", "在项目已关联的工作目录里为这个目标打开终端：runtime 是平台认识的编程 Agent（可用 resume_session_id 接着它原来的会话），或给出 command 与参数；同一个 key 在运行时直接接上，停了就用原来的程序重开", "command",
+    "goals.terminal.open", 1, "打开目标的工作终端", "在项目已关联的工作目录里为这个目标打开终端：runtime 是平台认识的编程 Agent（可用 resume_session_id 接着它原来的会话），或给出 command 与参数；同一个 key 在运行时直接接上，停了就用原来的程序重开", "command",
     ["goals:write", "terminal:run", "workspace:read"],
     object({ ...goal, key, runtime: identifier, resume_session_id: session, command: identifier, args: array(text), workspace_id: identifier }, ["goal_id"]),
     object({ panel_id: text, key: text, started: boolean })),

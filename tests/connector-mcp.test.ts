@@ -1078,7 +1078,7 @@ function declaredMcpPlugin(serviceId: string, method: PluginMcpMethodDeclaration
   pluginId?: string; publisherId?: string; signature?: string; version?: string;
 } = {}): PluginDefinition {
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: identity.pluginId ?? "io.molis.work.example." + serviceId,
+    schema_version: 1, host_api_version: 1, plugin_id: identity.pluginId ?? "io.molis.work.example." + serviceId,
     name: "Declared MCP fixture", version: identity.version ?? "1.0.0", kind: "integration",
     publisher: { publisher_id: identity.publisherId ?? "io.example.mcp", signature: identity.signature ?? "fixture-mcp-signature-v1" },
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }], permissions: [],

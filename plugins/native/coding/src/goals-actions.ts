@@ -16,7 +16,7 @@ function consumed<Input, Output>(capability_id: string, version: number, operati
 
 export const GOALS_ACTIONS = {
   list: consumed<{ limit: number; after_cursor?: string }, GoalDirectoryFacts>("goals.list", 1, "query"),
-  contract: consumed<{ goal_id: string }, { goal: GoalFacts | null }>("goals.contract.read", 2, "query"),
+  contract: consumed<{ goal_id: string }, { goal: GoalFacts | null }>("goals.contract.read", 1, "query"),
   state: consumed<{ goal_id: string }, GoalStateFacts & { observed_event_cursor: number }>("goals.state.read", 1, "query"),
   progress: consumed<Record<string, unknown>, { event_id: string; replayed: boolean }>("goals.progress.record", 1, "command"),
   receipt: consumed<{ goal_id: string; idempotency_key: string }, { event_id: string; replayed: boolean } | null>("goals.progress.receipt", 1, "query"),

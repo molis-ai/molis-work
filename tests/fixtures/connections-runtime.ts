@@ -22,7 +22,7 @@ export function connectionsProbe(name = "connectionsprobe", options: { permissio
   };
   const declared = permissions.includes("connections:use") && options.slots !== false;
   const definition: PluginDefinition = { execution: options.execution, manifest: {
-    schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `connections-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "连接服务测试声明" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [send, query, serial, plain],

@@ -449,7 +449,7 @@ const codeOf = (reason: unknown) => reason instanceof ActionError ? reason.code 
  */
 function pageRequest(t: TestContext, home: string) {
   let lost = false;
-  const manifest = { schema_version: 2, host_api_version: 2, plugin_id: target.plugin_id, version: "1.0.0", name: "Shared refresh", kind: "app",
+  const manifest = { schema_version: 1, host_api_version: 1, plugin_id: target.plugin_id, version: "1.0.0", name: "Shared refresh", kind: "app",
     publisher: { publisher_id: "example", signature: "shared-refresh-page" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } } as PluginManifest;
   const pages = pluginPagesFor(home);

@@ -8,7 +8,7 @@ import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginControlActions, pluginInstallActions, pluginInstallProvider } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 
-// PG-002, S-94 (docs/system/SECURITY-INVARIANTS.md): `plugins.permissions.set@2` is the person's own act in a project's settings. RAC-946 only the
+// PG-002, S-94 (docs/system/SECURITY-INVARIANTS.md): `plugins.permissions.set@1` is the person's own act in a project's settings. RAC-946 only the
 // person's audience sees it; RAC-947 it needs the credential the project settings route itself issues, and no text a caller can write is that
 // credential; RAC-948 the project and the installation come from the Host's context and the route, never from what the input says about itself;
 // RAC-949 the installed list says which of the asked-for permissions are held; RAC-957 the Home's own plugins have the same switch behind the

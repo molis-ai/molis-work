@@ -38,7 +38,7 @@ export const feedSourceActions = {
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
   // @2: the account is no longer a field of the source (`connection_id` went in T-121); it is the person's binding on the platform.
   update: { ...define<{ source_id: string; name?: string; description?: string; scope?: string; feed_url?: string }, { source: FeedSourceRecord }>("update", "修改来源", "修改来源名称、说明、范围或订阅地址",
-    closed({ source_id: id, name: text, description: text, scope: text, feed_url: text }, ["source_id"]), sourceResult), version: 2 },
+    closed({ source_id: id, name: text, description: text, scope: text, feed_url: text }, ["source_id"]), sourceResult), version: 1 },
   delete: define<{ source_id: string; history_decision: SourceHistoryDecision }, { source: FeedSourceRecord; history_decision: SourceHistoryDecision }>("delete", "删除来源",
     "删除来源；必须说明保留（retain_history）还是删除（delete_local_history）本地已收到的消息",
     closed({ source_id: id, history_decision: { enum: ["retain_history", "delete_local_history"] } }, ["source_id", "history_decision"]),

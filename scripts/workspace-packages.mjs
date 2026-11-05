@@ -395,8 +395,8 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "agent.host.v1",
       "agent.review-queue.v1",
-      "agent.runtimes.v1",
-      "agent.run.start.v1"
+      "agent.runtimes",
+      "agent.run.start"
     ],
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-storage"

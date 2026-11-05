@@ -29,7 +29,7 @@
 | 场景 | 用什么 | 例子 |
 | --- | --- | --- |
 | 一次有界的文字/结构化/图片/判断调用，没有工具 | 宿主自己的代码：文字用 `hostCompleteText`，需要结构、进度和回执时用同一绑定的 `hostTextGeneration`（`apps/local-host/src/host-complete-text.ts`）；Runtime 插件用 `context.services.model`（第 4 节），构建期插件仍是 Host 注入的端口（见本表下方）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
-| 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create.v1` / `agent.run.start.v1` / `agent.run.wait.v1` / `agent.run.control.v1`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（经 Runtime 的 `services.agents.run`，`plugins/native/schedule/src/runtime-wakeups.ts`；宿主在 `apps/local-host/src/plugin-agent-service.ts` 内调 `AgentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：它发布的 Character 由 Coding 或助理的一轮按固定版本带上 |
+| 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create` / `agent.run.start` / `agent.run.wait` / `agent.run.control`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（经 Runtime 的 `services.agents.run`，`plugins/native/schedule/src/runtime-wakeups.ts`；宿主在 `apps/local-host/src/plugin-agent-service.ts` 内调 `AgentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：它发布的 Character 由 Coding 或助理的一轮按固定版本带上 |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
 
 宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件（只剩用户批过的两个例外 Alchemist、插件创作台，`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`；词义见 `docs/system/GLOSSARY.md`）的宿主绑定文件，W5-11 的 A 半已收完（2026-10-26 核）：宿主里按插件写的拿模型绑定只剩 `apps/local-host/src/alchemist-prologue.ts` 一处，登记为例外，删除条件是 Alchemist 重做并进 Plugin Runtime（统筹 2026-10-26 定，不再挂在 W5-11 上）；`typesafe-prologue.ts` 是判断服务的 TypeSafe 推理适配，不是文本模型调用，`services.model` 不适用，随判断规则模块留着。选哪条入口：插件自己一轮后台 Agent 用 `services.agents.run`；页面、工作流或 MCP 触发宿主的 Agent 用 `agent.run.*` 动作；宿主自己的调用方在进程内直接 `AgentHost.start`。
@@ -55,7 +55,7 @@
 
 ### Coding 草稿与 Cognia 的单次调用
 
-Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draft.ts` → `hostTextGeneration` → 当前 composition 的 inference。正文和写法由 Coding 提供，无工具、不建每次起草的 workspace 或 Runtime；用量仅在 input/output 都为 reported 时提供，否则为 null。它是宿主的动作（PG-035）：只给持有 `model:invoke` 的插件，经 `services.actions.invoke` 调；调用的 signal 与 beforeEffect 随动作调用传入，调用方可以取消自身操作而不能改变身份，指令按宿主给的插件身份查。
+Coding 的 `agent.draft-text` 经 `agent-host-composition.ts` → `model-draft.ts` → `hostTextGeneration` → 当前 composition 的 inference。正文和写法由 Coding 提供，无工具、不建每次起草的 workspace 或 Runtime；用量仅在 input/output 都为 reported 时提供，否则为 null。它是宿主的动作（PG-035）：只给持有 `model:invoke` 的插件，经 `services.actions.invoke` 调；调用的 signal 与 beforeEffect 随动作调用传入，调用方可以取消自身操作而不能改变身份，指令按宿主给的插件身份查。
 
 Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，`CODING_INSTRUCTIONS` 由 Coding 的插件定义（`PluginDefinition.instructions`）携带，Coding 运行时登记。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。请求必须带已登记的 `prompt`，不再接受 `instructions` 字符串。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
 
@@ -81,13 +81,13 @@ SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象�
 
 ```text
 Coding 页面 → plugins/native/coding/src/routes.ts
-  → agent.run.start.v1@3 → AgentHost.start（horizontal/agent-host/src/index.ts）
+  → agent.run.start@1 → AgentHost.start（horizontal/agent-host/src/index.ts）
       冻结角色（调用者这次激活的 Manifest 与定义里的 `agent_prompts`；没有调用者就没有角色，PG-051）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
   → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
-  ← agent.run.wait.v1@4 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
+  ← agent.run.wait@1 长轮询把运行视图推给页面；agent.run.control 暂停/继续/停止/追加指令
 ```
 
 普通文字材料只有 `material_id/title/text`，模型的数据头是 `{title, material_id}`。只有实际固定引用才成对提供 `source_artifact_id/source_version`，其数据头保持 `{title, artifact_id, version}`；固定引用可能来自成果或过程项，原 owner 不变。两种材料的正文都逐字进入 SDK data 资源，头与正文合计不超过 20,000 UTF-16 units；半份或非法来源在派发前拒绝。冻结记录仅保留实际提供的来源，Work、Session、Question 与实时 Page 标识不能充当固定引用。
@@ -233,7 +233,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 | --- | --- | --- |
 | Agent 中途问人 | 角色 `host_tools` 带 `ask-user` → Runtime 级配置的题型 `hostQuestionTypes()` 与种类 `hostReferenceKinds()`（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 交给 SDK）→ Run 停在 `awaiting_input` → `agentQuestionHtml` 画卡 → 页面读回字段、`questionAnswer` → Run 的控制动作 → Runtime 逐题检查，退回 `agent.answer_invalid` 与 `problems`，`questionErrors` 写成字段旁的一行 | `tests/agent-question-types.test.ts`、`tests/agent-typed-questions.test.ts`、`tests/interaction-examples.test.ts` |
 | 对象引用题 | 种类从内置 Manifest 的搜索来源与主体读取算出 → 模型只能问这些种类（`askUserReferenceKinds`）→ 卡在人打字时调 `search.references` → 交给 Run 前宿主以会话主人的身份重读（S-26），用主人此刻的标题 | `tests/agent-reference-questions.test.ts`、`tests/security-invariants-object-references.test.ts` |
-| 建议一步（操作卡） | 有冻结 `action_tools` 的一轮，`host_tools` 带 `suggest-action` → 建议进 `AgentRunView.offers`，不执行 → 调用方用插件 SDK 的 `draftActionCard` 落成卡、`runActionCard` 执行（只经 `agent.offers.run.v1`，S-29）、`sweepActionCard` 标出失效；插件自己的页面用 `actionCardView` 得到人读的卡，交给 `services.interaction` 画卡和下一步行（S-56） | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`、`tests/security-invariants-agent-suggestions.test.ts` |
+| 建议一步（操作卡） | 有冻结 `action_tools` 的一轮，`host_tools` 带 `suggest-action` → 建议进 `AgentRunView.offers`，不执行 → 调用方用插件 SDK 的 `draftActionCard` 落成卡、`runActionCard` 执行（只经 `agent.offers.run`，S-29）、`sweepActionCard` 标出失效；插件自己的页面用 `actionCardView` 得到人读的卡，交给 `services.interaction` 画卡和下一步行（S-56） | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`、`tests/security-invariants-agent-suggestions.test.ts` |
 | 不跑 Agent 的动作先问 | 动作返回 `{ status: "needs_input", interaction }` → 宿主在插件路由上画同一张卡（`apps/local-host/src/plugin-interaction-answer.ts`）→ 带着回答再调一次 → 插件用 `questionProblems` 检查，与 Runtime 同一套规则 | `tests/form-draft-questions.test.ts`、`tests/plugin-interaction-answer.test.ts`、`tests/question-rules-consistency.test.ts` |
 
 三个代表性例子（spec §15.8）：
@@ -254,8 +254,8 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 
 ## 8. 流式、结构化输出、错误、取消、超时、恢复
 
-- **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
-- **等待与接续**（Coding 的协作轮次）：模型等答复、等后台命令、等另一个会话的那一步，人排队等另一轮，都挂在 Prologue 任务图的步骤上；等待与接续的事实只在任务图里，插件不另存一份。读与控制走 `@molis-ai/molis-work-contracts/services/agent-collaboration` 的两个动作：`agent.collaboration.read.v1`（每个会话一条视图）、`agent.collaboration.control.v1`（`cancel-wait`、`continue-now`）。等到有接续可以走，用 typed 等待 `agentHostCapabilities.awaitContinuations`（最长 25 秒；动作不能是等待）。接续由插件用它的请求键起下一轮，照常经过宿主开跑前的全部复核；被重启截断、结果未知的等待留给人核对，不自动起跑（`specs/prologue-adoption/spec.md` §4.6.4、§4.6.10）。
+- **流式**：Agent 轮次用 `agent.run.wait`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
+- **等待与接续**（Coding 的协作轮次）：模型等答复、等后台命令、等另一个会话的那一步，人排队等另一轮，都挂在 Prologue 任务图的步骤上；等待与接续的事实只在任务图里，插件不另存一份。读与控制走 `@molis-ai/molis-work-contracts/services/agent-collaboration` 的两个动作：`agent.collaboration.read`（每个会话一条视图）、`agent.collaboration.control`（`cancel-wait`、`continue-now`）。等到有接续可以走，用 typed 等待 `agentHostCapabilities.awaitContinuations`（最长 25 秒；动作不能是等待）。接续由插件用它的请求键起下一轮，照常经过宿主开跑前的全部复核；被重启截断、结果未知的等待留给人核对，不自动起跑（`specs/prologue-adoption/spec.md` §4.6.4、§4.6.10）。
 - **等外面的结果**（Coding 的执行角色，P3c）：一步要等的东西在宿主之外（一个作业跑完、一个结果文件写好），模型用 `board-wait` 登记 `{ kind: "external", checker, params }` 后这一轮结束；之后由宿主的检查器按 SDK 的节奏去看（第一次约 1 秒后，间隔逐次加倍，至多 1 小时），不经模型、不花 token。现有两个通用检查器，都在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`：`molis.action-query@1` 调一个只读查询动作（`params.tool` 写这一轮的动作工具名，宿主按这一轮冻结的动作换回精确引用），把回答里 `status.path` 那一项按给定的 `satisfied`、`failed`、`pending` 对上，对不上、查询出错都算 unknown，不算结果；`molis.file-present@1` 看授权目录里的一个相对路径，比登记那一轮旧的、空的（`non_empty`）、缺完成标记（`marker`）的都还在等，有失败标记（`failed_marker`）就是失败，「在」只说明文件在，不证明内容对。要判断好坏的条件（「测试都过了」「结果合理」）不能这样等：判断要问模型，是命令；声明了 `model:invoke` 的查询也拒，因为每看一次就调一次模型。能等什么、每次看都怎样复核、什么一律拒绝，见 `docs/system/SECURITY-INVARIANTS.md` 的 S-27；等完之后照常是一条接续，由插件起下一轮。
 
 接入本人操作的等待使用 `molis.connector-setup@1`，参数仅 `{ authorization_id }`，来自本会话的 `connectors.setup.prepare`。Host 在登记与每次读取前后检查请求的原会话、用户、项目及当前助理查询权限；重启后只恢复这项窄读取，不恢复通用动作或文件授权。检查只证明请求和连接状态，等待满足后还须按最新任务调用真实业务能力。已有连接的跨入口修复使用 `molis.connection-ready@1`：稳定连接、真实账号要求与精确能力引用由原任务提供，检查当前工作和授权后只读连接事实；不会在检查器里联网、启用连接或执行业务动作。设置页检查、其他会话修复、Host 重启沿用同一 owner 事实；换账号或缺权限仍等待。App-tools 业务角色使用同一个 SDK 持久等待，只允许其 App 登记的只读外部检查器；命令、信封、节点及待答问题条件不向此模式开放。无绑定、其他会话与已撤权检查均拒绝。真实 SDK 与本机协议替身已验证等待、最新请求、单次接续及重启，真实模型和服务账号的验收仍见 `specs/assistant-service-connections/spec.md` §11。
@@ -274,7 +274,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
   | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-run.ts`（`MODEL_CALL_TIMEOUT_MS`） |
   | 创作台的角色 | designer 600 秒、coder 300 秒 | `horizontal/agent-host/src/adapters/plugin-builder.ts`（`MODEL_CALL_LIMIT_MS`） |
-- **恢复**：Agent 会话用 `agent.session.recovery.v1` / `agent.session.recover.v1`；长任务靠持久记录与幂等键（`request_id`），重试不重复调用模型、不重复写入。
+- **恢复**：Agent 会话用 `agent.session.recovery` / `agent.session.recover`；长任务靠持久记录与幂等键（`request_id`），重试不重复调用模型、不重复写入。
 
 ## 9. 常见错误（都真实发生过）
 
@@ -305,7 +305,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 ## 11. 通用、Coding 专属与其他场景
 
 - 通用（所有 AI 能力）：第 4–8 节。
-- Coding 专属：会话/轮次/计划/委派、子代理并行、跨轮摘要、Git 提交说明起草（`agent.draft-text.v1`）、协同与等待——见 `specs/coding-plugin/spec.md`，不要照搬到单次调用场景。
+- Coding 专属：会话/轮次/计划/委派、子代理并行、跨轮摘要、Git 提交说明起草（`agent.draft-text`）、协同与等待——见 `specs/coding-plugin/spec.md`，不要照搬到单次调用场景。
 - 插件创作台：专用代码 Agent 与沙箱，见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`。
 - 判断函数（Jev/TypeSafe）：系统级 `modules/judgment-rules`，场景绑定与消费见 `specs/action-architecture/spec.md`「函数调用与 Jev 判断」。
 
@@ -468,7 +468,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **按相关、时效、权限和实际预算选，不按「前几个」。** 省略了要说出来，模型才能如实告诉用户：灵光把过长的一条截到开头并写「（以下省略）」，整场材料超过 18 万字符就拒绝并请用户减少所选（`plugins/native/lingguang/src/actions.ts` 的 `conversationPrompt`）；助理写明「没有带上的记忆」有几条、为什么。
 
-**摘要、裁剪、记忆与交接要保住影响正确性的东西。** 上下文整理（`horizontal/agent-host/src/adapters/prologue-compaction.ts`）只让模型选原文坐标，宿主逐字拷贝，所以要求、数值和路径不会在改写里走样；整理时把当前的用户要求（`instructions`）一起交给它，压缩之后新要求仍然生效。交给子任务时，`delegate-work` 的 `brief` 字段写明「It does not see this conversation」，只附它需要的材料。一轮进行中用户补一句话，走输入回执 `agent.inputs.send.v3`（`packages/contracts/src/services/agent-inputs.ts`）：在下一个边界读进上下文、打断当前回复或留到下一轮，回执说明这句话去了哪里。补充 Action 不信任自报 person；受保护发送的原件证明绑定当前安装、动作和输入键。附材料或选区时，Host 传 `source: host` 与独立 `original`，SDK 只把外层 text 送进模型，raw 原件用于当前来源核验。这些都复用 Prologue 与已有的回执能力，不在每个插件里再做一套，也不靠每轮追加同一组禁令弥补资料丢失。
+**摘要、裁剪、记忆与交接要保住影响正确性的东西。** 上下文整理（`horizontal/agent-host/src/adapters/prologue-compaction.ts`）只让模型选原文坐标，宿主逐字拷贝，所以要求、数值和路径不会在改写里走样；整理时把当前的用户要求（`instructions`）一起交给它，压缩之后新要求仍然生效。交给子任务时，`delegate-work` 的 `brief` 字段写明「It does not see this conversation」，只附它需要的材料。一轮进行中用户补一句话，走输入回执 `agent.inputs.send`（`packages/contracts/src/services/agent-inputs.ts`）：在下一个边界读进上下文、打断当前回复或留到下一轮，回执说明这句话去了哪里。补充 Action 不信任自报 person；受保护发送的原件证明绑定当前安装、动作和输入键。附材料或选区时，Host 传 `source: host` 与独立 `original`，SDK 只把外层 text 送进模型，raw 原件用于当前来源核验。这些都复用 Prologue 与已有的回执能力，不在每个插件里再做一套，也不靠每轮追加同一组禁令弥补资料丢失。
 
 **资料不足时补什么：**
 
@@ -540,7 +540,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
-| 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v3` 与 `agent.inputs.withdraw.v1` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
+| 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send` 与 `agent.inputs.withdraw` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理）；Runtime 插件经 `services.materials` 读到的文件，也由插件用它放进 `instructed(自己的指令, 数据)` 的数据里再交给 `services.model` | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来；灵光的对话把这句写在可改的指令 `lingguang.conversation` 里，待换成 `fencedMaterials` | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条，以及材料服务读到的文件经 Runtime 插件自己的指令交给模型、用户改掉指令里的提醒后声明照样在的一条） |
@@ -728,4 +728,4 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 
 ### 签名包的角色资料与方法
 
-签名 app 包的文字声明与 Native AgentManifest 不同，见 [插件开发手册](PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。助理的 `assistant.methods.read@2` 接收目录中的精确版本和安装引用，角色与方法以 `kind` 区分；签名正文、名字、用途都属于不可信 JSON 数据，不进入角色指令或 inlineMethods，也不扩展工具与目录授权。可编辑角色的来源引用与用户 revision 在原 AgentDefinitions 覆盖/history/uses 中保存；使用以有效 handoff 回执为界。取材后、每次新交付前复核来源与当前用户修订；有效历史不会因随后停用被改写。补充材料预算不足时明确拒绝整次发送，不能截坏正文或来源 JSON。
+签名 app 包的文字声明与 Native AgentManifest 不同，见 [插件开发手册](PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。助理的 `assistant.methods.read@1` 接收目录中的精确版本和安装引用，角色与方法以 `kind` 区分；签名正文、名字、用途都属于不可信 JSON 数据，不进入角色指令或 inlineMethods，也不扩展工具与目录授权。可编辑角色的来源引用与用户 revision 在原 AgentDefinitions 覆盖/history/uses 中保存；使用以有效 handoff 回执为界。取材后、每次新交付前复核来源与当前用户修订；有效历史不会因随后停用被改写。补充材料预算不足时明确拒绝整次发送，不能截坏正文或来源 JSON。

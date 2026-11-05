@@ -5,7 +5,7 @@ import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
-import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
+import { renderSidePanel, renderSideStrip, type SidePanelPluginTab } from "./side-panel.js";
 import { renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
@@ -254,7 +254,7 @@ export function renderWorkbenchBar(
     ${renderAssistantDock(primitives)}
     <div class="bar-end">
       <div class="bar-side"><button class="bar-chat" type="button" data-side-toggle aria-expanded="false" aria-controls="side-panel" data-craft-tip="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}" aria-label="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}">${icon("sidebar")}</button></div>
-      ${renderSidePanel(primitives, parts.sideTabs ?? [])}
+      ${renderSidePanel(primitives, parts.sideTabs ?? [], { tasks: true })}
       ${parts.projectChrome}
     </div>
   </div>`;
@@ -286,7 +286,8 @@ export function renderDirectoryPluginSections(
   return `${plugins}${settingsSection}`;
 }
 
-export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, homePlugins: readonly HomePluginNavigationEntry[] = []): string {
+/** The title bar: the way back, the work area's tabs, the Home tools, and at its right end the right side's tabs (side-panel.ts). */
+export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, homePlugins: readonly HomePluginNavigationEntry[] = [], sideTabs: readonly SidePanelPluginTab[] = []): string {
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
@@ -299,7 +300,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
     ${renderHomePluginNavigation(undefined, homePlugins)}
-    <button class="mw-btn mw-btn--ghost background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-background-tasks-count>0</span></button>
+    ${renderSideStrip(primitives, sideTabs, { tasks: true })}
   </header>`;
 }
 

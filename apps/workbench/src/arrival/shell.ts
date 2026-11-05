@@ -1,7 +1,7 @@
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderWordmark } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs, renderHomePluginNavigation, type HomePluginNavigationEntry } from "../home-plugin-navigation.js";
-import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
+import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
 import { NO_FAVICON_LINK } from "../document-shell.js";
 
 /**
@@ -32,8 +32,10 @@ type ArrivalScreen = "chooser" | "opening" | "welcome" | "onboard" | "update";
 interface ArrivalTitlebarOptions {
   /** The AI caption sits beside the wordmark on the chooser only. */
   caption?: boolean;
-  /** Background tasks, capabilities and settings; the opening has none of them. */
+  /** The Home tools, capabilities, settings and the right side's tabs; the opening has none of them. */
   tools?: boolean;
+  /** The background tasks as a tab of the right side, where the screen reads them (the chooser). */
+  tasks?: boolean;
   /** Welcome's way to switch the theme before anything else is set. */
   theme?: boolean;
   /** The packages installed in the Home, beside its built-in tools. */
@@ -66,10 +68,11 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   function tools(desktopShell: boolean, options: ArrivalTitlebarOptions): string {
     const link = (path: string, glyph: PluginIconName, label: string, aria: string) =>
       `<a class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" href="${href(desktopShell, path)}" aria-label="${escapeHtml(aria)}">${icon(glyph)}<span data-slot="button-label">${escapeHtml(label)}</span></a>`;
-    const background = `<span class="arrival-bg"><button class="mw-btn mw-btn--ghost mw-btn--md background-tasks-button" data-slot="button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-slot="button-label">${L("后台任务")}</span></button><span data-background-tasks-count hidden>0</span></span>`;
     const theme = options.theme
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
-    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
+    // The right side's tabs end the bar, as on a project page: the Home's side views, and the background tasks where they are read.
+    const side = renderSideStrip(p, homePluginSideTabs(), { projectTools: false, tasks: options.tasks === true });
+    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}${side.includes("data-side-tab=") ? side : ""}</span>`;
     return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${global}</nav>`;
   }
 
@@ -85,7 +88,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   }
 
   function document(options: ArrivalDocumentOptions): string {
-    const side = options.titlebar.includes("data-side-plugin-open") ? renderSidePanel(p, homePluginSideTabs(), false) : "";
+    const side = options.titlebar.includes("data-side-tab=") ? renderSidePanel(p, homePluginSideTabs(), { projectTools: false, tasks: options.titlebar.includes('data-side-tab="tasks"') }) : "";
     return `<!doctype html>
 <html lang="${p.htmlLang()}">
 <head>

@@ -8,6 +8,8 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   }
   const shortcuts = [...owner.querySelectorAll<HTMLElement>("[data-side-keys]")].map(node => node.dataset.sideKeys!).filter(Boolean);
   if (owner.querySelector("[data-global-search-dialog]")) shortcuts.push("Mod+K", "Mod+F");
+  // ⌘\ / Ctrl+\ collapses or opens the shell's right side wherever the keyboard is.
+  if (owner.querySelector("[data-side-tabs]")) shortcuts.push("Mod+Backslash");
   // The channel keeps focus after the visibility message, including a previously hidden side view.
   const focus = () => { if (side && scope.visible && document.hasFocus()) port.postMessage({ type: "focus" } satisfies FrameDown); };
   scope.listen(window, "focus", focus);
@@ -19,7 +21,7 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
       if (parent !== window) parent.postMessage({ type: "molis:side-key", keys: message.keys }, location.origin);
       else {
         const keys = message.keys.split("+"), key = keys.at(-1)!;
-        window.dispatchEvent(new KeyboardEvent("keydown", { key, code: "Key" + key,
+        window.dispatchEvent(new KeyboardEvent("keydown", { key, code: key.length === 1 ? "Key" + key : key,
           metaKey: keys.includes("Mod"), shiftKey: keys.includes("Shift"), altKey: keys.includes("Alt"), bubbles: true }));
       }
     }

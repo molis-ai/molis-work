@@ -27,6 +27,9 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "撤销关闭 {plugin}": "Reopen {plugin}",
   "已关闭 {plugin} 标签组": "Closed the {plugin} tab group",
   "关闭标签组": "Close tab group",
+  "已移除": "Removed",
+  "{plugin} 已从这个项目移除": "{plugin} was removed from this project",
+  "标签和内容都还在；把它加回这个项目，就能接着用。": "Its tabs and content are still here. Add it back to this project to carry on.",
   "客户端操作未完成。请查看提示后重试。": "The client operation did not finish. Check its prompt and try again.",
   "配置客户端": "Configure client",
   "结束操作": "End operation",
@@ -239,7 +242,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "整理上下文": "compact the context",
   "收尾": "wrap up",
   // apps/workbench/src/scripts/client/attention.ts
-  "个等你处理": "waiting for you",
   // The words under a background task's title are the owning plugin's own (plugins/native/coding/src/home-background.ts); the page translates each as a whole.
   "等你审查": "Needs your review",
   "挂起等待": "Queued",

@@ -84,9 +84,11 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   const browser = await openAuditBrowser(t); if (!browser) return;
   const command = await backgroundCommand(browser, t);
   await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  await browser.waitFor("!document.querySelector('[data-background-tasks]').hidden", 15_000);
-  await browser.click("[data-background-tasks]");
-  const stop = ".background-task-command button", alert = ".background-tasks-menu [role=alert]";
+  // The background tasks are a tab of the right side since 07-S1; its badge counts the tasks not finished.
+  await browser.waitFor("!document.querySelector('[data-side-tab=\"tasks\"] [data-background-tasks-count]').hidden", 15_000);
+  await browser.click('[data-side-tab="tasks"]');
+  await browser.waitFor("document.body.dataset.sideOpen === 'true' && !document.querySelector('[data-side-body=\"tasks\"]').hidden");
+  const stop = ".background-task-command button", alert = "[data-background-tasks-list] [role=alert]";
   await armResponse(browser, "stop-refused", "/stop", "POST");
   await browser.click(stop); await waitHeld(browser, "stop-refused");
   await command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");

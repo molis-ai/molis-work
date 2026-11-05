@@ -71,9 +71,15 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     undoTimer = setTimeout(() => apply(), UNDO_MS + 20);
     return record;
   };
+  /** Something closed elsewhere in the workspace (a tab of the right side) joins the same way back; it says how it reopens. */
+  const keep = (record, reopenIt) => {
+    closed.push({ record, until: Date.now() + UNDO_MS, reopen: reopenIt });
+    if (closed.length > 10) closed.shift();
+  };
   const reopen = () => {
     const last = closed.pop();
     if (!last) return false;
+    if (last.reopen) return last.reopen() !== false;
     ops.reopenPluginGroup(getState(), last.record);
     apply(); persist();
     return true;
@@ -131,5 +137,5 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
   };
   window.addEventListener("click", openInBackground, true);
   window.addEventListener("auxclick", openInBackground, true);
-  return { shows, render, close, reopen, undoChip, menu, hueOf, openBehind };
+  return { shows, render, close, keep, reopen, undoChip, menu, hueOf, openBehind };
 }`;

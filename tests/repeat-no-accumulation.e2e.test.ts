@@ -35,7 +35,8 @@ test("VUX-36: splitting and closing, switching plugins, the side panel and the A
   };
   const side = async () => {
     await evaluate("document.querySelector('[data-side-toggle]').click()"); await waitFor("document.body.dataset.sideOpen === 'true'", 10_000); await pause(200);
-    await evaluate("document.querySelector('[data-side-close]').click()"); await waitFor("document.body.dataset.sideOpen !== 'true'", 10_000); await pause(150);
+    // The side has no close button of its own since 07-S1: the same switch (or ⌘\) collapses it.
+    await evaluate("document.querySelector('[data-side-toggle]').click()"); await waitFor("document.body.dataset.sideOpen !== 'true'", 10_000); await pause(150);
   };
   // The Assistant: its panel on a new work, the list of works, its side pane and the bell, each opened and closed.
   const shown = (selector: string) => `!!document.querySelector('${selector}')?.checkVisibility()`;

@@ -61,7 +61,7 @@ export interface PageStateOwner {
 export const PAGE_STATE_OWNERS = {
   "side-panel": {
     files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
-    state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.",
+    state: "Whether the right side is open, its tabs, which one shows, how wide it is and what that view was asked to show (a file, a web page, the browser held by the person or by a Work). Open, tabs, current tab and width are kept in the tab workspace's state (`side`, per project).",
   },
   assistant: {
     files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],

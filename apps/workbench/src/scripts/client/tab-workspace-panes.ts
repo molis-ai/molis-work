@@ -259,6 +259,8 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
         if (liveFrame) frame.contentWindow?.postMessage({ type: "workbench-view", view: readView(pane.id) }, location.origin);
       } else {
         const node = tab ? rootForTab(tab) : (viewPlugin ? topLevelSurface(viewPlugin) : null);
+        const shownPlugin = tab ? (tab.kind === "system" ? "" : tab.plugin) : viewPlugin;
+        showRemoved(pane, !node && shownPlugin && removedPlugin(shownPlugin) ? shownPlugin : null);
         if (node) {
           const returning = node.parentElement === pool;
           mount(pane, node);

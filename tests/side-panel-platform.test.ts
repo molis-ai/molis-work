@@ -26,7 +26,7 @@ import {
 } from "@molis-ai/molis-work-plugin-sdk";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { browserAddress, safeFilename } from "../apps/local-host/dist/browser/browser-host.js";
-import { renderSidePanel } from "../apps/workbench/dist/side-panel.js";
+import { renderSidePanel, renderSideStrip } from "../apps/workbench/dist/side-panel.js";
 
 /*
  * The side panel as a platform capability (specs/archive/side-panel §3.3, D11, D13): the file source protocol, the `side`
@@ -79,13 +79,20 @@ test("PAS-08: the side slot places a plugin's tab only while the plugin is enabl
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: false }]).slot("side"), [], "a disabled plugin leaves no tab behind");
   assert.equal(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side")[0]!.context_binding, "focused-object");
   assert.throws(() => parsePluginManifest({ ...manifest, ui: { ...manifest.ui, views: [{ ...manifest.ui.views[0], slot: "stage" }] } }), /context_binding/);
-  const html = renderSidePanel({ L: text => text, escapeHtml: value => String(value), icon: name => `<svg data-icon="${name}"></svg>` },
-    [{ key: "example/notes", title: "随手记", icon: "note", src: "/projects/p1/side/example/notes", contextOwner: manifest.plugin_id, contextSurface: "example" }]);
-  assert.match(html, /data-side-tab="plugin:example\/notes"/u);
-  assert.match(html, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
-  assert.match(html, /data-side-src="\/projects\/p1\/side\/example\/notes"/u);
-  assert.match(html, /data-side-tab="files"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="computer"[\s\S]*data-side-tab="discussion"/u, "the panel's own tabs in side-shelf §3.2's order");
-  assert.doesNotMatch(html, /assistant-/u, "the panel stays out of the Assistant's classes");
+  const primitives = { L: (text: string) => text, escapeHtml: (value: unknown) => String(value), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const tabs = [{ key: "example/notes", title: "随手记", icon: "note", src: "/projects/p1/side/example/notes", contextOwner: manifest.plugin_id, contextSurface: "example" }] as const;
+  // The tabs sit at the right end of the title bar (07-S1), the views they show in the panel; the two share ids.
+  const strip = renderSideStrip(primitives, tabs, { tasks: true });
+  const html = renderSidePanel(primitives, tabs, { tasks: true });
+  assert.match(strip, /data-side-tab="plugin:example\/notes"/u);
+  assert.match(strip, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
+  assert.match(html, /data-side-body="plugin:example\/notes" data-side-src="\/projects\/p1\/side\/example\/notes"/u);
+  assert.match(strip, /data-side-tab="files"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="computer"[\s\S]*data-side-tab="discussion"[\s\S]*data-side-tab="tasks"/u, "the panel's own tabs in side-shelf §3.2's order, the background tasks after them");
+  assert.match(html, /data-side-body="files"[\s\S]*data-side-body="browser"[\s\S]*data-side-body="computer"[\s\S]*data-side-body="discussion"[\s\S]*data-side-body="tasks"/u);
+  assert.doesNotMatch(html, /data-side-tab=/u, "the panel holds views only; its tabs are in the title bar");
+  assert.match(strip, /data-side-tasks[^>]*>[\s\S]*data-background-tasks-count/u, "the background tasks' tab carries the count of tasks not finished");
+  assert.doesNotMatch(renderSideStrip(primitives, tabs), /data-side-tab="tasks"/u, "only a page that reads the tasks offers their tab");
+  assert.doesNotMatch(html + strip, /assistant-/u, "the panel stays out of the Assistant's classes");
 });
 
 test("the address bar opens web addresses, searches the rest and refuses other schemes", () => {

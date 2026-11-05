@@ -127,7 +127,7 @@ globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ transl
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({
       title: L("选择项目 · Molis Work"), screen: "chooser", desktopShell, controlToken,
-      titlebar: shell.titlebar(desktopShell, { caption: true, ...arrival.home_plugins ? { home_plugins: arrival.home_plugins } : {} }), stage, bar,
+      titlebar: shell.titlebar(desktopShell, { caption: true, tasks: true, ...arrival.home_plugins ? { home_plugins: arrival.home_plugins } : {} }), stage, bar,
       after: `${templates}<script type="application/json" id="arrival-data">${data}</script>`,
       scripts,
     });

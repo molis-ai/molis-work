@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../apps/workbench/src/tab-workspace-ops.js";
+import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups, withSidePane } from "../apps/workbench/src/tab-workspace-ops.js";
 
-const ops = createTabWorkspaceOps();
+// The workspace the page builds: its right side is part of the saved shape (specs/product-flow-governance §4.6.2 口径 1).
+const ops = withSidePane(createTabWorkspaceOps());
 
 test("fresh workspace opens on the home tab", () => {
   const state = ops.create();
@@ -432,7 +433,7 @@ test("shownPlugin names home for the home tab and the plugin for its page", () =
   assert.equal(ops.shownPlugin(ops.focused(state)), "lingguang");
 });
 
-const grouped = () => withPluginGroups(createTabWorkspaceOps(), settlePluginTabs, isLoosePluginTab);
+const grouped = () => withSidePane(withPluginGroups(createTabWorkspaceOps(), settlePluginTabs, isLoosePluginTab));
 const strip = (pane) => pane.tabs.map((tab) => tab.kind === "item" ? tab.plugin + ":" + tab.itemId : tab.plugin);
 
 test("PTG-01 PTG-02 opening plugins leaves one plugin tab each; choosing one shows that plugin's page", () => {
@@ -518,7 +519,7 @@ test("PTG-05 closing a plugin tab closes its group, and reopening puts every tab
 
 test("PTG-08 a saved plugin page without its plugin tab gets one, and plugin tabs pass the saved-state check", () => {
   const ops = grouped();
-  const base = createTabWorkspaceOps();
+  const base = withSidePane(createTabWorkspaceOps());
   const saved = base.create();
   base.openItem(saved, "goals", "g1", "发布");
   base.openPlugin(saved, "inbox");
@@ -624,4 +625,114 @@ test("PTG-02 a saved pane with two plugin tabs of one plugin fails the saved-sta
   const pane = saved.panes[0];
   pane.tabs.push({ ...pane.tabs.find((tab) => tab.kind === "plugin"), id: "t-double" });
   assert.equal(isCurrentTabWorkspace(saved), false);
+});
+
+// The right side as one pane of the workspace (07-S1; specs/product-flow-governance PFG-22, PFG-24).
+const sideViews = [
+  { key: "files", plugin: "", title: "资料" },
+  { key: "browser", plugin: "", title: "浏览器" },
+  { key: "plugin:shelf/main", plugin: "shelf", title: "Shelf" },
+  { key: "tasks", plugin: "", title: "后台任务" },
+];
+const sideKeys = (state) => state.side.tabs.map((tab) => tab.itemId);
+
+test("PFG-22 the side's open state, width and current tab live in the workspace state and survive saving", () => {
+  const state = ops.create();
+  assert.deepEqual(state.side, { id: "side", tabs: [], activeTabId: null, open: false, ratio: .35 });
+  ops.syncSide(state, sideViews);
+  assert.deepEqual(sideKeys(state), ["files", "browser", "plugin:shelf/main", "tasks"]);
+  assert.equal(ops.setSideOpen(state, true), true);
+  ops.selectSide(state, "browser");
+  assert.equal(ops.setSideRatio(state, .9), .55, "the width is held between a quarter and a little over half");
+  assert.equal(ops.setSideRatio(state, .1), .25);
+  ops.setSideRatio(state, .4);
+  const saved = JSON.parse(JSON.stringify(state));
+  assert.equal(isCurrentTabWorkspace(saved), true);
+  assert.equal(saved.side.open, true);
+  assert.equal(saved.side.ratio, .4);
+  assert.equal(ops.sideActive(saved).itemId, "browser");
+  // Collapsing keeps the tabs and the current one for the next open.
+  ops.setSideOpen(saved, false);
+  assert.deepEqual(sideKeys(saved), ["files", "browser", "plugin:shelf/main", "tasks"]);
+  assert.equal(ops.sideActive(saved).itemId, "browser");
+  assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(saved))), true);
+});
+
+test("PFG-22 a side with no tabs cannot be open", () => {
+  const state = ops.create();
+  assert.equal(ops.setSideOpen(state, true), false);
+  assert.equal(state.side.open, false);
+});
+
+test("PFG-24 opening a view already on the right recalls its tab instead of adding a second one", () => {
+  const state = ops.create();
+  ops.syncSide(state, sideViews);
+  const shelf = state.side.tabs.find((tab) => tab.itemId === "plugin:shelf/main");
+  const again = ops.openSide(state, "plugin:shelf/main", sideViews);
+  assert.equal(again.id, shelf.id);
+  assert.equal(state.side.tabs.length, sideViews.length);
+  assert.equal(state.side.activeTabId, shelf.id);
+  assert.equal(state.side.open, true);
+  assert.equal(ops.openSide(state, "plugin:missing/view", sideViews), null, "a view the page does not offer is not opened");
+});
+
+test("PFG-22 closing a side tab is undone in place, and an open of the same view meanwhile is not doubled", () => {
+  const state = ops.create();
+  ops.syncSide(state, sideViews);
+  ops.openSide(state, "browser", sideViews);
+  const browser = ops.sideActive(state);
+  const record = ops.closeSideTab(state, browser.id);
+  assert.equal(record.side, true);
+  assert.equal(record.index, 1);
+  assert.equal(record.active, true);
+  assert.deepEqual(sideKeys(state), ["files", "plugin:shelf/main", "tasks"]);
+  assert.equal(ops.sideActive(state).itemId, "plugin:shelf/main", "the tab after it is shown next");
+  ops.reopenSideTab(state, record);
+  assert.deepEqual(sideKeys(state), ["files", "browser", "plugin:shelf/main", "tasks"]);
+  assert.equal(ops.sideActive(state).id, browser.id, "the same tab comes back, current again");
+  const twice = ops.closeSideTab(state, browser.id);
+  ops.openSide(state, "browser", sideViews);
+  ops.reopenSideTab(state, twice);
+  assert.deepEqual(sideKeys(state), ["files", "browser", "plugin:shelf/main", "tasks"]);
+});
+
+test("PFG-22 closing the last side tab collapses the side", () => {
+  const state = ops.create();
+  ops.syncSide(state, sideViews.slice(0, 1));
+  ops.openSide(state, "files", sideViews);
+  ops.closeSideTab(state, ops.sideActive(state).id);
+  assert.equal(state.side.open, false);
+  assert.equal(state.side.activeTabId, null);
+  assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(state))), true);
+});
+
+test("PFG-22 the views a page offers settle the side: gone views leave, a closed view stays closed when the plugins change", () => {
+  const state = ops.create();
+  ops.syncSide(state, sideViews);
+  ops.closeSideTab(state, state.side.tabs.find((tab) => tab.itemId === "files").id);
+  const added = [...sideViews.filter((view) => view.key !== "plugin:shelf/main"), { key: "plugin:lingguang/main", plugin: "lingguang", title: "灵光" }];
+  ops.syncSide(state, added, new Set(["plugin:lingguang/main"]));
+  assert.deepEqual(sideKeys(state), ["browser", "tasks", "plugin:lingguang/main"]);
+  // A page load offers every view again.
+  ops.syncSide(state, added);
+  assert.deepEqual(sideKeys(state), ["files", "browser", "tasks", "plugin:lingguang/main"]);
+});
+
+test("PFG-22 口径 4 a saved layout without the side, or with a side of another shape, is not read", () => {
+  const plain = createTabWorkspaceOps().create();
+  assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(plain))), false, "a layout saved before the side joined is started again");
+  for (const alter of [
+    (state) => { state.side.ratio = .9; },
+    (state) => { state.side.open = "true"; },
+    (state) => { state.side.width = 420; },
+    (state) => { state.side.tabs.push({ ...state.side.tabs[0], id: "t-double" }); },
+    (state) => { state.side.tabs[0].kind = "item"; },
+    (state) => { state.side.tabs[0].target = { url: "https://example.com" }; },
+    (state) => { state.side.id = "pane-2"; },
+  ]) {
+    const state = ops.create();
+    ops.syncSide(state, sideViews);
+    alter(state);
+    assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(state))), false);
+  }
 });

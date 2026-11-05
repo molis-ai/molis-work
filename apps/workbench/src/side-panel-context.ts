@@ -1,7 +1,7 @@
 /** Presentation binding only. The owner still authorizes every object read and write. The page is read once per frame, before
  * it draws: a microtask ran between every change of one click and measured the page each time. */
-export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
-  let entries=[...panel.querySelectorAll('[data-side-context-owner]')];
+export const SIDE_CONTEXT_FACTORY = String.raw`({panel,strip,select,current})=>{
+  let entries=[...strip.querySelectorAll('[data-side-context-owner]')];
   let epoch=0,signature='',context=null,source=null,lastTool=null,queued=false,target=null,sendPending=false;
   const watched=new WeakMap();
   const visible=node=>!!node&&!node.hidden&&node.getClientRects().length>0&&getComputedStyle(node).visibility!=='hidden';
@@ -52,7 +52,7 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
     if(active&&!entries.some(entry=>entry.dataset.sideTab===active))lastTool=active;
     for(const entry of entries)entry.hidden=entry.dataset.sideContextOwner!==context?.plugin_id;
     if(entries.some(entry=>entry.dataset.sideTab===active&&entry.hidden)){
-      const tool=[...panel.querySelectorAll('[data-side-tab]')].find(entry=>!entry.hidden&&(entry.dataset.sideTab===lastTool));
+      const tool=[...strip.querySelectorAll('[data-side-tab]')].find(entry=>!entry.hidden&&(entry.dataset.sideTab===lastTool));
       select(tool?.dataset.sideTab);
     }
     send();
@@ -65,12 +65,12 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
     const body=(root,id)=>[...root.querySelectorAll('[data-side-body]')].find(node=>node.dataset.sideBody===id);
     for(const entry of entries)if(!theirs.some(tab=>tab.dataset.sideTab===entry.dataset.sideTab)){body(panel,entry.dataset.sideTab)?.remove();entry.remove();}
     for(const tab of theirs)if(!entries.some(entry=>entry.isConnected&&entry.dataset.sideTab===tab.dataset.sideTab)){
-      const following=all.slice(all.indexOf(tab)+1).map(node=>[...panel.querySelectorAll('[data-side-tab]')].find(live=>live.dataset.sideTab===node.dataset.sideTab)).find(Boolean);
-      panel.querySelector('[data-side-tabs]').insertBefore(document.importNode(tab,true),following||null);
+      const following=all.slice(all.indexOf(tab)+1).map(node=>[...strip.querySelectorAll('[data-side-tab]')].find(live=>live.dataset.sideTab===node.dataset.sideTab)).find(Boolean);
+      strip.insertBefore(document.importNode(tab,true),following||null);
       const view=body(next,tab.dataset.sideTab);if(view)panel.append(document.importNode(view,true));
     }
-    entries=[...panel.querySelectorAll('[data-side-context-owner]')];signature='';
-    if(![...panel.querySelectorAll('[data-side-tab]')].some(tab=>tab.dataset.sideTab===current()))select(lastTool);
+    entries=[...strip.querySelectorAll('[data-side-context-owner]')];signature='';
+    if(![...strip.querySelectorAll('[data-side-tab]')].some(tab=>tab.dataset.sideTab===current()))select(lastTool);
     update();
   });
   document.addEventListener('molis-work:place-changed',schedule);

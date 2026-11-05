@@ -114,7 +114,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 新Home逐库只读核对版本都是1、`integrity_check` ok、`foreign_key_check`空，内置安装记录与清单一致，目录没有无归属内容。验证新项目、首次连接/授权和重启的当前产品路径；不从旧数据推定成功。记录日期、构建、实际版本和结果后才写维护完成。项目、连接和原MCP授权由用户在新Home重建，Runtime会话按需要重新打开。
 
-内置插件的版本与摘要按 [POLICY.md](POLICY.md) 第 7.8 节核对。先在构建好的仓库根目录打印当前构建的清单：
+内置插件的版本与摘要按 [POLICY.md](POLICY.md) 第 7.8 节核对。N4 的摘要与签名共用 SDK 的原始 UTF-16 键顺序，不随宿主语言变化；Goals 请求摘要也使用同一顺序，重建后的回执按新规则生成，不转换旧 Home 的幂等记录。定向回归见 `tests/canonical-json-consumers.test.ts` 和 `tests/plugin-package.test.ts`。先在构建好的仓库根目录打印当前构建的清单：
 
 ```sh
 node --input-type=module -e '

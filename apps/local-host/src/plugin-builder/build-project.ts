@@ -1,4 +1,5 @@
-import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
+import { canonicalJsonValue as canonical, effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
+export { canonical };
 import { constants } from 'node:fs';
 import { mkdir, readdir, realpath, writeFile, open, lstat } from 'node:fs/promises';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
@@ -93,11 +94,6 @@ await assert.rejectsCode(() => call(input), 'code'). Every test must assert some
 /** The generated implementation an operation starts from; checks and G4 recognise it by NOT_IMPLEMENTED. */
 export function operationStub(operationId: string): string {
   return `import type { SandboxJson, SandboxSdk } from '${SDK_MODULE}';\nexport default async function operation(_input: SandboxJson, _sdk: SandboxSdk): Promise<SandboxJson> {\n  throw Object.assign(new Error('Implement ${operationId}'), { code: 'NOT_IMPLEMENTED' });\n}\n`;
-}
-export function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]));
-  return value;
 }
 export function pathInside(root: string, path: string): boolean { const rel = relative(root, resolve(path)); return !isAbsolute(rel) && rel !== '..' && !rel.startsWith('../'); }
 /** Reject symbolic links at every component, then bounded no-follow reads. */

@@ -132,7 +132,7 @@
     "function apps/local-host/src/home-actions.ts#homeActionProvider": {
       "kind": "cohesive-unit",
       "reason": "Home 动作提供方的登记：返回体按动作逐个列出处理器，Talk、Offer、Event 三族处理器已抽成 createHome…Handlers，余下是登记清单与共用的 record、handler 助手；超 150 行 32 行。",
-      "size": 182
+      "size": 180
     },
     "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
       "kind": "cohesive-unit",

@@ -1,4 +1,4 @@
-import { isRecord } from "./json-value.js";
+import { canonicalJsonText, isRecord } from "./json-value.js";
 import {
   DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_COLLECTION_SCHEMA, DUE_REMINDER_WINDOW_SCHEMA,
   HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_COLLECTION_SCHEMA, HOME_EVENT_WINDOW_SCHEMA,
@@ -338,9 +338,7 @@ function isCompleteScene(s: Record<string, unknown>): boolean {
 
 /** The same schema written with its keys in another order is the same schema. */
 function canonicalSchema(value: unknown): string {
-  const sort = (entry: unknown): unknown => Array.isArray(entry) ? entry.map(sort)
-    : isRecord(entry) ? Object.fromEntries(Object.keys(entry).sort().map(name => [name, sort(entry[name])])) : entry;
-  return JSON.stringify(sort(value));
+  return canonicalJsonText(value)!;
 }
 
 export function isText(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }

@@ -1,4 +1,4 @@
-import { isRecord as isObject } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, isRecord as isObject } from "@molis-ai/molis-work-plugin-sdk";
 import type { FeedSql } from "./sql.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
@@ -256,11 +256,7 @@ function mapSignal(row: Row): SignalRecord {
 }
 
 function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (isObject(value)) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
+  return canonicalJsonText(value, "literal")!;
 }
 
 function sha256(value: string): string {

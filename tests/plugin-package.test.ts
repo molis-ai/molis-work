@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
-import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, symlinkSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import type { PluginManifest, PluginPackageBundle, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parsePluginPackage, signPluginPackage, verifyPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
+import { parsePluginPackage, pluginPackageSigningBytes, pluginManifestDigest, signPluginPackage, verifyPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 
 function packageFixture() {
   const keys = generateKeyPairSync("ed25519");
@@ -30,6 +31,53 @@ function packageFixture() {
 }
 
 const invalidPackage = (expected: string) => (error: unknown) => error instanceof ActionError && error.kind === "invalid" && error.code === expected;
+
+test("N4 fixed source signatures retain their bytes without adopting retired manifests", () => {
+  for (const name of ["generated-counter", "generated-list"]) {
+    const bundle = JSON.parse(readFileSync(new URL(`./fixtures/replay-plugins/${name}/release/signed-package.json`, import.meta.url), "utf8")) as PluginPackageBundle;
+    assert.equal(bundle.payload.manifest.schema_version, 2, "these are the original source materials, not current installable replay packages");
+    const publicKey = createPublicKey({ key: Buffer.from(bundle.publisher_key!.spki_base64, "base64"), format: "der", type: "spki" });
+    assert.equal(verify(null, pluginPackageSigningBytes(bundle.payload), publicKey, Buffer.from(bundle.signature!.value_base64, "base64")), true);
+    assert.throws(() => parsePluginPackage(bundle), "signature preservation must not make a retired manifest installable");
+  }
+});
+
+test("N4 signed packages verify across fresh locales with numeric and Unicode schema keys and reject changed content", () => {
+  const { bundle, signer, publicKey } = packageFixture();
+  const properties = Object.fromEntries(["é", "e\u0301", "e", "中", "😀", "\ue000", "2", "10"].map(key => [key, { type: "string" }]));
+  bundle.payload.manifest.actions = [createActionDefinition("io.molis.work.example.package-trust.inspect", "query", {
+    title: "Read Unicode fields", description: "Keep original fields", audiences: ["user"], permissions: [], subject_kinds: [],
+    input_schema: { type: "object", properties, additionalProperties: false }, output_schema: { type: "null" },
+  })];
+  bundle.payload.files.find(file => file.path === "manifest.json")!.content_base64 = Buffer.from(JSON.stringify(bundle.payload.manifest)).toString("base64");
+  const signed = signPluginPackage(bundle, signer);
+  const bytes = pluginPackageSigningBytes(signed.payload);
+  assert.match(bytes.toString("utf8"), /"properties":\{"10":\{"type":"string"\},"2":\{"type":"string"\},"e":\{"type":"string"\},"é":\{"type":"string"\},"é":\{"type":"string"\},"中":\{"type":"string"\},"😀":\{"type":"string"\},"":\{"type":"string"\}\}/u);
+  assert.equal(verify(null, bytes, publicKey, Buffer.from(signed.signature!.value_base64, "base64")), true);
+  const directory = mkdtempSync(join(tmpdir(), "molis-locale-signature-"));
+  try {
+    const packagePath = join(directory, "signed.json");
+    writeFileSync(packagePath, JSON.stringify(signed), { mode: 0o600 });
+    const script = `import { readFileSync } from 'node:fs'; import { createHash } from 'node:crypto'; import { verifyPluginPackageSignature, pluginManifestDigest, pluginPackageSigningBytes } from '@molis-ai/molis-work-plugin-runtime';
+      const input = JSON.parse(readFileSync(process.argv[1], 'utf8')); const { bundle } = verifyPluginPackageSignature(input);
+      const changed = structuredClone(input); changed.payload.files.find(file => file.path === 'index.mjs').content_base64 = Buffer.from('export default {changed:true};').toString('base64');
+      let refused = ''; try { verifyPluginPackageSignature(changed); } catch (error) { refused = error.code; }
+      process.stdout.write(JSON.stringify({ locale: Intl.DateTimeFormat().resolvedOptions().locale, digest: pluginManifestDigest(bundle.payload.manifest), signingHash: createHash('sha256').update(pluginPackageSigningBytes(bundle.payload)).digest('hex'), refused }));`;
+    const results = ["en_US.UTF-8", "zh_CN.UTF-8"].map(locale => {
+      const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script, packagePath], { encoding: "utf8", env: { ...process.env, LANG: locale, LC_ALL: locale } });
+      assert.equal(result.status, 0, result.stderr);
+      return JSON.parse(result.stdout) as { locale: string; digest: string; signingHash: string; refused: string };
+    });
+    assert.deepEqual(results.map(result => result.locale), ["en-US", "zh-CN"]);
+    for (const result of results) {
+      assert.equal(result.digest, pluginManifestDigest(signed.payload.manifest));
+      assert.equal(result.signingHash, createHash("sha256").update(bytes).digest("hex"));
+      assert.equal(result.refused, "plugin.signature_invalid");
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("RAC-382-T1 parsePluginPackage refuses a publisher key on an unsigned envelope", () => {
   const { bundle, signer } = packageFixture();

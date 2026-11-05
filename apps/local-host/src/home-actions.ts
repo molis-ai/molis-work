@@ -1,4 +1,4 @@
-import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer } from "./home-offer-actions.js";
 import { callerDirectory, prepareSubjectOffers } from "./contextual/contextual-service.js";
 import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.js";
@@ -111,11 +111,9 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
     const result = await prepareSubjectOffers(callerDirectory(services.actions, caller), { subject: { kind: subject.kind, id: subject.id }, request_id });
     return result.offers.filter(offer => offer.availability.available && offer.recommendation_key);
   };
-  const ordered = (value: unknown): unknown => Array.isArray(value) ? value.map(ordered)
-    : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => [key, ordered(value)])) : value;
-  const offerRevision = (offers: HomeActionOffer[]) => createHash("sha256").update(JSON.stringify(ordered(offers
+  const offerRevision = (offers: HomeActionOffer[]) => createHash("sha256").update(canonicalJsonText(offers
     .map(({ recommendation_key, source, action, input, title }) => ({ recommendation_key, source, action, input, title }))
-    .sort((a, b) => a.recommendation_key!.localeCompare(b.recommendation_key!))))).digest("hex");
+    .sort((a, b) => a.recommendation_key! < b.recommendation_key! ? -1 : a.recommendation_key! > b.recommendation_key! ? 1 : 0))!).digest("hex");
   const referenceAvailable = (directory: readonly ActionView[], reference: ActionReference) => directory.some(action =>
     action.capability_id === reference.capability_id && action.version === reference.version
     && action.provider.provider_id === reference.provider_id && action.availability.available);

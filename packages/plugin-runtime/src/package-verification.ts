@@ -1,6 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash, createPublicKey, type KeyObject, verify } from "node:crypto";
-import { isRecord, parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, isRecord, parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 
@@ -114,10 +114,7 @@ export function verifyPluginPackageSignature(input: unknown): { bundle: PluginPa
 }
 
 function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
-  return JSON.stringify(value) ?? "null";
+  return canonicalJsonText(value, "null");
 }
 
 function object(value: unknown): Record<string, unknown> {

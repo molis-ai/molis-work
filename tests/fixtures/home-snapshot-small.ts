@@ -6,6 +6,16 @@ import { basename, dirname, join } from "node:path";
 import type { TestContext } from "node:test";
 import { createHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
 
+/** Capture the driver's error as the independent reference for snapshot and restore assertions. */
+export function captureSqliteError(operation: () => unknown, code: string): Error {
+  try { operation(); } catch (error) {
+    assert.ok(error instanceof Error && "code" in error);
+    assert.equal(error.code, code);
+    return error;
+  }
+  assert.fail(`SQLite should have rejected the operation with ${code}`);
+}
+
 export async function smallSnapshotHome(t: TestContext) {
   const area = await realpath(await mkdtemp(join(tmpdir(), "molis-snapshot-refusal-"))), home = join(area, "home"), snapshot = join(area, "snapshot");
   await mkdir(home);

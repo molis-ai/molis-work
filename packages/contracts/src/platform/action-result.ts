@@ -9,7 +9,9 @@ export interface ActionResultView {
   /**
    * A connection the person still has to finish (specs/assistant-service-connections/spec.md §13.5 C5): the JSON Pointer to the
    * authorization's id in the output. Where the result is shown, the platform draws its connection card for that authorization,
-   * chosen by this declaration and never by the action's id; `link` stays the way there for a place that draws no card.
+   * chosen by this declaration and never by the action's id; `link` stays the way there for a place that draws no card. The card
+   * reads and cancels the authorization only as whoever prepared it (the same person, project and runtime session, the Host's
+   * `requireConnectorInitiator`): an id from anyone else's request draws no card and cancels nothing, and an expired one falls back to `link`.
    */
   readonly pending_connection?: { readonly authorization_pointer: string };
 }
@@ -21,7 +23,7 @@ export interface ActionResultPresentation {
   readonly text?: string;
   readonly text_truncated?: true;
   readonly link?: { readonly label: string; readonly href: string };
-  /** The authorization the card reads its state from and cancels; only an id of letters, digits and `-`, at most 100 characters. */
+  /** The authorization the card reads its state from and cancels; only a string of letters, digits and `-`, at most 100 characters. */
   readonly pending_connection?: { readonly authorization_id: string };
 }
 
@@ -43,13 +45,18 @@ export function validActionResultView(value: unknown): value is ActionResultView
     && !/[{}]/u.test(value.link.href_template.replace(/\{([^{}]+)\}/gu, "value"));
 }
 
-function scalarAt(result: unknown, path: string): string | undefined {
+function valueAt(result: unknown, path: string): unknown {
   let value = result;
   for (const part of path === "" ? [] : path.slice(1).split("/")) {
     const key = part.replace(/~1/gu, "/").replace(/~0/gu, "~");
     if (value === null || typeof value !== "object" || !Object.hasOwn(value, key)) return undefined;
     value = (value as Record<string, unknown>)[key];
   }
+  return value;
+}
+
+function scalarAt(result: unknown, path: string): string | undefined {
+  const value = valueAt(result, path);
   return typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)) ? String(value) : undefined;
 }
 
@@ -75,6 +82,7 @@ export function presentActionResult(view: ActionResultView | undefined, result: 
 }
 
 function pendingConnection(view: ActionResultView, result: unknown): Pick<ActionResultPresentation, "pending_connection"> {
-  const id = view.pending_connection && scalarAt(result, view.pending_connection.authorization_pointer);
-  return id && /^[A-Za-z0-9-]{1,100}$/u.test(id) ? { pending_connection: { authorization_id: id } } : {};
+  // Only a string: a boolean or a number at the pointer is not an authorization id, even though `scalarAt` would print it.
+  const id = view.pending_connection && valueAt(result, view.pending_connection.authorization_pointer);
+  return typeof id === "string" && /^[A-Za-z0-9-]{1,100}$/u.test(id) ? { pending_connection: { authorization_id: id } } : {};
 }

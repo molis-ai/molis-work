@@ -39,7 +39,7 @@ test("ASC-69: a pending connection is declared by pointer and presented only as 
   const id = "4f2c1a9e-7b3d-4c55-9a10-2e6f0b8d1c47";
   assert.deepEqual(presentActionResult(pending, { authorization_id: id, setup: { secret: "x" } }),
     { summary: "接入方案已准备", pending_connection: { authorization_id: id } }, "only the id at the pointer is kept");
-  for (const value of ["a/b", "", "x".repeat(101), "id with space", { id }, null]) {
+  for (const value of ["a/b", "", "x".repeat(101), "id with space", { id }, null, true, 42]) {
     assert.equal(presentActionResult(pending, { authorization_id: value })?.pending_connection, undefined, JSON.stringify(value));
   }
   assert.equal(presentActionResult(pending, {})?.pending_connection, undefined);

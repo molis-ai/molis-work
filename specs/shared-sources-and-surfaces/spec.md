@@ -63,6 +63,12 @@ interface MaterialOrigin {
   state: "ok" | "changed" | "missing" | "forbidden" | "truncated" | "unreadable";
   note?: string;  // 例如「只读了前 20 页」「.key 读不了正文，原件还在」
 }
+
+/** 「最近用过」的一行：记下的引用，加这次现读的出处（第 2.1 节）。 */
+interface RecentMaterial {
+  ref: MaterialRef;
+  origin: MaterialOrigin;
+}
 ```
 
 - **为什么要三种 pin**：WMD-04 要求当前文件更新可见，固定的快照和选区不变。成果是固定版本；Files 现在的集合、前后快照和选区都是过程项（WMD §6）。两种固定的东西主人不同，所以分开写。
@@ -79,7 +85,7 @@ interface MaterialOrigin {
   - 输入只有 `refs: MaterialRef[]`（一次最多 10 个）。调用方和项目从调用上下文取，不从输入读。
   - 平台先用调用方此刻的授权现读每个引用的出处，读不了的（`forbidden`、`missing`）不记、也不说明是哪一个，所以既不能替别人种记录，也不能借它探测别人的对象。
   - 只记引用，不记正文。被拒、取消、撤权的调用照 AGENTS 的规矩不写。
-- **谁读**：只读动作 `materials.recent@1`（query，`modules/projects` 提供，受众 user、plugin）。按调用方和项目返回最近的 `MaterialRef[]`，新的在前，最多 20 份，面板取前 5 份。出处照第 2 节现读。
+- **谁读**：只读动作 `materials.recent@1`（query，`modules/projects` 提供，受众 user、plugin）。按调用方和项目返回 `{ items: RecentMaterial[] }`，新的在前，最多 20 份，面板取前 5 份。`ref` 是记下的引用，`origin` 是这次读的时候照第 2 节现读的出处，不存。
   - **给 user**：读不到的项照样返回，由出处的 `state` 说明（「没有权限查看」「已删除」「找不到位置」），让本人知道那份资料还在不在。
   - **给 plugin**：只返回调用方此刻读得了的项；`forbidden`、`missing` 的项连 `subject` 都不给，也不给件数。插件拿到别的插件对象或本机文件的 `subject`，本身就是泄露（和第 6 节 `excluded` 同一条理由）。
 - **生命周期**：

@@ -12,12 +12,15 @@ export interface ModelStandIn {
   readonly origin: string;
   /** Foreground requests, excluding the Home's registered ending review and knowledge organization. */
   readonly requests: { model: string; offeredKey: string }[];
+  /** From now on the accepted key is refused too, the way a key that expired or was revoked at the provider is. */
+  revoke(): void;
   close(): Promise<void>;
 }
 
 /** `throttledKey`: a key the stand-in answers with 429, the way a throttled or out-of-credit account is answered. */
 export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK", options: { throttledKey?: string } = {}): Promise<ModelStandIn> {
   const requests: ModelStandIn["requests"] = [];
+  let revoked = false;
   const server: Server = createServer(async (request, response) => {
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
@@ -33,7 +36,7 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK",
       response.end(JSON.stringify({ error: { message: "rate limited" } }));
       return;
     }
-    if (offeredKey !== acceptedKey) {
+    if (revoked || offeredKey !== acceptedKey) {
       response.writeHead(401, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: { message: "invalid api key" } }));
       return;
@@ -56,6 +59,7 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK",
   const origin = `http://127.0.0.1:${address.port}`;
   return {
     origin, baseUrl: `${origin}/v1`, requests,
+    revoke: () => { revoked = true; },
     close: () => new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); }),
   };
 }

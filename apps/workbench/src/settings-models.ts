@@ -62,6 +62,8 @@ export interface ModelSettingsModel {
   readonly selected_connection_ids?: Readonly<Record<string, string>>;
   /** Where to get a key for the provider shown (a Chinese key the page translates), from the Host's template catalog. */
   readonly key_hint?: string;
+  /** Whether that provider's address is the one its template fills in; a custom or proxy address is not said to be the template's. */
+  readonly address_from_template?: boolean;
   readonly primitives: ModelSettingsPrimitives;
 }
 
@@ -182,7 +184,8 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
   const askAddress = draft && template?.fills_base_url !== true, askFormat = draft && template === null;
   const advanced = [
     `<div class="model-field"><label for="model-provider-name">${p.L("名称")}</label><input class="mw-input" id="model-provider-name" data-model-name value="${p.escape(provider.display_name)}" maxlength="120"></div>`,
-    askAddress ? "" : renderAddressField(provider, p, p.L("模板已经填好；只有用代理或自己部署的服务才改。")),
+    askAddress ? "" : renderAddressField(provider, p, model.address_from_template === true
+      ? p.L("模板已经填好；只有用代理或自己部署的服务才改。") : p.L("这个服务的接口地址；换代理或自己部署的服务时改这里。")),
     askFormat ? "" : renderFormatField(provider, p),
     renderPromptCacheField(provider, p),
     renderThinkingField(provider, p),

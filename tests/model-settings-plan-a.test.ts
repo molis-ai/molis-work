@@ -94,6 +94,12 @@ test("ASC-61 a saved provider reads as four plain rows: its key, whether it answ
   assert.match(limited, /data-mw-state="retrying"[\s\S]*?请求太多或额度用完 · 11-06 10:08 · 11-06 10:09 后再查/, "a 429 says both causes and when it checks again");
   assert.match(advanced(limited), /model_provider\.rate_limited/, "the raw check is in 高级's diagnostics, not in the rows");
   assert.doesNotMatch(before(limited), /model_provider\./);
+
+  // 高级 says the template filled the address only when it did; a proxy or custom address is told what the field is for.
+  const inAdvanced = (fromTemplate: boolean) => advanced(render({ providers: [provider()], health: [providerHealth(provider(), true)], selected_provider_id: "alpha-1", address_from_template: fromTemplate }));
+  assert.match(inAdvanced(true), /模板已经填好；只有用代理或自己部署的服务才改。/);
+  assert.doesNotMatch(inAdvanced(false), /模板已经填好/);
+  assert.match(inAdvanced(false), /这个服务的接口地址；换代理或自己部署的服务时改这里。/);
 });
 
 test("ASC-62 a save whose check the service refuses is coded, writes nothing, and the page reads the provider's last check", { timeout: 60_000 }, async (t) => {
@@ -133,4 +139,5 @@ test("ASC-62 a save whose check the service refuses is coded, writes nothing, an
   assert.match(html, /连得上 · \d\d-\d\d \d\d:\d\d 检查/, "with the check the save just ran, and when");
   assert.match(html, /在你用的服务的控制台里找 API 密钥|data-model-connection/, "the key field says where to get a key, or offers the saved one");
   assert.equal(html.includes(good), false, "the key is nowhere in the page");
+  assert.doesNotMatch(html, /模板已经填好/, "the stand-in's address is no template's, so the page does not say a template filled it");
 });

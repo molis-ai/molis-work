@@ -72,7 +72,7 @@ export const IMAGES_MESSAGES = {
   "images.compose.project": { zh: "请先选择一个项目，再生成图片。", en: "Select a project before generating an image." },
   "images.service.title": { zh: "管理生图服务", en: "Manage image services" },
   "images.service.close": { zh: "关闭", en: "Close" },
-  "images.service.help": { zh: "服务配置在这台电脑共享。兼容接入需要厂商支持下列协议。", en: "Connections are shared on this computer. Custom services must support one of these API formats." },
+  "images.service.help": { zh: "服务配置在这台电脑共享。自定义服务要支持「高级」里两种接口协议中的一种。", en: "Connections are shared on this computer. A custom service must support one of the two API formats under Advanced." },
   "images.service.saved-list": { zh: "已保存的服务", en: "Saved services" },
   "images.service.pick": { zh: "选服务", en: "Choose a service" },
   "images.service.offer": { zh: "用 {model} 生成，可选尺寸：{sizes}", en: "Generates with {model}; sizes: {sizes}" },

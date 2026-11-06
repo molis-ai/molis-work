@@ -84,9 +84,20 @@ export const MODEL_PROVIDER_TEMPLATES: readonly ModelProviderTemplate[] = [
  * the address a saved provider has. A provider at an address no template has is told to look in its own service's console.
  */
 export function modelKeyHint(baseUrl: string, templateId?: string | null): string {
-  const address = baseUrl.trim().replace(/\/+$/u, "");
-  const template = modelProviderTemplate(templateId) ?? MODEL_PROVIDER_TEMPLATES.find((one) => one.base_url !== "" && one.base_url === address);
-  return template?.key_hint ?? ANY_CONSOLE;
+  return templateAt(baseUrl, templateId)?.key_hint ?? ANY_CONSOLE;
+}
+
+/** Whether the address is the one a template fills in, so the page may say the template filled it (and not of a custom one). */
+export function modelAddressFromTemplate(baseUrl: string, templateId?: string | null): boolean {
+  const template = templateAt(baseUrl, templateId);
+  return template !== undefined && template.base_url !== "" && template.base_url === addressOf(baseUrl);
+}
+
+const addressOf = (baseUrl: string): string => baseUrl.trim().replace(/\/+$/u, "");
+
+function templateAt(baseUrl: string, templateId?: string | null): ModelProviderTemplate | undefined {
+  const address = addressOf(baseUrl);
+  return modelProviderTemplate(templateId) ?? MODEL_PROVIDER_TEMPLATES.find((one) => one.base_url !== "" && one.base_url === address);
 }
 
 /** The template an address names, or null for anything else (an unknown id opens the blank form). */

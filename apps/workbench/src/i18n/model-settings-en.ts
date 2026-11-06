@@ -12,6 +12,7 @@ export const MODEL_SETTINGS_EN: Record<string, string> = {
   "回应不像这个接口格式": "The answer doesn’t match this API format",
   "检查没有完成": "The check didn’t finish",
   "模板已经填好；只有用代理或自己部署的服务才改。": "Filled in by the template; change it only for a proxy or your own deployment.",
+  "这个服务的接口地址；换代理或自己部署的服务时改这里。": "This service’s API address; change it here when you switch to a proxy or your own deployment.",
   "在这个服务的文档里找 Base URL，填到域名或版本号为止。": "Find the Base URL in the service’s documentation; stop at the domain or the version.",
   "高级 · 名称、地址、接口格式、提示缓存、思考": "Advanced · name, address, API format, prompt cache, thinking",
   "{name} 那边请求太多或额度用完": "{name} says too many requests, or out of credit",
@@ -66,5 +67,7 @@ export const MODEL_SETTINGS_EN: Record<string, string> = {
   "还没保存，填的还在。": "Not saved yet; what you typed is still here.",
   "{name} 拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。": "{name} refused the new key. The current key keeps working; the new one isn’t saved and stays filled in.",
   "{name} 拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。": "{name} refused this key; it may have expired or been copied short. Nothing was saved; try another.",
+  "{name} 拒绝了现在用的这把密钥，可能过期或被撤销了。没有保存；换一把新密钥再试。": "{name} refused the key it uses now; it may have expired or been revoked. Nothing was saved; try a new key.",
+  "没有保存。": "Nothing was saved.",
   "这是服务那边的原因，不是你填错了。约 {minutes} 分钟后（{time}）自动再查一次。": "This is on the service’s side, not something you typed wrong. It checks again by itself in about {minutes} {minutes|minute|minutes} ({time}).",
 };

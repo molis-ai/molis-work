@@ -81,18 +81,25 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/mod
         const unsaved = kept ? L('没有保存，原来的照常在用。') : L('还没保存，填的还在。');
         if (error?.code === 'model_provider.key_rejected') {
           progress(0, 'failed');
+          // A saved provider is replacing its key only when a new one was typed or another connection chosen; otherwise the key
+          // refused is the one it uses now, and "the old one keeps working" would be untrue.
+          const select = find('[data-model-connection]'), typed = find('[data-model-key-field]:not([hidden]) [data-model-api-key]')?.value.trim();
+          const replacing = !kept || Boolean(typed) || Boolean(select && select.value !== (select.querySelector('option[selected]') ?? select.options[0])?.value);
           const control = keyControl(), note = document.createElement('p');
           note.className = 'mw-field__error'; note.setAttribute('role', 'alert'); note.dataset.modelKeyError = '';
-          note.textContent = kept ? L('{name} 拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。', { name }) : L('{name} 拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。', { name });
+          note.textContent = !kept ? L('{name} 拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。', { name })
+            : replacing ? L('{name} 拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。', { name })
+            : L('{name} 拒绝了现在用的这把密钥，可能过期或被撤销了。没有保存；换一把新密钥再试。', { name });
           control?.setAttribute('aria-invalid', 'true'); control?.closest('.model-field')?.append(note);
           setTimeout(() => control?.focus()); // after the form is unlocked
-          return status(unsaved, true);
+          return status(replacing ? unsaved : L('没有保存。'), true);
         }
         if (error?.code === 'model_provider.rate_limited') {
           progress(1, 'hold');
           const box = find('[data-model-limited]'), seen = edits, wait = 60000;
           const time = new Date(Date.now() + wait).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' });
-          box.querySelector('p').textContent = L('这是服务那边的原因，不是你填错了。约 {minutes} 分钟后（{time}）自动再查一次。', { minutes: 1, time }) + (/^en/i.test(document.documentElement.lang) ? ' ' : '') + unsaved;
+          // What was kept is said once, on the status line.
+          box.querySelector('p').textContent = L('这是服务那边的原因，不是你填错了。约 {minutes} 分钟后（{time}）自动再查一次。', { minutes: 1, time });
           box.hidden = false;
           recheck = setTimeout(() => { if (root.isConnected && !box.hidden && edits === seen) find('[data-model-recheck]')?.click(); }, wait);
           return status(unsaved, true);

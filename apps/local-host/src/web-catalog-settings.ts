@@ -12,7 +12,7 @@ import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { modelTemplatePageData } from "./model-provider-setup.js";
 import { withModelChecks } from "./model-provider-checks.js";
-import { modelKeyHint } from "./model-provider-templates.js";
+import { modelAddressFromTemplate, modelKeyHint } from "./model-provider-templates.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
@@ -75,7 +75,10 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
       providers, health: withModelChecks(serverOptions.homeDirectory, providers, catalog.models.health()), connections: modelConnections,
       selected_connection_ids: Object.fromEntries(providers.map((provider) => [provider.provider_id, refs.get(provider.credential_ref) ?? ""])),
       selected_provider_id: selected,
-      ...(shown ? { key_hint: modelKeyHint(shown.base_url, templates.draft_template_id) } : {}),
+      ...(shown ? {
+        key_hint: modelKeyHint(shown.base_url, templates.draft_template_id),
+        address_from_template: modelAddressFromTemplate(shown.base_url, templates.draft_template_id),
+      } : {}),
       ...templates,
     };
   }) : undefined;

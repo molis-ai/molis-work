@@ -14,7 +14,7 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 const good = "stand-in-good-key-0123456789", wrong = "stand-in-wrong-key-0123456789", throttled = "stand-in-throttled-key-0123456789";
 
-test("ASC-62 the first key: refused under its field, rate limited with when it checks again, then four plain rows", { timeout: 120_000 }, async (t) => {
+test("ASC-62 the first key: refused under its field, rate limited with when it checks again, then four plain rows; a saved key refused says which key", { timeout: 120_000 }, async (t) => {
   const standIn = await startModelStandIn(good, "MOLIS_OK", { throttledKey: throttled });
   t.after(() => standIn.close());
   const browser = await openGoalBrowser(t, "seeded");
@@ -64,6 +64,7 @@ test("ASC-62 the first key: refused under its field, rate limited with when it c
   assert.match(limited.title, /请求太多或额度用完/);
   assert.match(limited.body, /服务那边的原因[\s\S]*约 1 分钟后（[^）]+）自动再查一次/);
   assert.equal(limited.step, "hold");
+  assert.equal(/还没保存/.test(limited.body), false, "what was kept is said once, on the status line");
   assert.deepEqual(await providers(), []);
   await scheme("dark"); await shot("3-rate-limited-1440-dark-zh"); await scheme("light");
 
@@ -85,6 +86,17 @@ test("ASC-62 the first key: refused under its field, rate limited with when it c
     assert.equal(page.overflow, false, `no horizontal scrolling at ${width}`);
     assert.deepEqual(page.cut, [], `every fact is read whole at ${width} (${lang}): a narrow card stacks its rows instead of cutting the value`);
     assert.equal(page.leaked, false, "the key is nowhere in the page");
+    // A model's row does not wrap its status: the ID, test, delete and switch share the first line (one centre line, so one top
+    // edge for controls of one height); the two secondary settings take the second line in a column this narrow.
+    const row = await evaluate<{ first: number[]; tops: number[]; firstBottom: number; flagsTop: number }>(`(() => {
+      const row = document.querySelector('[data-model-row]'), box = (node) => node.getBoundingClientRect();
+      const first = [row.querySelector('[data-model-id]'), row.querySelector('[data-model-test]'), row.querySelector('[data-model-remove]'), row.querySelector('[data-model-enabled]').closest('.mw-switch')].map(box);
+      return { first: first.map((b) => Math.round(b.top + b.height / 2)), tops: first.slice(0, 3).map((b) => Math.round(b.top)),
+        firstBottom: Math.max(...first.map((b) => b.bottom)), flagsTop: Math.min(...[...row.querySelectorAll('.model-row-flag')].map((n) => box(n).top)) };
+    })()`);
+    assert.ok(Math.max(...row.first) - Math.min(...row.first) <= 2, `the model row's first line stays one line at ${width} (${lang}): ${row.first}`);
+    assert.ok(Math.max(...row.tops) - Math.min(...row.tops) <= 2, `ID, test and delete share their top edge at ${width} (${lang}): ${row.tops}`);
+    assert.ok(row.flagsTop >= row.firstBottom - 1, `the secondary settings sit under the first line at ${width} (${lang})`);
     await shot(`4-saved-${width}-${mode}-${lang}`);
   }
   await size(1440); await scheme("light"); await open(`?provider=${encodeURIComponent(id)}`);
@@ -92,5 +104,38 @@ test("ASC-62 the first key: refused under its field, rate limited with when it c
   await evaluate("document.querySelector('.model-advanced').scrollIntoView({ block: 'start' })");
   await shot("5-advanced-open-1440-light-zh");
   assert.match(await evaluate<string>("document.querySelector('.model-diagnostics').textContent"), /connected/, "the raw check is in 高级");
+
+  // Replacing the saved key with a wrong one: said under the new key, the key in use keeps working, nothing changes.
+  const saved = JSON.stringify(await providers());
+  const said = () => evaluate<{ field: string; status: string; reach: string }>(`({ field: document.querySelector('[data-model-key-error]')?.textContent || '',
+    status: document.querySelector('[data-model-status]').textContent, reach: document.querySelectorAll('.model-facts .settings-setting-row')[1].textContent })`);
+  await open(`?provider=${encodeURIComponent(id)}`);
+  await evaluate(`(() => { const select = document.querySelector('[data-model-connection]'); select.value = '';
+    for (const type of ['input', 'change']) select.dispatchEvent(new Event(type, { bubbles: true })); })()`);
+  await setValue("[data-model-api-key]", wrong);
+  await click("[data-model-save]");
+  await waitFor("document.querySelector('[data-model-key-error]')", 20_000);
+  const replacing = await said();
+  assert.match(replacing.field, /拒绝了新密钥。旧密钥照常在用/);
+  assert.equal(await evaluate("document.querySelector('[data-model-key-field]').contains(document.querySelector('[data-model-key-error]'))"), true, "said under the new key");
+  assert.match(replacing.status, /没有保存，原来的照常在用/);
+  assert.match(replacing.reach, /连得上/, "the four rows still say the key in use is reachable");
+  assert.equal(JSON.stringify(await providers()), saved, "nothing saved");
+
+  // The key in use is refused (revoked at the provider) while only the model list changed: that key is the one refused, so the
+  // page does not say "the old key keeps working".
+  standIn.revoke();
+  await open(`?provider=${encodeURIComponent(id)}`);
+  await click("[data-model-add]");
+  await evaluate(`(() => { const field = [...document.querySelectorAll('[data-model-rows] [data-model-id]')].at(-1);
+    field.value = 'deepseek-other'; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await click("[data-model-save]");
+  await waitFor("document.querySelector('[data-model-key-error]')", 20_000);
+  const current = await said();
+  assert.match(current.field, /拒绝了现在用的这把密钥/);
+  assert.equal(/旧密钥照常在用|原来的照常在用/.test(current.field + current.status), false, "no old key is said to keep working: it is the one refused");
+  assert.equal(current.status.trim(), "没有保存。");
+  assert.equal(JSON.stringify(await providers()), saved, "nothing saved");
+  await shot("7-current-key-refused-1440-light-zh");
   await open(`?new=1&template=deepseek`, "en"); await size(390); await shot("6-draft-390-light-en");
 });

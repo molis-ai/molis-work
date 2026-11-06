@@ -210,8 +210,7 @@ test("SRB-07 no tool list is written by hand outside the register", () => {
     .map(path => relative(ROOT, path)).filter(file => file !== REGISTER_FILE)
     .flatMap(file => handWrittenLists(file, readFileSync(join(ROOT, file), "utf8"), ids));
   // SHELF_ENGINES is what BL-955 left: its keys are stored in Shelf's settings and name headless engines, not product entries, and only
-  // some of them match a registered id. Exactly this one hit is allowed; when it goes, this line goes with it.
-  const shelf = found.filter(hit => hit.startsWith("modules/shelf/src/runtimes.ts:"));
-  assert.equal(shelf.length, 1, `SHELF_ENGINES is the one allowed list here: ${shelf.join("; ")}`);
-  assert.deepEqual(found.filter(hit => !shelf.includes(hit)), []);
+  // some of them match a registered id. This hit, with these members, is the only one allowed: a new engine with a registered name
+  // changes this line on purpose, and when the list goes, this line goes with it.
+  assert.deepEqual(found.map(hit => hit.replace(/:\d+ /u, " ")), ["modules/shelf/src/runtimes.ts array of opencode, cursor, codex, codebuddy"], found.join("\n"));
 });

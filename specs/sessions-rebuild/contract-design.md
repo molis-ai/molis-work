@@ -257,7 +257,7 @@ export const externalTool = <Id extends ExternalToolId>(id: Id): Extract<(typeof
 
 `character-import-runtimes.ts` 的扫描函数表和 `runtime-config-adapters.ts` 的适配是行为，不是名单，留在宿主，用 `Record<CharacterImportRuntimeId, …>` 这类派生类型钉住，缺一家就编译不过。
 
-**第十二处，这次不收：** `modules/shelf/src/runtimes.ts` 的 `SHELF_ENGINES`（9 家）。它的键是 `grok`、`claude` 这样的另一套值，已存进 Shelf 的设置；说的是「能跑无头任务的引擎」，命令名也和这里不同（Cursor 只认 `cursor-agent`）。硬收要么改存量键，要么在登记表再加一套键，都超出 C-1。留作 BL-955 的余项。第 4.5 节的扫描拦得到它（`opencode`、`cursor`、`codex` 碰巧和登记 id 同名），测试里只点名放行这一处，写明理由；收掉时这条放行一起删。
+**第十二处，这次不收：** `modules/shelf/src/runtimes.ts` 的 `SHELF_ENGINES`（9 家）。它的键是 `grok`、`claude` 这样的另一套值，已存进 Shelf 的设置；说的是「能跑无头任务的引擎」，命令名也和这里不同（Cursor 只认 `cursor-agent`）。硬收要么改存量键，要么在登记表再加一套键，都超出 C-1。留作 BL-955 的余项。第 4.5 节的扫描拦得到它（`opencode`、`cursor`、`codex`、`codebuddy` 这四个键和登记 id 同名），测试按这四个成员的字面量放行这一处，写明理由：Shelf 再加同名的引擎，要在测试里有意改这一行；收掉时这条放行一起删。
 
 **页面资源。** 登记表 50 行，浏览器不许 import 它。插件里 `RUNTIME_DISPLAY_NAMES` 的值只有 `plugins/native/goals/src/event-acknowledgement-body.ts` 在用，写手要跑 `pnpm page-assets:check` 确认这个文件不进页面包；进了就改由宿主给名字，不放宽预算。
 

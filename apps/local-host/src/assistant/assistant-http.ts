@@ -7,7 +7,7 @@ import { assistantThreadActions, assistantThreadRegistration } from "./assistant
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -23,7 +23,7 @@ import { AssistantService, type AssistantServicePorts } from "./assistant-servic
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { PersonActions } from "./assistant-executor.js";
-import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
+import { ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE, AssistantStore } from "./assistant-store.js";
 import { freezeProjectCharacter } from "../characters-host.js";
 import { assistantCharacterChoices } from "./assistant-characters.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -78,7 +78,7 @@ export function closeAssistantService(host: MolisWorkLocalHost): void {
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
-  const store = new AssistantStore(openHomeSqliteDatabase(ports.homeDirectory, ASSISTANT_STORE_NAME));
+  const store = new AssistantStore(openBaselineHomeSqlite(ports.homeDirectory, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
   // The person's grants in a project (or the Home), shared by the calls one list or one round makes in quick succession:
   // working them out inspects every capability, so a list of works re-did it several times per work. Each call is still
   // checked against its current definition, availability and grant owner when it is dispatched.

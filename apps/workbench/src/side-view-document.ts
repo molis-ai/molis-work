@@ -1,7 +1,8 @@
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { COPY_FEEDBACK_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { sideEntries } from "./plugin-catalog.js";

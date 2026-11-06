@@ -16,4 +16,6 @@ export type { LingguangActionPorts } from "./actions.js";
 export type { LingguangConversationState } from "./store.js";
 
 export { createLingguangPlugin } from "./plugin.js";
-export type { LingguangStores } from "./store.js";
+export { type LingguangStores } from "./store.js";
+
+export { syncBindings as createLingguangSyncBindings } from "./sync-binding.js";

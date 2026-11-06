@@ -36,6 +36,7 @@ import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService
 import { ownerFilesGiven, type PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
+import { syncActivation, copyActivation } from "./sync-activation.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
@@ -123,7 +124,7 @@ export class HomePluginExecutor implements PluginExecutor {
         partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
       }
       else if (library) {
-        const open = () => openPluginDatabase(this.options.home, library.declaration, authorize, context);
+        const open = () => openPluginDatabase(this.options.home, library.declaration, authorize, context, undefined, manifest);
         database = library.installed ? openInstalledPluginLibrary(this.options.home, library.installed, library.declaration, home.stores, open) : open();
       }
       // A sandboxed package is installed, not on the start list: its files are its installation's folder of the Home (S-64), the same client over the same port.
@@ -156,8 +157,8 @@ export class HomePluginExecutor implements PluginExecutor {
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor({ home: this.options.home, manifest, context: authorized, ownerFiles: ownerFiles?.client, assertActive });
-      const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}),
+      const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, sync: syncActivation(this.options.home, manifest, authorized, assertActive), copy: copyActivation(this.options.home, manifest, authorized, assertActive), services: Object.freeze({
+        ui: ui.client, ...(database?.sync ? {sync: database.sync} : {}), interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

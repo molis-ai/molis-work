@@ -1,3 +1,4 @@
+import { completeRestoreSpace, journalStorageSpace, snapshotSpaceDigest } from "./home-restore-space.js";
 import { lstatSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -38,7 +39,11 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
   options.signal?.throwIfAborted();
   const owner = acquireStorageOwner(root);
   try {
-    const lease = () => assertStorageOwner(root, owner);
+    const scope = snapshotSpaceDigest(home);
+    const lease = () => {
+      assertStorageOwner(root, owner);
+      if (snapshotSpaceDigest(home) !== scope) throw homeRestoreErrors.changed("恢复期间原 Home 的空间归属已变化");
+    };
     const control: HomeRestoreControl = { signal: options.signal, assertCurrent() { options.signal?.throwIfAborted(); lease(); } };
     const archive = readHomeRestoreArchive(home, options.source), stores = collectRestoreStoreInputs(home, archive);
     const inspected = await inspectRestoreArchiveContents(home, archive, stores, options.inspectCatalog, control);
@@ -70,9 +75,11 @@ export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): P
   options.signal?.throwIfAborted();
   const owner = acquireStorageOwnerForRecovery(root);
   try {
-    const control: HomeRestoreControl = { signal: options.signal, assertCurrent() { options.signal?.throwIfAborted(); assertStorageOwner(root, owner); } };
     const pending = readHomeRestoreJournal(home);
     if (!pending) return { status: "no_recovery", home_directory: home };
+    const control: HomeRestoreControl = { signal: options.signal, assertCurrent() {
+      options.signal?.throwIfAborted(); assertStorageOwner(root, owner); journalStorageSpace(pending.journal);
+    } };
     const { journal, registry } = pending, writer = homeRestoreJournalWriter(journal, true);
     if (journal.phase === "committed") {
       try {
@@ -83,7 +90,7 @@ export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): P
         if (error === options.signal?.reason) throw error;
         throw homeRestoreErrors.changed(`已提交恢复的内容、owner 资格或原依赖已变化；保留阻断与原件 ${journal.originals_directory}`);
       }
-      try { writer.clear(); }
+      try { completeRestoreSpace(journal); writer.clear(); }
       catch { throw homeRestoreErrors.published_unconfirmed(`恢复已提交，解除阻断未确认；保留 ${journal.originals_directory} 并重试 home restore --recover`); }
       return { status: "finished", home_directory: home, originals_directory: journal.originals_directory };
     }

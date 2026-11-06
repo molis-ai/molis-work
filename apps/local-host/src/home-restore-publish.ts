@@ -1,3 +1,4 @@
+import { completeRestoreSpace } from "./home-restore-space.js";
 import { mkdirSync, readdirSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { HomeRestoreControl, HomeRestoreInputs, HomeRestoreResult } from "./home-restore-contract.js";
@@ -115,6 +116,7 @@ export async function publishHomeRestore(home: string, inputs: HomeRestoreInputs
     assertPublishedTree(journal, inputs, written, created); flushRestoreDirectories(journal); control.assertCurrent();
     await verifyPublished(journal); control.assertCurrent();
     writer.write("committed");
+    completeRestoreSpace(journal);
     writer.clear();
     return { status: "restored", home_directory: home, originals_directory: journal.originals_directory };
   } catch (error) {

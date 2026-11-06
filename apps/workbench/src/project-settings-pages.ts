@@ -8,7 +8,7 @@ import type { StagePageModel, StagePageDrawing, WorkbenchDocumentRenderRequest }
 import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./project-settings-folds.js";
 import { PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
 import { pluginSettingsClients } from "./plugin-workbench.js";
-import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./scripts/project-settings.js";
 import { WRITE_CHECKERS_CLIENT_SCRIPT } from "./scripts/write-checkers-client.js";
 import { renderWriteCheckersSection } from "./write-checkers-section.js";

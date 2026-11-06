@@ -34,8 +34,11 @@ test("different server databases keep independent cookies; IM SSE checks members
     const response=await fetch(a.origin+`/im/api/rooms/${room.id}/events`,{headers:{cookie:one.cookie}});
     assert.equal(response.status,200);const reader=response.body!.getReader();const first=await reader.read();
     assert.match(new TextDecoder().decode(first.value),/event: ready/);
-    const second=await fetch(a.origin+`/im/api/rooms/${room.id}/events?after=0`,{headers:{cookie:one.cookie}});
-    const secondReader=second.body!.getReader();assert.match(new TextDecoder().decode((await secondReader.read()).value),/event: change/);
+    const second=await fetch(a.origin+`/im/api/rooms/${room.id}/events?after=0`,{headers:{cookie:one.cookie},signal:AbortSignal.timeout(5000)});
+    // SSE events may be in separate HTTP chunks; replay must arrive, but not necessarily with `ready`.
+    const secondReader=second.body!.getReader(),decoder=new TextDecoder();let replay='';
+    while(!replay.includes('event: change')){const chunk=await secondReader.read();assert.equal(chunk.done,false,'stream closed before replay');replay+=decoder.decode(chunk.value,{stream:true});assert.ok(replay.length<65536,'bounded SSE replay');}
+    assert.match(replay,/event: change/);
     await a.close();await reader.cancel().catch(()=>{});await secondReader.cancel().catch(()=>{});
     const suffix=(a.storage.db.prepare('SELECT cookie_suffix FROM mw_server_identity').get() as {cookie_suffix:string}).cookie_suffix;
     a.storage.close();const reopened=openServerDatabase(join(directory,'a'));

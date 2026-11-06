@@ -24,6 +24,20 @@
 
 派生数据只是可重建的缓存，从不被当作业务事实读取或写回；业务事实的读取总是回到 owner 的动作。
 
+### 1.2 空间归属（2026-09-30）
+
+归属和同步状态分开：`StorageSpace` 用 `spaceId` 标识空间，用 `kind: local | personal | team` 区分类型，不把 `-1/0` 混进项目或团队 ID。
+
+- 根 Home 的 `storage-space.json` 首次建立本地归属，旧数据原地保留。登录不会重标记、迁移或上传旧数据。
+- 个人空间 ID 从 Auth issuer、applicationId 和稳定 userId 派生；名称、邮箱与本机路径不参与。个人 Home 位于 `{root}/spaces/{spaceId}`；同账号重新登录复用，不同账号不共享库、附件、密钥、索引或 Host 缓存。
+- 项目目录、托管项目库及 `openHomeSqliteDatabase` 打开的插件库保存唯一 `molis_storage_space` 行；冲突即拒绝打开，不覆盖归属。资产及版本通过所属 Store/项目继承空间，而非为每张业务表复制一个可修改的字段。其他文件/私有 Store 通过所属 Home 继承，不是所有 SQLite 文件都新增这张表。
+- `ProjectRecord.spaceId` 由 Host 注入项目模块。独立交换引用使用 `SpaceAssetRef {spaceId, owner, assetId, projectId?}`；仅凭 assetId 或 projectId 不足以跨空间寻址。
+- Web `/api/spaces` 返回当前空间和可选择空间；账号菜单显式选择本地/个人空间。服务端只从已验证会话确定个人归属，不接受前端 userId 指定 owner。团队类型仅预留，目前拒绝启用。
+- 切换账号/空间会断开旧页面连接，停止不再被有效会话使用的个人 Host；同一 Home 关闭完成后才能重新打开。内部 MCP 网关必须持有对应 Home 的控制令牌，且个人空间已在有效登录会话中打开。独立 CLI/MCP 默认仍使用其配置的 Home，不跟随任意浏览器切换；终端启动时由 Host 固定 `MOLIS_WORK_HOME`。
+- 这是本机产品的数据归属与访问路由，不是对同一操作系统用户的文件访问沙箱。显式关联的外部工作目录仍是用户自己的磁盘文件，不会被复制到个人 Home。
+
+本阶段不实现 Outbox、上传/下拉、跨设备协同、团队授权或跨空间搬迁；`syncEnabled` 仍为 `false`。验证：`tests/space-ownership.test.ts`、`tests/personal-http.test.ts`、`tests/personal-menu.e2e.test.ts`。
+
 ## 2. Exchange
 
 `packages/exchange` 目前不存在（`absent`），下面是目标设计：它提供 Envelope、路由、顺序、CAS、ACK、Cursor、Replay、Blob、Quota、Retention 与审计，Server 只理解官方 Envelope 外壳和平台控制字段，不解释 Plugin payload。

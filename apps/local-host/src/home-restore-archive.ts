@@ -4,6 +4,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { readSnapshotFile, snapshotFileDigest, snapshotFileStat } from "@molis-ai/molis-work-storage";
 import type { HomeSnapshotManifest } from "./home-snapshot-contract.js";
 import { snapshotDirectoryInfo } from "./home-snapshot-inventory.js";
+import { snapshotSpaceDigest } from "./home-restore-space.js";
 import { invalidRestore, parseHomeSnapshotManifest } from "./home-restore-input.js";
 
 const contains = (parent: string, child: string) => {
@@ -31,6 +32,7 @@ export function readHomeRestoreArchive(home: string, requested: string): HomeRes
   const root = resolve(requested); snapshotDirectoryInfo(root);
   if (contains(home, root) || contains(root, home)) throw invalidRestore();
   const manifest = parseHomeSnapshotManifest(readRestoreJson(join(root, "manifest.json")), home);
+  if (manifest.space_digest !== snapshotSpaceDigest(home)) throw invalidRestore();
   const files = new Map<string, { readonly size: number; readonly sha256: string }>();
   const directories = new Set<string>();
   const addDirectory = (path: string) => {

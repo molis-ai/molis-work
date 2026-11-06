@@ -1,3 +1,4 @@
+import { pluginSyncDatabaseDeclaration } from './plugin-sync-database.js';
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { InstalledLibraryOwner } from "./installed-plugin-libraries.js";
 import type { PluginPlatformHome } from "./home-side.js";
@@ -30,7 +31,8 @@ export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], h
   assertProjectRowsEntries(entries, scope);
   const taken = new Set<string>();
   for (const { definition, dual_instance } of entries) {
-    const database = definition.manifest.databases?.home;
+    const rawDatabase = definition.manifest.databases?.home;
+    const database = rawDatabase && pluginSyncDatabaseDeclaration(definition.manifest, rawDatabase);
     if (!database) continue;
     const id = definition.manifest.plugin_id;
     if (definition.execution === "sandbox") throw new Error(`沙箱插件 ${id} 不能有 Home 库：库是宿主进程里的服务，沙箱里的代码拿不到`);
@@ -78,7 +80,7 @@ export function homeLibraryFor(definition: PluginDefinition, given: HomePluginDa
   const declared = definition.manifest.databases?.home, id = definition.manifest.plugin_id;
   if (declared === undefined) return undefined;
   // Sandbox definitions use the installed owner even when a start list gives an unrelated native binding.
-  if (given !== undefined && definition.execution !== "sandbox") return { declaration: given };
+  if (given !== undefined && definition.execution !== "sandbox") return { declaration: pluginSyncDatabaseDeclaration(definition.manifest, given) };
   if (declared.project_rows && definition.execution === "sandbox") throw sandboxRefusal(definition);
   if (declared.project_rows) {
     throw pluginErrors.declaration_invalid(`插件 ${id} 声明了 project_rows：启动名单之外的 Home 库还不能由平台按项目删（BL-620）`);
@@ -86,5 +88,5 @@ export function homeLibraryFor(definition: PluginDefinition, given: HomePluginDa
   if (record === null || record.plugin_id !== id) {
     throw pluginErrors.declaration_invalid(`插件 ${id} 声明了 Home 库 ${declared.store_name}，但没有它的安装记录：库的发布者取自安装记录`);
   }
-  return { declaration: declared, installed: { plugin_id: record.plugin_id, publisher_signature: record.publisher_signature } };
+  return { declaration: pluginSyncDatabaseDeclaration(definition.manifest, declared), installed: { plugin_id: record.plugin_id, publisher_signature: record.publisher_signature } };
 }

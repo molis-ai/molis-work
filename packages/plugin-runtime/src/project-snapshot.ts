@@ -1,7 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginManifestDigest } from "./identity.js";
-import { inspectPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector } from "./project-database.js";
+import { inspectProjectLibrary, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector } from "./project-database.js";
 import { readPluginRuntimeRecords, type PluginRuntimeDatabase } from "./repository.js";
 import { readPluginReleaseManifest } from "./release-artifacts.js";
 
@@ -24,17 +24,26 @@ function installedManifest(connection: PluginRuntimeDatabase, entry: PluginProje
 
 /** All recorded plugin tables use current declarations; unknown tables or executable SQLite objects are refused. */
 export function inspectPluginProjectDatabaseSet(connection: PluginRuntimeDatabase,
-  options: { readonly manifests: readonly PluginManifest[]; readonly platformTables: readonly string[] },
+  options: { readonly manifests: readonly PluginManifest[]; readonly platformTables: readonly string[];
+    readonly platformTriggers?: ReadonlyMap<string, string>;
+    readonly platformExtension?: (manifest: PluginManifest) => { readonly platformSchema?: string; readonly platformPrelude?: string } },
   inspector: PluginProjectSchemaInspector, path: string): readonly PluginProjectDatabaseRecord[] {
   const records = listPluginProjectDatabases(connection), declared = new Map(options.manifests.map(manifest => [manifest.plugin_id, manifest]));
   const allowed = new Set(options.platformTables.map(fold));
+  const triggers = new Map(options.platformTriggers);
   for (const entry of records) {
     const manifest = declared.get(entry.plugin_id) ?? installedManifest(connection, entry), declaration = manifest.databases?.project;
     if (!declaration) throw pluginProjectDatabaseErrors.shape_mismatch(`归档插件 ${entry.plugin_id} 的现行 Manifest 没有项目库声明`);
-    inspectPluginProjectDatabase(connection, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector, path);
-    for (const name of entry.objects) allowed.add(fold(name));
+    const { declared: owned } = inspectProjectLibrary(connection, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector, path, options.platformExtension?.(manifest));
+    for (const name of owned.tables) allowed.add(fold(name));
+    for (const [name, sql] of owned.triggers ?? []) triggers.set(name, sql);
+  }
+  for (const [name, sql] of triggers) {
+    const row = connection.prepare("SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?").get(name) as {sql:string} | undefined;
+    if (row?.sql !== sql) throw pluginProjectDatabaseErrors.shape_mismatch("归档项目库的宿主触发器缺失或与现行基线不同");
   }
   for (const object of inspector.objects(connection)) {
+    if (object.type === "trigger" && triggers.has(object.name)) continue;
     if (object.type !== "table" && object.type !== "index" || !allowed.has(fold(object.table))) {
       throw pluginProjectDatabaseErrors.shape_mismatch("归档项目库含未由平台基线或插件现行声明拥有的表、视图或触发器");
     }

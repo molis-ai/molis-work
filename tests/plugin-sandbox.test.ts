@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import childProcesses from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { assertContract, createSandboxRunner, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
+import { createSandboxRunner, assertContract, assertProposalContract, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { currentCallId, newCallId, withCallId } from '@molis-ai/molis-work-kernel';
 
 const identity: SandboxIdentity = { projectId: 'project-a', installationId: 'installation-a', pluginId: 'test', namespace: 'preview' };
@@ -50,6 +50,23 @@ test('T405-FULL-04 unsupported platforms refuse a real sandbox runner before wor
 });
 
 // J6-01/J6-03: actual process isolation remains the refusal boundary.
+test('read-only proposal validation shares strict schema rules but cannot authorize executable contracts', () => {
+  const proposal = contract(); proposal.operations[0]!.examples=[];
+  assert.doesNotThrow(()=>assertProposalContract(proposal));
+  assert.throws(()=>assertContract(proposal),code('sandbox.invalid_contract'));
+  const invalidSchema=structuredClone(proposal);invalidSchema.operations[0]!.input={type:'array'};
+  assert.throws(()=>assertProposalContract(invalidSchema),code('sandbox.invalid_schema'));
+  const invalidBinding=structuredClone(proposal);invalidBinding.pages=[{id:'home',title:'Home',regions:[{id:'body',title:'Body',operationIds:['absent']}]}];
+  assert.throws(()=>assertProposalContract(invalidBinding),code('sandbox.invalid_contract'));
+  const invalidExample=structuredClone(proposal);invalidExample.operations[0]!.examples=[{input:42,output:'text'}];
+  assert.throws(()=>assertProposalContract(invalidExample),code('sandbox.schema_mismatch'));
+});
+
+test('the actual sandbox runner refuses an unproven proposal before reading a bundle', mac, async () => {
+  const proposal=contract();proposal.operations[0]!.examples=[];
+  await assert.rejects(createSandboxRunner({bundlePath:'/does-not-exist/proposal.mjs',contract:proposal,identity,grants:{},services:{}}),code('sandbox.invalid_contract'));
+});
+
 test('real Seatbelt process has empty environment and cannot read/write host files or execute children', mac, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'sandbox-protected-'));
   const secretPath = join(directory, 'secret.txt'); await writeFile(secretPath, 'must-not-read');

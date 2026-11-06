@@ -55,7 +55,7 @@ export async function writeLongChinese(evaluate: Evaluate, projectId: string): P
     return undefined;
   };
   const plugin = (id: string, path: string) => `/projects/${projectId}/api/plugins/io.molis.work.${id}${path}`;
-  await api(`/api/settings/projects/${projectId}/rename`, { display_name: PROJECT });
+  await api(`/api/settings/projects/${projectId}/rename`, { display_name: PROJECT, expected_display_name: "目录交互验证" });
   const opened: Record<string, string | undefined> = { goals: "CN-1" };
   for (const title of TITLES) {
     // Pages, decks and forms take titles up to 80 characters: the longest a person can write there.

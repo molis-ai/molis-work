@@ -35,7 +35,7 @@ export abstract class TodoStoreBase {
 
   history(id: string, access: TodoAccess): TodoChange[] {
     this.get(id, access);
-    const rows = changeRows(this.db.all("SELECT * FROM todo_changes WHERE item_id = ? ORDER BY at DESC, rowid DESC LIMIT 100", [id]));
+    const rows = changeRows(this.db.all("SELECT * FROM todo_changes WHERE item_id = ? ORDER BY revision_after DESC, at DESC, rowid DESC LIMIT 100", [id]));
     return rows.map(changeFromRow);
   }
 

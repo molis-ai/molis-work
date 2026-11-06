@@ -37,7 +37,7 @@ export async function makeClipCurrent(page: ShelfPage, clipId: string): Promise<
 
 export async function copyFiles(page: ShelfPage, picked: readonly Item[]): Promise<void> {
   await flushEdit(page);
-  const files = picked.filter(hasFile);
+  const files = picked.map(item => itemById(page, item.item_id)).filter(hasFile);
   const native = page.host.nativeFiles?.copy(files.map((item) => item.relative_path));
   if (native) {
     await native;

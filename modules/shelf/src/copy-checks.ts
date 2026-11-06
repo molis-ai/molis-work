@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { shelfFolderDigest } from "./file-hash.js";
 import type { ShelfItemRecord, ShelfMaterialPorts } from "./contract.js";
 import type { PluginOwnerFilesReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { readShelfCopy, shelfErrors } from "./errors.js";
@@ -9,17 +10,17 @@ const ORIGINAL_GONE = new Set(["material.original.not_registered", "material.ori
 /** A file hashes its bytes; a folder hashes every path and file under it. */
 export function contentHash(files: PluginOwnerFilesReader, item: Pick<ShelfItemRecord, "kind" | "relative_path">, relative = item.relative_path): string {
   if (item.kind !== "folder") return sha256(readShelfCopy(files, relative));
-  const digest = createHash("sha256");
+  const digests: {relative:string;digest:string}[] = [];
   const walk = (directory: string, prefix: string): void => {
     for (const entry of files.list(directory)) {
       const full = `${directory}/${entry.name}`;
       const nested = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.kind === "directory") walk(full, nested);
-      else digest.update(`${nested}:${sha256(readShelfCopy(files, full))}\n`);
+      else digests.push({relative:nested,digest:sha256(readShelfCopy(files,full))});
     }
   };
   walk(relative, "");
-  return digest.digest("hex");
+  return shelfFolderDigest(digests);
 }
 
 /**

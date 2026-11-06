@@ -178,6 +178,7 @@ export class ProjectWorkspaceService {
   private requiredProjectId(value: string): string {
     const projectId = value.trim();
     if (!projectId) throw catalogErrors.project_not_found("项目 ID 不能为空");
+    if (!this.repository.projects.getProject(projectId)) throw catalogErrors.project_not_found("找不到 Molis Work 项目");
     return projectId;
   }
 

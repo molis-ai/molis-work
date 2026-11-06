@@ -14,7 +14,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import type { AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { ensureStorageSpace, readStorageSpace, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeAgentDefinitions, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pagesManifest, pagesSkills } from "@molis-ai/molis-work-plugin-pages";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -223,11 +223,19 @@ test("RAC-193 PG-051 two installations side by side: one stopping leaves the oth
     } finally { first.store.close(); second.store.close(); }
   }));
 
+/** A recovery fixture is a second image of this logical Home, including the owner of both databases. */
+function copyRestartRegisters(home: string, target: string): void {
+  const space = readStorageSpace(home);
+  assert.ok(space, "the original Home must already have a storage identity");
+  ensureStorageSpace(target, space);
+  for (const store of ["agent-definitions", "agent-declarations"]) cpSync(join(home, store), join(target, store), { recursive: true });
+}
+
 /** The Host starting again on a copy of the Home: what the register shows for the Agent probe then. */
 function promptsAfterRestart(home: string) {
   const restarted = mkdtempSync(join(tmpdir(), "plugin-methods-restart-"));
   try {
-    for (const store of ["agent-definitions", "agent-declarations"]) cpSync(join(home, store), join(restarted, store), { recursive: true });
+    copyRestartRegisters(home, restarted);
     return { prompts: promptsOf(restarted), roles: homeAgentDefinitions(restarted).roles().filter(role => role.owner_id === AGENT_PROBE).map(role => role.role_id) };
   } finally { rmSync(restarted, { recursive: true, force: true }); }
 }
@@ -316,7 +324,7 @@ test("RAC-196 PG-051 Q1 b a stopped installation's declaration comes back as not
     // The Host starting again: a fresh process opens the Home's register from disk (a copy of the Home stands in for it here).
     const restarted = mkdtempSync(join(tmpdir(), "plugin-methods-restart-"));
     try {
-      for (const store of ["agent-definitions", "agent-declarations"]) cpSync(join(home, store), join(restarted, store), { recursive: true });
+      copyRestartRegisters(home, restarted);
       assert.deepEqual(promptsOf(restarted), ["probe-role:disabled"], "shown as not running before it starts");
       assert.deepEqual(homeAgentDefinitions(restarted).roles().filter(role => role.owner_id === AGENT_PROBE).map(role => role.role_id), ["checker"]);
       assert.deepEqual(listed(restarted, AGENT_PROBE), [], "its method is not offered to other Agents");
@@ -335,7 +343,7 @@ test("RAC-196 PG-051 Q1 b a stopped installation's declaration comes back as not
     } finally { upgraded.store.close(); }
     const afterUninstall = mkdtempSync(join(tmpdir(), "plugin-methods-restart-"));
     try {
-      for (const store of ["agent-definitions", "agent-declarations"]) cpSync(join(home, store), join(afterUninstall, store), { recursive: true });
+      copyRestartRegisters(home, afterUninstall);
       assert.deepEqual(promptsOf(afterUninstall), [], "and from the Home");
     } finally { rmSync(afterUninstall, { recursive: true, force: true }); }
   }));

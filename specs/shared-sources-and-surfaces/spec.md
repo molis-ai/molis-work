@@ -163,8 +163,8 @@ interface ProjectDirectories {
 开轮时冻结下来的是（叫 `RunDirectories`，不叫 placement：`platform/placement.ts` 里的 placement 指对象放在哪个项目分区）：
 
 ```ts
-// 类型在 packages/contracts/src/modules/projects.ts（C-1）；
-// 在 services/agent-host.ts 现有的冻结轮次信息上加这个字段，归实现片
+// packages/contracts/src/modules/projects.ts（C-1）
+// 轮次视图和冻结轮次信息里的字段，随实现片加到 services/agent-host.ts
 interface RunDirectories {
   directories_revision: string;  // 开轮时读到的 ProjectDirectories.revision
   output: string;                // workspace_id
@@ -387,7 +387,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；动表的部分不在这一片，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`、`RunDirectories`，第 3 节的五个动作与 `materials.recent@1`、`materials.recent.record@1` 的声明；三个错误码；`assertMaterialRef`；api 快照。**只加不删**：现有动作、字段和端口都不动，不碰 `services/agent-host`。动作只声明、不登记，所以动作快照不变 | 02 交接。`material_recent_uses` 表挪到实现片走 U1 升级段（用户 2026-11-06 定重建不等 C-1）；这一片只声明动作 |
 | C-2 呈现声明合同 | `platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind；`validatePresentationDeclaration`、`presentationText`、`presentationFormFields`、`renderPresentationForm` 的签名；api 快照 | 02 交接；D 轨把状态环取值下沉到 contracts 的 `platform/ui.ts` 之后 |
 | C-3 组合服务合同 | `services/surface-composition.ts`、`SurfaceGroup`、`surfaces.compose@1`、`surfaces.correct@1` 的声明；context-ledger 的关系类型表；`assertSurfaceDescription`；actions 快照 | C-2；第 14 批 A 段的 `TextRef` 合入 |
-| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；`RunDirectories` 加进 `services/agent-host` 的冻结轮次信息；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节） |
+| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；`RunDirectories` 随轮次视图和冻结轮次信息的字段加进 `services/agent-host`；收资料引用的地方都调 `assertMaterialRef`，它比 schema 严（查 `workspace_file` 的 id 落在目录内），只靠 schema 会放过 `ws1:../secret`；宿主的 `PROJECT_WORKSPACE_PROVIDER_ID`（`apps/local-host/src/project-workspace-actions.ts:7`）改成从合同取；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节） |
 
 ## 10. D 轨的答复（2026-11-04 共审）
 

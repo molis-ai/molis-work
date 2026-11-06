@@ -1,6 +1,6 @@
 # 本地 Plugin 开发
 
-同步恢复后，正常只读动作须能返回没有本机执行绑定的已保存内容，不能补造连接或传递密钥来通过校验。Images 的 `images.jobs.list/get/cancel@2` 和 `images.jobs.start@3` 允许终态结果的 `connection_id` 为空，运行中结果与新生成输入仍要求非空连接；生成继续核对本机服务及当前授权。后台状态查询使用 get v2，旧固定版本引用须重新选择。恢复测试应通过公共动作读取记录与原件，不仅检查底层库。
+同步恢复后，正常只读动作须能返回没有本机执行绑定的已保存内容，不能补造连接或传递密钥来通过校验。Images 的 `images.jobs.list/get/cancel@1` 和 `images.jobs.start@1` 允许终态结果的 `connection_id` 为空，运行中结果与新生成输入仍要求非空连接；生成继续核对本机服务及当前授权。后台状态查询使用 get v1；按主线统一起点，调用方须核对现行形状。恢复测试应通过公共动作读取记录与原件，不仅检查底层库。
 
 个人内容的来源设备不是撤销权限边界。Todo 接收时将历史修订与当前项一起映射到目标高水位，保留版本间隙，按修订而非设备时钟排列历史；用户可经正常动作撤销其他设备的最新修改，但后续编辑、重复撤销、旧页面版本及作用域越界仍拒绝。规则不改变库和传输格式，回归见 `tests/todo-replication.test.ts`。
 
@@ -429,7 +429,7 @@ Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件的 MCP 能�
 
 `agent.mcp` 是反过来的：插件里的 Agent 能不能去调外面的 MCP。不要拿它当对外贡献开关。
 
-个人同步的并发分支可能修订数字相同而内容不同。修改已有对象需核对读取内容的版本令牌；Cognia 的 `cognia.material.get@2` 返回 `etag`，`cognia.material.update@2` 必传它并在 owner 事务内验证。网页自动携带，MCP 使用 `cognia.material.get__v2`、`cognia.material.update__v2`；固定 v1 的调用必须更新，不登记旧名别名。旧编辑被拒绝后先重读、再由用户决定，不能自动带新令牌重试旧正文。
+个人同步的并发分支可能修订数字相同而内容不同。修改已有对象需核对读取内容的版本令牌；Cognia 的 `cognia.material.get@1` 返回 `etag`，`cognia.material.update@1` 必传它并在 owner 事务内验证。网页自动携带，MCP 使用 `cognia.material.get__v1`、`cognia.material.update__v1`；固定 v1 的调用须按现行形状补充版本令牌；版本号本身不拒绝旧输入。旧编辑被拒绝后先重读、再由用户决定，不能自动带新令牌重试旧正文。
 
 Shelf 的 `shelf.items.edit@2` 必传读取动作 `shelf.items.read@1` 的完整字节 `content_hash` 作为 `expected_content_hash`，同一同步提交前验证；网页使用同次原文件响应的 ETag。Home 和项目的插件二进制响应由宿主对实际发送的所有字节计算 SHA-256，以双引号包住小写十六进制摘要作为强 ETag，响应头由宿主设置。冲突保留输入和旧前提，不能临保存时重取。原件 `origin_hash` 不代表当前内容。对应 MCP 名 shelf.items.edit__v2，固定 v1 的调用须更新，不保留旧名。
 
@@ -437,7 +437,7 @@ JSON 文件或私有 KV owner 的同步可用 SDK `createSyncDocument`，将业�
 
 用户对比同步冲突后，确认必须携带 `inspectConflict` 的 `revision` 与 `state`。共同 `createSyncConflictState` 绑定远端事件、双方内容和本机编辑世代，owner 在同事务核对；即使云端修订未变，后来本机编辑也拒绝旧确认。Host 不接受缺失 state，不临提交时重取。低层可信 owner 主动协调的可选前提不是用户入口；该指纹不授予权限。
 
-炼金术士的编辑读取为 `alchemist.directions.editing@1`、`alchemist.memory.playbook.editing@1`，返回当前对象及 `etag`；`alchemist.directions.update@2`、`alchemist.memory.playbook.revise@2` 必传该次读取的 `expectedEtag`（方法另带 `expectedVersion`），同一 owner 事务校验。对应修改 MCP 工具升 __v2，不保留旧工具别名，固定旧版本的调用须更新。
+炼金术士的编辑读取为 `alchemist.directions.editing@1`、`alchemist.memory.playbook.editing@1`，返回当前对象及 `etag`；`alchemist.directions.update@1`、`alchemist.memory.playbook.revise@1` 必传该次读取的 `expectedEtag`（方法另带 `expectedVersion`），同一 owner 事务校验。对应修改 MCP 工具为 __v1，调用方须补充上述并发校验字段。
 
 ### 作者要做的
 
@@ -559,9 +559,9 @@ Builder 的公共 `developer/sdk.d.ts` 是可校验的构建输入，不是能�
 
 同步接收不能只凭外层标题创建目标项目。Goal 聚合在创建前完整纯校验各 owner 声明的表/字段、业务关联、Journal/回执及序号锚点；坏内容不留下空项目。共享 Journal 格式检查复用 Storage 的公开 `validateProjectReplicaJournal`；真正应用仍在目标事务核对稳定 ID 归属与外键，纯检查不授予权限。
 
-项目 section 的 `beforeClear` 在目标事务内、删行之前检查同一次读取的本机事实；替换和墓碑都经过，拒绝不留下可复用捕获。Coding 用它保护活动执行，恢复仅合并本机已有 Runtime 绑定，不继承源设备权限。`journalColumns` 只允许本 section 已声明的列，用于避免本机执行缓存更新反复入同步队列。Coding 会话元数据、计划及未发送输入共同占一个项目一致性单元，本机编辑高水位不上传且删除后保留；项目库现行 v16，旧版只拒绝，Runtime 对话以只读历史保存，不恢复执行授权。
+项目 section 的 `beforeClear` 在目标事务内、删行之前检查同一次读取的本机事实；替换和墓碑都经过，拒绝不留下可复用捕获。Coding 用它保护活动执行，恢复仅合并本机已有 Runtime 绑定，不继承源设备权限。`journalColumns` 只允许本 section 已声明的列，用于避免本机执行缓存更新反复入同步队列。Coding 会话元数据、计划及未发送输入共同占一个项目一致性单元，本机编辑高水位不上传且删除后保留；项目库版本以当前 owner 声明为准，不匹配的库只拒绝，Runtime 对话以只读历史保存，不恢复执行授权。
 
-Coding 的未发送文本及待答草稿由 `CodingSessionStore.inputs` 单一 SQL owner 维护。正常 `coding.sessions.read` 返回 `input_revision`；`coding.sessions.update@2` 在写入任一草稿字段时要求原 `expected_input_revision`，缺失或过期返回冲突，不能同时写入请求内其他偏好。页面保留原编辑基线（包括刷新后的窗口缓存），后台新版本不替旧编辑补权；冲突通过标准对比对话框明确采用或按所见版本保存。已接受 Run 只清除启动前捕获的同版本、同正文草稿，不清除后来的输入或待答内容。旧 v1 引用停止解析，不保留别名；该修改动作仍仅本人 LOCAL 使用，不新增 MCP 工具。
+Coding 的未发送文本及待答草稿由 `CodingSessionStore.inputs` 单一 SQL owner 维护。正常 `coding.sessions.read` 返回 `input_revision`；`coding.sessions.update@1` 在写入任一草稿字段时要求原 `expected_input_revision`，缺失或过期返回冲突，不能同时写入请求内其他偏好。页面保留原编辑基线（包括刷新后的窗口缓存），后台新版本不替旧编辑补权；冲突通过标准对比对话框明确采用或按所见版本保存。已接受 Run 只清除启动前捕获的同版本、同正文草稿，不清除后来的输入或待答内容。按主线统一起点使用 v1，既有调用须补充原编辑版本；该修改动作仍仅本人 LOCAL 使用，不新增 MCP 工具。
 
 
 Runtime 插件用 `context.services.materials` 读取材料：Manifest 声明 `materials:read` 才有 `extract({ file_name, bytes }, options)` 与按上传文件批量读文档的 `readDocuments([{ file_name, data_base64 }], options)`（文本、Markdown、HTML、CSV、Word 等文档文件，返回名字、格式、内容、覆盖情况和警告，格式或体积不合格直接以 `material.*` 码拒绝），另声明 `materials:fetch` 才有 `readSource(url, options)`（只许公网地址）。`readSource(url, { allowedDomains })` 可以把整次读取限在最多 20 个精确的小写域名内：首个请求、每次重定向、来源的接口与媒体请求都只许这些主机，别的主机在查找和连接之前就以 `material.source.domain_not_allowed` 拒绝，列表不合格以 `plugin.materials_domains_invalid` 拒绝；不给就是所有公网主机。同在 `materials:read` 下还有 `imageTextAvailable()`，只回答本机能不能识别图片文字。声明 `materials:fetch_local` 才有 `readLocalPage(url)`，读本机 HTTP 页面：地址只是 `127.0.0.1`、`[::1]`、`localhost`，不带账号密码，宿主自己的端口不在内，重定向每一跳再查；没声明或没授权，本机地址仍然读不了。声明 `materials:original` 才有 `claimOriginal(recordKey)`、`readOriginal(recordKey, { maxBytes })`、`releaseOriginal(recordKey)`：用户导入文件时，宿主入口把那个文件的路径交给这一次路由请求，插件在导入的动作里用自己的记录键 `claimOriginal` 把它登记下来（插件拿不到路径，也给不出路径；不是宿主入口交来的导入调用一律 `plugin.materials_original_not_offered`），之后 `readOriginal` 只读这份登记，读之前宿主重新解析真实路径，与登记值不同（文件被换成符号链接、移走、变成目录）就拒，上限 32 MiB，不列目录、不写。登记按插件、安装和记录键存，同一个安装重装后仍在。升级预检没有这项服务；沙箱执行的包经 broker 的 `sdk.materials` 用同一份（操作的 `effects.materials` 写 `read`、`fetch`、`fetch_local`、`original`，`fetch` 读的网页主机还要写进该操作的 `networkDomains` 并由人批准，读取只会到这些主机，PG-017 P2、S-93）；调用必须位于自己安装、声明对应权限的并发动作。上传解析用 SDK `decodeMaterialUpload`（安全文件名、支持格式、规范 Base64、非空且最多 25 MiB），不再复制检查。公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。灵光和 onboarding 已共用提取口，媒体模型下载只有可信 user 调用且 `allowModelDownload: true` 才生效；agent、mcp、workflow、plugin 的 true 被忽略并按缺模型规则拒绝；生成摘要继续走 Prologue。

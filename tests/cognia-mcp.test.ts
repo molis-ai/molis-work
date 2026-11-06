@@ -23,7 +23,7 @@ test("standard Cognia MCP clients share real imports and fixed bytes, isolate Ho
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
   };
-  const tool = (name: string) => molisWorkActionToolName({ capability_id: `cognia.${name}`, version: name === "material.get" || name === "material.update" ? 2 : 1 });
+  const tool = (name: string) => molisWorkActionToolName({ capability_id: `cognia.${name}`, version: 1 });
   const call = async (client: Client, name: string, args: Record<string, unknown> = {}) => {
     const result = await client.callTool({ name: tool(name), arguments: args });
     assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;

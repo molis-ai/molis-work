@@ -36,8 +36,8 @@ test("Coding's business surface is redeemed by the project Runtime, owner-bound,
     assert.deepEqual(read.runs, []);
     const renamed = await client.invoke(owner, find("coding.update-session"), { session_id: created.session.session_id, title: "修复登录超时" }) as { session: { title: string } };
     assert.equal(renamed.session.title, "修复登录超时");
-    const update=find("coding.update-session");assert.equal(update.version,2);
-    await assert.rejects(client.invoke(owner,{...update,version:1},{}),(error:unknown)=>error instanceof ActionError&&error.code==='actions.missing');
+    const update=find("coding.update-session");assert.equal(update.version,1);
+    await assert.rejects(client.invoke(owner,{...update,version:2},{}),(error:unknown)=>error instanceof ActionError&&error.code==='actions.missing');
     for(const premise of [{},{expected_input_revision:1}])await assert.rejects(client.invoke(owner,update,{session_id:created.session.session_id,draft:'stale',...premise}),
       (error:{code?:string})=>error.code==='coding.inputs_changed');
     const saved=await client.invoke(owner,update,{session_id:created.session.session_id,draft:'留存当前输入',expected_input_revision:read.input_revision}) as {input_revision:number};

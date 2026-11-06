@@ -62,7 +62,7 @@ test('S-130 PCSYNC-ALC-ACTOR-02 Studio refuses invalid authors, injected scope, 
 
 test('S-130 PCSYNC-12/15 Studio refuses old schema intact and cannot overwrite a foreground model wait or follow a project symlink',async t=>{
  const root=mkdtempSync(join(tmpdir(),'studio-sync-active-'));t.after(()=>rmSync(root,{recursive:true,force:true}));const f=personalStudio(join(root,'active'));t.after(()=>f.runtime.close());const {direction}=await f.call(a.directionCreate,{description:'保存方向并等待模型'});
- const editing=await f.call(a.directionEditing,{id:direction.id});assert.equal(a.directionUpdate.version,2);assert.equal(a.playbookRevise.version,2);
+ const editing=await f.call(a.directionEditing,{id:direction.id});assert.equal(a.directionUpdate.version,1);assert.equal(a.playbookRevise.version,1);
  await assert.rejects(f.runtime.actions.invoke(a.directionUpdate,{id:direction.id,description:'No precondition'} as never),{code:'alchemist.direction_input_invalid'});
  let release!:()=>void;const gate=new Promise<void>(r=>{release=r;});let entered!:()=>void;const waiting=new Promise<void>(r=>{entered=r;});
  const waitHome=join(root,'waiting');ensureStorageSpace(waitHome,f.space);

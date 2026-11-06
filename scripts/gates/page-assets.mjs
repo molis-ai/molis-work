@@ -311,12 +311,26 @@ const headErrors = (measured, budget, base) => {
 // spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
 // the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
 // the select in place instead of reloading the page, the host names no key so the page needs no second string.
+// ASC-59 (第 13 批③, #1865; admitted by the batch 13 coordinator on 2026-11-06: under 10 KB, no new asset): after logging in again
+// to a remote MCP service, the connections page offers to move what used the old connection to the new one, says what it could and
+// could not check (Coding's MCP settings, unread reporters), asks once before removing the old one (with cancel), and names the new
+// connection apart from the old. workbench.js +6558 B over 1078718, the budget at merge-base b1e0e5b6 (main after #1858; ASC-57's
+// entry keyed on 1077683 is spent there and replaced). Tried, from a first cut of +6199: the switch outcome counted per
+// usage instead of per code, the pair checked on the rows themselves instead of a serialized helper, the reasons table cut to the
+// codes an MCP connection's consumers can answer, errors through the page's own fail(), the two explanations and the two removal
+// confirmations sharing one sentence each; no new style or asset.
+// ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
+// the Assistant's "等你处理": workbench.js +573 B, keyed on main's budget 1085274 (after #1865 and #1790; ASC-59's workbench.js entry keyed on 1078718
+// is spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
+// UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
+// the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
+// settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
 // 07-S1 (the right side joins the tab workspace; 用户 2026-11-05 一次性放行 workbench.js，07 批评审台审过 #1853，冗余两处记入 S2):
 // workbench.js +12340 B on main's budget: the side's rules in the workspace state (withSidePane: open, select, close and reopen
 // through the shared closed stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background
 // tasks as a side view with its count, a removed plugin's side tab drawn in place with the stage that says how to add it back, the
-// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-57 entry
-// keyed on 1077683 is spent on this base (main's budget holds its ceiling), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
+// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-58 entry
+// keyed on 1085274 is spent on this base (main's budget holds its ceiling), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
 // character typed; the 208271 key is shared with the account admission, so its ceiling is S1's 208400, which also covers the
 // account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -997 B,
 // arrival.css -5247 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
@@ -324,9 +338,7 @@ const headErrors = (measured, budget, base) => {
 // old side-tab, side-ratio and discussion-ratio keys are dropped, not read; the rules' comments sit above the function, not in the
 // shipped body; the removed placeholder is one template (-262 B).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827545, 827793],
-  "/assets/molis-work-workbench.css": [1204497, 1204745],
-  "/assets/molis-work-workbench.js": [1078718, 1091058],
+  "/assets/molis-work-workbench.js": [1085847, 1098187],
   "/assets/molis-work-plugin-frame.js": [208271, 208400],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

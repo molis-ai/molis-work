@@ -166,9 +166,9 @@ test("Claude plugin defaults and custom Skill paths respect effective enabled st
 
 test("large imported resources publish through the real Artifact store and survive reopening", async t => {
   const { home } = fixture(t);
-  const { default: Database } = await import("better-sqlite3");
+  const { openTestSqlite } = await import("@molis-ai/molis-work-test-kit/sqlite");
   const { ArtifactsModule, createArtifactsSchema } = await import("@molis-ai/molis-work-module-artifacts");
-  const filename = join(home, "artifacts.sqlite"), db = new Database(filename);
+  const filename = join(home, "artifacts.sqlite"), db = openTestSqlite(filename);
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT);");
   createArtifactsSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-09-23T00:00:00Z", appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(db) });
@@ -186,7 +186,7 @@ test("large imported resources publish through the real Artifact store and survi
     }));
     assert.ok(result.artifact.size_bytes > 56_800_000);
   } finally { characterDb.close(); db.close(); }
-  const reopened = new Database(filename);
+  const reopened = openTestSqlite(filename);
   try {
     const records = new ArtifactsModule({ db: reopened, appendEvent: () => { throw new Error("read only"); }, eventCursor: eventCursorOf(reopened) });
     const stored = records.query.getArtifactVersion("board", { artifact_id: "large-character", version: 1 });

@@ -12,7 +12,7 @@ import { StdioClientTransport, type StdioServerParameters } from "@modelcontextp
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { createConnectorMcpHost, type McpConfiguration, type McpServerConfiguration } from "../apps/local-host/dist/connector-mcp.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -88,7 +88,9 @@ const ORIGINAL_MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
 
 type FixtureTool = { name: string; description?: string; inputSchema: { type: "object"; [key: string]: unknown } };
 async function fixture(options: { token?: string; tokenScheme?: "Sentry-Bearer"; oauth?: boolean; sse?: boolean; toolError?: boolean; fail?: boolean; slow?: boolean; publicOrigin?: string; beforeToken?(): void | Promise<void>;
-  beforeList?(): void | Promise<void>; beforeInitialize?(): void | Promise<void>; tools?(): FixtureTool[] } = {}) {
+  beforeList?(): void | Promise<void>; beforeInitialize?(): void | Promise<void>; tools?(): FixtureTool[];
+  /** How a tool call is answered instead of its result: a JSON-RPC error from the server, or an HTTP 503 for the call's request. */
+  callFailure?(): "jsonrpc" | 503 | undefined } = {}) {
   let enterCall!: () => void, releaseCall!: () => void;
   const called = new Promise<void>(resolve => { enterCall = resolve; });
   const release = new Promise<void>(resolve => { releaseCall = resolve; });
@@ -109,7 +111,8 @@ async function fixture(options: { token?: string; tokenScheme?: "Sentry-Bearer";
     const server = new Server({ name: "fixture-mcp", version: "1.0.0" }, { capabilities: { tools: {}, resources: {} } });
     server.setRequestHandler(ListToolsRequestSchema, async () => { await options.beforeList?.(); return { tools: options.tools?.() ?? [{ name: "echo", description: "Echo an explicit input", inputSchema: { type: "object", properties: { message: { type: "string" } }, required: ["message"] } }] }; });
     server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [{ uri: "fixture://readme", name: "Readme" }] }));
-    server.setRequestHandler(CallToolRequestSchema, async request => { callCount++; enterCall(); if (options.slow) await release; return { ...(options.toolError ? { isError: true } : {}), content: [{ type: "text", text: String(request.params.arguments?.message) }] }; });
+    server.setRequestHandler(CallToolRequestSchema, async request => { callCount++; enterCall();
+      if (options.callFailure?.() === "jsonrpc") throw new McpError(ErrorCode.InvalidParams, "fixture refused the arguments"); if (options.slow) await release; return { ...(options.toolError ? { isError: true } : {}), content: [{ type: "text", text: String(request.params.arguments?.message) }] }; });
     server.setRequestHandler(ReadResourceRequestSchema, async request => { readCount++; return { contents: [{ uri: request.params.uri, text: "Actual MCP resource", mimeType: "text/plain" }] }; });
     sessions.add(server);
     return server;
@@ -162,6 +165,7 @@ async function fixture(options: { token?: string; tokenScheme?: "Sentry-Bearer";
       if (request.method !== "POST") { response.writeHead(405); response.end(); return; }
       const parsed = JSON.parse(await body(request));
       if (parsed.method === "initialize") { initializationCount++; await options.beforeInitialize?.(); }
+      if (parsed.method === "tools/call" && options.callFailure?.() === 503) { callCount++; return json(503, { error: "fixture-unavailable" }); }
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       const mcp = makeServer();
       await mcp.connect(transport);
@@ -965,6 +969,38 @@ test("ASC-10 ASC-17: a real MCP error reply is a failed business call while a de
     present = false;
     await assert.rejects(local.host.homeActionClient().invoke(caller, ref, { message: "Never sent" }));
     assert.equal(remote.stats().callCount, 1); assert.deepEqual((await status()).last_call, failed);
+  } finally { await remote.close(); }
+});
+
+test("ASC-58: an MCP call's run of failures counts only what the server did not answer, and only a call that goes through ends it", async t => {
+  const local = await openTestHome(t); let failure: "jsonrpc" | 503 | undefined;
+  const remote = await fixture({ callFailure: () => failure });
+  const caller: ActionCallContext = { actor_id: "status-user", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_READ, "mcp:external"] };
+  try {
+    const started = await local.web.post<{ connection_id: string }>("/api/settings/connectors/methods/mcp/start", { service_id: "mcp-bearer", display_name: "Counted MCP", endpoint: remote.endpoint, authentication: "none", transport: "http" });
+    const lastCall = async () => {
+      const result = await local.host.homeActionClient().invoke(caller, connectorManagementActions.list, {}) as { connections: Array<{ connection_id: string; status: { connectivity: { state: string }; last_call?: { outcome: string; failures?: number; failure_class?: string } } }> };
+      return result.connections.find(row => row.connection_id === started.connection_id)!.status;
+    };
+    const ref = local.host.connectorMcp!.reference(started.connection_id, connectorMcpCapabilityId(started.connection_id, "echo"))!;
+    const call = () => local.host.homeActionClient().invoke(caller, ref, { message: "Counted" }).catch((error: unknown) => error);
+    // The server answered with a JSON-RPC error: the call failed for its own reason, nothing is counted.
+    failure = "jsonrpc";
+    await call(); await call();
+    assert.deepEqual([(await lastCall()).last_call?.outcome, (await lastCall()).last_call?.failures], ["unknown", undefined]);
+    // The call's request got a 503: the server did not answer it. Listing the tools before each call still goes through, and that no
+    // longer ends the run: two calls are two failures.
+    failure = 503;
+    await call(); await call();
+    const failing = await lastCall();
+    assert.deepEqual([failing.last_call?.failures, failing.last_call?.failure_class, failing.connectivity.state], [2, "unavailable", "failed"]);
+    // A JSON-RPC answer ends the run; a call that goes through does too.
+    failure = "jsonrpc"; await call();
+    assert.equal((await lastCall()).last_call?.failures, undefined);
+    failure = 503; await call();
+    failure = undefined; await call();
+    assert.deepEqual([(await lastCall()).last_call?.outcome, (await lastCall()).last_call?.failures], ["succeeded", undefined]);
+    assert.equal(remote.stats().callCount, 7);
   } finally { await remote.close(); }
 });
 

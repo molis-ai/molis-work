@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -56,7 +56,7 @@ test("Project plugin HTTP persists only the selected project, rejects unauthoriz
   await host.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog)({ homeDirectory }, reopened => {
     assert.deepEqual(reopened.listProjectPlugins(second.project_id), ["goals", "inbox", "schedule"]);
   });
-  const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
+  const db = openTestSqlite(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added'").get(second.project_id).n, 1);
   } finally { db.close(); }
@@ -99,7 +99,7 @@ test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay
   const inboxOnlyPage = await (await fetch(`${origin}/projects/${inboxOnly.project_id}/`)).text();
   assert.match(inboxOnlyPage, /data-plugin-id="inbox"/);
   assert.doesNotMatch(inboxOnlyPage, /data-plugin-id="feed"/);
-  const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
+  const db = openTestSqlite(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added'").get(project.project_id).n, 2);
     assert.deepEqual(
@@ -168,7 +168,7 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.match(await (await fetch(`${origin}/projects/${project.project_id}/`)).text(), /data-settings-section="characters"/, "the section is still there after the refusal");
   assert.deepEqual(catalog.listProjectPlugins(other.project_id), ["goals", "schedule"]);
   assert.deepEqual(catalog.projectPluginMembership(other.project_id).hidden, []);
-  const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
+  const db = openTestSqlite(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_removed' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);

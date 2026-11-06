@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { Ajv, type AnySchemaObject, type ErrorObject, type ValidateFunction } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
@@ -151,7 +152,6 @@ export function actionSchemaAccepts(target: ActionSchema, source: ActionSchema):
 }
 
 function record(v: unknown): Record<string, unknown> { return isRecord(v) ? v : {}; }
-function isRecord(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
 function same(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => same(v, b[i]));

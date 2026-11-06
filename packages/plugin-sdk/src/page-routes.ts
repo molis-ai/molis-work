@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import { pluginErrors, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_PAGE_ROUTE_PARAM_LIMIT, type UiPageRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -15,8 +16,6 @@ const LITERAL = /^[a-z0-9_-]+$/u;
 const TRUSTED_PARAMS: readonly string[] = ["actor_id", "project_id", "install_id", "idempotency_key", "control_token"];
 
 type Segment = string | { readonly param: string };
-
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 
 /** The segments of a declared path, or what is wrong with it. */
 function declaredSegments(path: unknown): readonly Segment[] | string {
@@ -55,8 +54,8 @@ export function pageRouteProblems(manifest: PluginManifest): string[] {
     if (declared.length > PAGE_ROUTE_LIMITS.routes) problems.push(`ui.page_routes 最多 ${PAGE_ROUTE_LIMITS.routes} 条`);
     const seen = new Map<string, readonly Segment[]>();
     for (const route of declared as unknown[]) {
-      const id = isObject(route) && typeof route.route_id === "string" ? route.route_id : "";
-      if (!isObject(route) || !ROUTE_ID.test(id)) { problems.push("页面路由缺少合法的 route_id（小写字母、数字、连字符，以字母开头）"); continue; }
+      const id = isRecord(route) && typeof route.route_id === "string" ? route.route_id : "";
+      if (!isRecord(route) || !ROUTE_ID.test(id)) { problems.push("页面路由缺少合法的 route_id（小写字母、数字、连字符，以字母开头）"); continue; }
       if (seen.has(id)) { problems.push(`页面路由重复：${id}`); continue; }
       const segments = declaredSegments(route.path);
       if (typeof segments === "string") { problems.push(`页面路由 ${id} 的 ${segments}`); continue; }
@@ -66,7 +65,7 @@ export function pageRouteProblems(manifest: PluginManifest): string[] {
         continue;
       }
       const constants = route.params;
-      if (constants !== undefined && (!isObject(constants) || Object.keys(constants).length > PAGE_ROUTE_LIMITS.input
+      if (constants !== undefined && (!isRecord(constants) || Object.keys(constants).length > PAGE_ROUTE_LIMITS.input
         || Object.entries(constants).some(([name, value]) => !PARAM_NAME.test(name) || typeof value !== "string" || !withinLimit(value)))) {
         problems.push(`页面路由 ${id} 的 params 必须是最多 ${PAGE_ROUTE_LIMITS.input} 个合法参数名与有界字符串常量`);
         continue;

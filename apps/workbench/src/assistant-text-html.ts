@@ -79,6 +79,8 @@ export function renderAssistantReviewHtml(review: AssistantPendingReview, ports:
 
 /** Saved notice templates use the current UI language; names are filled once as literal text. Self-contained for the client. */
 export function renderAssistantNoticeText(notice: AssistantNotice, say: (key: string, vars?: Record<string, string>) => string): string {
+  // A connection's notice is a template whose one name is the connection's, kept as `work_title` (ASC-58).
+  if (notice.kind === "connection") return say(notice.text, { name: notice.work_title });
   if (notice.kind !== "directory-read") return notice.text;
   const params = notice.text_params;
   return params ? say(notice.text, { ...params, origin: say(params.origin) }) : say("目录读取通知的数据不完整。");

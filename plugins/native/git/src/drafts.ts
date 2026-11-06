@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * Unsent text the user typed into Git: a commit message, a branch name, a
  * worktree name, a conflict resolution.
@@ -109,8 +110,4 @@ export function draftIsEmpty(draft: GitDraft): boolean {
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.slice(0, MAX_FIELD) : "";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

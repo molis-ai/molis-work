@@ -148,9 +148,7 @@ export class AttentionModule implements AttentionApi {
     private readonly db: AttentionSqliteDatabase,
     private readonly subjects: AttentionSubjectResolver,
     private readonly options: AttentionModuleOptions = {},
-  ) {
-    db.exec(ATTENTION_SCHEMA_SQL);
-  }
+  ) {}
 
   private list(projectId: string): AttentionEntryRecord[] {
     return (this.db.prepare(

@@ -1,3 +1,4 @@
+import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import { lstat, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { CheckRequest, CheckerResult, ConditionCheckers, HeldWait, Runtime } from "@prologue/sdk";
@@ -82,7 +83,6 @@ const notAllowed = (error: unknown) => {
   const code = (error as { code?: unknown } | undefined)?.code, kind = (error as { kind?: unknown } | undefined)?.kind;
   return kind === "forbidden" || typeof code === "string" && platformErrorKind(code) === "forbidden";
 };
-const object = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const onlyKeys = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).every(key => keys.includes(key));
 const words = (value: unknown, min: number, max: number) => Array.isArray(value) && value.length >= min && value.length <= max
   && value.every(item => typeof item === "string" && item.length >= 1 && item.length <= 100);

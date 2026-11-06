@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import { ATTENTION_SUBJECT_TYPES } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { PLUGIN_ATTENTION_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
 
@@ -33,8 +34,4 @@ function inboxProblems(inbox: unknown, subjects: ReadonlySet<string>): string[] 
     else seen.add(subject);
   }
   return problems;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

@@ -10,7 +10,7 @@ import { dirname, join, resolve as resolvePath } from "node:path";
 import test, { after, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { WebSocket } from "ws";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -173,7 +173,7 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
   // The terminal's own work context is an alias of it; deleting the project takes the alias with it (RAC-2568).
   const aliases = () => {
     // The catalog's own SQLite (better-sqlite3), as the Host in this process opens it.
-    const db = new Database(join(home, "projects", "catalog.db"), { readonly: true });
+    const db = openTestSqlite(join(home, "projects", "catalog.db"), { readonly: true });
     try { return Number((db.prepare("SELECT COUNT(*) AS count FROM plugin_terminal_panel_aliases WHERE panel_id = ?").get(panelId) as { count: number }).count); }
     finally { db.close(); }
   };

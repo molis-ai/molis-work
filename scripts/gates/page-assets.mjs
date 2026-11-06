@@ -306,16 +306,20 @@ const headErrors = (measured, budget, base) => {
 // FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
 // The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
 // Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// ASC-57 (第 13 批②, 2026-11-06): after a key change or a provider removal the page points out the old key nothing uses and
+// offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
+// spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
+// the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
+// the select in place instead of reloading the page, the host names no key so the page needs no second string.
 // proactive-assistant §12.1 capsule fix (user approved asking for this admission, 2026-11-06): the input capsule's current work, tabs and
 // new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +312 B, the
 // per-project key helper, one chosen-project path through setProject and the place named before the title. Tried: removed the
 // chooser's own draft map (the island owns drafts now) and its swap code, dropped a tooltip naming the project and its translation,
-// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 1077683 base after FCS-01/02, whose entry is spent there.
+// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 1078718 base after ASC-57, whose workbench.js entry is spent there.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 693169],
-  "/assets/molis-work-settings.css": [826998, 827545],
-  "/assets/molis-work-workbench.css": [1194792, 1204497],
-  "/assets/molis-work-workbench.js": [1077683, 1077995],
+  "/assets/molis-work-settings.css": [827545, 827793],
+  "/assets/molis-work-workbench.css": [1204497, 1204745],
+  "/assets/molis-work-workbench.js": [1078718, 1079030],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

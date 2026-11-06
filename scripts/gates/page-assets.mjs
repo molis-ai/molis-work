@@ -309,13 +309,13 @@ const headErrors = (measured, budget, base) => {
 // K-22 saves 7 B in the script by keeping the platform refresh cursor independently of the Goals snapshot.
 // K-26 captures native toggle and shortens its owner selector, saving another 4 B.
 // Main now includes the same K-20 stylesheet savings; the absolute account ceilings do not grow.
-// Script is measured again after the shared SDK integration; the ceiling below is then reduced to that measurement.
+// The shared SDK integration saves another 2 B in the script; the ceiling is reduced to the measured size.
 // ASC-59 (#1865) is already in main: +6558 B for connector replacement.
 // No new allowance or resource; spent main admissions are removed.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [693131, 693814],
   "/assets/molis-work-workbench.css": [1204709, 1205161],
-  "/assets/molis-work-workbench.js": [1085274, 1124894],
+  "/assets/molis-work-workbench.js": [1085274, 1124892],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

@@ -26,20 +26,22 @@
 
 产品版本的编号方案已定（`specs/archive/repository-anti-corruption/spec.md` §1，2026-10-08「版本与发布策略」）：一个产品版本，下一版 0.3.0；根包、桌面端、Tauri 跟同一版本，内置插件的 Manifest 跟宿主版本，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。这个方案的落地由路线图做，现在还没完成。
 
-能力定义的 `version`、Home 库的结构版本、对外合同 `$id` 里的版本是各自合同的版本，是代码里单独的字段，不跟产品版本走。本文规定「形状变了就升这份合同自己的版本」。
+能力定义的 `version`、Home 库的结构版本、对外合同 `$id` 里的版本是各自合同的版本，是代码里单独的字段，不跟产品版本走。第 3 节规定阶段一怎样改形状，第 4 节规定首次外部安装后的过渡期。Home 库与带版本文件以重建为升级起点，见[升级连续性 §3](../../specs/upgrade-continuity/spec.md#3-起点库从统一起点开始升级链)。
 
 ## 3. 阶段一：现在，不留兼容期
 
 1. **合同读写都只认现行取值**（`AGENTS.md` 硬约束）。破坏性变更直接改合同，不留旧版本解析、别名、兼容出口、读取时兜底历史取值。需要新增兼容或迁移逻辑的，要先写进本文「当前保留机制」并经用户确认。
 2. **同一个 PR 改完所有消费者**：仓库里的调用方、Skill 与手册、测试。PR 描述列出消费者和改了什么。先例（spec §1）：Casebook 改名（2026-10-04）要求「PR 里列出全部新旧 id」；MCP 连接工具去掉 `actor_id` 的决定（2026-10-07）写明 goal-advance Skill 与 `docs/mcp.md` 同步改。
-3. **有版本字段的合同，形状变了就升版本。** 这样固定了旧版本的引用不会被静默当成新形状：例如工作流固定的能力引用，失效时保留并报错，不换成新版本或另一个提供方（`specs/action-architecture/spec.md` §3「工作流存量内容站迁移」）。
-4. **存量数据的处置由明确维护决定，读取时不兜底。** 每个库只留当前建库基线，版本不符就拒绝，不就地升级、不写迁移链。2026-10-30 已决定以现行完整结构干净重建，旧版本转换、采用、搬迁脚本与演练已取消；当前初始化、库 owner 和真实 Home 的边界见 [HOME-DATA.md](HOME-DATA.md)，执行步骤只归发布 [CHECKLIST.md 第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)。本节登记不授予旧数据转换或真实 Home 操作权限。
+3. **动作、Manifest、MCP 工具名和宿主 API 在阶段一按现行版本改。** 第 02 批复位后沿用第 1 版。形状改动仍要刷新快照、说明对调用方的影响。已保存的调用按现行合同校验，版本不存在或输入不合要求时明确失败。工作流保留原引用，由使用者重新选择；保留提供方和权限检查。阶段二从首次外部安装开始，届时按第 4 节升版本并设过渡期。
+4. **Home 库与带版本文件从重建开始升级。** 统一起点是经维护窗口验证真实 Home 干净重建、各库及带版本文件回到第 1 版的那一次。此前按现行基线建库，错版拒绝；此后每次改结构都升版本，并提供连续的 `n → n+1` 升级，较新的库仍拒绝降级。内置插件的表从同一次重建起算，外装插件的表从其首次安装起算。库主人、备份和窗口的实际日期分别见 [HOME-DATA](HOME-DATA.md) 和[发布检查单](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)。
 5. **外部已经在用的名字**（Runtime 用的 MCP 工具名）：改动是产品决定，先问用户，在 spec §1 记一行，PR 里列新旧名，外部插件同步。
 6. **门禁守着**：源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，只许减少，新文件从零（`pnpm health:check`，`AGENTS.md` 健康门禁一条）。就地补表、测试引用包内部同样只许减少。
 
+   **统一起点版本检查（N41）。** 重建窗口以 `node scripts/gates/initial-versions.mjs` 复核当前构建。它在临时 Home 检查内置 Manifest 与宿主登记的动作，再读内置提示词、主角色和子角色的登记，以及产品代码中自有的版本常量。外部服务的协议号、SQLite 引擎版本、产品 SemVer 与匹配 SemVer 的正则分别由各自的主人检查。任何一项未复位都会指出名字并返回失败。窗口前继续执行现有兼容标记检查，到窗口再切换阶段一的合并门禁。窗口的执行结果、构建和日期由维护者另记。之后，公开合同、提示词与角色沿阶段一规则；持久化库或文件的结构版本依第 3 节第 4 条升级。U1 首次接入这类版本时，须在同一变更中以主人的升级链及回放验收接替该项初始值检查，不能直接删检查来放行高版本。
+
    **公开 API 快照门禁**（`scripts/gates/api-snapshot.mjs`，口径在 `tooling/gates/README.md`「公开 API 快照」）：`packages/contracts` 每个子路径和 `packages/plugin-sdk` 的公开 API 由编译器的声明输出生成（名字加签名，去注释），入库在 `tooling/gates/api/`。`pnpm health:check` 把源码生成的内容和入库的快照比，有任何不同就失败：加、删、改签名、新子路径没有快照、已删子路径的快照还在、快照被手改。它是一份不许静默变化的清单，不是只许减少的数字，所以 `--update` 和改基线都碰不到它。有意改 API 的 PR：先改代码，再跑 `pnpm api:update`，提交 `tooling/gates/api/` 的变化，并在 PR「公开合同与 API 影响」一栏写这个变化对插件和调用方的影响（`.github/pull_request_template.md`）；`--base` 时门禁日志还会列出相对 merge-base 的 API 变化，评审读它。它只管形状：函数体、注释、语义变化看不到，各插件 Manifest 里的动作声明与 schema 也不在里面（那是路线图 W2-15 的动作合同快照），所以第 3 条的版本字段和评审照旧要做。
 
-   **动作合同快照门禁**（`scripts/gates/action-contract-snapshot.mjs`，口径在 `tooling/gates/README.md`「动作合同快照」，跑在 `pnpm test:contracts` 的 `tests/action-contract-snapshot.test.ts`）：每个内置 Manifest 声明的动作与消费场景，一行一个 `capability_id@version`，写明提供方（Manifest 的 `plugin_id`，和宿主登记它用的提供方 id 各一列：固定引用里写的是后者）、种类、谁能调（受众、权限）和输入、输出 schema 的哈希，入库在 `tooling/gates/actions/`；所有内置插件启用时宿主还登记着、却没有 Manifest 声明的动作与消费场景（现在是首页的 `home.dock@1`，判断绑定固定的就是它和提供方 id），另记在同目录的 `host-actions.tsv` 与 `host-scenes.tsv`。源码与快照有任何不同就失败，并把变化分开列：**同一版本下形状变了**（schema、语义类型、主体、依赖与撤销声明等；已经固定了 `capability_id@version` 的引用会遇到另一份合同，要么升版本，要么在 PR 里写明为什么没有固定它的引用会坏）、**登记用的提供方 id 变了**（改名、原生与 Runtime 装配之间迁移、换了发布签名；该插件每个动作逐个列出，固定了旧 id 的引用会遇到 `actions.provider_changed`，要在同一个 PR 里列出并迁完）、谁能调变了、换了新版本、新增、删除。它只看形状和声明，不看函数体与语义；schema 里的 `title` 和 `description` 是文字，不算。有意改：`pnpm build` 后 `pnpm actions:update`，提交 `tooling/gates/actions/`，把命令打印的变化写进 PR「公开合同与 API 影响」一栏。
+   **动作合同快照门禁**（`scripts/gates/action-contract-snapshot.mjs`，口径在 `tooling/gates/README.md`「动作合同快照」，跑在 `pnpm test:contracts` 的 `tests/action-contract-snapshot.test.ts`）：每个内置 Manifest 声明的动作与消费场景，一行一个 `capability_id@version`，写明提供方（Manifest 的 `plugin_id`，和宿主登记它用的提供方 id 各一列：固定引用里写的是后者）、种类、谁能调（受众、权限）和输入、输出 schema 的哈希，入库在 `tooling/gates/actions/`；所有内置插件启用时宿主还登记着、却没有 Manifest 声明的动作与消费场景（现在是首页的 `home.dock@1`，判断绑定固定的就是它和提供方 id），另记在同目录的 `host-actions.tsv` 与 `host-scenes.tsv`。源码与快照有任何不同就失败，并把变化分开列：**同一版本下形状变了**（schema、语义类型、主体、依赖与撤销声明等；已经固定了 `capability_id@version` 的引用会遇到另一份合同，阶段一保留原版本并在 PR 里说明影响，首次外部安装后按第 4 节升版本并设过渡期）、**登记用的提供方 id 变了**（改名、原生与 Runtime 装配之间迁移、换了发布签名；该插件每个动作逐个列出，固定了旧 id 的引用会遇到 `actions.provider_changed`，要在同一个 PR 里列出并迁完）、谁能调变了、换了新版本、新增、删除。它只看形状和声明，不看函数体与语义；schema 里的 `title` 和 `description` 是文字，不算。有意改：`pnpm build` 后 `pnpm actions:update`，提交 `tooling/gates/actions/`，把命令打印的变化写进 PR「公开合同与 API 影响」一栏。
 
 7. **当前保留机制**见下节：它们属于现行功能或依赖，不是兼容窗口，不允许据此增加历史格式读取。
 8. **破坏性变更要在升级须知里写一条。** 装新版本的人要动手的合同变更（MCP 工具名变了、固定的引用要重选、动作升了版本），在 `docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」里写一条：谁要动什么；发布时它随版本发出去。PR 描述照第 2 条列消费者，升级须知是给用户看的，两处都要。
@@ -111,7 +113,7 @@
 起点一到就要能用，所以这些要在起点之前就位。进度以 `specs/archive/repository-anti-corruption/spec.md` §10 为准：
 
 - 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`）：**已就位**（路线图 W1-04，门禁见第 3 节第 6 条）。导出一变必须显式 `pnpm api:update`，PR 里写影响。
-- 动作合同快照（每个内置 Manifest 的 `capability@version`、提供方和 schema 哈希，进 `pnpm test:contracts`）：**已就位**（路线图 W2-15，门禁见第 3 节第 6 条）。schema 变了而版本没变，失败信息会单独点出来，由评审拦下；要不要在 CI 里对照 merge-base 直接拦死「同一版本下形状变化」，取决于「只加可选字段算不算形状变」（第 4 节开头把它列为阶段二才有的例外），这是合同语义，等用户定。
+- 动作合同快照（每个内置 Manifest 的 `capability@version`、提供方和 schema 哈希，进 `pnpm test:contracts`）：**已就位**（路线图 W2-15，门禁见第 3 节第 6 条）。阶段一形状变了而版本没变，检查仍逐条显示差异，PR 写清对已保存引用和调用方的影响。阶段二按第 4 节的规则升版本。
 - 插件回放工具与样本集（路线图 W4-01）。
 - **提议（未经用户确认，见第 4 节第 5 条）：** 兼容标记门禁改成允许「带窗口编号、登记表里有对应行」的标记，其余仍只许减少。现在的门禁一律只许减少，起点之后的第一段兼容会被它拦住；放宽门禁要另开 PR，改 `tooling/gates/` 与门禁脚本，请求 @yijunw0212 评审。
 - 版本策略落地：根包、桌面端、Tauri 与内置插件 Manifest 跟同一个产品版本，发布检查单带各库的版本表（2026-10-08 已定，见第 2 节）。

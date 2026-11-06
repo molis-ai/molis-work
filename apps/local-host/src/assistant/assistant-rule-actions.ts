@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { checkedMethodSelection } from "./assistant-send-materials.js";
 import { SIGNED_MATERIAL_NOTICE } from "./assistant-signed-materials.js";
 /**
@@ -17,11 +18,8 @@ const KINDS: ReadonlyArray<[string, string]> = [["failed", "一轮失败"], ["ne
 
 const rulesOutput: ActionSchema = { type: "object", properties: { rules: { type: "array", title: "现在的提醒规则", items: { type: "object" } } }, required: ["rules"] };
 
-const define = (capability: string, operation: "query" | "command", title: string, description: string, input: ActionSchema, effect?: "write"): ActionDefinition => ({
-  capability_id: capability, version: 1, operation, provider_id: ASSISTANT_RULES_PROVIDER,
-  action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "home", audiences: ["user", "agent"], permissions: [], subject_kinds: [],
-    ...(effect ? { effect } : {}), input_schema: input, output_schema: rulesOutput },
-});
+const define = (capability: string, operation: "query" | "command", title: string, description: string, input: ActionSchema, effect?: "write"): ActionDefinition => ({ ...createActionDefinition(capability, operation, { title, description, scope: "home", audiences: ["user", "agent"], permissions: [], subject_kinds: [],
+    ...(effect ? { effect } : {}), input_schema: input, output_schema: rulesOutput }), provider_id: ASSISTANT_RULES_PROVIDER });
 
 export const ASSISTANT_RULE_ACTIONS = {
   list: define("assistant.rules.list", "query", "查看提醒规则", "列出用户为助理设的提醒规则：在哪些插件页面不提醒、暂停到何时、哪些情况例外。", { type: "object", properties: {}, additionalProperties: false }),

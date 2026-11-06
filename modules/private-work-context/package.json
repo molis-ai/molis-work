@@ -25,9 +25,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@molis-ai/molis-work-contracts": "workspace:*"
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^9.6.0"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*"
   }
 }

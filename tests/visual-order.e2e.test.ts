@@ -5,6 +5,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { ORDER_SKIP as SKIP, orderAudit } from "./fixtures/order-audit.js";
 
 // DESIGN「Order」(VUX-46 to VUX-50): on the project page, the common plugin pages, settings and the component board, a
+// T01-CONNECTION-CHOICE-LINE-01 also checks wrapped account choices in the connection card.
 // state mark stands as tall as its words and on their line, an icon beside words is the words' size or one step up, the
 // words use the type scale and their role, a painted box's corner is on the corner scale, and buttons that sit together are one
 // height, on one line, one gap apart.

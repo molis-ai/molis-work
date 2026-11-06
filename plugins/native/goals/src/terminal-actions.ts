@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { ActionError, defineErrorCodes, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginTerminalClient, PluginTerminalProgram } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
+import { createActionDefinition, redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { array, boolean, identifier, object, text } from "./contract/goal-actions.js";
 import type { GoalEventStateView } from "./contract/goal-events.js";
 import type { GoalRecord } from "./contract/goals.js";
@@ -23,9 +23,9 @@ type PanelRow = { key: string; panel_id: string; title: string; runtime: string;
 /** The person's own page only: an Agent, workflow, MCP client or another plugin does not start, close or read a Goal's terminals. */
 function terminalAction<Input, Output>(id: string, version: number, title: string, description: string, operation: "query" | "command",
   permissions: string[], input: ActionSchema, output: ActionSchema): ActionDefinition<Input, Output> {
-  return { capability_id: id, version, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences: ["user"], ...(operation === "command" ? { authorship: "session" as const } : {}), permissions,
-    subject_kinds: ["goal"], input_schema: input, output_schema: output } };
+  return createActionDefinition<Input, Output>(id, operation, { title, description,
+    audiences: ["user"], ...(operation === "command" ? { authorship: "session" as const } : {}), permissions,
+    subject_kinds: ["goal"], input_schema: input, output_schema: output }, version);
 }
 
 type OpenInput = { goal_id: string; key?: string; runtime?: string; resume_session_id?: string; command?: string; args?: string[]; workspace_id?: string };

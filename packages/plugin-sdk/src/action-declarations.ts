@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import {
   DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_COLLECTION_SCHEMA, DUE_REMINDER_WINDOW_SCHEMA,
   HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_COLLECTION_SCHEMA, HOME_EVENT_WINDOW_SCHEMA,
@@ -30,7 +31,7 @@ function definitionListProblems(definitions: unknown): string[] {
 }
 
 function definitionProblems(raw: unknown, seen: Set<string>): string[] {
-  if (!isObject(raw) || !isId(raw.capability_id) || !isVersion(raw.version)) return ["能力需要有效身份和版本"];
+  if (!isRecord(raw) || !isId(raw.capability_id) || !isVersion(raw.version)) return ["能力需要有效身份和版本"];
   const key = `${raw.capability_id}@${raw.version}`;
   const problems = seen.has(key) ? [`能力重复：${key}`] : [];
   seen.add(key);
@@ -62,7 +63,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
 function threadProtocolProblems(key: string, operation: unknown, action: ActionBody): string[] {
   const source = action.thread_source;
   if (source === undefined) return [];
-  if (!isObject(source) || !["context", "reply"].includes(String(source.role)) || !isText(source.subject_kind)
+  if (!isRecord(source) || !["context", "reply"].includes(String(source.role)) || !isText(source.subject_kind)
     || !action.subject_kinds.includes(String(source.subject_kind)) || action.scope !== "project"
     || action.audiences.length !== 1 || action.audiences[0] !== "user"
     || operation !== (source.role === "context" ? "query" : "command")) return [`能力 ${key} 的评论协议需要项目范围、user audience 和匹配的查询/命令`];
@@ -80,21 +81,21 @@ const ACTION_AUDIENCES = ["user", "agent", "workflow", "mcp", "plugin"];
 const ACTION_EFFECTS = ["read", "write", "irreversible"];
 
 function isCompleteBody(a: unknown): a is ActionBody {
-  if (!isObject(a) || !isText(a.title) || !isText(a.description)) return false;
+  if (!isRecord(a) || !isText(a.title) || !isText(a.description)) return false;
   if (!ACTION_KINDS.includes(String(a.kind)) || !ACTION_SCOPES.includes(String(a.scope))) return false;
   if ((a.scheduling !== undefined && a.scheduling !== "concurrent") || (a.authorship !== undefined && a.authorship !== "session")) return false;
   if (!isStrings(a.permissions) || !isStrings(a.subject_kinds) || !isStrings(a.audiences) || a.audiences.length === 0) return false;
   if (!a.audiences.every(audience => ACTION_AUDIENCES.includes(audience))) return false;
   if (a.effect !== undefined && !ACTION_EFFECTS.includes(String(a.effect))) return false;
   if (a.plugin !== undefined && a.plugin !== false) return false;
-  return isObject(a.input_schema) && (a.output_schema === undefined || isObject(a.output_schema));
+  return isRecord(a.input_schema) && (a.output_schema === undefined || isRecord(a.output_schema));
 }
 
 // ---- references to other scenes, views and actions --------------------------------------------------------------------------
 
 function referenceProblems(key: string, a: ActionBody): string[] {
   const problems: string[] = [];
-  if (a.result_scene !== undefined && (!isObject(a.result_scene) || !isId(a.result_scene.scene_id) || !isVersion(a.result_scene.version) || !isText(a.result_scene.provider_id))) {
+  if (a.result_scene !== undefined && (!isRecord(a.result_scene) || !isId(a.result_scene.scene_id) || !isVersion(a.result_scene.version) || !isText(a.result_scene.provider_id))) {
     problems.push(`能力 ${key} 的结果场景引用无效`);
   }
   if (a.result_view !== undefined && !validActionResultView(a.result_view)) {
@@ -103,11 +104,11 @@ function referenceProblems(key: string, a: ActionBody): string[] {
   if (a.execution !== undefined && !validActionExecutionPolicy(a.execution)) {
     problems.push(`能力 ${key} 的执行策略无效`);
   }
-  if (a.required_scene !== undefined && (!isObject(a.required_scene) || !isId(a.required_scene.scene_id) || !isVersion(a.required_scene.version))) {
+  if (a.required_scene !== undefined && (!isRecord(a.required_scene) || !isId(a.required_scene.scene_id) || !isVersion(a.required_scene.version))) {
     problems.push(`能力 ${key} 的消费场景依赖无效`);
   }
   if (a.required_actions !== undefined && (!Array.isArray(a.required_actions)
-    || a.required_actions.some(ref => !isObject(ref) || !isId(ref.capability_id) || !isVersion(ref.version)
+    || a.required_actions.some(ref => !isRecord(ref) || !isId(ref.capability_id) || !isVersion(ref.version)
       || (ref.provider_id !== undefined && !isId(ref.provider_id))))) {
     problems.push(`能力 ${key} 的能力依赖无效`);
   }
@@ -142,8 +143,8 @@ function offerChoiceProblems(key: string, a: ActionBody): string[] {
   const choices = a.subject_offer_choices;
   const subjectKinds = a.subject_kinds;
   if (a.input_type !== SUBJECT_OFFERS_INPUT_TYPE || a.output_type !== SUBJECT_OFFERS_OUTPUT_TYPE || !Array.isArray(choices)
-    || choices.some(choice => !isObject(choice) || !isId(choice.offer_id) || !isText(choice.title) || choice.title.length > 120
-      || !isObject(choice.action) || !isId(choice.action.capability_id) || !isVersion(choice.action.version) || choice.action.provider_id !== undefined
+    || choices.some(choice => !isRecord(choice) || !isId(choice.offer_id) || !isText(choice.title) || choice.title.length > 120
+      || !isRecord(choice.action) || !isId(choice.action.capability_id) || !isVersion(choice.action.version) || choice.action.provider_id !== undefined
       || (choice.subject_kinds !== undefined && (!Array.isArray(choice.subject_kinds) || !choice.subject_kinds.length
         || choice.subject_kinds.some(kind => !subjectKinds.includes(kind)) || new Set(choice.subject_kinds).size !== choice.subject_kinds.length)))
     || new Set(choices.map(choice => choice.offer_id)).size !== choices.length) {
@@ -178,7 +179,7 @@ function homeProtocolProblems(key: string, operation: unknown, a: ActionBody): s
 function homeAggregateProblems(key: string, operation: unknown, a: ActionBody): string[] {
   if (a.home_aggregate === undefined) return [];
   if (a.home_aggregate !== true || operation !== "query" || a.kind !== "query" || a.scope !== "project" || (a.effect !== undefined && a.effect !== "read")
-    || (a.permissions as string[]).includes("model:invoke") || (isObject(a.execution) && a.execution.cost === "metered") || !isText(a.output_type)) {
+    || (a.permissions as string[]).includes("model:invoke") || (isRecord(a.execution) && a.execution.cost === "metered") || !isText(a.output_type)) {
     return [`能力 ${key} 的首页聚合声明必须是项目范围的只读查询，写明输出类型，不调用模型、不计费`];
   }
   return [];
@@ -198,7 +199,7 @@ function projectReachProblems(key: string, a: ActionBody): string[] {
  */
 export function projectReachPermissionProblems(actions: unknown, permissions: ReadonlySet<string>): string[] {
   if (!Array.isArray(actions) || permissions.has("projects:reach")) return [];
-  return actions.flatMap(definition => isObject(definition) && isObject(definition.action) && definition.action.project_reach !== undefined
+  return actions.flatMap(definition => isRecord(definition) && isRecord(definition.action) && definition.action.project_reach !== undefined
     ? [`能力 ${String(definition.capability_id)} 声明了 project_reach，Manifest 必须声明 projects:reach 权限`] : []);
 }
 
@@ -222,7 +223,7 @@ function backgroundJobProblems(key: string, operation: unknown, a: ActionBody): 
   if (a.background_job === undefined) return [];
   const job = a.background_job;
   const states = (value: unknown) => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === "string" && item.length > 0);
-  if (operation !== "command" || !isObject(job) || !isObject(job.status) || !isId(job.status.capability_id) || !isVersion(job.status.version)
+  if (operation !== "command" || !isRecord(job) || !isRecord(job.status) || !isId(job.status.capability_id) || !isVersion(job.status.version)
     || !isOutputPath(job.id) || !isOutputPath(job.input) || !isOutputPath(job.state) || !states(job.done) || !states(job.failed)) {
     return [`能力 ${key} 的后台任务声明必须是命令，并写明状态查询、任务标识与状态的位置和结束状态`];
   }
@@ -232,8 +233,8 @@ function backgroundJobProblems(key: string, operation: unknown, a: ActionBody): 
 function undoProblems(key: string, operation: unknown, a: ActionBody): string[] {
   if (a.undo === undefined) return [];
   const undo = a.undo;
-  const fields = isObject(undo) && isObject(undo.input) ? Object.entries(undo.input) : [];
-  if (operation !== "command" || a.effect === "irreversible" || !isObject(undo) || !isId(undo.capability_id) || !isVersion(undo.version) || !fields.length
+  const fields = isRecord(undo) && isRecord(undo.input) ? Object.entries(undo.input) : [];
+  if (operation !== "command" || a.effect === "irreversible" || !isRecord(undo) || !isId(undo.capability_id) || !isVersion(undo.version) || !fields.length
     || fields.some(([, value]) => !(isOutputPath(value) || (Array.isArray(value) && value.length === 1 && isOutputPath(value[0]))))) {
     return [`能力 ${key} 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置`];
   }
@@ -245,7 +246,7 @@ function undoProblems(key: string, operation: unknown, a: ActionBody): string[] 
 function workflowContentProblems(key: string, version: unknown, operation: unknown, a: ActionBody): string[] {
   if (a.workflow_content === undefined) return [];
   const w = a.workflow_content;
-  if (!isObject(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !isText(w.title) || !isText(w.icon)
+  if (!isRecord(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !isText(w.title) || !isText(w.icon)
     || w.protocol !== 1 || !["list", "read", "receive", "create"].includes(String(w.role)) || (w.receives !== undefined && (w.receives !== false || w.role === "receive"))) {
     return [`能力 ${key} 的工作流内容合同无效`];
   }
@@ -279,7 +280,7 @@ function sceneListProblems(scenes: unknown): string[] {
 }
 
 function sceneProblems(s: unknown, seen: Set<string>, ruleKeys: Set<string>): string[] {
-  if (!isObject(s) || !isId(s.scene_id) || !isVersion(s.version)) return ["消费场景需要有效身份和版本"];
+  if (!isRecord(s) || !isId(s.scene_id) || !isVersion(s.version)) return ["消费场景需要有效身份和版本"];
   const problems = [...sceneContractProblems(s), ...defaultRuleProblems(s, ruleKeys)];
   const key = `${s.scene_id}@${s.version}`;
   if (seen.has(key)) problems.push(`消费场景重复：${key}`);
@@ -291,14 +292,14 @@ function sceneProblems(s: unknown, seen: Set<string>, ruleKeys: Set<string>): st
 /** What a scene declares about its events and recommendations, in the order those are checked. */
 function sceneContractProblems(s: Record<string, unknown>): string[] {
   const problems: string[] = [];
-  if (s.event_schema !== undefined && !isObject(s.event_schema)) problems.push(`消费场景 ${s.scene_id} 的事件合同无效`);
+  if (s.event_schema !== undefined && !isRecord(s.event_schema)) problems.push(`消费场景 ${s.scene_id} 的事件合同无效`);
   if (s.recommendation_source !== undefined && (s.recommendation_source !== "subject-offers" || s.result_type !== "molis.behavior-recommendation.v1")) {
     problems.push(`消费场景 ${s.scene_id} 的推荐来源合同无效`);
   }
   if (s.recommendation_labels !== undefined) {
     const schema = s.result_schema as { properties?: { suggested_behavior_ids?: { items?: { enum?: unknown } } } } | undefined;
     const keys = schema?.properties?.suggested_behavior_ids?.items?.enum;
-    if (!isObject(s.recommendation_labels) || s.result_type !== "molis.behavior-recommendation.v1" || s.recommendation_source !== undefined || !Array.isArray(keys)
+    if (!isRecord(s.recommendation_labels) || s.result_type !== "molis.behavior-recommendation.v1" || s.recommendation_source !== undefined || !Array.isArray(keys)
       || Object.entries(s.recommendation_labels).some(([label, value]) => !keys.includes(label) || !isText(value))) {
       problems.push(`消费场景 ${s.scene_id} 的推荐名称必须对应结果合同中的选项`);
     }
@@ -314,14 +315,14 @@ function defaultRuleProblems(s: Record<string, unknown>, ruleKeys: Set<string>):
   const rule = s.default_rule;
   if (rule === undefined) return [];
   const invalid = `消费场景 ${s.scene_id} 的默认规则无效`;
-  if (!isObject(rule) || typeof rule.function_key !== "string" || !DEFAULT_RULE_KEY.test(rule.function_key) || !isText(rule.name) || rule.name.length > 80
+  if (!isRecord(rule) || typeof rule.function_key !== "string" || !DEFAULT_RULE_KEY.test(rule.function_key) || !isText(rule.name) || rule.name.length > 80
     || !isText(rule.instructions) || rule.instructions.length > 4000 || !isStrings(rule.subject_kinds) || !Array.isArray(rule.options)
     || rule.options.length < 2 || rule.options.length > 20) return [invalid];
-  const keys = rule.options.map(option => isObject(option) && typeof option.key === "string" && DEFAULT_RULE_OPTION_KEY.test(option.key) && isText(option.description) && option.description.length <= 200 ? option.key : null);
+  const keys = rule.options.map(option => isRecord(option) && typeof option.key === "string" && DEFAULT_RULE_OPTION_KEY.test(option.key) && isText(option.description) && option.description.length <= 200 ? option.key : null);
   if (keys.includes(null) || new Set(keys).size !== keys.length) return [invalid];
   const problems: string[] = [];
   const labels = s.recommendation_labels;
-  if (isObject(labels) && keys.some(key => !(key as string in labels))) problems.push(`消费场景 ${s.scene_id} 的默认规则选项必须是它的推荐名称`);
+  if (isRecord(labels) && keys.some(key => !(key as string in labels))) problems.push(`消费场景 ${s.scene_id} 的默认规则选项必须是它的推荐名称`);
   if (ruleKeys.has(rule.function_key)) problems.push(`默认规则重复：${rule.function_key}`);
   ruleKeys.add(rule.function_key);
   return problems;
@@ -330,7 +331,7 @@ function defaultRuleProblems(s: Record<string, unknown>, ruleKeys: Set<string>):
 function isCompleteScene(s: Record<string, unknown>): boolean {
   if (!isText(s.title) || !isText(s.description) || !isText(s.trigger) || !ACTION_SCOPES.includes(String(s.scope))) return false;
   if (!isStrings(s.permissions) || (s.configuration_permissions !== undefined && !isStrings(s.configuration_permissions))) return false;
-  return isStrings(s.subject_kinds) && isObject(s.input_schema) && isObject(s.result_schema);
+  return isStrings(s.subject_kinds) && isRecord(s.input_schema) && isRecord(s.result_schema);
 }
 
 // ---- small guards -----------------------------------------------------------------------------------------------------------
@@ -338,11 +339,10 @@ function isCompleteScene(s: Record<string, unknown>): boolean {
 /** The same schema written with its keys in another order is the same schema. */
 function canonicalSchema(value: unknown): string {
   const sort = (entry: unknown): unknown => Array.isArray(entry) ? entry.map(sort)
-    : isObject(entry) ? Object.fromEntries(Object.keys(entry).sort().map(name => [name, sort(entry[name])])) : entry;
+    : isRecord(entry) ? Object.fromEntries(Object.keys(entry).sort().map(name => [name, sort(entry[name])])) : entry;
   return JSON.stringify(sort(value));
 }
 
-export function isObject(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
 export function isText(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
 export function isId(v: unknown): v is string { return isText(v) && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(v); }
 export function isVersion(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v > 0; }

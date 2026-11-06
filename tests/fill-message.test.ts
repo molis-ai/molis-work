@@ -29,6 +29,17 @@ test("VUX-40: the page's L and the Host's L fill the same way, and every agreein
   }
   assert.equal(host.L("git.commit.staged", { count: 1 }), "Commit 1 staged file…");
   assert.equal(host.L("git.commit.staged", { count: 2 }), "Commit 2 staged files…");
+  for (const count of [0, 1, 2]) {
+    // T01-REPOSITORY-COUNT-01: both connection specimens agree with 0/1/2 repositories.
+    const noun = count === 1 ? "repository" : "repositories";
+    for (const [key, expected] of [
+      ["{account} · 个人 · 能看 {count} 个仓库", `sample · personal · sees ${count} ${noun}`],
+      ["{account} · 团队 · 能看 molis-ai 的 {count} 个仓库", `sample · team · sees ${count} ${noun} in molis-ai`],
+    ]) {
+      assert.equal(host.L(key, { account: "sample", count }), expected);
+      assert.equal(page.L!(key, { account: "sample", count }), expected);
+    }
+  }
   // An agreeing word without its number would read "file" alone; the Chinese has the number, so the English shows it too.
   // The Plugins' words are in their Manifests: stable-key words (zh and en) and English for words still keyed by their Chinese text.
   const stable = BUILTIN_PLUGIN_CATALOG.flatMap((entry) => Object.values(entry.manifest.ui.messages ?? {}));

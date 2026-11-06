@@ -1,23 +1,15 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { createHmac, randomBytes } from "node:crypto";
-import { mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
+import { mkdtemp, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as delay } from "node:timers/promises";
 import type { TestContext } from "node:test";
 import { installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
+import { isolatedMcpResident } from "./isolated-mcp-resident.js";
 
-export async function waitUntil(check: () => Promise<boolean>, timeout = 8000): Promise<void> {
-  const deadline = performance.now() + timeout;
-  while (!await check()) {
-    if (performance.now() >= deadline) throw new Error("Autostart fixture condition timed out");
-    await delay(30);
-  }
-}
+export { waitUntil } from "./isolated-mcp-resident.js";
 
 export async function installedMcpHome(t: TestContext, install = installMolisWorkHome) {
   const root = await mkdtemp(join(tmpdir(), "mcp-autostart-")), home = join(root, "home");
@@ -36,32 +28,7 @@ export async function installedMcpHome(t: TestContext, install = installMolisWor
     beforeStep: step => { t.signal.throwIfAborted(); t.diagnostic(`Real installer phase: ${step}`); } }));
   t.signal.throwIfAborted();
   t.diagnostic("Real install complete; beginning process scenarios");
-  const reservation = createServer(); await new Promise<void>(resolve => reservation.listen(0, "127.0.0.1", resolve));
-  const address = reservation.address(); assert.ok(address && typeof address === "object");
-  await new Promise<void>(resolve => reservation.close(() => resolve()));
-  const origin = `http://127.0.0.1:${address.port}`, pids = new Set<number>();
-  let lastHealth: { process_id: number; service_process_id: number } | undefined;
-  async function health() {
-    const token = (await readFile(join(home, "config/web-control-token"), "utf8")).trim(), challenge = randomBytes(32).toString("base64url");
-    const response = await fetch(`${origin}/health?challenge=${challenge}`, { signal: AbortSignal.timeout(1000) });
-    const body = await response.text();
-    assert.equal(response.headers.get("x-molis-work-proof"), createHmac("sha256", token).update(`${challenge}\n${body}`).digest("base64url"));
-    const value = JSON.parse(body); assert.equal(value.status, "ok"); assert.equal(value.desktop_tui, true);
-    assert.ok(Number.isSafeInteger(value.process_id) && value.process_id > 1);
-    assert.ok(Number.isSafeInteger(value.service_process_id) && value.service_process_id > 1);
-    pids.add(value.process_id); pids.add(value.service_process_id); lastHealth = value;
-    return { process_id: value.process_id as number, service_process_id: value.service_process_id as number };
-  }
-  async function stopHost() {
-    if (!lastHealth) { try { await health(); } catch { /* Startup may have failed before listening. */ } }
-    for (const pid of pids) { try { process.kill(pid, "SIGTERM"); } catch { /* Already exited. */ } }
-    await waitUntil(async () => {
-      try { await fetch(`${origin}/health`, { signal: AbortSignal.timeout(300) }); return false; }
-      catch { return true; }
-    });
-    await waitUntil(async () => [...pids].every(pid => { try { process.kill(pid, 0); return false; } catch { return true; } }));
-    pids.clear(); lastHealth = undefined;
-  }
+  const { origin, health, stopHost } = await isolatedMcpResident(home);
   cleanupHost = stopHost;
   const original = join(home, "bin", "molis-work-web-original"), barrier = join(root, "release-start"), attempts = join(root, "attempts");
   await mkdir(attempts);

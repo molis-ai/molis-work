@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { createGoalsDeliverableActionHandlers, goalsArtifactInputActions, goalsDeliverableActions, type GoalDeliverable } from "@molis-ai/molis-work-plugin-goals";
@@ -8,7 +8,7 @@ import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/
 
 // specs/artifact-positioning A5c: the assistant, Coding, workflows and MCP propose deliverables; only the person records them.
 test("deliverables from anyone but the person are proposals the person confirms or turns down", async () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   const ledger = createContextLedger(db, { authorize: () => true });
   const versions = new Map([["plan@1", "计划"], ["plan@2", "计划终稿"]]);
   const pinned: string[] = [];

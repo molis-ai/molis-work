@@ -1,14 +1,13 @@
 import type { ActionCallContext, ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parseFileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { objectSchema as object, fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { projectTextStats, waitingStats, unavailableStats, countCodePoints, countLines, type TextStatsView } from "./core.js";
 import { TEXT_STATS_EN } from "./en.js";
 import { TEXT_STATS_MESSAGES } from "./messages.js";
 import { renderTextStats } from "./ui.js";
 
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
 const text = { type: "string" }, number = { type: "integer", minimum: 0 };
 const counts = { characters: number, utf8_bytes: number, lines: number };
 const view = object({ phase: { enum: ["waiting", "unavailable", "ready"] }, message: text, recovery: text,

@@ -1,3 +1,4 @@
+import { createActionDefinition, nullableSchema as nullable, objectSchema as object, arraySchema } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "./contract.js";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
@@ -17,9 +18,7 @@ const TODO_WRITE = ["todo:read", "todo:write"] as const;
 
 const text = { type: "string" };
 const id = { ...text, minLength: 1, maxLength: 200 };
-const nullable = (schema: object) => ({ anyOf: [schema, { type: "null" }] });
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-const array = (items: unknown, extra: Record<string, unknown> = {}) => ({ type: "array", items, ...extra });
+const array = (items: unknown, extra: Record<string, unknown> = {}) => ({ ...arraySchema(items), ...extra });
 const date = { ...text, pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
 const time = { ...text, pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$" };
 const instant = { ...text, minLength: 10, maxLength: 40 };
@@ -88,9 +87,9 @@ type Identity = { id: string; expected_revision?: number };
 
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   extra: Partial<ActionDefinition["action"]> = {}): ActionDefinition<I, O> {
-  return withProjectReach({ capability_id: `todo.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "home",
+  return withProjectReach(createActionDefinition<I, O>(`todo.${name}`, operation, { title, description, scope: "home",
     audiences: ["user", "agent", "workflow", "mcp"], permissions: [...(operation === "query" ? TODO_READ : TODO_WRITE)], subject_kinds: [TODO_SUBJECT_KIND],
-    input_schema: input, output_schema: output, ...extra } });
+    input_schema: input, output_schema: output, ...extra }));
 }
 const resultSubject = { id: "item.id", revision: "item.revision" };
 /** How a change is taken back: the revert command, fed from this change's own output (D08: runs when asked, then 撤销). */

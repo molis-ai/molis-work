@@ -1,3 +1,4 @@
+import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionAvailability, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -63,7 +64,6 @@ export interface WorkflowsActionPorts extends WorkflowsStores {
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, maxLength: 200 };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const chain = { type: "object", properties: { stations: { type: "array", maxItems: 12 }, links: { type: "array" } }, required: ["stations"] };
 const workflow = { type: "object", required: ["workflow_id", "title", "stations", "links", "revision"] };
 const instance = { type: "object", required: ["instance_id", "workflow_id", "status", "current", "chain", "steps"] };
@@ -72,8 +72,8 @@ const read = ["workflows:read"], write = ["workflows:write"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   permissions: readonly string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   // Handoffs wait on other plugins and on a model; the store's revisions and delivery keys keep concurrent calls safe.
-  return { capability_id: `workflows.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation",
-    scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "mcp"], permissions, subject_kinds: ["workflow"], input_schema: input, output_schema: output } };
+  return createActionDefinition<I, O>(`workflows.${name}`, operation, { title, description, ...(execution ? { execution } : {}),
+    scheduling: "concurrent", audiences: ["user", "agent", "mcp"], permissions, subject_kinds: ["workflow"], input_schema: input, output_schema: output });
 }
 
 export const workflowsActions = {

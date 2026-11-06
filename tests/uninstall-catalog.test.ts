@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { MolisWorkWebServiceManager, RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopUninstallService as createLocalUninstallService } from "@molis-ai/molis-work-app-desktop";
 
@@ -14,7 +14,7 @@ for (const owned of [true, false]) {
       const home = join(directory, ".molis-work");
       await mkdir(join(home, "projects"), { recursive: true });
       const databasePath = join(home, "projects", "catalog.db");
-      const db = new Database(databasePath);
+      const db = openTestSqlite(databasePath);
       try {
         db.exec(`
           CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -43,7 +43,7 @@ for (const owned of [true, false]) {
       assert.equal(plan.demo_project_count, 0);
       if (!owned) assert.match(plan.conflicts.join("\n"), /catalog 不属于 Molis Work/);
       assert.deepEqual(await readFile(databasePath), before);
-      const after = new Database(databasePath, { readonly: true });
+      const after = openTestSqlite(databasePath, { readonly: true });
       try {
         assert.equal((after.prepare("SELECT count(*) AS count FROM projects").get() as { count: number }).count, 2);
       } finally { after.close(); }
@@ -52,13 +52,13 @@ for (const owned of [true, false]) {
 }
 
 /** The uninstall preview of a Home whose `projects/catalog.db` was built by `build`, and whether the file's bytes were left alone. */
-async function previewCatalog(build: (db: Database.Database) => void) {
+async function previewCatalog(build: (db: SqliteDatabase) => void) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-uninstall-catalog-"));
   try {
     const home = join(directory, ".molis-work");
     await mkdir(join(home, "projects"), { recursive: true });
     const databasePath = join(home, "projects", "catalog.db");
-    const db = new Database(databasePath);
+    const db = openTestSqlite(databasePath);
     try { build(db); } finally { db.close(); }
     const before = await readFile(databasePath);
     const service = createLocalUninstallService({

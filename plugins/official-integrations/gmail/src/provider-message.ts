@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
 type ConnectorIngestItem = IntegrationProviderItem;
 
@@ -145,7 +146,7 @@ function getHeaders(
   msgJson: Record<string, unknown>,
 ): Array<{ name?: unknown; value?: unknown }> | null {
   const payload = msgJson.payload;
-  if (!isPlainObject(payload)) return null;
+  if (!isRecord(payload)) return null;
   const headers = (payload as { headers?: unknown }).headers;
   if (!Array.isArray(headers)) return null;
   return headers as Array<{ name?: unknown; value?: unknown }>;
@@ -164,9 +165,6 @@ function pickHeader(
   return undefined;
 }
 
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === "object" && !Array.isArray(value);
-}
 
 /** ISO-8601 UTC "now" - uses injected clock for tests, otherwise system clock. */
 export function nowIso(nowMs?: number): string {

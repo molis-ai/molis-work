@@ -196,9 +196,7 @@ export const PLUGIN_EVENTS_SCHEMA_SQL = `
  * delivery cursors only; no Goal, Artifact or Provider table is read here.
  */
 export class SqlitePluginEventsRepository implements PluginEventsRepository {
-  constructor(private readonly db: PluginEventsDatabase) {
-    db.exec(PLUGIN_EVENTS_SCHEMA_SQL);
-  }
+  constructor(private readonly db: PluginEventsDatabase) {}
 
   append(record: Omit<PluginEventRecord, "sequence">): PluginEventRecord {
     const row = this.db.prepare(`INSERT INTO plugin_events (

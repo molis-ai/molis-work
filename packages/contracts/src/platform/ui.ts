@@ -2,6 +2,7 @@ import type { ContractDescriptor } from "./package.js";
 import type { ActionAvailability, ActionReference } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
+import type { PluginImageTarget } from "./plugin-image-generation.js";
 
 /** A renderer contract requirement, not a callable business capability. */
 export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: 1 } as const;
@@ -65,6 +66,28 @@ export type UiConnectionSlotRequest<Element = unknown> = {
   readonly record_key: string;
   readonly signal?: AbortSignal;
 } & ({ readonly mode: "read" } | { readonly mode: "choose"; readonly anchor: Element });
+
+/**
+ * Where a page needs an account (specs/assistant-service-connections/spec.md §13.5). `slot`: one of this installation's Manifest
+ * `connections.slots`, granted `connections:use`; a `per_record` slot names its record (`isPluginConnectionRecordKey`), an
+ * installation slot names none. `image`: the image generation target of a plugin that declares `image_generation` and holds its
+ * write permission; the card says the key goes only to the origin the shell derives from `base_url`. The service, installation,
+ * project and every word on the card come from the Manifest, the page's authority and the shell, never from the page.
+ */
+export type UiConnectionNeedTarget =
+  | { readonly kind: "slot"; readonly slot_id: string; readonly record_key?: string }
+  | ({ readonly kind: "image" } & PluginImageTarget);
+
+/**
+ * What the page learns: the account's display name once an account is connected to the target and usable (never which connection,
+ * its state or a credential; an image target can then be read with `inspect`), or that the person cancelled.
+ */
+export type UiConnectionNeedOutcome =
+  | { readonly status: "connected"; readonly account: { readonly label: string } }
+  | { readonly status: "cancelled" };
+
+/** The card quotes a slot's Manifest `reason` as the plugin's words, cut to this many characters. */
+export const UI_CONNECTION_NEED_REASON_MAX = 80;
 
 /** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
 export interface UiPageWorkspaces {
@@ -646,6 +669,14 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   openView(selection: UiViewSelection): void;
   invalidateView(): void;
   connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
+  /**
+   * The platform's connection card at `place`, an empty element the page leaves where the account is missing. The shell draws it
+   * outside the page and keeps the account list, the key field and every write, each one the person's own click in the trusted
+   * card; asking writes nothing. Resolves `connected` (at once when the target already has a usable account) or `cancelled`; while
+   * the person is still connecting it waits, and `signal` is the page's only way out. Rejects with an `AbortError` when `signal`
+   * aborts, the view changes or the page closes, and with one fixed message when unavailable, whatever the reason.
+   */
+  connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: { signal?: AbortSignal }): Promise<UiConnectionNeedOutcome>;
   openItem(surface: string, itemId: string, title?: string): void;
   openBeside(surface: string, itemId: string, title?: string): void;
   openPlugin(surface: string, view?: string, panel?: string): void;

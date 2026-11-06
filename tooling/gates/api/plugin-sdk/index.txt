@@ -386,6 +386,8 @@ export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiConnectionNeedOutcome } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";

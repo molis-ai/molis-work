@@ -6,6 +6,12 @@ export interface ActionResultView {
   readonly text_pointer?: string;
   /** A same-origin product destination. Placeholders are {project_id} or {/output/pointer}. */
   readonly link?: { readonly label: string; readonly href_template: string };
+  /**
+   * A connection the person still has to finish (specs/assistant-service-connections/spec.md §13.5 C5): the JSON Pointer to the
+   * authorization's id in the output. Where the result is shown, the platform draws its connection card for that authorization,
+   * chosen by this declaration and never by the action's id; `link` stays the way there for a place that draws no card.
+   */
+  readonly pending_connection?: { readonly authorization_pointer: string };
 }
 
 /** A bounded snapshot saved with the original execution, never regenerated from a newer provider. */
@@ -15,6 +21,8 @@ export interface ActionResultPresentation {
   readonly text?: string;
   readonly text_truncated?: true;
   readonly link?: { readonly label: string; readonly href: string };
+  /** The authorization the card reads its state from and cancels; only an id of letters, digits and `-`, at most 100 characters. */
+  readonly pending_connection?: { readonly authorization_id: string };
 }
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -25,7 +33,9 @@ const internal = (value: string): boolean => /^\/(?!\/)/u.test(value) && !/[\\\u
 export function validActionResultView(value: unknown): value is ActionResultView {
   if (!object(value) || !shortText(value.summary, 240)
     || (value.title_pointer !== undefined && !pointer(value.title_pointer))
-    || (value.text_pointer !== undefined && !pointer(value.text_pointer))) return false;
+    || (value.text_pointer !== undefined && !pointer(value.text_pointer))
+    || (value.pending_connection !== undefined && !(object(value.pending_connection) && pointer(value.pending_connection.authorization_pointer)
+      && value.pending_connection.authorization_pointer !== ""))) return false;
   if (value.link === undefined) return true;
   if (!object(value.link) || !shortText(value.link.label, 80) || !shortText(value.link.href_template, 2000) || !internal(value.link.href_template)) return false;
   const tokens = [...value.link.href_template.matchAll(/\{([^{}]+)\}/gu)];
@@ -60,5 +70,11 @@ export function presentActionResult(view: ActionResultView | undefined, result: 
     if (complete && href.length <= 4000 && internal(href)) link = { label: view.link.label, href };
   }
   return { summary: view.summary, ...(title ? { title: title.slice(0, 300) } : {}),
-    ...(text ? { text: text.slice(0, 4000), ...(text.length > 4000 ? { text_truncated: true as const } : {}) } : {}), ...(link ? { link } : {}) };
+    ...(text ? { text: text.slice(0, 4000), ...(text.length > 4000 ? { text_truncated: true as const } : {}) } : {}), ...(link ? { link } : {}),
+    ...pendingConnection(view, result) };
+}
+
+function pendingConnection(view: ActionResultView, result: unknown): Pick<ActionResultPresentation, "pending_connection"> {
+  const id = view.pending_connection && scalarAt(result, view.pending_connection.authorization_pointer);
+  return id && /^[A-Za-z0-9-]{1,100}$/u.test(id) ? { pending_connection: { authorization_id: id } } : {};
 }

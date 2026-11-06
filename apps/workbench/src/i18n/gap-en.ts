@@ -332,7 +332,7 @@ export const GAP_EN: Record<string, string> = {
   "{model} 已经在列表里": "{model} is already in the list",
   "已加入 {model}，保存后生效": "Added {model}. Save to use it.",
   "正在向服务要模型列表…": "Asking the service for its models…",
-  "服务提供 {count} 个模型，选一个加进列表": "The service offers {count} models. Pick one to add it.",
+  "服务提供 {count} 个模型，选一个加进列表": "The service offers {count} {count|model|models}. Pick one to add it.",
   "服务没有列出模型，请手填模型名。": "The service listed no models. Type the model name instead.",
   "检查没有完成（{code}）。": "The check did not finish ({code}).",
   "正在等待模型响应…": "Waiting for the model…",

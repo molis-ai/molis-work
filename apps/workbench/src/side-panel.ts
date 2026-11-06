@@ -130,8 +130,9 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
 }
 /* On a phone the strip shares the title bar's first row with the history buttons and the Home tools, and takes the room left
    between them: the glyphs keep their 44px targets and scroll sideways, and reveal() keeps the current one in view (measured:
-   three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. */
-@media(max-width:600px){html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0}}
+   three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. The strip's 2px block padding
+   (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. */
+@media(max-width:600px){html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}}
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
    titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
    strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */

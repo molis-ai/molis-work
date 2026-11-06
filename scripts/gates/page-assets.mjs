@@ -343,7 +343,7 @@ const headErrors = (measured, budget, base) => {
 // strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-60～63 entry
 // keyed on 1085847 is spent on this base (main's budget 1089571 holds its ceiling), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
 // character typed; the 208271 key is shared with the account admission, so its ceiling is S1's 208400, which also covers the
-// account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -871 B,
+// account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -853 B,
 // arrival.css -5247 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
 // classes. Tried: the side reuses the workspace's persist, closed stack and removed-plugin check instead of keeping its own; the
 // old side-tab, side-ratio and discussion-ratio keys are dropped, not read; the rules' comments sit above the function, not in the

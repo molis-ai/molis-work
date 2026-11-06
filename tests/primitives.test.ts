@@ -249,7 +249,9 @@ test("visual foundation ships primitive classes after the Coss control layer", (
 test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-btn \{[\s\S]*appearance: none/);
   assert.match(PRIMITIVE_STYLES, /\.mw-btn:focus-visible \{/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:active:not\(:disabled\)/);
+  // The pressed primary is one rule for :active and for an open ▾ (aria-expanded), so the split button's menu toggle stays pressed
+  // while its menu is open without a second copy of the fill (D-track review of #1850, item 5; #1872).
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:is\(:active, \[aria-expanded="true"\]\):not\(:disabled\) \{\s*background: color-mix\(in srgb, var\(--action\) 82%, var\(--action-ink\)\);/);
   // Soft Workbench (DESIGN.md → Buttons): links are copper.
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--link \{[^}]*color: var\(--accent\);/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-btn:disabled \{[^}]*background: var\(--control-fill\)/);

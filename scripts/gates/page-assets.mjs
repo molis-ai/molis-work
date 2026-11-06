@@ -342,9 +342,17 @@ const headErrors = (measured, budget, base) => {
 // reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
 // Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
 // one short fixed message; no cast.
+// K0c (batch 10, #1872; admitted by the coordinator for the main session on 2026-11-06): the D-track review of #1850, item 5,
+// folds the open ▾'s pressed fill into the primary button's own rule, `.mw-btn--primary:is(:active, [aria-expanded="true"])`,
+// instead of the board copying its color-mix; it is in the page sheets because K2 draws that split button in product pages.
+// +26 B on each of arrival.css, settings.css and workbench.css, keyed on main's budgets after #1884 (the ASC-60～63 settings.css
+// and workbench.css entries are spent there, so they are replaced). The source is still 29 characters longer; since #1877 the
+// served CSS is minified (served-page-text.ts), which drops the space and the quotes in `:is(:active,[aria-expanded=true])`.
+// Tried: no comment in the sheet, one selector list instead of a second rule.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827793, 830322],
-  "/assets/molis-work-workbench.css": [1204709, 1207238],
+  "/assets/molis-work-arrival.css": [635966, 635992],
+  "/assets/molis-work-settings.css": [760704, 760730],
+  "/assets/molis-work-workbench.css": [1107725, 1107751],
   "/assets/molis-work-workbench.js": [1085847, 1089571],
   "/assets/molis-work-plugin-frame.js": [188354, 188418],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.

@@ -17,3 +17,4 @@ export * from "./ui/calendar.js";
 export * from "./ui/directory.js";
 export * from "./ui/layout.js";
 export * from "./ui/process-fold.js";
+export * from "./ui/composer.js";

@@ -220,6 +220,10 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 - `plugins/native/alchemist/package.json:36,52,58` 留依赖，`open-database.ts:1` 不动，24 处 `.transaction(` 不动。出处：`tests/builtin-plugin-assembly-gate.test.ts` 的批准例外（BL-377 重做）。
 - 宿主侧的 `alchemist-search.ts` 走 `LocalSqliteStorage`，跟着切（`search.sqlite`）。
 - **同一个进程里仍然有两份 SQLite**（Alchemist 在宿主里跑时）。今天也是这样，只是换了分工。安全靠「文件不重叠」，§4 新增了拒绝用例；U1 的升级过程也算在内（§4 末段）。
+- **门禁改严，切换后旧驱动只许 Alchemist 用（用户 2026-11-06 定）。** `scripts/gates/project-sqlite-driver.mjs`（#1790）的 `ownsDriver` 现在放行整个 `packages/storage/` 和 `plugins/native/alchemist/`，分两步收：
+  - SQLD-d：`packages/storage/` 收窄到保留旧实现的那一个文件（`sqlite-connection.ts`），留给 revert（§9）。符合性用例从 `packages/storage` 取旧实现，不直接 import。
+  - SQLD-e：`packages/storage` 那一项删掉，只剩 Alchemist。符合性用例的旧驱动那一半同时删掉，期望值已经写在用例里。
+  - 宿主也不许直接 import：U1 的升级过程开 `studio.sqlite` 要调 Alchemist 自己的打开函数（`open-database.ts`）。门禁的变异用例：`packages/storage` 里别的文件、宿主、别的插件 import `better-sqlite3` 都失败。
 - npm 和桌面产物：只要 Alchemist 还是内置插件，产物里就仍带 `better-sqlite3` 和它的原生模块。体积和准备流程这次省不下来。等 BL-377。
 
 ## 8. ExperimentalWarning
@@ -244,8 +248,8 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 | SQLD-a 收口 | **还在旧驱动上**：窄接口删 `pluck`、命名参数；加 `readonly` 属性；`sqliteErrorName` 和全部调用点；`snapshot-sqlite.ts` 去掉直接 import | `packages/storage/src/{sqlite-connection,snapshot-sqlite,index}.ts`、`catalog-commit.ts`、`web-catalog-access.ts`、约 6 个测试 | 全量（共享核心） | Opus 5.5 high | #1790；U1-a、U1-b（共用 `snapshot-sqlite.ts`） |
 | SQLD-b 锁 Node | §2.1 | CI 3 个、`prepare-macos-runtime.sh`、`.nvmrc`、`tooling/gates/root-allowlist.json`、`package.json` `engines`；启动时的版本说明 | SQLD-06 | Sonnet 5.5 high | 用户 2026-11-06 已定（含改 CI）；F 轨文件由 F 落；原生模块在新 ABI 上重建要核 |
 | SQLD-c 适配层与符合性 | §3 全部，新文件；符合性用例：同一张表对两个驱动各跑一遍，差异全在表内。在官方 24.15 上让适配层跑一遍 S-46 全部用例（§2.1）。**不切换** | 新 `packages/storage/src/sqlite-node-connection.ts`、`tests/sqlite-driver-conformance.test.ts` | SQLD-01、02、03、04、11 | Opus 5.5 high | SQLD-a |
-| SQLD-d 切换 | `openSqliteConnection` 换实现；PLIB-08 与 S-46；沙箱核对；打包版本断言；全量加浏览器 | `sqlite-connection.ts`、`tests/security-invariants-plugin-*.test.ts`、`docs/system/SECURITY-INVARIANTS.md`、`plugin-project-library.ts`、`open-database.ts`、`prepare-runtime-payload.mjs`（F）、`scripts/gates/project-sqlite-driver.mjs`（门禁收紧，统筹正在问用户，答复前不动这一项） | SQLD-05、07、08、09 | Opus 5.5 high | SQLD-b、c；**02③ 已做**（批次定的先后）；机器槽排全量 |
-| SQLD-e 清理 | 删 storage 的依赖；`ownsDriver` 只留 Alchemist；`sqliteErrorName` 只认一种 | `packages/storage/package.json`、`pnpm-lock.yaml`（枢纽）、`scripts/gates/project-sqlite-driver.mjs`、`tests/npm-*.{ts,mjs}`、`packages/storage/README.md` | SQLD-10 | Sonnet 5.5 high | SQLD-d 稳定一轮 |
+| SQLD-d 切换 | `openSqliteConnection` 换实现；PLIB-08 与 S-46；沙箱核对；打包版本断言；全量加浏览器 | `sqlite-connection.ts`、`tests/security-invariants-plugin-*.test.ts`、`docs/system/SECURITY-INVARIANTS.md`、`plugin-project-library.ts`、`open-database.ts`、`prepare-runtime-payload.mjs`（F）、`scripts/gates/project-sqlite-driver.mjs`（门禁收紧第一步，§7；用户 2026-11-06 已定） | SQLD-05、07、08、09 | Opus 5.5 high | SQLD-b、c；**02③ 已做**（批次定的先后）；机器槽排全量 |
+| SQLD-e 清理 | 删 storage 的依赖；`ownsDriver` 只留 Alchemist（门禁收紧第二步，§7）；`sqliteErrorName` 只认一种 | `packages/storage/package.json`、`pnpm-lock.yaml`（枢纽）、`scripts/gates/project-sqlite-driver.mjs`、`tests/npm-*.{ts,mjs}`、`packages/storage/README.md` | SQLD-10 | Sonnet 5.5 high | SQLD-d 稳定一轮 |
 
 **和 U1 的先后（核过文件）。** 真实重叠只有 `packages/storage/src/snapshot-sqlite.ts`、`sqlite-baseline.ts`。U1-a、U1-b 先合，SQLD-a 接着。U1 新写的代码（升级跑法、升级快照）只用 `exec`、`prepare`、errcode，切换时不用碰。U1-c 以后和这里不共用文件，可以并行。
 
@@ -270,7 +274,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 | 11 | 成果与过程项 | 不涉及 |
 | 12 | 页面与外壳 | 不涉及 |
 | 13 | 错误 | 不加错误码；`sqliteErrorName` 是读 SQLite 自己的错误，不是新码 |
-| 14 | 冲突面 | `pnpm-lock.yaml`（枢纽）；F 轨 `apps/desktop/tooling/*`；CI（用户 2026-11-06 已同意）；门禁 `project-sqlite-driver` 收紧（统筹正在问用户）；`packages/storage` 与 U1 串行；E 轨的 `plugins/native/alchemist` 只加一个文件名检查，开工前预警 |
+| 14 | 冲突面 | `pnpm-lock.yaml`（枢纽）；F 轨 `apps/desktop/tooling/*`；CI（用户 2026-11-06 已同意）；门禁 `project-sqlite-driver` 收紧（用户 2026-11-06 已定）；`packages/storage` 与 U1 串行；E 轨的 `plugins/native/alchemist` 只加一个文件名检查，开工前预警 |
 
 ## 12. 验收
 
@@ -285,7 +289,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 | SQLD-07 | S-59 的超时、超内存、SIGKILL 用例在新驱动上全过，数字不改 |
 | SQLD-08 | Alchemist `open-database` 拒绝 `studio.sqlite` 以外的文件 |
 | SQLD-09 | 全量（`full-suite.yml`）和浏览器用例通过；用切换前的库文件打开、读写一遍；revert 后同一个库仍能打开 |
-| SQLD-10 | `packages/storage` 不再依赖 `better-sqlite3`；门禁 `project-sqlite-driver` 只放行 Alchemist；npm 与桌面冒烟通过 |
+| SQLD-10 | `packages/storage` 不再依赖 `better-sqlite3`；门禁 `project-sqlite-driver` 只放行 Alchemist，别处 import 旧驱动的变异用例失败（SQLD-d 时只多放行 `sqlite-connection.ts`）；npm 与桌面冒烟通过 |
 | SQLD-11 | 官方 24.15 上，适配层跑 S-46 全部用例（含 `tests/security-invariants-plugin-project-database.test.ts` 的 PLIB-06）全过；误拒的语句逐条写明，在 SQLD-d 之前处理（§2.1）；`.nvmrc`、CI、桌面的确切版本一致，用例核对 |
 
 ## 13. 决策记录
@@ -295,3 +299,4 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 | 2026-11-06 | **Node 升到 24.15.x 并锁定**（用户定）：`.nvmrc`、CI、桌面写确切补丁版本，现在是 `24.15.0`，`engines` 写 `24.15.x` | 把清单重读到 3.51.2 留在 24.14；清单支持多个版本 | §2.1。留在 24.14 要往旧版本重读一次清单，且低于 RC 标记；多版本工作量最大，Homebrew 也追不上。代价是 SQLite 版本从此跟 Node 走，开发机不能用 Homebrew 的 Node 跑服务 |
 | 2026-11-06 | **以后补丁换 SQLite 时，同一个 PR 重读步骤清单，读完才换** | 跟着补丁自动升 | 版本不符就拒绝每一条插件语句（S-46） |
 | 2026-11-06 | **适配层接住 `better-sqlite3` 的拒绝**：多句、参数太少、`get` 跑写语句、事务函数返回 promise 都照旧抛 | 只翻译接口，差异留给调用方 | 这几条都是把错误变成静默：丢第二句、写 NULL、丢原子性 |
+| 2026-11-06 | **`project-sqlite-driver` 门禁改严**（用户定）：随 SQLD-d、SQLD-e 分两步收，切换后旧驱动只许 Alchemist 用 | 门禁不动，`packages/storage` 继续整包放行 | 不收的话，别的文件还能把第二份 SQLite 悄悄带回来，这正是这次切换要消灭的（§4、§7） |

@@ -8,9 +8,9 @@ import type { ActionDefinition } from "../platform/actions.js";
  * Memory; the Host Memory Service owns policy, the write gate, recall orchestration and the settings pages.
  */
 export const servicesMemoryContract = {
-  contractId: "io.molis.work.service.memory.v2",
+  contractId: "io.molis.work.service.memory.v1",
   kind: "service",
-  schemaVersion: 2,
+  schemaVersion: 1,
   maturity: "partial",
   ssot: "specs/prologue-memory-strategy/spec.md",
 } as const satisfies ContractDescriptor;

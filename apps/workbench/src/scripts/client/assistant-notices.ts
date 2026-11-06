@@ -7,7 +7,10 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   // Plugin notifications waiting for a decision in the market: counted by the attention read, and by the market's list,
   // which is newer than a read that started before it.
   let pluginWaiting = 0, pluginHeldSince = -1;
-  const URGENT = new Set(["needs-decision", "failed", "reminder"]);
+  const URGENT = new Set(["needs-decision", "failed", "reminder", "connection"]);
+  // A connection's notice opens its settings: only a path of this origin under /settings/, handed to the settings' own listener, which
+  // checks the address again and keeps only what that page reads (settings-address-params.ts, S-47). Any other value offers no way to open it.
+  const settingsPathOf = (notice) => notice.kind === "connection" && typeof notice.settings_path === "string" && /^\/settings\/[a-z]/.test(notice.settings_path) ? notice.settings_path : "";
   let lastUrgent = 0;
   const paintNotices = (force) => {
     if (!noticePop) return;
@@ -30,6 +33,11 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
       go.setAttribute("aria-label", L("打开") + "：" + text);
       go.addEventListener("click", async () => {
         setNotices(false);
+        if (settingsPathOf(notice)) {
+          void settleNotice({ notice_id: notice.notice_id }, "seen");
+          document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: new URL(settingsPathOf(notice), location.origin).href } }));
+          return;
+        }
         if (notice.open) {
           void settleNotice({ notice_id: notice.notice_id }, "seen");
           const where = notice.open.project_id || "personal", here = project ? project.id : "personal";
@@ -39,7 +47,7 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
         }
         await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen");
       });
-      if ((notice.kind === "reminder" || notice.kind === "directory-read") && !notice.open) go.hidden = true;
+      if ((notice.kind === "reminder" || notice.kind === "directory-read") && !notice.open || notice.kind === "connection" && !settingsPathOf(notice)) go.hidden = true;
       const done = el("button", "mw-btn mw-btn--ghost", L("知道了")); done.type = "button";
       done.dataset.noticeId = notice.notice_id; done.dataset.noticeAction = "dismiss";
       done.setAttribute("aria-label", L("知道了") + "：" + text);

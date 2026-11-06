@@ -306,11 +306,17 @@ const headErrors = (measured, budget, base) => {
 // FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
 // The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
 // Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
+// the Assistant's "等你处理": workbench.js +573 B, keyed on main 733e5da7's budget 1077683 (the FCS-01/02 entry keyed on 1077514 is
+// spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
+// UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
+// the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
+// settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
   "/assets/molis-work-settings.css": [826998, 827545],
   "/assets/molis-work-workbench.css": [1194792, 1204497],
-  "/assets/molis-work-workbench.js": [1077514, 1077683],
+  "/assets/molis-work-workbench.js": [1077683, 1078256],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

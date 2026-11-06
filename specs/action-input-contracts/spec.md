@@ -629,7 +629,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 1 | 事实主人 | 不新增事实。版本字段的语义归动作合同；`updated_at` 归 `modules/judgment-rules` |
 | 2 | 插件同等待遇 | 过：N14 删掉内核给一个提供方的分支；N22 的工具在 SDK，内置和外部同一份 |
 | 3 | 能力注册 | 不新增动作。可信身份不变（项目 id 取自调用上下文，§6 正是核实这一点）；预览是 `concurrent`，保持 |
-| 4 | 合同 | N14 改 6 个动作输入和 `updated_at` 的语义，`functions.authoring.get` 对插件打开（`host-actions.tsv` 多变一行，§2.7），都在原版本上改（N35），一个 PR 改完所有消费者；N22-01 加公开类型和两个函数，单独排合同队列；T 片不改公开 API 和动作快照，N22-02、N22-03 例外：改 4 份 API 快照，差异只是字面量变窄，排 api 队列；S 片只改 schema 约束 |
+| 4 | 合同 | N14 改 6 个动作输入和 `updated_at` 的语义，`functions.authoring.get` 对插件打开（`host-actions.tsv` 多变一行，§2.7），都在原版本上改（N35），一个 PR 改完所有消费者；N22-01 加公开类型和两个函数，单独排合同队列；T 片不改公开 API 和动作快照，N22-02、N22-03 例外：改 5 份 API 快照，差异只是字面量变窄，排 api 队列；S 片只改 schema 约束 |
 | 5 | 放在哪个包 | 类型和两个小函数在 contracts（`bindActionHandler`、`inputSchemaFor` 都不到 20 行，无副作用），SDK 只依赖 contracts，不加第三方（§4.1） |
 | 6 | 表与存储 | 不改表。`updated_at` 语义收窄，存量值继续有效，不用升级 |
 | 7 | 兼容与迁移 | 不加。旧字段名直接拒绝 |

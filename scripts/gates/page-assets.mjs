@@ -319,9 +319,14 @@ const headErrors = (measured, budget, base) => {
 // usage instead of per code, the pair checked on the rows themselves instead of a serialized helper, the reasons table cut to the
 // codes an MCP connection's consumers can answer, errors through the page's own fail(), the two explanations and the two removal
 // confirmations sharing one sentence each; no new style or asset.
+// P3-0a (第 18 批, #1884; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin host
+// contract gains `taskGrants`, and until P3-1 draws the area the frame answers it with a refusing placeholder:
+// plugin-frame.js +64 B. The plugin-frame.js entry keyed on 208271 sums both: the +54 B #1843 reserved for the unified
+// account (#1846, WORK-03 above) and this +64 B, so 208271 + 54 + 64 = 208389. Tried: from a first cut of +118 B (a module
+// constant with a named DOMException and a long message) to an inline object with one short fixed message; no cast.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1078718, 1085276],
-  "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-plugin-frame.js": [208271, 208389],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

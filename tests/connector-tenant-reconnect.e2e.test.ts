@@ -68,8 +68,11 @@ test("S-57 S-69 RAC-654 RAC-657 a visible old tenant account reconnects through 
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await click(`${row} [data-connector-open="jira"]`);
-  await waitFor("!document.querySelector('[data-connector-detail=jira]').hidden");
-  const form = `[data-connection-replace="${saved.old.connection_id}"]`;
+  await waitFor("document.querySelector('[data-connector-item=jira]')?.dataset.open === 'true' && !document.querySelector('[data-connectors-settings]').getAnimations({ subtree: true }).some(motion => motion.playState === 'running' && motion.effect?.getComputedTiming().iterations !== Infinity)");
+  // The key is replaced under the service's 高级; the account's 换密钥 opens it there (§13.1 ②).
+  const form = `[data-connection-replace="${saved.old.connection_id}"]`, replaceOpen = `[data-connection-replace-open="${saved.old.connection_id}"]`;
+  await click(replaceOpen);
+  await waitFor(`document.querySelector('${form}')?.closest('details')?.open === true && (body => body.clientHeight >= body.scrollHeight - 1)(document.querySelector(${JSON.stringify(form)}).closest('.mw-collapsible__body'))`);
   const fill = async (site: string, secret: string) => {
     const values = [site, "person@example.com", secret];
     for (const [index, value] of values.entries()) {
@@ -88,13 +91,14 @@ test("S-57 S-69 RAC-654 RAC-657 a visible old tenant account reconnects through 
   assert.deepEqual(network.seen, [{ host: "acme.atlassian.net", authorization: `Basic ${Buffer.from(`person@example.com:${renewedSecret}`).toString("base64")}` }]);
   await assert.rejects(request("https://other.atlassian.net/rest/api/3/myself"), code("connector.plugin_requests.connection_unavailable"));
   const before = withConnectorConnections(home, store => store.require(saved.old.connection_id));
+  await click(replaceOpen);
+  await waitFor(`document.querySelector('${form}')?.closest('details')?.open === true && (body => body.clientHeight >= body.scrollHeight - 1)(document.querySelector(${JSON.stringify(form)}).closest('.mw-collapsible__body'))`);
   await fill("other.atlassian.net", "fixture-refused-cross-tenant-secret");
   await click(`${form} button[type=submit]`);
-  await waitFor(`document.querySelector('[data-connection-row="${saved.old.connection_id}"] [data-connection-result]')?.dataset.tone === 'error'`);
+  await waitFor(`document.querySelector('${form}').closest('[data-connection-scope]').querySelector('[data-connection-result]')?.dataset.tone === 'error'`);
   assert.deepEqual(withConnectorConnections(home, store => store.require(saved.old.connection_id)), before);
   assert.equal(withConnectorConnections(home, store => store.resolveToken(saved.old.connection_id, "jira")), `acme.atlassian.net|person@example.com|${renewedSecret}`);
   assert.equal(network.seen.length, 1, "cross-tenant request and reauthorization sent nothing");
-  await click('[data-connector-detail="jira"] [data-connectors-back]');
   assert.match(await evaluate<string>(`document.querySelector('${select} + [data-mw-select-trigger]').textContent`), /旧站点账号/);
   assert.doesNotMatch(await evaluate<string>(`document.querySelector('${select} + [data-mw-select-trigger]').textContent`), /需要重新连接/);
   assert.deepEqual(await port.describe(slot), { bound: true, display_name: "旧站点账号", state: "connected", origin: "https://acme.atlassian.net" });

@@ -336,7 +336,7 @@ const headErrors = (measured, budget, base) => {
 // spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
-// 07-fix record jump (#1887, 待 07 批评审台审, 2026-11-06): a record opened from search into a split pane is asked for once the
+// 07-fix record jump (#1887, 07 批评审台审过, 2026-11-06): a record opened from search into a split pane is asked for once the
 // pane page has loaded, by a message to that page that queues behind the view hand-off its load starts (which used to put the
 // plugin back on its list over an earlier ask), and the pane passes it on only from the page around it and in its exact shape
 // (S-30, `recordAsk` in the pane-message script): workbench.js +727 B, keyed on main's budget 885295 (after #1880; ASC-60～63's

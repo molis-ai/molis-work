@@ -40,6 +40,7 @@ export const shelfErrors = defineErrorCodes("shelf", {
   path_invalid: "invalid",
   recipe_unavailable: "conflict",
   source_conflict: "invalid",
+  sync_unavailable: "unavailable",
   too_large: "invalid",
   unavailable: "invalid",
 });

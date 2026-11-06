@@ -6,7 +6,7 @@ import type { PagePorts } from "./types.js";
 export interface PlanDraft {
   readonly revision: number;
   readonly content: CodingPlanContent;
-  readonly source: { readonly run_id: string; readonly task: string; readonly workspace_path: string };
+  readonly source: { readonly run_id: string; readonly task: string };
   readonly confirmed: { readonly artifact_id: string; readonly version: number } | null;
 }
 
@@ -28,7 +28,7 @@ export interface PlansClient {
   prepareStepRework(reason: string): void;
   /** Shows a revision as it was fixed. */
   openFixed(revision: number): Promise<void>;
-  update(id: string, value: PlanDraft | null, runs: readonly PlanRun[]): void;
+  update(id: string, value: PlanDraft | null, runs: readonly PlanRun[], revision: number): void;
   /** Draws a planner's answer as the plan it proposes; false when the turn is not one. */
   renderTurn(node: HTMLElement, run: PlanRun, turn: { readonly kind: string; readonly text: string }): boolean;
 }
@@ -54,6 +54,7 @@ interface Plans {
   plan: PlanDraft | null;
   runs: readonly PlanRun[];
   owner: string;
+  revision: number;
   busy: boolean;
   editor: Editor | null;
   renderKey: string;
@@ -307,7 +308,7 @@ function drawPlan(state: Plans, plan: PlanDraft, active: boolean) {
   region.append(el("p", L("coding.board.revision", { revision: plan.revision }) + " · " + (plan.confirmed ? L("coding.board.plan.confirmed") : L("coding.board.plan.unconfirmed"))));
   describe(L, region, plan.content);
   const origin = el("details");
-  origin.append(el("summary", L("coding.plan.source")), el("p", plan.source.task), el("p", plan.source.workspace_path));
+  origin.append(el("summary", L("coding.plan.source")), el("p", plan.source.task));
   region.append(origin, button(state, L("coding.plan.view-adjust"), () => edit(state), state.busy));
   drawProgress(state, plan, active);
   region.append(el("p", L("coding.plan.confirm-note")));
@@ -343,7 +344,7 @@ function render(state: Plans) {
   drawRevisions(state);
   for (const run of planners.filter(one => one.ref.run_id !== plan?.source.run_id)) {
     region.append(button(state, L("coding.plan.turn-proposal", { number: runs.indexOf(run) + 1 }), () => action(state, async id => {
-      const data = await api<{ plan: PlanDraft }>(path(state), "POST", { run_id: run.ref.run_id, expected_revision: plan?.revision ?? 0 });
+      const data = await api<{ plan: PlanDraft }>(path(state), "POST", { run_id: run.ref.run_id, expected_revision: plan?.revision ?? state.revision });
       if (id === current()) {
         state.plan = data.plan;
         edit(state);
@@ -402,7 +403,7 @@ function proposalOf(L: PlanPorts["translate"], node: HTMLElement, run: PlanRun, 
 /** The plan panel, the plan editor and the planner's proposals in the conversation. Plan drafts are UI inputs; execution state is always projected from Run records. */
 export function plansClient(ports: PlanPorts): PlansClient {
   const { lifetime, q } = ports, L = ports.translate;
-  const state: Plans = { ports, region: q("[data-coding-plan]"), dialog: q<HTMLDialogElement>("[data-coding-plan-dialog]"), plan: null, runs: [], owner: "", busy: false, editor: null, renderKey: "" };
+  const state: Plans = { ports, region: q("[data-coding-plan]"), dialog: q<HTMLDialogElement>("[data-coding-plan-dialog]"), plan: null, runs: [], owner: "", revision: 0, busy: false, editor: null, renderKey: "" };
   lifetime.listen(q("[data-coding-plan-form]"), "input", () => remember(state));
   lifetime.listen(q("[data-coding-plan-close]"), "click", () => {
     remember(state);
@@ -420,18 +421,20 @@ export function plansClient(ports: PlanPorts): PlansClient {
       q("[data-coding-plan-error]").textContent = L("coding.plan.rework");
     },
     openFixed: revision => fixed(state, revision),
-    update(id, value, nextRuns) {
+    update(id, value, nextRuns, revision) {
       if (state.owner !== id) {
         remember(state);
         state.dialog.close();
         state.editor = null;
         state.renderKey = "";
         state.plan = null;
+        state.revision = 0;
       }
       state.owner = id;
       const held = state.plan;
       if (value && (!held || value.revision > held.revision || (value.revision === held.revision && (!held.confirmed || value.confirmed)))) state.plan = value;
-      else if (!value && !held) state.plan = null;
+      else if (!value && revision >= state.revision) state.plan = null;
+      state.revision = Math.max(state.revision, revision);
       state.runs = nextRuns;
       render(state);
     },

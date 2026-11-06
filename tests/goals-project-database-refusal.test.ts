@@ -15,7 +15,7 @@ import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-a
 import { GOALS_PLUGIN_ID, goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import type { PluginProjectDatabaseRecord, PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
-import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
+import { ensureStorageSpace, personalStorageSpace, describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { codingView } from "./fixtures/coding-view.js";
 
 /**
@@ -50,11 +50,14 @@ const library = (path: string) => withDatabase(path, db => ({
 }));
 
 /** A Home with one project, made by this build: its library has the four plugins' tables and ledger rows. */
-async function project(directory: string) {
+async function project(directory: string, personal = false) {
   const home = join(directory, "home");
+  if(personal)ensureStorageSpace(home,personalStorageSpace("https://auth.example.test","work","tester"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try {
     const made = await catalog.createProject({ display_name: "拒绝只停 Goals", actor_id: "test-user" });
+    // Finish the first normal managed open before corrupting the ledger: staging paths do not install project-keyed journals.
+    if(personal)new LocalProjectDatabase(made.database_path).close();
     return { home, projectId: made.project_id, databasePath: made.database_path };
   } finally { catalog.close(); }
 }
@@ -111,7 +114,7 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
     const outcome = store.pluginDatabases.get(GOALS_PLUGIN_ID);
     assert.ok(outcome && "record" in outcome, "Goals' tables were opened, not refused");
     assert.equal(outcome.record.store_name, "goals");
-    assert.equal(outcome.record.version, 1);
+    assert.equal(outcome.record.version, 2);
   } finally { store.close(); }
   const open = await directory(home, projectId, databasePath);
   assert.deepEqual([...open.plugins].sort(), [GOALS_PLUGIN_ID, ...OTHERS].sort());
@@ -121,7 +124,7 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
 });
 
 const cases = [
-  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
+  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 1 WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
   { change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.publisher_mismatch" },
   { change: "one of its tables gained a column", sql: "ALTER TABLE goals ADD COLUMN added_by_hand TEXT", code: "plugin.project_database.shape_mismatch" },
   { change: "its board has the name column version 7 gave it", sql: "ALTER TABLE boards ADD COLUMN title TEXT", code: "plugin.project_database.shape_mismatch" },
@@ -129,9 +132,9 @@ const cases = [
   { change: "one of its tables is gone", sql: "PRAGMA foreign_keys = OFF; DROP TABLE goal_tree_proposals", code: "plugin.project_database.shape_mismatch" },
 ];
 
-for (const { change, sql, code } of cases) {
-  test(`PLIB-14: when ${change}, only Goals is refused with ${code}, the library opens and the other plugins work`, async t => {
-    const { home, projectId, databasePath } = await project(await scratch(t));
+for(const personal of [false,true]) for (const { change, sql, code } of cases) {
+  test(`PLIB-14 (personal: ${personal}): when ${change}, only Goals is refused with ${code}, the library opens and the other plugins work`, async t => {
+    const { home, projectId, databasePath } = await project(await scratch(t), personal);
     withDatabase(databasePath, db => { db.exec(sql); });
     const before = library(databasePath);
 
@@ -162,7 +165,7 @@ for (const { change, sql, code } of cases) {
 
 test("PLIB-14: only the platform's own refusal stops one plugin; a temporary SQLite error surfaces instead of being recorded as a refusal", () => {
   const db: PluginRuntimeDatabase = { exec: () => undefined, prepare: () => ({ get: () => undefined, all: () => [], run: () => undefined }) };
-  const record: PluginProjectDatabaseRecord = { plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature, store_name: "goals", version: 1, objects: [], created_at: "2026-10-23T00:00:00.000Z" };
+  const record: PluginProjectDatabaseRecord = { plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature, store_name: "goals", version: 2, objects: [], created_at: "2026-10-23T00:00:00.000Z" };
   const refused = openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw new ActionError("plugin.project_database.version_mismatch", "another version"); });
   const refusal = refused.get(GOALS_PLUGIN_ID);
   assert.ok(refusal && "error" in refusal, "the declaration's own refusal is recorded against that plugin only");

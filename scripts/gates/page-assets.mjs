@@ -341,6 +341,10 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.css": [1204709, 1207238],
   "/assets/molis-work-workbench.js": [1085847, 1089571],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
+  "/assets/molis-work-plugins/coding.js": [290006, 297761],
+  "/assets/molis-work-plugins/cognia.js": [22157, 22189],
+  "/assets/molis-work-plugins/shelf.js": [64967, 65319],
   "/assets/molis-work-plugins/images.js": [19896, 21103],
   "/assets/molis-work-plugins/images.css": [7851, 7901],
 };

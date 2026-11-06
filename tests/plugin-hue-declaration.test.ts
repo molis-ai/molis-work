@@ -100,7 +100,7 @@ test("RAC-706 the tab strip takes a plugin's colour from the page's directory, t
   }
   const script = renderMolisWorkWorkbenchClientScript();
   assert.match(script, /script\[data-plugin-directory\]/);
-  assert.match(script, /entry\.hue/);
+  assert.match(script, /\b[a-zA-Z_$][\w$]*\.hue\b/, "the shipped directory projection reads the declared hue after minification");
   assert.doesNotMatch(script, /PLUGIN_COLOR|var\(--plugin-(?!tint|color|rail)/);
 });
 

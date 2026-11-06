@@ -1,4 +1,5 @@
 export const ALCHEMIST_EN: Record<string, string> = {
+  "保存固定版本": "Save a fixed version",
   "等待确认继续": "Awaiting continuation",
   "任务已暂停，确认继续条件后才会运行。": "This task is paused. Review its continuation conditions before running it.",
   "查看继续条件": "Review continuation",
@@ -303,6 +304,6 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "沿用成果的理由与仍需重核的内容": "Why the results are reused, and what still needs rechecking",
   "例如：沿用访谈问题；价格和竞品变化重新核对。": "For example: reuse the interview questions; recheck pricing and competitor changes.",
   "检查所选内容的适用性": "Check whether the selected items apply",
-  "保存固定版本": "Save fixed version",
+  "探索、研究证据、决策与方法历史":"Exploration, research evidence, decisions and method history",
   "这一项已不存在或已删除": "This item no longer exists or was deleted",
 };

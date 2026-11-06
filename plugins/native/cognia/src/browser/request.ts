@@ -8,7 +8,7 @@ import type { CogniaApi, CogniaClientHost } from "./types.js";
  */
 export function cogniaApi(host: CogniaClientHost): CogniaApi {
   return <T>(path: string, body?: unknown) =>
-    molisWorkRequest<T>(libraryUrl(host, path), { method: body === undefined ? "GET" : "POST", ...(body === undefined ? {} : { body }) });
+    molisWorkRequest<T>(libraryUrl(host, path), { body });
 }
 
 /** The address of one library route (also what a download link points at). */

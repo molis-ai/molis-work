@@ -4,7 +4,6 @@ import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/a
 import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
-import { ALCHEMIST_COPILOT } from "@molis-ai/molis-work-plugin-alchemist";
 import test from "node:test";
 import http from "node:http";
 import https from "node:https";
@@ -36,7 +35,8 @@ const ai: AlchemistAiPort = {
   async search() { throw new Error("This test does not research"); },
 };
 
-test("studio HTTP keeps project isolation, authorized writes, persisted cards, export and legacy read-only boundary", { timeout: 15_000 }, async () => {
+// Two project cold starts plus a full Host restart share this integration deadline (the CI file budget remains 180s).
+test("studio HTTP keeps project isolation, authorized writes, persisted cards, export and legacy read-only boundary", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-http-"));
   let host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai } });
   let served = await serveTestHost(null, { home, host });

@@ -28,7 +28,11 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 
 不写项目数据库，不发布 Artifact。原件的路径只在平台那里：放入文件的请求经 `claimOriginal` 登记，Module 不存也不读路径；任务开始前和每次写入前经 `materials.readOriginal` 按 item 重新比对 Hash，原件不进入 Prompt 或 API 展示。
 
-目录只读当前版本1 和当前 item/job/clipboard 形状；错版或旧字段缺失明确拒绝并保留原文件，不在读取或后续保存时补齐历史字段。单项任务的现行 API 输入仍可使用 `item_id`。
+目录只读当前版本 2 和当前 item/job/clipboard 形状；错版或旧字段缺失明确拒绝并保留原文件，不在读取或后续保存时补齐历史字段。单项任务的现行 API 输入仍可使用 `item_id`。本地目录要求 `replication:null`，个人目录由 Host 注入 `ShelfSyncOptions` 的原子文件 CAS；业务数据和日志存于同一目录，顶层设置位置不变。两种空间格式不互相冒充。
+
+`replica()` 只在个人空间兑现：每个材料/结果及终态任务是独立键。完整正文、二进制及文件夹显式清单经共同内容 codec/R2 传输，不上传本机目录、原路径、剪贴板、运行器设置、运行回执或在途任务。文件先校验并保存到不可变版本位置，再原子替换目录；条件失败不改原目录和原副本。冻结上传包含完整字节，之后编辑或删除不损失待确认内容。任务历史保留引用，不因关联对象缺失而执行或伪造对象。接收的成果来源保留稳定项目和版本，未解析的本机 `project_path` 为空，不作为授权；重复接收按稳定项目和版本识别。
+
+远端删材料只删业务定位，不在目录提交前删除文件；共用同步历史负责版本恢复。不可达的暂存文件清理仍须在统一回收验收中确认。原件暂不可用保留队列，其他材料继续。正在执行的任务及其材料拒绝替换并等待，恢复不探测终端、不自动生成示例或执行任务。
 
 网页材料通过 Host 注入的 `ShelfMaterialPorts.readWebsite` 读取，Module 只保存标题、链接和产品 Markdown。纯 Module 调用未注入时只保留链接，不隐式联网；抓取失败同样保留链接并注明没有正文。异步入库传递 `ShelfExecutionControl`，取消/撤权不入库，剪贴板在最终写入前重新核对来源。HTML 通用解析不由 Shelf 导出。
 
@@ -36,7 +40,7 @@ PDF/OCR 使用同一端口的 `extract`，原生可用性由 `imageTextAvailable
 
 Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该来源保存在原 Shelf 目录记录中。相同项目、成果及版本再次接收返回已有副本，保留用户编辑；隐藏副本恢复显示，内容指纹冲突或副本文件缺失明确报错，不覆盖已有内容。来源本身不授予执行或项目写入权限。项目被删除后，来自它的副本留在架子里（用户 2026-10-26 弹窗决定，BL-680；删项目的路径不动，Shelf 不是它的一步）：读快照时由 Shelf 插件问平台服务 `services.projects.exist`，给每个带来源的副本补 `origin_project_deleted`（只在快照上，不入库；问不到就不标），页面把原成果链接换成“项目已删除”。
 
-工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（执行生命周期、共同同步文档与内容工具）。文件互斥由可信 Host 通过公开 Storage 端口注入，不新增 Module 到 Storage 的依赖。
 
 ## 本地开发
 
@@ -53,6 +57,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 - 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同入口 `@molis-ai/molis-work-contracts/platform/package`（包描述；Shelf 自己的合同是本包的 `@molis-ai/molis-work-module-shelf/contract`，`src/contract.ts`，PG-111 起由本包拥有，contracts 包里没有 Shelf 子路径）。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖 contracts/modules、contracts/services 与 plugin-sdk（执行生命周期）；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 文字编辑必须携带所读完整字节的 SHA-256；`writeCopy` 在同步写入前核对，旧编辑拒绝，不能临保存时重取指纹替旧输入补前提。原导入 hash 不因编辑改变，不能当作当前版本。
   - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
   - 架子上的文件只经注入的文件客户端读写（没有 `node:fs` 的路径）；每个逻辑操作是一次 `files.write(run)`，`run` 同步完成、先读现行目录再改，所以同时开始的两个操作不会互相覆盖目录行。`events.jsonl` 按整文件替换追加一行。仍直接用 `node:fs` 的只有运行时探测（`runtimes.ts`）；原件 Hash 的核对经平台读原件（`copy-checks.ts` 的 `assertOriginsUntouched`），不碰路径；另外交给模型的冻结 `input/` 是一条真实目录路径（模型读它），Module 自己不用 fs 去碰它。
   - 不写项目数据库、不自动发布 Artifact；同项目、同成果、同版本再次接收返回已有副本并保留编辑。
@@ -78,3 +83,9 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 `runtime()` / `snapshot()` 和 Agent 目录只问平台的本机工具服务（`services.localTools`，PG-112：九个引擎和额外目录写在插件的 Manifest `local_tools` 里），不读环境变量、不启动 CLI，也不再问 `--help`。人工终端与自动模型选择独立，`runJob()` 不探测或启动 CLI。没有这项服务（项目里的那一半）就是找不到。AI 可用性由 Host 的模型目录提供；未注入 AI 端口时明确不可用，本机提取仍可执行。
 
 自动生成合同是 `ShelfAiPorts`，由插件的 Home 实例经 `services.model` 与 `services.materials` 实现（`plugins/native/shelf/src/ai.ts`），冻结副本经 Shelf 自己的 owner files 读；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-job-runner.test.ts`。
+
+项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。
+
+个人目录的 SDK 技术日志现行为 v2（业务目录仍为 v2）；旧技术 v1 原样拒绝，真实 Home 不转换。本机删除副本前由共同 CAS 保留完整正文、二进制和显式文件夹子文件；CAS/读取失败不能删除唯一原件。尚未上传的删除可在空内容、原版本、无冻结上传/冲突前提下离线撤销。Shelf 已在选中集合的正常同步末尾，通过同一文件 CAS 锁有界检查旧暂存文件；当前材料/文件夹路径、未知分区、链接与不足 24 小时的文件均保留。复用旧文件的 CAS 在同锁内再次验证，清理竞争不能提交缺失路径。无锁/checked CAS 的存储不启用清理；保存的删除历史完整自包含。
+
+清理每批最多检查 5,000 个目录项、删除 20 个文件；保留、未知和链接项也推进游标。同一 owner 跨批次继续，重新打开则安全重扫，不保留目录句柄或按本机时间丢弃删除历史。Host 在当前授权生命周期内复用文档适配器以保留游标，缓存仍逐次复查账号和路径授权；目录列表在单批内复用，避免每处理一个子目录便重读整个父目录。

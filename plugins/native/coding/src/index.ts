@@ -1,3 +1,4 @@
+export {refreshCodingSavedHistory} from './saved-history.js';
 export { CODING_INSTRUCTIONS, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
@@ -113,6 +114,7 @@ export {
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
 export { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
+export { codingSync, codingContentReplicationDefinition, CODING_CONTENT_REPLICA_ID } from "./session-replication.js";
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
 export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask.js";
@@ -192,3 +194,4 @@ export { codingSkills } from "./skills.js";
 export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
 
 export { CODING_PROJECT_DATABASE } from "./database.js";
+export { syncBindings as createCodingSyncBindings } from "./sync-binding.js";

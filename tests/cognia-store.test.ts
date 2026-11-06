@@ -88,7 +88,8 @@ test("RAC-40: Cognia Runtime 路由更新和删除资料后，固定版本仍可
   const f = await serveHomeRuntime(t), root = "/api/plugins/io.molis.work.cognia/library";
   const post = (path: string, body: object = {}) => f.request(root + path, { method: "POST", body });
   const { material } = await (await post("/materials", { title: "旧标题", body: "旧正文" })).json();
-  const updated = await post(`/materials/${material.id}/update`, { title: "新标题", body: "新正文" });
+  const previous=await (await f.request(root+`/materials/${material.id}`)).json();
+  const updated = await post(`/materials/${material.id}/update`, { title: "新标题", body: "新正文",etag:previous.etag });
   assert.equal((await updated.json()).material.revision, 2);
   assert.equal((await post(`/materials/${material.id}/delete`)).status, 200);
   assert.equal((await f.request(root)).status, 200);

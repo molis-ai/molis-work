@@ -44,11 +44,11 @@ function served(pathname: string): Promise<string> {
 
 const program = (source: string) => transformSync(source, { loader: "js", minify: true }).code;
 
-test("the host serves the same script, with the same names, and leaves a child combinator alone", async () => {
+test("the host compacts scripts and styles without changing the program or child combinator", async () => {
   const sentScript = await served("/assets/molis-work-workbench.js");
   const sentSheet = await served("/assets/molis-work-workbench.css");
   assert.equal(program(sentScript), program(script));
   assert.match(sentScript, /function keepName\(/);
-  assert.match(sentSheet, /\.a > \.b/);
-  assert.doesNotMatch(sentSheet, /\.a>\.b/);
+  assert.equal(transformSync(sentSheet, { loader: "css", minify: true }).code, transformSync(sheet, { loader: "css", minify: true }).code);
+  assert.match(sentSheet, /\.a\s*>\s*\.b/);
 });

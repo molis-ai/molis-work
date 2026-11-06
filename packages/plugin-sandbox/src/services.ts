@@ -101,7 +101,7 @@ export type SandboxDeclarations = Pick<PluginDefinition, 'manifest' | 'instructi
 export type SandboxServiceFate = 'given' | 'refused' | 'entry' | 'replaced' | 'drawn';
 export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServices]-?: SandboxServiceFate } = Object.freeze({
   storage: 'given', project_statements: 'given', database_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
-  project_database: 'replaced', ui: 'drawn',
+  project_database: 'replaced', ui: 'drawn', sync: 'refused', savedHistory: 'refused',
   database: 'entry', files: 'entry', imageGeneration: 'given',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
   notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', terminal: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
@@ -135,6 +135,8 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
  * here in the same change that gives its service, so what stays in the list is exactly what a package asking for it is refused for.
  */
 export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
+  { service: 'sync', services: ['sync'], reason: 'Portable synchronization callbacks require the Runtime library service; sandbox operations do not yet provide this protocol.', declared: definition => definition.manifest.sync !== undefined },
+  { service: 'savedHistory', services: ['savedHistory'], reason: 'Passive execution-history export requires the Runtime agent-history service, which sandbox operations do not yet provide.', declared: (definition, held) => asksFor(definition, held, ['agent-history:read']) },
   { service: 'model_configuration', services: [], reason: 'A sandboxed package does not write model_configuration in its Manifest: it asks for its model settings with effects.modelSettings in contract.json and the Host derives the rest (PG-017 BL-491).',
     declared: definition => definition.manifest.model_configuration !== undefined },
   { service: 'image_generation', services: [], reason: 'A sandboxed package does not write image_generation in its Manifest: it asks for image generation with effects.imageGeneration in contract.json and the Host derives the rest (PG-017 BL-491).',

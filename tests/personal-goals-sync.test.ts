@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {fixture,work,comparable} from './fixtures/personal-goals-sync.js';
+import {boardSnapshot} from './fixtures/goal-application.js';
+import {goalSyncSelection as selection} from './fixtures/runtime-goal-sync.js';
+import {createContextLedger} from '@molis-ai/molis-work-module-context-ledger';
+
+test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, history, proposal, guidance and precise references', async t => {
+  const f = await fixture(t), p = f.project.project_id;
+  f.edit(0, (app, db) => {
+    work(app, p);
+    app.goalEvents.createIntent({ project_id: p, goal_id: 'child', title: '子目标', actor_id: 'runtime-1', actor_kind: 'runtime', idempotency_key: 'child' });
+    app.goals.commands.addRelation(p, { from_goal_id: 'child', to_goal_id: 'goal-main', type: 'part_of', reason: '包含' }, { actor_id: 'alice', idempotency_key: 'relation' });
+    app.setActiveGoal(p, { goal_id: 'child', reason: '定位' }, { actor_id: 'alice', idempotency_key: 'active' });
+    app.goals.commands.addProjectGuidance({ project_id: p, actor_id: 'alice', kind: 'quality_bar', content: '完整恢复事实', reason: '同步', confirmation_summary: '已确认', user_confirmed: true, idempotency_key: 'guidance' });
+    app.goals.commands.saveProjectPolicy({ project_id: p, actor_id: 'alice', user_confirmed: true, policy: { human_approval: true }, idempotency_key: 'policy' });
+    const method = app.goals.planning.effectiveMethods(p)[0]!;
+    app.goals.planning.saveProjectMethod({ project_id: p, actor_id: 'alice', user_confirmed: true, method: { ...method, summary: '项目自定义方法', enabled: true } });
+    app.goalTreeSubmission.submitGoalTreeProposal({ project_id: p, root_goal_id: 'goal-main', actor_id: 'runtime-1', summary: '待确认结构', idempotency_key: 'proposal', items: [{ item_id: 'proposed-child', kind: 'goal', operation: 'create', payload: { goal_id: 'proposed', title: '未执行的提案', outcome: '用户决定后创建' }, source_refs: ['conversation://plan'], reason: '候选', confidence: 1, affected_objects: [{ object_type: 'goal', object_id: 'proposed' }] }] });
+    app.goalInputs.register({ binding_id: 'input', project_id: p, goal_id: 'goal-main', input_name: '资料', source_type: 'feed_item', source_ref: 'feed-item:missing-feed', snapshot_digest: null, state: 'confirmed', reason: '引用', created_by: 'alice', created_at: new Date().toISOString() });
+    const ledger = createContextLedger(db.db, { authorize: () => true, initializeSchema: false }), access = { actor_id: 'alice', scope: { kind: 'personal' as const, id: p } };
+    ledger.commands.put(access, { key: 'output', type: 'goal.output', source: { module: 'goals', id: 'goal-main', version: null, scope: access.scope }, target: { module: 'artifacts', id: 'not-downloaded', version: 3, scope: access.scope }, cause: '交付' });
+    ledger.commands.remove(access, 'output', '移除');
+    db.appendEvent({ eventId: 'local-only-source', projectId: p, actorId: 'alice', type: 'artifact.local_note', objectType: 'artifact', objectId: 'private', reason: 'not Goal', payload: {}, at: new Date().toISOString() });
+  });
+  assert.equal(f.events.length, 0);
+  await f.clients[0]!.save({...f.clients[0]!.policy(),selections:[selection]});
+  assert.ok(f.replica(0,replica=>replica.counts().pending)>0,'real user facts always create a local upload');
+  await f.run();
+  const conflicts = f.clients[1]!.status().collections[0]!.conflicts;
+  assert.deepEqual(conflicts, []);
+  const source = f.edit(0, app => app.goalEvents.readState(p, 'goal-main'));
+  const restored = f.edit(1, (app, db) => {
+    assert.equal(app.goalInputs.list(p)[0]!.source_ref, 'feed-item:missing-feed');
+    assert.equal(boardSnapshot(db,p).goals.some(g => g.goal_id === 'proposed'), false, 'receiving a proposal does not execute it');
+    assert.equal(db.readEventsDescending(p).some(e => e.event_id === 'local-only-source'), false);
+    const ledger = createContextLedger(db.db, { authorize: () => true, initializeSchema: false });
+    assert.deepEqual(ledger.query.history({ actor_id: 'alice', scope: { kind: 'personal', id: p } }, 'output').map(e => [e.revision, e.state]), [[1, 'active'], [2, 'removed']]);
+    return app.goalEvents.readState(p, 'goal-main');
+  });
+  assert.deepEqual(comparable(restored), comparable(source));
+  const { cursor: targetCursor, ...targetSnapshot } = f.edit(1, (_app, db) => boardSnapshot(db,p));
+  const { cursor: sourceCursor, ...sourceSnapshot } = f.edit(0, (_app, db) => boardSnapshot(db,p));
+  assert.ok(sourceCursor > 0 && targetCursor > 0);
+  const sourceEvents=f.edit(0,(_app,db)=>db.readEventsDescending(p).filter(e=>e.type.startsWith(selection.plugin_id+':')).map(e=>e.event_id).sort());
+  const targetEvents=f.edit(1,(_app,db)=>db.readEventsDescending(p).map(e=>e.event_id).sort());
+  assert.deepEqual(targetEvents,sourceEvents,'all Goal journal events, and no foreign owner history, are restored');
+  assert.deepEqual(comparable(targetSnapshot), comparable(sourceSnapshot));
+  assert.ok(JSON.stringify(f.events[0]!.value).includes('@event:'));
+  const n = f.events.length; await f.run(); assert.equal(f.events.length, n, 'no replication echo');
+  assert.equal(f.replica(1, r => r.counts().pending), 0);
+});

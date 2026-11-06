@@ -104,7 +104,7 @@ test("FAS-01: rejected Signal drafts leave records, revisions and events unchang
     assert.throws(() => signals.query.get(DEMO_PROJECT_ID, "missing-fas-signal"), (error: unknown) => error instanceof ActionError
       && error.code === "signals.not_found" && error.message === "找不到这个 Signal" && actionHttpStatus(error) === 400);
     assert.throws(() => signals.commands.submitDraft({ ...draft, kind: "" }), (error: unknown) => error instanceof ActionError
-      && error.code === "signals.invalid_draft" && error.message === "Signal Draft 缺少可信身份、时间或结构化内容" && actionHttpStatus(error) === 400);
+      && error.code === "feed.signal_invalid_draft" && error.message === "Signal Draft 缺少可信身份、时间或结构化内容" && actionHttpStatus(error) === 400);
     assert.deepEqual(signals.query.list(DEMO_PROJECT_ID), records);
     assert.deepEqual(signals.events.list(DEMO_PROJECT_ID), events);
     assert.deepEqual(store.db.prepare("SELECT * FROM signal_revisions ORDER BY signal_id, revision").all(), revisions);

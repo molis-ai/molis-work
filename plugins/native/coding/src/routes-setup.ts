@@ -2,7 +2,7 @@ import { codingArtifacts, CODING_PLAN_TYPE } from "./artifacts.js";
 import { savedCharacter, savedCharacterSkills } from "./characters.js";
 import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
 import { parseCodingPlan } from "./plan-content.js";
-import { confirmedPlan, planFromRun, planMaterial, planReference } from "./plans.js";
+import { confirmedPlan, planFromRun, planMaterial, planReference, CODING_PLAN_SCHEMA_VERSION, portableCodingPlan } from "./plans.js";
 import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import { codingActions, codingActionControl } from "./route-entry.js";
@@ -101,7 +101,7 @@ const ROUTES: RouteMaker[] = [
         if (!Number.isSafeInteger(revision) || revision < 1) throw codingFailure("coding.server.plan-revision");
         return { plan: confirmedPlan(context, record.session_id, revision), fixed: true };
       }
-      return { plan: execution.sessions.plan(projectId, record.session_id) };
+      return { plan: execution.sessions.plan(projectId, record.session_id),plan_revision:execution.sessions.planRevision(projectId,record.session_id) };
     });
   },
   (a) => {
@@ -113,7 +113,7 @@ const ROUTES: RouteMaker[] = [
       const expected = body.expected_revision;
       if (!Number.isSafeInteger(expected) || Number(expected) < 0) throw codingFailure("coding.server.plan-read-first");
       const current = execution.sessions.plan(projectId, record.session_id);
-      if ((current?.revision ?? 0) !== expected) throw codingFailure("coding.server.plan-changed-merge");
+      if (execution.sessions.planRevision(projectId,record.session_id) !== expected) throw codingFailure("coding.server.plan-changed-merge");
       let proposal;
       if (body.run_id !== undefined) {
         if (!record.runtime_session_id) throw codingFailure("coding.server.no-planning-turn");
@@ -155,11 +155,11 @@ const ROUTES: RouteMaker[] = [
       const reference = planReference(record.session_id, draft.revision), fixed = { ...draft, confirmed: reference };
       planMaterial(fixed);
       const artifacts = codingArtifacts(context);
-      if (!artifacts.read(reference)) context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_PLAN_TYPE, schema_version: 1,
-        content: { kind: "inline", payload: JSON.parse(JSON.stringify(fixed)) },
+      if (!artifacts.read(reference)) context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_PLAN_TYPE, schema_version: CODING_PLAN_SCHEMA_VERSION,
+        content: { kind: "inline", payload: JSON.parse(JSON.stringify(portableCodingPlan(fixed))) },
         metadata: { title: fixed.content.title, session_id: record.session_id, run_id: fixed.source.run_id } });
       const saved = confirmedPlan(context, record.session_id, draft.revision);
-      if (!isDeepStrictEqual(saved, fixed)) throw codingFailure("coding.server.plan-mismatch");
+      if (!isDeepStrictEqual(saved, portableCodingPlan(fixed))) throw codingFailure("coding.server.plan-mismatch");
       // Checked inside the write: a round started while the write waited on `beforeWrite` is still refused.
       return { plan: await execution.sessions.confirmPlan(beforeWrite, projectId, record.session_id, fixed, notStarting) };
     });

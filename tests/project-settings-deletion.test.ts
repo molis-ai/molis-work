@@ -44,6 +44,23 @@ async function fixture(t: TestContext) {
   return { directory, homeDirectory, withCatalog, withFreshCatalog, project, other, localHost, origin, post };
 }
 
+test("PCSYNC-15 project rename HTTP rejects missing and stale observations without overwriting a later edit", async t => {
+  const { withCatalog, homeDirectory, project, post, origin } = await fixture(t);
+  const path = `/api/settings/projects/${project.project_id}/rename`;
+  const html = await (await fetch(origin + `/projects/${project.project_id}/settings/general?embed=1`)).text();
+  assert.ok(html.includes(`data-project-observed-name="${project.display_name}"`));
+  await withCatalog({ homeDirectory }, catalog => catalog.renameProject(project.project_id, "另一端的新名称", "remote", project.display_name));
+  for (const input of [{ display_name: "草稿" }, { display_name: "草稿", expected_display_name: project.display_name },
+    { display_name: "另一端的新名称", expected_display_name: project.display_name }, { display_name: "草稿", expected_display_name: 7 }]) {
+    const refused = await post(path, input);
+    assert.equal(refused.status, 409);
+    assert.equal((await refused.json()).code, "catalog.project_name_conflict");
+    assert.equal(await withCatalog({ homeDirectory }, catalog => catalog.getProject(project.project_id).display_name), "另一端的新名称");
+  }
+  const saved = await post(path, { display_name: "核对后保存", expected_display_name: "另一端的新名称" });
+  assert.equal(saved.status, 200);assert.equal(await withCatalog({ homeDirectory }, catalog => catalog.getProject(project.project_id).display_name), "核对后保存");
+});
+
 test("RAC-1330 project settings deletion requires authorization and confirmation, closes the open project, preserves workspace files, and replays its receipt", async t => {
   const { directory, homeDirectory, withCatalog, withFreshCatalog, project, other, localHost, origin, post } = await fixture(t);
   const prefix = `/projects/${project.project_id}`;
@@ -85,7 +102,7 @@ test("RAC-1330 project settings deletion requires authorization and confirmation
   assert.match(generalEmbed, /settings-data-disclosure/);
   assert.equal(localHost.status().projects.some(item => item.project_id === project.project_id), true);
 
-  const renamed = await post(`/api/settings/projects/${project.project_id}/rename`, { display_name: "已经改名的项目" });
+  const renamed = await post(`/api/settings/projects/${project.project_id}/rename`, { display_name: "已经改名的项目", expected_display_name: project.display_name });
   assert.equal(renamed.status, 200);
   assert.equal((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.getProject(project.project_id))).display_name, "已经改名的项目");
   assert.match(await (await fetch(origin + prefix + "/settings/general?embed=1")).text(), /value="已经改名的项目"/);

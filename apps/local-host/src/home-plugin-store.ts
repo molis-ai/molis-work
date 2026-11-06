@@ -2,11 +2,11 @@ import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
   SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, openBaselineHomeSqlite, openReadOnlyHomeSqlite, SqliteSchemaVersionError,
+import { readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, openBaselineHomeSqlite, openReadOnlyHomeSqlite, SqliteSchemaVersionError,
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
-  version: 1,
+  version: 4,
   schema: PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL + PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL + PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL + PLUGIN_TRUST_SCHEMA_SQL,
 };
 
@@ -15,10 +15,9 @@ const homeStoreRefusal = Symbol("Home plugin store refusal");
 const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, { [homeStoreRefusal]: true });
 export const isHomePluginStoreRefusal = (error: unknown): error is ActionError | SqliteSchemaVersionError =>
   error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
-const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源"));
+const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v4 基线不一致，请保留故障库并检查其来源"));
 // The shape the baseline describes never changes: built once (it runs the whole baseline in a scratch database). The store's own shape is read every time.
-let baselineShape: string | undefined;
-const expectedHomeStoreShape = () => baselineShape ??= JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE));
+const expectedHomeStoreShape = (db: Parameters<typeof readDatabaseSpace>[0]) => JSON.stringify(describeSqliteBaseline({ ...HOME_PLUGIN_RUNTIME_BASELINE, schema: (readDatabaseSpace(db) ? STORAGE_SPACE_SCHEMA_SQL : "") + HOME_PLUGIN_RUNTIME_BASELINE.schema }));
 
 function openWritableHomePluginDatabase(home: string) {
   try { return openBaselineHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE); }
@@ -34,7 +33,7 @@ function openWritableHomePluginDatabase(home: string) {
 export function openHomePluginStore(home: string) {
   const db = openWritableHomePluginDatabase(home);
   try {
-    if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomeStoreShape()) {
+    if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomeStoreShape(db)) {
       throw invalidHomeStoreShape();
     }
     return { db, storage: new SqlitePluginPrivateStorage(db) };
@@ -54,7 +53,7 @@ export function openReadOnlyHomePluginStore(home: string) {
     db.exec("BEGIN");
     const found = db.prepare("PRAGMA user_version").get()!.user_version as number;
     if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw refusedHomeStore(new SqliteSchemaVersionError(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version));
-    if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomeStoreShape()) {
+    if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomeStoreShape(db)) {
       throw invalidHomeStoreShape();
     }
     return db;

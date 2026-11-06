@@ -36,7 +36,7 @@ test("RAC-104-S-01 RAC-109-S-05: the actual CLI publishes retained Home content 
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).status, "created");
   const manifest = JSON.parse(await readFile(join(f.snapshot, "manifest.json"), "utf8"));
-  assert.equal(manifest.schema_version, 1);
+  assert.equal(manifest.schema_version, 2);
   const store = manifest.stores.find((entry: { path: string }) => entry.path === "config/onboarding.json");
   assert.equal(store.state, "captured");
   const entry = store.entries.find((item: { kind: string }) => item.kind === "file");

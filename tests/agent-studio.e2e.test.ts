@@ -13,7 +13,7 @@ import { createServer as createHttpsServer, Agent } from 'node:https';
 import { connect as tlsConnect } from 'node:tls';
 import dns from 'node:dns';
 import { syncBuiltinESMExports } from 'node:module';
-import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,type AgentRelease} from '@molis-ai/molis-work-plugin-builder';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,24 +22,63 @@ import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-bui
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { verifySyncPluginDistribution, seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
+import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
+import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
+import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
+import {proveAuthoringSync} from './fixtures/authoring-sync-proof.js';
+
+/** Received code remains paused until the user chooses this device's model and explicitly requests all local gates. */
+async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:string,projectId:string,itemId:string){
+  const token=randomUUID()+randomUUID(),mutations=new Map<string,LocalMutationState>();
+  const options={store,homeDirectory,projectId,routePrefix:'/projects/'+projectId,...agentStudioFixture(0)};
+  const server=createServer((request,response)=>{
+    const url=new URL(request.url??'/','http://localhost');
+    if(studioFrameAsset(response,url.pathname))return;
+    if(url.pathname==='/assets/molis-work-settings.css'){response.writeHead(200,{'content-type':'text/css'});response.end(VISUAL_FOUNDATION_STYLES);return;}
+    if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
+    void pluginPagesFor(homeDirectory).bind(request,url).then(release=>{
+      if(release)response.once('close',release);
+      const local=new URL(url);if(local.pathname.startsWith(options.routePrefix+'/'))local.pathname=local.pathname.slice(options.routePrefix.length);
+      return handleAgentStudioHttp(request,response,local,options,token);
+    }).then(handled=>{if(!handled)sendLocalWebJson(response,404,{error:'not found'});}).catch(error=>sendLocalWebJson(response,403,{error:String(error.message)}));
+  });
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+(server.address() as {port:number}).port;
+  const get=async()=>await(await fetch(origin+'/api/plugin-builder/studio/builds/'+itemId)).json() as {build:{phase:string;revision:number;active:unknown;error:string|null;history:unknown[]}};
+  const post=async(route:string,body:unknown)=>{const response=await fetch(origin+'/api/plugin-builder/studio'+route,{method:'POST',headers:{origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify(body)});assert.equal(response.status,200,await response.clone().text());return await response.json();};
+  try{
+    const before=await get();assert.equal(before.build.phase,'paused');assert.equal(before.build.active,null);
+    const models=await options.models();await post('/settings',{provider_id:models[0]!.provider_id,model_id:models[0]!.model_id});
+    await post('/builds/'+itemId+'/action',{action:'resume',revision:before.build.revision});
+    let current=await get();for(let i=0;i<600&&current.build.active;i++){await new Promise(resolve=>setTimeout(resolve,50));current=await get();}
+    assert.equal(current.build.phase,'ready',current.build.error??'explicit target checks did not finish');assert.equal(current.build.active,null);
+    assert.ok(current.build.history.length,'the real publication journey must retain history to verify explicit undo');await post('/builds/'+itemId+'/action',{action:'undo',revision:current.build.revision});
+    current=await get();for(let i=0;i<600&&current.build.active;i++){await new Promise(resolve=>setTimeout(resolve,50));current=await get();}
+    assert.equal(current.build.phase,'ready',current.build.error??'target history checks did not finish');assert.equal(current.build.active,null);
+  }finally{await releaseAgentStudio(store,projectId);await releaseInstalledPlugins(store,projectId);server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+}
 
 /**
  * The whole studio journey in a real browser: only the models are labelled stand-ins. Build gates, the Seatbelt
  * sandbox, preview storage, the push channel and the headless acceptance run are the production ones.
  */
 test('studio: a request becomes a working, published plugin that the person can use', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
-  const home = await mkdtemp(join(tmpdir(), 'molis-studio-e2e-'));
-  const browser = await openStudioChrome(join(home, 'chrome'));
-  if (!browser) { await rm(home, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
-  const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
+  const root = await mkdtemp(join(tmpdir(), 'molis-studio-e2e-'));
+  const home = join(root, 'home');
+  const browser = await openStudioChrome(join(root, 'chrome'));
+  if (!browser) { await rm(root, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
+  t.after(async()=>{await browser.close();await rm(root,{recursive:true,force:true});});
+  const projectId='project-'+randomUUID();
+  const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
+  const project=await withMolisWorkProjectCatalog({homeDirectory:home},async catalog=>{const p=await catalog.ensureSyncedProject({project_id:projectId,display_name:'Actual authoring journey',actor_id:'alice'},()=>{});catalog.addProjectPlugin({project_id:p.project_id,plugin_id:'plugin-builder',actor_id:'alice'});return p;});
+  const databasePath=project.database_path;seedDemoBoard(databasePath,projectId);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
-  const fixture = agentStudioFixture(0); let modelDelay = 0;
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture,
-    generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
+  const fixture = agentStudioFixture(0); let modelDelay = 0,modelHold:Promise<void>|null=null,releaseModel=()=>{},modelStarted=()=>{};
+  const options = { store, projectId, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: "/projects/" + projectId, ...fixture,
+    generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => {if(modelHold){modelStarted();await modelHold;} await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
@@ -47,7 +86,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     if (studioFrameAsset(response, url.pathname)) return;
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
     // The studio as the workbench mounts it in its stage (scripts/agent-studio-harness.mts): it has no page of its own.
-    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token)); return; }
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(isolatedStudioHarness(home, projectId, token)); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
@@ -132,11 +171,11 @@ test('studio: a request becomes a working, published plugin that the person can 
 
     // A visual revision uses a separate acceptance namespace and keeps the person's trial records.
     const visualBuildId = await page.evaluate<string>('document.querySelector("[data-as-builds]").value');
-    const beforeVisual = await (await fetch(origin + '/projects/' + DEMO_PROJECT_ID + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as { build: { runs: Array<{ role: string }> } };
+    const beforeVisual = await (await fetch(origin + '/projects/' + projectId + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as { build: { runs: Array<{ role: string }> } };
     await page.evaluate(`(async()=>{const r=await fetch('${options.routePrefix}/api/plugin-builder/studio/builds/'+${JSON.stringify(visualBuildId)}+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'visual',message:'收紧间距，保留完整内容'})});if(!r.ok)throw Error(await r.text())})()`);
     await page.wait(`document.querySelector('[data-as-phase]').dataset.phase==='ready'&&!!document.querySelector('[data-pc-open="editor"]')`);
     await page.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('间隔复习比集中复习记得更久')`);
-    const afterVisual = await (await fetch(origin + '/projects/' + DEMO_PROJECT_ID + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as typeof beforeVisual;
+    const afterVisual = await (await fetch(origin + '/projects/' + projectId + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as typeof beforeVisual;
     assert.equal(afterVisual.build.runs.filter(run => run.role === 'coder').length, beforeVisual.build.runs.filter(run => run.role === 'coder').length);
     await page.click('[data-as-compare]');
     await page.wait(`document.querySelector('[data-as-plugin]').inert&&!document.querySelector('[data-pc-open="editor"]')`);
@@ -166,7 +205,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     const ledger = new HomeConsentLedger(home), packages = new SandboxPackageStore(home);
     const importing = new PluginInstallService({ ledger, packages, installed: async () => legacy.records().map(record => ({ record, manifest: undefined })),
       installInProject: async () => { assert.fail('A signed export cannot replace the legacy installation'); } });
-    const who = { project_id: DEMO_PROJECT_ID, actor_id: 'web-user' }, offered = await importing.preview({ bundle: distribution }, who);
+    const who = { project_id: projectId, actor_id: 'web-user' }, offered = await importing.preview({ bundle: distribution }, who);
     await assert.rejects(importing.confirm({ preview_id: offered.preview_id, consent: true, pin_label: 'A different signing identity' }, who),
       (error: unknown) => !!error && typeof error === 'object' && 'code' in error && error.code === 'plugin.definition_conflict');
     assert.deepEqual(ledger.publishers(), [], 'the conflicting publisher is not pinned');
@@ -241,7 +280,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
     const installedOwner = await ensureInstalledPlugins(options);
-    await releaseAgentStudio(store, DEMO_PROJECT_ID);
+    await releaseAgentStudio(store, projectId);
     await installedPage.command('Page.reload');
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await ensureInstalledPlugins(options), installedOwner, 'closing authoring does not close or recreate installed execution');
@@ -316,17 +355,29 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.evaluate("document.querySelector('[data-agent-studio]').remove()");
     await observed(() => liveSubscriptions === 0);
 
+    // S-119 PCSYNC-22/23: real generated/published files, actual preview operation, actual Host sync registration.
+    const post=async(componentId:string,binding:'read'|'submit',payload:unknown)=>{const response=await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId+'/call',{method:'POST',headers:{'content-type':'application/json',origin,'x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify({componentId,binding,payload})});assert.equal(response.status,200,await response.clone().text());return (await response.json() as {value:unknown}).value;};
+    // Earlier assertions deliberately undo every visual revision. Create one new real revision, not synthetic history.
+    const saved=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as {build:{revision:number;active:unknown;phase:string;error:string|null;history:unknown[]}};
+    const revision=await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId+'/action',{method:'POST',headers:{origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':randomUUID()},body:JSON.stringify({action:'visual',revision:saved.build.revision,message:'保存一份可以跨设备恢复的真实界面修订'})});assert.equal(revision.status,200,await revision.clone().text());
+    let revised=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as typeof saved;for(let i=0;i<600&&revised.build.active;i++){await new Promise(resolve=>setTimeout(resolve,50));revised=await(await fetch(origin+'/api/plugin-builder/studio/builds/'+buildId)).json() as typeof saved;}
+    assert.equal(revised.build.phase,'ready',revised.build.error??'source revision did not finish');assert.ok(revised.build.history.length);
+    await proveAuthoringSync(t,{home,space,projectId,itemId:buildId,manifest:builderManifest,storage:installedOwner.storage,owner:directory=>builderPrivateValueReplicationOwner({home:directory,verifyDistribution:verifySyncPluginDistribution}),codec:createSyncJsonContent({spaceId:space.spaceId,authorize(){},...builderSyncProjection}),verifyTarget:resumeTargetStudio,call(){
+      const started=new Promise<void>(resolve=>{modelStarted=resolve;});modelHold=new Promise<void>(resolve=>{releaseModel=resolve;});
+      const settled=(async()=>{await post('editor','submit',{form:{text:'真实预览同步竞争'}});const rows=await post('notes','read',{});assert.ok(Array.isArray(rows)&&rows.length);const row=rows[0] as {id:string};await post('expand','submit',{selection:{notes:{id:row.id}}});})();
+      return {started,settled,release(){releaseModel();modelHold=null;modelStarted=()=>{};}};
+    }});
+
   } catch (error) {
     const state = await (await fetch(origin + '/api/plugin-builder/studio/state')).json() as { builds: any[] };
     t.diagnostic(JSON.stringify(state.builds.map(b => ({phase:b.phase,error:b.error,steps:b.steps.slice(-3),browser:b.browserResult}))));
 
     throw error;
   } finally {
-    await browser.close();
-    await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
+    releaseModel();
+    await releaseAgentStudio(store, projectId); await releaseInstalledPlugins(store, projectId);
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); store.close();
-    await rm(home, { recursive: true, force: true });
   }
 });
 

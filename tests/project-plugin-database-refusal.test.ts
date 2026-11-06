@@ -86,7 +86,7 @@ test("PLIB-04: a library this build made opens every plugin that declares tables
 });
 
 const cases = [
-  { plugin: SCHEDULE_PLUGIN_ID, change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'` },
+  { plugin: SCHEDULE_PLUGIN_ID, change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = version + 1 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'` },
   { plugin: FEED_PLUGIN_ID, change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${FEED_PLUGIN_ID}'` },
   { plugin: CODING_PLUGIN_ID, change: "one of its tables gained a column", sql: "ALTER TABLE coding_plan_drafts ADD COLUMN added_by_hand TEXT" },
 ];
@@ -147,7 +147,7 @@ test("PLIB-04/S-46: a refused Schedule claims none of its due jobs; they wait as
     await feedClockSet(databasePath);
   } finally { await host.close(); }
   withDatabase(databasePath, db => {
-    db.exec(`UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'`);
+    db.exec(`UPDATE plugin_project_databases SET version = version + 1 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'`);
     db.exec(`UPDATE schedule_jobs SET next_due_at = '9999-12-31T00:00:00.000Z' WHERE plugin_id = '${FEED_PLUGIN_ID}'`);
   });
   const before = { jobs: jobs(databasePath), wakeups: wakeups(databasePath), library: library(databasePath) };

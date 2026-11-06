@@ -7,7 +7,7 @@ import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createHomeSnapshot, restoreHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
-import { assertExistingHomeKeyReference, createEvidenceContentStore, createLazyFileSecretStore, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, inspectMemoryLedger, openMemoryLedger, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { personalStorageSpace, assertExistingHomeKeyReference, createEvidenceContentStore, createLazyFileSecretStore, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, inspectMemoryLedger, openMemoryLedger, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { restoreFixture } from "./fixtures/home-restore.js";
 import { homeStorageTree, homeBusinessTree } from "./fixtures/home-storage-files.js";
 import { captureSqliteError, smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
@@ -21,11 +21,18 @@ test("RAC-2915: the actual current Catalog, including its context ledger, passes
   const inspected = inspectSnapshotSqlite(source, { inspect: inspectMolisWorkProjectCatalogSnapshot });
   assert.equal(inspected.owner_versions.owner, "molis-work-project-catalog-v1");
   assert.equal(inspected.integrity_check, "ok");
+  assert.throws(() => inspectSnapshotSqlite(source, {
+    inspect: inspectMolisWorkProjectCatalogSnapshot, requireSpace: true,
+    space: personalStorageSpace("https://auth.example.test", "work", "different-account"),
+  }), /空间归属与 Home 不同/u, "a complete, authentic catalog of a different space must still be refused");
   assert.deepEqual(readFileSync(source), bytes); assert.deepEqual(readdirSync(join(f.snapshot, "data", "projects")), siblings);
   for (const [name, sql] of [
     ["missing-ledger", "DROP TABLE context_edges"],
     ["changed-ledger", "ALTER TABLE context_edges ADD COLUMN unrelated TEXT"],
     ["unexpected-table", "CREATE TABLE unrelated_owner (id TEXT)"],
+    ["missing-sync-trigger", "DROP TRIGGER projects_sync_events"],
+    ["changed-sync-trigger", "DROP TRIGGER projects_sync_events; CREATE TRIGGER projects_sync_events AFTER INSERT ON project_events BEGIN SELECT 1; END"],
+    ["unsolicited-trigger", "CREATE TRIGGER unowned_trigger AFTER DELETE ON projects BEGIN SELECT 1; END"],
   ] as const) {
     const malformed = join(f.directory, name + ".db"); copyFileSync(source, malformed);
     const storage = openTestSqlite(malformed);

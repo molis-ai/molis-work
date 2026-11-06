@@ -33,6 +33,12 @@ Unsupported schema keywords fail validation. Operations are explicitly `query` o
 queries cannot declare storage/artifact/project-database writes or events. Examples require exactly one of
 `output`, `outputIncludes`, or a declared `error`. The later build-gate host runs examples.
 
+`assertProposalContract` reuses the same pure envelope/schema/example validation for saved
+read-only proposals; their example arrays may be empty. It grants no execution authority:
+`assertContract` and the actual runner still require behavioral examples. It does not read
+a bundle, start a process or accept grants. Portable authoring also checks its own closed
+field representation and the design system's actual component/binding validators.
+
 A command with `effects.background` declares `background_job`: a local status query id, required string `id`/`input`/`state` paths, and disjoint `done`/`failed` lists from the state enums. The SDK owns validation and static action projection. Installed quick and slow runners share one background lane with the same bundle, identity, effects and services, a ten-minute operation budget and a sixty-second service budget; the lane gets no background service. The four outstanding-execution limit remains per broker. Stop closes all runners and late handles; a dead call is never replayed.
 
 The package owns durable business job ids and records; `execution_id` is an ephemeral broker handle. Acceptance must atomically change only pending to accepted, preserving a target's earlier running or terminal write. Status after restart reports confirmed business facts: absent a terminal result or current survival evidence, show “待核对” and the last confirmed state. The platform neither invents failed records nor rolls back previously committed SQL/files/HTTP effects as a group. See `tests/security-invariants-sandbox-signed-background.test.ts` (RAC2871–2877).

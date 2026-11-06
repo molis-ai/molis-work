@@ -1,4 +1,6 @@
-import { existsSync } from "node:fs";
+import { readStorageSpace, spaceMetadataShapeMatches } from "./space.js";
+import { existsSync, statSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -27,14 +29,13 @@ export interface SqliteBaseline {
 
 /**
  * The version half of every baseline check, on whichever driver owns the file: true when the store is at the baseline's version, false
- * when it has no version and no table yet (the creation path). Anything else — another version, or tables without one — is refused with
+ * when it has no version and only an exact Home binding or no objects (the creation path). Anything else — another version, or business tables without one — is refused with
  * both versions, never upgraded in place.
  */
-export function checkSqliteBaselineVersion(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline): boolean {
+export function checkSqliteBaselineVersion(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, home?: string): boolean {
   const found = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
   if (found === baseline.version) return true;
-  const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
-  if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
+  if (found !== 0 || !emptyForBaseline(db, path, home)) throw new SqliteSchemaVersionError(path, found, baseline.version);
   return false;
 }
 
@@ -51,8 +52,19 @@ function expectedShape(baseline: SqliteBaseline): SqliteSchemaShape {
  * are a plugin's own (a project library gets the built-in plugins' tables on top of the platform baseline), so they are not a mismatch;
  * a baseline table that changed or disappeared is.
  */
+const expectedTriggers = new WeakMap<SqliteBaseline, ReadonlyMap<string,string>>();
+function baselineTriggers(baseline: SqliteBaseline): ReadonlyMap<string,string> {
+  let result=expectedTriggers.get(baseline);
+  if(!result){const reference=new DatabaseSync(':memory:');try{reference.exec(baseline.schema);result=sqliteTriggers(reference);expectedTriggers.set(baseline,result);}finally{reference.close();}}
+  return result;
+}
+function sqliteTriggers(db: SqliteBaselineDatabase): ReadonlyMap<string,string> {
+  return new Map((db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all() as {name:string;sql:string}[]).map(row=>[row.name,row.sql.trim()]));
+}
 function baselineShapePresent(db: SqliteBaselineDatabase, baseline: SqliteBaseline): boolean {
   const found = describeSqliteSchema(db), expected = expectedShape(baseline);
+  const triggers=sqliteTriggers(db);
+  if([...baselineTriggers(baseline)].some(([name,sql])=>triggers.get(name)!==sql))return false;
   return Object.entries(expected.tables).every(([name, table]) => found.tables[name] !== undefined
     && JSON.stringify(found.tables[name]) === JSON.stringify(table));
 }
@@ -66,6 +78,21 @@ const structureMismatch = (path: string) => storageErrors.schema_structure_misma
 export const isSqliteSchemaStructureMismatch = (error: unknown): error is ActionError =>
   error instanceof ActionError && error.code === "storage.schema_structure_mismatch";
 
+/** Only a fresh file or the exact binding already published by this Home can receive its first business schema. */
+function emptyForBaseline(db:SqliteBaselineDatabase, path:string, home?:string):boolean {
+  const objects = db.prepare("SELECT type,name FROM sqlite_schema").all() as Array<{type:string; name:string}>;
+  if (!objects.length) return true;
+  if (objects.length !== 1 || objects[0]!.type !== "table" || objects[0]!.name !== "molis_storage_space") return false;
+  if (!spaceMetadataShapeMatches(db)) throw structureMismatch(path);
+  const row = db.prepare("SELECT space_id,descriptor FROM molis_storage_space WHERE singleton=1").get() as {space_id:string;descriptor:string}|undefined;
+  if (!row) throw structureMismatch(path);
+  if (home !== undefined) {
+    const expected = readStorageSpace(home);
+    if (!expected || row.space_id !== expected.spaceId || row.descriptor !== JSON.stringify(expected)) throw new Error("SPACE_OWNERSHIP_MISMATCH");
+  }
+  return true;
+}
+
 /**
  * Refuse an existing store before a writable connection can change it: another version (or tables without one) is refused with both
  * versions, and a same-version store whose structure is not the baseline's is refused too. A missing or empty file is left for the
@@ -74,17 +101,25 @@ export const isSqliteSchemaStructureMismatch = (error: unknown): error is Action
  * a read-only connection fail with SQLITE_READONLY_ROLLBACK, and that crash recovery is left to the writable open — the caller then
  * checks the recovered database's version and structure in full.
  */
-function inspectSqliteBaseline(path: string, baseline: SqliteBaseline): boolean {
-  if (!existsSync(path)) return true;
+function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:string): boolean {
+  if (!existsSync(path)) return false;
   try {
-    const inspection = new DatabaseSync(path, { readOnly: true });
+    // Immutable reads avoid creating WAL sidecars for a closed database. Never ignore an existing journal.
+    const closed = () => !["-wal", "-shm", "-journal"].some(suffix => existsSync(path + suffix));
+    const stamp = () => { const stat = statSync(path, { bigint: true }); return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(":"); };
+    const immutable = closed(), before = immutable ? stamp() : undefined;
+    const uri = pathToFileURL(path); uri.searchParams.set("immutable", "1");
+    const inspection = new DatabaseSync(immutable ? uri.href : path, { readOnly: true });
     try {
-      if (!checkSqliteBaselineVersion(inspection, path, baseline)) return true;
+      if (!checkSqliteBaselineVersion(inspection, path, baseline, home)) return false;
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
       if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path);
       return true;
-    } finally { inspection.close(); }
+    } finally {
+      inspection.close();
+      if (immutable && (!closed() || stamp() !== before)) throw new Error("SQLite store changed during baseline inspection; retry");
+    }
   } catch (error) {
     // SQLITE_READONLY_ROLLBACK: the file has a hot journal, and a read-only connection cannot roll it back. The writable open recovers
     // it (SQLite's own crash recovery, not the caller's business write) and the baseline check runs there instead.
@@ -107,15 +142,22 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
  * file's structure, so a still-valid file is not described twice; it never skips a check the inspection could not make (a hot journal
  * leaves the file to the writable open, and this function then compares version and structure in full).
  */
-function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, shapeChecked: boolean): void {
+function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, shapeChecked: boolean, home?:string): void {
   if (!Number.isInteger(baseline.version) || baseline.version < 1) throw new Error("基线版本必须是正整数");
-  if (checkSqliteBaselineVersion(db, path, baseline)) {
+  if (checkSqliteBaselineVersion(db, path, baseline, home)) {
     // The version mark claims the baseline's schema; missing baseline tables are damage even when no business table is left.
     if (!shapeChecked && !baselineShapePresent(db, baseline)) throw structureMismatch(path);
     return;
   }
   db.exec("BEGIN IMMEDIATE");
   try {
+    const current = Number((db.prepare("PRAGMA user_version").get() as {user_version:number}).user_version);
+    if (current === baseline.version) {
+      if (!baselineShapePresent(db,baseline)) throw structureMismatch(path);
+      db.exec("COMMIT");
+      return;
+    }
+    if (current !== 0 || !emptyForBaseline(db,path,home)) throw new SqliteSchemaVersionError(path,current,baseline.version);
     db.exec(baseline.schema);
     db.exec(`PRAGMA user_version = ${baseline.version}`);
     db.exec("COMMIT");
@@ -132,10 +174,10 @@ function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: Sqlit
  */
 export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline, projectId?: string): DatabaseSync {
   const path = homeSqlitePath(homeDirectory, storeName, projectId);
-  const inspected = inspectSqliteBaseline(path, baseline);
-  const db = openHomeSqliteDatabase(homeDirectory, storeName, projectId);
+  const inspected = inspectSqliteBaseline(path, baseline, homeDirectory);
+  const db = openHomeSqliteDatabase(homeDirectory, storeName, projectId, db => applyBaseline(db, path, baseline, inspected, homeDirectory));
   try {
-    applyBaseline(db, path, baseline, inspected);
+    applyBaseline(db, path, baseline, inspected, homeDirectory);
     return db;
   } catch (error) {
     db.close();

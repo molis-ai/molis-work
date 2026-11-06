@@ -303,14 +303,16 @@ const headErrors = (measured, budget, base) => {
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
 // table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
 // account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
-// FCS-01/02 (#1859, independently reviewed) added 169 B on main; that admission is spent in the new 1077683 base.
-// T-01 keeps only the remaining account admissions. K-20 reduced arrival by 38 B and workbench.css by 36 B.
-// Exact remaining deltas: arrival +645 B, workbench.css +416 B, workbench.js +39629 B, plugin-frame +54 B.
-// No new allowance; all main-only navigation, library-icon and Frame increases are already in the base.
+// FCS-01/02 (#1859) and ASC-57 (#1858) were independently reviewed and are already in main's budgets.
+// ASC-57 added +248 B to settings/workbench CSS and +1035 B to workbench.js for unused-key notices.
+// T-01 carries only the remaining account admission on main 20bdb4c16: K-20 saved 38/36 B in the two stylesheets,
+// K-22 saves 7 B in the script by keeping the platform refresh cursor independently of the Goals snapshot.
+// Remaining deltas: arrival +645 B, workbench.css +416 B, workbench.js +39622 B, plugin-frame +54 B.
+// No new allowance or resource; spent main admissions are removed.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [693169, 693814],
-  "/assets/molis-work-workbench.css": [1204497, 1204913],
-  "/assets/molis-work-workbench.js": [1077683, 1117312],
+  "/assets/molis-work-workbench.css": [1204745, 1205161],
+  "/assets/molis-work-workbench.js": [1078718, 1118340],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

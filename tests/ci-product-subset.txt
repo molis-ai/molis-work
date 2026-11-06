@@ -422,6 +422,7 @@ tests/secret-store-format.test.ts
 tests/personal-goals-sync.test.ts
 tests/personal-goals-sync-refusal.test.ts
 tests/personal-goals-sync-lifecycle.test.ts
+tests/personal-goals-sync-offline.test.ts
 tests/sync-device.test.ts
 tests/sync-json-content.test.ts
 tests/sync-item-isolation.test.ts

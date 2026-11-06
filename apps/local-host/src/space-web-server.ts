@@ -194,7 +194,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
       if(entry.space.kind==='personal')retire(entry);
       else {
         // Let in-flight actions deliver the Host's cancellation result; only streams need forced closure.
-        for(const response of entry.responses.keys())if(String(response.getHeader('content-type')??'').startsWith('text/event-stream'))response.destroy();
+        for(const response of entry.responses.keys())if(response.headersSent&&!response.writableEnded)response.destroy();
         for(const socket of entry.connections.keys())socket.destroy();
       }
     }

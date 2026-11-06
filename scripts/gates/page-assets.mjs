@@ -307,8 +307,8 @@ const headErrors = (measured, budget, base) => {
 // Exact approved deltas remain arrival +683 B, workbench.css +452 B, workbench.js +39629 B, plugin-frame +54 B.
 // No new allowance; main already contains 07-S0, ASC-56 and BL-912.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [693169, 693852],
-  "/assets/molis-work-workbench.css": [1204497, 1204949],
+  "/assets/molis-work-arrival.css": [693169, 693814],
+  "/assets/molis-work-workbench.css": [1204497, 1204913],
   "/assets/molis-work-workbench.js": [1077514, 1117143],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };

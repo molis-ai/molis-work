@@ -349,3 +349,7 @@ K-20 最终整体构建后，Workbench README 与动画/资源相关 22 文件 3
 - **T01-FRAME-CURSOR-01（K-22）**：平台日志游标与 Goals 插件日志游标各有序号，不可比较。页面只在实际应用刷新后记住当次平台游标，后台轮询和 attention 通知都与此进度比较；不改 Goals 的事实游标。测试从真实 Host 读取当前平台游标，等页面实际消费至少该序号，再测相机交互；不伪造状态、不关闭刷新、不加固定等待。保留单次点击读取、相机同步后的节点与请求数、持有真实首次响应、身份改变拒绝以及版本 1→2 全部断言，原等待与 90 秒时限不变。证明：`tests/workbench-frame-container.e2e.test.ts`；原等待 Goals 游标追上平台游标会超时的诊断也保留，临时诊断已移除。
 
 - **T01-BOARD-CURSOR-01（K-22）**：第一次实际同步完成后进入 Feed 刷新实验，原无刷新控制、真实 Goal 写入、自然 attention 通知、持有并检查真实响应、只提交一次刷新与菜单保持全部继续成立；`tests/feed-source-menu-refresh.e2e.test.ts` 的原断言不删。`tests/workbench-pane-feed.e2e.test.ts` 与 `tests/workbench-hidden-refresh.e2e.test.ts` 继续验证新写入和隐藏后恢复，不以停止轮询消除重复请求。
+
+### K-23 主线服务连接状态文案
+
+集成主线组件板后，状态说明与账号取消按钮共用了“取消登录”，却分别翻译为 Sign-in cancelled 与 Cancel sign in。状态说明改为“登录已取消”，按钮保持原动作语义；既有翻译扫描与 `tests/i18n.test.ts` 校验无冲突。翻译表的已登记单元按合并后 3,214 行更新实测大小，门禁规则不变。

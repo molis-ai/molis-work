@@ -82,7 +82,7 @@ function rowsSpecimen(L: Say): string {
 
 function progressSpecimen(L: Say): string {
   const one = (label: string, names: readonly string[], at: number, s: ConnectionProgressState) => `<li><span>${escapeHtml(L(label))}</span>${steps(L, names, at, s, false)}</li>`;
-  const list = `<ul class="mw-conn-board__states">${one("第一步进行中", SIGN_IN, 0, "running")}${one("第二步进行中", SIGN_IN, 1, "running")}${one("服务限流", SIGN_IN, 1, "hold")}${one("密钥被拒", KEY, 0, "failed")}${one("取消登录", SIGN_IN, 0, "cancelled")}${one("完成", SIGN_IN, 2, "done")}</ul>`;
+  const list = `<ul class="mw-conn-board__states">${one("第一步进行中", SIGN_IN, 0, "running")}${one("第二步进行中", SIGN_IN, 1, "running")}${one("服务限流", SIGN_IN, 1, "hold")}${one("密钥被拒", KEY, 0, "failed")}${one("登录已取消", SIGN_IN, 0, "cancelled")}${one("完成", SIGN_IN, 2, "done")}</ul>`;
   const names = SIGN_IN.map((name) => L(name));
   const live = `<div class="mw-conn-board__try" data-conn-progress-demo>
     ${renderConnectionProgress({ steps: names, at: 0, state: "running" }, L)}
@@ -110,7 +110,7 @@ function cardsSpecimen(L: Say): string {
   const live = renderConnectionCard({ mark: github, state: "ask", title: L("要读你的 GitHub 通知，先连上 GitHub"), reason: L("连好以后接着做这件事。"), connected,
     body: `${steps(L, SIGN_IN, 0, "running")}<div class="settings-connector-feedback" role="status" data-conn-card-say="${escapeHtml(L("正在看 {account} 能做什么…", { account: "yijunw0212" }))}">${running(L("正在等你在浏览器里登录 {name}…", { name: "GitHub" }))}<p>${escapeHtml(L("登录、点同意后会自动回到这里。关掉这个页面也没关系，回来时接着走。"))}</p></div>`, action: primary(L("连接 {name}", { name: "GitHub" }), { "data-conn-card-go": "" }) });
   const tryIt = `<div class="mw-conn-board__try" data-conn-card-demo>${live}<div class="mw-catalog__row">${renderButton({ label: L("重来"), variant: "ghost", size: "sm", attrs: { "data-conn-card-reset": "" } })}</div></div>`;
-  return `<div class="mw-conn-board__cards">${figure(L("还没开始"), ask)}${figure(L("登录失效"), expired)}${figure(L("选账号"), choose)}${figure(L("在卡里连"), busy)}${figure(L("密钥被拒"), refused)}${figure(L("取消登录"), cancelled)}${figure(L("连好了 · 收成一行"), done)}</div>${figure(L("试一下 · 连好后卡收成一行"), tryIt)}`;
+  return `<div class="mw-conn-board__cards">${figure(L("还没开始"), ask)}${figure(L("登录失效"), expired)}${figure(L("选账号"), choose)}${figure(L("在卡里连"), busy)}${figure(L("密钥被拒"), refused)}${figure(L("登录已取消"), cancelled)}${figure(L("连好了 · 收成一行"), done)}</div>${figure(L("试一下 · 连好后卡收成一行"), tryIt)}`;
 }
 
 /** The section the board places after 插件行视图: three specimens, each part in its states. */

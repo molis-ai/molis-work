@@ -116,7 +116,7 @@ export const BOARD_EN: Record<string, string> = {
   "第一步进行中": "Step 1 under way",
   "第二步进行中": "Step 2 under way",
   "服务限流": "Rate limited",
-  "取消登录": "Sign-in cancelled",
+  "登录已取消": "Sign-in cancelled",
   "限流": "Rate limit",
   "出错": "Fail",
   "重来": "Start over",

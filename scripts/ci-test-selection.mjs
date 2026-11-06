@@ -13,14 +13,14 @@
 //           code deleted), when a changed source file is read by no test (it cannot say who is affected), when a file the job or the
 //           selection itself depends on changed (FULL_WHEN below), when more than all but one file would be selected anyway, or when
 //           anything here fails: no base, affected-tests exits non-zero or prints something that is not its JSON;
-//   some    the selected files only, on as many runners as they need at the size of a shard of the whole list (LEGS: three for the
-//           security invariants, two for the product subset), at least one;
+//   some    the selected files only, on as many runners as they need at the size of a shard of the whole list (LEGS: four for the
+//           security invariants, three for the product subset), at least one;
 //   none    when none of its files is selected: the job is skipped.
 // When in doubt it runs more, never less: every way out of this script that is not a clean answer is `whole`.
 //
 //   node scripts/ci-test-selection.mjs --base <ref> [--root <dir>]     print the decision; in CI also write it to $GITHUB_OUTPUT
 //                                                                      and $GITHUB_STEP_SUMMARY
-// Outputs, per job (`security_…`, `product_…`): `mode` (whole, some, none), `shards` (the matrix as JSON: [1], [1, 2] or [1, 2, 3]); and the
+// Outputs, per job (`security_…`, `product_…`): `mode` (whole, some, none), `shards` (the matrix as JSON: from [1] up to every leg of the job); and the
 // files of `some`: `security_files` (space-separated, for scripts/run-tests.mjs) and `product_only` (an anchored regular expression
 // of the files, for `scripts/ci-product-subset.mjs --only`). Both are empty unless the mode is `some`, so an empty value means
 // "the whole list" to the jobs; only a successful some on a PR supplies a selected list or shard count.
@@ -80,7 +80,7 @@ export function securityList(packageJsonText, testFiles) {
 }
 
 /** How many runners each job spreads its whole list over (the matrix of the whole run in .github/workflows/ci.yml). */
-export const LEGS = { security: 3, product: 2 };
+export const LEGS = { security: 4, product: 3 };
 const legsOf = (job) => Array.from({ length: LEGS[job] }, (_, index) => index + 1);
 
 /**

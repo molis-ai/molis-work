@@ -280,6 +280,11 @@ const headErrors = (measured, budget, base) => {
 // K-07 (2026-11-06, explicitly approved): arrival side panels follow the stage grid above the wrapping bar.
 // Scoped selectors were shortened; arrival.css adds exactly 273 B over 690296, with no new asset.
 // Main #1747 reduced workbench.css by 4 B; preserve its approved +452 B on the new 1194521 B base.
+// ASC-56 (第 13 批⑦, approved by the user on 2026-11-05): the model settings page fetches the models a service offers and lists
+// them with the board's combobox to filter and pick. settings.css +271 B and workbench.css +271 B (header alignment, the picked mark,
+// the listed name), workbench.js +2357 B (fetch, filter, pick, keyboard). These add on top of the account entries above, which
+// share the same merge-base. Tried: the picker reuses `.model-field` and the board's combobox styles, the save and the fetch share
+// one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441.
 // 07-S0 (workbench navigation specimens; 07 批评审台与 D 轨合审审过（#1852）): the README's new tab-strip, titlebar and
 // three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
 // workbench.css +9705 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
@@ -291,31 +296,19 @@ const headErrors = (measured, budget, base) => {
 // body.immersive-workbench prefix where no rule competes (it stays on the tab, group and toggle overrides); one class for the
 // strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
 // weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
-// 07-S0 and the account admission above share the merge-base keys for arrival.css and workbench.css; one key holds one entry,
-// so the two entries carry 07-S0's ceilings, which also cover the account PR's +683 B / +452 B. Whichever of the two lands
-// second moves its own entry onto the new base.
-// 07-S1 (the right side joins the tab workspace, 07 批评审台审过（#1853）; stacked on 07-S0, so keyed on its budget): workbench.js
-// +9930 B: the side's rules in the workspace state (withSidePane: open, select, close and reopen through the shared closed
-// stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background tasks as a side view
-// with its count, and a removed plugin's tabs kept and marked with the stage that says how to add it back. After the review
-// (B1-B3 and its small fixes) it is +12340 B: a removed plugin's side tab drawn in place, the strip keeping its current tab in
-// view, ⌘\ heard after an editor, and a collapse undone with its tab. 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S1）；
-// 07 批评审台审过（#1853），冗余两处记入 S2. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the character typed.
-// The sheets fall (workbench.css -997 B, arrival.css -5247 B, against 07-S0's b6abcda4a budget): the side's own
-// tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab classes, less the narrow strip's scroll. (The N53/N54 entries
-// for these two scripts are spent once 07-S0 lands: its budget holds their ceilings.) Tried: the side reuses the workspace's
-// persist, closed stack and removed-plugin check instead of keeping its own; the old side-tab, side-ratio and discussion-ratio
-// keys are dropped, not read; the rules' comments sit above the function, not in the shipped body.
-// 07-S1 shares two keys with the account admission (WORK-03 to WORK-08): workbench.js keeps the account's ceiling 1114749,
-// which holds S1's 1087460 (+12340 B on S0's budget), so S1 writes no ceiling of its own there; plugin-frame.js carries
-// S1's 208400 (+129 B), above the account's 208325 (+54 B), as one key holds one entry. Whichever lands second moves its
-// own entry onto the new base.
+// On main's base after ASC-56 (settings.css 826998, workbench.css 1194792) the account and ASC-56 entries for those two are spent,
+// so 07-S0 keys its own there; arrival.css still shares the 689886 key with the account admission, and 07-S0's ceiling there
+// also covers the account PR's +683 B. Whichever lands second moves its own entry onto the new base.
+// BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
+// one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
+// table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
+// account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
-  "/assets/molis-work-settings.css": [826727, 827274],
-  "/assets/molis-work-workbench.css": [1194521, 1204226],
-  "/assets/molis-work-workbench.js": [1075120, 1114749],
-  "/assets/molis-work-plugin-frame.js": [208271, 208400],
+  "/assets/molis-work-settings.css": [826998, 827545],
+  "/assets/molis-work-workbench.css": [1194792, 1204497],
+  "/assets/molis-work-workbench.js": [1077477, 1077514],
+  "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

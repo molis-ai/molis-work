@@ -47,10 +47,13 @@ export interface TaskGrantCategory extends TaskGrantCategoryReference {
  * A category a subject was granted. `granted`: every recorded action still matches and nothing in the category is unconfirmed.
  * `needs_confirmation`: the provider added an action to it, or changed the version or permissions of one, since the person allowed it;
  * what changed is not readable until they allow the category again. `unavailable`: the provider is off or gone; the grant is kept
- * and reads again when it is back unchanged.
+ * and reads again when it is back unchanged. `removed`: the provider is there but no longer declares this category (it dropped the
+ * group, or a provider without groups started declaring some); nothing in it is readable, and the person can only take it off
+ * (decided 2026-11-05: the row says the category is no longer offered). Its own words are gone with it, so `title` and
+ * `description` are the provider's.
  */
 export interface TaskGrantCategoryState extends TaskGrantCategory {
-  status: "granted" | "needs_confirmation" | "unavailable";
+  status: "granted" | "needs_confirmation" | "unavailable" | "removed";
 }
 
 export interface TaskGrantSubject {
@@ -102,7 +105,7 @@ const categoryReference = { type: "object", required: ["provider_id"], additiona
 const category = { type: "object", required: ["provider_id", "title", "description"], additionalProperties: false, properties: {
   provider_id: id, group_id: id, plugin_id: id, title: words, description: words } } as const;
 const categoryState = { type: "object", required: ["provider_id", "title", "description", "status"], additionalProperties: false, properties: {
-  ...category.properties, status: { enum: ["granted", "needs_confirmation", "unavailable"] } } } as const;
+  ...category.properties, status: { enum: ["granted", "needs_confirmation", "unavailable", "removed"] } } } as const;
 const subject = { type: "object", required: ["plugin_install_id", "key", "revision", "categories"], additionalProperties: false, properties: {
   plugin_install_id: id, key, revision: { type: "string", maxLength: 256 }, categories: { type: "array", items: categoryState } } } as const;
 

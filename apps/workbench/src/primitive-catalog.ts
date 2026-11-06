@@ -219,7 +219,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "pill", label: "圆润", attrs: { "data-skin-option": "pill" } },
     ],
   });
-  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins() })
+  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins(), say })
     .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a><a href="#collab" title="协作零件">协作零件</a><a href="#navigation" title="${say("工作台导航")}">${say("工作台导航")}</a></nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderBarSection()}\n    ${renderCollabSection()}\n    ${renderNavigationSection(say, lang)}\n  </div>\n  <script>`);
   return `<!doctype html>

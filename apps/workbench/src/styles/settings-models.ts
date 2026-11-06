@@ -28,6 +28,11 @@ export const MODEL_SETTINGS_STYLES = `
 .model-row-id { flex:1 1 140px; min-width:0; }
 .model-row-flag { display:inline-flex; align-items:center; gap:4px; color:var(--muted); font-size:12px; white-space:nowrap; cursor:pointer; }
 .model-list { margin:32px 0; }
+.model-list-head h3{margin:0 auto 0 0}
+.model-picker [role=listbox]:empty{display:none}
+.model-picker-name{margin-left:8px;color:var(--muted);font-size:12px}
+.model-picker [aria-selected=true]{color:var(--muted)}
+.model-picker [aria-selected=true]::after{content:" ✓"}
 .model-provider-name { flex:1; overflow:hidden; text-overflow:ellipsis; }
 .model-settings-document svg { width:16px; height:16px; flex-shrink:0; }
 [data-model-delete-confirm] { padding:16px 0; color:var(--ink-soft); }

@@ -36,8 +36,11 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   assert.ok(shown.includes(SHELF) && shown.includes("tasks"), JSON.stringify(shown));
   assert.equal(await evaluate("document.querySelector('[data-background-tasks]')"), null);
   assert.equal(await evaluate(`document.querySelector('${strip} [data-tab-add], ${strip} [aria-label*="新"]')`), null);
-  const edge = await evaluate<number>(`innerWidth - [...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).at(-1).getBoundingClientRect().right`);
-  assert.ok(edge >= 0 && edge < 24, `the strip ends at the right of the title bar (${edge}px left)`);
+  // 07-S2 (口径 6): the title bar ends with its one layout button; the strip ends right before it.
+  const [edge, layoutEdge] = await evaluate<[number, number]>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect();
+    return [layout.left - [...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).at(-1).getBoundingClientRect().right, innerWidth - layout.right]; })()`);
+  assert.ok(edge >= 0 && edge < 24, `the strip ends right before the layout button (${edge}px between)`);
+  assert.ok(layoutEdge >= 0 && layoutEdge < 24, `the layout button ends the title bar (${layoutEdge}px left)`);
 
   // A context tab (Pages' comments) leaves and comes back with its plugin, as the page the server renders after a picker
   // change says: the whole glyph tab goes and comes, never an empty item or a bare trigger.

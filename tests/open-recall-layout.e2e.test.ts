@@ -78,6 +78,9 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
 
   // 口径 6: one layout button at the title bar's end, no split button on the strip.
   assert.equal(await evaluate(`document.querySelector('${TABS} [data-tab-split], .tab-split-button')`), null);
+  const ends = await evaluate<boolean>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect();
+    return [...document.querySelector('.immersive-titlebar').querySelectorAll('button')].filter(button => button.checkVisibility() && !button.matches('[data-layout-open]')).every(button => button.getBoundingClientRect().right <= layout.left + 1) && innerWidth - layout.right < 24; })()`);
+  assert.equal(ends, true, "the layout button is the title bar's last control, at its right end");
   await click("[data-layout-open]");
   await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open') && document.activeElement?.closest('${LAYOUT_MENU}')`);
   const items = await evaluate<{ title: string | null; actions: string[]; splits: string[]; panes: string[] }>(`(() => {

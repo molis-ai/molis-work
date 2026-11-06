@@ -211,19 +211,13 @@ export const TAB_WORKSPACE_STYLES = `
   .workspace-tab-menu:popover-open { animation: craft-drop var(--dur-move) var(--ease-quint); }
   @media(prefers-reduced-motion:reduce) { .workspace-tab-menu:popover-open { animation: none; } }
   .workspace-layout-menu > strong { display:block; padding:12px 12px 8px; font-size:12px; font-weight: var(--weight-control, 500); color:var(--muted); }
-  .workspace-layout-menu button { display:flex; align-items:center; gap:12px; width:100%; min-height:34px; padding:8px 12px; text-align:left; border:0; background:transparent; border-radius:5px; font-size:13px; }
-  .workspace-layout-menu button:hover,.workspace-layout-menu button:focus-visible { background:var(--nav-hover); }
-  .workspace-layout-menu button svg { width:16px; height:16px; flex:none; }
-  .workspace-layout-menu button span:first-of-type { flex:1; }
-  .workspace-layout-menu [data-layout-split=bottom] svg,.workspace-layout-menu [data-layout-split=top] svg { transform:rotate(90deg); }
-  .workspace-layout-menu hr { margin:4px 4px; border:0; border-top:1px solid var(--line); }
   .workspace-tab-menu input { display:block; width:calc(100% - 20px); margin:4px 12px 8px; min-height:32px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px; }
   .workspace-tab-menu-colors { --swatch: 32px; display:grid; grid-template-columns:repeat(4, var(--swatch)); padding:4px 5px 12px; }
   .workspace-tab-menu-colors button { position:relative; width:var(--swatch); height:var(--swatch); min-width:var(--swatch); min-height:var(--swatch); padding:0; border:0; border-radius:50%; background:transparent; }
   .workspace-tab-menu-colors button::before { content:""; position:absolute; inset:calc((var(--swatch) - 18px) / 2); border-radius:50%; background:var(--group-color); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent); }
   .workspace-tab-menu-colors button[aria-current]::before { box-shadow:inset 0 0 0 2px var(--ink); }
   @media(max-width:760px),(pointer:coarse) {
-    .workspace-layout-menu button, .workspace-tab-menu input { min-height:44px; }
+    .workspace-layout-menu .mw-menu__item, .workspace-tab-menu input { min-height:44px; }
     .workspace-tab-menu-colors { --swatch: 44px; }
   }
 `;

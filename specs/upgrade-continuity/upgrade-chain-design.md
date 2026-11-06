@@ -73,7 +73,7 @@ export interface SqliteBaseline {
 4. 可写打开。段里有 rebuilds_tables 就在事务外 foreign_keys=OFF；插件的段一律 OFF（§2.4）。
 5. BEGIN IMMEDIATE
      依次执行各段，PRAGMA user_version = version（插件表是写记账行，§2.4）
-     PRAGMA integrity_check；PRAGMA foreign_key_check
+     PRAGMA integrity_check；PRAGMA foreign_key_check（插件的段按段结束时的范围逐表跑，§2.4）
      describeSqliteSchema 与 describeSqliteBaseline 逐表比（项目库只比基线有的表，现状如此）
      各表行数不少于升级前（reduces_rows 除外）；各段 verify
    COMMIT（任何一步失败：ROLLBACK，走 §5.2）
@@ -110,15 +110,24 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
 - 这是合同改动，碰 `tooling/gates/api/contracts/platform/plugin.txt`、`plugin-sdk/index.txt`（`HomeStoreDeclaration.library.baseline` 同样加段，还碰 `platform/plugin-registration.txt`），单独一片排公共合同队列（U1-f）。
 - **跑法和范围检查对所有插件同一份，差别只剩一个开关（用户 2026-11-06 定）。** 内置插件也过检查，不合规的段同样被拒。唯一的暂时例外：装上的插件在 Manifest 里写了 `upgrades`，安装时明确拒绝（`plugin.upgrade_steps_unsupported`）。这个例外只有一处判断，移除条件是 U4，由 U1-f 同一个 PR 记进 `AGENTS.md` 指向的「2026-10-18 改」清单（`specs/archive/repository-anti-corruption/spec.md` §1）。拒绝比悄悄不执行好。
 - **段只能碰这个插件自己的表（S-115）。** 现有两层都不管段：`project-database.ts:153` 只管 `declaration.schema`，`pluginStatementGuard` 只放 `INSERT`、`UPDATE`、`DELETE` 这类语句。一段 `DROP TABLE` 就能动平台和别的插件的表，违反 S-46。所以加三层，都在 `packages/plugin-runtime`，不依赖宿主：
-  1. **声明时，只看写法。** 用现有的 `statements()` 分句（`project-database.ts:79`），每句只许：`ALTER TABLE`、`CREATE TABLE`（不带 `IF NOT EXISTS`，不许 `AS SELECT`）、`CREATE [UNIQUE] INDEX`、`DROP TABLE`、`DROP INDEX`、`INSERT`、`UPDATE`、`DELETE`；名字不带库名。其余一律拒绝，包括 `ATTACH`、`PRAGMA`、`VACUUM`、`REINDEX`、`CREATE TRIGGER`、`CREATE VIEW`、虚表和事务语句。Manifest 读入时就查，内置的不合规由 U1-f 的用例在 CI 拦下，装上的在安装时先过这一层，再到开关。
+  1. **声明时，只看写法，读整句的形状。** 用现有的 `statements()` 分句（`project-database.ts:79`），每句只许下面的形状，其余一律拒绝，包括 `ATTACH`、`PRAGMA`、`VACUUM`、`REINDEX`、`CREATE TRIGGER`、`CREATE VIEW`、虚表和事务语句：
+     - `ALTER TABLE n` 后面只能是 `ADD`、`DROP`、`RENAME`；`RENAME TO m` 后面不再有词。
+     - `DROP TABLE n`、`DROP INDEX i` 后面不再有词。
+     - `CREATE TABLE n` 后面只能是 `(`，所以没有 `AS SELECT`。
+     - `CREATE [UNIQUE] INDEX i ON n` 后面只能是 `(`。
+     - `INSERT`、`UPDATE`、`DELETE` 不读形状，到第 2 层过 `pluginStatementGuard`，它读语句的执行步骤，不读文字。
+     - `IF [NOT] EXISTS` 一律拒绝。名字的位置上出现不带引号的 `IF` 也拒绝，真有张表叫 `if` 就写引号。
+     - 名字带库名的，形状就过不了：`main . other`、`main/*x*/.other` 里，`main` 后面是点。
+
+     只读第一个词不够，下面两段三层都能过（实测）：插件有张表叫 `main` 时，`ALTER TABLE main . other DROP COLUMN note` 再加回，`other.note` 全变 NULL；插件有张表叫 `if` 时，`DROP TABLE IF EXISTS other` 后同样文字重建，`other` 整张换掉。现有的 `CREATE_TABLE`、`CREATE_INDEX` 正则（`project-database.ts:69-70`）都允许 `IF NOT EXISTS`，不能照抄。Manifest 读入时就查，内置的不合规由 U1-f 的用例在 CI 拦下，装上的在安装时先过这一层，再到开关。
   2. **执行时，每句先按当前范围核目标。** 范围从账本里这个插件的表开始，随段变化。增删改过 `pluginStatementGuard` 同一份，范围传当前的；SQLite 版本不符同样全部拒绝，失败是关闭的。结构语句在执行前核：
      - `ALTER TABLE n`、`DROP TABLE n`、`CREATE [UNIQUE] INDEX i ON n`：`n` 必须在范围里。
      - `DROP INDEX i`：查 `sqlite_schema`，`i` 的 `tbl_name` 必须在范围里。
      - `CREATE TABLE n`：`n` 进范围。别人的表删不掉，所以没有「删了再建」；同名的表还在时 SQLite 自己报错。
      - `ALTER TABLE n RENAME TO m`：范围里 `n` 换成 `m`。`DROP TABLE n`：`n` 移出范围。
-     - **名字要按词读，不能对原文跑正则。** `statements()` 现在把带引号的名字遮成 `Q`，要让它顺带交出每句的词：跳过注释，还原四种引号（`"`、`` ` ``、`[]`、转义的 `""`），按 `fold` 比，读不出来就拒绝。实测（`better-sqlite3@12.8.0`）：对原文跑正则时，`ALTER /*x*/ TABLE other`、`ALTER TABLE /*x*/ other`、`ALTER TABLE [other]`、`` ALTER TABLE `other` `` 都读不到目标，段照样改了别人的表；按词读全部拒绝，合法的段照常通过。
+     - **名字要按词读，不能对原文跑正则。** `statements()` 现在把带引号的名字遮成 `Q`，要让它顺带交出每句的词：跳过注释，还原四种引号（`"`、`` ` ``、`[]`、转义的 `""`），按 `fold` 比，读不出来就拒绝。**词从扫描里直接取，不从压过空白的文字里取；词的边界按 SQLite，不按 JS 的 `\s`：** 空白只有空格、`\t`、`\n`、`\f`、`\r`；不带引号的名字只许 ASCII 字母、数字、`_`、`$`，碰到别的字符就拒绝，要用就写引号。这比 SQLite 严，是有意的，不用照抄它的规则：U+00A0 是名字的一部分，所以 `ALTER TABLE a1<U+00A0> ADD COLUMN c TEXT` 改的是另一张表。用这个读法对 13 种分隔、27 种名字、12 种语句的 4212 种写法跑对照：过了第 1、2 层的 392 种只动自己的表，没有一种逃出去；被拒的里有 464 种，不拦 SQLite 就会动别人的表。实测（`better-sqlite3@12.8.0`）：对原文跑正则时，`ALTER /*x*/ TABLE other`、`ALTER TABLE /*x*/ other`、`ALTER TABLE [other]`、`` ALTER TABLE `other` `` 都读不到目标，段照样改了别人的表；按词读全部拒绝，合法的段照常通过。
   3. **事务提交前，比结构，这一层是兜底。** 段开始前记下 `sqlite_schema` 里不属于这个插件的行（`type、name、tbl_name、sql`），提交前逐字比，有差别就回滚；这个插件的对象集合必须正好等于声明的目标集合，结构逐表比。「属于」按 `tbl_name` 算，和 `scopeOf` 同一个口径，否则 `CREATE UNIQUE INDEX 声明里有的名字 ON other(…)` 比不出来。这一层只比文字，比不出数据：`ALTER TABLE other DROP COLUMN note` 再 `ADD COLUMN note` 之后文字可以一字不差，数据已经没了，所以不能靠它。比全库内容摘要太贵，也只能事后发现。
-- **插件的段一律 `foreign_keys=OFF`。** 段不写 PRAGMA，平台在事务外设，段结束恢复；这个插件的每张表跑 `PRAGMA foreign_key_check(t)`，有违反就回滚。不用给插件的段加 `rebuilds_tables`。不能用 `defer_foreign_keys=ON`：外键还开着，`DROP TABLE` 的隐式删除照样触发外键动作。实测重建 `ON DELETE SET NULL` 子表的父表，子表的列全变 NULL，行数不变，`foreign_key_check` 还是空，什么都比不出。真实的表就有这种：Goals 的 `goal_tree_proposals.root_goal_id`（`plugins/native/goals/src/project-database-governance.ts:10`）。关掉之后 `CASCADE` 和 `SET NULL` 都不跑，子表原值都在。真要依赖级联删除的段，留下的孤儿行由 `foreign_key_check` 挡下回滚，失败是安全的。
+- **插件的段一律 `foreign_keys=OFF`。** 段不写 PRAGMA，平台在事务外设。**恢复也在事务外：** `COMMIT` 或 `ROLLBACK` 之后再设 `ON`，读回来确认是 1，不是 1 就关掉这条连接、记 failed，成功和失败两条路都走这一步。事务里设 `ON` 是空操作（实测：设完读到 0，回滚后还是 0）；项目库的插件表是在长连接上打开的（`apps/local-host/src/project-database.ts:23`），写反了这个项目之后的外键都不再生效，而且什么都不报。段结束时**范围里**的每张表跑 `PRAGMA foreign_key_check(t)`，有违反就回滚。按范围不按账本：段删过的表会报 `no such table`，新建的表账本里还没有。不用给插件的段加 `rebuilds_tables`。不能用 `defer_foreign_keys=ON`：外键还开着，`DROP TABLE` 的隐式删除照样触发外键动作。实测重建 `ON DELETE SET NULL` 子表的父表，子表的列全变 NULL，行数不变，`foreign_key_check` 还是空，什么都比不出。真实的表就有这种：Goals 的 `goal_tree_proposals.root_goal_id`（`plugins/native/goals/src/project-database-governance.ts:10`）。关掉之后 `CASCADE` 和 `SET NULL` 都不跑，子表原值都在。真要依赖级联删除的段，留下的孤儿行由 `foreign_key_check` 挡下回滚，失败是安全的。
 - **Home 库走同一份。** 库文件只归这个插件，第 3 层没有别人的行可比，第 1、2 层照旧，`ATTACH` 这类一样拒绝。
 - **U4 要做的不只是打开开关。** 装上的插件的 SQL 要放进专属子进程的 Worker（S-59）才有超时和内存上限，内置的在升级过程里直接跑。所以这三层写成只收一个连接的函数，U4 把它放进 Worker，并和 `upgrade_compatibility` 合流。**U4 还要另定升级用的限额：** S-59 的限额是给日常语句定的（写句 2 秒，`BEGIN` 到 `COMMIT` 共 3 秒，超了整个进程结束），重建或回填一张大表一定超。
 - 所以「首次改任何插件表的结构」要等 U1-f，不只是等机制。
@@ -444,7 +453,7 @@ apps/desktop/launchers/web/server.ts：
 | S-112 | 记录被改、外来（Home 身份不符）或指向不存在的单元时拒绝，不照着做 | 改 `home_identity`、改 `relative_path`、改 `to`：不放回，报 `upgrade_failed`，文件不变 |
 | S-113 | 放回前核 sha256，放回时先删旁路文件 | 快照被改一个字节：不放回；目标留旧 `-wal`：放回后 `user_version` 是旧的（这条就是 §1 实测的那个坑） |
 | S-114 | 维护态监听只绑回环，守 Host/Origin；只答 `/health`，其余 503，不泄露库名 | 非回环 Host、跨源 Origin 被拒；未带挑战的 `/health` 不给证明；业务路径在维护态一律 503 |
-| S-115 | 插件的升级段只能碰这个插件自己的表，内置和装上的同一份检查（S-46 的延伸） | 内置插件的段写 `DROP TABLE` 平台表和别的插件的表、`ALTER TABLE "OTHER"`、`DELETE FROM` 别人的表、`CREATE INDEX` 建在别人的表上、`CREATE TABLE x AS SELECT`、`ATTACH`、`PRAGMA writable_schema`、`CREATE TRIGGER`；**文字不变、数据变了的四种：** `ALTER TABLE other DROP COLUMN note` 再 `ADD COLUMN note`，用改名把别人的表换成自己的名字再换回，`DROP TABLE other` 后同样文字重建再补行，删掉账本表 `plugin_project_databases` 后重建改写；**读名字的绕法：** 注释夹在中间、`[other]`、`` `other` ``、大小写不同。全部报 `plugin.project_database.upgrade_out_of_scope`，平台和别的插件每张表的内容摘要、`sqlite_schema` 都不变，这个插件回滚并停用。装上的插件写了段：安装被拒（`plugin.upgrade_steps_unsupported`）；写了不合规的段，先报范围错误 |
+| S-115 | 插件的升级段只能碰这个插件自己的表，内置和装上的同一份检查（S-46 的延伸） | 内置插件的段写 `DROP TABLE` 平台表和别的插件的表、`ALTER TABLE "OTHER"`、`DELETE FROM` 别人的表、`CREATE INDEX` 建在别人的表上、`CREATE TABLE x AS SELECT`、`ATTACH`、`PRAGMA writable_schema`、`CREATE TRIGGER`；**文字不变、数据变了的四种：** `ALTER TABLE other DROP COLUMN note` 再 `ADD COLUMN note`，用改名把别人的表换成自己的名字再换回，`DROP TABLE other` 后同样文字重建再补行，删掉账本表 `plugin_project_databases` 后重建改写；**读名字的绕法：** 注释夹在中间、`[other]`、`` `other` ``、大小写不同、带 U+00A0 的名字；**只读第一个词会漏的两种：** `ALTER TABLE main . other DROP COLUMN note` 再加回（插件有张表叫 `main`），`DROP TABLE IF EXISTS other` 后同样文字重建（插件有张表叫 `if`）。全部报 `plugin.project_database.upgrade_out_of_scope`，平台和别的插件每张表的内容摘要、`sqlite_schema` 都不变，这个插件回滚并停用。装上的插件写了段：安装被拒（`plugin.upgrade_steps_unsupported`）；写了不合规的段，先报范围错误 |
 
 ## 11. 门禁改动方案（用户 2026-11-06 同意）
 
@@ -534,7 +543,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 | UPG1-11 | 维护态：`/health` 503 带 `upgrading`，证明可验；业务路径 503；升级完 `/health` 变 `ok`（§4.2） |
 | UPG1-12 | 真实基线的登记里 `from` 连续（现在全是空，测试仍然跑，第一次升版本时自动有内容） |
 | UPG1-13 | 低版本目录库、宿主没起：CLI 就地升完并完成命令；`cli-project-maintenance` 升完并完成；MCP 生产路径拉起宿主、等到升完，20 秒没等到报「正在升级」；MCP `:65` 路径升完；purge 照常清除；`home snapshot` 被拒；Home 外的项目库报 `upgrade_pending`。`store_too_new` 的目录库：以上都不取锁升级、不拉宿主、文件不变（§4.3） |
-| UPG1-14 | 插件的段：`ADD COLUMN`、回填、新表加索引、重建表（新表、拷贝、删旧表、改名）、改列名都走通，结构与声明一致；S-115 的每一种写法都在执行前被拒，含文字不变、数据变了的四种；重建 `ON DELETE SET NULL` 和 `CASCADE` 子表的父表，子表原值都在；段真的删了父表的行，`foreign_key_check` 回滚；Home 库的段走同一个函数；只有一处判断区分内置和装上的（用例数这个判断的调用点） |
+| UPG1-14 | 插件的段：`ADD COLUMN`、回填、新表加索引、重建表（新表、拷贝、删旧表、改名）、改列名都走通，结构与声明一致；S-115 的每一种写法都在执行前被拒，含文字不变、数据变了的四种；重建 `ON DELETE SET NULL` 和 `CASCADE` 子表的父表，子表原值都在；段真的删了父表的行，`foreign_key_check` 回滚；段真的删一张表，`foreign_key_check` 不报 `no such table`，段新建的表也查得到；段成功和失败之后，这条连接的 `foreign_keys` 都回到 1；Home 库的段走同一个函数；只有一处判断区分内置和装上的（用例数这个判断的调用点） |
 
 `tests/storage-baseline.test.ts`、`private-store-versions`、`characters-schema` 等断言「拒绝」的约 55 行／26 个文件，不删断言：低版本从 `SqliteSchemaVersionError` 改成断言 `storage.upgrade_pending`（打开路径确实还是拒绝）；高版本改成断言 `store_too_new`；无版本有表、同号结构不符不变。不放宽任何一条。
 

@@ -115,6 +115,9 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-strip .tab-strip-spacer { flex: 0 1 0; min-width: 0; align-self: stretch; }
   body.immersive-workbench [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; min-width: 0; }
   body.immersive-workbench [data-titlebar-tabs] .tab-strip-spacer { flex: 1 1 0; min-width: 0; }
+  /* A short title bar: a cover's name gives way, its close stays. */
+  body.immersive-workbench [data-titlebar-tabs] .tab-view-chip { flex-shrink: 1; min-width: 0; }
+  body.immersive-workbench [data-titlebar-tabs] .tab-view-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   html[data-native-desktop="true"] body.immersive-workbench [data-titlebar-tabs] .tab-scroll,
   body.immersive-workbench[data-native-desktop="true"] [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; min-width: 0; }
   html[data-native-desktop="true"] body.immersive-workbench .tab-strip .tab-strip-spacer,

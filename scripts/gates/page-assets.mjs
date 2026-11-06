@@ -292,9 +292,9 @@ const headErrors = (measured, budget, base) => {
 // go to a column; the focused item kept in view), the tab menu's move and side-by-side rows, one recall for the Dock, ＋, the switcher and deep links, a main
 // tab moved to the right side in the pane page and back, and the side's own way back (返回) and remembered closed tabs. About
 // 5 KB of it is the code's comments, which the client scripts ship as written (a build that drops them is its own change).
-// 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S2），待 07 批评审台审代码冗余. The sheets fall (workbench.css -253 B,
+// 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S2），待 07 批评审台审代码冗余. The sheets fall (workbench.css -21 B,
 // settings.css -43 B): the strip's split button and the old layout menu's bare-button rules are gone, less 独看 hiding the
-// other panes and the layout button ending the title bar (44 px where the pointer is coarse). Tried: the right side's tab menu and undo chip are the main area's (only the way
+// other panes and the layout button ending the title bar (44 px where the pointer is coarse), and a cover's name may now give way in a short one. Tried: the right side's tab menu and undo chip are the main area's (only the way
 // in, with no tab workspace, keeps small ones of its own, inline in its page), which took 1.2 KB back; the home tab's code,
 // the per-strip split button and the old ＋ menu are gone rather than kept beside the new ones.
 const APPROVED_CEILINGS = {

@@ -183,6 +183,10 @@ test("already split panes keep later drags and previews on the hovered pane", { 
   assert.equal(probes.leftLeft.preview, "left");
   assert.deepEqual(probes.leftLeft.marked, ["left", null]);
 
+  // The left pane's Inbox goes first, so the Goals tab dragged below is that pane's last one, as the home tab was before 07-S2.
+  const leftPane = "[...document.querySelectorAll('[data-tab-pane]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)[0]";
+  await evaluate(`${leftPane}.querySelector('.tab-item[data-plugin=inbox] [data-tab-close]').click()`);
+  await waitFor(`${leftPane}.querySelectorAll('.tab-item[data-tab-id]').length === 1 && document.querySelectorAll('[data-tab-pane]').length === 2`);
   const moveLast = await evaluate<{ overlayW: number; overlayLeft: number; workspaceW: number; workspaceLeft: number; paneCount: number }>(`(() => {
     const panes = [...document.querySelectorAll('[data-tab-pane]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
     const stage = document.querySelector('[data-tab-panes]').getBoundingClientRect();

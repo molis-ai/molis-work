@@ -96,6 +96,7 @@ export function renderModelSettingsDocument(model: ModelSettingsModel): string {
       </div>
     </header>
     <p role="status" aria-live="polite" data-model-status></p>
+    <div data-model-released hidden><p></p><button class="mw-btn" type="button" data-model-released-remove>${p.L("移除旧密钥")}</button><button class="mw-btn mw-btn--ghost" type="button" data-model-released-keep>${p.L("留着")}</button></div>
     ${renderModelBody(model, selected)}
   </section>`;
 }
@@ -188,7 +189,7 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
       ${renderPromptCacheField(provider, p)}
       ${renderThinkingField(provider, p)}
     </details>
-    <div data-model-delete-confirm hidden><p>${p.L("移除这个供应商及其密钥？后续任务将无法再选择它，历史记录会保留。")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${p.L("取消")}</button><button class="mw-btn" type="button" data-model-delete>${p.L("确认移除")}</button></div>
+    <div data-model-delete-confirm hidden><p>${p.L("移除这个供应商？后续任务将无法再选择它，历史记录会保留。它的密钥留在服务连接里，没有别的模型在用时可以一起移除。")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${p.L("取消")}</button><button class="mw-btn" type="button" data-model-delete>${p.L("确认移除")}</button></div>
     <footer class="model-settings-actions"><button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button><button class="mw-btn mw-btn--primary" type="button" data-model-save>${p.L("保存配置")}</button><span>${p.L("保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。")} ${p.L("改了地址、格式、密钥或模型再保存时，会先检查一次连接；没通过就不保存。")}</span></footer>
   </div>`;
 }

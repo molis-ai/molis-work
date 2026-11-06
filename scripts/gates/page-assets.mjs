@@ -325,8 +325,13 @@ const headErrors = (measured, budget, base) => {
 // UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
 // the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
 // settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
+// 07-fix record jump (待 07 批评审台审, 2026-11-06): a record opened from search into a split pane is asked for once the pane
+// page has loaded, by a message to that page that queues behind the view hand-off its load starts, which used to put the plugin
+// back on its list over an earlier ask: workbench.js +591 B, keyed on main's budget 1085847 (ASC-58's entry keyed on 1085274 is
+// spent there, so it is replaced). Tried: the pane page dispatches through the surface lookup and event it already uses, and
+// checks only the two strings it passes on; no new helper, retry timer or registry entry.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1085274, 1085847],
+  "/assets/molis-work-workbench.js": [1085847, 1086438],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

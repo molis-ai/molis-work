@@ -325,14 +325,29 @@ const headErrors = (measured, budget, base) => {
 // UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
 // the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
 // settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
+// ASC-60～63 (第 13 批④b, #1881, admitted by the batch 13 coordinator after the review desk on 2026-11-06): the model settings page
+// and Images' image-service dialog as plan A. settings.css +2529 B and workbench.css +2529 B: the catalog's step progress as it is
+// (about 1.25 KB, split out of SERVICE_CONNECTION_PART_STYLES and referenced, not copied), the four rows, 高级, the save bar, the
+// rate-limit box and the model row's two lines (container queries; its icon buttons take the ID field's height so the first line shares one top edge). workbench.js +3724 B: the progress function shared with the
+// catalog (819 B, bundled from service-connection-item.ts), the coded check's split (a refused key under its field, saying whether
+// it was the new key or the one in use; the 429 recheck) and ↵ to save. images.js +1207 B: the presets' models and sizes, the
+// service choice and 高级, the compose form's size list; images.css +50 B: 高级's field spacing (the old preset rules removed).
+// Keyed on merge-base after #1870 (workbench.js 1085847, workbench.css 1204709, images.js 19896); the ASC-58 workbench.js entry is
+// spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
+// alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
+// what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
 // proactive-assistant §12.1 capsule fix (user approved asking for this admission, 2026-11-06): the input capsule's current work, tabs and
 // new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +312 B, the
 // per-project key helper, one chosen-project path through setProject and the place named before the title. Tried: removed the
 // chooser's own draft map (the island owns drafts now) and its swap code, dropped a tooltip naming the project and its translation,
-// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 1085847 base after ASC-58, whose entry is spent there.
+// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 1089571 base after ASC-60～63, whose workbench.js entry is spent there.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1085847, 1086159],
+  "/assets/molis-work-settings.css": [827793, 830322],
+  "/assets/molis-work-workbench.css": [1204709, 1207238],
+  "/assets/molis-work-workbench.js": [1089571, 1089883],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-plugins/images.js": [19896, 21103],
+  "/assets/molis-work-plugins/images.css": [7851, 7901],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

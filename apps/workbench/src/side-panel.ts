@@ -129,7 +129,8 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  .side-panel-divider{display:none!important}
 }
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
-   titlebar row, which names the directory states) and the work and the side sheet start below it. */
+   titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
+   strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */
 @media(min-width:601px) and (max-width:760px){
  html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) var(--dock-h)}
  html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}

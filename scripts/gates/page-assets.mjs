@@ -303,12 +303,24 @@ const headErrors = (measured, budget, base) => {
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
 // table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
 // account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
+// 07-S1 (the right side joins the tab workspace; 用户 2026-11-05 一次性放行 workbench.js，07 批评审台审过 #1853，冗余两处记入 S2):
+// workbench.js +12340 B on main's 1077514: the side's rules in the workspace state (withSidePane: open, select, close and reopen
+// through the shared closed stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background
+// tasks as a side view with its count, a removed plugin's side tab drawn in place with the stage that says how to add it back, the
+// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The BL-912 entry keyed on
+// 1077477 is spent on this base, so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
+// character typed; the 208271 key is shared with the account admission, so its ceiling is S1's 208400, which also covers the
+// account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -997 B,
+// arrival.css -5247 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
+// classes. Tried: the side reuses the workspace's persist, closed stack and removed-plugin check instead of keeping its own; the
+// old side-tab, side-ratio and discussion-ratio keys are dropped, not read; the rules' comments sit above the function, not in the
+// shipped body; the removed placeholder is one template (-262 B).
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
   "/assets/molis-work-settings.css": [826998, 827545],
   "/assets/molis-work-workbench.css": [1194792, 1204497],
-  "/assets/molis-work-workbench.js": [1077477, 1077514],
-  "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-workbench.js": [1077514, 1089854],
+  "/assets/molis-work-plugin-frame.js": [208271, 208400],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

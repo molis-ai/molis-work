@@ -1,3 +1,6 @@
+export { openShelfReplica } from './store.js';
+export { SHELF_DOCUMENT_PATH, type ShelfSyncOptions } from './sync-catalog.js';
+export { createShelfSyncContent } from './sync-content.js';
 export { shelfErrors, isShelfFailure, type ShelfFailure } from "./errors.js";
 export { markdownFromExtract, resultNameForExtract } from "./extract.js";
 export {

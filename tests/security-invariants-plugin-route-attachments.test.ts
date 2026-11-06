@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
@@ -38,9 +39,10 @@ for (const scope of ["home", "project"] as const) {
       ["empty.bin", "application/octet-stream", Buffer.alloc(0)],
     ] as const) {
       probe.behavior.route = async () => ({ status: 200, bytes, filename, mime, disposition: "inline", body: { mustNotReplaceBytes: true },
-        headers: { "content-type": mime, "content-disposition": "inline", "content-security-policy": "default-src *", "cache-control": "public" } });
+        headers: { etag: '"forged"', "content-type": mime, "content-disposition": "inline", "content-security-policy": "default-src *", "cache-control": "public" } });
       const response = await f.request(path);
       assert.equal(response.status, 200);
+      assert.equal(response.headers.get("etag"), `"${createHash("sha256").update(bytes).digest("hex")}"`);
       assert.equal(response.headers.get("content-type"), "application/octet-stream");
       assert.equal(response.headers.get("content-disposition"), "attachment; filename*=UTF-8''" + encodeURIComponent(filename));
       assert.equal(response.headers.get("x-content-type-options"), "nosniff");

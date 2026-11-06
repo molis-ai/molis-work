@@ -8,6 +8,7 @@ export * from "./en.js";
 export { JELLY_INSTRUCTIONS } from "./prompts.js";
 export * from "./calendar.js";
 export * from "./store.js";
+export * from "./replication.js";
 export * from "./content.js";
 export * from "./markdown.js";
 export * from "./import.js";
@@ -19,3 +20,5 @@ export * from "./actions.js";
 export * from "./command-actions.js";
 export * from "./service-actions.js";
 export * from "./content-actions.js";
+
+export { syncBindings as createJellySyncBindings } from "./sync-binding.js";

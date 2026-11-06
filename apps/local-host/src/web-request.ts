@@ -189,8 +189,8 @@ const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissio
 
 /** The Goals settings and planning pages: the project's work and its Goals, read by their owners. */
 const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, goalsHere }) =>
-    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, goalsHere) },
+  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, goalsHere, store, serverOptions }) =>
+    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, goalsHere, store, serverOptions.homeDirectory) },
   { id: "planning", handle: ({ request, response, url, controlToken, readWebView, goalActions, composition, localHost }) =>
     composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost, request)) },
 ];

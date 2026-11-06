@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync.js";
 import { randomUUID } from "node:crypto";
 import { ActionError, WORKFLOW_CONTENT_VERSIONS, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxErrors, type AttentionEntryRecord, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
@@ -139,6 +140,6 @@ export function createInboxPlugin(): PluginDefinition {
       return handlers[route_id]!({ params: request.params, request: { method: request.method as "GET" | "POST", pathname: request.pathname,
         query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } }));
-    return { kind: "app", views: [inboxUiContribution], actions, routes, action_scenes: [sceneRuntime.handler] };
+    return { kind: "app", sync: syncBindings(context), views: [inboxUiContribution], actions, routes, action_scenes: [sceneRuntime.handler] };
   } };
 }

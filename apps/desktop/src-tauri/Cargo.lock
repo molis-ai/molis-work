@@ -1829,6 +1829,7 @@ dependencies = [
  "objc2-core-graphics",
  "objc2-foundation",
  "objc2-quartz-core",
+ "reqwest",
  "semver",
  "serde",
  "serde_json",

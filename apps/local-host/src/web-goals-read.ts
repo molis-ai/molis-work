@@ -1,3 +1,4 @@
+import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
@@ -30,6 +31,11 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
+async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
+  const installed = new Set(readPluginRuntimeRecords(store.db).filter(record => record.state !== "uninstalled").map(record => record.plugin_id));
+  return withCatalog({ homeDirectory }, catalog => catalog.projectPluginRequirements(projectId)
+    .map(plugin => ({ plugin_id: plugin.plugin_id, installed: plugin.installed || installed.has(plugin.plugin_id) })));
+}
 /**
  * Opening the project page starts the project's plugin platform; the stages read what it runs: every declared stage of a plugin
  * the Runtime runs, drawn by its running instance (W5-06), the Coding page's companions included (they fill the slots its view
@@ -82,7 +88,7 @@ export function createLocalGoalsReadHttp(ports: {
   const { renderMolisWorkProjectSettingsHub, declaredPageSurface, renderMolisWorkWeb, declaredStageModel } = ports.renderer;
   async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => GoalsWebView | Promise<GoalsWebView>, controlToken: string, actions: BoundActionClient,
-    goalsHere: () => Promise<boolean>,
+    goalsHere: () => Promise<boolean>, store: LocalProjectDatabase, homeDirectory?: string,
   ): Promise<boolean> {
     const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
     if (request.method === "GET" && open) {
@@ -103,7 +109,7 @@ export function createLocalGoalsReadHttp(ports: {
       }
       catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
       const html = renderMolisWorkProjectSettingsHub(
-        { ...view, policy_bindings: policy?.bindings ?? [] },
+        { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) }, policy_bindings: policy?.bindings ?? [] },
         guidance ?? null,
         methods ?? [],
         controlToken,
@@ -170,7 +176,7 @@ export function createLocalGoalsReadHttp(ports: {
         const desktopShell = isDesktopShellRequest(request, url);
         const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id)) : null;
         // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.
-        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
+        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden, project: view.project && store ? { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } : view.project };
         if (store) {
           const stage = view.stage_data?.goals as GoalsStageData | undefined;
           if (stage) {

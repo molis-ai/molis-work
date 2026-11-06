@@ -1,3 +1,4 @@
+import { currentPluginInstance } from "./supervisor-instance.js";
 import type {
   PluginContribution,
   PluginDefinition,
@@ -434,22 +435,14 @@ export class PluginSupervisor implements PluginHostLifecycle {
     if (!this.#isEnabled(pluginId)) return undefined;
     const epoch = this.#epochs.get(pluginId) ?? 0;
     const current = this.#states.get(pluginId);
-    const state = current?.status === "running"
-      ? current
-      : await this.restart(pluginId);
+    if (current?.status !== "running") await this.restart(pluginId);
     if (!this.#isEnabled(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) return undefined;
-    if (state.status !== "running" || state.install_id === null) return undefined;
-    const contribution = this.#runtime.contribution(state.install_id);
-    if (!contribution || contribution.kind !== "app") return undefined;
-    const token = this.#liveToken(pluginId);
-    return {
-      install_id: state.install_id,
-      active: () => this.#tokens.get(pluginId) === token
-        && this.#isEnabled(pluginId)
-        && this.#runtime.contribution(state.install_id!) === contribution
-        && this.#states.get(pluginId)?.status === "running",
-      contribution,
-    };
+    return this.activeInstance(pluginId);
+  }
+
+  activeInstance(pluginId: string): PluginActiveInstance | undefined {
+    return currentPluginInstance({pluginId, enabled:()=>this.#isEnabled(pluginId), state:()=>this.#states.get(pluginId),
+      tokens:this.#tokens, contribution:id=>this.#runtime.contribution(id)});
   }
 
   async #restart(pluginId: string, releaseQuarantine = false): Promise<PluginSupervisorState> {
@@ -572,14 +565,6 @@ export class PluginSupervisor implements PluginHostLifecycle {
   #isEnabled(pluginId: string): boolean {
     if (this.#revoked.has(pluginId) || !this.#activeEntries.has(pluginId)) return false;
     return this.#states.get(pluginId)?.status !== "blocked";
-  }
-
-  #liveToken(pluginId: string): symbol {
-    const existing = this.#tokens.get(pluginId);
-    if (existing !== undefined) return existing;
-    const created = Symbol(pluginId);
-    this.#tokens.set(pluginId, created);
-    return created;
   }
 
   #begin(pluginId: string): void {

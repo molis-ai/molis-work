@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { inspectSnapshotSqlite } from "@molis-ai/molis-work-storage";
+import { journalStorageSpace } from "./home-restore-space.js";
+import { readStorageSpace, inspectSnapshotSqlite } from "@molis-ai/molis-work-storage";
 import { assertRestoreDigest } from "./home-restore-archive.js";
 import { assertRestoreDependencies } from "./home-restore-dependencies.js";
 import type { HomeRestoreCatalogInspector, HomeRestoreControl } from "./home-restore-contract.js";
@@ -18,6 +19,7 @@ import { readManagedConnectorTool } from "./connector-tool-install.js";
 export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry: HomeSnapshotStoreRegistry,
   inspectCatalog: HomeRestoreCatalogInspector, control: HomeRestoreControl): void {
   const home = journal.home_directory, incoming = new Set(journal.files.map(file => file.path));
+  const space = journalStorageSpace(journal);
   assertRestoreDependencies(home, registry, journal.dependencies); assertHomeRestoreOriginalsAvailable(journal);
   for (const file of journal.files) {
     control.assertCurrent();
@@ -38,7 +40,7 @@ export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry
         if (!project) throw invalidRestore();
         options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, project[1]!) };
       }
-      if (!isDeepStrictEqual(inspectSnapshotSqlite(path, { ...options, signal: control.signal }), file.sqlite)) throw invalidRestore();
+      if (!isDeepStrictEqual(inspectSnapshotSqlite(path, { ...options, space, signal: control.signal }), file.sqlite)) throw invalidRestore();
     }
     const installation = /^runtime\/connectors\/installs\/([^/]+)\/installation\.json$/u.exec(file.path);
     if (installation) readManagedConnectorTool(home, installation[1]!);
@@ -53,6 +55,7 @@ export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry
     ...journal.files.map(file => [file.path, "file"] as const), ...journal.directories.map(directory => [directory.path, "directory"] as const),
     ...journal.preserved.map(node => [node.path, node.identity.kind] as const),
   ]);
+  if (journal.initialize_local_space && journal.phase === "committed" && readStorageSpace(home)) expected.set("storage-space.json", "file");
   assertRestoreTreeMembers(home, registry, expected, new Set(journal.preserved.filter(node => node.opaque).map(node => node.path)), true);
   flushRestoreDirectories(journal); control.assertCurrent();
 }

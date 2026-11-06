@@ -6,7 +6,10 @@ import { builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUD
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
+import { BUILDER_CONTENT_REPLICA_ID, builderPrivateValueReplicationOwner, builderSyncProjection } from "./index.js";
+import { createSyncJsonContent } from "@molis-ai/molis-work-plugin-sdk";
 export const registration: PluginRegistration = {
+  sync:{authoring:{scope:'project-private-values',kind:BUILDER_CONTENT_REPLICA_ID,namespace:'builder',owner:builderPrivateValueReplicationOwner,content:context=>createSyncJsonContent({...context,...builderSyncProjection})}},
   project_plugin_id: "plugin-builder", catalog_order: 3,
   manifest: builderManifest,
   personal: true,

@@ -337,22 +337,25 @@ const headErrors = (measured, budget, base) => {
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
 // 07-S1 (the right side joins the tab workspace; 用户 2026-11-05 一次性放行 workbench.js，07 批评审台审过 #1853，冗余两处记入 S2):
-// workbench.js +12340 B on main's budget: the side's rules in the workspace state (withSidePane: open, select, close and reopen
+// workbench.js +9673 B on main's budget (885295, after #1877 and #1880): the side's rules in the workspace state (withSidePane: open, select, close and reopen
 // through the shared closed stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background
 // tasks as a side view with its count, a removed plugin's side tab drawn in place with the stage that says how to add it back, the
 // strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-60～63 entry
-// keyed on 1085847 is spent on this base (main's budget 1089571 holds its ceiling), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
-// character typed; the 208271 key is shared with the account admission, so its ceiling is S1's 208400, which also covers the
-// account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -853 B,
-// arrival.css -5247 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
+// keyed on 1085847 is spent on this base (main's budget 885295 is below its ceiling), so it is replaced. plugin-frame.js +129 B on
+// main's 188354: Mod+Backslash handed up from a frame, named by the character typed; the account admission's entry keyed on 208271
+// is spent the same way, so it is replaced. The sheets fall (workbench.css -757 B, arrival.css -4768 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
 // classes. Tried: the side reuses the workspace's persist, closed stack and removed-plugin check instead of keeping its own; the
 // old side-tab, side-ratio and discussion-ratio keys are dropped, not read; the rules' comments sit above the function, not in the
 // shipped body; the removed placeholder is one template (-262 B).
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [827793, 830322],
   "/assets/molis-work-workbench.css": [1204709, 1207238],
-  "/assets/molis-work-workbench.js": [1089571, 1101911],
-  "/assets/molis-work-plugin-frame.js": [208271, 208400],
+  "/assets/molis-work-workbench.js": [885295, 894968],
+  "/assets/molis-work-plugin-frame.js": [188354, 188483],
+  // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
+  "/assets/molis-work-plugins/coding.js": [290006, 297761],
+  "/assets/molis-work-plugins/cognia.js": [22157, 22189],
+  "/assets/molis-work-plugins/shelf.js": [64967, 65319],
   "/assets/molis-work-plugins/images.js": [19896, 21103],
   "/assets/molis-work-plugins/images.css": [7851, 7901],
 };

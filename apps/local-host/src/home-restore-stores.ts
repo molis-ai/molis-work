@@ -91,7 +91,7 @@ function collectStore(home: string, archive: HomeRestoreArchive, store: HomeSnap
 
 /** Static registry plus the archived installed-library owner is the only authority for the complete business set. */
 export function collectRestoreStoreInputs(home: string, archive: HomeRestoreArchive): RestoreStoreInputs {
-  const registry: HomeSnapshotStoreRegistry = homeStoresFromLibraryLedger(join(archive.root, "data", "plugin-libraries", "plugin-libraries.db")), manifest = archive.manifest;
+  const registry: HomeSnapshotStoreRegistry = homeStoresFromLibraryLedger(join(archive.root, "data", "plugin-libraries", "plugin-libraries.db"), home), manifest = archive.manifest;
   const stores = new Map(manifest.stores.map(store => [store.path, store]));
   if (stores.size !== manifest.stores.length || stores.size !== registry.stores.length) throw invalidRestore();
   const allowedContainers = new Set(registry.stores.filter(store => store.path.includes("/")).map(store => dirname(store.path)));

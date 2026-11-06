@@ -99,7 +99,8 @@ test("RAC-327 there is no host start hook for initial files: Shelf puts its samp
     "plugins/native/shelf/src/registration.ts"]) {
     assert.doesNotMatch(source(file), /initialize_owner_files|initializeTrusted/u, file);
   }
-  assert.match(source("plugins/native/shelf/src/home-plugin.ts"), /files\.write\(initializeShelfFiles\)/u, "Shelf's own start writes the sample");
+  assert.match(source("plugins/native/shelf/src/home-plugin.ts"), /await store\(\)\.initialize\(\)/u, "Shelf's own start initializes its owner store");
+  assert.match(source("modules/shelf/src/store.ts"), /this\.access\.files\.write\(writer => initializeShelfFiles\(writer, this\.access\.from\(writer\)\)\)/u, "sample writes and catalog changes use the same authorized owner store");
   // The sample appears on the first start and not again after the person removed it: tests/shelf-owner-files.test.ts, "the first start writes the sample".
 });
 

@@ -1,3 +1,6 @@
+import { combinePluginSyncLibraries } from './plugin-sync-library.js';
+import { savedHistoryFor } from "./saved-history-host.js";
+import { PROLOGUE_RUNTIME_ID, savedAgentHistoryView, readSavedAgentHistory } from "@molis-ai/molis-work-service-agent-host";
 import { pluginInteraction } from "./plugin-interaction.js";
 import { pluginNotificationsFor } from "./plugin-notification-service.js";
 import { pluginInstallationsFor } from "./plugin-installation-directory.js";
@@ -40,6 +43,7 @@ import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { pluginSourcePullFor } from "./plugin-source-pull-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
+import { syncActivation, copyActivation } from "./sync-activation.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
@@ -107,7 +111,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     // A project instance has no owner files of its own: only a sandboxed package has them here, and the sandbox is refused the terminal at start.
     terminal = options.home ? pluginTerminalFor({ home: options.home.directory, manifest, context, ownerFiles: undefined, assertActive }) : undefined;
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
-      scheduler: scheduler?.client, agents: agents?.client,
+      scheduler: scheduler?.client, agents: agents?.client, sync: combinePluginSyncLibraries(manifest, library?.sync, projectLibrary?.sync),
       database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       sourcePull: pluginSourcePullFor(definition, context, assertActive, options.projectLibrary?.db,
@@ -141,7 +145,7 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
   if (library === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
   const { directory, stores } = options.home;
-  const open = () => openPluginDatabase(directory, library.declaration, permission => { assertActive(); context.requireGrant(permission); }, context);
+  const open = () => openPluginDatabase(directory, library.declaration, permission => { assertActive(); context.requireGrant(permission); }, context, undefined, definition.manifest);
   return library.installed ? openInstalledPluginLibrary(directory, library.installed, library.declaration, stores, open) : open();
 }
 
@@ -153,7 +157,7 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
 function openProjectTables(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
   if (!definition.manifest.databases?.project) return undefined;
   if (!options.projectLibrary) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了项目库，但这个插件平台没有项目库`);
-  return openPluginProjectLibrary(options.projectLibrary, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context);
+  return openPluginProjectLibrary(options.projectLibrary, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context, {}, options.home?.directory);
 }
 
 /** `services.attention` and `services.contextLedger` (PG-087, S9-0b): the project's Inbox entries and reference edges, joined to the plugin's own transaction. */
@@ -197,6 +201,7 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
+  readonly sync: import('@molis-ai/molis-work-contracts/platform/plugin-sync').PluginSyncClient | undefined;
   /** A sandboxed plugin's declared files, in the project's directory (`sandboxOwnerFilesFor`, S-64); none for any other plugin. */
   readonly ownerFiles: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesClient | undefined;
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
@@ -230,9 +235,23 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
   return Object.freeze({ ...context,
     project_id: options.project_id,
     actor_id: options.actor_id,
+    sync: syncActivation(options.home?.directory, manifest, context, assertActive),
+    copy: copyActivation(options.home?.directory, manifest, context, assertActive),
     ...(wiring === undefined ? {} : { input_group: wiring.selectedGroup(manifest.plugin_id) }),
     services: Object.freeze({
       ...(actions ? { actions } : {}),
+      ...(manifest.agent ? { savedHistory: {
+        view(json: string) { assertActive(); return savedAgentHistoryView(json); },
+        validate(json:string) { assertActive(); return {sessionId:readSavedAgentHistory(json).sessionId}; },
+        async read(runtimeId:string,id:string) {
+          const check=()=>{assertActive();context.requireGrant("storage:private");};check();
+          if(runtimeId!==PROLOGUE_RUNTIME_ID)throw new ActionError("actions.unavailable","当前 Runtime 不支持可携带历史");
+          if(!options.home?.directory)throw new ActionError("actions.unavailable","会话历史 Home 未装配");
+          const result=await savedHistoryFor(options.home.directory).read(id,{project_id:options.project_id,plugin_id:manifest.plugin_id,actor_id:options.actor_id},check);
+          check();return result;
+        }
+      } } : {}),
+
       notifications: pluginNotificationsFor(manifest, context, parts.project_database, options.projectLibrary?.db, options.project_id, assertActive, () => options.record?.(context.install_id) ?? null, options.installations),
       installations: pluginInstallationsFor(manifest, context, options.project_id, options.installations, assertActive),
       ...projectServices(options, manifest, context, parts.project_database, assertActive),
@@ -244,6 +263,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
       interaction: pluginInteraction,
+      ...(parts.sync === undefined ? {} : {sync: parts.sync}),
       ...(parts.database === undefined ? {} : { database: parts.database }),
       ...(parts.ownerFiles === undefined ? {} : { ownerFiles: parts.ownerFiles }),
       ...(parts.project_statements !== undefined ? { project_statements: parts.project_statements } : parts.project_database === undefined ? {} : { project_database: parts.project_database }),

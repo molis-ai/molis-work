@@ -1,3 +1,4 @@
+export { workbenchClientSource } from "./page-assets.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
@@ -84,6 +85,7 @@ export { renderMolisWorkCharactersClientScript } from "./characters/client-asset
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
 
+export {PERSONAL_ACCOUNT_CLIENT_SCRIPT} from './scripts/personal-account.js';
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";

@@ -125,7 +125,7 @@ export function assertEffects(effects: unknown): asserts effects is SandboxEffec
 }
 
 
-export function assertContract(contract: unknown): asserts contract is SandboxPluginContract {
+function assertContractEnvelope(contract: unknown, proposal: boolean): asserts contract is SandboxPluginContract {
   assertJson(contract);
   const c = contract as unknown as SandboxPluginContract;
   const id = (v: unknown): v is string => typeof v === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(v);
@@ -139,7 +139,7 @@ export function assertContract(contract: unknown): asserts contract is SandboxPl
     if ((op.effects.imageGeneration?.includes('generate') || op.effects.imageGeneration?.includes('bind')) && !op.effects.networkDomains?.length) throw new SandboxError('sandbox.invalid_contract', 'Image generation names the address it reaches in networkDomains');
     if (op.kind === 'query' && (op.effects.modelSettings?.includes('save') || op.effects.imageGeneration?.some(v => v !== 'read'))) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot save model settings, generate images or bind image connections');
     if (op.kind === 'query' && (op.effects.storage?.includes('write') || op.effects.artifacts?.includes('write') || op.effects.projectDatabase?.includes('write') || op.effects.homeDatabase?.includes('write') || op.effects.ownerFiles?.includes('write') || op.effects.model?.includes('invoke') || op.effects.materials?.some(v => v !== 'read') || op.effects.events?.length || op.effects.background?.length)) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot declare writes, a model request, a page fetch or saved original files, background work, or publish events');
-    if (!Array.isArray(op.errors) || op.errors.some(e => !id(e.code) || typeof e.description !== 'string') || !unique(op.errors.map(e => e.code)) || !Array.isArray(op.examples) || !op.examples.length) throw new SandboxError('sandbox.invalid_contract', 'Operations require errors and examples');
+    if (!Array.isArray(op.errors) || op.errors.some(e => !id(e.code) || typeof e.description !== 'string') || !unique(op.errors.map(e => e.code)) || !Array.isArray(op.examples) || (!proposal && !op.examples.length)) throw new SandboxError('sandbox.invalid_contract', 'Operations require errors and examples');
     for (const example of op.examples) {
       assertMatches(op.input, example.input);
       if (['output', 'outputIncludes', 'error'].filter(k => Object.hasOwn(example, k)).length !== 1) throw new SandboxError('sandbox.invalid_contract', 'Example requires exactly one expectation');
@@ -158,4 +158,14 @@ export function assertContract(contract: unknown): asserts contract is SandboxPl
     for (const region of page.regions) if (!id(region.id) || typeof region.title !== 'string' || !Array.isArray(region.operationIds) || !region.operationIds.every(operationExists)) throw new SandboxError('sandbox.invalid_contract', 'Invalid region operation binding');
   }
   for (const test of c.acceptance) if (!id(test.id) || typeof test.description !== 'string' || !Array.isArray(test.steps) || !test.steps.length || test.steps.some(s => typeof s.description !== 'string' || typeof s.expected !== 'string' || (s.operationId !== undefined && !operationExists(s.operationId)))) throw new SandboxError('sandbox.invalid_contract', 'Invalid acceptance case');
+}
+
+/** Frozen executable contracts always require behavioral examples. */
+export function assertContract(contract: unknown): asserts contract is SandboxPluginContract {
+  assertContractEnvelope(contract, false);
+}
+
+/** A proposal is read-only design content; examples may be absent but every supplied schema and example is checked. */
+export function assertProposalContract(contract: unknown): asserts contract is SandboxPluginContract {
+  assertContractEnvelope(contract, true);
 }

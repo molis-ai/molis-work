@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { shelfFolderDigest } from "./file-hash.js";
 import path from "node:path";
 import type {
   ShelfAdmitFolderInput,
@@ -90,11 +90,11 @@ export class ShelfAdmissions {
     const relative = `files/${itemId}/${folderName}`;
     return this.files.write((writer) => {
       const children: ShelfFolderChild[] = [];
-      const digest = createHash("sha256");
+      const digests: {relative:string;digest:string}[] = [];
       for (const entry of entries) {
         const bytes = Buffer.from(entry.bytes);
         writer.replaceFileAtomic(within(relative, entry.relative), bytes);
-        digest.update(`${entry.relative}:${sha256(bytes)}\n`);
+        digests.push({relative:entry.relative,digest:sha256(bytes)});
         children.push({
           relative: entry.relative,
           name: path.basename(entry.relative),
@@ -102,6 +102,7 @@ export class ShelfAdmissions {
           size_bytes: bytes.byteLength,
         });
       }
+      const folderHash = shelfFolderDigest(digests);
       const item: StoredItem = {
         item_id: itemId,
         group: "material",
@@ -110,7 +111,9 @@ export class ShelfAdmissions {
         relative_path: relative,
         mime: "inode/directory",
         size_bytes: total,
-        origin_hash: digest.digest("hex"),
+        origin_hash: folderHash,
+        copy_hash: folderHash,
+        origin_realpath: null,
         hidden: false,
         created_at: now(),
         source_item_id: null,

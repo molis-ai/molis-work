@@ -1,3 +1,4 @@
+import {registerStudioSyncGuard} from "../sync/activity.js";
 import { JobResumption } from "../services/job-resumption.js";
 import { validateResumption } from "../jobs/resumption-validation.js";
 import { randomUUID } from "node:crypto";
@@ -18,8 +19,10 @@ import { SqliteDirectionRepository } from "../db/direction-repository.js";
 import { SqliteExplorationRepository } from "../db/exploration-repository.js";
 import { SqliteIdeaRepository } from "../db/idea-repository.js";
 import { SqliteMemoryRepository } from "../db/memory-repository.js";
-import { applyStudioBaseline } from "../db/schema.js";
-import { openDatabase, type SqliteDatabase } from "../db/open-database.js";
+import type { SqliteDatabase } from "../db/open-database.js";
+import type {StorageSpace} from '@molis-ai/molis-work-storage';
+import {openStudioDatabase} from '../sync/open.js';
+import {initializeStudioReplication} from '../sync/journal.js';
 import { SqlitePulseRepository } from "../db/pulse-repository.js";
 import { SqliteResearchRepository } from "../db/research-repository.js";
 import { SqliteSettingsRepository } from "../db/settings-repository.js";
@@ -54,6 +57,8 @@ import { WorkReuseService } from "../../../work-reuse/service.js";
 import type { WorkReuseHostPort } from "../../../work-reuse/contracts.js";
 
 export interface LocalRuntimeOptions {
+  /** Supplied by the trusted Host; never taken from action or sync JSON. */
+  storage?:{space:StorageSpace;projectId:string};
   workReuse?: WorkReuseHostPort;
   databasePath: string;
   ai: AlchemistAiPort;
@@ -86,8 +91,7 @@ export interface LocalRuntime {
 
 export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   mkdirSync(dirname(options.databasePath), { recursive: true });
-  const database = openDatabase(options.databasePath);
-  applyStudioBaseline(database, options.databasePath);
+  const database = openRuntimeDatabase(options);
   const clock = { now: () => new Date().toISOString() };
   const idFactory = { next: (prefix: string) => `${prefix}_${randomUUID()}` };
   const actors = new AsyncLocalStorage<string>();
@@ -282,8 +286,9 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const app = createApp(dependencies, inFlight.track(options.actions ?? actions));
 
   const { closed, ...lifecycle } = studioLifecycle({ database, worker, jobs, actions: inFlight, intervalMs: options.workerIntervalMs });
+  const unregisterSync=registerStudioSyncGuard(options.databasePath,lifecycle.idle);
   return {
-    app, actions: inFlight.track(actions), database, worker, ...lifecycle,
+    app, actions: inFlight.track(actions), database, worker, ...lifecycle,close(){return lifecycle.close().finally(unregisterSync);},
     actionsFor(owner) { return inFlight.track(bindAlchemistActor(owner, { database, actors, clock, actions, closed })); },
   };
 }
@@ -302,4 +307,12 @@ function initializeWorkspace(database: SqliteDatabase, settings: SqliteSettingsR
     settings.ensureDefaults("workspace-local", now);
     pulse.sources.ensureDefaultSourceSettings(now);
   }).immediate();
+}
+
+function openRuntimeDatabase(options: LocalRuntimeOptions): SqliteDatabase {
+  const database = openStudioDatabase(options.databasePath);
+  try {
+    if (options.storage) initializeStudioReplication(database, options.storage.space, options.storage.projectId);
+    return database;
+  } catch (error) { database.close(); throw error; }
 }

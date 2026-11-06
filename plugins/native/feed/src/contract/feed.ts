@@ -2,6 +2,7 @@ import type { AttentionApi, AttentionReason } from "@molis-ai/molis-work-contrac
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export type FeedItemDisposition = "inbox" | "saved" | "promoted" | "archived";
+export const FEED_CONTENT_REPLICA_ID = 'feed_content';
 
 export interface FeedMaterialRecord {
   project_id: string;

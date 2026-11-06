@@ -1,3 +1,4 @@
+import { syncBindings } from './sync-binding.js';
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -58,7 +59,7 @@ export function createPptPlugin(): PluginDefinition {
           { actorId: caller.actor_id, expectedVersion, readArtifact: artifactPorts.readArtifact ? value => artifactPorts.readArtifact!(value, caller) : undefined, lineHead: artifactPorts.lineHead,
             beforePublish: () => caller.beforeEffect() });
       } };
-    return { kind: "app", views: [pptUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [pptUiContribution],
       actions: [...createPptActionHandlers(ports), ...createPptContentHandlers(stores)],
       routes: pptRoutes(context) };
   } };

@@ -4,24 +4,33 @@ import path from "node:path";
 export function atomicWriteFileSync(
   targetPath: string,
   data: string | Buffer,
-  options: { mode?: number } = {},
+  options: { mode?: number; /** Syncs the file and its already-existing parent; errors after rename require owner reconciliation. */ durable?: boolean } = {},
 ): void {
   const mode = options.mode ?? 0o600;
   const directory = path.dirname(targetPath);
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  if (!options.durable) fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const temporaryPath = path.join(
     directory,
     `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`,
   );
+  let created = false;
   try {
-    fs.writeFileSync(temporaryPath, data, { mode });
+    if (options.durable) {
+      const file = fs.openSync(temporaryPath, "wx", mode); created = true;
+      try { fs.writeFileSync(file, data); fs.fchmodSync(file, mode); fs.fsyncSync(file); }
+      finally { fs.closeSync(file); }
+    } else fs.writeFileSync(temporaryPath, data, { mode });
     fs.renameSync(temporaryPath, targetPath);
-    fs.chmodSync(targetPath, mode);
+    if (options.durable) {
+      const parent = fs.openSync(directory, "r");
+      try { fs.fsyncSync(parent); } finally { fs.closeSync(parent); }
+    } else fs.chmodSync(targetPath, mode);
   } catch (error) {
     try {
-      fs.unlinkSync(temporaryPath);
+      if (!options.durable || created) fs.unlinkSync(temporaryPath);
     } catch {
-      // Best effort only; the target was never replaced.
+      // After rename, the new target may already exist. Never roll it back on an
+      // unconfirmed directory sync; its owner must reconcile before more effects.
     }
     throw error;
   }

@@ -8,7 +8,7 @@ import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-ho
 import type { AgentRunHandle, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MemoryService, defaultPrefs, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
@@ -30,7 +30,7 @@ async function finished(adapter: Awaited<ReturnType<typeof createPrologueNodeAda
 }
 
 /** Real Node/HTTP/SQLite and production App authority; scripted model output is engineering evidence, not model quality. */
-test("trusted Run goal/object facts select only applicable memory through final HTTP Context and survive Session reopen", { timeout: 40_000 }, async () => {
+for (const strategy of ["keyword", "vector-fallback"] as const) test(`${strategy}: trusted Run goal/object facts select only applicable memory through final HTTP Context and survive Session reopen`, { timeout: 40_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-run-context-")), requests: string[] = [];
   const server = createServer(async (request, response) => {
     let body = ""; for await (const chunk of request) body += chunk;
@@ -41,15 +41,25 @@ test("trusted Run goal/object facts select only applicable memory through final 
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
+  const initialOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  try { initializeMemoryForgetting({ homeDirectory: home, storageOwner: initialOwner, assertCurrent() {} }); }
+  finally { initialOwner.release(); }
   const ledger = openMemoryLedger({ homeDirectory: home });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(caller.actor_id, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   let alive = true, service!: MemoryService, failUsage = true;
-  const owner: MemoryRuntimePolicyOwner = { alive: () => alive, prefsFor: (scope, id) => service.prefsFor(caller.actor_id, scope, id),
+  const owner: MemoryRuntimePolicyOwner = { alive: () => alive, isForgotten: (scope, ownerId, kind, id) => service.isForgotten(scope, ownerId, kind, id), prefsFor: (scope, id) => service.prefsFor(caller.actor_id, scope, id),
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async id => id === project, deletingProject: () => undefined };
+  const memory = memoryRuntimePolicy(() => owner), matrix = memory.policy.matrix;
+  assert.ok(matrix?.rows);
+  // The existing public Adapter policy port configures this engineering case, not a new product setting.
+  // All owners, grants, taxonomy and budgets remain the production App's. No vector backend is installed.
+  const policy = strategy === "keyword" ? memory.policy : { ...memory.policy, matrix: { ...matrix,
+    rows: matrix.rows.map((row): typeof row => ({ ...row, read: { ...row.read, algorithm: "vector",
+      fallback: { algorithm: "keyword", on: ["unavailable"] } } })) } };
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"),
     memoryUsage: receipt => { if (failUsage) throw new Error("isolated ledger fault"); service.settleUses(receipt); },
-    memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
+    memory: { ...memory, policy, promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
       decide: (caller, request) => service.promotion.decide(caller, request),
       undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
         record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`,
@@ -81,12 +91,28 @@ test("trusted Run goal/object facts select only applicable memory through final 
     assert.equal(requests.length, 1); assert.match(requests[0]!, /ALPHA_ONLY/); assert.doesNotMatch(requests[0]!, /BETA_ONLY/);
     const verifyReceipt = (view: AgentRunView, expected: typeof entries[number]) => {
       assert.deepEqual(view.memory_recalled?.injected, [{ memory_id: expected.memory_id, version: expected.version }]);
+      const retrievals = view.memory_recalled?.retrievals, retrieval = retrievals?.find(one => one.outcome === "ready");
+      assert.ok(retrieval, "the actual SDK retrieval receipt reaches the public Run");
+      assert.deepEqual(retrieval.attempts, strategy === "keyword" ? [{ algorithm: "keyword", outcome: "ready" }] : [
+        { algorithm: "vector", outcome: "unavailable", error_code: "RUNTIME_MODULE_UNAVAILABLE" },
+        { algorithm: "keyword", outcome: "ready", fallback_from: "vector" },
+      ], "attempt order, primary failure and explicit fallback survive the original SDK event projection");
+      assert.equal(retrieval.error_code, undefined);
+      const cost = retrieval.cost; assert.ok(cost, "the SDK's body-free retrieval accounting is retained");
+      assert.equal(cost.recaller_calls, 0, "the existing built-in keyword recipe makes no custom recaller call");
+      assert.equal(cost.recaller_usage, undefined, "no reported token use is not manufactured as zero");
+      assert.deepEqual([cost.directory_entries, cost.directory_enumerations, cost.directory_traversal, cost.metadata_reads, cost.body_reads, cost.records_scanned],
+        ["unknown", "unknown", "unknown", "unknown", "unknown", "unknown"], "the production App policy redacts physical storage costs");
+      assert.ok(cost.candidates_exposed >= 1); assert.ok(Number.isFinite(cost.elapsed_ms) && cost.elapsed_ms >= 0);
+      assert.equal(typeof cost.complete, "boolean");
+      assert.ok(!JSON.stringify(retrievals).includes(home) && !JSON.stringify(retrievals).includes(expected.text), "retrieval facts contain neither paths nor memory bodies");
       const contexts = view.memory_recalled?.contexts; assert.equal(contexts?.length, 1);
       assert.equal(contexts![0]!.status, "response-observed"); assert.ok(contexts![0]!.tokens > 0);
       assert.ok(contexts![0]!.tokens <= contexts![0]!.budget_tokens);
       assert.deepEqual(contexts![0]!.references.map(ref => ({ memory_id: ref.memory_id, version: ref.version })),
         [{ memory_id: expected.memory_id, version: expected.version }]);
       assert.ok(contexts![0]!.references.every(ref => ref.receipt_id));
+      assert.ok(contexts![0]!.references.some(ref => ref.receipt_id === retrieval.receipt_id), "final Context retains the original retrieval identity");
     };
     verifyReceipt(first, entries[0]!);
     assert.equal(first.memory_recalled?.recording_error, "memory.receipt_unrecorded");
@@ -94,6 +120,7 @@ test("trusted Run goal/object facts select only applicable memory through final 
     await adapter.close(); adapter = await open();
     failUsage = false;
     const recovered = await adapter.read(first.ref);
+    assert.deepEqual(recovered.memory_recalled?.retrievals, first.memory_recalled?.retrievals, "Run replay preserves the exact attempts and cost without rerunning retrieval");
     assert.equal(requests.length, 1, "restoring the original receipt does not dispatch another model request");
     assert.equal(recovered.memory_recalled?.recording_error, undefined);
     const firstUse = service.uses({ work_id: "work-context" });
@@ -114,11 +141,16 @@ test("trusted Run goal/object facts select only applicable memory through final 
     const recipe = await service.forRun({ ...caller, work: { work_id: "refused-work", title: "Refused release" } },
       { query: "Release checklist", situation: { goal_id: "goal-a", object_kind: "file" } });
     assert.ok(recipe);
+    let finalFenceChecks = 0;
     const refused = await finished(adapter, await adapter.start({ ...sessionOwner, session, workspace: "none", role_id: "reader", task: "Release checklist",
       role: { role_id: "reader", version: 1, workspace: "none", execution: "read-only", host_tools: [], prompts: [], memory: recipe } },
-    { beforeDispatch: () => { throw new Error("current dispatch authorization withdrawn"); } }), "failed");
+    { beforeDispatch: () => () => { finalFenceChecks++; throw new Error("current dispatch authorization withdrawn"); } }), "failed");
     assert.equal(requests.length, 2, "refusal after Context preparation makes no HTTP request");
+    assert.ok(finalFenceChecks > 0, "the same-call closure reaches the final transport check before a not-dispatched receipt");
     assert.ok(refused.memory_recalled?.contexts?.some(context => context.status === "not-dispatched"));
+    assert.ok(refused.memory_recalled?.retrievals?.some(one => one.outcome === "ready" && one.attempts?.some(attempt => attempt.algorithm === "keyword" && attempt.outcome === "ready")),
+      "ready retrieval remains distinct from the final dispatch refusal");
+    assert.deepEqual(refused.memory_recalled?.injected, [], "retrieval ready alone is never projected as delivered memory");
     assert.deepEqual(service.uses({ work_id: "refused-work" }).map(use => [use.memory_id, use.state]), [[entries[0]!.memory_id, "not-dispatched"]]);
     assert.equal(ledger.lastUse(entries[0]!.memory_id)?.run?.run_id, first.ref.run_id, "a refused round cannot replace confirmed recent reference");
     assert.deepEqual((await backend.withCaller(person).list("project", project)).map(row => row.memory_id).sort(), entries.map(row => row.memory_id).sort());

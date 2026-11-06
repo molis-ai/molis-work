@@ -59,7 +59,8 @@ function adoptHeader(page: Page, id: string, data: SessionData) {
   root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: host.pluginId, surface_title: "Coding", object: { kind: "coding_session", id, title: data.session.title || L("coding.session.untitled"), version: String(data.run_count ?? data.runs.length) } }));
   q("[data-coding-goal-label]").textContent = data.session.goal_id ? L("coding.goal.next", { title: data.session.goal_title || data.session.goal_id }) : L("coding.goal.none-next-label");
   retitle(page, id, s.state.sessions.find(record => record.session_id === id)?.title, data.session.title);
-  s.state.sessions = s.state.sessions.map(record => record.session_id === id ? data.session : record);
+  // The same current state response owns SDK lifecycle; a detail's business record cannot replace that field.
+  s.state.sessions = s.state.sessions.map(record => record.session_id === id ? { ...data.session, execution_state: record.execution_state } : record);
 }
 
 /**

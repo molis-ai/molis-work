@@ -2,6 +2,9 @@
 
 Manifest 写完不等于底栏插件切换里有入口：内置插件还要在自己包里写 `registration`（目录条目）和 Plugin Runtime 监督器条目（见「内置插件：经 Plugin Runtime 装配」）；第三方插件看 [authoring.md](authoring.md)。不要抄两个构建期例外（Alchemist、插件创作台）的短名 HTTP。
 
+
+自动记忆形成的来源主人协议是 `memory.learning.enqueue/run/form@1`（定义经 contracts 的 services/memory 导出）。它仅面向 plugin，JSON 只传引用，不开放模型工具或 MCP。当前 Host executor 通过真实 session.context.services.actions.invoke 重新进入当前安装；不直调 handler，不自动 enable。owner 在尚未返回的嵌套 form 内提供 `assert_memory_sources_current` 同步收紧检查，Memory 选定实际来源并集后绑定。旧、新检查求交，Promise/thenable 拒绝；不把它放入 payload、后台作业或插件 callback view。原 beforeEffect、grant、issued 身份和最终 Storage/ledger 围栏仍全部成立。queued 重启用当前正常装配，running 未知结果不自动重放。
+
 ## 内置插件：经 Plugin Runtime 装配
 
 新的内置插件（任何 kind）只走 Plugin Runtime：由监督器启动，得到安装记录、升级检查、崩溃恢复和每个安装独立的私人存储。不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往构建期名单加条目；构建期只剩用户批过的两个例外，见下面「构建期 Native」一节（门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。

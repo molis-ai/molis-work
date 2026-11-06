@@ -311,10 +311,16 @@ const headErrors = (measured, budget, base) => {
 // spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
 // the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
 // the select in place instead of reloading the page, the host names no key so the page needs no second string.
+// Memory V0 exact c7b65842 main rebase (2026-11-06): reuse only the already reviewed Memory increments.
+// Coding A4-L owner lifecycle directories +6326 B and A4-M Session entry +173 B = +6499 B.
+// Workbench history +27398 B and the independently reviewed receipt correction +9 B = +27407 B.
+// Existing row, reader, request Map, confirmation and retry controls are reused; no new asset or CSS.
+// All other 49 assets equal c7 main bytes. Main's already-spent CSS/frame growth is not admitted again.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/coding.js": [290006, 296505],
   "/assets/molis-work-settings.css": [827545, 827793],
   "/assets/molis-work-workbench.css": [1204497, 1204745],
-  "/assets/molis-work-workbench.js": [1077683, 1078718],
+  "/assets/molis-work-workbench.js": [1078718, 1106125],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

@@ -29,7 +29,7 @@ test("MEM-FORM no standing signal reads no source and calls no extractor", async
   assert.equal(resolve.mock.callCount(), 0);
   assert.equal(calls, 0);
   assert.deepEqual(env.ledger().candidates(person.actor_id), []);
-  assert.deepEqual(memory.changes(person), []);
+  assert.deepEqual((await memory.changes(person)), []);
 });
 
 test("MEM-FORM independent full originals form once then use v3 promotion and original-operation replay", { timeout: 30_000 }, async t => {
@@ -55,7 +55,7 @@ test("MEM-FORM independent full originals form once then use v3 promotion and or
   assert.equal(replay.recording_error, undefined);
   assert.equal(replay.formation.items[0]?.outcome, "replayed");
   assert.deepEqual((await env.raw(person).list("project", "project-a")).map(row => [row.memory_id, row.version]), [[memoryId, 1]]);
-  assert.equal(restarted.changes(person).filter(change => change.kind === "auto_kept").length, 1);
+  assert.equal((await restarted.changes(person)).filter(change => change.kind === "auto_kept").length, 1);
   const accepted = await restarted.accept({ ...person, operation_id: "accept-covered-original" }, pending[0]!.candidate_id, { expected_version: pending[0]!.version });
   assert.equal(accepted.memory!.memory_id, memoryId);
   assert.equal((await env.raw(person).list("project", "project-a")).length, 1, "accepting the covered original never adds a second formal memory");
@@ -203,7 +203,7 @@ test("MEM-FORM cancellation after SDK commit leaves no new App body projection a
   assert.equal(result.formation.items.length, 1);
   assert.ok(result.recording_error);
   assert.deepEqual(env.ledger().candidates(person.actor_id), []);
-  assert.deepEqual(memory.changes(person), []);
+  assert.deepEqual((await memory.changes(person)), []);
   assert.equal((await env.raw(person).candidates.list("project", "project-a")).length, 1);
 });
 

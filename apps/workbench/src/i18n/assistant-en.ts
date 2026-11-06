@@ -2,6 +2,7 @@ import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
 
 /** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "本会话记忆": "Session memory",
   "「{plugin}」读取了你授权的本机目录「{folder}」（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" read your authorized local folder "{folder}" ({origin}). View the record or revoke access in Settings > Local folders.',
   "「{plugin}」尝试读取你授权的本机目录「{folder}」，但被拒绝（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" tried to read your authorized local folder "{folder}", but access was denied ({origin}). View the record or revoke access in Settings > Local folders.',
   "「{plugin}」尝试读取你授权的本机目录「{folder}」，但未完成（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" tried to read your authorized local folder "{folder}", but the read did not complete ({origin}). View the record or revoke access in Settings > Local folders.',
@@ -123,10 +124,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "已记下你的要求": "Kept what you asked",
   "正在查看记住的事": "Looking at what is remembered",
   "已查看记住的事": "Looked at what is remembered",
-  "正在删除一条记忆": "Deleting a memory",
-  "已删除一条记忆": "Deleted a memory",
   "正在建议记住一条": "Suggesting something to keep",
-  "已建议记住一条": "Suggested something to keep",
   "正在读取文件": "Reading",
   "已读取文件": "Read",
   "正在查看目录": "Listing",
@@ -290,7 +288,9 @@ export const ASSISTANT_EN: Record<string, string> = {
   "查看子任务": "check sub-tasks",
   "记下你的要求": "keep what you asked",
   "查看记住的事": "look at what is remembered",
-  "删除一条记忆": "delete a memory",
+  "停用一条记忆": "switch off a memory",
+  "正在停用一条记忆": "Switching off a memory",
+  "已停用一条记忆": "Switched off a memory",
   "让子任务补改": "ask a sub-task to fix",
   "停止子任务": "stop a sub-task",
   "这段要求模型按固定格式输出，程序会读取这个格式：修改时保留格式要求，只调整内容；要加前缀等，请写明加在哪个字段里。": "This asks the model for a fixed format that the program reads: keep the format requirements and change only the content; to add a prefix, say which field it goes in.",

@@ -7,7 +7,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, defaultPrefs, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { observeMemoryBackend } from "./fixtures/memory-service-home.ts";
 
@@ -22,16 +22,19 @@ const input = (text: string) => ({ scope: "project" as const, text, kind: "conve
 async function fixture(t: TestContext) {
   t.mock.timers.enable({ apis: ["Date"], now: START });
   const home = await mkdtemp(join(tmpdir(), "molis-memory-plugin-save-"));
-  let ledger = openMemoryLedger({ homeDirectory: home }), service!: MemoryService;
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+  let ledger = openMemoryLedger({ homeDirectory: home, storageOwner }), service!: MemoryService;
   const prefs = defaultPrefs("project", "reviewed");
   prefs.plugins = { [PLUGIN]: { allowed: true, kinds: ["preference", "convention"] }, [OTHER]: { allowed: true, kinds: ["convention"] } };
   ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prefs);
   const owner: MemoryRuntimePolicyOwner = { alive: () => true, prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
+    isForgotten: (...args) => service.isForgotten(...args),
     projectExists: async id => id === "project-a", deletingProject: () => undefined };
   let models = 0, writes = 0, updates = 0, proposals = 0, promotions = 0, settlements = 0;
   let beforeUpdate: ((request: Parameters<MemoryBackendPort["update"]>[0]) => Promise<void>) | undefined;
-  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
     memory: { ...memoryRuntimePolicy(() => owner),
       promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION, decide: (caller, request) => service.promotion.decide(caller, request),
         undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
@@ -48,12 +51,12 @@ async function fixture(t: TestContext) {
     },
   }));
   service = new MemoryService({ ledger, backend });
-  t.after(async () => { await adapter.close(); ledger.close(); await rm(home, { recursive: true, force: true }); assert.equal(models, 0); });
+  t.after(async () => { await adapter.close(); ledger.close(); storageOwner.release(); await rm(home, { recursive: true, force: true }); assert.equal(models, 0); });
   return { get service() { return service; }, get ledger() { return ledger; },
     raw: (caller = person("read")) => raw.withCaller(caller),
     counts: () => ({ writes, updates, proposals, promotions, settlements }),
     beforeUpdate: (hook: typeof beforeUpdate) => { beforeUpdate = hook; },
-    reopen: async () => { await adapter.close(); ledger.close(); ledger = openMemoryLedger({ homeDirectory: home }); adapter = await open(); service = new MemoryService({ ledger, backend }); },
+    reopen: async () => { await adapter.close(); ledger.close(); ledger = openMemoryLedger({ homeDirectory: home, storageOwner }); adapter = await open(); service = new MemoryService({ ledger, backend }); },
   };
 }
 
@@ -69,7 +72,7 @@ test("trusted plugin saves and replaces directly, retaining its namespace, deadl
   const replaced = await f.service.write(plugin("replace"), { ...input("Use structured project notes"), replaces: id });
   assert.equal(replaced.outcome, "replaced"); assert.equal(replaced.memory!.memory_id, id); assert.equal(replaced.memory!.version, 2);
   assert.deepEqual(f.ledger.revisions(id).map(row => [row.version, row.by]), [[1, "policy"], [2, "policy"]]);
-  const change = f.service.changes(person("changes")).find(row => row.change_id === replaced.change_id)!;
+  const change = (await f.service.changes(person("changes"))).find(row => row.change_id === replaced.change_id)!;
   assert.equal(change.kind, "auto_replaced"); assert.equal(change.undoable, true); assert.equal(change.by, "policy");
   await f.reopen();
   const entry = (await f.raw().list("project", "project-a"))[0]!;
@@ -83,7 +86,7 @@ test("trusted plugin saves and replaces directly, retaining its namespace, deadl
   assert.equal(restored.memory_id, id); assert.equal(restored.version, 3); assert.equal(restored.text, "Use concise project notes");
   assert.deepEqual(restored.meta.classification, entry.meta.classification); assert.equal(restored.meta.namespace, PLUGIN);
   assert.equal(restored.meta.expires_at_ms, Date.parse(EXPIRES));
-  assert.equal(f.service.changes(person("after-undo")).find(row => row.change_id === replaced.change_id)?.state, "undone");
+  assert.equal((await f.service.changes(person("after-undo"))).find(row => row.change_id === replaced.change_id)?.state, "undone");
   assert.deepEqual(await f.raw().candidates.list("project", "project-a"), []);
   const counts = f.counts(); assert.ok(counts.writes > 0); assert.ok(counts.updates > 0);
   assert.deepEqual([counts.proposals, counts.promotions, counts.settlements], [0, 0, 0]);
@@ -92,7 +95,7 @@ test("trusted plugin saves and replaces directly, retaining its namespace, deadl
 
 test("plugin creation remains undoable by the person, but an old undo cannot replace their later edit", async t => {
   const f = await fixture(t), first = await f.service.write(plugin("creation"), input("Use brief project titles"));
-  assert.equal(f.service.changes(person("changes")).find(row => row.change_id === first.change_id)?.undoable, true);
+  assert.equal((await f.service.changes(person("changes"))).find(row => row.change_id === first.change_id)?.undoable, true);
   await f.service.undo(person("undo-create"), first.change_id!); await f.reopen();
   assert.deepEqual(await f.raw().list("project", "project-a"), []);
   const next = await f.service.write(plugin("next"), input("Use short release summaries"));

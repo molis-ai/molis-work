@@ -186,7 +186,11 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     readReferences: async (projectId, picked) => ports.localHost.search ? ports.localHost.search.readReferences(projectId, picked) : picked.map(() => null),
     // How many documents the round could list in the project, for 「本轮情况」 (specs/project-knowledge PMAT-33).
     knowledgeTally: (projectId, views) => ports.localHost.search?.knowledgeTally(projectId, views) ?? null,
-    knowledgeCatalog: (projectId, views, words) => ports.localHost.search?.knowledgeCatalog(projectId, views, words) ?? null,
+    knowledgeCatalog: async (projectId, views, words) => {
+      if (!ports.localHost.search || !ports.projectReference) return null;
+      const reference = await ports.projectReference(projectId), caller = await personContext(reference);
+      return ports.localHost.search.knowledgeCatalog(projectId, views, words, { caller, client: ports.localHost.actionClient(reference) });
+    },
   };
   const service: AssistantService = new AssistantService(store, servicePorts, WEB_ACTOR), surroundings = assistantSurroundings(store, servicePorts, WEB_ACTOR);
   threads = new AssistantThreads(store, service, {
@@ -368,13 +372,20 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.dispatcher.handover(workId, { to: body.to as AssistantHandover["to"], ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };
-      if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };
+      if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await archiveAssistantRequest(service, workId, body.archived !== false, response) } };
       if (parts.length === 4 && parts[2] === "reviews") return { status: 200, body: await service.outcomes.decide(workId, { review_id: parts[3]!, decision: body.decision as "approve" | "reject", ...(typeof body.note === "string" ? { note: body.note } : {}) }) };
       return null;
     },
     // Questions, cards and next steps are drawn by their Host owner; common refusals keep the shared error envelope.
     write: (response, result) => writeDrawn(ports, response, result),
   });
+}
+
+/** A closed archive request stops only its own remaining writes; committed facts stay with their original owners. */
+async function archiveAssistantRequest(service: AssistantService, workId: string, archived: boolean, response: ServerResponse) {
+  const ended = new AbortController(), stop = () => ended.abort(); response.once("close", stop);
+  try { return await service.archive(workId, archived, { beforeEffect: async () => { ended.signal.throwIfAborted(); }, assert_current: () => ended.signal.throwIfAborted() }); }
+  finally { response.off("close", stop); }
 }
 
 /** Thread requests keep the page's trusted project and pass through the common action gateway. */

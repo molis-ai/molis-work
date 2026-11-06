@@ -1,3 +1,4 @@
+import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -22,6 +23,9 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
   const root = mkdtempSync(join(tmpdir(), "coding-follow-")), dbPath = join(root, "board.db");
   await seedConfiguredModels(root); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
+  let learningAdmissions = 0;
+  const stopLearning = pluginActions(store, DEMO_PROJECT_ID).registry.registerProvider({ provider: { provider_id: "system.memory", title: "Memory admission fixture", kind: "system" },
+    definitions: [memoryLearningActions.enqueue], handlers: [{ ...memoryLearningActions.enqueue, handle: () => { learningAdmissions++; return { outcome: "skipped", task_key: null }; } }] });
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "s", title: "会话", runtime_id: "prologue", at: new Date().toISOString() });
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "s", "sdk", new Date().toISOString());
   const phases = ["running", "awaiting-review", "completed"];
@@ -110,7 +114,8 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
     const events = platform.events.log(DEMO_PROJECT_ID).filter(event => event.event_type_id === "io.molis.work.coding.run-updated");
     assert.equal(events.length, 1);
     assert.deepEqual(events[0]!.payload, { workspace_id: "work", session_id: "sdk", run_id: "r1", phase: "completed" });
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+    assert.equal(learningAdmissions, interruptedReceipt ? 0 : 1, "MEM-V0-C2 a Run accepted without its original request receipt never admits derived learning");
+  } finally { stopLearning(); await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 /**

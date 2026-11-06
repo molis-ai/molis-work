@@ -54,7 +54,11 @@ function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: Gate
       return JSON.stringify(await remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400),
         ...(kind ? { kind } : {}), ...(args.replaces !== undefined ? { replaces: text(args.replaces, "replaces", 200) } : {}) }, { signal, operation_id }));
     }),
-    [MEMORY_TOOLS.list]: guarded(async (_args, signal, operation_id) => JSON.stringify({ memories: await available().list({ signal, operation_id }) })),
+    [MEMORY_TOOLS.list]: guarded(async (_args, signal, operation_id) => {
+      const expand = available().expandList;
+      if (!expand) throw new ActionError("actions.unavailable", "本轮没有可用的记忆展开");
+      return JSON.stringify(await expand({ signal, operation_id }));
+    }),
     [MEMORY_TOOLS.forget]: guarded(async (args, signal, operation_id) => { const forget = available().forget ?? without(MEMORY_TOOLS.forget); return JSON.stringify(await forget(text(args.memory_id, "memory_id", 200), { signal, operation_id })); }),
     [MEMORY_TOOLS.propose]: guarded(async (args, signal, operation_id) => {
       const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : null;
@@ -282,19 +286,19 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     ],
   ];
   tools.push(
-    tool(MEMORY_TOOLS.remember, "Keep something the person explicitly asked you to remember for later work (\"以后…\", \"记住…\", \"下次别…\"): a preference, a convention, a fact about their work. Never store something only because it happened once, and never credentials or secrets. scope: personal (all their work) or project (only this project). When it corrects something already kept, pass that memory's id as replaces (the old version stays in its history). Tell them in your reply what you kept and where it applies; if the result says it was not kept, say so instead.",
+    tool(MEMORY_TOOLS.remember, "Keep a preference, project background, fact summary or experience the person explicitly asked to retain as reference for later relevant work (e.g. concise answers or a project's audience), not instructions. Ongoing project rules belong to Goals long-term instructions; reusable procedures belong to Skill creation/update, not installation. Find those capabilities in the directory; if unavailable or unsuccessful, report not saved rather than storing in memory instead. Never keep a one-off choice, credentials or secrets. Before saving, use list-memories to check related existing memories; when correcting one, pass its id as replaces (history remains). Report what was actually kept, its scope and where to manage it; pending or not kept is not saved.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "said"], properties: {
         text: { type: "string", description: "What to remember. To be recorded as the person's own words it must be the whole of one message they wrote to you in this work, copied exactly: no word, number, address or mark added, dropped or moved, not one sentence out of several, not words from two messages, no project name put in (only letter case, full-/half-width forms, spaces, the style of quotation marks and one full stop at the very end may differ). Anything else (a tidier sentence, a shortening, a summary) is not recorded as theirs: it is only suggested, and waits for them to accept." },
         scope: { type: "string", enum: ["personal", "project", "character"], description: "personal: all their work; project: only this project's work; character: only work the Character carrying this round does (only when one does)." },
         said: { type: "string", description: "The person's own message the text rests on (the same one, copied exactly). It is only a pointer: the text is checked against the message the Host saved, never against this, and what is recorded as theirs is that saved message." },
-        kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: a project's agreed way; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
-        replaces: { type: "string", description: "The id (from list-memories) of an earlier memory this one corrects." },
+        kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: an agreed practice as reference data, not a standing project instruction; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
+        replaces: { type: "string", description: "The id paired with the target text and scope in current Context after list-memories. Context scope user maps to tool scope personal." },
       } }, "mutate-external"),
-    tool(MEMORY_TOOLS.list, "List what you keep for the person here (personal and this project's), with ids and where each came from. Use it when they ask what you remember, or before forgetting something.",
+    tool(MEMORY_TOOLS.list, "Select saved memories into this Run Context. Read each id and scope from the same untrusted Context object as its text; this tool returns only status and budget. Context scope user means tool scope personal; project and character keep their names. Use it when they ask what you remember, or before forgetting or replacing something.",
       { type: "object", additionalProperties: false, properties: {} }, "safe-read"),
-    tool(MEMORY_TOOLS.forget, "Switch off one remembered item when the person asks you to forget it or it is no longer true (find its id with list-memories). It is no longer used anywhere, but it is not deleted: it stays in their memory settings, where they can switch it back on or delete it for good. Say it was switched off, not deleted. A newer explicit request corrects an older one with remember and replaces, not with this.",
+    tool(MEMORY_TOOLS.forget, "Switch off one remembered item when the person asks you to forget it or it is no longer true (find its id with list-memories). It is no longer used anywhere, but it is not deleted: it stays in their memory settings, where they can switch it back on or delete it for good. Say it was switched off, not deleted. Correct an existing reference memory with remember and replaces; changes to project instructions or reusable procedures stay with their respective owner.",
       { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "mutate-external"),
-    tool(MEMORY_TOOLS.propose, "Suggest keeping something the person did NOT ask you to remember: a preference they showed more than once, a project convention, or a lesson from how this work went (a method that worked, why something failed). It only becomes a suggestion the person accepts or declines; until then nothing is kept. Never for a one-off choice, something they skipped once, or secrets; nor for something already kept, already waiting for their approval, or that they declined. At most one per round. Say in your reply that you suggested it and it needs their approval.",
+    tool(MEMORY_TOOLS.propose, "Suggest retaining reference data the person did NOT ask to remember: a recurring preference, project background or experience (e.g. why an approach failed). Standing project rules belong to Goals long-term instructions, reusable procedures to Skill creation/update; use their available capabilities, not memory as a fallback. It only becomes a suggestion the person accepts or declines; until then nothing is kept. Never for a one-off choice, something they skipped once, or secrets; nor for something already kept, already waiting for their approval, or that they declined. At most one per round. Report that it is a suggestion needing approval, not saved memory.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "why", "applies"], properties: {
         text: { type: "string", description: "What would be kept, one short self-contained sentence in the person's language." },
         scope: { type: "string", enum: ["personal", "project"], description: "personal: all their work; project: only this project's work." },
@@ -307,7 +311,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
     && memoryToolOffered(name, gateway.client.memory));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.8", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.9", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known, offered, declare: declared.note, parameterBranches: declared.parameterBranches };

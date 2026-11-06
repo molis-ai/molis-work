@@ -32,6 +32,8 @@ test("RAC-2519 a registration outside the builtin catalog mounts its declared su
   const mounted = renderStagePage(contribution, {}, "external", false, undefined, { manifest, client: { clientFactory: "host => {}", clientMounts: "surfaces" } });
   assert.match(mounted.html, /data-plugin-owner="io.example.surface-owner".*data-plugin-contribution="io.example.surface-owner.stage".*data-plugin-surface="workbench".*data-plugin-slot="workbench.main"/);
   assert.match(mounted.panels, /data-plugin-surface="directory".*data-plugin-slot="workbench.directory"/);
+  assert.doesNotMatch(mounted.panels.match(/^<section[^>]*>/)![0], /\shidden(?:\s|>)/, "the outer plugin section owns directory visibility");
+  assert.match(mounted.html.match(/^<section[^>]*>/)![0], /\shidden(?:\s|>)/, "main surfaces retain their existing deferred visibility");
   assert.equal(mounted.overlays, "", "empty optional surfaces never mount a second frame");
   assert.match(mounted.html, /data-plugin-document/); assert.match(mounted.panels, /data-plugin-document/);
   const old = renderStagePage(contribution, {}, "external", false, undefined, { manifest, client: { clientFactory: "host => {}" } });
@@ -92,6 +94,13 @@ test("T405-FULL-15: the first paint reserves only the active, enabled and actual
     const section = html.match(new RegExp(`<section[^>]*data-plugin-section="${id}"[^>]*>`, "u"));
     assert.equal(Boolean(section && !/\shidden(?:\s|>)/u.test(section[0])), expected === id, `${name}: the same directory starts active`);
   }
+});
+
+test("MEM-V0-A4-L the noncurrent Feed directory frame stays inside its hidden owner section", () => {
+  const html = draw({ ...emptyView(), enabled_plugins: ["goals", "feed", "inbox"] } as MolisWorkWebView);
+  const section = html.match(/<section[^>]*data-plugin-section="feed"[^>]*>/u);
+  assert.ok(section, "Feed has its original owner section");
+  assert.match(section[0], /\shidden(?:\s|>)/, "a noncurrent outer owner remains hidden and deferred clients do not load below hidden ancestors");
 });
 
 test("T405-FULL-15: the shell applies the same project's saved directory width before CSS, with collection isolation and embedded exclusion", () => {

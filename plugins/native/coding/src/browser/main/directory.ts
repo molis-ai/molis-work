@@ -1,5 +1,6 @@
 import { CODING_SESSION_MARKS } from "../../session-marks.js";
-import { el } from "../dom.js";
+import { api } from "./request.js";
+import { el, errorMessage } from "../dom.js";
 import { renderGoalFace } from "./goals.js";
 import type { Page } from "./page.js";
 import type { SessionRecord } from "./shapes.js";
@@ -29,16 +30,17 @@ function drawFilterCounts(page: Page) {
 }
 
 /** A new row of the session list: icon, title, time and state, filled by `drawRow`. */
-function newRow(page: Page, session: SessionRecord): HTMLAnchorElement {
-  const row = el("a", "", "mw-dir-row mw-dir-row--meta coding-session-row");
-  row.href = "#session-" + encodeURIComponent(session.session_id);
-  row.dataset.codingSession = session.session_id;
+function newRow(page: Page, session: SessionRecord): HTMLElement {
+  const row = el("div", "", "mw-dir-row-wrap");
+  const link = el("a", "", "mw-dir-row mw-dir-row--meta coding-session-row");
+  link.href = "#session-" + encodeURIComponent(session.session_id);
+  link.dataset.codingSession = session.session_id;
   const icon = el("span", "", "mw-dir-row__icon");
   icon.innerHTML = page.root.querySelector("[data-coding-face=sessions] svg")?.outerHTML || "";
   const copy = el("span", "", "mw-dir-row__copy"), headline = el("span", "", "mw-dir-row__headline");
   headline.append(el("strong", "", "coding-session-title"), el("time", "", "mw-dir-row__count coding-session-time"));
   copy.append(headline, el("small", "", "coding-session-state"));
-  row.append(icon, copy);
+  link.append(icon, copy); row.append(link);
   return row;
 }
 
@@ -54,6 +56,9 @@ function drawTime(time: HTMLTimeElement, updated: string) {
 /** What a session's state line says: priority, the state, who holds its open plan steps, and a twin on the same Goal. */
 function stateLabel(page: Page, session: SessionRecord, visible: readonly SessionRecord[]): string {
   const { L, s } = page, steps = session.steps;
+  if (session.runtime_session_id && session.execution_state === null) return L("coding.session.lifecycle-unavailable");
+  if (!session.archived && session.execution_state === "archived") return L("coding.session.lifecycle-incomplete");
+  if (session.archived) return L("coding.directory.archived");
   // Who is on the open plan steps, after the state: what waits on the person first.
   const holders = steps ? [steps.mine ? L("coding.steps.mine", { count: steps.mine }) : "", steps.subtasks ? L("coding.steps.subtasks", { count: steps.subtasks }) : "", steps.unowned ? L("coding.steps.unowned", { count: steps.unowned }) : ""].filter(Boolean).join(" · ") : "";
   // Two sessions under way on the same Goal may be doing the same thing twice.
@@ -62,9 +67,18 @@ function stateLabel(page: Page, session: SessionRecord, visible: readonly Sessio
     + (session.background_unreadable ? " · " + L("coding.session.background-unreadable") : "") + (holders ? " · " + holders : "") + (twin ? " · " + L("coding.session.twin", { title: twin.title.slice(0, 16) }) : "");
 }
 
-function drawRow(page: Page, row: HTMLAnchorElement, session: SessionRecord, visible: readonly SessionRecord[]) {
+function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: readonly SessionRecord[]) {
   const { s } = page;
+  let restore = row.querySelector<HTMLButtonElement>("[data-coding-restore]");
+  if (session.archived || session.execution_state === "archived") {
+    if (!restore) {
+      restore = el("button", "↩", "mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only");
+      restore.type = "button"; restore.dataset.codingRestore = session.session_id;
+      restore.setAttribute("aria-label", page.L("coding.session.restore")); restore.title = page.L("coding.session.restore"); row.append(restore);
+    }
+  } else restore?.remove();
   row.setAttribute("aria-current", String(s.current === session.session_id));
+  row.querySelector("[data-coding-session]")?.setAttribute("aria-current", String(s.current === session.session_id));
   row.classList.toggle("is-selected", s.current === session.session_id);
   const title = row.querySelector<HTMLElement>(".coding-session-title"), time = row.querySelector("time"), mark = row.querySelector<HTMLElement>(".coding-session-state");
   if (!title || !time || !mark) return;
@@ -78,7 +92,7 @@ function drawRow(page: Page, row: HTMLAnchorElement, session: SessionRecord, vis
 }
 
 /** A session goes under the group of its Goal; a group is made the first time one of its sessions is on show. */
-function placeInGroup(page: Page, list: Element, row: HTMLAnchorElement, session: SessionRecord) {
+function placeInGroup(page: Page, list: Element, row: HTMLElement, session: SessionRecord) {
   const { L, s } = page, goalKey = session.goal_id || "";
   let group = s.directoryGroups.get(goalKey);
   if (!group) {
@@ -120,6 +134,10 @@ export function renderDirectory(page: Page) {
   renderGoalFace(page);
   const filter = directory.querySelector<HTMLElement>("[data-coding-filter][aria-pressed=true]")?.dataset.codingFilter || "all";
   drawFilterCounts(page);
+  directory.querySelector("[data-coding-archived]")?.setAttribute("aria-pressed", String(Boolean(s.archivedDirectory)));
+  const more = directory.querySelector<HTMLButtonElement>("[data-coding-archived-more]");
+  if (more) { more.hidden = !s.archivedDirectory?.next_cursor; more.disabled = s.archivedDirectory?.loading === true; }
+
   const search = directory.querySelector<HTMLInputElement>("[data-coding-search]"), list = directory.querySelector("[data-coding-sessions]");
   if (!search || !list) return;
   const needle = search.value.trim().toLocaleLowerCase();
@@ -131,7 +149,7 @@ export function renderDirectory(page: Page) {
     list.replaceChildren();
     s.directoryClaimed = true;
   }
-  const visible = s.state.sessions.filter(session => matches(session, needle, filter)), visibleIds = new Set(visible.map(session => session.session_id));
+  const visible = (s.archivedDirectory?.rows ?? s.state.sessions).filter(session => matches(session, needle, s.archivedDirectory ? "all" : filter)), visibleIds = new Set(visible.map(session => session.session_id));
   for (const [id, row] of s.directoryRows) {
     if (!visibleIds.has(id)) {
       row.remove();
@@ -155,4 +173,30 @@ export function renderDirectory(page: Page) {
     placeInGroup(page, list, row, session);
   }
   reorder(page, visible);
+}
+
+
+/** Read one owner page; leaving this directory invalidates its late answer without retaining a command. */
+export async function loadArchivedDirectory(page: Page, more = false): Promise<void> {
+  if (!more) page.s.archivedDirectory = { rows: [], next_cursor: null, loading: false };
+  const state = page.s.archivedDirectory;
+  if (!state || state.loading || more && !state.next_cursor) return;
+  state.loading = true; directoryStatus(page, "");
+  try {
+    const result = await api<{ sessions: SessionRecord[]; next_cursor: string | null }>(page,
+      "/sessions?archived=true&limit=50" + (more ? "&cursor=" + encodeURIComponent(state.next_cursor!) : ""));
+    if (page.s.archivedDirectory !== state) return;
+    state.rows = [...state.rows, ...result.sessions]; state.next_cursor = result.next_cursor;
+  } catch (error) { directoryStatus(page, errorMessage(error)); throw error; }
+  finally { state.loading = false; renderDirectory(page); }
+}
+
+/** Directory commands can fail while the conversation's own header is hidden. */
+export function directoryStatus(page: Page, message: string): void {
+  let notice = page.directory.querySelector<HTMLElement>("[data-coding-directory-status]");
+  if (!notice) {
+    notice = el("p", "", "coding-face-note"); notice.dataset.codingDirectoryStatus = ""; notice.setAttribute("role", "status");
+    page.directory.querySelector("[data-coding-sessions]")?.after(notice);
+  }
+  notice.textContent = message; notice.hidden = !message;
 }

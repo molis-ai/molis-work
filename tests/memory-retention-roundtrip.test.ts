@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, defaultPrefs, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { prologueMemoryBackend, memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 
 const DAY = 86_400_000, START = Date.parse("2026-10-23T08:00:00Z");
@@ -18,13 +18,16 @@ const proposal = (text: string) => ({ scope: "project" as const, kind: "conventi
 async function fixture(t: TestContext) {
   t.mock.timers.enable({ apis: ["Date"], now: START });
   const home = await mkdtemp(join(tmpdir(), "molis-memory-retention-"));
-  let ledger = openMemoryLedger({ homeDirectory: home }), service!: MemoryService, beforeProject: (() => Promise<void>) | undefined;
+  let storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+  let ledger = openMemoryLedger({ homeDirectory: home, storageOwner }), service!: MemoryService, beforeProject: (() => Promise<void>) | undefined;
   for (const key of ["personal", "project-default"]) ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   const owner: MemoryRuntimePolicyOwner = { alive: () => true, prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
+    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: async id => { await beforeProject?.(); return id === "project-a"; }, deletingProject: () => undefined };
   let calls = 0;
-  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), memory: { ...memoryRuntimePolicy(() => owner),
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, memory: { ...memoryRuntimePolicy(() => owner),
       promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION, decide: (caller, request) => service.promotion.decide(caller, request),
         undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
           record: (caller, request) => service.promotion.undo.record(caller, request) } } },
@@ -32,10 +35,10 @@ async function fixture(t: TestContext) {
   let adapter = await open();
   const backend = prologueMemoryBackend(async () => adapter.memory!);
   service = new MemoryService({ ledger, backend });
-  t.after(async () => { await adapter.close(); ledger.close(); await rm(home, { recursive: true, force: true }); assert.equal(calls, 0); });
+  t.after(async () => { await adapter.close(); ledger.close(); storageOwner.release(); await rm(home, { recursive: true, force: true }); assert.equal(calls, 0); });
   return { get service() { return service; }, get ledger() { return ledger; }, get adapter() { return adapter; },
     raw: (who = caller("read")) => backend.withCaller(who),
-    reopen: async () => { await adapter.close(); ledger.close(); ledger = openMemoryLedger({ homeDirectory: home }); adapter = await open(); service = new MemoryService({ ledger, backend }); },
+    reopen: async () => { await adapter.close(); ledger.close(); storageOwner.release(); storageOwner = acquireStorageOwner(join(home, "agent-runtime")); ledger = openMemoryLedger({ homeDirectory: home, storageOwner }); adapter = await open(); service = new MemoryService({ ledger, backend }); },
     beforeProject: (hook?: () => Promise<void>) => { beforeProject = hook; },
   };
 }
@@ -241,7 +244,7 @@ test("merge undo recreates the removed canonical classification and retention sn
   }
   const report = await f.service.upkeep(caller("merge"), { projects: ["project-a"], tidy: async () => ({ duplicates: [[a.memory_id, b.memory_id]], conflicts: [] }) });
   assert.equal(report.merged, 1);
-  const change = f.service.changes(caller("changes")).find(item => item.kind === "merged")!;
+  const change = (await f.service.changes(caller("changes"))).find(item => item.kind === "merged")!;
   await f.reopen(); await f.service.undo(caller("undo-merge"), change.change_id); await f.reopen();
   const restored = (await f.raw().list("project", "project-a")).find(item => item.text === b.text)!;
   assert.notEqual(restored.memory_id, b.memory_id, "recreate retains the existing new-ref contract");

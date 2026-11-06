@@ -5,7 +5,9 @@ import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-judgment-rules";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
+import { memoryErrors, purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
+import { randomUUID } from "node:crypto";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
@@ -37,11 +39,20 @@ export function memoryOwnerWithoutService(home: string): ProjectDeletedOwner {
   };
   return {
     ...MEMORY_OWNER, check,
-    async clear(projectId) {
+    async clear(projectId, receipt) {
+      if (receipt && (receipt.project_id !== projectId || !receipt.deletion_id.trim())) throw memoryErrors.forbidden("项目删除回执不属于当前清理范围");
       check();
       if (!existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE))) return;
       const ledger = openMemoryLedger({ homeDirectory: home });
-      try { await purgeProjectMemories({ backend: null, ledger }, projectId); } finally { ledger.close(); }
+      try {
+        const key = `memory-project-delete:${projectId}`;
+        const marker = ledger.marker(LOCAL_PERSON_ACTOR_ID, key)?.body as { operation_id?: string; complete?: boolean } | undefined;
+        const operation = receipt?.deletion_id ?? (marker?.complete === false && marker.operation_id ? marker.operation_id : `memory-project-delete:${randomUUID()}`);
+        if (!receipt) ledger.setMarker(LOCAL_PERSON_ACTOR_ID, key, { operation_id: operation, complete: false }, new Date().toISOString());
+        await purgeProjectMemories({ backend: null, ledger, caller: { actor_id: LOCAL_PERSON_ACTOR_ID,
+          project_id: projectId, consumer: "ui", person: true, current_scene: "common", purpose: "management", operation_id: operation } }, projectId);
+        if (!receipt) ledger.setMarker(LOCAL_PERSON_ACTOR_ID, key, { operation_id: operation, complete: true }, new Date().toISOString());
+      } finally { ledger.close(); }
     },
   };
 }

@@ -8,7 +8,11 @@ export declare const MEMORY_CONSUMERS: readonly MemoryConsumer[];
 
 export declare const MEMORY_EXPORT_PERMISSION = "memory:export";
 
+export declare const MEMORY_FORMAL_KINDS: readonly MemoryFormalKind[];
+
 export declare const MEMORY_KINDS: readonly MemoryKind[];
+
+export declare const MEMORY_LIFECYCLES: readonly ["session", "short-term", "long-term"];
 
 export declare const MEMORY_PERMISSIONS: readonly ["memory:read", "memory:recall", "memory:write", "memory:configure", "memory:export"];
 
@@ -17,6 +21,8 @@ export declare const MEMORY_PROVIDER_ID = "system.memory";
 export declare const MEMORY_READ_PERMISSION = "memory:read";
 
 export declare const MEMORY_RECALL_PERMISSION = "memory:recall";
+
+export declare const MEMORY_SCENES: readonly ["coding", "assistant", "common"];
 
 export declare const MEMORY_SOURCES: readonly MemorySource[];
 
@@ -40,6 +46,31 @@ export type MemoryApproval = {
 };
 
 export type MemoryBasis = "explicit" | "repeated" | "inferred";
+
+export interface MemoryBatchPreview {
+    preview_id: string;
+    action: "disable" | "remove";
+    count: number;
+}
+
+export interface MemoryBatchRequest {
+    scope: MemoryScope;
+    action: "disable" | "remove";
+    items: readonly {
+        memory_id: string;
+        expected_version: number;
+    }[];
+}
+
+export interface MemoryBatchResult {
+    complete: boolean;
+    items: Array<{
+        memory_id: string;
+        outcome: "completed" | "already-absent" | "conflict" | "not-executed" | "unknown";
+        forgetting: "accepted" | "not-accepted";
+        cleanup: "complete" | "pending" | "needs-reconcile";
+    }>;
+}
 
 export interface MemoryCandidate {
     candidate_id: string;
@@ -108,9 +139,13 @@ export interface MemoryChangeRecord extends MemoryChange {
 export interface MemoryChangeRequest {
     memory_id: string;
     expected_version?: number;
-    action: "update" | "disable" | "enable" | "remove" | "restore" | "move";
+    action: "renew" | "reclassify" | "update" | "disable" | "enable" | "remove" | "restore" | "move";
     text?: string;
-    kind?: MemoryKind;
+    kind?: MemoryFormalKind;
+    classification?: {
+        scenes: string[];
+        lifecycle: "long-term" | "short-term" | "session";
+    };
     applies?: MemoryApplies;
     expires_at?: string | null;
     version?: number;
@@ -120,6 +155,18 @@ export interface MemoryChangeRequest {
 export interface MemoryChangeResult {
     memory: MemoryItem | null;
     change: MemoryChange;
+}
+
+export interface MemoryClassRestriction {
+    selector: {
+        consumer: MemoryConsumer;
+        current_scene: typeof MEMORY_SCENES[number];
+        scene?: typeof MEMORY_SCENES[number];
+        kind?: MemoryFormalKind;
+        lifecycle?: typeof MEMORY_LIFECYCLES[number];
+    };
+    read: "inherit" | "explicit-only" | "off";
+    form: "inherit" | "off";
 }
 
 export interface MemoryClearResult {
@@ -158,7 +205,7 @@ export interface MemoryExportPackage {
     scope: MemoryScope;
     entries: Array<{
         text: string;
-        kind: MemoryKind;
+        kind: MemoryFormalKind;
         source: MemorySource;
         basis: MemoryBasis | null;
         applies: MemoryApplies;
@@ -174,9 +221,42 @@ export interface MemoryExportPackage {
     }>;
 }
 
+export interface MemoryForgettingDecision extends MemoryForgettingSelection {
+    readonly accepted_at: string;
+}
+
+export interface MemoryForgettingFacts {
+    readonly format_version: 1;
+    readonly decisions: readonly MemoryForgettingDecision[];
+}
+
+export interface MemoryForgettingPort {
+    read(): MemoryForgettingFacts;
+    accept(selection: MemoryForgettingSelection): MemoryForgettingDecision;
+}
+
+export interface MemoryForgettingSelection {
+    readonly selection_mode: "related" | "exact-identities";
+    readonly operation_id: string;
+    readonly actor_id: string;
+    readonly scope: MemoryScope;
+    readonly owner: string;
+    readonly memories: readonly {
+        readonly memory_id: string;
+        readonly version: number;
+    }[];
+    readonly candidates: readonly {
+        readonly candidate_id: string;
+        readonly version: number;
+    }[];
+    readonly source_event_ids: readonly string[];
+}
+
+export type MemoryFormalKind = MemoryKind | "habit" | "project-decision";
+
 export interface MemoryHistoryResponse {
     memory_id: string;
-    revisions: MemoryRevision[];
+    revisions: MemoryRevisionView[];
 }
 
 export interface MemoryImportResult {
@@ -192,7 +272,7 @@ export interface MemoryItem {
     project_id: string | null;
     character_id: string | null;
     character_title: string | null;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     text: string;
     source: MemorySource;
     basis: MemoryBasis | null;
@@ -211,8 +291,33 @@ export interface MemoryItem {
 
 export type MemoryKind = "preference" | "convention" | "fact" | "experience";
 
+export interface MemoryLearningEnqueued {
+    outcome: "queued" | "skipped";
+    task_key: string | null;
+}
+
+export type MemoryLearningOwnedSource = Readonly<{
+    event_id: string;
+    version: string;
+    session_id: string;
+}>;
+
+export interface MemoryLearningRequest {
+    session_id: string;
+    run_id: string;
+}
+
+export interface MemoryLearningResult {
+    outcome: "completed" | "skipped";
+}
+
+export interface MemoryLearningTaskRequest extends MemoryLearningRequest {
+    task_key: string;
+}
+
 export interface MemoryLedgerPort {
-    forget(memoryId: string): void;
+    readonly forgetting: import("services/memory-forgetting").MemoryForgettingPort;
+    forget(memoryId: string, selection_mode: import("services/memory-forgetting").MemoryForgettingSelection["selection_mode"]): void;
     forgetScopes(input: {
         scopes: ReadonlyArray<{
             scope: MemoryScope;
@@ -278,6 +383,15 @@ export interface MemoryLedgerPort {
         owner: string;
         state: "pending" | "resolved";
     }): void;
+    listMarkers(actorId: string, input: {
+        prefix: string;
+        after?: string;
+        limit: number;
+    }): Array<{
+        key: string;
+        at: string;
+        body: unknown;
+    }>;
     marker(actorId: string, key: string): {
         at: string;
         body: unknown;
@@ -305,11 +419,20 @@ export interface MemoryListResponse {
     };
 }
 
+export interface MemoryManagementItem extends Omit<MemoryItem, "kind"> {
+    owner: string;
+    kind: MemoryManagementKind;
+    classification: NonNullable<AgentMemoryMeta["classification"]> | null;
+    expired: boolean;
+}
+
+export type MemoryManagementKind = MemoryFormalKind;
+
 export interface MemoryMetaRecord {
     memory_id: string;
     scope: MemoryScope;
     owner: string;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     source: MemorySource;
     basis: MemoryBasis | null;
     evidence: MemoryEvidence[];
@@ -321,6 +444,41 @@ export interface MemoryMetaRecord {
     plugin_id: string | null;
     created_at: string | null;
     updated_at: string | null;
+}
+
+export interface MemoryOperationsPage {
+    items: MemoryPendingOperation[];
+    exhausted: boolean;
+    cursor?: string;
+}
+
+export interface MemoryOperationsQuery {
+    scope?: MemoryScope;
+    limit?: number;
+    cursor?: string;
+}
+
+export interface MemoryPageFilter {
+    scenes?: string[];
+    kinds?: MemoryManagementKind[];
+    lifecycles?: string[];
+    states?: MemoryState[];
+    sources?: MemorySource[];
+    expired?: boolean;
+    unclassified?: boolean;
+}
+
+export interface MemoryPageRequest {
+    scope?: MemoryScope;
+    character_id?: string;
+    filter?: MemoryPageFilter;
+    query?: string;
+    limit?: number;
+    cursor?: string;
+}
+
+export interface MemoryPageResponse extends Omit<AgentMemoryPage, "items"> {
+    items: MemoryManagementItem[];
 }
 
 export interface MemoryPair {
@@ -342,6 +500,8 @@ export interface MemoryPair {
     created_at: string;
 }
 
+export type MemoryPendingOperation = MemoryScopedPendingOperation | import("services/memory-session").MemorySessionPendingOperation;
+
 export interface MemoryPrefs {
     enabled: boolean;
     task_recall: boolean;
@@ -354,6 +514,7 @@ export interface MemoryPrefs {
         allowed: boolean;
         kinds: MemoryKind[];
     }>;
+    class_restrictions: MemoryClassRestriction[];
 }
 
 export interface MemoryPrefsView {
@@ -406,12 +567,73 @@ export interface MemoryRecalled {
     memory_id: string;
     version: number;
     scope: MemoryScope;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     text: string;
     source: MemorySource;
     origin: string;
     applies: MemoryApplies;
     score: number;
+}
+
+export interface MemoryRestoreIdentity {
+    readonly scope: MemoryScope;
+    readonly owner: string;
+}
+
+export interface MemoryRestoreLedgerFacts {
+    readonly forgotten: readonly string[];
+    readonly identities: readonly (MemoryRestoreIdentity & {
+        readonly memory_id: string;
+    })[];
+    readonly sources: readonly MemoryRestoreSourceBarrier[];
+    readonly candidates: readonly (MemoryRestoreIdentity & {
+        readonly candidate_id: string;
+        readonly memory_id?: string;
+        readonly supersedes?: string;
+        readonly source_event_ids: readonly string[];
+    })[];
+}
+
+export interface MemoryRestoreRetention {
+    readonly memories: readonly (MemoryRestoreIdentity & {
+        readonly memory_id: string;
+        readonly selection_mode: MemoryForgettingSelection["selection_mode"];
+    })[];
+    readonly candidates: readonly (MemoryRestoreIdentity & {
+        readonly candidate_id: string;
+    })[];
+    readonly sources: readonly MemoryRestoreSourceBarrier[];
+}
+
+export interface MemoryRestoreSdkPort {
+    inspect(target: MemoryRestoreIdentity & {
+        readonly kind: MemoryRestoreTarget["kind"];
+        readonly id: string;
+    }): Promise<{
+        readonly state: "present";
+        readonly target: MemoryRestoreTarget;
+    } | {
+        readonly state: "absent" | "cleared";
+    }>;
+    candidates(identity: MemoryRestoreIdentity): Promise<readonly MemoryRestoreTarget[]>;
+    purge(targets: readonly MemoryRestoreTarget[]): Promise<readonly string[]>;
+    close(): Promise<void>;
+}
+
+export interface MemoryRestoreSourceBarrier extends MemoryRestoreIdentity {
+    readonly actor_id: string;
+    readonly event_id: string;
+    readonly at: string;
+}
+
+export interface MemoryRestoreTarget extends MemoryRestoreIdentity {
+    readonly kind: "memory" | "memory-candidate";
+    readonly id: string;
+    readonly version: number;
+    readonly sources?: readonly {
+        readonly event_id: string;
+        readonly version: string;
+    }[] | null;
 }
 
 export interface MemoryRevision {
@@ -421,11 +643,17 @@ export interface MemoryRevision {
     };
     version: number;
     text: string;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     applies: MemoryApplies;
     change: "created" | "edited" | "replaced" | "restored" | "merged";
     by: "person" | "policy" | "maintenance";
     at: string;
+}
+
+export interface MemoryRevisionView extends Omit<MemoryRevision, "snapshot"> {
+    classification: NonNullable<import("services/agent-host-memory").AgentMemoryMeta["classification"]> | null;
+    expires_at: string | null;
+    snapshot_available: boolean;
 }
 
 export type MemoryScope = "personal" | "project" | "character";
@@ -435,6 +663,91 @@ export interface MemoryScopePreview {
     project_id: string | null;
     count: number;
     fingerprint: string;
+}
+
+export interface MemorySessionBinding {
+    readonly session: AgentSessionRef;
+    readonly current_scene: "coding" | "assistant";
+    readonly target: MemorySessionTarget;
+}
+
+export type MemorySessionClearItem = ({
+    kind: "memory";
+    memory_id: string;
+} | {
+    kind: "memory-candidate";
+    candidate_id: string;
+}) & {
+    outcome: "completed" | "already-absent" | "conflict" | "not-executed" | "unknown";
+    forgetting: "accepted" | "not-accepted";
+    cleanup: "complete" | "pending" | "needs-reconcile";
+};
+
+export interface MemorySessionClearPreview {
+    preview_id: string | null;
+    memory_count: number;
+    candidate_count: number;
+}
+
+export interface MemorySessionClearResult {
+    complete: boolean;
+    items: MemorySessionClearItem[];
+}
+
+export type MemorySessionPendingOperation = {
+    kind: "session-clear";
+    operation_id: string;
+    at: string;
+    forgetting: "accepted" | "not-accepted" | "unknown";
+} & ({
+    cleanup: "pending";
+    preview_id: string;
+    target: MemorySessionTarget;
+} | {
+    cleanup: "needs-reconcile";
+});
+
+export interface MemorySessionPurgePage<S extends string = MemoryScope> {
+    readonly outcome: "completed" | "partial" | "cancelled";
+    readonly items: readonly {
+        readonly kind: "memory" | "memory-candidate";
+        readonly id: string;
+        readonly scope: S;
+        readonly owner: string;
+        readonly version: number;
+        readonly state: string;
+        readonly session_ref?: MemorySessionPurgeSelection["session_ref"];
+    }[];
+    readonly issues: readonly {
+        readonly code: string;
+    }[];
+    readonly exhausted: boolean;
+    readonly cursor?: string;
+}
+
+export interface MemorySessionPurgeSelection {
+    readonly session_ref: {
+        readonly kind: "session";
+        readonly id: string;
+        readonly revision: 1;
+    };
+    readonly operation_id: string;
+}
+
+export interface MemorySessionPurgeTarget<S extends string = MemoryScope> {
+    readonly kind: "memory" | "memory-candidate";
+    readonly id: string;
+    readonly scope: S;
+    readonly owner: string;
+    readonly version: number;
+    readonly operation_id: string;
+    readonly selection: MemorySessionPurgeSelection;
+}
+
+export interface MemorySessionTarget {
+    readonly kind: "coding" | "assistant";
+    readonly id: string;
+    readonly project_id: string | null;
 }
 
 export interface MemorySignalReport {
@@ -484,7 +797,7 @@ export type MemoryUndoPlan = {
 } | {
     action: "recreate";
     text: string;
-    kind: MemoryKind;
+    kind: MemoryFormalKind;
     source: MemorySource;
     basis: MemoryBasis | null;
     applies: MemoryApplies;
@@ -532,6 +845,10 @@ export interface MemoryUseRecord {
 }
 
 export interface MemoryWriteRequest {
+    classification?: {
+        scenes: string[];
+        lifecycle: "long-term" | "short-term" | "session";
+    };
     scope: MemoryScope;
     text: string;
     kind?: MemoryKind;
@@ -556,7 +873,10 @@ export interface MemoryWriteResult {
 
 export declare function isCompleteMemoryPrefs(value: unknown): value is MemoryPrefs;
 
+export declare function isMemoryClassRestrictions(value: unknown): value is MemoryClassRestriction[];
+
 export declare const memoryActions: {
+    page: ActionDefinition<import("services/memory-queries").MemoryPageRequest, import("services/memory-queries").MemoryPageResponse>;
     recall: ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>;
     list: ActionDefinition<MemoryListRequest, MemoryListResponse>;
     write: ActionDefinition<MemoryWriteRequest, MemoryWriteResult>;
@@ -606,6 +926,11 @@ export declare const memoryActions: {
         resolved: boolean;
     }>;
     upkeep: ActionDefinition<Record<string, never>, MemoryUpkeepReport>;
+    batchPreview: ActionDefinition<MemoryBatchRequest, MemoryBatchPreview>;
+    batchApply: ActionDefinition<{
+        preview_id: string;
+    }, MemoryBatchResult>;
+    operations: ActionDefinition<MemoryOperationsQuery, MemoryOperationsPage>;
     preview: ActionDefinition<{
         scope: MemoryScope;
     }, MemoryScopePreview>;
@@ -622,9 +947,58 @@ export declare const memoryActions: {
         scope: MemoryScope;
         package: MemoryExportPackage;
     }, MemoryImportResult>;
+    sessionClearPreview: ActionDefinition<Record<string, never>, import("services/memory-session").MemorySessionClearPreview>;
+    sessionClearApply: ActionDefinition<{
+        preview_id: string;
+    }, import("services/memory-session").MemorySessionClearResult>;
 };
 
 export declare function memoryAppliesText(scope: MemoryScope, applies: MemoryApplies, projectTitle?: string | null, characterTitle?: string | null): string;
+
+export declare const memoryClassRestrictionsSchema: {
+    type: string;
+    items: {
+        type: string;
+        properties: {
+            selector: {
+                type: string;
+                properties: {
+                    consumer: {
+                        enum: MemoryConsumer[];
+                    };
+                    current_scene: {
+                        enum: ("assistant" | "coding" | "common")[];
+                    };
+                    scene: {
+                        enum: ("assistant" | "coding" | "common")[];
+                    };
+                    kind: {
+                        enum: MemoryFormalKind[];
+                    };
+                    lifecycle: {
+                        enum: ("session" | "short-term" | "long-term")[];
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+            read: {
+                enum: string[];
+            };
+            form: {
+                enum: string[];
+            };
+        };
+        required: string[];
+        additionalProperties: boolean;
+    };
+};
+
+export declare const memoryLearningActions: {
+    enqueue: ActionDefinition<MemoryLearningRequest, MemoryLearningEnqueued>;
+    run: ActionDefinition<MemoryLearningTaskRequest, MemoryLearningResult>;
+    form: ActionDefinition<MemoryLearningTaskRequest, MemoryLearningResult>;
+};
 
 export declare const servicesMemoryContract: {
     readonly contractId: "io.molis.work.service.memory.v2";
@@ -633,3 +1007,22 @@ export declare const servicesMemoryContract: {
     readonly maturity: "partial";
     readonly ssot: "specs/prologue-memory-strategy/spec.md";
 };
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+interface MemoryScopedPendingOperation {
+    kind: "remove" | "scope-clear" | "batch";
+    operation_id: string;
+    scope: MemoryScope;
+    at: string;
+    forgetting: "accepted" | "not-accepted" | "unknown";
+    cleanup: "pending" | "needs-reconcile";
+    request?: {
+        action: "remove";
+        memory_id: string;
+        expected_version: number;
+    };
+    fingerprint?: string;
+    preview_id?: string;
+    action?: "disable" | "remove";
+}

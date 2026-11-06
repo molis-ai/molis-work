@@ -18,6 +18,7 @@ import { createPrologueSubagents } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
+import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
@@ -217,7 +218,37 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
 
 /** Sessions: created with their Host index, restored with their runs, read for their status only. */
 function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
+  const open = async (ref: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionRef) => {
+    if (ref.runtime_id !== PROLOGUE_RUNTIME_ID) throw agentErrors.session_unknown("执行会话不属于当前运行时");
+    const index = await deps.index.read(ref.session_id);
+    const session = index && await deps.runtime.sessions.open(index.ref);
+    if (!index?.owner || !session || !["active", "archived"].includes(session.state)) throw agentErrors.session_unknown("原执行会话已不存在或已永久结束");
+    return { index, session };
+  };
+  const read: NonNullable<PrologueRuntimePort["sessions"]["lifecycle"]>["read"] = async ref => {
+    const { index, session } = await open(ref);
+    if (session.state !== "active" && session.state !== "archived") throw agentErrors.session_unknown("原执行会话已永久结束");
+    return { owner: { ...index.owner }, view: { session: { ...ref }, state: session.state } };
+  };
   return {
+    lifecycle: {
+      async readOwner(ref) {
+        if (ref.runtime_id !== PROLOGUE_RUNTIME_ID || typeof ref.session_id !== "string" || !ref.session_id)
+          throw agentErrors.session_unknown("原会话引用不属于当前运行时");
+        const saved = await deps.index.read(ref.session_id);
+        if (!saved) return undefined;
+        if (!saved.owner) throw agentErrors.session_unknown("原会话索引缺少可核验主人");
+        return { ...saved.owner };
+      },
+      observeWrites(refs) {
+        if (refs.some(ref => ref.runtime_id !== PROLOGUE_RUNTIME_ID || typeof ref.session_id !== "string" || !ref.session_id))
+          throw agentErrors.session_unknown("来源会话引用不属于当前运行时");
+        return deps.effects.observeSessionWrites([...new Set(refs.map(ref => ref.session_id))]);
+      },
+      read,
+      async archive(ref) { const { session } = await open(ref); if (session.state !== "archived") await session.archive(); return (await read(ref)).view; },
+      async unarchive(ref) { const { session } = await open(ref); if (session.state !== "active") await session.restore(); return (await read(ref)).view; },
+    },
     create: (input, execution) => deps.effects.start(execution, async () => {
       const session = await deps.runtime.sessions.create();
       try { await deps.index.save({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
@@ -297,9 +328,9 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     schedule: deps.schedule.port(runtime, deps.index),
     recovery: deps.recovery.port,
     ...(deps.options.reviewQueue ? { subagents: { workspaces: true as const, ...createPrologueSubagents(runtime, async run => {
-      const index = await deps.index.read(run.session_id), attempt = index?.attempts.find(attempt => attempt.run_id === run.run_id);
+      const index = await deps.index.read(run.session_id), attempts = index?.attempts.filter(attempt => attempt.run_id === run.run_id) ?? [], attempt = attempts[0];
       if (!attempt?.frozen.directory) throw new Error("原父任务没有工作区归属，不能分派目录子任务");
-      return { path: attempt.frozen.directory.canonical_path, roles: attempt.subagent_roles ?? [], roots: attempt.subagent_roots,
+      return { child_openings: attempts.length === 1 && !attempt.refused ? attempt.child_openings : undefined, path: attempt.frozen.directory.canonical_path, roles: attempt.subagent_roles ?? [], roots: attempt.subagent_roots,
         errors: { ...attempt.subagent_errors, ...state.subagentBridgeErrors.get(run.run_id) } };
     }) } } : {}),
     workspaceNone: true,

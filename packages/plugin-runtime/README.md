@@ -66,6 +66,8 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 
 ## 开发要求
 
+来源控制 `assert_memory_sources_current` 留在真实 invocation caller，和 Host issued 身份一样不交给可变 callback view。来源 owner 的嵌套调用在原生命周期内使用它；函数只能拒绝，不能授权原件或记忆写入。
+
 保留作业的初检、sweep 和工作都进入它自己的 scope，并退出源 action/route/SDK 的调用局部上下文；只声明必需权限的项目作业，不因来源可选权限在源调用结束后关闭而停止。作业需要的可选权限仍保留该作业自己接受时的原 Home 检查（S-52、RAC-2909）。
 
 可信双实例的项目可选权限由 permissionBound 只读捕获同 Home 的原激活检查，与项目自己的 grant 同时成立；必需权限与生命周期独立。动作/场景/作业/route/SDK 消费调用在实际接受权限时保留检查，await 后、beforeEffect 与结果交付时复核，regrant 不变世代也不能使旧调用复活。回归：`tests/security-invariants-dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2909）。
@@ -136,3 +138,8 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 模型原图服务在首次等待前检查并复制字节（50 张、单张 32 MiB、合计 128 MiB）。`validateResult()` 同步复核原动作 scope、存活授权、安装及 Host 的原模型快照；成功、普通推理失败与 JSON 解码失败都保留同次执行事实，取消、撤权或过期后不能据此记业务失败。只读 `choices()` 检查安装与模型 grant，不递归调用会重算可用性的完整动作授权。回归见 `tests/security-invariants-plugin-model-materials.test.ts`。
 
 Home 的消费者设置与生图服务分别由 `model-configuration.ts`、`image-generation.ts` 核对可信声明、当前实例、动作权限与执行范围。只读 selection/inspect 供可用性判断，不递归进入完整动作可用性；真实模型/配置写入仍复查 beforeEffect 和同步授权。图片结果携带派出时的 revision，交付与业务写入按该版本复核。合同和恢复边界见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)；改这些路径加跑 `tests/plugin-model-configuration.test.ts`、`tests/plugin-image-generation.test.ts`、`tests/home-plugin-project-cleanup.test.ts`、`tests/home-plugin-project-routes.test.ts`。
+
+
+## 选中资料的派发边界
+
+资料 state 的 retained current 每次进入原实例/动作的同步只读 scope；不能写入、开后台任务或保留回调权限。Host capture 接收器不交插件，只提供 Kernel 的一次 provideSubjectState。

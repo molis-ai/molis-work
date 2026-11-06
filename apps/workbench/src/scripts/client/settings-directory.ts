@@ -111,7 +111,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
     globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
-    globalThis.molisWorkBindMemorySettings?.(root);
+    globalThis.molisWorkBindMemorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
     globalThis.molisWorkBindProjectManager?.(root, { hash: root.dataset.settingsHash || "" });
@@ -344,7 +344,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const nested = /\\/settings\\/planning\\/.+/.test(url.pathname);
     projectSettings ||= bindProject();
     if (nested) projectSettings?.caches.delete("planning");
-    openProjectSettings(projectSection, nested ? url.pathname + (fromPage === true ? keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : url.search) : undefined);
+    const memoryTarget = projectSection === "memory" && (url.searchParams.has("memory_session_kind") || url.searchParams.has("memory_session_id"));
+    openProjectSettings(projectSection, nested || memoryTarget ? url.pathname + (fromPage === true ? keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {

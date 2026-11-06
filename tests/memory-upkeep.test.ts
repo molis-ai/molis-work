@@ -49,7 +49,7 @@ test("clearing a scope previews first; anything written after the preview makes 
   });
   assert.equal((await memory.list(person(), { scope: "personal" })).items.length, 0);
   assert.equal((await memory.list(person(), { scope: "project" })).items.length, 1, "the project's memories stay");
-  assert.equal(memory.changes(person(), { scope: "personal" })[0]!.kind, "cleared");
+  assert.equal((await memory.changes(person(), { scope: "personal" }))[0]!.kind, "cleared");
   await assert.rejects(memory.previewScope(assistant(), "personal"), /只有本人/);
 });
 
@@ -133,13 +133,13 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   assert.equal(survivor.state, "disabled");
   assert.equal(survivor.version, 3, "one merge update followed by one conditional disable");
   assert.deepEqual(survivor.evidence, [...auto1.evidence, ...auto3.evidence], "disabling retains all merged provenance");
-  const beforeRetry = memory.changes(person(), { limit: 50 });
+  const beforeRetry = (await memory.changes(person(), { limit: 50 }));
   await env.close();
   memory = await env.open();
   const retry = await memory.upkeep(maintenance, { projects: ["project-a"] });
   assert.deepEqual([retry.expired, retry.unused, retry.merged], [0, 0, 0]);
   assert.deepEqual((await memory.list(person())).items.find(item => item.memory_id === auto1.memory_id), survivor);
-  assert.deepEqual(memory.changes(person(), { limit: 50 }), beforeRetry, "the same operation after restart does not add changes");
+  assert.deepEqual((await memory.changes(person(), { limit: 50 })), beforeRetry, "the same operation after restart does not add changes");
   // The person's own words are never merged: the pair goes to them.
   const pairs = await memory.pairs(person());
   assert.deepEqual(pairs.map(pair => [pair.kind, [pair.a.memory_id, pair.b.memory_id].sort().join()]), [["duplicate", [said1.memory_id, said2.memory_id].sort().join()]]);
@@ -148,7 +148,7 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   assert.equal((await memory.pairs(person())).length, 0);
 
   // Undo cannot silently renew an expired value; merge undo still restores its original value.
-  const changes = memory.changes(person(), { limit: 50 });
+  const changes = (await memory.changes(person(), { limit: 50 }));
   await assert.rejects(memory.undo(person(), changes.find(change => change.memory_id === expiring.memory_id && change.kind === "auto_disabled")!.change_id), /到期|有效期/);
   const back = (await memory.list(person())).items.find(item => item.memory_id === expiring.memory_id)!;
   assert.deepEqual([back.state, back.expires_at], ["disabled", "2026-10-01T00:00:00.000Z"]);
@@ -198,12 +198,16 @@ test("upkeep retains short child operations for a long parent when a merge is re
   const survivor = (await memory.list(person())).items.find(item => item.memory_id === keep.memory_id)!;
   assert.deepEqual([survivor.state, survivor.version], ["disabled", 3]);
   assert.deepEqual(survivor.evidence, afterMerge.evidence, "replaying a committed merge does not append its provenance twice");
+  assert.deepEqual(env.ledger().forgetting.read().decisions, [], "a maintenance merge is not a person's irreversible forgetting decision");
+  assert.equal(memory.sourceAllowed(LOCAL_PERSON_ACTOR_ID, "project", "project-a",
+    ["merge-keep:input-1", "merge-keep:input-2", "merge-drop:input-1", "merge-drop:input-2"].map(event_id => ({ event_id, version: "later" }))), true,
+    "the merged survivor retains both originals without a source suppression barrier");
   assert.ok(!(await memory.list(person())).items.some(item => item.memory_id === drop.memory_id));
   assert.deepEqual(calls.filter(call => call.kind === "update").map(call => [call.operation_id, call.expected_version]),
     Array.from({ length: 3 }, () => [calls[0]!.operation_id, 1]), "retry and the post-removal confirmation both retain the original CAS, not a new write");
   assert.ok(calls.every(call => call.operation_id.length <= 200), "the parent and full target identity remain in the ledger, not the SDK operation ID");
   assert.notEqual(calls.find(call => call.kind === "disable")!.operation_id, calls[0]!.operation_id);
-  const changes = memory.changes(person(), { limit: 50 });
+  const changes = (await memory.changes(person(), { limit: 50 }));
   assert.equal(changes.filter(change => change.kind === "merged").length, 1);
   assert.equal(changes.filter(change => change.kind === "auto_disabled").length, 1);
   const completedCalls = calls.length;
@@ -213,7 +217,7 @@ test("upkeep retains short child operations for a long parent when a merge is re
   const retry = await memory.upkeep(maintenance, options);
   assert.deepEqual([retry.merged, retry.unused], [0, 0]);
   assert.equal(calls.length, completedCalls, "completed steps are not dispatched again");
-  assert.deepEqual(memory.changes(person(), { limit: 50 }), changes);
+  assert.deepEqual((await memory.changes(person(), { limit: 50 })), changes);
   assert.deepEqual(env.ledger().marker(LOCAL_PERSON_ACTOR_ID, `memory-source-links:${keep.memory_id}`)!.body, linked);
 });
 
@@ -233,7 +237,7 @@ for (const deletion of ["remove", "clear"] as const) test(`upkeep merge keeps or
   assert.equal(memory.sourceAllowed(LOCAL_PERSON_ACTOR_ID, "project", "project-a", refs), true, "maintenance did not forget any contributing original");
   assert.deepEqual(await env.raw().candidates.list("project", "project-a"), candidates, "maintenance does not erase the existing candidates");
   assert.deepEqual(env.ledger().marker(LOCAL_PERSON_ACTOR_ID, `memory-source-links:${keep.memory_id}`)!.body, { sources: refs });
-  const merged = memory.changes(person()).find(change => change.kind === "merged")!;
+  const merged = (await memory.changes(person())).find(change => change.kind === "merged")!;
   assert.equal(merged.undoable, true, "the existing merge undo remains available");
   await env.close(); memory = await env.open();
   assert.equal(memory.sourceAllowed(LOCAL_PERSON_ACTOR_ID, "project", "project-a", refs), true, "the originals remain available after restart");
@@ -296,10 +300,10 @@ test("a deleted memory does not come back through upkeep, a merge record or a re
   const keep = await env.automatic(memory, "work-1", "project", "发布前先跑全量回归", "convention");
   await env.automatic(memory, "work-2", "project", "发布之前先跑全量回归", "convention");
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async entries => ({ duplicates: [[entries[0]!.memory_id, entries[1]!.memory_id]], conflicts: [] }) });
-  const merged = memory.changes(person()).find(change => change.kind === "merged")!;
+  const merged = (await memory.changes(person())).find(change => change.kind === "merged")!;
   assert.equal(merged.undoable, true);
   await memory.change(person(), { memory_id: keep.memory_id, action: "remove" });
-  assert.equal(memory.changes(person()).find(change => change.change_id === merged.change_id)!.undoable, false, "the merge record no longer carries the deleted text");
+  assert.equal((await memory.changes(person())).find(change => change.change_id === merged.change_id)!.undoable, false, "the merge record no longer carries the deleted text");
   assert.ok(!JSON.stringify(env.ledger().changes("web-user", 100)).includes("全量回归"), "recent changes keep none of its words");
   assert.ok(!JSON.stringify(await env.raw().candidates.list("project", "project-a")).includes("全量回归"), "nor does the candidate it was promoted from");
   await env.close();
@@ -328,16 +332,16 @@ test("upkeep recovers a committed pause after the ledger fails, survives restart
   const committed = (await memory.list(person())).items.find(item => item.memory_id === original.memory_id)!;
   assert.equal(committed.state, "paused");
   assert.equal(committed.version, original.version + 1);
-  assert.equal(memory.changes(person()).filter(change => change.kind === "paused").length, 0);
+  assert.equal((await memory.changes(person())).filter(change => change.kind === "paused").length, 0);
   await env.close();
   memory = await env.open();
   await memory.upkeep({ ...person(), operation_id: "next-scheduled-maintenance" }, { projects: ["project-a"], objectState: async () => "missing" });
-  const changes = memory.changes(person()).filter(change => change.kind === "paused");
+  const changes = (await memory.changes(person())).filter(change => change.kind === "paused");
   assert.equal(changes.length, 1, "the original operation must recover the missing change, not skip the already paused entry");
   assert.equal(env.ledger().change(changes[0]!.change_id)!.applied_version, committed.version);
   await memory.upkeep(operation, { projects: ["project-a"], objectState: async () => "missing" });
   assert.equal((await memory.list(person())).items.find(item => item.memory_id === original.memory_id)!.version, committed.version);
-  assert.equal(memory.changes(person()).filter(change => change.kind === "paused").length, 1);
+  assert.equal((await memory.changes(person())).filter(change => change.kind === "paused").length, 1);
   await memory.undo(person(), changes[0]!.change_id);
   assert.equal((await memory.list(person())).items.find(item => item.memory_id === original.memory_id)!.state, "active");
 });
@@ -369,18 +373,18 @@ for (const failure of ["before-remove", "after-remove", "ledger-transaction"] as
     const options = { projects: ["project-a"], tidy: async () => ({ duplicates: [[kept.memory_id, dropped.memory_id] as [string, string]], conflicts: [] }) };
     await assert.rejects(memory.upkeep(operation, options), new RegExp(failure));
     assert.equal((await env.raw().list("project", "project-a")).find(entry => entry.memory_id === kept.memory_id)!.version, kept.version + 1);
-    assert.equal(memory.changes(person()).filter(change => change.kind === "merged").length, 0);
+    assert.equal((await memory.changes(person())).filter(change => change.kind === "merged").length, 0);
     assert.ok(env.ledger().revisions(dropped.memory_id).length > 0, "a missing ledger receipt must not erase the only original undo history");
     await env.close();
     memory = await env.open();
     await memory.upkeep({ ...person(), operation_id: "a-new-scheduler-pass" }, options);
-    const merge = memory.changes(person()).filter(change => change.kind === "merged");
+    const merge = (await memory.changes(person())).filter(change => change.kind === "merged");
     assert.equal(merge.length, 1);
     assert.equal(env.ledger().change(merge[0]!.change_id)!.applied_version, kept.version + 1);
     assert.equal((await memory.list(person())).items.length, 1);
     assert.equal(env.ledger().revisions(dropped.memory_id).length, 0, "history cleanup happens only with the committed change");
     await memory.upkeep(operation, options);
-    assert.equal(memory.changes(person()).filter(change => change.kind === "merged").length, 1);
+    assert.equal((await memory.changes(person())).filter(change => change.kind === "merged").length, 1);
     assert.equal((await memory.list(person())).items[0]!.version, kept.version + 1);
     await memory.undo(person(), merge[0]!.change_id);
     assert.deepEqual((await memory.list(person())).items.map(item => item.text).sort(), [kept.text, dropped.text].sort());
@@ -395,14 +399,14 @@ test("upkeep object-restored undo restores the original pause reason and rejects
   await memory.upkeep(person(), { projects: ["project-a"], objectState: async () => "missing" });
   const paused = (await memory.list(person())).items.find(item => item.memory_id === original.memory_id)!;
   await memory.upkeep(person(), { projects: ["project-a"], objectState: async () => "ok" });
-  const resumed = memory.changes(person()).find(change => change.kind === "resumed")!;
+  const resumed = (await memory.changes(person())).find(change => change.kind === "resumed")!;
   assert.equal(resumed.undoable, true);
   await memory.undo(person(), resumed.change_id);
   const undone = (await memory.list(person())).items.find(item => item.memory_id === original.memory_id)!;
   assert.equal(undone.state, "paused");
   assert.equal(undone.state_reason, paused.state_reason);
   await memory.upkeep(person(), { projects: ["project-a"], objectState: async () => "ok" });
-  const next = memory.changes(person()).find(change => change.kind === "resumed" && change.state === "active")!;
+  const next = (await memory.changes(person())).find(change => change.kind === "resumed" && change.state === "active")!;
   await memory.change(person(), { memory_id: original.memory_id, action: "update", text: "人工改成提交前复核" });
   await assert.rejects(memory.undo(person(), next.change_id), /新版本/);
 });
@@ -423,7 +427,7 @@ for (const later of ["edit", "forget"] as const) test(`pending upkeep refuses ${
   const before = env.ledger().revisions(original.memory_id);
   await env.close(); memory = await env.open();
   await assert.rejects(memory.upkeep(person(), { projects: ["project-a"], objectState: async () => "missing" }));
-  assert.equal(memory.changes(person()).filter(change => change.kind === "paused").length, 0);
+  assert.equal((await memory.changes(person())).filter(change => change.kind === "paused").length, 0);
   assert.deepEqual(env.ledger().revisions(original.memory_id), before);
   const entries = (await memory.list(person())).items;
   if (later === "forget") assert.deepEqual(entries, []);
@@ -445,7 +449,7 @@ test("forgetting a partially merged survivor suppresses every original and block
   await env.close(); memory = await env.open();
   await assert.rejects(memory.upkeep(person(), { projects: ["project-a"] }), /删除|遗忘/);
   assert.ok(!(await memory.list(person())).items.some(item => item.memory_id === keep.memory_id));
-  assert.equal(memory.changes(person()).filter(change => change.kind === "merged").length, 0);
+  assert.equal((await memory.changes(person())).filter(change => change.kind === "merged").length, 0);
 });
 
 test("cancellation after the real maintenance preview prepares no new history or SDK state", { timeout: 60_000 }, async t => {
@@ -463,7 +467,7 @@ test("cancellation after the real maintenance preview prepares no new history or
   assert.equal(previewed, true, "cancellation occurs after an actual accepted SDK preview");
   assert.deepEqual(env.ledger().revisions(original.memory_id), before);
   assert.equal((await memory.list(person())).items[0]!.version, original.version);
-  assert.equal(memory.changes(person()).filter(change => change.kind === "paused").length, 0);
+  assert.equal((await memory.changes(person())).filter(change => change.kind === "paused").length, 0);
 });
 
 test("merge undo only recreates the removed item and leaves a later human survivor edit untouched", { timeout: 60_000 }, async t => {
@@ -472,7 +476,7 @@ test("merge undo only recreates the removed item and leaves a later human surviv
   const keep = await env.automatic(memory, "undo-a", "project", "发布前先跑全量回归", "convention");
   const drop = await env.automatic(memory, "undo-b", "project", "发布之前先跑全量回归", "convention");
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id]], conflicts: [] }) });
-  const merge = memory.changes(person()).find(change => change.kind === "merged")!;
+  const merge = (await memory.changes(person())).find(change => change.kind === "merged")!;
   await memory.change(person(), { memory_id: keep.memory_id, action: "update", text: "人工新决定：先做发布审阅" });
   const before = (await env.raw().list("project", "project-a")).find(entry => entry.memory_id === keep.memory_id)!;
   await memory.undo(person(), merge.change_id);
@@ -493,10 +497,10 @@ test("concurrent maintenance passes cannot lose an in-flight plan or leave a sec
   const options = { projects: ["project-a"], objectState: async () => "missing" as const };
   const outcomes = await Promise.allSettled(["pass-a", "pass-b"].map(operation_id => racing.upkeep({ ...person(), operation_id }, options)));
   assert.equal(arrived, 2); assert.ok(outcomes.some(item => item.status === "fulfilled"));
-  assert.equal(memory.changes(person()).filter(change => change.kind === "paused").length, 1);
+  assert.equal((await memory.changes(person())).filter(change => change.kind === "paused").length, 1);
   assert.equal((await memory.list(person())).items[0]!.version, original.version + 1);
   await memory.upkeep(person(), options);
-  assert.equal(memory.changes(person()).filter(change => change.kind === "paused").length, 1);
+  assert.equal((await memory.changes(person())).filter(change => change.kind === "paused").length, 1);
 });
 
 test("an automatic merge without the exact prior history fails before either formal item changes", { timeout: 60_000 }, async t => {
@@ -508,7 +512,7 @@ test("an automatic merge without the exact prior history fails before either for
   t.mock.method(env.ledger(), "revisions", (id: string) => id === drop.memory_id ? [] : revisions(id));
   await assert.rejects(memory.upkeep(person(), { projects: ["project-a"], tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id]], conflicts: [] }) }), /未执行.*安全历史/);
   assert.deepEqual(await env.raw().list("project", "project-a"), before);
-  assert.equal(memory.changes(person()).filter(change => change.kind === "merged").length, 0);
+  assert.equal((await memory.changes(person())).filter(change => change.kind === "merged").length, 0);
 });
 
 for (const failure of ["final-receipt", "creation-history"] as const) test(`recreate undo retries after ${failure} fails without losing the restored source identities`, { timeout: 60_000 }, async t => {
@@ -519,7 +523,7 @@ for (const failure of ["final-receipt", "creation-history"] as const) test(`recr
   const drop = await env.automatic(memory, "receipt-drop", "project", "发布之前先跑全量回归", "convention");
   const sources = env.ledger().marker(LOCAL_PERSON_ACTOR_ID, `memory-source-links:${drop.memory_id}`)!.body;
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id]], conflicts: [] }) });
-  const merge = memory.changes(person()).find(change => change.kind === "merged")!;
+  const merge = (await memory.changes(person())).find(change => change.kind === "merged")!;
   const save = env.ledger().saveChange.bind(env.ledger());
   const fault = t.mock.method(env.ledger(), "saveChange", (record: Parameters<typeof save>[0]) => {
     if (failure === "final-receipt" && record.change_id === merge.change_id && record.state === "undone") throw new Error("undo receipt interrupted");
@@ -534,13 +538,13 @@ for (const failure of ["final-receipt", "creation-history"] as const) test(`recr
   const written = await env.raw().list("project", "project-a");
   assert.equal(written.length, 2, "the real SDK creation completed before the final undo receipt failed");
   const restored = written.find(entry => entry.memory_id !== keep.memory_id)!;
-  const changes = memory.changes(person(), { limit: 50 }).filter(change => change.memory_id === restored.memory_id);
+  const changes = (await memory.changes(person(), { limit: 50 })).filter(change => change.memory_id === restored.memory_id);
   fault.mock.restore(); historyFault.mock.restore();
   await env.close(); memory = await env.open();
   const result = await memory.undo({ ...person(), operation_id: "a-new-undo-request" }, merge.change_id);
   assert.equal(result.change.state, "undone");
   assert.deepEqual(await env.raw().list("project", "project-a"), written, "a new request does not repeat the completed creation");
-  const after = memory.changes(person(), { limit: 50 }).filter(change => change.memory_id === restored.memory_id);
+  const after = (await memory.changes(person(), { limit: 50 })).filter(change => change.memory_id === restored.memory_id);
   assert.equal(after.length, 1);
   if (failure === "final-receipt") assert.deepEqual(after, changes);
   assert.equal(env.ledger().revisions(restored.memory_id).length, 1);
@@ -576,7 +580,7 @@ for (const later of ["edit", "forget"] as const) test(`recreate undo after an in
   const keep = await env.automatic(memory, "later-keep", "project", "发布前先跑全量回归", "convention");
   const drop = await env.automatic(memory, "later-drop", "project", "发布之前先跑全量回归", "convention");
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id]], conflicts: [] }) });
-  const merge = memory.changes(person()).find(change => change.kind === "merged")!;
+  const merge = (await memory.changes(person())).find(change => change.kind === "merged")!;
   const save = env.ledger().saveChange.bind(env.ledger());
   const fault = t.mock.method(env.ledger(), "saveChange", (record: Parameters<typeof save>[0]) => {
     if (record.change_id === merge.change_id && record.state === "undone") throw new Error("final undo receipt interrupted");

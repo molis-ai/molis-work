@@ -130,7 +130,10 @@ export interface AgentSubagentView {
   role_id: string;
   /** Name frozen at dispatch, unaffected by later role edits. */
   role_name?: string;
+  /** Raw historical task for viewing; not an attestation for reuse as model input. */
   task: string;
+  /** Exact caller task owned by this child's creator, or explicitly unavailable. */
+  continuation_task?: { status: "available"; text: string } | { status: "unavailable" };
   state: AgentSubagentState;
   result: string | null;
   workspace_path: string | null;
@@ -187,7 +190,7 @@ export interface AgentScheduledTask {
 export interface AgentScheduleCapability {
   /** Whether queued work still runs with the window closed, and why — from the Host's own handshake. */
   claim(): { survives_window_close: boolean; why: string };
-  enqueue(input: { key: string; session_id: string; kind: string; payload: Record<string, unknown>; due_at: string; max_attempts?: number }): Promise<AgentScheduledTask>;
+  enqueue(input: { key: string; session_id: string; kind: string; payload: Record<string, unknown>; due_at: string; max_attempts?: number }, control?: { signal?: AbortSignal; beforeCommit?: () => Promise<void | (() => void)> }): Promise<AgentScheduledTask>;
   /** Cancels a task not yet started; null when there is none under that key. A running one cannot be cancelled. */
   cancel(key: string): Promise<AgentScheduledTask | null>;
   find(key: string): AgentScheduledTask | null;

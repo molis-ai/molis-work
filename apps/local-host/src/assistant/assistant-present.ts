@@ -94,6 +94,7 @@ export function describeObjects(objects: readonly AssistantWorkObject[]): string
  * and the person can let it go on.
  */
 export function stopInWords(reason: string, workBudget?: number): string {
+  if (/^MEMORY_SCOPE_DENIED(?:\b|:)/.test(reason)) return "当前没有读取记忆的权限，这一轮已停止；已完成的修改都保留。请到记忆设置检查权限后再继续。";
   if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/i.test(reason)) return `到了这一轮的步数上限（${ROUND_TURNS} 步），停在这里；已完成的修改都保留。说“继续”可以接着做`;
   if (/MODEL_BUDGET_EXCEEDED|of its \d+ tokens|token/i.test(reason) && /budget|limit|exceed|of its \d+ tokens/i.test(reason)) {
     // A round whose work has a cap was given only what was left of it: this stop is that cap.
@@ -106,6 +107,26 @@ export function stopInWords(reason: string, workBudget?: number): string {
   if (/MODEL_AUTH|401|403|invalid.?api.?key|unauthori[sz]ed/i.test(reason)) return `模型服务拒绝了这次调用（凭据不对或没有权限）；请到“模型设置”检查密钥，再说“继续”（${reason.slice(0, 120)}）`;
   if (/429|rate.?limit|overloaded|529/i.test(reason)) return `模型服务现在太忙，这一轮没有完成；稍等再说“继续”（${reason.slice(0, 120)}）`;
   return reason;
+}
+
+/** A returned Memory tool can mean a pending candidate or no change; only its bounded receipt says which. */
+function memoryActivityResult(item: AgentToolActivity): Partial<Pick<AssistantActivity, "verb" | "target" | "state" | "detail">> {
+  if (item.state !== "completed" || !["remember", "suggest-memory", "forget-memory"].includes(item.name)) return {};
+  if (!item.output || item.output_truncated || item.output.length > 16_384) return { state: "unknown" };
+  let result: unknown;
+  try { result = JSON.parse(item.output); } catch { return { state: "unknown" }; }
+  if (!result || typeof result !== "object" || Array.isArray(result)) return { state: "unknown" };
+  if (item.name === "forget-memory") {
+    if ("forgotten" in result && result.forgotten === true) return {};
+    if ("forgotten" in result && result.forgotten === false) return { state: "failed", detail: "这条记忆当前不可用或已不存在，没有停用。" };
+    return { state: "unknown" };
+  }
+  const candidate = "candidate_id" in result && typeof result.candidate_id === "string" && result.candidate_id.length > 0;
+  if (item.name === "suggest-memory") return candidate ? { verb: "memory-suggest", target: "" } : { state: "unknown" };
+  if (!("scope" in result) || typeof result.scope !== "string" || !["personal", "project", "character"].includes(result.scope)
+    || !("applies" in result) || typeof result.applies !== "string" || !("memory_id" in result)) return { state: "unknown" };
+  if (result.memory_id === "" && candidate) return { verb: "memory-suggest", target: "" };
+  return typeof result.memory_id === "string" && result.memory_id.length > 0 && !candidate ? {} : { state: "unknown" };
 }
 
 /** Activity in the person's terms: what was looked up, read or changed — not the tool log. */
@@ -149,6 +170,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     const capability = (verb === "read" || verb === "change") && item.target ? { capability_id: item.target } : {};
     const answer = verb === "ask" && item.state === "completed" ? answerOf(item.output) : "";
     return [{ call_id: item.call_id, verb, target, state, ...capability, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(failure ? { failure } : {}), ...(answer ? { answer } : {}),
+      ...memoryActivityResult(item),
       ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
   });
 }

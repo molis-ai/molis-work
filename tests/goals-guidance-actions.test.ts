@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, presentActionResult, validActionResultView, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
@@ -32,10 +32,18 @@ test("guidance action consumers preserve original receipts, revisions, prompt te
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.guidanceRead, {}), { code: "actions.scope_mismatch" });
     assert.deepEqual(await bound.invoke(goalsActions.guidanceRead, {}), before);
     const legacy = await host.withProject(ref, runtime => goalApplicationOf(runtime).goals.commands.addProjectGuidance({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
-    assert.deepEqual(await bound.invoke(goalsActions.guidanceAdd, input), { ...legacy, replayed: true });
+    const replayed = await bound.invoke(goalsActions.guidanceAdd, input);
+    assert.deepEqual(replayed, { ...legacy, replayed: true });
     const duplicate = await bound.invoke(goalsActions.guidanceAdd, { ...input, idempotency_key: "same-content" });
     assert.equal(duplicate.created, false);
     assert.equal(duplicate.entry.guidance_id, legacy.entry.guidance_id);
+    const addView = goalsActions.guidanceAdd.action.result_view;
+    assert.ok(validActionResultView(addView));
+    const link = { label: "查看项目说明", href: `/projects/${encodeURIComponent(project.project_id)}/settings/guidance` };
+    for (const result of [legacy, replayed, duplicate]) assert.deepEqual(presentActionResult(addView, result, project.project_id), {
+      summary: "项目长期说明已保存", text: input.content, link,
+    }, "created, replayed and same-content results share a truthful saved-content entry without claiming a new row");
+    assert.equal(presentActionResult(addView, duplicate)?.link, undefined, "without the original project context no management link is guessed");
     await assert.rejects(bound.invoke(goalsActions.guidanceAdd, { ...input, content: "不同请求" }));
     const update = { guidance_id: legacy.entry.guidance_id, action: "edit" as const, kind: "constraint" as const, content: "导出前由用户明确确认。",
       source_refs: ["project://new-requirements"], reason: "准确说明导出边界", confirmation_summary: "用户确认修改", user_confirmed: true, idempotency_key: "edit" };
@@ -51,11 +59,16 @@ test("guidance action consumers preserve original receipts, revisions, prompt te
     assert.doesNotMatch(afterEdit.runtime_prompt_prefix, /^Project:/m);
     assert.doesNotMatch(afterEdit.runtime_prompt_prefix, /Guidance/);
     const change = { guidance_id: legacy.entry.guidance_id, reason: "用户改变项目设置", confirmation_summary: "已确认", user_confirmed: true };
-    await bound.invoke(goalsActions.guidanceUpdate, { ...change, action: "deactivate", idempotency_key: "off" });
+    const deactivated = await bound.invoke(goalsActions.guidanceUpdate, { ...change, action: "deactivate", idempotency_key: "off" });
     const disabled = await bound.invoke(goalsActions.guidanceRead, {});
     assert.equal(disabled.entries.length, 0); assert.equal(disabled.inactive_entries.length, 1);
     assert.doesNotMatch(disabled.runtime_prompt_prefix, /导出前由用户明确确认/);
-    await bound.invoke(goalsActions.guidanceUpdate, { ...change, action: "restore", idempotency_key: "on" });
+    const reactivated = await bound.invoke(goalsActions.guidanceUpdate, { ...change, action: "restore", idempotency_key: "on" });
+    const updateView = goalsActions.guidanceUpdate.action.result_view;
+    assert.ok(validActionResultView(updateView));
+    for (const result of [edited, deactivated, reactivated]) assert.deepEqual(presentActionResult(updateView, result, project.project_id), {
+      summary: "项目长期说明变更已保存", text: update.content, link,
+    }, "edit, deactivate and restore point to the original content without claiming deletion or continued activation");
     const restored = await bound.invoke(goalsActions.guidanceRead, {});
     assert.equal(restored.entries[0]?.revision, 4); assert.equal(restored.revisions.length, 4);
     blocked = true;

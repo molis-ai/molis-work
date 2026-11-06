@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { HomeRestoreControl, HomeRestoreInputs, HomeRestoreResult } from "./home-restore-contract.js";
+import { isHomeRestoreCleanupFailure, type HomeRestoreControl, type HomeRestoreInputs, type HomeRestoreResult } from "./home-restore-contract.js";
 import { assertRestoreNode, flushRestoreFile, inspectRestoreNode, sameRestoreFile, sameRestoreInode, setRestoreMode, writeRestoreFile, type RestoreNodeIdentity } from "./home-restore-files.js";
 import { homeRestoreErrors, invalidRestore } from "./home-restore-input.js";
 import { prepareHomeRestoreJournal, restoreOriginalSlot } from "./home-restore-journal.js";
@@ -99,7 +99,8 @@ function assertPublishedTree(journal: HomeRestoreJournal, inputs: HomeRestoreInp
 
 /** One publisher for every owner: raw originals first, final-path private writes, one durable committed phase, then unblock. */
 export async function publishHomeRestore(home: string, inputs: HomeRestoreInputs, target: HomeRestoreTarget,
-  control: HomeRestoreControl, rollbackControl: HomeRestoreControl, verifyPublished: (journal?: HomeRestoreJournal) => Promise<void>, preflightCurrent: () => void): Promise<HomeRestoreResult> {
+  control: HomeRestoreControl, rollbackControl: HomeRestoreControl, verifyPublished: (journal?: HomeRestoreJournal) => Promise<void>, preflightCurrent: () => void,
+  retainMemory?: (journal: HomeRestoreJournal) => Promise<HomeRestoreJournal>): Promise<HomeRestoreResult> {
   control.assertCurrent(); preflightCurrent(); assertHomeRestoreTargetCurrent(home, target);
   if (target.unchanged) { await verifyPublished(); return { status: "unchanged", home_directory: home }; }
   const prepared = await prepareHomeRestoreJournal(home, inputs, target, control), { journal, writer } = prepared;
@@ -113,11 +114,13 @@ export async function publishHomeRestore(home: string, inputs: HomeRestoreInputs
     }
     setRestoreMode(home, journal.home_mode);
     assertPublishedTree(journal, inputs, written, created); flushRestoreDirectories(journal); control.assertCurrent();
-    await verifyPublished(journal); control.assertCurrent();
-    writer.write("committed");
+    const final = retainMemory ? await retainMemory(journal) : journal;
+    await verifyPublished(final); control.assertCurrent();
+    writer.commit(final);
     writer.clear();
     return { status: "restored", home_directory: home, originals_directory: journal.originals_directory };
   } catch (error) {
+    if (isHomeRestoreCleanupFailure(error)) throw error;
     if (writer.phase === "committed") throw homeRestoreErrors.published_unconfirmed(`恢复内容已发布，提交或解除阻断的持久化未确认。保留原件区 ${journal.originals_directory}；若仍被阻断，使用 home restore --recover 收尾`);
     if (writer.phase === undefined) { prepared.cleanupUnpublished(); throw error; }
     try { await rollbackHomeRestore(journal, target.registry, rollbackControl); writer.clear(); }

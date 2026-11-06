@@ -9,7 +9,7 @@ import { MemoryService, type MemoryBackendPort, type MemoryCaller, type MemoryPr
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMemoryCaller, AgentMemorySourceSnapshot, AgentMemorySourceRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { memoryExtractor, memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 
 type Generation = NonNullable<ReturnType<NonNullable<Parameters<typeof memoryExtractor>[1]>>>;
@@ -73,21 +73,28 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
   generate?: Generation;
 }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-service-"));
+  const initialOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  try { initializeMemoryForgetting({ homeDirectory: home, storageOwner: initialOwner, assertCurrent() {} }); }
+  finally { initialOwner.release(); }
   const projects = new Set(options.projects);
   // NodeHost.readClock uses Date.now; the Service and its real storage owner must share this test's clock.
   if (options.now) t.mock.method(Date, "now", () => options.now!().getTime());
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   let ledger: MemoryLedgerPort | undefined, service: MemoryService, alive = false;
+  let storageOwner: StorageOwner | undefined;
   const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: options.projects[0] ?? null, consumer: "ui", person: true };
   const owner: MemoryRuntimePolicyOwner = {
+    authorizeSessionPurge: (caller, target) => service.sessionClear.authorizePurge(caller, target),
     alive: () => alive, prefsFor: (scope, id) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, id),
+    isForgotten: (scope, ownerId, kind, id) => service.isForgotten(scope, ownerId, kind, id),
     owners: id => ledger!.owners(id), candidateOwners: id => ledger!.candidateOwners(id),
     projectExists: async id => projects.has(id), deletingProject: () => undefined,
   };
   const backend = () => prologueMemoryBackend(async () => adapter!.memory!);
   const open = async () => {
-    ledger = openMemoryLedger({ homeDirectory: home });
-    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+    ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
+    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
       memory: { ...memoryRuntimePolicy(() => owner, options.extractor ?? (options.generate ? memoryExtractor(home, () => options.generate) : undefined)), ...(options.sources ? { sources: options.sources } : {}),
         promotion: { policy: "memory.write-gate", version: 3, decide: (caller, request) => service.promotion.decide(caller, request),
           undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => { throw new Error("Memory fixture does not call a model"); } });
@@ -96,7 +103,8 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
     alive = true;
     return service;
   };
-  const close = async () => { alive = false; await adapter?.close(); adapter = undefined; ledger?.close(); ledger = undefined; };
+  const close = async () => { alive = false; await adapter?.close(); adapter = undefined; ledger?.close(); ledger = undefined;
+    storageOwner?.release(); storageOwner = undefined; };
   t.after(async () => { await close(); await rm(home, { recursive: true, force: true }); });
   // RAC-2375: seed current SDK shape 8 via its public storage owner; unknown facts need no historical conversion or online exception.
   const seedUnclassified = async (scope: "user" | "project", ownerId: string, id: string, text: string) => {
@@ -104,7 +112,7 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
     const requireSdk = createRequire(new URL("../../horizontal/agent-host/package.json", import.meta.url));
     const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
     const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
-    const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(home, "sdk") }) });
+    const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(home, "agent-runtime") }) });
     const storageOwner = `${scope}-${encodeURIComponent(ownerId).replaceAll("%", "_")}`;
     try {
       await runtime.store.commit({ kind: "memories", id: `owner.${storageOwner}.${id}.v1`, expectedVersion: 0,

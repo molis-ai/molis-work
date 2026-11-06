@@ -22,6 +22,36 @@ function played(events: PrologueEvent[]) {
   return presentActivity(state.activity, undefined);
 }
 
+// Business receipt semantics are projected after the same production tool event pipeline, not inferred from returned transport.
+function memoryReceipt(name: string, text: string, outcome: "returned" | "failed" = "returned") {
+  return played([{ type: "tool-call", call: { id: "memory-result", name, input: {} } },
+    { type: "tool-result", callId: "memory-result", name, text, outcome }])[0]!;
+}
+
+test("Memory candidate and false/true receipts retain their distinct business result", () => {
+  const pending = memoryReceipt("remember", JSON.stringify({ memory_id: "", candidate_id: "candidate", scope: "project", applies: "本项目" }));
+  assert.deepEqual([pending.verb, pending.target, pending.state, pending.detail], ["memory-suggest", "", "completed", undefined]);
+  const untouched = memoryReceipt("forget-memory", JSON.stringify({ forgotten: false }));
+  assert.equal(untouched.state, "failed"); assert.match(untouched.detail ?? "", /没有停用/);
+  assert.equal(untouched.reason, undefined, "false does not by itself prove why the item is unavailable");
+  const disabled = memoryReceipt("forget-memory", JSON.stringify({ forgotten: true }));
+  assert.deepEqual([disabled.verb, disabled.state, disabled.detail], ["memory-forget", "completed", undefined]);
+  const emptyApplies = memoryReceipt("remember", JSON.stringify({ memory_id: "memory", scope: "personal", applies: "" }));
+  assert.deepEqual([emptyApplies.verb, emptyApplies.state], ["memory-keep", "completed"], "the existing contract permits an empty applies string");
+});
+
+test("Memory exceptions and missing, truncated or incomplete receipts never become a successful change", () => {
+  const failed = memoryReceipt("forget-memory", "memory.forbidden: current access is withdrawn", "failed");
+  assert.equal(failed.state, "failed");
+  const absent = presentActivity([{ call_id: "missing", name: "remember", target: "", state: "completed", summary: "", at: null }], undefined)[0]!;
+  assert.equal(absent.state, "unknown");
+  for (const text of ["not JSON", JSON.stringify({ forgotten: "true" }), JSON.stringify({}),
+    JSON.stringify({ forgotten: true, note: "x".repeat(17_000) })]) {
+    assert.equal(memoryReceipt("forget-memory", text).state, "unknown", "invalid or clipped output cannot authorize a success label");
+  }
+  assert.equal(memoryReceipt("remember", JSON.stringify({ memory_id: "memory" })).state, "unknown", "an incomplete saved-memory receipt is unknown");
+});
+
 test("a successful desktop action reads as operating an app, and the same browser receipt stays a web action", () => {
   const desktop = played([
     { type: "tool-call", call: { id: "list", name: "surface-list", input: {} } },

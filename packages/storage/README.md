@@ -1,5 +1,9 @@
 # 本地存储基础设施
 
+Memory ledger现行基线为2，表结构与业务行保持不变。版本2只由真正空的新Home创建；版本1及未来版本均拒绝，不转换、不降版。这个容器版本让旧715 App在SDK初始化前拒开新索引Home，索引库本身仍归SDK。回归：`tests/home-store-baselines.test.ts`、`tests/memory-initialization.test.ts`、`tests/home-restore-forgetting-old-cli.test.ts`。
+
+A4-M 本地初始合同：同一 format_version:1 的每项独立遗忘决定必填 selection_mode=related|exact-identities。旧非空缺字段、未知值、exact 带 sources 或没有正式/候选身份均拒绝，不猜测、不转换；空 decisions 合法。同 operation 比较 mode、scope/owner、完整正式/候选版本与来源。ledger.forget 由原写主人明确传 mode；related 保留原关联清理，exact 不擦未选候选自己的正文与历史关联。已忘正式身份的修订、使用、变动与迟到成功门保持。冷恢复仅由独立接受事实派生 mode，坏 ledger 不能降低模式；同身份的 related 不被 exact 削弱。复用原 owner、原文件和现有库，不新增 store/schema/迁移。完整短合同与22路径白名单见 Memory 包 A4-M 小节；本段不接 Session 管理、Action 或 UI。
+
 为各 owner 提供 SQLite 连接、共享日志、幂等记录、原子文件写入和本地安全存储适配，避免每个模块各建一套底层机制。
 
 包名：`@molis-ai/molis-work-storage`。工作区内部包，通过仓库构建和 Host 装配使用。
@@ -70,9 +74,13 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 ## 开发要求
 
+Home 顶层 `memory-forgetting-v2.json` 是同一 Storage owner 的无正文遗忘事实，登记为普通文件 store；文件名 v2 标识当前 Home 物理代，JSON 仍严格 `format_version: 1`。只读写这一现行路径，不双读、自动改名或转换旧名 Home/归档；旧名 only 因当前文件缺失拒绝，双名在原离线 snapshot/restore inventory 拒绝，正常启动不新增全 Home 扫描。仅 fresh-only 初始化可建立空文件，非空 Home 缺失或损坏时拒绝。固定 operation 的 actor、scope/owner、正式/候选身份版本和来源事件必须完整一致；同操作确认不会改选，合并只增不减。决定写入用原原子文件 helper 的 durable 选项：只清理本次独占创建的临时文件，文件 fsync、rename、目录 fsync 全部完成才返回接受。rename 后失败保留实际可见文件，正常读门立即阻止使用，原操作重新确认持久化；不得谎称回滚。活入口共享原 owner 实例的不可变事实，不逐条重读 JSON；文件身份意外变化、生命周期退出与无法核验状态均拒绝，真实重开严格重读。
+
+恢复只从可核验的独立文件取得较新决定，目标 `memory.db` 保持 opaque。`readMemoryLedgerRestoreFacts` 只解码发布材料中与固定决定关联的现行投影；`retainMemoryLedgerAfterRestore` 在原 storage owner 与 journal 下合并终止屏障，清除正式账本副本及明确选中的候选投影。SDK 已清除而 ledger 补清失败时，必须以持久投影本身验证，不能因 SDK 列表为空就留下正文。独立文件自身缺失/损坏不当空；不迁移库、不复制 key、不另起发布日志。回归：`tests/storage-atomic-write-durable.test.ts`、`tests/memory-forgetting-facts.test.ts`、`tests/home-restore-memory-forgetting.test.ts`。
+
 `inspectMemoryLedger` 只读当前完整账本与可信 actor 的 personal/project-default 偏好；缺文件只返回 absent，不授予 fresh 资格。源库及 WAL/SHM 不经 SQLite 打开，私有副本使用同一基线与 contracts 完整性规则，源字节/模式/侧车保持。`inspectSnapshotSqlite` 只检查已有 standalone 归档，复用 backup 的 owner/schema/完整性检查，不初始化或切 WAL。恢复 key 与证据只读端口复用原密封 owner，不创建替代 key。`retainStorageOwner` 将 Catalog 寿命与 SDK 单 borrow 分开，pending 拒绝正常打开/借用，恢复 owner 不能启动 SDK。直接回归：`tests/home-restore-owner-inspection.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。
 
-`backupSnapshotSqlite` 只读源库、使用 SQLite backup API 包含已提交 WAL，在私有副本核 owner 版本、schema、integrity/外键并刷盘；`copySnapshotFile` 与摘要端口拒绝链接、特殊文件和读取期间的改动，普通文件使用有界内存流式复制，默认在返回前刷盘。持离线 lease 的快照 owner 可明确延后私有副本的刷盘，先认证实际副本，再在发布前刷齐每个文件；认证或刷盘失败均不发布，不能把这个参数用于省略成功产物的持久化。调用方须先排除所有权锁及其侧车，不能打开它们做摘要。Home 路径、存储集合、同 Home lease 和原 key 策略由 Host 编排，不在 storage 复制业务名单；原 key 只记身份，不导出。回归包含 `tests/home-snapshot-content.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts` 与 `tests/security-invariants-home-snapshot-lifecycle.test.ts`。
+`backupSnapshotSqlite` 只读源库、使用 SQLite backup API 包含已提交 WAL，在私有副本核 owner 版本、schema、integrity/外键并刷盘；普通 WAL 首次读取可能产生原技术侧车，不承诺所有普通库物理零写。声明 `standalone: true` 的源须在 inventory 及实际 backup 打开 SQLite 前，通过同一有界20字节文件头与精确侧车缺席检查；默认不限制普通 WAL 库。`copySnapshotFile` 与摘要端口拒绝链接、特殊文件和读取期间的改动，普通文件使用有界内存流式复制，默认在返回前刷盘。持离线 lease 的快照 owner 可明确延后私有副本的刷盘，先认证实际副本，再在发布前刷齐每个文件；认证或刷盘失败均不发布，不能把这个参数用于省略成功产物的持久化。调用方须先排除所有权锁及其侧车，不能打开它们做摘要。Home 路径、存储集合、同 Home lease 和原 key 策略由 Host 编排，不在 storage 复制业务名单；原 key 只记身份，不导出。回归包含 `tests/home-snapshot-content.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts` 与 `tests/security-invariants-home-snapshot-lifecycle.test.ts`。
 
 快照技术拒绝沿共同 `ActionError`：静态不合法为平台 `actions.input_invalid`，开始复制后观察到改变为 `actions.conflict`；源库原 `storage.schema_version_mismatch`、取消和 I/O 原样传播。Home 编排把这两类转为自己的快照码，不依赖消息文本。当前库由owner的基线/元数据检查与完整性验证共同决定可捕获范围，公开拒绝及源零写证明见 `tests/home-snapshot-errors.test.ts`。退役Sessions的metadata端口已按2026-10-30用户决定删除，未知目录不被读取。
 
@@ -103,3 +111,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+### B4 原操作发现与固定选中批量（本地实施合同）
+
+按原 Memory V0 spec 末尾已批准合同：本人有界发现无正文原操作，原 change/clear 继续；选中 disable/remove 经 SDK 固定 preview/mutateBatch，原 marker 保存原 ID/version/operation 和真实完成投影。scope clear 与 remove batch 全部固定组接受后才物理清理，接受部分失败不伪称原子。页面不持久正文或命令，不追删新目标；缺原请求/结果标需对账。路径白名单与红绿验收沿统筹批准的 B4 提案，保留本包原开发要求；不改 SDK/vendor、Storage schema 或独立 forgetting v1。

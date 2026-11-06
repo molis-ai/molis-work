@@ -56,7 +56,7 @@ test("an external MCP client reads memory only through the person's grant for me
     return JSON.parse(result.content[0].text) as MemoryRecallResponse;
   };
   // The person's grant, as the settings page records it: one record per client, action, version and provider; memory.recall is a Home action.
-  const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: 1, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true };
+  const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: memoryActions.recall.version, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true };
   const record = (enabled: boolean) => served!.web.post("/api/settings/mcp/actions", {
     client_id: grant.client_id, project_id: grant.project_id, capability_id: grant.capability_id,
     version: grant.version, provider_id: grant.provider_id, enabled,
@@ -71,7 +71,7 @@ test("an external MCP client reads memory only through the person's grant for me
   // What an MCP client can be granted of memory is memory.recall and nothing else: listing everything, writing and managing stay closed to it.
   const mcpCaller: ActionCallContext = { actor_id: "runtime:codex", project_id: projectId, audience: "mcp", permissions: [] };
   const inspected = (await host.inspectActions(mcpCaller, reference)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
-  assert.deepEqual(inspected.map(view => [view.capability_id, view.version, view.action.permissions]), [["memory.recall", 1, ["memory:recall"]]]);
+  assert.deepEqual(inspected.map(view => [view.capability_id, view.version, view.action.permissions]), [["memory.recall", memoryActions.recall.version, ["memory:recall"]]]);
 
   await record(true);
   const granted = await readMcpToolPreference(home), generation = granted.action_grants[0]?.generation;

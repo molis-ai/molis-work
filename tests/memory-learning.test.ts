@@ -6,12 +6,12 @@ import { join } from "node:path";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, MEMORY_GATE_RULE, type MemoryCaller, type MemoryProposal } from "@molis-ai/molis-work-service-memory";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_STORE_NAME, AssistantStore, memoryRuntimePolicy, memorySources, memoryExtractor, prologueMemoryBackend, type HostTextGeneration } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemoryFormationResult, AgentMemorySourceSnapshot, AgentRunRef, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemoryFormationResult, AgentMemorySourceSnapshot, AgentRunRef, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { memoryServiceHome, originalMemorySources, scriptedMemoryExtraction } from "./fixtures/memory-service-home.js";
-import { learnFromQueuedWork, learnFromWork } from "../apps/local-host/dist/memory/memory-learning.js";
+import { formationSourceBinding, learnFromQueuedWork, learnFromWork } from "../apps/local-host/dist/memory/memory-learning.js";
 import { MEMORY_EXTRACT } from "../apps/local-host/dist/agent-definitions/system-prompts.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
@@ -63,7 +63,7 @@ test("a wish said once is only suggested; a second independent original is kept 
   assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
   assert.match(kept!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => [item.candidate_id, item.state]), [[waiting!.candidate_id, "pending"]], "the original single-source suggestion retains its real pending state");
-  const [change] = service.changes(person, { scope: "project" });
+  const [change] = (await service.changes(person, { scope: "project" }));
   assert.equal(change!.kind, "auto_kept");
   assert.match(change!.reason!, /两份独立的本人原始表态/);
   assert.ok((await service.recall(inWork("work-3", "周报 10/7"), { query: "写周报" })).items.some(item => item.memory_id === kept!.memory_id));
@@ -163,7 +163,7 @@ test("a personal wish learned in a project's works never names those works: not 
   assert.equal(kept!.scope, "personal");
   assert.match(kept!.origin, /两份独立的原始输入/);
   assert.doesNotMatch(kept!.origin, /差旅费用|内容预算|18600|275000/);
-  const [change] = service.changes(person, { scope: "personal" });
+  const [change] = (await service.changes(person, { scope: "personal" }));
   assert.doesNotMatch(change!.reason ?? "", /差旅费用|内容预算/);
 });
 
@@ -245,15 +245,19 @@ async function reached<T>(read: () => Promise<T> | T): Promise<Exclude<T, false 
 /** Real source stores, Runtime queue and SDK writes; only the provider's answer is controlled. */
 async function queuedLearning(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-originals-"));
-  let roundGate: Promise<void> | null = null, modelCalls = 0, alive = true;
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+  let roundGate: Promise<void> | null = null, modelCalls = 0, alive = true, completeEvidence = false;
+  let duringEffect: () => Promise<void> = async () => {};
   const asked = Promise.withResolvers<void>();
   t.mock.method(globalThis, "fetch", async () => { asked.resolve(); await roundGate; return cogniaModelResponse("完成。"); });
-  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), originals = new AssistantStore(db), ledger = openMemoryLedger({ homeDirectory: home });
+  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), originals = new AssistantStore(db), ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
   let service: MemoryService, memoryAlive = true, beforeCandidateWrite: (() => void) | undefined;
   let formed = false, afterCandidateRead: (() => Promise<void>) | undefined, afterCandidateCheck: (() => void) | undefined;
   // Queue invalidation below is injected through its existing Host ports. This real policy owner keeps the
   // declared scratch project available for independent persisted-state inspection after that invocation ends.
   const policyOwner = {
+    isForgotten: (scope: Parameters<MemoryService["isForgotten"]>[0], owner: string, kind: Parameters<MemoryService["isForgotten"]>[2], id: string) => service.isForgotten(scope, owner, kind, id),
     alive: () => memoryAlive, prefsFor: (scope: Parameters<MemoryService["prefsFor"]>[1], owner: string | null) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, owner),
     owners: (project: string) => ledger.owners(project), candidateOwners: (project: string) => ledger.candidateOwners(project),
     projectExists: async (project: string) => project === "project-q4", deletingProject: () => undefined,
@@ -262,8 +266,8 @@ async function queuedLearning(t: test.TestContext) {
   const observe = (memory: AgentMemoryCapability): AgentMemoryCapability => ({ ...memory,
     candidates: { ...memory.candidates,
       form: async input => { const result = await memory.candidates.form(input); formed = result.items.some(item => !!item.candidate); return result; },
-      list: async (...args) => {
-        const result = await memory.candidates.list(...args);
+      get: async (...args) => {
+        const result = await memory.candidates.get(...args);
         if (formed) { const after = afterCandidateRead; afterCandidateRead = undefined; await after?.(); }
         return result;
       },
@@ -273,6 +277,7 @@ async function queuedLearning(t: test.TestContext) {
       beforeEffect: async () => {
         await control.beforeEffect();
         if (extracted) { const after = afterCandidateCheck; afterCandidateCheck = undefined; after?.(); }
+        await duringEffect();
       },
       assert_current: () => control.assert_current(),
     })) } : {}),
@@ -281,7 +286,7 @@ async function queuedLearning(t: test.TestContext) {
   const observedSources = (sources: ReturnType<typeof memorySources>): ReturnType<typeof memorySources> => ({ ...sources,
     check: async (caller, request) => { if (extracted) { const before = beforeCandidateWrite; beforeCandidateWrite = undefined; before?.(); } return sources.check(caller, request); } });
   const open = async () => {
-    const value = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    const value = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
       memory: { ...memoryRuntimePolicy(() => policyOwner, memoryExtractor(home, () => generate)), sources: observedSources(memorySources(home, () => ({ adapter, policy: policyOwner,
         sourceAllowed: (actor, scope, owner, refs) => service.sourceAllowed(actor, scope, owner, refs),
         sessionAllowed: async owner => owner.actor_id === LOCAL_PERSON_ACTOR_ID && owner.project_id === "project-q4"
@@ -301,15 +306,19 @@ async function queuedLearning(t: test.TestContext) {
   const failures: Array<{ formation?: AgentMemoryFormationResult; recording_error?: { code: string } }> = [];
   const failed = Promise.withResolvers<void>();
   let inModel: () => Promise<void> = async () => {}, afterLearning: () => void = () => {}, projectExists = true;
+  let duringReceiptSourceCheck: (() => Promise<void>) | undefined;
   const generate: HostTextGeneration = async (prompt, options) => {
     await options?.beforeDispatch?.(); modelCalls++; await inModel(); extracted = true;
-    return { value: "{}", structured: { drafts: [{ slot_id: newProjectConvention(prompt), text: "以后周报都把风险放最前面", suggested_basis: "explicit", evidence: [{ source_id: "s0", quote: "以后周报都把风险放最前面" }] }] }, run_ref: { kind: "run", id: "fixture", revision: 1 } as never,
+    const allSources = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as { sources: Array<{ id: string; text: string }> };
+    return { value: "{}", structured: { drafts: [{ slot_id: newProjectConvention(prompt), text: "以后周报都把风险放最前面", suggested_basis: "explicit", evidence: completeEvidence
+      ? allSources.sources.map(source => ({ source_id: source.id, quote: source.text })) : [{ source_id: "s0", quote: "以后周报都把风险放最前面" }] }] }, run_ref: { kind: "run", id: "fixture", revision: 1 } as never,
       state: "completed" as const, configuredModel: "fixture", reportedModels: [], usage: [], validateResult: () => undefined };
   };
   const attach = () => adapter.schedule!.handle("memory.learn", async task => {
     try {
       outcomes.push(await learnFromQueuedWork(home, task,
-        { adapter, service, ports, backend: (control: AgentMemoryExecutionControl) => prologueMemoryBackend(async () => adapter.memory!, control), alive: () => alive, projectExists: async () => projectExists }));
+        { adapter, service, ports, backend: (control: AgentMemoryExecutionControl) => prologueMemoryBackend(async () => adapter.memory!, control), alive: () => alive,
+          projectExists: async () => { if (formed) { const check = duringReceiptSourceCheck; duringReceiptSourceCheck = undefined; await check?.(); } return projectExists; } }));
       afterLearning();
     } catch (error) {
       if (error instanceof ActionError) failures.push(error.details ?? {});
@@ -323,7 +332,8 @@ async function queuedLearning(t: test.TestContext) {
     originals.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
     const original_input = { input_id: crypto.randomUUID(), text, written_by: written_by ? "host" as const : "person" as const, occurred_at: new Date().toISOString() };
     const handle = await adapter.start({ ...owner, session, workspace: "none", task: text, role_id: "assistant", original_input,
-      role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+      role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [],
+        memory: await service.forRun({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "assistant" }, { query: text }) } });
     originals.addRound(work.work_id, { run_id: handle.ref.run_id, text, ...(written_by ? { written_by } : {}), materials: [], context: null, started_at: new Date().toISOString() });
     const task = { key: `memory-learn:${work.work_id}:${handle.ref.run_id}`, session_id: session.session_id,
       payload: { actor_id: owner.actor_id, work_id: work.work_id, session_id: session.session_id, run_id: handle.ref.run_id,
@@ -336,11 +346,13 @@ async function queuedLearning(t: test.TestContext) {
   const empty = async () => {
     assert.deepEqual(await service.candidates(person, { scope: "all", anywhere: true }), []);
     assert.deepEqual((await service.list(person)).items, []);
-    assert.deepEqual(service.changes(person), [], "no application history was left behind");
+    assert.deepEqual((await service.changes(person)), [], "no application history was left behind");
   };
-  t.after(async () => { alive = false; memoryAlive = false; await adapter.close(); ledger.close(); db.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { alive = false; memoryAlive = false; await adapter.close(); ledger.close(); storageOwner.release(); db.close(); await rm(home, { recursive: true, force: true }); });
   return { home, originals, service, start, ended, enqueue, settled, empty, attach, outcomes, asked, failures, failed,
     notes: () => ledger.candidates(LOCAL_PERSON_ACTOR_ID),
+    marker: (key: string) => ledger.marker(LOCAL_PERSON_ACTOR_ID, key),
+    allEvidence() { completeEvidence = true; }, duringEffect(fn: typeof duringEffect) { duringEffect = fn; },
     get adapter() { return adapter; }, get modelCalls() { return modelCalls; },
     holdRound: (gate: Promise<void>) => { roundGate = gate; }, duringModel: (fn: () => Promise<void>) => { inModel = fn; },
     afterLearning: (fn: () => void) => { afterLearning = fn; },
@@ -348,6 +360,7 @@ async function queuedLearning(t: test.TestContext) {
     beforeCandidateWrite: (fn: () => void) => { beforeCandidateWrite = fn; },
     afterCandidateCheck: (fn: () => void) => { afterCandidateCheck = fn; },
     afterCandidateRead: (fn: () => Promise<void>) => { afterCandidateRead = fn; },
+    duringReceiptSourceCheck: (fn: () => Promise<void>) => { duringReceiptSourceCheck = fn; },
     restart: async () => { memoryAlive = false; await adapter.close(); adapter = await open(); },
   };
 }
@@ -370,7 +383,7 @@ test("MEM-SOURCE-01: a references-only learning task survives restart, learns on
   assert.equal(fixture.modelCalls, 1, "a completed task is not modeled again after restart");
   const accepted = await fixture.service.accept(person, candidate!.candidate_id, { expected_version: candidate!.version });
   assert.equal((await fixture.service.history(person, accepted.memory!.memory_id)).revisions.length, 1);
-  const [change] = fixture.service.changes(person);
+  const [change] = (await fixture.service.changes(person));
   await assert.rejects(fixture.service.undo(person, change!.change_id), { code: "memory.invalid" }, "manual acceptance retains its existing non-undoable contract");
   await fixture.service.change(person, { memory_id: accepted.memory!.memory_id, expected_version: accepted.memory!.version, action: "remove" });
   assert.deepEqual((await fixture.service.list(person)).items, []);
@@ -392,7 +405,7 @@ test("MEM-SOURCE-07: a real queue retry after candidate commit remains one sourc
   assert.equal(sdkCandidates[0]!.sources?.length, 1, "one original remains one source");
   assert.deepEqual(fixture.outcomes.flatMap(item => item.learned.map(one => one.candidate_id)), [candidate!.candidate_id, candidate!.candidate_id]);
   assert.equal(sdkCandidates[0]!.meta?.evidence?.length, 1, "replay did not add a second occurrence");
-  assert.deepEqual((await fixture.service.list(person)).items, []); assert.deepEqual(fixture.service.changes(person), []);
+  assert.deepEqual((await fixture.service.list(person)).items, []); assert.deepEqual((await fixture.service.changes(person)), []);
   const renamed = { ...first.task, key: `${first.task.key}:different-job` };
   await fixture.enqueue(renamed); assert.equal((await fixture.settled(renamed.key)).state, "done");
   assert.equal(fixture.modelCalls, 2, "renaming the job loses its original work/run binding and cannot trigger another extraction");
@@ -407,7 +420,8 @@ test("MEM-SOURCE-08: a completed supplementary source without its original time 
   const session = (await fixture.adapter.readSession({ session_id: first.ref.session_id, runtime_id: fixture.adapter.descriptor.runtime_id })).session;
   const next = await fixture.adapter.start({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID,
     install_id: ASSISTANT_INSTALL_ID, session, workspace: "none", task: "继续处理排队的输入", role_id: "assistant", queued: "carry",
-    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [],
+      memory: await fixture.service.forRun({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "assistant" }, { query: "继续处理排队的输入" }) } });
   fixture.originals.addRound(first.work.work_id, { run_id: next.ref.run_id, text: "继续处理排队的输入", written_by: "host",
     materials: [], context: null, started_at: new Date().toISOString() });
   const completed = await fixture.ended(next.ref), receipt = completed.turns.find(turn => turn.steer?.id === sent.input_id)?.steer;
@@ -443,7 +457,7 @@ test("MEM-FORM queue preserves committed SDK facts when authority closes during 
   fixture.service.savePrefs(person, "personal", { learn_from_work: false });
   release.resolve(); await fixture.failed.promise;
   assert.deepEqual(fixture.notes(), [], "the controlled ledger does not save a candidate after authority closes");
-  assert.deepEqual(fixture.service.changes(person), []);
+  assert.deepEqual((await fixture.service.changes(person)), []);
   const failure = fixture.failures[0]!;
   assert.equal(failure.formation?.outcome, "completed");
   assert.equal(failure.formation?.extraction.calls, 1);
@@ -462,6 +476,40 @@ test("MEM-FORM queue preserves committed SDK facts when authority closes during 
   await fixture.restart();
   const raw = await fixture.adapter.memory!.withCaller({ ...person, current_scene: "common", purpose: "management" }).candidates.list("project", "project-q4");
   assert.deepEqual(raw.map(entry => [entry.candidate_id, entry.version]), [[committed.candidate_id, 1]]);
+});
+
+for (const revoke of ["archive", "project-owner"] as const) test(`MEM-FORM receipt reread: ${revoke} revocation prevents App registration of an already committed candidate`, { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
+  let intercepted = false;
+  fixture.afterCandidateRead(async () => {
+    intercepted = true;
+    if (revoke === "archive") fixture.originals.update(LOCAL_PERSON_ACTOR_ID, first.work.work_id, null, { archived: true });
+    else fixture.projectRemoved();
+  });
+  fixture.attach(); await fixture.enqueue(first.task);
+  assert.equal((await fixture.settled(first.task.key)).state, "failed");
+  assert.equal(intercepted, true); assert.equal(fixture.modelCalls, 1);
+  assert.deepEqual(fixture.notes(), [], "a rejected receipt read creates no application candidate projection");
+  const committed = await fixture.adapter.memory!.withCaller({ ...person, current_scene: "common", purpose: "management" }).candidates.list("project", "project-q4");
+  assert.equal(committed.length, 1, "the already committed SDK candidate is preserved");
+  assert.equal(committed[0]!.version, 1);
+});
+
+test("MEM-FORM receipt source check cannot register the old version after a real candidate decision", { timeout: 60_000 }, async t => {
+  const fixture = await queuedLearning(t), first = await fixture.start(); await fixture.ended(first.ref);
+  let changed: AgentMemoryCandidateEntry | undefined;
+  fixture.duringReceiptSourceCheck(async () => {
+    const bound = fixture.adapter.memory!.withCaller({ ...person, current_scene: "common", purpose: "management" });
+    const [pending] = await bound.candidates.list("project", "project-q4"); assert.ok(pending);
+    changed = await bound.candidates.discard({ scope: "project", owner: "project-q4", candidate_id: pending.candidate_id,
+      expected_version: pending.version, operation_id: "receipt-source-check-decision" });
+  });
+  fixture.attach(); await fixture.enqueue(first.task);
+  assert.equal((await fixture.settled(first.task.key)).state, "failed");
+  assert.ok(changed); assert.equal(changed.state, "discarded"); assert.equal(changed.version, 2);
+  assert.deepEqual(fixture.notes(), [], "the old pending version is never saved over the current canonical decision");
+  const [canonical] = await fixture.adapter.memory!.withCaller({ ...person, current_scene: "common", purpose: "management" }).candidates.list("project", "project-q4");
+  assert.deepEqual([canonical?.candidate_id, canonical?.version, canonical?.state], [changed.candidate_id, 2, "discarded"]);
 });
 
 test("MEM-SOURCE-02: old queued text is usable only with matching original identity and full text", { timeout: 60_000 }, async t => {
@@ -558,4 +606,61 @@ test("MEM-SOURCE-06: a new input after the final async learning check prevents t
   await fixture.empty(); await fixture.restart(); await fixture.empty();
   const saved = fixture.originals.get(LOCAL_PERSON_ACTOR_ID, first.work.work_id);
   assert.equal(saved.continuation_hold, "input"); assert.equal(saved.draft, "先不要学习，等我补充");
+});
+
+
+test("MEM-V0-A4-L repeated source binding preserves the first business owner's check as well as canonical proofs", async t => {
+  const f = await memoryServiceHome(t, { projects: ["binding-project"] }); await f.open();
+  const adapter = f.adapter(), actor = LOCAL_PERSON_ACTOR_ID, owner = { actor_id: actor, project_id: "binding-project", plugin_id: "io.molis.work.coding", install_id: "binding-install", workspace: "none" as const, title: "Binding" };
+  const a = await adapter.createSession(owner), b = await adapter.createSession(owner);
+  const ref = (session_id: string) => ({ event_id: "molis-input:1:" + JSON.stringify([actor, session_id, "original", "input"]), version: "1" });
+  const blocked = new Set<string>(), checked = new Set<string>();
+  const binding = formationSourceBinding(f.home, adapter, { actor_id: actor, project_id: owner.project_id, consumer: "agent", plugin_id: owner.plugin_id }, sources => {
+    for (const source of sources) { checked.add(source.session_id); if (blocked.has(source.session_id)) throw new Error("original business source archived"); }
+  });
+  try {
+    await binding.bind([ref(a.session_id)]); await binding.bind([ref(b.session_id)]);
+    assert.deepEqual([...checked].sort(), [a.session_id, b.session_id].sort());
+    blocked.add(a.session_id);
+    assert.throws(binding.assert_current, /original business source archived/);
+    assert.equal((await adapter.sessionLifecycle!.read(a)).view.state, "active", "the regression specifically exercises a business-only change");
+  } finally { binding.dispose(); }
+  assert.throws(binding.assert_current, /原形成调用已结束/);
+});
+
+
+for (const stage of ["prepare", "record"] as const) test(`MEM-V0-A4-L canonical archive at actual promotion ${stage} authorization preserves only already committed SDK and SQL facts`, { timeout: 60_000 }, async t => {
+  const f = await queuedLearning(t); f.service.savePrefs(person, "project", { preset: "assisted" }); f.allEvidence();
+  const first = await f.start(); await f.ended(first.ref); f.attach(); await f.enqueue(first.task);
+  assert.equal((await f.settled(first.task.key)).state, "done");
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); t.after(() => release.resolve());
+  let decided = false, prepared = false, afterDecision = 0, blocked = false, callsToRecord = 0, operation = "", sourceCount = 0;
+  const promotion = f.service.promotion, decide = promotion.decide.bind(promotion), prepare = promotion.undo.prepare.bind(promotion.undo), record = promotion.undo.record.bind(promotion.undo);
+  t.mock.method(promotion, "decide", async (caller, request) => { const answer = await decide(caller, request); if (answer === "promote") { decided = true; operation = request.operation_id; sourceCount = request.sources.length; } return answer; });
+  t.mock.method(promotion.undo, "prepare", async (...args) => { await prepare(...args); prepared = true; });
+  t.mock.method(promotion.undo, "record", async (...args) => { callsToRecord++; return record(...args); });
+  f.duringEffect(async () => {
+    const formalCommitted = stage === "record" && prepared && (await f.adapter.memory!.withCaller({ actor_id: LOCAL_PERSON_ACTOR_ID,
+      project_id: "project-q4", consumer: "ui", person: true, current_scene: "assistant", purpose: "management" }).list("project", "project-q4")).length === 1;
+    const at = stage === "prepare" ? decided && !prepared && ++afterDecision === 2 : formalCommitted;
+    if (at && !blocked) { blocked = true; entered.resolve(); await release.promise; }
+  });
+  const second = await f.start(); await f.ended(second.ref); await f.enqueue(second.task); await entered.promise;
+  assert.equal(sourceCount, 2, "the original first Session really participates in the automatic promotion");
+  assert.equal((await f.adapter.sessionLifecycle!.archive({ runtime_id: "prologue", session_id: first.ref.session_id })).state, "archived");
+  assert.equal(f.originals.get(LOCAL_PERSON_ACTOR_ID, first.work.work_id).archived, false, "the source business bit has deliberately not caught up");
+  release.resolve(); assert.equal((await f.settled(second.task.key)).state, "failed");
+  assert.equal(callsToRecord, 0); assert.equal(prepared, stage === "record");
+  const read = () => f.adapter.memory!.withCaller({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "ui", person: true, current_scene: "assistant", purpose: "management" });
+  const formal = await read().list("project", "project-q4");
+  assert.equal(formal.length, stage === "record" ? 1 : 0);
+  assert.equal((await read().candidates.list("project", "project-q4")).length, 2, "both candidates predate the archive and remain canonical");
+  assert.equal(f.notes().length, 2, "candidate notes also committed before automatic promotion");
+  assert.deepEqual((await f.service.changes(person)), []);
+  const key = `memory-operation:${operation}:promotion-journal`, marker = f.marker(key);
+  assert.equal(marker === null, stage === "prepare");
+  if (stage === "record") assert.equal((marker!.body as { phase: string }).phase, "pending");
+  await f.restart();
+  assert.deepEqual((await read().list("project", "project-q4")).map(entry => ({ id: entry.memory_id, version: entry.version })), formal.map(entry => ({ id: entry.memory_id, version: entry.version })));
+  assert.deepEqual(f.marker(key), marker); assert.deepEqual((await f.service.changes(person)), []);
 });

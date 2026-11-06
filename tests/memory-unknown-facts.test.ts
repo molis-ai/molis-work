@@ -19,7 +19,7 @@ async function historical(f: Awaited<ReturnType<typeof memoryServiceHome>>) {
   const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
   const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
   const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
-  const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(f.home, "sdk") }) });
+  const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(f.home, "agent-runtime") }) });
   try {
     await runtime.store.commit({ kind: "memories", id: "owner.project-project-a.historical.v1", expectedVersion: 0,
       metadata: { scope: "owner.project-project-a", rowId: "historical", version: 1, state: "active", shape: 8 },

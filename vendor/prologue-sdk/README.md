@@ -1,10 +1,50 @@
 # Prologue SDK 构建来源
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；`final103-bridge` 保留为上一主线包，不同时装成第二份 Runtime。
+当前唯一隔离采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,418,384 字节**，SHA-256 `a1a3433d52b62fe05519b8348a47d643b39739f670e5ba26cbad646f01f5cc2c`。来源为准确干净本地提交 `6785a84b9cb168966f654e193b818c672cb459d1`，tree `b1c3a9e1f7209dbdf2a10c70b7db01e0f8e82137`，父提交 `2a49a9826ef442c743eab8fb44a7594a7bbf52aa`。这次仅采用用户批准的8文件集中读取消重；没有新优化、权限/布局/公开入口变化。源码在独立Git目录仅提交一次，未推送、合并或发布，Molis尚未提交。
 
-当前包为 **1,397,575 字节**，SHA-256 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`。来源为已合并 Prologue [#107](https://github.com/molis-ai/molis-prologue/pull/107) 的干净提交 `1cc80b05253df798eeb34afff65d1bda06bee587`，与上游合并提交 `ccafbb74fb9db0e3a124ec502c57291677487e23` 整树一致，没有 vendor 补丁。沿用已验证包的原始字节，816 个 dist 文件曾逐一对照原构建；本次从 Git 中取回同一产物，不声称重新独立制包。
+固定Node24.14.0/pnpm11.9.0，经原build槽离线frozen安装、正常整体SDK build/pack。824个普通文件与实际clean构建一致；相对2a49无增删、6个包文件变化，manifest逐字不变，四个公开子路径齐全。旧2a49包及完整来源原件保留于 `/private/tmp/memory-v0-approved-delivery-20261106/previous-2a49-vendor/`，相邻provenance的previousArtifact完整保留原链，不伪造gitBlob。准确产物、命令、包比较和增量Git bundle在 `/private/tmp/memory-v0-approved-delivery-20261106/`。
 
-它包含既有 Memory CAS、分类、可信来源、采用与恢复能力，以及后续维护修复。新主干快照依赖的 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?})` 公共接口保留；当前组合仍须经过 Molis 实际离线快照、负例和恢复回归。本 Foundation 不采用尚在验证的集合读取优化 #108。
+App只替换同名包、来源/校验、README与锁中同包integrity；离线冻结安装及必要读取/授权/遗忘/恢复验证结果由本次交付记录另列。此前源码96项/Statement15项不机械重跑，不把本次工程采用称为性能、完整App或用户验收。
+
+## 上一份隔离采用：2a49（保留原记录）
+
+当前隔离采用包仍用同名 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 与版本 `0.0.0-rc.1`：**1,417,957 字节**，SHA-256 `a2fd5995448c5ae7036c0c77221add986746a9ed428e5174e0cacbd50d5e0542`。准确来源为干净本地提交 `2a49a9826ef442c743eab8fb44a7594a7bbf52aa`，tree `d8567cec7d27e2c23c1cccce7ab7ffae901a2d0f`，父提交 `7918e515d7f02c0a6a7d0e54588ac61d46e2819d`。用户明确批准已独审冻结32路径的一次SDK本地提交和本隔离App采用；未推送，也没有Molis提交。相邻provenance完整保留7918及此前previousArtifact链，旧7918包另存于本次采用前快照；不为未入App Git的包伪造gitBlob。
+
+本包在原indexed-v1上补齐显式keyword备用、冷Memory首次访问和唯一未确认连接收尾；NodeHost专有closeStorage须在共享Runtime/App I/O停止后显式执行，失败保留同一close能力，成功才按原owner合同归还锁。Runtime.shutdown不冒充Host物理关闭。备用按原配方、共享窗口/预算及保守追加扫描许可运行；默认行为不变，不做旧库转换或另一套存储。
+
+固定Node24.14.0/pnpm11.9.0，从准确clean2a49经原机器build槽重建并正常pack；完整tgz逐字节等于已验候选，仍为824个普通文件。相对7918新增0、删除0、变化27个包文件，package.json逐字未变。准确比较、重建命令与包消费者见相邻provenance和 `/private/tmp/memory-v0-combined-adoption-20261105.md`。当前只更新这份同名包、来源记录、锁中同包integrity和离线冻结安装；已有App恢复/回执接线等待统筹统一构建与定向验证，不把来源/安装准备称为完整Home恢复、性能或Memory V0验收。
+
+## 上一份隔离采用：7918（保留原记录）
+
+当前新隔离接入准备包沿用同名 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 与版本 `0.0.0-rc.1`：**1,413,664 字节**，SHA-256 `07ea61aa74b48cd05b2622ee2fad81f4dbb96d20da1f6568c2d6a0b9ffa6ab1a`。准确来源为干净本地提交 `7918e515d7f02c0a6a7d0e54588ac61d46e2819d`，父提交 `7155836f563407d01a4d9a0e134cac84359096b6`。用户明确批准已冻结27文件的一次本地提交与新App隔离采用；源码未推送，没有Molis提交。原715包和此前采用记录保留在下文，完整来源链在相邻 provenance 的 `previousArtifact`，不伪造未入Git旧包的 gitBlob。
+
+本次增加显式选择的 `indexed-v1` Host 存储及同链观察读取；默认文件布局不变，不转换旧库。冷检查、全量核验和维护必须使用匹配布局；`purgeMemory` 返回固定目标的实际 `storageFiles`，不授予按一条回执删除整库的权限。新App当前只换包与准备依赖，尚未打开索引布局、改恢复接线或运行换包后的App构建/测试；这些依赖独立合同审查，不能据SDK证据宣称Molis完整Home恢复或Memory V0已完成。
+
+固定 Node 24.14.0 / pnpm 11.9.0，从准确clean7918经公共build槽运行原 `pnpm build`，再正常pack两次，完整tgz逐字节相同，且与此前已验冻结候选包的824文件及tgz字节一致。相对715包822文件新增2文件、变化30文件、无删除，package.json不变。全部823个非manifest包文件逐字匹配本次来源构建；manifest仅正常pack移除末尾换行，JSON与旧包相同。源码打包前后clean。已有最终定向及两类真实安装包消费者证据沿用，不机械重跑；准确命令与完整清单见相邻provenance。App安装核对另记本次交付记录，未覆盖的产品路径不由来源核验替代。
+
+## 上一份隔离采用：715（保留原记录）
+
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前隔离树唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；`final103-bridge` 保留为上一主线包，不同时装成第二份 Runtime。
+
+当前包为 **1,402,859 字节**，SHA-256 `9c55fa1f3de5296688c0641e822b8f68222aaac467f1dc2eb015628d65e7dbb0`，来源为干净本地提交 `7155836f563407d01a4d9a0e134cac84359096b6`，父提交 `49321405b9e9f2473f5dd0b84541fb3bdb29e6a1`。用户明确批准这 19 文件的一次本地提交与隔离 Molis 采用。源码未推送；本树没有 Molis 提交，已在统筹根工作树作本地采用，不代表上游 main、#108 或 Memory V0 已完成。
+
+本次只增加可选 `memory.addressable` 与 canonical 身份/正文同源投影及压缩保留；默认关闭，当前授权优先，完整包装计入原 Memory/token/窗口预算。可信 SDK expansion receipt 的 `omitted` 仍是历史候选，不是当前读取保证，禁止原样转发给模型。Molis 在同一采用片成套开启 addressable，并只向模型投影状态、预算、回执号和稳定错误；ID/scope 从对应正文的 Context 数据对象取得。Context scope `user` 对应 Molis 工具 scope `personal`。
+
+固定 Node 24.14.0 / pnpm 11.9.0，在原公共 build 槽运行 SDK 现有 tsc build，然后正常 pnpm pack。相对493的822文件包：仍为822文件，无增删，9文件变化，package.json不变；精确清单、重建步骤、SHA-512 与完整 previousArtifact 来源链见相邻 `.provenance.json`。来源树打包前后均 clean；隔离 App 通过原 frozen/offline 安装政策，安装目录822文件逐字与tgz相等，原整体 build 通过。最终模型载荷及失效/寻址的定向结果另在本次交接记录，不将来源核验等同于 App 全链路验收。
+
+旧493包未进入 Molis Git 提交历史，不伪造 `patch-history.json` 的 gitBlob。原始包及 sidecars保留在本机采用前完整快照 `/private/tmp/memory-v0-c1-current-input-20261104/source.tar`；新 provenance.previousArtifact保留完整旧来源链。历史已提交包仍沿既有 patch-history 从Git取回。
+
+## 上一份隔离采用：493（保留原记录）
+
+此前隔离采用包为 **1,402,221 字节**，SHA-256 `2e231153defc419f4b7c99307ff289d665d39e5098fbab619e8f7bbbf441e207`。准确来源为 Prologue 干净本地提交 `49321405b9e9f2473f5dd0b84541fb3bdb29e6a1`（父提交 `86ad75e10295c151c65bd6ffe59d2981e66f2f06`）。用户已批准这 38 文件的本地提交与隔离采用；该提交未推送、未合入上游 main，不把本次最小增量记成 #108 已采用。
+
+本包仅加入受控 Queue 首次接纳、caller-only 开场/旧开场投影及 Node 最终发送围栏与准确派发事实。相对 86ad 的 818 文件包，新包 822 文件：新增 queue-admission/opening 的 JS 与声明共 4 文件，变化 28、删除 0；全部 Memory 与 Registry 构建文件、package.json 逐字不变。没有 listScopes/readObservations/readCache/modelOrigin/memoryPhase 或性能实验变化。固定 Node 24.14.0 / pnpm 11.9.0，从干净提交经共同 build 槽执行原 SDK tsc build，然后正常 pnpm pack；准确步骤和全部差异见相邻 provenance。
+
+新增 `history-projected` 是持久事件，旧 86ad 不能读取含它的事件账/导出，不能删除事件回退，须保留可读版本或前向修复。自定义 Queue store 必须提供精确 get，不提供假 absence 兼容壳。新 caller-only 开场改变 replay/rewind 视野，实际模型 Context 保持原链。
+
+此前冻结源码的定向/static/clean-consumer 与独审证据仍限其实际覆盖；原 220 例中两项 unanswered-retry 曾触发默认 Home 初始化，后续显式 tmp 的 2/2 重跑不能抹去事故，真实 Home 影响未完全确定。本次不调查或清理真实 Home。本次 Molis 安装与整体构建通过；首轮六文件回归为 5/6 文件、45/46 项通过，零跳过/重试，MEM-35 Coding 来源装配报 `MEMORY_SCOPE_DENIED`，首败保留。随后用同一 B2 策略及未改测试在旧 86ad 上复现同码同位置失败，确认不是 493 独有；生产链会保存并交付 Run 分类快照，测试的直接 caller 漏带了它。仅修测试为读取真实 `view.class_restrictions`，并增加缺快照拒绝且零候选断言，493 上单文件 8/8 通过；原来源安装、撤权、重试和时限断言保留，生产授权未修改。这是采用版本的有界回归，不是后续 A2/B3 整合通过。51 项资源与采用前 B2 实测逐项相同，准确 main 的资源门通过。未运行 Full、远端 CI、付费模型、完整 App 或用户验收。
+
+上一隔离本地包为 **1,397,694 字节**，SHA-256 `325846d8c495ac450f4452bddd46674f7cf3622e5312cb894e0f6b9182df309a`，来源干净本地提交 `86ad75e10295c151c65bd6ffe59d2981e66f2f06`，未推送。旧包可从本机 `/private/tmp/prologue-memory-v0-clean-local-86ad75e1-20261104/prologue-sdk-0.0.0-rc.1.tgz` 或本次采用前原始快照取回；不能称其已在 Molis HEAD 提交。新 provenance 的 previousArtifact 保留完整 86ad 来源、校验值以及此前已合 #107 的来源链。
 
 相邻 `.sha256`、`.provenance.json` 记录实际产物和来源；`patch-history.json` 保留历史补丁、已替换包及此前上游祖先审计。旧 #94 的包和 sidecars 可从 Molis `c61508d5e15ab4850d256843a0e4110f9ecf1e20` 取回。来源记录不是应用采用、性能或用户验收结果；以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 为准。
 

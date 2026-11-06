@@ -39,7 +39,7 @@ function add(cost: Cost, direction: Direction, tokens: number | undefined, cover
 
 export function summarizeMemoryReport(report: RawReport) {
   const groups = new Map<string, { events: number; attempts: number; failures: number; observedNoCallFormation: number; costs: Cost; finalMemoryEstimatedTokens: number; finalMemoryUnknownEvents: number; multiAttemptEvents: number }>();
-  const layers = new Map<string, { events: number; failures: number; memoryByArm: Record<string, { formationOutcomes: Record<string, number>; injectedMessages: number; finalMemoryEstimatedTokens: number }> }>();
+  const layers = new Map<string, { events: number; failures: number; memoryByArm: Record<string, { formationOutcomes: Record<string, number>; injectedMessages: number; finalMemoryEstimatedTokens: number; finalMemoryUnknownEvents: number }> }>();
   for (const row of report.rows) {
     const key = `${row.arm}/${row.window}`, observation = row.observation;
     const group = groups.get(key) ?? { events: 0, attempts: 0, failures: 0, observedNoCallFormation: 0, costs: emptyCost(), finalMemoryEstimatedTokens: 0, finalMemoryUnknownEvents: 0, multiAttemptEvents: 0 };
@@ -49,7 +49,7 @@ export function summarizeMemoryReport(report: RawReport) {
     if (row.status !== "observed") group.failures += 1;
     const layer = layers.get(row.layer) ?? { events: 0, failures: 0, memoryByArm: {} };
     layers.set(row.layer, layer); layer.events += 1; if (row.status !== "observed") layer.failures += 1;
-    const arm = layer.memoryByArm[row.arm] ??= { formationOutcomes: {}, injectedMessages: 0, finalMemoryEstimatedTokens: 0 };
+    const arm = layer.memoryByArm[row.arm] ??= { formationOutcomes: {}, injectedMessages: 0, finalMemoryEstimatedTokens: 0, finalMemoryUnknownEvents: 0 };
     if (row.event.startsWith("source")) {
       if (attempts === 0 && (observation?.outcome?.ran === false || observation?.outcome?.formation?.outcome === "skipped")) group.observedNoCallFormation += 1;
       const usage = observation?.executions?.flatMap(execution => execution.usage) ?? [];
@@ -64,7 +64,7 @@ export function summarizeMemoryReport(report: RawReport) {
     } else {
       for (const direction of ["input", "output", "cached_input", "cache_creation"] as const) add(group.costs, direction, observation?.usage?.tokens[direction], observation?.usage?.coverage?.[direction]);
       const memory = observation?.finalMemory;
-      if (memory?.tokens === null || memory?.tokens === undefined) group.finalMemoryUnknownEvents += 1;
+      if (memory?.tokens === null || memory?.tokens === undefined) { group.finalMemoryUnknownEvents += 1; arm.finalMemoryUnknownEvents += 1; }
       else group.finalMemoryEstimatedTokens += memory.tokens;
       if (memory) { arm.injectedMessages += memory.messages.length; arm.finalMemoryEstimatedTokens += memory.tokens ?? 0; }
     }

@@ -96,6 +96,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
   const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
+
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
@@ -460,6 +461,13 @@ ${ASSISTANT_TABS_PART}
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
       else works.unshift(work);
     }
+    const memoryButton = island.querySelector("[data-assistant-memory]");
+    if (memoryButton) {
+      memoryButton.hidden = !work;
+      if (work) memoryButton.href = (work.scope.kind === "project" ? "/projects/" + encodeURIComponent(work.scope.project_id) : "")
+        + "/settings/memory?memory_session_kind=assistant&memory_session_id=" + encodeURIComponent(work.work_id);
+      else memoryButton.removeAttribute("href");
+    }
     renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
     if (empty) empty.hidden = Boolean(curId);
     paintEmpty(); receipts.paint(work && view.rounds[view.rounds.length - 1]);
@@ -668,6 +676,9 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,L,el});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
+  island.querySelector("[data-assistant-memory]")?.addEventListener("click", (event) => {
+    if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) setPanel(false);
+  });
   island.querySelectorAll("[data-assistant-control]").forEach((btnEl) => btnEl.addEventListener("click", async () => {
     if (!curId) return;
     btnEl.disabled = true;

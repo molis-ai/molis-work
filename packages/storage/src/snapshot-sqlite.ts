@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, closeSync, fsyncSync, lstatSync, openSync, readSync, realpathSync } from "node:fs";
+import { chmodSync, closeSync, fsyncSync, lstatSync, openSync, realpathSync } from "node:fs";
 import Database from "better-sqlite3";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
@@ -9,7 +9,7 @@ import {
   type SqliteBaseline,
 } from "./sqlite-baseline.js";
 import type { SqliteDatabase } from "./sqlite.js";
-import { snapshotFileDigest, snapshotFileStat } from "./snapshot-files.js";
+import { isSnapshotSqlite, snapshotFileDigest, snapshotFileStat } from "./snapshot-files.js";
 
 const invalid = (message: string) =>
   new ActionError("actions.input_invalid", message, { kind: "invalid" });
@@ -19,6 +19,8 @@ const changed = (file: string) =>
   });
 
 export interface SqliteSnapshotOptions {
+  /** Require a standalone source before SQLite is opened; ordinary WAL libraries remain allowed by default. */
+  readonly standalone?: boolean;
   readonly baseline?: SqliteBaseline;
   /** Installed libraries already have a version owner even when the declaration's SQL is not retained. */
   readonly version?: number;
@@ -39,21 +41,15 @@ export interface SqliteSnapshotInfo {
 /** Inspect a standalone archived backup. Reject WAL headers/sidecars before SQLite can create read marks. */
 export function inspectSnapshotSqlite(file: string, options: SqliteSnapshotOptions = {}): SqliteSnapshotInfo {
   const before = snapshotFileStat(file);
-  const standalone = () => {
-    for (const suffix of ["-wal", "-shm", "-journal"])
-      if (lstatSync(file + suffix, { throwIfNoEntry: false })) throw invalid(`归档库必须是独立文件: ${file}`);
-  };
-  standalone();
-  const fd = openSync(file, "r"), header = Buffer.alloc(20);
-  try { if (readSync(fd, header, 0, 20, 0) !== 20 || header[18] !== 1 || header[19] !== 1) throw invalid(`归档库必须是独立 SQLite 文件: ${file}`); }
-  finally { closeSync(fd); }
+  if (!isSnapshotSqlite(file, true)) throw invalid(`归档库必须是独立 SQLite 文件: ${file}`);
   options.signal?.throwIfAborted();
   const database = new Database(file, { readonly: true, fileMustExist: true, timeout: 0 });
   try {
     const result = inspect(database, file, options);
     const after = snapshotFileStat(file);
     if (before.dev !== after.dev || before.ino !== after.ino || before.mode !== after.mode || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) throw changed(file);
-    standalone(); options.signal?.throwIfAborted();
+    if (!isSnapshotSqlite(file, true)) throw invalid(`归档库必须是独立 SQLite 文件: ${file}`);
+    options.signal?.throwIfAborted();
     return result;
   } finally { database.close(); }
 }
@@ -144,6 +140,8 @@ export async function backupSnapshotSqlite(
   const before = snapshotFileStat(source);
   let database: SqliteDatabase | undefined;
   try {
+    if (options.standalone && !isSnapshotSqlite(source, true))
+      throw invalid(`快照库不是有效的 SQLite 数据: ${source}`);
     database = new Database(source, { readonly: true, fileMustExist: true, timeout: 0 });
     options.signal?.throwIfAborted();
     const original = inspect(database, source, options);

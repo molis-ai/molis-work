@@ -50,6 +50,10 @@ function runButtons(page: Page, active: boolean) {
   q<HTMLSelectElement>("[data-coding-intent]").disabled = Boolean(active || s.sending || unread(page));
   q("[data-coding-rename]").hidden = !s.current;
   q("[data-coding-archive]").hidden = !s.current;
+  const memory = q<HTMLAnchorElement>("[data-coding-memory-open]");
+  memory.hidden = !s.current;
+  if (s.current) memory.href = memory.dataset.memoryBase + "&memory_session_id=" + encodeURIComponent(s.current);
+  else memory.removeAttribute("href");
   for (const name of s.choosers) q<HTMLButtonElement>("[data-coding-" + name + "-open]").disabled = input.disabled;
 }
 

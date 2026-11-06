@@ -47,22 +47,29 @@ export function readHomeRestoreJournal(home: string) {
 export function homeRestoreJournalWriter(initial: HomeRestoreJournal, alreadyVisible = false) {
   const marker = restoreJournalPath(initial.home_directory), work = initial.originals_directory;
   let visible: HomeRestorePhase | undefined = alreadyVisible ? initial.phase : undefined;
-  const expected = () => ({ ...initial, phase: visible ?? initial.phase });
+  let material = initial;
+  const expected = () => ({ ...material, phase: visible ?? initial.phase });
   const assertMarker = (allowMissing = false) => {
     const present = lstatSync(marker, { throwIfNoEntry: false });
     if (!present) { if (visible && !allowMissing) throw invalidRestore(); return; }
     if (!visible || !isDeepStrictEqual(parseHomeRestoreJournal(readRestoreJson(marker), initial.home_directory), expected())) throw invalidRestore();
   };
-  const install = (phase: HomeRestorePhase, allowMissing = false) => {
+  const install = (phase: HomeRestorePhase, allowMissing = false, final?: Pick<HomeRestoreJournal, "files" | "directories">) => {
     assertBinding(initial); assertMarker(allowMissing);
+    const next = { ...material, ...final, phase };
+    assertRestoreJournalPaths(next, restoreJournalRegistry(next));
     const temporary = join(work, ".journal-" + randomUUID() + ".tmp");
-    writeSnapshotJson(temporary, { ...initial, phase }); syncSnapshotPath(work);
-    assertMarker(allowMissing); renameSync(temporary, marker); visible = phase;
+    writeSnapshotJson(temporary, next); syncSnapshotPath(work);
+    assertMarker(allowMissing); renameSync(temporary, marker); material = next; visible = phase;
     syncSnapshotPath(agentRuntimeDirectory(initial.home_directory)); syncSnapshotPath(work);
   };
   return {
     get phase() { return visible; },
     write: (phase: HomeRestorePhase) => install(phase),
+    commit(final: Pick<HomeRestoreJournal, "files" | "directories">) {
+      if (visible !== "publishing") throw invalidRestore();
+      install("committed", false, { files: final.files, directories: final.directories });
+    },
     clear() {
       assertBinding(initial); assertMarker();
       try { unlinkSync(marker); syncSnapshotPath(agentRuntimeDirectory(initial.home_directory)); }
@@ -107,7 +114,7 @@ export async function prepareHomeRestoreJournal(home: string, inputs: HomeRestor
   try {
     mkdirSync(join(work, "originals"), { mode: 0o700 }); mkdirSync(join(work, "failed"), { mode: 0o700 });
     const registry = await retainRegistryInputs(home, work, inputs, target, control);
-    const journal: HomeRestoreJournal = { schema_version: 1, product_version: PRODUCT_VERSION, home_directory: home, operation_id: operation,
+    const journal: HomeRestoreJournal = { schema_version: 2, product_version: PRODUCT_VERSION, home_directory: home, operation_id: operation,
       originals_directory: work, phase: "prepared", home_identity: target.home, runtime_identity: target.runtime, work_identity: identity,
       home_mode: inputs.manifest.home_mode, originals: target.originals, directories: target.directories,
       files: [...inputs.files.values()].map(({ path, mode, size, sha256, sqlite }) => ({ path, mode, size, sha256, ...(sqlite ? { sqlite } : {}) })), preserved: target.preserved,

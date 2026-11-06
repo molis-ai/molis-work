@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 
 test("W1-18-MEMORY-TX-01: a failed BEGIN leaves the ledger able to roll back and commit", () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-memory-transaction-"));
@@ -54,4 +54,35 @@ test("W1-18-MEMORY-TX-01: a failed BEGIN leaves the ledger able to roll back and
     other.close();
     rmSync(homeDirectory, { recursive: true, force: true });
   }
+});
+
+
+test("receipt batches compile their repeated SQL once while preserving all rows and atomic conflict refusal", t => {
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-memory-receipt-batch-"));
+  const storageOwner = acquireStorageOwner(join(homeDirectory, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory, storageOwner, assertCurrent() {} });
+  const ledger = openMemoryLedger({ homeDirectory, storageOwner });
+  t.after(() => { ledger.close(); storageOwner.release(); rmSync(homeDirectory, { recursive: true, force: true }); });
+  const original = DatabaseSync.prototype.prepare;
+  let compilations = 0;
+  const observe = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    if (/^(SELECT body FROM|INSERT INTO) memory_uses\b/.test(sql)) compilations++;
+    return original.call(this, sql);
+  });
+  const uses = Array.from({ length: 32 }, (_, index) => ({ memory_id: `memory-${index}`, memory_version: 1,
+    receipt_id: "original", at: "2026-11-06T00:00:00Z", consumer: "ui" as const, title: "Current recall", work_id: null,
+    source: "recall" as const, state: index < 8 ? "returned" as const : "omitted" as const }));
+  ledger.recordUses(uses);
+  assert.ok(compilations <= 2, `one batch must not recompile identical receipt SQL per row (${compilations})`);
+  observe.mock.restore();
+  assert.deepEqual(ledger.uses({ receipt_id: "original", limit: 100 }).sort((a, b) => a.memory_id.localeCompare(b.memory_id)),
+    uses.toSorted((a, b) => a.memory_id.localeCompare(b.memory_id)));
+  const strong = { ...uses[0]!, receipt_id: "context", source: "run-context" as const, state: "response-observed" as const,
+    run: { session_id: "session", run_id: "run" } };
+  ledger.recordUses([strong]);
+  ledger.recordUses([{ ...strong, state: "dispatched-or-unknown" }]);
+  assert.equal(ledger.uses({ receipt_id: "context" })[0]?.state, "response-observed");
+  assert.throws(() => ledger.recordUses([{ ...uses[1]!, receipt_id: "rolled-back" }, { ...strong, memory_version: 2 }]), { code: "memory.conflict" });
+  assert.deepEqual(ledger.uses({ receipt_id: "rolled-back" }), []);
+  assert.equal(ledger.uses({ receipt_id: "context" })[0]?.memory_version, 1);
 });

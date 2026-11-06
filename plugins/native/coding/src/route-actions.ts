@@ -1,4 +1,4 @@
-import { defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, SUBJECT_STATE_INPUT_SCHEMA, SUBJECT_STATE_OUTPUT_SCHEMA, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingRunControlInput, controlInput } from "./run-inputs.js";
 
@@ -27,15 +27,34 @@ const fromRequest = (request: PluginRouteRequest, keys: readonly string[] = []) 
   ...(request.params.runId ? { run_id: request.params.runId } : {}),
   ...Object.fromEntries(keys.flatMap(key => request.query[key] === undefined ? [] : [[key, key === "window" || key === "before" || key === "limit" || key === "revision" ? Number(request.query[key]) : request.query[key]]])) });
 
+const sessionRecord = closed({ project_id: id, session_id: id, title: { type: "string" }, state: { type: "string" }, archived: { type: "boolean" },
+  goal_id: { type: ["string", "null"] }, runtime_id: id, runtime_session_id: { type: ["string", "null"] }, created_at: { type: "string" }, updated_at: { type: "string" },
+  execution_state: { enum: ["active", "archived", null] } });
+const listSessions = define("sessions.list", "浏览编码会话", "本人分页查看活动或已归档会话；不读取执行正文", "query",
+  closed({ archived: { type: "boolean" }, limit: { type: "integer", minimum: 1, maximum: 100 }, cursor: { type: "string", minLength: 1, maxLength: 4096 } }, ["archived"]), ["artifact:read"], LOCAL);
+
 /** Coding's business surface: the Runtime instance redeems these, and the matching routes only forward to them. */
 export const codingRouteActions: Readonly<Record<string, { definition: ActionDefinition<Record<string, unknown>, unknown> } & Translate>> = {
+  "coding.session-binding": { definition: { ...define("sessions.binding.read", "读取会话的执行绑定", "本人只读当前业务会话的原执行引用与归档状态，不读取正文或创建执行", "query", closed(session), ["artifact:read"], LOCAL),
+      action: { ...define("sessions.binding.read", "读取会话的执行绑定", "本人只读当前业务会话的原执行引用与归档状态，不读取正文或创建执行", "query", closed(session), ["artifact:read"], LOCAL).action,
+        output_schema: closed({ session_id: id, project_id: id, archived: { type: "boolean" }, runtime: { anyOf: [{ type: "null" },
+          closed({ runtime_id: id, session_id: id })] } }) } },
+    toInput: request => fromRequest(request), toRequest: input => ({ method: "GET", params: params(input), query: {}, body: {} }) },
   // One session as a subject: its title, state and latest rounds, by the shared protocol (the Assistant, references).
+  "coding.subject-state": { definition: { ...define("subject.state", "编码会话的当前可见状态", "只读取当前会话是否归档或已不存在，不读取正文", "query", SUBJECT_STATE_INPUT_SCHEMA, ["artifact:read"], READS),
+      action: { ...define("subject.state", "编码会话的当前可见状态", "只读取当前会话是否归档或已不存在，不读取正文", "query", SUBJECT_STATE_INPUT_SCHEMA, ["artifact:read"], READS).action,
+        input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_STATE_TYPE, input_schema: SUBJECT_STATE_INPUT_SCHEMA, output_schema: SUBJECT_STATE_OUTPUT_SCHEMA } },
+    toInput: request => ({ subject_id: request.params.sessionId }), toRequest: input => ({ method: "GET", params: { sessionId: String(input.subject_id) }, query: {}, body: {} }) },
   "coding.subject": { definition: defineSubjectContextAction("coding.subject.read", "coding_session", "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
     toInput: request => ({ subject_id: request.params.sessionId }), toRequest: input => ({ method: "GET", params: { sessionId: String(input.subject_id ?? "") }, query: {}, body: {} }) },
   // System search: every session of the project by version; its text is read back through `coding.subject`.
   "coding.search-entries": { definition: defineSearchEntriesAction("coding.search.entries", [{ kind: "coding_session", title: "编码会话", surface: "coding" }], "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
     toInput: request => ({ cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null, limit: Number(request.query.limit ?? 500) }),
     toRequest: input => ({ method: "GET", params: {}, query: { ...(typeof input.cursor === "string" ? { cursor: input.cursor } : {}), limit: String(input.limit ?? 500) }, body: {} }) },
+  "coding.list-sessions": { definition: { ...listSessions, action: { ...listSessions.action,
+      output_schema: closed({ sessions: { type: "array", items: sessionRecord }, next_cursor: { type: ["string", "null"] } }) } },
+    toInput: request => ({ archived: request.query.archived === "true" ? true : request.query.archived === "false" ? false : request.query.archived, ...fromRequest(request, ["limit", "cursor"]) }),
+    toRequest: input => ({ method: "GET", params: {}, query: { archived: String(input.archived), ...query(input, ["limit", "cursor"]) }, body: {} }) },
   "coding.state": { definition: define("state", "Coding 概况", "读取本项目的编码会话、可用模型、运行时、方法与当前工作目录", "query", closed({}), ["artifact:read"], READS),
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
   "coding.create-session": { definition: define("sessions.create", "新建编码会话", "新建一个编码会话；第一轮任务开始前不会调用模型", "command", closed({ title: { type: "string", maxLength: 200 } }, []), ["storage:private"], READS),

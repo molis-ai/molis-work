@@ -138,7 +138,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
         return said === null ? sources : latest.filter(source => theirWords(request.text, [source.text]) !== null).slice(0, 1);
       }), { sources: selected, originals } = invocation;
       try {
-        const result = await invocation.memory.write(invocation.caller, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) },
+        const result = await invocation.memory.write({ ...invocation.caller, ...(request.replaces ? { context_selection: true } : {}) }, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) },
           { originals, ...(selected.length ? { sources: selected.map(({ event_id, version }) => ({ event_id, version })) } : {}) });
         // Only what really went into memory counts as kept; the reply must say what happened instead.
         if (result.outcome === "refused") throw assistantErrors.invalid(`没有记住：${result.reason}`);
@@ -153,15 +153,15 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
     list: async call => {
       const invocation = await memoryInvocation(input, call);
       try {
-        const items = (await invocation.memory.list(invocation.caller, { scope: "all" })).items;
+        const items = (await invocation.memory.list({ ...invocation.caller, context_selection: true }, { scope: "all" })).items;
         call.signal.throwIfAborted();
-        return items.map(item => ({ memory_id: item.memory_id, scope: item.scope, text: item.state === "active" ? item.text : `（已停用）${item.text}`, origin: item.origin }));
+        return items.filter(item => item.state === "active").map(item => ({ memory_id: item.memory_id, version: item.version, scope: item.scope }));
       } finally { invocation.dispose(); }
     },
     ...(work.delegated_by ? {} : { forget: async (memoryId: string, call: ToolControl) => {
       // Forgetting is switching off, in the Assistant's name: it is no longer used, stays the person's to switch back on or delete in settings.
       const invocation = await memoryInvocation(input, call);
-      try { await invocation.memory.change(invocation.caller, { memory_id: memoryId, action: "disable" }); return { forgotten: true, note: "已停用：以后不会再用到这条；它还在用户的记忆设置里，用户可以重新启用或彻底删除。" }; }
+      try { await invocation.memory.change({ ...invocation.caller, context_selection: true }, { memory_id: memoryId, action: "disable" }); return { forgotten: true, note: "已停用：以后不会再用到这条；它还在用户的记忆设置里，用户可以重新启用或彻底删除。" }; }
       catch (error) { if (error instanceof ActionError && error.code === "memory.not_found") return { forgotten: false }; throw error; }
       finally { invocation.dispose(); }
     } }),

@@ -12,8 +12,10 @@ export interface AgentStartExecution extends ActionCallOrigin {
   beforeStart?(): void | Promise<void>;
   /** Original invocation's synchronous fence; only the start/accept phase uses it, never background dispatch. */
   assertBeforeStart?(): void;
-  /** Live owner authority, valid beyond the start invocation's lifetime. */
-  beforeDispatch?(): void | Promise<void>;
+  /** Live owner authority beyond startup; an optional same-call synchronous fence only tightens this check at transport. */
+  beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
+  /** Release Host-only selected material controls at rejection or actual Run termination. */
+  disposeDispatch?(): void;
 }
 
 /** An authorized directory. The Host resolves and verifies it; the Plugin never passes a raw path. */
@@ -272,7 +274,9 @@ export interface AgentMemoryTools {
    * (switched off, secret-shaped, refused). It is recorded as the person's own words (“you said”) only when `text` is the whole of one message they typed in this work, as the Host saved it, apart from case, width, spacing, quotation-mark style and one sentence mark at the very end (nothing else: a superscript, a ligature or an invisible character is not a space or the plain form). A paraphrase, a part of a message, words of two messages joined, a project's name put in: not theirs. It is left as the Assistant's suggestion for them to accept: the result then has an empty `memory_id`, the suggestion's `candidate_id`, and a `note` saying it was not kept directly and why the reason is on the card (D32). The judgement is against the saved message, never against `said`, which is only a pointer, and what is kept is the saved message as they wrote it, not the text given here. `note` says it was already kept.
    */
   remember?(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }, control: AgentMemoryToolControl): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string; candidate_id?: string }>;
-  list(control: AgentMemoryToolControl): Promise<Array<{ memory_id: string; scope: "personal" | "project" | "character"; text: string; origin: string }>>;
+  list(control: AgentMemoryToolControl): Promise<Array<{ memory_id: string; version: number; scope: "personal" | "project" | "character" }>>;
+  /** Run-local projection, installed only by the AgentHost bridge. */
+  expandList?(control: AgentMemoryToolControl): Promise<unknown>;
   /** Switches one off (not a delete: the person can switch it on again or delete it in settings), as the Assistant's change. */
   forget?(memoryId: string, control: AgentMemoryToolControl): Promise<{ forgotten: boolean; note?: string }>;
   /** Suggest keeping something the person did not ask for: a candidate only, until they accept it. Absent: this round may not suggest. */
@@ -296,7 +300,7 @@ export interface AgentActionClient {
    * now, and the person has not set it to confirm each time. Absent: every change is confirmed.
    */
   direct?(view: ActionView): boolean;
-  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
+  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal, memorySelection?: { assert_current(): void }): Promise<unknown>;
 }
 
 export interface AgentFrozenRole {

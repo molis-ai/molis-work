@@ -51,8 +51,8 @@ test("PMAT-33 PMAT-35 PMAT-37 PMAT-39 本轮情况 counts the project's document
     return !states.listing && states.states.length === 2 ? states : undefined;
   }, "both documents are in the project's catalog");
   const two = await ask(empty.work_id);
-  assert.match(two.text, /这个项目的资料有 2 份（[^）]+ 2）。/, two.text);
-  assert.ok(two.catalog.includes("一共 2 份，都列在下面") && two.catalog.includes("「安全生产制度") && two.catalog.includes("「差旅标准"), two.catalog);
+  assert.match(two.text, /这个项目的资料目录已收录 2 份（[^）]+ 2），/, two.text);
+  assert.ok(two.catalog.includes("已收录 2 份，本次可用的都列在下面") && two.catalog.includes("「安全生产制度") && two.catalog.includes("「差旅标准"), two.catalog);
   assert.match(two.catalog, /capability_id knowledge\.read，version 1；input 字段 subject（必填）、anchor/, "the identity and input to call it with");
   assert.match(two.catalog, /^- k[0-9a-f]{7}「/m, "each piece with its ref to name it by (PMAT-39)");
   assert.ok(!two.catalog.includes("600 元"), "titles and briefs, not the text");
@@ -63,8 +63,8 @@ test("PMAT-33 PMAT-35 PMAT-37 PMAT-39 本轮情况 counts the project's document
 
   await home.web.post(prefix + "/api/knowledge/exclude", { subject: { kind: listed.states[0]!.kind, id: listed.states[0]!.id }, excluded: true });
   const one = await ask(empty.work_id);
-  assert.match(one.text, /这个项目的资料有 1 份（[^）]+ 1）。/, "a document kept from agents is not counted");
-  assert.ok(one.catalog.includes("一共 1 份") && (one.catalog.includes("「安全生产制度") !== one.catalog.includes("「差旅标准")), `a document kept from agents is not listed: ${one.catalog}`);
+  assert.match(one.text, /这个项目的资料目录已收录 1 份（[^）]+ 1），/, "a document kept from agents is not counted");
+  assert.ok(one.catalog.includes("已收录 1 份") && (one.catalog.includes("「安全生产制度") !== one.catalog.includes("「差旅标准")), `a document kept from agents is not listed: ${one.catalog}`);
 
   await home.web.post(prefix + "/api/assistant/capabilities", { capability_id: "knowledge.list", version: 1, provider_id: "system.knowledge", enabled: false });
   const off = await ask(empty.work_id);

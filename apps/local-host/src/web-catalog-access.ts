@@ -1,4 +1,4 @@
-import path from "node:path";
+import { resolveConfiguredHome } from "./product-home.js";
 import type { MolisWorkProjectCatalog, MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
@@ -7,6 +7,7 @@ export function createWebCatalogAccess(
   homeDirectory: string,
   open: (options: MolisWorkProjectCatalogOptions) => Promise<MolisWorkProjectCatalog>,
 ) {
+  homeDirectory = resolveConfiguredHome(homeDirectory);
   let opening: Promise<MolisWorkProjectCatalog> | undefined;
   let ready = false, closing = false, active = 0, projectCount = 0;
   const idle = new Set<() => void>();
@@ -28,7 +29,7 @@ export function createWebCatalogAccess(
     throw error;
   });
   const withCatalog: LocalWebCatalogRunner = async (options, operation) => {
-    if (path.resolve(options.homeDirectory ?? homeDirectory) !== homeDirectory) throw new Error("Web catalog belongs to another Home");
+    if (resolveConfiguredHome(options.homeDirectory ?? homeDirectory) !== homeDirectory) throw new Error("Web catalog belongs to another Home");
     if (closing) throw new Error("Web catalog is closing");
     active++;
     try {

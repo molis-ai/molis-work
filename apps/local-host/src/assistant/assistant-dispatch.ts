@@ -215,22 +215,36 @@ export class AssistantDispatch {
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);
-    const { offered, unavailable } = await this.actionTools(authority);
-    this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
     this.chosenMemory.delete(work.work_id); this.recalled.delete(work.work_id);
-    let prepared: RoundMaterials, handle: Awaited<ReturnType<AgentHost["start"]>>;
+    let prepared: RoundMaterials | undefined, dispatchHanded = false, handle: Awaited<ReturnType<AgentHost["start"]>>;
     // The round starts as of the moment its materials are read: what ends after that reaches the next round.
     const startedAt = this.now().toISOString();
     try {
       if (!work.reply_target) await this.link.memoryForRound(work, text, context);
+      // Build the round's tools from the same frozen recipe that its materials and Runtime receive.
+      base = await this.ports.authority(work); authority = startAuthority();
+      const { offered, unavailable } = await this.actionTools(authority);
+      this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
       prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
+      const ready = prepared;
+      const knowledge = ready.knowledgeDispatch;
+      if (knowledge) {
+        const original = authority.beforeDispatch;
+        authority = { ...authority, disposeDispatch: knowledge.dispose, beforeDispatch: async () => {
+          const callerFence = await original?.();
+          const sourceFence = await knowledge.beforeDispatch();
+          return () => { requireSynchronous(callerFence?.(), "最终派发检查必须同步完成"); requireSynchronous(sourceFence(), "资料派发检查必须同步完成"); };
+        } };
+      }
       handle = await this.link.delegations.startPlaced(work, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
-        const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), authority);
+        dispatchHanded = true;
+        const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: ready.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), authority);
         handoff.accepted(); return started;
       });
     } catch (error) {
+      if (!dispatchHanded) prepared?.knowledgeDispatch?.dispose();
       // A recipe alone has no usage effect. Only the Runtime can report actual Context dispatch.
       this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;

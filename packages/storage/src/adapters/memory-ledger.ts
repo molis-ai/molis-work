@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
+import { inspectMemoryForgetting, openMemoryForgetting } from "./memory-forgetting.js";
 import { readSnapshotFile, snapshotFileStat } from "../snapshot-files.js";
 import { describeSqliteBaseline, describeSqliteSchema } from "../sqlite-baseline.js";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
@@ -31,7 +32,7 @@ import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js"
 export const MEMORY_LEDGER_STORE = "memory";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 2, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -81,14 +82,13 @@ function inspectionTemporaryParent(source: string): string {
   return parent;
 }
 
-/** No SQLite connection touches the source: even WAL read marks belong only to a private disposable copy. */
-export function inspectMemoryLedger(options: { homeDirectory: string; actorId: string }): MemoryLedgerInspection {
-  if (!options.actorId) throw inspectionErrors.invalid("记忆资格检查需要可信操作者");
-  const file = homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE);
-  if (!lstatSync(file, { throwIfNoEntry: false })) return { state: "absent" };
+/** Internal owner inspection: even WAL read marks belong only to a private disposable copy. */
+export function inspectMemoryLedgerSnapshot<T>(homeDirectory: string, read: (db: DatabaseSync) => T): T | undefined {
+  const file = homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE);
+  if (!lstatSync(file, { throwIfNoEntry: false })) return undefined;
   const paths = [file, file + "-wal", file + "-shm", file + "-journal"];
   const before = paths.map(path => lstatSync(path, { throwIfNoEntry: false }));
-  const stage = mkdtempSync(join(inspectionTemporaryParent(options.homeDirectory), "molis-memory-inspection-"));
+  const stage = mkdtempSync(join(inspectionTemporaryParent(homeDirectory), "molis-memory-inspection-"));
   let db: DatabaseSync | undefined;
   try {
     for (let at = 0; at < paths.length; at++) {
@@ -109,33 +109,53 @@ export function inspectMemoryLedger(options: { homeDirectory: string; actorId: s
     if (version !== MEMORY_LEDGER_BASELINE.version || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(MEMORY_LEDGER_BASELINE))
       || db.prepare("PRAGMA integrity_check").all().some(row => Object.values(row).some(value => value !== "ok"))
       || db.prepare("PRAGMA foreign_key_check").all().length) throw inspectionErrors.invalid("记忆账本不是完整的现行结构");
+    const result = read(db);
+    if (!unchanged()) throw inspectionErrors.changed("只读检查期间记忆账本已变化");
+    return result;
+  } finally { try { db?.close(); } finally { rmSync(stage, { recursive: true, force: true }); } }
+}
+
+/** No SQLite connection touches the source: even WAL read marks belong only to a private disposable copy. */
+export function inspectMemoryLedger(options: { homeDirectory: string; actorId: string }): MemoryLedgerInspection {
+  if (!options.actorId) throw inspectionErrors.invalid("记忆资格检查需要可信操作者");
+  return inspectMemoryLedgerSnapshot(options.homeDirectory, db => {
     const prefs = (key: string) => {
-      const row = db!.prepare("SELECT body FROM memory_prefs WHERE actor_id = ? AND key = ?").get(options.actorId, key);
+      const row = db.prepare("SELECT body FROM memory_prefs WHERE actor_id = ? AND key = ?").get(options.actorId, key);
       let value: unknown;
       try { value = row ? JSON.parse(String(row.body)) : undefined; }
       catch { throw inspectionErrors.invalid("记忆设置不是有效的现行数据"); }
       if (!isCompleteMemoryPrefs(value)) throw inspectionErrors.invalid("记忆账本缺少完整的现行设置");
       return value;
     };
-    const result = { state: "complete" as const, personal: prefs("personal"), project_default: prefs("project-default") };
-    if (!unchanged()) throw inspectionErrors.changed("只读检查期间记忆账本已变化");
-    return result;
-  } finally { try { db?.close(); } finally { rmSync(stage, { recursive: true, force: true }); } }
+    return { state: "complete" as const, personal: prefs("personal"), project_default: prefs("project-default") };
+  }) ?? { state: "absent" };
 }
 
-export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
+export function openMemoryLedger(options: { homeDirectory: string; storageOwner?: import("./storage-owner.js").StorageOwner }): MemoryLedgerPort {
   assertNoPendingHomeRestore(join(options.homeDirectory, "agent-runtime"));
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
+  let depth = 0, closed = false;
+  let forgetting: ReturnType<typeof openMemoryForgetting> | undefined;
   try {
     applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE);
     db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+    forgetting = options.storageOwner ? openMemoryForgetting({ homeDirectory: options.homeDirectory, storageOwner: options.storageOwner,
+      assertCurrent: () => { if (closed) throw new Error("记忆账本已经关闭"); } }) : undefined;
   } catch (error) { db.close(); throw error; }
-  let depth = 0;
-  const retention = createMemoryLedgerRetention(db, work => ledger.transaction(work));
+  const retention = createMemoryLedgerRetention(db, work => ledger.transaction(work), () => ledger.forgetting.read());
+  const visibleChange = (record: MemoryChangeRecord): MemoryChangeRecord => record.memory_id && retention.isForgotten(record.memory_id)
+    ? { ...record, text: "", reason: null, undoable: false, undo: null } : record;
   const ledger: MemoryLedgerPort = {
+    forgetting: {
+      read: () => { if (closed) throw new Error("记忆账本已经关闭"); return forgetting?.read() ?? inspectMemoryForgetting(options.homeDirectory); },
+      accept: selection => {
+        if (!forgetting) throw Object.assign(new Error("接受遗忘决定需要当前 Home 的原存储主人"), { code: "memory.unavailable" });
+        return forgetting.accept(selection);
+      },
+    },
     forget: retention.forget,
     forgetScopes: retention.forgetScopes,
-    revisions: memoryId => db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId)
+    revisions: memoryId => retention.isForgotten(memoryId) ? [] : db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId)
       .map(row => JSON.parse(String(row.body)) as MemoryRevision),
     addRevision: (memoryId, revision) => ledger.transaction(() => {
       retention.assertNotForgotten(memoryId);
@@ -153,16 +173,19 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     candidates: actorId => db.prepare("SELECT body FROM memory_candidates WHERE actor_id=? ORDER BY rowid").all(actorId)
       .map(row => JSON.parse(String(row.body)) as MemoryCandidateRecord),
     saveCandidate: record => ledger.transaction(() => {
-      if (record.memory_id) retention.assertNotForgotten(record.memory_id);
+      retention.assertCandidateWritable(record);
       db.prepare("INSERT INTO memory_candidates(candidate_id,actor_id,state,body) VALUES (?,?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET state=excluded.state, body=excluded.body")
         .run(record.candidate_id, record.actor_id, record.state, JSON.stringify(record));
     }),
     dropCandidate: candidateId => { db.prepare("DELETE FROM memory_candidates WHERE candidate_id=?").run(candidateId); },
     changes: (actorId, limit) => db.prepare("SELECT body FROM memory_changes WHERE actor_id=? ORDER BY at DESC, rowid DESC LIMIT ?").all(actorId, limit)
-      .map(row => JSON.parse(String(row.body)) as MemoryChangeRecord),
+      .map(row => visibleChange(JSON.parse(String(row.body)) as MemoryChangeRecord)),
     changesOf: memoryId => db.prepare("SELECT body FROM memory_changes WHERE memory_id=? ORDER BY at DESC, rowid DESC").all(memoryId)
-      .map(row => JSON.parse(String(row.body)) as MemoryChangeRecord),
-    change: changeId => parse<MemoryChangeRecord>(db.prepare("SELECT body FROM memory_changes WHERE change_id=?").get(changeId)),
+      .map(row => visibleChange(JSON.parse(String(row.body)) as MemoryChangeRecord)),
+    change: changeId => {
+      const record = parse<MemoryChangeRecord>(db.prepare("SELECT body FROM memory_changes WHERE change_id=?").get(changeId));
+      return record ? visibleChange(record) : null;
+    },
     saveChange: record => ledger.transaction(() => {
       if (record.memory_id && (record.text || record.reason || record.undoable || record.undo)) retention.assertNotForgotten(record.memory_id);
       db.prepare("INSERT INTO memory_changes(change_id,actor_id,memory_id,at,body) VALUES (?,?,?,?,?) ON CONFLICT(change_id) DO UPDATE SET memory_id=excluded.memory_id, body=excluded.body")
@@ -179,10 +202,12 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       return { state: Number(inserted.changes) > 0 ? "counted" as const : "duplicate" as const, count: Number(counts.count), distinct: Number(counts.distinct_count) };
     }),
     recordUses: uses => ledger.transaction(() => {
+      // Compile repeated receipt SQL once per batch; each identity still checks its current forgetting facts.
+      let previous: ReturnType<typeof db.prepare> | undefined, save: ReturnType<typeof db.prepare> | undefined;
       for (const use of uses) {
         // A late multi-reference receipt must not resurrect a forgotten entry or hide the other entries' facts.
         if (retention.isForgotten(use.memory_id)) continue;
-        const before = parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?").get(use.memory_id, use.receipt_id));
+        const before = parse<MemoryUseRecord>((previous ??= db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?")).get(use.memory_id, use.receipt_id));
         if (before?.source === "run-context") {
           if (use.source !== "run-context" || !isDeepStrictEqual([before.run, before.memory_version, before.at, before.consumer, before.work_id],
             [use.run, use.memory_version, use.at, use.consumer, use.work_id])) {
@@ -191,18 +216,18 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
           const rank = (state: MemoryUseRecord["state"]) => state === "response-observed" ? 3 : state === "dispatched-or-unknown" ? 2 : 1;
           if (rank(before.state) >= rank(use.state)) continue;
         }
-        db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body")
+        (save ??= db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body"))
           .run(use.memory_id, use.receipt_id, use.at, use.work_id, use.state, JSON.stringify(use));
       }
     }),
-    lastUse: memoryId => parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND state='response-observed' ORDER BY at DESC, rowid DESC LIMIT 1").get(memoryId)),
+    lastUse: memoryId => retention.isForgotten(memoryId) ? null : parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND state='response-observed' ORDER BY at DESC, rowid DESC LIMIT 1").get(memoryId)),
     uses: filter => {
       const where: string[] = [], values: string[] = [];
       if (filter.receipt_id) { where.push("receipt_id=?"); values.push(filter.receipt_id); }
       if (filter.work_id) { where.push("work_id=?"); values.push(filter.work_id); }
       if (filter.memory_id) { where.push("memory_id=?"); values.push(filter.memory_id); }
       return db.prepare(`SELECT body FROM memory_uses ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY at DESC, rowid DESC LIMIT ${Math.max(1, Math.min(500, filter.limit ?? 100))}`)
-        .all(...values).map(row => JSON.parse(String(row.body)) as MemoryUseRecord);
+        .all(...values).map(row => JSON.parse(String(row.body)) as MemoryUseRecord).filter(one => !retention.isForgotten(one.memory_id));
     },
     owners: projectId => db.prepare("SELECT scope, owner, title, subject FROM memory_owners WHERE project_id=? ORDER BY rowid").all(projectId)
       .map(row => ({ scope: String(row.scope) as never, owner: String(row.owner), title: String(row.title), subject: row.subject === null || row.subject === undefined ? null : String(row.subject) })),
@@ -218,12 +243,19 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       }
       return [...found.values()];
     },
-    pairs: actorId => db.prepare("SELECT body FROM memory_pairs WHERE actor_id=? ORDER BY rowid").all(actorId).map(row => JSON.parse(String(row.body)) as ReturnType<MemoryLedgerPort["pairs"]>[number]),
+    pairs: actorId => db.prepare("SELECT body FROM memory_pairs WHERE actor_id=? ORDER BY rowid").all(actorId).map(row => JSON.parse(String(row.body)) as ReturnType<MemoryLedgerPort["pairs"]>[number]).filter(one => !retention.isForgotten(one.a.memory_id) && !retention.isForgotten(one.b.memory_id)),
     savePair: (actorId, pair) => ledger.transaction(() => {
       retention.assertNotForgotten(pair.a.memory_id); retention.assertNotForgotten(pair.b.memory_id);
       db.prepare("INSERT INTO memory_pairs(pair_id,actor_id,state,body) VALUES (?,?,?,?) ON CONFLICT(pair_id) DO UPDATE SET state=excluded.state, body=excluded.body")
         .run(pair.pair_id, actorId, pair.state, JSON.stringify(pair));
     }),
+    listMarkers: (actorId, input) => {
+      if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 101 || !input.prefix.startsWith("memory-"))
+        throw new Error("Memory marker discovery needs a bounded owner prefix");
+      return db.prepare("SELECT key,at,body FROM memory_markers WHERE actor_id=? AND key>=? AND key<? AND key>? ORDER BY key LIMIT ?")
+        .all(actorId, input.prefix, input.prefix + "\uffff", input.after ?? "", input.limit)
+        .map(row => ({ key: String(row.key), at: String(row.at), body: JSON.parse(String(row.body)) as unknown }));
+    },
     marker: (actorId, key) => {
       const row = db.prepare("SELECT at, body FROM memory_markers WHERE actor_id=? AND key=?").get(actorId, key);
       return row ? { at: String(row.at), body: JSON.parse(String(row.body)) as unknown } : null;
@@ -240,7 +272,7 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       catch (error) { db.exec("ROLLBACK"); throw error; }
       finally { depth -= 1; }
     },
-    close: () => db.close(),
+    close: () => { db.close(); closed = true; },
   };
   return ledger;
 }

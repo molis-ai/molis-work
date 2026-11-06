@@ -4,6 +4,22 @@
 
 包名：`@molis-ai/molis-work-service-memory`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+## 分类分页与条件改类
+
+本人管理经 `memory.page` 读取当前授权范围内的一页，支持场景、六种正式类别、保留类型、状态、来源、到期与文本筛选。`managementPages` 只配置页大小与整次扫描限额；不承诺底层目录枚举有界。项目设置按既有 owner 关系逐页包含角色记忆。游标绑定本人、项目、使用方、当前 owner 集合及查询；异步返回前重新检查取消与 owner 集合。不能证明精确总数时明确返回 unknown，读取不补分类或改写原件。总开关关闭不阻挡本人管理读取。
+
+`memory.change` 的 `reclassify` 只处理未到期、非 Session 正式条目，以页面所见版本提交一次 `setMeta/update`；不改变 owner、namespace、扩展分类、原状态或未明确改变的期限。扩大适用场景或保留期限由现页面展示原值与新值后确认。`habit/project-decision` 属于可管理正式类别，自动形成仍是原四类，自动批准仍受原低风险门表约束。导出与现 v2 导入保留六种正式类别，不恢复旧库采用。
+
+原操作先固定目标、动作与确认版本，完整正文/元数据仍由 SDK 核验原请求。SDK 已提交但 ledger 未记时，原请求可经 SDK 原操作核对后补唯一历史和变更；当前版本加一自身不是成功证明。原确认后尚未提交的到期条目仍拒绝。SDK107 曾在跨到期的已提交改类重试中先拒绝读取；本地采用的 SDK86ad 修正了原提交确认顺序，当前 SDK493 保留该修复，根整合的原失败用例已通过。后来编辑、删除、取消或撤权不能借补账覆盖。这里说明分类编辑的恢复，不代表 Session 管理、续期、分类读/形成限制或固定批量的整体验收；续期对所选新期限的限制见后文。
+
+本片回归：`tests/memory-management-pages.test.ts`、`tests/memory-management-page-authority.test.ts`、`tests/memory-management-page-http.test.ts`、`tests/memory-classification-edit.test.ts`。工程结果与页面实操分别由统筹记录，本节不声明已通过。
+
+## 历史恢复与原编辑决定
+
+`memory.history@1`只公开历史正文、分类、绝对期限与快照完整性，不返回canonical快照。完整历史恢复仍采用所选快照的正文、元数据及来源；SDK的停用/暂停状态不变，可信Session沿原规则保留当前分类、绑定和期限。页面展示这些事实，恢复前明确确认；缺快照或非法旧分类不能拼出一次“完整恢复”。本人仅采用旧文字时沿现update，只改正文，不加载旧库或推测旧分类。
+
+update和restore的SDK子操作使用原`change:<id>`保存的确认版本；父操作保存后、子操作保存前失败，也不能在重试时改用后来版本。restore另在现无正文父marker固定所选历史版号，同操作不得换版；缺少这份原决定时拒绝猜测。已提交SDK原命令仍可核对并补唯一历史/变动，合法完整恢复与合并撤销沿用原主人。Backend/ledger可替换，原版本、权限、Session、到期及遗忘边界不能配置关闭；用户选择由App取得，不增加SDK状态、数据库或正文副本。对应故障及页面验证结果记录在原Memory spec，测试绿色不代替真人验收。
+
 ## 整包导入的固定重试输入
 
 `importScope` 在派发任何条目前完整读取当前 v2 包并复制可变输入和调用身份（保留原取消信号），以可信 scope/owner 和有序有效条目的 SHA-256 摘要固定本次操作。它是业务重试输入身份，不是源码或流程校验；现 ledger 只保存摘要，不保存正文副本或 encoded request。对象键序不影响身份，条目和语义数组顺序保持，分类、原出处、来源/依据、期限、适用条件、Session 与 namespace 均参与固定。同操作换包在新副作用前报 `memory.conflict`，原包仍按既有逐项回执恢复，拒绝数、部分结果与已提交事实不变。
@@ -79,7 +95,7 @@ SDK 已提交而 ledger 失败时不做删除补偿。现有 marker 只留动作
 
 正式删除在任何异步来源或候选清理之前固定原确认版本，清理前后及原操作重试始终使用同一 purge 条件，不能改用后继版本。若旧版已留下与原确认版本不一致的 purge marker，升级后必须拒绝消费，保留原 marker 和待核对条目，不静默改写条件。来源抑制和关联候选可能已经清理，未知结果或中途失败不代表零副作用；候选 SDK 删除已提交但回应或 ledger 投影失败时，按现有候选删除 marker 重放并补齐投影，不能把当前列表中缺失当作清理已全部完成。未发生外部修改时原操作可继续完成；原确认之后有人编辑则拒绝删除其新版本，保留新正文、版本和历史。
 
-删除、撤销自动写入和跨范围移动在 SDK 已清除源条目而 ledger 清理失败时，按原操作继续清理历史、使用记录和变动正文。恢复先核对原决定与 purge 条件的动作、范围、版本和状态，原范围必须仍属于当前 caller；undo 在原记录仍存在及已完成返回时也检查原 caller 范围。Service 的 `beforeEffect` 沿现 Action control 接入，在候选列举后抑制来源、候选删除后清投影、正式删除后清账这三个边界重新检查 App 授权，实际 SQL 仍受同步的存活、取消和当前 authority 检查保护。SDK 的 `already-absent` 只证明当前不存在，不证明是原操作删掉的，也不提供 App 删除授权。undo 的 SDK 删除在事务外，ledger 的 forget 与 undone 回执在同一现有事务内提交；任一失败后都能用原操作重试。已完成操作保留原结果的幂等返回。`src/moves.ts` 拥有跨范围移动的完整生命周期，目标只来自原创建身份；已保存目标结果后的清理和完成重放不受 enabled 阻挡，保存或创建目标仍检查开关。旧 marker 没有结果时，必须以原版本完整快照重放原 SDK 创建并核对已有创建历史。目标已被后来编辑或无法核对时明确冲突，不创建第二副本、不把后来版本记成原创建。
+删除、撤销自动写入和跨范围移动在 SDK 已清除源条目而 ledger 清理失败时，按原操作继续清理历史、使用记录和变动正文。恢复先核对原决定与 purge 条件的动作、范围、版本和状态，原范围必须仍属于当前 caller；undo 在原记录仍存在及已完成返回时也检查原 caller 范围。Service 的 `beforeEffect` 沿现 Action control 接入，在候选列举后抑制来源、候选删除后清投影、正式删除后清账这三个边界重新检查 App 授权，实际 SQL 仍受同步的存活、取消和当前 authority 检查保护。SDK 的 `already-absent` 只证明当前不存在，不证明是原操作删掉的，也不提供 App 删除授权。undo 的 SDK 删除在事务外，ledger 的 forget 与 undone 回执在同一现有事务内提交；任一失败后都能用原操作重试。已接受遗忘使undo投影隐藏时，仅原auto_kept变动、原undo/purge条件及独立接受决定精确一致才可续办原清理，不解封正文、不重新推断撤销计划。已完成操作保留原结果的幂等返回。`src/moves.ts` 拥有跨范围移动的完整生命周期，目标只来自原创建身份；已保存目标结果后的清理和完成重放不受 enabled 阻挡，保存或创建目标仍检查开关。目标回执和创建历史在源遗忘接受前同事务保存；源仍在而该事务失败时，原请求可核对SDK创建后继续。按用户2026-11-05决定，源已不可用且旧marker完全缺少目标回执时，保留现存内容、拒绝自动续办并提示待核对，不再恢复旧源快照拼创建请求。目标已被后来编辑或无法核对时明确冲突，不创建第二副本、不把后来版本记成原创建。
 
 ### M2 维护提交后的补账
 
@@ -110,6 +126,12 @@ recreate 撤销按原 changeId 在现 operation marker 中保留短创建号；�
 历史快照与合并撤销重建保留原分类、Session、命名空间和期限；到期后撤销明确拒绝，等待本人决定续期，不清空期限或转成长效。移动仍沿原合同创建新 scope/ref 并清理旧历史，不承诺历史跨 ref 跟随。旧 v1 采用、缺分类选择、状态完整往返和续期 UI 仍需后续 P0 切片；本片不补自动晋升或来源批准能力。
 
 范围读取和视图投影、固定清空预览/重试、导出与导入由 `MemoryScopeCommands` 持有，使用同一 Backend/ledger；导入与撤销重建回到 Service 的同一个写入门，不另建正文真值。`tests/memory-retention-roundtrip.test.ts` 使用生产权限策略、Backend、Node 磁盘和 SQLite，覆盖实际保存、候选接受、原操作补账、重启与往返；不调用模型，也不将这些工程证据当作旧 Home 采用或整体 P0 完成。
+
+### 本人明确续期
+
+沿 spec §13「B3 首片短合同」，到期正式记忆由本人选择新的绝对 UTC 期限，经 `memory.change@1` → `MemoryEdits` → AgentHost 的 SDK `renew` 提交。原 ref、确认版本、操作号与期限固定；不修改正文、分类、出处或 paused/disabled，也不恢复墓碑。App 本片拒绝 Session 续期和混合编辑，不默认延长时间。
+
+SDK 已提交而历史事务失败时，保留原操作，重试或重开后由 SDK 核原输入再补唯一历史；后继版本不能代替原回执。按 SDK 原 S1 合同，所选新期限已过时原续期请求仍拒绝，不能通过重算期限补账。新期限、当前授权、分类/保留和取消门不可跳过。设置页沿现日期输入、确认和原请求重试；日期与确认由本人决定，没有新库、后台恢复或可替换写主人。直接验证为 `tests/memory-renewal.test.ts`、`tests/memory-renewal-http.test.ts`、`tests/memory-settings-renewal.e2e.test.ts`，使用临时 Home 和真实 SDK/SQLite/HTTP。
 
 ## 一次典型调用
 
@@ -162,6 +184,18 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 ## 开发要求
 
+自动形成在原 snapshot 和 formationSources 得到完整 canonical 来源并集后，先调用可选 `bindFormationSources`，再开始原 operation / SDK form。它只把实际选源交给当前 Host 控制，不复制选择算法、不增加权限；SDK 候选回执含集合外来源时拒绝补账或晋升。当前 owner 的同步检查覆盖 SDK 实际写、模型派出与 ledger。
+
+离线 Home 恢复由 `prepareMemoryRestoreRetention` / `applyMemoryRestoreRetention` 只处理原主人给出的无正文遗忘事实：固定 canonical 归属，保留来源事件屏障，并选择需要清除的正式记录、候选及 ledger 投影。SDK 已清除而投影补账失败的候选，仍按原 `memory_id` / `supersedes` 或同归属的来源事件关联清投影，不能因 SDK 没有正文就保留旧候选正文。Memory 不打开数据库、不改归档、不管理发布日志；Storage 与 AgentHost 分别通过专属窄口执行，Host 持有原恢复 lease 和发布／回滚。没有可关闭此屏障的配置或插件。定向回归：`tests/home-restore-memory-forgetting.test.ts`。
+
+人的遗忘决定由 Storage 的独立文件拥有，ledger marker 是投影。`MemoryForgetting` 在原 beforeEffect 后核 SDK 的固定正式/候选版本，借原 AgentHost 实例的写入观察，在同步 accept 紧前拒绝读取间的并发 Memory 写；不添加锁或自动改选。首次决定必须先于来源抑制和物理 purge；未接受、持久结果未确认、已接受但清理未完成分开报告。已接受后的取消或失败仍封住读取和来源形成，原 operation 继续同一 SDK 条件与投影清理，不能改为后来版本。
+
+接受前的首次无正文完整选择保存在原 `MemoryOperations` operation marker，含原 actor/scope/owner 下的正式、候选版本与来源事件；它不是已经接受的删除决定，不新增 phase。相同 operation 重试保持原选择，初选为空也不能自动加入后来候选或来源；新选择必须用新 operation。最终 SDK 两类版本读取之后，同步重读原 ledger 的 links/notes，与观察保护下的当前 SDK 候选核完整关联集合；新增/变化、仅剩 ledger 的关联投影都参与比较，变化在独立决定接受前冲突。accepted 重试只取独立决定，不再根据当前资料选目标。
+
+重复保存的来源关联与最终正文返回也检查同一独立事实。首次完成在原 ledger 事务前拒绝已经接受遗忘的目标；已提交操作重试在最后异步检查之后、返回正文之前再次拒绝，不能补入迟到来源或返回已遗忘正文。原遗忘操作仍可继续物理清理。
+
+列表、历史、候选、导出、迟到回执及提炼旧上下文都检查同一事实，提炼派发前再核一次。当前 SDK 的 purge 前置需要 management get：仅保留本人 management 的内部 `manage-read` / `delete` 以完成清理，App 的对外管理正文仍受上述过滤；任务读取、候选任务上下文、形成与新变更不得使用已接受目标。SDK 最后同步授权围栏须与对应 Host 策略一起整合验证，不能用管理权限代替最终使用门。回归：`tests/memory-forgetting-service.test.ts`；项目与 Session 自身的删除事实仍归其原 owner。
+
 使用历史只由真实 Run Context 回执补入现有 ledger；显式召回返回记为 `returned`，不会进入最近参考。相同条目/SDK receipt 保存一份逐 call 事实的摘要，确认响应后不会被较弱状态降级；显示时间为原轮次开始时间。逐 call 完整事实仍归 Run，旧 `used` 不能转换成确认派发。遗忘后迟到回执逐条忽略已删身份，不阻断同批其他条目。对应回归为 `tests/memory-use-receipts.test.ts` 与 `tests/prologue-memory-run-context.test.ts`。
 
 - 负责：开关与使用方权限、写入门（开关、秘密、像指令的文字、范围、重复与冲突、记作“亲口说的”的核对、自动写入的决定表）、召回的过滤与排序与预算、使用回执、候选的规则（同文只提一次、每项工作最多 3 条、14 天过期）、最近变动与撤销、版本历史、界面信号计数与门槛。候选读取只认当前 owner 的记录，缺失明确拒绝，不迁入或改写账本。
@@ -187,10 +221,12 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 用户自己说过、认可过、替换或改过的记忆，不会被撤销之前的某次自动写入而删掉或覆盖：之后这些自动记录不再可撤销，撤销时也再核对一次这条还是不是自动的。
   - 助理只能把记忆停用（记作助理的变动，本人可撤销）；改正文和彻底删除只有本人，在设置里做。
   - 显式召回只记录返回，不更新最近参考；最近参考由真实 Run 的 `response-observed` Context 回执投影。派发未知和记录失败单独显示，不重发模型；迟到回执不能恢复已遗忘身份。
-  - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者（写入记忆时才记下）和候选记录上的项目找到，所以只有建议、没有写过记忆的角色也清得掉；Home 里没有 Agent 运行环境时 `backend` 为 null，只清账本；不需要预览指纹确认，删除项目就是本人的确认。
+  - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者和候选记录上的项目找到。原删除回执固定 scope 集合、SDK 预览、候选版本和子操作；复用 `MemoryForgetting` 的最终写观察与独立事实接受；先完成全部固定 scope 的接受，再开始任何范围的原 SDK 物理清理，避免首范围清理失败使后继角色缺少恢复屏障。各 scope 的 Storage 接受分别持久化，不承诺跨 scope 或文件与 SDK 原子事务；后继接受失败时，已有决定保留、尚未接受范围不称已遗忘，原回执 pending 且本次尚未执行 SDK 清理。候选独存及 SDK 已清但 ledger 残留的身份、来源也被保留，不能因当前列表为空漏掉旧副本；恢复旧 Home 不恢复这些身份。清理失败或接受后取消仍拒读，原回执 pending 并按原选择重试；最终账本清理和原操作完成标记同事务，完成后的旧操作不会清掉后来新身份。演示重置保留项目，若清理期间出现未选中的新身份，最终只读复查和同 Runtime 写观察会在 ledger 清空前拒绝，不能把新身份加进旧计划。Home 没有 SDK 业务文件时仍不启动 Runtime，只清原 ledger；无原存储 owner 不能接受非空身份，无法核验版本不能猜测。删除项目就是本人的确认，不另加确认。直接回归：`tests/home-restore-project-forgetting.test.ts`、`tests/project-memory-forgetting-concurrency.test.ts`、`tests/project-deletion-memory.test.ts`。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
 - 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-initialization.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+范围读取在 Backend 返回后，仅第一条通过遗忘、Session 和元数据筛选的记录读取当前设置，同次无等待的分类过滤复用这份设置，每条分类仍独立判断；空列表或全被前置筛选排除时不读设置。显式召回在最后 `beforeEffect` 后逐条重新读取当前设置，供同条消费者与分类检查共用，不跨条目、范围、等待或后续调用缓存。开关、分类和遗忘复核不能关闭，没有新增插件或配置；终端用户仍在现设置页改开关。直接回归为 `tests/memory-class-list-authority.test.ts`；此处只减少重复设置读取，不声明规模耗时或 MEM-38 已达标。
 
 ## 进一步阅读
 
@@ -198,3 +234,49 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+管理分页沿 SDK 本人管理许可取得当前页后，在最后一次等待之后仍按同一份已接受遗忘事实过滤。物理清理尚未完成时，不把该内部清理许可当作页面读取许可；过滤过的页总数保持 `unknown`，清理完成后再按 SDK 当前结果判断。真实 Node、非空数据、接受后清理失败、重开及返回前交错由 `tests/memory-management-forgetting.test.ts` 覆盖。
+
+分类形成查询沿现候选 `get` 窄口读取指定 scope/owner/id：确实不存在返回 undefined，当前权限拒绝、存储损坏和版本冲突保持原错误。列表未返回的候选只在精确 get 明确拒绝权限时从非本人形成视图排除；缺失或损坏仍阻断，不补写 ledger。本人管理沿原授权查看。
+
+分类控制的原 Run 配方与当前设置取交集，读取和形成独立。本人管理不受分类禁读误挡；任务列表与候选计数/正文按读取限制，不能借来源用途标记换为形成权限。模型输入中的正式记忆按 task-read，待审候选按 read 与 form 共同检查，跨范围的最后一次等待之后再同步复核。新 Home 明确保存九字段，已有不完整 profile 拒绝，不转换旧配置。
+
+SDK formation.items 明确确认 created/replayed 后，写主人只按原 slot 的 scope/owner、candidate_id/version 精确 get，完成同一次操作的登记；仍检查当前形成、来源、取消与版本。unknown 或没有候选引用不触发 get，外来 slot/后继版本拒绝。该 canonical 回执不加入新提炼上下文、不返回任务结果；read:off/form:on 仍能基于新授权原件形成，下一次提炼和任务不能读回旧候选。
+
+候选写主人内部核查只有两种 `candidate_access`：形成回执固定本次 SDK 已确认的 scope/owner/id/version；提议核查固定本次 operation_id 与 scope/owner，仅在 `propose` 局部用于原有同文抑制、来源合并和每工作三条限额。后者仍按当前形成类别过滤，形成关闭的候选不阻塞允许类别；已拒绝的同文仍不重提。两者都核当前范围、形成、来源和取消，不缓存授权，不传给 Action、插件 callback、模型、任务候选列表或提炼上下文。普通候选列表与任意历史 get 走读取许可；`source_use` 只说明原件用途，不再提供候选读取豁免。该收紧遵循现行 read∩form 边界，并非旧测试夹具错误。
+
+SDK `get` 本身不核来源。形成登记在精确 get 后复用原 `beforeEffect` 异步来源检查，再按同一回执复核 canonical 版本和状态；变化即失败，不追随后继决定。随后仍以同步 scope/form/signal 和原受控 ledger 检查登记，不循环重试或补造候选。
+
+分类控制专项：`tests/memory-class-restrictions.test.ts`、`tests/memory-class-runtime-policy.test.ts`、`tests/memory-class-current-access.test.ts`、`tests/memory-class-commit-fence.test.ts`、`tests/memory-class-list-authority.test.ts`、`tests/memory-class-formation.test.ts`。原 Run 与实际 Coding HTTP 分别由 `tests/prologue-memory-class-policy.test.ts`、`tests/agent-memory-class-control-http.test.ts` 覆盖；Assistant 首轮与提交撤权沿 `tests/assistant-original-inputs.test.ts`、`tests/memory-review-remember-cancellation.test.ts`，队列来源与精确登记沿原 `tests/memory-learning.test.ts`、`tests/memory-source-owner.test.ts`。上述工程路径不替代模型质量与用户验收。
+
+### B4 原操作发现与固定选中批量（本地实施合同）
+
+按原 Memory V0 spec 末尾已批准合同：本人有界发现无正文原操作，原 change/clear 继续；选中 disable/remove 经 SDK 固定 preview/mutateBatch，原 marker 保存原 ID/version/operation 和真实完成投影。scope clear 与 remove batch 全部固定组接受后才物理清理，接受部分失败不伪称原子。页面不持久正文或命令，不追删新目标；缺原请求/结果标需对账。路径白名单与红绿验收沿统筹批准的 B4 提案，保留本包原开发要求；不改 SDK/vendor、Storage schema 或独立 forgetting v1。
+
+选中集合批量用例由 `src/batch.ts` 拥有：一份无正文固定计划、原SDK preview和逐项ledger收口；不复制权限或SDK状态机。整scope清空仍由scope-commands负责，两者复用同一仅接受/清理窄口。
+
+固定批量计划同时持有原选择次序，SDK 按 owner 分组后也按原次序投影逐项结果；完整计划始终保留尚未接受的后继组。发现源限定原批量/清空计划和本人已接受独立事实，普通旧写入不进入待清理列表。scope clear 的现役计划仅在完工时写 complete:true；未完工没有该字段不影响继续。发现与执行共同核原 scope/owner、完整固定 parts、逐项版本/操作号及 SDK purge decision，缺失或不一致仍需对账，不能从当前正文补造原计划。
+
+### A4-M 第一段：固定身份精确遗忘（实施短合同）
+
+引用根 Memory V0 spec「Session 精确清除的持久语义已定」与 A4-M。本段只实现既有遗忘/恢复核心，不接本人会话绑定、清除 Action、操作发现新分支或 UI，不永久结束 SDK Session。同一 Storage owner 的 memory-forgetting-v2.json 仍为唯一事实；format_version:1 的每项决定必填 selection_mode。related 保留普通删除、B4、项目清理的关联闭包和来源屏障；exact-identities 仅取可信主人固定的正式/候选 scope/owner/id/version，sources 必为空且至少一个身份，不按 memory_id、supersedes 或同源扩选。
+
+调用仍由 MemoryForgetting 经现 Backend/Storage 窄口到 SDK 与 ledger。接受前用原 Memory 写观察及当前 canonical 版本/权限复核；接受后持久不可撤销。mode、owner、完整正式/候选与来源集合都是原操作的一部分，重试不能改选。冷恢复保留 mode；同身份另有 related 决定时仍执行其关联范围。所选正式自己的历史、使用、变动和配对正文清除；未选 C 的 canonical、原管理文字与历史关联保留。SDK 接受已成但 ledger 未登记的旧回执不得给已忘 M 制造新成功关系。
+
+不新增 store、数据库、SDK、迁移、墓碑或模式推断。严格 shape、当前授权/版本、原操作固定及接受后防复活不可配置；mode 由可信用例决定，不向模型开放。Backend 可装配；终端用户按钮与绑定留后续本人入口。允许路径为统筹冻结的22条清单；Service/scope/upkeep/project 仅传递明确 related，不改其他职责。
+
+验收从真实临时 Home/SDK 的长期候选 C 接受成 M、仅 M 改 Session 起步：related 是正确关联清理的对照，exact 保留未选 C。覆盖 supersedes、候选-only、失败/重启、晚账拒绝、坏 ledger 与旧 Home 恢复、两 mode 并存及严格旧/新文件拒绝。运行原 build、API、boundary、精确5a health 与定向测试；不跑 Full、付费模型或真实 Home。核心机制通过不代表用户清除 UI 或完整 V0 已交付。
+
+### 本人 Session 管理后端实施合同
+
+沿根 Memory V0 已冻结的 A4-M 合同，业务 Coding/Assistant 身份只读映射到原执行 Session；单次绑定、Host 当前身份/控制、canonical 分类 CAS 和固定清理是同一条链。本轮接通受保护 HTTP、write@1/change@1、clear preview/apply、operations@1；分类与候选/history/page只消费已核同Session身份。清除用现SDK session selection完整扫描，原无正文计划在本次写观察下冻结，先接受所有 exact 组再清理，取消/未知/缺计划分别保留可重试或需对账状态，不改选、不补建Session。原related、C→M后仅M改Session的候选保留及Home恢复语义不变。
+
+写主人和精确路径清单在本次仓外交接；新合同文件承载完整Session DTO与strict clear动作，不新增package或公开subpath。活控制仅留Host，MemoryCaller只带已核可序列化身份；授权、CAS、固定tuple和来源/遗忘屏障不可配置，Backend仍走现可装配Port，用户入口交另一个UI写手。此轮不改UI、Storage协议/表、SDK/vendor/lock、HomeRestore生产或门禁。先公开Port/真实临时Home红例，再验证两真实业务Session、绑定交错、越权、分页/历史、同canonical分类、归档写拒绝、候选-only/多scope、部分接受零清理、未知回执/重启/缺计划及原related控制。工程证据不替代页面旅程或用户验收。
+
+受保护入口为个人 `/api/memory/sessions/assistant/:id` 与项目 `/projects/:project_id/api/memory/sessions/:kind/:id`（kind 只可 coding/assistant）。绑定读本业务 owner 与原 SDK owner，不从输入接受 raw Session/owner/actor。Session 分类改成长期或短期仍使用同一 canonical CAS；原请求在 SDK 已完成、ledger 未补账时只准原操作/原 Session/原版本恢复。管理变化记录也按当前 canonical Session 过滤，不能借历史投影带出另一会话正文。
+
+本人明确范围的全局单条 remove、选中 batch.remove 和 scope.clear 保留原 scope/owner、CAS/operation 与 related 独立遗忘链；它们是范围遗忘，不获得 Session 非删除写权限。受保护 Session URL 始终只定位本 Session；停用和其它非删除写仍须原业务与 SDK active，归档不能通过改成长期绕过。exact Session 清理不扩选关联的未选长期候选，known 计划冲突保留 needs-reconcile，真正事实持久结果未知则上抛 unknown 并保留原 preview。
+
+受保护 Session 单条 remove 在首次 canonical/当前控制核验之后、独立接受和SDK清理之前，把已核 session_binding 与原 scope/owner/id/version 一同保留在既有无正文 change-request marker。完整原请求重试只准原绑定（含缺失/存在的区别），继续交原 SDK operation/CAS核回执；不以已被遗忘的 revisions 充当授权，不补造绑定、不改operation，也不借此恢复非删除写。
+
+已接受的原 bound 单条 remove 可由本人全局 UI management 沿原无正文 marker/related 决定继续：必须显式提供原版本，actor/op/scope/owner/id/version 完全相符，当前无 Session binding，且原决定已独立接受；不复制或更改 marker 的绑定。任何受保护入口仍须完整同绑定。操作发现对 bound 单删只返回绑定和原决定/purge元组可核的原 remove 请求，全局保持原 DTO/当前删除授权，不新增业务导航身份，也不授予 Session 非删除权。

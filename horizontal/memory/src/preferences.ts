@@ -1,5 +1,5 @@
 import type { MemoryCandidate, MemoryLedgerPort, MemoryPrefs, MemoryPrefsView, MemoryPreset, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { completePrefs, presetPrefs, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
+import { isCompletePrefs, completePrefs, presetPrefs, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
 import { memoryErrors } from "./errors.js";
 import { personOnly, placeOf } from "./places.js";
 import type { MemoryCaller } from "./service.js";
@@ -9,8 +9,11 @@ export class MemoryPreferences {
   constructor(private readonly ledger: MemoryLedgerPort) {}
 
   prefsFor(actorId: string, scope: MemoryScope, projectId: string | null): MemoryPrefs {
-    if (scope === "personal") return completePrefs("personal", this.ledger.prefs(actorId, PERSONAL_PREFS_KEY));
-    return completePrefs("project", this.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY), projectId ? this.ledger.prefs(actorId, projectPrefsKey(projectId)) : null);
+    const profiles = scope === "personal" ? [this.ledger.prefs(actorId, PERSONAL_PREFS_KEY)]
+      : [this.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY), projectId ? this.ledger.prefs(actorId, projectPrefsKey(projectId)) : null];
+    if (profiles.some(profile => profile !== null && !isCompletePrefs(profile)))
+      throw memoryErrors.unavailable("这个范围缺少完整的现行记忆设置，不会补造或转换设置");
+    return completePrefs(scope, ...profiles);
   }
 
   prefs(caller: MemoryCaller, scope: MemoryScope = caller.project_id ? "project" : "personal"): MemoryPrefsView {
@@ -37,12 +40,12 @@ export class MemoryPreferences {
    * (personal, and the project default), until that section becomes a summary with a link here.
    */
   assistantPrefs(actorId: string): { form: boolean; use_personal: boolean; use_project: boolean; learn_personal: boolean; learn_project: boolean } {
-    const personal = this.prefsFor(actorId, "personal", null), projects = completePrefs("project", this.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY));
+    const personal = this.prefsFor(actorId, "personal", null), projects = this.prefsFor(actorId, "project", null);
     return { form: personal.form, use_personal: personal.consumers.assistant, use_project: projects.consumers.assistant, learn_personal: personal.learn_from_work, learn_project: projects.learn_from_work };
   }
 
   saveAssistantPrefs(actorId: string, input: Partial<{ form: boolean; use_personal: boolean; use_project: boolean; learn_personal: boolean; learn_project: boolean }>): ReturnType<MemoryPreferences["assistantPrefs"]> {
-    const personal = this.prefsFor(actorId, "personal", null), projects = completePrefs("project", this.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY));
+    const personal = this.prefsFor(actorId, "personal", null), projects = this.prefsFor(actorId, "project", null);
     if (typeof input.form === "boolean") { personal.form = input.form; projects.form = input.form; }
     if (typeof input.use_personal === "boolean") personal.consumers.assistant = input.use_personal;
     if (typeof input.use_project === "boolean") projects.consumers.assistant = input.use_project;

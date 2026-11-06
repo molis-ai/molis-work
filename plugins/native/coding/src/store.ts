@@ -184,6 +184,26 @@ export class CodingSessionStore {
     return this.db.all("SELECT * FROM coding_sessions WHERE project_id = ? AND archived = 0 ORDER BY updated_at DESC, session_id", [projectId]).map(mapSession);
   }
 
+  /** Bounded owner-only directory; its cursor binds scope, archive choice and the original ordering position. */
+  page(projectId: string, archived: boolean, limit = 50, cursor?: string): { sessions: CodingSessionRecord[]; next_cursor: string | null } {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw codingStoreErrors.session_unknown("会话分页数量无效");
+    let position: [string, string] | undefined;
+    if (cursor !== undefined) {
+      try {
+        const value: unknown = JSON.parse(decodeURIComponent(cursor));
+        if (!Array.isArray(value) || value.length !== 4 || value[0] !== projectId || value[1] !== archived
+          || typeof value[2] !== "string" || typeof value[3] !== "string" || !value[2] || !value[3]) throw new Error("cursor");
+        position = [value[2], value[3]];
+      } catch { throw codingStoreErrors.session_unknown("会话分页位置不属于当前项目或目录，请刷新"); }
+    }
+    const rows = this.db.all(`SELECT * FROM coding_sessions WHERE project_id = ? AND archived = ?
+      ${position ? "AND (updated_at < ? OR (updated_at = ? AND session_id > ?))" : ""}
+      ORDER BY updated_at DESC, session_id LIMIT ?`, [projectId, archived ? 1 : 0,
+      ...(position ? [position[0], position[0], position[1]] : []), limit + 1]).map(mapSession);
+    const sessions = rows.slice(0, limit), last = sessions.at(-1);
+    return { sessions, next_cursor: rows.length > limit && last ? encodeURIComponent(JSON.stringify([projectId, archived, last.updated_at, last.session_id])) : null };
+  }
+
   /** The sessions the person may have to come back to, newest first (the Home's background tasks, `home-background.ts`). */
   backgroundSessions(projectId: string): CodingBackgroundSession[] {
     return backgroundSessionsOf(this.db.all(`SELECT session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
@@ -215,8 +235,9 @@ export class CodingSessionStore {
     return typeof row?.steps_json === "string" ? JSON.parse(row.steps_json) as CodingStepHolders : null;
   }
 
-  async setState(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, state: CodingSessionState, at: string): Promise<CodingSessionRecord> {
+  async setState(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, state: CodingSessionState, at: string, guard?: CodingWriteGuard): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
+      guard?.();
       sessionIn(tx, projectId, sessionId);
       tx.run("UPDATE coding_sessions SET state = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [state, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
@@ -245,11 +266,11 @@ export class CodingSessionStore {
     });
   }
 
-  async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: CodingWriteGuard): Promise<CodingSessionRecord> {
+  async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: CodingWriteGuard, archived = true): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
       guard?.();
-      if (sessionIn(tx, projectId, sessionId).archived) throw codingStoreErrors.session_unknown("会话已归档");
-      tx.run("UPDATE coding_sessions SET archived = 1, updated_at = ? WHERE project_id = ? AND session_id = ?", [at, projectId, sessionId]);
+      sessionIn(tx, projectId, sessionId);
+      tx.run("UPDATE coding_sessions SET archived = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [archived ? 1 : 0, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
     });
   }
@@ -267,7 +288,10 @@ export class CodingSessionStore {
 
   async setRuntimeSession(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, runtimeSessionId: string, at: string): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
-      sessionIn(tx, projectId, sessionId);
+      const current = sessionIn(tx, projectId, sessionId);
+      if (typeof runtimeSessionId !== "string" || !runtimeSessionId.trim() || current.runtime_session_id !== null && current.runtime_session_id !== runtimeSessionId)
+        throw codingStoreErrors.session_binding_conflict("原执行会话已经固定，不能改绑或清空");
+      if (current.runtime_session_id === runtimeSessionId) return current;
       tx.run("UPDATE coding_sessions SET runtime_session_id = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [runtimeSessionId, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
     });

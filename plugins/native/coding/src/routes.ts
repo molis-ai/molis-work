@@ -1,6 +1,7 @@
 import type { ActionHandlerBinding, ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { codingMemoryLearning } from "./memory-learning.js";
 import { codingCharacters, type CodingCharacters } from "./character-source.js";
 import { codingGoalTitles, type CodingGoalTitles } from "./goal-titles.js";
 import { codingModels } from "./models.js";
@@ -64,6 +65,7 @@ export function codingSurface(context: PluginStartContext, sessions: CodingSessi
   const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes].flatMap(group => group(activation));
   // The work-executor roles have no route: they answer through the handlers just made.
   codingExecutor(activation);
+  codingMemoryLearning(activation);
   startCodingObservation(activation);
   return { routes, actions };
 }

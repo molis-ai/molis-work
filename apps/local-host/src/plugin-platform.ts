@@ -124,6 +124,9 @@ export interface PluginPlatformOptions {
 
 export interface PluginPlatform {
   readonly runtime: PluginRuntime;
+  invokeOwnedAction<Input, Output>(expected: { actor_id: string; project_id: string; plugin_id: string; install_id: string; installation_generation: string },
+    reference: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference, input: Input,
+    control: import("@molis-ai/molis-work-contracts/platform/plugin").PluginExecutionControl): Promise<Output>;
   dualInstance(pluginId: string): boolean;
   readonly supervisor: PluginSupervisor;
   readonly events: PluginEventBus;
@@ -257,6 +260,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
 
   return {
     runtime,
+    invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
     supervisor,
     events,
     hostEvents,

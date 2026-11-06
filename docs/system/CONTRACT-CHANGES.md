@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-05索引Home增量：Memory ledger现行索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为2，形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。当前App拒绝旧/未来版本，无兼容读取或旧库迁移。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。
+
 状态：现行（2026-10-08 入库；同日用户定了读取兼容的起点；2026-10-29 用户定 1.0.0 之前都是开发版本）。分两个阶段：现在在**阶段一，不留兼容期**；**阶段二，读取兼容**从第一个装到开发机之外的版本开始，这个版本不早于 1.0.0。
 
 > **阶段二的起点（用户 2026-10-08 定，`specs/archive/repository-anti-corruption/spec.md` §1「『不留兼容』何时结束」；路线图待决 #15）：第一个装到开发机之外的版本。** 用户 2026-10-29 又定「1.0.0 之前都是开发版本」：0.3.0 和 1.0.0 之前的其他版本都是开发版本，不是起点，所以起点不早于 1.0.0。开发机指参与开发的人（现在是用户和同事）用来开发和试用的机器。起点之前一律按阶段一的「不留兼容」做。
@@ -7,6 +9,12 @@
 > 起点日期：**还没到，没有固定日期。** 起点发生时，发那个版本的 PR 在这里写下版本号、日期和提交，第 3 节标为已结束，第 4 节开始适用。第 5 节的前置要在那之前就位。
 
 起点之前，没有要保留的旧用户数据：2026-10-02 用户确认没有同事在用要保留的 Home（`specs/archive/repository-anti-corruption/spec.md` §1），所以破坏性变更直接做，不留兼容代码。起点之后才有「读取兼容、写入严格」的兼容期，那时每一段兼容都要写明消费者和删除条件。本文把两个阶段都写下来，让起点一到就有流程可用，也让现在的做法有边界。
+
+
+2026-11-04 Memory C2：新增只收引用的 plugin-only `memory.learning.enqueue/run/form@1`，沿原 memory.learn 队列进入当前来源安装；既有 memory.* 形状不变。公开执行控制增加仅收紧的同步 `assert_memory_sources_current`，bound client 保留原限制并求交；callback view 不包含此字段。schedule.enqueue 第二参转交已采用 SDK 的 signal/beforeCommit。队列只增加 refs-only plugin-run payload 分支及固定 installation_generation，Assistant 原任务格式和 key 不变；不增加库格式、迁移或旧值兜底。
+2026-11-05 Memory 历史恢复：当前 `memory.history@1`，strict响应增加历史`classification`、`expires_at`、`snapshot_available`，只给安全投影，不输出原snapshot。按 main 的阶段一版本规则原位扩充严格 schema，Workbench通过共享Action定义消费；旧 `@2` / `@3` 固定引用明确失效，不保留兼容入口。`memory.change@1`输入形状不变；restore在现无正文操作marker绑定所选历史版号，update/restore子CAS固定原确认版本，已有marker缺少所需原决定时不能补猜。没有新增库/迁移/SDK状态或正文备份；不恢复已取消的旧库采用。公开API与Action快照由原生成命令同步，具体工程和页面结果在现Memory spec记录。
+
+2026-11-05 用户明确决定：旧版跨范围移动在源已不可用、又完全缺少目标回执时停止自动续办，保留现存内容并提示待核对；撤回该旧态的自动恢复成功承诺，不新增SDK查找口或从隐藏历史重建请求。当前移动仍须在接受源遗忘前原子保存目标回执及历史；真实事务失败、已保存回执后的清理失败均保留原请求恢复要求。已接受的自动新增撤销只凭原change/undo/purge/独立决定的精确身份继续清理，不重新开放正文。输入输出schema不变，原错误码与权限不放宽；旧红日志、明确范围与验证保留在Memory spec。
 
 ## 1. 哪些算合同
 
@@ -67,6 +75,7 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `memory/memory.db` | 1 → 2 | Memory V0 隔离候选 `abdb74a9d647f545f187ab5903be77a2e3599017` 的索引采用；本地整合待验证 | 此箭头仅记录源码基线变化，不代表已升级任何旧库。现行格式2仅在授权隔离新容器建立；旧库转换已取消，错版拒绝，禁止降回1；真实 Home 维护、统一起点 N41 与未来 U1 连续升级均未执行或验收。 |
 | `projects/catalog.db` | 22 → 1 | W5-17（`feature/maintenance-w517-a`；统筹 #1332 6517794305） | 原迁移已取消，真实重建未开始。当前结构无projects.database_path，路径由可信Home与project_id推导；删除catalog维护脚本、旧结构夹具与演练。新建/错版拒绝及S-102在 `tests/catalog-path-derivation.test.ts`、`tests/security-invariants-project-storage.test.ts`。旧Home整体搬开后新建当前结构1，等全部代码合入/构建就绪后用户另说“开始”；不碰#1101分支。 |
 | `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
 | `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |

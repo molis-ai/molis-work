@@ -2,7 +2,8 @@ import { lstatSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { backupSnapshotSqlite, inspectMemoryLedger, MEMORY_LEDGER_BASELINE, readSnapshotFile } from "@molis-ai/molis-work-storage";
+import { backupSnapshotSqlite, inspectMemoryForgetting, inspectMemoryLedger, MEMORY_FORGETTING_HOME_STORE,
+  MEMORY_LEDGER_BASELINE, readSnapshotFile, snapshotFileStat } from "@molis-ai/molis-work-storage";
 import type { HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
 import { invalidRestore } from "./home-restore-input.js";
 import { memoryRestoreFile } from "./home-restore-owner-payload.js";
@@ -40,6 +41,7 @@ function restoreMemoryTemporaryParent(protectedDirectories: readonly string[]): 
 
 export function assertCompleteRestoreMemory(home: string, protectedDirectories: readonly string[] = []): void {
   restoreMemoryTemporaryParent([home, ...protectedDirectories]);
+  inspectMemoryForgetting(home);
   if (inspectMemoryLedger({ homeDirectory: home, actorId: LOCAL_PERSON_ACTOR_ID }).state !== "complete") throw invalidRestore();
 }
 
@@ -48,7 +50,7 @@ export async function prepareRestoreMemory(dataHome: string, inputs: HomeRestore
   const protectedDirectories = [inputs.manifest.home_directory, dirname(dataHome), dataHome];
   restoreMemoryTemporaryParent(protectedDirectories);
   const current = inspectMemoryLedger({ homeDirectory: dataHome, actorId: LOCAL_PERSON_ACTOR_ID });
-  if (current.state === "complete") return inputs;
+  if (current.state === "complete") { inspectMemoryForgetting(dataHome); return inputs; }
   assertFreshSource(inputs); control.assertCurrent();
   await preflightTarget(); control.assertCurrent();
   const stage = mkdtempSync(join(restoreMemoryTemporaryParent(protectedDirectories), "molis-restore-memory-"));
@@ -60,6 +62,8 @@ export async function prepareRestoreMemory(dataHome: string, inputs: HomeRestore
     const file = { ...memoryRestoreFile("memory/memory.db", captured.mode, readSnapshotFile(backup, captured.size)), sqlite: captured.sqlite };
     const files = new Map(inputs.files), directories = new Map(inputs.directories);
     files.set(file.path, file); directories.set("memory", { path: "memory", mode: 0o700 });
+    const forgetting = MEMORY_FORGETTING_HOME_STORE.path, state = snapshotFileStat(join(stage, forgetting));
+    files.set(forgetting, memoryRestoreFile(forgetting, state.mode & 0o777, readSnapshotFile(join(stage, forgetting), state.size)));
     control.assertCurrent(); return { ...inputs, files, directories };
   } finally { rmSync(stage, { recursive: true, force: true }); }
 }

@@ -709,3 +709,14 @@ test("RAC-2743 RAC-2744 S-47 the same factory follows replaced, added, removed a
   assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=old&filter=new#new"),
     "/settings/shelf?project=p1&desktop=1", "a reappearing row without declarations keeps only defaults");
 });
+
+
+test("A4-M S-47 memory settings retain only their two declared session navigation parameters", () => {
+  assert.equal(openSettingsAddress("/settings/memory?memory_session_kind=assistant&memory_session_id=work-1&session_ref=forged&scope=all&evil=1#raw"),
+    "/settings/memory?memory_session_kind=assistant&memory_session_id=work-1");
+  assert.equal(openSettingsAddress("/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1&actor=forged&scope=all&evil=1#raw"),
+    "/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1");
+  assert.deepEqual(PROJECT_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id"], "the project memory declaration adds exactly the same two navigation names");
+  assert.deepEqual(GLOBAL_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id"]);
+  assert.equal(openSettingsAddress("/settings/appearance?memory_session_kind=assistant&memory_session_id=work-1&evil=1"), "/settings/appearance");
+});

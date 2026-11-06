@@ -260,18 +260,19 @@ async function startAuthority(
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
     skill_owner: { project_id: runtime.project_id, plugin_id: pluginId },
-    actions: async (runtimeId, validate, session) => {
+    actions: async (runtimeId, validate, session, memory) => {
+      const runtimeMemory = memory ? { plugin_id: pluginId, current_scene: memory.current_scene, class_restrictions: structuredClone(memory.class_restrictions) } : undefined;
       const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
       // `actor_id` stays the grant's client id (`agent:<runtime>`). The session is the one the Host checked against the Runtime's own record
       // when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is recorded as author.
-      const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
-        project_id: runtime.project_id, audience: "agent", permissions: [], ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
-          caller?.assertActive(); signal?.throwIfAborted();
+      const current = (signal?: AbortSignal, memorySelection?: { assert_current(): void }) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
+        project_id: runtime.project_id, audience: "agent", permissions: [], ...(memorySelection ? { memory_context_selection: memorySelection } : {}), ...(runtimeMemory ? { runtime_memory: structuredClone(runtimeMemory) } : {}), ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
+          caller?.assertActive(); signal?.throwIfAborted(); memorySelection?.assert_current();
           if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
         });
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
-        invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+        invoke: async (action, input, signal, memorySelection) => { memorySelection?.assert_current(); const authorized = await current(signal, memorySelection); return authorized.service.invoke(authorized.context, action, input); },
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },

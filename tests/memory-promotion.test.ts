@@ -58,7 +58,7 @@ test("MEM-09 two independent originals promote once; repeating an original under
   assert.ok(entry);
   assert.equal(entry.basis, "repeated");
   assert.deepEqual(entry.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
-  const changes = env.memory().changes(person).filter(item => item.kind === "auto_kept");
+  const changes = (await env.memory().changes(person)).filter(item => item.kind === "auto_kept");
   assert.equal(changes.length, 1);
   assert.equal(changes[0]!.undoable, true);
   assert.equal((await env.memory().history(person, entry.memory_id)).revisions.length, 1);
@@ -100,13 +100,13 @@ test("MEM-09 committed formal with failed journal retries the original operation
   });
   const [committed] = await env.raw(person).list("project", "project-a");
   assert.ok(committed);
-  assert.equal(env.memory().changes(person).length, 0);
+  assert.equal((await env.memory().changes(person)).length, 0);
   await env.reopen();
   const retried = await env.learn("retry-operation", originals);
   assert.equal(retried[0]!.memory_id, committed.memory_id);
   const entries = await env.raw(person).list("project", "project-a");
   assert.deepEqual(entries.map(item => [item.memory_id, item.version]), [[committed.memory_id, 1]]);
-  assert.equal(env.memory().changes(person).filter(item => item.kind === "auto_kept").length, 1);
+  assert.equal((await env.memory().changes(person)).filter(item => item.kind === "auto_kept").length, 1);
   assert.equal((await env.memory().history(person, committed.memory_id)).revisions.length, 1);
 });
 
@@ -134,7 +134,12 @@ test("MEM-09 prepare failure writes no formal; forgetting retains suppression th
     } } };
   });
   const deletion = { ...person, operation_id: "forget-prepared-originals" };
-  await assert.rejects(env.memory().clearScope(deletion, "project", preview.fingerprint), /candidate delete unavailable/);
+  await assert.rejects(env.memory().clearScope(deletion, "project", preview.fingerprint), error => {
+    const refusal = error as { code?: string; details?: { operation_id?: string; forgetting?: string; cleanup?: string } };
+    assert.equal(refusal.code, "memory.unavailable"); assert.equal(refusal.details?.forgetting, "accepted"); assert.equal(refusal.details?.cleanup, "pending");
+    const fact = env.ledger().forgetting.read().decisions.find(one => one.operation_id === refusal.details?.operation_id);
+    assert.equal(fact?.selection_mode, "related"); assert.equal(fact?.owner, "project-a"); assert.equal(fact?.memories.length, 1); return true;
+  });
   assert.equal(env.memory().sourceAllowed(actor, "project", "project-a", originals), false, "forgetting is durable before candidate deletion");
   assert.equal((await env.raw(person).list("project", "project-a")).length, 1, "failed cleanup did not claim formal removal");
   await env.memory().clearScope(deletion, "project", preview.fingerprint);
@@ -154,7 +159,7 @@ test("MEM-09 a source withdrawn during undo preparation prevents the formal comm
   });
   await assert.rejects(env.learn("withdraw-during-prepare", originals));
   assert.equal((await env.raw(person).list("project", "project-a")).length, 0);
-  assert.equal(env.memory().changes(person).length, 0);
+  assert.equal((await env.memory().changes(person)).length, 0);
 });
 
 test("MEM-09 cancellation and current automatic/formation switches are rechecked after undo preparation", { timeout: 20_000 }, async t => {
@@ -174,7 +179,7 @@ test("MEM-09 cancellation and current automatic/formation switches are rechecked
     assert.ok(result.recording_error, "the original formation receipt survives a stopped promotion");
     mocked.mock.restore();
     assert.equal((await env.raw(person).list("project", "project-a")).length, 0, mode);
-    assert.equal(env.memory().changes(person).length, 0, mode);
+    assert.equal((await env.memory().changes(person)).length, 0, mode);
   }
 });
 
@@ -210,7 +215,7 @@ test("MEM-09 replacement keeps prior source identities for permanent forgetting 
   const [entry] = await env.raw(person).list("project", "project-a");
   assert.equal(entry!.memory_id, memoryId);
   assert.equal(entry!.version, 2);
-  const change = env.memory().changes(person).find(item => item.kind === "auto_replaced")!;
+  const change = (await env.memory().changes(person)).find(item => item.kind === "auto_replaced")!;
   assert.equal(change.undoable, true);
   await env.reopen();
   await env.memory().undo(person, change.change_id);
@@ -227,11 +232,11 @@ test("MEM-09 a UUID learning operation keeps a bounded journal receipt and repla
   const originals = [snapshot("receipt-length-1", text), snapshot("receipt-length-2", text)];
   const [result] = await env.learn(operation, originals);
   assert.equal(result!.outcome, "written");
-  const [change] = env.memory().changes(person);
+  const [change] = (await env.memory().changes(person));
   assert.ok(change && change.change_id.length <= 200, "the actual SDK receipt must fit its public contract");
   await env.reopen();
   assert.equal((await env.learn(operation, originals))[0]!.memory_id, result!.memory_id);
   assert.deepEqual((await env.raw(person).list("project", "project-a")).map(entry => [entry.memory_id, entry.version]), [[result!.memory_id, 1]]);
-  assert.deepEqual(env.memory().changes(person).map(item => item.change_id), [change.change_id]);
+  assert.deepEqual((await env.memory().changes(person)).map(item => item.change_id), [change.change_id]);
   assert.equal((await env.memory().history(person, result!.memory_id!)).revisions.length, 1);
 });

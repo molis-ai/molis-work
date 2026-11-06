@@ -1,4 +1,4 @@
-import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
+import { actionExecutionContext, assertReadOnlyEffects, visibleAction, prepareSubjectStateResult } from "./action-execution-context.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
@@ -136,11 +136,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
           };
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
-          const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
-          const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
-          // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
+            const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
+              definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            const checked = prepareSubjectStateResult(execution, definition, provider, input, this.registry, () => executing, value => checkedActionResult(definition, validateOutput, value), assertCurrent);
+            // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
             const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }

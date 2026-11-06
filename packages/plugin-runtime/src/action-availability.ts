@@ -5,6 +5,11 @@ import { pluginCallbackContext } from "./callback-context.js";
 /** Availability reads the same owner's settings, but never acquires execution or background authority. */
 export function pluginActionAvailability(instance: PluginInstance, definition: ActionDefinition, caller: ActionCallContext,
   read: (context: ActionCallContext) => ActionAvailability): ActionAvailability {
+  return pluginReadOnlyCallback(instance, definition, caller, read);
+}
+
+/** One synchronous callback of the original owner; its services stay read-only and expire on return. */
+export function pluginReadOnlyCallback<T>(instance: PluginInstance, definition: ActionDefinition, caller: ActionCallContext, read: (context: ActionCallContext) => T): T {
   let active = true;
   const check = () => {
     if (!active) throw new ActionError("actions.expired", "动作可用性检查已经结束");

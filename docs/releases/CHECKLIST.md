@@ -47,7 +47,7 @@
 | Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 拒绝 |
 | Goals 的个人方法 | `goals/goals.db` | 1 | `user_version` | `plugins/native/goals/src/home-database.ts#GOALS_HOME_DATABASE` | 拒绝；旧数据搬迁已取消，干净Home创建当前库 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 拒绝 |
-| 记忆 | `memory/memory.db` | 1 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝；旧采用路线取消，新Home创建完整reviewed偏好，不重设已有设置 |
+| 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 当前索引采用格式；只在授权隔离新容器建立，错版拒绝；旧库转换取消，真实 Home 维护与 U1 升级链均未验，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 拒绝 |
 | Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 拒绝 |

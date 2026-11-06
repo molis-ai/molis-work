@@ -1,3 +1,4 @@
+import type { MemoryClassRestriction } from "./memory.js";
 /**
  * Memory and documents through the Agent Host's runtime: part of the `services/agent-host` contract (re-exported there),
  * declared in their own file.
@@ -65,7 +66,16 @@ export interface AgentMemoryCandidateEntry {
 export interface AgentPinnedMemory { scope: "user" | "project" | "character"; owner: string; memory_id: string; version?: number }
 
 /** App-owned reading recipe. Selection, current authorization and final token accounting belong to the SDK. */
+export interface AgentMemoryClassPolicy {
+  readonly policy_version: 2;
+  readonly taxonomy_version: 1;
+  readonly personal: readonly MemoryClassRestriction[];
+  readonly project: readonly MemoryClassRestriction[];
+}
+
+/** App-owned reading recipe. Selection, current authorization and final token accounting belong to the SDK. */
 export interface AgentRecalledMemory {
+  readonly class_restrictions: AgentMemoryClassPolicy;
   /** Only explicitly selected resident references; initial Molis policy keeps this empty. */
   pinned: AgentPinnedMemory[];
   consumer: string;
@@ -92,7 +102,15 @@ export interface AgentMemoryRecallFact {
   unavailable: string[];
   /** Retrieved/prepared references are not proof that a Provider received them. Older records may lack these facts. */
   selected?: Array<{ memory_id: string; version: number }>;
-  retrievals?: Array<{ receipt_id: string; outcome: "ready" | "none" | "skip" | "unavailable" | "failed" | "timeout" | "cancelled"; error_code?: string }>;
+  retrievals?: Array<{ receipt_id: string; outcome: "ready" | "none" | "skip" | "unavailable" | "failed" | "timeout" | "cancelled"; error_code?: string;
+    /** Ordered retrieval attempts, including an unavailable/failed primary before an explicitly allowed fallback. */
+    attempts?: Array<{ algorithm: string; outcome: "ready" | "none" | "skip" | "unavailable" | "failed" | "timeout" | "cancelled";
+      fallback_from?: string; error_code?: string }>;
+    /** SDK-owned, body-free accounting. Absent and unknown values are not zero; ready is not dispatch evidence. */
+    cost?: { recaller_calls: number; recaller_usage?: { input_tokens?: number; output_tokens?: number; cached_input_tokens?: number };
+      directory_entries: number | "unknown"; directory_enumerations: number | "unknown"; directory_traversal: "full" | "bounded" | "unknown";
+      metadata_reads: number | "unknown"; body_reads: number | "unknown"; records_scanned: number | "unknown";
+      candidates_exposed: number; elapsed_ms: number; complete: boolean } }>;
   /** Latest disposition of each prepared model call, measured with its complete memory wrapper. */
   contexts?: Array<{ call_id: string; status: "prepared" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
     tokens: number; budget_tokens: number; basis: "conservative-estimate" | "provider-reported";
@@ -208,6 +226,14 @@ export type AgentMemoryPreviewMutation = { kind: "update"; change: AgentMemoryCh
   | { kind: "pause" | "disable"; reason: string } | { kind: "resume" | "remove" };
 /** Supplied only by trusted App/Host code, independently of business/model input. */
 export interface AgentMemoryCaller {
+  /** Protected person's business binding only. Never a model or plugin input. */
+  readonly memory_session?: import("./memory-session.js").MemorySessionBinding;
+  /** Host write-owner use only; never Action/model/plugin input or a task/context read grant. */
+  readonly candidate_access?: { purpose: "formation-receipt"; scope: "user" | "project" | "character"; owner: string; candidate_id: string; version: number }
+    | { purpose: "proposal-check"; operation_id: string; scope: "user" | "project" | "character"; owner: string };
+  readonly class_restrictions?: AgentMemoryClassPolicy;
+  /** Original Run binding permits SDK explicit tools, without changing automatic task reads. */
+  readonly run_explicit?: boolean;
   actor_id: string;
   character_id?: string;
   project_id: string | null;
@@ -241,20 +267,57 @@ export interface AgentMemoryScopePreview {
     items: readonly { ref: { kind: "memory"; id: string; revision: 1 }; expectedVersion: number;
       operationId: string; mutation: { kind: "purge" } }[] };
 }
+export interface AgentMemoryBatchPreview {
+  operation_id: string;
+  items: Array<{ memory_id: string; version: number }>;
+  decision: { version: 1; binding: string; scope: AgentMemoryEntry["scope"]; owner: string;
+    items: readonly { ref: { kind: "memory"; id: string; revision: 1 }; expectedVersion: number;
+      operationId: string; mutation: { kind: "purge" } | { kind: "disable"; reason: string } }[] };
+}
 export interface AgentMemoryClearResult {
   items: Array<{ memory_id: string; outcome: "completed" | "already-absent" | "conflict" | "not-executed" | "unknown"; version?: number }>;
 }
 type AgentMemoryLocation = { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string };
 type AgentCandidateLocation = { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string };
 
+/** Query permission is distinct from task reads. Owner is supplied by the trusted App scope resolver. */
+export interface AgentMemoryPageQuery {
+  scope: AgentMemoryEntry["scope"];
+  owner: string;
+  filter?: { namespace?: string | null; scenes?: readonly string[]; kinds?: readonly string[]; lifecycles?: readonly string[];
+    extra?: Readonly<Record<string, readonly string[]>>; sources?: readonly string[]; states?: readonly ("active" | "paused" | "disabled")[];
+    expired?: boolean; tombstone?: boolean };
+  limit?: number;
+  scan_limit?: number;
+  cursor?: string;
+  signal?: AbortSignal;
+}
+export interface AgentMemoryPage {
+  items: AgentMemoryEntry[];
+  cursor?: string;
+  exhausted: boolean;
+  stopped: "end" | "limit" | "scan-limit" | "unknown";
+  total: { kind: "exact"; value: number } | { kind: "unknown" };
+  scanned: number | "unknown";
+  cost: { directory_entries: number | "unknown"; directory_enumerations: number | "unknown";
+    directory_traversal: "full" | "bounded" | "unknown"; metadata_reads: number | "unknown"; body_reads: number | "unknown" };
+}
+
 /** One SDK owner, with an immutable caller binding and current Host authority before effects. */
 export interface AgentMemoryCapability {
+  previewSessionPurge?(input: { kind: "memory" | "memory-candidate"; selection: import("./memory-session.js").MemorySessionPurgeSelection;
+    cursor?: string; limit?: number; signal?: AbortSignal }): Promise<import("./memory-session.js").MemorySessionPurgePage<string>>;
+  purgeSessionTarget?(input: import("./memory-session.js").MemorySessionPurgeTarget<AgentMemoryEntry["scope"]> & { signal?: AbortSignal }): Promise<void>;
   withCaller(caller: AgentMemoryCaller): AgentMemoryCapability;
   withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
+  /** Same Runtime write observation only, never an authorization grant or cross-Runtime transaction. */
+  observeWrites(): Promise<() => void>;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
+  page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
   /** Append maps operation_id to SDK idempotencyKey; it has no synthetic expected version. */
   write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryEntry>;
   update(input: AgentMemoryLocation & AgentMemoryMutation & { change: AgentMemoryChange }): Promise<AgentMemoryEntry>;
+  renew(input: AgentMemoryLocation & AgentMemoryMutation & { expires_at_ms: number }): Promise<AgentMemoryEntry>;
   setMeta(input: AgentMemoryLocation & AgentMemoryMutation & { meta: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
   pause(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
   disable(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
@@ -266,6 +329,9 @@ export interface AgentMemoryCapability {
   recall(input: { scope: AgentMemoryEntry["scope"]; owner: string; keywords?: string[]; text?: string; kinds?: string[]; limit?: number }): Promise<Array<{ entry: AgentMemoryEntry; score: number }>>;
   candidates: AgentMemoryCandidateCapability;
   screen?(text: string): Promise<{ hold: boolean; reasons: string[]; redacted: string }>;
+  previewBatch(input: { scope: AgentMemoryEntry["scope"]; owner: string; action: "disable" | "remove"; operation_id: string;
+    items: readonly { memory_id: string; version: number }[]; signal?: AbortSignal }): Promise<AgentMemoryBatchPreview>;
+  applyBatch(input: { preview: AgentMemoryBatchPreview; signal?: AbortSignal }): Promise<AgentMemoryClearResult>;
   previewScope(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryScopePreview>;
   clearScope(input: { scope: AgentMemoryEntry["scope"]; owner: string; preview: AgentMemoryScopePreview; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryClearResult>;
 }
@@ -274,6 +340,8 @@ export interface AgentMemoryCandidateCapability {
   form(input: AgentMemoryFormationInput): Promise<AgentMemoryFormationResult>;
   propose(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; sources?: AgentMemorySourceRef[]; expected_version: 0; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryCandidateEntry>;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
+  /** Exact current candidate: missing returns undefined; authorization, corruption and version failures remain errors. */
+  get(input: AgentCandidateLocation & { signal?: AbortSignal }): Promise<AgentMemoryCandidateEntry | undefined>;
   accept(input: AgentCandidateLocation & AgentMemoryMutation & { text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
   promote(input: AgentCandidateLocation & AgentMemoryMutation & { policy: string; version: number; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
   /** The SDK changes the formal text/meta and then reconciles the candidate; the App never pre-updates it. */

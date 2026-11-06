@@ -10,6 +10,7 @@ import { CODING_TIMELINE_MESSAGES } from "./timeline-messages.js";
  * (timeline-messages.ts, panels-messages.ts, settings-messages.ts, server-messages.ts, change-messages.ts), spread in here.
  */
 export const CODING_MESSAGES = {
+  "coding.memory.session": { zh: "本会话记忆", en: "Session memory" },
   ...CODING_TIMELINE_MESSAGES,
   ...CODING_PANELS_MESSAGES,
   ...CODING_SETTINGS_MESSAGES,
@@ -580,6 +581,15 @@ export const CODING_MESSAGES = {
   "coding.run.resumed": { zh: "已恢复，这一轮从暂停处接着执行。", en: "Resumed; this turn carries on from where it paused." },
   "coding.run.stop-received": { zh: "停止请求已收到，正在确认执行结果。", en: "Stop received; checking what was carried out." },
   "coding.session.archive-confirm": { zh: "归档这条 Coding 会话？它会从活动列表移出，执行记录和固定成果仍会保留。", en: "Archive this Coding session? It leaves the active list; its run record and fixed results are kept." },
+  "coding.session.lifecycle-conflict": { zh: "会话正在启动或已被修改，请重新查看后再决定。", en: "The session is starting or has changed. Review it before choosing again." },
+  "coding.session.lifecycle-incomplete": { zh: "恢复未完成", en: "Restore incomplete" },
+  "coding.session.lifecycle-unavailable": { zh: "状态暂不可确认", en: "State unavailable" },
+  "coding.session.archive-incomplete": { zh: "归档还没完成，请重试。", en: "Archiving is not complete. Please try again." },
+  "coding.session.restore-incomplete": { zh: "会话已重新显示，但恢复还没完成。请再点一次恢复。", en: "The session is visible again, but restoring it is not complete. Choose Restore again." },
+  "coding.session.restore": { zh: "恢复会话", en: "Restore session" },
+  "coding.session.restored": { zh: "会话已恢复。", en: "Session restored." },
+  "coding.directory.archived": { zh: "已归档", en: "Archived" },
+  "coding.directory.more": { zh: "加载更多", en: "Load more" },
   "coding.session.archived": { zh: "会话已归档。", en: "Session archived." },
   "coding.session.name": { zh: "会话名称", en: "Session name" },
   "coding.session.name-saved": { zh: "会话名称已保存。", en: "Session name saved." },

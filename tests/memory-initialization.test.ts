@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, linkSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import { openMemoryLedger, openHomeSqliteDatabase, homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger, openHomeSqliteDatabase, homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { MemoryService, isCompletePrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend, hostTextGeneration, ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost, MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -22,12 +22,18 @@ const worker: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJ
 const automatic = { scope: "project" as const, text: "以后周报把风险放在前面", kind: "convention" as const,
   basis: "repeated" as const, why: "两项独立工作中重复提出", from: "extraction" as const };
 const originalPrefs = { enabled: true, task_recall: true, form: true, auto: true, learn_from_work: true, learn_from_ui: true,
-  consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: false }, plugins: {} };
+  consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: false }, plugins: {}, class_restrictions: [] };
 
 function scratch(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "molis-memory-initialization-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   return home;
+}
+
+function initializeFreshForgetting(home: string) {
+  const owner = acquireStorageOwner(join(home, "agent-runtime"));
+  try { initializeMemoryForgetting({ homeDirectory: home, storageOwner: owner, assertCurrent() {} }); }
+  finally { owner.release(); }
 }
 
 async function open(home: string) {
@@ -62,7 +68,7 @@ async function learnedAutomatic(home: string, env: Awaited<ReturnType<typeof ope
       store.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
       const original_input = { input_id: crypto.randomUUID(), text: automatic.text, written_by: "person" as const, occurred_at: new Date().toISOString() };
       const run = await env.adapter.start({ ...owner, session, workspace: "none", task: automatic.text, original_input, role_id: "assistant",
-        role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+        role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [], memory: await env.service.forRun({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "assistant" }, { query: automatic.text }) } });
       const view = await untilSetup(async () => { const value = await env.adapter.read(run.ref); return value.phase === "completed" ? value : undefined; }, "current original completed");
       const original = view.original_input; assert.ok(original); assert.equal(original.written_by, "person");
       sources.push({ event_id: "molis-input:1:" + JSON.stringify([owner.actor_id, original.ref.session_id, "original", original.ref.input_id]), version: "1",
@@ -107,7 +113,8 @@ test("a new Home is reviewed; manual saving and reading work, and a later saved 
 
 // RAC-2372 MEM-24: current complete saved choices survive restart; no adoption or missing-field conversion.
 test("current complete saved preferences retain automatic writing, project overrides and plugin restrictions after restart", async t => {
-  const home = scratch(t), saved = openMemoryLedger({ homeDirectory: home });
+  const home = scratch(t); initializeFreshForgetting(home);
+  const saved = openMemoryLedger({ homeDirectory: home });
   saved.transaction(() => {
     saved.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { ...originalPrefs, auto: false, consumers: { ...originalPrefs.consumers, assistant: false } });
     saved.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", { ...originalPrefs, consumers: { ...originalPrefs.consumers, mcp: true, agent: false },
@@ -179,10 +186,11 @@ test("a nonempty Home without a ledger is refused before creating its owner dire
 });
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
-for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs"] as const) {
+for (const shape of ["missing-ledger", "wrong-version", "future-version", "missing-prefs", "partial-prefs", "six-field-prefs"] as const) {
   test(`an existing Home with ${shape} is refused without interpreting it as a new user`, async t => {
     const home = scratch(t);
-    mkdirSync(join(home, "agent-runtime")); writeFileSync(join(home, "agent-runtime", "existing"), "keep SDK bytes");
+    if (shape !== "missing-ledger") initializeFreshForgetting(home);
+    mkdirSync(join(home, "agent-runtime"), { recursive: true }); writeFileSync(join(home, "agent-runtime", "existing"), "keep SDK bytes");
     if (shape !== "missing-ledger") {
       const ledger = openMemoryLedger({ homeDirectory: home });
       if (shape === "partial-prefs") {
@@ -195,11 +203,12 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
         ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prior);
       }
       ledger.close();
-      if (shape === "wrong-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 2"); db.close(); }
+      if (shape === "wrong-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 1"); db.close(); }
+      if (shape === "future-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 3"); db.close(); }
     }
     const before = files(home);
     const directories = readdirSync(home).sort();
-    const refused = { code: shape === "wrong-version" ? "storage.schema_version_mismatch" : "memory.unavailable" };
+    const refused = { code: shape === "wrong-version" || shape === "future-version" ? "storage.schema_version_mismatch" : "memory.unavailable" };
     assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), refused);
     assert.throws(() => createDesktopWebHost({ ptyClientFilePath: () => "unused.js" })({ homeDirectory: home }), refused);
     assert.throws(() => new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "test", host_declares_stable: true } }), refused);
@@ -248,3 +257,67 @@ test("current profiles require every switch and consumer, and only current plugi
   assert.equal(isCompletePrefs({ ...originalPrefs, plugins: { writer: { allowed: true, kinds: ["unknown"] } } }), false);
   assert.equal(isCompletePrefs({ ...originalPrefs, plugins: { writer: { allowed: false, kinds: ["convention"] } } }), true);
 });
+
+function aliasedHome() {
+  const directory = mkdtempSync(join(tmpdir(), "molis-memory-home-alias-")), home = join(realpathSync(directory), "real-home"), alias = join(realpathSync(directory), "home-alias");
+  mkdirSync(home); symlinkSync(home, alias, "dir");
+  return { directory, home, alias };
+}
+
+// The Home root may be an alias; its stores still use the same physical Home and original owner.
+test("the public Host constructor accepts a Home alias and preserves one owner and saved memory across restart", async t => {
+  const { directory, home, alias } = aliasedHome();
+  let host: MolisWorkLocalHost | undefined;
+  t.after(async () => { try { await host?.close(); } finally { rmSync(directory, { recursive: true, force: true }); } });
+  try { host = new MolisWorkLocalHost({ homeDirectory: alias, completeText: null }); }
+  catch (error) { await (error as { close?: () => Promise<void> }).close?.(); throw error; }
+  const agents = ensureSystemAgentService(host, home);
+  assert.equal(ensureSystemAgentService(host, alias), agents);
+  await agents.ready;
+  const client = () => bindActionClient(host!.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null,
+    audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
+  const saved = await client().invoke(memoryActions.write, { scope: "personal", text: "Home 别名保持原记忆", kind: "convention" });
+  await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  await ensureSystemAgentService(host, alias).ready;
+  const items = (await client().invoke(memoryActions.list, { scope: "personal" })).items;
+  assert.equal(items.length, 1); assert.equal(items[0]!.memory_id, saved.memory!.memory_id); assert.equal(items[0]!.text, saved.memory!.text);
+});
+
+for (const entrance of ["Web Catalog", "personal Catalog", "system Agent"] as const) {
+  test(`late ${entrance} binding accepts a Home alias and the same canonical Home`, async t => {
+    const { directory, home, alias } = aliasedHome(), host = new MolisWorkLocalHost({ completeText: null });
+    t.after(async () => { try { await host.close(); } finally { rmSync(directory, { recursive: true, force: true }); } });
+    if (entrance === "Web Catalog") {
+      const access = host.ensureWebCatalog(alias, openMolisWorkProjectCatalog);
+      assert.equal(host.ensureWebCatalog(home, openMolisWorkProjectCatalog), access);
+      await access.withCatalog({ homeDirectory: home }, catalog => assert.deepEqual(catalog.listProjects(), []));
+      await access.withCatalog({ homeDirectory: alias }, catalog => assert.deepEqual(catalog.listProjects(), []));
+      const foreign = join(realpathSync(directory), "foreign-home"); mkdirSync(foreign);
+      await assert.rejects(access.withCatalog({ homeDirectory: foreign }, () => assert.fail("foreign Home cannot borrow this connection")), /Web catalog belongs to another Home/);
+      assert.deepEqual(readdirSync(foreign), [], "a rejected foreign Home is not initialized");
+      unlinkSync(alias); symlinkSync(foreign, alias, "dir");
+      await assert.rejects(access.withCatalog({ homeDirectory: alias }, () => assert.fail("retargeted alias cannot borrow the original connection")), /Web catalog belongs to another Home/);
+      assert.throws(() => host.ensureWebCatalog(alias, openMolisWorkProjectCatalog), { code: "actions.home_mismatch" });
+      assert.deepEqual(readdirSync(foreign), [], "retargeting the Home alias does not initialize the new target");
+    } else if (entrance === "personal Catalog") {
+      host.configurePersonalPlanning(alias, withMolisWorkProjectCatalog);
+      const catalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+      await catalog({ homeDirectory: home }, value => assert.deepEqual(value.listProjects(), []));
+    } else {
+      const service = ensureSystemAgentService(host, alias);
+      assert.equal(ensureSystemAgentService(host, home), service); await service.ready;
+    }
+  });
+}
+
+for (const link of ["symbolic", "hard"] as const) {
+  test(`a valid Home alias does not admit an internal ${link} link for forgetting facts`, async t => {
+    const { directory, home, alias } = aliasedHome();
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    const initialized = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); await initialized.close();
+    const original = join(home, "memory-forgetting-v2.json"), outside = join(realpathSync(directory), "outside-forgetting.json");
+    copyFileSync(original, outside); unlinkSync(original);
+    if (link === "symbolic") symlinkSync(outside, original); else linkSync(outside, original);
+    assert.throws(() => new MolisWorkLocalHost({ homeDirectory: alias, completeText: null }), { code: "memory.forgetting_invalid" });
+  });
+}

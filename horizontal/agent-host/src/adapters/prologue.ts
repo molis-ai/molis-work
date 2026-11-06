@@ -76,6 +76,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       read: run => this.read(run),
     }),
   };
+  readonly sessionLifecycle?: AgentRuntimeAdapter["sessionLifecycle"];
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -97,6 +98,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#ports = options;
     this.#memoryUsage = new PrologueMemoryUsage(options.memoryUsage);
     this.#store = new PrologueRunStore(runtime, options.now ?? (() => new Date()), options.approvals, this.#memoryUsage);
+    if (runtime.sessions.lifecycle) this.sessionLifecycle = runtime.sessions.lifecycle;
     if (runtime.projectWork) this.projectWork = runtime.projectWork;
     if (runtime.messages) this.messages = runtime.messages;
     // A plan change goes through the adapter, which knows which round's graph may still change.

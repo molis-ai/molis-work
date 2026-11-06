@@ -1,3 +1,4 @@
+import { directoryStatus, loadArchivedDirectory, renderDirectory } from "./directory.js";
 import { errorMessage } from "../dom.js";
 import { commitRound } from "./click-commit.js";
 import type { ClickRule } from "./click-types.js";
@@ -149,6 +150,23 @@ export const ROUND_CLICKS: readonly ClickRule[] = [
     await api(page, sessionPath(s.current) + "/control", "POST", { run_id: s.lastRun.ref.run_id, kind: "stop" });
     status(page, L("coding.run.stop-received"));
     await readCurrent(page);
+  }],
+  ["[data-coding-archived]", async (page, target) => {
+    target.disabled = true;
+    try {
+      if (page.s.archivedDirectory) { page.s.archivedDirectory = undefined; renderDirectory(page); }
+      else await loadArchivedDirectory(page);
+    } finally { target.disabled = false; }
+  }],
+  ["[data-coding-archived-more]", page => loadArchivedDirectory(page, true)],
+  ["[data-coding-restore]", async (page, target, event) => {
+    event.preventDefault(); target.disabled = true; directoryStatus(page, "");
+    try {
+      await api(page, sessionPath(target.dataset.codingRestore!), "PATCH", { archive: false });
+      if (page.s.archivedDirectory) page.s.archivedDirectory.rows = page.s.archivedDirectory.rows.filter(row => row.session_id !== target.dataset.codingRestore);
+      await refreshState(page); directoryStatus(page, page.L("coding.session.restored")); status(page, page.L("coding.session.restored"));
+    } catch (error) { directoryStatus(page, errorMessage(error)); throw error; }
+    finally { target.disabled = false; }
   }],
   ["[data-coding-archive]", archive],
   ["[data-coding-rename]", rename],

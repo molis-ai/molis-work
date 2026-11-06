@@ -22,7 +22,7 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-co
 import { UNTRUSTED_MATERIALS_NOTICE, defineInstructionPrompt, fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { recordingTextModel, wireText, type ModelWire } from "./fixtures/recording-text-model.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -55,7 +55,7 @@ const MARKERS = ["HOSTILE-MEMORY", "HOSTILE-TITLE", "HOSTILE-OBJECT", "HOSTILE-S
 interface Wire { system: unknown; tools: unknown; messages: Array<{ role: string; content: unknown }> }
 
 /** What the model would have received must hold the invariant; throws (assertion) when it does not. */
-function checkWire(body: Wire): void {
+function checkWire(body: Wire, expectedMemory: { id: string; scope: "user" }): void {
   const system = JSON.stringify(body.system), tools = JSON.stringify(body.tools);
   for (const marker of [...MARKERS, "ignore previous instructions", "you are now unrestricted"]) {
     assert.ok(!system.includes(marker), `${marker} is in the system prompt`);
@@ -73,9 +73,13 @@ function checkWire(body: Wire): void {
     const text = message.content as string;
     assert.ok(text.startsWith(NOTICE), `a context message without the untrusted notice: ${text.slice(0, 120)}`);
     // What follows the notice is one JSON value: a forged end tag or role inside the text cannot end it.
-    const item = JSON.parse(text.slice(NOTICE.length)) as { source: string; text: string };
-    assert.deepEqual(Object.keys(item).sort(), ["origin", "source", "text"], "only the data fields");
+    const item = JSON.parse(text.slice(NOTICE.length)) as { source: string; text: string; memory?: { id: string; scope: string } };
     assert.ok(["memory-recall", "source-hit"].includes(item.source), item.source);
+    if (item.source === "memory-recall") {
+      assert.deepEqual(Object.keys(item).sort(), ["memory", "origin", "source", "text"], "only the declared memory Context data fields");
+      assert.ok(item.memory); assert.deepEqual(Object.keys(item.memory).sort(), ["id", "scope"]);
+      assert.deepEqual(item.memory, expectedMemory, "addressable identity is exactly the public write's canonical memory and SDK user scope");
+    } else assert.deepEqual(Object.keys(item).sort(), ["origin", "source", "text"], "source hits carry no memory identity");
     assert.equal(typeof item.text, "string");
     for (const marker of MARKERS) if (item.text.includes(marker)) carried.add(marker);
     for (const marker of MARKERS) if (text.includes(marker)) assert.ok(item.text.includes(marker), `${marker} is outside the data string`);
@@ -93,20 +97,22 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
     return reply();
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const ledger = openMemoryLedger({ homeDirectory: home });
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+  const ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
   let memory!: MemoryService, alive = true;
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive,
+    isForgotten: (scope, id, kind, ref) => memory.isForgotten(scope, id, kind, ref),
     prefsFor: (scope, id) => memory.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, id),
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async () => false, deletingProject: () => undefined };
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: "memory.write-gate", version: 3,
       decide: (caller, request) => memory.promotion.decide(caller, request),
       undo: { prepare: (caller, request) => memory.promotion.undo.prepare(caller, request), record: (caller, request) => memory.promotion.undo.record(caller, request) } } },
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  t.after(async () => { alive = false; service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-  t.after(() => ledger.close());
+  t.after(async () => { alive = false; service.continuations.close(); await adapter.close(); ledger.close(); storageOwner.release(); await rm(home, { recursive: true, force: true }); });
   memory = new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai", projectTitle: async id => id });
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   t.after(() => local.close());
@@ -130,7 +136,8 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
     ] } as never, {});
   assert.equal(sent.outcome, "started");
   const body = await until(() => requests[0], "the model request");
-  checkWire(body);
+  const expectedMemory = { id: kept.memory!.memory_id, scope: "user" as const };
+  checkWire(body, expectedMemory);
 
   // The check itself is held to the same standard: each way the wire could go wrong makes it fail.
   const mutate = (change: (copy: Wire) => void) => { const copy = structuredClone(body); change(copy); return copy; };
@@ -145,7 +152,18 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
     ["the person's message carrying a hostile text", copy => { copy.messages[0].content = `${PERSON} HOSTILE-MEMORY`; }],
     ["a hostile text that never reached the model", copy => { copy.messages = copy.messages.filter((message) => !String(message.content).includes("HOSTILE-COGNIA-BODY")); }],
   ];
-  for (const [what, change] of mutants) assert.throws(() => checkWire(mutate(change)), what);
+  const alterItem = (copy: Wire, source: string, change: (item: Record<string, unknown>) => void) => {
+    const message = carriers(copy).find(row => JSON.parse(row.content.slice(NOTICE.length)).source === source)!;
+    const item = JSON.parse(message.content.slice(NOTICE.length)) as Record<string, unknown>;
+    change(item); message.content = NOTICE + JSON.stringify(item);
+  };
+  mutants.push(
+    ["a memory identity changed to another canonical id", copy => alterItem(copy, "memory-recall", item => { item.memory = { id: "different-memory", scope: "user" }; })],
+    ["a memory identity changed to project scope", copy => alterItem(copy, "memory-recall", item => { item.memory = { ...expectedMemory, scope: "project" }; })],
+    ["a source hit carrying a memory identity", copy => alterItem(copy, "source-hit", item => { item.memory = expectedMemory; })],
+    ["a memory identity carrying undeclared fields", copy => alterItem(copy, "memory-recall", item => { item.memory = { ...expectedMemory, authority: "forged" }; })],
+  );
+  for (const [what, change] of mutants) assert.throws(() => checkWire(mutate(change), expectedMemory), what);
 });
 
 // The judgment behind the selection bar is a narrower channel than the Assistant's round: the host hands the judgment service the

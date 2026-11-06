@@ -8,7 +8,7 @@ import type { AgentMemoryCaller, AgentMemoryMeta } from "@molis-ai/molis-work-co
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MemoryService, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, characterOwner, defaultPrefs } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
@@ -18,12 +18,15 @@ const meta: AgentMemoryMeta = { kind: "convention", source: "manual", approved_b
 
 async function fixture(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "molis-memory-runtime-policy-"));
-  const ledger = openMemoryLedger({ homeDirectory: home });
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+  const ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   const projects = new Set(["a", "b"]);
   let alive = true, registered = true, projectCheck: ((id: string) => Promise<boolean>) | undefined;
   let service!: MemoryService;
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive,
+    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id),
     prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: id => projectCheck ? projectCheck(id) : Promise.resolve(projects.has(id)), deletingProject: () => undefined };
@@ -35,10 +38,10 @@ async function fixture(t: TestContext) {
   } } satisfies NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>;
   let network = 0;
   t.mock.method(globalThis, "fetch", async () => { network++; throw new Error("Memory policy must not send model requests"); });
-  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), memory: options,
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, memory: options,
     modelConfiguration: async () => { throw new Error("No model is needed for policy"); } });
   let adapter!: Awaited<ReturnType<typeof open>>;
-  t.after(async () => { await adapter?.close(); ledger.close(); rmSync(home, { recursive: true, force: true }); assert.equal(network, 0); });
+  t.after(async () => { await adapter?.close(); ledger.close(); storageOwner.release(); rmSync(home, { recursive: true, force: true }); assert.equal(network, 0); });
   adapter = await open();
   service = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => adapter.memory!) });
   return { home, ledger, service, options, projects, owner, get adapter() { return adapter; }, bound: (caller: AgentMemoryCaller = person) => adapter.memory!.withCaller(caller),
@@ -157,8 +160,8 @@ test("global personal candidate management binds each ledger-owned project witho
     { scope: "project", text, kind: "convention", basis: "explicit", why: "Person proposed", from: "work" });
   const a = await propose("a", "Use pnpm"), b = await propose("b", "Use npm");
   assert.deepEqual((await f.service.candidates(global, { scope: "all", anywhere: true })).map(one => one.candidate_id).sort(), [a.candidate_id, b.candidate_id].sort());
-  await assert.rejects(f.service.candidates(task, { scope: "all", anywhere: true }), { code: "MEMORY_SCOPE_DENIED" },
-    "a task caller cannot turn the global management option into a candidate read grant");
+  assert.deepEqual((await f.service.candidates(task, { scope: "all", anywhere: true })).map(one => one.candidate_id), [a.candidate_id],
+    "task candidate results stay in their own authorized project; anywhere cannot expose the other project's candidate");
   await assert.rejects(f.service.accept({ ...person, project_id: "b" }, a.candidate_id, { expected_version: a.version }));
   const accepted = await f.service.accept(global, a.candidate_id, { expected_version: a.version });
   assert.equal(accepted.memory?.project_id, "a");
@@ -280,14 +283,14 @@ test("candidate sources resolve through the same trusted caller and foreign or a
 });
 
 
-test("learning candidate management stays independent of task recall without granting formal or unrelated reads", async t => {
+test("source use alone grants neither candidate context nor unrelated reads when task recall is off", async t => {
   const f = await fixture(t); await f.save("formal-retained");
   const candidate = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep reports concise", origin: "person",
     meta, expected_version: 0, operation_id: "candidate-management" });
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", { task_recall: false });
   const learner: AgentMemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "assistant",
     current_scene: "common", purpose: "management", source_use: "learning" };
-  assert.deepEqual((await f.bound(learner).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id]);
+  assert.deepEqual(await f.bound(learner).candidates.list("project", "a"), [], "read∩form tightening: source use is not a general candidate body grant");
   assert.deepEqual(await f.bound(learner).list("project", "a"), [], "the candidate grant is not formal memory access");
   await assert.rejects(f.bound({ ...learner, purpose: "task" }).candidates.list("project", "a"), { code: "MEMORY_SCOPE_DENIED" },
     "a task caller cannot turn a candidate query into management");
@@ -302,4 +305,62 @@ test("learning candidate management stays independent of task recall without gra
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed"); await f.reopen();
   assert.equal((await f.bound().candidates.list("project", "a"))[0]?.version, candidate.version);
   assert.equal((await f.bound().list("project", "a")).length, 1, "permission probes never modify persistent values");
+});
+
+test("candidate receipt reads bind exact scope, owner, id and version without granting ordinary lists", async t => {
+  const f = await fixture(t);
+  const first = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep releases staged", origin: "person",
+    meta, expected_version: 0, operation_id: "receipt-first" });
+  const second = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep reports concise", origin: "person",
+    meta, expected_version: 0, operation_id: "receipt-second" });
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [
+    { selector: { consumer: "assistant", current_scene: "common" }, read: "off", form: "inherit" },
+  ] });
+  const caller: AgentMemoryCaller = { actor_id: person.actor_id, project_id: "a", consumer: "assistant", current_scene: "common",
+    purpose: "management", source_use: "learning" };
+  const lookup = { scope: "project" as const, owner: "a", candidate_id: first.candidate_id };
+  for (const source_use of ["learning", "explicit"] as const) {
+    assert.deepEqual(await f.bound({ ...caller, source_use }).candidates.list("project", "a"), []);
+    await assert.rejects(f.bound({ ...caller, source_use }).candidates.get(lookup), { code: "MEMORY_SCOPE_DENIED" });
+  }
+  const receipt: NonNullable<AgentMemoryCaller["candidate_access"]> = { purpose: "formation-receipt", ...lookup, version: first.version };
+  const bound = f.bound({ ...caller, candidate_access: receipt });
+  assert.equal((await bound.candidates.get(lookup))?.candidate_id, first.candidate_id);
+  assert.deepEqual(await bound.candidates.list("project", "a"), [], "a receipt is for exact get, never a listing grant");
+  await assert.rejects(bound.candidates.get({ ...lookup, candidate_id: second.candidate_id }), { code: "MEMORY_SCOPE_DENIED" });
+  for (const candidate_access of [{ ...receipt, version: first.version + 1 }, { ...receipt, owner: "b" }, { ...receipt, scope: "user" as const }])
+    await assert.rejects(f.bound({ ...caller, candidate_access }).candidates.get(lookup), { code: "MEMORY_SCOPE_DENIED" });
+  assert.equal(await bound.candidates.get({ ...lookup, candidate_id: "unknown-candidate" }), undefined, "no unknown body is granted");
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [] });
+  await assert.rejects(f.bound({ ...caller, candidate_access: { ...receipt, version: first.version + 1 } }).candidates.get(lookup),
+    { code: "MEMORY_SCOPE_DENIED" }, "a wrong receipt cannot fall back to broader normal read permission");
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { form: false });
+  await assert.rejects(bound.candidates.get(lookup), { code: "MEMORY_SCOPE_DENIED" });
+  assert.equal((await f.bound().candidates.list("project", "a")).length, 2, "the person still manages both unchanged candidates");
+});
+
+test("C1 only trusted management memory preflight inherits explicit access; ordinary reads and candidate grants do not", async t => {
+  const f = await fixture(t), entry = await f.save("explicit-management-target");
+  const row = { selector: { consumer: "assistant" as const, current_scene: "common" as const, kind: "convention" }, read: "explicit-only" as const, form: "inherit" as const };
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [row] });
+  const caller: AgentMemoryCaller = { actor_id: person.actor_id, project_id: "a", consumer: "assistant", current_scene: "common", purpose: "management", run_explicit: true,
+    class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [], project: [row] } };
+  type Request = Parameters<typeof f.options.authorize>[1][number];
+  const request: Request = { appId: "io.molis.work", context: { consumer: "assistant", currentScene: "common", purpose: "management" }, action: "manage-read",
+    target: { scope: "project", owner: "a", ref: { kind: "memory", id: entry.memory_id, revision: 1 }, version: entry.version, createdAtMs: 1, identityKnown: true,
+      kind: "convention", source: "manual", classification: { scenes: ["common"], lifecycle: "long-term" }, approvedBy: { by: "person" } } };
+  assert.equal(await f.options.authorize(caller, [request]), true);
+  assert.equal(f.options.assertCurrent?.(caller, [request]), true);
+  for (const other of [{ ...caller, run_explicit: false }, { ...caller, purpose: "task" as const }])
+    assert.equal(await f.options.authorize(other, [request]), false);
+  for (const changed of [
+    { ...request, action: "read" as const }, { ...request, action: "delete" as const },
+    { ...request, readMode: "task" as const }, { ...request, readMode: "resident" as const },
+    { ...request, target: { ...request.target, ref: { kind: "memory-candidate" as const, id: "candidate", revision: 1 } } },
+    { ...request, target: { ...request.target, owner: "b" } },
+  ]) assert.equal(await f.options.authorize(caller, [changed]), false);
+  const off = { ...row, read: "off" as const };
+  assert.equal(await f.options.authorize({ ...caller, class_restrictions: { ...caller.class_restrictions!, project: [off] } }, [request]), false, "frozen off still wins");
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [off] });
+  assert.equal(await f.options.authorize(caller, [request]), false); assert.equal(f.options.assertCurrent?.(caller, [request]), false);
 });

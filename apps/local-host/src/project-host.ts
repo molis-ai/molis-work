@@ -142,6 +142,10 @@ export class MolisWorkLocalHost {
   };
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
+    if (options.homeDirectory !== undefined) {
+      options = { ...options, homeDirectory: resolveConfiguredHome(options.homeDirectory) };
+      this.options = options;
+    }
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
     prepareHostMemoryHome(this, options.homeDirectory);
     try {
@@ -230,6 +234,7 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) {
       const home = options.homeDirectory;
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
+        sessionLifecycle: runtimeId => this.agents?.service.agentHost.adapter(runtimeId).sessionLifecycle,
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
         ownerContext: reference => localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS),
@@ -265,7 +270,7 @@ export class MolisWorkLocalHost {
   /** A borrowed Web transport keeps the shared connection alive until its external Host closes. */
   ensureWebCatalog(home: string, open: Parameters<typeof createWebCatalogAccess>[1]) {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
-    const canonicalHome = path.resolve(home);
+    const canonicalHome = resolveConfiguredHome(home);
     const storageOwner = ensureHomeStorageOwner(this, canonicalHome, preflightMemoryHome);
     if (!this.webCatalog) prepareMemoryHome(canonicalHome, storageOwner);
     return (this.webCatalog ??= { home: canonicalHome, access: createWebCatalogAccess(canonicalHome, options => open({ ...options, storageOwner })) }).access;
@@ -274,7 +279,7 @@ export class MolisWorkLocalHost {
   /** Platform startup injects the existing Catalog owner before accepting requests. */
   configurePersonalPlanning(home: string, withCatalog: LocalWebCatalogRunner): LocalWebCatalogRunner {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
-    const canonicalHome = path.resolve(home);
+    const canonicalHome = resolveConfiguredHome(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
     const storageOwner = ensureHomeStorageOwner(this, canonicalHome, preflightMemoryHome);
     this.personalPlanningHome = canonicalHome;
@@ -287,7 +292,7 @@ export class MolisWorkLocalHost {
   ensureAgentService(homeDirectory: string, create: (owner: import("@molis-ai/molis-work-storage").StorageOwner) => AgentHostComposition,
     beforeAcquire?: (home: string) => void): AgentHostComposition {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
-    const home = path.resolve(homeDirectory);
+    const home = resolveConfiguredHome(homeDirectory);
     const owner = ensureHomeStorageOwner(this, home, beforeAcquire);
     return (this.agents ??= { home, service: create(owner) }).service;
   }

@@ -1,3 +1,4 @@
+import type { DispatchObservation } from "./network-observation.mjs";
 import { performance } from "node:perf_hooks";
 import { hostTextGeneration, type HostTextGeneration } from "@molis-ai/molis-work-app-local-host";
 import { PrologueInferenceError, type PrologueExecutionReceipt, type PrologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
@@ -49,12 +50,12 @@ export async function observeMemoryFormation(env: SequenceEnvironment, sequence:
 
 export async function replayMemorySequences(config: PrologueModelConfiguration, credential: string,
   onProgress: (report: SequenceProgress) => Promise<void>, sequences: readonly MemoryEvaluationSequence[] = MEMORY_EVALUATION_SEQUENCES,
-  repeats: number = MEMORY_SEQUENCE_PROTOCOL.repeats) {
+  repeats: number = MEMORY_SEQUENCE_PROTOCOL.repeats, dispatchObservation: DispatchObservation = {}) {
   let currentKind: "source" | "task" = "task";
   const observer = observeEvaluationRequests(config.endpoint, MEMORY_SEQUENCE_PROTOCOL.budget.maxNetworkAttempts, () => ({
     maxOutputTokens: currentKind === "source" ? MEMORY_SEQUENCE_PROTOCOL.budget.formation.maxOutputTokens : MEMORY_SEQUENCE_PROTOCOL.budget.task.maxOutputTokens,
     maxRequestBytes: MEMORY_SEQUENCE_PROTOCOL.budget.maxRequestBytes,
-  }));
+  }), dispatchObservation);
   const rows: SequenceRow[] = [];
   const model = { modelConfiguration: async () => config, resolveCredential: () => credential };
   // The same existing Host environment binding as production; only this synthetic Home and this approved provider.

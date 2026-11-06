@@ -113,3 +113,24 @@ test("a round's frozen record keeps the call number the Host gave its start, and
   assert.equal(frozen[0]!.call_id, given);
   assert.equal("call_id" in frozen[1]!, false, "a round started without a number has none; nothing invents one");
 });
+
+test("C3 typed dispatch returns one original caller fence after startup is gone", async () => {
+  const host = new AgentHost(), handlers = new Map<string, Function>();
+  const session = { runtime_id: "fixture", session_id: "owned" }; let active = true, invocationActive = true, explicit = true;
+  let execution: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartExecution | undefined;
+  host.register({ descriptor: { runtime_id: "fixture", display_name: "Fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
+    async readSession() { return { session, owner, title: "Owned", runs: [], latest_run: null }; },
+    async start(_request, guards) { execution = guards; return { ref: { session_id: session.session_id, run_id: "run" }, frozen: {
+      role_id: "reader", role_version: 1, execution: "read-only", prompts: [], skills: [], host_tools: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory, model_id: "fixture" } }; },
+  } as AgentRuntimeAdapter);
+  registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } },
+    { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest, authorizedDirectories: [directory.canonical_path],
+      beforeStart() { assert.ok(invocationActive); }, beforeDispatch() { return () => { assert.ok(explicit, "original explicit authority revoked"); }; } }) });
+  const invocation = { consumer: "plugin" as const, plugin: { ...owner, declaration: { manifest: {} as never }, assertActive() { if (!active) throw new Error("original activation revoked"); } },
+    assertAuthorityCurrent() { assert.ok(invocationActive); }, async beforeEffect() { assert.ok(invocationActive); } };
+  await handlers.get(agentHostCapabilities.startRun.capability_id)!({}, ["fixture", { session, directory, task: "Inspect", role_id: "reader" }], invocation);
+  invocationActive = false;
+  const fence = await execution!.beforeDispatch!(); assert.equal(typeof fence, "function"); fence!();
+  explicit = false; assert.throws(() => fence!(), /original explicit authority revoked/);
+  explicit = true; active = false; assert.throws(() => fence!(), /original activation revoked/);
+});

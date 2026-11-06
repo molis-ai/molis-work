@@ -32,6 +32,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
               <div class="assistant-summary-top">
                 <p class="assistant-summary-state"><span class="assistant-state" data-assistant-work-state></span></p>
                 <span class="assistant-summary-controls">
+                  <a class="assistant-control" data-assistant-memory hidden>${L("本会话记忆")}</a>
                   <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
                   <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
                   <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button><button class="assistant-control" type="button" data-assistant-control="stop" data-keep-connections hidden>${L("停止任务，接入继续")}</button>

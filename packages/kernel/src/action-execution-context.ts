@@ -1,4 +1,4 @@
-import { ActionError, actionReachesAudience, requireSynchronous, type ActionDefinition, type ActionProvider, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ExactActionReference, type RetainedActionAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionReachesAudience, requireSynchronous, type ActionDefinition, type ActionProvider, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ExactActionReference, type RetainedActionAuthority, SUBJECT_STATE_TYPE, type ActionSubjectCurrentState, type ActionSubjectState, type RetainedSubjectState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CapabilityRegistry } from "./index.js";
 import { assertCurrentAuthority, effectGuard } from "./action-settlement.js";
@@ -91,4 +91,60 @@ export function assertReadOnlyEffects(caller: ActionCallContext, definition: Hos
   if (caller.read_only_effects && (definition.operation !== "query" || definition.action?.execution?.cost === "metered")) {
     throw new ActionError("actions.forbidden", "只读回调不能执行写入或付费能力");
   }
+}
+
+/** Stage a Host capture locally; only validated JSON and the final query check may hand it out. */
+function prepareSubjectStateCapture(context: ActionExecutionContext, definition: ActionDefinition, provider: ActionProvider, input: unknown,
+  resolve: (reference: ActionReference) => HostCapabilityDescriptor | undefined, active: () => boolean): {
+  provideSubjectState?: ActionExecutionContext["provideSubjectState"]; accept(value: unknown): void;
+} {
+  const capture = context.subject_state_capture;
+  if (!capture) return { accept() {} };
+  const invalid = () => new ActionError("actions.subject_mismatch", "来源状态控制与当前能力或对象不一致");
+  const subject = { ...capture.subject }, reader = { ...capture.reader }, source = { ...capture.source };
+  if (definition.operation !== "query" || definition.action.output_type !== SUBJECT_STATE_TYPE
+    || !definition.action.subject_kinds.includes(subject.kind) || (input as { subject_id?: unknown } | null)?.subject_id !== subject.id) throw invalid();
+  for (const ref of [reader, source]) {
+    const found = resolve(ref), owner = found?.action_provider;
+    if (!ref.provider_id || !found?.action || !owner || ref.provider_id !== provider.provider_id || owner.provider_id !== provider.provider_id
+      || owner.plugin_id !== provider.plugin_id || owner.plugin_install_id !== provider.plugin_install_id || owner.project_id !== provider.project_id
+      || !visibleAction(found as ActionDefinition, owner, context)) throw invalid();
+  }
+  let staged: RetainedSubjectState | undefined, supplied = false;
+  const checkedCurrent = (read: () => ActionSubjectCurrentState, authority: RetainedActionAuthority): ActionSubjectCurrentState => {
+    requireSynchronous(authority.assertCurrent());
+    const value = requireSynchronous(read(), "来源当前状态必须同步读取");
+    requireSynchronous(authority.assertCurrent());
+    const mapped = value?.execution_session;
+    if (!value || value.subject?.kind !== subject.kind || value.subject.id !== subject.id || !["active", "archived", "deleted"].includes(value.state)
+      || mapped !== null && (!mapped || typeof mapped.runtime_id !== "string" || !mapped.runtime_id || typeof mapped.session_id !== "string" || !mapped.session_id)) throw invalid();
+    return { subject: { ...subject }, state: value.state, execution_session: mapped && { runtime_id: mapped.runtime_id, session_id: mapped.session_id } };
+  };
+  return {
+    provideSubjectState(read) {
+      if (!active() || supplied || typeof read !== "function" || !context.retainAuthority || !context.current_action) throw invalid();
+      supplied = true;
+      const authority = context.retainAuthority([context.current_action, reader, source]);
+      staged = { authority, current: () => checkedCurrent(read, authority) };
+    },
+    accept(result) {
+      if (!staged) return;
+      const value = staged.current(), json = result as ActionSubjectState;
+      if (json.subject.kind !== value.subject.kind || json.subject.id !== value.subject.id || json.state !== value.state) throw invalid();
+      requireSynchronous(capture.accept(staged), "来源控制接收必须同步完成");
+    },
+  };
+}
+
+/** Complete this newly constructed execution context before entering its handler, then validate and hand out its result. */
+export function prepareSubjectStateResult(execution: ActionExecutionContext, definition: ActionDefinition, provider: ActionProvider, input: unknown,
+  registry: CapabilityRegistry<ActionCallContext>, active: () => boolean, validate: (value: unknown) => unknown, assertCurrent: () => void): (value: unknown) => unknown {
+  const capture = prepareSubjectStateCapture(execution, definition, provider, input, ref => registry.descriptor(ref, execution.project_id), active);
+  Object.assign(execution, { subject_state_capture: undefined, provideSubjectState: capture.provideSubjectState });
+  return value => {
+    if (definition.operation === "query") assertCurrent();
+    const result = validate(value);
+    capture.accept(result);
+    return result;
+  };
 }

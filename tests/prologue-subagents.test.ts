@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+import { createServer } from "node:http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -168,4 +171,112 @@ test('a named child role brings its own tools: an empty tools list still gives t
     assert.ok(!parentTools.includes('write')&&parentTools.includes('run-command'),parentTools.join());
     assert.deepEqual(childTools.TOOLS_CHILD_A,childTools.TOOLS_CHILD_B,'what the model put in tools changed nothing');
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
+});
+
+
+const requireC3Sdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+const { createNodeHost: createC3Host } = await import(requireC3Sdk.resolve("@prologue/sdk/node"));
+type C3ParentIndex = { attempts: Array<{ refused?: { code: string; at: string }; child_openings?: Array<{ parent_run: string; session?: { id: string }; run?: { id: string }; format: string }> }> };
+type C3ChildWire = { messages: Array<{ role: string; content: string | Array<{ type: string; text?: string }> }>; system?: unknown };
+
+for (const indexed of [false, true]) test(`C3 real Node child exact caller survives reopen without opening a new entry; indexed=${indexed}`, { timeout: 40_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "molis-c3-child-"));
+  const requests: C3ChildWire[] = []; let parentCalls = 0, childCalls = 0;
+  const model = createServer(async (req, res) => {
+    let raw = ""; for await (const chunk of req) raw += chunk;
+    const body = JSON.parse(raw) as C3ChildWire; requests.push(body);
+    const child = body.messages.some(m => m.role === "user" && (typeof m.content === "string" ? m.content.startsWith("EXACT_NEW_CHILD") : m.content?.some(p => p.text?.startsWith("EXACT_NEW_CHILD"))));
+    let reply: Response;
+    if (child) { childCalls++; reply = response("CHILD_DONE"); }
+    else {
+      parentCalls++;
+      if (parentCalls === 1 || parentCalls === 2) {
+        const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0]; assert.ok(character);
+        reply = response("", { name: "dispatch-subagent", input: { instruction: "EXACT_NEW_CHILD: inspect the source, no changes.", tools: ["read", "search"], character, idempotencyKey: "same-child", maxTurns: 2 } });
+      } else if (parentCalls === 3) {
+        const childRef = JSON.stringify(body.messages).match(/sub-[a-z0-9-]+/)?.[0]; assert.ok(childRef);
+        reply = response("", { name: "await-subagents", input: { refs: [childRef], mode: "all", timeoutMs: 10000 } });
+      } else reply = response("Parent done.");
+    }
+    res.writeHead(200, { "content-type": "text/event-stream" }); res.end(Buffer.from(await reply.arrayBuffer()));
+  });
+  await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
+  const address = model.address(); assert.ok(address && typeof address !== "string");
+  let queue = new AgentReviewQueue();
+  const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.c3-child", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/messages`, model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture" });
+  let adapter = await make();
+  try {
+    let host = new AgentHost({ reviews: queue }); host.register(adapter);
+    const owner = { project_id: "p", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "person" }, directory = { canonical_path: root, realpath_verified: true };
+    const manifest = structuredClone(codingAgentManifest);
+    manifest.subagents!.roles = manifest.subagents!.roles.filter(role => role.role_id === (indexed ? "coding-reviewer" : "coding-reader"));
+    const session = await adapter.createSession({ ...owner, directory, title: "Parent" });
+    const parent = await host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "Delegate one exact child." }, { manifest, prompts: codingPrompts, authorizedDirectories: [root] });
+    const approved = new Set<string>();
+    for (const deadline = Date.now() + 20000; ;) {
+      const view = await adapter.read(parent.ref);
+      if (["completed", "failed", "cancelled"].includes(view.phase)) { assert.equal(view.phase, "completed", view.stop_reason); break; }
+      assert.ok(Date.now() < deadline, JSON.stringify({ requests, view }));
+      for (const review of queue.list("p", "pending")) if (!approved.has(review.review_id)) { approved.add(review.review_id); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "person" }); }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    const children = await adapter.subagents!.list(parent.ref); assert.equal(children.length, 1); assert.equal(childCalls, 1);
+    const child = children[0]!;
+    assert.equal(child.continuation_task?.status, "available");
+    assert.ok(child.continuation_task?.status === "available" && child.continuation_task.text.startsWith("EXACT_NEW_CHILD"));
+    const before = requests.length;
+    await adapter.close(); queue = new AgentReviewQueue(); adapter = await make();
+    assert.deepEqual(await adapter.subagents!.list(parent.ref), children, "the original parent's body-free generation fact restores the exact child task");
+    assert.equal(requests.length, before);
+    if (indexed) {
+      host = new AgentHost({ reviews: queue }); host.register(adapter);
+      const childSession = { runtime_id: "prologue", session_id: child.child_run!.session_id };
+      const next = await host.start("prologue", { ...owner, session: childSession, directory, role_id: "reader", task: "NEXT_CHILD_TASK" }, { manifest, prompts: codingPrompts, authorizedDirectories: [root] });
+      for (const deadline = Date.now() + 10000; ;) {
+        const view = await adapter.read(next.ref);
+        if (["completed", "failed", "cancelled"].includes(view.phase)) { assert.equal(view.phase, "completed", view.stop_reason); break; }
+        assert.ok(Date.now() < deadline); await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      assert.ok(JSON.stringify(requests.at(-1)).includes("NEXT_CHILD_TASK"));
+    } else await assert.rejects(adapter.readSession({ runtime_id: "prologue", session_id: child.child_run!.session_id }), /会话|session/);
+    // Exercise attribution through the public Adapter after altering only the persisted fixture's body-free proof.
+    await adapter.close();
+    const inspector = createC3Host({ storageRoot: join(root, "runtime") });
+    const kind = `molis-agent-index-${createHash("sha256").update("io.molis.work.c3-child").digest("hex").slice(0, 24)}`;
+    const bytes = await inspector.storage.readSecure({ kind, id: session.session_id });
+    let original: C3ParentIndex;
+    try { original = JSON.parse(new TextDecoder().decode(bytes)) as C3ParentIndex; } finally { bytes.fill(0); }
+    const proof = original.attempts[0]!.child_openings![0]!;
+    assert.deepEqual(Object.keys(proof).sort(), ["format", "parent_run", "run", "session"], "the original parent stores no copied caller body");
+    assert.equal(original.attempts[0]!.child_openings!.length, 1);
+    for (const change of ["missing", "duplicate", "foreign-parent", "foreign-session", "foreign-run", "duplicate-parent", "refused-parent", "missing-run", "missing-session", "non-array"] as const) {
+      const saved = structuredClone(original), facts = saved.attempts[0]!.child_openings!;
+      if (change === "missing") saved.attempts[0]!.child_openings = [];
+      else if (change === "duplicate") facts.push(structuredClone(facts[0]!));
+      else if (change === "foreign-parent") facts[0]!.parent_run = "foreign-parent";
+      else if (change === "foreign-session") facts[0]!.session!.id = "foreign-session";
+      else if (change === "foreign-run") facts[0]!.run!.id = "foreign-run";
+      else if (change === "duplicate-parent") saved.attempts.push(structuredClone(saved.attempts[0]!));
+      else if (change === "refused-parent") saved.attempts[0]!.refused = { code: "SESSION_HISTORY_UNAVAILABLE", at: "2026-11-04T00:00:00.000Z" };
+      else if (change === "missing-run") delete facts[0]!.run;
+      else if (change === "missing-session") delete facts[0]!.session;
+      else Object.assign(saved.attempts[0]!, { child_openings: { format: "caller-only-v1" } });
+      const record = await inspector.storage.get({ kind, id: session.session_id }); assert.ok(record);
+      await inspector.storage.commit({ kind, id: session.session_id, expectedVersion: record.version, metadata: { schema: 1 }, secureBody: new TextEncoder().encode(JSON.stringify(saved)) });
+      adapter = await make();
+      const actual = (await adapter.subagents!.list(parent.ref))[0]!;
+      assert.deepEqual(actual.continuation_task, { status: "unavailable" }, change);
+      assert.equal(actual.task, child.task, "unattributed raw history remains readable");
+      if (indexed) {
+        host = new AgentHost({ reviews: queue }); host.register(adapter);
+        const count = requests.length;
+        await assert.rejects(host.start("prologue", { ...owner, session: { runtime_id: "prologue", session_id: child.child_run!.session_id }, directory, role_id: "reader", task: "UNPROVEN_CHILD_FOLLOWUP" },
+          { manifest, prompts: codingPrompts, authorizedDirectories: [root] }), (error: unknown) => error instanceof Error && "code" in error && error.code === "agent.capability_unavailable");
+        assert.equal(requests.length, count, `${change}: rejected indexed child sends nothing`);
+        assert.ok((await adapter.read(child.child_run!)).turns.some(turn => turn.text.startsWith("EXACT_NEW_CHILD")), `${change}: raw indexed child remains readable`);
+      }
+      await adapter.close();
+    }
+  } finally { await adapter.close(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); await rm(root, { recursive: true, force: true }); }
 });

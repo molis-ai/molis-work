@@ -6,6 +6,7 @@ import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { SEARCH_OWNER } from "./project-deleted-owners.js";
+import type { KnowledgeAccess } from "@molis-ai/molis-work-service-knowledge";
 import { createKnowledgeHost, type KnowledgeHost } from "./knowledge-actions.js";
 
 /**
@@ -15,6 +16,7 @@ import { createKnowledgeHost, type KnowledgeHost } from "./knowledge-actions.js"
  */
 interface SearchHostPorts {
   homeDirectory: string;
+  sessionLifecycle?: import("./knowledge-actions.js").KnowledgeHostPorts["sessionLifecycle"];
   registry: ActionRegistryPort;
   /** The open project behind a caller, or undefined when it is not open (or the caller has none). */
   project(projectId: string): LocalHostProjectReference | undefined;
@@ -45,7 +47,7 @@ export interface SearchHost {
   readReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<({ label: string; revision: string } | null)[]>;
   /** How many pieces of project knowledge a caller whose directory is `views` would see listed (specs/project-knowledge PMAT-33). */
   knowledgeTally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> };
-  knowledgeCatalog(projectId: string, views: readonly ActionView[], words: string): ReturnType<KnowledgeHost["catalog"]>;
+  knowledgeCatalog(projectId: string, views: readonly ActionView[], words: string, access: KnowledgeAccess): ReturnType<KnowledgeHost["catalog"]>;
   close(): Promise<void>;
 }
 
@@ -84,7 +86,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     if (!reference) throw new ActionError("actions.scope_mismatch", "项目资料缺少当前项目运行环境");
     return ports.ownerContext(reference);
   };
-  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ownerContext, ...(ports.onError ? { onError: ports.onError } : {}) });
+  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ownerContext, sessionLifecycle: ports.sessionLifecycle, ...(ports.onError ? { onError: ports.onError } : {}) });
   const disposers = [{ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" as const }, definitions: Object.values(searchActions), handlers },
     knowledge.registration].map(registration => ports.registry.registerProvider(registration));
   let closed = false;
@@ -103,7 +105,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),
     readReferences: (projectId, picked, kinds) => read(projectId, picked, kinds),
     knowledgeTally: (projectId, views) => knowledge.tally(projectId, views),
-    knowledgeCatalog: (projectId, views, words) => knowledge.catalog(projectId, views, words),
+    knowledgeCatalog: (projectId, views, words, access) => knowledge.catalog(projectId, views, words, access),
     close: async () => { closed = true; for (const dispose of disposers) dispose(); await knowledge.close(); await service.close(); index.close(); },
   };
 }

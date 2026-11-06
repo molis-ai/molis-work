@@ -139,7 +139,9 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
     : (input.subagents ?? []).map(child => {
       const changed = [...new Set((child.activity ?? []).filter(entry => ["edit", "write", "edit-file"].includes(entry.name) && entry.state === "completed" && entry.target).map(entry => entry.target))];
       const where = child.workspace_path ? `（独立目录 ${clip(child.workspace_path.split("/").at(-1) ?? child.workspace_path, 60)}）` : "";
-      return `「${clip(child.role_name ?? child.role_id, 40)}」${where}：${SUBTASK_STATE[child.state] ?? child.state}；任务：${clip(child.task.replace(/\s+/g, " "), 160)}`
+      return `「${clip(child.role_name ?? child.role_id, 40)}」${where}：${SUBTASK_STATE[child.state] ?? child.state}；任务：${child.continuation_task?.status === "available"
+          ? clip(child.continuation_task.text.replace(/\s+/g, " "), 160)
+          : "旧子任务开场无法核验，任务说明没有带入；请查看原记录并补充背景"}`
         + (changed.length ? `；改动：${changed.map(path => clip(path, 120)).join("、")}` : "")
         + (child.result ? `；结论：${clip(child.result.replace(/\s+/g, " "), 240)}` : child.error ? `；错误：${clip(child.error, 200)}` : "");
     });

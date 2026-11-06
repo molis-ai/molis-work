@@ -56,10 +56,21 @@ export interface KnowledgeDraftInput { title: string; summary: string; text: str
 export interface KnowledgeDraft { title: string; brief: string; keywords?: string[]; sections?: Array<{ anchor?: string; summary?: string }> }
 export type KnowledgeWriter = (input: KnowledgeDraftInput, signal?: AbortSignal) => Promise<KnowledgeDraft>;
 
+export interface KnowledgeSource { provider_id: string; plugin_id: string; source_key: string; state_required?: true }
+export type KnowledgeSourceState = "active" | "archived" | "deleted" | "unknown" | undefined;
+/** This token selects conservative retention, never grants authority or proves an installation generation. */
+export const contentRevision = (revision: string | null): boolean => revision?.startsWith("content-v1:") === true;
+export function knowledgeCardSource(card: KnowledgeCardRecord): KnowledgeSource {
+  return { provider_id: card.provider_id, plugin_id: card.plugin_id, source_key: card.source_key,
+    ...(contentRevision(card.revision) || contentRevision(card.organized_revision) ? { state_required: true as const } : {}) };
+}
+
 export interface KnowledgeOrganizerOptions {
   store: KnowledgeCardStorePort;
   /** Every piece the project's catalog holds now. */
   catalog(projectId: string): Promise<KnowledgePiece[]>;
+  /** Undefined only for a current, available provider that does not adopt owner state. Failures are unknown. */
+  sourceState?(projectId: string, source: KnowledgeSource, subject: ActionSubject): Promise<KnowledgeSourceState>;
   /** The project's text model now; null when there is none, and pending cards wait for one. */
   writer(): KnowledgeWriter | null;
   /** Organizing allowed per project per day before it stops for the person (spec §12 Q3; numbers to be measured). */
@@ -97,6 +108,11 @@ export function cardFor(projectId: string, piece: KnowledgePiece): KnowledgeCard
 
 /** The card as the catalog lists the piece now: where it is and its revision; its state follows the revision. */
 export function cardSeen(card: KnowledgeCardRecord, piece: KnowledgePiece): KnowledgeCardRecord {
+  // Existing opaque organized cards have no proof that their old material equals this content token. A person's named
+  // organize request clears organized_revision; only that existing explicit path adopts the current material.
+  if (contentRevision(piece.revision) && card.organized_revision !== null && !contentRevision(card.organized_revision)) {
+    return { ...card, state: "failed", error: "无法确认原整理版本，请手动整理" };
+  }
   const next: KnowledgeCardRecord = { ...card, source_key: piece.source_key, provider_id: piece.provider_id, plugin_id: piece.plugin_id, plugin_title: piece.plugin_title,
     content_policy: piece.content_policy, revision: piece.revision, updated_at: piece.updated_at, open: piece.open };
   if (bare(piece)) {
@@ -195,8 +211,12 @@ export class KnowledgeOrganizer {
       if (!card || !sameFields(card, next)) store.put(next);
     }
     for (const card of cards.values()) {
-      if (card.edited.length || card.excluded) { if (card.state !== "missing") store.put({ ...card, state: "missing" }); }
-      else store.remove(projectId, card.subject);
+      const state = await this.state(projectId, knowledgeCardSource(card), card.subject);
+      if (this.closed || this.removed.has(projectId)) return;
+      const current = store.get(projectId, card.subject);
+      if (!current || current.source_key !== card.source_key) continue;
+      if (state === "deleted" || state === undefined && !current.edited.length && !current.excluded) store.remove(projectId, card.subject);
+      else if (current.state !== "missing") store.put({ ...current, state: "missing" });
     }
   }
 
@@ -251,6 +271,13 @@ export class KnowledgeOrganizer {
       if (signal.aborted) return;
       const waiting = this.options.store.get(projectId, queued.subject);
       if (!waiting || waiting.excluded || waiting.state !== "pending" || !piece || piece.revision !== waiting.revision || bare(piece)) continue;
+      const state = await this.state(projectId, knowledgeCardSource(waiting), waiting.subject);
+      if (signal.aborted) return;
+      if (state !== undefined && state !== "active") {
+        const current = this.options.store.get(projectId, waiting.subject);
+        if (current?.revision === waiting.revision && current.state === "pending") this.options.store.put({ ...current, state: "missing" });
+        continue;
+      }
       const input = draftInput(piece);
       const quota = this.quota(projectId);
       if (quota.used_pieces + 1 > quota.limit_pieces || quota.used_chars + input.text.length > quota.limit_chars) {
@@ -262,11 +289,19 @@ export class KnowledgeOrganizer {
       const outcome = await writer(input, signal).then(draft => ({ draft }), (error: unknown) => ({ error }));
       if (signal.aborted) return;
       // The piece may have changed, or the person queued it again, while the model wrote: then this draft is for nothing.
+      const finalState = await this.state(projectId, knowledgeCardSource(waiting), waiting.subject);
+      if (signal.aborted || finalState !== undefined && finalState !== "active") continue;
       const now = this.options.store.get(projectId, waiting.subject);
       if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded) continue;
       this.options.store.put("draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())
         : { ...now, state: "failed", error: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error)).slice(0, ERROR_CHARS) });
     }
+  }
+
+  private async state(projectId: string, source: KnowledgeSource, subject: ActionSubject): Promise<KnowledgeSourceState> {
+    if (!this.options.sourceState) return undefined;
+    try { return await this.options.sourceState(projectId, source, subject); }
+    catch (error) { this.options.onError?.(error, "knowledge.source_state"); return "unknown"; }
   }
 
   private limits() { return this.options.quota ?? DEFAULT_KNOWLEDGE_QUOTA; }

@@ -62,7 +62,8 @@ async function fixture(t: TestContext, options: { configured?: boolean; beforeAu
   return { root, storageRoot, revoked, get adapter() { return adapter; },
     bound: (caller = alice) => adapter.memory!.withCaller(caller),
     reopen: async () => { await adapter.close(); adapter = await open(true); },
-    bytes: () => records(join(storageRoot, "records")),
+    bytes: () => ({ ...records(join(storageRoot, "records")), ...(existsSync(join(storageRoot, "records.sqlite"))
+      ? { "records.sqlite": readFileSync(join(storageRoot, "records.sqlite")).toString("base64") } : {}) }),
   };
 }
 

@@ -11,7 +11,7 @@ import { ALCHEMIST_SEARCH_BASELINE, HomeConsentLedger, MolisWorkLocalHost, homeS
 /** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
  * Characters with its own native runs (Sessions cleanup SC-2). */
-const STORE_VERSIONS: Record<string, number> = { pages: 1, memory: 1, assistant: 1, functions: 1, form: 1, characters: 1 };
+const STORE_VERSIONS: Record<string, number> = { pages: 1, memory: 2, assistant: 1, functions: 1, form: 1, characters: 1 };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 
 /**

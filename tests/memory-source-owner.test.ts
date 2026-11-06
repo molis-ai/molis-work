@@ -9,7 +9,7 @@ import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-ho
 import { memoryRuntimePolicy, memorySources, memoryExtractor, hostTextGeneration, prologueMemoryBackend, ensureSystemAgentService, withConnectorConnections, type MemorySourceOwner } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMemoryCaller, AgentMemoryMeta, AgentMemorySourceRef, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -23,6 +23,8 @@ const sourceRef = (session: string, input: string, kind = "original"): AgentMemo
   event_id: "molis-input:1:" + JSON.stringify([actor, session, kind, input]), version: "1",
 });
 const meta: AgentMemoryMeta = { kind: "preference", classification: { scenes: ["coding"], lifecycle: "long-term" }, basis: "explicit" };
+const personDecision = (caller: AgentMemoryCaller) => ({ ...caller, consumer: "assistant" as const, current_scene: "assistant" as const,
+  person: true, purpose: "management" as const, source_use: undefined });
 
 function formationReply(body: { messages: Array<{ content: string | Array<{ type: string; text?: string }> }> }) {
   const content = body.messages.at(-1)!.content;
@@ -57,13 +59,19 @@ async function localModel(t: test.TestContext, response: (turn: number) => Respo
 
 /** Actual Node/SQLite and loopback model; only the Host's mutable installation grant is a supplied dependency. */
 async function sourceHome(t: test.TestContext, response: (turn: number) => Response | Promise<Response> = () => cogniaScriptedResponse(undefined, "完成。")) {
-  const home = await mkdtemp(join(tmpdir(), "memory-source-owner-")); await writeFile(join(home, "read.txt"), "read-only fixture");
+  const home = await mkdtemp(join(tmpdir(), "memory-source-owner-"));
   const model = await localModel(t, response);
-  const ledger = openMemoryLedger({ homeDirectory: home });
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+  await writeFile(join(home, "read.txt"), "read-only fixture");
+  let ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
   let service: MemoryService, adapter!: Awaited<ReturnType<typeof createPrologueNodeAdapter>>, alive = true, contextTokens: number | undefined;
   let installed: MemorySourceOwner["sessionAllowed"] = async () => true;
+  let afterSourceRead: (() => Promise<void>) | undefined;
+  let afterSourceCheck: (() => void) | undefined;
   const policy: MemorySourceOwner["policy"] = { alive: () => alive,
     prefsFor: (scope, id) => service.prefsFor(actor, scope, id), owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
+    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id),
     projectExists: async id => id === project || id === "second-project", deletingProject: () => undefined };
   const sources = memorySources(home, () => alive ? { adapter, policy, sessionAllowed: owner => installed(owner),
     sourceAllowed: (id, scope, owner, refs) => service.sourceAllowed(id, scope, owner, refs) } : undefined);
@@ -71,8 +79,8 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
     env: { MOLIS_WORK_TEXT_API_KEY: "fixture-loopback-only", MOLIS_WORK_TEXT_BASE_URL: model.base + "/formation/v1", MOLIS_WORK_TEXT_MODEL: "fixture" } });
   assert.ok(generate);
   const open = async () => {
-    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-      memory: { ...memoryRuntimePolicy(() => policy, memoryExtractor(home, () => generate)), sources, promotion: { policy: "memory.write-gate", version: 3,
+    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
+      memory: { ...memoryRuntimePolicy(() => policy, memoryExtractor(home, () => generate)), sources: { ...sources, check: async (caller, request) => { const result = await sources.check(caller, request); afterSourceCheck?.(); return result; }, resolve: async (caller, request) => { const result = await sources.resolve(caller, request); await afterSourceRead?.(); return result; } }, promotion: { policy: "memory.write-gate", version: 3,
         decide: (caller, request) => service.promotion.decide(caller, request), undo: {
           prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: model.base + "/v1/messages", model: "fixture", credential_ref: "fixture",
@@ -81,25 +89,31 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
     service = new MemoryService({ backend: prologueMemoryBackend(async () => adapter.memory!), ledger, timeZone: "UTC" });
   };
   await open();
-  t.after(async () => { alive = false; await adapter.close(); ledger.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { alive = false; await adapter.close(); ledger.close(); storageOwner.release(); await rm(home, { recursive: true, force: true }); });
   const owner = { actor_id: actor, project_id: project, plugin_id: coding, install_id: "actual-test-install" };
   const directory = { canonical_path: home, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "Canonical sources" });
-  const start = (text: string, extra: { continued_from?: AgentRunRef; original_input?: { input_id: string; text: string; written_by: "person" | "host"; occurred_at: string } } = {}) =>
-    adapter.start({ ...owner, directory, session, task: text, role_id: "reader", queued: "carry", ...extra,
-      role: { role_id: "reader", version: 1, execution: "read-only", prompts: [], host_tools: ["read-file"] } });
-  const caller: AgentMemoryCaller = { actor_id: actor, project_id: project, plugin_id: coding, consumer: "agent", session_id: session.session_id,
+  let caller: AgentMemoryCaller = { actor_id: actor, project_id: project, plugin_id: coding, consumer: "agent", session_id: session.session_id,
     current_scene: "coding", purpose: "management", source_use: "learning" };
+  const start = async (text: string, extra: { continued_from?: AgentRunRef; original_input?: { input_id: string; text: string; written_by: "person" | "host"; occurred_at: string } } = {}) => {
+    const memory = await service.forRun({ actor_id: actor, project_id: project, plugin_id: coding, consumer: "agent" }, { query: text });
+    const run = await adapter.start({ ...owner, directory, session, task: text, role_id: "reader", queued: "carry", ...extra,
+      role: { role_id: "reader", version: 1, execution: "read-only", prompts: [], host_tools: ["read-file"], memory } });
+    caller = { ...caller, class_restrictions: (await adapter.read(run.ref)).class_restrictions };
+    return run;
+  };
   const request = (refs: AgentMemorySourceRef[]) => ({ app_id: "io.molis.work", target: { scope: "user" as const, owner: actor }, refs });
   const completed = (run: AgentRunRef) => untilSetup(async () => { const view = await adapter.read(run); return view.phase === "completed" ? view : undefined; }, "real source Run completion");
   const propose = (ref: AgentMemorySourceRef, bound = caller) => adapter.memory!.withCaller(bound).candidates.propose({ scope: "user", owner: actor,
     text: "回答请保留步骤", origin: "source owner contract", meta, sources: [ref], expected_version: 0, operation_id: randomUUID() });
-  return { home, session, caller, sources, request, start, completed, propose, policy,
+  return { home, session, get caller() { return caller; }, sources, request, start, completed, propose, policy,
     get service() { return service; }, get adapter() { return adapter; }, get calls() { return model.calls; },
     get formationCalls() { return model.formationCalls; },
     installation(check: typeof installed) { installed = check; },
+    afterSourceRead(check: typeof afterSourceRead) { afterSourceRead = check; },
+    afterSourceCheck(check: typeof afterSourceCheck) { afterSourceCheck = check; },
     contextWindow(tokens: number | undefined) { contextTokens = tokens; },
-    async reopen() { await adapter.close(); await open(); },
+    async reopen() { await adapter.close(); ledger.close(); ledger = openMemoryLedger({ homeDirectory: home, storageOwner }); await open(); },
   };
 }
 
@@ -206,6 +220,68 @@ test("MEM-35: failed originals use the latest accepted direct retry; derived com
   const afterCancel = await f.start("Derived after cancellation", { continued_from: cancelled.ref }); await f.completed(afterCancel.ref);
   assert.deepEqual((await f.adapter.readOriginalInput!(originalRef))?.accepted_run, cancelled.ref);
   assert.deepEqual(await f.sources.resolve(f.caller, f.request([ref])), []);
+  assert.deepEqual(await f.sources.resolve(personDecision(f.caller), f.request([ref])), [], "a person cannot accept a cancelled original as a failed source");
+});
+
+test("MEM-35: the person accepts an existing failed-original candidate with automatic formation off and retains it after reopening", { timeout: 60_000 }, async t => {
+  const reply = Promise.withResolvers<void>(); t.after(() => reply.resolve());
+  const f = await sourceHome(t, async () => {
+    await reply.promise;
+    return Response.json({ type: "error", error: { type: "invalid_request_error", message: "controlled source failure after proposal" } }, { status: 400 });
+  });
+  const text = "以后回答请保留步骤", id = randomUUID(), occurred_at = new Date().toISOString();
+  const run = await f.start(text, { original_input: { input_id: id, text, written_by: "person", occurred_at } });
+  await untilSetup(async () => f.calls ? true : undefined, "source Run is waiting on its actual model request");
+  const ref = sourceRef(f.session.session_id, id), human = personDecision(f.caller);
+  assert.deepEqual(await f.sources.resolve(human, f.request([ref])), [], "the manual decision does not admit a running source");
+  const candidate = await f.service.propose({ ...f.caller, consumer: "agent", source_use: "explicit", operation_id: "propose-before-source-failure" },
+    { scope: "personal", text, kind: "preference", basis: "explicit", why: "The person's persisted original", from: "gate" },
+    { sources: [ref], classificationMeta: meta });
+  assert.equal(candidate.state, "pending");
+  const canonical = (await f.adapter.memory!.withCaller(human).candidates.list("user", actor)).find(item => item.candidate_id === candidate.candidate_id)!;
+  assert.ok(canonical); assert.equal(canonical.version, candidate.version);
+  assert.deepEqual(canonical.sources, [{ ...ref, speaker: { kind: "person", id: actor }, derivation: "original", occurred_at_ms: Date.parse(occurred_at) }]);
+  reply.resolve();
+  await untilSetup(async () => (await f.adapter.read(run.ref)).phase === "failed" ? true : undefined, "real source Run failure");
+  assert.deepEqual((await f.adapter.readOriginalInput!({ session_id: f.session.session_id, input_id: id, version: 1 }))?.accepted_run, run.ref);
+  for (const bound of [{ ...human, person: false }, { ...human, source_use: "learning" as const }, { ...human, source_use: "explicit" as const },
+    { ...human, purpose: "task" as const }]) assert.deepEqual(await f.sources.resolve(bound, f.request([ref])), [], "failed originals are not an automatic or explicit-tool source");
+  await assert.rejects(f.service.accept({ ...human, person: false }, candidate.candidate_id), { code: "memory.forbidden" });
+
+  for (const scope of ["personal", "project"] as const) {
+    const prefs = f.service.prefs(human, scope).prefs;
+    f.service.savePrefs(human, scope, { ...prefs, form: false, auto: false, learn_from_work: false, learn_from_ui: false,
+      consumers: { ...prefs.consumers, assistant: false, agent: false, plugin: false } });
+  }
+  assert.equal((await f.sources.resolve(human, f.request([ref])))[0]?.text, text, "manual acceptance remains separate from automatic and source-consumer switches");
+  for (const scope of ["personal", "project"] as const) {
+    f.service.savePrefs(human, scope, { enabled: false });
+    assert.deepEqual(await f.sources.resolve(human, f.request([ref])), [], "both the target and original project must still be enabled");
+    f.service.savePrefs(human, scope, { enabled: true });
+  }
+  let checks = 0;
+  f.installation(async () => ++checks < 2);
+  await assert.rejects(f.service.accept({ ...human, operation_id: "accept-with-revoked-source-install" }, candidate.candidate_id,
+    { expected_version: candidate.version }), { code: "MEMORY_NOT_ACCEPTED" });
+  assert.equal(checks, 2, "the current installation refusal is reached after the initial source lookup");
+  f.installation(async () => true);
+  const pending = (await f.adapter.memory!.withCaller(human).candidates.list("user", actor)).find(item => item.candidate_id === candidate.candidate_id)!;
+  assert.equal(pending.state, "pending"); assert.equal(pending.version, candidate.version); assert.deepEqual(pending.sources, canonical.sources);
+  assert.deepEqual((await f.service.list(human, { scope: "personal" })).items, [], "a refused candidate decision creates no formal memory");
+  const accepted = await f.service.accept({ ...human, operation_id: "accept-existing-failed-source" }, candidate.candidate_id,
+    { expected_version: candidate.version });
+  assert.equal(accepted.candidate.candidate_id, candidate.candidate_id); assert.equal(accepted.candidate.state, "accepted");
+  assert.ok(accepted.memory); assert.equal(accepted.memory.text, text);
+  await f.reopen();
+  const items = (await f.service.list(human, { scope: "personal" })).items;
+  assert.equal(items.length, 1); assert.equal(items[0]!.memory_id, accepted.memory.memory_id); assert.equal(items[0]!.text, text);
+  const reopened = (await f.adapter.memory!.withCaller(human).candidates.list("user", actor)).find(item => item.candidate_id === candidate.candidate_id)!;
+  assert.equal(reopened.state, "accepted"); assert.equal(reopened.memory_id, accepted.memory.memory_id);
+  assert.deepEqual(reopened.sources, canonical.sources);
+  for (const scope of ["personal", "project"] as const) {
+    const prefs = f.service.prefs(human, scope).prefs;
+    assert.equal(prefs.form, false); assert.equal(prefs.learn_from_work, false); assert.equal(prefs.consumers.agent, false); assert.equal(prefs.consumers.assistant, false);
+  }
 });
 
 test("MEM-35: a refused start with no Run does not hide the same original's later accepted retry", { timeout: 60_000 }, async t => {
@@ -241,6 +317,7 @@ test("MEM-35: a Run cancelled during source authorization cannot persist a candi
   assert.deepEqual(await f.adapter.memory!.withCaller({ ...f.caller, consumer: "ui", person: true }).candidates.list("user", actor), []);
   const controller = new AbortController(); controller.abort(); const before = lookups;
   assert.deepEqual(await f.sources.resolve(f.caller, { ...f.request([ref]), signal: controller.signal }), []);
+  assert.deepEqual(await f.sources.resolve(personDecision(f.caller), { ...f.request([ref]), signal: controller.signal }), []);
   assert.equal(lookups, before);
 });
 
@@ -263,12 +340,17 @@ test("MEM-35: running originals are explicit-only; current grant loss and forgot
   assert.ok(saved.memory);
   await f.service.change({ actor_id: actor, project_id: project, consumer: "ui", person: true, operation_id: "forget-original" }, { memory_id: saved.memory.memory_id, action: "remove", expected_version: saved.memory.version });
   assert.deepEqual(await f.sources.resolve(f.caller, f.request([ref])), [], "the existing no-body source suppression survives a new SDK command");
+  assert.deepEqual(await f.sources.resolve(personDecision(f.caller), f.request([ref])), [], "a person cannot accept a source already forgotten");
   await assert.rejects(f.propose(ref));
   await f.reopen(); assert.deepEqual(await f.sources.resolve(f.caller, f.request([ref])), []);
 });
 
 test("MEM-35: exact supplementary reads preserve first time across carry/restart; current queue withdrawal wins", { timeout: 60_000 }, async t => {
-  const f = await sourceHome(t), first = await f.start("Host task without original"); await f.completed(first.ref);
+  const f = await sourceHome(t, async turn => {
+    if (turn === 3) return cogniaScriptedResponse({ name: "read", input: { path: "read.txt" } });
+    if (turn === 4) return Response.json({ type: "error", error: { type: "invalid_request_error", message: "controlled failure after a supplement was read" } }, { status: 400 });
+    return cogniaScriptedResponse(undefined, "完成。");
+  }), first = await f.start("Host task without original"); await f.completed(first.ref);
   const raw = "以后周报先写风险", derived = raw + "\n\n【附带材料】外部观点";
   const sent = await f.adapter.inputs!.send(first.ref, { text: derived, source: "host", original: { text: raw, source: "person" }, key: "source-supplement", mode: "after-run" });
   const ref = { session_id: f.session.session_id, input_id: sent.input_id };
@@ -285,9 +367,35 @@ test("MEM-35: exact supplementary reads preserve first time across carry/restart
   await f.adapter.inputs!.withdraw!(next.ref, waiting.input_id);
   assert.deepEqual(await f.adapter.inputs!.read!({ session_id: ref.session_id, input_id: waiting.input_id }), { state: "withdrawn", ref: { session_id: ref.session_id, input_id: waiting.input_id } });
   assert.deepEqual(await f.sources.resolve(f.caller, f.request([sourceRef(ref.session_id, waiting.input_id, "supplement")])), []);
+  assert.deepEqual(await f.sources.resolve(personDecision(f.caller), f.request([sourceRef(ref.session_id, waiting.input_id, "supplement")])), []);
   await f.reopen();
   assert.deepEqual(await f.sources.resolve(f.caller, f.request([sourceRef(ref.session_id, waiting.input_id, "supplement")])), []);
   assert.equal((await f.sources.resolve(f.caller, f.request([event])))[0]?.occurred_at_ms, originalTime);
+
+  // A real kept tool reply marks this carried supplement read before the next model request fails.
+  const supplement = "以后周报保留验证结果", sentToFailure = await f.adapter.inputs!.send(next.ref, { text: supplement, source: "host",
+    original: { text: supplement, source: "person" }, key: "read-before-source-failure", mode: "after-run" });
+  const beforeFailure = await f.adapter.inputs!.read!({ session_id: f.session.session_id, input_id: sentToFailure.input_id });
+  t.diagnostic(JSON.stringify({ stage: "supplement-before-start", delivered: sentToFailure.delivered, state: beforeFailure?.state ?? "missing", provider_count: f.calls }));
+  const initial = "请读取read.txt并整理验证步骤", initialId = randomUUID();
+  const failed = await f.start(initial, { original_input: { input_id: initialId, text: initial, written_by: "person", occurred_at: new Date().toISOString() } });
+  const failedView = await untilSetup(async () => { const view = await f.adapter.read(failed.ref); return view.phase === "failed" ? view : undefined; }, "supplement source failed after a kept reply");
+  const read = await f.adapter.inputs!.read!({ session_id: f.session.session_id, input_id: sentToFailure.input_id });
+  t.diagnostic(JSON.stringify({ stage: "supplement-after-failure", phase: failedView.phase,
+    stop_code: failedView.stop_reason?.match(/^[A-Za-z0-9_.-]+/)?.[0] ?? "unknown", provider_count: f.calls,
+    state: read?.state ?? "missing", receipt_state: read?.state === "run" ? read.receipt.state : null }));
+  t.diagnostic(JSON.stringify({ stage: "supplement-receipt-trace",
+    read_states: failedView.activity.filter(item => item.name === "read").map(item => item.state),
+    run_inputs: failedView.turns.flatMap(turn => turn.steer ? [{ matches_queued_input: turn.steer.id === sentToFailure.input_id, state: turn.steer.state }] : []),
+    queued_by_this_run: read?.state === "queued" ? read.input.left_by?.run_id === failed.ref.run_id : null,
+    queued_applied: read?.state === "queued" ? read.input.left_by?.applied ?? null : null }));
+  assert.ok(failedView.activity.some(item => item.name === "read" && item.state === "completed"), "the Provider's actual read tool must complete before the controlled model failure");
+  assert.ok(read?.state === "run"); assert.equal(read.receipt.state, "read"); assert.equal(read.run.run_id, failed.ref.run_id);
+  assert.equal(read.receipt.original?.text, supplement);
+  const human = personDecision(f.caller);
+  assert.equal((await f.sources.resolve(human, f.request([sourceRef(f.session.session_id, initialId)])))[0]?.text, initial);
+  assert.deepEqual(await f.sources.resolve(human, f.request([sourceRef(f.session.session_id, sentToFailure.input_id, "supplement")])), [],
+    "a failed Run permits the person's initial original only, never even its already-read supplement");
 });
 
 test("MEM-35: protected Assistant supplements keep literal material markers intact; actual attached material stays derived", { timeout: 90_000 }, async t => {
@@ -326,7 +434,7 @@ test("MEM-35: protected Assistant supplements keep literal material markers inta
   const known = await adapter.inputs!.read!({ session_id: ref.session_id, input_id: actualPlain.steer.id });
   assert.ok(known?.state === "run"); assert.equal(known.text, literal, "literal marker text is not a parser delimiter");
   const caller: AgentMemoryCaller = { actor_id: actor, project_id: null, consumer: "assistant", session_id: ref.session_id,
-    current_scene: "assistant", purpose: "management", source_use: "explicit" };
+    current_scene: "assistant", purpose: "management", source_use: "explicit", class_restrictions: view.class_restrictions };
   const propose = (inputId: string) => adapter.memory!.withCaller(caller).candidates.propose({ scope: "user", owner: actor,
     text: "周报先列风险", origin: "Source contract", meta: { ...meta, classification: { scenes: ["assistant"], lifecycle: "long-term" } },
     sources: [sourceRef(ref.session_id, inputId, "supplement")], expected_version: 0, operation_id: randomUUID() });
@@ -337,4 +445,77 @@ test("MEM-35: protected Assistant supplements keep literal material markers inta
   await untilSetup(async () => (await home.web.get<AssistantWorkView>(`/api/assistant/works/${sent.work.work_id}`)).work.state === "completed" ? true : undefined, "Assistant completed");
   const final = await adapter.inputs!.read!({ session_id: ref.session_id, input_id: actualPlain.steer.id });
   assert.ok(final?.state === "run"); assert.equal(final.text, literal); assert.equal(final.receipt.accepted_at_ms, known.receipt.accepted_at_ms);
+});
+
+
+test("MEM-V0-A4-L source snapshot active then canonical archive must refuse the old candidate commit", { timeout: 60_000 }, async t => {
+  const f = await sourceHome(t), text = "以后回答请保留步骤", id = randomUUID();
+  const run = await f.start(text, { original_input: { input_id: id, text, written_by: "person", occurred_at: new Date().toISOString() } });
+  await f.completed(run.ref);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); t.after(() => release.resolve());
+  let first = true;
+  f.afterSourceRead(async () => {
+    if (!first) return; first = false;
+    assert.equal((await f.adapter.sessionLifecycle!.read(f.session)).view.state, "active");
+    entered.resolve(); await release.promise;
+  });
+  const pending = f.propose(sourceRef(f.session.session_id, id));
+  await entered.promise;
+  assert.equal((await f.adapter.sessionLifecycle!.archive(f.session)).state, "archived");
+  release.resolve();
+  await assert.rejects(pending, { code: "agent.memory_read_changed" });
+  assert.deepEqual(await f.adapter.memory!.withCaller({ ...f.caller, consumer: "ui", person: true }).candidates.list("user", actor), []);
+  await f.reopen();
+  assert.equal((await f.adapter.sessionLifecycle!.read(f.session)).view.state, "archived");
+  assert.deepEqual(await f.sources.resolve(f.caller, f.request([sourceRef(f.session.session_id, id)])), []);
+  assert.deepEqual(await f.sources.resolve(personDecision(f.caller), f.request([sourceRef(f.session.session_id, id)])), [], "archival still denies a person's decision");
+});
+
+
+test("MEM-V0-A4-L canonical archive during final authority wait refuses the actual candidate commit", { timeout: 60_000 }, async t => {
+  const f = await sourceHome(t), text = "以后回答请保留步骤", id = randomUUID();
+  const run = await f.start(text, { original_input: { input_id: id, text, written_by: "person", occurred_at: new Date().toISOString() } });
+  await f.completed(run.ref);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); t.after(() => release.resolve());
+  let checked = 0, held = false;
+  f.afterSourceCheck(() => { checked++; });
+  const capability = f.adapter.memory!.withCaller(f.caller).withExecution!({
+    assert_current() {},
+    async beforeEffect() { if (checked < 2 || held) return; held = true; entered.resolve(); await release.promise; },
+  });
+  const pending = capability.candidates.propose({ scope: "user", owner: actor, text, origin: "final source wait", meta,
+    sources: [sourceRef(f.session.session_id, id)], expected_version: 0, operation_id: randomUUID() });
+  await entered.promise;
+  assert.equal((await f.adapter.sessionLifecycle!.archive(f.session)).state, "archived");
+  release.resolve();
+  const outcome = await pending.then(candidate => ({ candidate }), error => ({ error }));
+  const inspect = () => f.adapter.memory!.withCaller({ ...f.caller, consumer: "ui", person: true }).candidates.list("user", actor);
+  const beforeRestart = (await inspect()).map(({ candidate_id, version }) => ({ candidate_id, version }));
+  await f.reopen();
+  const afterRestart = (await inspect()).map(({ candidate_id, version }) => ({ candidate_id, version }));
+  const state = (await f.adapter.sessionLifecycle!.read(f.session)).view.state;
+  assert.equal(state, "archived");
+  if ("candidate" in outcome) {
+    const actual = { candidate_id: outcome.candidate.candidate_id, version: outcome.candidate.version };
+    assert.deepEqual(beforeRestart, [actual]); assert.deepEqual(afterRestart, [actual]);
+    assert.fail(JSON.stringify({ violation: "canonical archive completed before old actual candidate commit", state, returned: actual, beforeRestart, afterRestart }));
+  }
+  assert.equal((outcome.error as { code?: string }).code, "agent.memory_read_changed");
+  assert.deepEqual(beforeRestart, []); assert.deepEqual(afterRestart, []);
+});
+
+test("MEM-V0-A4-L a finished source frame cannot revive when its old callback returns beside a fresh valid call", { timeout: 60_000 }, async t => {
+  const f = await sourceHome(t), text = "以后回答请保留步骤", id = randomUUID();
+  const run = await f.start(text, { original_input: { input_id: id, text, written_by: "person", occurred_at: new Date().toISOString() } }); await f.completed(run.ref);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); t.after(() => release.resolve());
+  let first = true;
+  f.afterSourceRead(async () => { if (!first) return; first = false; entered.resolve(); await release.promise; });
+  const abort = new AbortController(), bound = f.adapter.memory!.withCaller(f.caller);
+  const old = bound.candidates.propose({ scope: "user", owner: actor, text, origin: "old source frame", meta,
+    sources: [sourceRef(f.session.session_id, id)], expected_version: 0, operation_id: randomUUID(), signal: abort.signal });
+  await entered.promise; abort.abort(); await assert.rejects(old, { code: "CANCELLED" });
+  const fresh = await f.propose(sourceRef(f.session.session_id, id));
+  release.resolve(); await new Promise<void>(resolve => setImmediate(resolve));
+  const entries = await f.adapter.memory!.withCaller({ ...f.caller, consumer: "ui", person: true }).candidates.list("user", actor);
+  assert.deepEqual(entries.map(({ candidate_id, version }) => ({ candidate_id, version })), [{ candidate_id: fresh.candidate_id, version: fresh.version }]);
 });

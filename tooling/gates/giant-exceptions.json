@@ -8,9 +8,9 @@
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "kind": "cohesive-unit",
-      "reason": "助理模块的 SQLite 存储：39 个方法共 267 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者。",
+      "reason": "助理模块唯一 SQLite 写主人：39 个方法共272行。原 update 事务增加5行单次 Session 绑定和同ID无时间/版本副作用幂等检查，保留原revision guard；拆出另一写主人会分散同一业务记录的CAS与事务。回合、卡片、通知、用量和设置仍走原表，提醒与跟进已有自己的协作者。",
       "size": {
-        "lines": 267,
+        "lines": 272,
         "methods": 39
       }
     },
@@ -25,7 +25,10 @@
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
       "reason": "项目目录的门面及连接寿命：现行结构检查、同 Home owner 持有与释放都围绕目录连接，其余方法多为转发；按资源拆出更多门面只会增加转发层，不改善这一职责边界。",
-      "size": { "lines": 247, "methods": 34 }
+      "size": {
+        "lines": 247,
+        "methods": 34
+      }
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
       "kind": "cohesive-unit",
@@ -137,7 +140,10 @@
     "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
       "kind": "cohesive-unit",
       "reason": "沙箱 SDK 请求的统一授权与派发边界：队列、执行生命周期、效果检查和动作退出校验共享同一调用上下文；模型请求只隔离正常 RPC 清理且保留真实取消转发，拆散会把同一安全边界的开始与结束分离。",
-      "size": { "lines": 315, "methods": 9 }
+      "size": {
+        "lines": 315,
+        "methods": 9
+      }
     },
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
       "kind": "cohesive-unit",
@@ -242,7 +248,10 @@
     "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
       "kind": "cohesive-unit",
       "reason": "同一 AgentDefinitions 数据主人的声明登记、用户覆盖、history 和 uses 共用同一份来源引用及 SQLite 事务；新增的是精确读取与已接受使用的两个既有职责，拆分会分散同一状态和记录，不新增第二份业务账。",
-      "size": { "lines": 257, "methods": 26 }
+      "size": {
+        "lines": 257,
+        "methods": 26
+      }
     },
     "function plugins/native/feed/src/plugin.ts#createFeedPlugin": {
       "kind": "cohesive-unit",
@@ -257,17 +266,23 @@
     "class apps/local-host/src/home-plugins.ts#HomePluginHost": {
       "kind": "cohesive-unit",
       "reason": "Home 插件组合与生命周期门面：统一启动、关闭及访问同一个 Home 平台，具体行为委派既有 owner；权限捕获只读取该 Runtime 的授权，按方法数拆分会增加转发并散开共享平台状态。",
-      "size": { "lines": 280, "methods": 26 }
+      "size": {
+        "lines": 280,
+        "methods": 26
+      }
     },
     "function apps/local-host/src/plugin-platform.ts#createPluginPlatform": {
       "kind": "cohesive-unit",
-      "reason": "一个项目插件平台的组合根：构造既有 executor、Runtime、supervisor、wiring 与 events，并绑定统一的启动关闭顺序；Home 权限上限是此处注入的端口，拆开会分散构造顺序及生命周期所有权。",
-      "size": 155
+      "reason": "一个项目插件平台的组合根：构造既有 executor、Runtime、supervisor、wiring 与 events，并绑定统一的启动关闭顺序；Home 权限上限是此处注入的端口，拆开会分散构造顺序及生命周期所有权。 C2 只向同一个 executor 转发当前安装自有 Action 的窄调用，组合与生命周期仍由原工厂拥有。",
+      "size": 156
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
       "kind": "cohesive-unit",
-      "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。",
-      "size": { "lines": 303, "methods": 23 }
+      "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。 A4-K 仅在同一装配根把既有 AgentHost lifecycle 窄口交给自动资料目录；增加一行接线，不新增方法、写主人或执行链。",
+      "size": {
+        "lines": 308,
+        "methods": 23
+      }
     },
     "file packages/plugin-runtime/src/index.ts": {
       "kind": "cohesive-unit",
@@ -276,16 +291,31 @@
     },
     "class horizontal/memory/src/service.ts#MemoryService": {
       "kind": "cohesive-unit",
-      "reason": "用户 2026-11-02 明确授权 T-061 按现行 Memory 暂缓拆分：写入审批、召回、维护学习与范围搬运仍共用同一记忆账本和后端端口，本轮先按当前大小登记；#1101 新记忆体系与 #1059 偏好扩展留后，两项产品实际采用后由记忆线按批 C 的四协作者方案重评，保留原判拆与后继责任。",
+      "reason": "Memory 既有门面与原受控用例装配：52方法保持不变，当前Session身份筛选与fixed清除装配增加10行；分类重试核验由原MemoryEdits拥有，管理变化记录的canonical查询由原MemoryManagementPages拥有，SDK/存储不进入门面。保留T-061既有后继收束责任，不为本轮再加纯转发架构。召回最终同步检查复用同条设置增加3行；本次已接受撤销恢复增加14行，仅在原undo编排核对原决定、操作、范围和版本后继续原purge及事务收尾，不新增方法、写主人或恢复机制。",
       "size": {
-        "lines": 1015,
-        "methods": 48
+        "lines": 1058,
+        "methods": 52
       }
     },
     "file horizontal/memory/src/service.ts": {
       "kind": "cohesive-unit",
-      "reason": "用户 2026-11-02 明确授权 T-061 按现行 Memory 暂缓拆分：写入审批、召回、维护学习与范围搬运仍共用同一记忆账本和后端端口，本轮先按当前大小登记；#1101 新记忆体系与 #1059 偏好扩展留后，两项产品实际采用后由记忆线按批 C 的四协作者方案重评，保留原判拆与后继责任。文件还含调用者、服务端口与提交输入声明；本轮不搬动这些声明。",
-      "size": 1151
+      "reason": "现Memory公共caller/ports类型、受控Service门面和原用例装配保持同一出口；当前Session可序列化身份、绑定筛选及exact清除只接原主人。分类恢复和管理查询已移至其原协作者，未新增存储或第二执行链；原门面后继收束责任保留。召回最终同步检查复用同条设置增加3行；历史安全投影只增加原门面的返回类型接线。本次已接受撤销恢复增加14行，原身份守卫和purge事务收尾仍属同一undo编排，不为行数拆散操作身份或新增抽象。",
+      "size": 1216
+    },
+    "function apps/local-host/src/plugin-actions-client.ts#pluginHostActions": {
+      "kind": "cohesive-unit",
+      "reason": "同一安装的动作客户端绑定：自有声明、消费依赖、当前 issued 身份、原 invocation 控制与只读约束共同求交。C2 复用既有 ownActions 去掉重复绑定后实测仍为152行；来源检查只收紧，plugin-only 自有目录只在当前本实例 scope 可见。拆出会将同一调用身份与生命周期判断分散，不新增注册表或授权路径。",
+      "size": 152
+    },
+    "file packages/contracts/src/services/memory.ts": {
+      "kind": "cohesive-unit",
+      "reason": "Memory唯一现公共DTO与strict Action schema出口：新增6行对应Session绑定/清除DTO重导及write@4/change@5/operations@2组合；完整Session DTO和两clear动作由同包memory-session职责承载，不增加package/subpath/兼容别名。history@3仅增加严格安全历史DTO与同一响应schema；分散原表会打散同一公开协议，门槛不变。",
+      "size": 848
+    },
+    "file apps/workbench/src/settings-memory.ts": {
+      "kind": "cohesive-unit",
+      "reason": "个人/项目/本人Session复用同一管理页面与binder，HTML/DOM选择器成套；分页当前性、原CAS命令、确认/编辑历史/固定清理回执共享同一root、reader、pendingCommands生命周期。历史快照披露与实际采用范围复用此页的分类、期限和确认控制；分类矩阵已独立，拆分会分散同页失效与原请求恢复控制，无新写主人。",
+      "size": 855
     }
   }
 }

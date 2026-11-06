@@ -30,7 +30,7 @@ function offerBackend(host: LocalHost<unknown>, project: ReturnType<typeof refer
  * running Host does (`hostDependencyCheck`); `check: false` is a Host that gives no check. `actions` are the plugin's own.
  */
 async function startPlugin(host: LocalHost<unknown>, project: ReturnType<typeof reference>, consumes: readonly string[], options: {
-  check?: boolean; actions?: (context: PluginStartContext) => ActionHandlerBinding[]; definitions?: ActionDefinition[]; onStop?: (actions: PluginActionClient) => void;
+  background?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginManifest["background"]; check?: boolean; actions?: (context: PluginStartContext) => ActionHandlerBinding[]; definitions?: ActionDefinition[]; onStop?: (actions: PluginActionClient) => void;
 } = {}) {
   const home = await mkdtemp(join(tmpdir(), "plugin-action-availability-"));
   const store = new LocalProjectDatabase(join(home, "project.sqlite"));
@@ -40,7 +40,7 @@ async function startPlugin(host: LocalHost<unknown>, project: ReturnType<typeof 
     manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.dependency", version: "1.0.0", name: "Dependency", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [...consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
-      ...(options.definitions ? { actions: options.definitions } : {}) },
+      ...(options.definitions ? { actions: options.definitions } : {}), ...(options.background ? { background: options.background } : {}) },
     async start(context) { contexts.push(context); return { kind: "app", ...(options.actions ? { actions: options.actions(context) } : {}) }; },
     async stop(context) { options.onStop?.(context.services!.actions!); },
   };
@@ -83,7 +83,8 @@ test("removing a dependency during a real nested call blocks the caller's write,
       await context.services!.actions!.invoke(backend, {}); await beforeWrite(); return ++writes;
     }, [backend])] });
   try {
-    const pending = assert.rejects(person.invoke(save, {}), { code: "actions.dependency_missing" });
+    // The in-flight dependency query itself now refuses its withdrawn registration before the parent reaches beforeWrite.
+    const pending = assert.rejects(person.invoke(save, {}), { code: "actions.provider_changed" });
     await started; remove(); release(); await pending;
     assert.equal(writes, 0);
     const shown = (await person.discover()).find(row => row.capability_id === save.capability_id)!.availability;
@@ -185,4 +186,37 @@ test("W3-07-6-02: a removed developer protocol cannot be granted by a manifest o
     const forged = { ...protectedEntry, host_only: false };
     await assert.rejects(plugin.actions.invoke(forged, {}), { code: "actions.dependency_missing" });
   } finally { await plugin.close(); await host.close(); }
+});
+
+test("A4-K retained owner current re-enters a synchronous read-only plugin scope without extending the old effect", async () => {
+  const { SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, SUBJECT_STATE_INPUT_SCHEMA, SUBJECT_STATE_OUTPUT_SCHEMA, defineSubjectContextAction, defineSearchEntriesAction } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } }), project = reference("retained-state");
+  const reader = defineSubjectContextAction("owner.read", "doc", "资料", []), source = defineSearchEntriesAction("owner.entries", [{ kind: "doc", title: "资料", surface: "owner" }], "资料", []);
+  const state: ActionDefinition = { ...reader, capability_id: "owner.state", version: 1, action: { ...reader.action, input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_STATE_TYPE, input_schema: SUBJECT_STATE_INPUT_SCHEMA, output_schema: SUBJECT_STATE_OUTPUT_SCHEMA } };
+  const write: ActionDefinition = { ...save, capability_id: "host.write", action: { ...save.action, audiences: ["user", "plugin"] } };
+  let writes = 0, jobs = 0, armed = false, retained: import("@molis-ai/molis-work-contracts/platform/actions").RetainedSubjectState | undefined;
+  const attempts: Promise<void>[] = [];
+  const remove = host.actionRegistry(project).registerProvider({ provider: { provider_id: "host", kind: "system", title: "Host" }, definitions: [write], handlers: [{ ...write, handle: () => ++writes }] });
+  const plugin = await startPlugin(host, project, [write.capability_id], { definitions: [reader, source, state],
+    background: { jobs: [{ job_id: "owner-job", reason: "test read-only gate", permissions: [] }] },
+    actions: context => [{ ...reader, handle: () => ({}) }, { ...source, handle: () => ({}) }, { ...state, handle: caller => {
+      assert.equal(caller.subject_state_capture, undefined, "the plugin never receives the Host accept receiver");
+      caller.provideSubjectState?.(() => {
+        if (armed) {
+          attempts.push(assert.rejects(context.services!.actions!.invoke(write, {}), { code: "actions.dependency_missing" }));
+          attempts.push(assert.rejects(caller.beforeEffect(), { code: "actions.expired" }));
+          assert.throws(() => context.services!.background!.keep("owner-job", async () => { jobs++; }), error => !!error && typeof error === "object" && "code" in error && String(error.code).startsWith("plugin.background_"));
+        }
+        return { subject: { kind: "doc", id: "one" }, state: "active", execution_session: null };
+      });
+      return { subject: { kind: "doc", id: "one" }, state: "active" };
+    } }] });
+  try {
+    const client = host.actionClient(project), caller = { actor_id: "owner", project_id: project.project_id, audience: "user" as const, permissions: [] };
+    const offered = await client.discover(caller), provider = offered.find(view => view.capability_id === state.capability_id)!.provider.provider_id;
+    const exact = (ref: ActionDefinition) => ({ capability_id: ref.capability_id, version: ref.version, provider_id: provider });
+    await client.invoke({ ...caller, subject_state_capture: { subject: { kind: "doc", id: "one" }, reader: exact(reader), source: exact(source), accept: value => { retained = value; } } }, exact(state), { subject_id: "one" });
+    assert.ok(retained); armed = true; retained.current(); await Promise.all(attempts);
+    assert.equal(writes, 0); assert.equal(jobs, 0);
+  } finally { remove(); await plugin.close(); await host.close(); }
 });

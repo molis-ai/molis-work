@@ -24,7 +24,7 @@ import type { WriterDirectories } from "../writers.js";
 import type { WriterIntegration } from "../writer-integration.js";
 import type { CodingHost } from "./host.js";
 import type {
-  ArtifactRow, GoalChoice, GoalSummary, McpSourceRef, McpToolRef, MethodRef, ProgressView, ReportOutput, RunView, SessionConfiguration, SessionData, StateRead,
+  ArtifactRow, SessionRecord, GoalChoice, GoalSummary, McpSourceRef, McpToolRef, MethodRef, ProgressView, ReportOutput, RunView, SessionConfiguration, SessionData, StateRead,
 } from "./shapes.js";
 
 /** Everything the page remembers between one event and the next. */
@@ -55,8 +55,9 @@ export interface State {
   current: string;
   dialogueOffset: number;
   directoryClaimed: boolean;
+  archivedDirectory?: { rows: SessionRecord[]; next_cursor: string | null; loading: boolean };
   directoryGroups: Map<string, HTMLElement>;
-  directoryRows: Map<string, HTMLAnchorElement>;
+  directoryRows: Map<string, HTMLElement>;
   earlierFingerprint: string;
   earlierRuns: RunView[];
   earlierWatch: IntersectionObserver;

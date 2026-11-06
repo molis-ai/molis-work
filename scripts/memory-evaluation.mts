@@ -1,6 +1,7 @@
 /** --preflight/--out 不调模型。live B2 模式须单独获批，沿冻结方法和上限；历史 B1 只能用冻结工具。 */
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { createEvaluationAttemptJournal } from "./memory-evaluation/network-observation.mjs";
 import { memoryEvaluationB2Preflight } from "./memory-evaluation/baseline.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -21,11 +22,13 @@ else if ((args.length === 2 && args[0] === "--out" && args[1]) || (args.length =
     const output = args[2]!;
     const frozen = { preflight, protocol: MEMORY_SEQUENCE_PROTOCOL, sequences: MEMORY_EVALUATION_SEQUENCES };
     await writeFile(output, `${JSON.stringify({ ...frozen, stage: "running", attempts: 0, requests: [], rows: [] }, null, 2)}\n`, { flag: "wx" });
-    const report = await replayMemorySequences({ protocol: "anthropic-compatible", endpoint: "https://api.minimaxi.com/anthropic/v1/messages", model: "MiniMax-M3", credential_ref: "evaluation:minimax" }, credential, async progress => {
+    const journal = await createEvaluationAttemptJournal(`${output}.attempts.jsonl`);
+    let report: Awaited<ReturnType<typeof replayMemorySequences>>;
+    try { report = await replayMemorySequences({ protocol: "anthropic-compatible", endpoint: "https://api.minimaxi.com/anthropic/v1/messages", model: "MiniMax-M3", credential_ref: "evaluation:minimax" }, credential, async progress => {
       await writeFile(output, `${JSON.stringify({ ...frozen, stage: "running", ...progress }, null, 2)}\n`);
       const last = progress.rows.at(-1)!;
       if (last.event === "task2" || last.status !== "observed") console.log(`B2 进度：${last.sequence}/${last.repeat}/${last.arm}/${last.event} ${last.status}；累计 ${progress.attempts} 次网络 attempt。`);
-    });
+    }, undefined, undefined, { beforeDispatch: journal.beforeDispatch }); } finally { await journal.close(); }
     await writeFile(output, `${JSON.stringify({ preflight, stage: "completed", ...report }, null, 2)}\n`);
     console.log(`当前 B2 已记录：${report.attempts} 次网络 attempt，${report.rows.length} 条事件；质量等待独立复核。`);
     if (report.rows.some(row => row.status !== "observed")) process.exitCode = 1;
@@ -35,11 +38,13 @@ else if ((args.length === 2 && args[0] === "--out" && args[1]) || (args.length =
     const output = args[2]!;
     // Reserve the report before dispatch; each completed/failed row survives a later interrupted run.
     await writeFile(output, `${JSON.stringify({ preflight, stage: "running", attempts: 0, requests: [], rows: [] }, null, 2)}\n`, { flag: "wx" });
-    const report = { preflight, ...await replayMemoryModelCalibration({ protocol: "anthropic-compatible", endpoint: "https://api.minimaxi.com/anthropic/v1/messages", model: "MiniMax-M3", credential_ref: "evaluation:minimax" }, () => process.env.MINIMAX_API_KEY ?? null, async progress => {
+    const journal = await createEvaluationAttemptJournal(`${output}.attempts.jsonl`);
+    let report: { preflight: typeof preflight } & Awaited<ReturnType<typeof replayMemoryModelCalibration>>;
+    try { report = { preflight, ...await replayMemoryModelCalibration({ protocol: "anthropic-compatible", endpoint: "https://api.minimaxi.com/anthropic/v1/messages", model: "MiniMax-M3", credential_ref: "evaluation:minimax" }, () => process.env.MINIMAX_API_KEY ?? null, async progress => {
       await writeFile(output, `${JSON.stringify({ preflight, stage: "running", ...progress }, null, 2)}\n`);
       const last = progress.rows.at(-1)!;
       console.log(`校准进度：${last.arm}/${last.case} ${last.phase}；累计 ${progress.attempts} 次网络 attempt。`);
-    }) };
+    }, { beforeDispatch: journal.beforeDispatch }) }; } finally { await journal.close(); }
     await writeFile(output, `${JSON.stringify({ stage: "completed", ...report }, null, 2)}\n`);
     console.log(`校准批已记录：${report.attempts} 次网络 attempt，${report.rows.filter(row => row.phase === "completed").length} 个完成结果；未证明稳定收益。`);
     if (report.rows.some(row => row.phase !== "completed")) process.exitCode = 1;

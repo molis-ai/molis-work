@@ -1,12 +1,12 @@
 import { ASSISTANT_PLUGIN_ID, ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mock } from "node:test";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, defaultPrefs, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, type MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
 import { memoryRuntimePolicy, memoryExtractor, prologueMemoryBackend, type HostTextGeneration, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { MEMORY_EVALUATION_CORPUS, type MemoryEvaluationSeed, type MemoryEvaluationCase } from "../../tests/fixtures/memory-evaluation-corpus.js";
 import { EVALUATION_ACTOR, evaluationPerson, evaluationOriginals, type EvaluationOriginal } from "./originals.mjs";
 
@@ -33,7 +33,9 @@ function seedScene(seed: MemoryEvaluationSeed): "coding" | "assistant" {
   return seed.project !== null || seed.source.id.startsWith("u-coding") ? "coding" : "assistant";
 }
 
-/** One isolated Home and one trusted logical clock; native timers/performance and measured durations remain real. */
+/** One isolated Home, its real storage owner and one trusted logical clock; native timers/performance remain real.
+ * Current public ownership requires the SDK at home/agent-runtime (formerly home/sdk); sampling and record layout stay unchanged.
+ */
 export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
   seeds?: readonly MemoryEvaluationSeed[]; homeDirectory?: string; clock?: string;
   registerFixture?: (endpoint: string) => () => void;
@@ -42,9 +44,11 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
   let clock = options.clock ?? MEMORY_EVALUATION_CORPUS.clock, alive = false, setup = false;
   if (!Number.isFinite(Date.parse(clock))) throw new Error("Invalid evaluation clock");
   const home = options.homeDirectory ?? await mkdtemp(join(tmpdir(), "molis-memory-evaluation-"));
+  const freshHome = (await readdir(home)).length === 0;
   const setClock = (value: string) => { if (!Number.isFinite(Date.parse(value))) throw new Error("Invalid evaluation clock"); clock = value; mock.timers.setTime(Date.parse(value)); };
   mock.timers.enable({ apis: ["Date"], now: Date.parse(clock) }); clockHeld = true;
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined, ledger: ReturnType<typeof openMemoryLedger> | undefined;
+  let storageOwner: StorageOwner | undefined;
   let originals: Awaited<ReturnType<typeof evaluationOriginals>> | undefined, memory: MemoryService;
   let generation: HostTextGeneration | undefined, listFault: (() => void) | undefined;
   const observations: ReadObservation[] = [], reads = { calls: 0, entries: 0 };
@@ -53,14 +57,18 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
     if (closed) return; closed = true;
     try { await adapter?.close(); }
     finally { alive = false; try { try { ledger?.close(); } finally { await originals?.close(); } }
-      finally { mock.timers.reset(); clockHeld = false; if (removeHome) await rm(home, { recursive: true, force: true }); } }
+      finally { try { storageOwner?.release(); }
+        finally { mock.timers.reset(); clockHeld = false; if (removeHome) await rm(home, { recursive: true, force: true }); } } }
   };
   try {
-    ledger = openMemoryLedger({ homeDirectory: home });
+    storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+    if (freshHome) initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+    ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
     // Exact old six-field effective choices, with new enabled/task_recall explicitly enabled. Not reviewed defaults.
     for (const [key, scope] of [["personal", "personal"], ["project-default", "project"]] as const)
       if (!ledger.prefs(EVALUATION_ACTOR, key)) ledger.savePrefs(EVALUATION_ACTOR, key, defaultPrefs(scope, "assisted"));
     const policy: MemoryRuntimePolicyOwner = { alive: () => alive,
+      isForgotten: (scope, owner, kind, id) => memory.isForgotten(scope, owner, kind, id),
       prefsFor: (scope, id) => memory.prefsFor(EVALUATION_ACTOR, scope, id), owners: id => ledger!.owners(id), candidateOwners: id => ledger!.candidateOwners(id),
       projectExists: async id => ["project-a", "project-b"].includes(id), deletingProject: () => undefined };
     originals = await evaluationOriginals(home, () => adapter && alive ? { adapter, policy,
@@ -68,7 +76,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
         ? owner.install_id === "evaluation-coding-install" : owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID),
       sourceAllowed: (actor, scope, owner, refs) => memory.sourceAllowed(actor, scope, owner, refs) } : undefined, () => clock, options.registerFixture);
     const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
       memory: { ...memoryRuntimePolicy(() => policy, memoryExtractor(home, () => generation)), sources: originals.sources,
         promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
           decide: (caller, request) => memory.promotion.decide(caller, request), undo: {
@@ -96,7 +104,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
       async original(text: string, scene: "coding" | "assistant", project: string | null, previous?: EvaluationOriginal) {
         setup = true;
         try {
-          const original = previous ?? await originals!.create(adapter!, text, scene, project);
+          const original = previous ?? await originals!.create(adapter!, memory, text, scene, project);
           const target = project ? { scope: "project" as const, owner: project } : { scope: "user" as const, owner: EVALUATION_ACTOR };
           const sources = await originals!.sources.resolve(original.caller, { app_id: "io.molis.work", target, refs: [original.ref] });
           return { original, sources };

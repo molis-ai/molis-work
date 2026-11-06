@@ -16,6 +16,7 @@ export const registration: PluginRegistration = {
     // The stage as the shell draws it when no instance runs (no session directory); a running instance draws its own (plugin.ts).
     contributions: [codingUiView(() => []), codingSettingsContribution],
     clientFactory: CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT,
+    clientMounts: "surfaces",
     stylesheet: CODING_STYLES,
     settingsClient: CODING_SETTINGS_CLIENT_SCRIPT,
     // The attributes the Characters import page and the shared diff view read or set.

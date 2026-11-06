@@ -1,5 +1,9 @@
 # Agent Host
 
+## Memory 管理分页
+
+`AgentMemoryCapability.page` 直接委托当前 SDK 的 `MemoryStore.page`；沿原可信 caller 和执行控制，只转换 `scan_limit` 与字段命名，不先 list、不推算总数、不自行解释游标。SDK 的原条目版本、穷尽/停止事实、诊断授权及隐藏成本保持原样。该薄口使用当前 SDK107；没有集合读取优化或新缓存接口。条件改类继续复用现 `setMeta/update`，不建立第二写入口。专项见 `tests/memory-management-page-authority.test.ts` 与 `tests/memory-classification-edit.test.ts`。
+
 ## Memory 维护命令边界
 
 依 spec §9.4，Memory Capability 的 `previewMutation` 只将带原版本与原操作号的 update/pause/disable/resume/remove 真实命令交同一 SDK management.preview，不写条目，不替代执行时的当前授权。`tombstone` 委托 SDK 逻辑 remove，返回实际条目版本与原操作重放结果；现 `remove` 仍委托物理 purge。两口沿原 caller/ExecutionControl，不增加第二写主人、查询授权或恢复账。App 的维护补账只接受实际 SDK 提交确认；缺失、同文或版本加一不能作为成功证明。验证使用公开 Adapter 与真实隔离 Node 存储，覆盖取消/撤权、原操作重放和后继版本冲突。
@@ -28,6 +32,8 @@ Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失�
 adapter 只报告事实并执行已批准的工作。
 
 记忆使用投影由可选 `memoryUsage` Host 回调接收真实 SDK Context 回执，保留原 Session/Run、条目版本、retrieval receipt 与模型 call。`prepared` 不算派发；`dispatched-or-unknown` 与 `response-observed` 分开，后者也不证明模型采用。回调失败只报告 `memory.receipt_unrecorded`，不重发模型；读取原 Run 可再交同一事实，关闭 Runtime 时等待在途投影。历史事件到只读视图由 `prologue-restored-session.ts` 持有，SDK 存储读取与原不可恢复控制不变。验证：`tests/prologue-memory-run-context.test.ts` 使用真实 Node/SQLite/本机 HTTP 覆盖 ledger 故障、原 Run 重读和零网络补账；`tests/memory-use-receipts.test.ts` 覆盖单调摘要与遗忘屏障。
+
+同一 `memory-recalled` 的可选 `retrieval.attempts/cost` 由 `prologue-memory-stream.ts` 显式映射到既有 `retrievals`：保留尝试顺序、`fallback_from`、错误、脱敏成本及 `complete: false`，未知物理读取不变零，未报 token 不补值。保存及 Session 重开沿原事件/Run 投影，不设第二本账；检索成功不改变 `memory-context` 的真实派发判定。产品默认配方仍是 keyword，不新增设置；公共 Adapter 已有 `PrologueMemoryOptions.policy` 注入点，测试仅在这里配置显式 vector 不可用后 keyword 备用，保留原授权与 taxonomy。后继 SDK 采用并统一构建后再运行上述公共回放测试；此前源码和语法检查不代表动态通过。
 
 ## 记忆晋升与可信原件桥
 
@@ -71,6 +77,16 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - `tests/agent-host.test.ts`：授权与批准各条边界的断言。
 
 ## 开发要求
+
+持久 schedule 的 `enqueue` 第二参原样转交 SDK 的 `signal` / `beforeCommit`；Session index 的等待不消耗或丢弃该控制。异步检查返回的同步断言仍由 SDK 在实际首次 Storage 接纳前调用，不自行造队列事务。
+
+生产Node Host与Memory/Session冷入口显式选择 `indexed-v1`，不通过省略配置回落文件布局。`openPrologueMemoryRestore` 只为持现行Home恢复owner的调用方装配公开冷inspection/maintenance，不创建Runtime、不恢复Run、不调用模型。App传入原taxonomy、明确scope/owner与同步存活检查；先以无逐条delete许可的maintenance确认可写就绪并关闭，再读取cleared，实际mutation仍绑定所选ref/version。原key留在同一storageRoot，不复制到stage。桥仅汇总SDK `purgeMemory.storageFiles` 的已确认现存材料并去重，不再按record id或文件后缀猜路径。多条记忆可以共用 `records.sqlite`，该回执不授予删除整库或任意SDK kind的权限；最终字节校验和回滚归原publisher。定向回归：`tests/home-restore-memory-forgetting.test.ts`、`tests/home-restore-indexed-memory.test.ts`。
+
+`readPrologueSessionTerminations` / `retainPrologueSessionTerminations` 是 Home 恢复专用冷口：完整读取当前 canonical Session 的 cleaning/complete 决定与原 root 路径；对恢复后仍存在的目标，用目标当前 preview 交同一 SDK Session owner 清子记录，并在 writer 关闭后新开 inspection 核 complete 与 waits 清空。仅旧备份缺 root 的材料须与源原决定完全一致。固定 Session previews、单一 owner、原 key 和当前许可不可配；当前 taxonomy 由 Host 传入，Memory matrix 的动作/形成与 scopes 均固定为空、所有条目授权拒绝，不传产品 promote/read 策略，也不把空 scopes 当全库授权。没有 Runtime、Provider、业务 purge Action 或第二执行路径；不解析 SDK envelope。Host 的文件保留、最终发布和断电恢复仍归原 publisher/journal。回归：`tests/home-restore-session-termination.test.ts`；完整短合同见 `specs/prologue-memory-strategy/spec.md` 的 Session 终止恢复段。
+
+独立遗忘决定同时固定正式与候选版本。两类 SDK 读取均会等待，所以 `PrologueEffects` 原实例在现 Host storage 写入口观察 `memories` / `memory-candidates` 的写入开始与结束；`observeWrites` 返回绑定该实例的同步断言。首次决定接受前，Memory 在最终版本读取前捕获观察，在同步 Storage accept 紧前确认期间无写入、且无在途写。所有 commit / batch / remove / purge / discard 的成功、失败及取消均由 finally 收尾，结果未知也令旧观察失效。非 Memory 写不计入。
+
+这个观察只拒绝本 Runtime 中过期的读取，不是授权、锁、队列、持久事实或跨 Runtime 事务；SDK CAS、原 beforeEffect / 同步授权和 Storage owner 仍各自生效。同 Runtime 无关 Memory 写可能保守冲突；未接受时原 operation 仍带原固定选择重试，重新选版本须用新 operation。已接受决定只继续原清理，不能重选。定向回归：`tests/memory-forgetting-service.test.ts`。
 
 - 负责：Agent Runtime 注册、能力矩阵、冻结的启动授权、宿主审查队列与 Prologue 推理接线。
 - MCP 连接的 Host 解析结果可带同步 `assertCurrent`；这是本次原来源/世代的可信运行期闭包，不进入 SDK 配置。连接、刷新和工具调用在后续等待、实际网络派发及结果交付前复查同一闭包，不以新世代替换旧快照。回归：`tests/connector-mcp.test.ts` 的 RAC2885 Agent source withdrawal 两组真实交错。
@@ -161,8 +177,48 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 可信初始输入由受保护 Host 入口交给现 Session attempt 保存原件，后续同 Session 接续只带引用；业务 DTO 不能自证本人身份。`tests/coding-original-inputs.test.ts` 走真实 HTTP/Node 验证原文、首个时间、重启、失败重试同身份、并发拒绝及跨 Session/派生输入拒绝；这只证明原件桥，不代表学习形成已接通。
 
-原件输入与输出对应的正式动作当前为 `agent.run.start@1`、`agent.session.read@1`、`agent.run.read@1`、`agent.run.wait@1`。读取三口旧 @1/@2、启动口旧 @1 固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
+原件输入与输出对应的正式动作当前为 `agent.run.start@1`、`agent.session.read@1`、`agent.run.read@1`、`agent.run.wait@1`。读取三口包含原 Run 分类快照。带 `.v1` 的旧身份（含候选读取 @5、启动 @3）及当前身份上的非现行版本固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
 
 `readOriginalInput(ref)` 从该 Session attempt 读取首原件的精确正文、作者、身份和首次时间；`accepted_run` 则指向同原件最近一次已接受且未 refused 的直接尝试（排除 `frozen.continued_from`）。拒绝且未建立 Run 的尝试不阻挡后续真实重试，派生继续不能让失败原件取得学习资格。来源消费方仍检查定位 Run 的当前状态、Session owner、工作和权限；缺失或未接受不从拼接任务恢复。原时间和身份不因读取、继续或重试变化，不扫描 SDK 历史，不增加正文存储；Source Port 的 App 规则见记忆策略 §9.4。
 
 `inputs.read(ref)` 先由 SDK 同 Session 的有界 InputBook 定位，再读该 Run 的原输入回执。当前 queued/withdrawn 优先于旧回执；未落定的直接补充仅可检查该 Session 唯一当前活跃 Run，记录缺失或已裁剪保持未知，不扫描历史。该定位不赋予读取或形成许可，产品 SourcePort 仍逐次核当前来源主人和用途。
+
+分类形成查询沿现候选 `get` 窄口读取指定 scope/owner/id：确实不存在返回 undefined，当前权限拒绝、存储损坏和版本冲突保持原错误。列表未返回的候选只在精确 get 明确拒绝权限时从非本人形成视图排除；缺失或损坏仍阻断，不补写 ledger。本人管理沿原授权查看。
+
+分类控制的原 Run 配方与当前设置取交集，读取和形成独立。本人管理不受分类禁读误挡；任务列表与候选计数/正文按读取限制，不能借来源用途标记换为形成权限。模型输入中的正式记忆按 task-read，待审候选按 read 与 form 共同检查，跨范围的最后一次等待之后再同步复核。新 Home 明确保存九字段，已有不完整 profile 拒绝，不转换旧配置。
+
+SDK formation.items 明确确认 created/replayed 后，写主人只按原 slot 的 scope/owner、candidate_id/version 精确 get，完成同一次操作的登记；仍检查当前形成、来源、取消与版本。unknown 或没有候选引用不触发 get，外来 slot/后继版本拒绝。该 canonical 回执不加入新提炼上下文、不返回任务结果；read:off/form:on 仍能基于新授权原件形成，下一次提炼和任务不能读回旧候选。
+
+`candidate_access` 只由 Host 写主人绑定：`formation-receipt` 固定已确认的 scope/owner/id/version；`proposal-check` 固定本次 operation_id 与 scope/owner，仅供提议的去重、来源合并和限额核查。普通列表、任务结果、提炼上下文和任意历史 get 不携带，不以 `source_use` 授予读取。桥只转交该受信字段，原 SDK 的逐条管理授权、来源与最终版本检查保留；Action、插件 callback 和模型均无赋值入口。
+
+
+## C3 可信开场与同次派发
+
+续聊的 `readOpening` 只认同 SessionIndex 中唯一未拒绝 Run 的 caller task；本人 raw 原件与 caller 开场分开。旧额外开场只从发送投影排除，raw 读取和导出不变；缺失或歧义明确拒绝，并提示查看原记录、显式新建会话后补充背景，不自动回落。`history-projected` 从同一事件投成可见 notice，重启不另建提示账。
+
+新 child 的生成事实由 SDK493 本次新建 `onStarted` 固定到原父 attempt（准确父 Run、child Session/Run、caller-only 格式，无正文）；幂等已有项和恢复不补标。初始 caller 取唯一无补充标记的 prompt，peer/carried 不混入；子索引 task 只在原创建写入，不再从后续 user 回填。无子索引的只读 child 沿父事实和 SDK 原 replay 得精确 `continuation_task`，不新增公开 start 入口。raw `task` 仍可查看。列表仅以唯一且未 refused 的父 attempt 提供证明；旧无事实、重复父来源及缺字段或非数组的持久证明均为 unavailable，不封掉原始列表。
+
+进程内 `beforeDispatch` 可返回同次同步收紧闭包；原 caller/Character、父 ALS 与 MCP 来源闭包求交后交给 SDK Node 最后 transport fence。启动 invocation 不延长到背景执行，线程闭包固定原 retained guard，Promise 型末次检查拒绝。独立有界推理/图片/TypeSafe 的 void guard 不据此宣称已有同步保证。定向回归为 `tests/prologue-session-opening.test.ts`、`tests/prologue-dispatch-fence.test.ts`、`tests/prologue-subagents.test.ts` 与 `tests/coding-continuation.test.ts`；真实模型、完整产品及用户验收另计。
+
+B4 选中批量沿现 Memory capability 增加固定 `previewBatch` / `applyBatch` 窄口，只映射 SDK 原 `preview` / `mutateBatch` 的 disable/purge 与实际逐项回执。App 只收原身份、版本和回执；不新增 SDK、执行循环或恢复正文。固定选择、本人授权和遗忘接受由 Memory/Host 原主人负责。
+
+会话归档与恢复复用同一 SDK Session/原 SessionIndex。`sessionLifecycle.read` 每次通过公开 open 读取当前持久状态，不加载执行恢复或 Run 正文；缺能力明确不可用。三个 plugin-only Action 核对原 caller 的 actor、项目、插件与安装，并保留原 withEffect 到实际 Host 提交。`unarchive` 委托原 SDK restore，和执行恢复不是同一动作，不新建 Session、不改记忆期限。
+
+来源同步观察只覆盖本次 calls/Run 中实际来源 Session 的并集，在异步读取前捕获，任一匹配的原 Host Session 写开始即永久失效；恢复、后续检查和新调用不会刷新旧证明。仅保留活观察与在途写，原调用 finally/Runtime close 释放。最终同步检查组合现 Effects，覆盖 SDK canonical 文件写；不增加持久状态、授权缓存或新 Action。
+
+Run 来源 frame 不以 start 返回 handle 作为结束：SDK 已发布 completed/failed/cancelled 终态的一次性订阅释放，兼容同步回放；启动拒绝和原 Runtime close 释放全部活闭包，close 后迟到的 caller 准备不能再登记或派发。calls 仍以原调用 finally 结束。
+
+### 同 Run 的受控记忆展开
+
+静态 Action、gateway 与助理 list 只选择 canonical 身份，绑定到原 Run 的 SDK Memory control。模型工具仅得到状态、预算和回执号；身份与正文由 SDK addressable Context 同源投影、统一计量和最终复核。可信 App receipt 的 queued/omitted 不下发给模型。取消、结束及关闭释放绑定；C3 的同步派发围栏继续执行。
+
+助理明确按当前 Context 身份遗忘/替换时，目标定位同样使用 Host-only 显式读取资格；它不授予管理人身份，也不绕过冻结分类与当前分类、原工作、原操作和目标范围检查。未指向现有身份的新形成保持原路径。
+
+
+## 选中资料的派发边界
+
+Host-only disposeDispatch 与 L 的 SourceObservations 共用一份 activeRuns 释放集合：在 forAttempt 首 await 前登记，启动拒绝、SDK terminal、取消和 adapter.close 幂等释放；start 返回不是终态。派发 current fence 与既有授权 fence 同次求交，不新增网络执行核。
+
+### Session 记忆管理薄桥
+
+现 Memory capability 可选提供 `previewSessionPurge` 与 `purgeSessionTarget`：只映射公开 SDK Session selection、完整 scope/owner/kind/id/version 和原 operation tuple，沿同一受控调用，不靠普通管理读授予 purge-inspection。inspection 同时核当前绑定、原持久 Session owner 与 App 固定计划；未装配明确不可用。Session lifecycle 的可选 `readOwner` 只读原 App index，不 create/open/restore/Run；正常管理仍走 read，仅全部独立决定已接受的固定清理继续可用此 owner 投影与当前业务/安装/本人/项目复核求交。缺失或坏 owner 不猜，需对账；SDK purge 的 void 返回只在确认成功时报告 completed，不据缺失推断 already-absent。

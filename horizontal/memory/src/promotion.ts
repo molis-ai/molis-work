@@ -30,6 +30,16 @@ const journalKey = (operation: string) => `memory-operation:${operation}:promoti
 const sourcesKey = (memory: string) => `memory-source-links:${memory}`;
 const forgottenKey = (scope: MemoryScope, owner: string, event: string) => `memory-source-forgotten:${JSON.stringify([scope, owner, event])}`;
 
+/** The same source projection is shared by ordinary forgetting and the project-deletion owner. */
+export function memoryPromotionSources(ledger: MemoryLedgerPort, now: () => Date): Pick<MemoryPromotion, "linked" | "retainSuppression"> {
+  return {
+    linked: (actor, memory) => (ledger.marker(actor, sourcesKey(memory))?.body as { sources?: AgentMemorySourceRef[] } | undefined)?.sources ?? [],
+    retainSuppression: (actor, scope, owner, events) => ledger.transaction(() => {
+      for (const event_id of events) ledger.setMarker(actor, forgottenKey(scope, owner, event_id), { event_id }, now().toISOString());
+    }),
+  };
+}
+
 /** App approval and durable undo share the existing ledger; the SDK remains the only formal/candidate writer. */
 export class MemoryPromotion {
   readonly capability: AgentMemoryPromotion = {
@@ -40,15 +50,19 @@ export class MemoryPromotion {
   constructor(private readonly ports: PromotionPorts) {}
 
   sourceAllowed(actor: string, scope: MemoryScope, owner: string, refs: readonly AgentMemorySourceRef[]): boolean {
-    return refs.every(ref => !this.ports.ledger.marker(actor, forgottenKey(scope, owner, ref.event_id)));
+    return !this.ports.ledger.forgetting.read().decisions.some(one => one.actor_id === actor && one.scope === scope && one.owner === owner
+      && refs.some(ref => one.source_event_ids.includes(ref.event_id)))
+      && refs.every(ref => !this.ports.ledger.marker(actor, forgottenKey(scope, owner, ref.event_id)));
   }
 
   linked(actor: string, memory: string): readonly AgentMemorySourceRef[] {
-    return (this.ports.ledger.marker(actor, sourcesKey(memory))?.body as { sources?: AgentMemorySourceRef[] } | undefined)?.sources ?? [];
+    return memoryPromotionSources(this.ports.ledger, this.ports.now).linked(actor, memory);
   }
 
   /** Retain every source that ever contributed to this canonical memory, including replaced versions. */
   link(actor: string, memory: string, refs: readonly AgentMemorySourceRef[]): void {
+    if (this.ports.ledger.forgetting.read().decisions.some(one => one.memories.some(item => item.memory_id === memory)))
+      throw memoryErrors.conflict("这条记忆已经接受遗忘，不能再补入来源或返回旧正文");
     if (!refs.length) return;
     const existing = this.linked(actor, memory);
     const sources = [...new Map([...existing, ...refs].map(ref => [JSON.stringify([ref.event_id, ref.version]), { event_id: ref.event_id, version: ref.version }])).values()];
@@ -61,6 +75,10 @@ export class MemoryPromotion {
       const refs = [...extra, ...memories.flatMap(id => this.linked(actor, id))];
       for (const ref of refs) this.ports.ledger.setMarker(actor, forgottenKey(scope, owner, ref.event_id), { event_id: ref.event_id }, this.ports.now().toISOString());
     });
+  }
+
+  retainSuppression(actor: string, scope: MemoryScope, owner: string, events: readonly string[]): void {
+    memoryPromotionSources(this.ports.ledger, this.ports.now).retainSuppression(actor, scope, owner, events);
   }
 
   change(actor: string, operation: string): MemoryChangeRecord {

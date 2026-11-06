@@ -1,3 +1,4 @@
+import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -79,6 +80,7 @@ export const codingManifest: PluginManifest = {
   capabilities: {
     provides: [],
     consumes: [
+      memoryLearningActions.enqueue.capability_id, memoryLearningActions.form.capability_id,
       searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
       "files.state", "files.directory", "files.open", "files.capture", "diff.state", "text-stats.state",
       "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
@@ -141,7 +143,7 @@ export const codingManifest: PluginManifest = {
     { job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] },
   ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
-  actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
+  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },
@@ -182,8 +184,11 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.install-method", method: "POST", path: "/methods/install" },
     { route_id: "coding.read-method", method: "GET", path: "/methods/:skillId/:version" },
     { route_id: "coding.state", method: "GET", path: "/state" },
+    { route_id: "coding.list-sessions", method: "GET", path: "/sessions" },
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },
     { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
+    { route_id: "coding.session-binding", method: "GET", path: "/sessions/:sessionId/binding" },
+    { route_id: "coding.subject-state", method: "GET", path: "/sessions/:sessionId/subject-state" },
     { route_id: "coding.subject", method: "GET", path: "/sessions/:sessionId/subject" },
     { route_id: "coding.search-entries", method: "GET", path: "/search/entries" },
     { route_id: "coding.read-runs", method: "GET", path: "/sessions/:sessionId/runs" },

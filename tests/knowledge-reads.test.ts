@@ -149,3 +149,21 @@ test("SYS-03 a rejected read leaves its round's full budget for the next valid r
   assert.equal(f.cards.receipts("a", { limit: 10, offset: 0 }).total, 0);
   assert.equal((await f.knowledge.read(access, { subject: { kind: "page", id: "p1" } })).round_chars_left, 60_000 - "试用手册".length);
 });
+
+test("A4-K read and grep recheck owner state after the receipt authority wait and write no late receipt", async t => {
+  const f = await fixture(t);
+  let state: "active" | "archived" = "active";
+  const knowledge = new KnowledgeService({ cards: f.cards, search: (access, input) => f.search.query(access, input), sourceState: async () => state });
+  for (const operation of ["read", "grep"] as const) {
+    state = "active";
+    const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const access = { ...f.access(round(`late-${operation}`)), beforeEffect: async () => { started.resolve(); await release.promise; } };
+    const pending = operation === "read" ? knowledge.read(access, { subject: { kind: "page", id: "p1" } })
+      : knowledge.grep(access, { pattern: "试用", subjects: [{ kind: "page", id: "p1" }] });
+    const before = f.cards.receipts("a", { limit: 10, offset: 0 }).total;
+    await started.promise; state = "archived"; release.resolve();
+    if (operation === "read") await assert.rejects(pending, { code: "knowledge.unreadable" });
+    else { const result = await pending; assert.ok("matches" in result); assert.deepEqual(result.matches, []); }
+    assert.equal(f.cards.receipts("a", { limit: 10, offset: 0 }).total, before);
+  }
+});

@@ -24,7 +24,7 @@ async function memoryHome(t: Parameters<typeof memoryServiceHome>[0], clock?: ()
     const [result] = learned.learned;
     assert.equal(result!.outcome, "written", "the automatic premise uses two canonical originals and the real SDK promotion");
     const entry = (await memory.list(person(), { scope })).items.find(item => item.memory_id === result!.memory_id);
-    const change = memory.changes(person(), { scope }).find(item => item.memory_id === result!.memory_id);
+    const change = (await memory.changes(person(), { scope })).find(item => item.memory_id === result!.memory_id);
     assert.ok(entry); assert.ok(change);
     return { ...result!, memory: entry, change_id: change.change_id, originals: sources.slice(0, 2) };
   } };
@@ -223,14 +223,14 @@ test("a correction borrows no words from the memory it replaces, the person's ow
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
   const auto = (text: string) => env.automatic(memory, text);
   const sources = async () => (await memory.list(person())).items.map(item => `${item.text} · ${item.source}`).sort();
-  const undoable = (id: string | null) => memory.changes(person(), { scope: "project" }).find(item => item.change_id === id)!.undoable;
+  const undoable = async (id: string | null) => (await memory.changes(person(), { scope: "project" })).find(item => item.change_id === id)!.undoable;
 
   // Said again over a memory the gate kept itself, naming it as the one it replaces: a quote that carries none of the text changes nothing.
   const first = await auto("周报先写风险");
   const again = await keep(memory, work(1), { scope: "project", text: "周报先写风险", said: "再说一遍", replaces: first.memory!.memory_id });
   assert.equal(again.outcome, "duplicate");
   assert.deepEqual(await sources(), ["周报先写风险 · auto"], "still the gate's");
-  assert.equal(undoable(first.change_id), true, "and still takeable back");
+  assert.equal((await undoable(first.change_id)), true, "and still takeable back");
 
   // A correction of one: the memory's own words are the gate's, not the person's to lend. A short reply, or a name in one, does not make the text theirs.
   const second = await auto("周报都抄送老王"), third = await auto("日报都抄送老李");
@@ -240,7 +240,7 @@ test("a correction borrows no words from the memory it replaces, the person's ow
     assert.equal(result.candidate!.basis, "inferred");
   }
   assert.deepEqual(await sources(), ["周报先写风险 · auto", "周报都抄送老王 · auto", "日报都抄送老李 · auto"].sort());
-  assert.deepEqual([undoable(second.change_id), undoable(third.change_id)], [true, true]);
+  assert.deepEqual([(await undoable(second.change_id)), (await undoable(third.change_id))], [true, true]);
 
   // The person's own memory lends nothing either: the slot they changed comes from their quote, and the rest of the text from the memory would be words they did not say.
   const mine = (await keep(memory, work(4), { scope: "project", text: "记住：代码评审先看测试，提交信息用中文", said: "记住：代码评审先看测试，提交信息用中文" })).memory!;
@@ -261,7 +261,7 @@ test("a correction borrows no words from the memory it replaces, the person's ow
   const upgraded = await keep(memory, work(8), { scope: "project", text: "会议纪要用中文，附上行动项", said: "附上行动项", replaces: kept.memory_id });
   assert.equal(upgraded.outcome, "duplicate");
   assert.equal((await memory.list(person(), { scope: "project" })).items.find(item => item.memory_id === long.memory!.memory_id)!.source, "auto");
-  assert.equal(undoable(long.change_id), true);
+  assert.equal((await undoable(long.change_id)), true);
 });
 
 test("automatic writes follow the gate table, show in recent changes with their rule, and undo deletes them from the store", { timeout: 60_000 }, async t => {
@@ -275,7 +275,7 @@ test("automatic writes follow the gate table, show in recent changes with their 
   assert.deepEqual((await env.raw().candidates.list("project", "project-a")).map(item => [item.state, item.memory_id]), [["promoted", auto.memory!.memory_id]]);
   assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
   assert.match(auto.memory!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
-  const [change] = memory.changes(person(), { scope: "project" });
+  const [change] = (await memory.changes(person(), { scope: "project" }));
   assert.equal(change!.kind, "auto_kept");
   assert.equal(change!.rule, MEMORY_GATE_RULE);
   assert.equal(change!.reason, "两份独立的本人原始表态，经当前规则复核");
@@ -405,7 +405,7 @@ test("deleting a memory leaves nothing behind: not in the store, the ledger, rec
   assert.equal((await memory.list(person())).items.length, 0);
   assert.deepEqual(env.ledger().revisions(kept.memory_id), []);
   assert.deepEqual(env.ledger().uses({ memory_id: kept.memory_id }), []);
-  assert.ok(memory.changes(person()).every(change => !change.text.includes("周会")), "recent changes keep no deleted text");
+  assert.ok((await memory.changes(person())).every(change => !change.text.includes("周会")), "recent changes keep no deleted text");
   await env.close();
   memory = await env.open();
   assert.equal((await memory.list(person())).items.length, 0, "not back after a restart");
@@ -498,16 +498,16 @@ test("undoing an automatic write cannot delete what the person has since said, a
   const env = await memoryHome(t);
   const memory = await env.open();
   const auto = (text: string) => env.automatic(memory, text);
-  const change = (id: string | null) => memory.changes(person(), { scope: "project" }).find(item => item.change_id === id)!;
+  const change = async (id: string | null) => (await memory.changes(person(), { scope: "project" })).find(item => item.change_id === id)!;
   const sources = async () => (await memory.list(person())).items.map(item => [item.text, item.source]);
 
   // Said again after the automatic write: it is the person's memory now, and the automatic write's undo is gone.
   const first = await auto("周报先写风险");
-  assert.equal(change(first.change_id).undoable, true);
+  assert.equal((await change(first.change_id)).undoable, true);
   const said = await keep(memory, assistant("project-a", { work_id: "work-2", title: "别的" }), { scope: "project", text: "周报先写风险", said: "周报先写风险" });
   assert.equal(said.outcome, "duplicate");
   assert.equal(said.memory!.source, "said");
-  assert.equal(change(first.change_id).undoable, false, "recent changes no longer offer to take back what the person said themselves");
+  assert.equal((await change(first.change_id)).undoable, false, "recent changes no longer offer to take back what the person said themselves");
   await assert.rejects(memory.undo(person(), first.change_id!), /不能撤销/);
   assert.deepEqual(await sources(), [["周报先写风险", "said"]], "the explicit memory is still there");
 
@@ -519,13 +519,13 @@ test("undoing an automatic write cannot delete what the person has since said, a
   const { applied_version: _notRecorded, ...legacy } = record;
   env.ledger().saveChange({ ...legacy, undoable: true, undo: { action: "remove" } });
   await assert.rejects(memory.undo(person(), first.change_id!), /你自己的记忆/);
-  assert.equal(change(first.change_id).undoable, false, "and it stops offering itself");
+  assert.equal((await change(first.change_id)).undoable, false, "and it stops offering itself");
   assert.deepEqual(await sources(), [["周报先写风险", "said"]]);
 
   // Edited by the person.
   const second = await auto("发布前先跑回归");
   await memory.change(person(), { memory_id: second.memory!.memory_id, action: "update", text: "发布前先跑全量回归" });
-  assert.equal(change(second.change_id).undoable, false);
+  assert.equal((await change(second.change_id)).undoable, false);
   await assert.rejects(memory.undo(person(), second.change_id!), /不能撤销/);
   assert.ok((await sources()).some(([text]) => text === "发布前先跑全量回归"));
 
@@ -533,14 +533,14 @@ test("undoing an automatic write cannot delete what the person has since said, a
   const third = await auto("评审前先自测");
   const replaced = await keep(memory, assistant(), { scope: "project", text: "评审前先自测并贴截图", said: "评审前先自测并贴截图", replaces: third.memory!.memory_id });
   assert.equal(replaced.outcome, "replaced");
-  assert.equal(change(third.change_id).undoable, false);
+  assert.equal((await change(third.change_id)).undoable, false);
   assert.ok((await sources()).some(([text, source]) => text === "评审前先自测并贴截图" && source === "said"));
 
   // A suggestion the person accepts that corrects it.
   const fourth = await auto("周会放在周三");
   const suggestion = await memory.propose(assistant(), { scope: "project", text: "周会放在周四", kind: "convention", basis: "inferred", why: "改期了", from: "work", supersedes: fourth.memory!.memory_id });
   await memory.accept(person(), suggestion.candidate_id);
-  assert.equal(change(fourth.change_id).undoable, false);
+  assert.equal((await change(fourth.change_id)).undoable, false);
   assert.ok((await sources()).some(([text, source]) => text === "周会放在周四" && source === "accepted"));
 
   // What stays the gate's own can still be taken back, and undoing one automatic replacement is not blocked by closing another memory's.
@@ -669,7 +669,7 @@ test("a text is a duplicate only when it is the same words: what the person type
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
   const auto = (text: string, scope: "personal" | "project" = "personal") => env.automatic(memory, text, scope);
   const sources = async () => (await memory.list(person())).items.map(item => `${item.text} · ${item.source}`).sort();
-  const undoable = (id: string | null) => memory.changes(person(), { scope: "all" }).find(item => item.change_id === id)!.undoable;
+  const undoable = async (id: string | null) => (await memory.changes(person(), { scope: "all" })).find(item => item.change_id === id)!.undoable;
 
   // A comma that turns "don't" into "no, do", a symbol that turns a comparison round, a question mark: the typed message is a memory of its own, and the automatic one next to it stays the gate's.
   const cases: Array<[gate: string, typed: string]> = [["不要发给他", "不，要发给他"], ["金额>1000要先问我", "金额<1000要先问我"], ["回复用英文", "回复用英文？"]];
@@ -682,13 +682,13 @@ test("a text is a duplicate only when it is the same words: what the person type
     assert.notEqual(result.memory!.memory_id, first.memory!.memory_id, "a memory of its own, not the gate's promoted");
   }
   assert.deepEqual(await sources(), ["不，要发给他 · said", "不要发给他 · auto", "回复用英文 · auto", "回复用英文？ · said", "金额<1000要先问我 · said", "金额>1000要先问我 · auto"].sort());
-  assert.deepEqual(gates.map(gate => undoable(gate.change_id)), [true, true, true], "the gate's own writes can still be taken back");
+  assert.deepEqual(await Promise.all(gates.map(async gate => (await undoable(gate.change_id)))), [true, true, true], "the gate's own writes can still be taken back");
 
   // The same words, apart from what the fold sets aside, is the person's saying it again: the automatic memory becomes theirs, keeping its text, with their message as the evidence.
   const spaced = await auto("NSM是北极星指标");
   const said = await memory.write(work(10), { scope: "personal", text: "NSM 是北极星指标", said: "NSM 是北极星指标。" }, { originals: ["NSM 是北极星指标。"] });
   assert.deepEqual([said.outcome, said.memory!.memory_id, said.memory!.source], ["duplicate", spaced.memory!.memory_id, "said"]);
-  assert.equal(undoable(spaced.change_id), false, "and it is no longer the gate's to take back");
+  assert.equal((await undoable(spaced.change_id)), false, "and it is no longer the gate's to take back");
   assert.deepEqual(said.memory!.evidence.slice(0, 2), spaced.originals.map(source => ({ kind: "said",
     ref: { kind: "memory-source", id: source.event_id, revision: source.version }, at: new Date(source.occurred_at_ms).toISOString() })),
   "both canonical original identities remain exact without copying their bodies into the ledger");
@@ -699,10 +699,10 @@ test("a text is a duplicate only when it is the same words: what the person type
   const gate = await auto("不要删除旧文件");
   const comma = await memory.write(person(), { scope: "personal", text: "不，要删除旧文件" });
   assert.deepEqual([comma.outcome, comma.memory!.text, comma.memory!.source], ["written", "不，要删除旧文件", "manual"]);
-  assert.equal(undoable(gate.change_id), true, "the gate's memory is untouched");
+  assert.equal((await undoable(gate.change_id)), true, "the gate's memory is untouched");
   const mine = await memory.write(person(), { scope: "personal", text: "不要删除旧文件。" });
   assert.deepEqual([mine.outcome, mine.memory!.memory_id, mine.memory!.source], ["duplicate", gate.memory!.memory_id, "manual"]);
-  assert.equal(undoable(gate.change_id), false);
+  assert.equal((await undoable(gate.change_id)), false);
 });
 
 test("a correction or a suggestion that differs from a memory only by a symbol or a comma is neither 'already kept' nor lost: it replaces, it waits, and what the person accepts is what the memory says", { timeout: 90_000 }, async t => {
@@ -748,7 +748,7 @@ test("what is kept as theirs is the message as they wrote it, not the model's ve
   assert.ok(result.memory!.origin.endsWith(`你说：“${wrote}”`), result.memory!.origin);
   const [raw] = await env.raw().list("personal", "web-user");
   assert.equal(raw!.text, wrote, "Prologue holds the person's words, not the text the model asked for");
-  assert.equal(memory.changes(person(), { scope: "personal" })[0]!.reason, `你说：“${wrote}”`);
+  assert.equal((await memory.changes(person(), { scope: "personal" }))[0]!.reason, `你说：“${wrote}”`);
   // A correction is the message too.
   const corrected = await memory.write(work(2), { scope: "personal", text: "ＲＥＰＬＹ in Chinese ONLY", said: "x", replaces: result.memory!.memory_id }, { originals: ["Reply in Chinese only."] });
   assert.deepEqual([corrected.outcome, corrected.memory!.text, corrected.memory!.source], ["replaced", "Reply in Chinese only.", "said"]);

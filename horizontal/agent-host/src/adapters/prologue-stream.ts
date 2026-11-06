@@ -52,6 +52,7 @@ export type PrologueEvent =
   | { type: "compaction-usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
   | { type: "compaction-skipped"; usageRecorded?: boolean }
   | { type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" | "stop-held" }
+  | { type: "history-projected"; sourceRun: { kind: "run"; id: string; revision: number }; omitted: number; reason: "unattributed-opening" }
   | { type: "compaction-started" }
   | { type: "compacted"; replaced?: number; usageRecorded?: boolean }
   | { type: "compaction-failed"; why?: string }
@@ -62,7 +63,7 @@ export type PrologueEvent =
   | { type: "turn-changes"; turn: number; changes: ReadonlyArray<{ path: string; byteLength: number; digest: string; checkpointId: string }> }
   | { type: "model-switched"; from: { protocol: string; model: string }; to: { protocol: string; model: string } }
   | { type: "memory-recalled"; method?: string; injected?: ReadonlyArray<{ id: string; version: number }>; omitted?: ReadonlyArray<{ id: string; version: number }>; unavailable?: readonly string[];
-      retrieval?: { receiptId: string; outcome: "ready" | "none" | "skip" | "unavailable" | "failed" | "timeout" | "cancelled"; errorCode?: string } }
+      retrieval?: Extract<ModelEvent, { type: "memory-recalled" }>["retrieval"] }
   | { type: "memory-context"; callId: string; status: "prepared" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
       tokens: number; budgetTokens: number; basis: "conservative-estimate" | "provider-reported";
       references: readonly { receiptId: string; id: string; version: number }[];
@@ -661,6 +662,12 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   "turn-changes": applyTurnChanges,
   "model-switched": applyModelSwitched,
   "run-recovered": applyRunRecovered,
+  "history-projected": (state, event, at) => {
+    const fact = event as Extract<PrologueEvent, { type: "history-projected" }>;
+    state.turns.push({ turn_id: `history-${fact.sourceRun.id}`, kind: "notice", at, sequence: state.next_sequence++,
+      text: `继续时只带入已确认的原任务；有 ${fact.omitted} 段旧背景无法确认来源，未发给模型。原记录仍可查看，需要时请重新补充背景。` });
+    return true;
+  },
   // Facts about supplements: applyRunEvent projects them into the receipts; the stream itself has nothing to show.
   ...Object.fromEntries(["steer-applied", "steer-read", "steer-withdrawn", "inputs-acknowledged"].map(type => [type, () => false])),
 };

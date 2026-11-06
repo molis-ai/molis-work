@@ -69,7 +69,7 @@ test("ADH-12 ADH-13 the base decides where 「记一下」 goes by one judgment,
   once("「可用的方法」里有适合这件事的方法时，先读取它的步骤再照着做，并告诉用户用了哪个方法；不适合就不用。", "base");
   once("这项工作的对象已不存在或被移走时，先告诉用户它的现状；除非用户明确要求，不在这里重新创建，也不按旧内容改写。", "base");
   once("用户收回的子任务由这项工作接着做完（可以读取它们已产出的对象），不再委托出去，也不再对它们追加要求。", "work");
-  once("「允许记住」关着时，用户要你以后照做的，在这项工作里照做，并告诉用户没有长期记下、在哪里可以打开。", "work");
+  once("「允许记住」关着时，用户本轮提供的内容仍可作本次材料，并告诉用户没有长期记下、在哪里可以打开。", "work");
 });
 
 test("the two questions of the selection bar are listed under 选区推荐 with their default text, and what the person leaves in them is read back without recording a use", async t => {

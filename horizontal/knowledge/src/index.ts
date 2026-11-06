@@ -50,11 +50,12 @@ import { KnowledgeWorkspace } from "./workspace.js";
 import { RoundBudget, roundOf } from "./budget.js";
 import { RELATED_POOL, relatedCards, relatedFirst } from "./related.js";
 import { knowledgeRef, namedSubject, namedSubjects } from "./refs.js";
+import { knowledgeCardSource, type KnowledgeSource, type KnowledgeSourceState } from "./organize.js";
 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, lineAt, lineStarts, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
 export { KnowledgeOrganizer, knowledgeCatalog, knowledgeCutPieces, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE_TEXT_CHARS, OUTLINE_MIN_CHARS, cardFor, cardOrganized, cardSeen, draftInput,
-  type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter } from "./organize.js";
+  type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter, type KnowledgeSource, type KnowledgeSourceState, contentRevision, knowledgeCardSource } from "./organize.js";
 export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 export { RoundBudget } from "./budget.js";
@@ -75,6 +76,8 @@ export interface KnowledgeAccess { client: ActionClient; caller: ActionCallConte
 /** The authority sources are read and searched with. */
 export const knowledgeReader = (access: KnowledgeAccess): ActionCallContext => access.reader ?? access.caller;
 export interface KnowledgeServiceOptions {
+  /** Current owner state of this bounded selection, checked with the original caller; no status is cached as authority. */
+  sourceState?(access: KnowledgeAccess, subject: ActionSubject, source?: KnowledgeSource): Promise<KnowledgeSourceState>;
   /** The system search, asked with the same access; it answers only from sources the caller may read. */
   search(access: KnowledgeAccess, input: SearchQueryRequest): Promise<SearchQueryResponse>;
   /** The cards organizing wrote and the person edited (spec §5), and the receipts of what was read. */
@@ -137,9 +140,11 @@ function visibility(views: readonly ActionView[], projectId: string | null): (ca
 export class KnowledgeService {
   private readonly workspace = new KnowledgeWorkspace();
   private readonly budget: RoundBudget;
+  private readonly originals: KnowledgeSourceReader;
 
   constructor(private readonly options: KnowledgeServiceOptions) {
     this.budget = options.budget ?? new RoundBudget();
+    this.originals = new KnowledgeSourceReader(options, this.workspace);
   }
 
   async search(access: KnowledgeAccess, input: KnowledgeSearchRequest): Promise<KnowledgeSearchResponse> {
@@ -159,7 +164,7 @@ export class KnowledgeService {
     const more = this.options.cards.search(project, input.query, limit * 2).map(match => this.options.cards.get(project, match.subject))
       .filter((card): card is KnowledgeCardRecord => !!card && !card.excluded && card.state !== "missing" && !cards.some(item => sameSubject(item.subject, card.subject))
         && (!input.kinds?.length || input.kinds.includes(card.subject.kind)) && (!input.plugins?.length || input.plugins.includes(card.plugin_id)));
-    if (cards.length >= limit) return { status: found.status, cards };
+    if (cards.length >= limit) return { status: found.status, cards: await this.activeResults(access, cards) };
     const visible = await this.visible(access);
     for (const card of more.filter(visible).slice(0, limit - cards.length)) cards.push(cardHit(card, "card"));
     // Too few hold every word (a whole question rarely does): those that hold some of them, marked so (§6.4).
@@ -173,7 +178,7 @@ export class KnowledgeService {
       const hit = cardHit(card, "related"), snippet = near.get(`${card.subject.kind}\u0000${card.subject.id}`);
       cards.push(snippet ? { ...hit, hint: cutHead(snippet, HINT_CHARS) } : hit);
     }
-    return { status: found.status, cards };
+    return { status: found.status, cards: await this.activeResults(access, cards) };
   }
 
   /**
@@ -204,18 +209,20 @@ export class KnowledgeService {
     const kept = seen.filter(card => (!input.plugins?.length || input.plugins.includes(card.plugin_id)) && (!input.kinds?.length || input.kinds.includes(card.subject.kind)));
     const all = relatedFirst(kept, input.related_to ? this.related(project, kept, input.related_to) : []);
     const offset = input.offset ?? 0, limit = Math.min(KNOWLEDGE_LIST_MAX, input.limit ?? DEFAULT_LIST);
-    return { total: all.length, sources: [...sources.values()], listing, pieces: all.slice(offset, offset + limit).map(entryOf) };
+    return { total: all.length, sources: [...sources.values()], listing, pieces: await this.activeResults(access, all.slice(offset, offset + limit).map(entryOf)) };
   }
 
   /**
    * A round's catalog of the project's knowledge for a caller whose directory is `views` (§6.4): the whole of it when it is small,
    * otherwise the pieces most related to the round's words. Cards only; `total` says how many there are in all.
    */
-  catalog(projectId: string, views: readonly ActionView[], words: string): { total: number; whole: boolean; pieces: KnowledgeListEntry[] } {
+  async catalog(projectId: string, views: readonly ActionView[], words: string, access?: KnowledgeAccess): Promise<{ total: number; whole: boolean; pieces: KnowledgeListEntry[] }> {
     const shown = this.listed(projectId, visibility(views, projectId));
     const newest = relatedFirst(shown, []).slice(0, KNOWLEDGE_CATALOG_WHOLE_PIECES).map(entryOf);
-    if (knowledgeCatalogWhole({ pieces: newest, total: shown.length })) return { total: shown.length, whole: true, pieces: newest };
-    return { total: shown.length, whole: false, pieces: relatedFirst(shown, this.related(projectId, shown, words)).slice(0, KNOWLEDGE_CATALOG_RELATED).map(entryOf) };
+    const whole = knowledgeCatalogWhole({ pieces: newest, total: shown.length });
+    const selected = whole ? newest : relatedFirst(shown, this.related(projectId, shown, words)).slice(0, KNOWLEDGE_CATALOG_RELATED).map(entryOf);
+    const pieces = access ? await this.activeResults(access, selected) : selected;
+    return { total: shown.length, whole: whole && pieces.length === selected.length, pieces };
   }
 
   /**
@@ -229,7 +236,8 @@ export class KnowledgeService {
   }
 
   async outline(access: KnowledgeAccess, input: KnowledgeOutlineRequest): Promise<KnowledgeOutline> {
-    const context = await this.owner(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.outline);
+    const context = await this.originals.read(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.outline);
+    await this.assertActive(access, context.subject);
     const card = this.stored(access.caller.project_id!, context.subject);
     // Section notes are for this very text only: a card organized from another revision says nothing about it.
     const notes = new Map(card?.organized_revision === context.revision ? card.outline.map(note => [note.anchor, note.summary]) : []);
@@ -239,7 +247,7 @@ export class KnowledgeService {
 
   async read(access: KnowledgeAccess, input: KnowledgeReadRequest): Promise<KnowledgeReadResponse> {
     if (input.line !== undefined && (input.anchor !== undefined || input.offset !== undefined)) throw knowledgeErrors.invalid("按行读（line）时不再给 anchor 或 offset");
-    const context = await this.owner(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.read);
+    const context = await this.originals.read(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.read);
     const lines = lineStarts(context.content);
     if (input.line !== undefined && input.line > lines.length) throw knowledgeErrors.invalid(`这份资料现在只有 ${lines.length} 行`, { line: input.line, total_lines: lines.length, revision: context.revision });
     const range = input.line !== undefined ? { start: lines[input.line - 1]!, end: context.content.length } : rangeOf(context.content, input.anchor);
@@ -247,6 +255,7 @@ export class KnowledgeService {
     const start = range.start + (input.offset ?? 0);
     if (start > range.end) throw knowledgeErrors.invalid("读取位置超出了这一段的长度", { offset: input.offset ?? 0, length: range.end - range.start });
     await access.beforeEffect?.();
+    await this.assertActive(access, context.subject);
     const round = roundOf(access.caller), left = this.budget.left(round), asked = Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS);
     const until = input.max_lines === undefined ? range.end : Math.min(range.end, afterLines(lines, start, input.max_lines, context.content.length));
     const end = Math.min(until, start + Math.min(asked, left ?? asked));
@@ -277,10 +286,17 @@ export class KnowledgeService {
     result.more ||= !!picked?.more;
     const all = [...named, ...found?.files.map(file => file.subject) ?? [], ...picked?.subjects ?? []];
     const subjects = all.filter((subject, index) => all.findIndex(other => sameSubject(other, subject)) === index);
-    const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
+    const read = await Promise.all(subjects.map(subject => this.originals.read(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
     // Lines found are original text: they count toward the round's fill, and the rest is left with `more`. Counts are not text.
     await access.beforeEffect?.();
+    // Recheck after the other reads and the receipt's async authority check; stale text is never assembled into a result.
+    for (let index = 0; index < read.length; index++) {
+      const outcome = read[index]!;
+      if ("error" in outcome) continue;
+      try { await this.assertActive(access, outcome.context.subject); }
+      catch (error) { read[index] = { error }; }
+    }
     const round = roundOf(access.caller), fill = lines ? this.budget.left(round) : null;
     let chars = 0;
     const given: Array<{ context: ActionSubjectContext; via: "grep"; chars: number }> = [];
@@ -341,6 +357,11 @@ export class KnowledgeService {
     return this.workspace.glob(access, input, knowledgeActions.glob);
   }
 
+  async activeResults<T extends { subject: ActionSubject }>(access: KnowledgeAccess, selected: readonly T[]): Promise<T[]> {
+    return this.originals.activeResults(access, selected);
+  }
+  async assertActive(access: KnowledgeAccess, subject: ActionSubject): Promise<void> { await this.originals.assertActive(access, subject); }
+
   /** Who got original text of which piece, written once the call is still current right before it (PMAT-12). */
   private receipt(access: KnowledgeAccess, reads: Array<{ context: ActionSubjectContext; via: "read" | "grep"; chars: number }>): void {
     const given = reads.filter(item => item.chars > 0);
@@ -384,6 +405,35 @@ export class KnowledgeService {
     return access.caller.project_id;
   }
 
+}
+
+/** Owns original-source access and its current-state boundary; listing/ranking and round budgets stay in KnowledgeService. */
+class KnowledgeSourceReader {
+  constructor(private readonly options: Pick<KnowledgeServiceOptions, "cards" | "sourceState">, private readonly workspace: KnowledgeWorkspace) {}
+  private project(access: KnowledgeAccess): string {
+    if (!access.caller.project_id) throw knowledgeErrors.scope("项目资料只能在项目里读取");
+    return access.caller.project_id;
+  }
+  private stored(project: string, subject: ActionSubject): KnowledgeCardRecord | null { return this.options.cards.get(project, subject); }
+  /** A bounded selection only; no whole-project original reads or status authorization cache. */
+  async activeResults<T extends { subject: ActionSubject }>(access: KnowledgeAccess, selected: readonly T[]): Promise<T[]> {
+    const active: T[] = [];
+    for (const item of selected) {
+      try { await this.assertActive(access, item.subject); active.push(item); }
+      catch { /* Unknown, archived and refused results are withheld alike. */ }
+    }
+    return active;
+  }
+
+  async assertActive(access: KnowledgeAccess, subject: ActionSubject): Promise<void> {
+    if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return;
+    const card = this.stored(this.project(access), subject);
+    if (card?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
+    if (!this.options.sourceState) return;
+    const state = await this.options.sourceState(access, subject, card ? knowledgeCardSource(card) : undefined);
+    if (state !== undefined && state !== "active") throw knowledgeErrors.unreadable("这份资料当前不供任务读取；来源已归档、不可用或状态尚未确认");
+  }
+
   /** Whether a reader of this kind is offered to the caller, so a refusal is about the id and not about the kind. */
   private async readable(caller: ActionCallContext, access: KnowledgeAccess, subject: ActionSubject): Promise<boolean> {
     let views: readonly ActionView[];
@@ -395,11 +445,12 @@ export class KnowledgeService {
    * The piece as its owner has it now for this caller; an owner's refusal keeps its own code. A reader that takes `offset` is
    * read page by page up to `KNOWLEDGE_TEXT_MAX_CHARS`, all pages from one revision; one that does not gives its first page.
    */
-  private async owner(access: KnowledgeAccess, subject: ActionSubject, origin: { capability_id: string; version: number }): Promise<ActionSubjectContext> {
+  async read(access: KnowledgeAccess, subject: ActionSubject, origin: { capability_id: string; version: number }): Promise<ActionSubjectContext> {
     const project = this.project(access);
     if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return this.workspace.file(access, subject, origin);
     const known = this.stored(project, subject);
     if (known?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
+    await this.assertActive(access, subject);
     const caller = retainActionAuthority(knowledgeReader(access), { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {
       const { context, reader } = await resolveActionSubject(access.client, caller, subject);
@@ -410,6 +461,7 @@ export class KnowledgeService {
         content += page.content;
       }
       content = content.slice(0, KNOWLEDGE_TEXT_MAX_CHARS);
+      await this.assertActive(access, subject);
       return { ...context, content, truncated: content.length < (page.length ?? content.length) || (page.length === undefined && context.truncated) };
     } catch (error) {
       // A subject no card knows, of a kind this caller may read, that its owner does not take is not a piece here: most often

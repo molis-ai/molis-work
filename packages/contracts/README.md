@@ -1,5 +1,7 @@
 # 公共类型与协议
 
+`MemoryRestoreSdkPort.purge` 返回SDK维护已确认的现存权威材料相对路径；多条记忆可以共享一个索引DB。它不授予任意文件写入、删除共享DB或扩大kind选择的权限，签名与原领域授权保持。可写就绪和可靠close由恢复桥及SDK原owner负责，最终发布/回滚由Home publisher负责。
+
 让 Module、Host、Plugin 和 App 通过一致的输入输出协作。这里提供真实的公共类型、schema 和解析规则，而不是功能实现。
 
 包名：`@molis-ai/molis-work-contracts`。工作区内部包，通过仓库构建和 Host 装配使用。
@@ -60,6 +62,12 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 ## 开发要求
 
+对象状态协议使用现 `molis.subject-reference.v1` 输入及独立 `molis.subject-state.v1` 输出，严格单条 `{subject_id}` 返回 `{subject,state}`。`deleted` 仅指当前已获授权主人确认无此记录，不是永久墓碑；状态协议不回正文、不授读取权限，也不证明历史安装代。正文协议原 strict shape 保持。
+
+`memory.learning.enqueue/run/form@1` 是 plugin-only、concurrent、metered commands，只交换 Session/Run/task refs。permissions=[] 不授予通用记忆写权限：仍经过 issued caller、原 registration、当前 grant、受保护原件及冻结 Run 配方与当前策略。`assert_memory_sources_current` 只收紧来源，绑定客户端对旧、新同步 checker 求交；不进 JSON 或持久数据。
+
+`AgentMemoryRecallFact.retrievals` 可选携带 SDK 已脱敏的 `attempts` 与 `cost`，按 App 的 snake_case 公开；尝试顺序、主算法失败/备用来源和原成本保持，不含正文或路径。未提供的用量保持缺省，物理读取的 `unknown` 与 `complete: false` 不转为零或成功。检索 `ready` 只表示备妥，实际派发仍由原 `contexts` 的 call/receipt 与状态证明；此合同不提供 fallback 配置或执行能力。
+
 - 负责：Module、Service、Platform 的公开合同子路径：类型、schema 与负载解析规则（Manifest 的解析与版本比较、动作、Agent、方法的声明检查、逐行文本比较、动作的两个绑定函数 `bindPluginActionRoute` 与 `bindOwnerPluginAction` 都在 plugin-sdk，不在这里；比较结果与行的类型 `TextDiff`、`TextDiffRow` 等留在这里）。
 - 不负责：业务实现、数据库、网络客户端、App 或插件实现。
 - 公开入口：`@molis-ai/molis-work-contracts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/package`。
@@ -90,3 +98,13 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 `retainBackgroundAuthority(additionalPermissions?)` 只增加已有权限的持续检查，不改变动作引用或扩大授权。传入数组被复制，额外权限必须属于原调用者；未提供独立可信入口授权时仍受原取消边界。绑定客户端分别保留父动作与子动作权限，不能彼此替代。回归见 `tests/action-background-authority.test.ts` 与 `tests/security-invariants-alchemist-resumption.test.ts`。
 
 `PluginModelClient` 的 `images` 只收字节与可选名称，在首次等待前复制；`execution` 保留同次真实推理回执，注入文字替身不伪造。成功结果与可记账失败的 `validateResult()` 必须在原 `beforeEffect()` 之后、同步提交之前调用；它绑定原动作及模型配置，不能跨动作持有。`choices()` 只返回现行模型名称和能力，不给地址或凭据。
+
+
+Agent 子任务列表 `agent.subagents.list.v1@3` 保留 raw `task` 供查看，`continuation_task` 单独报告 `{status:"available",text}` 或 `{status:"unavailable"}`；复用模型材料不得从 raw 字段兜底。严格输出 schema 与版本同步维护。`AgentStartExecution.beforeDispatch` 的可选返回值只承载原调用的一次同步收紧闭包，不是插件 DTO 或新的授权来源。
+
+会话生命周期新增三个独立 plugin-only Action：`agent.session.lifecycle.read.v1`、`agent.session.archive.v1`、`agent.session.unarchive.v1`，均只接严格 `[AgentSessionRef]`，只回 `{ session, state: "active" | "archived" }`。owner 留在 Host 鉴权，不从 JSON 接收。原 session/status DTO 和执行 recovery 合同不变。
+
+
+## 选中资料的派发边界
+
+Host-only `subject_state_capture` / `provideSubjectState` 只交接原注册授权和当前 owner 的同步只读函数；`coding.subject.state@1` 的 JSON 输入输出不变。`disposeDispatch` 只在进程内交给实际 Run，不写入请求、冻结记录或历史。

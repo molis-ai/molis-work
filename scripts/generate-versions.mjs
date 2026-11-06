@@ -68,8 +68,10 @@ export function unmanagedVersionProblems(file, source, carriers = []) {
       let baselineObject = declaration?.initializer;
       while (baselineObject && (ts.isAsExpression(baselineObject) || ts.isSatisfiesExpression(baselineObject))) baselineObject = baselineObject.expression;
       const baseline = declaration && node.parent === baselineObject && /(?:SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration)/.test(declaration.type?.getText(tree) ?? declaration.initializer?.getText(tree).match(/(?:satisfies|as)\s+(?:SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration)/)?.[0] ?? '');
-      const identity = ts.isObjectLiteralExpression(node.parent) && node.parent.properties.some(property =>
-        ts.isPropertyAssignment(property) && /^(?:capability_id|prompt_id|role_id|skill_id|scene_id|plugin_id)$/.test(property.name.getText(tree)));
+      // An artifact's `version` is the record's own revision even when the record also names the plugin that made it.
+      const hasField = pattern => ts.isObjectLiteralExpression(node.parent) && node.parent.properties.some(property =>
+        ts.isPropertyAssignment(property) && pattern.test(property.name.getText(tree)));
+      const identity = hasField(/^(?:capability_id|prompt_id|role_id|skill_id|scene_id|plugin_id)$/) && !hasField(/^artifact_id$/);
       const literalVersionType = name === 'version' && ts.isPropertySignature(node) && !/\/\*\* @(?:record-revision|upstream-version)/.test(node.getFullText(tree));
       const externalJelly = file === 'plugins/native/jelly/src/import.ts' && name === 'schema_version' && value?.getText(tree) === '5';
       if (value && (ts.isNumericLiteral(value) || name === 'version' && ts.isStringLiteral(value) && (/^\d+$/.test(value.text) || identity && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value.text))) && !externalJelly && (versionField.test(name) || name === 'version' && (identity || baseline) || literalVersionType)) report(value);

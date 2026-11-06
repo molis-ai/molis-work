@@ -150,7 +150,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 ### M2 来源绑定与规则 v1（实施中）
 
-第 02 批 N32 将当前规则归一为第 1 版；本轮只改版本标识，Memory 其余工作仍按原决定暂停。
+当前规则是第 1 版；Memory 其余工作仍按原决定暂停。
 
 范围与验收以 [spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定) 为准。沿现学习队列，自动学习只经 SDK `candidates.form` 调用一次登记的 Host 提炼并写候选；人工提议仍使用现公开提议口。无长期信号时返回 skipped，不读取来源、不调用模型。明确表达复用 `spoken.theirWords` 的整条消息规则，重复只数独立来源。模型引用、工作/Run/job 数量和旧无来源候选不构成自动批准。
 

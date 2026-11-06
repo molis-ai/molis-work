@@ -143,7 +143,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 ### 为事项提供上下文
 
-需要让首页或其他消费者围绕插件对象发消息时，用 `defineSubjectContextAction(capabilityId, subjectKind, title, permissions)` 声明查询，把定义放入 Manifest 的 `actions`，并在 `start()` 返回对应处理器。处理器从插件自己的数据读取当前对象，以 `subjectContext({ subject: { kind, id }, revision, title, content, goal_ids })` 返回正文快照和真实关联。`goal_ids` 只填实际关联，不能猜测。正文超过上限会标记节选；转述其他对象时传入原 `truncated`，不要丢掉节选标记。
+需要让首页或其他消费者围绕插件对象发消息时，用 `defineSubjectContextAction(capabilityId, version, subjectKind, title, permissions)` 声明查询，把定义放入 Manifest 的 `actions`，并在 `start()` 返回对应处理器。处理器从插件自己的数据读取当前对象，以 `subjectContext({ subject: { kind, id }, revision, title, content, goal_ids })` 返回正文快照和真实关联。`goal_ids` 只填实际关联，不能猜测。正文超过上限会标记节选；转述其他对象时传入原 `truncated`，不要丢掉节选标记。
 
 消费者使用 `resolveActionSubject(client, caller, subject)`，从同一个能力目录按语义类型与对象类型发现查询，并以原调用者、固定提供方调用。无需在 Home 增加插件白名单；合同不一致会在注册时拒绝，多个可用提供方则要求消除歧义。权限、安装 grant、停用及升级仍走共同服务。对象查询只提供事实，不授予消息发送权限；首页随后从 Work 目录选择关联会话，没有关联时要求用户明确选择。
 
@@ -153,7 +153,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 ### 为事项提供可执行动作
 
-用 `defineSubjectOffersAction(capabilityId, subjectKinds, title, permissions)` 声明查询，将定义与处理器按常规方式注册。查询接收 `{ subject: { kind, id }, request_id }`，从自己的数据读取当前状态，返回 `{ offers: [{ offer_id, title, action: { capability_id, version }, input }] }`。`action` 指向本插件已经注册的能力，`input` 必须完整且符合该能力的输入合同；例如 Inbox 返回原状态动作和当前 `expected_revision`。已经完成或不适用时返回空数组，读取失败应报错，不能用空数组掩盖故障。
+用 `defineSubjectOffersAction(capabilityId, version, subjectKinds, title, permissions)` 声明查询，将定义与处理器按常规方式注册。查询接收 `{ subject: { kind, id }, request_id }`，从自己的数据读取当前状态，返回 `{ offers: [{ offer_id, title, action: { capability_id, version }, input }] }`。`action` 指向本插件已经注册的能力，`input` 必须完整且符合该能力的输入合同；例如 Inbox 返回原状态动作和当前 `expected_revision`。已经完成或不适用时返回空数组，读取失败应报错，不能用空数组掩盖故障。
 
 Home 从同一个能力目录发现查询，无需修改首页按钮名单。它固定查询与目标动作的提供方，检查输入和实际权限；点击后重新读取原查询，核对标题、动作和完整参数再调用。输入变化要求用户重新选择，不能悄悄执行新参数。查询不能借用另一个插件的能力；跨插件编排应由自己的组合能力通过共同服务明确实现。来源撤权、停用或目标缺失时拒绝执行。
 
@@ -232,13 +232,13 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 ### 使用位置
 
-插件若保存了对其他能力的引用（例如自己的配置、角色或规则），用 `defineActionUsagesAction(capabilityId, title, permissions)` 声明一个只读查询：接收 `{ action: { capability_id, version, provider_id } }`，用 `referencesAction(saved, action)` 比较，返回 `{ usages: [{ usage_id, title, detail?, enabled, href? }] }`。能力库的「已用在哪」、Agent 与 MCP 共用的 `actions.usages.read` 会按合同类型自动发现这些查询，不需要 Host 名单；工作流程（动作步骤、判断交接、内容站）、角色范围和对外 MCP 授权都已这样上报。`title` 用使用方自己的说法，`enabled` 表示那里现在会不会调用；读不到的来源在结果的 `issues` 中列出，而不是当作没有使用。
+插件若保存了对其他能力的引用（例如自己的配置、角色或规则），用 `defineActionUsagesAction(capabilityId, version, title, permissions)` 声明一个只读查询：接收 `{ action: { capability_id, version, provider_id } }`，用 `referencesAction(saved, action)` 比较，返回 `{ usages: [{ usage_id, title, detail?, enabled, href? }] }`。能力库的「已用在哪」、Agent 与 MCP 共用的 `actions.usages.read` 会按合同类型自动发现这些查询，不需要 Host 名单；工作流程（动作步骤、判断交接、内容站）、角色范围和对外 MCP 授权都已这样上报。`title` 用使用方自己的说法，`enabled` 表示那里现在会不会调用；读不到的来源在结果的 `issues` 中列出，而不是当作没有使用。
 
 可信动作上下文可携带 `runtime_session_id`，用于保留由 Host 识别的原会话来源；它不属于插件业务输入，也不授予权限。`user_action` 的整组确认与主体引用由受保护用户入口提供，不能从模型自报的确认字段生成。目标树审批与事件用户决定都走 Goals 的现行动作合同，普通插件通过目录只发现获准调用的能力，独立用户权限仍由 Host 强制。
 
 ### 首页事项
 
-用 `defineHomeEventsAction(capabilityId, subjectKinds, title, permissions)` 声明事项查询，并把定义与处理器注册到同一套 `actions`。查询接收 `{ from, to, now }`，均为带时区的时间字符串；窗口含 `from`、不含 `to`，`now` 位于窗口内。处理器先调用 `assertHomeEventWindow` 检查窗口顺序，再用 `withinHomeEventWindow` 筛选普通事项。处理器读取插件自己的原记录，返回 `{ source: { surface, title, icon }, events }`，不要另存一份首页数据。
+用 `defineHomeEventsAction(capabilityId, version, subjectKinds, title, permissions)` 声明事项查询，并把定义与处理器注册到同一套 `actions`。查询接收 `{ from, to, now }`，均为带时区的时间字符串；窗口含 `from`、不含 `to`，`now` 位于窗口内。处理器先调用 `assertHomeEventWindow` 检查窗口顺序，再用 `withinHomeEventWindow` 筛选普通事项。处理器读取插件自己的原记录，返回 `{ source: { surface, title, icon }, events }`，不要另存一份首页数据。
 
 每条事项包含稳定的 `event_id`、原对象 `subject: { kind, id }`、`occurred_at`、标题/摘要/正文、`facts` 二元字符串数组、`category`（`personal` 或 `organization`）和 `needs_attention`。`placement: occurred` 按发生日显示；`active` 把窗口外仍未处理的旧事项放到今天；`today` 始终放到今天。处理完成的记录应由提供方撤回。对象类型须在声明中列出，同一查询不能返回重复 `event_id`；Home 会再按提供方与查询能力隔离身份，避免不同插件互相覆盖。
 
@@ -294,6 +294,8 @@ result_view: {
 `canonicalJsonValue(value)` 返回一份按原始 UTF-16 码元递归排序对象键的值，保留字段值和数组顺序，不修改输入。值为 `undefined` 的对象字段仍保留在返回值中；它不验证输入或序列化非 JSON 类型。JavaScript 枚举对象时会把整数形态的键重新按数值排序，因此摘要和签名应使用 `canonicalJsonText(value)` 直接生成稳定文本。
 
 `canonicalJsonText` 对嵌套及整数形态的键都按原始 UTF-16 码元排序，数组保序。默认先沿用 `JSON.stringify(canonicalJsonValue(value))` 的非 JSON 规则：省略值为 `undefined`、函数或 Symbol 的对象字段，数组中的这些值写成 `null`，顶层返回 `undefined`，BigInt 抛错；对象自有的 `toJSON` 仍按该路径调用。已有字节协议可明确传入 `"null"`，把不支持的标量写成 `null`；传 `"literal"` 则保留原文本序列化边界（对象字段插入 `undefined`、数组元素为空），结果不保证是合法 JSON。这两个显式选项不调用对象的 `toJSON`。这些选项只保留调用方原有规则，不为输入补做校验。
+
+`compareCodeUnits(left, right)` 是这两个函数排键用的比较：原始 UTF-16 码元顺序，不随宿主语言变化。进摘要、签名或持久比较的列表排序都用它；`localeCompare` 只用于排给人看的内容。
 
 `@molis-ai/molis-work-plugin-sdk/browser` 的 `jsonComparisonText(value)` 用于两次读取的 JSON 等价比较。它沿原生 JSON replacer 排键，保留 `toJSON`、空数组槽和不支持值的原生处理；整数形态键仍按 JavaScript 对象枚举顺序输出。Coding 直接使用这个纯比较工具，持久化摘要和签名使用主入口的 `canonicalJsonText`。
 

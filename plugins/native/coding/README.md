@@ -72,7 +72,7 @@ Directory candidates and browsing preferences come from the [current-project set
 
 Coding 通过原项目内容目录声明“编码会话与草稿”集合，元数据、完整计划、未发送文本与待答内容作为同一项目一致性单元；不读取 Runtime 的私有存储。源端目录、执行 Session、状态、命令/步骤缓存和确认权限不传输。新设备仅得到可编辑的未确认草稿；已有设备保留自己的 Runtime 绑定。活动执行、待核对状态或未结束后台命令期间拒绝替换及删除，稍后重试，不运行云端任务。计划与输入的编辑高水位由 Coding 的授权事务维护，删除后保留；恢复只提高目标版本，旧编辑不能覆盖。项目库当前基线 v16（Coding 声明版本 2），旧版拒绝，不就地补表。真实 Host/Rust/WASM/临时 D1/R2 的大正文往返与 owner 负例已有验证；正常输入路由和浏览器防覆盖已接入并有定向验证，SDK 会话正文沿唯一 Agent Host 的公开导出接口保存为派生只读历史，保持每个原 SDK Session 的独立来源；SDK 仍拥有原执行账本，接收不导入执行授权。新的会话可以保留之前设备的历史段。归档校验、展示和双 Home 往返正在定向验证，不能称真实设备或公网验收完成。
 
-`CodingSessionStore.inputs` 是未发送输入的唯一业务 owner。读取会话返回 `input_revision`；写入文本或待答字段使用 `coding.sessions.update@2`，必须携带原 `expected_input_revision`。旧 v1 不再解析，其他字段仍可独立编辑；动作仍仅 LOCAL，不新增 MCP 工具。窗口缓存保存原基线，后台刷新不能为旧编辑补上新版本。冲突在可见的提示中打开标准对比对话框，明确采用已保存内容或按所见版本保存当前输入；服务器在对比后又变化则再次拒绝。请求未返回时输入的新文本继续保留；已接受 Run 仅清除启动时捕获的同版本、同正文，不清除后来的输入与待答内容。验证：`tests/security-invariants-coding-inputs.test.ts`（真实 SDK、本机 HTTP 模型替身），`tests/coding-inputs.e2e.test.ts`（真实浏览器请求/ACK barrier、刷新和浅深色三宽度）。
+`CodingSessionStore.inputs` 是未发送输入的唯一业务 owner。读取会话返回 `input_revision`；写入文本或待答字段使用 `coding.sessions.update@1`，必须携带原 `expected_input_revision`。其他字段仍可独立编辑；动作仍仅 LOCAL，不新增 MCP 工具。窗口缓存保存原基线，后台刷新不能为旧编辑补上新版本。冲突在可见的提示中打开标准对比对话框，明确采用已保存内容或按所见版本保存当前输入；服务器在对比后又变化则再次拒绝。请求未返回时输入的新文本继续保留；已接受 Run 仅清除启动时捕获的同版本、同正文，不清除后来的输入与待答内容。验证：`tests/security-invariants-coding-inputs.test.ts`（真实 SDK、本机 HTTP 模型替身），`tests/coding-inputs.e2e.test.ts`（真实浏览器请求/ACK barrier、刷新和浅深色三宽度）。
 
 - 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图；自己固定的报告和变更怎样变成可复制的 Markdown 正文（`coding.results.document@1`），以及自己成果的列表。
 - 不负责：模型选择、凭据、批准决定、命令执行本身；别的插件拿到这份正文后怎样加标题、来源和指纹（Shelf 的副本归 Shelf）。
@@ -118,4 +118,4 @@ Coding 的目标目录、当前约定/状态、进展保存和回执按 id 和�
 
 `coding.runs.control` v8 的本人补充由受保护 HTTP 的 `original_input: {input_id,text,use:"supplement"}` 信封证明；Host 剥离信封并绑定当前安装/动作，`key` 必须为 `send.<input_id>`。业务 `source` 不授予作者身份，无证明按 Host 输入。原话与拼接模型正文分别沿现 SDK 输入主人保存，重试复用同一键，不另建正文记录；初始输入仍用原有无 use 信封。验收见 `specs/ai-input-receipts/spec.md` MIX-IN-01–03。
 
-保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@2` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。
+保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@1` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。

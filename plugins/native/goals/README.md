@@ -129,4 +129,4 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 共享的五个 Goals 插件动作合同与schema在 `plugins/native/goals/src/contract/goal-actions.ts`，由 Goals 自己的动作注册引用（`src/actions.ts`、`src/event-command-actions.ts`）；Coding、CLI、MCP 不 import 它，按动作 id 与版本调用、用到的字段就地声明（Coding 在 `plugins/native/coding/src/goals-actions.ts`；MCP 的描述与字段从宿主自带的 Goals 定义读，与登记进动作目录的是同一份，提供方按 BL-501 固定，不查运行时目录）。contract/state/progress/receipt的plugin受众要求Host实际登记且仍有效的内置caller，项目、操作者与安装都须一致；输入不提供资格。list与note保留原plugin边界。四个Goals context/progress typed协议已移除，Host与SDK均答不可用，不通过伪造描述符恢复。
 
-规划检查/影响与树检查/决定的输出携带现行 goals.planning.* issue，四个动作版本为2；其他动作版本保持。review_action指向goals.planning.impact@2，固定旧版本的调用方需重新发现/授予当前动作。当前错误码按goals.<原前缀>.<原因>，缺Goal为goals.not_found；业务事件goal.trashed/goal.archived等保持。
+规划检查/影响与树检查/决定的输出携带现行 goals.planning.* issue，四个动作版本为1；其他动作版本保持。review_action指向goals.planning.impact@1，固定旧版本的调用方需重新发现/授予当前动作。当前错误码按goals.<原前缀>.<原因>，缺Goal为goals.not_found；业务事件goal.trashed/goal.archived等保持。

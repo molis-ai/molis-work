@@ -4,7 +4,7 @@
 
 把 DropAgent 的材料 / 结果 / 剪贴板工作台挂进 Molis 目录与主工作面，视觉与交互跟 DropAgent。
 
-内置 Manifest 跟随产品 0.3.0，`copies` 集合同步明确选中的材料、结果和终态任务。`shelfSyncDocument` 复用 Module 的当前 v2 目录与原子文件端口，不自行联网或另建业务库；设置和剪贴板仍只在设备。实际 Home 动作与共同 Host 目录接线、临时 Rust/D1/R2 往返见 `tests/security-invariants-shelf-sync.test.ts` 与 `apps/sync-worker/shelf.test.mjs`。这些是隔离验证，不代表公网部署或真实双设备验收。
+内置 Manifest 跟随产品 0.1.0，`copies` 集合同步明确选中的材料、结果和终态任务。`shelfSyncDocument` 复用 Module 的当前 v1 目录与原子文件端口，不自行联网或另建业务库；设置和剪贴板仍只在设备。实际 Home 动作与共同 Host 目录接线、临时 Rust/D1/R2 往返见 `tests/security-invariants-shelf-sync.test.ts` 与 `apps/sync-worker/shelf.test.mjs`。这些是隔离验证，不代表公网部署或真实双设备验收。
 
 包名：`@molis-ai/molis-work-plugin-shelf`。工作区内部包，通过仓库构建和 Host 装配使用。
 

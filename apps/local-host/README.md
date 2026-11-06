@@ -93,7 +93,7 @@ Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定�
 
 ## 公共搜索与证据
 
-`createSearchEvidenceRuntime` 装配 SEL 的公共 web query、可信身份、intent 持久化和 Storage 正文端口；关闭时取消并等待在途操作和传输，再由数据库所有者关闭连接。`createSourcePullRuntime` 注入 RSS Runtime、来源路由、条件请求游标和 receipt。Alchemist 直接使用公共装配，不初始化 Feed/RSS；研究查询、预算和可引用摘要仍由 Alchemist 决定。到 AnySearch 的出站只有一条：`anysearch-transport.ts`，由 `createSearchEvidenceRuntime` 默认装配，Feed 的网页搜索与 Alchemist 研究共用（固定主机、只连公网地址并钉住、请求 64 KiB 与响应 1 MiB 上限、不跟随跳转；主机名经 `resolveModelHostname`，系统解析返回 198.18/15 假地址且设了代理变量时改由公共 DNS 核验）。SEL 自带的钉死 HTTPS 宿主不再使用，`tests/anysearch-single-owner.test.ts` 守着这一点。搜索意图只用 `feed-intent-v1` 一个命名空间；现有账本缺少原密钥或认证失败即拒绝，不切换命名空间绕过。正文只认 Storage 的现行单目录与单密钥；真实 Home 沿第 02 批重建窗口切换，不就地迁移。
+`createSearchEvidenceRuntime` 装配 SEL 的公共 web query、可信身份、intent 持久化和 Storage 正文端口；关闭时取消并等待在途操作和传输，再由数据库所有者关闭连接。`createSourcePullRuntime` 注入 RSS Runtime、来源路由、条件请求游标和 receipt。Alchemist 直接使用公共装配，不初始化 Feed/RSS；研究查询、预算和可引用摘要仍由 Alchemist 决定。到 AnySearch 的出站只有一条：`anysearch-transport.ts`，由 `createSearchEvidenceRuntime` 默认装配，Feed 的网页搜索与 Alchemist 研究共用（固定主机、只连公网地址并钉住、请求 64 KiB 与响应 1 MiB 上限、不跟随跳转；主机名经 `resolveModelHostname`，系统解析返回 198.18/15 假地址且设了代理变量时改由公共 DNS 核验）。SEL 自带的钉死 HTTPS 宿主不再使用，`tests/anysearch-single-owner.test.ts` 守着这一点。搜索意图只用 `feed-intent-v1` 一个命名空间；现有账本缺少原密钥或认证失败即拒绝，不切换命名空间绕过。正文只认 Storage 的现行目录与单密钥，不就地迁移。
 
 ## 本地开发
 

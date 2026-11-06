@@ -21,7 +21,7 @@ Studio 的 56 项业务已声明为 `alchemistActions`，输入输出验证与�
 
 个人同步的 `studio` 集合由 owner 明确选择研究内容、证据、决策、讨论、方法版本与采用记录，按项目一致图提交。只携带终态任务的观察信息，不传任务输入、租约、检查点、模型设置、来源连接和界面焦点；接收不运行工作室、模型或来源抓取。运行中的任务和等待模型的前台调用阻止覆盖，本轮后自动重试而不丢队列。库基线为 v2，v1 只读拒绝且保持原字节，真实 Home 维护须另行批准。
 
-编辑方向先调用 `alchemist.directions.editing@1`，修改方法先调用 `alchemist.memory.playbook.editing@1`，读取对象及 `etag`；保存使用 `alchemist.directions.update@2` / `alchemist.memory.playbook.revise@2` 的必需 `expectedEtag`。方法还须提供所读 `expectedVersion`。owner 在同一事务验证完整内容指纹，相同版本号的不同同步分支也不能覆盖。对应 MCP 修改工具升为 __v2，旧 __v1 不保留别名；已有固定调用须显式更新。网页同样使用这两个读取入口，不临保存时重读并冒充旧表单的前提。
+编辑方向先调用 `alchemist.directions.editing@1`，修改方法先调用 `alchemist.memory.playbook.editing@1`，读取对象及 `etag`；保存使用 `alchemist.directions.update@1` / `alchemist.memory.playbook.revise@1` 的必需 `expectedEtag`。方法还须提供所读 `expectedVersion`。owner 在同一事务验证完整内容指纹，相同版本号的不同同步分支也不能覆盖。对应 MCP 修改工具与动作同版（__v1）。网页同样使用这两个读取入口，不临保存时重读并冒充旧表单的前提。
 Studio 业务由 `alchemistActions` 声明，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码和下载，没有事件流路由（2026-10-20 删除，页面和 Skill 都不用）。任务事件只经 `alchemist.runs.events` 动作按游标读取，使用原任务库的一致快照，重复查询或中途放弃都不会取消任务。生产 Host 注册同一动作清单，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话；重启后的任务保留历史作者，但需当前调用者明确继续并获得本轮权限才能执行。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
 
 `src/studio` 是迁入后的唯一实现来源，不依赖原仓库路径。UI 使用宿主 plugin-stage、设计 token、列表与详情、对象侧面板及原生对话框；不再发布独立 React 页面或插件 iframe。业务 API 和已有数据原样保留，模型接入仍使用 Prologue。凭据只由宿主管理，不进入业务数据库或导出。此插件不自动创建 Goal 或修改其他插件。

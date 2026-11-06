@@ -46,6 +46,7 @@ export const MODEL_SETTINGS_STYLES = `
 .model-row-flag { display:inline-flex; align-items:center; gap:4px; color:var(--muted); font-size:12px; white-space:nowrap; cursor:pointer; }
 .model-list { margin:32px 0; container-type:inline-size; }
 @container (max-width:640px){.model-row-spacer{flex-basis:100%;order:2}.model-row-flag{order:3}}
+.model-row>.mw-btn{align-self:stretch;height:auto}
 .model-list-head h3{margin:0 auto 0 0}
 .model-picker [role=listbox]:empty{display:none}
 .model-picker-name{margin-left:8px;color:var(--muted);font-size:12px}

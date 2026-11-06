@@ -312,9 +312,9 @@ const headErrors = (measured, budget, base) => {
 // the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
 // the select in place instead of reloading the page, the host names no key so the page needs no second string.
 // ASC-60～63 (第 13 批④b, #1881, admitted by the batch 13 coordinator after the review desk on 2026-11-06): the model settings page
-// and Images' image-service dialog as plan A. settings.css +2478 B and workbench.css +2478 B: the catalog's step progress as it is
+// and Images' image-service dialog as plan A. settings.css +2529 B and workbench.css +2529 B: the catalog's step progress as it is
 // (about 1.25 KB, split out of SERVICE_CONNECTION_PART_STYLES and referenced, not copied), the four rows, 高级, the save bar, the
-// rate-limit box and the model row's two lines (container queries). workbench.js +3724 B: the progress function shared with the
+// rate-limit box and the model row's two lines (container queries; its icon buttons take the ID field's height so the first line shares one top edge). workbench.js +3724 B: the progress function shared with the
 // catalog (819 B, bundled from service-connection-item.ts), the coded check's split (a refused key under its field, saying whether
 // it was the new key or the one in use; the 429 recheck) and ↵ to save. images.js +1207 B: the presets' models and sizes, the
 // service choice and 高级, the compose form's size list; images.css +50 B: 高级's field spacing (the old preset rules removed).
@@ -323,8 +323,8 @@ const headErrors = (measured, budget, base) => {
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827793, 830271],
-  "/assets/molis-work-workbench.css": [1204745, 1207223],
+  "/assets/molis-work-settings.css": [827793, 830322],
+  "/assets/molis-work-workbench.css": [1204745, 1207274],
   "/assets/molis-work-workbench.js": [1078718, 1082442],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
   "/assets/molis-work-plugins/images.js": [19897, 21104],

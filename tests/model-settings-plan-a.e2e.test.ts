@@ -125,7 +125,9 @@ test("ASC-62 the first key: refused under its field, rate limited with when it c
   // The key in use is refused (revoked at the provider) while only the model list changed: that key is the one refused, so the
   // page does not say "the old key keeps working".
   standIn.revoke();
-  await open(`?provider=${encodeURIComponent(id)}`);
+  // The unsaved new key is thrown away in place, as a person would (leaving the page with it would ask first).
+  await click("[data-model-discard]");
+  await waitFor("!document.querySelector('[data-model-key-error]') && document.querySelector('[data-model-key-field]').hidden");
   await click("[data-model-add]");
   await evaluate(`(() => { const field = [...document.querySelectorAll('[data-model-rows] [data-model-id]')].at(-1);
     field.value = 'deepseek-other'; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -137,5 +139,7 @@ test("ASC-62 the first key: refused under its field, rate limited with when it c
   assert.equal(current.status.trim(), "没有保存。");
   assert.equal(JSON.stringify(await providers()), saved, "nothing saved");
   await shot("7-current-key-refused-1440-light-zh");
+  await click("[data-model-discard]");
+  await waitFor("!document.querySelector('[data-model-key-error]')");
   await open(`?new=1&template=deepseek`, "en"); await size(390); await shot("6-draft-390-light-en");
 });

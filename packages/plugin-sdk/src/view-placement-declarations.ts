@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -10,7 +11,6 @@ import { PLUGIN_ICON_NAMES } from "./ui/icon-names.js";
 // (`stage_data`) the view's that opens the stage, under the same rule (T-133).
 // Returns every problem and never throws, appended after the older view checks.
 
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const words = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const GROUPS: ReadonlySet<string> = new Set(UI_VIEW_GROUPS);
 const RAILS: ReadonlySet<string> = new Set(UI_VIEW_RAILS);
@@ -45,18 +45,18 @@ export function englishNameProblem(value: unknown, field: string): string | null
 export function createStations(parsed: PluginManifest): ReadonlySet<string> {
   const actions = Array.isArray(parsed.actions) ? parsed.actions : [];
   return new Set(actions.flatMap(action => {
-    const station = isObject(action?.action) ? action.action.workflow_content : undefined;
-    return isObject(station) && station.role === "create" && words(station.id) ? [station.id] : [];
+    const station = isRecord(action?.action) ? action.action.workflow_content : undefined;
+    return isRecord(station) && station.role === "create" && words(station.id) ? [station.id] : [];
   }));
 }
 
 /** The ids of the Manifest's own actions a settings page may read its data with: one version, a query that only reads, for the person. */
 export function settingsReadActions(parsed: PluginManifest): ReadonlySet<string> {
   // Entries that are not objects are the shape rules' to report; this cross-declaration read skips them rather than throwing (W1-04).
-  const actions = Array.isArray(parsed.actions) ? parsed.actions.filter((action): boolean => isObject(action)) : [];
+  const actions = Array.isArray(parsed.actions) ? parsed.actions.filter((action): boolean => isRecord(action)) : [];
   const versions = new Map<string, number>();
   for (const action of actions) versions.set(action.capability_id, (versions.get(action.capability_id) ?? 0) + 1);
-  return new Set(actions.filter(action => versions.get(action.capability_id) === 1 && action.operation === "query" && isObject(action.action)
+  return new Set(actions.filter(action => versions.get(action.capability_id) === 1 && action.operation === "query" && isRecord(action.action)
     && actionEffect(action.action, action.capability_id) === "read" && Array.isArray(action.action.audiences) && action.action.audiences.includes("user"))
     .map(action => action.capability_id));
 }
@@ -90,7 +90,7 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   const address: unknown = view.settings_address;
   if (address !== undefined) {
     if (view.slot !== "settings") problems.push(`视图 ${id} 的 settings_address 只用于 settings 视图`);
-    if (!isObject(address)) problems.push(`视图 ${id} 的 settings_address 必须是对象`);
+    if (!isRecord(address)) problems.push(`视图 ${id} 的 settings_address 必须是对象`);
     else {
       for (const key of Object.keys(address)) if (key !== "query" && key !== "hash") problems.push(`视图 ${id} 的 settings_address 只能写 query 与 hash`);
       const query = address.query;
@@ -125,15 +125,15 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   const data: unknown = view.settings_data;
   if (data !== undefined) {
     if (view.slot !== "settings") problems.push(`视图 ${id} 的 settings_data 只用于 settings 视图`);
-    if (!isObject(data) || !words(data.action)) problems.push(`视图 ${id} 的 settings_data 必须写明 action`);
+    if (!isRecord(data) || !words(data.action)) problems.push(`视图 ${id} 的 settings_data 必须写明 action`);
     else if (!readables.has(data.action)) problems.push(`视图 ${id} 的 settings_data 指向 ${data.action}，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作`);
   }
   const stage: unknown = view.stage_data;
   if (stage !== undefined) {
     if (view.slot !== "stage" && view.slot !== "navigator") problems.push(`视图 ${id} 的 stage_data 只用于打开舞台的视图（stage 或 navigator）`);
-    if (!isObject(stage) || !words(stage.action)) problems.push(`视图 ${id} 的 stage_data 必须写明 action`);
+    if (!isRecord(stage) || !words(stage.action)) problems.push(`视图 ${id} 的 stage_data 必须写明 action`);
     else if (!readables.has(stage.action)) problems.push(`视图 ${id} 的 stage_data 指向 ${stage.action}，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作`);
-    if (isObject(stage) && stage.object_action !== undefined && (!words(stage.object_action) || !readables.has(stage.object_action))) {
+    if (isRecord(stage) && stage.object_action !== undefined && (!words(stage.object_action) || !readables.has(stage.object_action))) {
       problems.push(`视图 ${id} 的 stage_data.object_action 必须指向本 Manifest 只读、面向用户（audience user）、只有一个版本的查询动作`);
     }
   }
@@ -145,12 +145,12 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   }
   const creates: unknown = view.creates;
   if (creates !== undefined) {
-    if (!isObject(creates) || !words(creates.station) || !words(creates.title)) problems.push(`视图 ${id} 的 creates 必须写明 station 与 title`);
+    if (!isRecord(creates) || !words(creates.station) || !words(creates.title)) problems.push(`视图 ${id} 的 creates 必须写明 station 与 title`);
     else if (!stations.has(creates.station)) problems.push(`视图 ${id} 的 creates 指向 ${creates.station}，本 Manifest 没有这个能新建的工作流内容站`);
   }
   const start: unknown = view.start;
   if (start !== undefined) {
-    if (!isObject(start) || !words(start.title) || !words(start.hint)) problems.push(`视图 ${id} 的 start 必须写明 title 与 hint`);
+    if (!isRecord(start) || !words(start.title) || !words(start.hint)) problems.push(`视图 ${id} 的 start 必须写明 title 与 hint`);
     else if (start.icon !== undefined && !words(start.icon)) problems.push(`视图 ${id} 的 start.icon 必须是图标名`);
   }
   return problems;

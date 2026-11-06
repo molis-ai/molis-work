@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { runLocalCli } from "@molis-ai/molis-work-app-local-host";
 
 export interface InjectedSnapshotChange {
@@ -14,8 +14,6 @@ export interface InjectedSnapshotChange {
 
 /** Mutate the actual source at a real payload/backup boundary; all copying and validation stay production code. */
 export function changeSnapshotSource(kind: string, source: string, observed: (state: InjectedSnapshotChange) => void) {
-  const write = fs.writeSync;
-  const backup = Database.prototype.backup;
   let changed = false;
   const mutate = () => {
     if (changed) return;
@@ -40,23 +38,25 @@ export function changeSnapshotSource(kind: string, source: string, observed: (st
     observed({ mode: info.mode & 0o777, mtime: info.mtimeMs, sha256: createHash("sha256").update(fs.readFileSync(source)).digest("hex") });
   };
   if (kind.startsWith("file-")) {
+    const write = fs.writeSync;
     fs.writeSync = function (...args: unknown[]): number {
       const result = Reflect.apply(write, fs, args);
       mutate();
       return result;
     };
     syncBuiltinESMExports();
-  } else {
-    Database.prototype.backup = function (this: Database.Database, ...args: Parameters<Database.Database["backup"]>) {
-      if (this.name === source) mutate();
-      return Reflect.apply(backup, this, args);
-    };
+    return () => { fs.writeSync = write; syncBuiltinESMExports(); };
   }
-  return () => {
-    fs.writeSync = write;
-    Database.prototype.backup = backup;
-    syncBuiltinESMExports();
+  // Hook the same driver's backup method that the snapshot opens through storage.
+  const probe = openTestSqlite(":memory:");
+  const prototype: Pick<SqliteDatabase, "backup"> = Object.getPrototypeOf(probe);
+  probe.close();
+  const backup = prototype.backup;
+  prototype.backup = function (this: SqliteDatabase, ...args: Parameters<SqliteDatabase["backup"]>) {
+    if (this.name === source) mutate();
+    return Reflect.apply(backup, this, args);
   };
+  return () => { prototype.backup = backup; };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

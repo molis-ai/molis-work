@@ -8,10 +8,10 @@
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "kind": "cohesive-unit",
-      "reason": "助理模块的 SQLite 存储：39 个方法共 267 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者。",
+      "reason": "助理模块的 SQLite 存储：40 个方法共 277 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者；第 13 批⑥加的按去重键前缀清提醒也是通知表上的一条 SQL。",
       "size": {
-        "lines": 267,
-        "methods": 39
+        "lines": 277,
+        "methods": 40
       }
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
@@ -102,7 +102,7 @@
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3210
+      "size": 3212
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",

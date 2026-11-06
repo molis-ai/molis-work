@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { MolisWorkProjectCatalog, RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -38,7 +38,7 @@ test("RAC-1520 a binding whose Ledger relation is gone or points outside project
     const project = await catalog.createProject({ display_name: "Alpha", actor_id: "owner" });
     catalog.bindRuntimeContext({ context: session("relation-missing"), project_id: project.project_id, actor_id: "runtime-codex", user_confirmed: true });
     const bindingId = catalog.listRuntimeContextBindings()[0]!.binding_id;
-    const db = new Database(catalog.databasePath);
+    const db = openTestSqlite(catalog.databasePath);
     try {
       const ledger = createContextLedger(db, { authorize: () => true });
       const key = `work.binding_project:${bindingId}`;

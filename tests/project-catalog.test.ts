@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
@@ -85,7 +85,7 @@ test("opening a future catalog fails without rewriting its schema or project fac
     created.close();
 
     const databasePath = join(home, "projects", "catalog.db");
-    const future = new Database(databasePath);
+    const future = openTestSqlite(databasePath);
     const supportedVersion = Number(future.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get());
     const futureVersion = supportedVersion + 1;
     try {
@@ -103,7 +103,7 @@ test("opening a future catalog fails without rewriting its schema or project fac
         && error.details?.supported_schema_max === supportedVersion,
     );
 
-    const preserved = new Database(databasePath, { readonly: true });
+    const preserved = openTestSqlite(databasePath, { readonly: true });
     try {
       assert.equal(
         preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(),
@@ -886,13 +886,13 @@ test("a plugin terminal record binds its work context to the project and aliases
 test("RAC-800 a current catalog refuses a personal planning table without dropping it", async () => {
   await withTemporaryDirectory(async directory => {
     const home = join(directory, "home"), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); catalog.close();
-    const file = join(home, "projects", "catalog.db"), db = new Database(file);
+    const file = join(home, "projects", "catalog.db"), db = openTestSqlite(file);
     assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get(), undefined);
     db.exec("CREATE TABLE personal_planning_method_packs (method_id TEXT PRIMARY KEY, version INTEGER, enabled INTEGER, pack_json TEXT, created_at TEXT, updated_at TEXT)");
     db.close();
     await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), (error: { code?: string; message?: string }) =>
       error.code === "catalog.unsupported_schema" && /personal_planning_method_packs/.test(error.message ?? ""));
-    const kept = new Database(file, { readonly: true });
+    const kept = openTestSqlite(file, { readonly: true });
     try { assert.ok(kept.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get()); }
     finally { kept.close(); }
   });
@@ -930,7 +930,7 @@ test("RAC-2834 RAC-2836 S-103 invalid sessions leave no alias or binding, includ
       await assert.rejects(catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panel.panel_id, runtime_id: " ", host_session_id: "valid" })), { code: "actions.input_invalid" });
       await assert.rejects(catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: "missing", runtime_id: "codex", host_session_id: "valid" })), { code: "actions.missing" });
     } finally { catalog.close(); }
-    const db = new Database(join(home, "projects", "catalog.db"), { readonly: true });
+    const db = openTestSqlite(join(home, "projects", "catalog.db"), { readonly: true });
     try {
       const aliases = [...invalid, prebound].map(session => ({ session,
         row: db.prepare("SELECT panel_id FROM plugin_terminal_panel_aliases WHERE runtime_id = ? AND stable_work_context_id = ?").get("codex", session) ?? null }));
@@ -984,7 +984,7 @@ test("RAC-2835 S-103 a legal same session rebinds B after A and preserves the pa
       assert.equal(catalog.resolveRuntimeContext(stableContext("codex", session)).project?.project_id, b.project_id);
       assert.equal(catalog.listRuntimeContextBindings().find(row => row.runtime_id === "codex" && row.stable_work_context_id === session)?.bound_by, "owner-b");
     } finally { catalog.close(); }
-    const db = new Database(join(home, "projects", "catalog.db"), { readonly: true });
+    const db = openTestSqlite(join(home, "projects", "catalog.db"), { readonly: true });
     try {
       assert.deepEqual(db.prepare("SELECT panel_id FROM plugin_terminal_panel_aliases WHERE runtime_id = ? AND stable_work_context_id = ?").get("codex", session), { panel_id: "legal-panel-b" });
     } finally { db.close(); }

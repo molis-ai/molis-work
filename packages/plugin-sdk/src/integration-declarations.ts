@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { INTEGRATION_KINDS } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { oauthMethodProblems } from "./oauth-declarations.js";
@@ -193,8 +194,4 @@ function connectionMethodProblems(id: string, value: unknown): string[] {
 
 function text(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

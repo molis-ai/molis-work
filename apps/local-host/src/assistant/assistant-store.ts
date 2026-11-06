@@ -319,6 +319,16 @@ export class AssistantStore {
       .run(state, actorId, target.work_id, ...(kinds ?? [])).changes);
   }
 
+  /**
+   * Settle the open notices raised under a dedupe key that starts with `prefix` (a notice that belongs to no work, such as a connection's:
+   * `connection:<id>:`), leaving those that start with `keep` when it is given. The keys stay, so a key already used never raises again.
+   */
+  settleNoticesByDedupe(actorId: string, prefix: string, state: Exclude<StoredNotice["state"], "new">, keep?: string): number {
+    const like = (value: string) => `${value.replace(/[\\%_]/g, character => `\\${character}`)}%`;
+    return Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND state='new' AND dedupe LIKE ? ESCAPE '\\'${keep ? " AND dedupe NOT LIKE ? ESCAPE '\\'" : ""}`)
+      .run(state, actorId, like(prefix), ...(keep ? [like(keep)] : [])).changes);
+  }
+
   /** The state the Host last saw a work in (kept apart from the work, so noticing never conflicts with the person's edits). */
   observed(actorId: string, workId: string): AssistantWorkState | null {
     const row = this.db.prepare("SELECT state FROM assistant_observed WHERE actor_id=? AND work_id=?").get(actorId, workId);

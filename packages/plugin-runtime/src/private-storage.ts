@@ -27,9 +27,7 @@ export const PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL = `
 
 /** Host-owned private data repository. Never expose this object or its database to Plugin code. */
 export class SqlitePluginPrivateStorage {
-  constructor(private readonly db: PluginPrivateStorageDatabase) {
-    db.exec(PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL);
-  }
+  constructor(private readonly db: PluginPrivateStorageDatabase) {}
 
   forPlugin(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage {
     if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version

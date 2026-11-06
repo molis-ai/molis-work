@@ -1,3 +1,4 @@
+import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import { PLUGIN_COMPONENTS, PLUGIN_PRESENTATION_GUIDE, type PluginComponentIntent } from '@molis-ai/molis-work-design-system';
 import type { AgentProposal, AgentDesign } from './agent-model.js';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -19,7 +20,6 @@ export function experienceTask(brief: string, proposal: AgentProposal) {
     output: '返回 {summary,journey,pages,scenarios}。summary 说明主任务、主内容/动作和取舍；journey 是用户路径的文字数组；pages 是 [{id,title,parts:[{id,intent,purpose,uses?}]}]，uses 是已有操作 id 或 id 数组，一块草图可表达列表及行内动作，完整设计再拆成运行时绑定。可增减或重组草图部件，不能增删操作或扩权。scenarios 是 [{task,content,expected}]：task 是需验证的任务，content 是具体逼真的合成内容（JSON 值，可用文字、记录对象或数组，空数据可用 []），expected 是可观察的结果。阅读提供有段落和结尾的完整正文，比较提供有差异的数值，操作提供连续操作的场景；遵守给定字段约束。只写当前任务需要的场景，不穷举。尚未生成绑定、验收脚本或布局 JSON。' };
 }
 
-const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const required = (value: unknown, name: string, max = 2000): string => {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(name + ' 需要非空文字（最多 ' + max + ' 字）');
   return value;

@@ -1,4 +1,5 @@
-import { isId, isObject, isOutputPath, isText, isVersion } from "./action-declarations.js";
+import { isRecord } from "./json-value.js";
+import { isId, isOutputPath, isText, isVersion } from "./action-declarations.js";
 import { schemaFields, schemaPathExists } from "./schema-paths.js";
 import { workExecutorSetProblems } from "./work-executor-declarations.js";
 
@@ -42,7 +43,7 @@ export function inspectActionCrossReferences(definitions: unknown): string[] {
 function declaredGroup(definitions: unknown): DeclaredGroup {
   const group = new Map<string, Declared>();
   for (const raw of Array.isArray(definitions) ? definitions : []) {
-    if (!isObject(raw) || !isId(raw.capability_id) || !isVersion(raw.version) || !isObject(raw.action)) continue;
+    if (!isRecord(raw) || !isId(raw.capability_id) || !isVersion(raw.version) || !isRecord(raw.action)) continue;
     const key = `${raw.capability_id}@${raw.version}`;
     if (!group.has(key)) group.set(key, { key, operation: raw.operation, action: raw.action });
   }
@@ -53,7 +54,7 @@ function declaredGroup(definitions: unknown): DeclaredGroup {
 
 function undoProblems(source: Declared, group: DeclaredGroup): string[] {
   const undo = source.action.undo;
-  if (source.operation !== "command" || !isObject(undo) || !isPointer(undo) || !isObject(undo.input)) return [];
+  if (source.operation !== "command" || !isRecord(undo) || !isPointer(undo) || !isRecord(undo.input)) return [];
   const fields = Object.entries(undo.input).map(([field, value]) => ({ field, path: outputPath(value) }));
   if (!fields.length || fields.some(({ path }) => path === undefined)) return [];
   const ref = referenceText(undo);
@@ -90,7 +91,7 @@ function outputPath(value: unknown): string | undefined {
 
 function backgroundJobProblems(source: Declared, group: DeclaredGroup): string[] {
   const job = source.action.background_job;
-  if (source.operation !== "command" || !isObject(job) || !isObject(job.status) || !isPointer(job.status)) return [];
+  if (source.operation !== "command" || !isRecord(job) || !isRecord(job.status) || !isPointer(job.status)) return [];
   const { id, input, state } = job;
   if (!isOutputPath(id) || !isOutputPath(input) || !isOutputPath(state)) return [];
   const ref = referenceText(job.status);
@@ -125,7 +126,7 @@ function subjectTargetProblems(source: Declared, group: DeclaredGroup): string[]
 function optionsOf(source: Declared, group: DeclaredGroup, field: string): Option[] {
   const choices = source.action[field];
   return (Array.isArray(choices) ? choices : []).flatMap((choice: unknown) => {
-    if (!isObject(choice) || !isText(choice.offer_id) || !isObject(choice.action) || !isPointer(choice.action)) return [];
+    if (!isRecord(choice) || !isText(choice.offer_id) || !isRecord(choice.action) || !isPointer(choice.action)) return [];
     const ref = referenceText(choice.action);
     return [{ offerId: choice.offer_id, ref, target: group.get(ref), subjectKinds: choice.subject_kinds }];
   });
@@ -153,7 +154,7 @@ function handlesKinds(target: Declared, offered: readonly string[]): boolean {
 function resultSubjectProblems(source: Declared): string[] {
   const declared = source.action.result_subject;
   if (declared === undefined || declared === null) return [];
-  if (!isObject(declared)) return [`能力 ${source.key} 的结果对象声明必须是对象，写明 id（可加 revision）在输出里的路径`];
+  if (!isRecord(declared)) return [`能力 ${source.key} 的结果对象声明必须是对象，写明 id（可加 revision）在输出里的路径`];
   const positions = declared.revision === undefined ? [declared.id] : [declared.id, declared.revision];
   return positions.flatMap(position => {
     if (typeof position !== "string") return [`能力 ${source.key} 的结果对象位置必须写成输出里的路径`];

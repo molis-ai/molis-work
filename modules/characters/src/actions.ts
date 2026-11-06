@@ -1,3 +1,4 @@
+import { createActionDefinition, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import { defineActionUsagesAction, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { characterArtifactPreviewAction, characterPluginActions, type CharacterDraft, type CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -9,7 +10,6 @@ const id = { type: "string", minLength: 1, maxLength: 200 };
 const revision = { type: "integer", minimum: 1 };
 const reference = { type: "object", properties: { artifact_id: id, version: { type: "integer", minimum: 1 } }, required: ["artifact_id", "version"], additionalProperties: false };
 const exact = { type: "object", properties: { capability_id: id, version: { type: "integer", minimum: 1 }, provider_id: id }, required: ["capability_id", "version", "provider_id"] };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 /** Local files and processes on this computer: imports read Agent configuration folders, launch starts a native Agent. */
 const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
@@ -19,8 +19,9 @@ const run = object({ run_id: id, panel_id: id, title: text, created_at: text, re
   status: { enum: ["starting", "dispatched", "failed"] }, status_message: { anyOf: [text, { type: "null" }] } });
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED): ActionDefinition<I, O> {
-  return { capability_id: `characters.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences, permissions, subject_kinds: ["character"], input_schema: input, output_schema: output } };
+  return createActionDefinition<I, O>(`characters.${name}`, operation, {
+    title, description, audiences, permissions, subject_kinds: ["character"], input_schema: input, output_schema: output,
+  });
 }
 
 /** Owner-bound: drafts and publications belong to the person who wrote them; the Host's provider redeems each action (action-bindings.ts). */

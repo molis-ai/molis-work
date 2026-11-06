@@ -47,9 +47,11 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (box.dataset.setupId) next.searchParams.set('setup', box.dataset.setupId);
         return next.pathname + next.search;
       };
+      // A name the page put in for logging in again goes once that login is no longer the one being started, unless the person changed it.
+      const unname = scope => scope.querySelectorAll('[data-connector-new-name][data-prefilled]').forEach(input => { if (input.value === input.dataset.prefilled) input.value = ''; delete input.dataset.prefilled; });
       const showDetail = (id, focus = true) => {
         const panel = panelFor(id);
-        if (!panel) box.querySelectorAll('[data-protocol]').forEach(area => { delete area.dataset.connectionId; delete area.dataset.replaces; });
+        if (!panel) { unname(box); box.querySelectorAll('[data-protocol]').forEach(area => { delete area.dataset.connectionId; delete area.dataset.replaces; }); }
         list.hidden = Boolean(panel);
         box.querySelectorAll('[data-connector-detail]').forEach(item => { item.hidden = item !== panel; });
         if (standalone()) page.replace(new URL(pageUrl(panel ? id : ''), location.origin));
@@ -250,30 +252,31 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       });
       // After logging in again to an MCP service: the new connection offers to take over what used the old one (ASC-59). The pair only
       // decides what is offered; the switch and the removal are the person's own actions and check both connections themselves.
-      const gone = L('这里已经不用原来那条了');
+      // Only what an MCP connection's consumers can answer: the model codes never come here (a model is another service), and the rest share the general advice.
       const switchReasons = {
-        'connector.plugin_slots.installation_missing': L('用它的插件已不在'), 'connector.plugin_slots.usage_missing': gone, 'model_provider.usage_missing': gone,
-        'connector.plugin_slots.project_required': L('请到它所在的项目里，在插件的连接设置中改选这条'), 'model_provider.origin_mismatch': L('新连接的地址和这里的地址不一致'),
-        'connector.switch.consumer_unsupported': L('这个插件还不能一步换'), 'connector.switch.target_unavailable': L('新连接现在不可用，请先检查它'),
+        'connector.plugin_slots.installation_missing': L('用它的插件已不在'), 'connector.plugin_slots.usage_missing': L('这里已经不用原来那条了'),
+        'connector.plugin_slots.project_required': L('请到它所在的项目里，在插件的连接设置中改选这条'), 'connector.switch.target_unavailable': L('新连接现在不可用，请先检查它'),
       };
-      // Offers nothing unless the note names another MCP connection of this service, at the same address, beside the new one.
+      // Offers nothing unless the note names another MCP connection of this service, at the same known address, beside the new one.
       const offerReplacement = (panel, newId, oldId) => {
         const rows = [...panel.querySelectorAll('[data-connection-row]')], find = id => rows.find(node => node.dataset.connectionRow === id);
         const row = find(newId), old = find(oldId), service = panel.dataset.connectorDetail;
         if (!row || !old || row === old || row.dataset.connectionService !== service || old.dataset.connectionService !== service
-          || row.dataset.connectionEndpoint !== old.dataset.connectionEndpoint || !old.querySelector('[data-connection-method="mcp"]')) return false;
+          || !row.dataset.connectionEndpoint || row.dataset.connectionEndpoint !== old.dataset.connectionEndpoint || !old.querySelector('[data-connection-method="mcp"]')) return false;
         const result = row.querySelector('[data-connection-result]'), name = old.querySelector('strong')?.textContent || '';
-        // Coding's MCP settings do not report their usages yet, so what the page counts is never all there is.
-        const coding = ' ' + L('Coding 的 MCP 设置这里还查不到；如果那里选了「{name}」，请到那里改选这条。', { name });
+        // Coding's MCP settings do not report their usages yet (BL-1050), so what the page counts is never all there is.
+        const coding = L('Coding 的 MCP 设置这里还查不到；如果那里选了「{name}」，请到那里改选这条。', { name });
         const link = () => panel.querySelector('[data-connector-next-link][href^="/settings/coding-settings"]')?.cloneNode(true);
         let shown, left = 0;
         const controls = nodes => {
           shown = nodes; const actions = document.createElement('div'); actions.className = 'settings-connector-actions';
           actions.append(...nodes.filter(Boolean)); result.append(actions); result.focus();
         };
-        const show = (message, lines, nodes, error) => {
-          output(result, message + coding, error);
+        // The message, the usages it lists, then notes of their own (what could not be read, and what the page cannot see), then the choices.
+        const show = (message, lines, nodes, error, notes = []) => {
+          output(result, message, error);
           if (lines.length) { const list = document.createElement('ul'); for (const line of lines) { const item = document.createElement('li'); item.textContent = line; list.append(item); } result.append(list); }
+          for (const note of [...notes, coding]) { const text = document.createElement('p'); text.textContent = note; result.append(text); }
           controls(nodes);
         };
         // A step that fails says why and leaves the same choices, so the person can try again or keep both connections.
@@ -282,13 +285,18 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           const node = document.createElement('button'); node.type = 'button'; node.className = 'mw-btn mw-btn--' + tone; node.textContent = label;
           node.addEventListener('click', () => run(node, () => step(node))); return node;
         };
-        const keep = button(L('留着'), 'ghost', async () => { output(result, L('「{name}」留着，两条连接都能用；不再用时可以在它那一行移除。', { name })); result.focus(); });
+        const keep = button(L('留着'), 'ghost', async () => { output(result, L('原来那条「{name}」留着，两条连接都能用；不再用时可以在它那一行移除。', { name })); result.focus(); });
         const confirm = button(L('确认移除'), 'danger', async () => {
           await api(connectionPath(oldId) + '/manage', { action: 'remove', expected_revision: old.dataset.connectionRevision });
           await reload(service, { message: L('已移除「{name}」。', { name }) });
         });
-        // Removing cuts off whatever still uses the old connection, and the page cannot see all of it, so it asks once first.
-        const remove = button(L('移除旧连接'), 'danger-outline', async () => show(left ? L('移除后，还在用「{name}」的地方会断开，其中已知 {count} 处没换过来。', { name, count: left }) : L('移除后，还在用「{name}」的地方会断开。', { name }), [], [confirm, keep, link()]));
+        // Removing cuts off whatever still uses the old connection, and the page cannot see all of it, so it asks once first. Cancel puts back
+        // what was there, so a switch still to do is not lost.
+        const remove = button(L('移除旧连接'), 'danger-outline', async () => {
+          const back = [...result.childNodes], before = shown, tone = result.dataset.tone;
+          const cancel = button(L('取消'), 'ghost', async () => { result.replaceChildren(...back); result.dataset.tone = tone; shown = before; result.focus(); });
+          show(L('移除原来那条「{name}」后，还在用它的地方会断开。', { name }) + (left ? L('已知 {count} 处没换过来。', { count: left }) : ''), [], [cancel, confirm]);
+        });
         const intro = L('这条是替「{name}」重新登录的。', { name });
         result.tabIndex = -1; result.dataset.connectionReplacement = oldId; shown = [remove, keep];
         output(result, L('正在查看哪里用到「{name}」…', { name }));
@@ -296,7 +304,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           const read = await api(connectionPath(oldId) + '/usages', undefined, 'GET'), usages = read.usages || [];
           const issues = (read.issues || []).map(issue => L('没能查：{issue}', { issue }));
           left = usages.length; result.scrollIntoView({ block: 'center' });
-          if (!left) return show(intro + L('模型和插件里没有查到用它的地方。'), issues, [remove, keep, link()]);
+          if (!left) return show(intro + L('能查的地方里，没有查到用它的。'), [], [remove, keep, link()], false, issues);
           const move = button(L('把用到「{name}」的 {count} 个地方换到这条', { name, count: left }), 'primary', async node => {
             const outcome = switchLeft(await api(connectionPath(newId) + '/switch', { from_connection_id: oldId }), usages);
             node.remove(); left = outcome.left.length;
@@ -304,7 +312,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
             show(L('换过去 {switched} 处，{count} 处没换：', { switched: outcome.switched, count: left }),
               outcome.left.map(entry => L('{title}：{reason}', { title: entry.title, reason: switchReasons[entry.code] || L('还不能一步换，请到用它的地方改选这条') })), [remove, keep, link()], !outcome.switched);
           });
-          show(intro + L('模型和插件里有 {count} 处用它，可以一步换到这条。', { count: left }), [...usages.slice(0, 5).map(usage => usage.title), ...issues], [move, remove, keep, link()]);
+          show(intro + L('能查的地方里有 {count} 处用它，可以一步换到这条。', { count: left }), usages.slice(0, 5).map(usage => usage.title), [move, remove, keep, link()], false, issues);
         });
         return true;
       };
@@ -313,17 +321,21 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const area = panel.querySelector('[data-protocol="' + method + '"]');
         if (!area) return;
         // MCP names no stable account, so logging in again is a new connection; the old one stays until the person moves its uses (ASC-59).
-        expand(area); if (method === 'oauth') { area.dataset.connectionId = button.dataset.connectionReauthorize; delete area.dataset.replaces; } else {
+        expand(area); unname(panel); if (method === 'oauth') { area.dataset.connectionId = button.dataset.connectionReauthorize; delete area.dataset.replaces; } else {
           delete area.dataset.connectionId; area.dataset.replaces = button.dataset.connectionReauthorize;
           // The same server as before: only a login at the old connection's address is offered as its replacement.
-          const endpoint = button.closest('[data-connection-row]').dataset.connectionEndpoint, field = area.querySelector('[data-protocol-field="endpoint"]');
+          const old = button.closest('[data-connection-row]'), endpoint = old.dataset.connectionEndpoint, field = area.querySelector('[data-protocol-field="endpoint"]');
           if (endpoint && field) field.value = endpoint;
+          // A name told apart from the old one's, so the two can be told apart wherever only names are shown (Coding's MCP settings).
+          const named = panel.querySelector('[data-connector-new-name]');
+          if (named && !named.value.trim()) expand(named), named.value = named.dataset.prefilled = L('{name}（重新登录 {date}）', { name: old.querySelector('strong').textContent.slice(0, 80),
+            date: new Date().toLocaleDateString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric' }) });
         }
         output(resultFor(area), L(method === 'oauth' ? '请使用原账号完成授权；要连接其他账号，请返回并选择添加账号。' : '重新登录会新建一条连接，原来的这条不动。登录回来后，可以把用到原来那条的地方一步换过去。'));
         area.scrollIntoView({ block: 'center', behavior: 'smooth' }); area.querySelector('[data-protocol-start]')?.focus();
       });
       click('[data-connector-add] > summary', summary => {
-        summary.parentElement.querySelectorAll('[data-protocol]').forEach(area => { delete area.dataset.connectionId; delete area.dataset.replaces; });
+        unname(summary.closest('[data-connector-detail]') || box); summary.parentElement.querySelectorAll('[data-protocol]').forEach(area => { delete area.dataset.connectionId; delete area.dataset.replaces; });
       });
       const connectCli = async area => completed(await api('methods/cli/connect', protocolBody(area)), area.dataset.protocolService, L('本机账号检查通过，连接已保存。'));
       protocolAction('[data-cli-detect]', async area => {

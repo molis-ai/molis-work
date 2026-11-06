@@ -2,6 +2,7 @@ import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/ac
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
+import { childTaskGrants } from "./task-grants-area.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -78,9 +79,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
-    // The platform's reads area (specs/proactive-assistant/task-grants-platform-area.md) is not drawn yet: every `place` is refused
-    // with one fixed error and nothing reaches the shell. P3-1 replaces this with the frame half that reports the element's place.
-    taskGrants: { place: () => Promise.reject(new Error("Unavailable")) },
+    taskGrants: childTaskGrants(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,

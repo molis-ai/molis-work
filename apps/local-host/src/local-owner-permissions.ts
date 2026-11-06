@@ -21,6 +21,8 @@ import { PLACEMENT_PERMISSIONS, PLACEMENT_PROVIDER_ID } from "@molis-ai/molis-wo
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
+import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -53,6 +55,8 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],
     [PLACEMENT_PROVIDER_ID, PLACEMENT_PERMISSIONS],
     [MEMORY_PROVIDER_ID, MEMORY_PERMISSIONS],
+    // Only `set` asks anything (`projects:settings`): the person sets a task's reads from the platform's area on it.
+    [TASK_GRANTS_PROVIDER_ID, asks(Object.values(agentTaskGrantActions))],
   ];
   const providers = new Map<string, readonly string[]>();
   for (const [provider, permissions] of entries) providers.set(provider, [...new Set([...providers.get(provider) ?? [], ...permissions])]);

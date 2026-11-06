@@ -176,10 +176,13 @@ export class PluginPageAuthority {
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-workspaces";
     const slotChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-slot";
+    // The platform's reads area on a task (task-grants-platform-area.md §2.3): the same fence as the account picker.
+    const taskGrantsChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
+      && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-task-grants";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
       && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery"].includes(pathname)
         || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery"].includes(pathname));
-    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
+    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const check = () => {
@@ -215,6 +218,12 @@ export function pluginPageRequest(request: IncomingMessage) {
       const slot = authority.page.activation.manifest.connections?.slots?.find(item => item.slot_id === slotId && item.binding === "per_record");
       if (!slot || !authority.page.activation.install_id) throw refused();
       return { install_id: authority.page.activation.install_id, plugin_id: authority.page.activation.manifest.plugin_id, slot };
+    },
+    /** The installation whose tasks this page's reads area is on: the page's own, never one the request names. */
+    taskGrantsInstall() {
+      authority.check();
+      if (!authority.page.activation.install_id || !authority.page.project_id) throw refused();
+      return authority.page.activation.install_id;
     },
     ownedObject(object: {kind: string; id: string; project_id?: string | null}) {
       authority.check();

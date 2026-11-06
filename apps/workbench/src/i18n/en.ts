@@ -18,6 +18,7 @@ import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 import { SERVICE_CONNECTION_EN } from "./service-connection-en.js";
 import { MODEL_SETTINGS_EN } from "./model-settings-en.js";
+import { TASK_GRANTS_AREA_EN } from "./task-grants-area-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
   "角色资料": "Role material",
@@ -33,6 +34,7 @@ export const EN: Record<string, string> = {
   ...SIDE_PANEL_EN,
   ...SERVICE_CONNECTION_EN,
   ...MODEL_SETTINGS_EN,
+  ...TASK_GRANTS_AREA_EN,
   "连接不可用": "Connection unavailable",
   "原连接已不可用，请重新选择": "Previous connection unavailable; choose another",
   "官方连接方式": "Official connection methods",

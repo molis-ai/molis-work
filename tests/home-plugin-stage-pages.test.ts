@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import vm from "node:vm";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MolisWorkLocalHost, installedStageSection } from "@molis-ai/molis-work-app-local-host";
-import { renderHomePluginNavigation } from "@molis-ai/molis-work-app-workbench";
+import { CLIENT_SCRIPT, renderHomePluginNavigation } from "@molis-ai/molis-work-app-workbench";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { openDualHome } from "./fixtures/dual-home.js";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
@@ -65,6 +66,25 @@ test("RAC-2620.1 an installed stage is drawn with the string a project's agent p
   assert.ok(books.includes(icon("book")) && !books.includes(icon("package")), "the icon the package picked");
   const openStage = entryOf(inProject, "io.molis.work.example.books")!;
   assert.ok(openStage.startsWith("<button ") && openStage.includes('type="button"') && openStage.includes('data-work-surface-open="io.molis.work.example.books"') && !openStage.includes('href="/plugins/'), "a button that opens the stage, not a link");
+});
+
+test("BL-912 an installed stage tells the tab strip the icon its package picked, and says nothing when it picked none", () => {
+  const base = { pluginId: "io.molis.work.example.books", surface: "io.molis.work.example.books", label: "Books", prefix: "" };
+  assert.match(installedStageSection({ ...base, icon: "book" }), /data-installed-plugin="io\.molis\.work\.example\.books" data-installed-plugin-icon="book" hidden>/u);
+  assert.ok(!installedStageSection(base).includes("data-installed-plugin-icon"), "no icon picked, no attribute");
+  assert.match(installedStageSection({ ...base, icon: 'a"b' }), /data-installed-plugin-icon="a&quot;b"/u, "the value is escaped like the others");
+  // The tab strip's own line, taken from the shipped workbench program: the picked icon wins, a built-in plugin's icon and `package` stay.
+  const line = /document\.querySelectorAll\("\[data-work-surface\]"\)\.forEach\(.*\);/u.exec(CLIENT_SCRIPT)?.[0];
+  assert.ok(line, "the shipped program names the tabs of installed stages");
+  const surfaces = [
+    { dataset: { workSurface: "app-1", installedPluginIcon: "book" } },
+    { dataset: { workSurface: "app-2" } },
+    { dataset: { workSurface: "mine", pluginClient: "goals", installedPluginIcon: "chart" } },
+    { dataset: { workSurface: "built-in", pluginClient: "goals" } },
+  ];
+  const icons: Record<string, string> = { goals: "target" }, titles: Record<string, string> = {};
+  vm.runInNewContext(line, { document: { querySelectorAll: () => surfaces }, PLUGIN_TAB_ICON: icons, PLUGIN_TAB_TITLES: titles });
+  assert.deepEqual(icons, { goals: "target", "app-1": "book", "app-2": "package", mine: "chart", "built-in": "target" });
 });
 
 test("RAC-2621.4 a page key nothing registers has no page, framed or not, even as the first request after a start; a built-in Home plugin's key frames no package", async t => {

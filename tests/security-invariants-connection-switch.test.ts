@@ -1,6 +1,7 @@
 // S-108: who may switch the account a consumer uses (spec assistant-service-connections §13.4): the contract every consumer's switch is
 // declared with, then the Host's aggregate and the two consumers it holds (model providers, plugin connection slots).
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -193,8 +194,10 @@ test("S-108 ASC-59 the settings page's switch moves nothing for another service'
   }
   const forged = new LocalHostHttpClient({ origin: home.origin, controlToken: "not-this-homes-control-token" });
   await assert.rejects(forged.post(switchPath(b.connection_id), { from_connection_id: a.connection_id }), refusal({ status: 403 }));
-  const unsigned = await fetch(home.origin + switchPath(b.connection_id), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ from_connection_id: a.connection_id }) });
-  assert.ok(unsigned.status >= 400 && unsigned.status < 500, `a request without the page's token is refused (${unsigned.status})`);
+  // Everything the page sends but its control token: the same origin, JSON and a fresh one-time key. Only the missing token is left to refuse.
+  const unsigned = await fetch(home.origin + switchPath(b.connection_id), { method: "POST", redirect: "error", body: JSON.stringify({ from_connection_id: a.connection_id }),
+    headers: { accept: "application/json", origin: home.origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID() } });
+  assert.deepEqual([unsigned.status, ((await unsigned.json()) as { code?: string }).code], [403, "host.request_refused"], "a request without the page's token is refused");
   assert.deepEqual([await keyOf("here"), await keyOf("there")], [a.credential_ref, a.credential_ref], "every provider keeps the key it had");
 });
 

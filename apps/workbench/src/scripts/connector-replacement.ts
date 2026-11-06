@@ -4,38 +4,24 @@
  * serialized into the settings client like the authorization monitor.
  */
 
-/** A connection row as the page shows it: its id, the service it belongs to, and whether it is an MCP login of the person's own. */
-export interface ReplacementRow { id: string; service: string; mcp: boolean }
+type Report = {
+  results?: Array<{ provider_id?: unknown; switched?: unknown[]; refused?: Array<{ usage_id?: unknown; code?: unknown }> }>;
+  failed?: Array<{ provider_id?: unknown; code?: unknown }>;
+};
 
 /**
- * Whether the connection just made may be offered as the replacement of `oldId`: both rows on the page, two different connections
- * of the one service the login was started for, and the old one an MCP login the person manages. Anything else gets no offer. This
- * only decides what the page offers; the switch and the removal check both connections again themselves.
+ * How a switch went, against the usages read before it: how many moved, and each usage that did not with the stable code of why
+ * (the page words it). A usage its consumer refused takes that refusal's code; one whose consumer failed as a whole takes the
+ * consumer's; one no consumer answered for (it reports usages but declares no switch) gets "" and the page's general advice.
  */
-export function connectorReplacementPair(login: { service: string; newId?: unknown; oldId?: unknown }, rows: readonly ReplacementRow[]): { newId: string; oldId: string } | null {
-  const { service, newId, oldId } = login;
-  if (typeof newId !== "string" || typeof oldId !== "string" || !newId || !oldId || newId === oldId) return null;
-  const made = rows.find(row => row.id === newId), old = rows.find(row => row.id === oldId);
-  if (!made || !old || made.service !== service || old.service !== service || !old.mcp) return null;
-  return { newId, oldId };
-}
-
-/**
- * How a switch went, counted against the usages read before it: how many moved, how many did not, and why (by stable code, the page
- * words them). A consumer that failed as a whole is counted only for the usages left over, so nothing is counted twice.
- */
-export function connectorSwitchSummary(report: { results?: Array<{ switched?: unknown[]; refused?: Array<{ code?: unknown }> }>; failed?: Array<{ code?: unknown }> }, usages: number): { switched: number; unswitched: number; reasons: Array<{ code: string; count: number }> } {
-  const results = Array.isArray(report?.results) ? report.results : [], failed = Array.isArray(report?.failed) ? report.failed : [];
-  const switched = results.reduce((total, result) => total + (Array.isArray(result.switched) ? result.switched.length : 0), 0);
-  const refused = results.flatMap(result => Array.isArray(result.refused) ? result.refused : []);
-  const unswitched = Math.max(refused.length, usages - switched, 0);
-  const counts = new Map<string, number>();
-  for (const entry of refused) { const code = typeof entry.code === "string" ? entry.code : ""; counts.set(code, (counts.get(code) ?? 0) + 1); }
-  const left = unswitched - refused.length;
-  if (left > 0) for (const entry of failed) { const code = typeof entry.code === "string" ? entry.code : ""; if (!counts.has(code)) counts.set(code, 0); }
-  const reasons = [...counts].map(([code, count]) => ({ code, count }));
-  // What failed as a whole shares the usages not otherwise accounted for; with one reason it takes them all.
-  const shared = reasons.filter(reason => reason.count === 0);
-  if (shared.length === 1) shared[0]!.count = left;
-  return { switched, unswitched, reasons };
+export function connectorSwitchLeft(report: Report, usages: ReadonlyArray<{ usage_id: string; title: string; source?: { provider_id?: string } }>): { switched: number; left: Array<{ title: string; code: string }> } {
+  const results = report?.results || [], failed = report?.failed || [];
+  const switched = results.reduce((total, result) => total + (result.switched?.length || 0), 0), left: Array<{ title: string; code: string }> = [];
+  for (const usage of usages) {
+    const provider = usage.source?.provider_id, own = results.filter(result => result.provider_id === provider);
+    if (own.some(result => result.switched?.includes(usage.usage_id))) continue;
+    const code = own.flatMap(result => result.refused || []).find(entry => entry.usage_id === usage.usage_id)?.code ?? failed.find(entry => entry.provider_id === provider)?.code;
+    left.push({ title: usage.title, code: typeof code === "string" ? code : "" });
+  }
+  return { switched, left };
 }

@@ -12,20 +12,22 @@ import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, type MolisW
 
 const OLD = "11111111-1111-4111-8111-111111111111", NEW = "22222222-2222-4222-8222-222222222222";
 const GITHUB = "33333333-3333-4333-8333-333333333333", NOTION_OAUTH = "44444444-4444-4444-8444-444444444444";
-const AUTHORIZATION = "55555555-5555-4555-8555-555555555555";
+const AUTHORIZATION = "55555555-5555-4555-8555-555555555555", ELSEWHERE = "66666666-6666-4666-8666-666666666666";
+const ENDPOINT = "https://mcp.notion.com/v2/mcp";
 type Stage = "before" | "after" | "removed";
 
 const mcpCard = { connector_id: "notion", title: "Notion", availability: "live", auth_kind: "oauth", group_id: "work", summary: "笔记与文档", capabilities: [],
   method_options: [{ kind: "mcp", support: "in_app", login_ready: true, note: "官方工具", links: [], mcp: { endpoint: "https://mcp.notion.com/mcp", client_registration: "dynamic" } }] } as const;
 const tokenCard = { connector_id: "github", title: "GitHub", availability: "live", auth_kind: "token", group_id: "code", summary: "代码与发布", capabilities: [],
   method_options: [{ kind: "token", support: "paste", note: "", links: [] }] } as const;
-const row = (connection_id: string, service_id: string, display_name: string, auth_method: "mcp" | "oauth" | "token") =>
-  ({ connection_id, service_id, display_name, account_label: null, auth_method, source: "managed", enabled: true, state: "connected", revision: `rev-${connection_id.slice(0, 4)}` } as const);
+const row = (connection_id: string, service_id: string, display_name: string, auth_method: "mcp" | "oauth" | "token", mcp_endpoint?: string) =>
+  ({ connection_id, service_id, display_name, account_label: null, auth_method, source: "managed", enabled: true, state: "connected", revision: `rev-${connection_id.slice(0, 4)}`, ...(mcp_endpoint ? { mcp_endpoint } : {}) } as const);
 
 function settings(stage: Stage): MolisWorkSettingsView {
   const rows = [
-    ...(stage === "removed" ? [] : [row(OLD, "notion", "旧 Notion", "mcp")]),
-    ...(stage === "before" ? [] : [row(NEW, "notion", "新 Notion", "mcp")]),
+    ...(stage === "removed" ? [] : [row(OLD, "notion", "旧 Notion", "mcp", ENDPOINT)]),
+    ...(stage === "before" ? [] : [row(NEW, "notion", "新 Notion", "mcp", ENDPOINT)]),
+    row(ELSEWHERE, "notion", "另一台 Notion", "mcp", "https://notion.example.test/mcp"),
     row(NOTION_OAUTH, "notion", "Notion 账号", "oauth"), row(GITHUB, "github", "工作 GitHub", "token"),
   ];
   return {
@@ -101,27 +103,46 @@ async function startLoginAgain(page: ChromePage) {
   const area = `document.querySelector('[data-connector-detail="notion"] [data-protocol="mcp"]')`;
   assert.deepEqual(await page.evaluate(`({ replaces: ${area}.dataset.replaces, connection: ${area}.dataset.connectionId ?? null })`), { replaces: OLD, connection: null });
   assert.match(await text(page, `${area}.querySelector('[data-protocol-result]')`), /新建一条连接，原来的这条不动/);
+  assert.equal(await page.evaluate(`${area}.querySelector('[data-protocol-field="endpoint"]').value`), ENDPOINT, "the login starts at the old connection's address");
   await page.evaluate(`${area}.querySelector('[data-protocol-start="mcp"]').click()`);
 }
 
-test("ASC-59 logging in again to an MCP service makes a new connection, then moves the old one's uses in one step and removes it on request", { timeout: 90_000 }, async t => {
-  const browser = await openConnections(t); if (!browser) return;
-  const { page, next, answer, seen, exceptions, open, setStage } = browser;
-  await startLoginAgain(page);
+/** Back from the login with the given usages read for the old connection; the page says the next step at its top and focuses the offer. */
+async function returnWith(browser: NonNullable<Awaited<ReturnType<typeof openConnections>>>, read: { usages: unknown[]; issues: string[] }) {
+  const { page, next, answer, setStage } = browser;
   const start = await next();
   assert.equal(start.url, "/api/settings/connectors/methods/mcp/start");
   const body = JSON.parse(start.body) as Record<string, unknown>;
   assert.equal(body.service_id, "notion");
+  assert.equal(body.endpoint, ENDPOINT);
   assert.equal("connection_id" in body, false, "the login is never sent as the old connection's: the Host would refuse it, and it must not swap the account");
   setStage("after");
   answer(start, { connection_id: NEW, tools: [] });
   const usages = await next();
   assert.deepEqual([usages.method, usages.url], ["GET", `/api/settings/connectors/connections/${OLD}/usages`]);
-  answer(usages, { usages: [{ usage_id: "here", title: "模型 here", enabled: true, actions: [] }, { usage_id: "there", title: "模型 there", enabled: true, actions: [] }], issues: [] });
+  answer(usages, read);
+  await page.wait(`${resultOf(NEW)}?.querySelector('.settings-connector-actions')`);
+  assert.match(await text(page, `document.querySelector('[data-connector-detail="notion"] [data-connector-feedback]')`), /下面可以把用到原来那条的地方换到新连接/);
+  assert.equal(await page.evaluate(`document.activeElement === ${resultOf(NEW)}`), true, "the offer takes the focus, so it is seen and read");
+  assert.match(await text(page, resultOf(NEW)), /这条是替「旧 Notion」重新登录的。.*Coding 的 MCP 设置这里还查不到；如果那里选了「旧 Notion」，请到那里改选这条/s);
+  assert.equal(await page.evaluate(`${resultOf(NEW)}.querySelector('a[href^="/settings/coding-settings"]')?.textContent`), "设置 Agent 工具");
+}
+const buttonIn = (id: string, label: string) => `[...${resultOf(id)}.querySelectorAll('button')].find(button => button.textContent === ${JSON.stringify(label)})`;
+
+test("ASC-59 logging in again to an MCP service makes a new connection, then moves the old one's uses in one step and removes it on request", { timeout: 90_000 }, async t => {
+  const browser = await openConnections(t); if (!browser) return;
+  const { page, next, answer, seen, exceptions, open, setStage } = browser;
+  await startLoginAgain(page);
+  const source = (provider_id: string) => ({ capability_id: "connectors.usages", version: 1, provider_id });
+  await returnWith(browser, { usages: [
+    { usage_id: "here", title: "模型 here", enabled: true, actions: [], source: source("system.connectors"), reporter: "模型" },
+    { usage_id: "there", title: "模型 there", enabled: true, actions: [], source: source("system.connectors"), reporter: "模型" },
+    // Reports its usages but declares no switch: it is left with the general advice (review S6).
+    { usage_id: "pic", title: "Images 生图", enabled: true, actions: [], source: source("plugin.images"), reporter: "Images" },
+  ], issues: ["Notes：暂时无法读取使用位置"] });
   const move = `${resultOf(NEW)}?.querySelector('.mw-btn--primary')`;
-  await page.wait(`${move}`);
-  assert.equal(await text(page, move), "把用到「旧 Notion」的 2 个地方换到这条");
-  assert.match(await text(page, resultOf(NEW)), /这条是替「旧 Notion」重新登录的/);
+  assert.equal(await text(page, move), "把用到「旧 Notion」的 3 个地方换到这条");
+  assert.match(await text(page, resultOf(NEW)), /模型和插件里有 3 处用它.*模型 here.*Images 生图.*没能查：Notes：暂时无法读取使用位置/s, "a reporter that could not be read is said, not taken as unused");
   assert.equal(await page.evaluate(`${resultOf(OLD)}.hidden`), true, "the old connection's own row is left as it was");
   // Two quick clicks send one switch: the button is busy from the first.
   await page.evaluate(`(() => { const button = ${move}; button.click(); button.click(); })()`);
@@ -129,19 +150,46 @@ test("ASC-59 logging in again to an MCP service makes a new connection, then mov
   assert.deepEqual([switched.method, switched.url, JSON.parse(switched.body)], ["POST", `/api/settings/connectors/connections/${NEW}/switch`, { from_connection_id: OLD }]);
   answer(switched, { results: [{ capability_id: "models.connection.switch", version: 1, provider_id: "system.connectors", reporter: "模型", switched: ["here"], refused: [{ usage_id: "there", code: "model_provider.origin_mismatch" }] }], failed: [] });
   await page.wait(`${resultOf(NEW)}.textContent.includes('换过去 1 处')`);
-  assert.match(await text(page, resultOf(NEW)), /换过去 1 处，1 处没换：.*1 处：新连接绑定的地址和这个模型的地址不一致/s);
+  assert.match(await text(page, resultOf(NEW)), /换过去 1 处，2 处没换：.*模型 there：新连接的地址和这里的地址不一致.*Images 生图：还不能一步换，请到用它的地方改选这条/s);
+  assert.notEqual(await page.evaluate(`${resultOf(NEW)}.dataset.tone`), "error", "some moved: a partial result is not shown as an error");
   assert.equal(await page.evaluate(`${move}?.textContent.includes('换到这条') ?? false`), false, "the switch is not offered again once it has run");
+  assert.equal(await page.evaluate(`document.activeElement === ${resultOf(NEW)}`), true, "the removed button leaves the focus on the result");
   assert.equal(seen.filter(request => request.url.endsWith("/switch")).length, 1);
-  await page.evaluate(`[...${resultOf(NEW)}.querySelectorAll('button')].find(button => button.textContent === '移除旧连接').click()`);
+  // Removing asks once first, saying what it cuts off; nothing is removed until the person confirms.
+  await page.evaluate(`${buttonIn(NEW, "移除旧连接")}.click()`);
+  await page.wait(`${resultOf(NEW)}.textContent.includes('其中已知 2 处没换过来')`);
+  assert.equal(seen.filter(request => request.url.endsWith("/manage")).length, 0);
+  await page.evaluate(`${buttonIn(NEW, "确认移除")}.click()`);
   const removed = await next();
   assert.deepEqual([removed.url, JSON.parse(removed.body)], [`/api/settings/connectors/connections/${OLD}/manage`, { action: "remove", expected_revision: "rev-1111" }]);
   setStage("removed");
   answer(removed, { connection: { connection_id: OLD } });
-  await page.wait(`document.querySelector('[data-connector-detail="notion"] [data-connector-feedback]')?.textContent.includes('已移除「旧 Notion」。还有 1 处没换过来')`);
+  await page.wait(`document.querySelector('[data-connector-detail="notion"] [data-connector-feedback]')?.textContent.includes('已移除「旧 Notion」。')`);
   // Opening the page again offers nothing: the login's note was used once.
   await open();
   await page.evaluate("new Promise(resolve => setTimeout(resolve, 600))");
   assert.equal(seen.filter(request => request.url.endsWith("/usages")).length, 1, "a returned page does not offer the switch again");
+  assert.deepEqual(exceptions, []);
+});
+
+test("ASC-59 when nothing counted uses the old connection, the page says what it looked at, not that nothing uses it, and keeping it asks nothing", { timeout: 60_000 }, async t => {
+  const browser = await openConnections(t); if (!browser) return;
+  const { page, seen, exceptions } = browser;
+  await startLoginAgain(page);
+  await returnWith(browser, { usages: [], issues: ["Images：暂时无法读取使用位置"] });
+  const shown = await text(page, resultOf(NEW));
+  assert.match(shown, /模型和插件里没有查到用它的地方/);
+  assert.doesNotMatch(shown, /没有地方在用/, "what the page cannot see (Coding) is never said to be unused");
+  assert.match(shown, /没能查：Images：暂时无法读取使用位置/);
+  assert.equal(await page.evaluate(`${resultOf(NEW)}.querySelector('.mw-btn--primary')`), null, "nothing to move: no switch is offered");
+  assert.deepEqual(await page.evaluate(`[...${resultOf(NEW)}.querySelectorAll('button')].map(button => button.textContent)`), ["移除旧连接", "留着"]);
+  await page.evaluate(`${buttonIn(NEW, "移除旧连接")}.click()`);
+  await page.wait(`${resultOf(NEW)}.textContent.includes('移除后，还在用「旧 Notion」的地方会断开。')`);
+  await page.evaluate(`${buttonIn(NEW, "留着")}.click()`);
+  await page.wait(`${resultOf(NEW)}.textContent.includes('两条连接都能用')`);
+  assert.equal(await page.evaluate(`document.activeElement === ${resultOf(NEW)}`), true, "the removed buttons leave the focus on the result");
+  assert.deepEqual(seen.filter(request => /\/(switch|manage)$/.test(request.url)), [], "nothing is switched or removed");
+  assert.equal(await page.evaluate(`!!document.querySelector('[data-connection-row="${OLD}"]')`), true);
   assert.deepEqual(exceptions, []);
 });
 
@@ -163,11 +211,11 @@ test("ASC-59 a cancelled login offers no switch and leaves the old connection as
   assert.deepEqual(exceptions, []);
 });
 
-test("ASC-59 a note naming another service's connection, a connection that is not MCP, or the new one itself is offered nothing", { timeout: 60_000 }, async t => {
+test("ASC-59 a note naming another service's connection, a connection that is not MCP, one at another address, or the new one itself is offered nothing", { timeout: 60_000 }, async t => {
   const browser = await openConnections(t); if (!browser) return;
   const { page, seen, exceptions, open, setStage } = browser;
   setStage("after");
-  for (const replaces of [GITHUB, NOTION_OAUTH, NEW, "99999999-9999-4999-8999-999999999999"]) {
+  for (const replaces of [GITHUB, NOTION_OAUTH, ELSEWHERE, NEW, "99999999-9999-4999-8999-999999999999"]) {
     await page.evaluate(`sessionStorage.setItem('molis-connectors-notice', ${JSON.stringify(JSON.stringify({ service: "notion", id: NEW, message: "已连接", replaces }))})`);
     await open();
     await page.evaluate("new Promise(resolve => setTimeout(resolve, 300))");

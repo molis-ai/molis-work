@@ -1,13 +1,12 @@
 import { createConnectorAuthorizationMonitor } from "./connector-authorization-monitor.js";
-import { connectorReplacementPair, connectorSwitchSummary } from "./connector-replacement.js";
+import { connectorSwitchLeft } from "./connector-replacement.js";
 import { isLoopbackHostname, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
   (() => {
     const isLoopbackHostname = ${isLoopbackHostname.toString()};
     const isLoopbackHttpUrl = ${isLoopbackHttpUrl.toString()};
     const createAuthorizationMonitor = ${createConnectorAuthorizationMonitor.toString()};
-    const replacementPair = ${connectorReplacementPair.toString()};
-    const switchSummary = ${connectorSwitchSummary.toString()};
+    const switchLeft = ${connectorSwitchLeft.toString()};
     // \`page\` is the address the connections were opened at: their own page, or the settings section in the workbench.
     const ownPage = { address: () => new URL(location.href), replace: (next) => history.replaceState(null, '', next), own: true };
     const bind = (root = document, page = ownPage) => {
@@ -251,57 +250,75 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       });
       // After logging in again to an MCP service: the new connection offers to take over what used the old one (ASC-59). The pair only
       // decides what is offered; the switch and the removal are the person's own actions and check both connections themselves.
+      const gone = L('这里已经不用原来那条了');
       const switchReasons = {
-        'connector.plugin_slots.connection_pinned': L('新连接是为别的插件建的，不能给这个插件用'), 'connector.plugin_slots.slot_undeclared': L('这个插件没有声明这个连接位置'),
-        'connector.plugin_slots.installation_missing': L('用它的插件已不在'), 'connector.plugin_slots.project_required': L('要从它所在的项目里换'),
-        'connector.plugin_slots.usage_missing': L('这里已经不用原来那条了'), 'model_provider.usage_missing': L('这里已经不用原来那条了'),
-        'model_provider.origin_mismatch': L('新连接绑定的地址和这个模型的地址不一致'), 'connector.switch.consumer_unsupported': L('这个插件还不能一步换，请在插件里重新选择连接'),
-        'connector.switch.consumer_unavailable': L('用它的功能现在不可用'), 'connector.switch.target_unavailable': L('新连接现在不可用，请先检查它'),
+        'connector.plugin_slots.installation_missing': L('用它的插件已不在'), 'connector.plugin_slots.usage_missing': gone, 'model_provider.usage_missing': gone,
+        'connector.plugin_slots.project_required': L('请到它所在的项目里，在插件的连接设置中改选这条'), 'model_provider.origin_mismatch': L('新连接的地址和这里的地址不一致'),
+        'connector.switch.consumer_unsupported': L('这个插件还不能一步换'), 'connector.switch.target_unavailable': L('新连接现在不可用，请先检查它'),
       };
+      // Offers nothing unless the note names another MCP connection of this service, at the same address, beside the new one.
       const offerReplacement = (panel, newId, oldId) => {
-        const rows = [...panel.querySelectorAll('[data-connection-row]')];
-        const pair = replacementPair({ service: panel.dataset.connectorDetail, newId, oldId }, rows.map(row => ({ id: row.dataset.connectionRow, service: row.dataset.connectionService, mcp: !!row.querySelector('[data-connection-reauthorize][data-connection-method="mcp"]') })));
-        if (!pair) return;
-        const row = rows.find(node => node.dataset.connectionRow === pair.newId), old = rows.find(node => node.dataset.connectionRow === pair.oldId);
+        const rows = [...panel.querySelectorAll('[data-connection-row]')], find = id => rows.find(node => node.dataset.connectionRow === id);
+        const row = find(newId), old = find(oldId), service = panel.dataset.connectorDetail;
+        if (!row || !old || row === old || row.dataset.connectionService !== service || old.dataset.connectionService !== service
+          || row.dataset.connectionEndpoint !== old.dataset.connectionEndpoint || !old.querySelector('[data-connection-method="mcp"]')) return false;
         const result = row.querySelector('[data-connection-result]'), name = old.querySelector('strong')?.textContent || '';
-        let shown = [], left = 0;
+        // Coding's MCP settings do not report their usages yet, so what the page counts is never all there is.
+        const coding = ' ' + L('Coding 的 MCP 设置这里还查不到；如果那里选了「{name}」，请到那里改选这条。', { name });
+        const link = () => panel.querySelector('[data-connector-next-link][href^="/settings/coding-settings"]')?.cloneNode(true);
+        let shown, left = 0;
+        const controls = nodes => {
+          shown = nodes; const actions = document.createElement('div'); actions.className = 'settings-connector-actions';
+          actions.append(...nodes.filter(Boolean)); result.append(actions); result.focus();
+        };
+        const show = (message, lines, nodes, error) => {
+          output(result, message + coding, error);
+          if (lines.length) { const list = document.createElement('ul'); for (const line of lines) { const item = document.createElement('li'); item.textContent = line; list.append(item); } result.append(list); }
+          controls(nodes);
+        };
         // A step that fails says why and leaves the same choices, so the person can try again or keep both connections.
-        const button = (label, tone, run) => {
+        const run = async (node, step) => { busy(node, true); try { await step(); } catch (error) { fail(result, error); controls(shown); } finally { busy(node, false); } };
+        const button = (label, tone, step) => {
           const node = document.createElement('button'); node.type = 'button'; node.className = 'mw-btn mw-btn--' + tone; node.textContent = label;
-          node.addEventListener('click', async () => { busy(node, true); try { await run(node); } catch (error) { show('', [], shown, true); molisWorkRequest.show(result.querySelector('p'), error, L('操作未完成，请重试。')); } finally { busy(node, false); } });
-          return node;
+          node.addEventListener('click', () => run(node, () => step(node))); return node;
         };
-        const show = (message, details, controls, error = false) => {
-          shown = controls; output(result, message, error); result.dataset.connectionReplacement = pair.oldId;
-          if (details.length) { const list = document.createElement('ul'); for (const line of details) { const item = document.createElement('li'); item.textContent = line; list.append(item); } result.append(list); }
-          const actions = document.createElement('div'); actions.className = 'settings-connector-actions'; actions.append(...controls); result.append(actions);
-        };
-        const remove = button(L('移除旧连接'), 'danger-outline', async () => {
-          await api(connectionPath(pair.oldId) + '/manage', { action: 'remove', expected_revision: old.dataset.connectionRevision });
-          await reload(panel.dataset.connectorDetail, { message: left ? L('已移除「{name}」。还有 {count} 处没换过来，要在那里重新选择连接。', { name, count: left }) : L('已移除「{name}」。', { name }) });
+        const keep = button(L('留着'), 'ghost', async () => { output(result, L('「{name}」留着，两条连接都能用；不再用时可以在它那一行移除。', { name })); result.focus(); });
+        const confirm = button(L('确认移除'), 'danger', async () => {
+          await api(connectionPath(oldId) + '/manage', { action: 'remove', expected_revision: old.dataset.connectionRevision });
+          await reload(service, { message: L('已移除「{name}」。', { name }) });
         });
-        const keep = button(L('留着'), 'ghost', async () => { output(result, L('「{name}」留着，两条连接都能用；不再用时可以在它那一行移除。', { name })); delete result.dataset.connectionReplacement; });
-        perform(null, result, async () => {
-          output(result, L('正在查看哪里用到「{name}」…', { name }));
-          const usages = (await api(connectionPath(pair.oldId) + '/usages', undefined, 'GET')).usages || [];
-          left = usages.length;
-          if (!usages.length) { show(L('这条是替「{name}」重新登录的。「{name}」现在没有地方在用，可以移除，也可以留着。', { name }), [], [remove, keep]); return; }
-          const move = button(L('把用到「{name}」的 {count} 个地方换到这条', { name, count: usages.length }), 'primary', async node => {
-            const summary = switchSummary(await api(connectionPath(pair.newId) + '/switch', { from_connection_id: pair.oldId }), usages.length);
-            node.remove(); left = summary.unswitched;
-            const reasons = summary.reasons.map(reason => (reason.count ? L('{count} 处：', { count: reason.count }) : '') + (switchReasons[reason.code] || L('没能换过去（{code}）', { code: reason.code || L('未知原因') })));
-            if (summary.unswitched) show(L('换过去 {switched} 处，{unswitched} 处没换：', { switched: summary.switched, unswitched: summary.unswitched }), reasons, [remove, keep], true);
-            else show(L('{switched} 处都换过去了。「{name}」已没有地方在用，可以移除。', { switched: summary.switched, name }), [], [remove, keep]);
+        // Removing cuts off whatever still uses the old connection, and the page cannot see all of it, so it asks once first.
+        const remove = button(L('移除旧连接'), 'danger-outline', async () => show(left ? L('移除后，还在用「{name}」的地方会断开，其中已知 {count} 处没换过来。', { name, count: left }) : L('移除后，还在用「{name}」的地方会断开。', { name }), [], [confirm, keep, link()]));
+        const intro = L('这条是替「{name}」重新登录的。', { name });
+        result.tabIndex = -1; result.dataset.connectionReplacement = oldId; shown = [remove, keep];
+        output(result, L('正在查看哪里用到「{name}」…', { name }));
+        run(null, async () => {
+          const read = await api(connectionPath(oldId) + '/usages', undefined, 'GET'), usages = read.usages || [];
+          const issues = (read.issues || []).map(issue => L('没能查：{issue}', { issue }));
+          left = usages.length; result.scrollIntoView({ block: 'center' });
+          if (!left) return show(intro + L('模型和插件里没有查到用它的地方。'), issues, [remove, keep, link()]);
+          const move = button(L('把用到「{name}」的 {count} 个地方换到这条', { name, count: left }), 'primary', async node => {
+            const outcome = switchLeft(await api(connectionPath(newId) + '/switch', { from_connection_id: oldId }), usages);
+            node.remove(); left = outcome.left.length;
+            if (!left) return show(L('{count} 处都换过去了。', { count: outcome.switched }), [], [remove, keep, link()]);
+            show(L('换过去 {switched} 处，{count} 处没换：', { switched: outcome.switched, count: left }),
+              outcome.left.map(entry => L('{title}：{reason}', { title: entry.title, reason: switchReasons[entry.code] || L('还不能一步换，请到用它的地方改选这条') })), [remove, keep, link()], !outcome.switched);
           });
-          show(L('这条是替「{name}」重新登录的。「{name}」有 {count} 个地方在用，可以一步换到这条；原来那条可以移除，也可以留着。', { name, count: usages.length }), usages.slice(0, 5).map(usage => usage.title), [move, remove, keep]);
+          show(intro + L('模型和插件里有 {count} 处用它，可以一步换到这条。', { count: left }), [...usages.slice(0, 5).map(usage => usage.title), ...issues], [move, remove, keep, link()]);
         });
+        return true;
       };
       click('[data-connection-reauthorize]', button => {
         const panel = button.closest('[data-connector-detail]'); const method = button.dataset.connectionMethod;
         const area = panel.querySelector('[data-protocol="' + method + '"]');
         if (!area) return;
         // MCP names no stable account, so logging in again is a new connection; the old one stays until the person moves its uses (ASC-59).
-        expand(area); if (method === 'oauth') { area.dataset.connectionId = button.dataset.connectionReauthorize; delete area.dataset.replaces; } else { delete area.dataset.connectionId; area.dataset.replaces = button.dataset.connectionReauthorize; }
+        expand(area); if (method === 'oauth') { area.dataset.connectionId = button.dataset.connectionReauthorize; delete area.dataset.replaces; } else {
+          delete area.dataset.connectionId; area.dataset.replaces = button.dataset.connectionReauthorize;
+          // The same server as before: only a login at the old connection's address is offered as its replacement.
+          const endpoint = button.closest('[data-connection-row]').dataset.connectionEndpoint, field = area.querySelector('[data-protocol-field="endpoint"]');
+          if (endpoint && field) field.value = endpoint;
+        }
         output(resultFor(area), L(method === 'oauth' ? '请使用原账号完成授权；要连接其他账号，请返回并选择添加账号。' : '重新登录会新建一条连接，原来的这条不动。登录回来后，可以把用到原来那条的地方一步换过去。'));
         area.scrollIntoView({ block: 'center', behavior: 'smooth' }); area.querySelector('[data-protocol-start]')?.focus();
       });
@@ -381,7 +398,10 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       if (errorCode) {
         output(box.querySelector('[data-connectors-error]'), L(errorCode === 'cancelled' ? '授权已取消。已有连接不受影响，可以选择服务重新登录。' : '授权未完成。请检查应用的回调地址、权限和授权是否过期，然后重新登录。'), true);
       }
-      if (notice && panelFor(notice.service)) { const feedback = panelFor(notice.service).querySelector('[data-connector-feedback]'); output(feedback, (box.dataset.setupId ? feedback.textContent + ' ' : '') + notice.message); remember(noticeKey, null); if (notice.replaces && !box.dataset.setupId) offerReplacement(panelFor(notice.service), notice.id, notice.replaces); }
+      if (notice && panelFor(notice.service)) {
+        const feedback = panelFor(notice.service).querySelector('[data-connector-feedback]'), offered = notice.replaces && !box.dataset.setupId && offerReplacement(panelFor(notice.service), notice.id, notice.replaces);
+        output(feedback, (box.dataset.setupId ? feedback.textContent + ' ' : '') + notice.message + (offered ? ' ' + L('下面可以把用到原来那条的地方换到新连接。') : '')); remember(noticeKey, null);
+      }
       if (connected && panelFor(connected)) output(panelFor(connected).querySelector('[data-connector-feedback]'), L('官方授权已完成。请回到原来的应用窗口继续，或在这里设置使用范围。'));
       box.querySelectorAll('[data-connector-next-link]').forEach(link => {
         const project = params.get('project') || /^\\/projects\\/([^/]+)/.exec(location.pathname)?.[1];

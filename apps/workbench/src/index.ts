@@ -76,6 +76,7 @@ export {
 export { selectorNames, splitPluginStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";
+export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";

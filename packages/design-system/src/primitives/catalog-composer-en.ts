@@ -17,6 +17,7 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "选择送达方式": "Choose how it is delivered",
   "发送（⌘↵）": "Send (⌘↵)",
   "添加文件与资料": "Add files and materials",
+  "语音输入（还没有接上）": "Voice input (not connected yet)",
   "停止这一轮": "Stop this turn",
   "发给 {who} 的话": "Message to {who}",
   "移除 {name}": "Remove {name}",
@@ -78,4 +79,10 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "从这台电脑选，或直接拖进输入框": "Pick from this computer, or drag them into the input",
   "Todo · 待办": "Todo · To-dos",
   "没有可选的待办：这个项目里还没有建": "No to-dos to pick: none created in this project yet",
+  "麦克风图标 / Mic": "Mic",
+  "只占位置：语音输入还没有接上（第 53 批）。放在输入框底行右侧，停止和发送的左边。":
+    "Holds the place only: voice input is not connected yet (batch 53). It sits on the right of the input's bottom row, before Stop and Send.",
+  "两个尺寸": "Two sizes",
+  "在按钮里 · 常态与不可用": "In a button · normal and unavailable",
+  "语音输入": "Voice input",
 };

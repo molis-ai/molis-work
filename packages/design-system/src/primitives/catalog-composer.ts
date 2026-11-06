@@ -1,6 +1,6 @@
 // The board's parts for the unified input (specs/unified-input-voice/implementation-plan.md §3.6, UIC-04): the multi-row
-// composer shell `mw-composer` and the menu item's description line `mw-menu__desc` (the microphone glyph and its place in the
-// bar come with K0c, which owns the SDK's icon names). Like the patterns in
+// composer shell `mw-composer`, the menu item's description line `mw-menu__desc` and the microphone glyph `mic` (a placeholder
+// until voice input lands in batch 53). Like the patterns in
 // catalog-patterns.ts they live on the board first: the rules below are the board's own (not in the served sheets) and move into
 // the page sheets with the component that first uses them (K2, together with the `mw-upload`, `mw-tag` and `mw-btn-group` rules
 // the shell is built from). The shell holds only existing controls; it adds the box, its rows and its states.
@@ -70,13 +70,16 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-menu__item--described .mw-menu__shortcut { grid-area: 1 / 3; }
   .mw-menu__desc { grid-column: 2 / -1; color: var(--muted); font-size: 12px; font-weight: var(--weight-body, 400); line-height: 18px; text-wrap: pretty; word-break: keep-all; overflow-wrap: anywhere; }
 
-  .mw-catalog :is([data-primitive="composer"], [data-primitive="menu-desc"]) .mw-catalog__specimen { margin: 0; }
+  .mw-catalog :is([data-primitive="composer"], [data-primitive="menu-desc"], [data-primitive="mic"]) .mw-catalog__specimen { margin: 0; }
   .mw-catalog [data-primitive="composer"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
   /* The specimen whose ▾ menu is open keeps room above itself for it, so the menu stays inside its own cell. */
   .mw-catalog [data-catalog-menu-room] { padding-top: var(--catalog-menu-room, 240px); }
   .mw-catalog [data-catalog-focus] .mw-composer__box { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
   .mw-catalog [data-primitive="menu-desc"] .mw-menu { position: static; display: grid; width: min(340px, 100%); }
   .mw-catalog [data-primitive="menu-desc"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); align-items: start; }
+  .mw-catalog-mic { display: grid; justify-items: center; align-content: center; gap: 8px; min-width: 72px; min-height: 80px; padding: 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); color: var(--ink); font-size: 11px; }
+  .mw-catalog-mic > svg { width: var(--mic-size); height: var(--mic-size); }
+  .mw-catalog-mic > small { color: var(--muted); font-variant-numeric: tabular-nums; }
 `;
 
 const ghostIcon = (label: string, name: Parameters<typeof icon>[0], attrs: Record<string, string | boolean> = {}) =>
@@ -131,6 +134,8 @@ function shell(say: Say, options: ShellOptions): string {
     : renderButton({ label: say("发送"), variant: "primary", size: "icon", icon: "send", iconOnly: true, loading: state === "sending", disabled: empty || busy || disabled, attrs: { title: say("发送（⌘↵）") } });
   const off: Record<string, boolean> = disabled ? { disabled: true } : {};
   const add = `<div class="mw-compose__anchor">${ghostIcon(say("添加文件与资料"), "plus", { "aria-haspopup": "menu", "aria-expanded": "false", ...off })}</div>`;
+  // The microphone holds its place at the start of the end group; voice input is not connected yet (batch 53), so it says so.
+  const mic = ghostIcon(say("语音输入（还没有接上）"), "mic", { disabled: true });
   const stop = running ? renderButton({ label: say("停止"), variant: "danger-outline", size: "sm", attrs: { title: say("停止这一轮") } }) : "";
   return `<div class="mw-composer" data-slot="composer"${state ? ` data-state="${state}"` : ""}${options.focus ? " data-catalog-focus" : ""}${options.menuRoom ? " data-catalog-menu-room" : ""}>
     ${receiver}
@@ -138,7 +143,7 @@ function shell(say: Say, options: ShellOptions): string {
       ${options.files ?? ""}${restored}
       <div class="mw-composer__text"><textarea class="mw-composer__input" data-fit rows="1" aria-label="${escapeHtml(say("发给 {who} 的话", { who: to }))}" placeholder="${escapeHtml(options.placeholder ?? say("让助理做点什么…"))}"${disabled ? " disabled" : ""}>${escapeHtml(options.text ?? "")}</textarea></div>
       ${status}
-      <div class="mw-composer__foot"><div class="mw-composer__start">${add}</div><div class="mw-composer__end">${stop}${send}</div></div>
+      <div class="mw-composer__foot"><div class="mw-composer__start">${add}</div><div class="mw-composer__end">${mic}${stop}${send}</div></div>
     </div>
   </div>`;
 }
@@ -191,5 +196,14 @@ export function menuDescSection(say: Say): string {
     ${specimen(escapeHtml(say("不可选并写原因")), renderMenu({ items: renderMenuGroup({ label: modes, items: deliveryItems(say, "catalog-menu-desc-refused", say("这个对象不支持打断：它一次只做完一整轮")) }) }))}
     ${specimen(escapeHtml(say("不带快捷键 · 添加")), add)}
     ${specimen(escapeHtml(say("长说明没有标点 · 在框内折行")), renderMenu({ items: renderMenuGroup({ items: renderMenuItem({ label: say("合并到上一条"), iconName: "message", description: say("把这句话接在你上一条还没被读到的消息后面一起送给助理而不另起一条") }) }) }))}
+  </div>`);
+}
+
+export function micSection(say: Say): string {
+  const glyph = (size: 16 | 20) => `<span class="mw-catalog-mic" style="--mic-size: ${size}px">${icon("mic")}<small>${size}px</small></span>`;
+  const voice = say("语音输入（还没有接上）");
+  return section("mic", escapeHtml(say("麦克风图标 / Mic")), `<p class="mw-catalog__hint">${escapeHtml(say("只占位置：语音输入还没有接上（第 53 批）。放在输入框底行右侧，停止和发送的左边。"))}</p><div class="mw-catalog__specimens">
+    ${specimen(escapeHtml(say("两个尺寸")), glyph(16) + glyph(20))}
+    ${specimen(escapeHtml(say("在按钮里 · 常态与不可用")), ghostIcon(voice, "mic") + ghostIcon(voice, "mic", { disabled: true }) + renderButton({ label: say("语音输入"), variant: "secondary", icon: "mic" }))}
   </div>`);
 }

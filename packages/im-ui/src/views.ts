@@ -28,7 +28,7 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
     q('[data-member-count]').textContent = (state.room.project_id ? '项目主群 · ' : '群聊 · ') + state.members.length + ' 位成员';
     markup(q('[data-member-avatars]'), state.members.slice(0, 4).map(avatar).join(''));
     q('[data-action="invite"]').hidden = Boolean(state.room.project_id) || state.room.owner_id !== member?.id;
-    markup(q('[data-destination="group"]'), '发到 <strong>主群</strong>');
+    markup(q('[data-destination="group"]'), '发给 <strong>主群</strong>');
     q<HTMLTextAreaElement>('#im-group-input').placeholder = '发送消息…';
     markup(q('[data-thread-strip]'), '<button type="button" class="im-thread-chip is-home' + (!selectedThread ? ' is-active' : '') + (seen[''] ? ' is-unread' : '') + '" data-action="close-thread" aria-pressed="' + (!selectedThread) + '">主群</button>' + state.threads.map(thread => '<button type="button" class="im-thread-chip' + (thread.id === selectedThread ? ' is-active' : '') + (seen[thread.id] ? ' is-unread' : '') + '" data-action="select-thread" data-id="' + escape(thread.id) + '" title="' + escape(thread.title) + ' · ' + thread.reply_count + ' 条回复" aria-pressed="' + (thread.id === selectedThread) + '"><span># ' + escape(thread.title) + '</span></button>').join('') + '<button type="button" class="im-thread-chip im-thread-add" data-action="new-topic" aria-label="新建公开话题" title="新建公开话题">' + icon('plus') + '</button>');
   };

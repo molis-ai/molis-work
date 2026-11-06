@@ -336,6 +336,12 @@ const headErrors = (measured, budget, base) => {
 // spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// P3-0a (第 18 批, #1884; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin host
+// contract gains `taskGrants`, and until P3-1 draws the area the frame answers it with a refusing placeholder:
+// plugin-frame.js +64 B, keyed on main's budget 188354 (after #1880). The plugin-frame.js entry keyed on 208271 (the +54 B #1843
+// reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
+// Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
+// one short fixed message; no cast.
 // 13④a 连接页 ASC-73～79，#1886，统筹审过放行 (2026-11-06): the settings' 服务连接 page as plan A — rows grouped by use that open in
 // place, an account's four rows, 换账号 among accounts, the steps, 高级 and its draft. Keyed on merge-base 875fb6be (after #1877's
 // compiled client and minified sheets), so the ④b entries above are spent and replaced. settings.css and workbench.css +712 B
@@ -347,7 +353,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [760704, 761416],
   "/assets/molis-work-workbench.css": [1107725, 1108437],
   "/assets/molis-work-workbench.js": [885295, 892831],
-  "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-plugin-frame.js": [188354, 188418],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],

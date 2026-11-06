@@ -568,6 +568,8 @@ Runtime 插件用 `context.services.materials` 读取材料：Manifest 声明 `m
 
 声明 Agent 的插件可用 `services.savedHistory.view(json)` 校验并展示已持有的 SDK 归档。该服务是纯解析，不读会话文件、不启动 Runtime、不导入会话；停止的实例不能调用。
 
+导出已有历史用 `services.savedHistory.read(runtimeId, sessionId)`，传入记录原有的 Runtime 与会话标识；宿主校验当前授权、Runtime 支持情况及项目、插件、actor 归属。插件不按引擎名分支，不把其他 Runtime 的同名会话交给默认引擎读取；不支持时保留待同步记录并报告失败。
+
 Shelf 的 PDF 预览与文字提取、OCR 同样走此端口。语言选项属于提取请求，逐行置信度来自 `pages[].lines`，不以页平均值代替；“待确认”、来源标题和不完整提示由业务组织。多选逐项处理。标准输入仍限 25 MiB，Shelf 由可信 Host 明确采用 32 MiB，不改变其他上传端限额。原调用撤权、取消或输入 hash 改变后不写成果或失败成果。
 
 显式网页读取用同一合同的 `MaterialWebsiteReader`：Host 限制 HTTP(S)、跳转、总时限与解压后字节数，复用 HTML 提取；传递 signal / beforeDispatch，业务提交前仍需 beforeEffect 和来源版本检查。Shelf 只组织网页材料、链接与失败提示，Artifacts 只组织导入文档，不得互相导入解析实现。普通抓取失败可以按产品约定保留链接，取消或撤权不能退化成“成功保存链接”。

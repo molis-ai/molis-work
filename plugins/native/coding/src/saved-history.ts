@@ -8,11 +8,11 @@ export function readCodingSavedHistory(db:PluginDatabaseReader,projectId:string,
  return db.all('SELECT archive_json FROM coding_saved_history WHERE project_id=? AND session_id=? AND (? IS NULL OR source_id<>?) ORDER BY source_id',[projectId,sessionId,localSource,localSource]).map(row=>String(row.archive_json));
 }
 /** Refresh immutable derived exports through the trusted execution owner, then recheck the original binding. */
-export async function refreshCodingSavedHistory(db:PluginDatabase,projectId:string,read:(runtimeSessionId:string)=>Promise<string>,authorize:()=>void,validate:(json:string)=>{sessionId:string}):Promise<void> {
+export async function refreshCodingSavedHistory(db:PluginDatabase,projectId:string,read:(runtimeId:string,runtimeSessionId:string)=>Promise<string>,authorize:()=>void,validate:(json:string)=>{sessionId:string}):Promise<void> {
  authorize();const rows=db.all("SELECT session_id,runtime_id,runtime_session_id FROM coding_sessions WHERE project_id=? AND runtime_session_id IS NOT NULL AND state IN ('done','failed','stopped','cancelled')",[projectId]);
  for(const row of rows){
-  authorize();if(row.runtime_id!=='prologue')throw errors.history_invalid('当前会话 Runtime 不支持可携带历史');
-  const json=await read(String(row.runtime_session_id));authorize();const source=validate(json).sessionId;
+  authorize();
+  const json=await read(String(row.runtime_id),String(row.runtime_session_id));authorize();const source=validate(json).sessionId;
   if(source!==row.runtime_session_id)throw errors.history_invalid('会话历史来源不匹配');
   await db.transaction(async()=>authorize(),transaction=>{
    authorize();const current=transaction.get('SELECT runtime_id,runtime_session_id FROM coding_sessions WHERE project_id=? AND session_id=?',[projectId,row.session_id!]);

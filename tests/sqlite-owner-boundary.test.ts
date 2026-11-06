@@ -76,3 +76,37 @@ test('null-schema count and rowid reads never borrow an owner name from an attac
     assert.equal(run('SELECT count(*) AS n FROM main.records')[0]!.n,1);
   } finally {db.close();}
 });
+
+test('live schema inspection has bounded query cost as trusted triggers grow, and still rejects a subsequent change', t => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec('CREATE TABLE records(id TEXT); CREATE TABLE journal(value TEXT);');
+    for (let index = 0; index < 64; index++) db.exec(`CREATE TRIGGER sync_track_${index} AFTER INSERT ON records BEGIN INSERT INTO journal VALUES(NEW.id); END;`);
+    const expected = new Map((db.prepare("SELECT name,sql FROM sqlite_schema WHERE type='trigger'").all() as {name:string;sql:string}[]).map(row => [row.name,row.sql]));
+    const boundary = nativeSqliteOwnerBoundary(db, new Set(['records']), expected);
+    const prepare = db.prepare.bind(db); let queries = 0;
+    t.mock.method(db, 'prepare', (sql: string) => { queries++; return prepare(sql); });
+    const read = () => boundary('SELECT count(*) AS n FROM records', [], 'read', () => db.prepare('SELECT count(*) AS n FROM records').get());
+    assert.equal(read()!.n, 0);
+    assert.ok(queries <= 4, `a single read must not issue a metadata query per trigger (${queries} queries)`);
+    t.diagnostic(`SQL calls for one owner read with 64 trusted triggers: ${queries}`);
+    db.exec('DROP TRIGGER sync_track_63');
+    assert.throws(read, {code:'actions.forbidden'}, 'the next read inspects the live schema; it cannot reuse stale trust');
+  } finally { db.close(); }
+});
+
+test('live schema inspection refuses foreign tables with case-variant JSON table-function names', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec('CREATE TABLE records(id TEXT);');
+    const boundary = nativeSqliteOwnerBoundary(db, new Set(['records']), new Map());
+    const read = (sql: string) => boundary(sql, [], 'read', () => db.prepare(sql).all());
+    for (const name of ['JSON_EACH', 'Json_Tree']) {
+      db.exec(`CREATE TABLE ${name}(value TEXT); INSERT INTO ${name} VALUES('foreign secret');`);
+      assert.throws(() => read(`SELECT value FROM ${name}`));
+      assert.throws(() => read(`SELECT count(*) FROM ${name}`));
+      db.exec(`DROP TABLE ${name}`);
+    }
+    assert.deepEqual(read("SELECT value FROM json_each('[1,2]')").map(row => row.value), [1,2]);
+  } finally { db.close(); }
+});

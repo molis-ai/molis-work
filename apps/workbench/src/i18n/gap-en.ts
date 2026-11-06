@@ -13,20 +13,11 @@ export const GAP_EN: Record<string, string> = {
   "创作数据格式版本无效，原内容已保留":"The authoring data format is unsupported. The original content is kept.",
   "草稿编辑版本已达上限，原内容已保留":"The draft's editing version reached its limit. The original content is kept.",
   "编码会话与草稿":"Coding sessions and drafts",
-  "草稿已在别处更新，当前输入已保留。":"This draft changed elsewhere. Your current input is kept.",
-  "对比已保存草稿":"Compare saved draft",
-  "草稿保存回执无效，当前输入已保留":"The save receipt is invalid. Your current input is kept.",
-  "请先对比已保存草稿，当前输入已保留":"Compare the saved draft first. Your current input is kept.",
-  "已保存草稿暂不可读，当前输入已保留":"The saved draft cannot be read. Your current input is kept.",
+
   "本窗口待答草稿暂不可读，原内容已保留":"This window's answer draft cannot be read. The original content is kept.",
-  "对比草稿":"Compare drafts",
+
   "当前输入":"Current input",
-  "已保存草稿":"Saved draft",
-  "待答内容":"Draft answers",
-  "输入已变化，请重新打开对比":"Your input changed. Reopen the comparison.",
-  "采用已保存草稿":"Use saved",
-  "保存当前输入":"Save mine",
-  "已采用保存的草稿":"Saved draft adopted",
+
   "草稿已保存":"Draft saved",
   "草稿已更新，当前修改已保留，请核对后再保存":"The draft changed. Your edits are kept; compare before saving.",
   "注意事项与处理历史":"Attention items and disposition history",

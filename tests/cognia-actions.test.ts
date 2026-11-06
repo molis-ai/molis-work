@@ -19,9 +19,9 @@ function fixture(t: { after(fn: () => Promise<void>): void }, completeText: Host
 }
 const file = (path: string, text: string) => ({ path, data: Buffer.from(text).toString("base64") });
 
-test("S-34 PCSYNC-15 Cognia v2 requires the read etag and refuses stale content without adding a version", async t => {
+test("S-34 PCSYNC-15 Cognia requires the read etag and refuses stale content without adding a version", async t => {
   const f = fixture(t);
-  assert.equal(actions.read.version, 2); assert.equal(actions.updateMaterial.version, 2);
+  assert.equal(actions.read.version, 1); assert.equal(actions.updateMaterial.version, 1);
   const { material } = await f.bound.invoke(actions.createMaterial, { title: "Original", body: "Original body" });
   const opened = await f.bound.invoke(actions.read, { id: material.id });
   await assert.rejects(f.service.invoke(f.caller, actions.updateMaterial, { id: material.id, title: "Missing token", body: "Must not save" }), { code: "actions.input_invalid" });

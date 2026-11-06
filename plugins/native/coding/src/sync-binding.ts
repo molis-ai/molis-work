@@ -10,7 +10,7 @@ export function syncBindings(context:PluginStartContext):PluginSyncBinding[] {
  const binding=service.sections('sessions',codingSections(json=>history.validate(json)));
  return [{...binding,async prepareUploads(){
   const key=JSON.stringify([projectId,CODING_CONTENT_REPLICA_ID,projectId]);
-  try{await refreshCodingSavedHistory(db,projectId,id=>history.read(id),()=>scope.assertActive(),json=>history.validate(json));return [];}
+  try{await refreshCodingSavedHistory(db,projectId,(runtime,id)=>history.read(runtime,id),()=>scope.assertActive(),json=>history.validate(json));return [];}
   catch(error){scope.assertActive();return [{key,error}];}
  }}];
 }

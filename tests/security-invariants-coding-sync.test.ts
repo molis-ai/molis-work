@@ -46,7 +46,7 @@ test('S-116 PCSYNC-22/23 Coding saved metadata and complete plans travel through
  (await f.stores[0]!.setBackground(noEffect,p,'session',[{task_id:'source-only-command',summary:'do not dispatch',started_at_ms:10}]));
  const next=f.replicas[0]!.next()!;assert.doesNotMatch(JSON.stringify(next.value),/source-only-native-directory|source-only-sdk-session|source-only-command|do not dispatch/);
  f.send();const copied=f.stores[1]!.get(p,'session'),draft=f.stores[1]!.plan(p,'session')!;
- assert.equal(copied.title,'Saved session');assert.equal(copied.goal_id,'unresolved-goal');assert.equal(copied.state,'idle');assert.equal(copied.runtime_session_id,null);
+ assert.equal(copied.title,'Saved session');assert.equal(copied.goal_id,'unresolved-goal');assert.equal(copied.state,'idle');assert.equal(copied.runtime_session_id,null);assert.equal(copied.runtime_id,'source-runtime','metadata keeps the declared Runtime instead of selecting an engine');
  assert.equal(f.stores[1]!.backgroundOf(p,'session'),null);assert.equal(f.stores[1]!.stepsOf(p,'session'),null);
  assert.equal(draft.source.task,'Original complete request');assert.equal(draft.source.workspace_path,'');assert.equal(draft.confirmed,null);assert.equal(draft.revision,1);
  assert.deepEqual(f.stores[1]!.inputs.read(p,'session'),{draft:'Complete unsent input',question_drafts:{question:'An unsent answer'},revision:1});
@@ -159,9 +159,9 @@ test('canonical saved SDK conversations round-trip through the Coding owner with
   // Match the production start-round receipt (start-round.ts): acknowledge each accepted SDK run through its owner before observing termination.
   await f.stores[0]!.roundStarted(noEffect,p,'conversation',new Date().toISOString(),null);
   for(;;){const run=await adapter.read(handle.ref);if(['completed','failed','stopped','cancelled'].includes(run.phase)){assert.equal(run.phase,'completed');break;}assert.ok(Date.now()<deadline);await new Promise(resolve=>setTimeout(resolve,5));}
-  if(index===0){await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:01:00Z');await refreshCodingSavedHistory(f.owners[0]!.client,p,id=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);f.send(++revision);assert.equal(f.replicas[0]!.counts().pending,0);}else{(await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:02:00Z'));assert.ok(f.replicas[0]!.counts().pending>0,'a newly completed SDK round protects the project until exported and acknowledged');}
+  if(index===0){await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:01:00Z');await refreshCodingSavedHistory(f.owners[0]!.client,p,(_runtime,id)=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);f.send(++revision);assert.equal(f.replicas[0]!.counts().pending,0);}else{(await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:02:00Z'));assert.ok(f.replicas[0]!.counts().pending>0,'a newly completed SDK round protects the project until exported and acknowledged');}
  }
- await refreshCodingSavedHistory(f.owners[0]!.client,p,id=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);
+ await refreshCodingSavedHistory(f.owners[0]!.client,p,(_runtime,id)=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);
  assert.equal(calls,2,'exporting saved history must not call the model');
  const event=f.send(++revision),wire=JSON.stringify(event.value);assert.match(wire,/Original first request/);assert.match(wire,/后续问题/);assert.match(wire,/Actual SDK reply 2/);
  const target=f.stores[1]!.get(p,'conversation');assert.equal(target.runtime_session_id,null);assert.equal(target.state,'idle');
@@ -174,4 +174,16 @@ test('canonical saved SDK conversations round-trip through the Coding owner with
  const bad=structuredClone(event),facts=(bad.value as {facts:Record<string,Record<string,import('@molis-ai/molis-work-contracts/platform/sync-transport').ProjectReplicaRow[]>>}).facts.coding_content!.coding_saved_history!;facts[0].archive_json=facts[0].archive_json.replace('Actual SDK reply 2','damaged reply');
  f.replicas[1]!.receive({...bad,operationId:'damaged-history',base:event.revision,revision:event.revision+1});assert.deepEqual(f.databases[1]!.db.prepare('SELECT archive_json FROM coding_saved_history').get(),before);assert.ok(f.replicas[1]!.conflicts().length);
  assert.equal(calls,2,'validation and target reads remain passive');
+});
+
+
+test('Coding history passes the stored Runtime identity and retains pending history when the provider refuses it', async t => {
+ const f=await fixture(t),p=f.project.project_id;await f.create(0);
+ await f.stores[0]!.setRuntimeSession(noEffect,p,'session','same-session-id','2026-10-19T00:01:00Z');
+ await f.stores[0]!.setState(noEffect,p,'session','done','2026-10-19T00:02:00Z');
+ const calls:string[][]=[];
+ await assert.rejects(refreshCodingSavedHistory(f.owners[0]!.client,p,async(runtime,id)=>{calls.push([runtime,id]);throw new Error('UNSUPPORTED_RUNTIME');},()=>{},readSavedAgentHistory),/UNSUPPORTED_RUNTIME/);
+ assert.deepEqual(calls,[['source-runtime','same-session-id']]);
+ assert.deepEqual(f.stores[0]!.savedHistory(p,'session'),[]);
+ assert.ok(f.replicas[0]!.counts().pending>0);
 });

@@ -3021,7 +3021,7 @@ export interface PluginHostServices {
         validate(json: string): {
             sessionId: string;
         };
-        read(sessionId: string): Promise<string>;
+        read(runtimeId: string, sessionId: string): Promise<string>;
     };
     readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;

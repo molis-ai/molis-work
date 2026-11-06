@@ -27,7 +27,7 @@ test("VUX-46 to VUX-50: detail views, settings pages and the menus and dialogs t
     const id = new URL(path,origin).searchParams.get("openPlugin"), child = id ? views[id] : undefined;
     if (!child) return null; await child.waitFor("document.querySelector('[data-work-surface]')"); return child;
   };
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 900);
   // A layer is read where it comes to rest, not while it grows in.
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=%2F` }, sessionId));
@@ -66,7 +66,7 @@ test("VUX-46 to VUX-50: detail views, settings pages and the menus and dialogs t
     { name: "phone", width: 390, height: 844, dark: false, touch: true, layers: false },
   ];
   for (const mode of MODES) {
-    await command("Emulation.setDeviceMetricsOverride", { width: mode.width, height: mode.height, deviceScaleFactor: 1, mobile: mode.touch }, sessionId);
+    await browser.setViewport(mode.width, mode.height, mode.touch);
     await command("Emulation.setTouchEmulationEnabled", mode.touch ? { enabled: true, maxTouchPoints: 5 } : { enabled: false }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" },
       { name: "prefers-color-scheme", value: mode.dark ? "dark" : "light" }, { name: "pointer", value: mode.touch ? "coarse" : "fine" }] }, sessionId);

@@ -17,7 +17,7 @@ test("a long Chinese project name leaves completion text and both actions on scr
   await waitFor("typeof molisWorkControlHeaders === 'function'");
   await evaluate(`(async () => {
     const response = await fetch('/api/settings/projects/${projectId}/rename', {
-      method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({display_name: ${JSON.stringify(PROJECT)}})
+      method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({display_name: ${JSON.stringify(PROJECT)}, expected_display_name: "目录交互验证"})
     });
     if (!response.ok) throw new Error(await response.text());
   })()`);

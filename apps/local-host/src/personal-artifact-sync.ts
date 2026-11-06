@@ -1,6 +1,7 @@
+import { openProjectVersionStores } from './project-version-stores.js';
 import {projectSyncCatalog} from './project-sync-catalog.js';
 import {
-  createArtifactReplication, createProcessItemReplication, validateArtifactReplication, validateProcessItemReplication, createArtifactSyncContent, ArtifactsModule,
+  createArtifactReplication, createProcessItemReplication, validateArtifactReplication, validateProcessItemReplication, createArtifactSyncContent,
 } from '@molis-ai/molis-work-module-artifacts';
 import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-work-plugin-sdk';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -111,7 +112,7 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
       check(); const project = projects.get(projectId);
       if (!project || reference.owner === 'artifacts' && !project.enabled) return false;
       if(reference.owner==='goals'){const found=hasGoal?.(projectId,reference.assetId)??false;check();return found;}
-      return withProject(projectId, store => reference.version !== undefined && !!new ArtifactsModule({db:store.db,appendEvent:event=>store.appendEvent(event),eventCursor:id=>store.eventCursor(id)}).query.getArtifactVersion(projectId,{artifact_id:reference.assetId,version:reference.version}), reference.owner === 'artifacts');
+      return withProject(projectId, store => reference.version !== undefined && !!openProjectVersionStores(store).artifacts.query.getArtifactVersion(projectId,{artifact_id:reference.assetId,version:reference.version}), reference.owner === 'artifacts');
     },
   };
 }

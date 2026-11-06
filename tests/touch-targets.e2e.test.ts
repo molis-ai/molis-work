@@ -629,12 +629,12 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   };
 
   /** The heights of the `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it. */
-  const menuRows = async (width: number, height: number) => {
+  const menuRows = async (width: number, height: number, descriptions = true) => {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: touch }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
     await waitFor("document.querySelectorAll('.mw-menu__item').length > 0", 20_000);
     await settle();
-    return evaluate<number[]>(`[...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => Math.round(el.getBoundingClientRect().height))`);
+    return evaluate<number[]>(`[...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && (${descriptions} || !el.classList.contains("mw-menu__item--described"))).map(el => Math.round(el.getBoundingClientRect().height))`);
   };
 
   return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, chooseExecutor, escapeReturns, evaluate, waitFor };
@@ -886,8 +886,9 @@ for (const scheme of ["light", "dark"] as const) {
       assert.ok(controls.some(control => w.short(control) < 44), `${name} · 1280: the desktop chrome is denser than 44px, as the exception says`);
     }
 
-    // What a plugin page's menu holds is 34px on a desktop window, as DESIGN.md writes it.
-    assert.deepEqual([...new Set(await w.menuRows(1280, 800))], [34], "mw-menu items keep their 34px with a fine pointer");
+    // Plain rows stay 34px; specimens with a second description line must grow without losing the floor.
+    assert.deepEqual((await w.menuRows(1280, 800)).filter(height => height < 34), [], "every menu row keeps the desktop floor");
+    assert.deepEqual([...new Set(await w.menuRows(1280, 800, false))], [34], "plain mw-menu items keep their 34px with a fine pointer");
 
     // What the bar opens keeps the desktop floor too (32px, 28px compact): nothing in its lists is smaller.
     await w.open(1280, 800, "", "true");

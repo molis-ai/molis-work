@@ -2,9 +2,6 @@
 
 空间级策略、增量传输、重试和状态。插件通过公共条目适配器提供格式与落库；不认识 Pages 的表结构。
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/sync-replication`
-- Migration Goals: `goal-reorg-f2`.
 
 ## 开发要求
 

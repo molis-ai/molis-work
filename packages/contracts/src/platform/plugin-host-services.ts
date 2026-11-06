@@ -67,7 +67,7 @@ export interface PluginHostServices {
     view(json: string): import("../services/agent-host.js").AgentSavedHistoryView;
     validate(json: string): {sessionId:string};
     /** Only canonical saved sessions owned by this project and plugin; never executes or imports. */
-    read(sessionId:string):Promise<string>;
+    read(runtimeId:string,sessionId:string):Promise<string>;
   };
   /** Public metadata of installations in this activation's scope. */
   readonly notifications?: import("./plugin-notifications.js").PluginNotificationClient;

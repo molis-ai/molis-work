@@ -35,12 +35,12 @@ export function codingContentReplicationDefinition(validateHistory?:(json:string
       {name:'coding_saved_history',columns:['project_id','session_id','source_id','archive_json'],keys:['project_id','session_id','source_id']},
       {name:'coding_inputs',columns:['project_id','session_id','revision','draft','questions_json'],keys:['project_id','session_id']},
     ],journalTypes:[],receiptOperations:[],sequenceFields:[],
-    project(rows){for(const row of rows.coding_sessions!)if(row.runtime_session_id!==null&&['done','failed','stopped','cancelled'].includes(String(row.state))&&!rows.coding_saved_history!.some(archive=>archive.session_id===row.session_id&&archive.source_id===row.runtime_session_id))throw errors.sync_active('原 SDK 历史尚未导出，完整记录和队列已保留',{sync_waiting:true});return {coding_saved_history:rows.coding_saved_history!,coding_plan_versions:[],coding_input_versions:[],coding_sessions:rows.coding_sessions!.map(row=>({...row,state:'idle',runtime_id:'prologue',runtime_session_id:null,steps_json:null,background_json:null})),
+    project(rows){for(const row of rows.coding_sessions!)if(row.runtime_session_id!==null&&['done','failed','stopped','cancelled'].includes(String(row.state))&&!rows.coding_saved_history!.some(archive=>archive.session_id===row.session_id&&archive.source_id===row.runtime_session_id))throw errors.sync_active('原 SDK 历史尚未导出，完整记录和队列已保留',{sync_waiting:true});return {coding_saved_history:rows.coding_saved_history!,coding_plan_versions:[],coding_input_versions:[],coding_sessions:rows.coding_sessions!.map(row=>({...row,state:'idle',runtime_session_id:null,steps_json:null,background_json:null})),
       coding_plan_drafts:rows.coding_plan_drafts!.map(row=>({...row,revision:0,draft_json:JSON.stringify(portablePlan(String(row.draft_json)))})),coding_inputs:rows.coding_inputs!.map(row=>({...row,revision:0}))};},
     validate(rows,projectId){
       if(rows.coding_plan_versions!.length||rows.coding_input_versions!.length)invalid();const ids=new Set<string>();
       for(const row of rows.coding_sessions!){
-        if(row.project_id!==projectId||!text(row.session_id)||!text(row.title,1000)||row.state!=='idle'||row.runtime_id!=='prologue'
+        if(row.project_id!==projectId||!text(row.session_id)||!text(row.title,1000)||row.state!=='idle'||!text(row.runtime_id)
           ||row.runtime_session_id!==null||row.steps_json!==null||row.background_json!==null||row.archived!==0&&row.archived!==1
           ||row.goal_id!==null&&!text(row.goal_id)||!stamp(row.created_at)||!stamp(row.updated_at))invalid();ids.add(String(row.session_id));
       }

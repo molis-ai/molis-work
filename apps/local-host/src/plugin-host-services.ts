@@ -1,6 +1,6 @@
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
 import { savedHistoryFor } from "./saved-history-host.js";
-import { savedAgentHistoryView, readSavedAgentHistory } from "@molis-ai/molis-work-service-agent-host";
+import { PROLOGUE_RUNTIME_ID, savedAgentHistoryView, readSavedAgentHistory } from "@molis-ai/molis-work-service-agent-host";
 import { pluginInteraction } from "./plugin-interaction.js";
 import { pluginNotificationsFor } from "./plugin-notification-service.js";
 import { pluginInstallationsFor } from "./plugin-installation-directory.js";
@@ -243,8 +243,9 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(manifest.agent ? { savedHistory: {
         view(json: string) { assertActive(); return savedAgentHistoryView(json); },
         validate(json:string) { assertActive(); return {sessionId:readSavedAgentHistory(json).sessionId}; },
-        async read(id:string) {
+        async read(runtimeId:string,id:string) {
           const check=()=>{assertActive();context.requireGrant("storage:private");};check();
+          if(runtimeId!==PROLOGUE_RUNTIME_ID)throw new ActionError("actions.unavailable","当前 Runtime 不支持可携带历史");
           if(!options.home?.directory)throw new ActionError("actions.unavailable","会话历史 Home 未装配");
           const result=await savedHistoryFor(options.home.directory).read(id,{project_id:options.project_id,plugin_id:manifest.plugin_id,actor_id:options.actor_id},check);
           check();return result;

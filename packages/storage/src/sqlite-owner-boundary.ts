@@ -4,6 +4,7 @@ import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SqliteBaselineDatabase } from './sqlite-baseline.js';
 
 type Authorizer = (action: number, first: string | null, second: string | null, database: string | null, origin: string | null) => number;
+type SchemaRow = {name: string; type: string; sql: string | null};
 type AuthorizedConnection = SqliteBaselineDatabase & {setAuthorizer(callback: Authorizer | null): void};
 export type PluginSqlExecution = <T>(sql: string, parameters: readonly PluginSqlValue[], mode: 'read' | 'write', execute: () => T) => T;
 const forbidden = () => new ActionError('actions.forbidden', '插件数据库语句越过当前业务库的权限边界');
@@ -24,14 +25,17 @@ export function nativeSqliteOwnerBoundary(connection: SqliteBaselineDatabase, ta
     if (active) throw forbidden();
     // SQLite reports CTE aliases in the same origin slot as triggers. Reserve every trusted trigger identifier in caller SQL,
     // so a CTE named after a trigger cannot borrow its technical-table privilege (quoted identifiers preserve this substring).
-    if ([...expectedTriggers.keys()].some(name => fold(sql).includes(fold(name)))) throw forbidden();
-    const schemaOrigins = new Set((db.prepare("SELECT name FROM sqlite_schema WHERE type IN ('trigger','view')").all() as {name: string}[]).map(row => fold(row.name)));
-    const jsonTables = new Set(['json_each','json_tree'].filter(name => !db.prepare("SELECT 1 FROM sqlite_schema WHERE name=?").get(name)));
-    const unambiguous = unambiguousMainTables(db);
+    const foldedSql = fold(sql);
+    if ([...expectedTriggers.keys()].some(name => foldedSql.includes(fold(name)))) throw forbidden();
+    // Re-read live metadata for every statement, in one query rather than one query per trusted trigger.
+    const schema = db.prepare('SELECT name, type, sql FROM main.sqlite_schema').all() as SchemaRow[];
+    const schemaOrigins = new Set(schema.filter(row => row.type === 'trigger' || row.type === 'view').map(row => fold(row.name)));
+    const triggers = new Map(schema.filter(row => row.type === 'trigger').map(row => [row.name, row.sql]));
+    const jsonTables = new Set(['json_each','json_tree'].filter(name => !schema.some(row => fold(row.name) === name)));
+    const unambiguous = unambiguousMainTables(db, schema);
     const trusted = new Set<string>();
     for (const [name, expected] of [...expectedTriggers, ...businessTriggers]) {
-      const found = db.prepare("SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?").get(name) as {sql: string} | undefined;
-      if (found?.sql !== expected) throw forbidden();
+      if (triggers.get(name) !== expected) throw forbidden();
       if (expectedTriggers.has(name)) trusted.add(fold(name));
     }
     const authorize: Authorizer = (action, first, second, database, origin) => {
@@ -59,8 +63,8 @@ export function nativeSqliteOwnerBoundary(connection: SqliteBaselineDatabase, ta
 }
 
 /** A null-schema authorizer read is safe only when that name resolves uniquely to a real main table. */
-function unambiguousMainTables(db: SqliteBaselineDatabase): ReadonlySet<string> {
-  const main = new Set((db.prepare("SELECT name FROM main.sqlite_schema WHERE type='table'").all() as {name:string}[]).map(row=>fold(row.name)));
+function unambiguousMainTables(db: SqliteBaselineDatabase, schema: readonly SchemaRow[]): ReadonlySet<string> {
+  const main = new Set(schema.filter(row => row.type === 'table').map(row => fold(row.name)));
   const schemas = db.prepare('PRAGMA database_list').all() as {name:string}[];
   for (const {name} of schemas) {
     if (name === 'main') continue;

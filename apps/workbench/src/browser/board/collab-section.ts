@@ -30,7 +30,7 @@ function chooseTopic(topic: HTMLElement, scope: HTMLElement): void {
   topic.querySelector(".mw-sr-only")?.remove();
   const status = scope.querySelector<HTMLElement>("[data-topic-status]"), to = scope.querySelector("[data-topic-to]");
   if (status) { status.textContent = topic.dataset.status ?? ""; status.dataset.tone = topic.dataset.tone ?? ""; }
-  if (to) to.textContent = `发到 ${topic.firstChild?.textContent ?? ""}`;
+  if (to) to.textContent = `发给 ${topic.firstChild?.textContent ?? ""}`;
 }
 
 function answer(card: HTMLElement, said: string | null): void {

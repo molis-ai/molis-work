@@ -70,8 +70,14 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
 }
 
 test("VUX-16: the box and send stay put through a round; pause and stop join send on one row; a shortened setting reads whole on hover", { timeout: 180_000 }, async (t) => {
-  const round = await oneRound(t, 1360, "zh"); if (!round) return;
+  // The case needs a bar that is one row yet too short for everything it holds. The composer is wider than 480px here (below
+  // that its settings take their own row, the case below), and narrower than what the bar's items want, so the model's name has to
+  // be cut. At 1360 the composer is capped at 622px, which stopped being too short once the Coding send modes got their short
+  // names (补充 / 打断并改向 / 下一轮再做, H4): the bar fit whole and nothing gave way. At 1100 it is about 528px.
+  const round = await oneRound(t, 1100, "zh"); if (!round) return;
   const { browser: { evaluate, waitFor, command, sessionId }, ready, running } = round;
+  const shell = await evaluate<number>(`document.querySelector('${coding} .coding-composer-shell').getBoundingClientRect().width`);
+  assert.ok(shell > 480, `the composer is wide enough to keep one row, so the bar is crowded rather than wrapped: ${shell}px`);
   assert.equal(ready.rows, 1); assert.equal(running.rows, 1, `running, the bar is one row: ${running.controls.join(" | ")}`);
   assert.deepEqual(running.controls.slice(-3), ["暂停", "停止", "发送"], "pause and stop sit with send, on the right");
   assert.deepEqual([ready.outside, running.outside], [[], []], "nothing leaves the composer");

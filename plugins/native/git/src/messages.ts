@@ -33,7 +33,7 @@ export const GIT_MESSAGES = {
   "git.commit.staged": { zh: "提交 {count} 个已暂存文件…", en: "Commit {count} {count|staged file|staged files}…" },
   "git.commit.merge": { zh: "完成合并提交…", en: "Finish the merge commit…" },
   "git.commit.nothing": { zh: "没有已暂存的文件", en: "No staged files" },
-  "git.commit.handed": { zh: "已放入 Coding 这一轮的提交说明，确认或修改后再提交。", en: "The commit message from this Coding round is in. Check or edit it, then commit." },
+  "git.commit.handed": { zh: "已放入 Coding 这一轮的提交说明，确认或修改后再提交。", en: "The commit message from this Coding turn is in. Check or edit it, then commit." },
   "git.commit.empty-index": { zh: "暂存区是空的，先暂存要提交的文件。", en: "Nothing is staged. Stage the files to commit first." },
   "git.commit.need-message": { zh: "请写提交说明，或按暂存内容生成一份再修改。", en: "Write a commit message, or draft one from what's staged and edit it." },
   "git.commit.message": { zh: "提交信息", en: "Commit message" },

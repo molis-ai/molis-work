@@ -35,6 +35,10 @@ test("VUX-40: the page's L and the Host's L fill the same way, and every agreein
     const key = "服务提供 {count} 个模型，选一个加进列表";
     assert.equal(host.L(key, { count }), expected);
     assert.equal(page.L!(key, { count }), expected);
+    // T01-TAB-COUNT-01: the navigation board follows the same count rule.
+    const tabs = `${count} ${count === 1 ? "tab" : "tabs"}`;
+    assert.equal(host.L("{n} 张", { n: count }), tabs);
+    assert.equal(page.L!("{n} 张", { n: count }), tabs);
   }
   // An agreeing word without its number would read "file" alone; the Chinese has the number, so the English shows it too.
   // The Plugins' words are in their Manifests: stable-key words (zh and en) and English for words still keyed by their Chinese text.

@@ -122,6 +122,8 @@ try {
   const otherTx=await otherAuth.create({purpose:'LOGIN',method:'EMAIL_PASSWORD'},currentControl);await otherAuth.submit(otherTx.handle,{step:'PASSWORD_LOGIN',email,password},currentControl);await otherAuth.submit(otherTx.handle,{step:'COMPLETE'},currentControl);
   assert.equal((await otherSession.readSession(currentControl)).user.displayName,'Work five','other product reads central profile');
   browser=await ChromeHarness.start(join(home,'chrome'));assert.ok(browser);page=await browser.page();await page.command('Page.enable');await page.viewport(1440,900);await Promise.all([browser.event('Page.domContentEventFired'),page.command('Page.navigate',{url:origin})]);await page.wait("document.readyState==='complete'");
+  // T01-ACCOUNT-READY-01: wait for the initial client paint before selecting its exit button.
+  await page.wait("!document.querySelector('#cx-app') || document.querySelector('#cx-app').getAttribute('aria-busy')==='false'");
   if(await page.evaluate("Boolean(document.querySelector('#cx-exit'))")){await Promise.all([browser.event('Page.domContentEventFired'),page.click('#cx-exit')]);await page.wait("!document.querySelector('#cx-exit')");}
   const clickText=async text=>{await page.command('Page.bringToFront');await page.evaluate(`{const b=[...document.querySelectorAll('.account-dialog button')].find(b=>b.textContent===${JSON.stringify(text)});if(!b)throw Error('Missing '+${JSON.stringify(text)});document.querySelectorAll('[data-test-click]').forEach(b=>b.removeAttribute('data-test-click'));b.dataset.testClick='';}`);await page.click('[data-test-click]');};
   const ready=()=>page.wait("!document.querySelector('.account-form').hasAttribute('aria-busy')");

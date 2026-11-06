@@ -100,6 +100,8 @@ try {
   process.stdout.write('PASS WORK-04 HTTP: both providers, callback state/origin/shape/replay, cancellation, late token refusal, restart, unsafe provider URL\n');
   browser = await ChromeHarness.start(join(home, 'chrome')); assert.ok(browser);
   page = await browser.page(); process.stdout.write('Chrome: navigating Work entry\n'); await page.command('Page.enable'); await page.viewport(1440, 900); await Promise.all([browser.event('Page.domContentEventFired'), page.command('Page.navigate', { url: origin })]); await page.wait("document.readyState==='complete'");
+  // T01-ACCOUNT-READY-01: wait for the initial client paint before selecting its exit button.
+  await page.wait("!document.querySelector('#cx-app') || document.querySelector('#cx-app').getAttribute('aria-busy')==='false'");
   process.stdout.write('Chrome: entry loaded\n');
   if (await page.evaluate("Boolean(document.querySelector('#cx-exit'))")) { await Promise.all([browser.event('Page.domContentEventFired'), page.click('#cx-exit')]); await page.wait("!document.querySelector('#cx-exit')"); }
   process.stdout.write('Chrome: local entry ready\n');

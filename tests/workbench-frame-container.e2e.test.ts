@@ -13,6 +13,33 @@ import { boardSnapshot, GoalProjectApplication } from "./fixtures/goal-applicati
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
+/** A separate same-origin Window writes storage; the receiver runs its real storage listener. */
+async function syncFrameStorage(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, change: string, receiver = "window", redundant = false) {
+  const receipt = await browser.evaluate<{ trusted: boolean; oldValue: string; newValue: string; camera: { x: number; y: number; z: number } }>(`new Promise(resolve => {
+    const view=${receiver},key=${JSON.stringify("molis-work-frame-container:" + browser.projectId + ":goal:CORE")};
+    const oldValue=view.localStorage.getItem(key),value=JSON.parse(oldValue);
+    ${change};
+    const newValue=JSON.stringify(value${redundant ? ",null,2" : ""});
+    if(newValue===oldValue)throw Error('The storage writer must actually change the saved value');
+    const writer=view.document.createElement('iframe');writer.hidden=true;view.document.body.append(writer);
+    const done=event=>{
+      if(event.key!==key||event.newValue!==newValue)return;
+      view.removeEventListener('storage',done);
+      queueMicrotask(()=>{
+        writer.remove();
+        const matrix=new view.DOMMatrix(view.getComputedStyle(view.document.querySelector('[data-frame-world]')).transform);
+        resolve({trusted:event.isTrusted,oldValue:event.oldValue,newValue:event.newValue,camera:{x:matrix.e,y:matrix.f,z:matrix.a}});
+      });
+    };
+    view.addEventListener('storage',done);
+    writer.contentWindow.localStorage.setItem(key,newValue);
+  })`);
+  assert.equal(receipt.trusted, true, "the browser delivers storage from another same-origin Window");
+  assert.notEqual(receipt.newValue, receipt.oldValue, "the other Window really writes storage");
+  assert.deepEqual(receipt.camera, JSON.parse(receipt.newValue).camera, "the visible camera consumes the incoming state");
+  return receipt;
+}
+
 test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goal pane; child messages and late withdrawn sources cannot add blocks", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null, undefined, undefined, {}, undefined, undefined, true); if (!b) return;
   const { command, sessionId, projectId, origin } = b;
@@ -202,15 +229,64 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   const dropped = await b.evaluate<{trusted:boolean;raw:string}>("document.querySelector('iframe[data-t403-goal-pane]').contentWindow.t403FrameTrace.find(event=>event.type==='drop'&&event.trusted)");
   assert.equal(dropped.trusted,true,"the target Host receives the real trusted drop");
   assert.equal(JSON.parse(dropped.raw).reference.id,item.item_id);
-  const stored = () => b.evaluate<{ blocks: Array<{ kind: string; itemId: string; title: string; x: number; y: number }> }>(`JSON.parse(localStorage.getItem('molis-work-frame-container:${projectId}:goal:CORE'))`);
+  const stored = () => b.evaluate<{ camera: { x: number; y: number; z: number }; expanded: string; blocks: Array<{ id: string; kind: string; itemId: string; title: string; x: number; y: number }> }>(`JSON.parse(localStorage.getItem('molis-work-frame-container:${projectId}:goal:CORE'))`);
   const firstStored = await stored(); assert.equal(firstStored.blocks[0]!.kind, "feed"); assert.equal(firstStored.blocks[0]!.itemId, item.item_id); assert.equal(firstStored.blocks[0]!.title, item.title);
   assert.ok(firstStored.blocks[0]!.x >= 16 && firstStored.blocks[0]!.y >= 16, "the actual target canvas chooses the stored position");
   await b.click(`[data-tab-pane="${goalPane}"] .tab-item[aria-current] .tab-item-trigger`);
-  const blockPoint = await b.evaluate<{x:number;y:number}>(`(() => {const frame=document.querySelector('iframe[data-t403-goal-pane]'),doc=frame.contentDocument,node=doc.querySelector('[data-frame-block-kind=feed]'),rect=node.getBoundingClientRect(),outer=frame.getBoundingClientRect(),local={x:rect.left+80,y:rect.top+20};if(!node.contains(doc.elementFromPoint(local.x,local.y)))throw Error('Frame block is not hit');return{x:outer.x+local.x,y:outer.y+local.y};})()`);
-  await command("Input.dispatchMouseEvent",{type:"mousePressed",...blockPoint,button:"left",buttons:1,clickCount:1},sessionId);
+  const goalWindow = "document.querySelector('iframe[data-t403-goal-pane]').contentWindow";
+  const gesture = <T>(expression: string) => b.evaluate<T>(`(() => {const view=${goalWindow},doc=view.document,p=view.t403Gesture;return (${expression});})()`);
+  await b.evaluate(`(() => {
+    const view=${goalWindow},doc=view.document,p=view.t403Gesture={events:[],reads:[],target:null,article:null};
+    for(const type of ['pointerdown','pointerup','click'])doc.addEventListener(type,event=>{
+      if(type==='pointerdown'){p.target=event.target;p.article=event.target.closest('[data-frame-block]');}
+      if(!p.article)return;
+      p.events.push({type,trusted:event.isTrusted,sameArticle:event.target.closest('[data-frame-block]')===p.article});
+    },true);
+    const fetch=view.fetch;view.fetch=(input,...args)=>{
+      const url=String(input?.url||input);if(url.includes('/api/stage/')&&url.includes('/objects/'))p.reads.push(url);
+      return fetch.call(view,input,...args);
+    };
+  })()`);
+  const pressBlock = async () => {
+    await gesture("(p.events=[],p.reads=[],p.target=null,p.article=null)");
+    const point = await b.evaluate<{x:number;y:number}>(`(() => {const frame=document.querySelector('iframe[data-t403-goal-pane]'),doc=frame.contentDocument,node=doc.querySelector('[data-frame-block-kind=feed]'),rect=node.getBoundingClientRect(),outer=frame.getBoundingClientRect(),local={x:rect.left+80,y:rect.top+20};if(!frame.checkVisibility({visibilityProperty:true})||document.elementFromPoint(outer.x+local.x,outer.y+local.y)!==frame||!node.contains(doc.elementFromPoint(local.x,local.y)))throw Error('Frame block is not hit');return{x:outer.x+local.x,y:outer.y+local.y};})()`);
+    await command("Input.dispatchMouseEvent",{type:"mousePressed",...point,button:"left",buttons:1,clickCount:1},sessionId);
+    assert.equal(await gesture("p.events.some(event=>event.type==='pointerdown'&&event.trusted)"),true);
+    return point;
+  };
+  // FCS-03: changing the identity or deleting the pressed block must still invalidate its real gesture.
+  for (const change of [
+    `Object.assign(value.blocks[0],{kind:'inbox',itemId:${JSON.stringify(inboxEntry.entry_id)},itemRef:${JSON.stringify(inboxEntry.entry_id)},entryId:${JSON.stringify(inboxEntry.entry_id)}})`,
+    "value.blocks=[]",
+  ]) {
+    const point = await pressBlock();
+    const changed = await syncFrameStorage(b,change,goalWindow);
+    assert.equal(await gesture("p.target.isConnected||p.article.isConnected"),false,"changed block data discards the pressed DOM");
+    assert.deepEqual(await gesture("[...doc.querySelectorAll('[data-frame-block]')].map(node=>({id:node.dataset.frameBlock,kind:node.dataset.frameBlockKind}))"),JSON.parse(changed.newValue).blocks.map((block: { id: string; kind: string })=>({id:block.id,kind:block.kind})),"the changed identity or removal is actually drawn");
+    await command("Input.dispatchMouseEvent",{type:"mouseReleased",...point,button:"left",buttons:0,clickCount:1},sessionId);
+    assert.equal(await gesture("p.events.some(event=>event.type==='pointerup'&&event.trusted)"),true);
+    assert.equal((await stored()).expanded,"","a stale release cannot expand the removed or replacement block");
+    assert.deepEqual(await gesture("p.reads"),[],"a stale release cannot read either owner");
+    await syncFrameStorage(b,`Object.assign(value,${JSON.stringify(firstStored)})`,goalWindow);
+  }
+  // FCS-01/FCS-04: keep the original trusted click and owner assertions, interleaving a real camera-only write.
+  const blockPoint = await pressBlock();
+  const cameraSync = await syncFrameStorage(b,"value.camera.x+=1",goalWindow);
+  assert.deepEqual(JSON.parse(cameraSync.newValue).blocks,firstStored.blocks);
+  assert.equal(JSON.parse(cameraSync.newValue).expanded,firstStored.expanded);
+  assert.equal(await gesture("p.target.isConnected&&p.article.isConnected&&doc.querySelector('[data-frame-block]')===p.article"),true,"camera-only storage keeps the pressed target and the exact block node");
   await command("Input.dispatchMouseEvent",{type:"mouseReleased",...blockPoint,button:"left",buttons:0,clickCount:1},sessionId);
   try { await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-frame-block-body]')?.textContent.includes('Original material')"); }
   catch(error){t.diagnostic(JSON.stringify({stored:await stored(),goal:await b.evaluate("(()=>{const frame=document.querySelector('iframe[data-t403-goal-pane]');return{trace:frame.contentWindow.t403FrameTrace,html:frame.contentDocument.querySelector('[data-frame-block]')?.outerHTML}})()")}));throw error;}
+  assert.equal(await gesture("p.events.some(event=>event.type==='pointerup'&&event.trusted&&event.sameArticle)"),true,"the original block receives the trusted release");
+  assert.equal(await gesture("p.events.filter(event=>event.type==='click'&&event.trusted&&event.sameArticle).length"),1,"one real release produces one click on the original block");
+  assert.equal((await stored()).expanded,firstStored.blocks[0]!.id);
+  assert.equal(await gesture("p.reads.length"),1,"the click reads its owner once");
+  assert.match(await gesture<string>("p.reads[0]"),new RegExp("/api/stage/feed/objects/"+item.item_id));
+  await gesture("(p.body=doc.querySelector('[data-frame-block-body]'))");
+  await syncFrameStorage(b,"value.camera.x+=1",goalWindow);
+  assert.equal(await gesture("p.body.isConnected&&doc.querySelector('[data-frame-block-body]')===p.body&&p.body.dataset.loaded==='feed:'+"+JSON.stringify(item.item_id)),true);
+  assert.equal(await gesture("p.reads.length"),1,"camera-only storage does not reread the completed Feed body");
   const markSource = async (plugin: string) => {
     await b.waitFor(`[...document.querySelectorAll('iframe.tab-content-frame')].some(frame=>!frame.hidden&&frame.contentDocument?.body?.dataset.desktopSurface===${JSON.stringify(plugin)})`);
     await b.evaluate(`for(const frame of document.querySelectorAll('iframe.tab-content-frame')){frame.removeAttribute('data-t403-feed-pane');if(!frame.hidden&&frame.contentDocument?.body?.dataset.desktopSurface===${JSON.stringify(plugin)})frame.setAttribute('data-t403-feed-pane','')}`);
@@ -297,8 +373,8 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const decision = new AttentionModule(store.db, { exists: (_project, kind, id) => kind === "goal_decision" && id === "CORE" }).query.findForSubject(DEMO_PROJECT_ID, "goal_decision", "CORE", "io.molis.work.goals")[0]!;
   assert.ok(decision, "Goals creates its own pending decision before the cold picker opens");
   installProducers(store.db, { plugin_id: "example.writer", artifact_types: ["example.note"] });
-  openProjectVersionStores(store).artifacts.commands.registerVersion({ ...pinnedArtifact("Frame artifact"),
-    project_id: DEMO_PROJECT_ID, actor_id: "frame-container", artifact_id: "frame-note", version: 1,
+  for (const version of [1, 2]) openProjectVersionStores(store).artifacts.commands.registerVersion({ ...pinnedArtifact("Frame artifact", undefined, String(version)),
+    project_id: DEMO_PROJECT_ID, actor_id: "frame-container", artifact_id: "frame-note", version,
     artifact_type_id: "example.note", schema_version: 1,
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
     content: { kind: "inline", payload: { text: "Frame artifact" } }, metadata: {},
@@ -370,10 +446,49 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   assert.equal(feedPreview.hasForbidden, false);
   assert.equal(feedPreview.surface, "goals");
   assert.equal(feedPreview.expanded, 1);
-  await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=artifact]').click()");
+  // FCS-02: observe real GETs and hold the actual first response; no body or loaded marker is supplied by the test.
+  await evaluate(`(() => {
+    window.t403Artifact={reads:[]};const fetch=window.fetch;
+    window.fetch=(input,...args)=>{const url=String(input?.url||input);if(url.includes('/artifacts/frame-note/versions/'))t403Artifact.reads.push({url,method:args[0]?.method||input?.method||'GET'});return fetch.call(window,input,...args);};
+  })()`);
+  const firstArtifact = await sendBarrier(browser,[{urlPattern:"*/artifacts/frame-note/versions/1*",requestStage:"Response"}]);
+  try {
+    await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=artifact]').click()");
+    const response = await firstArtifact.next();
+    assert.equal(response.responseStatusCode,200,"the real owner produced the initial artifact response");
+    assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]').textContent"),/正在打开/);
+    assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]').dataset.loaded"),undefined);
+    assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded .artifact-facts')"),null,"the first response must arrive before any artifact facts appear");
+  } finally { await firstArtifact.close(); }
   const artifactPreview = await readPreview('.frame-reading .artifact-facts', '.artifact-actions, .artifact-raw');
   assert.match(artifactPreview.text, /example\.note/);
   assert.equal(artifactPreview.hasForbidden, false);
+  await waitFor("document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]')?.dataset.loaded==='artifact:frame-note#1'");
+  await evaluate("Object.assign(t403Artifact,{body:document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]'),facts:document.querySelector('[data-frame-block].is-expanded .artifact-facts'),id:document.querySelector('[data-frame-block].is-expanded').dataset.frameBlock})");
+  const repeatedArtifact = await sendBarrier(browser,[{urlPattern:"*/artifacts/frame-note/versions/1*",requestStage:"Request"}]);
+  try {
+    for (const redundant of [false,true]) {
+      const receipt = await syncFrameStorage(browser,redundant ? "" : "value.camera.x+=1","window",redundant);
+      const previous = JSON.parse(receipt.oldValue),incoming = JSON.parse(receipt.newValue);
+      assert.deepEqual(incoming.blocks,previous.blocks);
+      assert.equal(incoming.expanded,previous.expanded);
+      assert.equal(await evaluate("t403Artifact.body.isConnected&&t403Artifact.facts.isConnected&&document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]')===t403Artifact.body&&document.querySelector('[data-frame-block].is-expanded .artifact-facts')===t403Artifact.facts"),true,(redundant ? "redundant layout" : "camera-only storage")+" keeps the completed body and facts nodes");
+      assert.equal(await evaluate("t403Artifact.body.dataset.loaded"),"artifact:frame-note#1");
+      assert.deepEqual(await evaluate("t403Artifact.reads.map(read=>read.method)"),["GET"],"storage does not start a second artifact GET");
+    }
+  } finally { await repeatedArtifact.close(); }
+  const nextArtifact = await sendBarrier(browser,[{urlPattern:"*/artifacts/frame-note/versions/2*",requestStage:"Response"}]);
+  try {
+    await syncFrameStorage(browser,"value.blocks.find(block=>block.kind==='artifact').itemId='frame-note#2'");
+    assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded').dataset.frameBlock===t403Artifact.id"),true,"a genuine version change retains the block id and expanded selection");
+    assert.equal(await evaluate("t403Artifact.body.isConnected||t403Artifact.facts.isConnected"),false,"a genuine version change discards the old completed body");
+    assert.equal((await nextArtifact.next()).responseStatusCode,200);
+    assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]').dataset.loaded"),undefined);
+    assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]').textContent"),/正在打开/);
+  } finally { await nextArtifact.close(); }
+  await waitFor("document.querySelector('[data-frame-block].is-expanded [data-frame-reading=artifact]')?.dataset.artifactVersion==='2'&&document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]')?.dataset.loaded==='artifact:frame-note#2'");
+  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded .artifact-facts').textContent"),/Schema 1/);
+  assert.deepEqual(await evaluate("t403Artifact.reads.map(read=>({version:new URL(read.url,location.href).pathname.split('/').pop(),method:read.method}))"),[{version:"1",method:"GET"},{version:"2",method:"GET"}]);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=inbox]').click()");
   const inboxPreview = await readPreview('[data-frame-reading=inbox]', '[data-frame-block-retry]');
   assert.match(inboxPreview.text, /你手工加入/);
@@ -436,8 +551,8 @@ test("SYS-52 a Goal Frame drawn again with the same words keeps the title and ou
   assert.equal(await evaluate("document.querySelector('[data-frame-goal-title]').textContent"), core.title);
   assert.equal(await evaluate("document.querySelector('[data-frame-goal-outcome]').textContent"), core.outcome);
   const key = "molis-work-frame-container:" + projectId + ":goal:CORE";
-  // Selects part of one line, then has the Frame's own `storage` handler draw it again with the state it already has. The marker in the
-  // world proves the draw ran (it empties the world); the Text the person selected in is the one still in the page, and so is the selection.
+  // FCS-04: changing expanded still takes the redraw path even when the Goal words stay the same. The marker proves the draw ran;
+  // the Text the person selected in is the one still in the page, and so is the selection.
   const redrawKeeps = async (field: "title" | "outcome") => {
     const kept = await evaluate<{ drawn: boolean; connected: boolean; same: boolean; anchored: boolean; selected: string; expected: string }>(`(() => {
       const line = document.querySelector('[data-frame-goal-${field}]'), text = line.firstChild;
@@ -445,8 +560,9 @@ test("SYS-52 a Goal Frame drawn again with the same words keeps the title and ou
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
       const expected = selection.toString();
       const marker = document.createElement('i'); document.querySelector('[data-frame-world]').append(marker);
-      const value = localStorage.getItem(${JSON.stringify(key)}) || JSON.stringify({ camera: { x: 0, y: 0, z: 1 }, blocks: [], expanded: "" });
-      window.dispatchEvent(new StorageEvent('storage', { key: ${JSON.stringify(key)}, newValue: value }));
+      const value = JSON.parse(localStorage.getItem(${JSON.stringify(key)}) || JSON.stringify({ camera: { x: 0, y: 0, z: 1 }, blocks: [], expanded: "" }));
+      value.expanded = 'sys52-${field}';
+      window.dispatchEvent(new StorageEvent('storage', { key: ${JSON.stringify(key)}, newValue: JSON.stringify(value) }));
       return { drawn: !marker.isConnected, connected: text.isConnected, same: line.firstChild === text, anchored: getSelection().anchorNode === text,
         selected: getSelection().toString(), expected };
     })()`);

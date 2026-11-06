@@ -7,6 +7,7 @@
 ## 在做的
 
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 已完成本地隔离实现与验证；接续中央执行指引做集成收尾，真实存量与外部服务仍待补验。
+- [frame-camera-pointer-sync](frame-camera-pointer-sync/spec.md)：D 轨 Codex 修复 Frame 跨窗口相机同步导致真实点击与已加载正文失效，02 批接续集成；工程与浏览器回归执行中。
 
 - [team-memory](team-memory/spec.md)：独立团队记忆需求（BL-022）；像持续在线的 PMO 观察获准项目、沟通和工作，积累决策、风险、知识、偏好及协作模式，减少人与人／人与 AI／AI 与 AI 的上下文交接，支持主动协作、工作习惯与交付质量改善。成员个人发布仍需最终确认并告知不可撤回，管理员维护团队认知；形成、融合及使用策略待细化，尚未实现或验收。需求维护 Codex，实现待分配；不改变现有记忆 P0 边界。
 

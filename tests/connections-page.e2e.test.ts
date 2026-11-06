@@ -237,6 +237,25 @@ test("ASC-74: a connection whose service left the catalog reads who uses it when
   assert.deepEqual(exceptions, []);
 });
 
+test("ASC-73: a row opens in place to its natural height on the chevron's clock, not by animating its rows", { timeout: 120_000 }, async t => {
+  const browser = await openPage(t); if (!browser) return;
+  const { page, open, exceptions } = browser;
+  await open("gitlab");
+  await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+  const fold = (service: string) => `document.querySelector('[data-connector-item="${service}"] > .settings-connection-item__fold')`;
+  const motion = await page.evaluate<{ interpolate: string; properties: string; durations: string; closed: number; rows: string }>(`(() => {
+    const style = getComputedStyle(${fold("notion")});
+    return { interpolate: style.interpolateSize, properties: style.transitionProperty, durations: style.transitionDuration, closed: ${fold("notion")}.getBoundingClientRect().height, rows: style.gridTemplateRows };
+  })()`);
+  assert.equal(motion.interpolate, "allow-keywords", "the fold can move to its natural height");
+  assert.match(motion.properties, /block-size/);
+  assert.doesNotMatch(motion.properties, /grid-template-rows/, "its rows are never animated");
+  assert.equal(motion.closed, 0, "a closed row shows nothing under it");
+  const opened = await page.evaluate<number[]>(`[${fold("gitlab")}.getBoundingClientRect().height, ${fold("gitlab")}.querySelector('.settings-connection-item__body').getBoundingClientRect().height]`);
+  assert.ok(opened[0]! > 0 && Math.abs(opened[0]! - opened[1]!) <= 1, `an open row is as tall as what it holds: ${opened}`);
+  assert.deepEqual(exceptions, []);
+});
+
 test("ASC-78: a login shows its steps and, when cancelled, changes nothing; a key the service refuses is said as such", { timeout: 120_000 }, async t => {
   const browser = await openPage(t); if (!browser) return;
   const { page, open, next, answer, rows, origin, exceptions } = browser;

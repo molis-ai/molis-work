@@ -286,12 +286,22 @@ const headErrors = (measured, budget, base) => {
 // for these two scripts are spent once 07-S0 lands: its budget holds their ceilings.) Tried: the side reuses the workspace's
 // persist, closed stack and removed-plugin check instead of keeping its own; the old side-tab, side-ratio and discussion-ratio
 // keys are dropped, not read; the rules' comments sit above the function, not in the shipped body.
+// 07-S2 (open, recall and layout; stacked on 07-S1, so keyed on its a1685bf39 budget, whose 07-S1 entries are spent there):
+// workbench.js +12684 B: ＋ as an open-only list from the Host's directory (three sections, where each one already is, ⌥↵
+// beside, search), the titlebar's layout menu (split, move to the right, 独看 as `solo`, merge, collapse, equal widths, close,
+// go to a column), the tab menu's move and side-by-side rows, one recall for the Dock, ＋, the switcher and deep links, a main
+// tab moved to the right side in the pane page and back, and the side's own way back (返回) and remembered closed tabs. About
+// 5 KB of it is the code's comments, which the client scripts ship as written (a build that drops them is its own change).
+// 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S2），待 07 批评审台审代码冗余. workbench.css +31 B: 独看 hides the
+// other panes, less the strip's split button (settings.css -43 B for the same button). Tried: the right side's tab menu and undo chip are the main area's (only the way
+// in, with no tab workspace, keeps small ones of its own, inline in its page), which took 1.2 KB back; the home tab's code,
+// the per-strip split button and the old ＋ menu are gone rather than kept beside the new ones.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826727, 827274],
-  "/assets/molis-work-workbench.css": [1194521, 1204045],
-  "/assets/molis-work-workbench.js": [1075120, 1087460],
+  "/assets/molis-work-workbench.css": [1202826, 1202857],
+  "/assets/molis-work-workbench.js": [1087460, 1100144],
   "/assets/molis-work-plugin-frame.js": [208271, 208400],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

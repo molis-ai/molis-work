@@ -45,13 +45,10 @@
 export interface SqliteUpgradeStep {
   readonly from: number;                       // 到 from + 1，机械校验连续，不写 to
   readonly sql?: string;                       // 只有 SQL 的段（插件只能用这种，§2.4）
-  readonly run?: (db: SqliteBaselineDatabase, context: SqliteUpgradeContext) => void; // 平台与 Module 的回填，库只用 exec/prepare
+  readonly run?: (db: SqliteBaselineDatabase) => void; // 平台与 Module 的回填，只用 exec/prepare，不碰文件
   readonly reduces_rows?: readonly string[];   // 明确会减行的表，其余表行数不许变少
   readonly rebuilds_tables?: boolean;          // 要 foreign_keys=OFF；只能在事务外设，见下
   readonly verify?: (db: SqliteBaselineDatabase) => void; // 主人的业务检查，事务内、提交前
-}
-export interface SqliteUpgradeContext {
-  readonly home: string;                       // 这一个 Home 的绝对路径：根 Home 和每个账号 Home 各是各的
 }
 export interface SqliteBaseline {
   readonly version: number;
@@ -60,11 +57,7 @@ export interface SqliteBaseline {
 }
 ```
 
-**`run` 为什么带 `home`（合同台定）。** 有些列存的是这个 Home 下的路径，段要先建好文件夹、核实 realpath 才写得出来：05② 的默认输出目录要写 `workspaces.canonical_path`，它是 `NOT NULL UNIQUE` 的绝对路径（`modules/projects/src/repository.ts:65-68`），根 Home 和每个账号 Home 都不同。规矩：
-
-- 只许在这个 Home 里建文件夹，路径由 `home` 和库里的 id 推导（S-143）。不写文件，不碰 Home 外。
-- 放回不删这些文件夹：留下一个空文件夹没有害处，重跑时建文件夹是幂等的。
-- `verify` 不带 `home`。插件的段没有函数，碰不到它（§2.4）。
+**段不拿 Home（合同台定）。** 库里不存 Home 下的绝对路径（S-102、W5-17），所以段没有理由知道 Home。05② 的默认输出目录存的是由 `project_id` 推导的写法，那一段是纯 SQL，见 [05②](../shared-sources-and-surfaces/spec.md) 第 3 节。
 
 `checkSqliteBaselineVersion` 只负责分类，**永远不升级**：
 
@@ -154,7 +147,11 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
   2. 跑段。技术表不在范围里，段碰到就报范围错误。
   3. 最后一段跑完，按现行声明把全部触发器建回去，第 3 层逐字比。这是平台的语句，不过第 1、2 层。不在每段之后建：现行触发器的文字可能引用中间版本还没有的列，建回去会报错。这样改带同步追踪的业务表不用插件写一个字（升 `schema_version` 除外，见下）。
   4. **所以段里的增删改不进同步日志，业务触发器也不跑。** 每台设备各跑一遍同一段，记进日志就是每台都发一份改动，还互相冲突。段里 `DELETE FROM todo_items` 也不会记进 `todo_deleted_projects`（`plugins/native/todo/src/database.ts:50`）：触发器该做的事，段自己写。
-  5. **段要确定。** 改动不进日志，就靠每台设备跑出同样的结果。`pluginStatementGuard` 放行 `Function` 步骤（`project-database-statements.ts:30`），`random()`、`randomblob()`、`datetime('now')`、`CURRENT_TIMESTAMP` 都能过，回填时间戳又是最自然的写法，两台设备会悄悄不一样。所以段里的增删改多查一步：`EXPLAIN` 里 `Function` 步骤的函数名在下面的名单上就拒绝，报 `plugin.project_database.upgrade_nondeterministic`：`random`、`randomblob`、`current_timestamp`、`current_date`、`current_time`、`date`、`time`、`datetime`、`julianday`、`unixepoch`、`strftime`、`timediff`、`last_insert_rowid`、`changes`、`total_changes`。步骤里的名字读得到（实测，`better-sqlite3`、SQLite 3.51.3：`Function datetime(-1)`，列的 `DEFAULT CURRENT_TIMESTAMP` 也显出 `current_timestamp(0)`）。日期函数不分参数一律拒绝，`datetime(b)` 本来确定也拒，因为 `'now'` 可以来自列；要时间戳就从已有的列取。
+  5. **段要确定。** 改动不进日志，就靠每台设备跑出同样的结果。`pluginStatementGuard` 放行 `Function` 步骤（`project-database-statements.ts:30`），`random()`、`randomblob()`、`datetime('now')`、`CURRENT_TIMESTAMP` 都能过，回填时间戳又是最自然的写法，两台设备会悄悄不一样。所以段里的增删改多查一步：`EXPLAIN` 里 `Function` 步骤的函数名在名单上就拒绝，报 `plugin.project_database.upgrade_nondeterministic`。只看 `Function`，不看 `PureFunc`：`CHECK`、生成列、表达式索引里的是 `PureFunc`，那里写 `'now'` SQLite 自己在运行时拒。
+     - **名单两部分。** 一部分是 `pragma_function_list` 标为非确定的全部标量，3.51.3 上 29 个：`random`、`randomblob`、`current_timestamp`、`current_date`、`current_time`、`last_insert_rowid`、`changes`、`total_changes`、`sqlite_version`、`sqlite_source_id`、`sqlite_compileoption_get`、`sqlite_compileoption_used`、`load_extension`，加上 FTS 和 rtree 的辅助函数（`bm25`、`highlight`、`snippet`、`match` 这些）。另一部分是这张表标成确定、其实看时钟的日期函数：`date`、`time`、`datetime`、`julianday`、`unixepoch`、`strftime`、`timediff`。
+     - **日期函数不分参数一律拒绝。** `datetime(b)` 在 `b='now'` 时返回当前时间，`'localtime'` 还随设备时区变。代价是段不能用 `strftime` 改日期列的格式；要时间戳就从已有的列取。
+     - **用例钉住名单：** `pragma_function_list` 里非确定的标量都必须在名单上，升 SQLite 时看得到。
+     - **名单拦不住依赖行序的写法。** `UPDATE t SET seq=rowid`、`row_number() OVER ()`、`group_concat(id)`、不带 `ORDER BY` 的 `LIMIT` 都能过，而 `rowid` 是本机插入时定的，同步来的行在两台设备上不一定一样。这部分靠写段的人和评审：要用行序就按主键排。
 
   这里有三件事现在不做，失败都是关闭的：
   - 段新加了同步追踪的表时，已有行不会补进日志（`syncTrackingSeedSql` 只在日志第一次建时跑）。
@@ -170,12 +167,12 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
     - 内部改写要读写 `sqlite_master`、`sqlite_temp_master`，要调 `sqlite_rename_*`、`sqlite_drop_column`，这些回调的 `origin` 都是 null，和用户写的分不开。结构模式下 `INSERT INTO mine SELECT sql FROM sqlite_master` 也能过（实测），所以只有第 1 层认定是结构语句的才进结构模式，增删改走普通模式。
     - `ALTER_TABLE` 回调第三个参数在 `DROP COLUMN` 时是列名，不是库名。
     - `RENAME TO` 不给新名字。范围改成每句之后重算：当前所有表，减去段开始时记下的别人的表（开始时所有表减去第 2 层的起点）。
-    - 确定性那一步（第 5 条）改看 `SQLITE_FUNCTION` 回调的函数名，名单不变。
+    - 确定性那一步（第 5 条）继续看 `EXPLAIN`，不改看 `SQLITE_FUNCTION` 回调：表上有 `DEFAULT CURRENT_TIMESTAMP` 时，`UPDATE t SET a=upper(a)` 和全列拷贝都会回调它，语句其实不用它，按回调会误拒合法的重建（评审台实测，`node:sqlite`、3.54.1）。`EXPLAIN` 在 `node:sqlite` 上读到的一样。
   - **换实现那一片先在锁定版本 24.15.0（SQLite 3.51.3）上重跑。** `setAuthorizer` 这个接口 CI 的 24.14.0 已经由 S-112 用着，但 `ALTER_TABLE` 第三个参数、`sqlite_rename_*` 这些内部回调没有在 3.51.3 上看过。失败方向是误拒合法的段，UPG1-14 看得到，所以不挡现在。那 4212 种写法进 S-147 的测试，换实现时拿它对照。
   - **对 U1-f 的影响。** 开工时 SQLD-d 没合，就按上面的按词读写；已合，直接写授权版，不写按词读。两种都对所有插件同一份。S-147 的拒绝测试只断言结果，换实现时不动。换实现是单独一片，不算 U1 的范围，去处见 [SQLite 第二步](../sqlite-driver-switch/spec.md) §3.7。
 - **插件的段一律 `foreign_keys=OFF`。** 段不写 PRAGMA，平台在事务外设。**恢复也在事务外：** `COMMIT` 或 `ROLLBACK` 之后再设 `ON`，读回来确认是 1，不是 1 就关掉这条连接、记 failed，成功和失败两条路都走这一步。事务里设 `ON` 是空操作（实测：设完读到 0，回滚后还是 0）；项目库的插件表是在长连接上打开的（`apps/local-host/src/project-database.ts:23`），写反了这个项目之后的外键都不再生效，而且什么都不报。最后一段之后，**范围里**的每张表跑 `PRAGMA foreign_key_check(t)`，有违反就回滚。按范围不按账本：段删过的表会报 `no such table`，新建的表账本里还没有。不用给插件的段加 `rebuilds_tables`。不能用 `defer_foreign_keys=ON`：外键还开着，`DROP TABLE` 的隐式删除照样触发外键动作。实测重建 `ON DELETE SET NULL` 子表的父表，子表的列全变 NULL，行数不变，`foreign_key_check` 还是空，什么都比不出。真实的表就有这种：Goals 的 `goal_tree_proposals.root_goal_id`（`plugins/native/goals/src/project-database-governance.ts:10`）。关掉之后 `CASCADE` 和 `SET NULL` 都不跑，子表原值都在。真要依赖级联删除的段，留下的孤儿行由 `foreign_key_check` 挡下回滚，失败是安全的。
-- **Home 库走同一份。** 库文件只归这个插件，第 3 层没有别人的行可比，第 1、2 层照旧，`ATTACH` 这类一样拒绝。
-- **U4 要做的不只是打开开关。** 装上的插件的 SQL 要放进专属子进程的 Worker（S-59）才有超时和内存上限，内置的在升级过程里直接跑。所以这三层写成只收一个连接的函数，U4 把它放进 Worker，并和 `upgrade_compatibility` 合流。**U4 还要另定升级用的限额：** S-59 的限额是给日常语句定的（写句 2 秒，`BEGIN` 到 `COMMIT` 共 3 秒，超了整个进程结束），重建或回填一张大表一定超。
+- **Home 库走同一份。** 库文件只归这个插件，第 3 层没有别人的行可比，第 1、2 层照旧，`ATTACH` 这类一样拒绝。**这一步的连接用 `openSqliteConnection`（合同台定）：** `pluginStatementGuard` 要求 3.51.3（`project-database-statements.ts:130`），`home-sqlite.ts` 用的 `node:sqlite` 在 CI 的 24.14.0 上是 3.51.2，走它 Home 库的增删改段全被拒。这样 U1-f 不等 SQLD-b，SQLD-d 之后两边一起换。开它之前这个文件上别的连接都已关闭（§2.3 的不变量）。
+- **U4 要做的不只是打开开关。** 打开之前第 2 层必须已经换成原生授权（上面）。装上的插件的 SQL 要放进专属子进程的 Worker（S-59）才有超时和内存上限，内置的在升级过程里直接跑。所以这三层写成只收一个连接的函数，U4 把它放进 Worker，并和 `upgrade_compatibility` 合流。**U4 还要另定升级用的限额：** S-59 的限额是给日常语句定的（写句 2 秒，`BEGIN` 到 `COMMIT` 共 3 秒，超了整个进程结束），重建或回填一张大表一定超。
 - 所以「首次改任何插件表的结构」要等 U1-f，不只是等机制。
 - 项目库里的插件表：每个插件自己一个 `BEGIN IMMEDIATE`，做升级、更新 `plugin_project_databases` 的 `version` 和 `tables_json`、查结构。失败只回滚这一个事务，这个插件走现有的 `plugin.project_database.*` 停用路径，项目库其余照常（`project-plugin-databases.ts` 已是这样）。**这里做不到文件级逐字节**：同一个文件里平台段已经提交了。保证的是这个插件的表内容和结构与升级前相同：升级前后比这个插件每张表的内容摘要（按主键顺序）和结构摘要，只比行数查不出内容被改。决策记录有一行，spec §9 UPG-03 旁有脚注。
 
@@ -467,7 +464,7 @@ apps/desktop/launchers/web/server.ts：
 - **先扩后收**：这一版加新列或新表，读写都转到新的，同时回填；下一版再删旧的。验收看第一步之后的旧程序还能不能读（U6 回退靠它）。这条靠评审和金样，门禁查不了。
 - 基线的 `schema` 永远是当前版本完整的样子。`ADD COLUMN` 的新列写在建表语句**末尾**；要插在中间、加约束、改类型，就按 SQLite 的 12 步重建表，段上写 `rebuilds_tables`。结构比较会拦下不一致的（§1）。**漏写 `rebuilds_tables` 比不出来：** 外键开着重建父表，`ON DELETE SET NULL` 子表的列会被清空，行数和 `foreign_key_check` 都没有变化（§2.4），靠评审和金样。
 - 段放在表主人的包里（`table-owners.mjs` 也数 `ALTER TABLE`）。
-- 回填要是确定的、可重复的结果：不调模型，不访问网络，不读别的库（要读的走 `after` 和主人导出的函数）。例外只有 §2.1 的 `home`：列本身存本机路径，这一列本来就不同步（S-120）。
+- 回填要是确定的、可重复的结果：不调模型，不访问网络，不读别的库（要读的走 `after` 和主人导出的函数）。新的 id 和时间由已有的列推导，不随机、不取当前时间。
 - 段里不写业务错误恢复。失败就抛，由跑法统一放回。
 
 ### 8.2 密钥段（UPG-08）
@@ -598,7 +595,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 
 | 编号 | 证明 |
 | --- | --- |
-| UPG1-01 | v1→v2→v3：SQL 段、函数段各一；结构与新基线逐表一致；`user_version`、数据都对（UPG-02）；函数段拿到的 `home` 是这个 Home，账号 Home 上是账号 Home 的路径；函数段建了文件夹之后失败：放回，文件夹留着，重跑通过（§2.1） |
+| UPG1-01 | v1→v2→v3：SQL 段、函数段各一；结构与新基线逐表一致；`user_version`、数据都对（UPG-02） |
 | UPG1-02 | 段失败、`verify` 失败、结构不符、外键不符、行数变少：都放回，主文件 sha256 等于基准（UPG-03） |
 | UPG1-03 | 三个库，第二个失败：第一、三个是新版，第二个报 `upgrade_failed`，其余打开正常（UPG-04 机制半） |
 | UPG1-04 | 版本 +1 的库和文件：sha256 不变，只有它报 `store_too_new`（UPG-05 不读不写半） |

@@ -154,55 +154,6 @@
 
 三个方案共用的部分照定样实施：右侧是同一套窗格；「＋」只负责打开、写明落点、带「在旁边打开」；召回不重开；关组撤销；记录不在、插件被移除、没能启动时标签留着；独看；窄屏只显示焦点那一栏。实现时同步 `DESIGN.md` 的标签条与底栏段落。
 
-#### 4.6.2 实施拆片与开工前检查（第 07 批 07-1，2026-11-05）
-
-依据 main `cee87ece0` 的只读清点（[第 07 批](../post-anticorruption-roadmap/reference/batches/07.md)第 07-1 行）。实现按下表分层开 PR，每个 PR 合入后产品自洽（不留「首页没了入口」这类半成品），后一片叠在前一片的分支上。
-
-**实施口径（第 07 批主会话 11-05 定，不改 §4.6.1 的产品决定）：**
-
-1. 右侧是工作区状态里的一栏：现在的右栏闭包状态（开关、当前页签、宽度，`molis:side-tab`、`molis:side-ratio`）并进 `molis-work-tab-workspace:<项目>` 的同一份状态，标签、组、撤销、恢复、返回走同一套操作。右侧的常驻插件视图不走「非首栏一个 iframe」那条会重载的路径，挪位不丢草稿。
-2. 「独看」是新的状态字段，不复用 `exclusive`（`exclusive` 是市场、设置这类覆盖层）。
-3. 项目首页不再是 `kind: "home"` 标签；从 Dock 最前面的「项目首页」进。去掉首页标签的那一片同时给出 Dock 入口，不让首页一时没有入口。
-4. 浏览器里存的标签布局换形状：形状或版本对不上的整份丢弃重建，不写兼容读取（阶段 1，[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)）；`molis:side-tab`、`molis:side-ratio` 和 `side-panel.ts` 回退读的 `molis:discussion-ratio` 都不再读写。「读不懂」只指形状或版本：布局里有本项目不再提供的插件时，不整份重建，那个插件的标签留着（§4.6.1 共用部分「异常时标签留着」）。
-5. 右栏对外的四个名字保持不变：`body[data-side-open]`、`--side-panel-width`、`molis:side-open`、`molis:side-browser-control`。A 轨文件（`apps/workbench/src/scripts/client/assistant-*.ts`）读它们，插件框架的 `browser/plugin-frame/child.ts`、`messages.ts` 把插件发的 `molis:side-open` 转给外壳，所以事件名和 detail 的形状都不变；要改名由 A 轨落，并同步插件框架。
-6. 「窗格按钮」指每条标签条上的「布局与分屏」按钮，移到标题栏最右端的「布局」。
-7. 后台任务图标上的数是没做完的任务数（在跑的加等你的）。
-8. 召回跨栏找已打开的那一份，焦点移过去并提示落点；底栏、「＋」、切换器、深链都调这一个公共打开／激活，不再经隐藏按钮的 DOM 点击中转，「＋」也不再从页面结构读插件名单。
-9. 装进 Home 的包进切换器「个人」组与「＋」菜单，由宿主给出的插件目录带上，和别的插件同一种条目，不按插件名分支；图标取包在 stage 视图声明的 `icon`，没有才用 `package`（BL-912）。
-10. 标签恢复时按插件名删 Goals 的特例（BL-1032）随 S1 去掉：它是「布局里有不再提供的插件就整份重建」（`scripts/client/tab-workspace.ts` 第 100～102 行）这条规则写明的一个例子，S1 把规则本身改成留标签（口径 4），状态行为归 S1，「已移除」「划掉」「琥珀点」三种标记的画法归 S3。
-11. `apps/workbench/src/scripts/client/navigation-feed.ts` 改名为 `navigation-surfaces.ts`（`CLIENT_NAVIGATION_SURFACES_SCRIPT`），它管的是工作面切换，与 Feed 无关。
-12. 新增的页面事件登记在 `packages/contracts/src/platform/dom-events.ts`，`PAGE_STATE_OWNERS` 的文件清单跟着改；不改动作合同。
-
-**拆片：** 按用户看得到的功能切，每片自带它要的状态改动，不先合一层没人用的状态。除 S0、S4a 外都改 `tab-workspace-ops.ts`、`scripts/client/tab-workspace*.ts` 与 `immersive-shell.ts`，所以 S1→S2→S3→S4b→S5 依次叠分支、各开一个 PR（每个 PR 不超过约 50 个文件），合入顺序同此。
-
-| 片 | 做什么 | 主要文件 | 顺序 |
-| --- | --- | --- | --- |
-| S0 组件板标本 | 定样 README「组件板新增」1、2、3、6～10、12～16 做成 `/__ui/catalog` 标本，含三段的新底栏（静态样张，产品底栏到 S4b 再接） | `apps/workbench/src/primitive-catalog.ts`、新的导航标本文件、`packages/design-system/src/styles/`、`apps/workbench/src/i18n/` | 第一个合入；D 轨合审 |
-| S1 右侧并入窗格 | 右侧成为工作区状态里的一栏：讨论、灵光、Shelf、项目资料、浏览器、电脑和插件侧视图都是它的标签，组、撤销、恢复、返回同一套；图标靠右、停留或聚焦原地展开、收起时留在标题栏、没有「＋」；后台任务成为右侧带数的图标标签，项目页与到达页的标题栏都不再放后台任务；「项目资料」在 05 资料合同和 06-1 之前先接现有的「文件」；⌘\ 收起或打开；口径 1、4、5、7、10 | `side-panel*.ts`、`plugin-place.ts`、`attention.ts`、`tab-workspace-ops.ts`、`scripts/client/tab-workspace*.ts`、`immersive-shell.ts`、`arrival/shell.ts` | S0 的标本合入后再合 |
-| S2 打开、召回与布局 | 首页退出标签并在 Dock 最前面给入口；「＋」只负责打开（搜索、三段、落点、在旁边打开 ⌥↵、键位提示）；标签右键接走固定、分组、移到右侧、并排看；标题栏最右「布局」按钮与菜单（分屏、移栏、独看 ⌘⇧↵、合并、收起右侧、均分、关闭、切到），去掉每条标签条上的布局按钮；跨栏召回与提示；口径 2、3、6、8 | `tab-workspace-ops.ts`、`tab-workspace-menus.ts`、`tab-workspace-strip.ts`、`tab-workspace-plugins.ts`、`navigation-presentation.ts`、`immersive-shell.ts` | S1 之后 |
-| S3 标签条方案 A | 组头与条目两档、最窄 96px 再横滚、「全部标签」、焦点栏与非焦点栏的当前标签、撤销小签固定在可见区末端、独看小签、三种异常标记、窄屏「主区｜右侧」与固定标签收进「全部标签」 | `tab-workspace-strip.ts`、`plugin-tab-groups.ts`、`tab-strip-share.ts`、`styles/tab-workspace.ts`、`styles/tab-groups.ts` | S2 之后 |
-| S4 底栏三段与个人插件 | S4a：BL-912 包图标（在那批文件里只改 `scripts/client/tab-workspace.ts` 第 35 行一句，先合入，后面的片合 main 时带上）；S4b：底栏左（只有图标的切换器、Dock）中（输入框）右（钉住的个人插件、项目圆钮），去掉底栏右边的右侧开关 `[data-side-toggle]`，个人插件进切换器「个人」组与「＋」（口径 9），没能启动的在 Dock 与切换器带琥珀点，去掉标题栏与到达页的个人工具位 | S4a：`apps/local-host/src/installed-stage-section.ts`、`home-plugin-http.ts`；S4b：`immersive-shell.ts`、`navigation-presentation.ts`、`home-plugin-navigation.ts`、`arrival/` | S4a 随时；S4b 在 S3 之后 |
-| S5 收尾 | `DESIGN.md` 标签条与底栏两段；口径 11 的改名；用例与产品子集扫尾 | `DESIGN.md`、`browser-assets.ts`、`tests/` | 最后 |
-
-**开工前检查（需求开发流程第 4 节）：**
-
-| # | 结论 |
-| --- | --- |
-| 1 事实主人 | 标签、窗格、焦点、独看都是工作台的页面状态，只存在浏览器里；内容、草稿、滚动归插件（§4.6「内容提供方」）。右栏不再自记第二份打开状态 |
-| 2 插件同等待遇 | 装进 Home 的包、内置 Home 级插件和项目插件走同一条打开路径与同一种目录条目；图标由包声明（BL-912）；去掉按插件名删 Goals 的特例（BL-1032），不新增按插件名的分支 |
-| 3 能力注册 | 不新增动作；打开、激活、召回是工作台页面里的公共操作 |
-| 4 合同 | 不改动作合同、Manifest 和 SDK；新增页面事件在发它、听它的那一片里登记 `dom-events.ts`（AGENTS.md：与发它的代码同一个改动；`scripts/gates/dom-events.mjs` 拦只登记没人用的条目），同一个 PR 跑 `pnpm api:update` 并提交快照 |
-| 5 放在哪个包 | `apps/workbench`；BL-912 在 `apps/local-host`；标本与共用样式在 `packages/design-system` 与组件板 |
-| 6 表与存储 | 不涉及库表；只有浏览器 `localStorage`／`sessionStorage` |
-| 7 兼容与迁移 | 不加：旧布局读不懂就丢弃重建（口径 4），写进 PR |
-| 8 安全边界 | 不放宽：侧栏框架仍经 `/api/host/plugin-pages` 登记与撤销，页面关了授权就收回；分屏 iframe 的 `workbench-pane-*` 消息校验不动，碰到就同步 `tests/security-invariants-pane-messages.test.ts` |
-| 9 调用次数 | 切换标签、召回、收起右侧不重读已有内容、不重建常驻视图；主区的普通标签移到右侧（或移回）时视图会不会重建、状态靠谁恢复（插件自己的草稿与滚动位置，§4.6「内容提供方」）、移动一次发几个请求，在做它的那片 PR 里写明；每片 PR 写一次操作发几个请求 |
-| 10 升级与数据 | 升级后标签布局可能重建一次（口径 4），业务数据不受影响 |
-| 11 成果与过程项 | 不涉及：只改内容摆在哪、怎样切换，不产生也不交出数据 |
-| 12 页面与外壳 | 只改工作台外壳的位置；页面资源有增有删，每片 PR 写 `page-assets` 的前后数字；单个资源一次涨超过 10 KB，或新增资源（例如 S0 的标本若成了新的 `/assets/` 文件），先问用户 |
-| 13 错误 | 不新增错误码 |
-| 14 冲突面 | 枢纽 `immersive-shell.ts`、`shell-page-renderer.ts`、`i18n/en.ts`、`dom-events.ts`：S1、S2、S3、S4b 依次叠分支；D 轨文件（design-system、i18n、`DESIGN.md`）由本批写手按片认领；A 轨文件不碰（口径 5）；在途的 #1846 改 `styles/immersive-navigation.ts` 与 `arrival/shell.ts`，S1 合入前核一次 |
-
 ### 4.7 项目首页整合进 Work Brief（2026-10-27 用户已定）
 
 [Work Brief](../work-brief/spec.md)从简报内容插件扩展为项目综合信息呈现插件，与项目首页统一设计。未安装／启用时平台保留基础首页：没有已打开插件或用户返回首页时，展示可用插件卡片和各插件的内容概览、建议与继续入口，不依赖模型或生成简报。安装启用后由 Work Brief 通过通用挂载承接综合首页，统一组织变化、建议、简报与 Onboarding 生成的交互页面。

@@ -128,7 +128,13 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }
-@media(min-width:601px) and (max-width:760px){html body.immersive-workbench .immersive-workspace{grid-template-rows:auto minmax(0,1fr)}html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}}
+/* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
+   titlebar row, which names the directory states) and the work and the side sheet start below it. */
+@media(min-width:601px) and (max-width:760px){
+ html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) var(--dock-h)}
+ html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}
+ html body.immersive-workbench .side-panel{max-height:calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h,48px) - 28px)}
+}
 @media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
 `.replace(/\n\s*/g, "");
 

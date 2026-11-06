@@ -274,14 +274,14 @@ const headErrors = (measured, budget, base) => {
 // body.immersive-workbench prefix where no rule competes (it stays on the tab, group and toggle overrides); one class for the
 // strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
 // weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
-// 07-S1 (the right side joins the tab workspace, 待 07 批评审台审; stacked on 07-S0, so keyed on its budget): workbench.js
+// 07-S1 (the right side joins the tab workspace, 07 批评审台审过（#1853）; stacked on 07-S0, so keyed on its budget): workbench.js
 // +9930 B: the side's rules in the workspace state (withSidePane: open, select, close and reopen through the shared closed
 // stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background tasks as a side view
 // with its count, and a removed plugin's tabs kept and marked with the stage that says how to add it back. After the review
 // (B1-B3 and its small fixes) it is +12340 B: a removed plugin's side tab drawn in place, the strip keeping its current tab in
-// view, ⌘\ heard after an editor, and a collapse undone with its tab. 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S1），
-// 待 07 批评审台审代码冗余. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the character typed.
-// The sheets fall (workbench.css -1219 B, arrival.css -5247 B, against 07-S0's adc08f54f budget): the side's own
+// view, ⌘\ heard after an editor, and a collapse undone with its tab. 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S1）；
+// 07 批评审台审过（#1853），冗余两处记入 S2. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the character typed.
+// The sheets fall (workbench.css -997 B, arrival.css -5247 B, against 07-S0's b6abcda4a budget): the side's own
 // tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab classes, less the narrow strip's scroll. (The N53/N54 entries
 // for these two scripts are spent once 07-S0 lands: its budget holds their ceilings.) Tried: the side reuses the workspace's
 // persist, closed stack and removed-plugin check instead of keeping its own; the old side-tab, side-ratio and discussion-ratio

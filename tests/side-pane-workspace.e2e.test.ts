@@ -235,19 +235,27 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const shown = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility())`;
   const outside = `(() => { const box = document.querySelector('${strip}').getBoundingClientRect(); return ${shown}.filter(tab => { const at = tab.getBoundingClientRect(); return at.left < Math.max(0, box.left) - 0.5 || at.right > Math.min(innerWidth, box.right) + 0.5; }).map(tab => tab.dataset.sideTab); })()`;
-  for (const width of [601, 700, 760]) {
-    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  for (const [width, height] of [[601, 900], [700, 900], [760, 900], [700, 420]]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
     await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
     await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
     const tabs = await evaluate<string[]>(`${shown}.map(tab => tab.dataset.sideTab)`);
-    assert.ok(tabs.includes("tasks") && tabs.length >= 6, `${width}: ${JSON.stringify(tabs)}`);
-    assert.deepEqual(await evaluate<string[]>(outside), [], `${width}: every tab is inside the strip and the window`);
-    assert.equal(await evaluate<boolean>(`(() => { const s = document.querySelector('${strip}'); return s.scrollWidth <= s.clientWidth + 1; })()`), true, `${width}: nothing scrolled out of sight`);
+    assert.ok(tabs.includes("tasks") && tabs.length >= 6, `${width}×${height}: ${JSON.stringify(tabs)}`);
+    assert.deepEqual(await evaluate<string[]>(outside), [], `${width}×${height}: every tab is inside the strip and the window`);
+    assert.equal(await evaluate<boolean>(`(() => { const s = document.querySelector('${strip}'); return s.scrollWidth <= s.clientWidth + 1; })()`), true, `${width}×${height}: nothing scrolled out of sight`);
     const rows = await evaluate<{ strip: number; tabs: number }>(`(() => ({ strip: document.querySelector('${strip}').getBoundingClientRect().top, tabs: document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().top }))()`);
-    assert.ok(rows.strip > rows.tabs, `${width}: the side's strip is on a row below the main tabs (${JSON.stringify(rows)})`);
-    const stage = await evaluate<number>("document.querySelector('[data-plugin-stage]').getBoundingClientRect().top - document.querySelector('.immersive-titlebar').getBoundingClientRect().bottom");
-    assert.ok(stage >= -0.5, `${width}: the work starts below the taller title bar (${stage})`);
+    assert.ok(rows.strip > rows.tabs, `${width}×${height}: the side's strip is on a row below the main tabs (${JSON.stringify(rows)})`);
+    // The strip's own box, not the title bar's: a bar pinned at one row lets the strip spill over the work below it.
+    const below = await evaluate<{ strip: number; stage: number; panel: number; corner: boolean }>(`(() => {
+      const stage = document.querySelector('[data-plugin-stage]').getBoundingClientRect();
+      const corner = document.elementFromPoint(stage.right - 12, stage.top + 12);
+      return { strip: document.querySelector('${strip}').getBoundingClientRect().bottom, stage: stage.top, panel: document.querySelector('.side-panel').getBoundingClientRect().top,
+        corner: Boolean(corner && document.querySelector('[data-plugin-stage]').contains(corner) && !corner.closest('${strip}')) };
+    })()`);
+    assert.ok(below.stage >= below.strip - 0.5, `${width}×${height}: the work starts below the side's strip (${JSON.stringify(below)})`);
+    assert.ok(below.panel >= below.strip - 0.5, `${width}×${height}: the side sheet starts below its strip (${JSON.stringify(below)})`);
+    assert.equal(below.corner, true, `${width}×${height}: the main area's top right corner is the work's own, not the strip`);
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 320, height: 720, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));

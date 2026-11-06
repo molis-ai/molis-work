@@ -265,8 +265,8 @@ const headErrors = (measured, budget, base) => {
 // read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
 // 07-S0 (workbench navigation specimens; 07 批评审台与 D 轨合审审过（#1852）): the README's new tab-strip, titlebar and
 // three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
-// workbench.css +9605 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
-// the phone titlebar's strip (6322 B), the glyph row with its own tab and count (2736 B, glyph-tabs.ts) and the bar zones (547 B).
+// workbench.css +9705 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
+// the phone titlebar's strip (6422 B), the glyph row with its own tab and count (2736 B, glyph-tabs.ts) and the bar zones (547 B).
 // arrival.css +3283 B: the same glyph row, which the arrival titlebar draws without the project page's tab rules, and the bar
 // zones. settings.css +547 B: the bar zones through craft-finish. (The BL-953 entries for these three are spent: the merge-base
 // budget holds their ceilings.) Tried: the board-only scaffolding stays inline on the board's frame page; the layout button is
@@ -278,7 +278,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826727, 827274],
-  "/assets/molis-work-workbench.css": [1194521, 1204126],
+  "/assets/molis-work-workbench.css": [1194521, 1204226],
   "/assets/molis-work-workbench.js": [1074951, 1075120],
   "/assets/molis-work-plugin-frame.js": [208033, 208271],
 };

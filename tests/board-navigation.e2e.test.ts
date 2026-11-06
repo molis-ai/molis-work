@@ -71,6 +71,16 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
         const box = b.getBoundingClientRect(); return box.width >= 44 && box.height >= 44 ? [] : [String(b.className).split(' ').pop() + ' ' + Math.round(box.width) + '×' + Math.round(box.height)]; })`);
       assert.deepEqual(small, [], `${lang} ${state}: ＋, 全部标签, 布局 and the undo chip are 44 × 44 targets`);
     }
+    // Each of the titlebar's menus opens inside the window (the page hides what runs past it sideways).
+    const outside = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar] [data-nav-menu-for]')].filter((b) => b.getBoundingClientRect().width).flatMap((b) => {
+      b.click(); const menu = document.getElementById(b.getAttribute('aria-controls')), box = menu.getBoundingClientRect(), edge = document.documentElement.clientWidth;
+      const seen = !menu.hidden && box.width > 0 && box.left >= 0 && box.right <= edge ? [] : [b.closest('[data-nav-titlebar]').dataset.navTitlebar + ' ' + menu.id + ' ' + Math.round(box.left) + '→' + Math.round(box.right) + ' of ' + edge];
+      b.click(); return seen; })`);
+    assert.deepEqual(outside, [], `${lang} ${width}px: the titlebar's ＋, 全部标签 and 布局 menus open inside the window`);
+    if (width <= 760) {
+      const send = await evaluate<[number, number]>("(() => { const box = document.querySelector('[data-nav-composer] .mw-btn').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()");
+      assert.ok(send[0] >= 44 && send[1] >= 44, `${lang}: the composer's send button is a 44 × 44 target on a phone (${send})`);
+    }
     // Nothing in the titlebar covers ＋ or 全部标签: the glyph row keeps its width and the strip gives way.
     const covered = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar] :is(.tab-add-button, .tab-all-button)')].filter((b) => b.getBoundingClientRect().width).flatMap((b) => {
       b.scrollIntoView({ block: 'center' }); const box = b.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -124,11 +134,15 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
   // A menu button opens its menu; Esc closes it and gives the focus back to the button.
   const menu = await evaluate<{ opened: boolean; focusInside: boolean; closed: boolean; back: boolean }>(`(async () => {
     const button = document.querySelector('[data-nav-titlebar=ok] .titlebar-layout > .mw-btn'), menu = document.getElementById(button.getAttribute('aria-controls'));
+    const idle = getComputedStyle(button).backgroundColor, probe = document.createElement('i');
+    probe.style.background = 'var(--nav-hover)'; document.body.append(probe); const hover = getComputedStyle(probe).backgroundColor; probe.remove();
     button.click(); const opened = !menu.hidden && button.getAttribute('aria-expanded') === 'true', focusInside = menu.contains(document.activeElement);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const lit = getComputedStyle(button).backgroundColor === hover && hover !== idle;
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    return { opened, focusInside, closed: menu.hidden, back: document.activeElement === button };
+    return { opened, focusInside, lit, closed: menu.hidden, back: document.activeElement === button };
   })()`);
-  assert.deepEqual(menu, { opened: true, focusInside: true, closed: true, back: true });
+  assert.deepEqual(menu, { opened: true, focusInside: true, lit: true, closed: true, back: true }, "布局 opens its menu and looks open while it is, Esc closes it");
 
   // The glyph row is drawn by the arrival page's sheet too, without the project page's tab rules, and looks the same.
   const GLYPHS = `[...document.querySelectorAll('[data-nav-sheet-row] .tab-item')].map((tab) => {

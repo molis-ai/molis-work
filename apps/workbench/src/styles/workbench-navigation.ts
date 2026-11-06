@@ -15,7 +15,7 @@
 const W = "body.immersive-workbench";
 const GROUP_IN = ".tab-group:is([data-plugin-group],[data-tab-group])";
 const REMOVED = `${W} .tab-strip .tab-group[data-plugin-group][data-group-state=removed]`;
-const STRIP_BUTTON = ".tab-text-button";
+const STRIP_BUTTON = ".tab-strip-button";
 const UNFOCUSED = `${W} .tab-strip[data-unfocused]`;
 const PINNED_GROWN = `${W} .tab-strip .tab-item[data-pinned].is-grown`;
 const SWITCH = `${W} .tab-pane-switch`;
@@ -30,13 +30,14 @@ export const WORKBENCH_NAVIGATION_STYLES = `
 ${UNFOCUSED} .tab-item[aria-current]{background:var(--nav-active);box-shadow:none}
 ${UNFOCUSED} ${GROUP_IN} .tab-item[aria-current]{background:color-mix(in srgb,var(--group-color) 18%,transparent);box-shadow:none}
 ${UNFOCUSED} .tab-item[aria-current]::after{display:none}
-/* The strip's own text buttons (.tab-text-button): every tab, once the strip cannot hold them; the way back from one pane only. */
+/* The strip's own text buttons (.tab-strip-button): every tab, once the strip cannot hold them; the way back from one pane only. */
 ${STRIP_BUTTON}{flex:none;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border:0;border-radius:var(--r-control,8px);background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-weight:var(--weight-control,500);white-space:nowrap;cursor:pointer;transition:background-color ${EASE},color ${EASE}}
 ${STRIP_BUTTON} svg{width:14px;height:14px;flex:none}
 ${STRIP_BUTTON}:hover{background:var(--nav-hover);color:var(--ink)}
 ${STRIP_BUTTON}:active{background:var(--nav-press,var(--nav-active))}
 ${STRIP_BUTTON}:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
 .tab-all-button[aria-expanded="true"]{background:var(--nav-active);color:var(--ink)}
+.titlebar-layout>.mw-btn[aria-expanded="true"]{background:var(--nav-hover);color:var(--ink)}
 .tab-all-count{color:var(--muted);font-variant-numeric:tabular-nums}
 .tab-solo-chip{background:var(--accent-soft);color:var(--accent-strong,var(--accent))}
 .tab-solo-chip:hover{background:color-mix(in srgb,var(--accent) 18%,var(--paper));color:var(--accent-strong,var(--accent))}

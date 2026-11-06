@@ -376,7 +376,7 @@ Jelly 的例子：`action-schema.ts:11` 的 `ids` 加 `minItems: 1`（`uniqueIte
 
 | 类 | 来源 | 可信吗 |
 | --- | --- | --- |
-| ① list、create、receive、openConversation 等的 `projectId` | 各插件 `project(caller)` = `caller.project_id`，空时已抛 `actions.project_required`（`dataset/actions.ts:68` 等） | 可信，宿主给的 |
+| ① list、create、receive、openConversation 等的 `projectId` | 各插件 `project(caller)` = `caller.project_id`，空时已抛 `actions.project_required`（`dataset/actions.ts:67` 等；Form、PPT 的 `content-actions.ts` 抛各自的 `invalid`，见 AIC-14） | 可信，宿主给的 |
 | ② `from_project_id` | SDK `placementSourceProject(caller, to)` 或 `caller.project_id` | 可信 |
 | ③ `to_project_id` | 动作输入，但 `PLACEMENT_*_INPUT_SCHEMA` 已有 `minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"`，受众只有 `user`，放置服务还先核 `spaces.some(project_id === to)` | 可信。`pattern` 决定 `trim` 没有效果 |
 | ④ store 内 `get(id, projectId)` 的比较 | 同 ①；插件层另有 `here(projectId)` 比 `context.project_id`（`dataset/plugin.ts:40`、`form/plugin.ts:41`） | 可信 |
@@ -395,7 +395,7 @@ Jelly 的例子：`action-schema.ts:11` 的 `ids` 加 `minItems: 1`（`uniqueIte
 
 N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固定、跨项目移动、复制、搜索与读正文）留在 [06 第 2 项](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-2)。按「按批推进」，06 的实现要等第 05 批全部合入，所以两边**不会同时改代码**，不用互相 rebase。06 的设计稿可以照常写，开工时对着 N22 迁完的 store 和动作文件再核一次。
 
-重复读值函数的现状（台账有出入）：`text` 读值型 38 个定义／21 个包；`optionalText` 10／5；`required` 真正读值的只有 `plugin-builder/agent-experience.ts:23`，其余是 `browser/dom.ts` 取元素（台账写 15）；`field` 8 个包（台账写 6）。`project(caller)` 小包装 12 份不算在 N22 里，迁移时顺手收到 SDK 一个函数的话单独说明。
+重复读值函数的现状（台账有出入）：`text` 读值型 38 个定义／21 个包；`optionalText` 10／5；`required` 真正读值的只有 `plugin-builder/agent-experience.ts:23`，其余是 `browser/dom.ts` 取元素（台账写 15）；`field` 8 个包（台账写 6）。`project(caller)` 小包装 12 份不算在 N22 里，其中 `form/src/content-actions.ts:32`、`ppt/src/content-actions.ts:57` 没有项目时抛的不是 `actions.project_required`，这个不一致归第 06 批；迁移时顺手收到 SDK 一个函数的话单独说明。
 
 ## 8. 分片与派工
 
@@ -676,7 +676,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | AIC-11 | SDK 只依赖 contracts（`pnpm boundary:check`），公开 API 快照写明新类型和两个函数 |
 | AIC-12 | 每个 S 片：包内处理器不再有 `input as`；每个搬进 schema 的约束都有一个断言拒绝的用例，错误码写明；留下的检查有理由；动作快照刷新 |
 | AIC-13 | 试点量一次 `tsc` 时间与内存，记进 PR；超过 §4.6 估计三倍或碰到 TS7056，回到设计 |
-| AIC-14 | 五个 store 没有 `normalizeProjectId`；Home 级调用没有项目时仍得 `actions.project_required`；`to_project_id` 带空白、超 120 被放置 schema 拒；81 字符的项目 id 可用 |
+| AIC-14 | 五个 store 没有 `normalizeProjectId`；删掉之后，没有项目的调用行为不变：Home 级调用仍被各自的 `project(caller)` 拒，多数得 `actions.project_required`，`form/src/content-actions.ts:32`、`ppt/src/content-actions.ts:57` 得各自的 `invalid("缺少项目")`（原状，属 §7 的小包装，归第 06 批）；`to_project_id` 带空白、超 120 被放置 schema 拒；81 字符的项目 id 可用 |
 | AIC-15 | 规则被别处删除：有未保存输入时编辑器不关，输入还在，「存成新规则」得到一条带这些内容的新草稿；第二步失败时输入还在；没有未保存输入时关掉，并给一句「这条规则已被删除」。`sample.remove` 得 `sample_not_found` 时不当成规则没了 |
 | AIC-16 | 规则在别处发布：保存得 `published_immutable`，页面进「已在别处发布」，输入还在；「存成新规则」不撞 key；直接调动作、传的是发布的那一版，按成功（幂等只对直接调动作的调用方：编辑器点发布先 `saveDraft`，`update` 对已发布记录一律 `published_immutable`，走不到这里） |
 | AIC-17 | 每个 T 片：`pnpm actions:update`、`pnpm api:update` 无差异，运行时检查和错误码没动，PR 带 S 清单。N22-02、N22-03 的 `api:update` 除外：只改 §8.2 写明的 4 份快照，差异只是字面量变窄，PR 写明对调用方兼容 |

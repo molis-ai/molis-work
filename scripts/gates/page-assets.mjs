@@ -284,18 +284,21 @@ const headErrors = (measured, budget, base) => {
 // them with the board's combobox to filter and pick. settings.css +271 B and workbench.css +271 B (header alignment, the picked mark,
 // the listed name), workbench.js +2357 B (fetch, filter, pick, keyboard). These add on top of the account entries above, which
 // share the same merge-base. Tried: the picker reuses `.model-field` and the board's combobox styles, the save and the fetch share
-// one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441. (Spent: #1855 is in the merge-base budget.)
+// one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441.
+// BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
+// one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
+// table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
+// account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
 // ASC-57 (第 13 批②, 2026-11-06): after a key change or a provider removal the page points out the old key nothing uses and
 // offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
-// spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). The
-// account deltas still waiting to land (workbench.css +452 B, workbench.js +39629 B) are carried onto the new merge-base.
-// Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits the select in place instead of
-// reloading the page, the host names no key so the page needs no second string.
+// spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
+// the merge-base after #1855 and BL-912. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
+// the select in place instead of reloading the page, the host names no key so the page needs no second string.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 690569],
   "/assets/molis-work-settings.css": [826998, 827246],
-  "/assets/molis-work-workbench.css": [1194792, 1195492],
-  "/assets/molis-work-workbench.js": [1077477, 1118141],
+  "/assets/molis-work-workbench.css": [1194792, 1195040],
+  "/assets/molis-work-workbench.js": [1077514, 1078549],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

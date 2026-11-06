@@ -91,18 +91,28 @@ test("RAC-2424 an orphan connection row replaces its token and removes itself fr
 
   await openConnections();
   assert.equal(await evaluate(`Boolean(document.querySelector(${rowSelector}))`), true, "the removed package's connection is still listed");
-  assert.equal(await evaluate(`Boolean(document.querySelector('[data-connector-open="${SERVICE}"]'))`), false, "the removed package has no card");
+  // The orphan is its own row under 目录里已没有的服务 (ASC-73): not the removed package's service row, and no service panel.
+  const item = `[data-connector-orphan="${id}"]`;
+  const form = `${item} [data-connection-replace="${id}"]`;
+  const remove = `${item} [data-connection-scope="${id}"] [data-connection-manage='remove']`;
+  assert.equal(await evaluate(`Boolean(document.querySelector('[data-connector-item="${SERVICE}"]'))`), false, "the removed package has no service row");
   assert.equal(await evaluate(`Boolean(document.querySelector('[data-connector-detail="${SERVICE}"]'))`), false, "and no panel to open");
-  assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(row + " [data-connection-replace]")}))`), true, "the row offers 更换令牌 itself");
-  assert.equal(await evaluate(`[...document.querySelectorAll(${JSON.stringify(row + " details.settings-connection-inline > summary")})].map(node => node.textContent).includes("更换令牌")`), true, "its first inline form is 更换令牌");
-  assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(row + " [data-connection-manage='remove']")}))`), true, "and 移除");
+  assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(`${item} ${row} [data-connection-replace-open="${id}"]`)}))`), true, "the account offers 换密钥 itself");
+  assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(form)}))`), true, "with the key form under its 高级");
+  assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(remove)}))`), true, "and 移除");
   const before = await revision();
   assert.ok(before, "the orphan row names the connection revision it renders");
 
-  await click(row + " details.settings-connection-inline > summary");
-  await click(row + " [data-connector-token]");
+  const openItem = async () => {
+    await click(`${item} [data-connection-toggle]`);
+    await waitFor(`document.querySelector(${JSON.stringify(item)})?.dataset.open === 'true' && !document.querySelector('[data-connectors-settings]').getAnimations({ subtree: true }).some(motion => motion.playState === 'running' && motion.effect?.getComputedTiming().iterations !== Infinity)`);
+  };
+  await openItem();
+  await click(`${row} [data-connection-replace-open="${id}"]`);
+  await waitFor(`document.querySelector(${JSON.stringify(form)})?.closest('details')?.open === true && (body => body.clientHeight >= body.scrollHeight - 1)(document.querySelector(${JSON.stringify(form)}).closest('.mw-collapsible__body'))`);
+  await click(form + " [data-connector-token]");
   await command("Input.insertText", { text: probeToken(2) }, sessionId);
-  await click(row + " [data-connection-replace] button[type=submit]");
+  await click(form + " button[type=submit]");
   await waitFor(`document.querySelector(${rowSelector})?.dataset.connectionRevision !== ${JSON.stringify(before)}`, 20_000);
   const after = await revision();
   assert.ok(after && after !== before, "the row reloads with the replaced token's revision");
@@ -115,7 +125,11 @@ test("RAC-2424 an orphan connection row replaces its token and removes itself fr
   assert.equal(listedToken(), probeToken(2));
   assert.equal(await evaluate(`Boolean(document.querySelector(${rowSelector}))`), true, "the orphan row survives the reopen");
 
-  await click(row + " [data-connection-manage='remove']");
+  await openItem();
+  // 移除 is the account's own setting, under the row's 高级; it is pressed once that fold has opened all the way.
+  await click(`${item} [data-connector-advanced] > summary`);
+  await waitFor(`(body => body?.parentElement.open && body.clientHeight >= body.scrollHeight - 1)(document.querySelector(${JSON.stringify(`${item} [data-connector-advanced] > .mw-collapsible__body`)}))`);
+  await click(remove);
   await waitFor(`!document.querySelector(${rowSelector})`, 20_000);
   assert.equal(withConnectorConnections(homeDirectory, store => store.list()).some(connection => connection.connection_id === id), false,
     "the row's 移除 deletes the connection");

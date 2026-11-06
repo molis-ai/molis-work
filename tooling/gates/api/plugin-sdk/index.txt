@@ -539,6 +539,8 @@ export declare function checkedSourcePresentation(value: unknown): SourcePresent
 
 export declare function checkedSourcePresentationInput(value: unknown): SourcePresentationInput;
 
+export declare function compareCodeUnits(left: string, right: string): number;
+
 export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function compareTexts(before: string, after: string): TextDiff;

@@ -1,5 +1,4 @@
 import { canonicalJsonValue as canonical, effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
-export { canonical };
 import { constants } from 'node:fs';
 import { mkdir, readdir, realpath, writeFile, open, lstat } from 'node:fs/promises';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';

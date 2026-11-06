@@ -1,5 +1,6 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
+import {compareCodeUnits} from '@molis-ai/molis-work-plugin-sdk';
 
 const errors=defineErrorCodes('placement',{copy_journal_invalid:'invalid',copy_journal_scope:'forbidden',copy_journal_conflict:'conflict'});
 export interface ProjectCopyPlan {
@@ -27,8 +28,8 @@ const hash=(value:unknown):value is string=>typeof value==='string'&&/^[a-f0-9]{
 const unique=(values:readonly string[])=>new Set(values).size===values.length;
 function planValue(input:unknown,spaceId:string):ProjectCopyPlan {
  if(!object(input)||!exact(input,['operationId','sourceSpaceId','targetSpaceId','fingerprint','projects','assets'])||!text(input.operationId,200)||!text(input.sourceSpaceId)||input.targetSpaceId!==spaceId||input.sourceSpaceId===spaceId||!hash(input.fingerprint)||!Array.isArray(input.projects)||input.projects.length<1||input.projects.length>100||!Array.isArray(input.assets)||input.assets.length>50000)throw errors.copy_journal_invalid('复制回执格式或空间无效，原记录已保留');
- const projects=input.projects.map(value=>{if(!object(value)||!exact(value,['sourceId','targetId','title'])||!text(value.sourceId,80)||value.sourceId==='personal'||!text(value.targetId,80)||value.targetId===value.sourceId||!text(value.title,120)||!value.title.trim())throw errors.copy_journal_invalid('复制回执项目映射无效');return {sourceId:value.sourceId,targetId:value.targetId,title:value.title};}).sort((a,b)=>a.sourceId.localeCompare(b.sourceId));
- const assets=input.assets.map(value=>{if(!object(value)||!exact(value,['id','targetKey','targetHash'])||!text(value.id,2500)||!text(value.targetKey,2000)||!hash(value.targetHash))throw errors.copy_journal_invalid('复制回执资产映射无效');return {id:value.id,targetKey:value.targetKey,targetHash:value.targetHash};}).sort((a,b)=>a.id.localeCompare(b.id));
+ const projects=input.projects.map(value=>{if(!object(value)||!exact(value,['sourceId','targetId','title'])||!text(value.sourceId,80)||value.sourceId==='personal'||!text(value.targetId,80)||value.targetId===value.sourceId||!text(value.title,120)||!value.title.trim())throw errors.copy_journal_invalid('复制回执项目映射无效');return {sourceId:value.sourceId,targetId:value.targetId,title:value.title};}).sort((a,b)=>compareCodeUnits(a.sourceId,b.sourceId));
+ const assets=input.assets.map(value=>{if(!object(value)||!exact(value,['id','targetKey','targetHash'])||!text(value.id,2500)||!text(value.targetKey,2000)||!hash(value.targetHash))throw errors.copy_journal_invalid('复制回执资产映射无效');return {id:value.id,targetKey:value.targetKey,targetHash:value.targetHash};}).sort((a,b)=>compareCodeUnits(a.id,b.id));
  if(!unique(projects.map(p=>p.sourceId))||!unique(projects.map(p=>p.targetId))||!unique(assets.map(a=>a.id)))throw errors.copy_journal_invalid('复制回执包含重复身份');
  return {operationId:input.operationId,sourceSpaceId:input.sourceSpaceId,targetSpaceId:spaceId,fingerprint:input.fingerprint,projects,assets};
 }

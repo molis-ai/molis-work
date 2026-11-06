@@ -1,5 +1,5 @@
 import type { ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobRecord } from './contract.js';
-import { defaultShelfDeviceSettings } from './settings.js';
+import { defaultShelfDeviceSettings, isCurrentShelfSettings } from './settings.js';
 import { shelfErrors } from './errors.js';
 
 export const CATALOG_VERSION = /* @version format.shelf.catalog */ 1;
@@ -29,7 +29,7 @@ export function readCurrentCatalog(value: unknown): CatalogFile {
   const keys = Object.keys(emptyShelfCatalog());
   if (!raw || raw.version !== CATALOG_VERSION || Object.keys(raw).some(key=>!keys.includes(key)) || keys.some(key=>!Object.hasOwn(raw,key))
     || typeof raw.seeded_sample !== 'boolean' || !Array.isArray(raw.items) || !Array.isArray(raw.jobs) || !Array.isArray(raw.clipboard)
-    || !(raw.current_clip_id === null || typeof raw.current_clip_id === 'string') || !raw.settings
+    || !(raw.current_clip_id === null || typeof raw.current_clip_id === 'string') || !isCurrentShelfSettings(raw.settings)
     || raw.items.some(item => !item || !Array.isArray(item.source_item_ids) || !Array.isArray(item.children)
       || !['done', 'failed'].includes(item.status) || !(item.failure_reason === null || typeof item.failure_reason === 'string')
       || typeof item.relative_path!=='string' || typeof item.copy_hash!=='string' || !/^(?:[a-f0-9]{64})?$/.test(item.copy_hash)

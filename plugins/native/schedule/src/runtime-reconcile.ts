@@ -4,9 +4,12 @@ import { pruneUninstalledSchedules } from "./runtime-uninstall.js";
 import { reconcileScheduledOperations } from "./operations.js";
 import { rescheduleEnabledConversationTasks } from "./wakeup.js";
 import type { ScheduleRuntime } from "./runtime-actions.js";
+import type { ScheduleTaskGrants } from "./task-grants.js";
+import { listScheduleConversationTasks } from "./tasks.js";
 
 /** No work starts inside activation: Runtime first registers the contribution and marks its installation running. */
-export async function reconcileSchedule(runtime: ScheduleRuntime, projectId: string, installations: PluginInstallationClient, control: PluginJobControl, report: (message: string | null) => void): Promise<void> {
+export async function reconcileSchedule(runtime: ScheduleRuntime, projectId: string, installations: PluginInstallationClient, grants: ScheduleTaskGrants,
+  control: PluginJobControl, report: (message: string | null) => void): Promise<void> {
   await setTimeout(0, undefined, { signal: control.signal });
   while (!control.signal.aborted) {
     try {
@@ -15,6 +18,8 @@ export async function reconcileSchedule(runtime: ScheduleRuntime, projectId: str
         reconcileScheduledOperations(runtime.db, runtime.schedule);
         rescheduleEnabledConversationTasks(runtime.db, runtime.schedule);
       });
+      // Grants of archived or vanished tasks: the platform keeps them, so they are cleared there, after Schedule's own write.
+      await grants.reconcile(new Set(listScheduleConversationTasks(runtime.db).map(task => task.task_id)));
       report(null);
     } catch (error) {
       control.assert_authority_current();

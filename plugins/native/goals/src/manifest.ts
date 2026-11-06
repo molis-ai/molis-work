@@ -8,6 +8,7 @@ import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { GOALS_MESSAGES } from "./messages.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_PAGE_EN } from "./page/en.js";
+import { GOALS_READ_GROUPS_EN } from "./read-groups-en.js";
 import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
 import { GOALS_CONTEXT_EN } from "./context-en.js";
 import { GOALS_DIALOGS_EN } from "./dialogs-en.js";
@@ -113,6 +114,11 @@ export const goalsManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS, ...GOALS_TERMINAL_ACTIONS],
+  // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
+  read_groups: [{ group_id: "goals", title: "目标", description: "目标的状态、正文、进展记录、关系与资料",
+    actions: ["goals.list", "goals.state.read", "goals.directory.read", "goals.document.read", "goals.collection.read", "goals.snapshot.read", "goals.subject.read",
+      "goals.search.entries", "goals.contract.read", "goals.events.list", "goals.events.latest", "goals.events.read", "goals.timeline.list", "goals.history.list",
+      "goals.history.read", "goals.relations.list", "goals.inputs.list", "goals.deliverables.list", "goals.artifact_inputs.list"] }],
   // The four kinds of edge Goals writes from a Goal to an exact version in the 成果库 (its inputs and deliverables, and the proposals
   // of either that a person confirms). `deliverable-actions.ts` writes them; the 成果库 reads them from here, by kind.
   artifacts: { produces: [], consumes: [], links: [
@@ -140,6 +146,7 @@ export const goalsManifest: PluginManifest = {
       ...GOALS_PLANNING_EN,
       ...GOALS_PROPOSAL_EN,
       ...GOALS_PAGE_EN,
+      ...GOALS_READ_GROUPS_EN,
     },
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID, GOALS_STAGE_CONTRIBUTION_ID],
     page_routes: GOALS_PAGE_ROUTES,

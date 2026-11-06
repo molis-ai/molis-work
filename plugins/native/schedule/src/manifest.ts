@@ -9,6 +9,7 @@ import { SCHEDULE_OPERATION_ACTIONS } from "./operation-actions.js";
 import { SCHEDULE_RECONCILE_JOB, scheduleWakeupActions } from "./background-actions.js";
 import { SCHEDULE_MESSAGES } from "./messages.js";
 import { SCHEDULE_EN } from "./en.js";
+import { SCHEDULE_TASK_GRANT_ACTIONS } from "./task-grants.js";
 export { SCHEDULE_TASK_WAKEUP_CAPABILITY } from "./background-actions.js";
 
 export const SCHEDULE_PLUGIN_ID = "io.molis.work.schedule";
@@ -37,14 +38,22 @@ export const scheduleManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectsCapabilities.readWorkspace.capability_id],
+    // The platform's grants of this installation's tasks: listed to pick a round's role and mark the page, cleared when a task ends.
+    consumes: [projectsCapabilities.readWorkspace.capability_id, ...SCHEDULE_TASK_GRANT_ACTIONS.map(action => action.capability_id)],
   },
   actions: [...SCHEDULE_ACTIONS, ...REMINDER_ACTIONS, ...SCHEDULE_OPERATION_ACTIONS, ...Object.values(scheduleWakeupActions)],
+  // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
+  // Reminders alone are one group (日程 = Jelly's calendar and these, user decision); the task list carries them together with other
+  // plugins' scheduled operations and their original input, so it is a group of its own, off unless the person turns it on.
+  read_groups: [{ group_id: "reminders", title: "提醒", description: "本项目的提醒：内容、来自哪个插件和下一次时间",
+    actions: [scheduleActions.reminders.capability_id] }, { group_id: "operations", title: "定时操作", description: "本项目的定时任务、提醒，以及其他插件登记的定时操作和它们的原输入",
+    actions: [scheduleActions.list.capability_id, scheduleActions.searchEntries.capability_id, scheduleActions.subject.capability_id] }],
   background: { jobs: [{ job_id: SCHEDULE_RECONCILE_JOB, reason: "恢复未完成的排期并标记中断的执行", permissions: ["storage:private", "schedule:read", "schedule:write", "plugins:read"] }],
     wakeups: Object.values(scheduleWakeupActions).map(({ capability_id, version, action }) => ({ action: { capability_id, version }, reason: action.title })) },
   routes: [
     { route_id: "schedule.list", method: "GET", path: "/list", permission: "schedule:read" },
     { route_id: "schedule.readiness", method: "GET", path: "/readiness", permission: "schedule:read" },
+    { route_id: "schedule.grants", method: "GET", path: "/grants", permission: "schedule:read" },
     { route_id: "schedule.task.create", method: "POST", path: "/tasks", permission: "schedule:write" },
     { route_id: "schedule.task.update", method: "POST", path: "/tasks/:task_id/update", permission: "schedule:write" },
     { route_id: "schedule.task.archive", method: "POST", path: "/tasks/:task_id/archive", permission: "schedule:write" },

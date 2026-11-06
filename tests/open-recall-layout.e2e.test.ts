@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // 07-S2 (specs/product-flow-governance §4.6.2 S2; PFG-22, PFG-23, PFG-24, PFG-25): the project home is the Dock's, not a tab;
 // ＋ only opens, beside its button, from the Host's directory, and says where an open plugin already is; opening it again
@@ -203,4 +205,36 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   await waitFor(`document.querySelector('${PLUS}') && document.querySelector('[data-side-tabs]')`, 15_000);
   assert.equal(await evaluate(`Boolean(${stored}?.side.tabs.some(tab => tab.itemId === ${JSON.stringify(other)}))`), false, "the closed side tab did not come back on reload");
   assert.equal(await evaluate(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"]')?.hasAttribute('data-side-closed') ?? true`), true);
+});
+
+// Review evidence (ignored folder unless MOLIS_WORK_REVIEW_EVIDENCE=1): ＋'s list with one plugin already open, and the layout
+// menu, at three widths, in both languages and both themes.
+test("PFG-23 review shots of ＋ and the layout menu at 1440, 1024 and 390, Chinese and English, light and dark", { timeout: 240_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { waitFor, evaluate, command, sessionId, navigate, origin, projectId } = browser;
+  const evidence = reviewEvidenceUrl("07-s2-open-layout/"); await mkdir(evidence, { recursive: true });
+  const shot = async (name: string) => writeFile(new URL(name + ".png", evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  for (const lang of ["zh", "en"] as const) for (const theme of ["light", "dark"] as const) for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 760 }, sessionId);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
+    await waitFor(`document.querySelector('${PLUS}')`, 15_000);
+    if (!(await evaluate<boolean>(`Boolean(document.querySelector('${GOALS_TAB}'))`))) {
+      await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=goals], [data-dock-pin=goals]')?.click()");
+      await waitFor(`document.querySelector('${GOALS_TAB}')`, 15_000);
+    }
+    const name = `${lang}-${theme}-${width}`;
+    await evaluate(`document.querySelector('${PLUS}').click()`);
+    await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open')`);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await shot(name + "-plus");
+    await evaluate(`document.querySelector('${OPEN_MENU} input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    await waitFor(`!document.querySelector('${OPEN_MENU}').matches(':popover-open')`);
+    await evaluate("document.querySelector('[data-layout-open]').click()");
+    await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await shot(name + "-layout");
+    await evaluate(`document.querySelector('${LAYOUT_MENU}').hidePopover()`);
+  }
 });

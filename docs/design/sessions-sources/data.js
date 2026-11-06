@@ -31,6 +31,7 @@ window.protoData = {
         { id: "arriving", name: ["卡片先到，建议随后到", "Cards first, suggestions follow"] },
         { id: "failed", name: ["建议没生成（模型不可用）", "No suggestion (model unavailable)"] },
         { id: "changed", name: ["你改选后来了新建议", "Late suggestion after you changed it"] },
+        { id: "tool", name: ["工具报的项目（所有目录）", "Tool-reported projects (all folders)"] },
         { id: "done", name: ["都处理完了", "All sorted"] },
       ],
     },
@@ -144,10 +145,12 @@ window.protoData = {
     narrowed: { claude: ["ok", 12], codex: ["ok", 20], kimi: ["off"], qwen: ["ok", 3], gemini: ["off"], copilot: ["off"], amp: ["off"], cursor: ["gap"], windsurf: ["gap"] },
   },
 
-  // how: dir = the folder is linked to exactly one project; manual = you picked it; none = to sort
+  // how: dir = the folder is linked to exactly one project; manual = you picked it; none = to sort;
+  // reported = only a tool's binding says so, and only "All folders" reaches it. toolOther = the tool reported another project.
   sessions: [
     { id: "s1", tool: "claude", title: ["统一输入的回执放进气泡里", "Move input receipts into the bubble"], dir: "~/code/goalboard", when: ["今天 14:20", "Today 14:20"], turns: 86, project: "molis", how: "dir", native: "8c41f0e2-…-7d1a", running: true },
-    { id: "s2", tool: "codex", title: ["修 e2e 里 Goal Frame 分屏超时", "Fix the Goal Frame split e2e timeout"], dir: "~/code/goalboard", when: ["今天 11:05", "Today 11:05"], turns: 42, project: "molis", how: "dir", native: "rollout-2026-11-04T11-05" },
+    { id: "s2", tool: "codex", title: ["修 e2e 里 Goal Frame 分屏超时", "Fix the Goal Frame split e2e timeout"], dir: "~/code/goalboard", when: ["今天 11:05", "Today 11:05"], turns: 42, project: "molis", how: "dir", native: "rollout-2026-11-04T11-05", toolOther: "site" },
+    { id: "s12", tool: "claude", title: ["查一下发版前的依赖更新", "Check dependency updates before release"], dir: "~/scratch/deps", when: ["今天 09:40", "Today 09:40"], turns: 11, project: "molis", how: "reported", native: "3be17c40-…-a2f4", reportedOnly: true },
     { id: "s4", tool: "claude", title: ["组件库按钮的按压回弹", "Button press spring in the UI kit"], dir: "~/code/ui-kit", when: ["昨天 22:40", "Yesterday 22:40"], turns: 23, project: null, how: "none", native: "f02b9a71-…-11ce" },
     { id: "s3", tool: "qwen", title: ["官网首页首屏改版", "Website hero redesign"], dir: "~/code/site", when: ["昨天 16:12", "Yesterday 16:12"], turns: 31, project: "site", how: "dir", native: "q-7f3e21" },
     { id: "s9", tool: "codex", title: ["修 e2e 超时：改用等待事件", "E2E timeout: wait on the event"], dir: "~/code/goalboard", when: ["昨天 10:30", "Yesterday 10:30"], turns: 12, project: "molis", how: "dir", native: "rollout-2026-11-03T10-30", forkOf: "s2" },

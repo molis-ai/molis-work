@@ -63,9 +63,11 @@
   const toggles = (label, list, cur, key) =>
     `<div class="mw-toggle-group" data-slot="toggle-group" data-cat="Toggle Group" role="group" aria-label="${esc(label)}">${list.map(([v, n]) => `<button type="button" class="mw-toggle${v === cur ? " is-current" : ""}" aria-pressed="${v === cur}" value="${v}" data-${key}="${v}">${n}</button>`).join("")}</div>`;
   const who = (kind, text, label) => `<span class="mw-who" data-kind="${kind}" role="img" aria-label="${esc(label)}" data-cat="Who">${text}</span>`;
-  const dirRow = ({ icon, title, meta, count, stat, current, attrs = "" }) =>
-    `<button type="button" title="${esc(title)}" class="mw-dir-row mw-dir-row--meta directory-list-row${current ? " is-selected" : ""}" data-slot="directory-row" data-cat="Directory Row"${current ? ' aria-current="page"' : ""} ${attrs}><span class="mw-dir-row__icon">${ic(icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>${title}</strong>${count != null ? `<span class="mw-dir-row__count">${count}</span>` : ""}${stat || ""}</span>${meta ? `<small>${meta}</small>` : ""}</span></button>`;
+  const dirRow = ({ icon, title, meta, count, stat, current, note = "", attrs = "" }) =>
+    `<button type="button" title="${esc(title)}" class="mw-dir-row mw-dir-row--meta directory-list-row${current ? " is-selected" : ""}" data-slot="directory-row" data-cat="Directory Row"${current ? ' aria-current="page"' : ""} ${attrs}><span class="mw-dir-row__icon">${ic(icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>${title}</strong>${count != null ? `<span class="mw-dir-row__count">${count}</span>` : ""}${stat || ""}</span>${meta ? `<small>${meta}</small>` : ""}${note}</span></button>`;
   const dirHeading = (text) => `<h2 class="mw-dir__heading" data-slot="directory-heading">${text}</h2>`;
+  const NEW_NOTE = () => L("Directory Row 的提示行：行尾的 Status mark 只放得下两三个字，这里的话要写全，不能靠悬停；提示行排在标题下面，能折行",
+    "Directory Row hint line: the Status mark at the row's end fits two or three words, and this has to be said in full, not on hover. It sits under the title and may wrap");
   const NEW_LOG = () => L("外部会话原文：组件板只有助理与 Coding 的气泡，没有「别的工具里的一段对话」——要分清你、那个工具和它调用的工具步骤，长历史能往上读、能就地搜索",
     "External conversation log: the board has assistant and Coding bubbles only, nothing for “a conversation from another tool” that separates you, that tool and its tool steps, reads upward through long history and searches in place");
 
@@ -118,10 +120,17 @@
     return s.project;
   }
   const pending = (s) => ownerOf(s) == null;
+  // Tool-reported projects, shown to you only. "reported" needs your confirmation; "toolOther" is a hint, the folder still decides.
+  const toolState = () => S.block === "owner" && st("owner") === "tool";
+  const isReported = (s) => s.how === "reported" && S.decided[s.id] === undefined;
+  const toolOtherOf = (s) => (toolState() && s.toolOther && S.decided[s.id] === undefined ? proj(s.toolOther) : null);
+  const REPORTED = () => L("工具报的，不是你确认的", "Reported by a tool, not confirmed by you");
+  const TOOL_OTHER = () => L("工具报的是另一个项目", "The tool reported another project");
   function found() {
     const d = discState();
     return D.sessions.filter((s) => {
       const [code] = srcState(s.tool);
+      if (s.reportedOnly && !toolState()) return false;
       if (code === "reading") return s.id !== "s9";
       if (code !== "ok") return false;
       if (S.block === "history" && st("history") === "revoked" && s.tool === "qwen") return false;
@@ -218,7 +227,10 @@
     const grouped = opt("discover") === "A" && S.block === "discover";
     const meta = [grouped ? null : T(t.name), s.when ? T(s.when) : null].filter(Boolean).join(" · ");
     const stat = pending(s) ? status(L("待归类", "To sort"), "attention", null, true) : s.running ? status(L("在运行", "Running"), "progress", "running", true) : "";
-    return dirRow({ icon: s.forkOf ? "git-branch" : toolIcon(s.tool), title: T(s.title), meta, stat, current: S.sel === s.id && !S.src, attrs: `data-sel="${s.id}"` });
+    // A hinted row has two lines anyway, so the tool and time move down with the hint instead of being squeezed out by the title.
+    const note = isReported(s) ? `<small class="ss-dir-note" data-new="${esc(NEW_NOTE())}">${meta} · <span data-tone="attention">${REPORTED()}</span></small>`
+      : toolOtherOf(s) ? `<small class="ss-dir-note">${meta} · ${TOOL_OTHER()}</small>` : "";
+    return dirRow({ icon: s.forkOf ? "git-branch" : toolIcon(s.tool), title: T(s.title), meta: note ? "" : meta, stat, note, current: S.sel === s.id && !S.src, attrs: `data-sel="${s.id}"` });
   }
   function listPanel() {
     const d = discState(); const o = opt("discover");
@@ -360,12 +372,14 @@
       if (opt("owner") === "A") return inlineSuggestion(s);
       return alert("warning", L("待归类", "To sort"), L("目录没有唯一连着一个项目，照样能看历史。", "Its folder isn't linked to exactly one project; history is still readable."), btn(L("去待归类处理", "Open To sort"), { attrs: `data-view="sort"` }));
     }
+    if (isReported(s)) return `<p class="ss-owner">${ic("folder")}<b>${T(proj(o).name)}</b><span>${REPORTED()}${L("。确认之后才算，这个项目的 AI 现在读不到它。", ". It counts once you confirm; this project's AI can't read it until then.")}</span>${btn(L("确认归到这里", "Confirm this project"), { attrs: `data-decide="${s.id}:${o}"` })}${changeBtn}</p>`;
+    const other = toolOtherOf(s);
     const basis = o === "skip" ? L("你选了不归到项目", "You chose no project")
       : S.decided[s.id] !== undefined ? L("你刚确认的", "You just confirmed it")
       : s.how === "dir" ? L(`依据：目录 ${s.dir} 只连着这个项目`, `Because folder ${s.dir} is linked only to this project`)
       : s.how === "manual" ? L(`你在 11 月 1 日指定；目录连着官网改版，不改你的指定`, `You picked it on Nov 1; the folder is linked to Website redesign, your pick stays`)
       : L("按 AI 建议确认", "Confirmed from the AI suggestion");
-    return `<p class="ss-owner">${ic("folder")}<b>${o === "skip" ? L("不归到项目", "No project") : T(proj(o).name)}</b><span>${basis}</span>${changeBtn}</p>`;
+    return `<p class="ss-owner">${ic("folder")}<b>${o === "skip" ? L("不归到项目", "No project") : T(proj(o).name)}</b><span>${basis}</span>${changeBtn}${other ? `<span class="ss-owner__hint">${L(`${TOOL_OTHER()}：${T(other.name)}。归属按你连的目录算，工具改不了。`, `${TOOL_OTHER()}: ${T(other.name)}. The project follows the folder you linked; tools can't change it.`)}</span>` : ""}</p>`;
   }
   function moveDialog() {
     const s = sess(S.move); if (!s) return "";
@@ -749,11 +763,12 @@
     if (b === "owner") {
       S.decided = {};
       if (s === "changed") { S.view = "all"; S.sel = "s4"; }
+      else if (s === "tool") { S.view = "all"; S.sel = "s12"; }
       else if (opt("owner") === "A") { S.view = "sort"; S.sel = "s4"; }
       else S.view = "sort";
     }
     if (b === "history") { S.view = "all"; S.sel = ({ version: "s10", revoked: "s3" })[s] || "s1"; }
-    S.mDetail = narrow() && (b !== "discover");
+    S.mDetail = narrow() && (b !== "discover") && !(b === "owner" && s === "tool");
     if (b === "owner" && s === "arriving") startArriving();
     if (b === "permit") {
       S.view = "all";

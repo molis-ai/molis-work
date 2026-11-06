@@ -199,6 +199,6 @@ export function micSection(say: Say): string {
   const voice = say("语音输入（还没有接上）");
   return section("mic", escapeHtml(say("麦克风图标 / Mic")), `<p class="mw-catalog__hint">${escapeHtml(say("只占位置：语音输入还没有接上（第 53 批）。放在输入框底行右侧，停止和发送的左边。"))}</p><div class="mw-catalog__specimens">
     ${specimen(escapeHtml(say("两个尺寸")), glyph(16) + glyph(20))}
-    ${specimen(escapeHtml(say("在按钮里 · 常态与不可用")), ghostIcon(voice, "mic") + ghostIcon(voice, "mic", { disabled: true }) + renderButton({ label: say("语音输入"), variant: "secondary", icon: "mic" }))}
+    ${specimen(escapeHtml(say("在按钮里 · 常态与不可用")), ghostIcon(say("语音输入"), "mic") + ghostIcon(voice, "mic", { disabled: true }) + renderButton({ label: say("语音输入"), variant: "secondary", icon: "mic" }))}
   </div>`);
 }

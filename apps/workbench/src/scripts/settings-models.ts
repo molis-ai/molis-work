@@ -19,8 +19,32 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
         line.textContent = text; line.toggleAttribute('data-failed', Boolean(failed)); line.setAttribute('aria-live', failed ? 'assertive' : 'polite');
         if (failed) line.scrollIntoView({ block: 'nearest' });
       };
-      root.addEventListener('input', () => { dirty = true; status(L('有未保存的修改')); });
-      root.addEventListener('change', () => { dirty = true; });
+      root.addEventListener('input', (event) => {
+        // Filtering the fetched list changes nothing on the form.
+        if (event.target.closest?.('[data-model-picker]')) { const words = event.target.value.trim().toLowerCase(); picks().forEach((o) => { o.hidden = Boolean(words) && !o.textContent.toLowerCase().includes(words); }); return; }
+        dirty = true; status(L('有未保存的修改'));
+      });
+      const picks = () => [...root.querySelectorAll('[data-model-pick]')];
+      const ids = () => [...root.querySelectorAll('[data-model-rows] [data-model-id]')];
+      const markListed = () => { const listed = ids().map((input) => input.value.trim()); picks().forEach((o) => o.setAttribute('aria-selected', String(listed.includes(o.dataset.modelPick)))); };
+      const pick = (id) => {
+        if (ids().some((input) => input.value.trim() === id)) return status(L('{model} 已经在列表里', { model: id }));
+        let input = ids().find((field) => !field.value.trim());
+        if (!input) { find('[data-model-rows] .model-field-hint')?.remove(); find('[data-model-rows]').append(find('[data-model-row-template]').content.cloneNode(true)); input = ids().at(-1); }
+        input.value = id; dirty = true; markListed();
+        status(L('已加入 {model}，保存后生效', { model: id }));
+      };
+      root.addEventListener('keydown', (event) => {
+        const first = event.target.matches?.('[data-model-picker] input') && picks().find((o) => !o.hidden);
+        if (!first || !['ArrowDown', 'Enter'].includes(event.key)) return;
+        event.preventDefault();
+        if (event.key === 'Enter') pick(first.dataset.modelPick); else first.focus();
+      });
+      // The key the form would save with: a typed one, else the chosen connection (the saved one when neither).
+      const credential = () => {
+        const field = find('[data-model-key-field]'), key = field && !field.hidden ? find('[data-model-api-key]')?.value.trim() : '';
+        return { connection_id: find('[data-model-connection]')?.value || '', ...(key ? { api_key: key } : {}) };
+      };
       const refresh = async (query = '') => {
         const doc = new DOMParser().parseFromString(await molisWorkRequest('/settings/models' + query, { as: 'text', fallback: L('无法读取模型设置') }), 'text/html');
         const replacement = doc.querySelector('[data-model-settings]');
@@ -48,7 +72,25 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
             [...root.querySelectorAll('[data-model-id]')].at(-1)?.focus();
             dirty = true; return;
           }
-          if (button.matches('[data-model-remove]')) { button.closest('[data-model-row]').remove(); dirty = true; return; }
+          if (button.matches('[data-model-remove]')) { button.closest('[data-model-row]').remove(); dirty = true; markListed(); return; }
+          if (button.matches('[data-model-pick]')) { pick(button.dataset.modelPick); return; }
+          if (button.matches('[data-model-fetch]')) {
+            begin(); status(L('正在向服务要模型列表…'));
+            const { models = [] } = await mutate(encodeURIComponent(provider) + '/models', {
+              base_url: find('[data-model-base-url]').value, api_format: find('[data-model-api-format]').value, ...credential(),
+            });
+            const picker = find('[data-model-picker]'), input = picker.querySelector('input');
+            picker.querySelector('[role=listbox]').replaceChildren(...models.map((model) => {
+              const option = document.createElement('button');
+              option.type = 'button'; option.setAttribute('role', 'option'); option.dataset.modelPick = option.textContent = model.model_id;
+              if (model.display_name) { const name = document.createElement('span'); name.className = 'model-picker-name'; name.textContent = model.display_name; option.append(name); }
+              return option;
+            }));
+            picker.hidden = false; input.value = ''; input.setAttribute('aria-expanded', String(models.length > 0)); markListed();
+            status(models.length ? L('服务提供 {count} 个模型，选一个加进列表', { count: models.length }) : L('服务没有列出模型，请手填模型名。'));
+            if (models.length) setTimeout(() => input.focus());
+            return;
+          }
           if (button.matches('[data-model-provider-remove]')) {
             const confirm = find('[data-model-delete-confirm]');
             confirm.hidden = false; confirm.querySelector('[data-model-delete]').focus(); return;
@@ -56,8 +98,6 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
           if (button.matches('[data-model-delete-cancel]')) { find('[data-model-delete-confirm]').hidden = true; return; }
           if (button.matches('[data-model-save]')) {
             begin(); status(L('正在保存，并检查连接…'));
-            const keyField = find('[data-model-key-field]');
-            const apiKey = keyField && !keyField.hidden ? find('[data-model-api-key]')?.value.trim() : '';
             const saved = await mutate(encodeURIComponent(provider), {
               check_connection: true,
               display_name: find('[data-model-name]').value,
@@ -71,8 +111,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
                 enabled: row.querySelector('[data-model-enabled]').checked, reasoning_effort: Boolean(row.querySelector('[data-model-effort]')?.checked),
                 vision: { true: true, false: false }[row.querySelector('[data-model-vision]').value],
               })),
-              connection_id: find('[data-model-connection]')?.value || '',
-              ...(apiKey ? { api_key: apiKey } : {}),
+              ...credential(),
             });
             dirty = false;
             await refresh(query); status(L(saved.checked ? '连接检查通过，已保存。配置会用于下一轮执行。' : '已保存。配置会用于下一轮执行；可以测试模型是否实际响应。'));

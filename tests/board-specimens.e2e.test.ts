@@ -181,8 +181,14 @@ test("VUX-39 the board's Assistant questionnaire: one choice, several and other 
   const inside = (expression: string) => `(() => { const d = ${frame}.contentDocument; if (!d || d.readyState !== 'complete') return false; return ${expression}; })()`;
   const card = "d.querySelector('[data-question]')";
   // Opens the work that asks, and fills its questionnaire: 英文 for the one choice, two of the arrangements and words of its own, a note.
-  const fill = async () => {
-    await waitFor(inside("!!d.querySelector('[data-tab=\"board-reply\"]')"), 20_000);
+  const fill = async (answer: "refused" | "ok") => {
+    // VUX-39: the new document can contain hidden tabs before its initial work has opened.
+    await waitFor(inside(`(() => {
+      const button = d.querySelector('[data-tab="board-reply"] .assistant-tab-main'), box = button?.getBoundingClientRect();
+      return d.querySelector('[data-asst-frame-page]')?.dataset.answer === ${JSON.stringify(answer)}
+        && !!box?.width && !!box?.height && !button.disabled
+        && button.contains(d.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+    })()`), 20_000);
     await inFrame("d.querySelector('[data-tab=\"board-reply\"] .assistant-tab-main').click(); return null;");
     await waitFor(inside("!!d.querySelector('[data-question] [type=submit]')"), 15_000);
     return inFrame<{ one: string[]; several: string[]; other: string }>(`const c = ${card};
@@ -198,7 +204,7 @@ test("VUX-39 the board's Assistant questionnaire: one choice, several and other 
   // Refused (simulated): the stand-in Host refuses as the Runtime refuses a questionnaire.
   await evaluate(`document.querySelector('[data-asst-params] [data-cond-param="answer"][data-cond-value="refused"]').click()`);
   await waitFor(`${frame}.contentWindow.location.search.includes('answer=refused')`, 20_000);
-  const filled = await fill();
+  const filled = await fill("refused");
   assert.deepEqual(filled, { one: ["false", "true"], several: ["true", "false", "true"], other: "也抄送产品组" }, "one choice holds one pick, several hold two, other words are kept");
   await countAnswers();
   // Busy: the button shows the shared loading mark and is disabled; ⌘↵ in the note sends nothing a second time.
@@ -219,7 +225,7 @@ test("VUX-39 the board's Assistant questionnaire: one choice, several and other 
   // Taken: the card goes and the round runs on to its end.
   await evaluate(`document.querySelector('[data-asst-params] [data-cond-param="answer"][data-cond-value="ok"]').click()`);
   await waitFor(`${frame}.contentWindow.location.search.includes('answer=ok')`, 20_000);
-  await fill();
+  await fill("ok");
   await inFrame(`${card}.querySelector('[type=submit]').click(); return null;`);
   assert.equal(await inFrame<boolean>(`return ${card}?.querySelector('[type=submit]')?.disabled ?? false;`), true, "disabled while it is sent");
   await waitFor(inside("!d.querySelector('[data-question]') && d.querySelector('[data-assistant-thread]').textContent.includes('回复草稿写好了')"), 10_000);

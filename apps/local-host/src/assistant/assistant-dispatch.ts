@@ -16,7 +16,7 @@ import { assistantErrors } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, executorProviders, offerExecutors, type ExecutorControl } from "./assistant-executor.js";
-import { AssistantInputs, inputsOf, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, addressesRound, assertRoundToAddress, inputsOf, type SendIntent } from "./assistant-inputs.js";
 import { ownerOf, roundStartInput } from "./assistant-round-start.js";
 import { recoveryAction } from "./assistant-parked-answer.js";
 import { RUNTIME, MAX_TEXT, sessionRef, HANDOVER_MARK, assertSendCurrent, type AssistantServicePorts, type AssistantCaller, type RoundMaterials } from "./assistant-service-shared.js";
@@ -149,7 +149,8 @@ export class AssistantDispatch {
     assertSendCurrent(stillCurrent);
     if (read.recovery) throw assistantErrors.needs_check(read.recovery.message, { action: L("到执行方的页面核对") });
     const latest = read.runs.at(-1);
-    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
+    assertRoundToAddress(Boolean(latest), intent?.delivery);
+    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent?.delivery))) {
       // The executor's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => executor.control(sessionId, latest.ref.run_id, control),
         send: async input => { const receipt = await executor.send(sessionId, latest.ref.run_id, input); handoff?.accepted(); return receipt; } }, intent);
@@ -191,7 +192,8 @@ export class AssistantDispatch {
     if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: recoveryAction([session.latest_run && await adapter.read(session.latest_run.ref).catch(() => null)]) });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
-    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
+    assertRoundToAddress(Boolean(latest), intent?.delivery);
+    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent?.delivery))) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const outcome = await this.inputs.deliver(intent?.target === "answer" ? await adapter.read(latest.ref) : latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: async input => {
           await authority.beforeStart?.();

@@ -285,11 +285,32 @@ const headErrors = (measured, budget, base) => {
 // the listed name), workbench.js +2357 B (fetch, filter, pick, keyboard). These add on top of the account entries above, which
 // share the same merge-base. Tried: the picker reuses `.model-field` and the board's combobox styles, the save and the fetch share
 // one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441.
+// 07-S0 (workbench navigation specimens; 07 批评审台与 D 轨合审审过（#1852）): the README's new tab-strip, titlebar and
+// three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
+// workbench.css +9705 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
+// the phone titlebar's strip (6422 B), the glyph row with its own tab and count (2736 B, glyph-tabs.ts) and the bar zones (547 B).
+// arrival.css +3283 B: the same glyph row, which the arrival titlebar draws without the project page's tab rules, and the bar
+// zones. settings.css +547 B: the bar zones through craft-finish. (The BL-953 entries for these three are spent: the merge-base
+// budget holds their ceilings.) Tried: the board-only scaffolding stays inline on the board's frame page; the layout button is
+// the ghost icon .mw-btn and "open beside" the switcher row's button, not classes of their own; the new class names drop the
+// body.immersive-workbench prefix where no rule competes (it stays on the tab, group and toggle overrides); one class for the
+// strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
+// weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
+// On main's base after ASC-56 (settings.css 826998, workbench.css 1194792) the account and ASC-56 entries for those two are spent,
+// so 07-S0 keys its own there; arrival.css still shares the 689886 key with the account admission, and 07-S0's ceiling there
+// also covers the account PR's +683 B. Whichever lands second moves its own entry onto the new base.
+// BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
+// one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
+// table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
+// account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
+// FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
+// The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
+// Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 690569],
-  "/assets/molis-work-settings.css": [826727, 826998],
-  "/assets/molis-work-workbench.css": [1194521, 1195244],
-  "/assets/molis-work-workbench.js": [1075120, 1117106],
+  "/assets/molis-work-arrival.css": [689886, 693169],
+  "/assets/molis-work-settings.css": [826998, 827545],
+  "/assets/molis-work-workbench.css": [1194792, 1204497],
+  "/assets/molis-work-workbench.js": [1077514, 1077683],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

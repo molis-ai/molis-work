@@ -246,4 +246,6 @@ export interface PluginManifest {
   action_scenes?: readonly import("./actions.js").ActionSceneDefinition[];
   /** What a background task of another plugin may be allowed to read, one switch per group (`plugin-read-groups.ts`). */
   read_groups?: readonly import("./plugin-read-groups.js").PluginReadGroupDeclaration[];
+  /** What this plugin's background tasks are, by its own object kind (`plugin-task-subjects.ts`). */
+  task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaration;
 }

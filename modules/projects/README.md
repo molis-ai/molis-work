@@ -30,7 +30,7 @@ Host 可通过 `ProjectsModuleOptions.spaceId` 注入目录 Store 的固定归�
 
 `projectReplicationOwner` 提供当前项目名称、时间和可携带插件清单；`validatePortableProject` 在准备目录前完整验证。`project_portable_plugins` 表示跨设备所需的插件，不等同于本机 `project_plugins` 启用状态。接收只保存清单，不安装、激活或授予权限；`projectPluginRequirements` 返回本机可用/启用投影，供入口呈现缺失插件。后续本机重命名不会丢失尚未安装插件的要求。本机添加/移除仍由同一 ProjectService 更新清单并在事务内记事件；被动准备项目不生成上传，路径、工作区关联及执行状态不进入可携带内容。
 
-项目资料当前拒绝直接接收空删除；完整删除/恢复仍须接入唯一 Host 删除服务，不能把资料同步通过记作项目生命周期已完成。目录 fresh baseline 为 v25；旧 v24/v23/v22 在打开可写连接前拒绝，不就地补表或改写真实 Home。
+项目资料当前拒绝直接接收空删除；完整删除/恢复仍须接入唯一 Host 删除服务，不能把资料同步通过记作项目生命周期已完成。错版的目录在打开可写连接前拒绝，不就地补表或改写真实 Home。
 
 `commands.renameProject` 必须带编辑器最初观察到的 `expectedDisplayName`。Projects 在同一事务内重读并比较当前名称，过期观察先于同名空操作检查而拒绝，不写事件或同步队列；调用方不能在保存旧草稿前读取新名称来补观察值。HTTP 的 `expected_display_name` 来自渲染表单的初始值，冲突保留用户草稿并要求重新核对。
 
@@ -82,4 +82,4 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
 
 `ProjectsModule.recycle` 保留原项目、插件与工作区事实，以显式观察指纹和持久操作回执提交回收/恢复。回收项目从正常查询与选择中隐藏；普通同步准备不能复活它。状态世代阻止旧确认在恢复后重放。本机 observed_at 仅作诊断，不作为服务端 30 天期限。Host 的 `ProjectDeletionService.changeRecycled` 在运行环境释放后再提交；同步接收与 UI、服务端期限和各 owner GC 仍待连接，不能据此声称项目生命周期已交付。
 
-v25 回收状态独立保留未知项目的删除事实，不创建占位项目；正常回收列表只展示仍有项目原件的记录。`projectReplicationOwner` 仅在可信 `authorizeLifecycle` 许可下于接收事务写入删除/恢复状态，缺少许可仍拒绝；不写本机命令事件或回执，最终版本和幂等性由同事务同步日志维护。已回收项目的普通非空写入同样要求恢复许可。这是 Host 接线的 owner 能力，尚未代表生产入口已启用。
+回收状态独立保留未知项目的删除事实，不创建占位项目；正常回收列表只展示仍有项目原件的记录。`projectReplicationOwner` 仅在可信 `authorizeLifecycle` 许可下于接收事务写入删除/恢复状态，缺少许可仍拒绝；不写本机命令事件或回执，最终版本和幂等性由同事务同步日志维护。已回收项目的普通非空写入同样要求恢复许可。这是 Host 接线的 owner 能力，尚未代表生产入口已启用。

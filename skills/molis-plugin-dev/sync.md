@@ -70,11 +70,11 @@ Inbox 的 `attention` 集合是 Module owner 描述符路径的另一个消费�
 
 内置 Module 内容在唯一目录用 `scope:'project-sections'`、`owners`、`kind`、`namespace` 描述，不把业务 Module 实现引入工作台。Host 的现有项目库组合根解析公开 owner 身份，公共 Storage `createProjectContentReplicaFactory` 负责事务技术；日志安装也从同一目录派生，不另建逐插件名单。
 
-Runtime 私有文档使用 `scope:'project-private-values'`、固定 `namespace/kind` 和 `owner` 工厂；Host 注入 Home、当前授权及逐对象活动检查，Runtime 只访问声明的 key。Builder 的 `authoring` 是实际消费者，完整文件字节由其明确投影到共同 R2，空文件保留为空；该注册不自动执行或安装收到的代码。项目库当前 v16，旧版拒绝且不改写，真实 Home 维护另行批准。
+Runtime 私有文档使用 `scope:'project-private-values'`、固定 `namespace/kind` 和 `owner` 工厂；Host 注入 Home、当前授权及逐对象活动检查，Runtime 只访问声明的 key。Builder 的 `authoring` 是实际消费者，完整文件字节由其明确投影到共同 R2，空文件保留为空；该注册不自动执行或安装收到的代码。错版的项目库被拒绝且不改写，真实 Home 维护另行批准。
 
 创作内容接收还必须复用平台合同和实际界面的校验：冻结设计的 Schema/示例、计划/组件绑定、完整发布界面和历史来源均先于项目创建与文件暂存检查。候选方案允许尚无行为示例，但仍校验已有 Schema、示例和组件；平台的只读 `assertProposalContract` 不可替代执行入口的 `assertContract`。历史里声明的能力和资源只是内容引用，不是目标设备的授权；正常执行、模型选择和安装批准仍需目标 Host 的当前检查。可携带合同字段是显式清单，不接受藏入本机目录或执行身份的未知扩展字段。
 
-固定版本由原 Artifacts Module 共同拥有，但成果库与过程项仍是两份事实：同一目录条目的 `scope:'project-fixed-versions'` 明确 `store:'library'|'process'`，分别注册 `versions` 与 `process_items`，各自勾选和记日志。Coding 计划、变更集等固定过程项从原表完整传输，不伪装成成果，也不因恢复启用生产者或继承执行授权。接收完整解码并经 owner 无写入校验后，才创建缺少的目标项目；已有版本不同内容、跨项目 ID 和迟到撤权均拒绝。项目库当前 v16，旧版只拒绝，真实 Home 维护仍需单独批准。这不代表 Coding 私有内容已完成全覆盖。
+固定版本由原 Artifacts Module 共同拥有，但成果库与过程项仍是两份事实：同一目录条目的 `scope:'project-fixed-versions'` 明确 `store:'library'|'process'`，分别注册 `versions` 与 `process_items`，各自勾选和记日志。Coding 计划、变更集等固定过程项从原表完整传输，不伪装成成果，也不因恢复启用生产者或继承执行授权。接收完整解码并经 owner 无写入校验后，才创建缺少的目标项目；已有版本不同内容、跨项目 ID 和迟到撤权均拒绝。错版的项目库只拒绝，真实 Home 维护仍需单独批准。这不代表 Coding 私有内容已完成全覆盖。
 
 `openPagesStore(home).syncAdapter(context)` 只供可信组合根/测试使用，不直接暴露为 HTTP 方法。一个项目的文档与文件夹形成一致快照，正文、稳定 ID、收藏及 Goal/Artifact 引用保留；生成历史、导入幂等记录、发布中的意图和本机编辑版本不作为可移植内容。Goal/Artifact 必须通过同空间同项目 owner 检查准确引用，缺失返回等待依赖，不删引用。
 
@@ -96,7 +96,7 @@ Runtime 私有文档使用 `scope:'project-private-values'`、固定 `namespace/
 
 创建缺失的目标项目前，必须先完成当前 owner 的完整纯校验，不能只检查外层空间和标题。Goal 聚合先检查所有 owner 的表/字段、业务关联、共享 Journal/回执家族和稳定事件锚点；坏内容和撤权不留下空项目。公共 `validateProjectReplicaJournal` 与真正应用共用同一格式校验；目标库已有 ID 的归属与外键仍在实际事务内复查。
 
-文件型 Home owner 可在同一目录声明 `scope:'home-document'`、固定 owner 相对路径及 `open(home,{spaceId,storage,authorize})`。可信 Host 只在个人空间注入公共 Storage 的原子文件 CAS；Module 复用 SDK 文档工具，不依赖私有 Storage，也不把业务 schema 下放给 Host。Shelf 是实际消费者：正常动作和同步打开同一目录，材料/结果及终态任务分别作稳定键，原文件字节先校验并暂存成不可变版本，再提交目录；冻结上传不只保存指向可删除文件的路径。空正文保持空文件，不伪装删除或零字节 R2 预留；设置和剪贴板留在设备，执行中相关对象等待，不运行远端任务。当前目录 v2，旧版只拒绝；文件暂存回收仍须独立验证。
+文件型 Home owner 可在同一目录声明 `scope:'home-document'`、固定 owner 相对路径及 `open(home,{spaceId,storage,authorize})`。可信 Host 只在个人空间注入公共 Storage 的原子文件 CAS；Module 复用 SDK 文档工具，不依赖私有 Storage，也不把业务 schema 下放给 Host。Shelf 是实际消费者：正常动作和同步打开同一目录，材料/结果及终态任务分别作稳定键，原文件字节先校验并暂存成不可变版本，再提交目录；冻结上传不只保存指向可删除文件的路径。空正文保持空文件，不伪装删除或零字节 R2 预留；设置和剪贴板留在设备，执行中相关对象等待，不运行远端任务。错版的目录只拒绝；文件暂存回收仍须独立验证。
 
 文档 owner 的附属文件只经 `storage.files`：宿主按 Manifest 的 `owner_files` 限定路径，读写分别复核声明权限与当前账号/实例。端口提供只读 stat/read/list、独占 create 和单文件 removeFile；列表把链接及特殊节点标为 unsafe，不能读取或删除它们。业务 Module 不自行 import 文件系统，也不能从同步数据选择根目录；不可变版本、摘要校验与有界清理规则仍归业务 owner。缺少端口必须明确拒绝，不能回退直接磁盘访问。
 
@@ -121,7 +121,7 @@ Goals 的 `project_goals` 集合由 Goals、Governance 和 ContextLedger 各自�
 
 Host 生命周期接纳使用 `SyncRegistration.withMutation(scope, commit)`：普通接收、自动/显式重试、冲突选择和本机历史恢复共用异步预留边界，预留内只能调用一次同步提交。等待后的实际 adapter 仍重检 CAS；预留结束后保存的回调已关闭，不能迟到写入。`prepare` 只能做非破坏性准备，不得提前回收/删除。此端口属于可信 Host 装配，不增加插件权限。
 
-Projects 的同步生命周期只在可信 Host 预留许可 `authorizeLifecycle(key,recycled)` 下由 owner 在最终接收事务写入；无许可继续拒绝删除和回收项恢复。目录 v25 的回收记录可独立于项目原件保留未知项目墓碑，不能创建占位项目，也不把墓碑当可见回收条目。真实旧库不自动迁移；常驻 Host 已通过唯一删除服务接线，缺失子 owner 仍拒绝。
+Projects 的同步生命周期只在可信 Host 预留许可 `authorizeLifecycle(key,recycled)` 下由 owner 在最终接收事务写入；无许可继续拒绝删除和回收项恢复。目录的回收记录可独立于项目原件保留未知项目墓碑，不能创建占位项目，也不把墓碑当可见回收条目。真实旧库不自动迁移；常驻 Host 已通过唯一删除服务接线，缺失子 owner 仍拒绝。
 
 项目注册经可信常驻 `ProjectDeletionService.admitSync` 接纳删除和恢复；许可只在最终同步提交回调中有效。旧事件/本人回执/已知冲突不提前释放 Runtime；显式选择和恢复在等待前检查所查看的版本，最终 owner 仍复查。未知项目删除不创建原件；恢复的准备只创建被墓碑隐藏的原件，不改变回收状态。所有已注册子 owner 都需给出指定项目的未结算判断，未覆盖或不可用时继续拒绝，不能以当前接线声明整体生命周期已验收。
 

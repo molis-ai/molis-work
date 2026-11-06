@@ -18,7 +18,7 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 个人同步接入详见 [同步作者规范](../../skills/molis-plugin-dev/sync.md)。Form、Dataset、PPT、Lingguang 使用 owner 声明的 `AggregateDefinition` 与原 Store 事务日志，Host 注册实际适配器后才显示可选集合；不通过扫描数据库或只加 Manifest 来宣称支持同步。该链路仍是本机联调，不含公网发布、附件或运行中任务迁移。
 
-内置 owner 在 `BUILTIN_PLUGIN_CATALOG` 同一条目的 `sync` 工厂接线；Host 通用装配复用目录，不另加硬编码插件清单。文件 Home owner 可声明 `home-document` 与固定相对路径，由可信 Host 注入原子文件 CAS；Shelf 目录 v2 是实际消费者，正常动作与同步共用同一目录，文件先保存不可变版本再提交业务与日志，设置、剪贴板和在途执行留在设备。SQLite 日志表由 Storage 提供基线 SQL/队列端口，随 owner 当前 schema 建库，业务插件不直接访问 replica 表。声明解析从 SDK、空间配置解析从 sync-replication 公开入口取；错误归各 owner 的 `ActionError`。细则和验收命令见同步作者规范。
+内置 owner 在 `BUILTIN_PLUGIN_CATALOG` 同一条目的 `sync` 工厂接线；Host 通用装配复用目录，不另加硬编码插件清单。文件 Home owner 可声明 `home-document` 与固定相对路径，由可信 Host 注入原子文件 CAS；Shelf 目录是实际消费者，正常动作与同步共用同一目录，文件先保存不可变版本再提交业务与日志，设置、剪贴板和在途执行留在设备。SQLite 日志表由 Storage 提供基线 SQL/队列端口，随 owner 当前 schema 建库，业务插件不直接访问 replica 表。声明解析从 SDK、空间配置解析从 sync-replication 公开入口取；错误归各 owner 的 `ActionError`。细则和验收命令见同步作者规范。
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 选择开发路径并依次交付。本文件维护命令、MCP 登记、动作录取与打包机制；交付步骤与质量线在 Skill 中维护，关键约束保留自包含，供编码 Agent 与创作台使用。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
@@ -551,7 +551,7 @@ Coding 固定计划 `coding.plan.v1` 现行 schema 为 2，保存原任务、计
 
 Runtime 私有 KV 的同步描述使用 `PrivateValueReplicationOwner`：可信固定前缀/key、数组/身份字段与逐对象 JSON 回调交给 Runtime 的 `installPrivateValueReplicationJournal` 和 `privateValueReplicaOwner`，插件不读写 Runtime 私有表。正常 CAS 及逐对象共同日志在同一事务；只记录真正改变的对象，独立对象分别隔离与冲突，不因为共用一个 KV key 而全量覆盖项目。`validatePrivateValueReplication` 在创建目标项目前纯检查完整输入；恢复和墓碑仅改变对应对象、保留其他对象与目标本机编辑高水位，仍走活动护栏及最终授权检查。这些端口不自动注册同步、启用插件或恢复安装批准。
 
-实际目录使用 `scope:'project-private-values'`、固定 `kind/namespace` 和原 owner 工厂；Host 注入当前 Home、授权及逐对象活动检查，不复制业务 schema 或增加逐插件分支。Builder 的 `authoring` 使用此路径，明确的源码/测试/发布文件原字节经共同 R2 codec 传输；空文件不创建零字节预留。当前项目库 v16，错版拒绝，不在同步启动时补表或维护真实 Home。
+实际目录使用 `scope:'project-private-values'`、固定 `kind/namespace` 和原 owner 工厂；Host 注入当前 Home、授权及逐对象活动检查，不复制业务 schema 或增加逐插件分支。Builder 的 `authoring` 使用此路径，明确的源码/测试/发布文件原字节经共同 R2 codec 传输；空文件不创建零字节预留。错版的项目库被拒绝，不在同步启动时补表或维护真实 Home。
 
 Builder 的公共 `developer/sdk.d.ts` 是可校验的构建输入，不是能力授权；目标 G1 仍与本机 SDK 原件比较。同步收到的文件保持不可变，明确继续或撤回才创建本机副本；无目标 bundle 的历史及待调整界面重跑原 G1–G6，失败不执行后续模型步骤。正常修订保留作者共享源码、测试和依赖声明，不拷贝 node_modules 或 developer 能力快照；原依赖校验器仍负责真实安装准入。
 
@@ -601,7 +601,7 @@ Builder 的截图评审把 presentation、design、host、unverified 问题分�
 
 Work 属于系统 Module，不冒充插件或添加 Manifest。Host 使用原 Module 合同身份登记默认未选的“工作会话与交接”集合，传输的 `plugin_id` 在此只是 owner 归属字段；完整 Session/事件/交接走同一个 JSON/R2 codec，同一个本机保护提供方覆盖私密 owner 与共同暂存。被动恢复不携带 Native/工作目录绑定、未决发送或密钥，不执行交接；未知历史引用保持定位，不创建假 Goal。owner 两临时 Home 验证不等于 Host/Worker 或上线验收。
 
-固定版本在同一内置目录条目声明 `scope:'project-fixed-versions'` 与 `store:'library'|'process'`。成果和过程项由原 Artifacts Module 的同一个版本引擎处理，但分别勾选，使用各自的表、日志与游标；过程项不进入成果库。Host 完整解码并通过 owner 的纯校验后才可创建缺失项目；同版本正文不同、跨项目身份与迟到撤权拒绝。恢复固定计划、变更集等内容不安装、启用或执行生产者，也不继承批准。此集合不包括插件私有草稿或 Work 会话；项目库当前基线 v12，真实 Home 维护仍须另行批准。
+固定版本在同一内置目录条目声明 `scope:'project-fixed-versions'` 与 `store:'library'|'process'`。成果和过程项由原 Artifacts Module 的同一个版本引擎处理，但分别勾选，使用各自的表、日志与游标；过程项不进入成果库。Host 完整解码并通过 owner 的纯校验后才可创建缺失项目；同版本正文不同、跨项目身份与迟到撤权拒绝。恢复固定计划、变更集等内容不安装、启用或执行生产者，也不继承批准。此集合不包括插件私有草稿或 Work 会话；真实 Home 维护仍须另行批准。
 
 内置目录的同步接线按集合 ID 配置工厂表，例如 `sync: { documents: { scope: 'projects', open, content } }`，由 `builtinSyncBindings` 派生。Manifest 顺序不决定使用哪个适配器，缺实现的集合不注册，未声明及继承属性不授予接入。每个集合隔离自身日志与游标；新集合仍需主动选择。该内置目录能力不替代独立 Runtime 的实例生命周期发现，后者仍在实施。
 
@@ -615,7 +615,7 @@ Module 项目内容的 `ProjectReplicaDefinition` 明确声明 `assetKind`、可
 
 集合 `requires` 从同一目录派生成 `SyncRegistration.dependencies` 的完整发布者/格式身份。保存配置前检查所选依赖闭包，不能替用户自动选择；远端共享策略缺失依赖只阻止对应消费者，不清它的原队列，也不阻断无关集合。接入了声明但缺少必要适配器时不能视为可同步。
 
-持续实施中的公共辅助：SDK `createSyncJsonContent` 由目录 `sync.content` 显式绑定，投影 owner 选出的业务 JSON，不是 SQLite 备份；owner 的 `project/restore` 可声明实际图片字节（Pages 正文、Issue 图片列）。`next({excludeKeys})` 跳过坏项但保留源和队列；显式 `receive(event,{retry:true})` 不回退游标、不覆盖该资产更新的 head。共同隔离与流游标使用同步控制库 v3，不变更各 owner 的领域 Schema。当前新增内容以本轮回归记录为准，不因有导出就宣称全部插件覆盖完成。
+持续实施中的公共辅助：SDK `createSyncJsonContent` 由目录 `sync.content` 显式绑定，投影 owner 选出的业务 JSON，不是 SQLite 备份；owner 的 `project/restore` 可声明实际图片字节（Pages 正文、Issue 图片列）。`next({excludeKeys})` 跳过坏项但保留源和队列；显式 `receive(event,{retry:true})` 不回退游标、不覆盖该资产更新的 head。共同隔离与流游标使用同步控制库，不变更各 owner 的领域 Schema。当前新增内容以本轮回归记录为准，不因有导出就宣称全部插件覆盖完成。
 
 冲突读取与保留版本经 `SyncReplicaAdapter` 的 owner 端口：`inspectConflict` / `recoveries` / `inspectRecovery`；处置携带查看时的远端修订，`restoreRecovery` 同事务核对当前 head、待提交/冲突和授权，再经原 owner 恢复并产生新上传。分区只转换恢复标识，不恢复审批、运行租约或执行现场。
 
@@ -629,7 +629,7 @@ Goal 项目一致性单元也消费该接口：超过 64 KiB 的完整事实按 
 
 Host 生命周期接纳使用 `SyncRegistration.withMutation(scope, commit)`：普通接收、自动/显式重试、冲突选择和本机历史恢复共用异步预留边界，预留内只能调用一次同步提交。等待后的实际 adapter 仍重检 CAS；预留结束后保存的回调已关闭，不能迟到写入。`prepare` 只能做非破坏性准备，不得提前回收/删除。此端口属于可信 Host 装配，不增加插件权限。
 
-Projects 的同步生命周期只在可信 Host 预留许可 `authorizeLifecycle(key,recycled)` 下由 owner 在最终接收事务写入；无许可继续拒绝删除和回收项恢复。目录 v25 的回收记录可独立于项目原件保留未知项目墓碑，不能创建占位项目，也不把墓碑当可见回收条目。真实旧库不自动迁移；当前 Host 注册接线尚未完成。
+Projects 的同步生命周期只在可信 Host 预留许可 `authorizeLifecycle(key,recycled)` 下由 owner 在最终接收事务写入；无许可继续拒绝删除和回收项恢复。目录的回收记录可独立于项目原件保留未知项目墓碑，不能创建占位项目，也不把墓碑当可见回收条目。真实旧库不自动迁移；当前 Host 注册接线尚未完成。
 
 项目注册经可信常驻 `ProjectDeletionService.admitSync` 接纳删除和恢复；许可只在最终同步提交回调中有效。旧事件/本人回执/已知冲突不提前释放 Runtime；显式选择和恢复在等待前检查所查看的版本，最终 owner 仍复查。未知项目删除不创建原件；恢复的准备只创建被墓碑隐藏的原件，不改变回收状态。所有已注册子 owner 都需给出指定项目的未结算判断，未覆盖或不可用时继续拒绝，不能以当前接线声明整体生命周期已验收。
 

@@ -83,7 +83,8 @@ try { only = options.only ? new RegExp(options.only) : null; } catch (error) { d
 if (only) plan.entries = plan.entries.filter((entry) => only.test(entry.file));
 if (!plan.entries.length) die(`no file of ${LIST_FILE} matches ${options.only}`);
 if (shard) {
-  plan.entries = plan.entries.filter((_, index) => index % shard.total === shard.index - 1);
+  const { pickShard, readWeights } = await import("./run-tests/shard.mjs");
+  plan.entries = pickShard(plan.entries, { index: shard.index - 1, count: shard.total }, readWeights(root), (entry) => entry.file);
   if (!plan.entries.length) die(`shard ${shard.index}/${shard.total} has no files; nothing was run`);
 }
 const { counted, held, expired } = resolvePlan(plan, today);

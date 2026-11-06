@@ -9,6 +9,7 @@ import type {
   ModelThinkingMode,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { promptCacheIsClientControlled } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import { renderCombobox } from "@molis-ai/molis-work-design-system";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 /**
@@ -281,11 +282,26 @@ function renderModelList(provider: ModelProviderRecord, p: ModelSettingsPrimitiv
   return `<section class="model-list" aria-label="${p.L("模型列表")}">
     <header class="model-list-head">
       <h3>${p.L("模型列表")}</h3>
+      <button type="button" class="mw-btn" data-model-fetch="${p.escape(provider.provider_id)}">${p.icon("download")}${p.L("从服务取模型")}</button>
       <button type="button" class="mw-btn" data-model-add="${p.escape(provider.provider_id)}">${p.icon("plus")}${p.L("添加模型")}</button>
     </header>
+    ${renderModelPicker(provider.provider_id, p)}
     <div data-model-rows>${rows}</div>
     <template data-model-row-template>${renderModelRow(provider.provider_id, { model_id: "", enabled: true }, p)}</template>
   </section>`;
+}
+
+/**
+ * The models the service offers, fetched on request with the Base URL, format and key on the form (§13.2): typing filters,
+ * choosing one adds it as a row (or fills the empty one). Typing a name into a row by hand still works; nothing here is saved
+ * until the form is.
+ */
+function renderModelPicker(providerId: string, p: ModelSettingsPrimitives): string {
+  const label = `model-picker-label-${providerId}`;
+  return `<div class="model-field model-picker" data-model-picker hidden>
+    <p class="model-field-note" id="${p.escape(label)}" data-model-picker-note>${p.L("选一个加进列表，可以接着选；列表里没有的照样手填。")}</p>
+    ${renderCombobox({ labelledBy: label, placeholder: p.L("筛选模型"), items: "", attrs: { "data-model-picker-box": "" } })}
+  </div>`;
 }
 
 function renderModelRow(providerId: string, model: ModelRecord, p: ModelSettingsPrimitives): string {

@@ -45,7 +45,7 @@
 agent:task:<project_id>:<plugin_install_id>:<subject_key>
 ```
 
-- `project_id`、`plugin_install_id` 由宿主从当次调用上下文取（S-17），插件给不了；`subject_key` 由插件给（Schedule 用自己的 `task_id`），宿主只接受 1～120 个 `[A-Za-z0-9_-]` 字符。
+- `project_id`、`plugin_install_id` 由宿主从当次调用上下文取（S-17），插件给不了；`subject_key` 由插件给（Schedule 用自己的 `task_id`），宿主只接受合同里 `TASK_GRANT_SUBJECT_KEY_PATTERN`（`packages/contracts/src/services/agent-task-grants.ts`）写的形状，不含 `:`，所以组成的 id 不会与别的主体混淆。
 - 前缀 `agent:` 让它沿用 Agent 受众（`apps/local-host/src/mcp-action-grants.ts:17` 的 `actionClientAudience`），所以只能用 `audiences` 里含 `agent` 的动作。
 - 同一个插件的不同任务、不同项目里同名的任务、别的插件用同样的 key，得到的都是不同的主体，互不相借。
 - 一个插件只能为**自己的安装**发起和使用任务主体：插件给的只有 `subject_key`，前面三段宿主填。

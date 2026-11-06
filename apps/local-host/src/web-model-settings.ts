@@ -4,6 +4,7 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
 import { commitModelProvider, modelCheckProblem, modelSetupOffer, planConnectionCheck, verifyModelConnection, type ModelProviderSave } from "./model-provider-setup.js";
+import { fetchModelsForSettings, modelListKey, readModelListBody } from "./model-provider-list.js";
 import { modelCheckReason, modelCheckTarget, rememberModelCheck, withModelChecks } from "./model-provider-checks.js";
 
 /** Global settings reuse the catalog's configuration and Host-owned secret store. */
@@ -11,7 +12,7 @@ export async function handleModelSettingsHttp(
   request: IncomingMessage, response: ServerResponse, url: URL,
   withCatalog: LocalWebCatalogRunner, homeDirectory?: string,
 ): Promise<boolean> {
-  const match = url.pathname.match(/^\/api\/settings\/models(?:\/([a-z0-9-]+)(\/test)?)?$/);
+  const match = url.pathname.match(/^\/api\/settings\/models(?:\/([a-z0-9-]+)(\/test|\/models)?)?$/);
   if (!match) return false;
   try {
     const providerId = match[1];
@@ -26,7 +27,15 @@ export async function handleModelSettingsHttp(
         const offer = modelSetupOffer(url.searchParams.get("template"));
         sendLocalWebJson(response, 200, { ...listed, templates: offer.templates, ...(offer.draft ? { draft: offer.draft } : {}) });
       }
-    } else if (request.method === "POST" && providerId && match[2]) {
+    } else if (request.method === "POST" && providerId && match[2] === "/models") {
+      // The models the service offers, to pick from (§13.2). Nothing is stored; the key is resolved inside the catalog,
+      // the request waits on the network outside it.
+      const form = readModelListBody(await readLocalWebBody(request));
+      const ask = await withCatalog({ homeDirectory }, (catalog) => modelListKey(catalog, homeDirectory, providerId, form));
+      const closed = new AbortController();
+      response.once("close", () => { if (!response.writableFinished) closed.abort(); });
+      sendLocalWebJson(response, 200, { models: await fetchModelsForSettings(ask, closed.signal) });
+    } else if (request.method === "POST" && providerId && match[2] === "/test") {
       const body = await readLocalWebBody(request);
       const selection = await withCatalog({ homeDirectory }, (catalog) => catalog.models.resolveConfiguration({
         provider_id: providerId, model_id: typeof body.model_id === "string" ? body.model_id : "",

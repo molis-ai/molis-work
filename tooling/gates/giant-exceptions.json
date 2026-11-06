@@ -8,10 +8,10 @@
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "kind": "cohesive-unit",
-      "reason": "助理模块的 SQLite 存储：39 个方法共 267 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者。",
+      "reason": "助理模块的 SQLite 存储：40 个方法共 277 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者；第 13 批⑥加的按去重键前缀清提醒也是通知表上的一条 SQL。",
       "size": {
-        "lines": 267,
-        "methods": 39
+        "lines": 277,
+        "methods": 40
       }
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
@@ -25,7 +25,7 @@
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
       "reason": "项目目录的门面及连接寿命：现行结构检查、同 Home owner 持有与释放都围绕目录连接，其余方法多为转发；按资源拆出更多门面只会增加转发层，不改善这一职责边界。",
-      "size": { "lines": 247, "methods": 34 }
+      "size":{"lines": 237, "methods": 34}
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
       "kind": "cohesive-unit",
@@ -54,10 +54,7 @@
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
       "kind": "cohesive-unit",
       "reason": "插件进程监督状态机：启动、激活、重启、撤销、版本切换与失败处理，同一张运行状态表；各转移依赖当前运行态，拆开会让状态转移散在几个类里。",
-      "size": {
-        "lines": 567,
-        "methods": 30
-      }
+      "size":{"lines": 551, "methods": 30}
     },
     "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": {
       "kind": "cohesive-unit",
@@ -70,10 +67,7 @@
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
       "kind": "cohesive-unit",
       "reason": "Cognia 的数据访问对象：27 个方法共 120 行（均值 4 行），每个是对 cognia_* 表的一两条语句加输入校验，类只超方法数 2 个；调用方每次读或每个事务得到一个新建的 CogniaStore（plugin.ts 的 read、write 两处 `run(new CogniaStore(…))`），在同一个事务里跨素材、版本、预览、草稿读写，拆成几个类就要每次构造并传一组，事务边界反而散开。",
-      "size": {
-        "lines": 120,
-        "methods": 27
-      }
+      "size":{"lines": 120, "methods": 26}
     },
     "class plugins/native/goals/src/module/event-state-effects.ts#GoalEventStateEffects": {
       "kind": "cohesive-unit",
@@ -94,15 +88,12 @@
     "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
       "kind": "cohesive-unit",
       "reason": "一次插件创作的工作流状态机：提议、选能力、设计、逐个实现、装配、冒烟、验收、修复、采用，每步读写同一份运行记录；40 个方法最长 53 行，是同一条流水线上的相邻阶段，拆开会让一次创作的状态散在几个类里。",
-      "size": {
-        "lines": 664,
-        "methods": 40
-      }
+      "size":{"lines": 660, "methods": 40}
     },
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3212
+      "size": 3213
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
@@ -143,16 +134,6 @@
       "kind": "cohesive-unit",
       "reason": "Home 已安装插件运行期的装配工厂：安装记录、发布者信任、动作暴露和关停护栏共享同一组闭包，返回的页面查询复用这些状态；职责是建立并关闭一个安装运行期实例，拆开会把它的装配与生命周期接线分散。",
       "size": 191
-    },
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
-      "kind": "cohesive-unit",
-      "reason": "网页服务的装配根：返回创建服务的函数，内含 HTTP 服务、本机宿主、周期调度、侧栏浏览器登记、PTY 挂接与关停，是进程的装配；装配根的职责就是把这些放在一处。",
-      "size": 156
-    },
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": {
-      "kind": "cohesive-unit",
-      "reason": "createLocalWebServerFactory 返回的创建函数本身，与外层函数是同一段装配（同一段计两次），一起标明。",
-      "size": 153
     },
     "function plugins/native/goals/src/page/capsule-items.ts#createCapsuleItemProjection": {
       "kind": "cohesive-unit",
@@ -268,11 +249,6 @@
       "kind": "cohesive-unit",
       "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。",
       "size": { "lines": 303, "methods": 23 }
-    },
-    "file packages/plugin-runtime/src/index.ts": {
-      "kind": "cohesive-unit",
-      "reason": "PluginRuntime 安装状态机及其包入口：主体、输入型别与导入导出围绕同一份安装和激活状态，权限捕获必须跟随同一撤销 cell；为文件行数搬走出口或拆散状态机只会增加接口与状态耦合。",
-      "size": 830
     },
     "class horizontal/memory/src/service.ts#MemoryService": {
       "kind": "cohesive-unit",

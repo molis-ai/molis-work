@@ -9,7 +9,7 @@ import type { Detail, Link } from "./types.js";
 export function publishContext(page: CogniaPage): void {
   const { cur } = page;
   const context: Record<string, unknown> = { plugin_id: page.host.pluginId, surface_title: "Cognia" };
-  if (cur) context.object = { kind: "cognia_material", id: cur.id, version: cur.revision || cur.updated_at || "", title: cur.title };
+  if (cur) context.object = { kind: "cognia_material", id: cur.id, version: cur.revision, title: cur.title };
   page.root.setAttribute("data-assistant-context", JSON.stringify(context));
 }
 
@@ -57,6 +57,7 @@ export async function openMaterial(page: CogniaPage, id: string, revision?: stri
   if (ticket !== page.opened) return;
   const material = data.material;
   page.cur = material;
+  page.etag = data.etag;
   publishContext(page);
   const directory = q(page, "[data-cognia=directory]");
   if (page.root.dataset.expanded !== "true") {

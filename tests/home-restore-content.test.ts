@@ -6,7 +6,7 @@ import test from "node:test";
 import { createHomeSnapshot, restoreHomeSnapshot, MolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { inspectMolisWorkProjectCatalogSnapshot, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inspectMemoryLedger, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { ensureStorageSpace, personalStorageSpace, inspectMemoryLedger, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
 import { homeBusinessTree } from "./fixtures/home-storage-files.js";
 import { populatedSnapshotHome, snapshotSdk, snapshotMemoryCaller } from "./fixtures/home-snapshot-fixture.js";
@@ -108,7 +108,7 @@ test("RAC-2914: the built CLI restores populated project/Memory/plugin facts and
   const lock = join(f.sdkRoot, ".molis-runtime-owner.db"), inode = lstatSync(lock).ino;
   const captured = await restoreCli(t, ["snapshot", "--home", f.home, "--to", f.snapshot, "--json"]);
   assert.equal(captured.code, 0, captured.stderr);
-  await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => catalog.renameProject(project.project_id, "Later changed project", LOCAL_PERSON_ACTOR_ID));
+  await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => catalog.renameProject(project.project_id, "Later changed project", LOCAL_PERSON_ACTOR_ID, project.display_name));
   const later = openMemoryLedger({ homeDirectory: f.home });
   try { later.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { ...prefs, task_recall: true }); } finally { later.close(); }
   const receiptBytes = readFileSync(receipt);
@@ -133,4 +133,29 @@ test("RAC-2914: the built CLI restores populated project/Memory/plugin facts and
   const sdk = snapshotSdk(f.sdkRoot, "snapshot-person");
   try { assert.ok((await (await sdk).memory!.withCaller(snapshotMemoryCaller("snapshot-person")).list("user", "snapshot-person")).some(memory => memory.memory_id === f.memoryId)); }
   finally { await sdk.close(); }
+});
+
+test("personal restore preserves device state and never exports other spaces or rebinds the same path to another account", async t => {
+  const f = await restoreFixture(t), marker = join(f.home, "storage-space.json");
+  const originalScope = readFileSync(marker);
+  for (const path of ["spaces/another-account", "sync", "config"]) mkdirSync(join(f.home, path), { recursive: true });
+  const preserved = ["spaces/another-account/secret-note", "sync/private-device-state", "config/native-session-token"];
+  for (const path of preserved) writeFileSync(join(f.home, path), "at capture", { mode: 0o600 });
+  await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+  const manifest = readFileSync(join(f.snapshot, "manifest.json"), "utf8");
+  assert.doesNotMatch(manifest, /another-account|secret-note|private-device-state|at capture/);
+  for (const path of preserved) {
+    assert.equal(lstatSync(join(f.snapshot, "data", path), { throwIfNoEntry: false }), undefined);
+    writeFileSync(join(f.home, path), "current device");
+  }
+  writeFileSync(join(f.home, "plugin-files/original.bin"), "later fact");
+  const restore = () => restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot });
+  rmSync(marker);
+  ensureStorageSpace(f.home, personalStorageSpace("test-issuer", "test-app", "other-account"));
+  await assert.rejects(restore(), { code: "host.home_restore.invalid" });
+  assert.equal(readFileSync(join(f.home, "plugin-files/original.bin"), "utf8"), "later fact");
+  writeFileSync(marker, originalScope, { mode: 0o600 });
+  assert.equal((await restore()).status, "restored");
+  for (const path of preserved) assert.equal(readFileSync(join(f.home, path), "utf8"), "current device");
+  assert.deepEqual(readFileSync(marker), originalScope);
 });

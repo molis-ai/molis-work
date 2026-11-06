@@ -154,7 +154,8 @@ test("RAC-1750: Feed exposes its own public contract, and its root and store ent
   const contract = await import("@molis-ai/molis-work-plugin-feed/contract");
   const root = await import("@molis-ai/molis-work-plugin-feed");
   const store = await import("@molis-ai/molis-work-plugin-feed/store");
-  assert.deepEqual(Object.keys(contract).sort(), ["feedErrors", "isAccountConnectorSyncKind", "sourceDeletedAt"], "the runtime values of Feed's contract, and nothing of the store");
+  assert.deepEqual(Object.keys(contract).sort(), ["FEED_CONTENT_REPLICA_ID", "SIGNAL_CONTENT_REPLICA_ID", "SOURCE_CONTENT_REPLICA_ID", "feedErrors", "isAccountConnectorSyncKind", "sourceDeletedAt"], "the runtime values of Feed's contract, and nothing of the store");
+  assert.deepEqual([contract.FEED_CONTENT_REPLICA_ID, contract.SIGNAL_CONTENT_REPLICA_ID, contract.SOURCE_CONTENT_REPLICA_ID], ["feed_content", "signals_content", "sources_content"]);
   assert.equal(root.feedErrors, contract.feedErrors, "the Feed root gives the contract's own declaration");
   assert.deepEqual([contract.isAccountConnectorSyncKind("github"), contract.isAccountConnectorSyncKind("connector"), contract.isAccountConnectorSyncKind("public_source")], [true, true, false]);
   assert.equal(contract.sourceDeletedAt({ config: { _molis_work_lifecycle: { deleted_at: "2026-10-29T00:00:00.000Z" } } }), "2026-10-29T00:00:00.000Z");

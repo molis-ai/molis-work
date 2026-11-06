@@ -15,6 +15,7 @@ export { ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./
 export { createPagesPlugin } from "./plugin.js";
 export type { PagesSql, PagesSqlValue, PagesStores } from "./store.js";
 export type { PagesImportDocumentsInput } from "./store.js";
+export { pagesSyncDeclaration } from "./sync-declaration.js";
 export { generatePagesFromMaterials } from "./generate.js";
 export { preparePagesImport } from "./import-files.js";
 export type { PagesImportFile, PreparedPagesImportDocument, PreparedPagesImport } from "./import-files.js";
@@ -159,3 +160,9 @@ export type { PagesActionPorts } from "./actions.js";
 
 export { pagesCommentActions, createPagesCommentHandlers } from "./comment-actions.js";
 export { pageAnnotations } from "./comments-store.js";
+
+export {createPagesSyncContent} from './sync-content.js';
+
+export { pagesCollection } from "./replication.js";
+
+export { syncBindings as createPagesSyncBindings } from "./sync-binding.js";

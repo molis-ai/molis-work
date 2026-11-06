@@ -1,3 +1,5 @@
+import type {PluginSyncContext, PluginSyncClient} from "@molis-ai/molis-work-contracts/platform/plugin";
+import {validatePortableImage} from "./sync-files.js";
 import { createHash, randomUUID } from "node:crypto";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase, PluginExecutionControl, PluginOwnerFilesClient, PluginImageGenerationClient, PluginBackgroundClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -12,6 +14,8 @@ import { IMAGES_ASSETS } from "./owner-files.js";
 export type ImagesControl = Omit<PluginExecutionControl, "project_id">;
 
 export interface ImagesServiceOptions {
+  sync?:PluginSyncContext;
+  syncClient?:PluginSyncClient;
   database: PluginDatabase;
   files: PluginOwnerFilesClient;
   imageGeneration: PluginImageGenerationClient;
@@ -80,13 +84,20 @@ export class ImagesService {
   getJob(projectId: string, id: string): ImageJob { this.assertOpen(); return this.store.getJob(project(projectId), textField(id, "任务 ID", 128)); }
 
   async deleteJob(projectId: string, id: string, control: ImagesControl): Promise<void> {
-    const job = await this.write(control, store => store.deleteJob(project(projectId), textField(id, "任务 ID", 128)));
+    const snapshot=this.store.getJob(project(projectId),textField(id,"任务 ID",128)),sync=this.options.sync;
+    const retained=sync?{spaceId:sync.spaceId,job:snapshot,authorize:()=>sync.assertActive(),images:snapshot.images.map(image=>{
+      const bytes=this.options.files.read(`${IMAGES_ASSETS}/${image.filename}`);if(!bytes||bytes.byteLength!==image.byte_length)throw imagesErrors.invalid("原图片缺失，删除未执行。");
+      const portable={id:image.id,mime_type:image.mime_type,byte_length:image.byte_length,data_base64:Buffer.from(bytes).toString('base64')};validatePortableImage(portable);return portable;
+    })}:undefined;
+    const job = await this.write(control, store => store.deleteJob(snapshot.project_id,snapshot.id,retained));
     if (job.images.length) {
       await this.options.files.write(writer => {
         requireSynchronous(control.assert_authority_current?.());
-        for (const image of job.images) writer.removeTree(`${IMAGES_ASSETS}/${image.filename}`);
+        const referenced = this.store.referencedFiles();
+        for (const image of job.images) if (!referenced.has(image.filename)) writer.removeTree(`${IMAGES_ASSETS}/${image.filename}`);
       });
     }
+
   }
 
   async start(projectId: string, input: ImageGenerateInput, control: ImagesControl): Promise<ImageJob> {
@@ -160,7 +171,7 @@ export class ImagesService {
   private write<T>(control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T> {
     return this.options.database.transaction(() => control.beforeEffect(), transaction => {
       this.assertOpen(); control.signal?.throwIfAborted(); requireSynchronous(control.assert_authority_current?.());
-      return apply(new ImagesStore(transaction));
+      return apply(new ImagesStore(transaction,this.options.syncClient));
     });
   }
 

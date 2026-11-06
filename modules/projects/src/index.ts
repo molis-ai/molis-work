@@ -1,3 +1,5 @@
+import { ProjectRecycle } from "./recycle.js";
+import {wasProjectPluginRemoved} from "./plugin-removal.js";
 import { randomUUID } from "node:crypto";
 
 import type { ProjectDeletionRecord, ProjectDeletionStep, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -23,6 +25,8 @@ import { ProjectDeletionSteps } from "./deletion-steps.js";
 
 export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
+  /** Immutable store ownership, supplied by the Host rather than project input. */
+  spaceId?: string;
   /** Where the Host keeps the project databases. The catalog stores no path: a project's is `<projects_directory>/<project_id>/molis-work.db` (W5-17). */
   projects_directory: string;
   now?: () => string;
@@ -40,6 +44,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
   readonly records: ProjectService;
   readonly workspaces: ProjectWorkspaceService;
   readonly deletionSteps: ProjectDeletionSteps;
+  readonly recycle: ProjectRecycle;
 
   readonly query: ProjectsQueryApi;
   readonly commands: ProjectsCommandApi;
@@ -80,12 +85,14 @@ export class ProjectsModule implements ProjectsApplicationApi {
   constructor(options: ProjectsModuleOptions) {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
-    const repository = new ProjectsRepository(options.db, options.projects_directory);
+    const repository = new ProjectsRepository(options.db, options.projects_directory, options.spaceId);
     this.records = new ProjectService(repository, options.projects_directory, now, id, options.plugins);
+    this.recycle = new ProjectRecycle(options.db, now, options.projects_directory);
     this.workspaces = new ProjectWorkspaceService(repository, now, id);
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
     const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
     this.query = {
+      wasProjectPluginRemoved:(projectId,pluginId)=>{this.records.get(projectId);return wasProjectPluginRemoved(options.db,projectId,pluginId);},
       storedProjectPluginMembership: projectId => {
         this.records.get(projectId);
         return { plugins: repository.projects.listProjectPlugins(projectId), hidden: repository.projects.listHiddenPlugins(projectId) };
@@ -105,7 +112,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     this.commands = {
       addProjectPlugin: (input) => this.records.addPlugin(input),
       removeProjectPlugin: (input) => this.records.removePlugin(input),
-      renameProject: (projectId, displayName, actorId) => this.records.rename(projectId, displayName, actorId),
+      renameProject: (projectId, displayName, actorId, expectedDisplayName) => this.records.rename(projectId, displayName, actorId, expectedDisplayName),
       addWorkspaceProject: (input) => this.workspaces.add(input),
       repairWorkspaceProject: (input) => this.workspaces.repair(input),
       setWorkspaceDefault: (input) => this.workspaces.setDefault(input),
@@ -156,5 +163,10 @@ export type {
 };
 export { listCatalogProjectsForUninstall } from "./installation-inspection.js";
 export { listProjectDatabasePaths } from "./database-paths.js";
+export {projectReplicationOwner,validatePortableProject,validateProjectSyncKey,projectPluginRequirements,installProjectReplicationJournal} from './portable-project.js';
+export type {PortableProject,ProjectReplicationOptions} from './portable-project.js';
+
+export { ProjectRecycle } from "./recycle.js";
+export type { ProjectRecycleInput, ProjectRecycleObservation } from "./recycle.js";
 export { projectDatabasePath, projectDirectoryPath } from "./project-paths.js";
 export { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot, listProjectRoots, type ProjectRootDatabase, type ProjectRootRow } from "./project-root.js";

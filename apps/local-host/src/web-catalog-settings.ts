@@ -11,6 +11,8 @@ import { connectorSettingsView } from "./web-connector-settings.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { modelTemplatePageData } from "./model-provider-setup.js";
+import { withModelChecks } from "./model-provider-checks.js";
+import { modelAddressFromTemplate, modelKeyHint } from "./model-provider-templates.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
@@ -36,7 +38,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, composition } = ctx;
   const { PAGE_CSP, isDesktopShellRequest, projectSettings } = composition;
   const { renderMolisWorkSettings } = composition.workbenchRenderer;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|memory|mcp|connectors|projects|diagnostics)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|memory|mcp|connectors|projects|diagnostics|sync)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
   if (!(request.method === "GET" && (settingsPageMatch || capabilityPageMatch))) return false;
   const rules = capabilityPageMatch?.[1] === "rules";
@@ -61,13 +63,25 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const runtimes = section === "runtimes" ? await runtimeIntegrations.detectAll() : [];
   const modelConnections = section === "models" && serverOptions.homeDirectory
     ? listConnectorConnectionViews(serverOptions.homeDirectory, "model-api") : [];
-  const model_settings = section === "models" ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => ({
-    providers: catalog.models.list(), health: catalog.models.health(), connections: modelConnections,
-    selected_connection_ids: Object.fromEntries(catalog.models.list().map((provider) => [provider.provider_id,
-      modelConnections.find((connection) => withConnectorConnections(serverOptions.homeDirectory!, (store) => store.require(connection.connection_id).credential_ref === provider.credential_ref))?.connection_id ?? ""])),
-    selected_provider_id: url.searchParams.get("provider"),
-    ...modelTemplatePageData(url.searchParams),
-  })) : undefined;
+  const model_settings = section === "models" ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => {
+    const providers = catalog.models.list(), templates = modelTemplatePageData(url.searchParams);
+    const selected = url.searchParams.get("provider");
+    const shown = templates.draft_provider ?? providers.find((provider) => provider.provider_id === selected) ?? providers[0];
+    // Which key each provider holds, read in one pass over the connections rather than one open per provider and connection.
+    const refs = modelConnections.length ? withConnectorConnections(serverOptions.homeDirectory!, (store) =>
+      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id]))) : new Map<string | null, string>();
+    return {
+      // Each provider's last real check, so the page says "checked at …" or "never checked" rather than guessing (PF-A04).
+      providers, health: withModelChecks(serverOptions.homeDirectory, providers, catalog.models.health()), connections: modelConnections,
+      selected_connection_ids: Object.fromEntries(providers.map((provider) => [provider.provider_id, refs.get(provider.credential_ref) ?? ""])),
+      selected_provider_id: selected,
+      ...(shown ? {
+        key_hint: modelKeyHint(shown.base_url, templates.draft_template_id),
+        address_from_template: modelAddressFromTemplate(shown.base_url, templates.draft_template_id),
+      } : {}),
+      ...templates,
+    };
+  }) : undefined;
   const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
   response.writeHead(200, {
     "content-type": "text/html; charset=utf-8",

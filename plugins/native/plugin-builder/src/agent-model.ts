@@ -117,3 +117,9 @@ export interface AgentPublicationControl {
   referenced(directory: string): boolean;
   commit(artifact: AgentPublicationArtifact): AgentRelease;
 }
+
+/** The interface.json document in a published release, shared by the publisher and synchronization validator. */
+export function builderReleaseInterface(design: AgentDesign, nodes: AgentBuild['nodes']) {
+  return { parts: design.parts, nodes, acceptance: design.acceptance,
+    ...(design.presentation === undefined ? {} : { presentation: design.presentation }) };
+}

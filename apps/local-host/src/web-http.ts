@@ -72,6 +72,7 @@ function refuse(response: ServerResponse): false {
   return false;
 }
 
+export { refuse as refuseLocalWebRequest };
 /** The `host:port` the request was addressed to when that is this machine, else null (DNS rebinding; security invariant S-02). */
 export function requestHost(request: IncomingMessage): string | null {
   return loopbackHost(request.headers.host);

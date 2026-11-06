@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -13,10 +13,7 @@ import { connectorControl } from "./fixtures/connector-control.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 test("RAC-2619 real signed File previews show exact origins for initial installation and Home upgrade; cancel writes nothing", { skip: process.platform !== "darwin", timeout: 150_000 }, async t => {
-  const executable = process.env.MOLIS_WORK_TEST_CHROME;
-  assert.equal(executable, "/Users/yijunwang/.local/bin/molis-test-browser", "the dedicated browser is required, without a daily Chrome fallback");
-  await access(executable, constants.X_OK);
-  await access("/Users/yijunwang/.local/share/molis-test-browser/engine/chrome-headless-shell", constants.X_OK);
+  const executable = requiredHeadlessTestBrowser();
   const directory = await mkdtemp(join(tmpdir(), "t141-browser-"));
   let browser: ChromeHarness | undefined;
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });

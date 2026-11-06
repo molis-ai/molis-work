@@ -16,3 +16,8 @@ export type { ImageGeneration, ImageProviderRequest } from "./providers.js";
 export { createImagesPlugin } from "./plugin.js";
 export { IMAGES_OWNER_FILES, IMAGES_FILES_WRITE } from "./owner-files.js";
 export { IMAGES_IMAGE_GENERATION } from "./image-generation.js";
+
+export { imagesSync, imagesCollection, imagesTracking } from "./replication.js";
+export { imagesCopy } from "./copy.js";
+export { createImagesSyncContent } from "./sync-files.js";
+export { syncBindings as createImagesSyncBindings } from "./sync-binding.js";

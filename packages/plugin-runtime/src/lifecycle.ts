@@ -31,5 +31,7 @@ export interface PluginHostLifecycle {
   /** Durable identity from Runtime; unlike generation(), it survives Host restart. `grants` are the permissions the owner granted it. */
   installation(pluginId: string): { install_id: string; installation_generation: string; version: string; running: boolean; grants: readonly string[] } | undefined;
   enabledPluginIds(): readonly string[];
+  /** Passive observation: never starts, enables, recovers or creates an owner store. */
+  activeInstance?(pluginId: string): PluginActiveInstance | undefined;
   ensureStarted(pluginId: string): Promise<PluginActiveInstance | undefined>;
 }

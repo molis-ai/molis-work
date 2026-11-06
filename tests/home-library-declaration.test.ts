@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { homeStores } from "@molis-ai/molis-work-app-local-host";
+import { homeStores, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 // specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P1: a library in the Home is declared in the plugin's
@@ -31,7 +31,7 @@ test("PLIB-11 RAC-301 a Home library is declared only in the Manifest's database
     assert.equal(entry.home_store?.library, undefined, `${entry.project_plugin_id}: home_store.library`);
   }
   for (const { manifest } of libraries) {
-    const library = manifest.databases!.home!, store = homeStores().get(library.store_name);
+    const library = pluginSyncDatabaseDeclaration(manifest, manifest.databases!.home!), store = homeStores().get(library.store_name);
     assert.equal(store?.owner, manifest.plugin_id, library.store_name);
     assert.deepEqual(store?.library, { baseline: { version: library.version, schema: library.schema }, ...library.partition ? { partition: library.partition } : {} }, library.store_name);
     const permissions = new Set(manifest.permissions.map(item => item.permission));

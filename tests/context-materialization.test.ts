@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createContextLedger, createContextMaterializer } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextObjectRead, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
@@ -11,7 +11,7 @@ const feed: ObjectRef = { module: "feed", id: "item-a", version: null, scope };
 const artifact: ObjectRef = { module: "artifacts", id: "artifact-a", version: 2, scope };
 
 test("Context rebuild walks cyclic references once, preserves exact versions, and exposes missing/denied/stale sources", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     const ledger = createContextLedger(db, { authorize: () => true });
     const materializer = createContextMaterializer(ledger);
@@ -51,7 +51,7 @@ test("Context rebuild walks cyclic references once, preserves exact versions, an
 });
 
 test("Rebuild rejects unauthorized roots before content access and retries fresh owner state after failure", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     const ledger = createContextLedger(db, { authorize: (input) => input.actor_id === "test-reader" });
     const materializer = createContextMaterializer(ledger);

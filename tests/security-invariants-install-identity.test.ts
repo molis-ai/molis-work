@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -141,7 +141,7 @@ test("RAC-396 S-75 an installation's actions are registered under its install id
 
 test("RAC-395 RAC-399 S-75 normally loaded existing conflicts crash before activation in the same or a new Runtime", async () => {
   for (const restart of [false, true]) for (const above of [false, true]) for (const conflict of ["unsigned-same", "unsigned-other", "pinned", "host"] as const) {
-    const db = new Database(":memory:"); db.exec(PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL);
+    const db = openTestSqlite(":memory:"); db.exec(PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL);
     try {
       const repository = new SqlitePluginRuntimeRepository(db), service = new ActionService(), calls: string[] = [], registrations: string[] = [];
       const hostIds = new Set<string>(), consents = new MemoryPluginConsentLedger();

@@ -1,11 +1,9 @@
-import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { nullableSchema as nullable, arraySchema as array, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
+export { nullable, array, object };
 export const text = { type: "string" };
 export const id = { type: "string", minLength: 1, maxLength: 500 };
 export const integer = { type: "integer", minimum: 0 };
 export const revision = { type: "integer", minimum: 1 };
-export const nullable = (schema: unknown) => ({ anyOf: [schema, { type: "null" }] });
-export const array = (items: unknown) => ({ type: "array", items });
-export const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 export const domain = object({ id, name: text });
 export const kind = { enum: ["obsidian", "llm-wiki", "markdown"] };
 const role = { enum: ["material", "wiki", "index", "log", "attachment"] };

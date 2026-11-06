@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, DEMO_CORE_ARTIFACT_ID, DEMO_GITHUB_SOURCE_ID, DEMO_GMAIL_SOURCE_ID, LocalProjectDatabase, seedDemoPluginSurfaces, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";

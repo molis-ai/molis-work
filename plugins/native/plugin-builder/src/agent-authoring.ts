@@ -1,3 +1,4 @@
+import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * The designer writes a compact, forgiving authoring format; the host expands it into the strict contract,
  * component plans and browser acceptance that everything downstream checks. Normalization only maps known
@@ -11,7 +12,6 @@ import type { CatalogEntry } from './agent-catalog.js';
 import { STUDIO_CAPABILITIES, MODEL_STAND_IN_PREFIX } from './agent-capabilities.js';
 
 type Json = Record<string, unknown>;
-const object = (value: unknown): value is Json => !!value && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 export class AuthoringError extends Error { constructor(message: string) { super(message); this.name = 'AuthoringError'; } }
 const fail = (where: string, message: string): never => { throw new AuthoringError(where + '：' + message); };

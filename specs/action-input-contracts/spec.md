@@ -452,7 +452,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 | 片 | 包（文件数） | 轨道 | 档位 | 前置 |
 | --- | --- | --- | --- | --- |
-| N22-03 合同服务动作 | `services/{agent-host,memory,placement,knowledge,search,agent-task-grants,agent-collaboration,agent-inputs,agent-host-write-checkers,agent-host-offers}.ts`、`modules/{projects,workspace-artifacts,workspace-writers,characters}.ts`（14，119 个定义）；`modules/workspace-action-schemas.ts` 的 `object`、`nullable` 改 `const` 泛型，其余常量（`text`、`id`、`path` 这些）加 `as const`，都在同一份快照里（共 15）。`plugins/native/{files,git}` 也在用这份帮手，要一起编译过，B 轨预警；`local-host.ts` 那一处 `as` 改调工具 | C1 | Opus 5.5 high，全量 | N22-01；**排在 05② C-1 之后**（C-1 改 `services/agent-host`、`modules/projects`）。**改 1 份 API 快照**：`api/contracts/modules/workspace-action-schemas.txt`，排 api 队列，过公共合同合审。差异只是字面量变窄，对调用方兼容，值不变，动作快照不变 |
+| N22-03 合同服务动作 | `services/{agent-host,memory,placement,knowledge,search,agent-task-grants,agent-collaboration,agent-inputs,agent-host-write-checkers,agent-host-offers}.ts`、`modules/{projects,workspace-artifacts,workspace-writers,characters}.ts`（14，119 个定义）；`modules/workspace-action-schemas.ts` 的 `object`、`nullable` 改 `const` 泛型，其余常量（`text`、`id`、`path` 这些）加 `as const`，都在同一份快照里（共 15）。`plugins/native/{files,git}` 也在用这份帮手，要一起编译过，B 轨预警；`local-host.ts` 那一处 `as` 改调工具 | C1 | Opus 5.5 high，全量 | N22-01；**排在 05② C-1 之后**（C-1 改 `modules/projects`）。**改 1 份 API 快照**：`api/contracts/modules/workspace-action-schemas.txt`，排 api 队列，过公共合同合审。差异只是字面量变窄，对调用方兼容，值不变，动作快照不变 |
 
 **第三段：S 片（按改哪份快照串行，每片一个 PR）**
 
@@ -516,7 +516,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 - **`actions.tsv` 一路、`host-actions.tsv` 一路，可以同时走**，互不等。
 - **S0 和 S6 不能和任何 S 片并行**（两份都占）。T 片不受影响。
 - T 片、N22-01～03、N22-06 不进这两路。N22-02、N22-03 的 schema 值不变，动作快照有差异就是判断错了，停下来。
-- 和别的片抢 `host-actions.tsv` 的：N14、05② C-1、U1-f。排序看谁先准备好，不互相等；05② C-1 在 S 段之前就该合入。
+- 和别的片抢 `host-actions.tsv` 的：N14、U1-f。排序看谁先准备好，不互相等；05② C-1 只声明动作，不改这份快照。
 
 **公开 API 快照另走 api 队列**（`tooling/gates/api/`，和上面两路无关）。N22-01、N22-02、N22-03、N22-Z 和 S0 进这个队列。`platform/plugin.txt` 上 N22-01、N22-02 和 U1-f 不固定先后，同一时间一个 PR，谁先准备好谁先（统筹 11-07 定，N22-02 本来就在 N22-01 之后）。它们只共用生成的快照，没有语义依赖；U1-f 前面还隔着 U1-a～c，不让 N22-05、T11 跟着等。05② 的 C-2、C-3 还早，不为它们预留，到时按开工先后排队。
 
@@ -565,7 +565,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | #1865、#1858、#1817（13） | 不碰处理器文件，但在连接器区域施工 | T12 排在 T 片最后；开工时重查 |
 | #1851（10） | Coding、Diff、Git、Schedule 的其他文件 | 无重叠，碰上了后到的 rebase |
 | #1869（18，已合入） | `platform/plugin.ts`、快照 `platform/plugin.txt` | N22-01 不改这个文件，但它转出 `actions.js`，快照共用。以后动这个文件的 PR 同样按 §8.4 一前一后 |
-| 05② C-1 | `services/agent-host`、`modules/projects`、`host-actions.tsv` | N22-03 排在它后面；S 段错开 |
+| 05② C-1 | `modules/projects`，快照 `api/contracts/modules/projects.txt` | N22-03 排在它后面 |
 | 05② C-2、U1-f、08 C-1 | `api/plugin-sdk/index.txt` | 和 N22-01 一前一后 |
 | U1-f | `api/contracts/platform/plugin.txt` | 和 N22-01、N22-02 不固定先后，谁先准备好谁先（§8.4） |
 

@@ -3,8 +3,9 @@
 // until voice input lands in batch 53). Like the patterns in
 // catalog-patterns.ts they live on the board first: the rules below are the board's own (not in the served sheets) and move into
 // the page sheets with the component that first uses them (K2, together with the `mw-upload`, `mw-tag` and `mw-btn-group` rules
-// the shell is built from). The shell holds only existing controls; it adds the box, its rows and its states.
-import { escapeHtml, icon, renderButton, renderProgress, renderStatusMark, type MwStatusTone, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+// the shell is built from). The shell holds only existing controls; it adds the box, its rows and its states. Its markup is the
+// SDK's `renderComposer()` (K0c), the same first screen a plugin draws, so the board and the SDK cannot drift (UIC-13).
+import { escapeHtml, icon, renderButton, renderComposer, renderProgress, type MwComposerAiLabels, type MwComposerStatus } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "./overlay.js";
 import { section, specimen } from "./catalog-parts.js";
 
@@ -104,48 +105,42 @@ interface ShellOptions {
   readonly to?: string;
   readonly restored?: boolean;
   readonly files?: string;
-  readonly status?: { readonly tone: MwStatusTone; readonly ring: StateRingState; readonly caption: string; readonly text: string; readonly action?: string };
+  readonly status?: MwComposerStatus;
   readonly focus?: boolean;
   /** The board opens this one's ▾ menu; keep room above it so the menu stays inside the specimen. */
   readonly menuRoom?: boolean;
 }
 
-/** One composer as K2 will draw it: who it goes to, files, the text, the status and the bar. */
+/** The words of the shell, in the board's language. */
+const labelsIn = (say: Say, to: string): MwComposerAiLabels => ({
+  input: say("发给 {who} 的话", { who: to }), send: say("发送"), sendTitle: say("发送（⌘↵）"), add: say("添加文件与资料"),
+  voice: say("语音输入（还没有接上）"), to: say("发给："), stop: say("停止"), supplement: say("补充"), supplementTitle: say("补充（⌘↵）"),
+  delivery: say("选择送达方式"), deliveryGroup: say("送达方式"),
+});
+
+/**
+ * One composer as a page draws it: the SDK's first screen (`renderComposer`, the same function plugins call), with what K2's
+ * client puts in as it happens (the attachment strip and the restored-draft line at the top of the box, the ▾ menu's items).
+ */
 function shell(say: Say, options: ShellOptions): string {
   const { state } = options;
-  const disabled = state === "disabled", running = state === "running", busy = state === "sending" || state === "unknown";
   const to = options.to ?? say("助理");
-  const back = escapeHtml(say("改回发给助理"));
-  const receiver = `<div class="mw-composer__to"><span>${escapeHtml(say("发给："))}</span><span class="mw-tag"><span>${escapeHtml(to)}</span>${
-    options.to ? `<button type="button" data-tag-remove aria-label="${back}" title="${back}">${icon("x")}</button>` : ""}</span></div>`;
+  const drawn = renderComposer({
+    kind: "ai", labels: labelsIn(say, to),
+    receiver: { label: to, ...(options.to ? { resetLabel: say("改回发给助理") } : {}) },
+    placeholder: options.placeholder ?? say("让助理做点什么…"),
+    ...(options.text ? { text: options.text } : {}),
+    ...(state === "disabled" && options.status ? { disabled: { caption: options.status.caption, reason: options.status.text } } : {}),
+    ...(state && state !== "disabled" ? { state } : {}),
+    ...(state !== "disabled" && options.status ? { status: options.status } : {}),
+    attrs: { "data-catalog-focus": options.focus, "data-catalog-menu-room": options.menuRoom },
+  });
   const restored = options.restored
     ? `<p class="mw-field__hint mw-composer__restore">${escapeHtml(say("已恢复上次没发出的草稿 · 上午 11:02"))} · ${renderButton({ label: say("清空草稿"), variant: "link" })}</p>` : "";
-  const status = options.status
-    ? `<div class="mw-composer__status" role="status">${renderStatusMark({ label: options.status.caption, state: options.status.ring, tone: options.status.tone })}<span>${escapeHtml(options.status.text)}</span>${
-      options.status.action ? renderButton({ label: options.status.action, variant: "link" }) : ""}</div>`
-    : "";
-  const empty = !options.text;
-  const modes = say("送达方式");
-  const send = running
-    ? `<div class="mw-btn-group" role="group" aria-label="${escapeHtml(modes)}">${renderButton({ label: say("补充"), variant: "primary", size: "sm", disabled: empty, attrs: { title: say("补充（⌘↵）") } })}<div class="mw-compose__anchor">${renderButton({
-      label: say("选择送达方式"), variant: "primary", size: "icon", icon: "chevron-down", iconOnly: true,
-      attrs: { title: say("选择送达方式"), "data-compose-menu-toggle": "", "aria-expanded": "false", "aria-haspopup": "menu" },
-    })}<div class="mw-compose__menu" data-compose-menu hidden>${renderMenu({ items: renderMenuGroup({ label: modes, items: deliveryItems(say, "catalog-composer-running") }) })}</div></div></div>`
-    : renderButton({ label: say("发送"), variant: "primary", size: "icon", icon: "send", iconOnly: true, loading: state === "sending", disabled: empty || busy || disabled, attrs: { title: say("发送（⌘↵）") } });
-  const off: Record<string, boolean> = disabled ? { disabled: true } : {};
-  const add = `<div class="mw-compose__anchor">${ghostIcon(say("添加文件与资料"), "plus", { "aria-haspopup": "menu", "aria-expanded": "false", ...off })}</div>`;
-  // The microphone holds its place at the start of the end group; voice input is not connected yet (batch 53), so it says so.
-  const mic = ghostIcon(say("语音输入（还没有接上）"), "mic", { disabled: true });
-  const stop = running ? renderButton({ label: say("停止"), variant: "danger-outline", size: "sm", attrs: { title: say("停止这一轮") } }) : "";
-  return `<div class="mw-composer" data-slot="composer"${state ? ` data-state="${state}"` : ""}${options.focus ? " data-catalog-focus" : ""}${options.menuRoom ? " data-catalog-menu-room" : ""}>
-    ${receiver}
-    <div class="mw-composer__box">
-      ${options.files ?? ""}${restored}
-      <div class="mw-composer__text"><textarea class="mw-composer__input" data-fit rows="1" aria-label="${escapeHtml(say("发给 {who} 的话", { who: to }))}" placeholder="${escapeHtml(options.placeholder ?? say("让助理做点什么…"))}"${disabled ? " disabled" : ""}>${escapeHtml(options.text ?? "")}</textarea></div>
-      ${status}
-      <div class="mw-composer__foot"><div class="mw-composer__start">${add}</div><div class="mw-composer__end">${mic}${stop}${send}</div></div>
-    </div>
-  </div>`;
+  const menu = renderMenu({ items: renderMenuGroup({ label: say("送达方式"), items: deliveryItems(say, "catalog-composer-running") }) });
+  return drawn
+    .replace('<div class="mw-composer__box">', (box) => `${box}${options.files ?? ""}${restored}`)
+    .replace('<div class="mw-compose__menu" data-compose-menu hidden></div>', () => `<div class="mw-compose__menu" data-compose-menu hidden>${menu}</div>`);
 }
 
 /** The attachment strip is the board's upload rows: one being read, one read, one refused with its reason. */
@@ -178,11 +173,11 @@ export function composerSection(say: Say): string {
     ${specimen(escapeHtml(say("聚焦")), shell(say, { focus: true, text: task }))}
     ${specimen(escapeHtml(say("有草稿 · 恢复行")), shell(say, { restored: true, text: say("把第 3 步的测试补上，再看一下 Coding 的会话草稿") }))}
     ${specimen(escapeHtml(say("附件与长高到上限 · 框内滚动")), shell(say, { to: say("Coding · 注册接口"), files: files(say), text: long }))}
-    ${specimen(escapeHtml(say("处理中 · 发送中")), shell(say, { state: "sending", text: task, status: { tone: "progress", ring: "starting", caption: say("发送中"), text: say("正在发送…") } }))}
-    ${specimen(escapeHtml(say("处理中 · 运行中 · 送达菜单")), shell(say, { state: "running", menuRoom: true, text: say("顺便把失败截图也附上"), status: { tone: "progress", ring: "running", caption: say("运行中"), text: say("正在做这一轮 · 再发会作为补充") } }))}
-    ${specimen(escapeHtml(say("失败")), shell(say, { state: "failed", text: task, status: { tone: "blocked", ring: "failed", caption: say("失败"), text: say("没发出去：连接被重置。文字还在，可以改了再发"), action: say("重试") } }))}
-    ${specimen(escapeHtml(say("待确认")), shell(say, { state: "unknown", text: task, status: { tone: "attention", ring: "verify", caption: say("待确认"), text: say("没能确认是否送到，正在核对；先别重复发"), action: say("查看") } }))}
-    ${specimen(escapeHtml(say("不可用")), shell(say, { state: "disabled", placeholder: say("这个会话已结束"), status: { tone: "hold", ring: "unavailable", caption: say("不可用"), text: say("会话已结束，不能再发；新开一个会话接着做") } }))}
+    ${specimen(escapeHtml(say("处理中 · 发送中")), shell(say, { state: "sending", text: task, status: { caption: say("发送中"), text: say("正在发送…") } }))}
+    ${specimen(escapeHtml(say("处理中 · 运行中 · 送达菜单")), shell(say, { state: "running", menuRoom: true, text: say("顺便把失败截图也附上"), status: { caption: say("运行中"), text: say("正在做这一轮 · 再发会作为补充") } }))}
+    ${specimen(escapeHtml(say("失败")), shell(say, { state: "failed", text: task, status: { caption: say("失败"), text: say("没发出去：连接被重置。文字还在，可以改了再发"), action: say("重试") } }))}
+    ${specimen(escapeHtml(say("待确认")), shell(say, { state: "unknown", text: task, status: { caption: say("待确认"), text: say("没能确认是否送到，正在核对；先别重复发"), action: say("查看") } }))}
+    ${specimen(escapeHtml(say("不可用")), shell(say, { state: "disabled", placeholder: say("这个会话已结束"), status: { caption: say("不可用"), text: say("会话已结束，不能再发；新开一个会话接着做") } }))}
   </div>`);
 }
 

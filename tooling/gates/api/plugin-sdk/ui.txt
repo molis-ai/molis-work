@@ -74,6 +74,54 @@ export interface MwButtonOptions {
 
 export type MwButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "link";
 
+export interface MwComposerAiLabels extends MwComposerLabels {
+    to: string;
+    stop: string;
+    supplement: string;
+    supplementTitle: string;
+    delivery: string;
+    deliveryGroup: string;
+}
+
+export interface MwComposerLabels {
+    input: string;
+    send: string;
+    sendTitle: string;
+    add: string;
+    voice: string;
+}
+
+export type MwComposerOptions = {
+    placeholder?: string;
+    text?: string;
+    status?: MwComposerStatus;
+    disabled?: {
+        caption: string;
+        reason: string;
+    };
+    attrs?: Record<string, AttrValue>;
+} & ({
+    kind: "plain";
+    labels: MwComposerLabels;
+    state?: "sending" | "failed" | "unknown";
+} | {
+    kind: "ai";
+    labels: MwComposerAiLabels;
+    receiver: {
+        label: string;
+        resetLabel?: string;
+    };
+    state?: "sending" | "running" | "failed" | "unknown";
+});
+
+export interface MwComposerStatus {
+    caption: string;
+    text: string;
+    action?: string;
+    tone?: MwStatusTone;
+    ring?: StateRingState;
+}
+
 export type MwControlSize = "sm" | "md" | "lg" | "icon";
 
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
@@ -288,6 +336,8 @@ export declare function renderChoice(options: {
     className?: string;
     attrs?: Record<string, AttrValue>;
 }): string;
+
+export declare function renderComposer(options: MwComposerOptions): string;
 
 export declare function renderDatePicker(options: {
     name?: string;

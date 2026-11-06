@@ -18,7 +18,6 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "发送（⌘↵）": "Send (⌘↵)",
   "添加文件与资料": "Add files and materials",
   "语音输入（还没有接上）": "Voice input (not connected yet)",
-  "停止这一轮": "Stop this turn",
   "发给 {who} 的话": "Message to {who}",
   "移除 {name}": "Remove {name}",
   "{name} 读取中": "Reading {name}",

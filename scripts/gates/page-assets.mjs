@@ -336,18 +336,31 @@ const headErrors = (measured, budget, base) => {
 // spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// P3-0a (第 18 批, #1884; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin host
+// contract gains `taskGrants`, and until P3-1 draws the area the frame answers it with a refusing placeholder:
+// plugin-frame.js +64 B, keyed on main's budget 188354 (after #1880). The plugin-frame.js entry keyed on 208271 (the +54 B #1843
+// reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
+// Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
+// one short fixed message; no cast.
+// 13④a 连接页 ASC-73～79，#1886，统筹审过放行 (2026-11-06): the settings' 服务连接 page as plan A — rows grouped by use that open in
+// place, an account's four rows, 换账号 among accounts, the steps, 高级 and its draft. Keyed on merge-base 875fb6be (after #1877's
+// compiled client and minified sheets), so the ④b entries above are spent and replaced. settings.css and workbench.css +617 B
+// each: the catalog's row part only (the card it does not draw is split out of the parts' styles), the four rows' card with a
+// container query, the switch choice and the draft note. workbench.js +7536 B: the parts' row program (625 B) and the page's
+// switch, usages, steps and draft. Tried: the draft note is a server template, the progress is ④b's, repeated DOM idioms are
+// small helpers (about 990 B).
 // 07-fix record jump (#1887, 07 批评审台审过, 2026-11-06): a record opened from search into a split pane is asked for once the
 // pane page has loaded, by a message to that page that queues behind the view hand-off its load starts (which used to put the
 // plugin back on its list over an earlier ask), and the pane passes it on only from the page around it and in its exact shape
-// (S-30, `recordAsk` in the pane-message script): workbench.js +727 B, keyed on main's budget 885295 (after #1880; ASC-60～63's
-// workbench.js entry keyed on 1085847 is spent there, so it is replaced). Tried: the pane dispatches through the surface lookup
+// (S-30, `recordAsk` in the pane-message script): workbench.js +727 B, keyed on main's budget 892831 (after #1886; 13④a's
+// workbench.js entry keyed on 885295 is spent there, so it is replaced). Tried: the pane dispatches through the surface lookup
 // and event it already uses; the shape check sits in the one pane-message script beside fromParent, not in the listener; no new
 // helper, retry timer or registry entry.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827793, 830322],
-  "/assets/molis-work-workbench.css": [1204709, 1207238],
-  "/assets/molis-work-workbench.js": [885295, 886022],
-  "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-settings.css": [760704, 761321],
+  "/assets/molis-work-workbench.css": [1107725, 1108342],
+  "/assets/molis-work-workbench.js": [892831, 893558],
+  "/assets/molis-work-plugin-frame.js": [188354, 188418],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],

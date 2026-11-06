@@ -13,7 +13,7 @@ import { offers, restingCheckpoint, sceneOf, view as viewOf, type Ui, type SendM
 const MODES: readonly { readonly mode: SendMode; readonly label: string; readonly note: string; readonly recorded: boolean }[] = [
   { mode: "next-boundary", label: "补充", note: "下一个模型边界生效（默认）", recorded: true },
   { mode: "interrupt", label: "打断并改向", note: "当前回复作废，同一轮接着走", recorded: false },
-  { mode: "after-run", label: "这一轮结束后再做", note: "排到下一轮开头（会话排队）", recorded: false },
+  { mode: "after-run", label: "下一轮再做", note: "排到下一轮开头（会话排队）", recorded: false },
   { mode: "side", label: "只问不改", note: "Coding 下一阶段", recorded: false },
 ];
 

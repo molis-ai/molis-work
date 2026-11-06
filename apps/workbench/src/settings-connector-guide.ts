@@ -49,15 +49,9 @@ export function methodLabel(method: ConnectorMethodOption, L: Translate): string
   return L("使用密钥连接");
 }
 
-/** The way a card would connect now, in the page's language. */
-export function pathLabel(card: ConnectorSettingsCardView, L: Translate): string {
-  if (card.availability === "placeholder") return L("暂未接入");
-  const method = recommendedMethod(card);
-  if (!method) return L("登录接入准备中");
-  if (method.kind === "oauth") return loginReady(method) ? L("浏览器登录") : L("登录接入准备中");
-  if (method.kind === "mcp") return card.connector_id === "figma" ? L("连接 Figma 工具") : method.mcp?.client_registration === "manual" ? L("需配置工具授权") : L("官方工具授权");
-  if (method.kind === "cli") return method.cli?.installed ? L("本机登录") : L("需安装客户端");
-  return L("使用 API Key / 令牌");
+/** A method the page prepared for one request (the request page) is drawn as its one click when it has one, else with its fields. */
+export function requestGuideVariant(method: ConnectorMethodOption): "main" | "full" {
+  return method.oauth && !loginReady(method) ? "full" : "main";
 }
 
 const CONNECTOR_PURPOSE: Record<string, string> = {
@@ -115,33 +109,47 @@ function tokenGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOpti
     <div data-protocol-result role="status" aria-live="polite" hidden></div></form>`;
 }
 
-export function renderMethodGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorPrimitives, setup?: ConnectorSetupView["setup"], cliJob?: string): string {
+/**
+ * Where a method's guide is drawn. `full`: every field the method takes (another way to connect, under 高级, and the request page).
+ * `main`: the one-click path on the service's row, with nothing to fill in — an OAuth login with the product's app, a tool service at
+ * its declared address. `own`: the same method with the person's own app or settings, under 高级 (§13.1 ② plan A).
+ */
+export type MethodGuideVariant = "full" | "main" | "own";
+
+export function renderMethodGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorPrimitives, setup?: ConnectorSetupView["setup"], cliJob?: string, variant: MethodGuideVariant = "full"): string {
   const { L, escapeHtml: e } = p;
   const field = (key: string, label: string, value = "", secret = false, placeholder = "", required = false) => `<label class="settings-connector-field"><span>${e(L(label))}</span><input class="mw-input" data-protocol-field="${e(key)}" type="${secret ? "password" : "text"}" autocomplete="off" value="${e(value)}" placeholder="${e(placeholder)}"${required ? " required" : ""}></label>`;
   const manualReturn = `<div data-oauth-return hidden>${field("returned_url", "浏览器中的完整返回地址", "", true)}<button class="mw-btn mw-btn--secondary" type="button" data-oauth-complete>${L("确认授权结果")}</button></div>`;
+  const primary = (attrs: string, label: string) => `<button class="mw-btn mw-btn--primary" type="button" ${attrs}>${e(label)}</button>`;
   let body = "";
   if (option.kind === "token" && option.support === "paste") body = tokenGuide(card, option, p);
   else if (option.oauth) {
     const dedicated = Boolean(option.oauth.device?.login_ready);
     const ready = dedicated || Boolean(option.login_ready);
+    // An own app always needs its fields; the full guide needs them only while the product's own app is not ready.
+    const own = variant === "own" || !ready;
     const provider = card.connector_id === "gmail" ? "Google" : card.title;
-    const config = `<ol class="settings-connector-steps"><li><strong>${L("打开官方后台，准备应用")}</strong>${officialLinks(option.links, p)}<p>${L("没有开发者权限时，请让应用管理员完成这一步，或选择下方其他连接方式。")}</p></li>
+    const start = (label: string) => primary(`data-protocol-start="oauth"${dedicated && variant === "main" ? ` data-device-login="${e(provider)}"` : ""}`, label);
+    if (variant === "main") body = `<ol class="settings-connector-steps"><li><strong>${e(L("在浏览器登录 {name}，点同意", { name: provider }))}</strong><p>${L("登录完会自动回到这里，不用复制任何东西。")}</p></li></ol>
+      ${option.oauth.note ? `<p>${e(L(option.oauth.note))}</p>` : ""}${start(L("连接 {name}", { name: card.title }))}${manualReturn}`;
+    else body = `<ol class="settings-connector-steps"><li><strong>${L("打开官方后台，准备应用")}</strong>${officialLinks(option.links, p)}<p>${L("没有开发者权限时，请让应用管理员完成这一步，或选择下方其他连接方式。")}</p></li>
       <li><strong>${L("登记回调地址")}</strong><p>${L("将下面的地址添加到应用的允许回调地址中。")}</p><div class="settings-connector-copy"><code data-oauth-callback${option.oauth.callback_path ? ` data-callback-path="${e(option.oauth.callback_path)}"` : ""}${option.oauth.callback_host ? ` data-callback-host="${e(option.oauth.callback_host)}"` : ""}${ready ? ` data-account-callback="${e(card.connector_id)}"` : ""}></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制")}</button></div></li>
-      <li><strong>${L("填写应用信息")}</strong>${field("client_id", "应用 Client ID", "", false, "", !ready)}${field("client_secret", option.oauth.client_secret_required ? "应用 Client Secret" : "Client Secret（可选）", "", true, "", !ready && option.oauth.client_secret_required)}${option.oauth.fields.map(f => field(`setting:${f.key}`, f.label, "", false, f.placeholder, !ready && f.required)).join("")}</li></ol>`;
-    body = `<p>${L(ready ? "将在浏览器打开官方登录页。选择账号并确认权限后，回到这里即可继续。" : "首次连接需要服务商的应用配置。准备完成后，即可在官方页面登录授权。")}</p>
+      <li><strong>${L("填写应用信息")}</strong>${field("client_id", "应用 Client ID", "", false, "", own)}${field("client_secret", option.oauth.client_secret_required ? "应用 Client Secret" : "Client Secret（可选）", "", true, "", own && option.oauth.client_secret_required)}${option.oauth.fields.map(f => field(`setting:${f.key}`, f.label, "", false, f.placeholder, own && f.required)).join("")}</li></ol>
       ${option.oauth.note ? `<p>${e(L(option.oauth.note))}</p>` : ""}
-      ${ready ? `<details class="settings-connector-help"><summary>${L("使用其他应用配置")}</summary>${config}</details>` : config}
-      <details class="settings-connector-help"><summary>${L("高级：使用已注册的 HTTPS 回调")}</summary>${field("redirect_uri", "HTTPS 回调地址（可选）")}<p>${L("仅在服务不接受本机回调时使用。授权后将完整返回地址粘贴到这里。")}</p></details>
-      <button class="mw-btn mw-btn--primary" type="button" data-protocol-start="oauth"${dedicated ? ` data-device-login="${e(provider)}"` : ""}>${e(L("前往 {name} 登录", { name: provider }))}</button>${manualReturn}`;
+      ${field("redirect_uri", "HTTPS 回调地址（可选）")}<p>${L("仅在服务不接受本机回调时使用。授权后将完整返回地址粘贴到这里。")}</p>
+      ${start(L("用这个应用登录"))}${manualReturn}`;
   } else if (option.mcp) {
     const custom = card.connector_id === "mcp-bearer";
     const manual = custom || !option.login_ready && (option.mcp.client_registration === "manual" || ["feishu", "lark"].includes(card.connector_id));
     const select = (key: string, label: string, values: Array<[string, string]>, selected?: string) => `<label class="settings-connector-field"><span>${e(L(label))}</span><select class="mw-input" data-protocol-field="${key}">${values.map(([value, text]) => `<option value="${value}"${value === selected ? " selected" : ""}>${e(L(text))}</option>`).join("")}</select></label>`;
-    const config = `${field("endpoint", "官方工具服务地址", option.mcp.endpoint)}${custom ? select("authentication", "认证方式", [["oauth", "OAuth"], ["none", "无需鉴权"], ["bearer", "Bearer Token"]], setup?.authentication) + select("transport", "传输方式", [["http", "Streamable HTTP"], ["sse", "SSE"]], setup?.transport) : ["authentication", "transport"].map(key => { const value = setup?.[key as "authentication" | "transport"]; return value ? `<input type="hidden" data-protocol-field="${key}" value="${e(value)}">` : ""; }).join("")}${field("client_id", "应用 Client ID / App ID（服务要求时填写）")}${field("client_secret", "Client Secret / App Secret（服务要求时填写）", "", true)}${field("token", "访问令牌（服务支持时可选）", "", true)}<div class="settings-connector-copy"><code data-mcp-callback></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制回调")}</button></div>${field("redirect_uri", "已注册的 HTTPS 回调（可选）")}`;
-    body = `<p>${L("连接后可查看并使用服务商提供的工具。工具授权与邮件、文档同步账号独立，以官方授权页显示的权限为准。")}</p><p>${e(L(option.note))}</p>
-      ${officialLinks(option.links, p)}
-      ${manual ? `<p>${L("此服务需要先准备应用或组织配置，再开始授权。请按官方说明填写以下信息。")}</p>${config}` : `<details class="settings-connector-help"><summary>${L("服务地址与高级授权设置")}</summary>${config}</details>`}
-      <button class="mw-btn mw-btn--primary" type="button" data-protocol-start="mcp">${e(L("连接 {name} 工具", { name: card.title }))}</button>${manualReturn}`;
+    const fixed = ["authentication", "transport"].map(key => { const value = setup?.[key as "authentication" | "transport"]; return value ? `<input type="hidden" data-protocol-field="${key}" value="${e(value)}">` : ""; }).join("");
+    const start = primary('data-protocol-start="mcp"', L("连接 {name} 工具", { name: card.title }));
+    // The one-click path sends the declared address and nothing else: the settings a service may also take are under 高级.
+    if (variant === "main" && !manual) body = `<p>${L("连接后可查看并使用服务商提供的工具。工具授权与邮件、文档同步账号独立，以官方授权页显示的权限为准。")}</p><input type="hidden" data-protocol-field="endpoint" value="${e(option.mcp.endpoint)}">${fixed}${start}${manualReturn}`;
+    else body = `<p>${e(L(option.note))}</p>${officialLinks(option.links, p)}
+      ${manual ? `<p>${L("此服务需要先准备应用或组织配置，再开始授权。请按官方说明填写以下信息。")}</p>` : ""}
+      ${field("endpoint", "官方工具服务地址", option.mcp.endpoint)}${custom ? select("authentication", "认证方式", [["oauth", "OAuth"], ["none", "无需鉴权"], ["bearer", "Bearer Token"]], setup?.authentication) + select("transport", "传输方式", [["http", "Streamable HTTP"], ["sse", "SSE"]], setup?.transport) : fixed}${field("client_id", "应用 Client ID / App ID（服务要求时填写）")}${field("client_secret", "Client Secret / App Secret（服务要求时填写）", "", true)}${field("token", "访问令牌（服务支持时可选）", "", true)}<div class="settings-connector-copy"><code data-mcp-callback></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制回调")}</button></div>${field("redirect_uri", "已注册的 HTTPS 回调（可选）")}
+      ${variant === "own" ? primary('data-protocol-start="mcp"', L("用这些设置连接")) : start}${manualReturn}`;
   } else if (option.cli) {
     body = `<p>${e(L(card.connector_id === "feishu" ? "使用本机客户端登录你的用户账号，登录后自动检查连接。" : "使用已安装的官方客户端登录并检查账号。此连接可在这里读取信息，不代替 Feed 的账号授权。"))}</p>
       <p data-cli-availability>${e(option.cli.binary)} · ${L(option.cli.installed ? "已安装" : "尚未安装")}</p>
@@ -155,15 +163,45 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
   return `<section class="settings-connector-method" data-connector-method="${option.kind}" data-method-support="${option.support}"><div data-protocol="${option.kind}" data-protocol-service="${e(card.connector_id)}"${cliJob ? ` data-cli-job="${e(cliJob)}"` : ""} class="settings-connector-flow">${body}${option.kind === "token" ? "" : '<div data-protocol-result role="status" aria-live="polite" hidden></div>'}</div></section>`;
 }
 
-export function renderConnectorSetup(card: ConnectorSettingsCardView, p: ConnectorPrimitives): string {
+/** What a service can and cannot do, in its own words (§13.1: 「能读通知、看仓库」, never permission names). */
+export function renderCapabilities(card: ConnectorSettingsCardView, p: ConnectorPrimitives): string {
+  if (!card.capabilities?.length) return "";
+  return `<ul class="settings-connector-capabilities">${card.capabilities.map(c => `<li data-fulfillment="${c.fulfillment}"><span>${p.L(c.fulfillment === "live" ? "能" : "暂不支持")}</span>${p.escapeHtml(p.L(c.label))}</li>`).join("")}</ul>`;
+}
+
+const WAY: Record<string, string> = { oauth: "用你自己的 {provider} 应用登录", token: "填一把 API 密钥", cli: "用本机的官方客户端登录", mcp: "连接 {provider} 的官方工具" };
+
+/**
+ * The service's path on its row (ASC-45～47): the one click that connects it; or, when there is none yet, why, and the ways that
+ * work now, each under 高级 — never a form passed off as one-click, nor a button that cannot work.
+ */
+export function renderConnectorConnect(card: ConnectorSettingsCardView, p: ConnectorPrimitives): string {
   const { L, escapeHtml: e } = p;
-  if (card.availability === "placeholder") return `<p>${e(L(card.unavailable_reason || "此服务暂未接入。可以查看官方说明，选择其他可用服务。"))}</p>${officialLinks(card.setup_links ?? [], p)}`;
+  if (card.availability === "placeholder") return `<div class="settings-connector-pending"><p>${e(L(card.unavailable_reason || "此服务暂未接入。可以查看官方说明，选择其他可用服务。"))}</p>${officialLinks(card.setup_links ?? [], p)}</div>`;
   const recommended = recommendedMethod(card);
+  if (recommended) return `${renderCapabilities(card, p)}${renderMethodGuide(card, recommended, p, undefined, undefined, "main")}`;
+  const provider = card.connector_id === "gmail" ? "Google" : card.title;
+  const ways = [...new Set((card.method_options ?? []).map(m => m.kind))].filter(kind => Object.hasOwn(WAY, kind)).map(kind => L(WAY[kind]!, { provider }));
+  return `<div class="settings-connector-pending"><p>${e(L("还不能一键连接：Molis Work 还没开通 {name} 的一键登录，这一步由我们准备，你不用去注册开发者应用。", { name: card.title }))}</p>
+    <p>${e(ways.length ? L("现在能走的路：{ways}。都在下面的「高级」里。", { ways: ways.join(L("；")) }) : L("现在没有别的路，可以先连别的服务。"))}</p></div>
+    ${renderCapabilities(card, p)}${ways.length ? `<button class="mw-btn mw-btn--secondary" type="button" data-connector-advanced-open>${L("看其他连接方式")}</button>` : ""}`;
+}
+
+/**
+ * The connection ways that belong under 高级 (§13.1 ② plan A): the one-click method with the person's own app or settings, the
+ * service's other methods, the new connection's name, and its other official links.
+ */
+export function renderConnectorWays(card: ConnectorSettingsCardView, p: ConnectorPrimitives): string {
+  const { L, escapeHtml: e } = p;
+  if (card.availability === "placeholder") return "";
+  const recommended = recommendedMethod(card);
+  const own = recommended && (recommended.oauth || recommended.mcp && recommended.kind === "mcp") ? recommended : undefined;
   const others = (card.method_options ?? []).filter(m => m !== recommended);
-  return `<div class="settings-connector-setup">${recommended ? `<h3>${e(methodLabel(recommended, L))}</h3>${renderMethodGuide(card, recommended, p)}` : `<div class="settings-connector-pending"><h3>${L("登录接入准备中")}</h3><p>${L("Molis 尚未完成此服务的应用接入，暂时无法直接登录。这一步由我们准备，你不需要注册开发者应用。")}</p><p>${L("已有密钥或自有应用的用户，可以展开高级连接方式。")}</p></div>`}
-    ${others.length ? `<details class="settings-connector-alternatives"><summary>${L("高级连接方式")}</summary>${others.map(m => `<details class="settings-connector-alternative" data-method-choice="${m.kind}"><summary>${e(methodLabel(m, L))}<small>${e(L(m.kind === "mcp" ? "供工具调用使用" : m.kind === "cli" ? "需安装官方客户端" : m.kind === "oauth" ? "使用自有应用" : "在官方后台获取凭据"))}</small></summary>${renderMethodGuide(card, m, p)}</details>`).join("")}</details>` : ""}
-    <details class="settings-connector-help"><summary>${L("为这个账号起个名字（可选）")}</summary><label class="settings-connector-field"><span>${L("连接名称")}</span><input class="mw-input" data-connector-new-name maxlength="100" placeholder="${e(card.title)}" autocomplete="off"></label></details>
-    ${card.capabilities?.length ? `<details class="settings-connector-help"><summary>${L("支持的用途与限制")}</summary><ul class="settings-connector-capabilities">${card.capabilities.map(c => `<li data-fulfillment="${c.fulfillment}"><span>${L(c.fulfillment === "live" ? "支持" : "暂不支持")}</span>${e(L(c.label))}</li>`).join("")}</ul>${card.outbound_note ? `<p>${e(L(card.outbound_note))}</p>` : ""}</details>` : ""}
-    ${(() => { const used = new Set((card.method_options ?? []).flatMap(m => m.links.map(l => l.url))); const extra = (card.setup_links ?? []).filter(l => !used.has(l.url)); return extra.length ? `<details class="settings-connector-help"><summary>${L("更多官方设置与帮助")}</summary>${officialLinks(extra, p)}</details>` : ""; })()}
-  </div>`;
+  const used = new Set((card.method_options ?? []).flatMap(m => m.links.map(l => l.url)));
+  const extra = (card.setup_links ?? []).filter(l => !used.has(l.url));
+  const way = (summary: string, note: string, body: string, kind: string) => `<details class="settings-connector-alternative" data-method-choice="${kind}"><summary>${e(summary)}<small>${e(note)}</small></summary>${body}</details>`;
+  return `${own ? way(L(own.oauth ? "用自己的应用" : "服务地址与授权设置"), L(own.oauth ? "公司要求用自己注册的应用时" : "改地址或填写服务要求的应用信息"), renderMethodGuide(card, own, p, undefined, undefined, "own"), own.kind) : ""}
+    ${others.map(m => way(methodLabel(m, L), L(m.kind === "mcp" ? "供工具调用使用" : m.kind === "cli" ? "需安装官方客户端" : m.kind === "oauth" ? "使用自有应用" : "在官方后台获取凭据"), renderMethodGuide(card, m, p), m.kind)).join("")}
+    <label class="settings-connector-field"><span>${L("新连接的名称（可选）")}</span><input class="mw-input" data-connector-new-name maxlength="100" placeholder="${e(card.title)}" autocomplete="off"></label>
+    ${card.outbound_note ? `<p>${e(L(card.outbound_note))}</p>` : ""}${extra.length ? officialLinks(extra, p) : ""}`;
 }

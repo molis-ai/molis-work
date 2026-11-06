@@ -3,7 +3,7 @@ import { copyFileSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { bindDatabaseSpace, inspectSnapshotSqlite, personalStorageSpace } from "@molis-ai/molis-work-storage";
 import { homeStorageTree } from "./fixtures/home-storage-files.js";
 
@@ -13,8 +13,8 @@ test("a bound archive retains its space and exact journal program during read-on
   const space = personalStorageSpace("https://issuer.example", "work", "alice");
   const trigger = "CREATE TRIGGER record_insert AFTER INSERT ON saved BEGIN SELECT NEW.id; END";
   const baseline = { version: 3, schema: "CREATE TABLE saved (id TEXT PRIMARY KEY, body TEXT);" + trigger };
-  const write = (change: (db: Database.Database) => void) => {
-    const db = new Database(file);
+  const write = (change: (db: ReturnType<typeof openTestSqlite>) => void) => {
+    const db = openTestSqlite(file);
     try { change(db); } finally { db.close(); }
   };
   write(db => { bindDatabaseSpace(db, space); db.exec(baseline.schema); db.pragma("user_version=3"); });
@@ -28,7 +28,7 @@ test("a bound archive retains its space and exact journal program during read-on
   ]) {
     const copy=join(directory,"malformed.db");
     copyFileSync(file,copy);
-    const db=new Database(copy);
+    const db=openTestSqlite(copy);
     try { db.exec(tamper); } finally { db.close(); }
     const before=homeStorageTree(directory);
     assert.throws(() => inspectSnapshotSqlite(copy,{baseline,space,requireSpace:true}),{code:"actions.input_invalid",message:/空间元数据结构/});

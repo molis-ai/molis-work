@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {createContextLedger,createContextHistoryReplication} from '@molis-ai/molis-work-module-context-ledger';
 import type {ObjectRef,ContextEdge} from '@molis-ai/molis-work-contracts/modules/context-ledger';
 
@@ -9,7 +9,7 @@ const source=(id='session'):ObjectRef=>({module:'private-work-context',id,versio
 const target=(id:string):ObjectRef=>({module:'goals',id,project_id:'project',version:null,scope});
 const relations={'work.goal':{targetModule:'goals'}} as const;
 function fixture(){
-  const db=new Database(':memory:'),ledger=createContextLedger(db,{authorize:()=>true});
+  const db=openTestSqlite(':memory:'),ledger=createContextLedger(db,{authorize:()=>true});
   const ports=(authorize=()=>{})=>createContextHistoryReplication(db,{scope,sourceModule:'private-work-context',relations,authorize});
   const put=(key:string,id:string,from=source())=>ledger.commands.put({actor_id:'person',scope},{key,type:'work.goal',source:from,target:target(id),cause:'work.goal_associated',recorded_at:'2026-10-18T00:00:00.000Z'});
   return {db,ledger,ports,put};

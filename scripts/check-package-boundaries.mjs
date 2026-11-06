@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
+import { usesProjectSqliteDriver } from "./gates/project-sqlite-driver.mjs";
 import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
 import { checkArtifactsPlatformUi } from "./gates/artifacts-platform-ui.mjs";
@@ -107,7 +108,9 @@ function checkSourceImports(repositoryRoot, packages) {
 
     for (const sourceFile of sourceFiles) {
       const relativeSource = path.relative(repositoryRoot, sourceFile);
-      for (const specifier of extractImportSpecifiers(fs.readFileSync(sourceFile, "utf8"))) {
+      const source = fs.readFileSync(sourceFile, "utf8");
+      if (usesProjectSqliteDriver(relativeSource, source)) errors.push(`${relativeSource}: [project-sqlite-driver] open project connections through storage`);
+      for (const specifier of extractImportSpecifiers(source)) {
         importCount += 1;
         let target = targetForSpecifier(specifier, packages);
         let relativeCrossOwner = false;
@@ -135,6 +138,13 @@ function checkSourceImports(repositoryRoot, packages) {
     }
   }
 
+  for (const area of ["tests", "scripts", "examples"]) {
+    const files = filesUnder(path.join(repositoryRoot, area), file => /\.(?:[cm]?[jt]s|[jt]sx)$/u.test(file));
+    for (const file of files) {
+      const relative = path.relative(repositoryRoot, file);
+      if (usesProjectSqliteDriver(relative, fs.readFileSync(file, "utf8"))) errors.push(`${relative}: [project-sqlite-driver] open test connections through test-kit or production connections through storage`);
+    }
+  }
   return { errors, edges, importCount, sourceFileCount };
 }
 

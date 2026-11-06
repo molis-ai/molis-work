@@ -199,9 +199,6 @@ importers:
       '@molis-ai/molis-work-ui-host':
         specifier: workspace:*
         version: link:packages/ui-host
-      better-sqlite3:
-        specifier: 12.8.0
-        version: 12.8.0
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
@@ -233,9 +230,6 @@ importers:
       '@tauri-apps/cli':
         specifier: 2.11.4
         version: 2.11.4
-      '@types/better-sqlite3':
-        specifier: ^9.6.0
-        version: 9.6.0
       '@types/node':
         specifier: ^22.13.0
         version: 22.20.1
@@ -648,6 +642,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -726,6 +723,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -741,6 +741,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -750,10 +753,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-    devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^9.6.0
-        version: 9.6.0
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   modules/projects:
     dependencies:
@@ -862,15 +864,25 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
       better-sqlite3:
         specifier: 12.8.0
         version: 12.8.0
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^9.6.0
+        version: 9.6.0
 
   packages/test-kit:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../storage
 
   packages/ui-host:
     dependencies:

@@ -8,7 +8,7 @@ import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ensureStorageSpace } from "@molis-ai/molis-work-storage";
 import { projectReplicationOwner } from "@molis-ai/molis-work-module-projects";
 import { readPluginRuntimeRecords, PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -22,7 +22,7 @@ test("PCSYNC-20 missing plugin hints inspect actual local installations without 
       await withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
         const projects = catalog.listProjects(); assert.equal(projects.length, 1);
         const project = projects[0]!;
-        const db = new Database(project.database_path);
+        const db = openTestSqlite(project.database_path);
         try {
           const repository = new SqlitePluginRuntimeRepository(db);
           const runtime = new PluginRuntime(repository, undefined, { hostIds: HOST_PLUGIN_IDS, scope: "project" });
@@ -30,7 +30,7 @@ test("PCSYNC-20 missing plugin hints inspect actual local installations without 
             trust: { level: "unsigned" }, grants: [], deployment: "local" }).install;
           repository.save({ ...installed, state: "disabled" });
         } finally { db.close(); }
-        const fixture = new Database(join(homeDirectory, "projects", "catalog.db"));
+        const fixture = openTestSqlite(join(homeDirectory, "projects", "catalog.db"));
         try {
           const owner = projectReplicationOwner(fixture, { spaceId: ensureStorageSpace(homeDirectory).spaceId, authorize: () => {}, excludedProjectIds: [] });
           const value = owner.read(project.project_id)!;
@@ -63,7 +63,7 @@ test("PCSYNC-20 missing plugin hints inspect actual local installations without 
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`.impeccable/qa/review/project-missing-plugins-${width}-${theme}.png`, Buffer.from(shot.data, "base64"));
   }
-  const readonly = new Database(databasePath, { readonly: true });
+  const readonly = openTestSqlite(databasePath, { readonly: true });
   try { assert.deepEqual(readPluginRuntimeRecords(readonly).find(record => record.install_id === installed.install_id), { ...installed, state: "disabled" }); }
   finally { readonly.close(); }
   const english = await (await fetch(origin + `/projects/${projectId}/settings/general?embed=1`, { headers: { "accept-language": "en" } })).text();

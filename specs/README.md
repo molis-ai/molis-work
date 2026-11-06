@@ -6,8 +6,6 @@
 
 ## 在做的
 
-- [frame-camera-pointer-sync](frame-camera-pointer-sync/spec.md)：D 轨 Codex 修复 Frame 跨窗口相机同步导致真实点击与已加载正文失效，02 批接续集成；工程与浏览器回归执行中。
-
 - [team-memory](team-memory/spec.md)：独立团队记忆需求（BL-022）；像持续在线的 PMO 观察获准项目、沟通和工作，积累决策、风险、知识、偏好及协作模式，减少人与人／人与 AI／AI 与 AI 的上下文交接，支持主动协作、工作习惯与交付质量改善。成员个人发布仍需最终确认并告知不可撤回，管理员维护团队认知；形成、融合及使用策略待细化，尚未实现或验收。需求维护 Codex，实现待分配；不改变现有记忆 P0 边界。
 
 - [team-collaboration](team-collaboration/spec.md)：团队协作按项目明确共享，首版需要多人实时共同编辑，整体参考 Codex Projects；2026-10-28 已定成员只访问获准项目内容，个人空间、其他项目与个人外部 AI 会话不自动公开；工作记录、简报与 AI 输出遵守相同边界。首版查看／编辑／管理三档、后续插件／资产粒度，以及成员发布／管理员管理团队记忆已定；团队记忆已另立需求，本需求保留身份与访问衔接；实时编辑、人与 AI 共同工作及恢复已纳入目标，协作协议、覆盖清单与细粒度规则待细化，尚未实现或验收。需求维护 Codex，实现待分配；阶段 1 与个人同步共同设计，阶段 2 验关键并发与恢复，阶段 3 收拢方案、阶段 4 完整实施。
@@ -110,6 +108,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-06：[Frame 相机同步修复](archive/frame-camera-pointer-sync/spec.md)归档（已实现，负责人 Codex D 轨）；#1859 已合入 main，真实回归、普通 CI 与保护队列通过，02 组合 Full 的其它首败另由原负责人结算。
 
 - 2026-11-04：[系统性代码与架构防腐整理](archive/repository-anti-corruption/spec.md)归档（部分实现；工程项随 #1725 合入，剩余 BL-928～930）。同批归档本线的三份卫星：[项目库里的插件表](archive/plugin-project-database/spec.md)（已实现，BL-377）、[Home 级插件的库按项目分开](archive/plugin-project-partition/spec.md)（已实现，BL-639）、[双实例](archive/dual-instance-plugins/spec.md)（部分实现，BL-933）。防腐目录里另有早先归档的 6 份历史文件与 `evidence/`；`assistant-service-connections`、`repository-cleanup`、`pr-review-remediation` 不属本线，留在根目录。未实现的 C 端方案与依赖／SDK 方案的剩余在 BL-931、BL-932。
 - 2026-11-03：[第 01 批主线核对](post-anticorruption-roadmap/reference/batches/01.md#baseline-01)按合入提交归档三项性能修复、复审修正、双仓清理、状态环、五项 Goals／首页／引导小需求和 Issue V0；历史限制与待本人验收分别保留。

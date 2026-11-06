@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -58,7 +58,7 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
   t.after(async () => { catalog.close(); await rm(homeDirectory, { recursive: true, force: true }); });
   const first = await catalog.createProject({ display_name: "常开", actor_id: "test" });
   const stored = (projectId: string) => {
-    const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
+    const db = openTestSqlite(join(homeDirectory, "projects/catalog.db"), { readonly: true });
     try { return (db.prepare("SELECT plugin_id FROM project_plugins WHERE project_id = ? ORDER BY plugin_id").all(projectId) as Array<{ plugin_id: string }>).map(row => row.plugin_id); }
     finally { db.close(); }
   };
@@ -71,7 +71,7 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
   assert.deepEqual(catalog.projectPluginMembership(first.project_id).hidden, []);
 
   // A project that hid Shelf before it was 常开 keeps the mark, but it changes nothing and is not listed.
-  const written = new Database(join(homeDirectory, "projects/catalog.db"));
+  const written = openTestSqlite(join(homeDirectory, "projects/catalog.db"));
   try { written.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'shelf', '2026-10-01T00:00:00.000Z')").run(first.project_id); }
   finally { written.close(); }
   assert.deepEqual(catalog.projectPluginMembership(first.project_id).hidden, []);
@@ -93,7 +93,7 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
 
     // A project made before holds Goals as a stored row: it can be removed now, and the row goes.
     const old = await catalog.createProject({ display_name: "旧项目", actor_id: "test" });
-    const writable = new Database(join(homeDirectory, "projects/catalog.db"));
+    const writable = openTestSqlite(join(homeDirectory, "projects/catalog.db"));
     try { writable.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, 'goals', '2026-10-01T00:00:00.000Z')").run(old.project_id); }
     finally { writable.close(); }
     assert.deepEqual(catalog.listProjectPlugins(old.project_id), ["goals", "schedule"]);
@@ -192,7 +192,7 @@ test("RAC-401 S-34 each query sees persisted revocation, new consent and install
   const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger });
   const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
     definition: { manifest: shelf, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
-  const writable = new Database(join(f.home, "projects/catalog.db"));
+  const writable = openTestSqlite(join(f.home, "projects/catalog.db"));
   try { writable.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'shelf', '2026-10-01T00:00:00.000Z')").run(f.project.project_id); }
   finally { writable.close(); }
   const hidden = (expected: string[]) => {
@@ -253,7 +253,7 @@ for (const corruption of ["version", "structure"] as const) test(`MEM-42 later d
   const consents = record("host_build", "2026-10-25T00:00:00.000Z");
   assert.equal(consents.length, 2);
   // A historical personal-plugin exclusion is ineffective while its current always-on agreement stands.
-  const writable = new Database(join(f.home, "projects/catalog.db"));
+  const writable = openTestSqlite(join(f.home, "projects/catalog.db"));
   try { writable.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'shelf', '2026-10-01T00:00:00.000Z')").run(f.project.project_id); }
   finally { writable.close(); }
   const policy = projectActionAvailability(async (_options, work) => work(f.catalog), f.home), caller = person([], f.project.project_id);

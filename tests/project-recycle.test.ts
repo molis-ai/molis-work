@@ -2,7 +2,7 @@ import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
 import {createSqliteReplica,initializeReplica,replicaSchemaSql,replicaMarkSql} from '@molis-ai/molis-work-storage';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createProjectsSchema, ProjectsModule, projectReplicationOwner, installProjectReplicationJournal } from '@molis-ai/molis-work-module-projects';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -13,7 +13,7 @@ import { prepareSyncTestHome } from './fixtures/runtime-personal-sync.js';
 import { createMolisWorkLocalHost, ProjectDeletionService } from '@molis-ai/molis-work-app-local-host';
 
 test('PCSYNC-17/20 owner recycling keeps facts, rejects stale confirmations, and replays receipts without changing a later state', () => {
-  const db = new Database(':memory:');
+  const db = openTestSqlite(':memory:');
   try {
     db.pragma('foreign_keys=ON');createProjectsSchema(db);
     const projects = new ProjectsModule({ db, projects_directory:'/tmp/recycle', spaceId: 'personal:test', plugins: { has: id => id === 'pages', companions: () => [] } });
@@ -89,7 +89,7 @@ test('PCSYNC-20 frozen actual v23 catalog is refused before modifying any bytes'
   t.after(() => rm(home, { recursive: true, force: true }));
   prepareSyncTestHome(home);
   const { mkdir } = await import('node:fs/promises');await mkdir(join(home, 'projects'));
-  const file = join(home, 'projects', 'catalog.db'), db = new Database(file);
+  const file = join(home, 'projects', 'catalog.db'), db = openTestSqlite(file);
   db.exec(await readFile(new URL('./fixtures/project-catalog-v23.sql', import.meta.url), 'utf8'));db.close();
   const bytes = await readFile(file);
   await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: home }), { code: 'catalog.unsupported_schema' });
@@ -98,7 +98,7 @@ test('PCSYNC-20 frozen actual v23 catalog is refused before modifying any bytes'
 
 
 test('PCSYNC-20 receiver retains unknown project tombstones without ghost projects and requires lifecycle admission',()=>{
- const db=new Database(':memory:');try{
+ const db=openTestSqlite(':memory:');try{
   db.pragma('foreign_keys=ON');createProjectsSchema(db);db.exec(replicaSchemaSql());initializeReplica(db);installProjectReplicationJournal(db,replicaMarkSql);
   const options={spaceId:'personal:test',authorize(){},excludedProjectIds:[]};
   const denied=createSqliteReplica(db,projectReplicationOwner(db,options));
@@ -128,6 +128,6 @@ test('PCSYNC-20 actual frozen v24 catalog is refused unchanged by v26',async t=>
  const home=await mkdtemp(join(tmpdir(),'molis-project-v24-'));t.after(()=>rm(home,{recursive:true,force:true}));
  prepareSyncTestHome(home);
  const {mkdir}=await import('node:fs/promises');await mkdir(join(home,'projects'));
- const file=join(home,'projects/catalog.db'),db=new Database(file);db.exec(await readFile(new URL('./fixtures/project-catalog-v24.sql',import.meta.url),'utf8'));db.close();
+ const file=join(home,'projects/catalog.db'),db=openTestSqlite(file);db.exec(await readFile(new URL('./fixtures/project-catalog-v24.sql',import.meta.url),'utf8'));db.close();
  const before=await readFile(file);await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'catalog.unsupported_schema'});assert.deepEqual(await readFile(file),before);
 });

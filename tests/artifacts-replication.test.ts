@@ -2,11 +2,11 @@ import type {PortableArtifact} from "@molis-ai/molis-work-module-artifacts";
 import type {TestContext} from "node:test";
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {ArtifactsModule,createArtifactsSchema,createArtifactReplication,type ArtifactsSqliteDatabase} from '@molis-ai/molis-work-module-artifacts';
 
 function fixture(t:TestContext,board='project-shared'){
-  const db=new Database(':memory:');t.after(()=>db.close());db.pragma('foreign_keys=ON');
+  const db=openTestSqlite(':memory:');t.after(()=>db.close());db.pragma('foreign_keys=ON');
   db.exec('CREATE TABLE project_root(project_id TEXT PRIMARY KEY); CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');
   db.prepare('INSERT INTO project_root VALUES (?)').run(board);createArtifactsSchema(db as ArtifactsSqliteDatabase);
   let active=true;

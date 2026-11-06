@@ -11,9 +11,9 @@ import {
   createProjectsSchema,
   ProjectsModule,
 } from "@molis-ai/molis-work-module-projects";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 
-function createModule(db: Database.Database, directory: string): ProjectsModule {
+function createModule(db: SqliteDatabase, directory: string): ProjectsModule {
   let sequence = 0;
   return new ProjectsModule({
     db,
@@ -27,7 +27,7 @@ function createModule(db: Database.Database, directory: string): ProjectsModule 
 
 test("Projects Module owns canonical project identity and workspace membership", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
@@ -120,9 +120,9 @@ test("Projects Module owns canonical project identity and workspace membership",
 });
 
 /** A catalog with two projects, so that a directory can belong to one or to both. */
-function withTwoProjects(run: (env: { db: Database.Database; projects: ProjectsModule; first: string; second: string; link: (projectId: string, path: string) => string }) => void): void {
+function withTwoProjects(run: (env: { db: SqliteDatabase; projects: ProjectsModule; first: string; second: string; link: (projectId: string, path: string) => string }) => void): void {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
@@ -141,7 +141,7 @@ function withTwoProjects(run: (env: { db: Database.Database; projects: ProjectsM
     rmSync(directory, { recursive: true, force: true });
   }
 }
-const rows = (db: Database.Database, table: "workspaces" | "workspace_project_memberships"): number =>
+const rows = (db: SqliteDatabase, table: "workspaces" | "workspace_project_memberships"): number =>
   Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
 
 test("RAC-2453 deleting a project's memberships removes the directory records that no project belongs to any more", () => {

@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 
@@ -36,8 +37,4 @@ export function connectionDeclarationProblems(value: unknown, permissions: Reado
     }
   }
   return problems;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {
   ArtifactsModule, ProcessItemsModule, createArtifactsSchema, createProcessItemsSchema,
   createProcessItemReplication, validateProcessItemReplication, installProcessItemReplicationJournal, type ArtifactsSqliteDatabase, type PortableProcessItem,
@@ -12,7 +12,7 @@ import {
 import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
 
 function fixture(t: TestContext, projectId = 'project-shared') {
-  const db = new Database(':memory:'); t.after(() => db.close()); db.pragma('foreign_keys=ON');
+  const db = openTestSqlite(':memory:'); t.after(() => db.close()); db.pragma('foreign_keys=ON');
   db.exec('CREATE TABLE project_root(project_id TEXT PRIMARY KEY); CREATE TABLE events(seq INTEGER PRIMARY KEY AUTOINCREMENT,project_id TEXT);');
   db.prepare('INSERT INTO project_root VALUES (?)').run(projectId);
   const borrowed = db as ArtifactsSqliteDatabase;

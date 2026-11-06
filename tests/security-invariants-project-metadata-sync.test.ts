@@ -12,7 +12,7 @@ import test,{type TestContext} from 'node:test';
 import {mkdtempSync,realpathSync,readFileSync,readdirSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {createProjectsSchema,ProjectsModule,projectReplicationOwner,validatePortableProject,projectPluginRequirements,installProjectReplicationJournal} from '@molis-ai/molis-work-module-projects';
 import {replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile,openMemoryLedger} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
@@ -21,7 +21,7 @@ import {withMolisWorkProjectCatalog,openMolisWorkProjectCatalog} from '@molis-ai
 
 const spaceId='personal:alice',at='2026-10-19T00:00:00.000Z';
 function moduleFixture(t:TestContext){
-  const db=new Database(':memory:');t.after(()=>db.close());db.pragma('foreign_keys = ON');createProjectsSchema(db);db.exec(replicaSchemaSql());
+  const db=openTestSqlite(':memory:');t.after(()=>db.close());db.pragma('foreign_keys = ON');createProjectsSchema(db);db.exec(replicaSchemaSql());
   const ledger=borrowedReplicaDatabase({exec:sql=>db.exec(sql),prepare:sql=>db.prepare(sql)});initializeReplica(ledger);installProjectReplicationJournal(db,replicaMarkSql);
   let current=true;const authorize=()=>{if(!current)throw new Error('revoked');},options={spaceId,authorize,excludedProjectIds:['personal-root']};
   const projects=new ProjectsModule({db,spaceId,projects_directory:'/source/private-only',now:()=>at,plugins:{has:id=>['goals','pages'].includes(id),initial:()=>['goals'],companions:()=>[]}});
@@ -138,40 +138,40 @@ function homes(t:TestContext){const root=mkdtempSync(join(tmpdir(),'project-meta
 test('PCSYNC-01 local-space Project edits remain local and cannot register for personal sync',async t=>{
   const f=homes(t),home=join(f.root,'local');
   await withMolisWorkProjectCatalog({homeDirectory:home},async c=>{const p=await c.createProject({display_name:'本机项目',actor_id:'local'});c.addProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'local'});c.renameProject(p.project_id,'本机改名','local','本机项目');});
-  const db=new Database(join(home,'projects','catalog.db'),{readonly:true});try{assert.equal(db.prepare('SELECT COUNT(*) AS n FROM project_catalog_replica_changes').get()!.n,0);}finally{db.close();}
+  const db=openTestSqlite(join(home,'projects','catalog.db'),{readonly:true});try{assert.equal(db.prepare('SELECT COUNT(*) AS n FROM project_catalog_replica_changes').get()!.n,0);}finally{db.close();}
   assert.throws(()=>createPersonalCatalogRegistration(home,f.space.spaceId,'alice',()=>{},withMolisWorkProjectCatalog,'molis'),/不属于当前个人空间/);
 });
 
 for(const [label,sql] of [['journal state','DELETE FROM project_catalog_replica_state'],['owner table','DROP TABLE project_portable_plugins']] as const)test(`PCSYNC-20 current catalog missing ${label} is unavailable, never rebuilt or a successful empty collection`,async t=>{
   const f=homes(t),home=f.make('corrupt');await withMolisWorkProjectCatalog({homeDirectory:home},()=>{});const file=join(home,'projects','catalog.db');
-  const db=new Database(file);db.exec(sql);db.close();const bytes=readFileSync(file);
+  const db=openTestSqlite(file);db.exec(sql);db.close();const bytes=readFileSync(file);
   const registration=createPersonalCatalogRegistration(home,f.space.spaceId,'alice',()=>{},withMolisWorkProjectCatalog,'molis');await registration.refresh();
   assert.equal(registration.available!(),false);assert.throws(()=>registration.withReplica(r=>r.counts()),/暂不可用/);assert.deepEqual(readFileSync(file),bytes,'no owner table or device identity is regenerated');
 });
 
 test('PCSYNC-20 readonly catalog inspection observes committed live WAL metadata, not the older main-file version',t=>{
-  const f=homes(t),file=join(f.root,'live ?#%.db'),db=new Database(file);t.after(()=>db.close());
+  const f=homes(t),file=join(f.root,'live ?#%.db'),db=openTestSqlite(file);t.after(()=>db.close());
   db.pragma('journal_mode=WAL');db.pragma('wal_autocheckpoint=0');db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22'); PRAGMA wal_checkpoint(TRUNCATE); UPDATE catalog_meta SET value='23' WHERE key='schema_version';");
   const main=readFileSync(file),wal=readFileSync(file+'-wal'),files=readdirSync(f.root);
   assert.deepEqual(inspectCatalogFile(file),{owner:'molis-work-project-catalog-v1',version:23});assert.deepEqual(readFileSync(file),main);assert.deepEqual(readFileSync(file+'-wal'),wal);assert.deepEqual(readdirSync(f.root),files);
 });
 
 test('PCSYNC-20 partial WAL refuses before opening SQLite and does not create missing shared memory or ignore pending metadata',t=>{
-  const f=homes(t),file=join(f.root,'partial.db'),db=new Database(file);
+  const f=homes(t),file=join(f.root,'partial.db'),db=openTestSqlite(file);
   db.pragma('journal_mode=WAL');db.pragma('wal_autocheckpoint=0');db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22');PRAGMA wal_checkpoint(TRUNCATE);UPDATE catalog_meta SET value='23' WHERE key='schema_version';");
   const wal=readFileSync(file+'-wal');db.close();writeFileSync(file+'-wal',wal);const main=readFileSync(file),files=readdirSync(f.root);
   assert.throws(()=>inspectCatalogFile(file),{code:'storage.catalog_probe_busy'});assert.deepEqual(readFileSync(file),main);assert.deepEqual(readFileSync(file+'-wal'),wal);assert.deepEqual(readdirSync(f.root),files);
 });
 
 test('PCSYNC-MCP-RECONNECT-01 catalog inspection preserves live WAL ownership across another process closing',t=>{
-  const f=homes(t),file=join(f.root,'live-lock.db'),db=new Database(file);t.after(()=>db.close());
+  const f=homes(t),file=join(f.root,'live-lock.db'),db=openTestSqlite(file);t.after(()=>db.close());
   db.pragma('journal_mode=WAL');db.pragma('wal_autocheckpoint=0');
   db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','25');");
   const files=readdirSync(f.root),main=readFileSync(file),wal=readFileSync(file+'-wal');
   for(let attempt=0;attempt<3;attempt++){
     assert.deepEqual(inspectCatalogFile(file),{owner:'molis-work-project-catalog-v1',version:25});
     const child=spawnSync(process.execPath,['--input-type=module','-e',
-      'import Database from "better-sqlite3";const db=new Database(process.argv[1]);db.prepare("SELECT * FROM catalog_meta").all();db.close();',file],{encoding:'utf8',timeout:10000});
+      'import {openTestSqlite} from "@molis-ai/molis-work-test-kit/sqlite";const db=openTestSqlite(process.argv[1]);db.prepare("SELECT * FROM catalog_meta").all();db.close();',file],{encoding:'utf8',timeout:10000});
     assert.equal(child.status,0,child.stderr);
     assert.deepEqual(readdirSync(f.root),files,'a different process must not unlink the resident connection’s WAL/SHM');
     assert.deepEqual(readFileSync(file),main);assert.deepEqual(readFileSync(file+'-wal'),wal);
@@ -181,12 +181,12 @@ test('PCSYNC-MCP-RECONNECT-01 catalog inspection preserves live WAL ownership ac
 });
 
 test('PCSYNC-MCP-RECONNECT-02 readonly inspection cannot release another connection’s active write lock',t=>{
-  const f=homes(t),file=join(f.root,'write-lock.db'),db=new Database(file);t.after(()=>db.close());
+  const f=homes(t),file=join(f.root,'write-lock.db'),db=openTestSqlite(file);t.after(()=>db.close());
   db.pragma('journal_mode=WAL');db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','25');BEGIN IMMEDIATE;UPDATE catalog_meta SET value='26' WHERE key='schema_version';");
   try{
     assert.equal(inspectCatalogFile(file).version,25,'the probe sees committed metadata, never the writer’s pending change');
     const child=spawnSync(process.execPath,['--input-type=module','-e',
-      'import Database from "better-sqlite3";const db=new Database(process.argv[1],{timeout:0});try{db.exec("BEGIN IMMEDIATE;ROLLBACK");process.stdout.write("unlocked");}catch(error){process.stdout.write(error.code);}finally{db.close();}',file],{encoding:'utf8',timeout:10000});
+      'import {openTestSqlite} from "@molis-ai/molis-work-test-kit/sqlite";const db=openTestSqlite(process.argv[1],{timeout:0});try{db.exec("BEGIN IMMEDIATE;ROLLBACK");process.stdout.write("unlocked");}catch(error){process.stdout.write(error.code);}finally{db.close();}',file],{encoding:'utf8',timeout:10000});
     assert.equal(child.status,0,child.stderr);assert.equal(child.stdout,'SQLITE_BUSY','probing must not release the resident writer’s lock');
   }finally{db.exec('ROLLBACK');}
   assert.equal(inspectCatalogFile(file).version,25);
@@ -214,7 +214,7 @@ for(const mode of ['DELETE','WAL'])test(`PCSYNC-20 frozen v22 ${mode} catalog is
     memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'project-default',defaultPrefs('project','reviewed'));
   });}finally{memory.close();}
   mkdirSync(directory,{recursive:true});const file=join(directory,'catalog.db');
-  const db=new Database(file);db.pragma('journal_mode='+mode);db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22'); CREATE TABLE original_fact(value TEXT); INSERT INTO original_fact VALUES('retain');");db.close();
+  const db=openTestSqlite(file);db.pragma('journal_mode='+mode);db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22'); CREATE TABLE original_fact(value TEXT); INSERT INTO original_fact VALUES('retain');");db.close();
   const bytes=readFileSync(file),files=readdirSync(directory);assert.equal(CATALOG_SCHEMA_VERSION,26);
   await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'catalog.unsupported_schema'});assert.deepEqual(readFileSync(file),bytes);assert.deepEqual(readdirSync(directory),files);
 });

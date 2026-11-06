@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {AttentionModule,attentionContentReplicationDefinition} from '@molis-ai/molis-work-module-attention-resumption';
 import {bindDatabaseSpace,personalStorageSpace,createProjectContentReplicaFactory,installProjectReplicaJournal,replicaSchemaSql,type ReplicaDatabase,type ReplicaInputValue,type ReplicaOutputValue} from '@molis-ai/molis-work-storage';
 
 function fixture(){
- const db=new Database(':memory:');db.pragma('foreign_keys=ON');db.exec("CREATE TABLE project_root(project_id TEXT PRIMARY KEY);INSERT INTO project_root VALUES('project');CREATE TABLE boards(project_id TEXT PRIMARY KEY);INSERT INTO boards VALUES('project')");let effects=0;
+ const db=openTestSqlite(':memory:');db.pragma('foreign_keys=ON');db.exec("CREATE TABLE project_root(project_id TEXT PRIMARY KEY);INSERT INTO project_root VALUES('project');CREATE TABLE boards(project_id TEXT PRIMARY KEY);INSERT INTO boards VALUES('project')");let effects=0;
  const owner=new AttentionModule(db,{exists:()=>true},{eventSink(){effects++;}});
  const port:ReplicaDatabase={exec:sql=>db.exec(sql),prepare:sql=>db.prepare<ReplicaInputValue[],Record<string,ReplicaOutputValue>>(sql)};
  const space=personalStorageSpace('https://auth.example','work','user');bindDatabaseSpace(port,space);

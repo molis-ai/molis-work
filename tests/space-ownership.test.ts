@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, type Server } from 'node:http';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {
   ensureStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef,
   openHomeSqliteDatabase,
@@ -46,7 +46,7 @@ test('space identity is immutable, personal IDs are portable and team spaces are
 
 test('binding legacy data preserves content and refuses to relabel databases', () => {
   const home = mkdtempSync(join(tmpdir(), 'space-legacy-'));
-  const db = new Database(':memory:');
+  const db = openTestSqlite(':memory:');
   try {
     db.exec("CREATE TABLE asset(id TEXT PRIMARY KEY, content TEXT); INSERT INTO asset VALUES ('old', 'keep me');");
     const space = ensureStorageSpace(home);
@@ -139,7 +139,7 @@ test('real Web routing isolates local/A/B, keeps login local, rejects stale page
     const aHome=join(home,'spaces',a.spaceId);
     const created=await post('/api/settings/projects',{display_name:'Alice private project',user_confirmed:true});
     assert.equal(created.status,201);const {project:aProject}=await created.json();
-    const projectDb=new Database(join(aHome,'projects',aProject.project_id,'molis-work.db'),{readonly:true,fileMustExist:true});
+    const projectDb=openTestSqlite(join(aHome,'projects',aProject.project_id,'molis-work.db'),{readonly:true,fileMustExist:true});
     try { assert.deepEqual(readDatabaseSpace(projectDb),a); } finally { projectDb.close(); }
     assert.equal((await request('/projects/'+aProject.project_id)).status,200);
     const gateway=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,clientId:'runtime:space-test',projectId:aProject.project_id});

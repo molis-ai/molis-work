@@ -2,7 +2,7 @@ import { projectReplicationTriggers } from './project-replication-triggers.js';
 import type {ReplicaInputValue,ReplicaOutputValue} from "@molis-ai/molis-work-storage";
 import type {ReplicaDatabase} from "@molis-ai/molis-work-storage";
 import { catalogErrors } from "./project-catalog-contract.js";
-import { shareReplicaTriggerDefinitions, applySqliteBaseline, LocalSqliteStorage, SqliteSchemaVersionError, ensureStorageSpace, bindDatabaseSpace } from "@molis-ai/molis-work-storage";
+import { shareReplicaTriggerDefinitions, applySqliteBaseline, LocalSqliteStorage, checkSqliteBaselineVersion, ensureStorageSpace, bindDatabaseSpace } from "@molis-ai/molis-work-storage";
 import pathUtil from 'node:path';
 import fs from 'node:fs';
 import { existsSync } from "node:fs";
@@ -46,12 +46,10 @@ function inspectDatabase(path: string, existingOnly: boolean): string {
   if (!existingOnly && !existsSync(path)) return path;
   const inspection = new LocalSqliteStorage(path, { readonly: true });
   try {
+    // Inspect through the project owner's driver so closing another SQLite engine cannot release its locks.
     const { user_version: version } = inspection.db.prepare("PRAGMA user_version").get() as { user_version: number };
-    if (version !== PROJECT_DATABASE_BASELINE.version) {
-      if (existingOnly) throw catalogErrors.project_recovery_unsupported_schema("catalog.project_recovery_unsupported_schema");
-      const empty = !inspection.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'molis_storage_space' LIMIT 1").get();
-      if (version !== 0 || !empty) throw new SqliteSchemaVersionError(path, version, PROJECT_DATABASE_BASELINE.version);
-    }
+    if (existingOnly && version !== PROJECT_DATABASE_BASELINE.version) throw catalogErrors.project_recovery_unsupported_schema("catalog.project_recovery_unsupported_schema");
+    if (!existingOnly) checkSqliteBaselineVersion(inspection.db, path, PROJECT_DATABASE_BASELINE);
     if (version === PROJECT_DATABASE_BASELINE.version) projectReplicationTriggers(inspection.db);
     return path;
   } finally { inspection.close(); }

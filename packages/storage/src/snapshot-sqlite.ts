@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { isDeepStrictEqual } from "node:util";
 import { readDatabaseSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace } from "./space.js";
 import { snapshotProgramsMatch } from "./sqlite-baseline-inspection.js";
+import { openSqliteConnection } from "./sqlite-connection.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   describeSqliteBaseline,
@@ -55,7 +56,7 @@ export function inspectSnapshotSqlite(file: string, options: SqliteSnapshotOptio
   try { if (readSync(fd, header, 0, 20, 0) !== 20 || header[18] !== 1 || header[19] !== 1) throw invalid(`归档库必须是独立 SQLite 文件: ${file}`); }
   finally { closeSync(fd); }
   options.signal?.throwIfAborted();
-  const database = new Database(file, { readonly: true, fileMustExist: true, timeout: 0 });
+  const database = openSqliteConnection(file, { readonly: true, fileMustExist: true, timeout: 0 });
   try {
     const result = inspect(database, file, options);
     const after = snapshotFileStat(file);
@@ -161,7 +162,7 @@ export async function backupSnapshotSqlite(
   const before = snapshotFileStat(source);
   let database: SqliteDatabase | undefined;
   try {
-    database = new Database(source, { readonly: true, fileMustExist: true, timeout: 0 });
+    database = openSqliteConnection(source, { readonly: true, fileMustExist: true, timeout: 0 });
     options.signal?.throwIfAborted();
     const original = inspect(database, source, options);
     await database.backup(destination, {
@@ -184,7 +185,7 @@ export async function backupSnapshotSqlite(
     )
       throw changed(source);
     chmodSync(destination, 0o600);
-    const copied = new Database(destination, { fileMustExist: true, timeout: 0 });
+    const copied = openSqliteConnection(destination, { fileMustExist: true, timeout: 0 });
     let result: SqliteSnapshotInfo;
     try {
       // Only the private backup is normalized into a standalone file.

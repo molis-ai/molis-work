@@ -10,7 +10,8 @@ import type { ExternalDocumentSource, ModelRequired } from "./artifact-document-
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 
-import { text, id, version, object, array, nullable, reference, consumerTypes, record } from "./plugin-action-schemas.js";
+import { arraySchema as array, createActionDefinition, nullableSchema as nullable, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
+import { text, id, version, reference, consumerTypes, record } from "./plugin-action-schemas.js";
 const selection = { selected: nullable(record), requested: nullable(reference), compatibility: nullable(object({ artifact: reference,
   consumable: { type: "boolean" }, reason: { enum: ["compatible_consumer", "consumer_missing", "artifact_unavailable", "artifact_archived"] } })) };
 const browser = object({ versions: array(record), ...selection });
@@ -36,8 +37,10 @@ export interface ArtifactImportResult { artifact_id: string; version: number; ti
   /** The transcription needs the local speech model first (PMAT-48): ask the person, then import again with `allow_model_download`. */
   model_required?: ModelRequired }
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = read, scheduling?: ActionDefinition['action']['scheduling']): ActionDefinition<I, O> {
-  return { capability_id: `artifacts.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "project", ...(scheduling ? { scheduling } : {}), audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["artifact"], input_schema: input, output_schema: output } };
+  return createActionDefinition<I, O>(`artifacts.${name}`, operation, {
+    title, description, ...(scheduling ? { scheduling } : {}), audiences: ["user", "agent", "workflow", "mcp"],
+    permissions, subject_kinds: ["artifact"], input_schema: input, output_schema: output,
+  });
 }
 const onlyPeople = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, audiences: ["user"] } });
 /**

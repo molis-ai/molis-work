@@ -628,13 +628,21 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return body;
   };
 
-  /** The heights of the `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it. */
-  const menuRows = async (width: number, height: number, descriptions = true) => {
+  /**
+   * The heights of the visible `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it, in two lists:
+   * `plain` rows (a name only) and `described` rows (`mw-menu__item--described`: a 12px description under the name, the "Menu
+   * Description" specimen added by K1 #1850). A described row grows with its description and has its own rule in DESIGN.md's `mw-menu` paragraph.
+   */
+  const menuRows = async (width: number, height: number) => {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: touch }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
     await waitFor("document.querySelectorAll('.mw-menu__item').length > 0", 20_000);
     await settle();
-    return evaluate<number[]>(`[...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && (${descriptions} || !el.classList.contains("mw-menu__item--described"))).map(el => Math.round(el.getBoundingClientRect().height))`);
+    return evaluate<{ plain: number[]; described: number[] }>(`(() => {
+      const rows = [...document.querySelectorAll(".mw-menu .mw-menu__item")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }));
+      const height = el => Math.round(el.getBoundingClientRect().height);
+      return { plain: rows.filter(el => !el.classList.contains("mw-menu__item--described")).map(height), described: rows.filter(el => el.classList.contains("mw-menu__item--described")).map(height) };
+    })()`);
   };
 
   return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, chooseExecutor, escapeReturns, evaluate, waitFor };
@@ -782,9 +790,11 @@ for (const scheme of ["light", "dark"] as const) {
 
     // A menu a plugin page opens (the specimen board shows `mw-menu` as the pages use it) has 44px items on a phone and on a tablet.
     for (const [width, height] of [[390, 844], [1024, 768]] as const) {
-      const rows = await w.menuRows(width, height);
-      assert.ok(rows.length > 0, `the specimen board shows menu items at ${width}`);
-      assert.deepEqual(rows.filter(row => row < 44), [], `mw-menu items are 44px tall at ${width} (${rows})`);
+      const { plain, described } = await w.menuRows(width, height);
+      assert.ok(plain.length > 0, `the specimen board shows menu items at ${width}`);
+      assert.deepEqual([...new Set(plain)].filter(row => row !== 44), [], `plain mw-menu items (no description) are exactly 44px tall at ${width} (${plain})`);
+      assert.ok(described.length > 0, `the specimen board still shows described mw-menu items (K1 #1850) at ${width}`);
+      assert.deepEqual(described.filter(row => row < 44), [], `described mw-menu items are never under 44px at ${width} (${described})`);
     }
 
     // The Assistant line in the states the seeded project does not start in. The chips of a state are the ones the island shows
@@ -886,9 +896,14 @@ for (const scheme of ["light", "dark"] as const) {
       assert.ok(controls.some(control => w.short(control) < 44), `${name} · 1280: the desktop chrome is denser than 44px, as the exception says`);
     }
 
-    // Plain rows stay 34px; specimens with a second description line must grow without losing the floor.
-    assert.deepEqual((await w.menuRows(1280, 800)).filter(height => height < 34), [], "every menu row keeps the desktop floor");
-    assert.deepEqual([...new Set(await w.menuRows(1280, 800, false))], [34], "plain mw-menu items keep their 34px with a fine pointer");
+    // What a plugin page's menu holds is 34px on a desktop window, as DESIGN.md writes it.
+    // Rows without a description are exactly 34px; a described row (K1 #1850) is its own rule there: never under 34px, 8px padding above
+    // and below a 20px name line and one or two 18px description lines 2px apart, so 56px or 74px.
+    const desktopRows = await w.menuRows(1280, 800);
+    assert.deepEqual([...new Set(desktopRows.plain)], [34], "plain mw-menu items (no description) keep their 34px with a fine pointer");
+    assert.ok(desktopRows.described.length > 0, "the specimen board still shows described mw-menu items (K1 #1850) at 1280");
+    assert.deepEqual(desktopRows.described.filter(row => row < 34), [], `described mw-menu items are never under 34px at 1280 (${desktopRows.described})`);
+    assert.deepEqual([...new Set(desktopRows.described)].filter(row => ![56, 74].includes(row)), [], `described mw-menu items are 56px (one description line) or 74px (two) at 1280 (${desktopRows.described})`);
 
     // What the bar opens keeps the desktop floor too (32px, 28px compact): nothing in its lists is smaller.
     await w.open(1280, 800, "", "true");

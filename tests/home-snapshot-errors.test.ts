@@ -7,12 +7,12 @@ import { dirname, join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createHomeSnapshot, homeStores, CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindDatabaseSpace, ensureStorageSpace, backupSnapshotSqlite, copySnapshotFile, readSnapshotFile, snapshotFileDigest } from "@molis-ai/molis-work-storage";
 import { changeSnapshotSource, type InjectedSnapshotChange } from "./fixtures/home-snapshot-error-change.js";
-import { smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
+import { captureSqliteError, smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 
 const staticCases = ["file-link", "sqlite-schema", "sqlite-integrity", "sqlite-integrity-function", "sqlite-foreign-key", "sqlite-foreign-schema", "sqlite-corrupt-page", "metadata-owner", "metadata-version", "metadata-missing-table", "metadata-missing-column"] as const;
 const changedCases = ["file-append", "file-truncate", "file-replace", "sqlite-version", "sqlite-owner", "sqlite-schema", "sqlite-replace"] as const;
@@ -152,16 +152,19 @@ test("RAC-109-S-06: original cancellation, I/O and source schema-version refusal
 test("RAC-109-S-06: actual SQLite destination I/O and source busy errors retain their engine code", async t => {
   const f = await fixture(t, "sqlite-owner"), before = await snapshotBusinessFingerprint(f.home);
   await assert.rejects(backupSnapshotSqlite(f.source, f.area), { code: "SQLITE_CANTOPEN" });
-  const locker = new Database(f.source);
+  const locker = openTestSqlite(f.source);
+  const reader = openTestSqlite(f.source, { readonly: true, timeout: 0 });
   locker.exec("BEGIN EXCLUSIVE");
   try {
+    const nativeError = captureSqliteError(() => reader.pragma("user_version"), "SQLITE_BUSY");
     await assert.rejects(createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot }), error => {
-      assert.ok(error instanceof Database.SqliteError);
+      assert.ok(error instanceof Error && "code" in error);
+      assert.equal(Object.getPrototypeOf(error), Object.getPrototypeOf(nativeError));
       assert.equal(error.code, "SQLITE_BUSY");
       assert.equal(error instanceof ActionError, false);
       return true;
     });
-  } finally { locker.exec("ROLLBACK"); locker.close(); }
+  } finally { reader.close(); locker.exec("ROLLBACK"); locker.close(); }
   assert.deepEqual(await snapshotBusinessFingerprint(f.home), before);
   await assertNoOutput(f);
 });

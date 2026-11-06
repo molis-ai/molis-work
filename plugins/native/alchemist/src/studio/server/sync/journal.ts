@@ -1,4 +1,4 @@
-import {bindDatabaseSpace,initializeReplica,queueReplicaChange,readDatabaseSpace,replicaMarkSql,replicaTransaction,type StorageSpace} from '@molis-ai/molis-work-storage';
+import {bindDatabaseSpace,initializeReplica,queueReplicaChange,readDatabaseSpace,replicaMarkSql,replicaTransaction,type StorageSpace,type SqliteBaselineDatabase} from '@molis-ai/molis-work-storage';
 import type {SqliteDatabase} from '../db/open-database.js';
 import {STUDIO_CONTENT_TABLES} from './content-tables.js';
 import {studioSyncErrors} from './errors.js';
@@ -11,7 +11,7 @@ export const STUDIO_SYNC_TRIGGERS = STUDIO_CONTENT_TABLES.flatMap(table => ["INS
   `CREATE TRIGGER studio_content_${table.name}_${event.toLowerCase()} AFTER ${event} ON ${table.name} BEGIN ${replicaMarkSql(projectKey)} END;`
 )).join("\n");
 /** Archive inspection reads the immutable project bound by the Host without opening or initializing a studio. */
-export function assertStudioProjectIdentity(db: Pick<SqliteDatabase,"prepare">, projectId:string):void {
+export function assertStudioProjectIdentity(db: Pick<SqliteBaselineDatabase,"prepare">, projectId:string):void {
   const row = db.prepare('SELECT project_id FROM studio_sync_identity WHERE singleton=1').get() as {project_id:string} | undefined;
   if (!row || row.project_id !== projectId) throw studioSyncErrors.sync_scope('研究库归属与项目不符');
 }

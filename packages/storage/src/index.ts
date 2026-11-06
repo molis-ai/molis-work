@@ -1,4 +1,5 @@
 /** Local SQLite technical owner. */
+export { openSqliteConnection } from "./sqlite-connection.js";
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
@@ -23,6 +24,7 @@ export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type Home
 export {
   isSqliteSchemaStructureMismatch,
   SqliteSchemaVersionError,
+  checkSqliteBaselineVersion,
   applySqliteBaseline,
   clearInExistingHomeSqlite,
   describeSqliteBaseline,

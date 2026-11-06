@@ -1,15 +1,12 @@
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+export { escapeHtml };
 // Small DOM helpers shared by editor overlays and node views.
 import type { Translate } from "./editor-types.js";
 import { scrollChildIntoView } from "./floating.js";
 
+export const t = (translate: Translate | undefined, value: string): string => translate ? translate(value) : value;
 
-export function t(translate: Translate | undefined, value: string): string {
-  return translate ? translate(value) : value;
-}
-
-export function dsIcon(name: string): string {
-  return `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
-}
+export const dsIcon = (name: string): string => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 
 export function overlayRoot(): HTMLElement {
   return document.querySelector("[data-pages-stage-workspace]")
@@ -43,10 +40,6 @@ export function actions(translate: Translate | undefined, ok: () => void, cancel
   save.addEventListener("click", ok);
   row.append(dismiss, save);
   return row;
-}
-
-export function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 export function keepSelectedVisible(menu: HTMLElement): void {

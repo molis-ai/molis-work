@@ -1,3 +1,4 @@
+import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
@@ -5,14 +6,14 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { MemoryPluginRuntimeRepository, PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage, privateValueReplicaOwner } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginPrivateStorage, PluginDefinition, PluginExecutor, PluginManifest, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {PrivateValueReplicationOwner} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
 test('private replication refuses a false absent-row CAS instead of acknowledging newly created content',()=>{
- const db=new Database(':memory:');try{const repository=new SqlitePluginPrivateStorage(db);
+ const db=openTestSqlite(':memory:');try{const repository=new SqlitePluginPrivateStorage(db);
   const definition=createGithubIntegrationPlugin({provider:{type:'fixture',async health(){return {ok:true,status:'connected',message:'ready'};},async sync(){return {ok:true,mode:'fixture',items:[],cursor:null};}}});
   const manifest={...definition.manifest,permissions:[...definition.manifest.permissions,{permission:'storage:private',required:true,reason:'fixture'}]};
   const storage=repository.forPlugin({install_id:'replica-test:project',plugin_id:manifest.plugin_id,version:manifest.version,deployment:'local',grants:['storage:private'],project_id:'project',requireGrant(){}},manifest);
@@ -26,7 +27,7 @@ test('private replication refuses a false absent-row CAS instead of acknowledgin
 test("Plugin private storage persists opaque values, isolates signatures and rejects revoked or missing grants", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-private-"));
   const file = join(directory, "private.db");
-  let db = new Database(file);
+  let db = openPluginTestDatabase(file);
   let owner = new SqlitePluginPrivateStorage(db);
   const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
@@ -64,7 +65,7 @@ test("Plugin private storage persists opaque values, isolates signatures and rej
     await original.runtime.uninstall(original.installId);
     assert.throws(() => original.storage.set("../../outside", "stale"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     db.close();
-    db = new Database(file);
+    db = openTestSqlite(file);
     owner = new SqlitePluginPrivateStorage(db);
     const recovered = await install("publisher-one");
     assert.equal(recovered.installId, original.installId);
@@ -84,7 +85,7 @@ test("Plugin private storage persists opaque values, isolates signatures and rej
 test("startup never upgrades an installed version; an explicit upgrade validates and preserves private drafts", async () => {
   const { MemoryPluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
   const repository = new MemoryPluginRuntimeRepository();
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   const owner = new SqlitePluginPrivateStorage(db);
   const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
@@ -138,7 +139,7 @@ test("failed candidate startup restores private data and leaves the previous ins
   const { MemoryPluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
   const { PluginSupervisor } = await import("@molis-ai/molis-work-plugin-runtime");
   const repository = new MemoryPluginRuntimeRepository();
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   const owner = new SqlitePluginPrivateStorage(db);
   const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
@@ -205,7 +206,7 @@ test("failed candidate startup restores private data and leaves the previous ins
 
 test("incompatible upgrade preflight failure leaves the old plugin available and retryable", async () => {
   const repository = new MemoryPluginRuntimeRepository();
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   const owner = new SqlitePluginPrivateStorage(db);
   const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
@@ -314,7 +315,7 @@ test("persisted running state rehydrates a plugin contribution after process res
 test("atomic private storage rejects stale writers across connections without overwriting the winner", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-cas-"));
   const file = join(directory, "private.db");
-  const firstDb = new Database(file), secondDb = new Database(file);
+  const firstDb = openPluginTestDatabase(file), secondDb = openTestSqlite(file);
   let permitted = true;
   const manifest = {plugin_id:"io.molis.work.storage-test",version:"1.0.0",
     permissions:[{permission:"storage:private",required:true,reason:"test"}]} as PluginManifest;

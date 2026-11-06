@@ -78,9 +78,9 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-catalog [data-catalog-focus] .mw-composer__box { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
   .mw-catalog [data-primitive="menu-desc"] .mw-menu { position: static; display: grid; width: min(340px, 100%); }
   .mw-catalog [data-primitive="menu-desc"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); align-items: start; }
-  .mw-catalog-mic { display: grid; justify-items: center; align-content: center; gap: 8px; min-width: 72px; min-height: 80px; padding: 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); color: var(--ink); font-size: 11px; }
+  .mw-catalog-mic { display: grid; justify-items: center; align-content: center; gap: 8px; min-width: 72px; min-height: 80px; padding: 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); color: var(--ink); }
   .mw-catalog-mic > svg { width: var(--mic-size); height: var(--mic-size); }
-  .mw-catalog-mic > small { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mw-catalog-mic > span { color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
 `;
 
 const ghostIcon = (label: string, name: Parameters<typeof icon>[0], attrs: Record<string, string | boolean> = {}) =>
@@ -195,7 +195,7 @@ export function menuDescSection(say: Say): string {
 }
 
 export function micSection(say: Say): string {
-  const glyph = (size: 16 | 20) => `<span class="mw-catalog-mic" style="--mic-size: ${size}px">${icon("mic")}<small>${size}px</small></span>`;
+  const glyph = (size: 16 | 20) => `<span class="mw-catalog-mic" style="--mic-size: ${size}px">${icon("mic")}<span>${size}px</span></span>`;
   const voice = say("语音输入（还没有接上）");
   return section("mic", escapeHtml(say("麦克风图标 / Mic")), `<p class="mw-catalog__hint">${escapeHtml(say("只占位置：语音输入还没有接上（第 53 批）。放在输入框底行右侧，停止和发送的左边。"))}</p><div class="mw-catalog__specimens">
     ${specimen(escapeHtml(say("两个尺寸")), glyph(16) + glyph(20))}

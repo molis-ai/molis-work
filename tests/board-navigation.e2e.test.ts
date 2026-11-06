@@ -13,6 +13,23 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 const SPECIMENS = ["tiers", "unfocused", "all-tabs", "undo", "solo", "plus", "marks", "pane-switch", "grow", "badge", "sheets", "layout", "titlebar", "bar"];
 const WIDTHS = [1440, 1024, 390] as const;
 const CJK = /[㐀-鿿]/;
+// T01-NAV-FADE-01: both sheets resolve the shared name fade; the project sheet also carries pinned tabs.
+const FADES = `(() => {
+  const root = document.documentElement, still = root.hasAttribute('data-craft-still');
+  root.removeAttribute('data-craft-still');
+  try {
+    const selectors = ['[data-nav-sheet-row] [data-glyph-only]'];
+    if (document.querySelector('link[rel=stylesheet]').getAttribute('href').endsWith('workbench.css')) selectors.push('[data-nav-specimen=grow] [data-pinned]');
+    return selectors.map((selector) => {
+      const tab = document.querySelector(selector), name = tab.querySelector('.tab-item-name'), grown = tab.classList.contains('is-grown');
+      tab.classList.remove('is-grown'); name.getBoundingClientRect(); tab.classList.add('is-grown');
+      const animation = name.getAnimations().find((item) => item instanceof CSSAnimation);
+      const seen = { name: animation?.animationName, opacity: animation?.effect.getKeyframes().map((frame) => frame.opacity), duration: animation?.effect.getTiming().duration };
+      if (!grown) tab.classList.remove('is-grown');
+      return seen;
+    });
+  } finally { if (still) root.setAttribute('data-craft-still', ''); }
+})()`;
 const SPILL = `(() => { const W = document.documentElement.clientWidth;
   return [...document.querySelectorAll('.mw-navs__item')].flatMap((item) => [...item.querySelectorAll('*')].filter((el) => {
     const box = el.getBoundingClientRect(); if (!box.width || box.right <= W + 1) return false;
@@ -159,6 +176,7 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
       await waitFor("document.readyState === 'complete' && !!document.querySelector('[data-nav-sheet-row] .tab-item')", 15_000);
       assert.equal(await evaluate<string>("document.querySelector('link[rel=stylesheet]').getAttribute('href')"), `/assets/molis-work-${sheet}.css`);
       drawn.push(await evaluate<string[]>(GLYPHS));
+      assert.deepEqual(await evaluate(FADES), Array.from({ length: sheet === "workbench" ? 2 : 1 }, () => ({ name: "craft-fade-in", opacity: ["0", "1"], duration: 130 })), `${theme} ${sheet}: glyph and pinned labels use the shared 130ms opacity fade`);
     }
     assert.equal(drawn[0]?.length, 5);
     assert.deepEqual(drawn[1], drawn[0], `${theme}: the arrival sheet draws the glyph row as the project page's does`);

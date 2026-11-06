@@ -1,6 +1,5 @@
 ---
 method_id: industry-developer-tools
-# @version method.goals.industry-developer-tools
 version: 1
 kind: industry
 name: "开发者工具"

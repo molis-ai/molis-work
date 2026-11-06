@@ -1,6 +1,5 @@
 ---
 method_id: domain-operations-organization
-# @version method.goals.domain-operations-organization
 version: 1
 kind: domain
 name: "运营与组织流程"

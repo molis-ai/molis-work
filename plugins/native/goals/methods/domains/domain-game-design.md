@@ -1,6 +1,5 @@
 ---
 method_id: domain-game-design
-# @version method.goals.domain-game-design
 version: 1
 kind: domain
 name: "游戏设计"

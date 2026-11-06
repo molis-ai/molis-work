@@ -1,6 +1,5 @@
 ---
 method_id: work-design-plan
-# @version method.goals.work-design-plan
 version: 1
 kind: work_type
 name: "设计与规划"

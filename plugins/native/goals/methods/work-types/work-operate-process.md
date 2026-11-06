@@ -1,6 +1,5 @@
 ---
 method_id: work-operate-process
-# @version method.goals.work-operate-process
 version: 1
 kind: work_type
 name: "运营与流程"

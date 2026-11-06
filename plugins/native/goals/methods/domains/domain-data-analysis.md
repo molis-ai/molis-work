@@ -1,6 +1,5 @@
 ---
 method_id: domain-data-analysis
-# @version method.goals.domain-data-analysis
 version: 1
 kind: domain
 name: "数据分析"

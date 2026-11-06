@@ -1,6 +1,5 @@
 ---
 method_id: domain-growth-distribution
-# @version method.goals.domain-growth-distribution
 version: 1
 kind: domain
 name: "增长与分发"

@@ -1,6 +1,5 @@
 ---
 method_id: industry-education
-# @version method.goals.industry-education
 version: 1
 kind: industry
 name: "教育"

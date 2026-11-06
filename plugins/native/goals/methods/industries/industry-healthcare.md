@@ -1,6 +1,5 @@
 ---
 method_id: industry-healthcare
-# @version method.goals.industry-healthcare
 version: 1
 kind: industry
 name: "医疗健康"

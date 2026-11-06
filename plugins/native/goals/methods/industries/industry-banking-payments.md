@@ -1,6 +1,5 @@
 ---
 method_id: industry-banking-payments
-# @version method.goals.industry-banking-payments
 version: 1
 kind: industry
 name: "银行与支付"

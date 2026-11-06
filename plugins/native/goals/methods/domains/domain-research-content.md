@@ -1,6 +1,5 @@
 ---
 method_id: domain-research-content
-# @version method.goals.domain-research-content
 version: 1
 kind: domain
 name: "研究与内容"

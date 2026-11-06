@@ -1,6 +1,5 @@
 ---
 method_id: domain-security-privacy
-# @version method.goals.domain-security-privacy
 version: 1
 kind: domain
 name: "安全与隐私"

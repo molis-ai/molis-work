@@ -1,6 +1,5 @@
 ---
 method_id: work-analyze-decide
-# @version method.goals.work-analyze-decide
 version: 1
 kind: work_type
 name: "分析与决策"

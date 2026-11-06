@@ -1,6 +1,5 @@
 ---
 method_id: work-build-change
-# @version method.goals.work-build-change
 version: 1
 kind: work_type
 name: "构建与改变"

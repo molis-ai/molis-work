@@ -1,6 +1,5 @@
 ---
 method_id: domain-brand-communication
-# @version method.goals.domain-brand-communication
 version: 1
 kind: domain
 name: "品牌与传播"

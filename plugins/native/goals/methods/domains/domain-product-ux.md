@@ -1,6 +1,5 @@
 ---
 method_id: domain-product-ux
-# @version method.goals.domain-product-ux
 version: 1
 kind: domain
 name: "产品与 UX"

@@ -1,6 +1,5 @@
 ---
 method_id: domain-ai-data-product
-# @version method.goals.domain-ai-data-product
 version: 1
 kind: domain
 name: "AI 与数据产品"

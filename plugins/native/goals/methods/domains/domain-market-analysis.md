@@ -1,6 +1,5 @@
 ---
 method_id: domain-market-analysis
-# @version method.goals.domain-market-analysis
 version: 1
 kind: domain
 name: "市场分析"

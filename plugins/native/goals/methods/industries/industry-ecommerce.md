@@ -1,6 +1,5 @@
 ---
 method_id: industry-ecommerce
-# @version method.goals.industry-ecommerce
 version: 1
 kind: industry
 name: "电商"

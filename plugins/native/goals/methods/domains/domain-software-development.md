@@ -1,6 +1,5 @@
 ---
 method_id: domain-software-development
-# @version method.goals.domain-software-development
 version: 1
 kind: domain
 name: "软件开发"

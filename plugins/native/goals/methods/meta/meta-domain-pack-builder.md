@@ -1,6 +1,5 @@
 ---
 method_id: meta-domain-pack-builder
-# @version method.goals.meta-domain-pack-builder
 version: 1
 kind: meta
 name: "陌生领域方法包生成"

@@ -1,6 +1,5 @@
 ---
 method_id: work-diagnose-fix
-# @version method.goals.work-diagnose-fix
 version: 1
 kind: work_type
 name: "诊断与修复"

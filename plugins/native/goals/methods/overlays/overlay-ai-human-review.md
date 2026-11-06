@@ -1,6 +1,5 @@
 ---
 method_id: overlay-ai-human-review
-# @version method.goals.overlay-ai-human-review
 version: 1
 kind: overlay
 name: "AI 人工复核"

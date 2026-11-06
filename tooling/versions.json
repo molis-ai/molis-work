@@ -951,62 +951,6 @@
     "event.io.molis.work.coding.workspace-invalidated": 1,
     "event.io.molis.work.git.file-changed": 1,
     "event.io.molis.work.git.operation-updated": 1,
-    "factory.alchemist.operation": 1,
-    "factory.apps.local-host.define": 1,
-    "factory.apps.local-host.defineFollowUp": 1,
-    "factory.jelly.command": 1,
-    "factory.jelly.entry": 1,
-    "factory.modules.artifacts.define": 1,
-    "factory.modules.characters.define": 1,
-    "factory.modules.judgment-rules.define": 1,
-    "factory.packages.contracts.defineActionUsagesAction": 1,
-    "factory.packages.contracts.defineArtifactCompareAction": 1,
-    "factory.packages.contracts.defineArtifactContinueAction": 1,
-    "factory.packages.contracts.defineArtifactLinkSubjectsAction": 1,
-    "factory.packages.contracts.defineArtifactPinAction": 1,
-    "factory.packages.contracts.defineArtifactPreviewAction": 1,
-    "factory.packages.contracts.defineArtifactReferrersAction": 1,
-    "factory.packages.contracts.defineConnectorUsagesAction": 1,
-    "factory.packages.contracts.defineConnectorUsagesSwitchAction": 1,
-    "factory.packages.contracts.defineDueRemindersAction": 1,
-    "factory.packages.contracts.defineFileContentAction": 1,
-    "factory.packages.contracts.defineFileEntriesAction": 1,
-    "factory.packages.contracts.defineFragmentOffersAction": 1,
-    "factory.packages.contracts.defineHomeBackgroundTasksAction": 1,
-    "factory.packages.contracts.defineHomeEventsAction": 1,
-    "factory.packages.contracts.defineObjectCopyAction": 1,
-    "factory.packages.contracts.defineObjectMoveAction": 1,
-    "factory.packages.contracts.defineSearchEntriesAction": 1,
-    "factory.packages.contracts.defineSubjectContextAction": 1,
-    "factory.packages.contracts.defineSubjectOffersAction": 1,
-    "factory.packages.contracts.membership": 1,
-    "factory.packages.plugin-sdk.createActionDefinition": 1,
-    "factory.pages.landing.define": 1,
-    "factory.plugins.native.coding.define": 1,
-    "factory.plugins.native.cognia.define": 1,
-    "factory.plugins.native.dataset.define": 1,
-    "factory.plugins.native.feed.command": 1,
-    "factory.plugins.native.feed.define": 1,
-    "factory.plugins.native.feed.read": 1,
-    "factory.plugins.native.files.define": 1,
-    "factory.plugins.native.form.define": 1,
-    "factory.plugins.native.git.define": 1,
-    "factory.plugins.native.goals.goalAction": 1,
-    "factory.plugins.native.images.define": 1,
-    "factory.plugins.native.inbox.action": 1,
-    "factory.plugins.native.issues.action": 1,
-    "factory.plugins.native.jelly.defineJellyAction": 1,
-    "factory.plugins.native.lingguang.define": 1,
-    "factory.plugins.native.pages.define": 1,
-    "factory.plugins.native.ppt.define": 1,
-    "factory.plugins.native.schedule.define": 1,
-    "factory.plugins.native.schedule.wake": 1,
-    "factory.plugins.native.shelf.define": 1,
-    "factory.plugins.native.shelf.defineProject": 1,
-    "factory.plugins.native.shelf.jobDefinition": 1,
-    "factory.plugins.native.todo.define": 1,
-    "factory.plugins.native.workflows.define": 1,
-    "factory.plugins.project_reach.reachAction": 1,
     "format.aggregate.copy": 1,
     "format.aggregate.replica": 1,
     "format.alchemist.portable": 1,
@@ -2020,6 +1964,191 @@
       "file": "apps/local-host/src/assistant/assistant-agent.ts",
       "key": "checker.molis.connection-ready",
       "pattern": "(molis\\.connection-ready@)\\d+(?=[^\\d]|$)()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-ai-data-product.md",
+      "key": "method.goals.domain-ai-data-product",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-app-product.md",
+      "key": "method.goals.domain-app-product",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-brand-communication.md",
+      "key": "method.goals.domain-brand-communication",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-customer-success-service.md",
+      "key": "method.goals.domain-customer-success-service",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-data-analysis.md",
+      "key": "method.goals.domain-data-analysis",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-game-design.md",
+      "key": "method.goals.domain-game-design",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-growth-distribution.md",
+      "key": "method.goals.domain-growth-distribution",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-market-analysis.md",
+      "key": "method.goals.domain-market-analysis",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-operations-organization.md",
+      "key": "method.goals.domain-operations-organization",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-pricing-monetization.md",
+      "key": "method.goals.domain-pricing-monetization",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-product-ux.md",
+      "key": "method.goals.domain-product-ux",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-reliability-release.md",
+      "key": "method.goals.domain-reliability-release",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-research-content.md",
+      "key": "method.goals.domain-research-content",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-security-privacy.md",
+      "key": "method.goals.domain-security-privacy",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/domains/domain-software-development.md",
+      "key": "method.goals.domain-software-development",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/industries/industry-banking-payments.md",
+      "key": "method.goals.industry-banking-payments",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/industries/industry-developer-tools.md",
+      "key": "method.goals.industry-developer-tools",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/industries/industry-ecommerce.md",
+      "key": "method.goals.industry-ecommerce",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/industries/industry-education.md",
+      "key": "method.goals.industry-education",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/industries/industry-enterprise-saas.md",
+      "key": "method.goals.industry-enterprise-saas",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/industries/industry-games.md",
+      "key": "method.goals.industry-games",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/industries/industry-healthcare.md",
+      "key": "method.goals.industry-healthcare",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/industries/industry-investing-wealth.md",
+      "key": "method.goals.industry-investing-wealth",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/meta/meta-domain-pack-builder.md",
+      "key": "method.goals.meta-domain-pack-builder",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/overlays/overlay-ai-human-review.md",
+      "key": "method.goals.overlay-ai-human-review",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/overlays/overlay-marketplace.md",
+      "key": "method.goals.overlay-marketplace",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/overlays/overlay-minors.md",
+      "key": "method.goals.overlay-minors",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/overlays/overlay-payments-assets.md",
+      "key": "method.goals.overlay-payments-assets",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/overlays/overlay-sensitive-data-privacy.md",
+      "key": "method.goals.overlay-sensitive-data-privacy",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/overlays/overlay-ugc-trust-safety.md",
+      "key": "method.goals.overlay-ugc-trust-safety",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/work-types/work-analyze-decide.md",
+      "key": "method.goals.work-analyze-decide",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/work-types/work-build-change.md",
+      "key": "method.goals.work-build-change",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/work-types/work-content-communication.md",
+      "key": "method.goals.work-content-communication",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/work-types/work-design-plan.md",
+      "key": "method.goals.work-design-plan",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/work-types/work-diagnose-fix.md",
+      "key": "method.goals.work-diagnose-fix",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/work-types/work-migrate-refactor.md",
+      "key": "method.goals.work-migrate-refactor",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/goals/methods/work-types/work-operate-process.md",
+      "key": "method.goals.work-operate-process",
+      "pattern": "(^version: )\\d+()"
     }
   ]
 }

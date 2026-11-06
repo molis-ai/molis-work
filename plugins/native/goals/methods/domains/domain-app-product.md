@@ -1,6 +1,5 @@
 ---
 method_id: domain-app-product
-# @version method.goals.domain-app-product
 version: 1
 kind: domain
 name: "通用 App"

@@ -1,6 +1,5 @@
 ---
 method_id: work-content-communication
-# @version method.goals.work-content-communication
 version: 1
 kind: work_type
 name: "内容与传播"

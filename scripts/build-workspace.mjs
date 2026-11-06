@@ -207,8 +207,10 @@ function plan(options) {
 
 async function main() {
   const options = parseOptions(process.argv.slice(2));
-  const generated = generateVersions({ write: !options.dryRun });
-  if (options.dryRun && generated.length) throw new Error(`Stale version outputs: ${generated.join(", ")}`);
+  // The build only refuses stale outputs. Whether a new declaration bypasses the source is the release gate's business: one more
+  // `version: 1` on some branch must not stop this machine's build.
+  const staleVersions = generateVersions();
+  if (staleVersions.length) throw new Error(`Stale version outputs (run pnpm versions:generate):\n${staleVersions.join("\n")}`);
   const started = Date.now();
   let current = plan(options);
   console.log(`build-workspace: ${current.stale.size} of ${current.buildable} packages to build, ${current.buildable - current.stale.size} unchanged`);

@@ -1,6 +1,5 @@
 ---
 method_id: work-migrate-refactor
-# @version method.goals.work-migrate-refactor
 version: 1
 kind: work_type
 name: "迁移与重构"

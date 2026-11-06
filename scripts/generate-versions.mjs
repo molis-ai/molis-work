@@ -1,211 +1,105 @@
 #!/usr/bin/env node
-// tooling/versions.json is the editable source. Generated literals retain public literal types and browser closure boundaries.
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
-import ts from 'typescript';
-import { fileURLToPath } from 'node:url';
+// tooling/versions.json is the one hand-edited source of first-party versions. This script copies each value to where it is
+// consumed: code says `/* @version <key> */ 1` next to the literal, and `carriers` give a regex for every other file. It only
+// generates: new declarations that bypass the source are scripts/gates/version-declarations.mjs's business, not this build step's.
+//
+//   node scripts/generate-versions.mjs --write | --check [--root <dir>]
+//
+// Everything is computed in memory and checked first, so a failure writes nothing.
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const TOKEN = /\/\* @version ([\w./-]+)(?: ("(?:[^"\\]|\\.)*"))? \*\/(\s*)("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\d+(?:\.\d+)?)/g;
-const MARKDOWN = /# @version ([\w./-]+)\n(version: )\d+/g;
-const quote = (value, original) => typeof value === 'string' && original.startsWith("'")
-  ? "'" + value.replaceAll('\\', '\\\\').replaceAll("'", "\\'") + "'" : JSON.stringify(value);
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
+const LITERAL = String.raw`"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\d+(?:\.\d+)?`;
+const MARKED = new RegExp(String.raw`(/\* @version ([\w./-]+)(?: ("(?:[^"\\]|\\.)*"))? \*/\s*)(${LITERAL})`, "g");
+const MARKER = /\/\* @version [^*]*\*\//g;
+const SKIPPED_DIRECTORIES = new Set(["node_modules", "dist", "target", ".git", ".build"]);
+export const SOURCE_ROOTS = ["apps", "packages", "plugins", "modules", "horizontal", "server", "tooling/plugin-cli"];
 
-export function versionSource(root = ROOT) {
-  return JSON.parse(readFileSync(path.join(root, 'tooling/versions.json'), 'utf8'));
+/** Real tests and their fixtures hold frozen inputs, not current declarations. `src/fixtures/` ships, so it is not one of them. */
+export function isTestFile(file) {
+  return /(?:^|\/)tests?\//.test(file) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) || /(?:^|\/)test\.[cm]?[jt]sx?$/.test(file)
+    || (/(?:^|\/)fixtures\//.test(file) && !/\/src\/(?:.*\/)?fixtures\//.test(file));
 }
 
-/** Pure expansion is also used by the existing release gate before it inspects declarations. */
-export function expandVersionMarkers(source, versions) {
-  return source.replace(TOKEN, (match, key, pattern, whitespace, original) => {
-    if (!Object.hasOwn(versions, key)) throw new Error(`Unknown version key: ${key}`);
-    const value = pattern ? JSON.parse(pattern).replaceAll('{version}', String(versions[key])) : versions[key];
-    return match.slice(0, match.length - original.length) + quote(value, original);
-  }).replace(MARKDOWN, (_match, key, prefix) => {
-    if (!Object.hasOwn(versions, key)) throw new Error(`Unknown method version: ${key}`);
-    return `# @version ${key}\n${prefix}${versions[key]}`;
-  });
-}
+export const versionSource = (root = ROOT) => JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8"));
 
-/** Markers are comments: inspections read the literal behind them. */
-export function versionInspectionSource(_root, _file, source) {
-  return source.replace(/\/\* @version [^*]+\*\/\s*/g, '');
-}
-
-/** Detect new literal authorities before they can bypass generation. Record revisions and upstream protocols are excluded. */
-export function unmanagedVersionProblems(file, source, carriers = []) {
-  if (!/\.(?:[cm]?[jt]sx?)$/.test(file) || /(?:^|\/)(?:tests?|fixtures|dist|vendor)\//.test(file) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) || file === 'apps/sync-worker/testing.mjs' || /(?:^|\/)test\.[cm]?[jt]sx?$/.test(file) || file.endsWith('/versions.generated.ts')) return [];
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true), problems = [];
-  const spans = carriers.filter(carrier => carrier.file === file).flatMap(carrier => [...source.matchAll(new RegExp(carrier.pattern, 'gm'))].map(match =>
-    [match.index + match[1].length - (/['"]$/.test(match[1]) ? 1 : 0), match.index + match[0].length - match[2].length + (/^['"]/.test(match[2]) ? 1 : 0)]));
-  const managed = node => /\/\* @version [^*]+\*\/\s*$/.test(source.slice(node.pos, node.getStart(tree)))
-    || spans.some(([start, end]) => node.getStart(tree) >= start && node.end <= end);
-  const report = node => {
-    if (!managed(node)) problems.push(`${file}:${tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1}: unmanaged current version ${node.getText(tree)}`);
-  };
-  const versionField = /^(?:schema_version|host_api_version|protocol_version|schemaVersion|format|schema|v|protocol|apiVersion|exportVersion)$/;
-  const visit = node => {
-    if (ts.isPropertyAssignment(node) || ts.isPropertySignature(node)) {
-      const name = node.name.getText(tree).replace(/^['"]|['"]$/g, '');
-      let value = node.initializer ?? (node.type && ts.isLiteralTypeNode(node.type) ? node.type.literal : null);
-      if (value && ts.isAsExpression(value)) value = value.expression;
-      let declaration = node.parent;
-      while (declaration && !ts.isVariableDeclaration(declaration)) declaration = declaration.parent;
-      let baselineObject = declaration?.initializer;
-      while (baselineObject && (ts.isAsExpression(baselineObject) || ts.isSatisfiesExpression(baselineObject))) baselineObject = baselineObject.expression;
-      const baseline = declaration && node.parent === baselineObject && /(?:SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration)/.test(declaration.type?.getText(tree) ?? declaration.initializer?.getText(tree).match(/(?:satisfies|as)\s+(?:SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration)/)?.[0] ?? '');
-      // An artifact's `version` is the record's own revision even when the record also names the plugin that made it.
-      const hasField = pattern => ts.isObjectLiteralExpression(node.parent) && node.parent.properties.some(property =>
-        ts.isPropertyAssignment(property) && pattern.test(property.name.getText(tree)));
-      const identity = hasField(/^(?:capability_id|prompt_id|role_id|skill_id|scene_id|plugin_id)$/) && !hasField(/^artifact_id$/);
-      const literalVersionType = name === 'version' && ts.isPropertySignature(node) && !/\/\*\* @(?:record-revision|upstream-version)/.test(node.getFullText(tree));
-      const externalJelly = file === 'plugins/native/jelly/src/import.ts' && name === 'schema_version' && value?.getText(tree) === '5';
-      if (value && (ts.isNumericLiteral(value) || name === 'version' && ts.isStringLiteral(value) && (/^\d+$/.test(value.text) || identity && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value.text))) && !externalJelly && (versionField.test(name) || name === 'version' && (identity || baseline) || literalVersionType)) report(value);
-    }
-    if (ts.isVariableDeclaration(node) && /^[A-Z_\d]*VERSION$/.test(node.name.getText(tree)) && node.initializer
-      && (ts.isNumericLiteral(node.initializer) || ts.isStringLiteral(node.initializer))) {
-      const upstream = new Set(['plugins/official-integrations/catalog/src/document-import.ts#NOTION_VERSION', 'plugins/official-integrations/github/src/provider.ts#GITHUB_API_VERSION', 'packages/plugin-runtime/src/project-database-statements.ts#PLUGIN_STATEMENT_SQLITE_VERSION', 'apps/local-host/src/connector-tool-runtime.ts#UV_BOOTSTRAP_VERSION', 'apps/local-host/src/plugin-builder/build-dependencies.ts#VERSION']);
-      if (!upstream.has(`${file}#${node.name.getText(tree)}`)) report(node.initializer);
-    }
-    if (ts.isBinaryExpression(node) && ts.isNumericLiteral(node.right) && /^(?:===|!==|==|!=)$/.test(node.operatorToken.getText(tree))
-      && /\.(?:schema_version|host_api_version|protocol_version|schemaVersion|format|schema|v|protocol)$/.test(node.left.getText(tree))
-      && !(file === 'plugins/native/jelly/src/import.ts' && node.left.getText(tree).endsWith('.schemaVersion'))
-      && !(file === 'apps/local-host/src/character-import-plugins.ts' && node.left.getText(tree) === 'marker?.schema_version')) report(node.right);
-    if (ts.isParameter(node) && /^(?:version|contractVersion)$/.test(node.name.getText(tree)) && node.initializer && ts.isNumericLiteral(node.initializer)) report(node.initializer);
-    if (ts.isStringLiteral(node) && /^(?:io\.molis\.work|molis\.|connector\.|signal\.|listener\.|signals\.|workspace\.|files\.|diff\.|coding\.|git\.)[\w./-]*(?:[./-]v|\/)[1-9]$/.test(node.text)) report(node);
-    ts.forEachChild(node, visit);
-  };
-  visit(tree);
-  return problems;
-}
-
-/** Only the owned integration Manifest carriers, never business JSON or frozen fixtures. */
-export function unmanagedManifestJsonProblems(file, source, carriers, root) {
-  if (!/^plugins\/official-integrations\/[^/]+\/manifest\.json$/.test(file)) return [];
-  const manifest = JSON.parse(source), problems = [], configured = carriers.filter(carrier => carrier.file === file);
-  const covered = (start, end, key) => configured.some(carrier => carrier.key === key && [...source.matchAll(new RegExp(carrier.pattern, 'gm'))]
-    .some(match => match.index + match[1].length === start && match.index + match[0].length - match[2].length === end));
-  for (const [field, key] of [['schema_version', 'manifest.schema'], ['host_api_version', 'host.api'], ['version', configured.find(carrier => /"version"/.test(carrier.pattern))?.key]]) {
-    const match = source.match(new RegExp(`("${field}"\\s*:\\s*)("[^"]*"|\\d+)`));
-    const value = match?.[2], quoted = value?.startsWith('"');
-    const start = match ? match.index + match[1].length + (quoted ? 1 : 0) : -1, end = start + (value?.length ?? 0) - (quoted ? 2 : 0);
-    if (!Object.hasOwn(manifest, field) || !key || !match || !covered(start, end, key)) problems.push(`${file}: unmanaged Manifest field ${field}`);
-  }
-  for (const match of source.matchAll(/"([a-z][\w.-]*\.v)([1-9]\d*)"/g)) {
-    const key = (match[1].startsWith('io.molis.work.') ? 'contract.' : 'type.') + match[1].slice(0, -2);
-    const start = match.index + 1 + match[1].length;
-    if (!covered(start, start + match[2].length, key)) problems.push(`${file}: unmanaged capability version ${match[1]}${match[2]}`);
-  }
-  return problems;
-}
-
-export function generateVersions({ root = ROOT, write = false } = {}) {
-  const { versions, carriers } = versionSource(root);
-  for (const [key, value] of Object.entries(versions)) {
-    if (!/^[a-zA-Z0-9][\w./-]+$/.test(key) || !(Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length)) {
-      throw new Error(`Invalid first-party version: ${key}`);
-    }
-  }
-  for (const file of carriers.map(carrier => carrier.file)) {
-    if (!path.resolve(root, file).startsWith(path.resolve(root) + path.sep)) throw new Error(`Version output outside repository: ${file}`);
-  }
-  const changed = [], used = new Set();
-  const apply = (file, output) => {
-    const location = path.join(root, file), previous = existsSync(location) ? readFileSync(location, 'utf8') : null;
-    if (previous === output) return;
-    changed.push(file);
-    if (write) { mkdirSync(path.dirname(location), { recursive: true }); writeFileSync(location, output); }
-  };
-  const files = [];
+/** Every first-party code file (relative path, text). Carrier files are read on top by {@link generateVersions}. */
+export function readSourceFiles(root = ROOT) {
+  const files = new Map();
   const walk = directory => {
-    if (!existsSync(path.join(root, directory))) return;
     for (const entry of readdirSync(path.join(root, directory), { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        if (!['node_modules', 'dist', 'target', '.git', '.build', 'tests', 'test', 'fixtures'].includes(entry.name)) walk(`${directory}/${entry.name}`);
-      } else if (/\.(?:[cm]?[jt]sx?|md|rs|sql|json)$/.test(entry.name)) files.push(`${directory}/${entry.name}`);
+      const relative = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) { if (!SKIPPED_DIRECTORIES.has(entry.name)) walk(relative); }
+      else if (/\.[cm]?[jt]sx?$/.test(entry.name) && !isTestFile(relative)) files.set(relative, readFileSync(path.join(root, relative), "utf8"));
     }
   };
-  for (const directory of ['apps', 'packages', 'plugins', 'modules', 'horizontal', 'server', 'tooling/plugin-cli']) walk(directory);
-  const unmanaged = [];
-  for (const file of new Set(files)) {
-    if (/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) || file === 'apps/sync-worker/testing.mjs' || /(?:^|\/)test\.[cm]?[jt]sx?$/.test(file)) continue;
-    const source = readFileSync(path.join(root, file), 'utf8');
-    for (const match of source.matchAll(TOKEN)) used.add(match[1]);
-    for (const match of source.matchAll(MARKDOWN)) used.add(match[1]);
-    unmanaged.push(...unmanagedVersionProblems(file, source, carriers));
-    unmanaged.push(...unmanagedManifestJsonProblems(file, source, carriers, root));
-    if (file.startsWith('plugins/native/goals/methods/') && /^version: \d+$/m.test(source) && !MARKDOWN.test(source)) unmanaged.push(`${file}: unmanaged method version`);
-    MARKDOWN.lastIndex = 0;
-    if (source.includes('@version ')) apply(file, expandVersionMarkers(source, versions));
+  for (const directory of SOURCE_ROOTS) if (existsSync(path.join(root, directory))) walk(directory);
+  return files;
+}
+
+const quoted = (text, original) => original.startsWith("'") ? `'${text.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'` : JSON.stringify(text);
+
+/**
+ * What the source says every file should be. Pure: `files` maps a path to its text and must include the carrier files.
+ * Returns the files whose text would change, the keys in use, and every problem found.
+ */
+export function computeVersions({ versions, carriers = [], ...extra }, files) {
+  const problems = Object.keys(extra).map(field => `tooling/versions.json: unknown field ${field}`);
+  const outputs = new Map(), used = new Set();
+  for (const [key, value] of Object.entries(versions)) {
+    if (!/^[a-zA-Z0-9][\w./-]+$/.test(key)) problems.push(`tooling/versions.json: invalid key ${key}`);
+    if (!(Number.isSafeInteger(value) && value >= 0) && !(typeof value === "string" && value.length)) problems.push(`tooling/versions.json: ${key} is not a version`);
   }
-  const carrierOutputs = new Map();
+  for (const [file, source] of files) {
+    let bound = 0;
+    const output = source.replace(MARKED, (match, marker, key, pattern, original) => {
+      bound++;
+      if (!Object.hasOwn(versions, key)) { problems.push(`${file}: unknown version key ${key}`); return match; }
+      used.add(key);
+      const value = pattern ? JSON.parse(pattern).replaceAll("{version}", String(versions[key])) : versions[key];
+      return marker + (typeof value === "string" ? quoted(value, original) : String(value));
+    });
+    if ((source.match(MARKER) ?? []).length !== bound) problems.push(`${file}: a @version marker is not directly before a literal`);
+    if (output !== source) outputs.set(file, output);
+  }
   for (const { file, key, pattern } of carriers) {
-    if (!Object.hasOwn(versions, key)) throw new Error(`${file}: unknown version ${key}`);
+    if (!Object.hasOwn(versions, key)) { problems.push(`${file}: unknown version key ${key}`); continue; }
     used.add(key);
-    const source = carrierOutputs.get(file) ?? readFileSync(path.join(root, file), 'utf8'), regex = new RegExp(pattern, 'gm');
-    const matches = [...source.matchAll(regex)];
-    if (!matches.length || matches.some(match => match.length !== 3)) throw new Error(`${file}: carrier needs exactly a prefix and suffix capture`);
-    carrierOutputs.set(file, source.replace(regex, (_match, prefix, suffix) => `${prefix}${versions[key]}${suffix}`));
+    const source = outputs.get(file) ?? files.get(file);
+    if (source === undefined) { problems.push(`${file}: carrier file is missing`); continue; }
+    const regex = new RegExp(pattern, "gm"), matches = [...source.matchAll(regex)];
+    if (!matches.length) problems.push(`${file}: carrier for ${key} matches nothing`);
+    else if (matches.some(match => match.length !== 3)) problems.push(`${file}: carrier for ${key} needs exactly a prefix and a suffix capture`);
+    else {
+      const output = source.replace(regex, (_match, prefix, suffix) => `${prefix}${versions[key]}${suffix}`);
+      if (output === files.get(file)) outputs.delete(file); else outputs.set(file, output);
+    }
   }
-  for (const [file, output] of carrierOutputs) apply(file, output);
-  // The current database table is a view of each owner's actual declaration, never another authority.
-  const checklist = 'docs/releases/CHECKLIST.md';
-  if (existsSync(path.join(root, checklist))) {
-    const source = readFileSync(path.join(root, checklist), 'utf8');
-    let inTable = false, versionColumn = -1, definitionColumn = -1;
-    const output = source.split('\n').map(line => {
-      if (line.startsWith('## 3.')) inTable = true;
-      else if (inTable && /^## /.test(line)) inTable = false;
-      if (!inTable || !line.startsWith('|')) return line;
-      const columns = line.split('|');
-      if (columns.some(column => column.trim() === '定义处')) {
-        versionColumn = columns.findIndex(column => column.trim() === '版本');
-        definitionColumn = columns.findIndex(column => column.trim() === '定义处');
-        return line;
-      }
-      if (versionColumn < 0 || !/^\d+$/.test(columns[versionColumn]?.trim() ?? '')) return line;
-      const definition = columns[definitionColumn]?.replaceAll('`', '').trim().split('#');
-      if (!definition?.[1]) return line;
-      const text = versionInspectionSource(root, definition[0], readFileSync(path.join(root, definition[0]), 'utf8'));
-      let value;
-      if (definition[1] === 'PRAGMA user_version') value = text.match(/PRAGMA user_version\s*=\s*(\d+)/)?.[1];
-      else {
-        const tree = ts.createSourceFile(definition[0], text, ts.ScriptTarget.Latest, true);
-        const visit = node => {
-          if (ts.isVariableDeclaration(node) && node.name.getText(tree) === definition[1]) {
-            let expression = node.initializer;
-            while (expression && (ts.isAsExpression(expression) || ts.isSatisfiesExpression(expression))) expression = expression.expression;
-            if (expression && ts.isObjectLiteralExpression(expression)) expression = expression.properties.find(property => ts.isPropertyAssignment(property) && property.name.getText(tree) === 'version')?.initializer;
-            if (expression && (ts.isNumericLiteral(expression) || ts.isStringLiteral(expression))) value = expression.text;
-          }
-          ts.forEachChild(node, visit);
-        };
-        visit(tree);
-      }
-      if (value === undefined) throw new Error(`${checklist}: cannot resolve ${definition.join('#')}`);
-      columns[versionColumn] = ` ${value} `;
-      return columns.join('|');
-    }).join('\n');
-    apply(checklist, output);
+  for (const key of Object.keys(versions)) if (!used.has(key)) problems.push(`tooling/versions.json: nothing uses ${key}`);
+  return { outputs, used, problems };
+}
+
+/** Reads the tree, computes, and only when everything checks out writes. Returns the files that differ; throws on any problem. */
+export function generateVersions({ root = ROOT, write = false } = {}) {
+  const source = versionSource(root), files = readSourceFiles(root);
+  for (const { file } of source.carriers ?? []) {
+    const location = path.resolve(root, file);
+    if (!location.startsWith(path.resolve(root) + path.sep)) throw new Error(`Version output outside repository: ${file}`);
+    if (!files.has(file) && existsSync(location)) files.set(file, readFileSync(location, "utf8"));
   }
-  if (unmanaged.length) throw new Error(`Unmanaged first-party declarations:\n${unmanaged.join('\n')}`);
-  for (const key of Object.keys(versions)) if (!used.has(key)) throw new Error(`Unused version entry: ${key}`);
-  return changed;
+  const { outputs, problems } = computeVersions(source, files);
+  if (problems.length) throw new Error(problems.join("\n"));
+  if (write) for (const [file, output] of outputs) writeFileSync(path.join(root, file), output);
+  return [...outputs.keys()];
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  let write = false, check = false, root = ROOT;
-  for (let index = 0; index < args.length; index++) {
-    if (args[index] === '--write') write = true;
-    else if (args[index] === '--check') check = true;
-    else if (args[index] === '--root' && args[index + 1] && !args[index + 1].startsWith('--')) root = path.resolve(args[++index]);
-    else throw new Error('usage: node scripts/generate-versions.mjs [--write|--check] [--root <dir>]');
-  }
-  if (write && check) throw new Error('--write and --check are mutually exclusive');
+  const args = process.argv.slice(2), write = args.includes("--write"), check = args.includes("--check");
+  const rootAt = args.indexOf("--root"), root = rootAt >= 0 ? path.resolve(args[rootAt + 1] ?? ".") : ROOT;
+  if (write === check || args.length !== (rootAt >= 0 ? 3 : 1)) throw new Error("usage: node scripts/generate-versions.mjs --write|--check [--root <dir>]");
   const changed = generateVersions({ root, write });
-  if (changed.length) {
-    console[write ? 'log' : 'error'](`${write ? 'Generated' : 'Stale version outputs'}:\n${changed.join('\n')}`);
-    if (!write) process.exitCode = 1;
-  } else console.log('First-party version outputs match tooling/versions.json.');
+  if (changed.length && !write) { console.error(`Stale version outputs (run pnpm versions:generate):\n${changed.join("\n")}`); process.exitCode = 1; }
+  else console.log(changed.length ? `Generated:\n${changed.join("\n")}` : "First-party version outputs match tooling/versions.json.");
 }

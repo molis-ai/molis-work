@@ -1,6 +1,5 @@
 ---
 method_id: overlay-minors
-# @version method.goals.overlay-minors
 version: 1
 kind: overlay
 name: "未成年人"

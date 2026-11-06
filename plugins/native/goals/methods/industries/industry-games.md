@@ -1,6 +1,5 @@
 ---
 method_id: industry-games
-# @version method.goals.industry-games
 version: 1
 kind: industry
 name: "游戏"

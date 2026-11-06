@@ -27,8 +27,20 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
     "Add the tests for step 3: the sign-up endpoint's failure paths must cover a timeout, a repeated submit and a refusal from the server, each asserting that the text is still in the input.",
   "另外看一下 Coding 的会话草稿在写入失败后刷新页面能不能恢复；能的话把恢复后的提示行截一张图，深色和浅色各一张。":
     "Also check whether Coding's session draft comes back after a failed save and a page refresh; if it does, take a screenshot of the restored line, one dark and one light.",
-  "最后把这一轮改到的文件列出来，按改动大小排序，标出哪些是新文件。": "Finally, list the files this turn changed, largest change first, and mark the new ones.",
-  "如果中间遇到需要我决定的地方，先停下来问我，不要自己选。": "If anything along the way needs my decision, stop and ask me; don't choose for me.",
+  "再核对一遍发送中按钮是不是真的锁住了：连按三次 ⌘↵ 只能发出一次，网络断开时状态行要写「待确认」而不是「失败」。":
+    "Check again that the button really locks while sending: pressing ⌘↵ three times sends once, and when the network drops the status line says \"Pending confirmation\", not \"Failed\".",
+  "附件那边，超过上限的文件要在附件条上当场写原因、可以移除，不要等到发送时才报错；读到一半取消的也要能重新选。":
+    "For attachments, a file over the limit says why on the attachment strip right away and can be removed, instead of failing only at send; one cancelled halfway through can be picked again.",
+  "窄屏也看一下：390 宽时底行的按钮要有 44px 高，状态行的说明成段折行，操作跟在文字后面，不要挤成一条细列。":
+    "Check narrow screens too: at 390 wide the bottom row's buttons are 44px tall, and the status line's words wrap as one paragraph with the action after them, not squeezed into a thin column.",
+  "中文输入法选词的时候按回车只是确认选词，不能换行也不能发送；按 ⌘↵ 也一样要等选词结束。":
+    "While a Chinese input method is choosing a word, Return only confirms the word: no new line and no sending. ⌘↵ also waits until the choice is done.",
+  "切到别的会话再回来，没发出的字要还在，各是各的；迟到的上传结果不能写进已经换掉的那个框。":
+    "Switch to another session and back, and the unsent text is still there, each session its own; an upload that finishes late never lands in a box that has since been switched.",
+  "最后把这一轮改到的文件列出来，按改动大小排序，标出哪些是新文件，哪些只改了测试。":
+    "Finally, list the files this turn changed, largest change first, and mark which are new and which only touch tests.",
+  "如果中间遇到需要我决定的地方，先停下来问我，不要自己选；拿不准的写在最后，我一起看。":
+    "If anything along the way needs my decision, stop and ask me; don't choose for me. Put what you're unsure of at the end and I'll go through it all.",
   "空白": "Empty",
   "有草稿 · 恢复行": "Draft · restored line",
   "把第 3 步的测试补上，再看一下 Coding 的会话草稿": "Add the tests for step 3, then look at Coding's session draft",

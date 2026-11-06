@@ -15,7 +15,7 @@ const sectionOf = (html: string, id: string) => {
 test("UIC-04: the board has a composer section with every state on one attribute", () => {
   const composer = sectionOf(renderPrimitiveCatalog(), "composer");
   assert.equal(composer.match(/class="mw-composer" data-slot="composer"/g)?.length, 9, "nine specimens");
-  for (const state of ["sending", "running", "failed", "unconfirmed", "disabled"]) assert.match(composer, new RegExp(`class="mw-composer" data-slot="composer" data-state="${state}"`), state);
+  for (const state of ["sending", "running", "failed", "unknown", "disabled"]) assert.match(composer, new RegExp(`class="mw-composer" data-slot="composer" data-state="${state}"`), state);
   for (const part of ["mw-composer__to", "mw-composer__box", "mw-uploads mw-composer__files", "mw-composer__restore", "mw-composer__text", "mw-composer__status", "mw-composer__foot", "mw-composer__start", "mw-composer__end"]) {
     assert.match(composer, new RegExp(`class="[^"]*${part}`), part);
   }
@@ -33,9 +33,20 @@ test("UIC-04: the board has a composer section with every state on one attribute
 test("UIC-04: a menu item's description line sits under its name; an unavailable item keeps its reason", () => {
   const item = renderMenuItem({ label: "打断并改向", iconName: "zap", description: "这个对象不支持打断", disabled: true });
   assert.match(item, /class="mw-menu__item mw-menu__item--described"[^>]* disabled/);
-  assert.match(item, /<span data-slot="menu-item-label"><span>打断并改向<\/span><small class="mw-menu__desc">这个对象不支持打断<\/small><\/span>/);
+  assert.match(item, /<span data-slot="menu-item-label"><span id="([\w-]+)-label">打断并改向<\/span><small class="mw-menu__desc" id="\1-desc">这个对象不支持打断<\/small><\/span>/);
+  // The accessible name is the label alone; the description line is the item's description, not part of its name
+  // (#1850 D-track review, item 2).
+  const [, ident] = item.match(/<span id="([\w-]+)-label">/)!;
+  assert.match(item, new RegExp(`role="menuitem" aria-labelledby="${ident}-label" aria-describedby="${ident}-desc"`));
+  assert.equal(renderMenuItem({ label: "打断并改向", description: "这个对象不支持打断" }).match(/id="([\w-]+)-label"/)![1], ident, "the derived id is stable");
+  const given = renderMenuItem({ id: "c1-delivery-interrupt", label: "打断并改向", description: "x" });
+  assert.match(given, /aria-labelledby="c1-delivery-interrupt-label" aria-describedby="c1-delivery-interrupt-desc"/, "a caller's id is used");
   assert.doesNotMatch(renderMenuItem({ label: "重命名" }), /mw-menu__desc|--described/, "an item without one is unchanged");
   const board = sectionOf(renderPrimitiveCatalog(), "menu-desc");
   assert.match(board, /mw-menu__shortcut/, "with shortcuts");
   assert.ok((board.match(/mw-menu__item--described"[^>]*disabled/g)?.length ?? 0) >= 2, "unavailable items with reasons");
+  // The same delivery menu is drawn more than once on the board; every copy names its own items.
+  const ids = [...renderPrimitiveCatalog().matchAll(/<(?:span|small)(?: class="mw-menu__desc")? id="([^"]+-(?:label|desc))"/g)].map((match) => match[1]!);
+  assert.ok(ids.length >= 20, `read ${ids.length} described items' ids`);
+  assert.deepEqual(ids.filter((id, index) => ids.indexOf(id) !== index), [], "no described item's id is repeated on the board");
 });

@@ -161,10 +161,11 @@ type ComposerMaterial =
 </div>
 ```
 
-- **状态只用一个属性** `.mw-composer[data-state]`：`sending`（发送键转圈、不可点）、`running`（出现停止与送达分体按钮）、`failed`（框描边换成红色调）、`unconfirmed`（待确认，发送键不可点）、`disabled`（框底换 `--wash`，写字区 `disabled`）；聚焦只靠 `:focus-within`，不设属性。状态行里的文字与动作由挂载页给，组件只摆位置。
+- **`mw-compose__*` 不是 `mw-composer__*`**：`mw-compose__anchor`（＋ 与 ▾ 的挂点）和 `mw-compose__menu`（菜单本体）属于组件板现成的 compose 模式，是借来摆在外壳里的，不是 `mw-composer` 的子元素，类名只差一个字母，拼的时候别写成 `mw-composer__anchor`／`mw-composer__menu`。
+- **状态只用一个属性** `.mw-composer[data-state]`：`sending`（发送键转圈、不可点）、`running`（出现停止与送达分体按钮）、`failed`（框描边换成红色调）、`unknown`（待确认，发送键不可点；与 3.2 `ComposerOutcome.state` 及现有 `[data-state="unknown"]` 同一个词，#1850 D 轨合审第 1 条）、`disabled`（框底换 `--wash`，写字区 `disabled`）；聚焦只靠 `:focus-within`，不设属性。状态行里的文字与动作由挂载页给，组件只摆位置。
 - **写字区**沿用 `textarea[data-fit]`（`FIELD_FIT_STYLES`）：两行起，到 240px 或窗口 40% 后框内滚动；`.mw-composer__input` 只改最小高度为两行、去边框。手机宽度与粗指针下字号 16px，底行按钮 44px。
-- **框里的菜单**往上开（`.mw-composer .mw-compose__menu` 贴底行上方，入场用现有的 `craft-rise-from-bar`）。
-- **菜单说明行**：`renderMenuItem({ description })` 输出 `button.mw-menu__item.mw-menu__item--described > [data-slot=menu-item-label] > span + small.mw-menu__desc`；不可选的项照旧 `disabled`，原因写在说明行里（说明行保持 `--muted`，不随禁用变淡）。
+- **框里的菜单**往上开（`.mw-composer .mw-compose__menu` 贴底行上方，入场用现有的 `craft-rise-from-bar`）；▾ 打开时保持按下色，由页面样式表里 primary 的一条 `.mw-btn--primary:is(:active, [aria-expanded="true"])` 给，组件板不另抄一份。
+- **菜单说明行**：`renderMenuItem({ description, id? })` 输出 `button.mw-menu__item.mw-menu__item--described > [data-slot=menu-item-label] > span#<id>-label + small.mw-menu__desc#<id>-desc`；按钮的可读名只取名称（`aria-labelledby="<id>-label"`），说明挂 `aria-describedby="<id>-desc"`，读屏先读名称再读后果，不连成一句。`id` 由调用方给，K2 的客户端写 `<组件 id>-delivery-<mode>`；不给时按名称与说明算出稳定的 id，同一页把同一项画两遍时调用方必须给。不可选的项照旧 `disabled`，原因写在说明行里（说明行保持 `--muted`，不随禁用变淡）。
 - **麦克风**：mic 图标与外壳底行的麦克风位随 K0c 落（主会话 11-05 定，因 #1775 占着 plugin-sdk/ui 快照）。图标名 `mic`（Lucide `Mic`）进 SDK `PLUGIN_ICON_NAMES` 与图标表「动作」组，组件板加 `#mic` 一节（16px、20px）；底行的位置在 `.mw-composer__end` 最前，停止与发送的左边，用 ghost 图标钮。
 - 这些规则现在是组件板自己的样式（`COMPOSER_BOARD_STYLES`，不在页面样式表里，与 `catalog-patterns.ts` 的写法相同）；K2 第一次在产品里用时，连同它用到的 `mw-upload`、`mw-tag`、`mw-btn-group` 规则一起搬进页面样式表，页面资源增长在 K2 与 K3 合并落地时计。
 

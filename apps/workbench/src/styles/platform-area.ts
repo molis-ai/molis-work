@@ -6,7 +6,8 @@ import { ITEM_ROW_STYLES } from "@molis-ai/molis-work-design-system";
  * shell's (two steps by width), so the parts are fixed: header and foot hold their place and only the middle scrolls. The narrow
  * step (under 480px, a container query on the area itself) lets the lead and the change line take two lines. The area's own parts
  * are generic (`mw-platform-area__*`); what the reads area adds is `task-grants-area__*`. Controls not ready yet (§3.3, carrying
- * `aria-disabled` from the shell) are faded.
+ * `aria-disabled` from the shell) are faded. The change line stays put (D2), so it is a quiet line in the area's own ground, not the
+ * graphite toast that comes and goes; only a failure takes colour.
  */
 export const PLATFORM_AREA_STYLES = `${ITEM_ROW_STYLES}
 @keyframes mw-platform-area-in{from{opacity:0;transform:translateY(4px)}}
@@ -18,8 +19,11 @@ export const PLATFORM_AREA_STYLES = `${ITEM_ROW_STYLES}
 .mw-platform-area__lead{flex:1 0 100%;margin:0;overflow:hidden;color:var(--muted);font-size:12px;line-height:18px;text-overflow:ellipsis;white-space:nowrap}
 .mw-platform-area__body{min-height:0;overflow:auto;overscroll-behavior:contain;border-radius:var(--sk-r-card,12px)}
 .mw-platform-area__body[aria-busy]{cursor:progress}
+.mw-platform-area__body[aria-busy] :is(.mw-switch,.mw-btn){opacity:.6;transition:opacity var(--dur-hover,130ms) var(--ease-quint)}
 .mw-platform-area__foot{display:flex;height:48px;min-width:0}
-.mw-platform-area__foot .mw-toast{flex-wrap:nowrap;width:100%;max-width:100%;box-shadow:none}
+.mw-platform-area__foot .mw-toast{flex-wrap:nowrap;width:100%;max-width:100%;padding:0 6px 0 12px;border-radius:var(--sk-r-card,12px);background:var(--paper);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--line)}
+.mw-platform-area__foot .mw-toast.is-error{background:color-mix(in srgb,var(--red) 8%,var(--paper));color:color-mix(in srgb,var(--red) 78%,var(--ink));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red) 28%,var(--line))}
+.mw-platform-area__foot .mw-toast__action{margin-block:0;color:var(--accent)}
 .mw-platform-area__foot .mw-toast:not(.is-fresh){animation:none}
 .mw-platform-area__foot .mw-toast>span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mw-platform-area__foot .mw-toast__action{flex:none}
@@ -27,7 +31,8 @@ export const PLATFORM_AREA_STYLES = `${ITEM_ROW_STYLES}
 .mw-platform-area [data-framed-control]{transition:opacity var(--dur-hover,130ms) var(--ease-quint)}
 .mw-platform-area :is(.mw-btn,.mw-toast__action)[aria-disabled="true"],.mw-platform-area .mw-switch:has(>[aria-disabled="true"]){opacity:.45}
 .task-grants-area__rows{width:100%;background:var(--paper)}
-.task-grants-area__row>span:first-child{display:grid;gap:1px;flex:1 1 auto;min-width:0}
+.task-grants-area__row>span:first-child{display:grid;gap:1px;flex:1 1 0;min-width:0}
+.task-grants-area__row>span.mw-item__end{flex:none;justify-content:flex-end}
 .task-grants-area__row[data-status="off"] strong{color:var(--ink-soft)}
 .task-grants-area__note{font-style:normal;font-size:12px;line-height:18px;color:var(--muted)}
 .task-grants-area__row[data-status="needs_confirmation"] .task-grants-area__note{color:color-mix(in srgb,var(--amber) 72%,var(--ink))}

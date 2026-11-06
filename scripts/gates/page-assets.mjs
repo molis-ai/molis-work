@@ -280,6 +280,11 @@ const headErrors = (measured, budget, base) => {
 // K-07 (2026-11-06, explicitly approved): arrival side panels follow the stage grid above the wrapping bar.
 // Scoped selectors were shortened; arrival.css adds exactly 273 B over 690296, with no new asset.
 // Main #1747 reduced workbench.css by 4 B; preserve its approved +452 B on the new 1194521 B base.
+// ASC-56 (第 13 批⑦, approved by the user on 2026-11-05): the model settings page fetches the models a service offers and lists
+// them with the board's combobox to filter and pick. settings.css +271 B and workbench.css +271 B (header alignment, the picked mark,
+// the listed name), workbench.js +2357 B (fetch, filter, pick, keyboard). These add on top of the account entries above, which
+// share the same merge-base. Tried: the picker reuses `.model-field` and the board's combobox styles, the save and the fetch share
+// one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441.
 // 07-S0 (workbench navigation specimens; 07 批评审台与 D 轨合审审过（#1852）): the README's new tab-strip, titlebar and
 // three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
 // workbench.css +9705 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
@@ -291,14 +296,14 @@ const headErrors = (measured, budget, base) => {
 // body.immersive-workbench prefix where no rule competes (it stays on the tab, group and toggle overrides); one class for the
 // strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
 // weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
-// 07-S0 and the account admission above share the merge-base keys for arrival.css and workbench.css; one key holds one entry,
-// so the two entries carry 07-S0's ceilings, which also cover the account PR's +683 B / +452 B. Whichever of the two lands
-// second moves its own entry onto the new base.
+// On main's base after ASC-56 (settings.css 826998, workbench.css 1194792) the account and ASC-56 entries for those two are spent,
+// so 07-S0 keys its own there; arrival.css still shares the 689886 key with the account admission, and 07-S0's ceiling there
+// also covers the account PR's +683 B. Whichever lands second moves its own entry onto the new base.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
-  "/assets/molis-work-settings.css": [826727, 827274],
-  "/assets/molis-work-workbench.css": [1194521, 1204226],
-  "/assets/molis-work-workbench.js": [1075120, 1114749],
+  "/assets/molis-work-settings.css": [826998, 827545],
+  "/assets/molis-work-workbench.css": [1194792, 1204497],
+  "/assets/molis-work-workbench.js": [1075120, 1117106],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

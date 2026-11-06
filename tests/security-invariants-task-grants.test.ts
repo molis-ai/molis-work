@@ -425,6 +425,22 @@ test("S-141 R5 a category new to the task whose provider is off records nothing 
   assert.equal((await w.records("agent:task:")).length, 2, "switched back on, it can be turned on");
 });
 
+test("S-141 R5 every category list offers is one set takes as a new category: one with nothing callable now is not offered, and a task holding it sees it unavailable", { timeout: 120_000 }, async t => {
+  const w = await world(t), a = await w.open("Offered is settable");
+  const offered = (await w.list(a.project)).categories;
+  assert.ok(offered.length > 2, "the built-in plugins, the fixtures and project knowledge offer categories");
+  for (const [index, category] of offered.entries()) {
+    const reference = { provider_id: category.provider_id, ...(category.group_id ? { group_id: category.group_id } : {}) };
+    await a.set(`k${index}`, [reference]).catch((error: unknown) => assert.fail(`list offered ${JSON.stringify(reference)} and set refused it: ${String(error)}`));
+  }
+  await a.set("daily", [a.shelf]);
+  w.off.add(shelfRead.capability_id);
+  const now = await w.list(a.project);
+  assert.equal(now.categories.some(category => category.provider_id === a.shelf.provider_id), false, "nothing of it callable now, the shelf is no switch");
+  assert.deepEqual(now.subjects.find(subject => subject.key === "daily")?.categories.map(category => [category.provider_id, category.status]),
+    [[a.shelf.provider_id, "unavailable"]], "the task that holds it sees it under its own state");
+});
+
 test("S-141 R1 a held category is taken by its records: a group no longer offered or no group at all keeps them, and the same reference new to a task is refused", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Held by records");
   // New to the task, neither names a category offered now.

@@ -355,10 +355,10 @@ const headErrors = (measured, budget, base) => {
 // on merge-base 6a154c8d (after #1886), so the ④a entries are spent and replaced; workbench.js is unchanged, so its ④a entry
 // is spent and removed. Tried: one `naturalFold` helper for the four folds instead of four written-out blocks.
 // Batch 18 P2 (#1879, Schedule's task reads, design F; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new
-// asset): schedule.css +__CSSD__ B: the list row's one kind mark (read files / read data), the 「能读的数据」 section's lines around
-// the platform's area, and the new and edit form in the detail pane instead of a dialog. schedule.js +__JSD__ B: one `/grants` read per
+// asset): schedule.css +1387 (1122 → 2509) B: the list row's one kind mark (read files / read data), the 「能读的数据」 section's lines around
+// the platform's area, and the new and edit form in the detail pane instead of a dialog. schedule.js +2305 (12561 → 14866) B: one `/grants` read per
 // list open, the kind marks and the 「需要重新确认」 badge, the reads section's lines and the in-pane form. Keyed on merge-base
-// __BASE__. Tried: the form reuses the board's .mw-form and .mw-btn, the two kind icons share one kept slot shown by one attribute,
+// 585ae7af (main after #1892; the sheets were minified since the first measurement, 1269 → 2841). Tried: the form reuses the board's .mw-form and .mw-btn, the two kind icons share one kept slot shown by one attribute,
 // the area's own drawing is left to the platform (P3).
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [761321, 761636],
@@ -370,8 +370,8 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/shelf.js": [64967, 65319],
   "/assets/molis-work-plugins/images.js": [19896, 21103],
   "/assets/molis-work-plugins/images.css": [7851, 7901],
-  "/assets/molis-work-plugins/schedule.css": [1122, 1122],
-  "/assets/molis-work-plugins/schedule.js": [12561, 12561],
+  "/assets/molis-work-plugins/schedule.css": [1122, 2509],
+  "/assets/molis-work-plugins/schedule.js": [12561, 14866],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

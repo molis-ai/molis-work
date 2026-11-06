@@ -108,7 +108,10 @@ export interface TaskGrantListRequest {
 }
 
 export interface TaskGrantListResult {
-  /** What this project offers now; only the person's call gets it, a plugin's gets `[]`. */
+  /**
+   * What this project offers now, each one `set` takes as a new category (one with nothing callable now is left out); only the
+   * person's call gets it, a plugin's gets `[]`.
+   */
   categories: TaskGrantCategory[];
   /** Every subject with records in this project (for a plugin, in its own installation), in one answer. */
   subjects: TaskGrantSubject[];

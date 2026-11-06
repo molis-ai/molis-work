@@ -205,7 +205,10 @@ async function listSubjects(ports: TaskGrantPorts, caller: ActionExecutionContex
   const person = asked.ownInstall === undefined;
   if (!subjects.length && !person) return { categories: [], subjects: [] };
   const { catalog, declarations } = await readCatalog(ports, asked, caller.signal);
-  return { categories: person ? offeredCategories(catalog, declarations.of).map(entry => entry.category) : [],
+  // Only what `set` takes as a new category (R5): one with nothing callable now is not offered; a subject that holds it sees it
+  // under its own state (`unavailable`), never as a switch that would be refused.
+  const offered = offeredCategories(catalog, declarations.of).filter(entry => entry.members.some(view => view.availability.available));
+  return { categories: person ? offered.map(entry => entry.category) : [],
     subjects: subjects.map(subject => subjectView(preference, subject, catalog, declarations.of)) };
 }
 

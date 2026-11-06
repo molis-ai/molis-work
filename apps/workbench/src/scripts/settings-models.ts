@@ -1,5 +1,11 @@
-/** Bound both on the standalone page and when the same document enters the settings stage. */
-export const MODEL_SETTINGS_CLIENT_SCRIPT = `
+import { readFileSync } from "node:fs";
+
+/**
+ * Bound both on the standalone page and when the same document enters the settings stage. It starts with the service-connection
+ * parts' progress program (src/browser/model-settings-progress.ts, bundled into dist/ when the package builds), which moves the
+ * first key's steps; the page does not carry a copy of it.
+ */
+export const MODEL_SETTINGS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/model-settings-progress.js", import.meta.url), "utf8").trim() + `
 (() => {
   if (globalThis.molisWorkBindModelSettings) return;
   const bound = new WeakSet();
@@ -19,10 +25,16 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
         line.textContent = text; line.toggleAttribute('data-failed', Boolean(failed)); line.setAttribute('aria-live', failed ? 'assertive' : 'polite');
         if (failed) line.scrollIntoView({ block: 'nearest' });
       };
+      // A refused key is said under its own field (§13.1), and goes once the person changes it.
+      let edits = 0, recheck = 0;
+      const keyControl = () => { const field = find('[data-model-key-field]'); return field && !field.hidden ? find('[data-model-api-key]') : find('[data-model-connection]'); };
+      const clearRefusal = () => { root.querySelectorAll('[data-model-key-error]').forEach((node) => node.remove()); root.querySelectorAll('[aria-invalid]').forEach((node) => node.removeAttribute('aria-invalid')); };
+      const progress = (at, state) => { const node = find('[data-connection-progress]'); if (node) globalThis.molisWorkConnectionProgress?.(node, { at, state }); };
       root.addEventListener('input', (event) => {
         // Filtering the fetched list changes nothing on the form.
         if (event.target.closest?.('[data-model-picker]')) { const words = event.target.value.trim().toLowerCase(); picks().forEach((o) => { o.hidden = Boolean(words) && !o.textContent.toLowerCase().includes(words); }); return; }
-        dirty = true; status(L('有未保存的修改'));
+        if (event.target.matches?.('[data-model-api-key], [data-model-connection]')) clearRefusal();
+        edits += 1; dirty = true; status(L('有未保存的修改'));
       });
       const picks = () => [...root.querySelectorAll('[data-model-pick]')];
       const ids = () => [...root.querySelectorAll('[data-model-rows] [data-model-id]')];
@@ -36,6 +48,8 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
       };
       root.addEventListener('keydown', (event) => {
         const first = event.target.matches?.('[data-model-picker] input') && picks().find((o) => !o.hidden);
+        // The save button shows ↵: Enter in one of the form's text fields saves, as it says.
+        if (!first && event.key === 'Enter' && !event.isComposing && event.target.matches?.('[data-model-detail] input:not([type=checkbox]):not([role=combobox])')) { event.preventDefault(); find('[data-model-save]')?.click(); return; }
         if (!first || !['ArrowDown', 'Enter'].includes(event.key)) return;
         event.preventDefault();
         if (event.key === 'Enter') pick(first.dataset.modelPick); else first.focus();
@@ -59,6 +73,32 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
         if (!box || !key) return;
         box.dataset.connection = key.connection_id; box.dataset.revision = key.revision; box.hidden = false;
         box.querySelector('p').textContent = L('原来那把密钥现在没有模型在用，还留在服务连接里。');
+      };
+      // A save the check refused: nothing was written, and a saved provider keeps working on what it had (§13.1). A refused key is
+      // said under its field; a rate limit says it is the service's and checks again by itself in a minute unless the form changed.
+      const refused = (error) => {
+        const name = find('[data-model-name]')?.value || '', kept = find('[data-model-detail]')?.hasAttribute('data-model-saved');
+        const unsaved = kept ? L('没有保存，原来的照常在用。') : L('还没保存，填的还在。');
+        if (error?.code === 'model_provider.key_rejected') {
+          progress(0, 'failed');
+          const control = keyControl(), note = document.createElement('p');
+          note.className = 'mw-field__error'; note.setAttribute('role', 'alert'); note.dataset.modelKeyError = '';
+          note.textContent = kept ? L('{name} 拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。', { name }) : L('{name} 拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。', { name });
+          control?.setAttribute('aria-invalid', 'true'); control?.closest('.model-field')?.append(note);
+          setTimeout(() => control?.focus()); // after the form is unlocked
+          return status(unsaved, true);
+        }
+        if (error?.code === 'model_provider.rate_limited') {
+          progress(1, 'hold');
+          const box = find('[data-model-limited]'), seen = edits, wait = 60000;
+          const time = new Date(Date.now() + wait).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' });
+          box.querySelector('p').textContent = L('这是服务那边的原因，不是你填错了。约 {minutes} 分钟后（{time}）自动再查一次。', { minutes: 1, time }) + (/^en/i.test(document.documentElement.lang) ? ' ' : '') + unsaved;
+          box.hidden = false;
+          recheck = setTimeout(() => { if (root.isConnected && !box.hidden && edits === seen) find('[data-model-recheck]')?.click(); }, wait);
+          return status(unsaved, true);
+        }
+        progress(1, 'failed');
+        status(molisWorkRequest.text(error, L('操作失败，输入已保留')), true);
       };
       root.addEventListener('click', async (event) => {
         const button = event.target.closest('button');
@@ -103,8 +143,9 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
             confirm.hidden = false; confirm.querySelector('[data-model-delete]').focus(); return;
           }
           if (button.matches('[data-model-delete-cancel]')) { find('[data-model-delete-confirm]').hidden = true; return; }
-          if (button.matches('[data-model-save]')) {
-            begin(); status(L('正在保存，并检查连接…'));
+          if (button.matches('[data-model-save], [data-model-recheck]')) {
+            clearTimeout(recheck); clearRefusal(); find('[data-model-limited]').hidden = true;
+            begin(); status(L('正在保存，并检查连接…')); progress(1, 'running');
             const saved = await mutate(encodeURIComponent(provider), {
               check_connection: true,
               display_name: find('[data-model-name]').value,
@@ -157,7 +198,8 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
             if (button.dataset.modelTemplate) find('[data-model-api-key]')?.focus();
           }
         } catch (error) {
-          status(molisWorkRequest.text(error, L('操作失败，输入已保留')), true);
+          if (button.matches('[data-model-save], [data-model-recheck]')) refused(error);
+          else status(molisWorkRequest.text(error, L('操作失败，输入已保留')), true);
         } finally { busy = false; root.removeAttribute('aria-busy'); locked.forEach((control) => { if (control.isConnected) control.disabled = false; }); }
       });
       const syncKeyField = () => {

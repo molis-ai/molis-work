@@ -15,7 +15,8 @@ export interface ModelStandIn {
   close(): Promise<void>;
 }
 
-export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK"): Promise<ModelStandIn> {
+/** `throttledKey`: a key the stand-in answers with 429, the way a throttled or out-of-credit account is answered. */
+export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK", options: { throttledKey?: string } = {}): Promise<ModelStandIn> {
   const requests: ModelStandIn["requests"] = [];
   const server: Server = createServer(async (request, response) => {
     const chunks: Buffer[] = [];
@@ -27,6 +28,11 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK")
     const aside = asideReply(body), content = aside ?? reply;
     if (request.method !== "POST" || request.url !== "/v1/chat/completions") { response.writeHead(404).end(); return; }
     if (aside === undefined) requests.push({ model: String(payload.model ?? ""), offeredKey });
+    if (offeredKey === options.throttledKey) {
+      response.writeHead(429, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { message: "rate limited" } }));
+      return;
+    }
     if (offeredKey !== acceptedKey) {
       response.writeHead(401, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: { message: "invalid api key" } }));

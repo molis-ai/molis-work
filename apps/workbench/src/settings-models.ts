@@ -1,6 +1,7 @@
-import { renderChoice, renderStateRing, renderSwitch, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderButton, renderCard, renderChoice, renderStateRing, renderStatusMark, renderSwitch, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   ModelApiFormat,
+  ModelProviderCheck,
   ModelProviderHealth,
   ModelProviderRecord,
   ModelProviderStatus,
@@ -9,16 +10,21 @@ import type {
   ModelThinkingMode,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { promptCacheIsClientControlled } from "@molis-ai/molis-work-contracts/modules/model-providers";
-import { renderCombobox } from "@molis-ai/molis-work-design-system";
+import { renderCollapsible, renderCombobox } from "@molis-ai/molis-work-design-system";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { renderConnectionProgress } from "./service-connection-parts.js";
 
 /**
- * The model settings page: which providers exist, what each speaks, and which
- * models they offer.
+ * The model settings page: which providers exist, what each speaks, and which models they offer.
  *
- * The API key is never rendered. The field shows whether one is stored and
- * nothing more — a page that echoed the key would put it in every screenshot,
- * cache and view-source.
+ * Laid out as the service-connection decision's plan A (specs/assistant-service-connections §13.1): a provider asks only for
+ * what it needs on the default path (a key, said where to get it, and the models), a saved one says in four plain rows whose key
+ * it uses, whether it answers (with when it was checked), what it can do and who uses it, and the address, format, cache and
+ * thinking modes and the raw check sit in the folded 高级 at the bottom. A draft whose template cannot know the address or format
+ * asks for those on the default path too (§13.2: they are the basic configuration when nothing fills them in).
+ *
+ * The API key is never rendered. The field shows whether one is stored and nothing more — a page that echoed the key would put
+ * it in every screenshot, cache and view-source.
  */
 
 export interface ModelSettingsPrimitives {
@@ -54,6 +60,8 @@ export interface ModelSettingsModel {
   readonly selected_provider_id: string | null;
   readonly connections?: readonly ConnectorConnectionView[];
   readonly selected_connection_ids?: Readonly<Record<string, string>>;
+  /** Where to get a key for the provider shown (a Chinese key the page translates), from the Host's template catalog. */
+  readonly key_hint?: string;
   readonly primitives: ModelSettingsPrimitives;
 }
 
@@ -68,6 +76,9 @@ const PROMPT_CACHE_MODES: ReadonlyArray<{ value: ModelPromptCacheMode; label: st
   { value: "required", label: "要求缓存支持（不支持就失败）" },
 ];
 
+/** The first key's three steps, the same names the component board's key specimen uses. */
+const KEY_STEPS = ["填密钥", "验证密钥", "能用了"] as const;
+
 /** Status maps to the family colours already in the palette, never to new ones. */
 const STATUS_TONE: Record<ModelProviderStatus, string> = {
   ready: "done",
@@ -78,6 +89,18 @@ const STATUS_TONE: Record<ModelProviderStatus, string> = {
 };
 
 const STATUS_RING: Record<ModelProviderStatus, StateRingState> = { ready: "ready", "needs-credential": "reauth", "credential-unavailable": "unavailable", "no-models": "unavailable", disabled: "disabled" };
+
+/** A failed check's reason (`ModelProviderCheck.code`) in the person's words, with the ring and tone it shows in. */
+const CHECK_FAILURES: Readonly<Record<string, readonly [string, StateRingState, MwStatusTone]>> = {
+  "model_provider.key_rejected": ["密钥被拒", "failed", "blocked"],
+  // The model path reports the status only, so a throttle and an exhausted account read the same (§13.2, user 11-05).
+  "model_provider.rate_limited": ["请求太多或额度用完", "retrying", "hold"],
+  "model_provider.request_refused": ["服务不接受这次请求，多半是模型名不对", "failed", "attention"],
+  "model_provider.provider_failed": ["服务那边出错了", "failed", "attention"],
+  "model_provider.unreachable": ["连不上这个地址", "unavailable", "attention"],
+  "model_provider.timed_out": ["一直没等到回应", "unavailable", "attention"],
+  "model_provider.response_invalid": ["回应不像这个接口格式", "failed", "attention"],
+};
 
 export function renderModelSettingsDocument(model: ModelSettingsModel): string {
   const { primitives: p } = model;
@@ -151,47 +174,64 @@ function renderTemplateChoices(templates: readonly ModelTemplateChoice[], p: Mod
 
 function renderProviderDetail(provider: ModelProviderRecord, model: ModelSettingsModel, draft: boolean): string {
   const { primitives: p } = model;
+  const id = p.escape(provider.provider_id);
   const health = model.health.find((entry) => entry.provider_id === provider.provider_id);
   const hasCredential = health?.credential_status === "present" || health?.status === "ready";
-  const formats = API_FORMATS.map((format) => `<option value="${format.value}"${format.value === provider.api_format ? " selected" : ""}>${p.escape(format.label)}</option>`).join("");
-  return `<div class="model-provider-detail" data-model-detail="${p.escape(provider.provider_id)}">
+  // A draft is told what its template cannot know: the address unless the template fills it, the format only on the blank form.
+  const template = draft ? model.templates.find((choice) => choice.template_id === model.draft_template_id) ?? null : undefined;
+  const askAddress = draft && template?.fills_base_url !== true, askFormat = draft && template === null;
+  const advanced = [
+    `<div class="model-field"><label for="model-provider-name">${p.L("名称")}</label><input class="mw-input" id="model-provider-name" data-model-name value="${p.escape(provider.display_name)}" maxlength="120"></div>`,
+    askAddress ? "" : renderAddressField(provider, p, p.L("模板已经填好；只有用代理或自己部署的服务才改。")),
+    askFormat ? "" : renderFormatField(provider, p),
+    renderPromptCacheField(provider, p),
+    renderThinkingField(provider, p),
+    draft ? "" : renderDiagnostics(provider, health, model, p),
+  ].join("");
+  return `<div class="model-provider-detail" data-model-detail="${id}"${!draft && hasCredential ? " data-model-saved" : ""}>
     <header class="model-provider-detail-head">
       ${p.icon("package")}
       <h2>${p.escape(provider.display_name)}</h2>
       ${renderSwitch({ label: p.L("启用供应商"), checked: provider.enabled, attrs: { "data-model-provider-enabled": provider.provider_id } })}
-      <button type="button" class="mw-btn" data-model-provider-remove="${p.escape(provider.provider_id)}">${p.icon("trash")}${p.L("移除供应商")}</button>
+      <button type="button" class="mw-btn" data-model-provider-remove="${id}">${p.icon("trash")}${p.L("移除供应商")}</button>
     </header>
-
-    ${draft ? renderDraftTemplates(model, p) : ""}
-    <div class="model-field"><label for="model-provider-name">${p.L("名称")}</label>
-      <input class="mw-input" id="model-provider-name" data-model-name value="${p.escape(provider.display_name)}" maxlength="120"></div>
-    <div class="model-field">
-      <label for="model-base-url">${p.L("Base URL")}</label>
-      <input class="mw-input" id="model-base-url" type="url" inputmode="url" spellcheck="false"
-        value="${p.escape(provider.base_url)}" data-model-base-url="${p.escape(provider.provider_id)}">
-    </div>
-
-    <div class="model-field">
-      <label for="model-api-format">${p.L("API 格式")}</label>
-      <select class="mw-select" id="model-api-format" data-model-api-format="${p.escape(provider.provider_id)}">${formats}</select>
-    </div>
-
-    <section class="model-section" aria-label="${p.L("连接")}">
-      <h3>${p.L("连接")}</h3>
-      ${renderCredentialField(hasCredential, p, model.connections ?? [], model.selected_connection_ids?.[provider.provider_id])}
+    ${draft ? renderDraftTemplates(model, p) : renderFacts(provider, health, model)}
+    ${health?.status === "credential-unavailable" ? `<p class="mw-alert mw-alert--danger" role="alert">${p.escape(p.L(health.detail))}</p>` : ""}
+    <section class="model-section" aria-label="${p.L("用的密钥")}">
+      ${renderCredentialField(provider, hasCredential, model)}
+      ${askAddress ? renderAddressField(provider, p, p.L("在这个服务的文档里找 Base URL，填到域名或版本号为止。")) : ""}
+      ${askFormat ? renderFormatField(provider, p) : ""}
     </section>
-    ${health?.status === "credential-unavailable" ? `<p role="alert">${p.escape(p.L(health.detail))}</p>` : ""}
     <section class="model-section" aria-label="${p.L("模型")}">
       ${renderModelList(provider, p)}
     </section>
-    <details class="model-advanced">
-      <summary>${p.L("高级")}</summary>
-      ${renderPromptCacheField(provider, p)}
-      ${renderThinkingField(provider, p)}
-    </details>
+    ${renderCollapsible({ summary: p.L("高级 · 名称、地址、接口格式、提示缓存、思考"), body: advanced, className: "model-advanced" })}
+    <div class="mw-alert mw-alert--warning" role="status" data-model-limited hidden><strong>${p.L("{name} 那边请求太多或额度用完", { name: p.escape(provider.display_name) })}</strong><p></p>${renderButton({ label: p.L("现在再查"), variant: "secondary", size: "sm", attrs: { "data-model-recheck": "" } })}</div>
     <div data-model-delete-confirm hidden><p>${p.L("移除这个供应商？后续任务将无法再选择它，历史记录会保留。它的密钥留在服务连接里，没有别的模型在用时可以一起移除。")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${p.L("取消")}</button><button class="mw-btn" type="button" data-model-delete>${p.L("确认移除")}</button></div>
-    <footer class="model-settings-actions"><button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button><button class="mw-btn mw-btn--primary" type="button" data-model-save>${p.L("保存配置")}</button><span>${p.L("保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。")} ${p.L("改了地址、格式、密钥或模型再保存时，会先检查一次连接；没通过就不保存。")}</span></footer>
+    <footer class="model-settings-actions model-save-bar">
+      ${draft ? renderConnectionProgress({ steps: KEY_STEPS.map((step) => p.L(step)), at: 0, state: "running" }, p.L) : ""}
+      <span class="model-save-note">${draft ? p.L("保存前先检查；检查不过就不保存，填的还在。") : p.L("保存前先检查；检查不过不保存，原来的照常在用。")}</span>
+      <button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button>
+      ${renderButton({ label: p.L("保存并检查"), variant: "primary", key: "↵", attrs: { "data-model-save": "" } })}
+    </footer>
   </div>`;
+}
+
+function renderAddressField(provider: ModelProviderRecord, p: ModelSettingsPrimitives, note: string): string {
+  return `<div class="model-field">
+      <label for="model-base-url">${p.L("地址（Base URL）")}</label>
+      <input class="mw-input" id="model-base-url" type="url" inputmode="url" spellcheck="false" placeholder="https://"
+        value="${p.escape(provider.base_url)}" data-model-base-url="${p.escape(provider.provider_id)}">
+      <p class="model-field-note">${note}</p>
+    </div>`;
+}
+
+function renderFormatField(provider: ModelProviderRecord, p: ModelSettingsPrimitives): string {
+  const formats = API_FORMATS.map((format) => `<option value="${format.value}"${format.value === provider.api_format ? " selected" : ""}>${p.escape(format.label)}</option>`).join("");
+  return `<div class="model-field">
+      <label for="model-api-format">${p.L("接口格式")}</label>
+      <select class="mw-select" id="model-api-format" data-model-api-format="${p.escape(provider.provider_id)}">${formats}</select>
+    </div>`;
 }
 
 /** A new provider starts from a template or from nothing; what the template cannot know is named, not guessed. */
@@ -206,6 +246,67 @@ function renderDraftTemplates(model: ModelSettingsModel, p: ModelSettingsPrimiti
       ${renderTemplateChoices(model.templates, p, template?.template_id ?? null)}
       ${note === "" ? "" : `<p class="model-field-note">${note}</p>`}
     </section>`;
+}
+
+/** A check's time as month-day and hour:minute in the Host's clock (the page and the Host are the same machine). */
+function checkTime(at: string): string {
+  const date = new Date(at);
+  if (Number.isNaN(date.valueOf())) return "";
+  const two = (value: number) => String(value).padStart(2, "0");
+  return `${two(date.getMonth() + 1)}-${two(date.getDate())} ${two(date.getHours())}:${two(date.getMinutes())}`;
+}
+
+/** Whether the provider answers, from its health and its last real check: never verified, verified, or why not, with when. */
+function reachability(health: ModelProviderHealth | undefined, p: ModelSettingsPrimitives): string {
+  const mark = (label: string, state: StateRingState, tone: MwStatusTone) => renderStatusMark({ label, state, tone, plain: true });
+  if (!health || health.status === "disabled") return mark(p.L("已关闭"), "disabled", "quiet");
+  if (health.status === "needs-credential") return mark(p.L("还没有密钥"), "reauth", "attention");
+  if (health.status === "credential-unavailable") return mark(p.L("读不到密钥"), "unavailable", "blocked");
+  const last: ModelProviderCheck | undefined = health.last_check;
+  if (!last) return mark(p.L("还没检查过 · 下次保存时检查"), "idle", "quiet");
+  const time = checkTime(last.at);
+  if (last.outcome === "connected") return last.current ? mark(p.L("连得上 · {time} 检查", { time }), "connected", "done")
+    : mark(p.L("改过之后还没检查 · 上次 {time} 连得上", { time }), "idle", "quiet");
+  const [words, state, tone] = CHECK_FAILURES[last.code ?? ""] ?? ["检查没有完成", "failed", "attention"] as const;
+  const retry = last.retry_at ? ` · ${p.L("{time} 后再查", { time: checkTime(last.retry_at) })}` : "";
+  return mark(`${p.L(words)} · ${time}${retry}`, state, tone);
+}
+
+/**
+ * A saved provider in four plain rows (§13.1): whose key it uses, whether it answers, what it can do, who uses it. The default
+ * provider is the first one that can run, in the order listed, the order the Host resolves a run that names no model.
+ */
+function renderFacts(provider: ModelProviderRecord, health: ModelProviderHealth | undefined, model: ModelSettingsModel): string {
+  const { primitives: p } = model;
+  const row = (title: string, note: string, value: string) => `<div class="settings-setting-row"><span class="setting-copy"><strong>${title}</strong><span>${note}</span></span><span class="setting-value">${value}</span></div>`;
+  const connections = model.connections ?? [], keys = model.selected_connection_ids ?? {};
+  const key = connections.find((connection) => connection.connection_id === keys[provider.provider_id]);
+  const enabled = provider.models.filter((entry) => entry.enabled).map((entry) => entry.model_id);
+  const named = enabled.slice(0, 2).join(p.L("、"));
+  const models = enabled.length === 0 ? p.L("还没有启用的模型") : enabled.length <= 2 ? p.L("用 {list}", { list: named })
+    : p.L("用 {list} 等 {count} 个模型", { list: named, count: enabled.length });
+  const ready = (one: ModelProviderRecord) => model.health.find((entry) => entry.provider_id === one.provider_id)?.status === "ready";
+  const sharing = model.providers.filter((one) => one.provider_id !== provider.provider_id && key && keys[one.provider_id] === key.connection_id).map((one) => one.display_name);
+  const users = !ready(provider) ? p.L("现在没有地方能用它")
+    : model.providers.find(ready)?.provider_id === provider.provider_id ? p.L("默认模型：没指定模型的地方都用它") : p.L("只在选了它的地方用");
+  return renderCard({ className: "model-facts", body: [
+    row(p.L("用的密钥"), p.L("加密存在这台电脑，页面和助理都看不到原文"), `<strong>${key ? p.escape(key.display_name) : p.L("还没有密钥")}</strong>`),
+    row(p.L("连得上吗"), p.L("保存时先检查一次"), reachability(health, p)),
+    row(p.L("能做什么"), p.L("每次调用按你在这个服务的账户计费"), `<span>${p.escape(models)}</span>`),
+    row(p.L("谁在用"), sharing.length ? p.escape(p.L("同一把密钥也给 {names} 用", { names: sharing.join(p.L("、")) })) : p.L("换密钥或关掉会影响这些"), `<span>${users}</span>`),
+  ].join("") });
+}
+
+/** The raw facts behind the four rows, for whoever needs them: the last check as recorded, the key's connection, the ids. */
+function renderDiagnostics(provider: ModelProviderRecord, health: ModelProviderHealth | undefined, model: ModelSettingsModel, p: ModelSettingsPrimitives): string {
+  const last = health?.last_check;
+  const lines = [
+    [p.L("供应商 ID"), provider.provider_id],
+    [p.L("最近检查"), last ? `${last.at}  ${last.outcome}${last.code ? `  ${last.code}` : ""}${last.current ? "" : `  (${p.L("之后改过")})`}` : "—"],
+    ...(last?.retry_at ? [[p.L("等到"), last.retry_at]] : []),
+    [p.L("密钥连接"), model.selected_connection_ids?.[provider.provider_id] || "—"],
+  ];
+  return `<div class="model-field"><span class="model-field-label">${p.L("诊断")}</span><pre class="model-diagnostics">${lines.map(([label, value]) => `${p.escape(label)}  ${p.escape(value)}`).join("\n")}</pre></div>`;
 }
 
 /**
@@ -255,24 +356,31 @@ function renderThinkingField(provider: ModelProviderRecord, p: ModelSettingsPrim
     </div>`;
 }
 
-/** A saved connection, or a key written into that same store from this page. The key is never rendered back. */
-function renderCredentialField(hasCredential: boolean, p: ModelSettingsPrimitives,
-  connections: readonly ConnectorConnectionView[], selectedId?: string): string {
+/**
+ * The one key the default path asks for (§13.1), said where to get it; a saved connection can stand in for it. Changing the key
+ * of a saved provider is choosing 换一把新密钥: the old one keeps working until the new one passes the check. The key is never
+ * rendered back.
+ */
+function renderCredentialField(provider: ModelProviderRecord, hasCredential: boolean, model: ModelSettingsModel): string {
+  const { primitives: p } = model;
+  const connections = model.connections ?? [], selectedId = model.selected_connection_ids?.[provider.provider_id];
   const usable = connections.filter((row) => row.service_id === "model-api" && (row.state === "connected" || row.connection_id === selectedId));
   const missing = selectedId && !connections.some(row => row.service_id === "model-api" && row.connection_id === selectedId);
+  const replacing = hasCredential || Boolean(selectedId);
+  const where = p.L(model.key_hint ?? "在你用的服务的控制台里找 API 密钥");
   const keyField = `<div class="model-field" data-model-key-field${selectedId ? " hidden" : ""}>
-      <label for="model-api-key">${p.L(usable.length ? "或填写新的 API Key" : "API Key")}</label>
-      <input class="mw-input" id="model-api-key" type="password" autocomplete="off" spellcheck="false" data-model-api-key>
-      <p class="model-field-note">${p.L("只保存在本机，保存后不再显示。")}</p>
+      <label for="model-api-key">${replacing ? p.L("新的 API 密钥") : p.L("{name} 的 API 密钥", { name: p.escape(provider.display_name) })}</label>
+      <input class="mw-input" id="model-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" data-model-api-key>
+      <p class="model-field-note">${replacing ? p.L("旧密钥照常在用，新的检查通过才换上。") : `${p.escape(where)}${p.L("。加密存在这台电脑，保存后不再显示。")}`}</p>
     </div>`;
-  return `${usable.length || missing ? `<div class="model-field"><label for="model-connection">${p.L("使用的账号连接")}</label>
+  if (!usable.length && !missing) return keyField;
+  return `<div class="model-field"><label for="model-connection">${p.L("用哪把密钥")}</label>
     <select class="mw-select" id="model-connection" data-model-connection>
-      <option value="">${p.L("填写新的 API Key")}</option>
+      <option value="">${p.L(replacing ? "换一把新密钥" : "填一把新密钥")}</option>
       ${usable.map((row) => `<option value="${p.escape(row.connection_id)}"${row.connection_id === selectedId ? " selected" : ""}${row.state !== "connected" ? " disabled" : ""}>${p.escape(row.display_name)}${row.state !== "connected" ? ` · ${p.L("连接不可用")}` : ""}</option>`).join("")}
       ${missing ? `<option value="${p.escape(selectedId)}" selected disabled>${p.L("原连接已不可用，请重新选择")}</option>` : ""}
-    </select><a class="mw-btn mw-btn--link" href="/settings/connectors?connector=model-api">${p.L("在 Connectors 管理 API Key")}</a>
-    ${hasCredential || selectedId ? "" : `<p class="model-field-hint">${p.L("也可以选择一条已经保存的连接。")}</p>`}
-  </div>` : ""}
+    </select><a class="mw-btn mw-btn--link" href="/settings/connectors?connector=model-api">${p.L("在服务连接里管理密钥")}</a>
+  </div>
     ${keyField}`;
 }
 

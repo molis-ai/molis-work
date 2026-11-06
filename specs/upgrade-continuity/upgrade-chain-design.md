@@ -1,6 +1,6 @@
 # U1 升级链：设计
 
-状态：设计稿（2026-11-06，路线书第 05 批第 1 项）；尚未实现，机制代码等第 02 批的 #1790 合入后再动。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。
+状态：设计稿（2026-11-06，路线书第 05 批第 1 项）；尚未实现，机制代码等第 02 批的 #1790 合入后再动。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。
 
 验收编号沿用 `UPG-01`～`UPG-21`；本文新增的检查用 `UPG1-` 前缀，在 §13 列出。
 
@@ -8,7 +8,7 @@
 
 现在程序一改库的结构，旧 Home 就打不开，只能重建。做完这件事以后，新程序启动时先看一眼每个库的版本：旧的就一步步升上来，升之前留一份原样的备份，升完检查，查出问题就放回备份；只有这一个库暂时不能用，别的照常。比程序还新的库，不读也不写。平时启动几乎没有额外开销，因为只有换了版本才扫一遍。
 
-这一步在界面上只多一行进度（显示归 U3）。U1 合入时不改任何真实库的版本，所以用户感觉不到；它是后面第一次改库结构的前提。要用户定的两件事：这算新增迁移逻辑，要写进「当前保留机制」（§12）；还要改四份门禁（§11）。
+这一步在界面上只多一行进度（显示归 U3）。U1 合入时不改任何真实库的版本，所以用户感觉不到；它是后面第一次改库结构的前提。用户 2026-11-06 同意了两件事：这算新增迁移逻辑，写进「当前保留机制」（§12）；四份门禁在第一段真实升级之前改（§11）。
 
 ## 1. 现状里决定设计的几条
 
@@ -391,7 +391,7 @@ apps/desktop/launchers/web/server.ts：
 | S-113 | 放回前核 sha256，放回时先删旁路文件 | 快照被改一个字节：不放回；目标留旧 `-wal`：放回后 `user_version` 是旧的（这条就是 §1 实测的那个坑） |
 | S-114 | 维护态监听只绑回环，守 Host/Origin；只答 `/health`，其余 503，不泄露库名 | 非回环 Host、跨源 Origin 被拒；未带挑战的 `/health` 不给证明；业务路径在维护态一律 503 |
 
-## 11. 门禁改动方案（红线，开工前由主会话问用户）
+## 11. 门禁改动方案（用户 2026-11-06 同意）
 
 这四份都是「改门禁本身」。U1 机制（U1-a～e、g）用测试基线，不碰它们也能合入；第一次真实升版本之前必须改完（U1-i）。
 
@@ -428,9 +428,9 @@ apps/desktop/launchers/web/server.ts：
 
 U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库语句却没升版本」这一半，见 [U2 设计](golden-replay-design.md) §5。U1-i 只管「升版本这条路走得通」。
 
-## 12. 要写进「当前保留机制」的一行（成稿，不改那份文件）
+## 12. 要写进「当前保留机制」的一行（成稿，用户 2026-11-06 同意）
 
-`docs/system/CONTRACT-CHANGES.md` 的表要加下面这行，**要用户确认**后由 U1-a 同一个 PR 写入：
+`docs/system/CONTRACT-CHANGES.md` 的表要加下面这行，由 U1-a 同一个 PR 写入；本设计稿不改那份文件：
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
@@ -444,7 +444,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 
 | 编号 | 归 | 本批交什么 |
 | --- | --- | --- |
-| UPG-01 | U2-d（门禁），U1-i 先让路走通 | 方案；门禁待用户确认和重建 |
+| UPG-01 | U2-d（门禁），U1-i 先让路走通 | 方案；门禁用户已同意，等重建和第一份金样 |
 | UPG-02 | U1 | 交（测试基线上） |
 | UPG-03 | U1 | 交；项目库内插件表按 §2.4 |
 | UPG-04 | U1 机制，U3 显示 | 交「只有它不可用」的机制和错误码；说明卡归 U3 |
@@ -485,6 +485,10 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 
 第一段真实升级要同时满足：U1-a～e、g、h 合入；U1-i（门禁）合入；统一起点已做；第一份金样（U2-c）已在。从那时起，§8.1 的规则生效，段随基线走。
 
+**第一批段是资料目录那几张表（用户 2026-11-06 定）。** 真实 Home 不等 05② C-1：#1837 合入就按检查单重建。所以 `workspaces.is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses` 都不再进第 1 版，走本机制的升级段；这几段用户已同意，写的时候不用再问。它们由 05② 的实现片写，那一片等上面这些条件都满足。`modules/projects` 现在没有升级段（#1805 第 6 条），这一片先给它登记第一段。组合服务的纠正表属第 15 批，到时同样走升级段，同样不再问。
+
+这也是机制的第一次实战，U1、U2 和四份门禁接不接得上，从这几段就能看出来。
+
 **裁段**：某段在最早支持的金样都不再需要时可以删，删之后读到更旧的版本报 `upgrade_failed`。M1 之前没有外部用户，规则先写着不执行；M1 后另定最早支持的版本。
 
 ## 15. 分片
@@ -493,7 +497,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 
 | 片 | 内容 | 主要文件 | 验收 | 档位 | 前置 |
 | --- | --- | --- | --- | --- | --- |
-| U1-a 分类与段 | `SqliteUpgradeStep`、`checkSqliteBaselineVersion` 分类、错误码、拆 `SqliteSchemaVersionError`、单库跑法（无快照） | `packages/storage/src/{sqlite-baseline,sqlite-upgrade,index}.ts`、`README`；消费者约 10 个文件；`docs/system/CONTRACT-CHANGES.md` 一行（用户确认后） | UPG1-01 | Opus | **#1790 合入**；用户确认保留机制 |
+| U1-a 分类与段 | `SqliteUpgradeStep`、`checkSqliteBaselineVersion` 分类、错误码、拆 `SqliteSchemaVersionError`、单库跑法（无快照） | `packages/storage/src/{sqlite-baseline,sqlite-upgrade,index}.ts`、`README`；消费者约 10 个文件；`docs/system/CONTRACT-CHANGES.md` 一行 | UPG1-01 | Opus | **#1790 合入** |
 | U1-b 快照与放回 | 升级快照、放回、磁盘检查 | 新 `packages/storage/src/upgrade-snapshot.ts`；`snapshot-sqlite.ts` 不改语义 | UPG1-02、09；S-111、S-113 | Opus | U1-a |
 | U1-c 过程、记录、戳记 | `runHomeUpgrade`、`ensureHomeUpgraded`、记录、戳记、`upgrade/` 登记；挂 `ensureHomeStorageOwner` | 新 `apps/local-host/src/home-upgrade*.ts`、`home-storage-lifetime.ts`、`home-stores.ts`、`docs/system/HOME-DATA.md` | UPG1-03、04、05、08；S-109、S-110、S-112 | Opus | U1-b；**宿主启动是规则 4 枢纽，认领板预警** |
 | U1-d 平台库接入 | 全部描述符；目录库适配；项目库；Alchemist；两个可重建库；收 §2.5 的手写检查；约 55 行测试改断言 | `apps/local-host/src/{project-database,catalog-schema,project-catalog,installed-plugin-libraries,home-plugin-store}.ts`、`server/src/database.ts`、`memory-ledger.ts`、`tests/` | UPG1-12；§13.2 末段 | Sonnet | U1-c；**02 收尾**（#1837 还在改 `home-store-snapshot.ts`） |
@@ -501,7 +505,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 | U1-f 插件表合同 | `PluginDatabaseDeclaration.upgrades`、`HomeStoreDeclaration` 的段；装上的插件写了就拒绝；平台执行内置声明 | `packages/contracts/src/platform/plugin-database.ts`；`tooling/gates/api/contracts/platform/{plugin,plugin-registration}.txt`、`plugin-sdk/index.txt`；`packages/plugin-runtime/src/project-database.ts`、`apps/local-host/src/project-plugin-databases.ts` | UPG1-10 | Opus | U1-c；**公共合同队列**（§15.1） |
 | U1-g 维护态 | `planHomeUpgrade`、`runUpgradeMaintenance`、Worker、`/health` 新状态、MCP 映射 | `apps/desktop/launchers/web/server.ts`、新 `apps/local-host/src/upgrade-maintenance.ts`、`mcp-resident-health.ts`、`mcp-resident-start.ts`、`installer/web-service-platform.ts` | UPG1-11；S-114 | Opus | U1-c |
 | U1-h 桌面等待 | `web_identity` 验证 503 的 `upgrading`，`web_service.rs` 见到就不算超时 | `apps/desktop/adapters/tauri/src/{web_identity,web_service}.rs` | Rust 单测：`upgrading` 不被杀，无 `upgrading` 仍 8 秒 | Sonnet | U1-g；**F 轨独占**，由 F 落 |
-| U1-i 门禁 | §11 四份 | `scripts/gates/{initial-versions,store-versions}.mjs`、`scripts/verify-release-versions.mjs`、`scripts/check-health-gates.mjs`、`docs/releases/CHECKLIST.md`、`tooling/gates/README.md` | 变异用例 | Opus | U1-a；**红线，主会话问用户**；在第一段真实升级之前 |
+| U1-i 门禁 | §11 四份 | `scripts/gates/{initial-versions,store-versions}.mjs`、`scripts/verify-release-versions.mjs`、`scripts/check-health-gates.mjs`、`docs/releases/CHECKLIST.md`、`tooling/gates/README.md` | 变异用例 | Opus | U1-a；用户 2026-11-06 已同意；在第一段真实升级之前 |
 | U1-j 结构比较记忆 | §3.2，可晚做 | `packages/storage/src/sqlite-baseline.ts` | 文件变了就重比的拒绝测试；N56 预算 | Sonnet | U1-d |
 
 U1 的机制代码（U1-a～c）不动任何真实基线的版本，合入时用户没有感觉。
@@ -510,7 +514,7 @@ U1 的机制代码（U1-a～c）不动任何真实基线的版本，合入时用
 
 核实过共用文件，不是抄「串行」：
 
-- **C-1（05②）**：只改合同与快照（`contracts/modules/projects`、新 `platform/project-materials`、`services/agent-host`、`host-actions.tsv`）和 `modules/projects`。**不碰 `packages/storage`，和 U1-a～e 没有共用文件**，不等 U1。U1-f 碰 `platform/plugin.txt`、`platform/plugin-registration.txt`、`plugin-sdk/index.txt`，和 C-1 也不撞。
+- **C-1（05②）**：只改合同与快照（`contracts/modules/projects`、新 `platform/project-materials`、`services/agent-host`、`host-actions.tsv`）和 `modules/projects`。**不碰 `packages/storage`，和 U1-a～e 没有共用文件**，合同片不等 U1。U1-f 碰 `platform/plugin.txt`、`platform/plugin-registration.txt`、`plugin-sdk/index.txt`，和 C-1 也不撞。**动表的部分不随合同片落**：重建不等 C-1（用户 2026-11-06 定），`material_recent_uses` 等挪到 05② 的实现片，走升级段，那一片排在 §14 的条件之后。
 - **08 C-1、05② C-2**：都碰 Manifest 和 `plugin-sdk/index.txt`。U1-f 排队列，建议放在 05② C-2 之后、20 P-1 之前；首次改插件表结构才真的需要它，所以不抢位。
 - **SQLite 第二步**：真实重叠是 `packages/storage/src/snapshot-sqlite.ts`、`sqlite-baseline.ts`。U1-a、b 先合，理由是第二步要换这两个文件里的驱动类型；反过来先换驱动，U1 要在新接口上重写错误判断。U1 新代码只用 `exec`、`prepare`（`SqliteBaselineDatabase`）和 errcode 判断，第二步几乎不用碰它。**U1-c 之后的片和第二步不共用文件，可以并行。**
 - **U2**：U2-a、b 和 U1 共用同一份 `homeStores()` 枚举，改的文件不重叠（`scripts/`、`tests/`），但都读快照那套。U1-a 之前 U2-a 就能写，见 U2 设计 §8。转储器放 `packages/storage`，要写在窄接口上。

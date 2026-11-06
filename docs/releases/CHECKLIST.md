@@ -92,7 +92,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 用户已于 2026-11-04 确认[第 02 批维护窗口](../../specs/post-anticorruption-roadmap/reference/batches/02.md#batch-02-item-3)。待 ① 遗留核账、② 共享代码与合同、④ 升级规则的 PR 合入后，按以下步骤在用户在场时执行，并记录实际构建、原 Home 路径和操作者。若需改期，由统筹提前一天与用户另约窗口。重建日期在实操通过后填写。
 
-1. 统筹列出新旧构建、可回退的旧安装包、实际 Home 路径、备份位置，以及本次会使用的版本号。用户核对 N34 涉及的旧 GitHub release 和标签，亲自处理会与复位冲突的对象。统筹核对同名 release 和标签均已释放才准备用 0.1.0 的构建，运行 `node scripts/verify-release-versions.mjs`。这里不发布新版本。
+1. 统筹列出新旧构建、可回退的旧安装包、实际 Home 路径、备份位置，以及本次会使用的版本号。N34 涉及的旧 GitHub `v0.1.0` release 和同名标签，由用户于 2026-11-06 另行授权 Codex 删除；本次授权只覆盖这两个已核对的旧对象。统筹核对同名 release 和标签均已释放才准备用 0.1.0 的构建，运行 `node scripts/verify-release-versions.mjs`。这里不发布新版本。
 2. 按 §4.1 在隔离 Home 演练新建、重启与恢复。维护当天由用户确认开始，停止原 Home 的所有写入者，再按 §4.2 完成可恢复备份。任何路径、所有权、旧构建或原密钥无法确认，停在搬开旧 Home 之前。
 3. 按 §4.2 搬开整份旧 Home，§4.3–4.4 在原路径建立干净 Home 并安装已经验证的构建。依 [BL-937 的决定](https://github.com/molis-ai/molis-work/blob/29cec0f63b82935500c0950202ab689791c87567/specs/post-anticorruption-roadmap/reference/decisions.md#policy-bl-937)，重建时删除旧助理轮次。新助理库从空库开始，不补标、不导入旧轮次。
 4. 按 §4.5 核对各库、安装清单、首次授权与重启，并在新助理界面核对旧轮次为零。失败时停止新进程，保留失败现场。将新 Home 移到另一未占用位置，把完整旧 Home 放回原路径，使用对应旧构建与原密钥，核对原项目可读后才恢复服务。

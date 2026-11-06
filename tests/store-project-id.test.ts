@@ -3,11 +3,11 @@ import test from "node:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionService, assertActionInput } from "@molis-ai/molis-work-kernel";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { datasetActions, datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
 import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";
-import { createLingguangActionHandlers, lingguangActions, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { createLingguangActionHandlers, createLingguangContentHandlers, LINGGUANG_ACTION_PERMISSIONS, lingguangActions, lingguangManifest, ownLingguangStores } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { pptActions, pptManifest } from "@molis-ai/molis-work-plugin-ppt";
 import { openDatasetStore, openFormStore, openLingguangStore, openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
@@ -43,10 +43,11 @@ test("AIC-14: a Home-level call with no project is still refused as actions.proj
   await assert.rejects(formTestPorts(form, "").actions.invoke(formActions.list, {}), refused);
   await assert.rejects(pagesTestPorts(pages, "").actions.invoke(pagesActions.list, {}), refused);
   await assert.rejects(pptTestPorts(ppt, "").actions.invoke(pptActions.list, {}), refused);
-  const handlers = createLingguangActionHandlers({ read: run => run(spark), write: async (_caller, run) => run(spark), modelAvailability: () => ({ available: false, code: "x", reason: "x" }) });
-  const list = handlers.find(binding => binding.capability_id === lingguangActions.list.capability_id)!;
-  const caller = { actor_id: "owner", project_id: undefined, audience: "user", permissions: [] } as unknown as ActionCallContext;
-  await assert.rejects(Promise.resolve().then(() => list.handle(caller as never, {} as never)), refused);
+  const service = new ActionService();
+  const actions = bindActionClient(service, () => ({ actor_id: "test", project_id: "", audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS }));
+  service.registerProvider({ provider: { provider_id: lingguangManifest.plugin_id, title: "Lingguang", kind: "plugin", project_id: "" }, definitions: lingguangManifest.actions!,
+    handlers: [...createLingguangActionHandlers({ ...ownLingguangStores(run => run(spark)), modelAvailability: () => ({ available: false, code: "x", reason: "x" }) }), ...createLingguangContentHandlers(actions)] });
+  await assert.rejects(actions.invoke(lingguangActions.list, {}), refused);
 });
 
 test("AIC-14: a placement's to_project_id with blanks or past 120 characters is refused by the placement schema, not by a store", () => {

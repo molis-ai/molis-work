@@ -1,4 +1,3 @@
-import { V_DATABASE_FUNCTIONS_STORE_BASELINE } from "./versions.generated.js";
 import type { HomeStoreDeclaration, SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 /**
@@ -7,7 +6,7 @@ import type { HomeStoreDeclaration, SqliteBaseline } from "@molis-ai/molis-work-
  * Current schema (PG-032 P2, S-90): `function_judgments.install_id` names the plugin installation that recorded a judgment through
  * `services.judgments` and is empty for a judgment the Host recorded itself; a plugin reads and loses only its own.
  */
-export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: V_DATABASE_FUNCTIONS_STORE_BASELINE, schema: `
+export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: /* @version database.functions_store_baseline */ 1, schema: `
   CREATE TABLE functions (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

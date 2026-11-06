@@ -1,4 +1,3 @@
-import { V_FORMAT_SEARCH_SCAN_CURSOR } from "../versions.generated.js";
 import { randomBytes } from "node:crypto";
 import {openLocalAead,sealLocalAead} from "./local-aead.js";
 import type { SqliteDatabase } from "../sqlite.js";
@@ -251,7 +250,7 @@ function newCasToken(): string {
 
 function encodeScanCursor(namespace: string, lastKey: string): string {
   return `${CURSOR_PREFIX}.${Buffer.from(
-    JSON.stringify({ version: V_FORMAT_SEARCH_SCAN_CURSOR, namespace, lastKey }),
+    JSON.stringify({ version: /* @version format.search.scan-cursor */ 1, namespace, lastKey }),
     "utf8",
   ).toString("base64url")}`;
 }
@@ -290,7 +289,7 @@ function isScanCursorPayload(
   if (keys.length !== 3) return false;
   const rec = value as Record<string, unknown>;
   return (
-    rec.version === V_FORMAT_SEARCH_SCAN_CURSOR
+    rec.version === /* @version format.search.scan-cursor */ 1
     && typeof rec.namespace === "string"
     && rec.namespace.length > 0
     && typeof rec.lastKey === "string"

@@ -1,4 +1,3 @@
-import { V_DATABASE_SERVER_DATABASE_BASELINE } from "./versions.generated.js";
 import { mkdirSync, chmodSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -27,7 +26,7 @@ const SERVER_SCHEMA_SQL = `
  * The server database as one current schema (repository-anti-corruption §4.1): identity and transport tables, then IM's.
  * A new database gets it with the version; one at another version is refused, never upgraded in place.
  */
-export const SERVER_DATABASE_BASELINE: SqliteBaseline = { version: V_DATABASE_SERVER_DATABASE_BASELINE, schema: SERVER_SCHEMA_SQL + IM_SCHEMA_SQL };
+export const SERVER_DATABASE_BASELINE: SqliteBaseline = { version: /* @version database.server_database_baseline */ 1, schema: SERVER_SCHEMA_SQL + IM_SCHEMA_SQL };
 const databaseErrors = defineErrorCodes("im.database", { structure_invalid: "invalid" });
 let baselineShape: string | undefined;
 const expectedShape = () => baselineShape ??= JSON.stringify(describeSqliteBaseline(SERVER_DATABASE_BASELINE));

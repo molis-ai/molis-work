@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_RSS_INDEX_RSSINTEGRATIONMANIFEST } from "./versions.generated.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -15,13 +14,13 @@ export function rssSourcePresentation({ cursor }: SourcePresentationInput): Sour
 }
 
 export const rssIntegrationManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
+  schema_version: /* @version manifest.schema */ 1,
   plugin_id: "io.molis.work.integration.rss",
-  version: V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_RSS_INDEX_RSSINTEGRATIONMANIFEST,
+  version: /* @version package.plugins/official-integrations/rss/index.rssIntegrationManifest */ "1.0.0",
   name: "RSS",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-  host_api_version: V_HOST_API,
+  host_api_version: /* @version host.api */ 1,
   source_presentations: ["rss-http"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [

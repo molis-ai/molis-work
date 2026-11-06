@@ -1,4 +1,3 @@
-import { V_METHOD_TODO_ADVANCE, V_METHOD_TODO_ORGANIZE } from "./versions.generated.js";
 import { BUSINESS_HOST_TOOLS, type AgentManifest, type AgentPromptText, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 export const TODO_ORGANIZER_ROLE = "organizer";
@@ -36,7 +35,7 @@ export const todoPrompts: readonly AgentPromptText[] = [
  */
 export const todoSkills: readonly AgentSkillDefinition[] = [
   {
-    skill_id: "todo-organize", version: V_METHOD_TODO_ORGANIZE, name: "整理待办",
+    skill_id: "todo-organize", version: /* @version method.todo-organize */ 1, name: "整理待办",
     summary: "从用户给的材料里找出要用户推进的事，与已有待办比对，存成等用户确认的整理结果；也用于“看看有没有遗漏的待办”（读最近新来的材料，不只看已有待办）和“这封邮件影响哪些安排”。",
     tools: ["find-capabilities", "read-capability", "change-capability", "ask-user"],
     body: [
@@ -51,7 +50,7 @@ export const todoSkills: readonly AgentSkillDefinition[] = [
     ].join("\n"),
   },
   {
-    skill_id: "todo-advance", version: V_METHOD_TODO_ADVANCE, name: "推进待办",
+    skill_id: "todo-advance", version: /* @version method.todo-advance */ 1, name: "推进待办",
     summary: "用户让你推进、跟进或帮忙做一件待办时用：弄清下一步和卡在哪里，能做的先做成草稿（会自动显示在这件待办上）；状态只提议、不擅改。",
     tools: ["find-capabilities", "read-capability", "change-capability", "ask-user"],
     body: [

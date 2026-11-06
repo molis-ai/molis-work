@@ -1,4 +1,3 @@
-import { V_FORMAT_SYNC_DOCUMENT_STATE } from "./versions.generated.js";
 import { randomUUID } from 'node:crypto';
 import type { SyncEvent, SyncMutation } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { syncError } from './sync-errors.js';
@@ -41,7 +40,7 @@ export function documentEvent(value: unknown): SyncEvent {
   return { operationId: String(row.operationId), key: String(row.key), base: Number(row.base), revision: Number(row.revision), value: structuredClone(row.value) };
 }
 export function newDocumentState<T>(spaceId: string, data: T): DocumentState<T> {
-  return { version: V_FORMAT_SYNC_DOCUMENT_STATE, spaceId, device: randomUUID(), seq: 0, cursor: 0, data,
+  return { version: /* @version format.sync.document-state */ 1, spaceId, device: randomUUID(), seq: 0, cursor: 0, data,
     changes: [], heads: [], outbox: [], conflicts: [], history: [] };
 }
 
@@ -51,7 +50,7 @@ export function parseDocumentState<T>(source: string, spaceId: string, validate:
   try { value = JSON.parse(source); } catch { throw syncError('invalid', '同步目录格式无效，原文件已保留'); }
   const row = record(value);
   if (Object.keys(row).sort().join(',') !== 'changes,conflicts,cursor,data,device,heads,history,outbox,seq,spaceId,version'
-    || row.version !== V_FORMAT_SYNC_DOCUMENT_STATE || typeof row.device !== 'string' || !row.device || !integer(row.seq) || !integer(row.cursor)) throw syncError('invalid', '同步目录格式版本无效');
+    || row.version !== /* @version format.sync.document-state */ 1 || typeof row.device !== 'string' || !row.device || !integer(row.seq) || !integer(row.cursor)) throw syncError('invalid', '同步目录格式版本无效');
   if (row.spaceId !== spaceId) throw syncError('scope', '同步目录不属于当前空间');
   const changes = rows(row.changes), heads = rows(row.heads), outbox = rows(row.outbox), conflicts = rows(row.conflicts), history = rows(row.history);
   const seen = new Set<number>();

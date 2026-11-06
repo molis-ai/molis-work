@@ -1,8 +1,7 @@
-import { V_FORMAT_FORM_FORM_ARTIFACT_SCHEMA } from "./versions.generated.js";
 export const FORM_PLUGIN_ID = "io.molis.work.form";
 export const FORM_PROJECT_PLUGIN_ID = "form";
 export const FORM_ARTIFACT_TYPE_ID = "io.molis.work.form.questionnaire";
-export const FORM_ARTIFACT_SCHEMA_VERSION = V_FORMAT_FORM_FORM_ARTIFACT_SCHEMA;
+export const FORM_ARTIFACT_SCHEMA_VERSION = /* @version artifact.io.molis.work.form.questionnaire */ 1;
 
 export type FormQuestionType = "text" | "singleChoice" | "multiChoice" | "dropdown" | "rating" | "date";
 /** `published` is collecting responses on this computer (the name stays for stored data); `closed` stopped collecting. */

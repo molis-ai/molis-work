@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_PAGES_MANIFEST_PAGESMANIFEST } from "./versions.generated.js";
 import { PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_READABLE_EXTENSIONS } from "./actions.js";
 import { pagesContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -18,11 +17,11 @@ const PAGES_BODY_BYTES = 1_000_000;
 const PAGES_IMPORT_BYTES = 15_000_000;
 
 export const pagesManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: PAGES_PLUGIN_ID,
   sync: pagesSyncDeclaration,
-  version: V_PACKAGE_PLUGINS_NATIVE_PAGES_MANIFEST_PAGESMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Pages",
   summary: "写文档，可导出 Markdown / PDF。",
   // Offered to other Agents for business work; bodies in ./skills.ts.

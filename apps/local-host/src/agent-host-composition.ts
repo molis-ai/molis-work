@@ -1,4 +1,3 @@
-import { V_PACKAGE_APPS_LOCAL_HOST_AGENT_HOST_COMPOSITION_CLIENT } from "./versions.generated.js";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
@@ -116,7 +115,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
         // File, owner and background-job waits each recheck the authority of their own source.
         checks: hostConditionChecks(options),
         reviewQueue: agentHost.reviews,
-        app: { appId: "io.molis.work", appVersion: V_PACKAGE_APPS_LOCAL_HOST_AGENT_HOST_COMPOSITION_CLIENT },
+        app: { appId: "io.molis.work", appVersion: /* @version package.apps/local-host/agent-host-composition.client */ "0.0.0" },
       });
       const adapter = await initialization;
       if (disposed) return;

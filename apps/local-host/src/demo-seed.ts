@@ -1,4 +1,3 @@
-import { V_TYPE_LIFECYCLE } from "./versions.generated.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -12,7 +11,7 @@ export { DEMO_PROJECT_ID };
 const DEMO_ACTOR = "demo-user";
 const DELIVERY_TYPE = {
   type_id: "lifecycle",
-  version: V_TYPE_LIFECYCLE,
+  version: /* @version type.lifecycle */ 1,
   name: "生命周期交付",
   purpose: "可核对的工作结果",
   semantic_family: "delivery" as const,
@@ -63,7 +62,7 @@ async function reportProgress(
     ...writeContext(goalId, `${key}-report`),
     events: [{
       type_id: "lifecycle",
-      type_version: V_TYPE_LIFECYCLE,
+      type_version: /* @version type.lifecycle */ 1,
       title,
       fields: { result },
       judgments: requirementId ? [{ requirement_id: requirementId, verdict: "supports" as const }] : [],
@@ -562,7 +561,7 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
     ...writeContext("CORE", "demo-core-report"),
     events: [{
       type_id: "lifecycle",
-      type_version: V_TYPE_LIFECYCLE,
+      type_version: /* @version type.lifecycle */ 1,
       title: "生命周期记录已接通",
       fields: { result: "从约定、报告到收尾形成完整记录" },
       judgments: [{ requirement_id: "CORE-C1", verdict: "supports" }],

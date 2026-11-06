@@ -1,4 +1,3 @@
-import { V_HOST_API, V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_CATALOG_INDEX_IMPLEMENTATION } from "./versions.generated.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -74,11 +73,11 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     // 1.2.0: declares its connection service and what it does with it (`connection_services`, `integrations`, and for a document
     // import the ways of connecting it reads with).
     // 1.3.0: a service that connects by OAuth declares its flow as data (W5-11).
-    version: V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_CATALOG_INDEX_IMPLEMENTATION,
+    version: /* @version package.plugins/official-integrations/catalog/index.implementation */ "1.4.0",
     name: spec.title,
     kind: "integration",
     publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-    host_api_version: V_HOST_API,
+    host_api_version: /* @version host.api */ 1,
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
     permissions: [
       ...[spec.permission_host, ...(spec.additional_permission_hosts ?? [])].map(host => ({ permission: `network:${host}`, required: true, reason: `读取 ${spec.title} 身份与入站更新` })),

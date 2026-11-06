@@ -1,4 +1,3 @@
-import { V_FORMAT_BUILDER_SAVED_STATE } from "./versions.generated.js";
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 import type {AgentBuild,AgentRelease} from './agent-model.js';
 
@@ -13,11 +12,11 @@ export function nextBuilderRevision(value:number):number{
 }
 /** One current owner document. A different format is refused without rewriting or empty-state recovery. */
 export function parseBuilderState(raw:string|null):BuilderSavedState{
- if(raw===null)return {format:V_FORMAT_BUILDER_SAVED_STATE,builds:[],releases:[],revisions:{}};
+ if(raw===null)return {format:/* @version format.builder.saved-state */ 1,builds:[],releases:[],revisions:{}};
  let value:unknown;try{value=JSON.parse(raw);}catch{return invalid();}
  if(!value||typeof value!=='object'||Array.isArray(value))return invalid();
  const row=value as Record<string,unknown>;
- if(Object.keys(row).sort().join(',')!=='builds,format,releases,revisions'||row.format!==V_FORMAT_BUILDER_SAVED_STATE
+ if(Object.keys(row).sort().join(',')!=='builds,format,releases,revisions'||row.format!==/* @version format.builder.saved-state */ 1
   ||!Array.isArray(row.builds)||!Array.isArray(row.releases)||row.builds.length>10000||row.releases.length>10000
   ||!row.revisions||typeof row.revisions!=='object'||Array.isArray(row.revisions))return invalid();
  const floors=row.revisions as Record<string,unknown>;

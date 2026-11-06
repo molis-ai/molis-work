@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_ALCHEMIST_MANIFEST_ALCHEMISTMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/alchemist";
 import { ALCHEMIST_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -9,10 +8,10 @@ import { ALCHEMIST_EN } from "./en.js";
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID };
 
 export const alchemistManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: ALCHEMIST_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_ALCHEMIST_MANIFEST_ALCHEMISTMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "炼金术士",
   name_en: "Alchemist",
   summary: "写下方向，炼成可比较的卡再决定。",

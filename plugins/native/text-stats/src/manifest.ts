@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_TEXT_STATS_MANIFEST_TEXTSTATSMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
@@ -21,10 +20,10 @@ export const TEXT_STATS_INPUT_PORT = "text";
  * much of whoever writes the next Plugin.
  */
 export const textStatsManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: TEXT_STATS_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_TEXT_STATS_MANIFEST_TEXTSTATSMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Text stats",
   summary: "统计文件快照的字数、字节与行数。",
   developer: true,

@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_GIT_MANIFEST_GITMANIFEST } from "./versions.generated.js";
 import { GIT_ACTIONS } from "./action-definitions.js";
 import { HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -45,10 +44,10 @@ export const GIT_RESULT_OUTPUT_PORT = "result";
  * `result` so whoever asked for an operation learns how it went.
  */
 export const gitManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: GIT_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_GIT_MANIFEST_GITMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Git",
   summary: "查看工作区的版本与变更。",
   kind: "app",

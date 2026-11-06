@@ -1,4 +1,3 @@
-import { V_DATABASE_FEED_PROJECT_DATABASE } from "./versions.generated.js";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { FEED_OUT_RULES_SCHEMA_SQL } from "./out-rules.js";
 import { FEED_ITEMS_SCHEMA_SQL } from "./store/items/schema.js";
@@ -15,7 +14,7 @@ import { SOURCES_SCHEMA_SQL } from "./store/sources.js";
  */
 export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "feed",
-  version: V_DATABASE_FEED_PROJECT_DATABASE,
+  version: /* @version database.feed_project_database */ 1,
   schema: [FEED_OUT_RULES_SCHEMA_SQL, FEED_ITEMS_SCHEMA_SQL, SOURCES_SCHEMA_SQL, SIGNALS_SCHEMA_SQL, LISTENER_SCHEMA_SQL].join("\n"),
   read_permission: "storage:private",
   write_permission: "storage:private",

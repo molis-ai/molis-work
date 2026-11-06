@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_GMAIL_INDEX_GMAILINTEGRATIONMANIFEST } from "./versions.generated.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -22,15 +21,15 @@ export {
 } from "./provider.js";
 
 export const gmailIntegrationManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
+  schema_version: /* @version manifest.schema */ 1,
   plugin_id: "io.molis.work.integration.gmail",
   // 1.1.0: schema 2, declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.2.0: declares its OAuth flow as data (W5-11).
-  version: V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_GMAIL_INDEX_GMAILINTEGRATIONMANIFEST,
+  version: /* @version package.plugins/official-integrations/gmail/index.gmailIntegrationManifest */ "1.3.0",
   name: "Gmail",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-  host_api_version: V_HOST_API,
+  host_api_version: /* @version host.api */ 1,
   source_presentations: ["gmail-scope"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [

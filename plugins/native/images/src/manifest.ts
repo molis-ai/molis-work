@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_IMAGES_MANIFEST_IMAGESMANIFEST } from "./versions.generated.js";
 import { SHELF_ADMIT_ID, shelfAdmit } from "./shelf-admit.js";
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
 import { IMAGES_FILES_WRITE, IMAGES_OWNER_FILES } from "./owner-files.js";
@@ -24,10 +23,10 @@ const routes: PluginRouteDeclaration[] = [
   {route_id:"images.images.shelf",method:"POST",path:"/jobs/:id/images/:image_id/shelf",permission:"images:read"},
 ];
 export const imagesManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: IMAGES_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_IMAGES_MANIFEST_IMAGESMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "图片",
   sync: imagesSync,
   name_en: "Images",

@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_FEED_MANIFEST_FEEDMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -25,10 +24,10 @@ export const FEED_PROJECT_PLUGIN_ID = "feed";
  * (`databases.home`). The two halves share this Manifest and each answers only its own actions; every permission is required.
  */
 export const feedManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: FEED_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_FEED_MANIFEST_FEEDMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Feed",
   summary: "订阅来源，读消息，留下值得留的。",
   kind: "native",

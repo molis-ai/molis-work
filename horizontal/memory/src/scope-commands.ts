@@ -1,4 +1,3 @@
-import { V_FORMAT_MEMORY_EXPORT } from "./versions.generated.js";
 import type { AgentMemoryScopePreview } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryClearResult, MemoryExportPackage, MemoryLedgerPort, MemoryMetaRecord, MemoryItem, MemoryPrefs, MemoryScope, MemoryWriteResult } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendEntry, MemoryBackendPort } from "./backend.js";
@@ -179,7 +178,7 @@ export class MemoryScopeCommands {
       if (await clean(encoded) !== encoded) throw memoryErrors.unavailable("分类或会话约束包含不能导出的内容，没有生成记忆包");
       entries.push({ text: await clean(located.entry.text), kind: located.meta.kind, source: located.meta.source, basis: located.meta.basis, applies: { ...applies, ...task }, origin: await clean(located.entry.origin), expires_at: located.meta.expires_at, ...constraints });
     }
-    return { format: "molis.memory", version: V_FORMAT_MEMORY_EXPORT, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
+    return { format: "molis.memory", version: /* @version format.memory.export */ 1, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
   }
 
   /**

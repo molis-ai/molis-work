@@ -1,4 +1,3 @@
-import { V_METHOD_MEETING_NOTES } from "./versions.generated.js";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 /**
@@ -8,7 +7,7 @@ import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platfo
 export const pagesSkills: readonly AgentSkillDefinition[] = [
   {
     skill_id: "meeting-notes",
-    version: V_METHOD_MEETING_NOTES,
+    version: /* @version method.meeting-notes */ 1,
     name: "会议纪要整理",
     summary: "把一段会议记录或一篇会议文档整理成结论、待办（谁、做什么、何时）和待定问题，每条注明依据；用户要时写成 Pages 文档。",
     tools: ["find-capabilities", "read-capability", "change-capability"],

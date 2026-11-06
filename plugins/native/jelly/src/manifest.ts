@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_JELLY_MANIFEST_JELLYMANIFEST } from "./versions.generated.js";
 import { jellySync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { JELLY_PLUGIN_ID } from "./contract.js";
@@ -10,7 +9,7 @@ import { JELLY_MESSAGES } from "./messages.js";
 import { JELLY_EN } from "./en.js";
 export const jellyManifest: PluginManifest = {
   summary: "日历与笔记，按天安排。",
-  schema_version: V_MANIFEST_SCHEMA, host_api_version: V_HOST_API, plugin_id: JELLY_PLUGIN_ID, version: V_PACKAGE_PLUGINS_NATIVE_JELLY_MANIFEST_JELLYMANIFEST, name: "Jelly", kind: "native",
+  schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: JELLY_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Jelly", kind: "native",
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

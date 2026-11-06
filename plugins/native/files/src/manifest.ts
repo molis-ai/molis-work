@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_FILES_MANIFEST_FILESMANIFEST } from "./versions.generated.js";
 import { FILES_ACTIONS } from "./actions.js";
 import { HOST_WORKSPACE_CHANGED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -45,10 +44,10 @@ export const FILES_SELECTION_OUTPUT_PORT = "selection";
  * current value.
  */
 export const filesManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: FILES_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_FILES_MANIFEST_FILESMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Files",
   summary: "查看工作区文件与保留的内容。",
   kind: "app",

@@ -1,4 +1,3 @@
-import { V_FORMAT_PROJECT_EVIDENCE_CONTENT } from "../versions.generated.js";
 import {
   createCipheriv,
   createDecipheriv,
@@ -194,7 +193,7 @@ function seal(markdown: string, contentRef: string, key: Buffer): SealedEvidence
     cipher.final(),
   ]);
   return {
-    v: V_FORMAT_PROJECT_EVIDENCE_CONTENT,
+    v: /* @version format.project.evidence-content */ 1,
     alg: ALG,
     iv: iv.toString("base64"),
     tag: cipher.getAuthTag().toString("base64"),
@@ -205,7 +204,7 @@ function seal(markdown: string, contentRef: string, key: Buffer): SealedEvidence
 function openSealed(data: Buffer, contentRef: string, key: Buffer): string | null {
   try {
     const payload = JSON.parse(data.toString("utf8")) as SealedEvidenceBlob;
-    if (payload.v !== V_FORMAT_PROJECT_EVIDENCE_CONTENT || payload.alg !== ALG) return null;
+    if (payload.v !== /* @version format.project.evidence-content */ 1 || payload.alg !== ALG) return null;
     const decipher = createDecipheriv(ALG, key, Buffer.from(payload.iv, "base64"));
     decipher.setAAD(Buffer.from(contentRef, "utf8"));
     decipher.setAuthTag(Buffer.from(payload.tag, "base64"));

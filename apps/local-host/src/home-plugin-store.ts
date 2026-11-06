@@ -1,4 +1,3 @@
-import { V_DATABASE_HOME_PLUGIN_RUNTIME_BASELINE } from "./versions.generated.js";
 import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
@@ -7,7 +6,7 @@ import { readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, de
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
-  version: V_DATABASE_HOME_PLUGIN_RUNTIME_BASELINE,
+  version: /* @version database.home_plugin_runtime_baseline */ 1,
   schema: PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL + PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL + PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL + PLUGIN_TRUST_SCHEMA_SQL,
 };
 

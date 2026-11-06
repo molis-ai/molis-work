@@ -1,4 +1,3 @@
-import { V_FORMAT_HOME_SNAPSHOT_FILE_BODY, V_FORMAT_HOME_SNAPSHOT_FILE_WRAPPER } from "./versions.generated.js";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { backupSnapshotSqlite, copySnapshotFile, readSnapshotFile, sealExistingHomePayload, snapshotFileDigest } from "@molis-ai/molis-work-storage";
@@ -56,10 +55,10 @@ export async function captureSnapshotStore(home: string, stage: string, inventor
     let binding: string | undefined;
     if (entry.disposition.kind === "sealed") {
       binding = JSON.stringify([/* @version type.home-snapshot-file "home-snapshot-file/v{version}" */ "home-snapshot-file/v1", inventory.store.owner, path]);
-      const body = { schema_version: V_FORMAT_HOME_SNAPSHOT_FILE_BODY, path, mode: entry.info.mode & 0o777, contents_base64: readSnapshotFile(entry.path, 32 * 1024 * 1024).toString("base64") };
+      const body = { schema_version: /* @version format.home.snapshot.file-body */ 1, path, mode: entry.info.mode & 0o777, contents_base64: readSnapshotFile(entry.path, 32 * 1024 * 1024).toString("base64") };
       const payload = sealExistingHomePayload(home, binding, JSON.stringify(body));
       keys.add({ kind: "master-key", ...payload.key_reference });
-      writeSnapshotJson(destination, { schema_version: V_FORMAT_HOME_SNAPSHOT_FILE_WRAPPER, binding, payload });
+      writeSnapshotJson(destination, { schema_version: /* @version format.home.snapshot.file-wrapper */ 1, binding, payload });
       captured = { ...snapshotFileDigest(destination), mode: entry.info.mode & 0o777 };
     } else captured = entry.database ? await backupSnapshotSqlite(entry.path, destination, { ...entry.database, signal: control.signal })
       : await copySnapshotFile(entry.path, destination, control.signal, !deferFlush);

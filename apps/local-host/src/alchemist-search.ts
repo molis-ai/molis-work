@@ -1,4 +1,3 @@
-import { V_DATABASE_ALCHEMIST_SEARCH_BASELINE } from "./versions.generated.js";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
@@ -15,7 +14,7 @@ import { alchemistProjectDirectory } from "./alchemist-paths.js";
  * and never upgraded in place. A change to the opaque blob table means a new version here and a new fixture in
  * `tests/fixtures/home-store-schemas/`.
  */
-export const ALCHEMIST_SEARCH_BASELINE: SqliteBaseline = { version: V_DATABASE_ALCHEMIST_SEARCH_BASELINE, schema: LOCAL_OPAQUE_BLOB_SCHEMA_SQL };
+export const ALCHEMIST_SEARCH_BASELINE: SqliteBaseline = { version: /* @version database.alchemist_search_baseline */ 1, schema: LOCAL_OPAQUE_BLOB_SCHEMA_SQL };
 
 /** Own the search database and encrypted material directory independently of Studio's schema/lifecycle. */
 export function createAlchemistSearchPort(options: { homeDirectory: string; projectId: string; secretStore?: SecretStore }): {

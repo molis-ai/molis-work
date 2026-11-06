@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_DATASET_MANIFEST_DATASETMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { datasetSync } from './replication.js';
 import {
@@ -19,11 +18,11 @@ export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
 const DATASET_BODY_BYTES = 1_000_000;
 
 export const datasetManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: DATASET_PLUGIN_ID,
   sync: datasetSync,
-  version: V_PACKAGE_PLUGINS_NATIVE_DATASET_MANIFEST_DATASETMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Dataset",
   summary: "做表格，导入 CSV，可回到旧版。",
   kind: "native",

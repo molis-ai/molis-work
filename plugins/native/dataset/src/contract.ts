@@ -1,8 +1,7 @@
-import { V_FORMAT_DATASET_DATASET_ARTIFACT_SCHEMA } from "./versions.generated.js";
 export const DATASET_PLUGIN_ID = "io.molis.work.dataset";
 export const DATASET_PROJECT_PLUGIN_ID = "dataset";
 export const DATASET_ARTIFACT_TYPE_ID = "io.molis.work.dataset.table";
-export const DATASET_ARTIFACT_SCHEMA_VERSION = V_FORMAT_DATASET_DATASET_ARTIFACT_SCHEMA;
+export const DATASET_ARTIFACT_SCHEMA_VERSION = /* @version artifact.io.molis.work.dataset.table */ 1;
 
 export type DatasetColumnType = "text" | "number" | "date";
 export type DatasetStatus = "draft" | "ready";

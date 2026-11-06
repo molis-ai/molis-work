@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_PPT_MANIFEST_PPTMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   PPT_ARTIFACT_SCHEMA_VERSION,
@@ -19,11 +18,11 @@ export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 const PPT_BODY_BYTES = 1_000_000;
 
 export const pptManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: PPT_PLUGIN_ID,
   sync: pptSync,
-  version: V_PACKAGE_PLUGINS_NATIVE_PPT_MANIFEST_PPTMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "PPT",
   summary: "写大纲，放映或导出 PowerPoint。",
   kind: "native",

@@ -1,4 +1,3 @@
-import { V_DATABASE_CODING_PROJECT_DATABASE } from "./versions.generated.js";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CODING_SCHEMA_SQL } from "./store.js";
 
@@ -8,7 +7,7 @@ import { CODING_SCHEMA_SQL } from "./store.js";
  */
 export const CODING_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "coding",
-  version: V_DATABASE_CODING_PROJECT_DATABASE,
+  version: /* @version database.coding_project_database */ 1,
   schema: CODING_SCHEMA_SQL,
   read_permission: "storage:private",
   write_permission: "storage:private",

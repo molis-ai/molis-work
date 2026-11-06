@@ -1,4 +1,3 @@
-import { V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_NODE_PORT_IMPLEMENTATION } from "../versions.generated.js";
 import { readOriginalInput, resolveOriginalInput } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
@@ -50,8 +49,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     preset: "local-agent",
     onQueuedWork: runScheduled,
     slots: {
-      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_NODE_PORT_IMPLEMENTATION, impl: options.documentParsers } } : {}),
-      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_NODE_PORT_IMPLEMENTATION, impl: memoryAccess.extractor } } : {}),
+      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: /* @version package.horizontal/agent-host/adapters/prologue-node-port.implementation */ "1.0.0", impl: options.documentParsers } } : {}),
+      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: /* @version package.horizontal/agent-host/adapters/prologue-node-port.implementation */ "1.0.0", impl: memoryAccess.extractor } } : {}),
     },
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.

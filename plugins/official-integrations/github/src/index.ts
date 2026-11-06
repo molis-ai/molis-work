@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_GITHUB_INDEX_GITHUBINTEGRATIONMANIFEST } from "./versions.generated.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -12,19 +11,19 @@ export { createGithubProvider, githubWhoami, type GithubFetch, type GithubWhoami
 export { readResearchLibrary, type ResearchLibraryEntry } from "./research-library.js";
 
 export const githubIntegrationManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
+  schema_version: /* @version manifest.schema */ 1,
   plugin_id: "io.molis.work.integration.github",
   // 1.2.0: the account check moved to the connector action `connectors.account.read`.
   // 1.3.0: declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.4.0: declares its OAuth flow as data (W5-11).
-  version: V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_GITHUB_INDEX_GITHUBINTEGRATIONMANIFEST,
+  version: /* @version package.plugins/official-integrations/github/index.githubIntegrationManifest */ "1.5.0",
   name: "GitHub",
   kind: "integration",
   publisher: {
     publisher_id: "io.adeptify",
     signature: "adeptify-official-signature-v1",
   },
-  host_api_version: V_HOST_API,
+  host_api_version: /* @version host.api */ 1,
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
     { permission: "network:github.com", required: true, reason: "读取 GitHub 身份与通知" },

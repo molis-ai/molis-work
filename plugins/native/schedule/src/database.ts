@@ -1,4 +1,3 @@
-import { V_DATABASE_SCHEDULE_PROJECT_DATABASE } from "./versions.generated.js";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 // The tables live here, not beside the code that reads them: the manifest declares this file, and tasks, reminders and operations
@@ -66,7 +65,7 @@ const SCHEDULED_OPERATIONS_SCHEMA_SQL = `
  */
 export const SCHEDULE_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "schedule",
-  version: V_DATABASE_SCHEDULE_PROJECT_DATABASE,
+  version: /* @version database.schedule_project_database */ 1,
   schema: [SCHEDULE_TASKS_SCHEMA_SQL, SCHEDULE_REMINDERS_SCHEMA_SQL, SCHEDULED_OPERATIONS_SCHEMA_SQL].join("\n"),
   read_permission: "storage:private",
   write_permission: "storage:private",

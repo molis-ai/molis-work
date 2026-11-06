@@ -1,4 +1,3 @@
-import { V_FORMAT_SHELF_PORTABLE } from "./versions.generated.js";
 import type {SyncReplicaAdapter} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { createHash } from 'node:crypto';
 import type { SyncDocumentOwner } from '@molis-ai/molis-work-plugin-sdk';
@@ -34,7 +33,7 @@ export function shelfCatalogOwner(context:ShelfSyncOptions,assertIdle?: (catalog
       const item=kind==='item'?data.items.find(item=>item.item_id===id):undefined,job=kind==='job'?data.jobs.find(job=>job.job_id===id&&job.status!=='running'):undefined;
       if(!item&&!job)return null;
       const record=item?portableItem(item):undefined;
-      return validateShelfPortable({format:V_FORMAT_SHELF_PORTABLE,spaceId:context.spaceId,items:item&&record?[{record,files:readShelfPortableFiles(context.storage.files!,item.relative_path,record)}]:[],jobs:job?[portableJob(job)]:[]},context.spaceId,key);
+      return validateShelfPortable({format:/* @version format.shelf.portable */ 1,spaceId:context.spaceId,items:item&&record?[{record,files:readShelfPortableFiles(context.storage.files!,item.relative_path,record)}]:[],jobs:job?[portableJob(job)]:[]},context.spaceId,key);
     },
     canUpload(data,key){try{assertIdle?.(data,key);return true;}catch(error){if(error&&typeof error==='object'&&'details' in error&&error.details&&typeof error.details==='object'&&'sync_waiting' in error.details&&error.details.sync_waiting===true)return false;throw error;}},
     apply(data,key,input){

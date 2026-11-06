@@ -1,4 +1,3 @@
-import { V_PACKAGE_GENERATED_INITIAL } from "../versions.generated.js";
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { createStudioPublisher } from './studio-release.js';
@@ -80,7 +79,7 @@ export function builderPorts(inputs: {
       const scope = build.runtimeScope, catalog = await studio.catalog(scope), effects = buildEffects(build);
       signal.throwIfAborted();
       for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw new Error('目标范围没有开放给插件的能力：' + capability);
-      if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: V_PACKAGE_GENERATED_INITIAL,
+      if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: /* @version package.generated.initial */ "0.0.0",
         publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects, contract: build.design!.contract, runtime: { scope: 'home' } }));
       return runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
       operationIds, services: previewFor(build), mockServices: { capability: standIns, network: networkFor(build) }, grants: buildEffects(build), signal, settled: settledFor(build.directory!),

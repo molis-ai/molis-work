@@ -1,4 +1,3 @@
-import { V_FORMAT_BUILDER_PORTABLE } from "./versions.generated.js";
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 import {isDeepStrictEqual} from 'node:util';
 import type {AgentBuild,AgentBuildSnapshot,AgentRelease,AgentDesign} from './agent-model.js';
@@ -82,7 +81,7 @@ function release(value:unknown){
 }
 /** Validate the entire owner unit before project creation or staging any target bytes. */
 export function validateBuilderPortable(input:unknown):BuilderPortableState{
- const value=object(input);keys(value,['format','builds','releases','files'],['format','builds','releases','files']);if(value.format!==V_FORMAT_BUILDER_PORTABLE)builderSyncInvalid();
+ const value=object(input);keys(value,['format','builds','releases','files'],['format','builds','releases','files']);if(value.format!==/* @version format.builder.portable */ 1)builderSyncInvalid();
  const builds=list(value.builds).map(build),releases=list(value.releases).map(release),ids=new Set<string>(),versions=new Set<string>();
  for(const b of builds){if(ids.has(String(b.id)))builderSyncInvalid();ids.add(String(b.id));}
  for(const r of releases){const key=JSON.stringify([r.buildId,r.version]);if(versions.has(key))builderSyncInvalid();versions.add(key);ids.add(String(r.buildId));}
@@ -90,7 +89,7 @@ export function validateBuilderPortable(input:unknown):BuilderPortableState{
  const checked=Object.fromEntries([...ids].map(id=>[id,validateBuilderDirectories(files[id])]));
  for(const [id,entries] of Object.entries(checked))for(const e of entries){const b=builds.find(b=>b.id===id);if(e.slot.startsWith('current')&&!b||e.slot.startsWith('history-')&&(!b||Number(e.slot.match(/[0-9]+/)![0])>=list(b.history).length)||e.slot.startsWith('release-')&&!releases.some(r=>r.buildId===id&&r.version===Number(e.slot.slice(8))))builderSyncInvalid();}
  for(const r of releases){const directory=checked[String(r.buildId)]?.find(e=>e.slot==='release-'+r.version);if(!directory)builderSyncInvalid();validateBuilderReleaseFiles(r,directory!);}
- return {format:V_FORMAT_BUILDER_PORTABLE,builds,releases,files:checked};
+ return {format:/* @version format.builder.portable */ 1,builds,releases,files:checked};
 }
 
 export function validateBuilderUnit(input:unknown,itemId:string):BuilderPortableState {

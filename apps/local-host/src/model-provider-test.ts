@@ -1,4 +1,3 @@
-import { V_PACKAGE_APPS_LOCAL_HOST_MODEL_PROVIDER_TEST_CLIENT } from "./versions.generated.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -12,7 +11,7 @@ export async function testConfiguredModel(selection: ResolvedModelSelection) {
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   try {
     adapter = await createPrologueNodeAdapter({
-      app: { appId: "io.molis.work", appVersion: V_PACKAGE_APPS_LOCAL_HOST_MODEL_PROVIDER_TEST_CLIENT },
+      app: { appId: "io.molis.work", appVersion: /* @version package.apps/local-host/model-provider-test.client */ "0.0.0" },
       storageRoot: path.join(directory, "runtime"),
       modelConfiguration: async () => prologueModelConfiguration(selection),
       resolveCredential: (ref) => ref === selection.provider.credential_ref ? selection.api_key : null,

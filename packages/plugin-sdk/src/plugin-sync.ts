@@ -1,4 +1,3 @@
-import { V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { parseSyncSections } from "./sync-sections.js";
 import { parseSyncTracking, parseSyncAggregates } from './sync-schema.js';
 import type { PluginSyncDeclaration, PluginSyncCollection } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -24,7 +23,7 @@ export function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaratio
     ids.add(row.id);
     return Object.freeze({ ...(row.database !== undefined ? {database: row.database as "home" | "project"} : {}), id: row.id, title: row.title, schema_version: Number(row.schema_version), requires: Object.freeze([...row.requires]) as readonly string[], ...(row.sections !== undefined ? {sections: parseSyncSections(row.sections)} : {}), ...(row.tracking !== undefined ? {tracking: parseSyncTracking(row.tracking)} : {}), ...(row.aggregates !== undefined ? {aggregates: parseSyncAggregates(row.aggregates)} : {}) });
   });
-  const result = Object.freeze({ protocol_version: V_SYNC_PROTOCOL, collections: Object.freeze(collections) });
+  const result = Object.freeze({ protocol_version: /* @version sync.protocol */ 1, collections: Object.freeze(collections) });
   // Validate every node, including currently unselected collections.
   expand(result, [...ids]);
   return result;

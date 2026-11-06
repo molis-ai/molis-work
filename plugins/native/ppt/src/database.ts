@@ -1,4 +1,3 @@
-import { V_DATABASE_PPT_DATABASE } from "./versions.generated.js";
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
@@ -33,5 +32,5 @@ const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "PPT 演示稿",
   { table: "presentation_copies", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PPT_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PPT_PROJECT_ROWS, store_name: "ppt", version: V_DATABASE_PPT_DATABASE,
+export const PPT_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PPT_PROJECT_ROWS, store_name: "ppt", version: /* @version database.ppt_database */ 1,
   read_permission: "ppt:read", write_permission: "ppt:write", schema: PPT_SCHEMA };

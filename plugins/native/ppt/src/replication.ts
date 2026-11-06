@@ -1,4 +1,3 @@
-import { V_SYNC_COLLECTION_PPT_PRESENTATIONS, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { syncAggregateDeclaration } from "@molis-ai/molis-work-plugin-sdk";
 import { syncError } from './sync-errors.js';
 import type { SyncAggregateDefinition } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
@@ -26,4 +25,4 @@ export const pptAggregates:readonly SyncAggregateDefinition[]=[{
 }];
 function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'演示稿同步数据不合法');}
 
-export const pptSync:PluginSyncDeclaration={protocol_version:V_SYNC_PROTOCOL,collections:[{id:'presentations',title:'演示稿',schema_version: V_SYNC_COLLECTION_PPT_PRESENTATIONS,requires:[],aggregates:syncAggregateDeclaration(pptAggregates)}]};
+export const pptSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'presentations',title:'演示稿',schema_version: /* @version sync.collection.ppt.presentations */ 1,requires:[],aggregates:syncAggregateDeclaration(pptAggregates)}]};

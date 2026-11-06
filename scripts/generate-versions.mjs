@@ -27,23 +27,9 @@ export function expandVersionMarkers(source, versions) {
   });
 }
 
-/** Resolve only generated owner constants for the existing literal-oriented inventories. Never evaluates source. */
-export function versionInspectionSource(root, file, source) {
-  let result = source.replace(/\/\* @version [^*]+\*\/\s*/g, '');
-  const imports = /import\s*\{([^}]+)\}\s*from\s*["']([^"']*versions\.generated\.js)["'];?/g;
-  for (const match of source.matchAll(imports)) {
-    const target = path.resolve(root, path.dirname(file), match[2].replace(/\.js$/, '.ts'));
-    if (!target.startsWith(path.resolve(root) + path.sep)) throw new Error(`${file}: version constants outside repository`);
-    const generated = readFileSync(target, 'utf8');
-    result = result.replace(match[0], '');
-    for (const specifier of match[1].split(',')) {
-      const [name, alias] = specifier.trim().split(/\s+as\s+/);
-      const found = generated.match(new RegExp(`export const ${name} = (.+);`));
-      if (!found) throw new Error(`${file}: missing generated constant ${name}`);
-      result = result.replace(new RegExp(`\\b${alias ?? name}\\b`, 'g'), found[1]);
-    }
-  }
-  return result;
+/** Markers are comments: inspections read the literal behind them. */
+export function versionInspectionSource(_root, _file, source) {
+  return source.replace(/\/\* @version [^*]+\*\/\s*/g, '');
 }
 
 /** Detect new literal authorities before they can bypass generation. Record revisions and upstream protocols are excluded. */
@@ -94,28 +80,12 @@ export function unmanagedVersionProblems(file, source, carriers = []) {
 }
 
 /** Only the owned integration Manifest carriers, never business JSON or frozen fixtures. */
-export function unmanagedManifestJsonProblems(file, source, carriers, owners, root) {
+export function unmanagedManifestJsonProblems(file, source, carriers, root) {
   if (!/^plugins\/official-integrations\/[^/]+\/manifest\.json$/.test(file)) return [];
   const manifest = JSON.parse(source), problems = [], configured = carriers.filter(carrier => carrier.file === file);
-  const directory = path.dirname(file), constants = owners[`${directory}/src/versions.generated.ts`] ?? {};
-  // The catalog base package and its per-connector factory have different plugin identities and releases.
-  let releaseKey = `package.integration.${path.basename(directory)}`;
-  const entrypoint = path.join(root, directory, 'src/index.ts');
-  if (existsSync(entrypoint)) {
-    const tree = ts.createSourceFile(entrypoint, readFileSync(entrypoint, 'utf8'), ts.ScriptTarget.Latest, true);
-    const visit = node => {
-      if (ts.isPropertyAssignment(node) && node.name.getText(tree) === 'version' && ts.isIdentifier(node.initializer)
-        && constants[node.initializer.text]?.startsWith('package.')) {
-        const identity = ts.isObjectLiteralExpression(node.parent) && node.parent.properties.find(property => ts.isPropertyAssignment(property) && property.name.getText(tree) === 'plugin_id');
-        if (identity && ts.isStringLiteral(identity.initializer) && identity.initializer.text === manifest.plugin_id) releaseKey = constants[node.initializer.text];
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(tree);
-  }
   const covered = (start, end, key) => configured.some(carrier => carrier.key === key && [...source.matchAll(new RegExp(carrier.pattern, 'gm'))]
     .some(match => match.index + match[1].length === start && match.index + match[0].length - match[2].length === end));
-  for (const [field, key] of [['schema_version', 'manifest.schema'], ['host_api_version', 'host.api'], ['version', releaseKey]]) {
+  for (const [field, key] of [['schema_version', 'manifest.schema'], ['host_api_version', 'host.api'], ['version', configured.find(carrier => /"version"/.test(carrier.pattern))?.key]]) {
     const match = source.match(new RegExp(`("${field}"\\s*:\\s*)("[^"]*"|\\d+)`));
     const value = match?.[2], quoted = value?.startsWith('"');
     const start = match ? match.index + match[1].length + (quoted ? 1 : 0) : -1, end = start + (value?.length ?? 0) - (quoted ? 2 : 0);
@@ -130,13 +100,13 @@ export function unmanagedManifestJsonProblems(file, source, carriers, owners, ro
 }
 
 export function generateVersions({ root = ROOT, write = false } = {}) {
-  const { versions, owners, carriers } = versionSource(root);
+  const { versions, carriers } = versionSource(root);
   for (const [key, value] of Object.entries(versions)) {
     if (!/^[a-zA-Z0-9][\w./-]+$/.test(key) || !(Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length)) {
       throw new Error(`Invalid first-party version: ${key}`);
     }
   }
-  for (const file of [...Object.keys(owners), ...carriers.map(carrier => carrier.file)]) {
+  for (const file of carriers.map(carrier => carrier.file)) {
     if (!path.resolve(root, file).startsWith(path.resolve(root) + path.sep)) throw new Error(`Version output outside repository: ${file}`);
   }
   const changed = [], used = new Set();
@@ -163,18 +133,10 @@ export function generateVersions({ root = ROOT, write = false } = {}) {
     for (const match of source.matchAll(TOKEN)) used.add(match[1]);
     for (const match of source.matchAll(MARKDOWN)) used.add(match[1]);
     unmanaged.push(...unmanagedVersionProblems(file, source, carriers));
-    unmanaged.push(...unmanagedManifestJsonProblems(file, source, carriers, owners, root));
+    unmanaged.push(...unmanagedManifestJsonProblems(file, source, carriers, root));
     if (file.startsWith('plugins/native/goals/methods/') && /^version: \d+$/m.test(source) && !MARKDOWN.test(source)) unmanaged.push(`${file}: unmanaged method version`);
     MARKDOWN.lastIndex = 0;
     if (source.includes('@version ')) apply(file, expandVersionMarkers(source, versions));
-  }
-  for (const [file, constants] of Object.entries(owners)) {
-    const declarations = Object.entries(constants).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([name, key]) => {
-      if (!Object.hasOwn(versions, key)) throw new Error(`${file}: unknown version ${key}`);
-      used.add(key);
-      return `export const ${name} = ${JSON.stringify(versions[key])};`;
-    });
-    apply(file, '// Generated by scripts/generate-versions.mjs from tooling/versions.json. Do not edit.\n' + declarations.join('\n') + '\n');
   }
   const carrierOutputs = new Map();
   for (const { file, key, pattern } of carriers) {

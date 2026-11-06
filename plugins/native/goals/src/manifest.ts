@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_GOALS_MANIFEST_GOALSMANIFEST, V_SYNC_COLLECTION_GOALS_PROJECT_GOALS, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { goalSectionsDeclaration, goalSectionsTracking } from "./sync-sections.js";
 import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, PROJECT_JOURNAL_PERMISSION, type PluginManifest, type PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
@@ -79,10 +78,10 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
  * being started and isolated by Plugin Runtime.
  */
 export const goalsManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: GOALS_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_GOALS_MANIFEST_GOALSMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Goals",
   summary: "确定目标，推进工作，留下结果。",
   kind: "native",
@@ -125,7 +124,7 @@ export const goalsManifest: PluginManifest = {
   databases: { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE },
   background: { jobs: [{ job_id: GOALS_CATCH_UP_JOB, reason: "项目打开时补开目标板，补齐待决定的提醒", permissions: ["storage:private", "attention:read", "attention:write", "journal:project"] }] },
   routes: GOALS_ROUTES,
-  sync: { protocol_version: V_SYNC_PROTOCOL, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: V_SYNC_COLLECTION_GOALS_PROJECT_GOALS, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
+  sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: /* @version sync.collection.goals.project_goals */ 1, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
   ui: {
     messages: GOALS_MESSAGES,
     // English for the words still keyed by their Chinese text (PG-071); the order is the one the Host's catalog used to merge them in.

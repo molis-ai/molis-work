@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_TODO_MANIFEST_TODOMANIFEST } from "./versions.generated.js";
 import { todoSync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "./contract.js";
@@ -15,10 +14,10 @@ export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID };
 const TODO_BODY_BYTES = 1_000_000;
 
 export const todoManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: TODO_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_TODO_MANIFEST_TODOMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "待办",
   name_en: "Todo",
   summary: "记下要做的事，分清今天、在等谁。",

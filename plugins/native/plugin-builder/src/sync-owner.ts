@@ -1,4 +1,3 @@
-import { V_FORMAT_BUILDER_PORTABLE, V_FORMAT_BUILDER_SAVED_STATE, V_SYNC_COLLECTION_PLUGIN_BUILDER_AUTHORING, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import type {PluginDistributionVerifier} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import {validateBuilderUnit} from './sync-shape.js';
 import {existsSync,lstatSync,mkdirSync,realpathSync} from 'node:fs';
@@ -13,7 +12,7 @@ import {assertBuilderIdle,builderSyncInvalid,portableBuilderBuild,portableBuilde
 import {captureBuilderDirectory,stageBuilderDirectories,copyEditableBuilderDirectories,type BuilderPortableDirectory} from './sync-files.js';
 
 export const BUILDER_CONTENT_REPLICA_ID='builder_content';
-export const builderSync:PluginSyncDeclaration={protocol_version:V_SYNC_PROTOCOL,collections:[{id:'authoring',title:'插件创作与发布内容',schema_version:V_SYNC_COLLECTION_PLUGIN_BUILDER_AUTHORING,requires:[]}]};
+export const builderSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'authoring',title:'插件创作与发布内容',schema_version:/* @version sync.collection.plugin-builder.authoring */ 1,requires:[]}]};
 const errors=defineErrorCodes('plugin_builder',{sync_unavailable:'unavailable'});
 const unavailable=():never=>{throw errors.sync_unavailable('完整创作内容暂不可用，原内容已保留');};
 export interface BuilderReplicationOptions {home?:string;verifyDistribution?:PluginDistributionVerifier;authorize?():void;assertIdle?(projectId:string,itemId:string):void}
@@ -71,7 +70,7 @@ function project(state:BuilderSavedState,projectId:string,itemId:string,options:
  options.authorize?.();assertBuilderIdle(state.builds);options.assertIdle?.(projectId,itemId);
  const ids=new Set([...state.builds.map(b=>b.id),...state.releases.map(r=>r.buildId)]);
  const files=Object.fromEntries([...ids].map(id=>[id,capture(options,projectId,state.builds.find(b=>b.id===id),state.releases.filter(r=>r.buildId===id))]));
- const value=validateBuilderPortable({format:V_FORMAT_BUILDER_PORTABLE,builds:state.builds.map(portableBuilderBuild),releases:state.releases.map(portableBuilderRelease),files});
+ const value=validateBuilderPortable({format:/* @version format.builder.portable */ 1,builds:state.builds.map(portableBuilderBuild),releases:state.releases.map(portableBuilderRelease),files});
  options.authorize?.();return verifyReleases(value,options);
 }
 function immutableReleases(value:BuilderPortableState,local:BuilderSavedState,projectId:string,options:BuilderReplicationOptions){
@@ -101,7 +100,7 @@ function restore(value:BuilderPortableState|null,local:BuilderSavedState,project
   const directory=paths.get(String(row.buildId))?.get('release-'+row.version);if(!directory)builderSyncInvalid();
   releases.push({...row,directory,bundlePath:join(directory!,'plugin.mjs'),packagePath:directory} as AgentRelease);
  }
- options.authorize?.();return parseBuilderState(JSON.stringify({format:V_FORMAT_BUILDER_SAVED_STATE,builds,releases,revisions}));
+ options.authorize?.();return parseBuilderState(JSON.stringify({format:/* @version format.builder.saved-state */ 1,builds,releases,revisions}));
 }
 /** Runtime selects one exact private key; independent authoring items have independent change keys. */
 export function builderPrivateValueReplicationOwner(options:BuilderReplicationOptions={}):PrivateValueReplicationOwner{

@@ -1,4 +1,3 @@
-import { V_METHOD_ISSUES_CAPTURE } from "./versions.generated.js";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ISSUE_ASK, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES } from "./prompts.js";
 
@@ -10,7 +9,7 @@ const bullets = (lines: readonly string[]) => lines.map(line => "- " + line);
  * Assistant. Which tool reaches an action, and what happens when one is refused, is the gateway's to say.
  */
 export const issuesSkills: readonly AgentSkillDefinition[] = [{
-  skill_id: "issues-capture", version: V_METHOD_ISSUES_CAPTURE, name: "记录与管理个人问题",
+  skill_id: "issues-capture", version: /* @version method.issues-capture */ 1, name: "记录与管理个人问题",
   summary: "把用户在开发中遇到的问题记进个人 Issue：起标题、判类型、保存；也能查看、修改或删除。",
   // Method tools are a declaration (contracts SKILL_TOOLS); the Assistant's gateway also offers change-reversible.
   tools: ["suggest-action", "ask-user", "find-capabilities", "read-capability", "change-capability"],

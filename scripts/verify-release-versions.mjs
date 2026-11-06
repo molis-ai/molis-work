@@ -11,7 +11,7 @@
 // Exit codes: 0 consistent, 1 something disagrees (every finding is listed), 2 the command line is unusable.
 // It only reads files: no build, no git.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { generateVersions, versionInspectionSource } from "./generate-versions.mjs";
+import { generateVersions } from "./generate-versions.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,7 +47,8 @@ const root = path.resolve(options.root ?? path.join(path.dirname(fileURLToPath(i
 // ---- reading --------------------------------------------------------------------------------------------------------
 const problems = [];
 const problem = message => problems.push(message);
-const inspectSource = (file, text) => /\.m?[tj]s$/.test(file) ? versionInspectionSource(root, file, text) : text;
+// Markers are comments next to the literal; the checks below read the literal.
+const inspectSource = (file, text) => /\.m?[tj]s$/.test(file) ? text.replace(/\/\* @version [^*]+\*\/\s*/g, "") : text;
 const readOptional = file => existsSync(path.join(root, file)) ? inspectSource(file, readFileSync(path.join(root, file), "utf8")) : null;
 try {
   for (const file of generateVersions({ root })) problem(`${file}: differs from tooling/versions.json (run pnpm versions:generate)`);

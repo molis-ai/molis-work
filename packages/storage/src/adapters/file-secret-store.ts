@@ -1,4 +1,3 @@
-import { V_FORMAT_SECRET_STORE_ENVELOPE, V_FORMAT_SECRET_STORE_HOME_PAYLOAD, V_FORMAT_SECRET_STORE_MAP } from "../versions.generated.js";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * SecretStore — AES-256-GCM ciphertext only; never returns plaintext to Item rows.
@@ -61,7 +60,7 @@ export interface SecretStoreBackendInfo {
   formatVersion: number;
 }
 
-const FORMAT_VERSION = V_FORMAT_SECRET_STORE_MAP;
+const FORMAT_VERSION = /* @version format.secret-store.map */ 1;
 const ALG = "aes-256-gcm" as const;
 const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
 const KEYCHAIN_ACCOUNT = "install-master-key";
@@ -307,7 +306,7 @@ function sealEnvelope(plaintext: string, key: Buffer, aad?: Buffer): string {
   ]);
   const tag = cipher.getAuthTag();
   const sealed: SealedEnvelope = {
-    v: V_FORMAT_SECRET_STORE_ENVELOPE,
+    v: /* @version format.secret-store.envelope */ 1,
     alg: ALG,
     iv: iv.toString("base64"),
     tag: tag.toString("base64"),
@@ -319,7 +318,7 @@ function sealEnvelope(plaintext: string, key: Buffer, aad?: Buffer): string {
 function openEnvelope(sealed: string, key: Buffer, aad?: Buffer): string | null {
   try {
     const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedEnvelope;
-    if (raw.v !== V_FORMAT_SECRET_STORE_ENVELOPE || raw.alg !== ALG || typeof raw.iv !== "string" || typeof raw.tag !== "string" || typeof raw.ct !== "string") {
+    if (raw.v !== /* @version format.secret-store.envelope */ 1 || raw.alg !== ALG || typeof raw.iv !== "string" || typeof raw.tag !== "string" || typeof raw.ct !== "string") {
       return null;
     }
     const iv = Buffer.from(raw.iv, "base64");
@@ -502,14 +501,14 @@ export function sealExistingHomePayload(homeDirectory: string, binding: string, 
     throw snapshotErrors.invalid("密封数据需要现行凭据库、明确的主人绑定与正文");
   }
   const master = openSnapshotFile(home, file).master ?? payloadMaster(home, file.backend);
-  const body = JSON.stringify({ schema_version: V_FORMAT_SECRET_STORE_HOME_PAYLOAD, home, binding, contents });
-  return { schema_version: V_FORMAT_SECRET_STORE_HOME_PAYLOAD, backend: master.kind, key_reference: masterReference(master), ciphertext: sealEnvelope(body, master.key, homePayloadAad(home, binding)) };
+  const body = JSON.stringify({ schema_version: /* @version format.secret-store.home-payload */ 1, home, binding, contents });
+  return { schema_version: /* @version format.secret-store.home-payload */ 1, backend: master.kind, key_reference: masterReference(master), ciphertext: sealEnvelope(body, master.key, homePayloadAad(home, binding)) };
 }
 
 /** Opens a previously sealed owner payload even when the live vault has been lost or damaged. */
 export function openExistingHomePayload(homeDirectory: string, binding: string, payload: unknown): string {
   const home = payloadHome(homeDirectory);
-  if (!isRecord(payload) || payload.schema_version !== V_FORMAT_SECRET_STORE_HOME_PAYLOAD || !isSecretStoreBackend(payload.backend)
+  if (!isRecord(payload) || payload.schema_version !== /* @version format.secret-store.home-payload */ 1 || !isSecretStoreBackend(payload.backend)
     || typeof payload.ciphertext !== "string" || !payload.ciphertext || !isRecord(payload.key_reference)
     || typeof binding !== "string" || !binding) throw snapshotErrors.invalid("密封数据格式或主人绑定无效");
   const master = payloadMaster(home, payload.backend), reference = masterReference(master);
@@ -520,7 +519,7 @@ export function openExistingHomePayload(homeDirectory: string, binding: string, 
   if (text === null) throw snapshotErrors.integrity_failed("原密钥与密封数据不匹配，或密文已损坏");
   let body: unknown;
   try { body = JSON.parse(text); } catch { throw snapshotErrors.invalid("密封数据正文格式无效"); }
-  if (!isRecord(body) || body.schema_version !== V_FORMAT_SECRET_STORE_HOME_PAYLOAD || body.home !== home || body.binding !== binding || typeof body.contents !== "string") {
+  if (!isRecord(body) || body.schema_version !== /* @version format.secret-store.home-payload */ 1 || body.home !== home || body.binding !== binding || typeof body.contents !== "string") {
     throw snapshotErrors.integrity_failed("密封数据不属于当前 Home 或主人");
   }
   return body.contents;
@@ -552,7 +551,7 @@ function saveFile(file: SecretsFile): void {
 function assertSealedEnvelope(sealed: string): void {
   try {
     const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedEnvelope;
-    if (raw.v === V_FORMAT_SECRET_STORE_ENVELOPE && raw.alg === ALG && typeof raw.iv === "string" && typeof raw.tag === "string" && typeof raw.ct === "string"
+    if (raw.v === /* @version format.secret-store.envelope */ 1 && raw.alg === ALG && typeof raw.iv === "string" && typeof raw.tag === "string" && typeof raw.ct === "string"
       && Buffer.from(raw.iv, "base64").length === 12 && Buffer.from(raw.tag, "base64").length === 16) return;
   } catch { /* reported below */ }
   throw new Error("secret not AES-GCM sealed");

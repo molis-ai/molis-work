@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_ISSUES_MANIFEST_ISSUESMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ISSUES_ACTIONS } from "./actions.js";
 import { issuesSkills } from "./skills.js";
@@ -9,7 +8,7 @@ import { ISSUES_MESSAGES } from "./messages.js";
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
 export const ISSUES_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.issues.ui "io.molis.work.native.issues.ui.v{version}" */ "io.molis.work.native.issues.ui.v1";
 export const issuesManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA, host_api_version: V_HOST_API, plugin_id: ISSUES_PLUGIN_ID, version: V_PACKAGE_PLUGINS_NATIVE_ISSUES_MANIFEST_ISSUESMANIFEST, name: "Issue", summary: "记录、查看和整理自己的问题。", kind: "app",
+  schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: ISSUES_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Issue", summary: "记录、查看和整理自己的问题。", kind: "app",
   publisher: { publisher_id: "molis", signature: "official-issues-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "issues:read", required: true, reason: "查看个人问题记录" },

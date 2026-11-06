@@ -1,4 +1,3 @@
-import { V_SYNC_COLLECTION_DATASET_DATASETS, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { syncAggregateDeclaration } from "@molis-ai/molis-work-plugin-sdk";
 import { syncError } from './sync-errors.js';
 import type { SyncAggregateDefinition, SyncPortableRow } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
@@ -35,4 +34,4 @@ function table(columns:unknown,rows:unknown){
 }
 function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'数据表同步数据不合法');}
 
-export const datasetSync:PluginSyncDeclaration={protocol_version:V_SYNC_PROTOCOL,collections:[{id:'datasets',title:'数据表与保存版本',schema_version: V_SYNC_COLLECTION_DATASET_DATASETS,requires:[],aggregates:syncAggregateDeclaration(datasetAggregates)}]};
+export const datasetSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'datasets',title:'数据表与保存版本',schema_version: /* @version sync.collection.dataset.datasets */ 1,requires:[],aggregates:syncAggregateDeclaration(datasetAggregates)}]};

@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_SCHEDULE_MANIFEST_SCHEDULEMANIFEST, V_SYNC_COLLECTION_SCHEDULE_CONVERSATION_TASKS, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { scheduleTracking } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -18,10 +17,10 @@ export const SCHEDULE_PLUGIN_ID = "io.molis.work.schedule";
 export const SCHEDULE_PROJECT_PLUGIN_ID = "schedule";
 
 export const scheduleManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: SCHEDULE_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_SCHEDULE_MANIFEST_SCHEDULEMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Schedule",
   summary: "定时跑对话任务，也替插件准时提醒。",
   kind: "native",
@@ -58,7 +57,7 @@ export const scheduleManifest: PluginManifest = {
   ],
   artifacts: { produces: [], consumes: [] },
   agent: scheduleAgentManifest,
-  sync: { protocol_version: V_SYNC_PROTOCOL, collections: [{ id: "conversation_tasks", tracking: scheduleTracking, title: "定时对话任务", schema_version: V_SYNC_COLLECTION_SCHEDULE_CONVERSATION_TASKS, requires: [] }] },
+  sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: "conversation_tasks", tracking: scheduleTracking, title: "定时对话任务", schema_version: /* @version sync.collection.schedule.conversation_tasks */ 1, requires: [] }] },
   databases: { project: SCHEDULE_PROJECT_DATABASE },
   ui: {
     messages: SCHEDULE_MESSAGES,

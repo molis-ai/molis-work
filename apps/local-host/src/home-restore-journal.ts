@@ -1,4 +1,3 @@
-import { V_FORMAT_HOME_RESTORE_JOURNAL } from "./versions.generated.js";
 import { journalStorageSpace, retireRestoreSpaceLink } from "./home-restore-space.js";
 import { randomUUID } from "node:crypto";
 import { lstatSync, mkdirSync, renameSync, rmSync, unlinkSync } from "node:fs";
@@ -110,7 +109,7 @@ export async function prepareHomeRestoreJournal(home: string, inputs: HomeRestor
   try {
     mkdirSync(join(work, "originals"), { mode: 0o700 }); mkdirSync(join(work, "failed"), { mode: 0o700 });
     const registry = await retainRegistryInputs(home, work, inputs, target, control);
-    const journal: HomeRestoreJournal = { schema_version: V_FORMAT_HOME_RESTORE_JOURNAL, space_digest: inputs.manifest.space_digest,
+    const journal: HomeRestoreJournal = { schema_version: /* @version format.home.restore.journal */ 1, space_digest: inputs.manifest.space_digest,
       ...(inputs.initializeLocalSpace ? { initialize_local_space: inputs.initializeLocalSpace } : {}), product_version: PRODUCT_VERSION, home_directory: home, operation_id: operation,
       originals_directory: work, phase: "prepared", home_identity: target.home, runtime_identity: target.runtime, work_identity: identity,
       home_mode: inputs.manifest.home_mode, originals: target.originals, directories: target.directories,

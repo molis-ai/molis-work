@@ -1,4 +1,3 @@
-import { V_FORMAT_HOME_UNINSTALL_RECEIPT } from "../versions.generated.js";
 import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
@@ -166,7 +165,7 @@ export class MolisWorkUninstallService {
 
     const catalogInspection = await this.options.projects.inspect();
     const receipt: UninstallReceipt = {
-      schema_version: V_FORMAT_HOME_UNINSTALL_RECEIPT,
+      schema_version: /* @version format.home.uninstall.receipt */ 1,
       owner: UNINSTALL_OWNER,
       plan_id: plan.plan_id,
       home_directory: this.homeDirectory,

@@ -1,4 +1,3 @@
-import { V_FORMAT_CONNECTOR_PRIVATE_STATE } from "./versions.generated.js";
 import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, opendirSync, openSync, readSync, realpathSync, type Stats } from "node:fs";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
@@ -142,7 +141,7 @@ function readPrivateFile(file: string, before: Stats): Buffer {
 }
 
 function captureTree(root: string, budget: ReadBudget): PrivateTree {
-  const tree: PrivateTree = { schema_version: V_FORMAT_CONNECTOR_PRIVATE_STATE, root_present: plainDirectory(root, true), directories: [], files: [] };
+  const tree: PrivateTree = { schema_version: /* @version format.connector.private-state */ 1, root_present: plainDirectory(root, true), directories: [], files: [] };
   if (!tree.root_present) return tree;
   budget.nodes();
   const pending = [{ directory: root, path: "" }];
@@ -181,7 +180,7 @@ export function captureConnectorPrivateState(homeDirectory: string): ConnectorPr
       budget.sealed(Buffer.byteLength(payload.ciphertext));
       installations.push({ installation_id: id, source_sha256: owned.source, payload });
     }
-    return { schema_version: V_FORMAT_CONNECTOR_PRIVATE_STATE, owner: CONNECTOR_PRIVATE_STATE_OWNER, installations };
+    return { schema_version: /* @version format.connector.private-state */ 1, owner: CONNECTOR_PRIVATE_STATE_OWNER, installations };
   });
 }
 
@@ -198,7 +197,7 @@ const parent = (path: string) => { const value = dirname(path); return value ===
 function parseTree(contents: string, budget: ReadBudget): RestoredTree {
   let body: unknown;
   try { body = JSON.parse(contents); } catch { throw fail(); }
-  if (!record(body) || body.schema_version !== V_FORMAT_CONNECTOR_PRIVATE_STATE || typeof body.root_present !== "boolean" || !Array.isArray(body.directories) || !Array.isArray(body.files)) throw fail();
+  if (!record(body) || body.schema_version !== /* @version format.connector.private-state */ 1 || typeof body.root_present !== "boolean" || !Array.isArray(body.directories) || !Array.isArray(body.files)) throw fail();
   budget.nodes(body.directories.length + body.files.length);
   const directories: PrivateDirectory[] = [], files: RestoredTree["files"] = [], names = new Set<string>();
   for (const entry of body.directories) {
@@ -220,7 +219,7 @@ function parseTree(contents: string, budget: ReadBudget): RestoredTree {
     names.add(entry.relative_path); files.push({ relative_path: entry.relative_path, mode: entry.mode, bytes });
   }
   if (!body.root_present && (directories.length || files.length)) throw fail();
-  return { schema_version: V_FORMAT_CONNECTOR_PRIVATE_STATE, root_present: body.root_present, directories, files };
+  return { schema_version: /* @version format.connector.private-state */ 1, root_present: body.root_present, directories, files };
 }
 
 function inspectDestination(root: string, tree: RestoredTree, budget: ReadBudget): void {
@@ -247,7 +246,7 @@ function inspectDestination(root: string, tree: RestoredTree, budget: ReadBudget
 export function preflightConnectorPrivateStateRestore(homeDirectory: string, snapshot: unknown, options: { readonly archiveDataDirectory?: string } = {}): ConnectorPrivateStateRestorePlan[] {
   return ownerRead(() => {
     const home = homeRoot(homeDirectory);
-    if (!record(snapshot) || snapshot.schema_version !== V_FORMAT_CONNECTOR_PRIVATE_STATE || snapshot.owner !== CONNECTOR_PRIVATE_STATE_OWNER || !Array.isArray(snapshot.installations)) throw fail();
+    if (!record(snapshot) || snapshot.schema_version !== /* @version format.connector.private-state */ 1 || snapshot.owner !== CONNECTOR_PRIVATE_STATE_OWNER || !Array.isArray(snapshot.installations)) throw fail();
     if (snapshot.installations.length > MAX_NODES) throw overLimit();
     const budget = readBudget(), destination = readBudget(), ids = installationIds(installsRoot(home), budget);
     if (snapshot.installations.length !== ids.length) throw fail();

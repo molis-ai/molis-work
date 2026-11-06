@@ -1,4 +1,3 @@
-import { V_PACKAGE_GENERATED_INITIAL } from "../versions.generated.js";
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -74,7 +73,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   const live = (identity: Readonly<SandboxIdentity>) => !!currentBuild(identity) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
   const projectCapability = installed.capabilityFor(live);
   const homeCapability = options.homeActions && catalogCapabilities({ actions: options.homeActions, catalog: () => studio.catalog('home'), live,
-    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: sandboxPluginManifest({ pluginId: identity.pluginId, name: build.title, version: V_PACKAGE_GENERATED_INITIAL,
+    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: sandboxPluginManifest({ pluginId: identity.pluginId, name: build.title, version: /* @version package.generated.initial */ "0.0.0",
       publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects: buildEffects(build), contract: build.design!.contract, runtime: { scope: 'home' } }) } : undefined; },
     granted: identity => { const build = currentBuild(identity); return build ? buildEffects(build).capabilities ?? [] : []; } });
   const standIns: NonNullable<SandboxServices['capability']> = { async call(context, id, input) {

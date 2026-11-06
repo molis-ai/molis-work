@@ -1,4 +1,3 @@
-import { V_FORMAT_PLACEMENT_COPY_PREVIEW } from "./versions.generated.js";
 import {createHash} from 'node:crypto';
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 import type {ProjectCopyAsset,ProjectCopyOwner,ProjectCopyReference} from '@molis-ai/molis-work-contracts/services/placement';
@@ -87,7 +86,7 @@ function capture(input:ProjectCopyPreviewInput){
  }
  input.authorize();
  const ordered=[...entries.values()].sort((a,b)=>JSON.stringify([a.ownerId,a.asset.key]).localeCompare(JSON.stringify([b.ownerId,b.asset.key]))),refs=[...dependencies.values()].sort((a,b)=>referenceKey(a).localeCompare(referenceKey(b))),blocked=[...blockers.values()].sort((a,b)=>referenceKey(a.reference).localeCompare(referenceKey(b.reference)));
- const fingerprint=createHash('sha256').update(canonical({format:V_FORMAT_PLACEMENT_COPY_PREVIEW,sourceSpaceId:input.sourceSpaceId,projects,owners:[...byOwner.values()].map(s=>({id:s.ownerId,kinds:[...s.owner.kinds].sort()})).sort((a,b)=>a.id.localeCompare(b.id)),entries:ordered,dependencies:refs,blockers:blocked})).digest('hex');
+ const fingerprint=createHash('sha256').update(canonical({format:/* @version format.placement.copy-preview */ 1,sourceSpaceId:input.sourceSpaceId,projects,owners:[...byOwner.values()].map(s=>({id:s.ownerId,kinds:[...s.owner.kinds].sort()})).sort((a,b)=>a.id.localeCompare(b.id)),entries:ordered,dependencies:refs,blockers:blocked})).digest('hex');
  return {entries:ordered,view:{sourceSpaceId:input.sourceSpaceId,fingerprint,projectIds:projects,assetCount:ordered.length,savedBytes,dependencies:refs,blockers:blocked}};
 }
 

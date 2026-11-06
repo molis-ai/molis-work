@@ -1,4 +1,3 @@
-import { V_FORMAT_SHELF_PORTABLE } from "./versions.generated.js";
 import type { ShelfArtifactSource, ShelfItemRecord, ShelfJobRecord } from './contract.js';
 import type { SyncBlobReference } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { shelfErrors } from './errors.js';
@@ -85,7 +84,7 @@ function validateJob(input: unknown): ShelfPortableJob {
 export function validateShelfPortable(input: unknown, spaceId: string, key:string, representation: 'bytes' | 'references' = 'bytes'): ShelfPortableContent {
   const identity=shelfSyncKey(key);
   const value = shelfSyncObject(input,['format','spaceId','items','jobs']);
-  if (value.format !== V_FORMAT_SHELF_PORTABLE || value.spaceId !== spaceId || !Array.isArray(value.items) || !Array.isArray(value.jobs)
+  if (value.format !== /* @version format.shelf.portable */ 1 || value.spaceId !== spaceId || !Array.isArray(value.items) || !Array.isArray(value.jobs)
     || value.items.length !== (identity.kind==='item'?1:0) || value.jobs.length !== (identity.kind==='job'?1:0)) return invalid();
   const seen = new Set<string>(), jobs = new Set<string>(); let total = 0;
   for (const input of value.items) {
@@ -110,5 +109,5 @@ export function validateShelfPortable(input: unknown, spaceId: string, key:strin
   }
   if (total > 100000000) throw shelfErrors.too_large('Shelf 可携带文件超过个人空间内容上限，原内容已保留');
   for (const input of value.jobs) { const job = validateJob(input); if (job.job_id!==identity.id||jobs.has(job.job_id)) return invalid(); jobs.add(job.job_id); }
-  return {format:V_FORMAT_SHELF_PORTABLE,spaceId,items:value.items as ShelfPortableItem[],jobs:value.jobs as ShelfPortableJob[]};
+  return {format:/* @version format.shelf.portable */ 1,spaceId,items:value.items as ShelfPortableItem[],jobs:value.jobs as ShelfPortableJob[]};
 }

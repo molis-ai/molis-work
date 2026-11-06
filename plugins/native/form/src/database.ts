@@ -1,4 +1,3 @@
-import { V_DATABASE_FORM_DATABASE } from "./versions.generated.js";
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
@@ -16,7 +15,7 @@ const FORM_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Forms 问卷�
  * list gives the running plugin (`services.database`), read with `form:read` and written with `form:write`; the store's
  * own connection (deletion, tests) opens the same file at the same baseline.
  */
-export const FORM_DATABASE: HomePluginDatabaseDeclaration = { project_rows: FORM_PROJECT_ROWS, store_name: "form", version: V_DATABASE_FORM_DATABASE, read_permission: "form:read", write_permission: "form:write", schema: `
+export const FORM_DATABASE: HomePluginDatabaseDeclaration = { project_rows: FORM_PROJECT_ROWS, store_name: "form", version: /* @version database.form_database */ 1, read_permission: "form:read", write_permission: "form:write", schema: `
   CREATE TABLE forms (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

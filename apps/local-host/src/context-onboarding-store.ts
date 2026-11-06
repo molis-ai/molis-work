@@ -1,4 +1,3 @@
-import { V_DATABASE_CONTEXT_ONBOARDING_BASELINE } from "./versions.generated.js";
 import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
@@ -81,7 +80,7 @@ export function contextJourneyId(value: unknown): string {
   return value;
 }
 /** The context onboarding store's one current schema (repository-anti-corruption §4.1). */
-export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = { version: V_DATABASE_CONTEXT_ONBOARDING_BASELINE, schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);" };
+export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = { version: /* @version database.context_onboarding_baseline */ 1, schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);" };
 export function withContextJourneys<T>(home: string, run: (store: ContextJourneyStore) => T): T {
   const db = openHomeSqliteDatabase(home, CONTEXT_ONBOARDING_HOME_STORE.path);
   try { return run(new ContextJourneyStore(db)); } finally { db.close(); }

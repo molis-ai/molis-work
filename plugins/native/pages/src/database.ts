@@ -1,4 +1,3 @@
-import { V_DATABASE_PAGES_DATABASE } from "./versions.generated.js";
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
@@ -48,5 +47,5 @@ const PAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Pages 文稿�
   { table: "page_imports", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PAGES_PROJECT_ROWS, store_name: "pages", version: V_DATABASE_PAGES_DATABASE,
+export const PAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PAGES_PROJECT_ROWS, store_name: "pages", version: /* @version database.pages_database */ 1,
   read_permission: "pages:read", write_permission: "pages:write", schema: PAGES_SCHEMA };

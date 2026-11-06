@@ -1,4 +1,3 @@
-import { V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_ACTION_GATEWAY_PACK } from "../versions.generated.js";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -308,7 +307,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
     && memoryToolOffered(name, gateway.client.memory));
-  const pack: ScenarioPack = { id: PACK_ID, version: V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_ACTION_GATEWAY_PACK, source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const pack: ScenarioPack = { id: PACK_ID, version: /* @version package.horizontal/agent-host/adapters/prologue-action-gateway.pack */ "2.4.8", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known, offered, declare: declared.note, parameterBranches: declared.parameterBranches };

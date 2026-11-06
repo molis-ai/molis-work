@@ -1,4 +1,3 @@
-import { V_FORMAT_MODEL_PREFERENCE } from "./versions.generated.js";
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -24,8 +23,8 @@ function readPreference(home: string, declaration: ConsumerModelConfigurationDec
   const value: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (!value || typeof value !== "object" || Array.isArray(value)) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
   const pref = value as Partial<PreferenceFile>;
-  if (pref.schema_version !== V_FORMAT_MODEL_PREFERENCE || typeof pref.provider_id !== "string" || !pref.provider_id.trim() || typeof pref.model_id !== "string" || !pref.model_id.trim()) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
-  return { schema_version: V_FORMAT_MODEL_PREFERENCE, provider_id: pref.provider_id, model_id: pref.model_id };
+  if (pref.schema_version !== /* @version format.model.preference */ 1 || typeof pref.provider_id !== "string" || !pref.provider_id.trim() || typeof pref.model_id !== "string" || !pref.model_id.trim()) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
+  return { schema_version: /* @version format.model.preference */ 1, provider_id: pref.provider_id, model_id: pref.model_id };
 }
 function atomicWrite(path: string, body: string): void {
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -89,7 +88,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
         opened.store.upsert({ provider_id: declaration.custom_provider.provider_id, display_name: declaration.custom_provider.display_name, base_url: baseUrl!, api_format: format ?? existing?.api_format ?? "openai-chat-completions", enabled: true, models,
           ...(selectedConnection?.credential_ref ? { credential_ref: selectedConnection.credential_ref } : {}) });
       }
-      atomicWrite(prefPath, JSON.stringify({ schema_version: V_FORMAT_MODEL_PREFERENCE, provider_id: providerId, model_id: modelId } satisfies PreferenceFile, null, 2) + "\n"); preferenceWritten = true;
+      atomicWrite(prefPath, JSON.stringify({ schema_version: /* @version format.model.preference */ 1, provider_id: providerId, model_id: modelId } satisfies PreferenceFile, null, 2) + "\n"); preferenceWritten = true;
     }).immediate();
   } catch (error) {
     if (preferenceWritten) { if (oldPreference !== undefined) atomicWrite(prefPath, oldPreference); else unlinkSync(prefPath); }

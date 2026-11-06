@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_YOUTUBE_INDEX_YOUTUBEINTEGRATIONMANIFEST } from "./versions.generated.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -7,13 +6,13 @@ import type {
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 
 export const youtubeIntegrationManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
+  schema_version: /* @version manifest.schema */ 1,
   plugin_id: "io.molis.work.integration.youtube",
-  version: V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_YOUTUBE_INDEX_YOUTUBEINTEGRATIONMANIFEST,
+  version: /* @version package.plugins/official-integrations/youtube/index.youtubeIntegrationManifest */ "1.0.0",
   name: "YouTube Channel",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-  host_api_version: V_HOST_API,
+  host_api_version: /* @version host.api */ 1,
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
     { permission: "network:youtube.com", required: true, reason: "读取公开 YouTube Channel Feed" },

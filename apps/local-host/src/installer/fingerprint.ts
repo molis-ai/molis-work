@@ -1,4 +1,3 @@
-import { V_FORMAT_BUILD_MANIFEST } from "../versions.generated.js";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -43,7 +42,7 @@ async function exists(file: string): Promise<boolean> {
 
 export async function writeMolisWorkBuildManifest(packageRoot: string): Promise<MolisWorkBuildManifest> {
   const manifest: MolisWorkBuildManifest = {
-    schema_version: V_FORMAT_BUILD_MANIFEST,
+    schema_version: /* @version format.build.manifest */ 1,
     source_digest: await computeBuildSourceDigest(packageRoot),
     created_at: new Date().toISOString(),
   };

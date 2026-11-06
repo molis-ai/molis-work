@@ -1,4 +1,3 @@
-import { V_FORMAT_PLUGIN_PRESENTATION } from "./versions.generated.js";
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { pluginComponentChoices, type PluginComponentPlan } from './plugin-components.js';
 
@@ -32,7 +31,7 @@ const option = (value: unknown, values: readonly unknown[], name: string) => { i
 export function validatePluginPresentation(value: unknown, parts: readonly PluginComponentPlan[], contract: SandboxPluginContract): PluginPresentation {
   if (!plain(value)) return error('需要完整对象');
   keys(value, ['version', 'pages', 'parts']);
-  if (value.version !== V_FORMAT_PLUGIN_PRESENTATION) return error('不支持的呈现版本');
+  if (value.version !== /* @version format.plugin.presentation */ 1) return error('不支持的呈现版本');
   if (!Array.isArray(value.pages) || value.pages.length !== contract.pages.length || !plain(value.parts)) return error('每个页面需要一个布局和 parts 配置');
   const pageIds = new Set<string>(), referenced = new Set<string>();
   let count = 0;
@@ -78,7 +77,7 @@ export function validatePluginPresentation(value: unknown, parts: readonly Plugi
 
 /** Shared authoring vocabulary, included beside the actual component catalog. */
 export const PLUGIN_PRESENTATION_GUIDE = {
-  version: V_FORMAT_PLUGIN_PRESENTATION,
+  version: /* @version format.plugin.presentation */ 1,
   layout: 'pages: [{pageId, layout}]; layout 是 {part: 组件id} 或 {layout: stack|split|grid, gap?: tight|normal|roomy, ratio?: equal|main-left|main-right, children: [layout]}。split 恰好两组：equal 左右 1:1，main-left 第一组占 2/3，main-right 第二组占 2/3；按主内容所在组选择，不按组件排列先后猜主次。窄屏按 children 顺序堆叠。每个组件恰好引用一次，包括记录操作；不能新增 divider 等部件。',
   appearance: 'parts: {组件id: {kind?: 合法候选, density?: compact|normal|reading, measure?: full|reading, emphasis?: primary|secondary, detail?: boolean}}。detail 给集合增加选中记录的正文面，窄屏进入详情后可返回。每页最多一个 primary 命令。',
   controls: {

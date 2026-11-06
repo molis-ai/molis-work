@@ -1,4 +1,3 @@
-import { V_DATABASE_WORKFLOWS_DATABASE } from "./versions.generated.js";
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
@@ -45,5 +44,5 @@ const WORKFLOWS_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "工作流
   { table: "workflows", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const WORKFLOWS_DATABASE: HomePluginDatabaseDeclaration = { project_rows: WORKFLOWS_PROJECT_ROWS, store_name: "workflows", version: V_DATABASE_WORKFLOWS_DATABASE,
+export const WORKFLOWS_DATABASE: HomePluginDatabaseDeclaration = { project_rows: WORKFLOWS_PROJECT_ROWS, store_name: "workflows", version: /* @version database.workflows_database */ 1,
   read_permission: "workflows:read", write_permission: "workflows:write", schema: WORKFLOWS_SCHEMA };

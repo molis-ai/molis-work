@@ -1,4 +1,3 @@
-import { V_SYNC_COLLECTION_LINGGUANG_IDEAS, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { syncAggregateDeclaration } from "@molis-ai/molis-work-plugin-sdk";
 import { syncError } from './sync-errors.js';
 import type { SyncAggregateDefinition, SyncPortableRow } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
@@ -31,4 +30,4 @@ function base(r:SyncPortableRow){for(const k of ['id','project_id'])check(typeof
 function sparkIds(r:SyncPortableRow):string[]{check(typeof r.spark_ids_json==='string');const ids:unknown=JSON.parse(r.spark_ids_json);check(Array.isArray(ids)&&ids.length>0&&ids.length<=1000&&ids.every(id=>typeof id==='string'&&id.length>0&&id.length<=80)&&new Set(ids).size===ids.length);return ids;}
 function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'灵光同步数据不合法');}
 
-export const lingguangSync:PluginSyncDeclaration={protocol_version:V_SYNC_PROTOCOL,collections:[{id:'ideas',title:'灵光与对话',schema_version: V_SYNC_COLLECTION_LINGGUANG_IDEAS,requires:[],aggregates:syncAggregateDeclaration(lingguangAggregates)}]};
+export const lingguangSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'ideas',title:'灵光与对话',schema_version: /* @version sync.collection.lingguang.ideas */ 1,requires:[],aggregates:syncAggregateDeclaration(lingguangAggregates)}]};

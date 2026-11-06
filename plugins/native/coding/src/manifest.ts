@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_CODING_MANIFEST_CODINGMANIFEST } from "./versions.generated.js";
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -48,10 +47,10 @@ export const CODING_PROJECT_PLUGIN_ID = "coding";
  * Their absence never blocks an ordinary task.
  */
 export const codingManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: CODING_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_CODING_MANIFEST_CODINGMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Coding",
   sync: codingSync,
   summary: "和 Agent 一起写代码，留每轮记录。",

@@ -1,5 +1,4 @@
-import { V_TYPE_MOLIS_WORKFLOW_CONTENT_LIST_OUTPUT, V_TYPE_MOLIS_WORKFLOW_CONTENT_READ_OUTPUT, V_TYPE_MOLIS_WORKFLOW_CONTENT_RECEIVE_OUTPUT, V_TYPE_MOLIS_WORKFLOW_CONTENT_CREATE_OUTPUT } from "./versions.generated.js";
-const workflowOutputVersions = { list: V_TYPE_MOLIS_WORKFLOW_CONTENT_LIST_OUTPUT, read: V_TYPE_MOLIS_WORKFLOW_CONTENT_READ_OUTPUT, receive: V_TYPE_MOLIS_WORKFLOW_CONTENT_RECEIVE_OUTPUT, create: V_TYPE_MOLIS_WORKFLOW_CONTENT_CREATE_OUTPUT } as const;
+const workflowOutputVersions = { list: /* @version type.molis.workflow.content.list.output */ 1, read: /* @version type.molis.workflow.content.read.output */ 1, receive: /* @version type.molis.workflow.content.receive.output */ 1, create: /* @version type.molis.workflow.content.create.output */ 1 } as const;
 import { canonicalJsonText, isRecord } from "./json-value.js";
 import {
   DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_COLLECTION_SCHEMA, DUE_REMINDER_WINDOW_SCHEMA,

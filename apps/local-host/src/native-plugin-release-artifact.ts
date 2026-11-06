@@ -1,4 +1,3 @@
-import { V_FORMAT_PLUGIN_NATIVE_RELEASE } from "./versions.generated.js";
 import { build } from "esbuild";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,7 +40,7 @@ export function nativePluginReleaseArtifact<TFactory>(
       });
       const module_source = result.outputFiles[0]?.text;
       if (!module_source) throw new Error("Native 插件发行物构建没有输出代码");
-      const bundle: NativeReleaseBundle = { schema_version: V_FORMAT_PLUGIN_NATIVE_RELEASE, export_name: exportName, module_source };
+      const bundle: NativeReleaseBundle = { schema_version: /* @version format.plugin.native-release */ 1, export_name: exportName, module_source };
       return JSON.stringify(bundle);
     },
     async restore(value) {
@@ -51,7 +50,7 @@ export function nativePluginReleaseArtifact<TFactory>(
       } catch {
         throw new Error("Native 插件发行物无法解析");
       }
-      if (bundle.schema_version !== V_FORMAT_PLUGIN_NATIVE_RELEASE || bundle.export_name !== exportName || !bundle.module_source.trim()) {
+      if (bundle.schema_version !== /* @version format.plugin.native-release */ 1 || bundle.export_name !== exportName || !bundle.module_source.trim()) {
         throw new Error("Native 插件发行物格式与工厂不匹配");
       }
       const imported = await import(`data:text/javascript;base64,${Buffer.from(bundle.module_source).toString("base64")}`) as {

@@ -1,4 +1,3 @@
-import { V_FORMAT_CODING_PLAN } from "./versions.generated.js";
 import { codingArtifacts } from "./artifacts.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { CONTINUATION_MARKER, originalTask, requestText } from "./continuation.js";
@@ -17,7 +16,7 @@ export interface CodingPlanDraft {
 export type CodingFixedPlan = Omit<CodingPlanDraft, "source"> & {
   source: Omit<CodingPlanDraft["source"], "workspace_path">;
 };
-export const CODING_PLAN_SCHEMA_VERSION = V_FORMAT_CODING_PLAN;
+export const CODING_PLAN_SCHEMA_VERSION = /* @version format.coding.plan */ 1;
 export function portableCodingPlan(draft: CodingPlanDraft): CodingFixedPlan {
   return { revision: draft.revision, content: draft.content,
     source: { session_id: draft.source.session_id, run_id: draft.source.run_id, task: draft.source.task }, confirmed: draft.confirmed };

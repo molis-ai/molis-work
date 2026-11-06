@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_FORM_MANIFEST_FORMMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { formSync } from './replication.js';
 import {
@@ -20,11 +19,11 @@ export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
 const FORM_BODY_BYTES = 1_000_000;
 
 export const formManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: FORM_PLUGIN_ID,
   sync: formSync,
-  version: V_PACKAGE_PLUGINS_NATIVE_FORM_MANIFEST_FORMMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Forms",
   summary: "建问卷，收答卷，看逐题汇总。",
   kind: "native",

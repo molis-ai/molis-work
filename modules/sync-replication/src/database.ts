@@ -1,6 +1,5 @@
-import { V_DATABASE_SYNC_STORE_BASELINE } from "./versions.generated.js";
 import {openBaselineHomeSqlite,type SqliteBaseline} from '@molis-ai/molis-work-storage';
-export const SYNC_STORE_BASELINE:SqliteBaseline={version: V_DATABASE_SYNC_STORE_BASELINE,schema:`
+export const SYNC_STORE_BASELINE:SqliteBaseline={version: /* @version database.sync_store_baseline */ 1,schema:`
 CREATE TABLE sync_policy(id INTEGER PRIMARY KEY CHECK(id=1),json TEXT NOT NULL);
 CREATE TABLE sync_partition_cursors(namespace TEXT PRIMARY KEY,cursor INTEGER NOT NULL);
 CREATE TABLE sync_blob_parts(namespace TEXT NOT NULL,digest TEXT NOT NULL,part INTEGER NOT NULL,checksum TEXT NOT NULL,bytes BLOB NOT NULL,PRIMARY KEY(namespace,digest,part));

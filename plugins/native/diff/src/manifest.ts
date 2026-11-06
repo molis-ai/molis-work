@@ -1,4 +1,3 @@
-import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_DIFF_MANIFEST_DIFFMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   CODING_CHANGESET_TYPE,
@@ -37,10 +36,10 @@ export const DIFF_GIT_GROUP = "git-change-set";
  * activation, and Diff with nothing bound is a legitimate, explainable state.
  */
 export const diffManifest: PluginManifest = {
-  schema_version: V_MANIFEST_SCHEMA,
-  host_api_version: V_HOST_API,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: DIFF_PLUGIN_ID,
-  version: V_PACKAGE_PLUGINS_NATIVE_DIFF_MANIFEST_DIFFMANIFEST,
+  version: /* @version product.release */ "0.1.0",
   name: "Diff",
   summary: "比较固定版本，逐项阅读差异。",
   kind: "app",

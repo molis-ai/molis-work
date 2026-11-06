@@ -1,4 +1,3 @@
-import { V_DATABASE_AGENT_DEFINITIONS_BASELINE } from "../versions.generated.js";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
@@ -21,7 +20,7 @@ const AGENT_DEFINITIONS_STORE = "agent-definitions";
 const USES_KEPT = 200;
 
 /** The agent definitions store's one current schema (repository-anti-corruption §4.1). */
-export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: V_DATABASE_AGENT_DEFINITIONS_BASELINE, schema: `
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 1, schema: `
 CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL, default_ref TEXT
 );

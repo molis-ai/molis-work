@@ -1,4 +1,3 @@
-import { V_FORMAT_PLUGIN_PRESENTATION } from "./versions.generated.js";
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { PLUGIN_COMPONENT_STYLES } from './plugin-components.js';
@@ -21,7 +20,7 @@ export const readingNodes: PluginComponentNode[] = [
   { id: 'remove', pageId: 'home', regionId: 'main', intent: 'action', purpose: '删除摘记', props: { submitLabel: '删除这条摘记' }, kind: 'alert-dialog', submit: { operationId: 'notes.remove', input: { id: { source: 'selection', componentId: 'notes', field: 'id' } } } },
 ];
 export const readingPresentation: PluginPresentation = {
-  version: V_FORMAT_PLUGIN_PRESENTATION, pages: [{ pageId: 'home', layout: { layout: 'stack', gap: 'roomy', children: readingNodes.map(node => ({ part: node.id })) } }],
+  version: /* @version format.plugin.presentation */ 1, pages: [{ pageId: 'home', layout: { layout: 'stack', gap: 'roomy', children: readingNodes.map(node => ({ part: node.id })) } }],
   parts: { notes: { detail: true, density: 'reading', kind: 'directory' }, editor: { kind: 'sheet', emphasis: 'primary' }, remove: { kind: 'alert-dialog' } },
 };
 export const readingSamples = [

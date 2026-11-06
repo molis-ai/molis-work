@@ -1,4 +1,3 @@
-import { V_FORMAT_GIT_DRAFTS } from "./versions.generated.js";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * Unsent text the user typed into Git: a commit message, a branch name, a
@@ -98,7 +97,7 @@ export function serializeStoredDrafts(stored: StoredDrafts): string {
     conflicts[workspaceId] = files;
   }
   return JSON.stringify({
-    version: V_FORMAT_GIT_DRAFTS,
+    version: /* @version format.git.drafts */ 1,
     drafts: Object.fromEntries(stored.drafts),
     conflicts,
   });

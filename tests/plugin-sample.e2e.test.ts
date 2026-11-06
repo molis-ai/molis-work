@@ -1,3 +1,4 @@
+import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { connectorControl } from "./fixtures/connector-control.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -9,7 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -26,7 +27,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
   const project = join(directory, "sample");
   const cli = join(root, "tooling/plugin-cli/bin/molis-work-plugin.mjs");
   let store: LocalProjectDatabase | undefined;
-  let privateDb: Database.Database | undefined;
+  let privateDb: SqliteDatabase | undefined;
   try {
     const invalid = spawnSync(process.execPath, [cli, "create", project, "invalid", "developer", "local-binding"], { encoding: "utf8" });
     assert.equal(invalid.status, 1);
@@ -142,7 +143,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const boardPath = join(directory, "board.db");
     seedDemoBoard(boardPath);
     store = new LocalProjectDatabase(boardPath);
-    privateDb = new Database(join(directory, "private.db"));
+    privateDb = openPluginTestDatabase(join(directory, "private.db"));
     const privateOwner = new SqlitePluginPrivateStorage(privateDb);
     const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store!.appendEvent(event), eventCursor: projectId => store!.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store!.appendEvent(event), eventCursor: projectId => store!.eventCursor(projectId) });
     const ui = new UiHost();

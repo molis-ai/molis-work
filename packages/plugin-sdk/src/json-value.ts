@@ -7,9 +7,9 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
  * Returns a new value; this does not validate or serialize non-JSON inputs. */
 export function canonicalJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalJsonValue);
-  if (value && typeof value === "object") {
+  if (isRecord(value)) {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
+      Object.entries(value)
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([key, item]) => [key, canonicalJsonValue(item)]),
     );

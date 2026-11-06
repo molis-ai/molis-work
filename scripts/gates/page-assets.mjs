@@ -305,16 +305,17 @@ const headErrors = (measured, budget, base) => {
 // account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
 // FCS-01/02 (#1859) and ASC-57 (#1858) were independently reviewed and are already in main's budgets.
 // ASC-57 added +248 B to settings/workbench CSS and +1035 B to workbench.js for unused-key notices.
-// T-01 carries only the remaining account admission on main c30e251b3: K-20 saved 38/36 B in the two stylesheets,
+// T-01 carries only the remaining account admission on main a942bd9c3: K-20 saved 38/36 B in the two stylesheets,
 // K-22 saves 7 B in the script by keeping the platform refresh cursor independently of the Goals snapshot.
 // K-26 captures native toggle and shortens its owner selector, saving another 4 B.
-// Remaining deltas: arrival +645 B, workbench.css +416 B, workbench.js +39618 B, plugin-frame +54 B.
+// Main now includes the same K-20 stylesheet savings; the absolute account ceilings do not grow.
+// Script is measured again after the shared SDK integration; the ceiling below is then reduced to that measurement.
 // ASC-59 (#1865) is already in main: +6558 B for connector replacement.
 // No new allowance or resource; spent main admissions are removed.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [693169, 693814],
-  "/assets/molis-work-workbench.css": [1204745, 1205161],
-  "/assets/molis-work-workbench.js": [1085276, 1124894],
+  "/assets/molis-work-arrival.css": [693131, 693814],
+  "/assets/molis-work-workbench.css": [1204709, 1205161],
+  "/assets/molis-work-workbench.js": [1085274, 1124894],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

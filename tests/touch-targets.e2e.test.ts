@@ -603,7 +603,11 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   const panelHeader = () => evaluate<PanelHeader>(PANEL_HEADER);
   const panelBody = () => evaluate<PanelBody>(PANEL_BODY);
 
-  /** The heights of the `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it. */
+  /**
+   * The heights of the visible `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it, in two lists:
+   * `plain` rows (a name only) and `described` rows (`mw-menu__item--described`: a 12px description under the name, the "Menu
+   * Description" specimen added by K1 #1850). A described row grows with its description and has its own rule in DESIGN.md's `mw-menu` paragraph.
+   */
   const menuRows = async (width: number, height: number) => {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: touch }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
@@ -764,6 +768,9 @@ for (const scheme of ["light", "dark"] as const) {
     for (const [width, height] of [[390, 844], [1024, 768]] as const) {
       const rows = await w.menuRows(width, height);
       assert.ok(rows.length > 0, `the specimen board shows menu items at ${width}`);
+      const plainRows = rows.filter(row => !row.described);
+      assert.ok(plainRows.length > 0, `plain menu items are present at ${width}`);
+      assert.deepEqual(plainRows.filter(row => row.h !== 44), [], `plain mw-menu items are exactly 44px tall at ${width}`);
       assert.deepEqual(rows.filter(row => row.h < 44), [], `mw-menu items are 44px tall at ${width} (${rows})`);
       const describedRows = rows.filter(row => row.described);
       assert.ok(describedRows.length > 0, `T01-MENU-01: described menu items are present at ${width}`);
@@ -875,6 +882,7 @@ for (const scheme of ["light", "dark"] as const) {
     assert.deepEqual([...new Set(menuRows.filter(row => !row.described).map(row => row.h))], [34], "ordinary mw-menu items keep their 34px with a fine pointer");
     const describedRows = menuRows.filter(row => row.described);
     assert.ok(describedRows.length > 0, "the specimen board includes described menu items");
+    assert.deepEqual(describedRows.filter(row => ![56, 74].includes(row.h)), [], "described desktop items keep their one-line or two-line description heights");
     assert.deepEqual(describedRows.filter(row => row.h <= 34 || !row.descriptionFits), [], "described menu items expand to show their complete description");
 
     // What the bar opens keeps the desktop floor too (32px, 28px compact): nothing in its lists is smaller.

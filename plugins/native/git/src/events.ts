@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginEventType } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { GIT_OPERATION_UPDATED_EVENT, GIT_FILE_CHANGED_EVENT, parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
@@ -64,8 +65,4 @@ function requireText(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${field} 无效`);
   if (value.length > 256) throw new Error(`${field} 超出上限`);
   return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

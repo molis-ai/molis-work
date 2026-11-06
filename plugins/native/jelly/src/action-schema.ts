@@ -1,8 +1,6 @@
-import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectSchema as object, arraySchema as array, nullableSchema as nullable } from "@molis-ai/molis-work-plugin-sdk";
+export { object, array, nullable };
 
-export const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-export const array = (items: ActionSchema): ActionSchema => ({ type: "array", items });
-export const nullable = (schema: ActionSchema): ActionSchema => ({ anyOf: [schema, { type: "null" }] });
 export const text = { type: "string" };
 export const id = { type: "string", minLength: 1 };
 export const boolean = { type: "boolean" };

@@ -7,7 +7,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -39,13 +39,13 @@ async function withCrashedCoding(run: (api: {
       ...(authorized ? { "x-molis-work-control-token": token } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  let db: Database.Database | undefined;
+  let db: SqliteDatabase | undefined;
   try {
     const created = await request("/api/settings/projects", "POST", { display_name: "Route operations", user_confirmed: true });
     assert.equal(created.status, 201);
     const projectId = (await created.json()).project.project_id;
     assert.equal((await request(`/api/settings/projects/${projectId}/plugins`, "POST", { plugin_id: "coding" })).status, 200);
-    db = new Database(path.join(root, "projects", projectId, "molis-work.db"));
+    db = openTestSqlite(path.join(root, "projects", projectId, "molis-work.db"));
     const repository = new SqlitePluginRuntimeRepository(db);
     const current = createCodingPlugin();
     const failing = { ...current, async start(): Promise<never> { throw new Error("fixture startup failure"); },

@@ -1,3 +1,4 @@
+import { objectSchema, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { feedCaptureContent } from "./scenes.js";
 import { retainActionAuthority, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
@@ -14,14 +15,14 @@ const fields = { name: { type: "string", minLength: 1, maxLength: 80 }, match, e
   judgment: { anyOf: [reference, { type: "null" }] }, admission: { enum: ["suggest", "inbox"] } };
 const rule = { type: "object", properties: { ...fields, project_id: id, rule_id: id, created_at: text, updated_at: text, revision: id },
   required: ["project_id", "rule_id", "name", "match", "enabled", "judgment", "admission", "revision", "created_at", "updated_at"] };
-const object = (properties: Record<string, unknown>, required: string[] = []): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
+const object = (properties: Record<string, unknown>, required: string[] = []): ActionSchema => objectSchema(properties, required);
 const result = { type: "object", properties: { rule }, required: ["rule"] };
 function define<I, O>(suffix: string, title: string, description: string, input_schema: ActionSchema, output_schema: ActionSchema, write = false, permissions?: string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return { capability_id: `feed.rules.${suffix}`, version: 1, operation: write ? "command" : "query", action: {
-    title, description, ...(execution ? { execution } : {}), kind: write ? "operation" : "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
+  return createActionDefinition<I, O>(`feed.rules.${suffix}`, write ? "command" : "query", {
+    title, description, ...(execution ? { execution } : {}), kind: write ? "operation" : "query", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: permissions ?? (write ? ["feed:read", "feed:write"] : ["feed:read"]), subject_kinds: ["feed_item", "source"], input_schema, output_schema,
     ...(["evaluate", "preview-judgment"].includes(suffix) ? { scheduling: "concurrent" as const } : {}),
-  } };
+  });
 }
 export interface FeedJudgmentChoice { reference: ActionReference; title: string; available: boolean; reason?: string }
 export interface FeedJudgmentCatalog { choices: FeedJudgmentChoice[]; usages: readonly ActionSceneUsage[] }

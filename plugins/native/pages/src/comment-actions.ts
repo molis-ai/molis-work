@@ -1,3 +1,4 @@
+import { createActionDefinition, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { cutHead, cutTail } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { pagesErrors } from "./error.js";
@@ -11,19 +12,14 @@ import { nodeFromUnknown } from "./schema.js";
 
 const id = { type: "string", minLength: 1, maxLength: 160 };
 const text = { type: "string" };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const message = object({ message_id: id, author: { enum: ["user", "assistant", "annotation"] }, body: text, reply_to: id,
   created_at: text, request_id: id, work_id: id, run_id: id }, ["message_id", "author", "body", "created_at", "request_id"]);
 const thread = object({ thread_id: id, page_id: id, revision: { type: "integer", minimum: 0 },
   anchor: object({ kind: { enum: ["document", "text"] }, mark_id: id, excerpt: text }, ["kind", "excerpt"]),
   detached: { type: "boolean" }, messages: { type: "array", items: message } });
-const define = <I, O>(suffix: string, title: string, input: ActionSchema, output: ActionSchema, write = false, role?: "context" | "reply"): ActionDefinition<I, O> => ({
-  capability_id: `pages.comments.${suffix}`, version: 1, operation: write ? "command" : "query",
-  provider_id: "io.molis.work.pages",
-  action: { title, description: title, kind: write ? "operation" : "query", scope: "project", audiences: ["user"],
+const define = <I, O>(suffix: string, title: string, input: ActionSchema, output: ActionSchema, write = false, role?: "context" | "reply"): ActionDefinition<I, O> => ({ ...createActionDefinition<I, O>(`pages.comments.${suffix}`, write ? "command" : "query", { title, description: title, kind: write ? "operation" : "query", scope: "project", audiences: ["user"],
     effect: write ? "write" : "read", permissions: write ? ["pages:read", "pages:write"] : ["pages:read"], subject_kinds: ["pages_document"],
-    input_schema: input, output_schema: output, ...(role ? { thread_source: { role, subject_kind: "pages_document" } } : {}) },
-});
+    input_schema: input, output_schema: output, ...(role ? { thread_source: { role, subject_kind: "pages_document" } } : {}) }), provider_id: "io.molis.work.pages" });
 const target = { subject_id: id, thread_id: id };
 export const pagesCommentActions = {
   list: define<{ page_id: string }, { threads: PagesCommentThread[] }>("list", "查看文档评论", object({ page_id: id }), object({ threads: { type: "array", items: thread } })),

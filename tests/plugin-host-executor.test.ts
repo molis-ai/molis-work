@@ -1,3 +1,4 @@
+import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -6,7 +7,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
 import { captureHostLog, PluginHostExecutor, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -66,7 +66,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const privateDb = new Database(join(directory, "plugin-private.db"));
+  const privateDb = openPluginTestDatabase(join(directory, "plugin-private.db"));
   const privateOwner = new SqlitePluginPrivateStorage(privateDb);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const ui = new UiHost();

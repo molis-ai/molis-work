@@ -1,7 +1,7 @@
 import { SchedulePluginRouteTable } from "./schedule-direct-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 
 import {
   SCHEDULE_PLUGIN_ID,
@@ -28,7 +28,7 @@ import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 
 /** A bare library with Schedule's declared tables, as the platform makes them when a project opens with Schedule. */
 function scheduleDatabase() {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.exec(SCHEDULE_PROJECT_DATABASE.schema);
   return db;
 }

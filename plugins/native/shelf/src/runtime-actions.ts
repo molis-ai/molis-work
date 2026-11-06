@@ -1,5 +1,5 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
+import { objectSchema as object, createActionDefinition, bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -7,14 +7,13 @@ import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { checkedDocument, codingResultDocument, shelfCopyOf } from "./coding-result.js";
 
 const text = { type: "string" };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const reference = object({ artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } });
 const preview = { type: "object", properties: { title: text, text, fingerprint: text, source: { type: "object" } }, required: ["title", "text", "fingerprint", "source"] };
 const SHARED: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED, scope: "home" | "project" = "project"): ActionDefinition<I, O> {
-  return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope, scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output } };
+  return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
+    scope, scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output });
 }
 
 /** What this project's Runtime instance redeems: Coding results offered to Shelf. */

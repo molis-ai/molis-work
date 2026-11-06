@@ -1,3 +1,4 @@
+import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import { installGraphConnectorTool } from "./connector-powershell.js";
 import { installNativeConnectorTool } from "./connector-native-install.js";
 import { randomUUID } from "node:crypto";
@@ -93,7 +94,6 @@ export function removeManagedConnectorTool(home: string, id: string): "in-use" |
   return "removed";
 }
 
-const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 /** Only the ready record installManagedConnectorTool writes last is a completed installation; any other shape is refused before it is used. */
 const readyRecord = (value: unknown): value is ManagedToolInstallation & { ready: true } => object(value) && value.ready === true && typeof value.id === "string"
   && typeof value.directory === "string" && typeof value.executable === "string" && Array.isArray(value.runtime_path) && object(value.source) && typeof value.source.kind === "string";

@@ -158,6 +158,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/primitive-catalog.ts": "开发规格板",
   "apps/workbench/src/condition-frame.ts": "开发规格板：条件与状态的框架页",
   "apps/workbench/src/assistant-board-frame.ts": "开发规格板：助理信息与任务的框架页",
+  "apps/workbench/src/navigation-specimens.ts": "开发规格板：工作台导航的框架页",
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",
   "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",

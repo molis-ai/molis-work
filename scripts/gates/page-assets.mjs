@@ -285,6 +285,20 @@ const headErrors = (measured, budget, base) => {
 // the listed name), workbench.js +2357 B (fetch, filter, pick, keyboard). These add on top of the account entries above, which
 // share the same merge-base. Tried: the picker reuses `.model-field` and the board's combobox styles, the save and the fetch share
 // one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441.
+// 07-S0 (workbench navigation specimens; 07 批评审台与 D 轨合审审过（#1852）): the README's new tab-strip, titlebar and
+// three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
+// workbench.css +9705 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
+// the phone titlebar's strip (6422 B), the glyph row with its own tab and count (2736 B, glyph-tabs.ts) and the bar zones (547 B).
+// arrival.css +3283 B: the same glyph row, which the arrival titlebar draws without the project page's tab rules, and the bar
+// zones. settings.css +547 B: the bar zones through craft-finish. (The BL-953 entries for these three are spent: the merge-base
+// budget holds their ceilings.) Tried: the board-only scaffolding stays inline on the board's frame page; the layout button is
+// the ghost icon .mw-btn and "open beside" the switcher row's button, not classes of their own; the new class names drop the
+// body.immersive-workbench prefix where no rule competes (it stays on the tab, group and toggle overrides); one class for the
+// strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
+// weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
+// On main's base after ASC-56 (settings.css 826998, workbench.css 1194792) the account and ASC-56 entries for those two are spent,
+// so 07-S0 keys its own there; arrival.css still shares the 689886 key with the account admission, and 07-S0's ceiling there
+// also covers the account PR's +683 B. Whichever lands second moves its own entry onto the new base.
 // BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
 // table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
@@ -292,12 +306,12 @@ const headErrors = (measured, budget, base) => {
 // ASC-57 (第 13 批②, 2026-11-06): after a key change or a provider removal the page points out the old key nothing uses and
 // offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
 // spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
-// the merge-base after #1855 and BL-912. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
+// the merge-base after #1855, BL-912 and #1852. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
 // the select in place instead of reloading the page, the host names no key so the page needs no second string.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 690569],
-  "/assets/molis-work-settings.css": [826998, 827246],
-  "/assets/molis-work-workbench.css": [1194792, 1195040],
+  "/assets/molis-work-arrival.css": [689886, 693169],
+  "/assets/molis-work-settings.css": [827545, 827793],
+  "/assets/molis-work-workbench.css": [1204497, 1204745],
   "/assets/molis-work-workbench.js": [1077514, 1078549],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };

@@ -72,7 +72,7 @@ export function connectorUsagesSwitchHandler(home: string, clientFor?: (caller: 
       if (stopped) { report.failed.push({ ...at, code: stopped }); continue; }
       // Only the Host's own consumers for now: one a plugin declares cannot yet tell this nested call from a direct one, and B is not
       // checked against S-95 for it, so it is never called (BL-1045; the hub, 2026-11-05).
-      if (!consumer.provider.provider_id.startsWith("system.")) { report.failed.push({ ...at, code: connectionSwitchErrors.consumer_unsupported("").code }); continue; }
+      if (consumer.provider.kind !== "system") { report.failed.push({ ...at, code: connectionSwitchErrors.consumer_unsupported("").code }); continue; }
       if (!consumer.availability.available) { report.failed.push({ ...at, code: connectionSwitchErrors.consumer_unavailable("").code }); continue; }
       try {
         const result = await client.invoke(nested, at, input) as ConnectorUsagesSwitchResult;

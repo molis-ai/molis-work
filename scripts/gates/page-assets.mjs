@@ -280,10 +280,20 @@ const headErrors = (measured, budget, base) => {
 // K-07 (2026-11-06, explicitly approved): arrival side panels follow the stage grid above the wrapping bar.
 // Scoped selectors were shortened; arrival.css adds exactly 273 B over 690296, with no new asset.
 // Main #1747 reduced workbench.css by 4 B; preserve its approved +452 B on the new 1194521 B base.
+// ASC-56 (第 13 批⑦, approved by the user on 2026-11-05): the model settings page fetches the models a service offers and lists
+// them with the board's combobox to filter and pick. settings.css +271 B and workbench.css +271 B (header alignment, the picked mark,
+// the listed name), workbench.js +2357 B (fetch, filter, pick, keyboard). These add on top of the account entries above, which
+// share the same merge-base. Tried: the picker reuses `.model-field` and the board's combobox styles, the save and the fetch share
+// one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441.
+// BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
+// one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
+// table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
+// account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 690569],
-  "/assets/molis-work-workbench.css": [1194521, 1194973],
-  "/assets/molis-work-workbench.js": [1075120, 1114749],
+  "/assets/molis-work-settings.css": [826727, 826998],
+  "/assets/molis-work-workbench.css": [1194792, 1195244],
+  "/assets/molis-work-workbench.js": [1077514, 1117143],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

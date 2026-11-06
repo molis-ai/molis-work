@@ -8,10 +8,10 @@
 
 这份设计管两件小而散的事，都关于「动作收到的输入」。
 
-- **N14。** 判断规则的编辑动作用一个特别的字段（`updated_at`）表示「我读到的版本」，内核为此写了一条按名字认它的分支；而且不带版本也能过，等于「两个人同时改，后保存的悄悄盖掉先保存的」。改完以后，它和别的动作一样必须带上读到的版本；过期了不覆盖，页面能重新载入。
+- **N14。** 判断规则的编辑动作用一个特别的字段（`updated_at`）表示「我读到的版本」，内核为此写了一条按名字认它的分支；而且不带版本也能过：工作台每次都带，只有省略版本的调用才可能盖掉别人的改动。改完以后，它和别的动作一样必须带上读到的版本；过期了不覆盖，页面就地接住，输入不丢。
 - **N22。** 平台在调用处理器之前已经按声明检查过输入，处理器却拿不到类型，只好再检查一遍，于是同样的读值小函数写了几十份。做一份类型推导，全部处理器一次迁过去，补上声明里缺的约束，删掉重复的检查。这件事很大（约 30 片），第 06 批的实现要等它做完，§8 写了怎样派工、怎样尽量缩短。
 
-用户能看到的只有第一件：编辑判断规则时，过期的保存不再悄悄盖掉别人的改动。第二件纯属内部整理。
+用户能看到的只有第一件：编辑判断规则时，别处改过内容或删掉了规则，页面就地说明，能载入最新版，正在写的内容不丢。第二件纯属内部整理。
 
 ## 第一部分：N14 版本字段
 
@@ -141,7 +141,7 @@ sample_not_found: "not_found",
 
 | 数据 | 从哪来 | 用来 |
 | --- | --- | --- |
-| 基准版 | 最后一次成功保存或载入的记录，工作台是 `sel`，Feed 是 `saved.function` | 比出「只有你改的」「只有别处改的」「两边都改的」 |
+| 基准版 | 最后一次成功保存或载入的记录，工作台是 `sel`，Feed 是 `saved.function`（存的是完整的 `JudgmentRuleRecord`，定义字段都在，够比较） | 比出「只有你改的」「只有别处改的」「两边都改的」 |
 | 最新版 | `functions.authoring.get`，现有动作，返回完整记录，带新的 `updated_at`。**不需要新动作** | 载入、比较。比较的字段就是 §2.4 那份定义字段 |
 | 你写的 | 还在表单里。合同不碰它。`draft_stale` 时页面**不要**自动覆盖表单 | 放回、换回 |
 | 规则的 `primitive` 和原 `function_key` | 基准版 | 「存成新规则」 |
@@ -154,7 +154,7 @@ sample_not_found: "not_found",
 
 **实现时要动的（不是合同，但不做就撑不起定样）：**
 
-- 工作台 `client-records.ts` 的 `saving` 串行链：每次保存用上一次响应里的 `updated_at`，不用表单打开时的。现在靠 `??` 掩盖了这件事，改完以后必须是对的，否则连续保存第二次就冲突。
+- 工作台 `client-records.ts` 每次都带版本（`:149`），`saving` 串行链已经用上一次响应里的 `updated_at`（`:157`），不用改。版本必填之后这里错了连续保存第二次就冲突，所以 AIC-07 钉住。
 - `client-records.ts:128`、`:138` 两处 `closeEditor()`：有未保存输入时不关，进「已被删除」；没有未保存输入才照旧关掉。
 - 编辑器的输入现在只在内存里。冲突期间写一份到会话存储，刷新页面才不丢；Feed 已经这样做了。
 - Feed `rule-authoring.ts` 把 `saved.function` 存在会话存储：`draft_stale` 载入后必须用新记录替换它，并清掉 `previewContent`（启用前要求预览过当前内容，`:87`），否则下次提交还是旧值，永远失败。
@@ -209,7 +209,7 @@ export type InferActionInput<S> =
   : unknown;
 ```
 
-推不出来的情形（`$ref`、`allOf`、`if/then`）退回 `unknown`，读字段编译报错，安全。只写 `{ type: "object" }` 的推成 `Record<string, unknown>`：读字段不报错，但读到的是 `unknown`，当字符串用才报错，同样不会悄悄变 `any`。
+推不出来的情形（`$ref`、`allOf`、`if/then`，以及同时有 `properties` 和顶层 `anyOf: [{ required: [...] }]` 的写法）退回 `unknown`，读字段编译报错，安全。后一种现在有 3 处（`todo/actions.ts` 2 处、`cognia/actions.ts` 1 处），这两个包迁的时候先改写法。只写 `{ type: "object" }` 的推成 `Record<string, unknown>`：读字段不报错，但读到的是 `unknown`，当字符串用才报错，同样不会悄悄变 `any`。
 
 ### 4.3 工具合同（N22-01）
 
@@ -334,7 +334,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | --- | --- | --- | --- | --- | --- | --- |
 | N22-01 工具合同 | §4.2、§4.3，类型测试 | contracts `platform/actions.ts`、SDK `actions.ts`（2） | C1 | `api/contracts/platform/actions.txt`、`api/plugin-sdk/index.txt` | Opus 5.5 high，全量 | #1837（共用 `index.txt`）。**不等 05② C-1**，文件和快照都不重叠；和 05② C-2、U1-f、08 C-1 共用 `index.txt`，谁先准备好谁先，一前一后 |
 | N22-06 `normalizeProjectId` | §6 | Dataset、Form、Lingguang、Pages、PPT 的 `store.ts`（5） | E | 无 | Sonnet 5.5 high | **不依赖工具，也不等 #1837**：02 的 PR 没碰这五个 store（已查）。统筹可以最先开它 |
-| N14 | §2、§3 | §3 | 无归属（kernel 按 C1），Feed 一个文件 E | `host-actions.tsv` 6 行 | Sonnet 5.5 high，全量 | #1790；定样 PR；E 轨预警 |
+| N14 | §2、§3 | §3 | 无归属（kernel 按 C1），Feed 一个文件 E | `host-actions.tsv` 6 行 | Opus 5.5 high，全量 | #1790；定样 PR；E 轨预警 |
 | N22-04 试点 Jelly | T＋S 同一个 PR，把两种片都走通，**定下写法样板**，量 §4.6 | Jelly（5） | E | `actions.tsv` | Opus 5.5 high | N22-01。**它通过之前，下面的 T 片不开** |
 | N22-02 共享帮手 | 共享定义 `bind*` 改调工具，schema 包 `inputSchemaFor`。T 片 | contracts `platform/{artifact-pins,file-sources,placement,search-sources,workflow-content}.ts`、SDK `routes.ts`（6） | C1 | 预计无（实测为准，有变化排 api 队列） | Sonnet 5.5 high，全量 | N22-01 |
 | N22-05 判断规则 | T＋S 同一个 PR：包小，N14 刚改过 | `modules/judgment-rules/src/{authoring-actions,actions}.ts`、宿主 `judgment-rules-actions.ts`（3） | 无归属 | `host-actions.tsv` | Sonnet 5.5 high，全量 | **N14**（同一个文件）、N22-01 |
@@ -539,6 +539,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 2026-11-06 | 预览先比版本再调模型 | 只在保存时比 | 过期的预览不该花模型钱 |
 | 2026-11-06 | 载入最新版不加新动作，用 `functions.authoring.get` | `draft_stale` 的 `details` 带回最新记录 | 错误里不回显内容；`get` 已有 |
 | 2026-11-06 | **「载入最新版」的样子用方案 A 就地接住**（用户定）：底部提示加一个按钮，只有两边都改的字段摆出你写的，可放回、可换回；不提供一键覆盖 | B 对比后决定、C 拦下来问 | 定样 PR 记录；合同上的要求见 §2.7 |
+| 2026-11-06 | N14 定样的取舍以路线书第 05 批记录为准（`reference/batches/05.md` 的 `batch-05-n14-sample`，随 #1863 合入），这里不重复 | - | 批次文件是定样的出处，本稿只写合同这一半 |
 | 2026-11-06 | **`updated_at` 只代表定义内容**：试跑、样例、发布、无变化的保存都不推它 | 另加内容版本列；照旧推、让页面重读比较 | 不改表、不等 U1；所有调用方一起受益。`functions-store-versions.test.ts` 的旧断言是这条合同，要改 |
 | 2026-11-06 | **发布时读到的版本和已发布的不同，报 `published_immutable`**，相同才幂等成功 | 一律幂等成功；输出加 `already_published` 字段 | 版本不同说明调用方没读过这次发布的内容，不能当成功；发布不推版本之后，这个判断不用加列 |
 | 2026-11-06 | 新错误码 `functions.sample_not_found` | 和规则不在共用 `not_found` | 页面只看码就要分清「规则没了」和「样例没了」，后者不该提示 |
@@ -561,7 +562,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | AIC-04 | 发布不带版本被拒；已发布的记录传发布的那一版：幂等返回；传更早的版本：`functions.published_immutable`，记录不变；过期的发布不先报「还没试跑」 |
 | AIC-05 | 预览传旧值：不调模型（假模型计数 0）；调用期间被别人改了内容：`savePreview` 得 `draft_stale`，不写 |
 | AIC-06 | 内核里没有能力名字面量：`version-precondition.ts` 不再读 `capability_id` |
-| AIC-07 | 工作台连续保存两次都成功（第二次用第一次响应的版本）；两个页面同时改，后保存的得 `draft_stale`，未保存的输入还在，载入最新版后拿到新内容（界面断言按定样补） |
+| AIC-07 | 工作台连续保存两次都成功（第二次用第一次响应的版本）；两个页面同时改，后保存的得 `draft_stale`，未保存的输入还在，载入最新版后拿到新内容；别处只试跑或只加样例，这边保存成功，不出提示；别处删除后，未保存的输入还看得到，并有说明（界面断言按定样补；前两种情形的合同半见 AIC-09，删除的合同半见 AIC-15） |
 | AIC-08 | Feed：`draft_stale` 后存的旧版本作废，下一次提交用新版本成功；载入后要求重新预览；已发布后走重建草稿，新草稿不撞 key |
 | AIC-09 | 试跑、加样例、删样例、发布、规整后无变化的保存，都不改 `updated_at`；定义字段真的变了才改。别处点一下试跑（含它先存一遍），这边的保存照常成功，不提示。列表顺序：发布顶到前面，试跑不动 |
 | AIC-10 | 类型测试：必填、可选、enum、`oneOf`、`["string","null"]`、数组、`additionalProperties` 推导正确；只写 `{ type: "object" }` 时字段值是 `unknown`；`inputSchemaFor` 在 schema 比接口松、字段类型不符时编译失败，`.d.ts` 不含 schema 字面量 |

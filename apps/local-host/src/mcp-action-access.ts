@@ -4,6 +4,7 @@ import type { McpAccessEntry } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { readMcpToolPreference, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
 import { actionClientAudience, openByDefault, resolveMcpActionContext } from "./mcp-action-grants.js";
+import { isTaskGrantSubject } from "./task-grant-subjects.js";
 
 const same = (grant: McpActionGrant, view: ActionView) => grant.capability_id === view.capability_id && grant.version === view.version && grant.provider_id === view.provider.provider_id;
 
@@ -47,11 +48,15 @@ export async function mcpAccessPageModel(options: {
   const { home, host, url, projects } = options;
   const preference = await readMcpToolPreference(home);
   const selected = url.searchParams.get("client");
-  const clientId = (selected === "custom" ? url.searchParams.get("client_custom") : selected)?.trim() || null;
+  // A task's grants are the person's per task, set and taken back where the task is (agent.task_grants.*): this page neither lists nor edits them.
+  const named = (selected === "custom" ? url.searchParams.get("client_custom") : selected)?.trim() || null;
+  const clientId = named && !isTaskGrantSubject(named) ? named : null;
   const projectId = url.searchParams.get("project") || null;
   const clients = [...options.clients];
   if (!clients.some(client => client.id === "agent:prologue")) clients.push({ id: "agent:prologue", title: "内置 Agent（Prologue）" });
-  for (const grant of preference.action_grants) if (!clients.some(client => client.id === grant.client_id)) clients.push({ id: grant.client_id, title: grant.client_id });
+  for (const grant of preference.action_grants) {
+    if (!isTaskGrantSubject(grant.client_id) && !clients.some(client => client.id === grant.client_id)) clients.push({ id: grant.client_id, title: grant.client_id });
+  }
   const missingProjects = [...new Set(preference.action_grants.flatMap(grant => grant.client_id === clientId && grant.project_id && !projects.some(project => project.project_id === grant.project_id) ? [grant.project_id] : []))];
   const project = projectId ? projects.find(project => project.project_id === projectId) : undefined;
   const missing = !!projectId && !project;

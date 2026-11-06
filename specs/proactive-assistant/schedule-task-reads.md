@@ -63,9 +63,9 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 
 **谁写。** 只有本人，经平台自己的确认面：
 
-- 平台动作 `agent.task_grants.set@1`：受众只有 `user`，输入是任务主体（插件安装与 key）和勾选的类；宿主在执行时重新读目录、展开成动作记录、整体替换这个主体的记录。插件、Agent、MCP 客户端、工作流都调不到（S-17 的同一条规矩）。
+- 平台动作 `agent.task_grants.set@1`：受众只有 `user`，输入是任务主体（插件安装与 key）和勾选的类；宿主在执行时重新读目录，整体替换这个主体的记录：主体原来就有记录的类原样保留（新增的能力仍未确认，提供方暂时不在时记录等它回来），只有新勾的类、和本人带 `confirm: true` 重新允许的类按此刻目录展开成动作记录，展开为空的整次拒绝（规则 R1～R5 见 `specs/proactive-assistant/task-grants-platform-area.md` §3.6（#1860），2026-11-05 统筹，#1860 评审）。插件、Agent、MCP 客户端、工作流都调不到（S-17 的同一条规矩）。
 - 平台动作 `agent.task_grants.clear@1`：受众 `user` 和 `plugin`；插件只能清**自己安装下**的主体。只减不增，所以给插件是安全的（Schedule 归档任务时调）。
-- 平台动作 `agent.task_grants.list@1`：受众 `user` 和 `plugin`，插件只能列自己安装下的主体；一次返回这个安装在本项目的全部主体与各类状态（已授权、需重新确认），任务列表打开时调一次，不按任务逐个请求（开工前检查第 9 项）。
+- 平台动作 `agent.task_grants.list@1`：受众 `user` 和 `plugin`，插件只能列自己安装下的主体；一次返回这个安装在本项目的全部主体与各类状态（`granted` 已授权、`needs_confirmation` 需重新确认、`unavailable` 暂时读不到、`removed` 已不再提供），任务列表打开时调一次，不按任务逐个请求（开工前检查第 9 项）。
 - 「对外接入」一页（`apps/local-host/src/mcp-action-access.ts:54`）目前把授权里出现过的客户端 id 都列成可编辑的客户端：任务主体要从那份列表里排除，改在「授权与放行」一页按任务列出，可撤回（D 轨）。
 
 **谁读。** 只有宿主：插件 Agent 服务启动这一轮时把主体交给动作客户端；每次 Agent 调动作时由 `authorizeMcpActions` 重新读。

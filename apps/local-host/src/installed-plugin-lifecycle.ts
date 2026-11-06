@@ -42,7 +42,7 @@ export interface InstalledLifecycleContext {
   registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
   /** Reminders and scheduled operations of one installation stop with it. */
   /** What the Host remembers of an uninstalled installation: its prompts and its code. */
-  forget(pluginId: string, installId: string): void;
+  forget(pluginId: string, installId: string): void | Promise<void>;
 }
 
 type Secret = { name: string; header: string; value: string };
@@ -81,7 +81,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     c.secrets.remove(release.pluginId);
     if (!attempt) await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
     else if (undone) throw undone;
-    c.forget(release.pluginId, record.install_id);
+    await c.forget(release.pluginId, record.install_id);
     if (!keepData) c.privateStorage.deleteInstallationData(record.install_id);
     c.storage.delete(APPROVED_KEY + release.pluginId); c.recoveryErrors.delete(release.pluginId);
     return true;

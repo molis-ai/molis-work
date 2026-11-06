@@ -23,12 +23,23 @@ export const servicesAgentTaskGrantsContract = {
 export const TASK_GRANT_SUBJECT_KEY_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$";
 
 /**
- * One read category: a provider's read group, or (`group_id` left out) a whole provider that declares no groups. Leaving it out for a
- * provider that declares groups names nothing, and `set` refuses the whole call.
+ * One read category: a provider's read group, or (`group_id` left out) a whole provider that declares no groups. For a category new to
+ * the subject, leaving it out for a provider that declares groups, or naming a group the provider does not declare now, names nothing,
+ * and `set` refuses the whole call. A category the subject already holds is taken by its records as the Host holds them, without these
+ * checks: a `removed` one, one with a group the provider no longer declares, one with no group for a provider that started declaring some.
  */
 export interface TaskGrantCategoryReference {
   provider_id: string;
   group_id?: string;
+}
+
+/**
+ * A category as `set` takes it. `confirm`: the person allowed it again, so it is recorded anew from the catalog as it is now, which is
+ * how a `needs_confirmation` category gets what its provider added. Without it, a category the subject already holds keeps its records.
+ * `confirm` on a category the subject does not hold, or one that records nothing callable now, refuses the whole call (`actions.input_invalid`).
+ */
+export interface TaskGrantSetCategory extends TaskGrantCategoryReference {
+  confirm?: true;
 }
 
 /**
@@ -49,8 +60,8 @@ export interface TaskGrantCategory extends TaskGrantCategoryReference {
  * what changed is not readable until they allow the category again. `unavailable`: the provider is off or gone; the grant is kept
  * and reads again when it is back unchanged. `removed`: the provider is there but no longer declares this category (it dropped the
  * group, or a provider without groups started declaring some); nothing in it is readable, and the person can only take it off
- * (decided 2026-11-05: the row says the category is no longer offered). Its own words are gone with it, so `title` and
- * `description` are the provider's.
+ * (decided 2026-11-05: the row says the category is no longer offered). Such a row shows the provider's `title` and
+ * `description`, since the provider no longer declares the category's own.
  */
 export interface TaskGrantCategoryState extends TaskGrantCategory {
   status: "granted" | "needs_confirmation" | "unavailable" | "removed";
@@ -64,11 +75,17 @@ export interface TaskGrantSubject {
   categories: TaskGrantCategoryState[];
 }
 
-/** Replaces the subject's categories with exactly these (an empty list removes them all); `actions.conflict` when `expected_revision` is stale. */
+/**
+ * Replaces the subject's categories with exactly these (an empty list removes them all; a held category left out loses its records);
+ * `actions.conflict` when `expected_revision` is stale. A category the subject already holds keeps its records as they are, whatever its
+ * status, so what its provider added since stays unreadable and an unavailable provider's records wait for it. A category new to the
+ * subject, or one with `confirm`, records its read-only actions as the catalog has them now; one that records nothing now (its provider
+ * is off, or no longer declares it) refuses the whole call with `actions.input_invalid`.
+ */
 export interface TaskGrantSetRequest {
   plugin_install_id: string;
   key: string;
-  categories: TaskGrantCategoryReference[];
+  categories: TaskGrantSetCategory[];
   expected_revision: string;
 }
 
@@ -101,7 +118,7 @@ export interface TaskGrantListResult {
 const id = { type: "string", minLength: 1, maxLength: 512 } as const;
 const words = { type: "string", maxLength: 2000 } as const;
 const key = { type: "string", pattern: TASK_GRANT_SUBJECT_KEY_PATTERN } as const;
-const categoryReference = { type: "object", required: ["provider_id"], additionalProperties: false, properties: { provider_id: id, group_id: id } } as const;
+const setCategory = { type: "object", required: ["provider_id"], additionalProperties: false, properties: { provider_id: id, group_id: id, confirm: { const: true } } } as const;
 const category = { type: "object", required: ["provider_id", "title", "description"], additionalProperties: false, properties: {
   provider_id: id, group_id: id, plugin_id: id, title: words, description: words } } as const;
 const categoryState = { type: "object", required: ["provider_id", "title", "description", "status"], additionalProperties: false, properties: {
@@ -117,10 +134,10 @@ const subject = { type: "object", required: ["plugin_install_id", "key", "revisi
 export const agentTaskGrantActions = {
   set: {
     capability_id: "agent.task_grants.set", version: 1, operation: "command",
-    action: { title: "设置任务能读的数据", description: "把一个后台任务能读的类别换成这些：按此刻目录里每一类的只读动作记下授权；空列表就是全部撤回。只有本人能设。", kind: "operation", scope: "project", effect: "write",
+    action: { title: "设置任务能读的数据", description: "把一个后台任务能读的类别换成这些：已有的类照原记录保留，新加的类与本人重新允许的类按此刻目录里的只读动作记下；空列表就是全部撤回。只有本人能设。", kind: "operation", scope: "project", effect: "write",
       audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
       input_schema: { type: "object", required: ["plugin_install_id", "key", "categories", "expected_revision"], additionalProperties: false, properties: {
-        plugin_install_id: id, key, categories: { type: "array", maxItems: 200, items: categoryReference }, expected_revision: { type: "string", maxLength: 256 } } },
+        plugin_install_id: id, key, categories: { type: "array", maxItems: 200, items: setCategory }, expected_revision: { type: "string", maxLength: 256 } } },
       output_schema: subject },
   } as ActionDefinition<TaskGrantSetRequest, TaskGrantSubject>,
   clear: {
@@ -132,7 +149,7 @@ export const agentTaskGrantActions = {
   } as ActionDefinition<TaskGrantClearRequest, TaskGrantClearResult>,
   list: {
     capability_id: "agent.task_grants.list", version: 1, operation: "query",
-    action: { title: "列出任务的读取授权", description: "一次列出本项目里各后台任务能读的类别和状态（已授权、需要重新确认、暂时读不到）。插件只看到自己安装下的任务。", kind: "query", scope: "project",
+    action: { title: "列出任务的读取授权", description: "一次列出本项目里各后台任务能读的类别和状态（已授权、需要重新确认、暂时读不到、已不再提供）。插件只看到自己安装下的任务。", kind: "query", scope: "project",
       audiences: ["user", "plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", additionalProperties: false, properties: { plugin_install_id: id } },
       output_schema: { type: "object", required: ["categories", "subjects"], additionalProperties: false, properties: {

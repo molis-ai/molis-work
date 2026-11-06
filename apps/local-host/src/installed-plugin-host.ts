@@ -35,6 +35,7 @@ import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
 import { APPROVED_KEY, installedLifecycle } from './installed-plugin-lifecycle.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
+import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
@@ -175,12 +176,14 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
-    forget(pluginId, installId) {
+    async forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);
       forgetDefinitions(pluginId);
       // The account it used for each of its records here goes with it; its installation slot's account is every project's, and goes with the last one (BL-596).
       forgetInstallationConnections(homeDirectory, installId, { kind: "project", project_id: projectId });
+      // What the person let its tasks here read goes with it too (task grant subjects of this installation in this project).
+      await forgetTaskGrantSubjects(homeDirectory, subject => subject.plugin_install_id === installId && subject.project_id === projectId);
     } });
   const close = async () => {
     if (closed) return;

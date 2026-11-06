@@ -73,16 +73,45 @@ async function openImages(t: TestContext) {
     async saved() {
       const folder = join(homeDirectory, "image-downloads");
       await mkdir(folder, { recursive: true });
-      await command("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: folder });
-      await click("[data-images-result] a[download]");
-      const deadline = Date.now() + 8000;
-      let names: string[] = [];
-      while (Date.now() < deadline) {
-        names = (await readdir(folder)).filter(name => !name.endsWith(".crdownload"));
-        if (names.length) break;
-        await new Promise(resolve => setTimeout(resolve, 50));
+      const started: string[] = [], events: Record<string, unknown>[] = [];
+      let completedGuid: string | undefined, finish!: () => void;
+      const finished = new Promise<void>(resolve => { finish = resolve; });
+      const offBegin = browser.on("Browser.downloadWillBegin", event => {
+        const guid = event.guid as string, url = new URL(event.url as string);
+        started.push(guid);
+        events.push({ event: "begin", at: Date.now(), guid, frameId: event.frameId, suggestedFilename: event.suggestedFilename,
+          source: { scheme: url.protocol, origin: url.origin, path: url.protocol === "data:" ? "[omitted]" : url.pathname.slice(0, 180) } });
+        if (started.length > 1) finish();
+      });
+      const offProgress = browser.on("Browser.downloadProgress", event => {
+        events.push({ event: "progress", at: Date.now(), guid: event.guid, state: event.state, totalBytes: event.totalBytes, receivedBytes: event.receivedBytes });
+        if (event.guid !== started[0]) return;
+        if (event.state === "completed") { completedGuid = event.guid as string; finish(); }
+        else if (event.state === "canceled") finish();
+      });
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await command("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: folder, eventsEnabled: true });
+        await click("[data-images-result] a[download]");
+        await Promise.race([finished, new Promise<void>(resolve => { timer = setTimeout(resolve, 8000); })]);
+        // A directory entry is not Chrome's completion signal. After the actual transfer ends, inspect every entry.
+        const names = await readdir(folder);
+        const saved = await Promise.all(names.map(async name => {
+          try { return { name, bytes: await readFile(join(folder, name)) }; }
+          catch (error) { t.diagnostic(JSON.stringify({ downloadEvents: events, unreadableFile: name })); throw error; }
+        }));
+        t.diagnostic(JSON.stringify({ downloadEvents: events, files: saved.map(file => {
+          const head = file.bytes.toString("utf8", 0, 512), title = /<title[^>]*>([^<]{0,80})<\/title>/i.exec(head)?.[1];
+          const type = file.bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a" ? "image/png" : /<!doctype html|<html[\s>]/i.test(head) ? "text/html" : "unknown";
+          return { name: file.name, size: file.bytes.length, type, ...(title ? { title } : { prefixHex: file.bytes.subarray(0, 24).toString("hex") }) };
+        }) }));
+        assert.equal(started.length, 1, "RAC-1996: one click starts exactly one Chrome download");
+        assert.equal(completedGuid, started[0], "RAC-1996: Chrome completed that download before the saved files are read");
+        return saved;
+      } finally {
+        clearTimeout(timer);
+        offBegin(); offProgress();
       }
-      return Promise.all(names.map(async name => ({ name, bytes: await readFile(join(folder, name)) })));
     },
     /** Click "put in Shelf" and wait for the receipt the page hands the workbench (or for the page to say it failed). */
     async keepInShelf() {

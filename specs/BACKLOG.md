@@ -227,6 +227,8 @@
 | BL-1003 | 导入外部文档时补一条真正区分 Home 登记服务和旧快照的读取用例，核对读取来源与连接的 Home 参数。 | [原协调单第 118 行](https://github.com/molis-ai/molis-work/blob/22fe801a021ffac1b16d4000aef9b3584f9cf882/coordination/2026-10-28/MISC.md#L118) | 测试债 | RAC-2447／2787／2788 已拒绝同名 document_source；原建议针对 readExternal 的动态读取仍需独立核对。 | BL-694 的沙箱声明前置保持；不为该用例放开权限 | 低 | 成果文档导入及集成声明维护人（具体会话待分配） |
 | BL-1008 | 核定 Feed 或连接器读取遇到 private_address 时的停止与重试分类。 | [原协调单第 139 行](https://github.com/molis-ai/molis-work/blob/22fe801a021ffac1b16d4000aef9b3584f9cf882/coordination/2026-10-28/MISC.md#L139) | 待核实 | 公开 HTTPS 阅读器拒绝私网地址。原单关注该拒绝能否终止重试，不能用单次拒绝代证。 | 以原入口制造私网拒绝并检查实际重试次数 | 低 | 连接器宿主与 E／Feed（具体会话待分配） |
 | BL-1024 | 核集成登记的发布信任、来源账号返回的 config 和异步登记首次建立失败后的恢复。宿主自带的 enable 与包的 attach 分开验证；核连接方法对服务声明的子集。 | [#1310 评审](https://github.com/molis-ai/molis-work/pull/1310) | 待核实 | 现有 enable、attach 分开；Home 连接器已使用 createCallConnectionsPort，来源已过滤宿主保留键。方法子集归 BL-690。 | 沿原评审的调用点与维护边界 | 低 | 连接器宿主、E／Feed 与集成声明维护人 |
+| BL-1045 | 插件自己声明的 switch 出现前，由平台给 dispatcher 加可信的上一层动作字段，使用方据此只认经汇总动作嵌套的调用；改合同，共享核心要跑全量。 | [服务接入需求 §13.4](assistant-service-connections/spec.md) | 合同待做 | 今天的使用方只有宿主持有的插件连接槽与模型提供方，它们自己做全每项核对，本人直接调与经汇总调效果相同（统筹 11-05 定）；插件声明的 switch 要靠这个字段才能只认汇总动作，并在调它前按 S-95 核对 B。 | 改 `ActionCallContext` 的可信字段，由 dispatcher 填，插件 SDK 读 | 中 | 合同台、动作服务维护人 |
+| BL-1046 | 换用账号的记录：每换一处，由那件事实的主人记一条（谁、什么时候、从 A 到 B）。连接槽由连接主人记，模型提供方由模型设置记。 | [服务接入需求 §13.4](assistant-service-connections/spec.md) | 待做 | 统筹 11-05 定本批暂不记：连接与模型设置都没有变更历史，调用记录不记输入，要新建表。 | 各自在自己的库里加历史表，由主人写，不共写 | 低 | 连接主人、模型设置维护人 |
 
 ## 7. 平台与架构
 

@@ -134,3 +134,6 @@ export function followScroll(panel: Element, run: () => void): () => void {
 
 // For the page programs that carry these functions as source text (floating-source.ts): what `placeStacked` closes over.
 export { GAP as FLOATING_GAP, MARGIN as FLOATING_MARGIN, clampTo, pick as pickSide, placeStacked };
+
+/** Text to show for an error raised by a client action, including a thrown string. */
+export const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);

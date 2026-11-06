@@ -37,7 +37,8 @@ export async function checkConnectorConnection(home: string, id: string, remembe
     throw error;
   }
   await control.beforeEffect?.(); control.signal?.throwIfAborted();
-  // A request elsewhere may have had its refresh refused while this check ran: the mark stands, a passing read does not clear it.
+  // A request elsewhere may have had its refresh refused while this check ran. `rememberConnectorCheck` below would already keep the mark;
+  // asking again here is only so the person is told to log in again rather than seeing "检查期间连接已变化".
   if (row.auth_method === "oauth" && refreshRefused(home, row)) throw new ApiOAuthError("这个账号的登录已失效，请重新登录", row.service_id, true);
   const checked_at = new Date().toISOString();
   const protocol = row.auth_method === "mcp" ? withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id)) : null;

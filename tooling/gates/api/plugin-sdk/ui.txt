@@ -202,7 +202,7 @@ export declare function cx(...parts: Array<string | false | null | undefined>): 
 
 export declare const disclosureHeight: (details: string, body: string) => string;
 
-export declare function escapeHtml(value: unknown): string;
+export declare const escapeHtml: (value: unknown) => string;
 
 export declare function icon(name: PluginIconName, className?: string): string;
 

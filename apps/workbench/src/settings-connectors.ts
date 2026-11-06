@@ -27,7 +27,7 @@ interface ConnectorsSettingsPrimitives {
   networkDocHref?: string;
 }
 
-function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
+export function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
   const mark = connectorMark(connectorId);
   if (!mark) {
     const symbol = connectorId === "image-api" ? "image" : connectorId === "mcp-bearer" ? "network" : "sparkles";

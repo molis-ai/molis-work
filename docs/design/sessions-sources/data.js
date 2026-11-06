@@ -81,7 +81,7 @@ window.protoData = {
   // Project AI reading, shaped like counts in sessions.scope.read@1. n = filed; blocked = in a tool that was read and
   // then stopped, per tool; reported = only a tool's word for it, so AI can't read them until you confirm. The rest is ai_readable.
   permitProjects: [
-    { id: "molis", name: ["Molis Work", "Molis Work"], dir: "~/code/goalboard", n: 34 },
+    { id: "molis", name: ["Molis Work", "Molis Work"], dir: "~/code/goalboard", n: 34, reported: 1 },
     { id: "site", name: ["官网改版", "Website redesign"], dir: "~/code/site", n: 17, blocked: [{ tool: "codex", n: 6 }] },
     { id: "billing", name: ["账单对账", "Billing reconciliation"], dir: "~/code/billing", n: 12, reported: 3 },
     { id: "notes", name: ["读书笔记", "Reading notes"], dir: "~/Documents/notes", n: 0 },

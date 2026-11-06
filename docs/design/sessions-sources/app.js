@@ -63,11 +63,9 @@
   const toggles = (label, list, cur, key) =>
     `<div class="mw-toggle-group" data-slot="toggle-group" data-cat="Toggle Group" role="group" aria-label="${esc(label)}">${list.map(([v, n]) => `<button type="button" class="mw-toggle${v === cur ? " is-current" : ""}" aria-pressed="${v === cur}" value="${v}" data-${key}="${v}">${n}</button>`).join("")}</div>`;
   const who = (kind, text, label) => `<span class="mw-who" data-kind="${kind}" role="img" aria-label="${esc(label)}" data-cat="Who">${text}</span>`;
-  const dirRow = ({ icon, title, meta, count, stat, current, note = "", attrs = "" }) =>
-    `<button type="button" title="${esc(title)}" class="mw-dir-row mw-dir-row--meta directory-list-row${current ? " is-selected" : ""}" data-slot="directory-row" data-cat="Directory Row"${current ? ' aria-current="page"' : ""} ${attrs}><span class="mw-dir-row__icon">${ic(icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>${title}</strong>${count != null ? `<span class="mw-dir-row__count">${count}</span>` : ""}${stat || ""}</span>${meta ? `<small>${meta}</small>` : ""}${note}</span></button>`;
+  const dirRow = ({ icon, title, meta, count, stat, current, attrs = "" }) =>
+    `<button type="button" title="${esc(title)}" class="mw-dir-row mw-dir-row--meta directory-list-row${current ? " is-selected" : ""}" data-slot="directory-row" data-cat="Directory Row"${current ? ' aria-current="page"' : ""} ${attrs}><span class="mw-dir-row__icon">${ic(icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>${title}</strong>${count != null ? `<span class="mw-dir-row__count">${count}</span>` : ""}${stat || ""}</span>${meta ? `<small>${meta}</small>` : ""}</span></button>`;
   const dirHeading = (text) => `<h2 class="mw-dir__heading" data-slot="directory-heading">${text}</h2>`;
-  const NEW_NOTE = () => L("Directory Row 的提示行：行尾的 Status mark 只放得下两三个字，这里的话要写全，不能靠悬停；提示行排在标题下面，能折行",
-    "Directory Row hint line: the Status mark at the row's end fits two or three words, and this has to be said in full, not on hover. It sits under the title and may wrap");
   const NEW_LOG = () => L("外部会话原文：组件板只有助理与 Coding 的气泡，没有「别的工具里的一段对话」——要分清你、那个工具和它调用的工具步骤，长历史能往上读、能就地搜索",
     "External conversation log: the board has assistant and Coding bubbles only, nothing for “a conversation from another tool” that separates you, that tool and its tool steps, reads upward through long history and searches in place");
 
@@ -86,7 +84,7 @@
     none: ["quiet", () => L("没有会话", "No sessions"), null],
     off: ["idle", () => L("未允许", "Not allowed"), null],
   };
-  const srcStatus = (id, plain = false) => { const [code] = srcState(id); const [tone, w, ring] = SRC[code]; return status(w(), tone, ring, plain); };
+  const srcStatus = (id, plain = false) => { const [code] = srcState(id); const [tone, w, ring] = SRC[code]; return plain ? rowStatus(w(), tone, ring) : status(w(), tone, ring); };
   function srcMeta(id) {
     const [code, n, est] = srcState(id); const t = tool(id);
     return ({
@@ -125,6 +123,7 @@
   const isReported = (s) => s.how === "reported" && S.decided[s.id] === undefined;
   const toolOtherOf = (s) => (toolState() && s.toolOther && S.decided[s.id] === undefined ? proj(s.toolOther) : null);
   const REPORTED = () => L("工具报的，不是你确认的", "Reported by a tool, not confirmed by you");
+  const rowStatus = (label, tone, ring) => status(label, tone, ring, true).replace("mw-status--plain", "mw-status--plain mw-dir-row__status");
   const TOOL_OTHER = () => L("工具报的是另一个项目", "The tool reported another project");
   function found() {
     const d = discState();
@@ -226,11 +225,10 @@
     const t = tool(s.tool);
     const grouped = opt("discover") === "A" && S.block === "discover";
     const meta = [grouped ? null : T(t.name), s.when ? T(s.when) : null].filter(Boolean).join(" · ");
-    const stat = pending(s) ? status(L("待归类", "To sort"), "attention", null, true) : s.running ? status(L("在运行", "Running"), "progress", "running", true) : "";
-    // A hinted row has two lines anyway, so the tool and time move down with the hint instead of being squeezed out by the title.
-    const note = isReported(s) ? `<small class="ss-dir-note" data-new="${esc(NEW_NOTE())}">${meta} · <span data-tone="attention">${REPORTED()}</span></small>`
-      : toolOtherOf(s) ? `<small class="ss-dir-note">${meta} · ${TOOL_OTHER()}</small>` : "";
-    return dirRow({ icon: s.forkOf ? "git-branch" : toolIcon(s.tool), title: T(s.title), meta: note ? "" : meta, stat, note, current: S.sel === s.id && !S.src, attrs: `data-sel="${s.id}"` });
+    // The row's end slot takes one short word; the full sentence waits in the owner line once the session is open.
+    const stat = pending(s) ? rowStatus(L("待归类", "To sort"), "attention") : isReported(s) ? rowStatus(L("工具报的", "Tool-reported"), "attention")
+      : s.running ? rowStatus(L("在运行", "Running"), "progress", "running") : toolOtherOf(s) ? rowStatus(L("工具另报", "Tool differs"), "quiet") : "";
+    return dirRow({ icon: s.forkOf ? "git-branch" : toolIcon(s.tool), title: T(s.title), meta, stat, current: S.sel === s.id && !S.src, attrs: `data-sel="${s.id}"` });
   }
   function listPanel() {
     const d = discState(); const o = opt("discover");
@@ -683,7 +681,7 @@
           ${detected.map((t) => `<label class="mw-check-row ss-check"><input class="mw-check" data-slot="checkbox" type="checkbox"${t.gap ? " disabled" : !none && ["claude", "codex", "kimi"].includes(t.id) ? " checked" : ""}><span><strong>${T(t.name)}</strong><small>${t.gap ? L("暂不支持自动发现：没有公开的读取方式", "Not supported yet: no public way to read") : t.kind === "cloud" ? L("云端：需要登录你的账号", "Cloud: needs your account sign-in") : `${T(t.where)}${t.ver ? ` · ${t.ver}` : ""}`}</small></span></label>`).join("")}</fieldset>
           <fieldset class="mw-radio-group" data-slot="radio-group" data-cat="Radio Group" role="radiogroup"><legend>${L("读哪些目录里的会话", "Sessions from which folders")}</legend>
             <label class="mw-check-row"><input class="mw-radio" data-slot="radio" type="radio" name="ss-scope" checked><span>${L("所有目录", "All folders")}</span></label>
-            <label class="mw-check-row ss-check"><input class="mw-radio" data-slot="radio" type="radio" name="ss-scope"><span class="ss-radio-copy"><span>${L("只读项目连着的目录：~/code/goalboard、~/code/site", "Only folders linked to projects: ~/code/goalboard, ~/code/site")}</span><small>${L("包含这些目录的子目录，和这些项目的 git worktree。已删或认不出的 worktree、没有目录的云端会话不在内，要选「所有目录」才看得到。", "Includes their subfolders and these projects' git worktrees. Deleted or unrecognised worktrees and cloud sessions without a folder are left out; choose “All folders” to see them.")}</small></span></label></fieldset>
+            <label class="mw-check-row ss-check"><input class="mw-radio" data-slot="radio" type="radio" name="ss-scope"><span class="ss-radio-copy"><span>${L("只读项目连着的目录：~/code/goalboard、~/code/site", "Only folders linked to projects: ~/code/goalboard, ~/code/site")}</span><small>${L("包含这些目录的子目录，和这些项目的 git worktree。已删或认不出的 worktree、没有目录的云端会话，和工具带进项目的目录下的会话不在内，要选「所有目录」才看得到。", "Includes their subfolders and these projects' git worktrees. Deleted or unrecognised worktrees, cloud sessions without a folder, and sessions in folders a tool brought into a project are left out; choose “All folders” to see them.")}</small></span></label></fieldset>
           <p class="ss-muted">${L("收窄或停止后，范围外的会话和历史立刻不再显示；原工具里的记录不受影响。", "When narrowed or stopped, sessions outside the scope disappear at once; records in the tools are untouched.")}</p>`;
   }
   function sheetTabs() {

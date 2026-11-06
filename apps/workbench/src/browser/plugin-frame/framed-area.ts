@@ -184,8 +184,10 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
           },
           close() { if (!areas.delete(entry)) return; holder.remove(); },
         } };
-      // Capture, so a control's own handler sees the press already noted; the area measured as it was at that moment.
+      // Capture, so a control's own handler sees the press already noted; the area measured as it was at that moment. A pointerdown a
+      // script dispatched is no press: it must not stand in for the person's before a scripted click.
       surface.addEventListener("pointerdown", event => {
+        if (!event.isTrusted) return;
         const now = rect(surface.getBoundingClientRect());
         if (!same(now, entry.shown)) { entry.shown = now; entry.movedAt = event.timeStamp; }
         entry.press = { at: event.timeStamp, shown: now };

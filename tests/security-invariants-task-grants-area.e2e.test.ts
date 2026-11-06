@@ -34,6 +34,8 @@ const OBSERVE = `(() => {
       const headers = new Headers(init && init.headers);
       let body = null; try { body = JSON.parse(init.body); } catch {}
       window.tgaSent.push({ body, page: headers.get("x-molis-context-page") });
+      // A test may hold a write on its way, to press again while it is in flight.
+      if (body && body.mode === "set" && window.tgaHold) { const args = arguments; return window.tgaHold.then(() => fetch.apply(this, args)); }
     }
     return fetch.apply(this, arguments);
   };
@@ -120,10 +122,14 @@ test("S-142 TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is the shell's: t
     return { opacity: getComputedStyle(area).opacity, visibility: getComputedStyle(area).visibility, above: Number(getComputedStyle(holder).zIndex) > 1, inFrame: frame.contains(area) }; })()`);
   assert.deepEqual(style, { opacity: "1", visibility: "visible", above: true, inFrame: false });
 
-  // TGA-06: a script in the outer document (an injected one, say) clicks the switch; nothing is trusted, nothing is written.
-  await reveal(); await p.settle();
+  // TGA-06: a script in the outer document (an injected one, say) presses the switch as a pointer would, on a ready area, and also
+  // clicks it outright; nothing it dispatches is trusted, nothing is written.
+  await reveal(); await p.ready();
   await browser.evaluate(`(() => { const control = document.querySelector(${JSON.stringify(p.control("switch", target))});
-    control.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 })); control.click(); })()`);
+    const box = control.getBoundingClientRect(), at = { bubbles: true, cancelable: true, composed: true, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 };
+    control.dispatchEvent(new PointerEvent("pointerdown", { ...at, pointerId: 1, isPrimary: true, button: 0, buttons: 1 }));
+    control.dispatchEvent(new PointerEvent("pointerup", { ...at, pointerId: 1, isPrimary: true, button: 0 }));
+    control.dispatchEvent(new MouseEvent("click", { ...at, detail: 1, button: 0 })); control.click(); })()`);
   await p.settle(200);
   assert.deepEqual(await p.sets(), [], "TGA-06 a click that is not trusted does not write");
 
@@ -147,10 +153,17 @@ test("S-142 TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is the shell's: t
   assert.deepEqual(await p.sets(), [], "TGA-07 nothing the frame sends writes");
   assert.equal(await p.records(), none);
 
-  // TGA-12 and TGA-16: the person's own press, three times at once: one `set`, the category the only one sent, the line says so.
+  // TGA-12 and TGA-16: the person's own press, three times at once, then twice more on a ready area while the write is held on its
+  // way: one `set`, the category the only one sent, the line says so.
   await reveal(); await p.ready();
   const point = await p.centre(p.control("switch", target));
+  await browser.evaluate("window.tgaHold = new Promise(resolve => { window.tgaRelease = resolve; }); true");
   await Promise.all([p.press("", point), p.press("", point), p.press("", point)]);
+  await browser.waitFor(`window.tgaSent.some(item => item.body && item.body.mode === "set")`);
+  await p.ready();
+  await p.press("", point); await p.settle(100); await p.press("", point);
+  await p.settle(200);
+  await browser.evaluate("window.tgaHold = null; window.tgaRelease()");
   await browser.waitFor(`document.querySelector(${JSON.stringify(AREA + " [data-task-grants-row]:nth-child(" + (target + 1) + ")")}).dataset.status === "granted"`);
   await p.settle(300);
   assert.equal(await browser.evaluate(`(() => { const body = document.querySelector("${AREA} .mw-platform-area__body").getBoundingClientRect(), row = document.querySelectorAll("${AREA} [data-task-grants-row]")[${target}].getBoundingClientRect();

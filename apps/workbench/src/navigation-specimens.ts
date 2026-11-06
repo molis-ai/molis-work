@@ -98,7 +98,7 @@ function allTabsMenu(L: Say, id: string, hidden = false): string {
 }
 
 function allTabsButton(L: Say, controls: string, open: boolean, phoneOnly = false): string {
-  return `<button type="button" class="tab-text-button tab-all-button"${phoneOnly ? " data-nav-when-full" : ""} data-nav-menu-for="${controls}" aria-haspopup="menu" aria-expanded="${open}" aria-controls="${controls}" aria-label="${escapeHtml(L("全部标签"))} · ${escapeHtml(L("{n} 张", { n: 12 }))}">${icon("rows")}<span>${escapeHtml(L("全部标签"))}</span><span class="tab-all-count">12</span></button>`;
+  return `<button type="button" class="tab-strip-button tab-all-button"${phoneOnly ? " data-nav-when-full" : ""} data-nav-menu-for="${controls}" aria-haspopup="menu" aria-expanded="${open}" aria-controls="${controls}" aria-label="${escapeHtml(L("全部标签"))} · ${escapeHtml(L("{n} 张", { n: 12 }))}">${icon("rows")}<span>${escapeHtml(L("全部标签"))}</span><span class="tab-all-count">12</span></button>`;
 }
 
 function plusRow(L: Say, pid: PluginId, where = "", warn = false): string {
@@ -202,7 +202,7 @@ function partSpecimens(L: Say): string {
   const undo = specimen("undo", "6", L("撤销关闭小签"), L("关掉一组后留 6 秒，组色底，固定在标签条可见区的末端；⌘⇧T 也能恢复。"),
     `<div class="mw-navs__narrow">${strip(L("主区的标签"), mainTabs(L), { end: undoChip(L) })}</div><p class="mw-navs__live" role="status" data-nav-live></p>`);
   const solo = specimen("solo", "7", L("独看小签"), L("独看时别的栏先收起；点它或再按 ⌘⇧↵ 回来。"),
-    strip(L("主区的标签"), group(L, "goals", [{ label: r.goal1, current: true }]), { end: `<button type="button" class="tab-text-button tab-solo-chip">${icon("maximize")}<span>${escapeHtml(L("独看中 · 显示全部"))}</span></button>` }));
+    strip(L("主区的标签"), group(L, "goals", [{ label: r.goal1, current: true }]), { end: `<button type="button" class="tab-strip-button tab-solo-chip">${icon("maximize")}<span>${escapeHtml(L("独看中 · 显示全部"))}</span></button>` }));
   const plus = specimen("plus", "8", L("「＋」菜单的行"), L("只负责打开。已经开着的写出在哪一栏；悬停或聚焦时行尾出现「在旁边打开」（⌥↵）。"),
     `<div class="mw-navs__row">${plusButton(L, "nav-plus-open", true)}</div>${plusMenu(L, "nav-plus-open", false, true)}`);
   const marks = specimen("marks", "9", L("标签的异常标记"), L("划掉＝记录不在；琥珀小点＝没能启动；组上「已移除」。标签都留着，不自动关、不挪位。"),
@@ -278,8 +278,7 @@ body.mw-navs-page .mw-navs__phone .tab-pane-switch>.mw-toggle{min-height:44px}
 .mw-navs__main{position:relative;display:flex;flex:1 1 auto;min-width:0}
 .mw-navs__main>.tab-strip{flex:1 1 auto}
 .mw-navs__anchor{position:relative;display:flex;align-items:center;flex:none}
-.mw-navs__anchor>[data-nav-popover]{position:absolute;z-index:20;top:calc(100% + 6px);left:0}
-.mw-navs__anchor--end>[data-nav-popover],.mw-navs__anchor--all>[data-nav-popover]{left:auto;right:0}
+.mw-navs__anchor>[data-nav-popover]{position:absolute;z-index:20;top:calc(100% + 6px);right:0}
 .mw-navs__anchor--all{position:absolute;right:0;top:100%}
 .mw-navs__live:empty{display:none}
 @media (min-width:761px){[data-nav-when-full][data-nav-fits]{display:none}}
@@ -288,7 +287,7 @@ body.mw-navs-page .mw-navs__phone .tab-pane-switch>.mw-toggle{min-height:44px}
 .mw-navs .workbench-bar{height:var(--dock-h);padding:0;background:transparent}
 .mw-navs .bar-composer textarea{resize:none}
 html body.mw-navs-page .workbench-bar .mw-navs__fold{display:none}
-@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-rows:44px 44px;gap:4px;height:auto;padding:0}.mw-navs__main{display:contents}.mw-navs__main>.tab-strip{grid-area:1/1/3/4}.mw-navs__main>.mw-navs__anchor:not(.mw-navs__anchor--all){grid-area:1/2;z-index:1}.mw-navs__titlebar>.mw-navs__anchor--end{grid-area:1/3;z-index:1}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}.mw-navs .bar-composer .mw-btn{min-width:44px;min-height:44px}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
+@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-rows:44px 44px;gap:4px;height:auto;padding:0}.mw-navs__main{display:contents}.mw-navs__main>.tab-strip{grid-area:1/1/3/4}.mw-navs__main>.mw-navs__anchor:not(.mw-navs__anchor--all){grid-area:1/2;z-index:1}.mw-navs__titlebar>.mw-navs__anchor--end{grid-area:1/3;z-index:1}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}.mw-navs__titlebar .mw-navs__anchor{position:static}.mw-navs__titlebar .mw-navs__anchor>[data-nav-popover]{left:0;right:0;width:auto}body.mw-navs-page .mw-navs .bar-composer>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside, like the board's other specimen frames. */
 export function renderNavigationSection(L: Say, lang: "zh" | "en"): string {

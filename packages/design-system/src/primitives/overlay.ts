@@ -105,9 +105,13 @@ export function renderMenu(options: { items: string; className?: string; labelle
   }>${options.items}</div>`;
 }
 
-/** A menu item; `checked` makes it a checkbox item whose leading slot holds the tick, `shortcut` sits at the far end. */
+/**
+ * A menu item; `checked` makes it a checkbox item whose leading slot holds the tick, `shortcut` sits at the far end.
+ * `description` is a quiet second line under the name (`mw-menu__desc`): what choosing it does, or why it cannot be chosen.
+ */
 export function renderMenuItem(options: {
   label: string;
+  description?: string;
   iconName?: Parameters<typeof icon>[0];
   danger?: boolean;
   shortcut?: string;
@@ -117,9 +121,12 @@ export function renderMenuItem(options: {
 }): string {
   const checkable = options.checked !== undefined;
   const lead = checkable ? `<span class="mw-menu__check" aria-hidden="true">${options.checked ? icon("check") : ""}</span>` : options.iconName ? icon(options.iconName) : "";
-  return `<button type="button" class="${cx("mw-menu__item", options.danger && "mw-menu__item--danger")}" role="${checkable ? "menuitemcheckbox" : "menuitem"}"${
+  const label = options.description
+    ? `<span>${escapeHtml(options.label)}</span><small class="mw-menu__desc">${escapeHtml(options.description)}</small>`
+    : escapeHtml(options.label);
+  return `<button type="button" class="${cx("mw-menu__item", options.danger && "mw-menu__item--danger", options.description && "mw-menu__item--described")}" role="${checkable ? "menuitemcheckbox" : "menuitem"}"${
     checkable ? ` aria-checked="${options.checked}"` : ""
-  }${options.disabled ? " disabled" : ""}${renderAttrs(options.attrs)}>${lead}<span data-slot="menu-item-label">${escapeHtml(options.label)}</span>${
+  }${options.disabled ? " disabled" : ""}${renderAttrs(options.attrs)}>${lead}<span data-slot="menu-item-label">${label}</span>${
     options.shortcut ? `<span class="mw-menu__shortcut">${escapeHtml(options.shortcut)}</span>` : ""
   }</button>`;
 }

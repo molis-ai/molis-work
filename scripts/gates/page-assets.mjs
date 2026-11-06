@@ -319,8 +319,14 @@ const headErrors = (measured, budget, base) => {
 // usage instead of per code, the pair checked on the rows themselves instead of a serialized helper, the reasons table cut to the
 // codes an MCP connection's consumers can answer, errors through the page's own fail(), the two explanations and the two removal
 // confirmations sharing one sentence each; no new style or asset.
+// ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
+// the Assistant's "等你处理": workbench.js +573 B, keyed on main's budget 1085274 (after #1865 and #1790; ASC-59's workbench.js entry keyed on 1078718
+// is spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
+// UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
+// the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
+// settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1078718, 1085276],
+  "/assets/molis-work-workbench.js": [1085274, 1085847],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

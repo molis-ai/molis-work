@@ -143,6 +143,31 @@ type ComposerMaterial =
 
 每处都看浅深色、中英文、1440／1024／390；动效用现有的曲线与时长 token，不新加。原型里的 `.mwc*` 与 `mw-menu__desc` 是参照，不照抄进产品。
 
+**K1 定下的类名与结构**（标本在 `packages/design-system/src/primitives/catalog-composer.ts`，组件板 `#composer`、`#menu-desc` 两节；K0c 的 `renderComposer()` 与 K2 的客户端照这份拼，不另起类名）：
+
+```html
+<div class="mw-composer" data-slot="composer" data-state="…">        <!-- 没有 data-state 是常态 -->
+  <div class="mw-composer__to"><span>发给：</span><span class="mw-tag"><span>对象</span><button data-tag-remove>×</button></span></div>
+  <div class="mw-composer__box">                                      <!-- 圆角 --r-composer、阴影 --lift-1；:focus-within 换 --line-strong 描边 -->
+    <ul class="mw-uploads mw-composer__files"><li class="mw-upload">…</li></ul>   <!-- 附件条：组件板的上传行，一行一个 -->
+    <p class="mw-field__hint mw-composer__restore">已恢复… · <button class="mw-btn mw-btn--link">清空</button></p>
+    <div class="mw-composer__text"><textarea class="mw-composer__input" data-fit rows="1"></textarea></div>
+    <div class="mw-composer__status" role="status"><span class="mw-status …">…</span><span>说明</span><button class="mw-btn mw-btn--link">动作</button></div>
+    <div class="mw-composer__foot">
+      <div class="mw-composer__start">＋ 菜单（mw-compose__anchor）、场景控件</div>
+      <div class="mw-composer__end">停止（danger-outline）、发送（图标钮，或运行中是 mw-btn-group：补充 + ▾ 的 mw-compose__menu）</div>
+    </div>
+  </div>
+</div>
+```
+
+- **状态只用一个属性** `.mw-composer[data-state]`：`sending`（发送键转圈、不可点）、`running`（出现停止与送达分体按钮）、`failed`（框描边换成红色调）、`unconfirmed`（待确认，发送键不可点）、`disabled`（框底换 `--wash`，写字区 `disabled`）；聚焦只靠 `:focus-within`，不设属性。状态行里的文字与动作由挂载页给，组件只摆位置。
+- **写字区**沿用 `textarea[data-fit]`（`FIELD_FIT_STYLES`）：两行起，到 240px 或窗口 40% 后框内滚动；`.mw-composer__input` 只改最小高度为两行、去边框。手机宽度与粗指针下字号 16px，底行按钮 44px。
+- **框里的菜单**往上开（`.mw-composer .mw-compose__menu` 贴底行上方，入场用现有的 `craft-rise-from-bar`）。
+- **菜单说明行**：`renderMenuItem({ description })` 输出 `button.mw-menu__item.mw-menu__item--described > [data-slot=menu-item-label] > span + small.mw-menu__desc`；不可选的项照旧 `disabled`，原因写在说明行里（说明行保持 `--muted`，不随禁用变淡）。
+- **麦克风**：mic 图标与外壳底行的麦克风位随 K0c 落（主会话 11-05 定，因 #1775 占着 plugin-sdk/ui 快照）。图标名 `mic`（Lucide `Mic`）进 SDK `PLUGIN_ICON_NAMES` 与图标表「动作」组，组件板加 `#mic` 一节（16px、20px）；底行的位置在 `.mw-composer__end` 最前，停止与发送的左边，用 ghost 图标钮。
+- 这些规则现在是组件板自己的样式（`COMPOSER_BOARD_STYLES`，不在页面样式表里，与 `catalog-patterns.ts` 的写法相同）；K2 第一次在产品里用时，连同它用到的 `mw-upload`、`mw-tag`、`mw-btn-group` 规则一起搬进页面样式表，页面资源增长在 K2 与 K3 合并落地时计。
+
 ## 4. 安全不变量的变化
 
 按 [SECURITY-INVARIANTS](../../docs/system/SECURITY-INVARIANTS.md) 第 3 节加一行。测试要先在没有保护的代码上红过。
@@ -165,7 +190,7 @@ type ComposerMaterial =
 | --- | --- | --- | --- | --- |
 | K0 合同 | `packages/contracts/src/platform/composer.ts`（新子路径）：`ComposerSourceDeclaration`、两个类型名与两份定死的 schema、`ComposerPick*`、`ComposerMaterial`（对象一支包 `MaterialRef`）；`ActionMetadata.composer_source`；SDK 的声明检查（`inspectActionDeclarations` 比 schema、`inspectActionCrossReferences` 查种类）；`page-globals.ts` 里 `molisComposer` 与 3.2 的类型；`pnpm api:update`（动作快照不变：本片没有声明者）。阶段 1 按 N35 原地改形状，不升版本 | C1，单独的合同 PR，C 轨评审；C 轨排期 | 02 交接；05② C-1（`MaterialRef`）合入，或与它同一片落；本方案审过 | UIC-01 API 快照只多这几项；UIC-02 声明检查的拒绝用例（S-109 第 1、2 条：schema 差一个字、非只读、种类不归自己） |
 | K0b 助理送达字段 | `AssistantSendInput` 加 `delivery?: AgentSteerMode`（`packages/contracts/src/services/assistant.ts`，A 的文件）。不写等于 `next-boundary`（即今天的补充）；只在 `target` 为 `steer`（不写也是 steer）时有意义，与 `target: "answer"` 同时出现、或新开工作（没有 `work_id`）时出现都拒绝；HTTP 入口不认识的取值拒绝，不补成默认 | A，小合同 PR，C 轨评审 | 与 K0 同时或紧随 | UIC-03 API 快照只多这一项；UIC-12 三种拒绝（与 answer 同时、新工作、未知取值）各一条用例 |
-| K0c 首屏渲染 | SDK `/ui` 导出 `renderComposer(options)`（`packages/plugin-sdk/src/ui/composer.ts`，A 独占），只拼 K1 标本的类名，不依赖 design-system；`pnpm api:update`。SDK 算共享核心，按共享核心跑全量 | A，小合同 PR，C 轨评审；`ui.ts` 的导出行 D 评审 | K1 合入（类名定了） | UIC-13 API 快照只多 `renderComposer` 与它的选项类型；输出与 K1 标本的结构一致 |
+| K0c 首屏渲染 | SDK `/ui` 导出 `renderComposer(options)`（`packages/plugin-sdk/src/ui/composer.ts`，A 独占），只拼 K1 标本的类名，不依赖 design-system；`pnpm api:update`。SDK 算共享核心，按共享核心跑全量。mic 图标与外壳底行的麦克风位随 K0c 落（主会话 11-05 定，因 #1775 占着 plugin-sdk/ui 快照） | A，小合同 PR，C 轨评审；`ui.ts` 的导出行 D 评审 | K1 合入（类名定了） | UIC-13 API 快照只多 `renderComposer` 与它的选项类型；输出与 K1 标本的结构一致 |
 | K1 组件板标本 | 3.6 的三处 | D | 本方案审过；可与 K0 并行 | UIC-04 组件板有三节标本，三宽度、中英、深浅截图进 PR；页面资源增长写明字节 |
 | K2 组件 | 3.1～3.5：`packages/design-system/` 里的组件客户端、工作台与沙箱框架装上 `molisComposer`；S-109；两个测试插件（一个注册 `composer_source`，一个用场景控件与提交适配）在临时 Home 里的高保真切片 | A（新建的组件文件归 A 独占，第 8 节第 2 项）；工作台与框架的装配行随这片落 | K0、K0c、K1 合入 | UIV-01～04、UIV-11、UIV-14～17（组件层）；VUX-16～18；UIC-05 键位与输入法（含 229）；UIC-06 一次提示只出现一次；UIC-07 挂载代次丢弃迟到结果；UIC-08 不支持的送达方式不可选且不降级；UIC-10 删项目、卸载插件后本机没有它们的草稿键；UIC-11 存储读写失败时就地提示、字不丢 |
 | K3 首页与助理（第 11 批，与 K2 一起落） | `assistant-dock.ts` 等换成组件；草稿用助理的宿主适配；送达走 K0b；「发给」行接 03 定样与 PWA-130；`/`、`@` 进统一菜单；删掉被替换的私有实现 | A | K2、K0b 合入 | UIV-12、UIV-17（助理）；UIC-09 打断两步、发出后回到补充 |

@@ -50,6 +50,9 @@ test("RAC-2620 the arrival page and a project's tool bar offer a Home package be
   const project = await h.page(h.projectPath);
   assert.equal(project.status, 200);
   assert.ok(entryOf(project.text, PACKAGE_PLUGIN_ID)?.includes(icon("book")), "the project's titlebar offers it too");
+  const stageTag = (pluginId: string) => new RegExp(`<section [^>]*data-installed-plugin="${pluginId.replaceAll(".", "\\.")}"[^>]*>`, "u").exec(project.text)?.[0];
+  assert.ok(stageTag(PACKAGE_PLUGIN_ID)?.includes('data-installed-plugin-icon="book"'), "BL-912: the stage tells the tab strip the icon the package picked");
+  assert.ok(stageTag(SECOND_PLUGIN_ID) && !stageTag(SECOND_PLUGIN_ID)!.includes("data-installed-plugin-icon"), "BL-912: no icon picked, the tab keeps the default");
 });
 
 test("RAC-2621 a package that has only a stage view has no side tab; its entry opens its stage, which is a page of its own, and two packages open two stages", mac, async t => {

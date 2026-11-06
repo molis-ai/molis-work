@@ -17,8 +17,8 @@ const sdkEntry = (JSON.parse(readFileSync(join(sdkDirectory, "package.json"), "u
 type Declaration = { capability_id: string; operation: string; action: { scope: string; audiences: string[]; effect?: string; plugin?: false } };
 interface Sdk {
   [name: string]: unknown;
-  defineDueRemindersAction(id: string, kinds: string[], title: string, permissions: string[]): Declaration;
-  defineArtifactCompareAction(id: string, title: string, permissions: string[]): Declaration;
+  defineDueRemindersAction(id: string, version: number, kinds: string[], title: string, permissions: string[]): Declaration;
+  defineArtifactCompareAction(id: string, version: number, title: string, permissions: string[]): Declaration;
   withActionEffect(definition: Declaration, effect: string, plugin?: false): Declaration;
   FRAGMENT_ANY_OBJECT: string;
   FRAGMENT_INTENTS: readonly unknown[];

@@ -59,6 +59,26 @@
 
 唯一现行表在 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，包登记仍来自 `scripts/workspace-packages.mjs`。门禁按首个完全匹配的 11 列表头读取，守包的行集合、层、代码判定的状态、人工列词汇及数字写法；缺文档或缺表就失败。不比较数字列的当前实测值，也不根据默认生成值覆盖人工审查。`--table` 供核对机器列；原包的计划深度、审查及证据须保留。`--check` 和健康门禁只读新表，不回读历史 spec。完整负例在 `tests/package-inventory-gate.test.ts`。
 
+## 自有版本的声明（`scripts/gates/version-declarations.mjs`，N34-VS）
+
+`tooling/versions.json` 是自有版本唯一手改的地方，`scripts/generate-versions.mjs` 把值写到用它的地方（规则见 [POLICY.md 第 1 节](../../docs/releases/POLICY.md#1-一个产品版本和它的载体)）。这条门禁看没有经过这张表的声明，由 `node scripts/verify-release-versions.mjs` 调用，也可以单独跑 `node scripts/gates/version-declarations.mjs`。它不比数字，出现一条就失败。
+
+| 查什么 | 口径 |
+| --- | --- |
+| 没有标记的当前版本 | 属性 `version`、`*_version`、`*Version`、`format`、`schema`、`v`、`protocol` 取数字或像版本的字符串（含 `as const`、接口里的字面量类型）；这些名字与数字的相等比较；`*VERSION` 变量的字面量；名为 version 的参数的默认值；带 `.vN`、`/N` 的公开标识字符串。0 表示「还没有」，不算 |
+| 用错条目 | `capability_id`、`prompt_id`、`role_id`、`scene_id` 或工厂的 id 字面量旁边，标记的 key 不是这个 id 的条目 |
+| 按位置引用的动作 | 表里有的动作 id 后面直接跟裸数字 |
+| 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取 |
+| 动作与场景的对账 | `tooling/gates/actions/` 的每一行与 `action.*`、`scene.*`、`action-family.*`、`protocol.workflow-content.*` 条目双向一致 |
+
+**扫描范围。** `scripts/generate-versions.mjs` 的 `SOURCE_ROOTS` 下的代码文件，跳过真正的测试与夹具（`isTestFile`）；`src/fixtures/` 随产品发出，照样扫。
+
+**例外。** 只有 `tooling/gates/version-exceptions.json` 一处，按文件（可再写名字）、条目或快照行登记，每条理由至少 20 字；不再需要的例外本身也失败。依赖与上游协议的版本、运行时递增的修订号、盐和固定身份写在这里，不进版本表。
+
+**读不到的（已知限制）。** 这是字面量的形状检查，版本放进变量再用、计算出来的值、不叫上面这些名字的属性都看不到；是否该进表由评审判断。
+
+验证：`node scripts/run-tests.mjs tests/version-source.test.ts tests/verify-release-versions.test.ts`。
+
 ## 库的版本与维护清单（`scripts/gates/store-versions.mjs`，BL-157）
 
 每个权威 Home 库只认当前版本，错版拒绝；派生库按既有重建合同处理（`docs/releases/CHECKLIST.md` 第 3 节）。一个 PR 改了某个库的版本，必须记录变更及处置。2026-10-30 旧迁移已取消，当前干净重建和真实 Home 的边界归 `docs/system/HOME-DATA.md`；登记不代表已做维护或授权旧转换。10-13 Pages 由 1 升到 2，没有人写维护步骤，直到 10-17 只读核对真实 Home 才发现。这道门禁把它变成规则；它只会变严，不用基线。

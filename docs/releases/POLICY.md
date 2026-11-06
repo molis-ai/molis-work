@@ -10,15 +10,15 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 ## 1. 一个产品版本和它的载体
 
-所有自有版本的唯一维护入口是 `tooling/versions.json`：产品、各库和文件格式、动作、提示词、角色、方法、同步集合与自有协议分别命名。修改条目后运行 `pnpm versions:generate`；构建入口先生成，`pnpm versions:check` 和既有版本检查只读核对来源、生成载体及无标记的新声明。各包只使用自己的生成常量或受管字面量，不在运行时导入整个版本表。当前库版本表的版本列也由定义处派生；历史维护清单仍人工登记。
+所有自有版本的唯一维护入口是 `tooling/versions.json`：产品、各库和文件格式、动作、提示词、角色、方法、同步集合与自有协议分别命名。修改条目后运行 `pnpm versions:generate`，它只把表里的值写到用的地方，校验不过就一个文件也不写。构建入口只核对不生成：结果过期就失败，并提示运行这条命令。绕过这张表的新声明归 `scripts/gates/version-declarations.mjs` 管，由 `node scripts/verify-release-versions.mjs` 调用；例外都写在 `tooling/gates/version-exceptions.json`，各带理由。代码只写字面量加标记（`version: /* @version action.todo.items.list */ 1`），不导入版本表，也没有生成的常量文件；代码以外的文件（方法 Markdown、Manifest、配置）只由表里的 `carriers` 改写。当前库版本表的版本列也由定义处派生；历史维护清单仍人工登记。
 
-受管字面量旁的 `@version` 标记保留公开 literal 类型和浏览器函数的独立作用域，不能手改成另一处权威；工厂的缺省版本也有自己的条目，静态业务动作传各自的版本，调用方使用已有 descriptor.version。工作流内容的四个角色各是一份共享协议；动态 SDK 成果动作按真实操作管理。并存的 inline/blob、inline/chunks 编码分别保留 1/2；远端 D1 基线仍为 6，固定成果生产者身份仍为 0.3.0。依赖、上游协议、业务修订计数和用于拒绝的历史测试输入不属于当前声明。
+字面量保留公开 literal 类型和浏览器函数的独立作用域；它只是表的副本，手改会被核对拦下。动作工厂没有缺省版本：版本是紧跟 id 的必填参数，每个静态业务动作传自己的条目，调用方使用已有 descriptor.version。一个条目留在表里，要么改这个数字有业务含义（读取时比较，或对外承诺），要么它是名字里带版本的公开标识；其他的只留字面量。工作流内容的四个角色各是一份共享协议；动态 SDK 成果动作按真实操作管理。并存的 inline/blob、inline/chunks 编码分别保留 1/2；远端 D1 基线仍为 6，固定成果生产者身份仍为 0.3.0。依赖、上游协议、业务修订计数和用于拒绝的历史测试输入不属于当前声明。
 
 产品条目为 `product.release`，本次候选是 0.1.0。根 `package.json` 与下面各载体都是生成结果：
 
 | 载体 | 位置 | 规则 | 谁核对 |
 | --- | --- | --- | --- |
-| 根包 | `package.json` | 产品版本的唯一来源 | 脚本以它为准 |
+| 根包 | `package.json` | 由 `product.release` 生成；发布核对从这里读产品版本 | 脚本 |
 | 桌面端、Tauri | `apps/desktop/src-tauri/tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop` | 等于产品版本 | 脚本 |
 | 写在代码里的一处 | `apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`。宿主报出产品版本的每个地方都从它取，不另写一份：Feed 的 User-Agent 与它和搜索运行时交给搜索证据层的 `app.version`、MCP 客户端（`connector-mcp.ts` 的两处 `Client`）的版本、Codex 会话传输的 `clientInfo.version`（`horizontal/runtime-host` 不持有版本，宿主在 `session-runtime-resources.ts` 以 `clientVersion` 选项传入）。新增要报出产品版本的地方，导入这个常量，不在脚本里再加一条载体 | 等于产品版本 | 脚本 |
 | 发布说明与 CHANGELOG | `docs/releases/v<版本>.md`、`docs/releases/CHANGELOG.md` 里的 `[<版本>]` 一节 | 当前产品版本两者都有；CHANGELOG 第一节永远是 `[Unreleased]` | 脚本 |

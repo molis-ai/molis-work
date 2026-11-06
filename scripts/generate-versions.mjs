@@ -25,7 +25,7 @@ export function isTestFile(file) {
 
 export const versionSource = (root = ROOT) => JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8"));
 
-/** Every first-party code file (relative path, text). Carrier files are read on top by {@link generateVersions}. */
+/** Every first-party code file (relative path, text). */
 export function readSourceFiles(root = ROOT) {
   const files = new Map();
   const walk = directory => {
@@ -81,15 +81,20 @@ export function computeVersions({ versions, carriers = [], ...extra }, files) {
   return { outputs, used, problems };
 }
 
-/** Reads the tree, computes, and only when everything checks out writes. Returns the files that differ; throws on any problem. */
-export function generateVersions({ root = ROOT, write = false } = {}) {
-  const source = versionSource(root), files = readSourceFiles(root);
+/** What {@link computeVersions} needs for this tree: the code files and whatever the carriers name. */
+export function readVersionInputs(root, source) {
+  const files = readSourceFiles(root);
   for (const { file } of source.carriers ?? []) {
     const location = path.resolve(root, file);
     if (!location.startsWith(path.resolve(root) + path.sep)) throw new Error(`Version output outside repository: ${file}`);
     if (!files.has(file) && existsSync(location)) files.set(file, readFileSync(location, "utf8"));
   }
-  const { outputs, problems } = computeVersions(source, files);
+  return files;
+}
+
+/** Reads the tree, computes, and only when everything checks out writes. Returns the files that differ; throws on any problem. */
+export function generateVersions({ root = ROOT, write = false } = {}) {
+  const source = versionSource(root), { outputs, problems } = computeVersions(source, readVersionInputs(root, source));
   if (problems.length) throw new Error(problems.join("\n"));
   if (write) for (const [file, output] of outputs) writeFileSync(path.join(root, file), output);
   return [...outputs.keys()];

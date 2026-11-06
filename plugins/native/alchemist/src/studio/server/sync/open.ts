@@ -27,6 +27,7 @@ export function openStudioDatabase(path:string):SqliteDatabase{
    const found=Number(previous.pragma('user_version',{simple:true}));
    const business=previous.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
    if(found!==ALCHEMIST_STUDIO_BASELINE.version&&(found!==0||business))throw new SqliteSchemaVersionError(path,found,ALCHEMIST_STUDIO_BASELINE.version);
+   if(found===ALCHEMIST_STUDIO_BASELINE.version)applyStudioBaseline(previous,path);
   }finally{previous.close();}
  }
  const db=openDatabase(path);try{applyStudioBaseline(db,path);return db;}catch(error){db.close();throw error;}

@@ -355,7 +355,7 @@ for (const corruption of ["version", "structure"] as const) {
       const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
       assert.equal((await availability(caller, action)).available, false);
       const currentVersion = db.prepare("PRAGMA user_version").get()!.user_version;
-      assert.equal(currentVersion, 4, "the fault starts from the current Home Runtime schema");
+      assert.equal(currentVersion, 1, "the fault starts from the current Home Runtime schema");
       if (corruption === "version") db.exec("PRAGMA user_version = 2");
       else db.exec("DROP TABLE plugin_private_values");
       const consents = ledger.consents(goals.plugin_id), installs = repository.list();
@@ -416,7 +416,7 @@ for (const corruption of ["version", "structure"] as const) {
   });
 }
 
-for (const error of [new SqliteSchemaVersionError("unrelated.db", 1, 4), new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v4 基线不一致，请保留故障库并检查其来源")]) {
+for (const error of [new SqliteSchemaVersionError("unrelated.db", 2, 1), new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源")]) {
   test(`RAC-403 a ${error.name} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
     const f = await serveHomeRuntime(t, { actionAvailability: (_caller, action) => {
       if (action.capability_id === goalsActions.collection.capability_id) throw error;

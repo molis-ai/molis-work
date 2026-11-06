@@ -431,7 +431,7 @@ Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件的 MCP 能�
 
 个人同步的并发分支可能修订数字相同而内容不同。修改已有对象需核对读取内容的版本令牌；Cognia 的 `cognia.material.get@1` 返回 `etag`，`cognia.material.update@1` 必传它并在 owner 事务内验证。网页自动携带，MCP 使用 `cognia.material.get__v1`、`cognia.material.update__v1`；固定 v1 的调用须按现行形状补充版本令牌；版本号本身不拒绝旧输入。旧编辑被拒绝后先重读、再由用户决定，不能自动带新令牌重试旧正文。
 
-Shelf 的 `shelf.items.edit@2` 必传读取动作 `shelf.items.read@1` 的完整字节 `content_hash` 作为 `expected_content_hash`，同一同步提交前验证；网页使用同次原文件响应的 ETag。Home 和项目的插件二进制响应由宿主对实际发送的所有字节计算 SHA-256，以双引号包住小写十六进制摘要作为强 ETag，响应头由宿主设置。冲突保留输入和旧前提，不能临保存时重取。原件 `origin_hash` 不代表当前内容。对应 MCP 名 shelf.items.edit__v2，固定 v1 的调用须更新，不保留旧名。
+Shelf 的 `shelf.items.edit@1` 必传读取动作 `shelf.items.read@1` 的完整字节 `content_hash` 作为 `expected_content_hash`，同一同步提交前验证；网页使用同次原文件响应的 ETag。Home 和项目的插件二进制响应由宿主对实际发送的所有字节计算 SHA-256，以双引号包住小写十六进制摘要作为强 ETag，响应头由宿主设置。冲突保留输入和旧前提，不能临保存时重取。原件 `origin_hash` 不代表当前内容。对应 MCP 名 shelf.items.edit__v1，统一起点前复位为 @1；现行输入仍须带所读内容指纹，缺失时拒绝，不保留 @2 名称。
 
 JSON 文件或私有 KV owner 的同步可用 SDK `createSyncDocument`，将业务文档和队列、冻结上传、回执、冲突放进单次原子 CAS。owner 定义稳定键、完整内容令牌、格式校验及恢复；保存期间 CAS 失败不自动重跑回调，异步业务操作先等待后复查授权再进入同步提交。冻结内容须自足，不用可被编辑/删除的本机路径充当附件。该工具只提供本机原子存储技术，不负责自动注册、空间授权或安装生命周期。
 

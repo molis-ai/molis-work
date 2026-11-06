@@ -74,7 +74,7 @@ export const shelfActions = {
   delete: define<{ item_id: string }, { deleted: true }>("items.delete", "删除 Shelf 副本", "删除置物架里的副本；运行中的材料不能删除，原件不受影响", "command", itemId, object({ deleted: { const: true } }), [...write, "materials:original"], SHARED),
   useAsMaterial: define<{ item_id: string }, { item: ShelfItemRecord }>("items.use-material", "结果转为材料", "把处理结果复制为新的材料，供下一次处理", "command", itemId, object({ item }), write, SHARED),
   edit: define<{ item_id: string; text: string; expected_content_hash: string }, { item: ShelfItemRecord; content_hash: string }>("items.edit", "修改 Shelf 文字", "按读取时的完整内容指纹修改文字副本；内容已改变时拒绝，原件不受影响，正文最多 512 KB", "command",
-    object({ item_id: id, text: { type: "string", maxLength: 2_000_000 }, expected_content_hash: { type: "string", pattern: "^[a-f0-9]{64}$" } }), object({ item, content_hash: text }), write, SHARED, undefined, 2),
+    object({ item_id: id, text: { type: "string", maxLength: 2_000_000 }, expected_content_hash: { type: "string", pattern: "^[a-f0-9]{64}$" } }), object({ item, content_hash: text }), write, SHARED),
   generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke", "materials:read", "materials:original"]),
   extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", [...write, "materials:read", "materials:original"]),
   cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", "取消 Shelf 任务", "中止一个运行中的处理任务并把它标为已取消；已经结束的任务原样返回，不报错", "command", object({ job_id: id }), object({ job }), write, SHARED),

@@ -85,4 +85,4 @@ Shelf 和结果面板使用 Host 注入的 UI 生命周期。卸载释放全局�
 
 这些客户端边界的回归在 `tests/shelf-client-boundaries.e2e.test.ts`，正式搜索与剪贴板隐私断言在 `tests/system-search-host.test.ts`；依次用 `node scripts/run-tests.mjs` 运行相应文件，浏览器批次需排时段。
 
-文字编辑为 `shelf.items.edit@2`，强制携带 `items.read@1` 的 `content_hash` 作为 `expected_content_hash`；对应 MCP 名为 shelf.items.edit__v2，不保留旧名。网页编辑从同一次原文件响应的 ETag 取得完整字节指纹，并只在成功保存后更新；冲突保留输入，不重读新指纹强行覆盖。文件读取和项目材料预览的现有合同不变。
+文字编辑为 `shelf.items.edit@1`，强制携带 `items.read@1` 的 `content_hash` 作为 `expected_content_hash`；对应 MCP 名为 shelf.items.edit__v1，不保留旧名。网页编辑从同一次原文件响应的 ETag 取得完整字节指纹，并只在成功保存后更新；冲突保留输入，不重读新指纹强行覆盖。文件读取和项目材料预览的现有合同不变。

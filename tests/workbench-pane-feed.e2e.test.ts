@@ -22,7 +22,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await addProjectPlugin(browser.web, projectId!, "feed");
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click('[data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   // Soft Workbench: one timeline; each row names its source and the source menu scope it belongs to.
@@ -141,7 +141,7 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
   await addProjectPlugin(browser.web, projectId!, "feed");
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click('[data-layout-open]');
   await click('[data-layout-split=right]');
   await click('[data-plugin-id="feed"]');
@@ -204,7 +204,7 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   };
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click('[data-plugin-id="goals"]');
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await click('[data-frame-goal-work]');
@@ -263,7 +263,7 @@ test("a background refresh keeps the titlebar tabs hidden while panes are split,
   };
   await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click('[data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready'");
   await click('[data-layout-open]');

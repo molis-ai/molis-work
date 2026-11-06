@@ -15,7 +15,7 @@ test("VUX-23/24: the split divider has a dead zone, follows, snaps with hysteres
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
   await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelector('[data-direction=row] [data-tab-sash]')");

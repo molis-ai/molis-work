@@ -102,6 +102,7 @@ body[data-side-open=true] .side-strip{min-width:calc(var(--side-panel-width,35vw
 .side-strip>.tab-item:has(>[role=tab]:is([hidden],[data-side-closed])){display:none}
 .immersive-titlebar>.titlebar-layout{order:7;padding-right:calc(var(--sheet-inset,14px) - 8px)}
 .immersive-titlebar:has(>.titlebar-layout)>.side-strip{padding-right:0}
+@media(max-width:760px),(pointer:coarse){.immersive-titlebar>.titlebar-layout>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}}
 .side-undo-chip{order:5;flex:none;max-width:220px}
 .side-undo-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-busy-mark{display:inline-flex;flex:none;width:16px;height:16px}
@@ -127,6 +128,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  body[data-side-open=true] .side-strip{min-width:0}
  .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;scrollbar-width:none;justify-content:safe flex-end}
  .immersive-titlebar>.side-strip{flex:1 0 100%}
+ .immersive-titlebar:has(>.titlebar-layout)>.side-strip{flex-basis:calc(100% - 80px)}
  .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }

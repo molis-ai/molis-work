@@ -6,7 +6,7 @@ import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 
 interface Tab { id: string; plugin: string; kind: string; title: string; itemId?: string; view?: string; pinned?: boolean; groupId?: string }
 interface Pane { id: string; tabs: Tab[]; activeTabId: string | null; groups: Array<{ id: string; title: string; color: string; collapsed: boolean }>; viewPlugin: string | null }
-interface State { panes: Pane[]; focusedPaneId: string; exclusive: string | null; layout: { direction: string; sizes: number[]; tree?: unknown }; side: { id: string; tabs: unknown[]; activeTabId: string | null; open: boolean; ratio: number } }
+interface State { panes: Pane[]; focusedPaneId: string; exclusive: string | null; layout: { direction: string; sizes: number[]; tree?: unknown }; side: { id: string; tabs: unknown[]; activeTabId: string | null; open: boolean; ratio: number; closed: string[] }; solo: { paneId: string; side: boolean } | null }
 interface Ops {
   create(): State;
   focused(state: State): Pane;
@@ -26,7 +26,7 @@ interface Ops {
 // Call the exact rules shipped in the public browser program, including its grouped-ops composition.
 // This also catches a source implementation that was changed but left out of the shipped program.
 const syntax = ts.createSourceFile("workbench.js", CLIENT_SCRIPT, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-const names = new Set(["createTabWorkspaceOps", "withPluginGroups", "withSidePane", "settlePluginTabs", "isLoosePluginTab", "isCurrentTabWorkspace"]);
+const names = new Set(["createTabWorkspaceOps", "withPluginGroups", "withSidePane", "withLayout", "settlePluginTabs", "isLoosePluginTab", "isCurrentTabWorkspace"]);
 const bodies = new Map<string, string>();
 const visit = (node: ts.Node): void => {
   if ((ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node)) && node.name && names.has(node.name.text)) bodies.set(node.name.text, node.getText(syntax));
@@ -36,7 +36,8 @@ visit(syntax);
 assert.equal(bodies.size, names.size, "the shipped rules include all production owners");
 const context = vm.createContext({ __name: (value: unknown) => value });
 const compiled = Object.fromEntries([...bodies].map(([name, body]) => [name, vm.runInContext("(" + body + ")", context)]));
-const fresh = (): Ops => compiled.withSidePane(compiled.withPluginGroups(compiled.createTabWorkspaceOps(), compiled.settlePluginTabs, compiled.isLoosePluginTab));
+// The shipped composition, withLayout (07-S2: 独看, moves between the main area and the side) outermost.
+const fresh = (): Ops => compiled.withLayout(compiled.withSidePane(compiled.withPluginGroups(compiled.createTabWorkspaceOps(), compiled.settlePluginTabs, compiled.isLoosePluginTab)));
 const valid = (value: unknown): boolean => compiled.isCurrentTabWorkspace(value);
 const roundTrip = (state: State): State => JSON.parse(JSON.stringify(state));
 

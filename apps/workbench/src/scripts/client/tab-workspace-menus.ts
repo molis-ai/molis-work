@@ -58,7 +58,11 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
   };
   const placeLayoutMenu = ${placeLayoutMenu.toString()};
   // A menu opens by what opened it and stays inside the window; \`start\` lines it up with the anchor's left edge, else its right.
+  // A capped menu scrolls, and the shared roving focus moves without scrolling: keep the focused item in view. Added on each
+  // placing, which adds the one function once (the tab menu is made after this part).
+  const keepInView = (event) => event.target.scrollIntoView({ block: "nearest" });
   const placeMenu = (menu, anchor, start) => {
+    menu.addEventListener("focusin", keepInView);
     const rect = anchor.getBoundingClientRect();
     menu.style.maxHeight = ""; menu.showPopover();
     const placed = placeLayoutMenu(start ? { top: rect.top, bottom: rect.bottom, right: rect.left + menu.offsetWidth } : rect, { width: menu.offsetWidth, height: menu.offsetHeight }, { width: innerWidth, height: innerHeight });

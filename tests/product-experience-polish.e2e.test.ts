@@ -184,6 +184,10 @@ test('Search opens an owner record in the visible split pane without creating a 
   await dataset.waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
   assert.equal(await dataset.evaluate("document.querySelector('[data-dataset-id] strong').textContent"), '分屏查找这份数据');
   const id = await dataset.evaluate<string>("document.querySelector('[data-dataset-id]').dataset.datasetId");
+  // 07-S2 (口径 8, PFG-24): a plugin still open in another column is recalled there, so Dataset's tab is closed first; this case
+  // is about the search opening the record in the split pane itself (recall is open-recall-layout's).
+  await click('.tab-item[data-plugin=dataset] [data-tab-close]');
+  await waitFor("!document.querySelector('.tab-item[data-plugin=dataset]')");
   await click('[data-plugin-id=home]');
   await click('[data-layout-open]'); await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");

@@ -14,6 +14,10 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await command('Emulation.setDeviceMetricsOverride', {width:1440,height:900,deviceScaleFactor:1,mobile:false}, sessionId);
   await navigate(() => command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
+  // 07-S2 (口径 3): the project home is the Dock's, not a tab, so the first tab pinned here is Goals' own page, opened from ＋.
+  await click('[data-titlebar-tabs] [data-tab-add]');
+  await click('[data-tab-menu-action=open-goals]');
+  await waitFor("document.body.dataset.desktopSurface==='goals' && document.querySelector('.tab-item[data-tab-kind=plugin][data-plugin=goals]')");
   const homeId = await evaluate<string>("document.querySelector('.tab-item').dataset.tabId");
   await click('.tab-item-trigger');
   await command('Input.dispatchKeyEvent', {type:'keyDown',key:'F10',code:'F10',windowsVirtualKeyCode:121,modifiers:8},sessionId);
@@ -21,9 +25,6 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await click('[data-tab-menu-action=pin]');
   assert.equal(await evaluate("document.querySelector('.tab-item').dataset.pinned"),'true');
   assert.equal(await evaluate("document.querySelector('.tab-item [data-tab-close]')"), null);
-  await click('[data-titlebar-tabs] [data-tab-add]');
-  await click('[data-tab-menu-action=open-goals]');
-  await waitFor("document.body.dataset.desktopSurface==='goals'");
   await openGoalFrame('.tree-node[data-select-goal=CORE]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE'");
   const coreId=await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
@@ -62,7 +63,9 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await shot('mobile-before-actions');
   await evaluate(`document.querySelector(${JSON.stringify(`[data-tab-id="${homeId}"] .tab-item-trigger`)})?.click()`);
   assert.equal(await evaluate(`document.querySelector('[data-tab-id="${homeId}"]').getBoundingClientRect().width`),44);
-  await click('[data-titlebar-tabs] [data-tab-add]');
+  // ＋ only opens (07-S2): the tab's own menu unpins it.
+  await command('Input.dispatchKeyEvent', {type:'keyDown',key:'F10',code:'F10',windowsVirtualKeyCode:121,modifiers:8},sessionId);
+  await waitFor("document.querySelector('[data-workspace-tab-menu]').matches(':popover-open')");
   await click('[data-tab-menu-action=pin]');
   assert.equal(await evaluate(`document.querySelector('[data-tab-id="${homeId}"]').hasAttribute('data-pinned')`),false);
   await click('[data-titlebar-tabs] [data-tab-add]'); await shot('mobile-menu-dark');
@@ -73,7 +76,9 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await shot('mobile-dark');
   assert.equal(await evaluate(`(()=>{const tab=document.querySelector('${coreSelector}').getBoundingClientRect(),area=document.querySelector('[data-titlebar-tabs] [data-tab-scroll]').getBoundingClientRect();return tab.right>area.left+8 && tab.left<area.right-8})()`),true);
   await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:'light'},{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);await shot('mobile-light');
-  await click('[data-titlebar-tabs] [data-tab-add]');
+  await evaluate(`document.querySelector(${JSON.stringify(coreSelector + " .tab-item-trigger")}).focus()`);
+  await command('Input.dispatchKeyEvent', {type:'keyDown',key:'F10',code:'F10',windowsVirtualKeyCode:121,modifiers:8},sessionId);
+  await waitFor("document.querySelector('[data-workspace-tab-menu]').matches(':popover-open')");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-workspace-tab-menu]')).animationName"),'none');
   await click('[data-tab-menu-action=close]');
   assert.equal(await evaluate(`Boolean(document.querySelector('${coreSelector}'))`),false);

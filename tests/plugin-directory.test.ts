@@ -93,7 +93,10 @@ test("RAC-605 a plugin's name and declared texts come out escaped, and the direc
   // RAC-605-CLIENT-02: untrusted text still exercises the existing serializer after names leave the client projection.
   assert.match(scriptJson({ text: HOSTILE }), /\\u003c\/script\\u003e\\u003cimg src=x onerror=alert\(1\)\\u003e\\u0026\\u2028tail/u);
   const parsed = JSON.parse(data) as Array<{ id: string; accepts_objects: boolean }>;
-  assert.deepEqual(parsed.find(entry => entry.id === "evil"), { id: "evil", accepts_objects: true, hue: null }, "the client receives its routing fields without the unconsumed name");
+  // 07-S2 (口径 8): ＋ reads a rail plugin's place from the directory (`offered`), so it is one of the fields the client consumes.
+  const evil = parsed.find(entry => entry.id === "evil") as { offered?: unknown } | undefined;
+  assert.equal(typeof evil?.offered, "number", "the rail offers the installed plugin, and the client gets its place");
+  assert.deepEqual(evil, { id: "evil", accepts_objects: true, hue: null, offered: evil?.offered }, "the client receives its routing fields without the unconsumed name");
   assert.deepEqual(clientPluginDirectory([hostile]), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "evil", accepts_objects: true, hue: null }], "the direct projection keeps the platform route and omits display names");
   // Nothing the plugin wrote is markup in the page: its tag is text, its icon names no artwork.
   assert.doesNotMatch(html, /<img\b[^>]*src=x/u);
@@ -220,9 +223,10 @@ test("RAC-619 the Host's marks (personal, always_on, companions) are kept only a
   assert.deepEqual(Object.keys(notChosen!).sort(), ["chosen", "id", "name", "plugin_id", "ui"], "an entry the project does not choose carries no mark");
   assert.deepEqual(Object.keys(loose!).filter(name => ["personal", "always_on", "companions"].includes(name)), [], "only true counts as a flag, only an array as companions");
   assert.equal(many!.companions!.length, 32);
-  assert.doesNotMatch(renderPluginDirectoryData([kept!]), /personal|always_on|companions/u, "the page's scripts get none of them");
-  // RAC-619-CLIENT-03: the marked server entry exposes only the two routing fields, with no display or Host fields.
-  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "kept", accepts_objects: false, hue: null }]);
+  assert.doesNotMatch(renderPluginDirectoryData([kept!]), /always_on|companions/u, "the page's scripts get neither of the other marks");
+  // RAC-619-CLIENT-03: the marked server entry exposes only the routing fields and `personal`, the one Host mark ＋ reads to list it
+  // under 个人 (07-S2, 口径 8); no display field and no other Host field.
+  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "kept", accepts_objects: false, hue: null, personal: true }]);
 });
 
 test("RAC-605 the Host reads the directory from the Manifests the project's Runtime runs, built-in and installed alike", async () => {
@@ -319,7 +323,12 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
   const html = renderMolisWorkWeb(view([installed("notes", { accepts_objects: true }), installed("plain")]));
   const parsed = JSON.parse(directoryData(html)) as Array<{ id: string; accepts_objects: boolean }>;
   // RAC-606-CLIENT-01: both Runtime entries and market fallbacks use exactly the fields the real script consumes.
-  for (const entry of parsed) assert.deepEqual(Object.keys(entry).sort(), ["accepts_objects", "hue", "id"]);
+  // ＋ (07-S2, 口径 8) also reads a rail plugin's place (`offered`, a number) and the personal mark (only ever true).
+  for (const entry of parsed as Array<Record<string, unknown>>) {
+    assert.deepEqual(Object.keys(entry).filter(key => key !== "offered" && key !== "personal").sort(), ["accepts_objects", "hue", "id"]);
+    if ("offered" in entry) assert.equal(typeof entry.offered, "number");
+    if ("personal" in entry) assert.equal(entry.personal, true);
+  }
   assert.deepEqual(parsed.filter(entry => entry.accepts_objects).map(entry => entry.id).includes("notes"), true);
   assert.equal(parsed.find(entry => entry.id === "plain")?.accepts_objects, false);
   assert.equal(parsed.find(entry => entry.id === "pages")?.accepts_objects, true, "a built-in the Host did not list is the market's, read the same way");

@@ -156,8 +156,9 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
       await page.command("Browser.setWindowBounds", { windowId, bounds: { width: 1440, height: 1000 } });
       await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
       await Promise.all([chrome.event("Page.domContentEventFired"), page.command("Page.navigate", { url })]);
-      // A restored split draws tabs in each pane, while a single pane uses the titlebar strip.
-      await page.wait("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item, [data-tab-pane] .tab-item')].some(tab=>tab.getClientRects().length>0)", {
+      // A restored split draws tabs in each pane, while a single pane uses the titlebar strip; the project home has no tab
+      // (07-S2, 口径 3), so the titlebar strip is drawn once its ＋ is.
+      await page.wait("[...document.querySelectorAll('[data-titlebar-tabs] .tab-add-button, [data-titlebar-tabs] .tab-item, [data-tab-pane] .tab-item')].some(tab=>tab.getClientRects().length>0)", {
         describe: "JSON.stringify({url:location.href,title:document.title,readyState:document.readyState,body:document.body?.innerText.slice(0,1200),panes:document.querySelectorAll('[data-tab-pane]').length})",
       });
     };

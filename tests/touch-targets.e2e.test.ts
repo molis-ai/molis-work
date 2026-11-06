@@ -259,7 +259,8 @@ const STRIP_MENUS = `(async () => {
     const shown = menu.matches(":popover-open");
     const controls = shown ? [...menu.querySelectorAll("button, summary, a[href], input")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) : [];
     // A colour swatch is a target with a dot drawn inside it (::before): the dot is what a person sees, the box is what answers to a finger.
-    const size = (el) => { const box = el.getBoundingClientRect(), swatch = (el.dataset.tabMenuAction || "").startsWith("color-");
+    // A field in a group (＋'s search, 07-S2) answers to the whole group, its label: that box is its target.
+    const size = (el) => { const box = (el.closest(".mw-input-group") || el).getBoundingClientRect(), swatch = (el.dataset.tabMenuAction || "").startsWith("color-");
       return { label: el.dataset.tabMenuAction || el.dataset.layoutSplit || el.dataset.layoutAction || el.tagName.toLowerCase(), w: Math.round(box.width), h: Math.round(box.height),
         dot: swatch ? Math.round(parseFloat(getComputedStyle(el, "::before").width)) : undefined }; };
     const isRow = (el) => el.matches("[data-layout-split], [data-layout-action], [data-tab-menu-action]:not([data-tab-menu-action^=color-])");

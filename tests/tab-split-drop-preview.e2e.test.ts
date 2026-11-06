@@ -114,6 +114,10 @@ test("already split panes keep later drags and previews on the hovered pane", { 
   // 07-S2 (口径 3): the project home is not a tab, so the tab dragged here is the Goals page's own.
   await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]').click()");
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals][aria-current]')");
+  // The split copies the current tab (Inbox) to the right, so the Goals tab dragged below is one the right pane does not have
+  // yet: copying it there previews a slot. (The home tab used to be the one in both panes before 07-S2.)
+  await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=inbox]').click()");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=inbox][aria-current]')");
   await evaluate("document.querySelector('[data-tab-edge=right]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
 

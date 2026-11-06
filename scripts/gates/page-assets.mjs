@@ -303,15 +303,46 @@ const headErrors = (measured, budget, base) => {
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
 // table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
 // account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
-// FCS-01/02, ASC-57 and ASC-59 are already reflected in main's budgets.
-// T-01 carries the previously approved account increments onto main 7fcec863c; no new account allowance or resource.
-// Main includes the same K-20 stylesheet reductions. K-22/K-26 and the shared SDK integration saved 13 B in the script.
-// ASC-58 (#1870), separately admitted on main, adds 573 B for one-time connection failure reminders.
-// Integrated build measures 1125465 B: main 1085847 + the unchanged account increment 39618; no added account allowance.
+// FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
+// The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
+// Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// ASC-57 (第 13 批②, 2026-11-06): after a key change or a provider removal the page points out the old key nothing uses and
+// offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
+// spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
+// the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
+// the select in place instead of reloading the page, the host names no key so the page needs no second string.
+// ASC-59 (第 13 批③, #1865; admitted by the batch 13 coordinator on 2026-11-06: under 10 KB, no new asset): after logging in again
+// to a remote MCP service, the connections page offers to move what used the old connection to the new one, says what it could and
+// could not check (Coding's MCP settings, unread reporters), asks once before removing the old one (with cancel), and names the new
+// connection apart from the old. workbench.js +6558 B over 1078718, the budget at merge-base b1e0e5b6 (main after #1858; ASC-57's
+// entry keyed on 1077683 is spent there and replaced). Tried, from a first cut of +6199: the switch outcome counted per
+// usage instead of per code, the pair checked on the rows themselves instead of a serialized helper, the reasons table cut to the
+// codes an MCP connection's consumers can answer, errors through the page's own fail(), the two explanations and the two removal
+// confirmations sharing one sentence each; no new style or asset.
+// ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
+// the Assistant's "等你处理": workbench.js +573 B, keyed on main's budget 1085274 (after #1865 and #1790; ASC-59's workbench.js entry keyed on 1078718
+// is spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
+// UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
+// the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
+// settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
+// ASC-60～63 (第 13 批④b, #1881, admitted by the batch 13 coordinator after the review desk on 2026-11-06): the model settings page
+// and Images' image-service dialog as plan A. settings.css +2529 B and workbench.css +2529 B: the catalog's step progress as it is
+// (about 1.25 KB, split out of SERVICE_CONNECTION_PART_STYLES and referenced, not copied), the four rows, 高级, the save bar, the
+// rate-limit box and the model row's two lines (container queries; its icon buttons take the ID field's height so the first line shares one top edge). workbench.js +3724 B: the progress function shared with the
+// catalog (819 B, bundled from service-connection-item.ts), the coded check's split (a refused key under its field, saying whether
+// it was the new key or the one in use; the 429 recheck) and ↵ to save. images.js +1207 B: the presets' models and sizes, the
+// service choice and 高级, the compose form's size list; images.css +50 B: 高级's field spacing (the old preset rules removed).
+// Keyed on merge-base after #1870 (workbench.js 1085847, workbench.css 1204709, images.js 19896); the ASC-58 workbench.js entry is
+// spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
+// alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
+// what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// T-01 reanchors the previously approved account additions on main a4bd94b12 after ASC-60 through ASC-63.
+// Its measured main growth (+3724 script, +2529 workbench CSS) is already in the base, so those admissions are spent.
+// Integrated script: 1129189 = main 1089571 + the unchanged account increment 39618 B. No new account allowance or resource.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [693131, 693814],
-  "/assets/molis-work-workbench.css": [1204709, 1205161],
-  "/assets/molis-work-workbench.js": [1085847, 1125465],
+  "/assets/molis-work-workbench.css": [1207238, 1207690],
+  "/assets/molis-work-workbench.js": [1089571, 1129189],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

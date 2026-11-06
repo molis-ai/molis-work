@@ -51,7 +51,7 @@ export const BOARD_EN: Record<string, string> = {
   "限流 · 等待重试": "Rate-limited · waiting to retry",
   "编程 · 进行中": "Programming · running",
   "助理样例": "Assistant specimen",
-  "模拟：工作、轮次与宿主的回答是固定样例（宿主照常画好），不连接模型；回答、核对与提醒只在这一页里生效，别的写入都被拒绝。面板、侧栏六组、过程、输入框、上下文条与附件都是生产的助理程序。": "Simulated: the works, rounds and the Host's answers are fixed samples (drawn by the Host as usual); no model is connected; answers, checks and notices take effect only on this page, and every other write is refused. The panel, the six side groups, the steps, the input, the context strip and attachments are the production Assistant program.",
+  "模拟：工作、轮次与宿主的回答是固定样例（宿主照常画好），不连接模型；回答、核对与提醒只在这一页里生效，别的写入都被拒绝。面板、侧栏六组、过程、输入框、上下文条与附件都是生产的助理程序。": "Simulated: the works, turns and the Host's answers are fixed samples (drawn by the Host as usual); no model is connected; answers, checks and notices take effect only on this page, and every other write is refused. The panel, the six side groups, the steps, the input, the context strip and attachments are the production Assistant program.",
   "带上三个文件（模拟）": "Bring three files (simulated)",
   "推进一步（模拟）": "Move on one step (simulated)",
   "样例不执行这一步（模拟）": "The sample does not carry this out (simulated)",

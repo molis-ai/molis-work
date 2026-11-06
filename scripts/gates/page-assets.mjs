@@ -325,21 +325,36 @@ const headErrors = (measured, budget, base) => {
 // UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
 // the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
 // settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
+// ASC-60～63 (第 13 批④b, #1881, admitted by the batch 13 coordinator after the review desk on 2026-11-06): the model settings page
+// and Images' image-service dialog as plan A. settings.css +2529 B and workbench.css +2529 B: the catalog's step progress as it is
+// (about 1.25 KB, split out of SERVICE_CONNECTION_PART_STYLES and referenced, not copied), the four rows, 高级, the save bar, the
+// rate-limit box and the model row's two lines (container queries; its icon buttons take the ID field's height so the first line shares one top edge). workbench.js +3724 B: the progress function shared with the
+// catalog (819 B, bundled from service-connection-item.ts), the coded check's split (a refused key under its field, saying whether
+// it was the new key or the one in use; the 429 recheck) and ↵ to save. images.js +1207 B: the presets' models and sizes, the
+// service choice and 高级, the compose form's size list; images.css +50 B: 高级's field spacing (the old preset rules removed).
+// Keyed on merge-base after #1870 (workbench.js 1085847, workbench.css 1204709, images.js 19896); the ASC-58 workbench.js entry is
+// spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
+// alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
+// what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
 // 07-S1 (the right side joins the tab workspace; 用户 2026-11-05 一次性放行 workbench.js，07 批评审台审过 #1853，冗余两处记入 S2):
 // workbench.js +12340 B on main's budget: the side's rules in the workspace state (withSidePane: open, select, close and reopen
 // through the shared closed stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background
 // tasks as a side view with its count, a removed plugin's side tab drawn in place with the stage that says how to add it back, the
-// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-58 entry
-// keyed on 1085274 is spent on this base (main's budget holds its ceiling), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
+// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-60～63 entry
+// keyed on 1085847 is spent on this base (main's budget 1089571 holds its ceiling), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
 // character typed; the 208271 key is shared with the account admission, so its ceiling is S1's 208400, which also covers the
-// account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -756 B,
-// arrival.css -5151 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
+// account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -871 B,
+// arrival.css -5247 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
 // classes. Tried: the side reuses the workspace's persist, closed stack and removed-plugin check instead of keeping its own; the
 // old side-tab, side-ratio and discussion-ratio keys are dropped, not read; the rules' comments sit above the function, not in the
 // shipped body; the removed placeholder is one template (-262 B).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1085847, 1098187],
+  "/assets/molis-work-settings.css": [827793, 830322],
+  "/assets/molis-work-workbench.css": [1204709, 1207238],
+  "/assets/molis-work-workbench.js": [1089571, 1101911],
   "/assets/molis-work-plugin-frame.js": [208271, 208400],
+  "/assets/molis-work-plugins/images.js": [19896, 21103],
+  "/assets/molis-work-plugins/images.css": [7851, 7901],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

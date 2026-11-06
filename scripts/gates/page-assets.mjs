@@ -287,22 +287,24 @@ const headErrors = (measured, budget, base) => {
 // persist, closed stack and removed-plugin check instead of keeping its own; the old side-tab, side-ratio and discussion-ratio
 // keys are dropped, not read; the rules' comments sit above the function, not in the shipped body.
 // 07-S2 (open, recall and layout; stacked on 07-S1, so keyed on its a1685bf39 budget, whose 07-S1 entries are spent there):
-// workbench.js +13120 B: ＋ as an open-only list from the Host's directory (three sections, where each one already is, ⌥↵
+// workbench.js +13623 B: ＋ as an open-only list from the Host's directory (three sections, where each one already is, ⌥↵
 // beside, search), the titlebar's layout menu (split, move to the right, 独看 as `solo`, merge, collapse, equal widths, close,
-// go to a column, numbered as they read; the focused item kept in view), the tab menu's move and side-by-side rows, one recall for the Dock, ＋, the switcher and deep links, a main
+// go to a column; 独看 of the right side too, which takes the stage, as the design has it, numbered as they read; the focused item kept in view), the tab menu's move and side-by-side rows, one recall for the Dock, ＋, the switcher and deep links, a main
 // tab moved to the right side in the pane page and back, and the side's own way back (返回) and remembered closed tabs. About
 // 5 KB of it is the code's comments, which the client scripts ship as written (a build that drops them is its own change).
-// 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S2），07 批评审台审过（#1867）. The sheets fall (workbench.css -15 B,
-// settings.css -43 B): the strip's split button and the old layout menu's bare-button rules are gone, less 独看 hiding the
-// other panes and the layout button ending the title bar (44 px where the pointer is coarse), a cover's name may now give way in a short one, and ＋ stays lit while its list is open. Tried: the right side's tab menu and undo chip are the main area's (only the way
+// 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S2），07 批评审台审过（#1867）. workbench.css +136 B: 独看 of the right side (the
+// side over the stage, the main stage and the divider hidden, kept: 233 B), less the strip's split button and the old layout
+// menu's bare-button rules, gone, and the design system's dead .tab-split-button selectors (-95 B in each of the three
+// sheets, so arrival.css and settings.css fall too); 独看 also hides the other panes, the layout button ends the title bar
+// (44 px where the pointer is coarse), a cover's name may give way in a short one, and ＋ stays lit while its list is open. Tried: the right side's tab menu and undo chip are the main area's (only the way
 // in, with no tab workspace, keeps small ones of its own, inline in its page), which took 1.2 KB back; the home tab's code,
 // the per-strip split button and the old ＋ menu are gone rather than kept beside the new ones.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826727, 827274],
-  "/assets/molis-work-workbench.css": [1194521, 1204045],
-  "/assets/molis-work-workbench.js": [1087460, 1100580],
+  "/assets/molis-work-workbench.css": [1202826, 1202962],
+  "/assets/molis-work-workbench.js": [1087460, 1101083],
   "/assets/molis-work-plugin-frame.js": [208271, 208400],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

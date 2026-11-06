@@ -106,7 +106,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
   };
   // Splits that cannot all keep their panes' minimum size at this stage size take the narrow layout (VUX-24), not a squeeze.
   // 独看 (口径 2) lays the focused pane over the whole stage; the others keep their places, hidden (data-solo).
-  const layoutSplits = () => { syncSplitSizes(state.solo ? { paneId: state.solo.paneId } : state.layout.tree); const stage = panesEl.getBoundingClientRect(); if (stage.width && stage.height) root.toggleAttribute("data-split-narrow", !state.solo && !splitTreeFits(state.layout.tree, stage.width, stage.height)); };
+  const layoutSplits = () => { syncSplitSizes(state.solo && !ops.soloSide(state) ? { paneId: state.solo.paneId } : state.layout.tree); const stage = panesEl.getBoundingClientRect(); if (stage.width && stage.height) root.toggleAttribute("data-split-narrow", !state.solo && !splitTreeFits(state.layout.tree, stage.width, stage.height)); };
   const paneFrameKey = (pane) => {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId);
     if (tab) return tab.kind === "system" ? null : tab.id;
@@ -158,9 +158,11 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     // However the cover went away (a tab, the Dock, history), its category column goes with it.
     leaveCoverDirectory();
     ops.normalizeLayout(state);
-    // 独看 ends once the focus goes to another pane or the right side opens; the side it collapsed comes back.
-    if (state.solo) { ops.settleSolo(state); if (!state.solo) sidePane?.restore(); }
-    root.toggleAttribute("data-solo", Boolean(state.solo));
+    // 独看 ends once the focus goes to another column or the right side opens (or, alone itself, collapses); the side it
+    // collapsed comes back. The right side alone covers the main stage from the body (the side panel is outside the stage).
+    if (state.solo) { ops.settleSolo(state, column === "side"); if (!state.solo) sidePane?.restore(); }
+    root.toggleAttribute("data-solo", Boolean(state.solo) && !ops.soloSide(state));
+    if (!embedded) document.body.toggleAttribute("data-side-solo", ops.soloSide(state));
     root.toggleAttribute("data-split", state.panes.length > 1);
     const chromeTabs = !embedded && state.panes.length < 2;
     if (titlebarStrip) {

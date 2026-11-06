@@ -204,6 +204,9 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-workspace[data-exclusive] .tab-content-frame { visibility: hidden; }
   /* 独看 (07-S2, 口径 2): the focused pane takes the stage; the others, their dividers and their frames step aside, kept. */
   body.immersive-workbench .tab-workspace[data-solo] .tab-workspace-panes > :is(.tab-pane:not(.is-focused), .tab-split, .tab-content-frame:not(.is-focused)) { display: none; }
+  /* 独看 on the right side: the side takes the stage, the main area and the divider step aside, kept. */
+  body[data-side-solo] #side-panel { inset: var(--desktop-titlebar-height, 32px) var(--sheet-inset, 14px) var(--dock-h, 48px); width: auto; height: auto; }
+  body[data-side-solo] :is([data-plugin-stage], .side-panel-divider) { visibility: hidden; }
   @media (max-width: 760px) {
     body.immersive-workbench .tab-workspace-panes > .tab-content-frame:not(.is-focused) { display: none; }
     body.immersive-workbench .tab-workspace-panes > .tab-content-frame.is-focused { left: 0 !important; top: var(--pane-strip-height) !important; width: 100% !important; height: calc(100% - var(--pane-strip-height)) !important; }

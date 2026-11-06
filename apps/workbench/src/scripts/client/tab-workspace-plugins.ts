@@ -104,7 +104,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (openInSide(plugin)) return;
     if (settingsPageOf(plugin)) { openSettingsPage(plugin); return; }
     if (recall(plugin)) return;
-    state.focusedPaneId = ops.focused(state).id;
+    // What opens in the main area takes the focus there (and ends the right side's 独看).
+    state.focusedPaneId = ops.focused(state).id; column = "main";
     ops.openPlugin(state, plugin);
     const pane = ops.focused(state);
     apply();
@@ -199,6 +200,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   const openItem = (plugin, itemId, title, view) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), view }); return; }
     if (openInSide(plugin, itemId, title) || recall(plugin, itemId)) return;
+    column = "main";
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
     if (view !== undefined) ops.writeView(state, ops.focused(state).id, plugin === "goals" && view === "frame" ? undefined : view, tab.id);
     apply();
@@ -211,6 +213,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (embedded) { notifyParent("workbench-pane-open-beside", { plugin, itemId: itemId || null, title: itemId ? titleForItem(plugin, itemId, title) : null }); return; }
     if (openInSide(plugin, itemId, title)) return;
     if (narrow()) { if (itemId) openItem(plugin, itemId, title); else openPlugin(plugin); return; }
+    column = "main";
     ops.openBeside(state, plugin, itemId || null, itemId ? titleForItem(plugin, itemId, title) : undefined);
     apply();
     persist();

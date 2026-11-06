@@ -900,6 +900,36 @@ test("PFG-22 口径 2 独看 shows only the focused pane, collapses the side, an
   assert.equal(state.side.open, true);
 });
 
+test("PFG-22 口径 2 独看 of the right side: solo names the side, the main area steps aside, and it ends as the main area's does", () => {
+  const ops = grouped();
+  const state = ops.create();
+  ops.syncSide(state, sideViews);
+  ops.openItem(state, "goals", "g1", "发布");
+  assert.equal(ops.toggleSolo(state, true), false, "a collapsed side is no column to show alone");
+  ops.setSideOpen(state, true);
+  const panes = JSON.stringify(state.panes);
+  assert.equal(ops.toggleSolo(state, true), true);
+  assert.deepEqual(state.solo, { paneId: state.side.id, side: false });
+  assert.equal(ops.soloSide(state), true);
+  assert.equal(state.side.open, true, "the side stays open: it is the one shown");
+  assert.equal(JSON.stringify(state.panes), panes, "the main area keeps every pane and tab");
+  assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(state))), true);
+  ops.settleSolo(state, true);
+  assert.equal(ops.soloSide(state), true, "the focus still in the side: still alone");
+  assert.equal(ops.toggleSolo(state, true), false, "again: everything comes back");
+  assert.equal(state.solo, null);
+  assert.equal(state.side.open, true);
+  // The focus going to the main area ends it, and so does collapsing the side.
+  ops.toggleSolo(state, true);
+  ops.settleSolo(state, false);
+  assert.equal(state.solo, null);
+  ops.toggleSolo(state, true);
+  ops.setSideOpen(state, false);
+  ops.settleSolo(state, true);
+  assert.equal(state.solo, null);
+  assert.equal(state.side.open, false, "the side's own 独看 collapsed nothing, so nothing reopens");
+});
+
 test("merging puts every pane's tabs into the focused one, which keeps what it shows", () => {
   const ops = grouped();
   const state = ops.create();

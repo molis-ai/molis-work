@@ -210,6 +210,46 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
     assert.deepEqual(mark().filter(entry => entry.type === "Document" && entry.url.includes("workbenchPane")), [], `${route}: no pane page loads again`);
   }
 
+  // PFG-22 口径 2: the right side is a column like the main area's, so 独看 with the focus there shows the side alone, from
+  // ⌘⇧↵ (on the page and in the side's pane page) and from the layout menu; again, or 独看中 · 显示全部, brings the layout
+  // back. `solo` names the side, and nothing loads again.
+  const sideAlone = `document.body.hasAttribute('data-side-solo') && ${stored}.solo?.paneId === ${stored}.side.id && ${stored}.solo.side === false`;
+  const covers = `(() => { const panel = document.querySelector('.side-panel').getBoundingClientRect();
+    return panel.left < 40 && panel.right > innerWidth - 40 && getComputedStyle(document.querySelector('[data-plugin-stage]')).visibility === 'hidden'; })()`;
+  const layoutBack = `!document.body.hasAttribute('data-side-solo') && ${stored}.solo === null && document.body.dataset.sideOpen === 'true'
+    && document.querySelector('.side-panel').getBoundingClientRect().left > innerWidth / 3 && getComputedStyle(document.querySelector('[data-plugin-stage]')).visibility === 'visible'`;
+  const soloKey = async () => {
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: META | 8, windowsVirtualKeyCode: 13 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", modifiers: META | 8 }, sessionId);
+  };
+  mark = since();
+  await click(`[data-side-tabs] [data-side-tab="${MOVED}"]`);
+  await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${MOVED}"][aria-selected=true]')`);
+  await soloKey();
+  await waitFor(sideAlone);
+  assert.equal(await evaluate(covers), true, "the side takes the stage; the main area steps aside");
+  await soloKey();
+  await waitFor(layoutBack);
+  // The side's pane page hands ⌘⇧↵ up, as a main pane's does.
+  await evaluate(`document.querySelector('[data-side-body="${MOVED}"] iframe').contentDocument.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, metaKey: ${mac}, ctrlKey: ${!mac}, bubbles: true }))`);
+  await waitFor(sideAlone);
+  await soloKey();
+  await waitFor(layoutBack);
+  // The layout menu, with the focus in the side, offers it too, and its row brings the layout back.
+  await click("[data-layout-open]");
+  await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
+  assert.equal(await evaluate(`document.querySelector('${LAYOUT_MENU}').getAttribute('aria-label')`), "布局 · 右侧");
+  await click(`${LAYOUT_MENU} [data-layout-action=solo]`);
+  await waitFor(sideAlone);
+  assert.equal(await evaluate(covers), true);
+  await click("[data-layout-open]");
+  await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
+  assert.match(await evaluate<string>(`document.querySelector('${LAYOUT_MENU} [data-layout-action=solo]').textContent`), /独看中 · 显示全部/u);
+  await click(`${LAYOUT_MENU} [data-layout-action=solo]`);
+  await waitFor(layoutBack);
+  assert.equal(await evaluate(`document.querySelector('[data-side-body="${MOVED}"] iframe').contentWindow.__kept`), true, "独看 on the right reloads nothing");
+  assert.deepEqual(mark().filter(entry => entry.type === "Document" && entry.url.includes("workbenchPane")), []);
+
   // The side's 返回 steps back through what it showed (its own history, with the focus in the side).
   await click(`[data-side-tabs] [data-side-tab="${other}"]`);
   await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"][aria-selected=true]') && !document.querySelector('[data-workspace-history=back]').disabled`);

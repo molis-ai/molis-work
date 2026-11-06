@@ -663,9 +663,12 @@ export function withSidePane(base) {
  *   the side, keeping its record and view; the side opens on it. A plugin tab with records in its group does not move (its
  *   records would lose their head). The side's tab is a new document: the plugin's own drafts bring back what it held.
  * - moveToMain(state, sideTabId): a moved tab goes back to the focused pane, as its tab or its plugin's page.
- * - toggleSolo(state): show only the focused pane (`solo`, not `exclusive`, which is a cover): the other panes and the side step
- *   aside with their places kept; again, everything comes back. settleSolo ends it once the focus goes to another pane, the
- *   side is opened, or the pane is gone, and the side opens again if solo had collapsed it.
+ * - toggleSolo(state, inSide): show only the focused column (`solo`, not `exclusive`, which is a cover): the other panes and
+ *   the side step aside with their places kept; again, everything comes back. With the focus in the open right side
+ *   (`inSide`), the side is that column: `solo` names it (`paneId` is the side's id) and the main area steps aside, since
+ *   the side is a column like the main area's (PFG-22). settleSolo(state, inSide) ends it once the focus goes to another
+ *   column, the side is opened (or, for the side's, collapsed), or the pane is gone, and the side opens again if solo had
+ *   collapsed it. soloSide(state) says whether the side is the one shown.
  * - mergePanes(state): every pane's tabs join the focused one, which keeps what it shows.
  * - paneNumber(state, paneId): the pane's number as the stage reads, left to right and top to bottom (the layout's leaves in
  *   order), which is not the order panes were opened in once a split runs down.
@@ -716,17 +719,19 @@ export function withLayout(base) {
     if (tab.view !== undefined && shown) base.writeView(state, base.focused(state).id, tab.view, shown.id);
     return shown;
   };
-  const toggleSolo = (state) => {
+  const soloSide = (state) => state.solo?.paneId === state.side.id;
+  const toggleSolo = (state, inSide = false) => {
     const solo = state.solo;
     if (solo) { state.solo = null; if (solo.side) base.setSideOpen(state, true); return false; }
+    if (inSide && state.side.open) { state.solo = { paneId: state.side.id, side: false }; return true; }
     if (state.panes.length < 2 && !state.side.open) return false;
     state.solo = { paneId: base.focused(state).id, side: state.side.open };
     state.side.open = false;
     return true;
   };
-  const settleSolo = (state) => {
+  const settleSolo = (state, inSide = false) => {
     const solo = state.solo;
-    if (!solo || solo.paneId === state.focusedPaneId && paneOf(state, solo.paneId) && !state.side.open) return state;
+    if (!solo || (soloSide(state) ? inSide && state.side.open : solo.paneId === state.focusedPaneId && paneOf(state, solo.paneId) && !state.side.open)) return state;
     state.solo = null;
     if (solo.side) base.setSideOpen(state, true);
     return state;
@@ -740,7 +745,7 @@ export function withLayout(base) {
     state.layout = { direction: "row", sizes: [1] };
     return base.normalizeLayout(state);
   };
-  return { ...base, create: () => ({ ...base.create(), solo: null }), locate, movable, moveToSide, moveToMain, toggleSolo, settleSolo, mergePanes, paneNumber };
+  return { ...base, create: () => ({ ...base.create(), solo: null }), locate, movable, moveToSide, moveToMain, toggleSolo, settleSolo, soloSide, mergePanes, paneNumber };
 }
 
 /** Saved tabs use only the fields written by this workspace; a plugin's page is its plugin tab, shown through pane.viewPlugin.

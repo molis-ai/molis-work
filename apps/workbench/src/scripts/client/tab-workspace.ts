@@ -121,6 +121,8 @@ ${TAB_WORKSPACE_DRAG_PART}
       }
     } catch {}
     sidePane?.restore();
+    // The right side kept alone (独看) has the focus it had.
+    if (ops.soloSide(state)) column = "side";
     if (state.exclusive) coverPlace = historyCoverPlace(state.exclusive);
     const dropParams = (...names) => { const url = new URL(location.href); names.forEach(name => url.searchParams.delete(name)); history.replaceState(history.state, "", url); };
     let requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
@@ -353,7 +355,7 @@ ${TAB_WORKSPACE_DRAG_PART}
      the one before; a collapse or 独看 ending redraws what depends on the side. */
   document.addEventListener("molis:side-shown", (event) => {
     if (embedded) return;
-    if (state.solo && event.detail?.open) apply();
+    if (state.solo) apply();
     if (!event.detail?.open) { if (column === "side") column = "main"; syncHistoryButtons(); return; }
     if (event.detail.tab) { rememberPlace("side", event.detail.tab, sideKept); persistHistory(); syncHistoryButtons(); }
   });
@@ -535,9 +537,8 @@ ${TAB_WORKSPACE_DRAG_PART}
       else if (event.data.type === "workbench-pane-view" && tab) { if (event.data.view === undefined) delete tab.view; else tab.view = event.data.view; persist(); }
       else if (event.data.type === "workbench-pane-open" && event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view);
       else if (event.data.type === "workbench-pane-open") openPlugin(event.data.plugin);
-      // 独看 shows one of the main area's panes; the right side has none of its own (its layout menu offers none either), so
-      // ⌘⇧↵ there says so instead of doing nothing.
-      else if (event.data.type === "workbench-pane-solo") showToast?.(L("独看只用于主区的栏，右侧不能独看"));
+      // ⌘⇧↵ in the side's pane page: the side is the focused column, so it goes alone (or comes back).
+      else if (event.data.type === "workbench-pane-solo") { column = "side"; toggleSolo(); apply(); persist(); }
       return;
     }
     const pane = paneById(frame?.dataset.paneOwner);

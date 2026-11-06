@@ -82,9 +82,9 @@ export const CRAFT_BAR_STYLES = `
   ${WORKBENCH} .tab-strip .tab-item[data-dragging] { box-shadow: var(--lift-3); background: var(--paper); }
   ${WORKBENCH} .tab-strip .tab-item-close { border-radius: 5px; }
   ${WORKBENCH} .tab-strip .tab-item-close:hover { background: var(--nav-active); color: var(--ink); }
-  ${WORKBENCH} :is(.tab-add-button, .tab-split-button, .workspace-history-button) { border-radius: 7px; }
-  ${WORKBENCH} :is(.tab-add-button, .tab-split-button, .workspace-history-button):active:not(:disabled) svg { transform: scale(.86); }
-  ${WORKBENCH} :is(.tab-add-button, .tab-split-button, .workspace-history-button) svg { transition: transform var(--dur-move) var(--ease-spring); }
+  ${WORKBENCH} :is(.tab-add-button, .workspace-history-button) { border-radius: 7px; }
+  ${WORKBENCH} :is(.tab-add-button, .workspace-history-button):active:not(:disabled) svg { transform: scale(.86); }
+  ${WORKBENCH} :is(.tab-add-button, .workspace-history-button) svg { transition: transform var(--dur-move) var(--ease-spring); }
 
   /* A cover (market, settings) names itself ahead of the tabs. */
   ${PAGES} .tab-view-chip {

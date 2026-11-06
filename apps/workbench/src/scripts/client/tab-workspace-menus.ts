@@ -210,7 +210,8 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
   let layoutAnchor = null;
   layoutMenu.addEventListener("toggle", (event) => layoutAnchor?.setAttribute("aria-expanded", String(event.newState === "open")));
   layoutMenu.addEventListener("keydown", (event) => { if (event.key !== "Escape") return; event.preventDefault(); event.stopPropagation(); layoutMenu.hidePopover(); layoutAnchor?.focus({ preventScroll: true }); });
-  const toggleSolo = () => { ops.toggleSolo(state); sidePane?.restore(); };
+  // The focused column goes alone: the right side when the focus is in it (open), otherwise the focused pane (口径 2, PFG-22).
+  const toggleSolo = () => { ops.toggleSolo(state, column === "side" && Boolean(sidePane?.isOpen())); sidePane?.restore(); };
   const equalWidths = (node) => { if (node?.children) { node.ratio = .5; node.children.forEach(equalWidths); } };
   const openLayoutMenu = (anchor) => {
     layoutAnchor = anchor;
@@ -224,15 +225,17 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const head = document.createElement("p");
     head.className = "tab-menu-head"; head.setAttribute("aria-hidden", "true"); head.textContent = title;
     layoutMenu.setAttribute("aria-label", title);
+    const soloRow = menuRow(L(solo ? "独看中 · 显示全部" : "独看这一栏"), "maximize", act(toggleSolo), { keys: keyName("⌘⇧↵", "Ctrl+Shift+Enter"), disabled: !solo && !inSide && !split && !sideOpen, data: { layoutAction: "solo" } });
     const goTo = [...state.panes].sort((a, b) => ops.paneNumber(state, a.id) - ops.paneNumber(state, b.id)).map((candidate) => menuRow(split ? L("第 {n} 栏", { n: ops.paneNumber(state, candidate.id) }) : L("主区"), "", act(() => { state.focusedPaneId = candidate.id; column = "main"; }), { checked: !inSide && candidate === pane, data: { focusPane: candidate.id } }));
     if (state.side.tabs.length) goTo.push(menuRow(L("右侧"), "", act(() => { column = "side"; if (!sideOpen) sidePane?.toggle(); }), { checked: inSide, data: { focusPane: "side" } }));
     layoutMenu.replaceChildren(head, menuGroup("", inSide ? [
       menuRow(L("把这张标签移到主区"), "arrow", act(() => moveToMain(sideTab.id)), { disabled: sideTab?.kind !== "pane", data: { layoutAction: "to-main" } }),
+      soloRow,
     ] : [
       menuRow(L("向右分屏"), "columns", act(() => ops.splitPane(state, pane.id, "right", "copy")), { disabled: narrow(), data: { layoutSplit: "right" } }),
       menuRow(L("向下分屏"), "frame", act(() => ops.splitPane(state, pane.id, "bottom", "copy")), { disabled: narrow(), data: { layoutSplit: "bottom" } }),
       menuRow(L("把这张标签移到右侧"), "arrow", act(() => moveToSide(pane.id)), { disabled: !ops.movable(state, pane.id), data: { layoutAction: "to-side" } }),
-      menuRow(L(solo ? "独看中 · 显示全部" : "独看这一栏"), "maximize", act(toggleSolo), { keys: keyName("⌘⇧↵", "Ctrl+Shift+Enter"), disabled: !solo && !split && !sideOpen, data: { layoutAction: "solo" } }),
+      soloRow,
     ]), menuGroup("", [
       !inSide && menuRow(L("合并成一栏"), "minus", act(() => ops.mergePanes(state)), { disabled: !split, data: { layoutAction: "merge" } }),
       menuRow(L(sideOpen ? "收起右侧" : "打开右侧"), "panel", act(() => sidePane?.toggle()), { keys: keyName("⌘\\\\", "Ctrl+\\\\"), disabled: !state.side.tabs.length, data: { layoutAction: "side" } }),

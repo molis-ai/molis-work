@@ -28,6 +28,8 @@ interface ModelProviderTemplate {
   api_format: ModelApiFormat;
   /** Model names the provider keeps stable (aliases). Empty when we cannot promise one: the person types it. */
   model_ids: readonly string[];
+  /** Where the person gets a key: the console and its section, as a Chinese key the UI translates (no link to follow blind). */
+  key_hint: string;
 }
 
 /**
@@ -37,6 +39,8 @@ interface ModelProviderTemplate {
  * there) and its Anthropic-compatible page sets `ANTHROPIC_BASE_URL=https://api.minimax.cn/anthropic` (2026-10-10).
  */
 export const MINIMAX_ANTHROPIC_BASE_URL = "https://api.minimax.cn/anthropic";
+
+const ANY_CONSOLE = "在你用的服务的控制台里找 API 密钥";
 
 /**
  * The common providers, one entry per address, plus one blank form for each request shape the product speaks.
@@ -55,17 +59,46 @@ export const MINIMAX_ANTHROPIC_BASE_URL = "https://api.minimax.cn/anthropic";
  * only works in its own region), so they are not offered here: the person types them.
  */
 export const MODEL_PROVIDER_TEMPLATES: readonly ModelProviderTemplate[] = [
-  { template_id: "anthropic", display_name: "Anthropic", base_url: "https://api.anthropic.com", api_format: "anthropic-messages", model_ids: [] },
-  { template_id: "openai", display_name: "OpenAI", base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions", model_ids: [] },
-  { template_id: "deepseek", display_name: "DeepSeek", base_url: "https://api.deepseek.com", api_format: "openai-chat-completions", model_ids: ["deepseek-flash"] },
-  { template_id: "minimax", display_name: "MiniMax", base_url: MINIMAX_ANTHROPIC_BASE_URL, api_format: "anthropic-messages", model_ids: ["MiniMax-M3"] },
-  { template_id: "qwen", display_name: "通义千问（阿里云）", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: [] },
-  { template_id: "kimi", display_name: "Kimi（月之暗面）", base_url: "https://api.moonshot.cn/v1", api_format: "openai-chat-completions", model_ids: [] },
-  { template_id: "glm", display_name: "GLM（智谱）", base_url: "https://open.bigmodel.cn/api/paas/v4", api_format: "openai-chat-completions", model_ids: [] },
-  { template_id: "openrouter", display_name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", api_format: "openai-chat-completions", model_ids: [] },
-  { template_id: "anthropic-compatible", display_name: "Anthropic 兼容", base_url: "", api_format: "anthropic-messages", model_ids: [] },
-  { template_id: "openai-compatible", display_name: "OpenAI 兼容", base_url: "", api_format: "openai-chat-completions", model_ids: [] },
+  { template_id: "anthropic", display_name: "Anthropic", base_url: "https://api.anthropic.com", api_format: "anthropic-messages", model_ids: [],
+    key_hint: "在 Anthropic Console（console.anthropic.com）的 API Keys 里新建一把" },
+  { template_id: "openai", display_name: "OpenAI", base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions", model_ids: [],
+    key_hint: "在 OpenAI 平台（platform.openai.com）的 API keys 里新建一把" },
+  { template_id: "deepseek", display_name: "DeepSeek", base_url: "https://api.deepseek.com", api_format: "openai-chat-completions", model_ids: ["deepseek-flash"],
+    key_hint: "在 DeepSeek 开放平台（platform.deepseek.com）的 API keys 里新建一把" },
+  { template_id: "minimax", display_name: "MiniMax", base_url: MINIMAX_ANTHROPIC_BASE_URL, api_format: "anthropic-messages", model_ids: ["MiniMax-M3"],
+    key_hint: "在 MiniMax 开放平台（platform.minimax.cn）的接口密钥里新建一把" },
+  { template_id: "qwen", display_name: "通义千问（阿里云）", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_format: "openai-chat-completions", model_ids: [],
+    key_hint: "在阿里云百炼控制台（bailian.console.aliyun.com）的 API Key 里新建一把" },
+  { template_id: "kimi", display_name: "Kimi（月之暗面）", base_url: "https://api.moonshot.cn/v1", api_format: "openai-chat-completions", model_ids: [],
+    key_hint: "在 Kimi 开放平台（platform.moonshot.cn）的 API Key 管理里新建一把" },
+  { template_id: "glm", display_name: "GLM（智谱）", base_url: "https://open.bigmodel.cn/api/paas/v4", api_format: "openai-chat-completions", model_ids: [],
+    key_hint: "在智谱开放平台（bigmodel.cn）的 API Keys 里新建一把" },
+  { template_id: "openrouter", display_name: "OpenRouter", base_url: "https://openrouter.ai/api/v1", api_format: "openai-chat-completions", model_ids: [],
+    key_hint: "在 OpenRouter（openrouter.ai）的 Keys 里新建一把" },
+  { template_id: "anthropic-compatible", display_name: "Anthropic 兼容", base_url: "", api_format: "anthropic-messages", model_ids: [], key_hint: ANY_CONSOLE },
+  { template_id: "openai-compatible", display_name: "OpenAI 兼容", base_url: "", api_format: "openai-chat-completions", model_ids: [], key_hint: ANY_CONSOLE },
 ];
+
+/**
+ * Where to get a key for the provider the settings page shows: its template's console, by the template a draft started from or by
+ * the address a saved provider has. A provider at an address no template has is told to look in its own service's console.
+ */
+export function modelKeyHint(baseUrl: string, templateId?: string | null): string {
+  return templateAt(baseUrl, templateId)?.key_hint ?? ANY_CONSOLE;
+}
+
+/** Whether the address is the one a template fills in, so the page may say the template filled it (and not of a custom one). */
+export function modelAddressFromTemplate(baseUrl: string, templateId?: string | null): boolean {
+  const template = templateAt(baseUrl, templateId);
+  return template !== undefined && template.base_url !== "" && template.base_url === addressOf(baseUrl);
+}
+
+const addressOf = (baseUrl: string): string => baseUrl.trim().replace(/\/+$/u, "");
+
+function templateAt(baseUrl: string, templateId?: string | null): ModelProviderTemplate | undefined {
+  const address = addressOf(baseUrl);
+  return modelProviderTemplate(templateId) ?? MODEL_PROVIDER_TEMPLATES.find((one) => one.base_url !== "" && one.base_url === address);
+}
 
 /** The template an address names, or null for anything else (an unknown id opens the blank form). */
 export function modelProviderTemplate(templateId: string | null | undefined): ModelProviderTemplate | null {

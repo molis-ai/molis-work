@@ -128,6 +128,11 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }
+/* On a phone the strip is the title bar's last row, so the directory drawer, its rail and scrim (immersive-navigation.ts) start
+   below it, at the bar's bottom. Their offset counts the bar's first two rows (44px each); the strip adds its 44px tabs
+   (--tab-strip-h) and 28px: its own 4px block padding and three 8px row gaps, after the tab row, after the bar's empty drag
+   line and before the strip (measured at 360 and 390: the bar ends at 160px = 88 + 72). */
+@media(max-width:600px){html body.immersive-workbench:has(.immersive-titlebar>.side-strip){--titlebar-side-row:calc(var(--tab-strip-h) + 28px)}}
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
    titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
    strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */

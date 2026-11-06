@@ -40,14 +40,14 @@ for b in B:
       url=f'https://github.com/molis-ai/molis-work/blob/main/specs/post-anticorruption-roadmap/reference/batches/{fn}.md',
       items=items,pre=sorted(par[b],key=B.index),soft=[{'id':k,'k':v} for k,v in soft[b].items()],cond=cond,
       split=len([u for u in N if bid(u)==b])>1))
-# 进展：认领板按交付项一行、顺序与批次文件相同，页面里解析；这里只给每个单元对应哪几项和硬依赖
+# 进展：认领板按交付项一行、顺序与批次文件相同，页面里解析；这里只给每个单元对应哪几项、硬依赖和部分依赖
 MAP={'54a':[3,4],'54b':[1,2,7],'54c':[5,6],'54d':[8],'65.1':[1,2],'65.3':[3],'69a':[1,4,5,6,7,8,9,10],'69b':[2,3]}
 by={x['id']:x for x in out}
 for x in out:x['nodes']=[]
 for u,n in N.items():
     b=bid(u)
     idx=[i-1 for i in MAP[u]] if u in MAP else [int(u.split('.')[1])-1] if '.' in u else list(range(len(by[b]['items'])))
-    by[b]['nodes'].append(dict(id=u,items=idx,hard=[t for t,k,_ in n['deps'] if k=='h']))
+    by[b]['nodes'].append(dict(id=u,items=idx,hard=[t for t,k,_ in n['deps'] if k=='h'],partial=[t for t,k,_ in n['deps'] if k=='p']))
 # 轨道：推导的对照表，见 tracks.json；路线书增删交付项后要补
 TR=json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'tracks.json')))
 for x in out:

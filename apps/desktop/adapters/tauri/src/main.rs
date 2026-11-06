@@ -10,8 +10,8 @@ mod drop_wheel;
 #[cfg(target_os = "macos")]
 mod drop_wheel_macos;
 mod external_links;
-mod personal_session;
 mod page_files;
+mod personal_session;
 mod runtime_env;
 mod selected_file;
 #[cfg(target_os = "macos")]

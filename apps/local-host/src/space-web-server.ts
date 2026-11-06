@@ -191,7 +191,12 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     for(const entry of syncs.values())entry.service?.close();
     for(const entry of [...retiring.values()])entry.retry?.();
     for(const entry of [...surfaces.values()]){
-      if(entry.space.kind==='personal')retire(entry);else disconnect(entry);
+      if(entry.space.kind==='personal')retire(entry);
+      else {
+        // Let in-flight actions deliver the Host's cancellation result; only streams need forced closure.
+        for(const response of entry.responses.keys())if(String(response.getHeader('content-type')??'').startsWith('text/event-stream'))response.destroy();
+        for(const socket of entry.connections.keys())socket.destroy();
+      }
     }
   };
   const resume=async(request:IncomingMessage)=>{

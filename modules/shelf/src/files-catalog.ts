@@ -14,8 +14,8 @@ export function readLocalShelfCatalog(reader:PluginOwnerFilesReader):CatalogFile
 }
 
 /** File authority and the sync CAS protect the same catalog; the expected document is never refreshed for an old edit. */
-export function createShelfFilesCatalog(root:string,files:PluginOwnerFilesClient,sync?:ShelfSyncOptions,idle?:(catalog:CatalogFile,key:string)=>void){
- const document=sync?createShelfCatalog(root,sync,idle):undefined;
+export function createShelfFilesCatalog(files:PluginOwnerFilesClient,sync?:ShelfSyncOptions,idle?:(catalog:CatalogFile,key:string)=>void){
+ const document=sync?createShelfCatalog(sync,idle):undefined;
  const observed=new WeakMap<CatalogFile,string>();
  return {
   replica:document?.replica,collect:document?.collect,

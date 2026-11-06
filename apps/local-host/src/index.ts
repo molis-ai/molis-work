@@ -1,3 +1,4 @@
+export {syncDocumentFiles} from './sync-document-files.js';
 export { openRuntimeProjectCopyDirectory, type RuntimeProjectCopyDirectory, type RuntimeProjectCopyInput } from "./runtime-project-copy.js";
 export { installMolisWorkHome } from "./installer/home.js";
 export {openProjectCopyJournal} from './project-copy-journal.js';

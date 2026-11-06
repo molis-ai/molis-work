@@ -74,7 +74,7 @@ test("RING-06 served compaction keeps template text, return newlines and side-ef
       text: "first one\n      second nested two\n    ", matches: true, stopped: undefined,
     });
   }
-  assert.match(sent.text, /function step\(/u, "binding names remain inspectable");
+  assert.equal(program(sent.text), program(source), "private binding compaction preserves the same normalized program");
   assert.ok(sent.bytes < Buffer.byteLength(source));
 });
 

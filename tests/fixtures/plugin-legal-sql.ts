@@ -1,7 +1,8 @@
-import type { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { PROJECT_DATABASE_BASELINE, pluginSyncDatabaseDeclaration, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { governanceSqlite } from "./governance-sqlite.js";
 import type { GovernanceSqliteDatabase } from "./goals-modules.js";
-import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { sqliteBaselineTriggers, replicaTriggerDefinitions } from "@molis-ai/molis-work-storage";
 import { pluginStatementGuard } from "@molis-ai/molis-work-plugin-runtime";
 
 /** The platform handle Goals and Governance run over once they are a plugin; tests reach it here so no test file names the package for it. */
@@ -30,7 +31,11 @@ const writes = (sql: string): boolean => /^\s*(insert|update|delete|replace)\b/i
 export function pluginLegalSql(store: LocalProjectDatabase): PluginLegalSql {
   const record = store.pluginDatabases.get(GOALS_PLUGIN_ID)?.record;
   if (!record) throw new Error("Goals' tables were not recorded for this library");
-  const guard = pluginStatementGuard(store.db, record);
+  // Match the Host's admitted baseline, never trust trigger SQL read from the tested database itself.
+  const declaration = pluginSyncDatabaseDeclaration(goalsManifest, goalsManifest.databases!.project!);
+  const triggers = new Map([...sqliteBaselineTriggers(PROJECT_DATABASE_BASELINE.schema),
+    ...replicaTriggerDefinitions(store.db), ...sqliteBaselineTriggers(declaration.schema, PROJECT_DATABASE_BASELINE.schema)]);
+  const guard = pluginStatementGuard(store.db, record, triggers);
   const stats: PluginLegalSql["stats"] = { checked: 0, savepoints: 0 };
   const statement = (sql: string) => new Proxy(store.db.prepare(sql), {
     get(target, property) {

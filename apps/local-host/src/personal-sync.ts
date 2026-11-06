@@ -11,7 +11,7 @@ import {createPersonalPluginRegistrations,createPersonalCharacterRegistration} f
 import {createPersonalProjectRegistrations} from './personal-project-sync.js';
 import {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 
-/** Built-in binding only; coordinator and Rust transport never import plugin owners. */
+/** Built-in bindings only; the sync service and Rust transport never import plugin owners. */
 export async function createPersonalSync(home:string,space:StorageSpace,lease:PersonalAccountLease,withCatalog:LocalWebCatalogRunner,assertActive:()=>void,discover?: (authorize:()=>void)=>Promise<readonly SyncRegistration[]>,lifecycleService?:ProjectDeletionService,readCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader) {
   const endpoint=resolveSyncEndpoint({origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL==='1'});
   if(!endpoint)return null;

@@ -51,7 +51,7 @@ export function newId(prefix: string): string {
 export class ShelfCatalogAccess {
   private readonly document: ReturnType<typeof createShelfFilesCatalog>;
   constructor(readonly root: string, readonly files: PluginOwnerFilesClient, sync?: ShelfSyncOptions, idle?: (catalog: CatalogFile, key: string) => void) {
-    this.document = createShelfFilesCatalog(root, files, sync, idle);
+    this.document = createShelfFilesCatalog(files, sync, idle);
   }
   replica() { return this.document.replica; }
   collect() { return this.document.collect; }

@@ -98,6 +98,9 @@ Runtime 私有文档使用 `scope:'project-private-values'`、固定 `namespace/
 
 文件型 Home owner 可在同一目录声明 `scope:'home-document'`、固定 owner 相对路径及 `open(home,{spaceId,storage,authorize})`。可信 Host 只在个人空间注入公共 Storage 的原子文件 CAS；Module 复用 SDK 文档工具，不依赖私有 Storage，也不把业务 schema 下放给 Host。Shelf 是实际消费者：正常动作和同步打开同一目录，材料/结果及终态任务分别作稳定键，原文件字节先校验并暂存成不可变版本，再提交目录；冻结上传不只保存指向可删除文件的路径。空正文保持空文件，不伪装删除或零字节 R2 预留；设置和剪贴板留在设备，执行中相关对象等待，不运行远端任务。当前目录 v2，旧版只拒绝；文件暂存回收仍须独立验证。
 
+文档 owner 的附属文件只经 `storage.files`：宿主按 Manifest 的 `owner_files` 限定路径，读写分别复核声明权限与当前账号/实例。端口提供只读 stat/read/list、独占 create 和单文件 removeFile；列表把链接及特殊节点标为 unsafe，不能读取或删除它们。业务 Module 不自行 import 文件系统，也不能从同步数据选择根目录；不可变版本、摘要校验与有界清理规则仍归业务 owner。缺少端口必须明确拒绝，不能回退直接磁盘访问。
+
+
 新插件实现集合的稳定键、导出、事务应用与语义验证，由可信 Host 注册 `SyncRegistration`，复用队列/重试/传输/配置，不自行调用云接口。多集合须隔离各自日志与游标。声明本身不注册运行时实现；附件依赖、Schema 迁移、第三方 Runtime 接线和完整项目生命周期仍须扩展。Pages 仅同步最小项目定位信息；内嵌 Artifact 有独立适配器。
 
 内置插件在自身 `src/registration.ts` 的 `registration`（由生成器汇入 `BUILTIN_PLUGIN_CATALOG`）按集合 ID 提供 `sync` 工厂表，例如 `sync: { documents: { scope: 'projects', open, content } }`。`builtinSyncBindings` 逐项匹配 Manifest 的集合，不取数组首项；未声明的工厂、不属于自身的继承属性和没有工厂的声明均不注册。每个集合须拥有自己的日志/游标，不用一个适配器冒充两份独立资产。Host 只从该目录派生注册，不另维护第二份逐插件名单；此内置绑定扩展不代表独立 Runtime 自动发现已经完成。首次收到内容可启用从未安装的插件，但不得重新启用用户明确移除的插件；移除事实经 Projects 的公开只读口查询，不跨 owner 读事件表。

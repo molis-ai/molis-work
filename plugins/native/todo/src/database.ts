@@ -8,12 +8,13 @@ import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from
 const TODO_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "放在这个项目里的待办", order: 60, tables: [
   { table: "todo_imported_changes", column: "item_id", parent: "todo_items" },
   { table: "todo_editor_versions", column: "id", parent: "todo_items" },
-  { table: "todo_deleted_projects", column: "project_id" },
   { table: "todo_changes", column: "item_id", parent: "todo_items" },
   { table: "todo_requests", column: "item_id", parent: "todo_items" },
   { table: "todo_source_memory", column: "item_id", parent: "todo_items" },
   { table: "todo_batches", column: "project_id" },
   { table: "todo_items", column: "project_id" },
+  // Deleting items creates these tombstones; project deletion clears them last.
+  { table: "todo_deleted_projects", column: "project_id" },
 ] };
 /**
  * The Todo library's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are

@@ -106,15 +106,13 @@ test("schema description sees through how a table was written but not through a 
   ]) assert.notDeepEqual(shape(different), patched, different);
 });
 
-// RAC-2719: a store at another version is refused by a read-only check before any writable connection, so its bytes, its mode and its
-// directory (no journal sidecars) stay exactly as they were. This store is in SQLite's default (DELETE) journal mode, so a read-only
-// inspection creates no sidecars; a WAL store's read-only open may touch `-shm`'s lock bytes (T-344's finding: lock state, not data),
-// so for a WAL store the assertion is the database and `-wal` bytes, as T-344's RAC-2717 does.
-test("RAC-2719 a store at another version is refused before a writable connection: bytes, mode and sidecars unchanged", t => {
+// Closed stores must be refused without creating sidecars in either journal mode.
+for (const journal of ["DELETE", "WAL"] as const) test(`RAC-2719 ${journal} store at another version is refused before a writable connection: bytes, mode and sidecars unchanged`, t => {
   const home = mkdtempSync(join(tmpdir(), "molis-baseline-refused-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const v1 = { version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);" };
   const db = openBaselineHomeSqlite(home, "notes", v1);
+  db.exec(`PRAGMA journal_mode = ${journal}`);
   db.prepare("INSERT INTO notes VALUES ('a', 'kept')").run();
   db.close();
   const path = homeSqlitePath(home, "notes"), directory = dirname(path);

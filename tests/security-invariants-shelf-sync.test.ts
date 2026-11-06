@@ -1,3 +1,4 @@
+import {SHELF_OWNER_FILES} from '@molis-ai/molis-work-plugin-shelf';
 import { openTestShelfFiles } from './shelf-direct-actions.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -6,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import { createAtomicFileDocument,ensureStorageSpace,personalStorageSpace } from '@molis-ai/molis-work-storage';
-import {createPersonalPluginRegistrations} from '@molis-ai/molis-work-app-local-host';
+import {syncDocumentFiles,createPersonalPluginRegistrations} from '@molis-ai/molis-work-app-local-host';
 import { openShelfStore, SHELF_DOCUMENT_PATH, hashBytes } from '@molis-ai/molis-work-module-shelf';
 import { shelfTestAi,shelfTestReceipt } from './shelf-test-ai.js';
 
@@ -14,7 +15,7 @@ function fixture(t:import('node:test').TestContext,bound=false){
   const home=mkdtempSync(join(tmpdir(),'shelf-sync-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   let active=true;const authorize=()=>{if(!active)throw new Error('REVOKED');};
   const spaceId=bound?ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice')).spaceId:'personal:alice';
-  const options={spaceId,authorize,storage:createAtomicFileDocument(join(home,SHELF_DOCUMENT_PATH),authorize)};
+  const options={spaceId,authorize,storage:{...createAtomicFileDocument(join(home,SHELF_DOCUMENT_PATH),authorize),files:syncDocumentFiles(home,SHELF_OWNER_FILES,authorize,authorize)}};
   const open=()=>openShelfStore(join(home,'shelf'),openTestShelfFiles(home),{disabled:true},{},undefined,options);
   return {home,options,open,revoke(){active=false;},filename:join(home,SHELF_DOCUMENT_PATH)};
 }
@@ -91,7 +92,7 @@ test('S-139 PCSYNC-05/15 Shelf atomic CAS failure leaves the prior bytes reachab
   const f=fixture(t),s=f.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('initial')})),port=f.options.storage;
   const stale=hashBytes(s.readFile(item.item_id).bytes);(await s.writeCopy(item.item_id,'latest',stale));const before=readFileSync(f.filename);
   (await assert.rejects(async ()=>(await s.writeCopy(item.item_id,'old edit',stale)),{code:'shelf.conflict'}));assert.deepEqual(readFileSync(f.filename),before);
-  const loser=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{read:port.read,compareAndSet:()=>false}});
+  const loser=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{files:port.files,read:port.read,compareAndSet:()=>false}});
   (await assert.rejects(async ()=>(await loser.writeCopy(item.item_id,'CAS lost',hashBytes(s.readFile(item.item_id).bytes))),{code:'plugin.sync_conflict'}));
   assert.deepEqual(readFileSync(f.filename),before);assert.equal(s.readFile(item.item_id).bytes.toString(),'latest');
 });
@@ -124,7 +125,7 @@ test('Shelf keeps complete never-uploaded binary and folder children in the dele
  const records=s.replica().recoveries!().filter(row=>row.choice==='local_delete');assert.equal(records.length,2);assert.equal(s.replica().cursor(),0);
  for(const row of records){assert.equal(row.revision,0);s.replica().restoreRecovery!(row.id,'local',0);}
  assert.deepEqual(s.readFile(binary.item_id).bytes,Buffer.from([255,0,17,128]));assert.deepEqual(s.readChild(folder.item_id,'nested/a.bin').bytes,Buffer.from([1,2,255]));assert.equal(s.replica().cursor(),0);
- const original=(await s.admit({filename:'reject.bin',bytes:Buffer.from([254,22])})),port=f.options.storage,loser=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{read:port.read,compareAndSet:()=>false}});
+ const original=(await s.admit({filename:'reject.bin',bytes:Buffer.from([254,22])})),port=f.options.storage,loser=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{files:port.files,read:port.read,compareAndSet:()=>false}});
  (await assert.rejects(async ()=>(await loser.deleteCopy(original.item_id)),{code:'plugin.sync_conflict'}));assert.deepEqual(s.readFile(original.item_id).bytes,Buffer.from([254,22]),'CAS failure must not remove the only original file');
 });
 
@@ -152,4 +153,22 @@ test('Shelf bounded collection advances beyond a large retained prefix across pa
  assert.equal(readFileSync(join(unknown,'00000'),'utf8'),'unknown owner path');assert.equal(readFileSync(join(unknown,'05099'),'utf8'),'unknown owner path');assert.equal(s.readFile(item.item_id).bytes.toString(),'Keep current complete bytes');
  const reopened=f.open();reopened.replica().maintain!();assert.equal(reopened.readFile(item.item_id).bytes.toString(),'Keep current complete bytes','a new owner may safely restart traversal');
  f.revoke();assert.throws(()=>registration.withReplica(replica=>replica.cursor()),/REVOKED/,'a cached owner cannot outlive its authorization');
+});
+
+test('sync file capability enforces declared paths, link refusal, separate grants and revocation',t=>{
+ const f=fixture(t);let canRead=true,canWrite=true;
+ const files=syncDocumentFiles(f.home,SHELF_OWNER_FILES,()=>{f.options.authorize();if(!canRead)throw new Error('READ_DENIED');},()=>{f.options.authorize();if(!canWrite)throw new Error('WRITE_DENIED');});
+ files.create('files/kept.txt',Buffer.from('kept'));
+ for(const relative of ['../outside','/tmp/outside','files/../../outside','undeclared/file']){
+  assert.throws(()=>files.read(relative));assert.throws(()=>files.create(relative,Buffer.from('bad')));assert.throws(()=>files.removeFile(relative));
+ }
+ const outside=join(f.home,'outside');writeFileSync(outside,'outside');symlinkSync(outside,join(f.home,'shelf/files/link'));
+ assert.equal(files.list('files').find(entry=>entry.name==='link')?.kind,'unsafe');
+ assert.throws(()=>files.read('files/link'));assert.throws(()=>files.removeFile('files/link'));
+ assert.equal(readFileSync(outside,'utf8'),'outside');
+ canWrite=false;assert.throws(()=>files.create('files/denied',Buffer.from('bad')),/WRITE_DENIED/);assert.throws(()=>files.removeFile('files/kept.txt'),/WRITE_DENIED/);
+ assert.equal(Buffer.from(files.read('files/kept.txt')!).toString(),'kept');
+ canRead=false;assert.throws(()=>files.stat('files/kept.txt'),/READ_DENIED/);assert.throws(()=>files.list('files'),/READ_DENIED/);
+ canRead=true;canWrite=true;f.revoke();assert.throws(()=>files.read('files/kept.txt'),/REVOKED/);assert.throws(()=>files.removeFile('files/kept.txt'),/REVOKED/);
+ assert.equal(readFileSync(join(f.home,'shelf/files/kept.txt'),'utf8'),'kept');
 });

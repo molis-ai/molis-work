@@ -162,7 +162,7 @@ function assertSyncIdle(catalog: CatalogFile, key: string, root: string): void {
   if (catalog.jobs.some(job => job.status === 'running' && !isStaleJob(job, root) && (identity.kind === 'job' ? job.job_id === identity.id : job.item_ids.includes(identity.id) || job.item_id === identity.id || job.result_item_id === identity.id))) throw shelfErrors.conflict('材料或任务正在使用中，稍后再同步', {sync_waiting:true});
 }
 export function openShelfReplica(root: string, sync: ShelfSyncOptions) {
-  const catalog = createShelfCatalog(root, sync, (value, key) => assertSyncIdle(value, key, root));
+  const catalog = createShelfCatalog(sync, (value, key) => assertSyncIdle(value, key, root));
   if (!catalog.replica) throw shelfErrors.invalid('本地空间未启用置物架同步');
   return shelfHomeReplica(catalog.replica, catalog.collect);
 }

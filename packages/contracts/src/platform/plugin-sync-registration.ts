@@ -33,6 +33,14 @@ export interface AggregateReplicaContext {
 }
 export interface AggregateCopyContext extends AggregateReplicaContext {direction:'source'|'target'}
 export interface SyncDocumentStorage {
+  /** Host-bound owner_files only. Every operation rechecks the active scope and corresponding grant. */
+  readonly files?: {
+    stat(path:string):{kind:'file'|'directory';size:number;modifiedAt:number}|null;
+    read(path:string):Uint8Array|null;
+    list(path:string):readonly {name:string;kind:'file'|'directory'|'unsafe'}[];
+    create(path:string,bytes:Uint8Array):void;
+    removeFile(path:string):void;
+  };
   read(): string | null;
   compareAndSet(expected: string | null, value: string): boolean;
   /** Optional file-owner capabilities. Checked replacement and read lock must share the same cross-process mutex. */

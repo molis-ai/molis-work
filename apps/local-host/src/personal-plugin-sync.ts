@@ -16,7 +16,7 @@ export function createPersonalPluginRegistrations(home:string,spaceId:string,use
     if(sync.scope==='home-document'){
       let replica:ReturnType<typeof sync.open>|undefined;
       return {locate:sync.locate,selection,dependencies,title:collection.title,content:sync.content?.({spaceId,authorize:check}),async refresh(){check();},async prepare(){check();},
-        withReplica(run){check();if(!replica){const context=personalDocumentOptions(home,sync.path,check);if(!context||context.spaceId!==spaceId)throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');replica=sync.open(home,context);}check();return run(replica);}};
+        withReplica(run){check();if(!replica){const context=personalDocumentOptions(home,sync.path,check,entry.manifest.owner_files?{declaration:entry.manifest.owner_files,read:check,write:check}:undefined);if(!context||context.spaceId!==spaceId)throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');replica=sync.open(home,context);}check();return run(replica);}};
     }
     const ownerStore=sync.scope==='home-store'?homeStores().get(sync.path):undefined;
     if(sync.scope==='home-store'&&(!ownerStore?.replication||ownerStore.owner!==sync.owner))throw new Error('同步存储主人未注册');

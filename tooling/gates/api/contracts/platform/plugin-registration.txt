@@ -223,6 +223,20 @@ export interface ReplicaDatabase {
 }
 
 export interface SyncDocumentStorage {
+    readonly files?: {
+        stat(path: string): {
+            kind: 'file' | 'directory';
+            size: number;
+            modifiedAt: number;
+        } | null;
+        read(path: string): Uint8Array | null;
+        list(path: string): readonly {
+            name: string;
+            kind: 'file' | 'directory' | 'unsafe';
+        }[];
+        create(path: string, bytes: Uint8Array): void;
+        removeFile(path: string): void;
+    };
     read(): string | null;
     compareAndSet(expected: string | null, value: string): boolean;
     compareAndSetChecked?(expected: string | null, value: string, validate: () => void): boolean;

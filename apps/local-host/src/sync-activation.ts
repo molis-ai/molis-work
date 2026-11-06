@@ -20,10 +20,11 @@ export function syncActivation(home: string | undefined, manifest: PluginManifes
     if (!declaration || !binding.path.startsWith(declaration.store_name + '/')
       || !declaration.entries.some(file => file.kind === 'file' && binding.path === declaration.store_name + '/' + file.name)) throw new Error('SYNC_DOCUMENT_OWNER_MISMATCH');
     const check = () => { assertActive(); assertPersonalSpaceAuthority(home, space.spaceId); };
-    const storage = personalDocumentOptions(home, binding.path, check)!.storage;
     const read = () => { check(); context.requireGrant(declaration.read_permission); };
     const write = () => { check(); context.requireGrant(declaration.write_permission); };
+    const storage = personalDocumentOptions(home, binding.path, check, {declaration,read,write})!.storage;
     documents[collection.id] = Object.freeze({
+      files: storage.files,
       read() { read(); return storage.read(); },
       compareAndSet(expected:string|null, value:string) { write(); return storage.compareAndSet(expected, value); },
       ...(storage.compareAndSetChecked ? {compareAndSetChecked(expected: string | null, value: string, validate: () => void) { write(); return storage.compareAndSetChecked!(expected, value, () => { write(); validate(); write(); }); }} : {}),

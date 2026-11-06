@@ -1,5 +1,6 @@
 import { readStorageSpace, spaceMetadataShapeMatches } from "./space.js";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -91,7 +92,12 @@ function emptyForBaseline(db:SqliteBaselineDatabase, path:string, home?:string):
 function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:string): boolean {
   if (!existsSync(path)) return false;
   try {
-    const inspection = new DatabaseSync(path, { readOnly: true });
+    // Immutable reads avoid creating WAL sidecars for a closed database. Never ignore an existing journal.
+    const closed = () => !["-wal", "-shm", "-journal"].some(suffix => existsSync(path + suffix));
+    const stamp = () => { const stat = statSync(path, { bigint: true }); return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(":"); };
+    const immutable = closed(), before = immutable ? stamp() : undefined;
+    const uri = pathToFileURL(path); uri.searchParams.set("immutable", "1");
+    const inspection = new DatabaseSync(immutable ? uri.href : path, { readOnly: true });
     try {
       const found = Number((inspection.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
       if (found !== baseline.version) {
@@ -102,7 +108,10 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:str
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
       if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path);
       return true;
-    } finally { inspection.close(); }
+    } finally {
+      inspection.close();
+      if (immutable && (!closed() || stamp() !== before)) throw new Error("SQLite store changed during baseline inspection; retry");
+    }
   } catch (error) {
     // SQLITE_READONLY_ROLLBACK: the file has a hot journal, and a read-only connection cannot roll it back. The writable open recovers
     // it (SQLite's own crash recovery, not the caller's business write) and the baseline check runs there instead.

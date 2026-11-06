@@ -79,11 +79,11 @@ test("extract rolls back both source and new knowledge pages when any insert fai
     const { document } = await bound.invoke(actions.create, { title: "Source", body: { type: "doc", content } });
     const db = openHomeSqliteDatabase(home, "pages");
     try {
-      db.exec("CREATE TRIGGER fail_knowledge BEFORE INSERT ON pages BEGIN SELECT RAISE(ABORT, 'fixture insert failed'); END");
-      await assert.rejects(bound.invoke(actions.extract, { id: document.id }), /fixture insert failed/);
+      db.exec("CREATE UNIQUE INDEX fail_knowledge ON pages ((1))");
+      await assert.rejects(bound.invoke(actions.extract, { id: document.id }), /UNIQUE constraint failed/);
       assert.deepEqual((await bound.invoke(actions.get, { id: document.id })).document, document);
       assert.equal((await bound.invoke(actions.list, {})).documents.length, 1);
-      db.exec("DROP TRIGGER fail_knowledge");
+      db.exec("DROP INDEX fail_knowledge");
       const result = await bound.invoke(actions.extract, { id: document.id });
       assert.equal(result.cards, 1); assert.equal(result.created.length, 1);
       const retry = await bound.invoke(actions.extract, { id: document.id });

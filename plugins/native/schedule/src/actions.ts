@@ -20,6 +20,8 @@ const reminder = object({ text, plugin_id: id, plugin_title: text, needs_confirm
 // Jobs belong to other plugins' wakeups; their recurrence and last result stay owned by the scheduler service.
 const job = { type: "object", properties: { job_id: id, plugin_id: id, capability_id: id, object_ref: text, title: text, next_due_at: text, enabled: { type: "boolean" },
   created_at: text, updated_at: text, reminder }, required: ["job_id", "plugin_id", "capability_id", "object_ref", "title", "next_due_at", "enabled"] };
+// One reminder as another plugin's background task may read it: what it says, whose it is and when; no installation or wakeup target.
+const reminderItem = object({ job_id: id, text, plugin_id: id, plugin_title: text, next_due_at: text, enabled: { type: "boolean" }, needs_confirmation: { type: "boolean" } });
 const occurrence = object({ projectId: id, operationId: id, dueAt: text, state: { enum: ["pending", "running", "succeeded", "failed", "unknown", "skipped"] },
   detail: nullableText, startedAt: nullableText, finishedAt: nullableText,
   decisions: { type: "array", items: object({ decision: { enum: ["retry", "skip"] }, at: text, previousDetail: nullableText }) } },
@@ -44,6 +46,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
     permissions, subject_kinds: ["schedule_task"], input_schema: input, output_schema: output, ...options } };
 }
 
+/** A reminder of this project, without the operations other plugins scheduled or their input (`schedule.reminders.list`). */
+export interface ScheduleReminderItem { job_id: string; text: string; plugin_id: string; plugin_title: string; next_due_at: string; enabled: boolean; needs_confirmation: boolean }
 export interface ScheduleTaskInput { title: string; instructions: string; time: string; notify_important?: boolean }
 /** What a due task still needs from the Host: a configured text model, and a verified workspace bound to the project. */
 export interface ScheduleTaskReadiness { model: boolean; workspace: boolean }
@@ -51,6 +55,9 @@ export const scheduleActions = {
   list: define<Record<string, never>, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[] }>("tasks.list", "定时任务列表",
     "读取当前项目的每日对话任务与其他插件登记的闹钟；已归档任务不在列表中", "query", object({}),
     object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView } }), read),
+  reminders: define<Record<string, never>, { reminders: ScheduleReminderItem[] }>("reminders.list", "提醒列表",
+    "只读取当前项目的提醒：内容、来自哪个插件、下一次时间与是否启用；不含定时任务与其他插件登记的定时操作", "query", object({}),
+    object({ reminders: { type: "array", items: reminderItem } }), read),
   readiness: define<Record<string, never>, ScheduleTaskReadiness>("tasks.readiness", "定时任务就绪情况",
     "读取对话任务到点执行需要的条件：已配置的文字模型、项目绑定的工作区；缺任何一项都仍可创建任务，到点时才会叫醒失败", "query", object({}),
     object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read),
@@ -126,6 +133,9 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
   const editable = (input: ScheduleTaskInput) => ({ title: input.title, instructions: input.instructions, ...parseClockTime(input.time), notify_important: input.notify_important !== false });
   return [
     bind(scheduleActions.list, () => ({ jobs: [...ports.listJobs()], tasks: [...ports.listTasks()], operations: ports.listOperations?.() ?? [] })),
+    bind(scheduleActions.reminders, () => ({ reminders: ports.listJobs().flatMap(job => job.reminder ? [{ job_id: job.job_id, text: job.reminder.text,
+      plugin_id: job.reminder.plugin_id, plugin_title: job.reminder.plugin_title, next_due_at: job.next_due_at, enabled: job.enabled,
+      needs_confirmation: job.reminder.needs_confirmation }] : []) })),
     bind(scheduleActions.readiness, () => {
       if (!ports.readiness) throw new ActionError("actions.unredeemed", "当前宿主未提供定时任务就绪检查");
       return ports.readiness();

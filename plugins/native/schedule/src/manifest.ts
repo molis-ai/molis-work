@@ -43,9 +43,10 @@ export const scheduleManifest: PluginManifest = {
   },
   actions: [...SCHEDULE_ACTIONS, ...REMINDER_ACTIONS, ...SCHEDULE_OPERATION_ACTIONS, ...Object.values(scheduleWakeupActions)],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
-  // The task list carries the reminders together with other plugins' scheduled operations and their original input, so it is one
-  // group of its own, off unless the person turns it on; a group of reminders alone needs a query that reads only them.
-  read_groups: [{ group_id: "operations", title: "定时操作", description: "本项目的定时任务、提醒，以及其他插件登记的定时操作和它们的原输入",
+  // Reminders alone are one group (日程 = Jelly's calendar and these, user decision); the task list carries them together with other
+  // plugins' scheduled operations and their original input, so it is a group of its own, off unless the person turns it on.
+  read_groups: [{ group_id: "reminders", title: "提醒", description: "本项目的提醒：内容、来自哪个插件和下一次时间",
+    actions: [scheduleActions.reminders.capability_id] }, { group_id: "operations", title: "定时操作", description: "本项目的定时任务、提醒，以及其他插件登记的定时操作和它们的原输入",
     actions: [scheduleActions.list.capability_id, scheduleActions.searchEntries.capability_id, scheduleActions.subject.capability_id] }],
   background: { jobs: [{ job_id: SCHEDULE_RECONCILE_JOB, reason: "恢复未完成的排期并标记中断的执行", permissions: ["storage:private", "schedule:read", "schedule:write", "plugins:read"] }],
     wakeups: Object.values(scheduleWakeupActions).map(({ capability_id, version, action }) => ({ action: { capability_id, version }, reason: action.title })) },

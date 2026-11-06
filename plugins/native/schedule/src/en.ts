@@ -29,6 +29,8 @@ export const SCHEDULE_EN: Record<string, string> = {
   "恢复": "Resume",
   "执行接口": "Execute API",
   "重复": "Repeat",
+  "提醒": "Reminders",
+  "本项目的提醒：内容、来自哪个插件和下一次时间": "This project's reminders: what they say, which plugin set them and when they are next due",
   "定时操作": "Scheduled operations",
   "本项目的定时任务、提醒，以及其他插件登记的定时操作和它们的原输入": "This project's scheduled tasks and reminders, and other plugins' scheduled operations with their original input",
 };

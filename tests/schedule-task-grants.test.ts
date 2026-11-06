@@ -22,10 +22,10 @@ import { SchedulePluginRouteTable } from "./schedule-direct-actions.js";
 
 const MANIFESTS: Record<string, PluginManifest> = { todo: todoManifest, inbox: inboxManifest, goals: goalsManifest, jelly: jellyManifest, schedule: scheduleManifest };
 
-/** The read groups by plugin, as the batch decided them (§3.2, 2026-11-05): 日程 is Jelly's calendar, not its notes. */
+/** The read groups by plugin, as the batch decided them (§3.2, 2026-11-05): 日程 is Jelly's calendar and Schedule's reminders, not notes. */
 const EXPECTED: Record<string, Record<string, string>> = {
   todo: { todo: "待办" }, inbox: { inbox: "来信" }, goals: { goals: "目标" },
-  jelly: { calendar: "日历", notes: "笔记" }, schedule: { operations: "定时操作" },
+  jelly: { calendar: "日历", notes: "笔记" }, schedule: { reminders: "提醒", operations: "定时操作" },
 };
 
 test("PWA-148 the five plugins declare their read groups, and each Manifest is accepted as it is read", () => {
@@ -45,7 +45,7 @@ test("PWA-148 the five plugins declare their read groups, and each Manifest is a
   }
 });
 
-test("PWA-148 日程 is Jelly's calendar alone: its notes and exports, and Schedule's other plugins' operations, are switches of their own", () => {
+test("PWA-148 日程 is Jelly's calendar and Schedule's reminders: notes and exports, and other plugins' scheduled operations, are switches of their own", () => {
   const jelly = new Map(jellyManifest.read_groups!.map(group => [group.group_id, group.actions]));
   assert.deepEqual([...jelly.get("calendar")!].sort(), ["jelly.calendar.list", "jelly.calendar.progress", "jelly.item.get"]);
   for (const id of ["jelly.search", "jelly.note.export", "jelly.workspace.export", "jelly.workspace.get"]) {
@@ -53,7 +53,36 @@ test("PWA-148 日程 is Jelly's calendar alone: its notes and exports, and Sched
     assert.ok(!jelly.get("calendar")!.includes(id), `and not in the calendar`);
   }
   // `schedule.tasks.list` carries other plugins' scheduled operations with their original input: it is not part of 日程.
-  assert.ok(scheduleManifest.read_groups!.find(group => group.group_id === "operations")!.actions.includes(scheduleActions.list.capability_id));
+  const schedule = new Map(scheduleManifest.read_groups!.map(group => [group.group_id, group.actions]));
+  assert.ok(schedule.get("operations")!.includes(scheduleActions.list.capability_id));
+  // A subject granted 提醒 is given exactly the reminders query: not the task list, its search, or a subject read.
+  assert.deepEqual(schedule.get("reminders"), [scheduleActions.reminders.capability_id]);
+  for (const id of [scheduleActions.list.capability_id, scheduleActions.searchEntries.capability_id, scheduleActions.subject.capability_id]) {
+    assert.ok(!schedule.get("reminders")!.includes(id), `${id} is not read through 提醒`);
+  }
+  const reminders = scheduleManifest.actions!.find(action => action.capability_id === scheduleActions.reminders.capability_id)!;
+  assert.equal(reminders.operation, "query");
+  assert.ok(reminders.action.audiences.includes("agent"));
+  assert.deepEqual(reminders.action.audiences, scheduleActions.list.action.audiences, "offered to the same callers as the task list");
+  assert.equal(actionEffect(reminders.action, reminders.capability_id), "read");
+});
+
+test("PWA-148 the reminders query returns this project's reminders only, never another plugin's scheduled operation or its input", async () => {
+  const job = (job_id: string, extra: Record<string, unknown> = {}) => ({ job_id, plugin_id: "io.molis.work.todo", capability_id: "todo.reminders.wake",
+    object_ref: `secret-ref-${job_id}`, title: `title-${job_id}`, next_due_at: "2026-11-06T09:00:00.000Z", enabled: true, created_at: "c", updated_at: "u", ...extra });
+  const reminder = { text: "交周报", plugin_id: "io.molis.work.todo", plugin_title: "待办", needs_confirmation: false,
+    installation: { installation_id: "inst-secret", generation: "g", title: "待办", version: "1", publisher: "p" } };
+  const unused = () => { throw new Error("unused"); };
+  const ports: ScheduleActionPorts = { listJobs: () => [job("j-reminder", { reminder }), job("j-wakeup")] as never, listTasks: () => [],
+    listOperations: () => [{ id: "op1", input: { token: "operation-input-secret" } }] as never, setEnabled: unused, recoverReminder: unused,
+    createTask: unused, updateTask: unused, archiveTask: unused, setTaskEnabled: unused, openTask: unused };
+  const handler = createScheduleActionHandlers("p1", ports).find(item => item.capability_id === scheduleActions.reminders.capability_id)!;
+  const call = (project_id: string) => handler.handle({ actor_id: "agent", project_id, audience: "agent", permissions: ["schedule:read"] } as never, {});
+  const output = await call("p1");
+  assert.deepEqual(output, { reminders: [{ job_id: "j-reminder", text: "交周报", plugin_id: "io.molis.work.todo", plugin_title: "待办",
+    next_due_at: "2026-11-06T09:00:00.000Z", enabled: true, needs_confirmation: false }] });
+  for (const leak of ["operation-input-secret", "secret-ref", "inst-secret", "j-wakeup", "todo.reminders.wake"]) assert.ok(!JSON.stringify(output).includes(leak), `${leak} stays out`);
+  await assert.rejects(Promise.resolve().then(() => call("p2")), { code: "actions.scope_mismatch" }, "another project's reminders are not read");
 });
 
 test("PWA-148 every group's words have their English in the plugin's own translations", () => {
@@ -149,12 +178,14 @@ test("PWA-149 a due round asks the platform once and starts the role its grants 
     { role_id: "brief", grant_subject: data.task_id, title: "晨报" },
   ]);
   assert.equal(fake.calls.length, 2, "one list per round, not one per task or per category");
-  assert.equal(getScheduleConversationTask(db, data.task_id)!.turns.at(-1)!.text, "今天没有到期的待办。");
+  // Turns written in the same millisecond keep no order between them, so each is found by its kind.
+  const turnsOf = (kind: string) => getScheduleConversationTask(db, data.task_id)!.turns.filter(turn => turn.kind === kind).map(turn => turn.text);
+  assert.deepEqual(turnsOf("assistant"), ["今天没有到期的待办。"]);
   // A failed read fails the round and the task says so; it does not fall back to reading files.
   fake.state.listFails = true;
   await assert.rejects(handleScheduleTaskWakeup(db, data.task_id, scheduledTaskRunner(agents, grants)), /平台暂时不可用/);
   assert.equal(runs.length, 2, "no round started");
-  assert.match(getScheduleConversationTask(db, data.task_id)!.turns.at(-1)!.text, /这一轮没跑成：平台暂时不可用/);
+  assert.ok(turnsOf("system").some(text => /这一轮没跑成：平台暂时不可用/.test(text)), turnsOf("system").join(" / "));
 });
 
 /** Schedule's own task actions over a library, with `archived` going to the platform as the Runtime binds it. */

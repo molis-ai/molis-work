@@ -6,7 +6,8 @@ import { assertMaterialRef } from "@molis-ai/molis-work-plugin-sdk/presentation"
 import { actionEffect, ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectDirectoryErrors, projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { FILE_PATH_MAX_SEGMENTS, FILE_SEGMENT_MAX_LENGTH, WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { MATERIAL_RECENT_KEEP, MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_LIMITS, type MaterialOrigin, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { MATERIAL_RECENT_KEEP,MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_LIMITS, type MaterialOrigin, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 
 // specs/shared-sources-and-surfaces §2, §2.1, §3, §7 (C-1): the contract alone. Nothing registers these actions in the product yet, so the
 // provider here is a stand-in that answers what each test gives it; the refusals are the schema's and the SDK's own, and the behaviour behind
@@ -50,6 +51,7 @@ const malformed: ReadonlyArray<readonly [string, unknown]> = [
   ["a version with an extra field", { ...selection, pin: { mode: "snapshot", version: { artifact_id: "p9", version: 1, title: "x" } } }],
   ["an empty range", { ...selection, range: {} }],
   ["a range with an unknown key", { ...selection, range: { offset: 1 } }],
+  ["an anchor over the limit", { ...selection, range: { anchor: "x".repeat(MATERIAL_REF_LIMITS.anchor + 1) } }],
   ["a line that is not 1-based", { ...selection, range: { line: 0 } }],
   ["a fractional page", { ...selection, range: { page: 1.5 } }],
 ];
@@ -81,6 +83,16 @@ test("SSC-01: a workspace file id has to name a path inside its folder, which th
   assert.doesNotThrow(() => assertMaterialRef({ ...currentFile, subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: longest } }));
   // The same id under a plugin's own kind is that plugin's to read: it is an opaque string, not a path.
   assert.doesNotThrow(() => assertMaterialRef({ ...currentFile, subject: { kind: "pages.page", id: "../not-a-path" } }));
+});
+
+test("SSC-01: an anchor is bounded as knowledge.read bounds it, so one that fits a reference can be read back", async () => {
+  const readInput = knowledgeActions.read.action.input_schema as { properties: { anchor: { maxLength: number } } };
+  assert.equal(MATERIAL_REF_LIMITS.anchor, readInput.properties.anchor.maxLength);
+  const longest = { ...selection, range: { anchor: "x".repeat(MATERIAL_REF_LIMITS.anchor) } };
+  assert.doesNotThrow(() => assertMaterialRef(longest));
+  const { service, calls } = serving();
+  await service.invoke(person, reference(materialRecentActions.record), { refs: [longest] });
+  assert.deepEqual(calls, ["materials.recent.record"]);
 });
 
 test("SSC-01: a refusal names the part that is wrong and does not repeat the value", () => {
@@ -115,12 +127,19 @@ test("who may call each: reading directories is open to four audiences, changing
   assert.deepEqual(offered(context("mcp")), ["projects.directories.get"]);
 });
 
-test("a plugin cannot change a project's directories, whatever it sends", async () => {
-  const { service, calls } = serving();
-  for (const definition of [projectDirectoryActions.addInput, projectDirectoryActions.removeInput, projectDirectoryActions.setOutput, projectDirectoryActions.repair]) {
-    await assert.rejects(service.invoke(context("plugin", ["projects:settings"]), reference(definition), { workspace_id: "w", expected_revision: "r" }));
-  }
+test("a plugin cannot change a project's directories, even with a legal input and the settings permission", async () => {
+  const changes: ReadonlyArray<readonly [unknown, unknown]> = [
+    [projectDirectoryActions.addInput, { workspace_path: "/w", expected_revision: "r" }],
+    [projectDirectoryActions.removeInput, { workspace_id: "w", expected_revision: "r" }],
+    [projectDirectoryActions.setOutput, { workspace_id: "w", expected_revision: "r" }],
+    [projectDirectoryActions.repair, { workspace_id: "w", workspace_path: "/w", expected_revision: "r" }],
+  ];
+  const { service, calls } = serving(() => ({ project_id: "p", directories: [], revision: "r2" }));
+  for (const [definition, input] of changes) await assert.rejects(service.invoke(context("plugin", ["projects:settings"]), reference(definition), input), code("actions.forbidden"));
   assert.deepEqual(calls, []);
+  // The same inputs from the person reach the provider, so what refused the plugin was who it is, not what it sent.
+  for (const [definition, input] of changes) await service.invoke(person, reference(definition), input);
+  assert.equal(calls.length, changes.length);
 });
 
 test("WMD-02: removing an input leaves the folder on disk, so its id does not make it irreversible", () => {

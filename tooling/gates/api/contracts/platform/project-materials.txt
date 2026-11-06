@@ -13,7 +13,7 @@ export declare const MATERIAL_REF_LIMITS: {
     readonly subject_id: 16584;
     readonly revision: 1000;
     readonly artifact_id: 200;
-    readonly anchor: 1000;
+    readonly anchor: 200;
 };
 
 export declare const MATERIAL_REF_SCHEMA: ActionSchema;

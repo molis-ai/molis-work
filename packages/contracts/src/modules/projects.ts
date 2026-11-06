@@ -361,7 +361,10 @@ export const projectWorkspaceActions = {
     { workspace_id: folderId }, { changed: { type: "boolean" } }),
 };
 
-/** The provider that answers the directory and recent-material actions below. */
+/**
+ * The provider that will answer the directory and recent-material actions below. They are declared only: no provider registers them
+ * yet, so a call answers `actions.missing` until the implementation slice does.
+ */
 export const PROJECT_WORKSPACE_PROVIDER_ID = "system.project-workspaces";
 
 const PROJECT_DIRECTORIES_SCHEMA: ActionSchema = { type: "object", properties: {

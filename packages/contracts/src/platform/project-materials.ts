@@ -47,7 +47,8 @@ export const MATERIAL_REF_LIMITS = {
   subject_id: 16_584,
   revision: 1000,
   artifact_id: 200,
-  anchor: 1000,
+  /** What `knowledge.read` takes, so a stored anchor can always be read back. */
+  anchor: 200,
 } as const;
 /** How many references one `materials.recent.record@1` call takes. */
 export const MATERIAL_RECENT_RECORD_MAX = 10;

@@ -398,12 +398,14 @@ export type { UiPageMessages } from "@molis-ai/molis-work-contracts/platform/ui"
 export type { UiPageReviewOutcome } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageReviewQuery } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPageTaskGrants } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalCommand } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";

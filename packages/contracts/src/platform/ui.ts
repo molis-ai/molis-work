@@ -86,6 +86,30 @@ export interface UiPageReviews<Element = unknown> {
   show(element: Element, query: UiPageReviewQuery, options?: { signal?: AbortSignal; onDecision?: (outcome: UiPageReviewOutcome) => void }): Promise<void>;
 }
 
+/**
+ * What the page learns after the person changes a task's reads, for its own list: two flags it could also read from
+ * `agent.task_grants.list` for its own subjects. Nothing here or in the area's height tells the page which categories this
+ * project offers (a plugin's `list` gets `categories: []`).
+ */
+export interface UiTaskGrantsAreaState {
+  /** At least one category is granted now (the task reads data). */
+  readonly granted: boolean;
+  /** A category needs the person: `needs_confirmation` or `removed`. */
+  readonly attention: boolean;
+}
+/**
+ * A platform area on one of this installation's own background tasks (specs/proactive-assistant/task-grants-platform-area.md).
+ * The page supplies an empty element and the task's key (`TASK_GRANT_SUBJECT_KEY_PATTERN`); the installation and project come
+ * from the page's authority, never from the page. The shell draws the area over that place, outside the page, and keeps its
+ * switches, words and writes: what this project offers stays with the shell. All the page gets back is a height for the element,
+ * one of two steps chosen by its width alone, and `UiTaskGrantsAreaState` after a write. Resolves once shown; rejects when
+ * unavailable, with one fixed message whatever the reason. `signal`, the element leaving the document or the page closing
+ * closes the area; placing the same element again changes its key.
+ */
+export interface UiPageTaskGrants<Element = unknown> {
+  place(element: Element, key: string, options?: { signal?: AbortSignal; onChange?: (state: UiTaskGrantsAreaState) => void }): Promise<void>;
+}
+
 /** Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8. */
 export interface UiPageDrafts {
   read(key: string): Promise<string | null>;
@@ -644,6 +668,8 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   confirmBox(dialog: Dialog, ok: Element, run?: () => Promise<unknown>): Promise<boolean>;
   interaction(card: Element, options: { onSubmit?: () => void }): UiPageInteraction;
   readonly drafts: UiPageDrafts;
+  /** The platform's reads area on this installation's own tasks; the page gives a place and a key, never categories. */
+  readonly taskGrants: UiPageTaskGrants<Element>;
 }
 
 /**

@@ -115,6 +115,7 @@ export const BOARD_EN: Record<string, string> = {
   "打开右侧": "Show right side",
   "已在右侧打开，切过去了": "Already open on the right; went there",
   "已在另一栏打开，切过去了": "Already open in another pane; went there",
+  "独看只用于主区的栏，右侧不能独看": "Show only works on the main area's panes, not the right side",
   "{n} 个后台任务没做完": "{n} background {n|task|tasks} not finished",
   "右侧的标签": "Tabs on the right",
   "显示哪一栏": "Which pane to show",

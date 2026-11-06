@@ -157,7 +157,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const go = (run) => () => { closePlus(false); state.focusedPaneId = paneId; column = "main"; run(); };
     const where = (plugin) => {
       const at = Object.hasOwn(SIDE_OPENED, plugin) ? state.side.tabs.some((tab) => tab.itemId === SIDE_OPENED[plugin]) && { side: true } : ops.locate(state, plugin);
-      return !at ? "" : at.side ? L("在右侧") : at.paneId === paneId ? L("在这一栏") : L("在第 {n} 栏", { n: state.panes.findIndex((pane) => pane.id === at.paneId) + 1 });
+      return !at ? "" : at.side ? L("在右侧") : at.paneId === paneId ? L("在这一栏") : L("在第 {n} 栏", { n: ops.paneNumber(state, at.paneId) });
     };
     const row = ({ id }) => {
       const name = L(ops.pluginTitle(id)), place = where(id), wrap = document.createElement("div"), beside = document.createElement("button");
@@ -172,7 +172,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
       wrap.className = "tab-menu-row"; wrap.append(item, beside);
       return wrap;
     };
-    const offered = directory.filter((entry) => Number.isInteger(entry.offered)).sort((a, b) => a.offered - b.offered);
+    const offered = directory.filter((entry) => Number.isInteger(entry.order)).sort((a, b) => a.order - b.order);
     const recent = pluginGroups.recent().map((entry, index) => menuRow(entry.record.tab ? entry.record.title : L(ops.pluginTitle(entry.record.plugin)), tabIcon(entry.record.plugin),
       go(() => pluginGroups.reopen(entry)), { key: "reopen", keys: index ? "" : keyName("⌘⇧T", "Ctrl+Shift+T") }));
     const find = document.createElement("label"), list = document.createElement("div"), foot = document.createElement("p");
@@ -214,9 +214,9 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
   const equalWidths = (node) => { if (node?.children) { node.ratio = .5; node.children.forEach(equalWidths); } };
   const openLayoutMenu = (anchor) => {
     layoutAnchor = anchor;
-    const pane = ops.focused(state), index = state.panes.indexOf(pane), split = state.panes.length > 1, solo = Boolean(state.solo);
+    const pane = ops.focused(state), split = state.panes.length > 1, solo = Boolean(state.solo);
     const sideOpen = Boolean(sidePane?.isOpen()), inSide = column === "side" && sideOpen, sideTab = ops.sideActive(state);
-    const title = inSide ? L("布局 · 右侧") : split ? L("布局 · 第 {n} 栏", { n: index + 1 }) : L("布局 · 主区");
+    const title = inSide ? L("布局 · 右侧") : split ? L("布局 · 第 {n} 栏", { n: ops.paneNumber(state, pane.id) }) : L("布局 · 主区");
     const act = (run) => () => {
       layoutMenu.hidePopover(); run(); apply(); persist();
       if (column === "side") document.querySelector("[data-side-tabs] [data-side-tab][aria-selected=true]")?.focus({ preventScroll: true }); else focusActiveTab();
@@ -224,7 +224,7 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     const head = document.createElement("p");
     head.className = "tab-menu-head"; head.setAttribute("aria-hidden", "true"); head.textContent = title;
     layoutMenu.setAttribute("aria-label", title);
-    const goTo = state.panes.map((candidate, at) => menuRow(split ? L("第 {n} 栏", { n: at + 1 }) : L("主区"), "", act(() => { state.focusedPaneId = candidate.id; column = "main"; }), { checked: !inSide && candidate === pane, data: { focusPane: candidate.id } }));
+    const goTo = [...state.panes].sort((a, b) => ops.paneNumber(state, a.id) - ops.paneNumber(state, b.id)).map((candidate) => menuRow(split ? L("第 {n} 栏", { n: ops.paneNumber(state, candidate.id) }) : L("主区"), "", act(() => { state.focusedPaneId = candidate.id; column = "main"; }), { checked: !inSide && candidate === pane, data: { focusPane: candidate.id } }));
     if (state.side.tabs.length) goTo.push(menuRow(L("右侧"), "", act(() => { column = "side"; if (!sideOpen) sidePane?.toggle(); }), { checked: inSide, data: { focusPane: "side" } }));
     layoutMenu.replaceChildren(head, menuGroup("", inSide ? [
       menuRow(L("把这张标签移到主区"), "arrow", act(() => moveToMain(sideTab.id)), { disabled: sideTab?.kind !== "pane", data: { layoutAction: "to-main" } }),

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // 07-S2 (specs/product-flow-governance §4.6.2 S2; PFG-22, PFG-23, PFG-24, PFG-25): the project home is the Dock's, not a tab;
@@ -16,6 +17,11 @@ const LAYOUT_MENU = "[data-workspace-layout]";
 const GOALS_TAB = `${TABS} .tab-item[data-tab-kind=plugin][data-plugin=goals]`;
 const MOVED = "pane:goals:plugin";
 const stored = "JSON.parse(localStorage.getItem('molis-work-tab-workspace:' + document.body.dataset.projectId) || 'null')";
+const GOALS_ENTRY = "[data-plugin-strip] [data-plugin-id=goals], [data-dock-pin=goals]";
+// Every toast text shown from now on, so a toast left from the step before cannot pass for this one.
+const WATCH_TOASTS = `(() => { window.__toasts = []; if (window.__toastWatch) return; const toast = document.querySelector('[data-toast]');
+  window.__toastWatch = new MutationObserver(() => window.__toasts.push(toast.textContent)); window.__toastWatch.observe(toast, { childList: true, characterData: true, subtree: true, attributes: true }); })()`;
+const toasted = (text: string) => `window.__toasts.some(shown => shown.includes(${JSON.stringify(text)}))`;
 
 test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, and the layout button acts on the focused column", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
@@ -183,6 +189,27 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   assert.deepEqual(otherLoads, [], "switching, collapsing and opening the side load no pane page again");
   assert.equal(await evaluate(`document.querySelector('[data-side-body="${MOVED}"] iframe').contentWindow.__kept`), true, "the moved view stays the same document");
 
+  // PFG-24 口径 8 ③: opening the moved tab again, from the Dock or from ＋, goes to it on the right and says so; nothing opens in
+  // the main area and the view is not loaded again.
+  await evaluate(WATCH_TOASTS);
+  for (const route of ["the Dock", "＋"] as const) {
+    await click(`[data-side-tabs] [data-side-tab="${other}"]`);
+    await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"][aria-selected=true]')`);
+    mark = since();
+    await evaluate("window.__toasts = []");
+    if (route === "the Dock") await click(GOALS_ENTRY);
+    else {
+      await click(PLUS);
+      await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open')`);
+      assert.equal(await evaluate(`document.querySelector('${OPEN_MENU} [data-plus-open=goals] .tab-menu-where')?.textContent`), "在右侧");
+      await click(`${OPEN_MENU} [data-plus-open=goals]`);
+    }
+    await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${MOVED}"][aria-selected=true]') && ${toasted("已在右侧打开，切过去了")}`, 10_000);
+    assert.equal(await evaluate(`document.querySelectorAll('${GOALS_TAB}').length + ${stored}.panes.flatMap(pane => pane.tabs).filter(tab => tab.plugin === 'goals').length`), 0, `${route}: no Goals tab opens in the main area`);
+    assert.equal(await evaluate(`document.querySelector('[data-side-body="${MOVED}"] iframe').contentWindow.__kept`), true, `${route}: the moved view is the same document`);
+    assert.deepEqual(mark().filter(entry => entry.type === "Document" && entry.url.includes("workbenchPane")), [], `${route}: no pane page loads again`);
+  }
+
   // The side's 返回 steps back through what it showed (its own history, with the focus in the side).
   await click(`[data-side-tabs] [data-side-tab="${other}"]`);
   await waitFor(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"][aria-selected=true]') && !document.querySelector('[data-workspace-history=back]').disabled`);
@@ -208,6 +235,96 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   await waitFor(`document.querySelector('${PLUS}') && document.querySelector('[data-side-tabs]')`, 15_000);
   assert.equal(await evaluate(`Boolean(${stored}?.side.tabs.some(tab => tab.itemId === ${JSON.stringify(other)}))`), false, "the closed side tab did not come back on reload");
   assert.equal(await evaluate(`document.querySelector('[data-side-tabs] [data-side-tab="${other}"]')?.hasAttribute('data-side-closed') ?? true`), true);
+});
+
+test("PFG-24 口径 8 ① Goals open in the other column is recalled there from the Dock, ＋ and a link: the focus moves, a toast says so, no second copy", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const project = `${origin}/projects/${projectId}/`;
+  await navigate(() => command("Page.navigate", { url: project }, sessionId));
+  await waitFor(`document.querySelector('${PLUS}') && document.querySelector('[data-dock-pin=home]')`, 15_000);
+  // Two columns, both on the project home; the split's new column (the second) takes the focus.
+  await click("[data-layout-open]");
+  await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
+  await click(`${LAYOUT_MENU} [data-layout-split=right]`);
+  await waitFor(`${stored}?.panes.length === 2`);
+  const [first, second] = await evaluate<string[]>(`${stored}.panes.map(pane => pane.id)`);
+  assert.equal(await evaluate(`${stored}.focusedPaneId`), second);
+  const focusColumn = async (paneId: string) => {
+    await click("[data-layout-open]");
+    await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
+    await click(`${LAYOUT_MENU} [data-focus-pane="${paneId}"]`);
+    await waitFor(`${stored}.focusedPaneId === ${JSON.stringify(paneId)}`);
+  };
+  await focusColumn(first!);
+  await click(GOALS_ENTRY);
+  await waitFor(`${stored}.panes[0].tabs.some(tab => tab.kind === 'plugin' && tab.plugin === 'goals')`, 15_000);
+  // Only the first column holds Goals, the second still shows the home, and nothing else differs between the routes.
+  const recalled = async (route: string) => {
+    await waitFor(`${stored}.focusedPaneId === ${JSON.stringify(first)} && ${toasted("已在另一栏打开，切过去了")}`, 15_000);
+    const after = await evaluate<{ goals: number; second: { tabs: number; view: unknown } }>(`(() => { const saved = ${stored};
+      return { goals: saved.panes.flatMap(pane => pane.tabs).filter(tab => tab.plugin === 'goals').length,
+        second: { tabs: saved.panes[1].tabs.length, view: saved.panes[1].viewPlugin } }; })()`);
+    assert.deepEqual(after, { goals: 1, second: { tabs: 0, view: null } }, `${route}: no second copy of Goals`);
+  };
+
+  await focusColumn(second!);
+  await evaluate(WATCH_TOASTS);
+  await click(GOALS_ENTRY);
+  await recalled("the Dock");
+
+  await focusColumn(second!);
+  await evaluate("window.__toasts = []");
+  await click(PLUS);
+  await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open')`);
+  assert.equal(await evaluate(`document.querySelector('${OPEN_MENU} [data-plus-open=goals] .tab-menu-where')?.textContent`), "在第 1 栏");
+  await click(`${OPEN_MENU} [data-plus-open=goals]`);
+  await recalled("＋");
+
+  // A link loads the page again, so no toast is left over: the one showing (or about to) is this link's.
+  await focusColumn(second!);
+  await navigate(() => command("Page.navigate", { url: `${project}?openPlugin=goals` }, sessionId));
+  await evaluate(`(() => { ${WATCH_TOASTS}; window.__toasts.push(document.querySelector('[data-toast]')?.textContent ?? ''); })()`);
+  await recalled("the link ?openPlugin=goals");
+});
+
+test("PFG-24 口径 8 ② a Dataset record found from the other column opens in the column that holds Dataset, with no item tab", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded"); if (!b) return;
+  const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor } = b;
+  const dataset = await pluginFrameBrowser(t, b, "dataset");
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await click("[data-plugin-strip] [data-plugin-id=dataset]");
+  await dataset.click("[data-dataset-empty] [data-dataset-new]");
+  await dataset.waitFor("!document.querySelector('[data-dataset-stage-workspace]').hidden && document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
+  await dataset.evaluate("(() => { const el = document.querySelector('[data-dataset-title]'); el.value = '另一栏召回这份数据'; el.dispatchEvent(new Event('input', {bubbles:true})); })()");
+  await dataset.waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
+  const id = await dataset.evaluate<string>("document.querySelector('[data-dataset-id]').dataset.datasetId");
+  // The first column keeps Dataset's tab while it shows the home, so the split's new column starts on the home and holds nothing.
+  await click("[data-dock-pin=home]");
+  await click("[data-layout-open]"); await click("[data-layout-split=right]");
+  await waitFor(`${stored}?.panes.length === 2`);
+  const [first, second] = await evaluate<string[]>(`${stored}.panes.map(pane => pane.id)`);
+  assert.equal(await evaluate(`${stored}.focusedPaneId`), second);
+  assert.equal(await evaluate(`${stored}.panes[1].tabs.length`), 0);
+
+  await evaluate(WATCH_TOASTS);
+  await click("[data-global-search-open]");
+  await evaluate("(() => { const el = document.querySelector('[data-global-search]'); el.value = '另一栏召回这份数据'; el.dispatchEvent(new Event('input', {bubbles:true})); })()");
+  // Content results come from the system search, so they arrive after the request, not with the keystroke.
+  await waitFor(`Boolean(document.querySelector('[data-global-search-id="${id}"]'))`, 15_000);
+  await click(`[data-global-search-id="${id}"]`);
+  await waitFor(`${stored}.focusedPaneId === ${JSON.stringify(first)} && ${toasted("已在另一栏打开，切过去了")}`, 15_000);
+  const ownerFrame = `iframe.tab-content-frame[data-pane-owner="${first}"]:not([hidden])`;
+  await waitFor(`document.querySelector(${JSON.stringify(ownerFrame)})`, 20_000);
+  const held = await pluginFrameBrowser(t, b, "dataset", ownerFrame);
+  await held.waitFor("document.querySelector('[data-dataset-title]')?.value === '另一栏召回这份数据' && !document.querySelector('[data-dataset-stage-workspace]').hidden", 20_000);
+  const tabs = await evaluate<{ itemTabs: number; savedItems: number; second: number }>(`(() => { const saved = ${stored};
+    return { itemTabs: document.querySelectorAll('.tab-item[data-plugin=dataset][data-item-id]').length,
+      savedItems: saved.panes.flatMap(pane => pane.tabs).filter(tab => tab.plugin === 'dataset' && tab.kind === 'item').length, second: saved.panes[1].tabs.length }; })()`);
+  assert.deepEqual(tabs, { itemTabs: 0, savedItems: 0, second: 0 }, "the record opens in Dataset's own column, as no item tab in either");
 });
 
 // Review evidence (ignored folder unless MOLIS_WORK_REVIEW_EVIDENCE=1): ＋'s list with one plugin already open, and the layout

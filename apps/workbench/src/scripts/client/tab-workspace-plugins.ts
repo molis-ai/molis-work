@@ -7,7 +7,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       pane.tabs = (pane.tabs || []).filter((tab) => !settingsPageOf(tab.plugin));
       if (pane.activeTabId && !pane.tabs.some((tab) => tab.id === pane.activeTabId)) pane.activeTabId = pane.tabs[0]?.id || null;
     }
-    ops.ensureHome(state);
+    ops.normalizeLayout(state);
   };
   const directoryOf = (plugin) => {
       if (plugin === "home" || plugin === "market") return "root"; const directory = plugin;

@@ -60,8 +60,6 @@ export function createTabWorkspaceOps(titles) {
     state.layout = { ...old, tree };
     return state;
   };
-  // The project home is not a tab (§4.6.1, 口径 3): a pane with no tab chosen and no plugin page shows it.
-  const ensureHome = (state) => normalizeLayout(state);
   const create = () => {
     const paneId = uid();
     return {
@@ -97,7 +95,7 @@ export function createTabWorkspaceOps(titles) {
     if (state.panes.some((pane) => pane.tabs.some((tab) => tab.kind === "item"))) return state;
     if (!state.panes.some((pane) => pane.viewPlugin)) return state;
     for (const pane of state.panes) if (pane.viewPlugin) { pane.viewPlugin = null; pane.activeTabId = null; }
-    return ensureHome(state);
+    return normalizeLayout(state);
   };
   const insertIndex = (pane) => {
     const activeIndex = pane.tabs.findIndex((tab) => tab.id === pane.activeTabId);
@@ -123,13 +121,14 @@ export function createTabWorkspaceOps(titles) {
     if (existing) return activateInPane(pane, existing);
     return insertNew(pane, tab);
   };
+  // Answers the plugin's page view; the project home has no tab and no view to write to, so it answers null.
   const openPlugin = (state, plugin) => {
     state.exclusive = null;
     const pane = focused(state);
     if (plugin === "home") {
       pane.viewPlugin = null;
       pane.activeTabId = null;
-      return { id: "home", plugin, kind: "view" };
+      return null;
     }
     pane.viewPlugin = plugin;
     pane.activeTabId = null;
@@ -220,7 +219,7 @@ export function createTabWorkspaceOps(titles) {
       pane.activeTabId = (pane.tabs[index] || pane.tabs[index - 1])?.id || null;
     }
     if (!pane.tabs.length && state.panes.length > 1) return closePane(state, paneId);
-    return ensureHome(state);
+    return normalizeLayout(state);
   };
   const closePane = (state, paneId) => {
     if (state.panes.length === 1) {
@@ -229,14 +228,14 @@ export function createTabWorkspaceOps(titles) {
       pane.activeTabId = null;
       pane.groups = [];
       pane.viewPlugin = null;
-      return ensureHome(state);
+      return normalizeLayout(state);
     }
     const index = state.panes.findIndex((pane) => pane.id === paneId);
     if (index < 0) return state;
     state.panes.splice(index, 1);
     state.layout.sizes.splice(index, 1);
     if (!state.panes.some((pane) => pane.id === state.focusedPaneId)) state.focusedPaneId = state.panes[Math.max(0, index - 1)].id;
-    return ensureHome(state);
+    return normalizeLayout(state);
   };
   const closeGroup = (state, paneId, groupId) => {
     const pane = state.panes.find((candidate) => candidate.id === paneId);
@@ -281,7 +280,7 @@ export function createTabWorkspaceOps(titles) {
     state.focusedPaneId = to.id;
     if (!from.tabs.length && from !== to && !from.viewPlugin) closePane(state, from.id);
     pruneEmptyGroups(to);
-    return ensureHome(state);
+    return normalizeLayout(state);
   };
   const splitPane = (state, paneId, edge, mode, sourcePaneId = paneId, sourceTabId = null) => {
     const pane = state.panes.find((candidate) => candidate.id === paneId);
@@ -305,7 +304,7 @@ export function createTabWorkspaceOps(titles) {
         source.viewPlugin = null;
         if (!source.tabs.length) closePane(state, source.id);
       }
-      return ensureHome(state);
+      return normalizeLayout(state);
     }
     const next = { ...active, id: mode === "move" ? active.id : uid() };
     delete next.groupId;
@@ -316,7 +315,7 @@ export function createTabWorkspaceOps(titles) {
       pruneEmptyGroups(source);
       if (!source.tabs.length && !source.viewPlugin) closePane(state, source.id);
     }
-    return ensureHome(state);
+    return normalizeLayout(state);
   };
   /**
    * Open an item — or, without one, a plugin's own view — in the pane beside the focused one: the pane to its right
@@ -342,7 +341,7 @@ export function createTabWorkspaceOps(titles) {
     pane.viewPlugin = plugin;
     if (itemId === null) pane.activeTabId = null;
     else openInPane(state, pane, itemTab(plugin, itemId, title || itemId));
-    return ensureHome(state);
+    return normalizeLayout(state);
   };
   const setExclusive = (state, surface) => {
     state.exclusive = surface || null;
@@ -399,7 +398,6 @@ export function createTabWorkspaceOps(titles) {
     setGroupTitle,
     setGroupColor,
     normalizeLayout,
-    ensureHome,
     focused,
     activeTab,
     readView,
@@ -452,12 +450,12 @@ export function withPluginGroups(base, settlePane, loose) {
   const paneOf = (state, paneId) => state.panes.find((pane) => pane.id === paneId);
   const ops = { ...base };
   for (const name of ["openItem", "activate", "landAtProjectRoot", "togglePinned", "closePane", "openBeside", "addTabToNewGroup",
-    "addTabToGroup", "removeTabFromGroup", "ungroup", "normalizeLayout", "ensureHome"]) ops[name] = settled(name);
+    "addTabToGroup", "removeTabFromGroup", "ungroup", "normalizeLayout"]) ops[name] = settled(name);
   ops.create = () => settle(base.create());
   ops.openPlugin = (state, plugin) => {
-    const shown = base.openPlugin(state, plugin);
+    base.openPlugin(state, plugin);
     settle(state);
-    return plugin === "home" ? shown : base.focused(state).tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
+    return plugin === "home" ? null : base.focused(state).tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
   };
   ops.isLoose = loose;
   ops.pluginGroup = (pane, plugin) => pane.tabs.filter((tab) => tab.plugin === plugin && loose(tab));
@@ -477,7 +475,7 @@ export function withPluginGroups(base, settlePane, loose) {
       pane.activeTabId = neighbor?.id || null;
       if (neighbor?.kind === "item") pane.viewPlugin = neighbor.plugin;
     }
-    base.ensureHome(state);
+    base.normalizeLayout(state);
     settle(state);
     return closed;
   };
@@ -533,7 +531,7 @@ export function withPluginGroups(base, settlePane, loose) {
       head = existing;
     }
     to.tabs.splice(to.tabs.findIndex((tab) => tab.id === head.id) + 1, 0, ...followers);
-    base.ensureHome(state);
+    base.normalizeLayout(state);
   };
   const movingGroup = (pane, tabId, carry) => {
     const moving = pane?.tabs.find((tab) => tab.id === tabId);
@@ -669,9 +667,17 @@ export function withSidePane(base) {
  *   aside with their places kept; again, everything comes back. settleSolo ends it once the focus goes to another pane, the
  *   side is opened, or the pane is gone, and the side opens again if solo had collapsed it.
  * - mergePanes(state): every pane's tabs join the focused one, which keeps what it shows.
+ * - paneNumber(state, paneId): the pane's number as the stage reads, left to right and top to bottom (the layout's leaves in
+ *   order), which is not the order panes were opened in once a split runs down.
  */
 export function withLayout(base) {
   const paneOf = (state, paneId) => state.panes.find((pane) => pane.id === paneId);
+  const paneNumber = (state, paneId) => {
+    const order = [];
+    const walk = (node) => { if (node?.children) node.children.forEach(walk); else if (node?.paneId) order.push(node.paneId); };
+    walk(state.layout.tree);
+    return order.indexOf(paneId) + 1;
+  };
   const locate = (state, plugin, itemId) => {
     const key = itemId ? plugin + ":item:" + itemId : plugin + ":plugin";
     const has = (pane) => itemId ? pane.tabs.some((tab) => base.tabKey(tab) === key) : pane.viewPlugin === plugin || pane.tabs.some((tab) => tab.kind === "plugin" && tab.plugin === plugin);
@@ -734,7 +740,7 @@ export function withLayout(base) {
     state.layout = { direction: "row", sizes: [1] };
     return base.normalizeLayout(state);
   };
-  return { ...base, create: () => ({ ...base.create(), solo: null }), locate, movable, moveToSide, moveToMain, toggleSolo, settleSolo, mergePanes };
+  return { ...base, create: () => ({ ...base.create(), solo: null }), locate, movable, moveToSide, moveToMain, toggleSolo, settleSolo, mergePanes, paneNumber };
 }
 
 /** Saved tabs use only the fields written by this workspace; a plugin's page is its plugin tab, shown through pane.viewPlugin.

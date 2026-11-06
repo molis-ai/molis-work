@@ -114,7 +114,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       // Only a layout of another shape starts fresh (口径 4). One naming a plugin this project no longer offers, or one Home no
       // longer has at all, is read as it is: that plugin's tabs stay, marked removed (removedPlugin), until added back or closed.
       if (!resetLayout && isCurrent(stored)) {
-        state = ops.ensureHome(stored);
+        state = ops.normalizeLayout(stored);
       } else if (stored || resetLayout) {
         state = ops.create();
         tabHistory.clear(); sessionStorage.removeItem(HISTORY_KEY);
@@ -535,6 +535,9 @@ ${TAB_WORKSPACE_DRAG_PART}
       else if (event.data.type === "workbench-pane-view" && tab) { if (event.data.view === undefined) delete tab.view; else tab.view = event.data.view; persist(); }
       else if (event.data.type === "workbench-pane-open" && event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view);
       else if (event.data.type === "workbench-pane-open") openPlugin(event.data.plugin);
+      // 独看 shows one of the main area's panes; the right side has none of its own (its layout menu offers none either), so
+      // ⌘⇧↵ there says so instead of doing nothing.
+      else if (event.data.type === "workbench-pane-solo") showToast?.(L("独看只用于主区的栏，右侧不能独看"));
       return;
     }
     const pane = paneById(frame?.dataset.paneOwner);

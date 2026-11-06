@@ -86,7 +86,8 @@ test("PFG-23 closing the last tab in the workspace goes to the project home", ()
 test("PFG-23 opening the project home leaves the tabs and shows no current tab", () => {
   const state = ops.create();
   ops.openItem(state, "goals", "CORE", "Core");
-  ops.openPlugin(state, "home");
+  // No tab and no view to write to, so nothing that looks like one comes back.
+  assert.equal(ops.openPlugin(state, "home"), null);
   assert.equal(ops.activeTab(state), null);
   assert.equal(ops.focused(state).viewPlugin, null);
   assert.equal(ops.shownPlugin(ops.focused(state)), "home");
@@ -156,6 +157,20 @@ test("market is exclusive and does not add a tab", () => {
 });
 
 
+test("PFG-22 a pane's number follows the stage as it reads, not the order the panes were opened in", () => {
+  const state = ops.create();
+  const first = state.focusedPaneId;
+  ops.openItem(state, "goals", "CORE", "Core");
+  ops.splitPane(state, first, "top", "copy");
+  const above = state.focusedPaneId;
+  ops.splitPane(state, first, "left", "copy");
+  const left = state.focusedPaneId;
+  // The list of panes is not the stage: a stored workspace keeps them in whatever order it was written in.
+  state.panes.reverse();
+  assert.notEqual(state.panes[0]!.id, above);
+  assert.deepEqual([above, left, first].map((id) => ops.paneNumber(state, id)), [1, 2, 3], "the one above is 第 1 栏, then left to right below it");
+});
+
 test("splitting a target uses the dragged tab and preserves an orthogonal layout", () => {
   const state = ops.create();
   const original = state.focusedPaneId;
@@ -210,7 +225,7 @@ test('pinning keeps tabs first without duplicates and survives moving, copying a
   assert.equal(ops.activeTab(state)?.id, goal.id);
   assert.equal(goal.pinned, true);
   const restored = JSON.parse(JSON.stringify(state));
-  ops.ensureHome(restored);
+  ops.normalizeLayout(restored);
   assert.equal(ops.activeTab(restored)?.itemId, 'CORE');
   assert.equal(ops.activeTab(restored)?.pinned, true);
 });
@@ -272,7 +287,7 @@ test("W1-18-TAB-FORMAT-01: current grouped items and nested panes remain valid a
   ops.splitPane(state, state.focusedPaneId, "bottom", "copy");
   const restored = JSON.parse(JSON.stringify(state));
   assert.equal(isCurrentTabWorkspace(restored), true);
-  ops.ensureHome(restored);
+  ops.normalizeLayout(restored);
   assert.equal(restored.panes.length, 3);
   assert.equal(restored.panes[0].groups[0].collapsed, true);
   assert.equal(ops.activeTab(restored).itemId, "DOC");

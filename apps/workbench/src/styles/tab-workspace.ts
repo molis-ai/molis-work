@@ -117,12 +117,12 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench [data-titlebar-tabs] .tab-strip-spacer { flex: 1 1 0; min-width: 0; }
   /* A short title bar: a cover's name gives way, its close stays. */
   body.immersive-workbench [data-titlebar-tabs] .tab-view-chip { flex-shrink: 1; min-width: 0; }
-  body.immersive-workbench [data-titlebar-tabs] .tab-view-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.immersive-workbench .tab-view-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   html[data-native-desktop="true"] body.immersive-workbench [data-titlebar-tabs] .tab-scroll,
   body.immersive-workbench[data-native-desktop="true"] [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; min-width: 0; }
   html[data-native-desktop="true"] body.immersive-workbench .tab-strip .tab-strip-spacer,
   body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 1 48px; min-width: 48px; -webkit-app-region: drag; }
-  body.immersive-workbench .tab-add-button:hover { background: var(--nav-hover); color: var(--ink); }
+  body.immersive-workbench .tab-add-button:is(:hover, [aria-expanded=true]) { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench .tab-add-button svg { width: 16px; height: 16px; }
   body.immersive-workbench .tab-workspace-panes { display: flex; gap: 0; background: var(--canvas); }
   body.immersive-workbench .tab-split { display: grid; min-width: 0; min-height: 0; }

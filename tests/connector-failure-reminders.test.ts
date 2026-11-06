@@ -9,7 +9,8 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ConnectorCallObservation } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { ASSISTANT_STORE_NAME, AssistantStore, connectorManagementActions, connectorRecordActions, createPluginConnectionsPort, pluginSlotScope, raiseConnectionNotice,
+import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_STORE_NAME, AssistantStore, assistantConnectionCheckers, connectorManagementActions, connectorRecordActions, createPluginConnectionsPort, pluginSlotScope, raiseConnectionNotice,
   withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runInPluginAction, type PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -210,6 +211,22 @@ test("ASC-58 a record read the service refuses or cannot answer is counted, and 
   } finally { db.close(); }
   await readRecords();
   assert.equal(notices()[0]?.text, "服务连接「{name}」连续几次没连上服务，打开连接看看。");
+  // The person fixes the service and checks the connection: a check that goes through ends a run of `unavailable` (§13.2 ⑫), settles
+  // its notice, and a piece of work waiting for the connection (`molis.connection-ready`) goes on.
+  const assistant = openHomeSqliteDatabase(home.home, ASSISTANT_STORE_NAME), store = new AssistantStore(assistant);
+  t.after(() => assistant.close());
+  const work = store.create({ actor_id: LOCAL_PERSON_ACTOR_ID, title: "等连接修好", scope: { kind: "personal" }, origin: null });
+  store.update(LOCAL_PERSON_ACTOR_ID, work.work_id, null, { session_id: "asc58-wait" });
+  const scope = { actor_id: LOCAL_PERSON_ACTOR_ID, plugin_id: ASSISTANT_PLUGIN_ID, project_id: ASSISTANT_PERSONAL_OWNER, install_id: "assistant", session_id: "asc58-wait" };
+  const ready = assistantConnectionCheckers(home.home, home.host).find(checker => checker.id === "molis.connection-ready")!;
+  const waiting = () => ready.read(scope, { connection_id: row.connection_id, expected_account: null,
+    required_actions: [{ capability_id: "connectors.records.read", version: 1, provider_id: "system.connectors" }] }, new AbortController().signal);
+  assert.equal((await waiting()).status, "pending");
+  account = 200;
+  await client.invoke(caller, connectorManagementActions.check, { connection_id: row.connection_id });
+  const fixed = await status();
+  assert.deepEqual([fixed.connectivity.state, fixed.last_call?.failures, notices().length], ["connected", undefined, 0]);
+  assert.equal((await waiting()).status, "satisfied");
 });
 
 test("ASC-58 the Host writes a notice's settings address only when it is a path of this origin under /settings/", async t => {

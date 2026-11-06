@@ -98,12 +98,13 @@ export function remindable(run: RunFields, at: string): boolean {
 }
 
 /**
- * What a check that went through leaves of the last call: it ends a run of `reauth` (the account answers again), but not one of `denied`
- * or `unavailable` — an account read can pass while the permission a call needs is gone, or while the calls themselves keep failing; only
- * a call that goes through ends those (ASC-58 §13.2).
+ * What a check that went through leaves of the last call (ASC-58 §13.2 ⑫): it ends a run of `reauth` (the account answers again) and
+ * one of `unavailable` (the service answers again), but not one of `denied`: an account read passes while the permission a call needs
+ * is gone, so only a call that goes through ends that. `whileCalling` is the tool listing an MCP call makes just before its call: that
+ * the list came back says nothing about the calls that keep failing, so it ends only `reauth`.
  */
-export function afterPassedCheck(observation: ConnectorCallObservation): ConnectorCallObservation {
-  if (observation.failure_class !== "reauth") return observation;
+export function afterPassedCheck(observation: ConnectorCallObservation, whileCalling = false): ConnectorCallObservation {
+  if (observation.failure_class !== "reauth" && (observation.failure_class !== "unavailable" || whileCalling)) return observation;
   const { failures: _failures, failing_since: _since, failure_class: _class, ...call } = observation;
   return call;
 }

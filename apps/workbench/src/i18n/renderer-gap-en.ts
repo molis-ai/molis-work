@@ -81,6 +81,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "连不上服务": "Service unreachable",
   "连续 {count} 次": "{count} in a row",
   "调用已到达服务": "Calls reach the service",
+  "调用连不上服务": "Calls cannot reach the service",
   "连接、授权与能力": "Connection, authorization and capabilities",
   "配置完整": "Configuration complete",
   "配置不完整": "Configuration incomplete",

@@ -13,8 +13,9 @@ export function renderConnectionStatus(status: ConnectorConnectionStatus | undef
   // ASC-58: what a run of failed calls found, in the words of the notice that brought the person here.
   const failures = { reauth: L("登录已失效"), denied: L("密钥或权限被拒"), unavailable: L("连不上服务") };
   const run = last?.current_revision && last.failures && last.failure_class ? ` · ${e(failures[last.failure_class])} · ${e(L("连续 {count} 次", { count: last.failures }))}` : "";
-  // Calls that reached the service say so, not that a check passed; a refused authorization outranks either in the summary.
-  const reached = status.connectivity.state === "connected" && status.connectivity.source === "business-call" ? L("调用已到达服务") : connectivity[status.connectivity.state];
+  // What calls found is said as theirs, not as a check's result; a refused authorization outranks either in the summary.
+  const byCalls = status.connectivity.source === "business-call" ? { connected: L("调用已到达服务"), failed: L("调用连不上服务") } : {};
+  const reached = byCalls[status.connectivity.state as keyof typeof byCalls] ?? connectivity[status.connectivity.state];
   const summary = status.authorization.service.state === "required" ? authorization.required : reached;
   return `<details class="settings-connection-tool settings-connection-inline" data-connection-status><summary>${e(L("连接、授权与能力"))} · ${e(summary)}</summary><dl>
     <dt>${e(L("配置"))}</dt><dd>${e(status.configuration.state === "complete" ? L("配置完整") : L("配置不完整"))} · ${e(status.configuration.enabled ? L("已启用") : L("已停用"))}</dd>

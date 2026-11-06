@@ -310,7 +310,8 @@ const headErrors = (measured, budget, base) => {
 // offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
 // spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
 // the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
-// the select in place instead of reloading the page, the host names no key so the page needs no second string.
+// the select in place instead of reloading the page, the host names no key so the page needs no second string. Its workbench.js
+// entry ([1077683, 1078718]) is spent on b1e0e5b6 and was replaced by ASC-58's below; its two stylesheet entries stay.
 // ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
 // the Assistant's "等你处理": workbench.js +573 B, keyed on main b1e0e5b6's budget 1078718 (after ASC-57; its workbench.js entry keyed on 1077683
 // is spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the

@@ -19,8 +19,8 @@ export function projectConnectorStatus(input: {
   const { observations, revision, actions, caller, active } = input;
   const last = connectionCheck(observations.check);
   const check = last?.revision === revision ? last : undefined;
-  // A run of failures on this version's last call (ASC-58) says what the calls found, and stands until a call goes through even when a
-  // later check passed (an account read can pass while calls are refused or keep failing): a service that could not be reached is not
+  // A run of failures on this version's last call (ASC-58) says what the calls found, and stands until it ends (a call that goes through;
+  // a passing check ends `reauth` and `unavailable`, not `denied`, as an account read passes while a call's permission is gone): a service that could not be reached is not
   // "connected", and a refused key or a login that ran out is an authorization to give again. One lost result alone stays "unknown"
   // (ASC-16): the service is taken as unreachable once it answered with a failure or failed more than once.
   const failing = observations.call?.revision === revision && observations.call.failures ? observations.call : undefined;

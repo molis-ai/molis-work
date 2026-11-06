@@ -16,6 +16,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="needs-decision"> ${L("需要我决定时仍然提醒")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="reminder" checked> ${L("我自己设的提醒到时间仍然提醒")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="connection" checked> ${L("服务连接要处理仍然提醒")}</label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("添加规则")}</button>
       </form>
       <form class="assistant-rule-form" data-assistant-rule-pause>
@@ -24,6 +25,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
           <option value="30">${L("30 分钟")}</option><option value="60" selected>${L("1 小时")}</option><option value="day">${L("到今天结束")}</option>
         </select>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="connection" checked> ${L("服务连接要处理仍然提醒")}</label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("暂停")}</button>
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>
@@ -186,7 +188,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   // The pages a rule may name are the ones installed: the server sends them with the rules, so this page keeps no list of plugins.
   const pageNames = {};
   const surfaceName = (id) => pageNames[id] || id;
-  const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果", material: "相关新资料", reminder: "你设的提醒" };
+  const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果", material: "相关新资料", reminder: "你设的提醒", connection: "服务连接要处理" };
   const rulesList = root.querySelector("[data-assistant-rules-list]");
   const rulesError = root.querySelector("[data-assistant-rules-error]");
   const surfacesBox = root.querySelector("[data-assistant-rule-surfaces]");

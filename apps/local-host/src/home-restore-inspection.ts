@@ -1,6 +1,6 @@
 import { dirname, join, relative, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { homeSqlitePartitionDirectory, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, readSnapshotFile } from "@molis-ai/molis-work-storage";
+import { readStorageSpace, homeSqlitePartitionDirectory, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import type { HomeRestoreArchive } from "./home-restore-archive.js";
 import type { HomeRestoreCatalogInspector, HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
@@ -77,7 +77,7 @@ export async function inspectRestoreArchiveContents(home: string, archive: HomeR
         if (!project) throw invalidRestore();
         options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, entry.path, project[1]!) };
       }
-      const actual = inspectSnapshotSqlite(join(archive.root, entry.payload_path), { ...options, signal: control.signal });
+      const actual = inspectSnapshotSqlite(join(archive.root, entry.payload_path), { ...options, space: readStorageSpace(home) ?? undefined, signal: control.signal });
       if (!isDeepStrictEqual(actual, entry.sqlite)) throw invalidRestore();
     }
   }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { constants } from "node:fs";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -61,18 +61,16 @@ function holdSettingsGrant(f: Awaited<ReturnType<typeof fixture>>) {
 }
 
 async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixture>>) {
-  const executable = process.env.MOLIS_WORK_TEST_CHROME;
-  assert.equal(executable, "/Users/yijunwang/.local/bin/molis-test-browser");
+  const executable = requiredHeadlessTestBrowser();
   for (const name of ["MOLIS_WORK_BUILDER_BROWSER", "MOLIS_WORK_BROWSER_PATH"]) assert.equal(process.env[name], executable, `${name} must use the same dedicated browser`);
-  await access(executable, constants.X_OK); await access("/Users/yijunwang/.local/share/molis-test-browser/engine/chrome-headless-shell", constants.X_OK);
   const directory = await mkdtemp(join(tmpdir(), "t145-browser-"));
   let browser: ChromeHarness | undefined;
   let closed = false;
   const close = async () => {
     if (closed) return;
     closed = true;
-    try { if (browser) await browser.command("Browser.close"); }
-    finally { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } }
+    try { await browser?.close(); }
+    finally { await rm(directory, { recursive: true, force: true }); }
   };
   t.after(close);
   browser = await ChromeHarness.start(directory, { executable });

@@ -19,7 +19,8 @@ test('Images standard MCP generates and retrieves real bytes, then preserves the
   try{
     const client=await connect('a');const names=(await client.listTools()).tools.map(tool=>tool.name).filter(name=>name.startsWith('images.'));
     // Includes the connection usage query; generating is not offered until a service exists to generate with.
-    assert.equal(names.length,11);assert.ok(!names.includes('images.jobs.start__v1'));assert.ok(!names.includes('images.jobs.start__v2'));assert.ok(!names.includes('images.jobs.start__v3'));assert.equal(calls,0);
+    assert.equal(names.length,11);assert.ok(!names.includes('images.jobs.start__v1'));assert.ok(!names.includes('images.jobs.start__v2'));assert.ok(!names.includes('images.jobs.start__v3'));assert.ok(!names.includes('images.jobs.start__v4'));assert.equal(calls,0);
+    for(const name of ['get','list','cancel']){assert.ok(names.includes(`images.jobs.${name}__v1`));assert.ok(!names.includes(`images.jobs.${name}__v2`));assert.equal((await client.callTool({name:`images.jobs.${name}__v2`,arguments:{}})).isError,true);}
     assert.ok(names.includes('images.connection.usages__v1'));
     assert.ok(names.includes('images.connections.list__v1'));assert.equal((await client.callTool({name:'images.connections.list__v2',arguments:{}})).isError,true, 'the superseded connection contract cannot be invoked');
     const {connection}=await call(client,'connections.save',{name:'MCP provider',api_format:'openai-images',base_url:`http://127.0.0.1:${address.port}/v1`,model:'fixture-image'});

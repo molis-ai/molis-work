@@ -10,6 +10,14 @@
   },
   "sideEffects": false,
   "exports": {
+    "./modules/sync-replication": {
+      "types": "./dist/modules/sync-replication.d.ts",
+      "import": "./dist/modules/sync-replication.js"
+    },
+    "./platform/sync-transport": {
+      "types": "./dist/platform/sync-transport.d.ts",
+      "import": "./dist/platform/sync-transport.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
@@ -245,6 +253,10 @@
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",
       "import": "./dist/platform/plugin-attention.js"
+    },
+    "./platform/plugin-sync": {
+      "types": "./dist/platform/plugin-sync.d.ts",
+      "import": "./dist/platform/plugin-sync.js"
     }
   },
   "files": [

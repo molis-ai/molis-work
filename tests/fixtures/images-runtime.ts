@@ -14,11 +14,12 @@ import { createImagesPlugin, imagesManifest, IMAGES_ACTION_PERMISSIONS,
 export const IMAGE_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==";
 export const imageReply = (response: ServerResponse) => { response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ data: [{ b64_json: IMAGE_PNG }] })); };
 export async function imageRuntimeFixture(t: TestContext, options: {
+  home?: string;
   respond?: (input: Record<string, unknown>, response: ServerResponse, request: IncomingMessage) => void | Promise<void>;
   context?: (context: PluginStartContext) => PluginStartContext;
   definition?: (definition: PluginDefinition) => PluginDefinition;
 } = {}) {
-  const home = await mkdtemp(join(tmpdir(), "images-runtime-")), contexts: PluginStartContext[] = [], calls: Record<string, unknown>[] = [];
+  const home = options.home ?? await mkdtemp(join(tmpdir(), "images-runtime-")), contexts: PluginStartContext[] = [], calls: Record<string, unknown>[] = [];
   // The resident Host owns the actual Prologue inference; this isolated supervisor supplies the Images entry under test.
   const inferenceOwner = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const registry = new ActionService();
@@ -36,8 +37,12 @@ export async function imageRuntimeFixture(t: TestContext, options: {
     await (options.respond ? options.respond(input, response, request) : imageReply(response));
   });
   t.after(async () => {
-    await supervisor.close(); await inferenceOwner.close(); provider.closeAllConnections();
-    await new Promise<void>(resolve => provider.close(() => resolve())); await rm(home, { recursive: true, force: true });
+    try { await supervisor.close(); } finally {
+      try { await inferenceOwner.close(); } finally {
+        provider.closeAllConnections(); await new Promise<void>(resolve => provider.close(() => resolve()));
+        await rm(home, { recursive: true, force: true });
+      }
+    }
   });
   await new Promise<void>(resolve => provider.listen(0, "127.0.0.1", resolve));
   const address = provider.address(); assert.ok(address && typeof address === "object");
@@ -69,4 +74,24 @@ export async function imageUntil(check: () => boolean | Promise<boolean>): Promi
     if (Date.now() >= deadline) assert.fail("Image operation did not settle");
     await new Promise(resolve => setTimeout(resolve, 10));
   }
+}
+
+/** Bind the actual Runtime library and owner-file service, retaining the caller's current lease. */
+export function imageSyncFixture(runtime:Awaited<ReturnType<typeof imageRuntimeFixture>>) {
+ const context=runtime.contexts.at(-1)!;let closed=false;
+ const binding=createImagesSyncBindings(context)[0]!;
+ const check=()=>{if(closed)throw new Error('同步接口已关闭');context.sync?.assertActive();};
+ return {binding,close(){closed=true;},replica(scope:AggregateReplicaContext){
+  check();if(!context.sync||scope.spaceId!==context.sync.spaceId)throw new Error('同步空间不匹配');
+  return new Proxy(binding.replica,{get(target,key){const method=Reflect.get(target,key);return typeof method==='function'? (...args:unknown[])=>{
+   check();return withPluginSyncAuthority({home:runtime.home,context:scope,assertCollection(identity){check();const declared=imagesManifest.sync!.collections[0]!;assert.equal(identity.plugin_id,imagesManifest.plugin_id);assert.equal(identity.schema_version,declared.schema_version);assert.equal(identity.collection_id,declared.id);}},()=>Reflect.apply(method,target,args));
+  }:method;}});
+ },async prepare(key:string,value:unknown){check();await binding.content?.prepare?.(key,value);check();}};
+}
+import {createImagesSyncBindings} from '@molis-ai/molis-work-plugin-images';
+import {withPluginSyncAuthority,openRuntimeProjectCopyDirectory} from '@molis-ai/molis-work-app-local-host';
+import type {AggregateReplicaContext,AggregateCopyContext} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+export async function imageCopyFixture(runtime:Awaited<ReturnType<typeof imageRuntimeFixture>>,context:AggregateCopyContext){
+ const directory=await openRuntimeProjectCopyDirectory({home:runtime.home,platform:runtime.platform,direction:context.direction,context});
+ const item=directory.owners.find(row=>row.ownerId===imagesManifest.plugin_id);assert.ok(item);return {owner:item.owner,close:()=>directory.close()};
 }

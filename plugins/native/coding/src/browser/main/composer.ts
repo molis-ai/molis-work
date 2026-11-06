@@ -28,6 +28,7 @@ export async function startRound(page: Page, id: string, task: string | undefine
     mcp_tools: selection.mcp_tools, mcp_sources: selection.mcp_sources, materials: selection.materials, character: selection.character,
     character_skill_ids: s.characterSkills.get(id), ...(intent === "parallel" ? { writer_assignments: selection.writer_assignments } : {}),
   });
+  if (task !== undefined) page.refs.inputEditor.accepted(id, started?.cleared_input_revision, task);
   if (id === s.current) digestNote(page, started);
 }
 

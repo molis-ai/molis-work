@@ -17,6 +17,7 @@ import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontex
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport, type StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { larkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -93,7 +94,10 @@ function safeError(error: unknown): ActionError {
   const connectionRefusal = error instanceof ActionError && error.code.startsWith("connector.connection.") && Object.hasOwn(connectorErrors, error.code);
   if (error instanceof ActionError && !connectionRefusal) return error;
   if (error instanceof UnauthorizedError) return authorizationError("MCP 需要重新授权，请检查账号权限或 OAuth 应用配置");
-  return connectorErrors["connector.mcp.provider"]("MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试");
+  // Only what the server did, never its text: whether it answered (an HTTP status, a JSON-RPC error code) decides a run of failures (ASC-58).
+  const answer = error instanceof StreamableHTTPError && typeof error.code === "number" && error.code >= 400 ? { http_status: error.code }
+    : error instanceof McpError && Number.isInteger(error.code) ? { jsonrpc_code: error.code } : undefined;
+  return connectorErrors["connector.mcp.provider"]("MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试", answer);
 }
 
 function readOAuthCredential<T extends { issuer?: string }>(raw: string | null, allowUnbound = false): T | undefined {

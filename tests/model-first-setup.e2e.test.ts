@@ -74,9 +74,11 @@ test("no model → settings → template → a failing check saves nothing → a
     return { text: line.textContent, live: line.getAttribute('aria-live'), visible: box.top >= 0 && box.bottom <= innerHeight,
       key: document.querySelector('[data-model-api-key]').value, base: document.querySelector('[data-model-base-url]').value,
       open: document.querySelector('[data-cover-chip]')?.dataset.coverChip }; })()`);
-  assert.match(failure.text, /连接检查没有通过，所以没有保存/);
-  assert.match(failure.text, /服务拒绝了这个 API Key（401）/);
-  assert.equal(failure.text.includes(wrongKey), false, "the reason never quotes the key");
+  // The status line says nothing was saved; why is said under the key itself (plan A, ASC-62).
+  assert.match(failure.text, /还没保存，填的还在/);
+  const refusal = await evaluate<string>("document.querySelector('[data-model-key-field] [data-model-key-error]')?.textContent || ''");
+  assert.match(refusal, /DeepSeek 拒绝了这把密钥/);
+  assert.equal(`${failure.text}${refusal}`.includes(wrongKey), false, "the reason never quotes the key");
   assert.equal(failure.live, "assertive");
   assert.equal(failure.visible, true, "the reason is on screen where the person is looking");
   assert.equal(failure.key, wrongKey, "what was typed is still there");

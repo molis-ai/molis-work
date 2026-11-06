@@ -5,7 +5,8 @@ import { sandboxPackageBuildId } from '@molis-ai/molis-work-plugin-sdk';
  * an installed plugin runs from bytes whose signature, form and publisher the Host has checked again, not from a record of having checked.
  */
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { join } from 'node:path';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
@@ -70,6 +71,17 @@ export class SandboxPackageStore {
   }
 
   /** Reads an installed package back, checking it again: its signature, its form, and that it is the package the installation names. */
+  /** Offline inspection reads only retained signed bytes and never imports the package or follows symlinks. */
+  snapshotManifest(pluginId:string, keyId:string, version:string) {
+    const path = join(this.directory(pluginId,keyId,version),BUNDLE_FILE);
+    if (!lstatSync(path,{throwIfNoEntry:false})) return undefined;
+    const {bundle,key_id} = verifyPluginPackageSignature(JSON.parse(readSnapshotFile(path,64 * 1024 * 1024).toString("utf8")));
+    const {manifest} = readKeptSandboxPackage(bundle.payload);
+    if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version)
+      throw pluginErrors.signer_mismatch("留存发行包的身份与安装记录不符");
+    return manifest;
+  }
+
   load(pluginId: string, keyId: string, version: string): InstalledRelease {
     const directory = this.directory(pluginId, keyId, version);
     let raw: unknown;

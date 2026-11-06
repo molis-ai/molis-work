@@ -6,6 +6,7 @@ import {
 } from "../../domain/memory/rules.js";
 import type { SqliteDatabase } from "./open-database.js";
 import { AlchemistOperationError } from "../services/action-error.js";
+import {assertStudioEdit} from './edit-fingerprint.js';
 import type { ReuseSnapshot } from "../../../work-reuse/contracts.js";
 
 interface TasteRow {
@@ -169,9 +170,10 @@ export class SqliteMemoryRepository {
     return this.getPlaybookRule(id) as PlaybookRule;
   }
 
-  revisePlaybookRule(input: { id: string; expectedVersion: number; methodChange: string; positiveExamples: string[]; negativeExamples: string[] }, now: string): PlaybookRule {
+  revisePlaybookRule(input: { id: string; expectedVersion: number; expectedEtag:string; methodChange: string; positiveExamples: string[]; negativeExamples: string[] }, now: string): PlaybookRule {
     return this.database.transaction(() => {
       const previous = this.getPlaybookRule(input.id);
+      assertStudioEdit(previous,input.expectedEtag);
       if (!previous || previous.version !== input.expectedVersion || previous.status !== "active")
         throw new AlchemistOperationError("alchemist.reuse_method_changed", "方法已被修改或停用，请刷新后继续。", 409);
       this.database.prepare("INSERT OR IGNORE INTO research_playbook_revisions (rule_id, version, snapshot_json) VALUES (?, ?, ?)")

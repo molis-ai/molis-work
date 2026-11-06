@@ -8,6 +8,7 @@ import {
 import { PPT_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "./actions.js";
 import { pptContentActions } from "./content-actions.js";
+import { pptSync } from "./replication.js";
 import { PPT_DATABASE } from "./database.js";
 
 import { PPT_MESSAGES } from "./messages.js";
@@ -20,6 +21,7 @@ export const pptManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: PPT_PLUGIN_ID,
+  sync: pptSync,
   version: "0.3.0",
   name: "PPT",
   summary: "写大纲，放映或导出 PowerPoint。",

@@ -3,6 +3,7 @@ import { createFileSecretStore, homeSqlitePath, peekSealedEntry, runWithMolisWor
 import { openConnectorsStore } from "./connectors-store.js";
 import { ConnectorConnectionStore, ConnectorObservationStore, forgetPluginBindings, type ConnectorCheckObservation, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
 import { invalidateConnectorBindingRequests, invalidateConnectorRequests } from "./connector-lifecycle.js";
+import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
 
 export { ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 
@@ -17,7 +18,8 @@ export function withConnectorConnections<T>(homeDirectory: string, operation: (s
       put: (ref, value) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().put(ref, value)),
       delete: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().delete(ref)),
     };
-    const store = new ConnectorConnectionStore(db, secrets, undefined, id => invalidateConnectorRequests(homeDirectory, id),
+    // A reconnect, a replaced key, enabling or disabling, disconnecting or removing ends whatever the connection's notices said (ASC-58).
+    const store = new ConnectorConnectionStore(db, secrets, undefined, id => { invalidateConnectorRequests(homeDirectory, id); settleConnectionNotices(homeDirectory, id); },
       binding => invalidateConnectorBindingRequests(homeDirectory, binding));
     observationsOf.set(store, new ConnectorObservationStore(db));
     return operation(store);

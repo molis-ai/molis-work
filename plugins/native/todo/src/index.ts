@@ -7,6 +7,7 @@ export { TODO_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createTodoPlugin } from "./plugin.js";
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID, todoManifest } from "./manifest.js";
 export { ownTodoStores, TodoStore, TODO_DATABASE, TODO_HOME_STORE } from "./store.js";
+export { todoSync, todoCollection } from './replication.js';
 export type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoSql, TodoSqlValue, TodoStores } from "./store.js";
 export { todoErrors } from "./error.js";
 export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoAccess } from "./actions.js";
@@ -26,3 +27,5 @@ export type { TodoQuickParse, TodoQuickPart } from "./quick-parse.js";
 export { inView, selectView, todoFlags, viewCounts } from "./views.js";
 export type { TodoFlag } from "./views.js";
 export { addDays, isTodoDate, isTodoInstant, isTodoTime, localDate } from "./dates.js";
+
+export { syncBindings as createTodoSyncBindings } from "./sync-binding.js";

@@ -33,7 +33,7 @@ describe("cross-task work reuse through original Alchemist owners", { timeout: 3
     expect(f.ledger.query.list(f.access)).toHaveLength(1);
     await f.call(a.reuseFeedback,{planId:second.id,explanation:"只补充本轮价格变化",preparation:"沿用来源框架，仍需新的访谈",corrections:"未证明付费意愿",result:"形成可编辑提案；不声称节省比例"});
     const {reference:ref2}=await f.call(a.reusePublish,{reportId:round2.workspace.lenses.market_space.report!.id});
-    const {rule:revised}=await f.call(a.playbookRevise,{id:method.id,expectedVersion:1,methodChange:"分别核对使用意愿与付费意愿",positiveExamples:["第二轮独立访谈"],negativeExamples:["把使用量当付费证据"]});
+    const {rule:revised}=await f.call(a.playbookRevise,{id:method.id,expectedVersion:1,expectedEtag:(await f.call(a.playbookEditing,{id:method.id})).etag,methodChange:"分别核对使用意愿与付费意愿",positiveExamples:["第二轮独立访谈"],negativeExamples:["把使用量当付费证据"]});
     expect(revised.version).toBe(2);
     const {plan:third}=await f.plan({artifacts:[{reference:ref2,reason:"沿用第二轮未知与反证，新增付费访谈"}],methodIds:[method.id]});
     const round3=await f.run(third.id);expect(round3.workspace.lenses.market_space.status).toBe("completed");
@@ -49,8 +49,9 @@ describe("cross-task work reuse through original Alchemist owners", { timeout: 3
     const {method}=await firstRound();
     await expect(f.plan({artifacts:[],methodIds:[method.id]},"build_cost")).rejects.toMatchObject({code:"alchemist.reuse_method_not_applicable"});
     const {plan}=await f.plan();const before=f.requests.length;
-    await f.call(a.playbookRevise,{id:method.id,expectedVersion:1,methodChange:"新方法",positiveExamples:[],negativeExamples:[]});
-    await expect(f.call(a.playbookRevise,{id:method.id,expectedVersion:1,methodChange:"覆盖",positiveExamples:[],negativeExamples:[]})).rejects.toMatchObject({code:"alchemist.reuse_method_changed"});
+    const {etag}=await f.call(a.playbookEditing,{id:method.id});
+    await f.call(a.playbookRevise,{id:method.id,expectedVersion:1,expectedEtag:etag,methodChange:"新方法",positiveExamples:[],negativeExamples:[]});
+    await expect(f.call(a.playbookRevise,{id:method.id,expectedVersion:1,expectedEtag:etag,methodChange:"覆盖",positiveExamples:[],negativeExamples:[]})).rejects.toMatchObject({code:"alchemist.edit_changed"});
     await expect(f.run(plan.id)).rejects.toMatchObject({code:"alchemist.reuse_method_changed"});expect(f.requests.length).toBe(before);
     await f.call(a.playbookDisable,{id:method.id});expect((await f.call(a.reuseCandidates,{intent:"下一次",directionId:f.direction.id})).methods).toHaveLength(0);
   });

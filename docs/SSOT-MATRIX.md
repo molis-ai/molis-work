@@ -2,6 +2,8 @@
 
 2026-09-08 Cutover 后，现有产品实现已退出旧混合目录；正式调用链位于实际 workspace 包，当前清单以 [`scripts/workspace-packages.mjs`](../scripts/workspace-packages.mjs) 为准，数量由 `pnpm boundary:check` 的 `packageCount` 输出。产品启动器已归 apps/desktop/launchers；0.1.x 的根 SDK 已于 2026-10-04 删除（用户决定），根包不导出代码。历史验收证据见 [Cutover 验证](../specs/molis-work-architecture-reorganization/cutover-validation.md)，不能替代后续变更的验收。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
 
+2026-09-30 空间归属：`packages/storage` 拥有不可变空间元数据和 Store 绑定，`apps/local-host` 按验证后的账号选择独立 Home/Host，项目模块接收 `spaceId` 而不读取登录会话。项目与插件内容继承所在 Store/Home；本地/个人空间可选，团队只预留，未实现云同步。规则与限制见 [Storage](platform/STORAGE-AND-EXCHANGE.md)，验证见 [空间归属切片](../specs/archive/personal-space-ownership/spec.md)。
+
 权威需求书：[架构需求书](../specs/molis-work-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
 
 Molis Work 是本地优先的插件基座加多插件。平台是一个 Home 的常驻宿主、统一动作目录与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归 Module 或插件，每项事实只有一个 owner，下列各表逐包写明。Goals 是每个项目都带的内置插件，拥有 Goal 的事实。
@@ -61,6 +63,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 ## 3. Apps
 
+独立 Rust 服务端代码不计入下表的 pnpm 包数：`server/src/sync` 拥有个人同步远端事件、回执、容量、附件与保留记录，`apps/sync-worker` 只负责 Cloudflare 入口装配和部署。两者由 Cargo 与 native-checks 检查；详见 [同步模块](../server/src/sync/README.md)。原 `server` Node 包的登记、身份/IM 事实归属及公开入口不变。
+
 | 目标 package | 负责什么 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `production` | AP4/DV4/Cutover；实际平台安装证据见验证报告 | 应用：@yijunw0212 |
@@ -97,7 +101,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `modules/identity-team-access` | User、Team、membership、Access Decision | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/projects` | Project 身份、Catalog、workspace membership | 正式 Project/Catalog 事实；Host 编排文件生命周期，Desktop 提供平台 | `production` | AP1/AP2/Cutover；旧 Catalog 已删除 | Module：@yijunw0212 |
 | `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现；缺片：未来 publication / 异步 materialization；后续：补未来能力时另立 Goal（AR2 已验收主路径） | `slice` | AR2 已验收；[验收记录](../specs/molis-work-architecture-reorganization/ar2-validation.md) | Module：@yijunw0212 |
-| `modules/sync-replication` | 发布意图、replica、冲突和用户可见同步状态 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
+| `modules/sync-replication` | 空间同步策略、增量协调、冲突与同步状态 | 个人空间本机联调；复用 owner 适配器与持久队列，默认关闭 | `slice` | F2；`specs/personal-plugin-replication/spec.md` | Module：@yijunw0212 |
 | `modules/actions` | 个人/外部 Action 请求、状态和结果引用 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；旧 Inbox 转发已退出；缺片：完整 snooze/resume；后续：另立 Goal 补未来能力 | `slice` | FD2/Cutover；完整 snooze/resume 仍是未来能力 | Module：@yijunw0212 |
 | `modules/private-work-context` | Runtime context binding（Runtime 工作入口与 Project 的绑定、事件、setup 幂等、拒绝建议） | Runtime 当前 Project 关联经 Ledger API 保存；控制历史留在本模块。Session、内容引用与 Handoff 随 Sessions 插件下线（SC-4）删除，重做见 BL-177；缺片：Sessions 下线后的重做；后续：BL-177 | `slice` | WK1–WK3 已迁移；SC-4 删除 Session 部分 | Module：@yijunw0212 |

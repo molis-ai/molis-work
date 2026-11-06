@@ -79,10 +79,133 @@ test("rust: a test that fails fails the check (cargo test runs the crate's tests
   assert.match(run.out, /cargo test failed/);
   assert.match(run.out, /the refusal does not hold/);
 });
-test("rust: a Rust file outside apps/desktop is refused, however clean", () => {
+test("rust: a Rust file outside registered crates is refused, however clean", () => {
   const run = gate(crate(CLEAN_MAIN, { "tooling/other/lib.rs": "pub fn f() {}\n" }), ["rust"]);
   assert.equal(run.code, 1, run.out);
-  assert.match(run.out, /tooling\/other\/lib\.rs is Rust code outside apps\/desktop\//);
+  assert.match(run.out, /tooling\/other\/lib\.rs is Rust code outside .*which these checks do not reach/);
+});
+const WORKER_ROOT = "apps/sync-worker";
+const WORKER_MANIFEST = `[package]\nname = "scratch-worker"\nversion = "0.0.0"\nedition = "2024"\n\n[lib]\ncrate-type = ["cdylib", "rlib"]\n`;
+const WORKER_LOCK = RUST_LOCK.replaceAll("scratch-desktop", "scratch-worker");
+const workerFiles = (source = "pub fn one() -> i32 {\n    1\n}\n") => ({
+  [`${WORKER_ROOT}/Cargo.toml`]: WORKER_MANIFEST,
+  [`${WORKER_ROOT}/Cargo.lock`]: WORKER_LOCK,
+  [`${WORKER_ROOT}/src/lib.rs`]: source,
+});
+const SYNC_ROOT = "server/src/sync";
+const SYNC_MANIFEST = "server/Cargo.toml";
+const syncFiles = (source = "pub fn one() -> i32 {\n    1\n}\n") => ({
+  [SYNC_MANIFEST]: WORKER_MANIFEST.replaceAll("scratch-worker", "scratch-server-sync") + 'path = "src/sync/lib.rs"\n',
+  "server/Cargo.lock": WORKER_LOCK.replaceAll("scratch-worker", "scratch-server-sync"),
+  [`${SYNC_ROOT}/lib.rs`]: source,
+});
+test("rust: the server sync library alone passes", rust, () => {
+  const run = gate(repoWith(syncFiles()), ["rust"]);
+  assert.equal(run.code, 0, run.out);
+  assert.match(run.out, /1 Rust files formatted, clippy clean/);
+});
+test("rust: unformatted server sync code fails", rust, () => {
+  const run = gate(repoWith(syncFiles("pub fn one()->i32{1}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /rustfmt --check found unformatted code/);
+  assert.match(run.out, /server\/Cargo.toml/);
+});
+test("rust: a server sync clippy warning fails on WASM", rust, () => {
+  const run = gate(repoWith(syncFiles("pub fn one() -> i32 {\n    return 1;\n}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /needless_return/);
+});
+test("rust: a warning in a server sync test fails", rust, () => {
+  const run = gate(repoWith(syncFiles("#[cfg(test)]\nmod tests {\n    #[test]\n    fn broken() {\n        let unused = 1;\n    }\n}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /unused variable/);
+});
+test("rust: the Worker alone passes without a desktop manifest", rust, () => {
+  const run = gate(repoWith(workerFiles()), ["rust"]);
+  assert.equal(run.code, 0, run.out);
+  assert.match(run.out, /1 Rust files formatted, clippy clean/);
+});
+test("rust: both desktop and Worker crates are checked", rust, () => {
+  const run = gate(crate(CLEAN_MAIN, workerFiles()), ["rust"]);
+  assert.equal(run.code, 0, run.out);
+  assert.match(run.out, /2 Rust files formatted, clippy clean/);
+});
+test("rust: unformatted Worker code fails", rust, () => {
+  const run = gate(repoWith(workerFiles("pub fn one()->i32{1}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /rustfmt --check found unformatted code/);
+  assert.match(run.out, /apps\/sync-worker\/Cargo.toml/);
+});
+test("rust: a Worker clippy warning fails on its WASM target", rust, () => {
+  const run = gate(repoWith(workerFiles("pub fn one() -> i32 {\n    return 1;\n}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /needless_return/);
+});
+test("rust: a warning in a Worker test is checked (--all-targets)", rust, () => {
+  const run = gate(repoWith(workerFiles("#[cfg(test)]\nmod tests {\n    #[test]\n    fn broken() {\n        let unused = 1;\n    }\n}\n")), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /unused variable/);
+});
+// Stub tools cover command plumbing even on machines without Rust; real crate cases above still compile.
+const rustStub = () => {
+  const dir = mkdtempSync(path.join(scratchRoot, "rust-stub-"));
+  const log = path.join(dir, "args.jsonl");
+  for (const tool of ["cargo", "rustfmt"]) {
+    writeFileSync(path.join(dir, tool), `#!${process.execPath}\n` + [
+      'const fs = require("node:fs");',
+      'const args = process.argv.slice(2);',
+      'if (args.includes("--version")) process.exit(0);',
+      `fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ tool: ${JSON.stringify(tool)}, args }) + "\\n");`,
+      'if (args.includes("wasm32-unknown-unknown") && process.env.MISSING_WASM === "1") {',
+      '  console.error("WASM target is not installed"); process.exit(1);',
+      '}',
+      '',
+    ].join("\n"));
+    chmodSync(path.join(dir, tool), 0o755);
+  }
+  return { dir, log };
+};
+test("rust: crate editions, WASM target, locked dependencies and warning policy are explicit", () => {
+  const stub = rustStub();
+  const dir = crate(CLEAN_MAIN, { ...workerFiles(), ...syncFiles(), [`${WORKER_ROOT}/src/unreferenced.rs`]: "pub fn f() {}\n", [`${SYNC_ROOT}/unreferenced.rs`]: "pub fn f() {}\n" });
+  const run = gate(dir, ["rust"], { PATH: `${stub.dir}${path.delimiter}${process.env.PATH}` });
+  assert.equal(run.code, 0, run.out);
+  const calls = readFileSync(stub.log, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(calls, [
+    { tool: "rustfmt", args: ["--check", "--edition", "2021", "apps/desktop/adapters/tauri/src/main.rs"] },
+    { tool: "cargo", args: ["clippy", "--manifest-path", "apps/desktop/src-tauri/Cargo.toml", "--all-targets", "--locked", "--", "-D", "warnings"] },
+    { tool: "cargo", args: ["test", "--manifest-path", "apps/desktop/src-tauri/Cargo.toml", "--locked"] },
+    { tool: "rustfmt", args: ["--check", "--edition", "2024", `${WORKER_ROOT}/src/lib.rs`, `${WORKER_ROOT}/src/unreferenced.rs`] },
+    { tool: "cargo", args: ["clippy", "--manifest-path", `${WORKER_ROOT}/Cargo.toml`, "--target", "wasm32-unknown-unknown", "--all-targets", "--locked", "--", "-D", "warnings"] },
+    { tool: "rustfmt", args: ["--check", "--edition", "2024", `${SYNC_ROOT}/lib.rs`, `${SYNC_ROOT}/unreferenced.rs`] },
+    { tool: "cargo", args: ["clippy", "--manifest-path", SYNC_MANIFEST, "--target", "wasm32-unknown-unknown", "--all-targets", "--locked", "--", "-D", "warnings"] },
+  ]);
+});
+test("rust: a missing Worker manifest is exit 2, never a pass", () => {
+  const stub = rustStub();
+  const dir = repoWith({ [`${WORKER_ROOT}/src/lib.rs`]: "pub fn f() {}\n" });
+  const run = gate(dir, ["rust"], { PATH: `${stub.dir}${path.delimiter}${process.env.PATH}` });
+  assert.equal(run.code, 2, run.out);
+  assert.match(run.out, /apps\/sync-worker\/Cargo.toml is missing/);
+});
+test("rust: an unavailable WASM target fails, never falls back to the native target", () => {
+  const stub = rustStub();
+  const run = gate(repoWith(workerFiles()), ["rust"], { PATH: `${stub.dir}${path.delimiter}${process.env.PATH}`, MISSING_WASM: "1" });
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /WASM target is not installed/);
+});
+test("rust: a similarly named directory is not a registered Worker", () => {
+  const run = gate(repoWith({ "apps/sync-worker-other/src/lib.rs": "pub fn f() {}\n" }), ["rust"]);
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /apps\/sync-worker-other\/src\/lib.rs is Rust code outside/);
+});
+test("rust: CI installs the pinned WASM toolchain and caches all three crates", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  const job = workflow.split("\n  native-checks:\n")[1].split("\n  shell-checks:\n")[0];
+  assert.match(job, /RUSTUP_TOOLCHAIN: 1\.96\.0/);
+  assert.match(job, /rustup toolchain install 1\.96\.0 .*--target wasm32-unknown-unknown/);
+  assert.match(job, /workspaces: \|\n\s+apps\/desktop\/src-tauri\n\s+apps\/sync-worker\n\s+server\n/);
+  assert.match(job, /node scripts\/gates\/native-checks.mjs rust/);
 });
 test("rust: a repository without Rust files has nothing to check", () => {
   const run = gate(repoWith({ "README.md": "# x\n" }), ["rust"]);

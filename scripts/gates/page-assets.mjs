@@ -319,9 +319,34 @@ const headErrors = (measured, budget, base) => {
 // usage instead of per code, the pair checked on the rows themselves instead of a serialized helper, the reasons table cut to the
 // codes an MCP connection's consumers can answer, errors through the page's own fail(), the two explanations and the two removal
 // confirmations sharing one sentence each; no new style or asset.
+// ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
+// the Assistant's "等你处理": workbench.js +573 B, keyed on main's budget 1085274 (after #1865 and #1790; ASC-59's workbench.js entry keyed on 1078718
+// is spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
+// UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
+// the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
+// settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
+// ASC-60～63 (第 13 批④b, #1881, admitted by the batch 13 coordinator after the review desk on 2026-11-06): the model settings page
+// and Images' image-service dialog as plan A. settings.css +2529 B and workbench.css +2529 B: the catalog's step progress as it is
+// (about 1.25 KB, split out of SERVICE_CONNECTION_PART_STYLES and referenced, not copied), the four rows, 高级, the save bar, the
+// rate-limit box and the model row's two lines (container queries; its icon buttons take the ID field's height so the first line shares one top edge). workbench.js +3724 B: the progress function shared with the
+// catalog (819 B, bundled from service-connection-item.ts), the coded check's split (a refused key under its field, saying whether
+// it was the new key or the one in use; the 429 recheck) and ↵ to save. images.js +1207 B: the presets' models and sizes, the
+// service choice and 高级, the compose form's size list; images.css +50 B: 高级's field spacing (the old preset rules removed).
+// Keyed on merge-base after #1870 (workbench.js 1085847, workbench.css 1204709, images.js 19896); the ASC-58 workbench.js entry is
+// spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
+// alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
+// what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1078718, 1085276],
+  "/assets/molis-work-settings.css": [827793, 830322],
+  "/assets/molis-work-workbench.css": [1204709, 1207238],
+  "/assets/molis-work-workbench.js": [1085847, 1089571],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
+  "/assets/molis-work-plugins/coding.js": [290006, 297761],
+  "/assets/molis-work-plugins/cognia.js": [22157, 22189],
+  "/assets/molis-work-plugins/shelf.js": [64967, 65319],
+  "/assets/molis-work-plugins/images.js": [19896, 21103],
+  "/assets/molis-work-plugins/images.css": [7851, 7901],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

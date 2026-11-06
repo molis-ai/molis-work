@@ -186,7 +186,7 @@ sample_not_found: "not_found",
 
 `tests/action-version-precondition.test.ts` 的 W3-09-3-02 下半段（`updated_at: null` 被拒）改成断言 `expected_updated_at: null` 被拒，不删。
 
-**开工条件**：界面部分等定样 PR 合入（方案 A 用户已选，组件板新增走 D 轨）；`packages/kernel` 本批按 C1 对待，`modules/judgment-rules`、`apps/workbench/src/judgment-rules/`、`apps/local-host/src/judgment-rules-http/` 随 N14 一起改（统筹 11-06 裁定）；Feed 文件发预警。
+**开工条件**：等 #1837 合入（它改 `plugins/native/feed/src/manifest.ts`、`modules/judgment-rules/src/authoring-actions.ts`）；界面部分按定样（#1873，已合入）（方案 A 用户已选，组件板新增走 D 轨）；`packages/kernel` 本批按 C1 对待，`modules/judgment-rules`、`apps/workbench/src/judgment-rules/`、`apps/local-host/src/judgment-rules-http/` 随 N14 一起改（统筹 11-06 裁定）；Feed 文件发预警。
 
 ## 第二部分：N22 输入类型
 
@@ -415,7 +415,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 ### 8.2 分片表
 
-除 N22-06 和 N14 外，所有片都等 **#1837 合入**（02 的三个 PR 共碰 33 个处理器文件，#1790 已合入，余下 #1836、#1837，Goal Prompt 写明 02 收尾前不碰）。「同时最多 3 个写手」把 N14 也算在内。写手一律子代理。
+除 N22-06 外，所有片都等 **#1837 合入**（#1790、#1836 已合入；#1837 现在 739 个文件，遍布各插件，含 N14 要改的 `plugins/native/feed/src/manifest.ts`、`modules/judgment-rules/src/authoring-actions.ts`；Goal Prompt 写明 02 收尾前不碰）。「同时最多 3 个写手」把 N14 也算在内。写手一律子代理。
 
 **第一段：工具和样板**
 
@@ -423,7 +423,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | --- | --- | --- | --- | --- | --- | --- |
 | N22-01 工具合同 | §4.2、§4.3，类型测试；除了正反用例，再跑一次 §4.3 加键的量法，零误报查不出放行 | contracts `platform/actions.ts`、SDK `actions.ts`（2） | C1 | `api/contracts/platform/actions.txt`、`api/contracts/platform/plugin.txt`（`platform/plugin.ts:18` 转出 `actions.js`）、`api/plugin-sdk/index.txt` | Opus 5.5 high，全量 | #1837（共用 `index.txt`）。**不等 05② C-1**，文件和快照都不重叠；和 05② C-2、U1-f、08 C-1 共用 `index.txt`，谁先准备好谁先，一前一后；`platform/plugin.txt` 按 §8.4 |
 | N22-06 `normalizeProjectId` | §6 | Dataset、Form、Lingguang、Pages、PPT 的 `store.ts`（5） | E | 无 | Sonnet 5.5 high | **不依赖工具，也不等 #1837**：02 的 PR 没碰这五个 store（已查）。统筹可以最先开它 |
-| N14 | §2、§3 | §3 | 无归属（kernel 按 C1），Feed 一个文件 E | `host-actions.tsv` 6 行 | Opus 5.5 high，全量 | 定样 PR；E 轨预警 |
+| N14 | §2、§3 | §3 | 无归属（kernel 按 C1），Feed 一个文件 E | `host-actions.tsv` 6 行 | Opus 5.5 high，全量 | **#1837**；定样（#1873，已合入）；E 轨预警 |
 | N22-04 试点 Jelly | T＋S 同一个 PR，把两种片都走通，**定下写法样板**，量 §4.6 | Jelly（5） | E | `actions.tsv` | Opus 5.5 high | N22-01。**它通过之前，下面的 T 片不开** |
 | N22-02 共享帮手 | 共享定义 `bind*` 改调工具，schema 包 `inputSchemaFor`。T 片 | contracts `platform/{artifact-pins,file-sources,placement,search-sources,workflow-content}.ts`、SDK `routes.ts`（6）；另有 10 个只有 `define*`、没有 `bind*` 的帮手，只包 schema：`platform/{action-fragments,action-offers,action-usages,action-subjects,home-events,home-background-tasks,due-reminders,work-executors,action-scene-configuration}.ts`、`services/connector-usages.ts`（共 16）。14 个导出的输入 schema 常量（`FILE_ENTRIES_INPUT_SCHEMA` 这些）加 `as const`，不包在常量定义处：包了导出类型变成 `ActionSchema`，同样改快照，还把字面量丢了。要加 `as const` 的比这 14 个多：它们嵌着的 `ACTION_REFERENCE_SCHEMA`（`platform/action-offers.ts`）、`ACTION_SUBJECT_SCHEMA`（`platform/actions.ts`）也要加，都在下面这几份快照里，不多占队列 | C1 | **改 3 份 API 快照**：`api/contracts/platform/actions.txt`、`platform/plugin.txt`、`services/connector-host.txt`。排 api 队列，过公共合同合审。差异只是字面量变窄，对调用方兼容：现有消费者都是展开读（`apps/local-host/src/{action-usage,home-event,home-offer}-actions.ts`）。动作快照不变 | Opus 5.5 high，全量 | N22-01；`platform/plugin.txt` 和 U1-f 不固定先后（§8.4） |
 | N22-05 判断规则 | T＋S 同一个 PR：包小，N14 刚改过 | `modules/judgment-rules/src/{authoring-actions,actions}.ts`、宿主 `judgment-rules-actions.ts`（3） | 无归属 | `host-actions.tsv` | Opus 5.5 medium，全量 | **N14**（同一个文件）、N22-01、N22-02（`authoring-actions.ts:21` 展开 `ACTION_REFERENCE_SCHEMA`，常量还不是字面量时推出来是 `unknown`，容易误记成 schema 太松） |
@@ -560,7 +560,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 | 在途 | 重叠 | 办法 |
 | --- | --- | --- |
-| #1836、#1837（02；#1790 已合入） | 三个 PR 共 33 个文件，遍布各插件 | **全部等 #1837 合入。**这是硬前置 |
+| #1837（02；#1790、#1836 已合入） | 739 个文件，遍布各插件 | **除 N22-06 外全部等 #1837 合入。**这是硬前置。N22-06 的五个 store 不在里面（按全部 739 个核过） |
 | #1870（13） | `assistant-rule-actions.ts`、`connector-call-observation.ts` | T10、T12 等它合入 |
 | #1865、#1858、#1817（13） | 不碰处理器文件，但在连接器区域施工 | T12 排在 T 片最后；开工时重查 |
 | #1851（10） | Coding、Diff、Git、Schedule 的其他文件 | 无重叠，碰上了后到的 rebase |
@@ -569,7 +569,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | 05② C-2、U1-f、08 C-1 | `api/plugin-sdk/index.txt` | 和 N22-01 一前一后 |
 | U1-f | `api/contracts/platform/plugin.txt` | 和 N22-01、N22-02 不固定先后，谁先准备好谁先（§8.4） |
 
-每片开工前重查一次（把路径换成这片的文件）：
+每片开工前重查一次（把路径换成这片的文件）。下面的命令每个 PR 只回前 100 个文件，碰到大 PR 要用 `gh api --paginate repos/molis-ai/molis-work/pulls/<号>/files`：
 
 ```bash
 gh pr list --state open --json number,title,files --jq '.[] | select(any(.files[]; .path == "plugins/native/goals/src/actions.ts")) | "#\(.number) \(.title)"'

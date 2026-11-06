@@ -345,13 +345,13 @@ const headErrors = (measured, budget, base) => {
 // ASC-64 C1 (第 13 批④c, #1885; admitted by the batch 13 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin
 // host contract gains `connectionNeed`, refused by the frame like P3-0a's `taskGrants.place` until the shell slice draws the card
 // (specs/assistant-service-connections/spec.md §13.5 C1). Keyed on main's budget 188418 (after #1884, whose P3-0a entry above is
-// spent there and replaced): plugin-frame.js +21 B. Tried: the two placeholders share one `unavailable` function instead of
+// spent there and replaced): plugin-frame.js +14 B. Tried: the two placeholders share one `unavailable` function instead of
 // a second inline copy, one fixed Error, no frame message.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [827793, 830322],
   "/assets/molis-work-workbench.css": [1204709, 1207238],
   "/assets/molis-work-workbench.js": [1085847, 1089571],
-  "/assets/molis-work-plugin-frame.js": [188418, 188439],
+  "/assets/molis-work-plugin-frame.js": [188418, 188432],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],

@@ -306,11 +306,19 @@ const headErrors = (measured, budget, base) => {
 // FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
 // The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
 // Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// ASC-59 (第 13 批③, #1865; admitted by the batch 13 coordinator on 2026-11-06: under 10 KB, no new asset): after logging in again
+// to a remote MCP service, the connections page offers to move what used the old connection to the new one, says what it could and
+// could not check (Coding's MCP settings, unread reporters), asks once before removing the old one (with cancel), and names the new
+// connection apart from the old. workbench.js +6558 B over 1077683, the budget at merge-base 0f7db373 (main after #1859; the
+// FCS-01/02 entry keyed on 1077514 is spent there and replaced). Tried, from a first cut of +6199: the switch outcome counted per
+// usage instead of per code, the pair checked on the rows themselves instead of a serialized helper, the reasons table cut to the
+// codes an MCP connection's consumers can answer, errors through the page's own fail(), the two explanations and the two removal
+// confirmations sharing one sentence each; no new style or asset.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
   "/assets/molis-work-settings.css": [826998, 827545],
   "/assets/molis-work-workbench.css": [1194792, 1204497],
-  "/assets/molis-work-workbench.js": [1077514, 1077683],
+  "/assets/molis-work-workbench.js": [1077683, 1084241],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

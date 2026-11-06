@@ -325,9 +325,15 @@ const headErrors = (measured, budget, base) => {
 // UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
 // the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
 // settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
+// plugin-frame.js, one entry on the 208271 budget for three PRs that each add a few bytes to the frame's host object (as the
+// batch 18 coordinator set it, 2026-11-06): the account PR's +54 (WORK-03 above, #1846), batch 18 P3-0a's +64 (#1884:
+// `host.taskGrants`, a refusing placeholder until P3-1) and batch 13 ④c's +21 (`host.connectionNeed`, the same refusal until the
+// shell slice; specs/assistant-service-connections/spec.md §13.5 C1). 208271 + 54 + 64 + 21 = 208410. Tried: the two
+// placeholders share one `unavailable` function instead of a second inline copy, one fixed Error, no frame message.
+// Whichever lands moves the base; the others keep their own increments.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1085274, 1085847],
-  "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-plugin-frame.js": [208271, 208410],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

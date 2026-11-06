@@ -336,13 +336,19 @@ const headErrors = (measured, budget, base) => {
 // spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// P3-0a (第 18 批, #1884; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin host
+// contract gains `taskGrants`, and until P3-1 draws the area the frame answers it with a refusing placeholder:
+// plugin-frame.js +64 B, keyed on main's budget 188354 (after #1880). The plugin-frame.js entry keyed on 208271 (the +54 B #1843
+// reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
+// Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
+// one short fixed message; no cast.
 // 07-S1 (the right side joins the tab workspace; 用户 2026-11-05 一次性放行 workbench.js，07 批评审台审过 #1853，冗余两处记入 S2):
 // workbench.js +9673 B on main's budget (885295, after #1877 and #1880): the side's rules in the workspace state (withSidePane: open, select, close and reopen
 // through the shared closed stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background
 // tasks as a side view with its count, a removed plugin's side tab drawn in place with the stage that says how to add it back, the
 // strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-60～63 entry
 // keyed on 1085847 is spent on this base (main's budget 885295 is below its ceiling), so it is replaced. plugin-frame.js +129 B on
-// main's 188354: Mod+Backslash handed up from a frame, named by the character typed; the account admission's entry keyed on 208271
+// main's 188418 (after #1884): Mod+Backslash handed up from a frame, named by the character typed; P3-0a's entry keyed on 188354
 // is spent the same way, so it is replaced. The sheets fall (workbench.css -757 B, arrival.css -4768 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
 // classes. Tried: the side reuses the workspace's persist, closed stack and removed-plugin check instead of keeping its own; the
 // old side-tab, side-ratio and discussion-ratio keys are dropped, not read; the rules' comments sit above the function, not in the
@@ -351,7 +357,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [827793, 830322],
   "/assets/molis-work-workbench.css": [1204709, 1207238],
   "/assets/molis-work-workbench.js": [885295, 894968],
-  "/assets/molis-work-plugin-frame.js": [188354, 188483],
+  "/assets/molis-work-plugin-frame.js": [188418, 188547],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],

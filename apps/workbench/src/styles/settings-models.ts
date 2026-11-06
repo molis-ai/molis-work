@@ -35,7 +35,9 @@ export const MODEL_SETTINGS_STYLES = `
 .model-picker [aria-selected=true]::after{content:" ✓"}
 .model-provider-name { flex:1; overflow:hidden; text-overflow:ellipsis; }
 .model-settings-document svg { width:16px; height:16px; flex-shrink:0; }
-[data-model-delete-confirm] { padding:16px 0; color:var(--ink-soft); }
+[data-model-delete-confirm],[data-model-released] { padding:16px 0; color:var(--ink-soft); }
+:is([data-model-delete-confirm],[data-model-released]):not([hidden]) { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+:is([data-model-delete-confirm],[data-model-released]) p { flex-basis:100%; margin:0 0 4px; }
 @media(max-width:700px) {
   .model-settings-panes { grid-template-columns:1fr; gap:16px; }
   .model-provider-list { flex-direction:row; flex-wrap:wrap; }

@@ -378,7 +378,6 @@ export const GAP_EN: Record<string, string> = {
   "{name} 的格式已经选好，还差 Base URL、API Key 和模型 ID。": "{name}: the format is chosen. Still needed: Base URL, API key and model ID.",
   "{name} 的地址和格式已经填好，还差 API Key 和模型 ID。": "{name}: address and format are filled in. Still needed: API key and model ID.",
   "{name} 的地址、格式和模型已经填好，还差 API Key。": "{name}: address, format and model are filled in. Still needed: API key.",
-  "改了地址、格式、密钥或模型再保存时，会先检查一次连接；没通过就不保存。": "Saving after changing the address, format, key or model first checks the connection once; if it fails, nothing is saved.",
   "正在保存，并检查连接…": "Checking the connection, then saving…",
   "连接检查通过，已保存。配置会用于下一轮执行。": "Connection check passed and saved. It applies to the next run.",
   "模型已连接，可以继续了。": "Model connected. You can carry on.",

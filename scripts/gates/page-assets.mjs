@@ -303,12 +303,15 @@ const headErrors = (measured, budget, base) => {
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
 // table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
 // account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
+// FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
+// The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
+// Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
 // 07-S1 (the right side joins the tab workspace; 用户 2026-11-05 一次性放行 workbench.js，07 批评审台审过 #1853，冗余两处记入 S2):
-// workbench.js +12340 B on main's 1077514: the side's rules in the workspace state (withSidePane: open, select, close and reopen
+// workbench.js +12340 B on main's budget: the side's rules in the workspace state (withSidePane: open, select, close and reopen
 // through the shared closed stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background
 // tasks as a side view with its count, a removed plugin's side tab drawn in place with the stage that says how to add it back, the
-// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The BL-912 entry keyed on
-// 1077477 is spent on this base, so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
+// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The BL-912 and FCS-01/02
+// entries before it are spent on this base (main's budget holds their ceilings), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
 // character typed; the 208271 key is shared with the account admission, so its ceiling is S1's 208400, which also covers the
 // account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -997 B,
 // arrival.css -5247 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab

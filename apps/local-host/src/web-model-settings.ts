@@ -3,7 +3,7 @@ import type { ModelApiFormat, ModelPromptCacheMode, ModelRecord, ModelThinkingMo
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
-import { commitModelProvider, modelCheckProblem, modelSetupOffer, planConnectionCheck, verifyModelConnection, type ModelProviderSave } from "./model-provider-setup.js";
+import { commitModelProvider, modelCheckProblem, modelSetupOffer, planConnectionCheck, removeModelProvider, verifyModelConnection, type ModelProviderSave } from "./model-provider-setup.js";
 import { fetchModelsForSettings, modelListKey, readModelListBody } from "./model-provider-list.js";
 import { modelCheckReason, modelCheckTarget, rememberModelCheck, withModelChecks } from "./model-provider-checks.js";
 
@@ -98,8 +98,7 @@ export async function handleModelSettingsHttp(
       const [health] = result.health ? withModelChecks(homeDirectory, [result.provider], [result.health]) : [];
       sendLocalWebJson(response, 200, { ...result, ...(health ? { health } : {}), checked: selection !== null });
     } else if (request.method === "DELETE" && providerId && !match[2]) {
-      const removed = await withCatalog({ homeDirectory }, (catalog) => catalog.models.remove(providerId));
-      sendLocalWebJson(response, 200, { removed });
+      sendLocalWebJson(response, 200, await withCatalog({ homeDirectory }, (catalog) => removeModelProvider(catalog, homeDirectory, providerId)));
     } else sendLocalWebJson(response, 405, { error: "不支持的模型设置操作" });
   } catch (error) {
     sendLocalWebJson(response, 400, { error: error instanceof Error ? error.message : "模型设置操作失败" });

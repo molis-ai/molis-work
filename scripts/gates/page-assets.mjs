@@ -306,12 +306,17 @@ const headErrors = (measured, budget, base) => {
 // FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
 // The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
 // Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// ASC-57 (第 13 批②, 2026-11-06): after a key change or a provider removal the page points out the old key nothing uses and
+// offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
+// spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
+// the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
+// the select in place instead of reloading the page, the host names no key so the page needs no second string.
 // Batch 18 P2 (Schedule's task reads, design F; admitted by the batch 18 coordinator on 2026-11-06): schedule.css 1269 -> 2841 B
 // (+1572): the list row's one kind mark (read files / read data), the 「能读的数据」 section's lines around the platform's area, and the
 // new and edit form in the detail pane instead of a dialog. schedule.js 12570 -> 14878 B (+2308): one `/grants` read per list open,
 // the kind marks and the 「需要重新确认」 badge, the reads section's lines and the in-pane form. Tried: the form reuses the board's
 // .mw-form and .mw-btn, the two kind icons share one kept slot shown by one attribute, the area's own drawing is left to the
-// platform (P3), no new asset. The arrival, settings, workbench.css and workbench.js entries above are spent (the merge-base
+// platform (P3), no new asset. The arrival, settings, workbench.css and workbench.js entries above (ASC-57 included) are spent (the merge-base
 // budget holds their ceilings) and are removed here.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugin-frame.js": [208271, 208325],

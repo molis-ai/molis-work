@@ -32,6 +32,17 @@
 
 `configure` 用的 `expected_revision` 是另一个合同（没有就新建），不动。`functions.version_conflict`（已发布绑定，`service.ts:166`）也不动。
 
+**平台里还有另外 4 种「读到的版本」字段（#1877 带来），都不在 `VERSION_FIELDS`，N14 不收：**
+
+| 字段 | 动作 | schema | 谁能调 |
+| --- | --- | --- | --- |
+| `etag` | `cognia.material.update`（`plugins/native/cognia/src/actions.ts:35`） | 必填，64 位十六进制内容指纹 | agent、mcp、user、workflow |
+| `expected_content_hash` | `shelf.items.edit@2`（`plugins/native/shelf/src/actions.ts:77`） | 必填，同上 | agent、mcp、user、workflow |
+| `expectedEtag` | `alchemist.directions.update`、`alchemist.memory.playbook.revise`（`studio/shared/contracts/actions.ts:203,161`） | 必填（zod），同上 | agent、mcp、user、workflow |
+| `expected_input_revision` | `coding.sessions.update`（`plugins/native/coding/src/route-actions.ts:46`） | 可选，整数 | 只有 user |
+
+它们和 `expected_updated_at` 的形状不同，含义也不同：这几个是内容指纹或编辑序号，为的是「读到的内容变了就拒绝」；`functions` 用读到的 `updated_at`，因为它从此只代表定义内容（§2.4），不需要另算指纹。所以 N14 不照 etag 做。不把它们加进 `VERSION_FIELDS`：那是内核的通用判断，加了就要给每个动作的语义负责，而它们靠 schema 已经必填（Coding 只给 user）。Agent、MCP 漏带时得到的是 `actions.input_invalid`，不是 `actions.version_required`，提示没有那么明确。这是个可以单独收的小差别，N14 不碰。
+
 ## 2. 合同决定
 
 ### 2.1 取值
@@ -152,7 +163,7 @@ sample_not_found: "not_found",
 **Feed 现在调不到 `get`，两道关都要开：**
 
 - `get` 的 `audiences` 不含 `plugin`：`authoring-actions.ts:34-37` 的 `define` 默认不开，`:45` 没传，而 list、create、update、preview、publish 都传了。改成打开。`list` 已经对插件开放，权限同样是 `functions:manage`，并且返回全部记录，所以没有多放开什么。
-- Feed 没声明消费它：`plugins/native/feed/src/manifest.ts:37` 的 `capabilities.consumes` 加这一项，否则 `apps/local-host/src/plugin-page-actions.ts:29-30` 报 `actions.forbidden`。`rule-authoring.ts:21` 的 `action` 联合类型加 `get`，文件头注释「five exact」改成六个。
+- Feed 没声明消费它：`plugins/native/feed/src/manifest.ts:38` 的 `capabilities.consumes` 加这一项，否则 `apps/local-host/src/plugin-page-actions.ts:29-30` 报 `actions.forbidden`。`rule-authoring.ts:21` 的 `action` 联合类型加 `get`，文件头注释「five exact」改成六个。
 
 否掉的路：Feed 用 `list` 再按 id 找，不改合同，但每次冲突都拉全部规则。
 
@@ -178,7 +189,7 @@ sample_not_found: "not_found",
 | 动作与服务 | `modules/judgment-rules/src/{authoring-actions,service,store,errors}.ts`；动作说明里「`updated_at` 用于拒绝过期编辑」「读取时的修订号」一起改（说明文字不进动作哈希） |
 | HTTP | `apps/local-host/src/judgment-rules-http/route-handlers.ts` |
 | 工作台 | `apps/workbench/src/judgment-rules/client-events.ts`（`:70,193,204,236,277`）、`client-records.ts`（`:128,138,149,157,200`）。`settings-client.ts`、`client-render.ts` 查过，没有这个用法。界面部分按定样，部件走 D 轨 |
-| Feed | `plugins/native/feed/src/browser/rule-authoring.ts`（`:21,55,80,87`）、`plugins/native/feed/src/manifest.ts:37`（消费 `get`，§2.7），**E 轨**。Inbox 没有直接消费者 |
+| Feed | `plugins/native/feed/src/browser/rule-authoring.ts`（`:21,55,80,87`）、`plugins/native/feed/src/manifest.ts:38`（消费 `get`，§2.7），**E 轨**。Inbox 没有直接消费者 |
 | 快照 | `tooling/gates/actions/host-actions.tsv`：`functions.authoring.*` 14 行里输入哈希变 6 行，`get` 一行的「谁能调」加 `plugin`，共变 7 行，`pnpm actions:update`，PR 里写明影响。公开 API 快照预计不变，开工时跑 `pnpm api:update` 确认 |
 | 测试 | `action-version-precondition`（`:23,26,59-64`）、`feed-capture.e2e`、`functions-authoring-actions`、`connector-consumer-usages`（`:70-72`）、`functions-draft-retention`（`:62` 的假服务要改字段名）、`functions-store-versions`（§2.4 的合同变化）、`functions-scene-configuration`、`personal-plugins-review-fixes`、`workbench-functions-late.e2e`、`functions-effect-boundaries`、`host-pages-error-model`（`:77`） |
 | 文档与 Skill | `docs/mcp.md:62`、`packages/kernel/README.md:106`、`skills/goal-advance/SKILL.md:17`（全量回归期间不能改 `skills/`，排好时段）、`docs/releases/CHANGELOG.md` 的升级须知一条（**F 轨独占**，由 F 落或经 F 同意：MCP 客户端的 `updated_at` 改成 `expected_updated_at`） |
@@ -315,7 +326,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 | 公开合同，接口是判别联合，schema 是一个扁平对象（`agent.session.create`、`agent.run.start`；`git.inspect` S0 之后） | 留手写接口，`inputSchemaFor` 里写 `FlatUnion<I>` | 现在是扁平写法，改写法要动 schema 形状和动作快照，N22 不做。键和字段类型由编译器钉住，组合由处理器查 |
 | 公开合同，`inputSchemaFor` 过不了，S0 也修不了或不该修（现在是定义 `memory.prefs.write`，帮手 `artifact-pins` 的比较和继续、`file-sources` 的预览） | **留手写接口，不包**，写在这里，每条带理由 | `memory.prefs.write`：现在是 `properties` 加顶层 `oneOf` 的写法，改写法要动 schema 形状和动作快照，N22 不做。3 个 `artifact` 帮手：`ArtifactVersionRecord` 是平台自己产出的记录，`payload`、`metadata` 是递归的 JSON，schema 推不出来；硬写全再封口，记录以后多一个字段，这些动作就全部运行时报错，它们有 10 个文件在用。**已知风险**：这几个没有编译器钉住，接口和 schema 漂了没人报，靠现有用例。N22-03、S0 碰到新的同类就加进来 |
 | 输入形状运行时才知道（`connector-mcp-actions.ts`、`external-mcp-actions.ts`、`plugin-builder/exposed-actions.ts`、`functions.published.*`） | `input: unknown`，不断言形状，原样转发 | 没有东西可推。名单写进收口片的记录 |
-| Alchemist | **不迁**，核一遍就结束 | 它已经是一份事实：`operation.input.safeParse(input)`，处理函数拿到 `parsed.data`（`action-operations.ts:176-187`），没有手写检查可删。它是用户批过的例外，由 BL-377 重做。这是对「全部处理器」的解读，不是缩范围。**只有项目级操作是这样；** Home 级的两个操作是 `run(input)` 直接调（`:237`），靠 `:230` 一处 `as` 和 kernel 的校验，类型来自同一份 zod（`studio/shared/contracts/actions.ts:118`）。N22-Z 核的时候把这两个写进名单 |
+| Alchemist | **不迁**，核一遍就结束 | 它已经是一份事实：`operation.input.safeParse(input)`，处理函数拿到 `parsed.data`（`action-operations.ts:183-190`），没有手写检查可删。它是用户批过的例外，由 BL-377 重做。这是对「全部处理器」的解读，不是缩范围。**只有项目级操作是这样；** Home 级的两个操作是 `run(input)` 直接调（`:237`），靠 `:230` 一处 `as` 和 kernel 的校验，类型来自同一份 zod（`studio/shared/contracts/actions.ts:118`）。N22-Z 核的时候把这两个写进名单 |
 
 ### 4.5 字面量怎样保住（迁移写法）
 
@@ -362,7 +373,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 4. 删掉第一类的检查和读值小函数；T 片留下的 `as` 也删掉。
 5. `pnpm build`、`pnpm actions:update`，每个搬进去的约束配一个断言拒绝的用例（AIC-12）。
 
-Jelly 的例子：`action-schema.ts:11` 的 `ids` 加 `minItems: 1`（`uniqueItems` 已有），`:42` 的 `text` 加 `pattern: "\\S"`，再删 `jelly/src/ai.ts:26` 的那一行。`:27` 起按选区核对块的部分要读库，留下。
+Jelly 的例子：`action-schema.ts:9` 的 `ids` 加 `minItems: 1`（`uniqueItems` 已有），`:40` 的 `text` 加 `pattern: "\\S"`，再删 `jelly/src/ai.ts:26` 的那一行。`:27` 起按选区核对块的部分要读库，留下。
 
 ### 5.3 S 片要逐条判断的三件事
 
@@ -473,7 +484,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 | 片 | 做什么 | 轨道 | 档位 | 前置 |
 | --- | --- | --- | --- | --- |
-| N22-Z 收口 | 全仓再找一遍（其他批新加的处理器）；删 `defineAction` 手写 `Input` 的写法（改 `api/plugin-sdk/index.txt`，排 api 队列，过公共合同合审）；`examples/probe-plugin`、`tooling/plugin-cli` 模板、`skills/molis-plugin-dev`（全量回归期间不能改 `skills/`）；核 Alchemist（项目级与 Home 级两种，§4.4）；动态 schema 名单写进这份 spec | C1 | Opus 5.5 high，全量 | 全部 T、S |
+| N22-Z 收口 | 全仓再找一遍（其他批新加的处理器）；删 `defineAction` 手写 `Input` 的写法（改 `api/plugin-sdk/index.txt`，排 api 队列，过公共合同合审）；`examples/probe-plugin`、`examples/personal-sync-plugin`（`plugin.ts:57-58`，#1877 新增，用 `bindOwnerPluginAction`，处理器里 2 处 `_input as {...}`）、`tooling/plugin-cli` 模板、`skills/molis-plugin-dev`（全量回归期间不能改 `skills/`）；核 Alchemist（项目级与 Home 级两种，§4.4）；动态 schema 名单写进这份 spec | C1 | Opus 5.5 high，全量 | 全部 T、S |
 | N22-G 防回潮门禁 | §9.2 的绝对门禁，带变异用例，一个小 PR。用户 2026-11-06 已同意改门禁 | 无归属 | Opus 5.5 high | N22-Z |
 
 **合并分片的理由。** 账上按包算 28 片。这里把 20 个插件的 T 片并成 9 片（Jelly 是试点，Alchemist 不迁），宿主和 `modules` 按主题拆成 4 片，S 片也一样并。规矩是：
@@ -507,7 +518,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 | 文件 | 行数 | 里面是 | N22 碰吗 |
 | --- | --- | --- | --- |
-| `actions.tsv` | 586 | 22 个插件 Manifest 声明的动作，按提供方连续排 | S1～S6、N22-04 |
+| `actions.tsv` | 588 | 22 个插件 Manifest 声明的动作，按提供方连续排 | S1～S6、N22-04 |
 | `host-actions.tsv` | 367 | `platform` 58、`sdk.artifacts.*` 128、`system.*`、Characters、Artifacts、Shelf 27 | S0、S6～S9、N14、N22-05 |
 | `scenes.tsv`、`host-scenes.tsv` | 8、7 | 消费场景 | 不碰 |
 
@@ -644,6 +655,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 2026-11-06 | 新错误码 `functions.sample_not_found` | 和规则不在共用 `not_found` | 页面只看码就要分清「规则没了」和「样例没了」，后者不该提示 |
 | 2026-11-06 | 「存成新规则」用 `create` 加 `update`，不传原 key，不带样例和试跑结果 | 新动作、原子的 `create` | 不加动作；已发布的规则还占着原 key；新规则内容没人试过 |
 | 2026-11-06 | 不加第三方类型依赖 | `json-schema-to-ts` | 外部作者只装两个包 |
+| 2026-11-07 | **`etag`、`expected_content_hash`、`expectedEtag`、`expected_input_revision` 不进 `VERSION_FIELDS`，`functions` 也不照 etag 做**（合同台定） | 全部统一成一个字段；`functions` 加内容指纹 | §1 末段。不同的字段表达不同的东西；`updated_at` 只代表定义内容之后不需要指纹 |
 | 2026-11-06 | 80 字符上限删掉不搬 | 搬到 SDK | 和放置 schema 的 120 不一致，谁都不是主人 |
 | 2026-11-06 | **N22 一次迁完**（用户 2026-11-06 定） | 工具加试点、全量只换类型 | 代价是约 30 片、第 06 批之后等它，用户知道 |
 | 2026-11-06 | 拆成 T 片和 S 片，T 片不动 schema 值、不占快照 | 每包一个 PR 两件一起做 | §8.3 |

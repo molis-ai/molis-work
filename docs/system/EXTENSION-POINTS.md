@@ -199,9 +199,9 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 种类 | 现在 | 位置 | 目标 |
 | --- | --- | --- | --- |
 | Agent Host 里自写适配器 | 3 | `horizontal/agent-host/src/adapters/<名>.ts`（实现 `AgentRuntimeAdapter`，`packages/contracts/src/services/agent-host.ts`）、`horizontal/agent-host/src/index.ts` 导出、`agent-host-composition.ts` 注册 | 3 |
-| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 12–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/local-host/src/plugin-terminal-runtimes.ts`（终端配方：命令名与续接参数，T-148 起只此一份）、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（12 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（15 个文件，分布在 7 个包） | 2 |
+| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 2；接入加角色导入 3–6 | 以 `pi-agent` 为例（2）：`packages/contracts/src/platform/external-tools.ts`（登记表一行：id、显示名、命令名、恢复参数、配置根目录，三份名单由它派生）、`apps/local-host/src/installer/runtime-config-adapters.ts`；`grok-build` 还有 Characters 的扫描（`apps/local-host/src/character-import-runtimes.ts`，3 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（6 个文件，分布在 4 个包） | 2 |
 
-外部 Runtime 的目标是一张 Runtime 描述表（id、可执行名、配置与 Skill 路径、恢复参数、导入根、显示名），各处读它。无切片，建议新增（X-4）。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
+外部 Runtime 的描述表就是外部工具登记表（BL-955）：id、可执行名、恢复参数、导入根、显示名都在一行里，各处读它；`runtime-config-adapters.ts` 的配置与 Skill 路径是行为，留在宿主，Shelf 的引擎名单是另一套键，留作 BL-955 的余项。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
 
 ### 3.13 界面插槽
 
@@ -300,7 +300,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | X-1 | 应用的 `package.json` 依赖和根包依赖由 `scripts/workspace-packages.mjs` 生成并带一致性检查；新建包只登记一处。路线图普查（`roadmap-2026-10-07.md` 第 607 行）已列入声明式注册要生成的东西，W5-02 的切片描述没有写，需要补进去 | 内置插件的包登记从 4 处降到 1 处，Module、服务从 3 处降到 1 处 | F1、F4、F5、3.1、3.10、3.11 |
 | X-2 | 宿主自有设置分区登记表 | 3.6 的 9 处降到 2 处 | F4 |
 | X-3 | 记忆作用域登记（并入 W4-08 的边界规则） | 3.9 的 10 处降到 3 处 | — |
-| X-4 | 外部 Runtime 描述表 | 3.12 的 6–15 处降到 2 处 | — |
+| X-4 | 外部 Runtime 描述表 | 3.12 的 6–15 处已降到 2–6 处（BL-955，余项是 Shelf） | — |
 | X-5 | 项目库基线由各 owner 包声明的 SQL 汇总，版本由声明推出 | `project-database-schema.ts` 不再逐个 import；Module 和插件加表不碰宿主 | F2、F4 |
 | X-6 | 插件按 Manifest 声明订阅、发布者不是运行中插件的事件（10-22 ① 定）。两种来源：宿主事件（宿主自己发，定向投给一个安装，或广播给持有类型表登记权限的安装；`host.review.settled@1`（定向）与 `host.workspace.changed@1`（广播，`workspace:read`）已做，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，按声明订阅，未做，沿用宿主事件的声明与接收写法） | 构建期插件发的事件也能触发规则；宿主不再为某个插件手写结算回调（PG-044） | F5 |
 | X-7 | 入口调用者解析集中：Web、MCP 入口和宿主各处不再直接写 `LOCAL_PERSON_ACTOR_ID`，入口只调一个解析函数（与 W2-07「5 个 MCP 连接工具的身份取自可信会话」同方向，但只覆盖 MCP 的一部分） | F4 的身份常量 33 处降到 1 处 | F4 |

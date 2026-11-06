@@ -1,5 +1,7 @@
+import { externalToolIdsWith } from "../platform/external-tools.js";
+
 /** Portable, immutable copy of selected local Agent instructions and Skill resources. */
-export const CHARACTER_IMPORT_RUNTIMES = ["codex", "claude-code", "cursor", "opencode", "grok-build"] as const;
+export const CHARACTER_IMPORT_RUNTIMES = externalToolIdsWith("character_import");
 export type CharacterImportRuntimeId = typeof CHARACTER_IMPORT_RUNTIMES[number];
 export interface CharacterImportRule { path: string; scope: "global" | "project"; content: string; condition?: string }
 export interface CharacterImportFile { path: string; encoding: "utf8" | "base64"; content: string }

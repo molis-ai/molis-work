@@ -231,7 +231,7 @@ const idsWith = <Key extends string>(key: Key): readonly ToolWith<Key>["id"][] =
 
 - **顺序是合同。** 登记表把这六家排在最前：`codex`、`claude-code`、`cursor`、`opencode`、`pi-agent`、`grok-build`。这样三份名单的成员和顺序都和今天一样，界面排序不变，PR 里写「成员不变，对调用方无影响」。
 - **`cursor` 这个 id 留给 Agent CLI 一行。** 它今天只用于角色导入，配置根目录 `~/.cursor` 由 CLI 和编辑器共用；编辑器是另一行 `cursor-editor`，不带 `character_import`。
-- **命令名不够认人。** 本机 `agent` 是指向 grok 的链接，而 Cursor 的命令也叫 `agent`。`character-import-discovery.ts` 现在已按真实路径核（命令名是 `agent` 时匹配 `.cursor` 或 `grok`，注释写明光看文件名不够），换成 `detect` 时**这个检查要保住**，写成 `real_path_pattern`。顺序是先看路径，路径不符不运行；过了才跑 `version_argv` 匹配 `version_pattern`，不符就当没装，不把输出交给这家的解析器。比现在多运行一次本机程序，所以写进 S-115。
+- **命令名不够认人。** 本机 `agent` 是指向 grok 的链接，而 Cursor 的命令也叫 `agent`。`character-import-discovery.ts` 现在已按真实路径核（命令名是 `agent` 时匹配 `.cursor` 或 `grok`，注释写明光看文件名不够），换成 `detect` 时**这个检查要保住**，写成 `real_path_pattern`。顺序是先看路径，路径不符不运行；过了才跑 `version_argv` 匹配 `version_pattern`，不符就当没装，不把输出交给这家的解析器。比现在多运行一次本机程序，所以写进 S-115。`version_argv` 的运行随 S-115 在第 34 批接，C-1 只把它写进登记表：角色导入不运行它，`real_path_pattern` 也只保今天的检查，即几家共用的命令名（现在是 `agent`）才核真实路径，`grok`、`cursor-agent` 这些自己的命令名不核。
 
 会话 ID 的规则只留一份：`plugin-terminal-runtimes.ts` 的 `TERMINAL_SESSION` 正则搬到 `external-tools.ts`，导出 `EXTERNAL_SESSION_NATIVE_ID_PATTERN`。`isTerminalSessionId` 留在原处用它，行为不变，S-103 的代码位置一格不用改。[核查 §3.2](source-contract-checks-2026-11.md#32-合成一份的做法) 写的「不动」指行为，这里只搬定义，理由是服务包也要同一条规则，不写第二份。
 
@@ -243,7 +243,7 @@ const idsWith = <Key extends string>(key: Key): readonly ToolWith<Key>["id"][] =
 | --- | --- | --- |
 | `apps/desktop/src/web-host.ts` | 命令可用性表 | 遍历 `TERMINAL_RUNTIMES`，命令名取配方。这是 F 轨独占文件，见第 10.1 节 |
 | `apps/workbench/src/terminal/pane.ts` | 显示名表（服务端渲染） | 同上；显示顺序今天是 Claude Code 在前，保留要写一句 |
-| `apps/workbench/src/browser/characters/common.ts` | 显示名表（**浏览器**） | 不把登记表带进浏览器：宿主在快照候选上下发 `label`，页面读它 |
+| `apps/workbench/src/browser/characters/common.ts` | 显示名表（**浏览器**） | 不把登记表带进浏览器。页面读显示名的两处是已存草稿和已发布版本的 `import_snapshot`，这两份快照没有 `label`（候选本来就带），所以由 `apps/workbench/src/characters/ui.ts` 渲染时写进 `data-characters` 那个 section 的 `data-character-runtime-names`，页面读它。不动合同、动作和存量数据 |
 | `apps/local-host/src/character-import-discovery.ts` | `LABELS` 与命令名表 | 读 `display_name` 与 `detect`，路径检查保住（第 4.3 节） |
 | `apps/local-host/src/character-import-paths.ts` | 配置根目录表 | 读 `character_import.config_root` |
 | `modules/characters/src/service.ts` | 显示名表 | 读 `display_name` |

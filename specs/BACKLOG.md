@@ -240,6 +240,8 @@
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| BL-1059 | 离线快照漏登记：`computer/`、`config/external-mcp-actions.json`、`config/connector-mcp-actions.json` 不在 `homeStores()`（`apps/local-host/src/home-stores.ts`），现有 Home 有这些内容时离线快照报 `unknown_data`。`docs/system/HOME-DATA.md` 另缺 `feed-content/feed-content.db`（它在 `homeStores()` 里，只是文档没写）和 `computer/` | [U1 设计 §15.2](upgrade-continuity/upgrade-chain-design.md)、[第 05 批核账](post-anticorruption-roadmap/reference/batches/05.md#batch-05-audit) | 明确后续做 | 现成缺陷，和升级无关；U2 的覆盖面也要管它们 | — | 中 | 第 05 批统筹 |
+| BL-1060 | `tracks.md` 补 `packages/kernel`、`packages/storage` 的轨道归属：第 05 批按 C1 对待，轨道表还没写 | [第 05 批主会话裁定](post-anticorruption-roadmap/reference/batches/05.md#batch-05-rulings) | 明确后续做 | 下次改轨道表时补 | — | 低 | 统筹 |
 | BL-021 | macOS 公开发布：使用已有个人 Apple Developer 账号接入 Developer ID 签名与公证（2026-10-27 用户已定） | [macos-desktop-release](archive/macos-desktop-release/spec.md)、[发布策略 §6](../docs/releases/POLICY.md#6-交付状态与尚缺项) | 明确后续做 | 账号采用已定；证书与公证配置、最终发行物验证仍未完成 | 既有账号的发布凭据与发布流水线 | 低 | Codex（F 轨）；账号与证书由用户办理 |
 | BL-569 | 安全不变量门禁的游离测试检查漏掉 `.e2e.test.ts`：`scripts/gates/security-invariants.mjs` 的 `hasTests` 与末尾扫描只匹配普通 `.test.ts`，需在独立片纳入浏览器文件，并补未登记 e2e 的拒绝回归；落实后删本行 | AC-AUDIT-08；[#1173 一轮建议](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380866302)、[统筹接续](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380869179) | 已知缺口 | 本片仅校正文档与登记，门禁实现另片先核权限依据 | 独立门禁片与评审 | 中 | 统筹／安全门禁（原登记：防腐线（本线），具体会话沿既有认领交接） |
 | BL-070 | Outbox 的实现与重放验收（目标架构保留，本期只重组现有功能） | [molis-work-architecture-reorganization](molis-work-architecture-reorganization/spec.md) 开头 2026-09-06 范围澄清 | 明确后续做 | 用户 2026-09-06 定为后续 | 无 | 低 | Outbox 需求与存储维护人（执行会话待分配） |

@@ -336,3 +336,16 @@ Auth、Club 开发分支已改为只运行构建与测试；Cloudflare 非生产
 K-20 最终整体构建后，Workbench README 与动画/资源相关 22 文件 337/337；专用 Chrome 程序副本配独立临时配置，导航板 1440/1024/390、中英文与明暗截图留在忽略的评审目录。整个账号分支与干净 main `614e57a29` 的视觉采集各 13/13，66 图中 64 相同、另两图 8/7 像素且最大通道差 1，22 份计算样式仅保留已有账号按钮 opacity 0.45→1；零容差比较退出 1，差异已核对，未调阈值。arrival.css 减 38、workbench.css 减 36，其余资源不变，51 项合计 7,458,788 字节；既有放行上限同步收紧，无新增额度。相对集成基点的健康门禁通过，最终 head 的远端 CI 由中央交付记录持有。
 
 随后集成实际 main `242d75d038f10b7347c364d7b8ed39f986b05c19`（#1852 导航组件板），合并保留导航板和账号客户端的构建步骤。资源沿用既有账号额度：arrival.css 在主线 693,169 上加 683，workbench.css 在 1,204,497 上加 452，workbench.js 在 1,077,514 上加 39,629，plugin-frame.js 在 208,271 上加 54；无新增资源或额度。整体重建后重新测量及运行具名回归，实际结果、精确候选和远端 Full/Verify 由 Auth 台账持有，不沿用旧候选的通过结论。
+
+
+## T-01 服务连接组件板主线接续（2026-11-06）
+
+主线 `733e5da73`（#1862）与账号分支仅在 Workbench 构建入口冲突；合并 `e9420b8c6` 保留服务连接组件板和账号客户端两边的步骤。整体验证发现新增英文仓库数量未使用单复数合同，干净主线原 `fill-message` 同样失败，并继续报出已在本分支修复的模型与标签计数；原全词典断言不修改。
+
+- **T01-REPOSITORY-COUNT-01（K-21）**：服务连接组件板的个人与团队账号，在仓库数量为 0/1/2 时分别显示 repositories/repository/repositories，Host 与浏览器一致。证明：`tests/fill-message.test.ts`；只修正两句翻译并补明确用例，不改变合同或门禁。
+
+组合验证两轮出现 Frame 重复读取，第二轮同时命中 Feed 点击和成果相机同步。干净主线一次 3/3、页面诊断运行通过均未消除原失败。改用被动网络事件后再次复现，额外 Feed 读取的调用栈为 `refreshBoard → applyUiState → setDesktopWorkSurface → sync → applySurface → drawFrame`，来自夹具前期写入引起的页面刷新。
+
+- **T01-FRAME-CURSOR-01（K-22）**：平台日志游标与 Goals 插件日志游标各有序号，不可比较。页面只在实际应用刷新后记住当次平台游标，后台轮询和 attention 通知都与此进度比较；不改 Goals 的事实游标。测试从真实 Host 读取当前平台游标，等页面实际消费至少该序号，再测相机交互；不伪造状态、不关闭刷新、不加固定等待。保留单次点击读取、相机同步后的节点与请求数、持有真实首次响应、身份改变拒绝以及版本 1→2 全部断言，原等待与 90 秒时限不变。证明：`tests/workbench-frame-container.e2e.test.ts`；原等待 Goals 游标追上平台游标会超时的诊断也保留，临时诊断已移除。
+
+- **T01-BOARD-CURSOR-01（K-22）**：第一次实际同步完成后进入 Feed 刷新实验，原无刷新控制、真实 Goal 写入、自然 attention 通知、持有并检查真实响应、只提交一次刷新与菜单保持全部继续成立；`tests/feed-source-menu-refresh.e2e.test.ts` 的原断言不删。`tests/workbench-pane-feed.e2e.test.ts` 与 `tests/workbench-hidden-refresh.e2e.test.ts` 继续验证新写入和隐藏后恢复，不以停止轮询消除重复请求。

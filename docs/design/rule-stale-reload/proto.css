@@ -1,6 +1,18 @@
-/* The stale-submission sample: arranging the catalog's parts for these views ([编排]) and the second prototype strip ([原型]).
-   The product frames and the rule editor and Feed composer come from ../_catalog/dist/*.css and ./dist/feed.css; approved or
-   proposed parts the catalog lacks, from ../_catalog/prototype.css. Tokens only. */
+/* The stale-submission sample, on the kit (../kit/kit.css, ../kit/settings.css) and the page sheets from ./export.mjs. Tokens only.
+   [原型]       the prototype's strips and toast placement: not product UI.
+   [编排]       arranging existing parts for these views.
+   [组件板新增] parts the user approved on 2026-11-06 that the catalog does not have yet; D track makes them specimens (README). */
+
+/* [原型] control strip, above the product frame */
+.proto { position: fixed; inset: 0 0 auto 0; z-index: 80; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px; overflow-x: auto;
+  background: repeating-linear-gradient(-45deg, var(--surface-soft), var(--surface-soft) 8px, var(--rail) 8px, var(--rail) 16px); border-bottom: 1px dashed var(--line-strong); color: var(--ink-soft); font-size: 12px; }
+.proto b, .proto > span { white-space: nowrap; color: var(--ink); }
+.proto label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.proto .mw-select { height: 28px; min-height: 28px; font-size: 12px; }
+.proto .mw-toggle-group { padding: 2px; border-radius: 8px; background: var(--control-fill); box-shadow: inset 0 0 0 1px var(--control-border); }
+.proto .mw-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 12%, var(--paper)); color: var(--ink); box-shadow: 0 0 0 1px var(--control-border); }
+.proto #reset { box-shadow: inset 0 0 0 1px var(--control-border); }
+.proto-toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 96px; z-index: 70; width: max-content; max-width: calc(100vw - 32px); }
 
 /* [原型] one line under the control strip saying what is simulated; not product UI */
 .proto-note { position: fixed; inset: 40px 0 auto 0; z-index: 79; height: 28px; margin: 0; padding: 0 12px; line-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -22,29 +34,66 @@ body.proto-on.immersive-workbench #app { height: 100%; }
 /* [编排] the band takes the editor's existing feedback slot; the footer grows upward, so the field being typed in stays put */
 .functions-feedback.has-band { flex: 1; }
 .functions-editor-footer:has(.has-band) { align-items: flex-end; }
-@media (max-width: 760px) { .functions-feedback.has-band { flex: none; } }
-.functions-save-status .mw-btn--link { min-height: 0; margin-left: 4px; font-size: inherit; }
+@media (max-width: 760px) { .functions-feedback.has-band { flex: none; width: 100%; } }
 .functions-save-status[data-tone="attention"] { color: var(--ink-soft); }
 .functions-save-status[data-tone="done"] { color: var(--ink-soft); }
 
 /* [编排] on a phone the band takes the footer's room: the steps at the top still move between steps */
-@media (max-width: 760px) { .functions-editor-footer:has(.has-band) .functions-actions:not(.cand-alert__actions) { display: none; } }
+@media (max-width: 760px) { .functions-editor-footer:has(.has-band) .functions-actions { display: none; } }
 
 /* [编排] Feed's rule composer: the band sits right under the buttons that were pressed */
 .feed-rule-composer [data-band]:not(:empty) { margin-top: 12px; }
-[data-feed-rule-status] .mw-btn--link { min-height: 0; font-size: inherit; }
+/* [编排] the band pins to the bottom of what can be seen, as the editor's footer does: it stays whole above the bottom bar, and focus never lands behind it */
+.feed-rule-composer [data-band]:not(:empty) { position: sticky; bottom: 8px; z-index: 2; }
+.feed-rule-composer [data-band] .cand-band { box-shadow: var(--lift-3); }
+.feed-rule-composer [data-band] .mw-alert:not(.mw-alert--warning, .mw-alert--success) { background: var(--paper); }
+.feed-setup-panel .mw-form__body:has(.feed-rule-composer [data-band]:not(:empty)) { scroll-padding-bottom: 180px; }
 .feed-rule-composer label + .cand-kept { margin-top: -8px; margin-bottom: 16px; }
 .functions-col label + .cand-kept { margin-top: -16px; }
 .functions-criteria .cand-kept { margin-top: 8px; }
-.functions-sample-note { margin: 0; }
 
 /* [编排] the criteria rows the editor's script draws, filled with sample values */
 [data-functions-criteria] .functions-criterion .mw-input { min-width: 0; }
 .functions-dest[aria-pressed="true"] { background: var(--nav-active); }
 
-/* [编排] the list of what differs, in the ask dialog */
-.proto-diff-list { display: grid; gap: 4px; margin: 0 0 12px; padding: 0; list-style: none; }
-.proto-diff-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 4px 12px; border-radius: var(--r-control); background: var(--surface-soft); font-size: 13px; }
-.proto-diff-list small { flex: none; color: var(--muted); font-size: 12px; }
+/* [编排] the leaving dialog's sentence */
 .proto-ask-copy { margin: 0 0 12px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
-.mw-dialog .mw-alert { margin-bottom: 12px; }
+
+/* [组件板新增] mw-alert's action slot. Same shape as .rk-alert-actions, .gr-alert-actions and .sk-alert-actions (batches 17, 18, 19):
+   a row of mw-btn under the alert's text. D track makes one specimen of it; all four then move to that. */
+.cand-alert-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.mw-alert > p + .cand-alert-actions { margin-top: 0; }
+
+/* The band's two moments, on the same alert: rising in when it appears, a small nudge when a blocked press sends you back to it, and the
+   tick settling on success. Motion tokens only. */
+.cand-band { animation: craft-rise var(--dur-move) var(--ease-quint); }
+.cand-band.is-settled { animation: none; }
+.cand-band:focus { outline: none; }
+.cand-band.is-nudged { animation: cand-nudge var(--dur-move) var(--ease-spring); }
+.cand-band > strong { display: flex; align-items: flex-start; gap: 6px; font-weight: var(--weight-control); overflow-wrap: anywhere; }
+.cand-band__mark { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; animation: cand-land var(--dur-move) var(--ease-spring); }
+.cand-band.is-settled .cand-band__mark { animation: none; }
+.cand-band .mw-btn[aria-busy="true"] { pointer-events: none; }
+.cand-band .mw-btn .mw-spinner { width: 14px; height: 14px; margin-right: 6px; }
+@keyframes cand-land { from { transform: scale(.6); } to { transform: none; } }
+@keyframes cand-nudge { 0% { transform: none; } 40% { transform: translateY(-3px); } 100% { transform: none; } }
+
+/* [组件板新增] what you wrote, kept under the field it came from: the amber of "waits on the person"; once put back the same slot holds the latest version, neutral, with the way back */
+.cand-kept { --i: 0; display: grid; gap: 4px; padding: 8px 8px 8px 12px; border-radius: var(--r-control); background: var(--amber-soft); animation: craft-rise var(--dur-move) var(--ease-quint) backwards; animation-delay: calc(var(--i) * 60ms); }
+.cand-kept.is-settled { animation: none; }
+.cand-kept.is-swapped { background: var(--surface-soft); }
+.cand-kept__head { display: flex; align-items: center; gap: 8px; }
+.cand-kept__who { flex: 1; min-width: 0; color: var(--ink); font-size: 12px; font-weight: var(--weight-control); }
+.cand-kept__text { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.cand-kept__text.is-open { display: block; -webkit-line-clamp: unset; }
+.cand-kept__text.is-blank { color: var(--muted); }
+.cand-kept__more { justify-self: start; min-height: 0; padding: 0; border: 0; background: none; color: var(--accent-strong); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* [组件板新增] a dot on a step that holds something to look at, so a change on another step can be found */
+.functions-steps button[data-cand-dot] { position: relative; }
+.functions-steps button[data-cand-dot] > span::after { content: ""; position: absolute; width: 8px; height: 8px; margin: -12px 0 0 18px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--paper); }
+
+/* [组件板新增] a field whose content just changed: the same [data-craft-new] moment, but the row's opaque wash would hide the words in a field, so here it is translucent */
+:is(.functions-col, .feed-rule-composer) [data-craft-new]::after { inset: -4px -8px; border-radius: var(--r-control); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+
+@media (prefers-reduced-motion: reduce) { .cand-band, .cand-band.is-nudged, .cand-band__mark, .cand-kept { animation: none; } }

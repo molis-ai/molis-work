@@ -1,9 +1,8 @@
 // Writes the product's own markup for the two pages this prototype draws on, into ./dist/ (generated, not committed):
 // the rule editor from renderFunctionsWorkbench and Feed's rule composer from renderFeedWorkbench, in both languages through
-// the product's own English dictionary, plus Feed's stylesheet. Nothing here is copied by hand; rerun after the pages change.
+// the product's own English dictionary, plus the workbench page's and Feed's stylesheets (the settings page's is in ../kit/). Nothing here is copied by hand; rerun after the pages change.
 //
 //   pnpm build
-//   node docs/design/_catalog/export.mjs
 //   node docs/design/rule-stale-reload/export.mjs
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -17,6 +16,7 @@ const { renderFunctionsWorkbench } = await load("apps/workbench/dist/judgment-ru
 const { EN } = await load("apps/workbench/dist/i18n/en.js");
 const { renderFeedWorkbench } = await load("plugins/native/feed/dist/ui.js");
 const { FEED_STYLES } = await load("plugins/native/feed/dist/styles.js");
+const { renderMolisWorkWorkbenchStylesheet } = await load("apps/workbench/dist/page-assets.js");
 const { icon } = await load("packages/plugin-sdk/dist/ui/icon.js");
 const feedEnglish = await load("plugins/native/feed/dist/en.js");
 const FEED_EN = Object.values(feedEnglish).find((value) => value && typeof value === "object") ?? {};
@@ -58,6 +58,7 @@ for (const lang of ["zh", "en"]) {
 
 const out = join(here, "dist");
 mkdirSync(out, { recursive: true });
+writeFileSync(join(out, "workbench.css"), renderMolisWorkWorkbenchStylesheet());
 writeFileSync(join(out, "feed.css"), FEED_STYLES);
 writeFileSync(join(out, "fragments.js"), `window.RULE_FRAGMENTS = ${JSON.stringify(fragments)};\n`);
 process.stdout.write(`feed.css ${(FEED_STYLES.length / 1024).toFixed(0)} KB, fragments.js ${(JSON.stringify(fragments).length / 1024).toFixed(0)} KB\n`);

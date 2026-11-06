@@ -1,11 +1,10 @@
-// N14 · "this rule changed elsewhere" — three schemes on the rule editor (workbench page) and Feed's rule composer (plugin page).
+// N14 · "this rule changed elsewhere" — the chosen scheme A (user 2026-11-06) on the rule editor (workbench page) and Feed's rule composer (plugin page).
 // The markup of both pages is the product's own (./export.mjs), the look is the product's sheets; everything that happens is
 // simulated: every rule, every save, the other party, and the failures. Nothing reads or writes a Home.
-//   #s=A|B|C  &h=editor|feed  &st=<state>  &d=plain|full|empty  &l=zh|en  &t=light|dark   a state can be opened directly from the address.
+//   #h=editor|feed  &st=<state>  &d=plain|full|empty  &l=zh|en  &t=light|dark   a state can be opened directly from the address.
 (() => {
   const app = document.getElementById("app");
   const FRAG = window.RULE_FRAGMENTS;
-  const SCHEMES = [["A", ["A 就地接住", "A Keep it in place"]], ["B", ["B 对比后决定", "B Compare, then decide"]], ["C", ["C 拦下来问", "C Stop and ask"]]];
   const HOSTS = [["editor", ["判断规则编辑器（工作台页面）", "Rule editor (workbench page)"]], ["feed", ["Feed 捕捉规则（插件页面）", "Feed capture rule (plugin page)"]]];
   const DATA = [["plain", ["常规", "Typical"]], ["full", ["最挤", "Crowded"]], ["empty", ["最空", "Sparse"]]];
   const BASE_STATES = [
@@ -20,20 +19,21 @@
     ["noop", ["别处只试跑过，内容没变", "Only a test run elsewhere"]],
     ["published", ["已在别处发布（补充）", "Published elsewhere (extra)"]],
   ];
-  const statesOf = (scheme) => {
-    if (scheme === "B") return [...BASE_STATES.slice(0, 2), ["compare", ["对比面板打开", "Compare sheet open"]], ...BASE_STATES.slice(2)];
-    if (scheme === "C") return [...BASE_STATES.slice(0, 2), ["ask", ["对话框打开", "Dialog open"]], ...BASE_STATES.slice(2)];
-    return BASE_STATES;
-  };
 
-  const initial = { scheme: "A", host: "editor", state: "normal", data: "plain", lang: "zh", theme: "light" };
-  const fromHash = () => { const q = new URLSearchParams(location.hash.slice(1)); return { scheme: q.get("s"), host: q.get("h"), state: q.get("st"), data: q.get("d"), lang: q.get("l"), theme: q.get("t") }; };
+  const initial = { host: "editor", state: "normal", data: "plain", lang: "zh", theme: "light" };
+  const fromHash = () => { const q = new URLSearchParams(location.hash.slice(1)); return { host: q.get("h"), state: q.get("st"), data: q.get("d"), lang: q.get("l"), theme: q.get("t") }; };
   const S = { ...initial };
   for (const [key, value] of Object.entries(fromHash())) if (value) S[key] = value;
-  const toHash = () => { history.replaceState(null, "", `#s=${S.scheme}&h=${S.host}&st=${S.state}&d=${S.data}&l=${S.lang}&t=${S.theme}`); };
+  const toHash = () => { history.replaceState(null, "", `#h=${S.host}&st=${S.state}&d=${S.data}&l=${S.lang}&t=${S.theme}`); };
 
-  const P = window.molisParts(() => S.lang);
-  const { esc, ic, btn, toast } = P;
+  const { escapeHtml: esc, icon: ic, renderButton } = window.mwKit;
+  const btn = ({ only, variant = "secondary", ...rest }) => renderButton({ ...rest, variant, iconOnly: only });
+  const toast = (message) => {
+    document.querySelectorAll(".proto-toast").forEach((node) => node.remove());
+    const node = document.createElement("div"); node.className = "mw-toast proto-toast"; node.dataset.slot = "toast"; node.setAttribute("role", "status");
+    node.innerHTML = `<span>${esc(message)}</span>`; document.body.append(node);
+    setTimeout(() => node.remove(), 3200);
+  };
   const L = (zh, en) => (S.lang === "zh" ? zh : en);
   const T = (pair) => (S.lang === "zh" ? pair[0] : pair[1]);
 
@@ -105,14 +105,8 @@
     if (S.state === "normal") M.savedText = L("草稿自动保存", "Drafts save automatically");
     if (S.host === "feed" && S.state === "normal") M.cur = structuredClone(V.mine); // what is typed in Feed reaches the rule only when you press a button
     if (S.state === "loaded") {
-      if (S.scheme === "A") applyLatest(false);
-      if (S.scheme === "B") { const picks = defaultPicks(); for (const [id, which] of Object.entries(picks)) if (which !== "mine") M.cur[id] = structuredClone(V.latest[id]); M.undo = structuredClone(V.mine); M.phase = "merged"; M.washed = new Set(Object.keys(picks)); }
-      if (S.scheme === "C") { M.cur = structuredClone(V.latest); M.washed = new Set(whoChangedAgainstBase()); M.savedText = L("已保存", "Saved"); }
+      applyLatest(false);
     }
-    if (S.scheme === "B" && S.state === "compare") { M.phase = "conflict"; M.dialog = "compare"; M.picks = defaultPicks(); }
-    if (S.scheme === "C" && S.state === "ask") { M.phase = "conflict"; M.dialog = "ask"; }
-    if (S.scheme === "C" && S.host === "feed" && S.state === "conflict") M.dialog = "ask"; // Feed only ever submits on a press, so C asks at once
-    if (S.scheme === "C" && ["deleted", "second", "offline", "published"].includes(S.state)) M.dialog = "ask";
   };
   const whoChangedAgainstBase = () => FIELDS().filter((f) => !same(V.latest[f.id], V.base[f.id])).map((f) => f.id);
 
@@ -132,12 +126,11 @@
     M.lookAt = report.filter((f) => f.who === "they").map((f) => f.id);
     M.savedText = "";
   }
-  function defaultPicks() { const picks = {}; for (const f of whoChanged()) if (f.differs) picks[f.id] = f.who === "you" ? "mine" : f.who === "they" ? "latest" : null; return picks; }
 
   // ---------- Frames ----------
   const barHtml = () => `<div class="workbench-bar" data-dock aria-label="${L("底栏", "Bottom bar")}"><div class="bar-start"><div class="plugin-picker"><button class="plugin-picker-trigger" type="button" aria-expanded="false" aria-label="${L("全部插件与 Dock", "All plugins and Dock")}"><span class="plugin-picker-all" aria-hidden="true">${ic("grid")}</span><span class="plugin-picker-current">${ic("rss")}<span>Feed</span></span>${ic("chevron-down")}</button></div><div class="dock-pins" role="toolbar" aria-label="${L("常驻插件", "Kept plugins")}">${[["home", "home", L("项目首页", "Project home")], ["pages", "note", "Pages"], ["feed", "rss", "Feed"]].map(([id, g, t]) => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" aria-label="${t}" title="${t}"${id === "feed" ? ' aria-current="page"' : ""}>${ic(g)}</button>`).join("")}</div></div>
     <div class="bar-center"><form class="assistant-composer bar-composer" aria-label="Molis Work Assistant" onsubmit="return false"><input class="assistant-composer-input" type="text" autocomplete="off" placeholder="${L("让助理做点什么…", "Ask the Assistant…")}" aria-label="${L("发给助理", "Message the Assistant")}"><button class="bar-composer-attach" type="button" aria-label="${L("添加文件、引用或能力", "Add files, references or capabilities")}">${ic("paperclip")}</button>${btn({ variant: "primary", size: "sm", only: true, icon: "send", label: L("发送", "Send"), disabled: true })}</form></div>
-    <div class="bar-end"><section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${L("当前项目", "Current project")}"><div class="navigator-project-primary"><details class="navigator-project-menu"><summary class="navigator-project-selector" aria-label="${L("切换项目", "Switch project")}">${P.monogram("A")}<strong>${L("AI 产品观察", "AI product watch")}</strong>${ic("chevron-down")}</summary></details></div></section></div></div>`;
+    <div class="bar-end"><section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${L("当前项目", "Current project")}"><div class="navigator-project-primary"><details class="navigator-project-menu"><summary class="navigator-project-selector" aria-label="${L("切换项目", "Switch project")}"><span class="project-monogram" data-hue="purple" aria-hidden="true">A</span><strong>${L("AI 产品观察", "AI product watch")}</strong>${ic("chevron-down")}</summary></details></div></section></div></div>`;
   const capabilityNav = () => `<nav class="settings-navigation settings-navigation--codex" aria-label="${L("能力服务", "Capability services")}"><a class="settings-nav-back" href="#" data-act="noop">${ic("back")}${L("返回工作台", "Back to workbench")}</a><div class="settings-project-identity"><strong>${L("能力", "Capabilities")}</strong><span>${L("系统服务", "System service")}</span></div><div class="settings-nav-body">${[["library", "grid", L("能力库", "Capability library")], ["history", "clock", L("调用记录", "Call history")]].map(([id, g, t]) => `<a href="#" data-act="noop"${id === "library" ? ' aria-current="page"' : ""}>${ic(g)}${t}</a>`).join("")}</div></nav>`;
 
   function mountEditor() {
@@ -271,22 +264,19 @@
     const busy = M.busy;
     return `<button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" id="band-primary" data-act="reload"${busy ? ' aria-busy="true"' : ""}>${busy === "spin" ? '<span class="mw-spinner" data-slot="spinner" aria-hidden="true"></span>' : ""}<span data-slot="button-label">${busy ? L("正在载入…", "Loading…") : label}</span></button>`;
   };
-  const band = (tone, state, title, body, actions = "", extra = {}) => `<div class="mw-alert${tone ? ` mw-alert--${tone}` : ""} cand-alert${extra.settled ? " is-settled" : ""}" data-slot="alert" role="${extra.role || "status"}" tabindex="-1" data-band-node>
-      ${state ? `<span class="cand-alert__mark mw-status mw-status--plain" data-slot="status" data-mw-state="${state}" aria-hidden="true"><span></span></span>` : ""}
-      <div class="cand-alert__copy"><strong>${title}</strong>${body ? `<p>${body}</p>` : ""}</div>${actions ? `<div class="cand-alert__actions">${actions}</div>` : ""}</div>`;
+  // The alert's shape is the one batches 17, 18 and 19 use: title, text, then a row of buttons under them (cand-alert-actions).
+  const band = (tone, state, title, body, actions = "", extra = {}) => `<div class="mw-alert${tone ? ` mw-alert--${tone}` : ""} cand-band${extra.settled ? " is-settled" : ""}" data-slot="alert" role="${extra.role || "status"}" tabindex="-1" data-band-node><strong>${state ? `<span class="cand-band__mark mw-status mw-status--plain" data-slot="status" data-mw-state="${state}" aria-hidden="true"><span></span></span>` : ""}<span>${title}</span></strong>${body ? `<p>${body}</p>` : ""}${actions ? `<div class="cand-alert-actions">${actions}</div>` : ""}</div>`;
   function bandHtml() {
     const { stillHere, feed } = PHRASE();
-    const openCompare = (label) => btn({ variant: "primary", size: "sm", label, attrs: { id: "band-primary", "data-act": "open-compare" } });
-    const primaryLoad = (label) => (S.scheme === "B" ? (M.busy ? reloadBtn() : openCompare(label || L("对比并决定", "Compare and decide"))) : reloadBtn());
     const saveNew = (variant = "ghost") => btn({ variant, size: "sm", label: feed ? L("用我写的另起一条", "Start fresh with mine") : L("存成新规则", "Save as new rule"), attrs: { "data-act": "save-new", ...(variant === "primary" ? { id: "band-primary" } : {}) } });
     switch (M.phase) {
       case "conflict":
       case "kept":
-        return band("warning", "", L("这条规则在别处改过", "This rule changed elsewhere"), stillHere, primaryLoad());
+        return band("warning", "", L("这条规则在别处改过", "This rule changed elsewhere"), stillHere, reloadBtn());
       case "offline":
         return band("warning", "", L("最新版还没载入", "Couldn't load the latest version"), L("连接好像断了。你写的都还在，连上后再试一次。", "The connection seems down. What you wrote is still here; try again once you're back."), reloadBtn(L("再试一次", "Try again")));
       case "second":
-        return band("warning", "", L("这条规则又被改了一次", "This rule changed again"), L("可能还有人在改它。你写的都还在，还没存。", "Someone may still be working on it. What you wrote is still here, not saved yet."), saveNew() + primaryLoad(S.scheme === "B" ? L("再对比一次", "Compare again") : undefined));
+        return band("warning", "", L("这条规则又被改了一次", "This rule changed again"), L("可能还有人在改它。你写的都还在，还没存。", "Someone may still be working on it. What you wrote is still here, not saved yet."), saveNew() + reloadBtn());
       case "deleted":
         return feed
           ? band("warning", "", L("这条规则的草稿已被删除", "This rule's draft was deleted"), L("你写的都还在。重新预览一次，草稿就会再建好。", "What you wrote is still here. Preview again and the draft is rebuilt."), btn({ variant: "primary", size: "sm", label: L("重新预览", "Preview again"), attrs: { id: "band-primary", "data-act": "preview" } }))
@@ -305,18 +295,16 @@
         const yours = (M.keptYours || []).join(L("、", ", "));
         const theirs = (M.keptTheirs || []).join(L("、", ", "));
         const lines = [];
-        if (both.length) lines.push(L(`${names}两边都改了，你写的放在下面。`, `${names}: changed on both sides; yours is below.`));
+        if (both.length) lines.push(L(`${names}两边都改了，你写的就在它下面。`, `${names}: changed on both sides; yours is right under it.`));
         else if (swapped.length) lines.push(L("你写的已放回，已保存。", "What you wrote is back, and saved."));
         if (theirs) lines.push(L(`别处还改了${theirs}。`, `Also changed elsewhere: ${theirs}.`));
         if (yours) lines.push(L(`你改的${yours}留着。`, `Your edit to the ${yours.toLowerCase()} stays.`));
         if (feed) lines.push(L("再预览一次才能启用。", "Preview again before enabling it."));
         const settled = M.bandSettled;
-        return band("success", "done", L("已载入最新版", "Latest version loaded"), lines.join(L("", " ")), btn({ variant: "ghost", size: "sm", only: true, icon: "x", label: L("收起提示", "Dismiss"), attrs: { "data-act": "dismiss-band" } }), { settled });
+        return band("success", "done", L("已载入最新版", "Latest version loaded"), lines.join(L("", " ")), btn({ variant: "ghost", size: "sm", label: L("收起", "Dismiss"), attrs: { "data-act": "dismiss-band" } }), { settled });
       }
-      case "merged":
-        return band("success", "done", L("已合好并保存", "Merged and saved"), feed ? L("再预览一次才能启用。", "Preview again before enabling it.") : "", btn({ variant: "ghost", size: "sm", label: L("撤销", "Undo"), attrs: { "data-act": "merge-undo" } }));
       case "savedNew":
-        return band("success", "done", feed ? L("已用你写的另起一条", "Started fresh with what you wrote") : L("已存成新规则", "Saved as a new rule"), feed ? L("再预览一次才能启用。", "Preview again before enabling it.") : L("名字和内容都是你写的。", "The name and content are what you wrote."), btn({ variant: "ghost", size: "sm", only: true, icon: "x", label: L("收起提示", "Dismiss"), attrs: { "data-act": "dismiss-band" } }));
+        return band("success", "done", feed ? L("已用你写的另起一条", "Started fresh with what you wrote") : L("已存成新规则", "Saved as a new rule"), feed ? L("再预览一次才能启用。", "Preview again before enabling it.") : L("名字和内容都是你写的。", "The name and content are what you wrote."), btn({ variant: "ghost", size: "sm", label: L("收起", "Dismiss"), attrs: { "data-act": "dismiss-band" } }));
       default:
         return "";
     }
@@ -324,94 +312,36 @@
   function paintBand() {
     const slot = app.querySelector("[data-band]");
     if (!slot) return;
-    const html = S.scheme !== "C" && !M.bandGone ? bandHtml() : "";
+    const html = !M.bandGone ? bandHtml() : "";
     const key = `${M.phase}|${M.busy}|${html.length}`;
     if (slot.dataset.key !== key) { slot.innerHTML = html; slot.dataset.key = key; }
     slot.closest(".functions-feedback")?.classList.toggle("has-band", Boolean(html));
     if (html) M.bandSettled = true;
   }
   function paintStatus() {
-    if (S.host !== "editor") {
-      const status = app.querySelector("[data-feed-rule-status]");
-      const pending = S.scheme === "C" && ["conflict", "kept", "offline", "second", "deleted", "published"].includes(M.phase);
-      if (pending) { status.hidden = false; status.dataset.error = "true"; status.innerHTML = `${L("未保存 · 别处有新版", "Not saved · A newer version exists")} <button type="button" class="mw-btn mw-btn--link" data-slot="button" data-act="open-ask"><span data-slot="button-label">${L("处理", "Resolve")}</span></button>`; }
-      else if (status.querySelector("[data-act=open-ask]")) { status.hidden = true; status.textContent = ""; }
-      return;
-    }
+    if (S.host !== "editor") return;
     const line = app.querySelector("[data-functions-save-status]");
     const owes = ["conflict", "kept", "offline", "second", "deleted", "published"].includes(M.phase);
     line.dataset.tone = owes ? "attention" : "done";
     // With a band up the band says it; two lines saying "not saved" is one too many.
     line.hidden = Boolean(app.querySelector("[data-band-node]"));
-    if (owes && S.scheme === "C") {
-      const word = M.phase === "deleted" ? L("未保存 · 这条规则已被删除", "Not saved · This rule was deleted") : M.phase === "published" ? L("未保存 · 已在别处发布", "Not saved · Published elsewhere") : L("未保存 · 别处有新版", "Not saved · A newer version exists");
-      line.innerHTML = `${word}<button type="button" class="mw-btn mw-btn--link" data-slot="button" data-act="open-ask"><span data-slot="button-label">${L("处理", "Resolve")}</span></button>`;
-      return;
-    }
     if (owes) { line.textContent = L("未保存 · 自动保存已暂停", "Not saved · Auto-save paused"); return; }
     line.textContent = M.savedText || (M.phase === "loaded" ? L("这是最新版", "This is the latest version") : L("已保存", "Saved"));
   }
 
-  // ---------- Dialogs: the compare sheet (B), the ask dialog (C), leaving (A, B) ----------
-  // Lines the other side lacks are marked, but only when the two share something: a wholly different text would just be all yellow.
-  const markedLines = (text, other) => { const mine = String(text).split("\n"), others = new Set(String(other).split("\n")); if (!mine.some((line) => others.has(line))) return esc(text); return mine.map((line) => others.has(line) ? esc(line) : `<mark>${esc(line)}</mark>`).join("\n"); };
-  function compareSheet() {
-    const rows = whoChanged().filter((f) => f.differs);
-    const left = Object.values(M.picks || {}).filter((v) => v === null).length;
-    const tag = { both: L("两边都改了", "Changed on both sides"), you: L("只有你改了", "Only you changed it"), they: L("只有别处改了", "Only changed elsewhere") };
-    const side = (field, which, label, text, other) => `<button type="button" class="cand-merge__side" aria-pressed="${M.picks?.[field.id] === which}" data-act="pick" data-arg="${field.id}:${which}"><span class="cand-merge__label">${label}${ic("check")}</span><span class="cand-merge__text${text ? "" : " is-blank"}">${text ? markedLines(text, other) : L("你清空了这一栏", "You cleared this field")}</span></button>`;
-    return `<dialog class="mw-sheet" data-slot="sheet" aria-labelledby="merge-title" data-proto-dialog><form method="dialog" class="mw-form mw-sheet__shell" onsubmit="return false">
-      <header class="mw-form__header"><div><h2 id="merge-title">${L("对比两个版本", "Compare the two versions")}</h2><p>${L("只列出不一样的地方。选好后，你写的和最新版合成一份。", "Only what differs is listed. Choose, and the two become one.")}</p></div>${btn({ variant: "ghost", only: true, icon: "x", label: L("关闭", "Close"), cls: "mw-dialog__close", attrs: { "data-act": "dlg-close" } })}</header>
-      <div class="mw-form__body">${rows.map((field) => { const mine = showValue(field.id, M.cur[field.id]), latest = showValue(field.id, V.latest[field.id]); return `<section class="cand-merge" aria-label="${esc(field.label)}"><div class="cand-merge__head"><span>${field.label}</span>${P.badge(field.who === "both" ? "warning" : "neutral", tag[field.who])}</div><div class="cand-merge__sides">${side(field, "latest", L("最新版", "Latest version"), latest, mine)}${side(field, "mine", L("你写的", "You wrote"), mine, latest)}</div></section>`; }).join("")}</div>
-      <footer class="mw-form__footer"><div class="cand-merge__foot"><span class="cand-merge__left" role="status">${left ? L(`还有 ${left} 处要选`, `${left} left to choose`) : L("都选好了", "All chosen")}</span>${btn({ size: "sm", label: L("先不处理", "Not now"), attrs: { "data-act": "dlg-close" } })}${btn({ variant: "primary", size: "sm", label: L("用选中的内容继续", "Continue with these"), disabled: Boolean(left), attrs: { "data-act": "merge-apply" } })}</div></footer></form></dialog>`;
-  }
-  function askDialog() {
-    const feed = S.host === "feed";
-    const report = whoChanged().filter((f) => f.differs);
-    const tag = { both: L("两边都改了", "Changed on both sides"), you: L("只有你改了", "Only you changed it"), they: L("只有别处改了", "Only changed elsewhere") };
-    const list = `<ul class="proto-diff-list">${report.map((f) => `<li><span>${f.label}</span><small>${tag[f.who]}</small></li>`).join("")}</ul>`;
-    const keep = feed ? L("先复制我写的", "Copy what I wrote first") : L("把我写的另存成一条新规则", "Keep what I wrote as a new rule");
-    const check = `<label class="mw-check-row"><input class="mw-check" data-slot="checkbox" type="checkbox" data-ask-keep ${M.askKeep === false ? "" : "checked"}><span>${keep}</span></label>`;
-    const close = btn({ size: "sm", label: L("继续写", "Keep writing"), attrs: { "data-act": "dlg-close" } });
-    let title = L("这条规则在别处改过", "This rule changed elsewhere"), body = "", foot = "";
-    if (M.phase === "deleted") {
-      title = feed ? L("这条规则的草稿已被删除", "This rule's draft was deleted") : L("这条规则已被删除", "This rule was deleted");
-      body = `<p class="proto-ask-copy">${feed ? L("你写的都还在。重新预览一次，草稿就会再建好。", "What you wrote is still here. Preview again and the draft is rebuilt.") : L("你写的都还在，可以存成一条新规则。", "What you wrote is still here. You can keep it as a new rule.")}</p>`;
-      foot = feed ? close + btn({ variant: "primary", size: "sm", label: L("重新预览", "Preview again"), attrs: { "data-act": "preview" } }) : btn({ size: "sm", label: L("不要了", "Discard"), attrs: { "data-act": "discard" } }) + btn({ variant: "primary", size: "sm", label: L("存成新规则", "Save as new rule"), attrs: { "data-act": "save-new" } });
-    } else if (M.phase === "published") {
-      title = L("这条规则已在别处发布为 v1", "This rule was published elsewhere as v1");
-      body = `<p class="proto-ask-copy">${L("发布后不能再改。你写的都还在，可以用它另起一条。", "A published rule can't change. What you wrote is still here; you can start a new one with it.")}</p>`;
-      foot = close + btn({ variant: "primary", size: "sm", label: feed ? L("用我写的另起一条", "Start fresh with mine") : L("存成新规则", "Save as new rule"), attrs: { "data-act": "save-new" } });
-    } else {
-      const failed = M.phase === "offline";
-      if (M.phase === "second") title = L("这条规则又被改了一次", "This rule changed again");
-      body = `${failed ? P.alert("warning", L("最新版还没载入", "Couldn't load the latest version"), L("连接好像断了。连上后再试一次。", "The connection seems down. Try again once you're back.")) : ""}<p class="proto-ask-copy">${M.phase === "second" ? L("可能还有人在改它。你写的都还在，还没存。", "Someone may still be working on it. What you wrote is still here, not saved yet.") : L("你写的都还在，还没存。载入最新版会替换编辑框里的内容。", "What you wrote is still here, not saved yet. Loading the latest replaces what's in the form.")}</p>${list}${check}`;
-      foot = close + `<button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-act="ask-load"${M.busy ? ' aria-busy="true"' : ""}>${M.busy === "spin" ? '<span class="mw-spinner" data-slot="spinner" aria-hidden="true"></span>' : ""}<span data-slot="button-label">${M.busy ? L("正在载入…", "Loading…") : failed ? L("再试一次", "Try again") : L("载入最新版", "Load latest")}</span></button>`;
-    }
-    return `<dialog class="mw-dialog" data-slot="dialog" aria-labelledby="ask-title" data-proto-dialog><form method="dialog" class="mw-form mw-dialog__shell" onsubmit="return false"><header class="mw-form__header"><div><h2 id="ask-title">${title}</h2></div></header><div class="mw-form__body">${body}</div><footer class="mw-form__footer">${foot}</footer></form></dialog>`;
-  }
+  // ---------- The one dialog: leaving with unsaved work ----------
   const leaveDialog = () => `<dialog class="mw-dialog" data-slot="dialog" aria-labelledby="leave-title" data-proto-dialog><form method="dialog" class="mw-form mw-dialog__shell" onsubmit="return false"><header class="mw-form__header"><div><h2 id="leave-title">${L("你写的还没存", "What you wrote isn't saved")}</h2></div></header><div class="mw-form__body"><p class="proto-ask-copy">${L("这条规则在别处改过，所以这次没能存上。离开后，你写的就没有了。", "This rule changed elsewhere, so it couldn't save. If you leave, what you wrote is gone.")}</p></div><footer class="mw-form__footer">${btn({ size: "sm", label: L("不要了，回到列表", "Discard and go back"), attrs: { "data-act": "discard" } })}${btn({ variant: "primary", size: "sm", label: L("留在这里", "Stay here"), attrs: { "data-act": "dlg-close" } })}</footer></form></dialog>`;
   function paintDialog() {
     const open = document.querySelector("dialog[data-proto-dialog]");
-    const html = M.dialog === "compare" ? compareSheet() : M.dialog === "ask" ? askDialog() : M.dialog === "leave" ? leaveDialog() : "";
+    const html = M.dialog === "leave" ? leaveDialog() : "";
     if (!html) { if (open) { open.close(); open.remove(); } return; }
-    if (open && open.dataset.kind === M.dialog) {
-      // Same dialog, new content: keep it open and keep the scroll position.
-      const body = open.querySelector(".mw-form__body"), top = body?.scrollTop;
-      const shell = open.querySelector("form");
-      const next = document.createElement("div"); next.innerHTML = html;
-      shell.replaceWith(next.querySelector("form"));
-      const newBody = open.querySelector(".mw-form__body"); if (newBody && top) newBody.scrollTop = top;
-      if (!open.contains(document.activeElement)) (open.querySelector('.cand-merge__side[aria-pressed="true"]') || open.querySelector(".mw-btn--primary:not([disabled])"))?.focus();
-      return;
-    }
     if (open) { open.close(); open.remove(); }
     const holder = document.createElement("div"); holder.innerHTML = html;
     const dialog = holder.firstElementChild; dialog.dataset.kind = M.dialog;
     document.body.append(dialog);
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); actions["dlg-close"](); });
     dialog.showModal();
-    (dialog.querySelector('.cand-merge__side[aria-pressed="false"]:not(:has(~ [aria-pressed="true"]))') || dialog.querySelector(".mw-btn--primary:not([disabled])"))?.focus();
+    dialog.querySelector(".mw-btn--primary:not([disabled])")?.focus();
   }
 
   // ---------- Paint everything except the fields being typed in ----------
@@ -425,8 +355,6 @@
     const map = {
       normal: L(`[模拟] 试试：${typed}，这一次提交会碰到别处的改动。规则、别处的改动和时长都是假的。`, `[Simulated] Try it: ${typed}; that submission meets a change made elsewhere. The rule, the other change and the timings are made up.`),
       conflict: L("[模拟] 刚才的提交没存上。输入框可以继续打字，光标不动。", "[Simulated] The last submission didn't save. You can keep typing; the cursor stays."),
-      compare: L("[模拟] 对比面板。标黄的行是两边不同的；产品里用平台的逐行比较。", "[Simulated] The compare sheet. Highlighted lines differ; the product uses the platform's line compare."),
-      ask: L("[模拟] 自动保存碰到时只在状态行说；点发布、试跑或「处理」才弹这个。", "[Simulated] Auto-save only says so on the status line; publishing, testing or Resolve opens this."),
       kept: feed ? L("[模拟] 写到一半想离开：Feed 的输入本来就存在会话里，离开再回来还在。", "[Simulated] Mid-edit: Feed keeps its input in the session, so leaving and coming back keeps it.") : L("[模拟] 接着写、换了一步，内容都在。试试点「发布 v1」或左上角返回。", "[Simulated] Kept writing, changed step, nothing lost. Try Publish v1 or the back arrow."),
       loaded: L("[模拟] 载入后，你写的在字段下面。试试「放回」。", "[Simulated] After loading, what you wrote sits under the field. Try Put back."),
       offline: L("[模拟] 这次载入失败；再试一次会成功。", "[Simulated] This load failed; the next try succeeds."),
@@ -455,28 +383,15 @@
     later(250, () => { if (M.busy) { M.busy = "spin"; paint(); } });
     later(800, () => {
       M.busy = false;
-      if (S.scheme === "B") { M.phase = "conflict"; M.picks = defaultPicks(); M.dialog = "compare"; paint(); return; }
       applyLatest(); M.previewed = false;
       if (S.host === "feed") { const out = app.querySelector("[data-feed-rule-preview]"), status = app.querySelector("[data-feed-rule-status]"); out.hidden = true; status.hidden = true; }
       M.bandSettled = false; M.bandGone = false; M.stepFromKept();
       afterLoad();
     });
   }
-  function askLoad() {
-    if (M.busy) return;
-    const keep = document.querySelector("[data-ask-keep]")?.checked !== false;
-    M.askKeep = keep; M.busy = true; paint();
-    later(250, () => { if (M.busy) { M.busy = "spin"; paint(); } });
-    later(800, () => {
-      M.busy = false; M.dialog = null; M.cur = structuredClone(V.latest); M.phase = "loaded"; M.kept = {}; M.keptYours = []; M.bandGone = true;
-      M.washed = new Set(whoChangedAgainstBase()); M.savedText = L("已保存", "Saved"); M.previewed = false;
-      paint();
-      toast(keep ? (S.host === "feed" ? L("已载入最新版，你写的已复制", "Latest loaded; what you wrote is copied") : L("已载入最新版，你写的存成了一条新规则", "Latest loaded; what you wrote is now a new rule")) : L("已载入最新版", "Latest version loaded"));
-    });
-  }
   function typed() {
     if (["conflict", "kept", "offline", "second", "deleted", "published"].includes(M.phase)) return;
-    if (M.phase === "loaded" || M.phase === "savedNew" || M.phase === "merged" || M.phase === "clean") { M.bandGone = true; }
+    if (M.phase === "loaded" || M.phase === "savedNew" || M.phase === "clean") { M.bandGone = true; }
     const line = app.querySelector("[data-functions-save-status]");
     if (!line) return;
     M.savedText = L("有更改，等待保存…", "Changes waiting to save…"); line.textContent = M.savedText;
@@ -492,18 +407,7 @@
   const actions = {
     noop() {},
     reload,
-    "ask-load": askLoad,
-    "open-ask"() { M.dialog = "ask"; paint(); },
-    "open-compare"() { M.busy = false; reload(); },
-    "dlg-close"() { M.dialog = null; paint(); document.querySelector("[data-act='open-ask'], #band-primary")?.focus(); },
-    pick(arg) { const [id, which] = arg.split(":"); M.picks[id] = which; paint(); },
-    "merge-apply"() {
-      const before = structuredClone(M.cur);
-      for (const [id, which] of Object.entries(M.picks)) if (which === "latest") M.cur[id] = structuredClone(V.latest[id]);
-      M.undo = before; M.dialog = null; M.phase = "merged"; M.bandSettled = false; M.bandGone = false; M.savedText = L("已保存", "Saved"); M.washed = new Set(Object.keys(M.picks));
-      paint(); app.querySelector("[data-band-node]")?.focus({ preventScroll: true });
-    },
-    "merge-undo"() { M.cur = M.undo; M.phase = "conflict"; M.bandSettled = false; M.savedText = ""; paint(); focusPrimary(); },
+    "dlg-close"() { M.dialog = null; paint(); document.getElementById("band-primary")?.focus(); },
     "kept-swap"(id) {
       const kept = M.kept[id]; if (!kept) return;
       kept.swapped = !kept.swapped;
@@ -520,11 +424,10 @@
     "kept-more"(id) { M.kept[id].open = !M.kept[id].open; paint(); app.querySelector(`.cand-kept[data-kept-field="${id}"] .cand-kept__more`)?.focus({ preventScroll: true }); },
     "dismiss-band"() { M.bandGone = true; paint(); (app.querySelector(".cand-kept button") || fieldEl("instructions"))?.focus({ preventScroll: true }); },
     "save-new"() {
-      M.dialog = null; M.phase = "savedNew"; M.kept = {}; M.readonly = false; M.bandSettled = false; M.bandGone = S.scheme === "C"; M.savedText = L("已保存", "Saved");
+      M.dialog = null; M.phase = "savedNew"; M.kept = {}; M.readonly = false; M.bandSettled = false; M.bandGone = false; M.savedText = L("已保存", "Saved");
       M.cur = structuredClone(V.mine);
       paint();
-      if (S.scheme === "C") toast(S.host === "feed" ? L("已用你写的另起一条", "Started fresh with what you wrote") : L("已存成新规则", "Saved as a new rule"));
-      else app.querySelector("[data-band-node]")?.focus({ preventScroll: true });
+      app.querySelector("[data-band-node]")?.focus({ preventScroll: true });
     },
     discard() {
       M.dialog = null; paintDialog();
@@ -547,17 +450,17 @@
     const out = app.querySelector("[data-feed-rule-preview]");
     const status = app.querySelector("[data-feed-rule-status]");
     M.dialog = null;
-    if (M.phase === "deleted" || M.phase === "savedNew" || M.phase === "loaded" || M.phase === "merged" || M.phase === "clean") { M.bandGone = true; M.phase = "normal"; }
+    if (M.phase === "deleted" || M.phase === "savedNew" || M.phase === "loaded" || M.phase === "clean") { M.bandGone = true; M.phase = "normal"; }
     out.innerHTML = `<strong>${L(`最近 ${rows.length} 条消息的预览`, `Preview of the last ${rows.length} messages`)}</strong>${rows.map(([title, hit]) => `<div class="feed-rule-preview-row"><span>${esc(title)}</span><span class="feed-rule-preview-outcome" data-match="${hit}">${hit ? L("匹配", "Match") : L("不匹配", "No match")}</span></div>`).join("")}`;
     out.hidden = false; status.hidden = false; status.dataset.error = "false"; status.textContent = L("预览完成，未改变消息或 Inbox。", "Preview done; messages and Inbox are untouched.");
     M.previewed = true;
     paint();
   }
   function feedSubmit(isPreview) {
-    if (["conflict", "kept", "offline", "second", "deleted", "published"].includes(M.phase)) { if (S.scheme === "C") { M.dialog = "ask"; paint(); } else { nudge(); focusPrimary(); } return; }
+    if (["conflict", "kept", "offline", "second", "deleted", "published"].includes(M.phase)) { nudge(); focusPrimary(); return; }
     if (M.armed) {
       M.armed = false; M.phase = "conflict"; M.bandSettled = false; M.cur = readFeed(); paint();
-      if (S.scheme === "C") { M.dialog = "ask"; paint(); } else { app.querySelector("[data-band-node]")?.scrollIntoView({ block: "nearest" }); focusPrimary(); }
+      app.querySelector("[data-band-node]")?.scrollIntoView({ block: "nearest" }); focusPrimary();
       return;
     }
     if (isPreview) { runFeedPreview(); return; }
@@ -587,11 +490,11 @@
     if (target.hasAttribute("data-functions-next")) { M.step = order[Math.min(2, order.indexOf(M.step) + 1)]; paint(); return; }
     const owes = ["conflict", "kept", "offline", "second", "deleted", "published"].includes(M.phase);
     if (target.hasAttribute("data-functions-back")) {
-      if (owes) { M.dialog = S.scheme === "C" ? "ask" : "leave"; paint(); return; }
+      if (owes) { M.dialog = "leave"; paint(); return; }
       actions.discard(); return;
     }
     if (target.matches("[data-functions-publish], [data-functions-preview]")) {
-      if (owes) { if (S.scheme === "C") { M.dialog = "ask"; paint(); } else { nudge(); focusPrimary(); } return; }
+      if (owes) { nudge(); focusPrimary(); return; }
       toast(target.hasAttribute("data-functions-publish") ? L("已发布 v1（原型）", "Published v1 (prototype)") : L("试跑完成（原型）", "Test run done (prototype)"));
       return;
     }
@@ -602,17 +505,15 @@
   // ---------- Strip and start ----------
   const setOptions = (id, items, value) => { const sel = document.getElementById(id); sel.innerHTML = items.map(([v, label]) => `<option value="${v}">${T(label)}</option>`).join(""); sel.value = value; };
   function strip() {
-    document.getElementById("p-title").textContent = L("过期提交 · N14", "Stale submit · N14");
-    document.getElementById("p-scheme").textContent = L("方案", "Scheme");
+    document.getElementById("p-title").textContent = L("过期提交 · N14 · 方案 A", "Stale submit · N14 · Scheme A");
     document.getElementById("p-host").textContent = L("页面", "Page");
     document.getElementById("p-state").textContent = L("状态", "State");
     document.getElementById("p-data").textContent = L("数据", "Data");
     document.getElementById("p-lang").textContent = L("语言", "Language");
     document.getElementById("p-theme").textContent = L("外观", "Theme");
     document.querySelector("#reset [data-slot=button-label]").textContent = L("从头再来", "Start over");
-    setOptions("scheme", SCHEMES, S.scheme);
     setOptions("host", HOSTS, S.host);
-    setOptions("state", statesOf(S.scheme), S.state);
+    setOptions("state", BASE_STATES, S.state);
     setOptions("data", DATA, S.data);
     document.querySelectorAll("#lang [data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === S.lang)));
     document.querySelectorAll("#theme [data-theme-set]").forEach((b) => { b.textContent = b.dataset.themeSet === "light" ? L("浅", "Light") : L("深", "Dark"); b.setAttribute("aria-pressed", String(b.dataset.themeSet === S.theme)); });
@@ -624,7 +525,7 @@
     clearTimers();
     document.querySelectorAll("dialog[data-proto-dialog]").forEach((d) => { d.close(); d.remove(); });
     document.querySelectorAll(".proto-toast").forEach((x) => x.remove());
-    if (!statesOf(S.scheme).some(([id]) => id === S.state)) S.state = "conflict";
+    if (!BASE_STATES.some(([id]) => id === S.state)) S.state = "conflict";
     toHash();
     strip();
     if (S.host === "editor") mountEditor(); else mountFeed();
@@ -635,10 +536,8 @@
     app.querySelector("[data-band-node]")?.scrollIntoView({ block: "nearest" });
     app.querySelector(".cand-kept")?.scrollIntoView({ block: "nearest" });
     if (S.state === "normal" && S.host === "editor") fieldEl("instructions").focus({ preventScroll: true });
-    if (S.scheme === "C" && S.state === "clean") toast(S.host === "feed" ? L("这条规则刚在别处改过，已换成最新版。再预览一次。", "This rule just changed elsewhere, so you're on the latest. Preview once more.") : L("这条规则刚在别处改过，已换成最新版。发布前看一眼。", "This rule just changed elsewhere, so you're on the latest. Take a look before you publish."));
-    if (S.scheme === "C" && S.state === "loaded") toast(S.host === "feed" ? L("已载入最新版，你写的已复制", "Latest loaded; what you wrote is copied") : L("已载入最新版，你写的存成了一条新规则", "Latest loaded; what you wrote is now a new rule"));
   }
-  for (const id of ["scheme", "host", "state", "data"]) document.getElementById(id).addEventListener("change", (e) => { S[id] = e.target.value; start(); });
+  for (const id of ["host", "state", "data"]) document.getElementById(id).addEventListener("change", (e) => { S[id] = e.target.value; start(); });
   document.getElementById("lang").addEventListener("click", (e) => { const v = e.target.dataset.lang; if (v) { S.lang = v; start(); } });
   document.getElementById("theme").addEventListener("click", (e) => { const v = e.target.dataset.themeSet; if (v) { S.theme = v; start(); } });
   document.getElementById("reset").addEventListener("click", () => { S.state = "normal"; start(); });

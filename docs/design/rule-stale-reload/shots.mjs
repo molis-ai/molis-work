@@ -1,9 +1,9 @@
 // Screenshots and layout checks for this prototype, in a throwaway headless Chrome on a throwaway profile. No Home is touched.
 //   python3 -m http.server 4437 --bind 127.0.0.1 --directory docs/design     (in another terminal)
-//   node docs/design/rule-stale-reload/shots.mjs <out-dir> [--all | --sheets | --only A:editor:conflict:plain:zh:light:1440,…]
-// Prints every place a page scrolls sideways or a control leaves the window. Keeps one 1440 picture of every state, every width,
-// language and theme of each scheme's key states, and contact sheets of them in <out-dir>/sheets. --all also checks the layout of
-// every state with crowded and sparse data, without keeping pictures.
+//   node docs/design/rule-stale-reload/shots.mjs <out-dir> [--all | --sheets | --only editor:conflict:plain:zh:light:1440,…]
+// Prints every place a page scrolls sideways, a control leaves the window or the band is cut off. Keeps a picture of every state in
+// every width, language and theme, and contact sheets of them in <out-dir>/sheets. --all also checks the layout of every state with
+// crowded and sparse data, without keeping pictures.
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -19,20 +19,17 @@ const onlyAt = args.indexOf("--only");
 mkdirSync(out, { recursive: true });
 
 const STATES = ["normal", "conflict", "kept", "loaded", "offline", "deleted", "second", "clean", "noop", "published"];
-const statesOf = (s) => (s === "B" ? [...STATES, "compare"] : s === "C" ? [...STATES, "ask"] : STATES);
+const HOSTS = ["editor", "feed"];
 const SIZES = { 1440: [1440, 900], 1024: [1024, 768], 390: [390, 844] };
 
 const jobs = [];
-const add = (s, h, st, d, l, t, w, keep) => jobs.push({ s, h, st, d, l, t, w: Number(w), keep });
-const matrix = (s, h, st) => { for (const l of ["zh", "en"]) for (const t of ["light", "dark"]) for (const w of [1440, 1024, 390]) if (!(l === "zh" && t === "light" && w === 1440)) add(s, h, st, "plain", l, t, w, true); };
-const KEY = { A: ["conflict", "loaded", "offline", "deleted", "second", "clean"], B: ["conflict", "compare", "second"], C: ["conflict", "ask", "deleted"] };
+const add = (h, st, d, l, t, w, keep) => jobs.push({ h, st, d, l, t, w: Number(w), keep });
 if (args.includes("--sheets")) { /* only the contact sheets, from pictures already there */ }
-else if (onlyAt >= 0) for (const spec of args[onlyAt + 1].split(",")) { const [s, h, st, d, l, t, w] = spec.split(":"); add(s, h, st, d, l, t, w, true); }
-else for (const s of ["A", "B", "C"]) for (const h of ["editor", "feed"]) for (const st of statesOf(s)) {
-  add(s, h, st, "plain", "zh", "light", 1440, true);
-  if (KEY[s].includes(st)) matrix(s, h, st);
-  // The layout does not change with the theme, so the sideways and clipping check runs in one of them.
-  if (all) for (const d of ["plain", "full", "empty"]) for (const l of ["zh", "en"]) for (const w of [1440, 1024, 390]) add(s, h, st, d, l, "light", w, false);
+else if (onlyAt >= 0) for (const spec of args[onlyAt + 1].split(",")) { const [h, st, d, l, t, w] = spec.split(":"); add(h, st, d, l, t, w, true); }
+else for (const h of HOSTS) for (const st of STATES) {
+  for (const l of ["zh", "en"]) for (const t of ["light", "dark"]) for (const w of [1440, 1024, 390]) add(h, st, "plain", l, t, w, true);
+  // The layout does not change with the theme, so the crowded and sparse checks run in one of them.
+  if (all) for (const d of ["full", "empty"]) for (const l of ["zh", "en"]) for (const w of [1440, 1024, 390]) add(h, st, d, l, "light", w, false);
 }
 
 const profile = mkdtempSync(join(tmpdir(), "rule-stale-shots-"));
@@ -44,16 +41,26 @@ const CHECK = `(() => {
   const out = [];
   const de = document.documentElement;
   if (de.scrollWidth > innerWidth + 1) out.push("page scrolls sideways " + de.scrollWidth);
-  for (const el of document.querySelectorAll(".cand-alert, .cand-alert button, .cand-kept, .cand-kept button, .cand-merge, .cand-merge button, dialog[open] .mw-form__footer button, [data-functions-next], [data-functions-prev]")) {
+  for (const el of document.querySelectorAll(".cand-band, .cand-band button, .cand-kept, .cand-kept button, dialog[open] .mw-form__footer button, [data-functions-next], [data-functions-prev]")) {
     if (el.closest("[hidden]") || !el.getClientRects().length) continue;
     const r = el.getBoundingClientRect();
     if (r.right > innerWidth + 1 || r.left < -1) out.push((el.className || el.tagName) + " leaves the window " + Math.round(r.left) + "-" + Math.round(r.right));
-    if (el.matches(".cand-alert") && el.scrollWidth > el.clientWidth + 1) out.push("band overflows");
+    if (el.matches(".cand-band") && el.scrollWidth > el.clientWidth + 1) out.push("band overflows");
   }
-  for (const b of document.querySelectorAll(".cand-alert button, .cand-kept button")) {
+  for (const b of document.querySelectorAll(".cand-band button, .cand-kept button")) {
     if (!b.getClientRects().length) continue;
     const label = b.querySelector("[data-slot=button-label]");
     if (label && label.scrollWidth > label.clientWidth + 1) out.push("button label cut: " + label.textContent);
+  }
+  // The band is what this state is about: it must be whole inside what its scroll area shows, not cut off by the bottom bar.
+  const band = document.querySelector(".cand-band");
+  if (band) {
+    let area = band.parentElement;
+    while (area && !["auto", "scroll"].includes(getComputedStyle(area).overflowY)) area = area.parentElement;
+    const seen = area ? area.getBoundingClientRect() : { top: 0, bottom: innerHeight };
+    const r = band.getBoundingClientRect();
+    const fits = r.height <= seen.bottom - seen.top;
+    if (fits && (r.bottom > seen.bottom + 1 || r.top < seen.top - 1)) out.push("band cut off by its scroll area: " + Math.round(r.top) + "-" + Math.round(r.bottom) + " in " + Math.round(seen.top) + "-" + Math.round(seen.bottom));
   }
   return out;
 })()`;
@@ -61,19 +68,19 @@ let n = 0;
 for (const job of jobs) {
   const [width, height] = SIZES[job.w];
   await page.viewport(width, height, width < 600);
-  const hash = `#s=${job.s}&h=${job.h}&st=${job.st}&d=${job.d}&l=${job.l}&t=${job.t}`;
+  const hash = `#h=${job.h}&st=${job.st}&d=${job.d}&l=${job.l}&t=${job.t}`;
   await page.evaluate(`location.href = "about:blank"`);
   await page.evaluate(`location.href = "http://127.0.0.1:4437/rule-stale-reload/index.html${hash}"`);
   await page.wait(`document.readyState === "complete" && !!document.querySelector("#app > *")`);
   await new Promise((done) => setTimeout(done, job.keep ? 650 : 120));
   const found = await page.evaluate(CHECK);
-  const name = `${job.s}-${job.h}-${job.st}-${job.d}-${job.l}-${job.t}-${job.w}`;
+  const name = `${job.h}-${job.st}-${job.d}-${job.l}-${job.t}-${job.w}`;
   if (found.length) { problems.push([name, found]); process.stdout.write(`${name}: ${found.join("; ")}\n`); }
   if (job.keep) await page.screenshot(join(out, `${name}.png`));
   n += 1;
 }
 process.stdout.write(`${n} views, ${problems.length} with problems\n`);
-// Contact sheets: every state of a scheme and page side by side, and the widths, languages and themes of the key states.
+// Contact sheets: every state of a page side by side, and the widths, languages and themes of the key states.
 if (onlyAt < 0) {
   const names = readdirSync(out).filter((name) => name.endsWith(".png"));
   const shown = (name) => name.replace(/\.png$/, "").replaceAll("-", " ");
@@ -98,9 +105,9 @@ if (onlyAt < 0) {
     await new Promise((done) => server.close(done));
   };
   mkdirSync(join(out, "sheets"), { recursive: true });
-  for (const s of ["A", "B", "C"]) for (const h of ["editor", "feed"]) {
-    await sheet(`${s}-${h}-all-states.png`, statesOf(s).map((st) => `${s}-${h}-${st}-plain-zh-light-1440.png`), 560, 3);
-    for (const st of KEY[s]) await sheet(`${s}-${h}-${st}-matrix.png`, names.filter((name) => name.startsWith(`${s}-${h}-${st}-plain-`)).sort(), 300, 6);
+  for (const h of HOSTS) {
+    for (const t of ["light", "dark"]) await sheet(`${h}-all-states-${t}.png`, STATES.map((st) => `${h}-${st}-plain-zh-${t}-1440.png`), 560, 3);
+    for (const st of STATES) await sheet(`${h}-${st}-matrix.png`, names.filter((name) => name.startsWith(`${h}-${st}-plain-`)).sort(), 300, 6);
   }
 }
 await harness.close?.();

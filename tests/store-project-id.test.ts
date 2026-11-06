@@ -17,8 +17,8 @@ import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import { pptTestPorts } from "./fixtures/ppt-actions.js";
 
 // AIC-14: the five document stores no longer carry their own `normalizeProjectId`. The project id they read comes from the call's trusted
-// context (`project(caller)`) or from a placement input the schema has already checked; the one place that still says "no project" is the
-// handler's `actions.project_required`.
+// context (`project(caller)`) or from a placement input the schema has already checked. These actions are `scope: "project"`, so a call
+// with no project is refused by the kernel before any handler runs, as `actions.project_required`.
 
 const STORES = ["dataset", "form", "lingguang", "pages", "ppt"] as const;
 const subject = { kind: "document", id: "doc-1" };
@@ -38,7 +38,7 @@ test("AIC-14: a Home-level call with no project is still refused as actions.proj
   const dataset = openDatasetStore(home), form = openFormStore(home), spark = openLingguangStore(home), pages = openPagesStore(home), ppt = openPptStore(home);
   t.after(() => { for (const store of [dataset, form, spark, pages, ppt]) store.close(); });
   const refused = { code: "actions.project_required" };
-  // An empty project id on the call context is "no project": the test ports bind it as the caller's.
+  // An empty project id on the call context is "no project".
   await assert.rejects(datasetTestPorts(dataset, "").actions.invoke(datasetActions.list, {}), refused);
   await assert.rejects(formTestPorts(form, "").actions.invoke(formActions.list, {}), refused);
   await assert.rejects(pagesTestPorts(pages, "").actions.invoke(pagesActions.list, {}), refused);

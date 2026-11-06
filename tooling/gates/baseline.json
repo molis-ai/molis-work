@@ -31,7 +31,7 @@
       "methods": 23
     },
     "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 188,
-    "file apps/workbench/src/i18n/en.ts": 3208,
+    "file apps/workbench/src/i18n/en.ts": 3210,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "file horizontal/memory/src/service.ts": 1151,
     "class horizontal/memory/src/service.ts#MemoryService": {

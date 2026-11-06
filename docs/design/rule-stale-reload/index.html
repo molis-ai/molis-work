@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>过期提交定样 · Molis Work 原型</title>
+  <!-- The product's own theme bootstrap and stylesheets (../_catalog/export.mjs) and Feed's (./export.mjs). The rule editor
+       lives on the settings sheet and Feed on the workbench sheet, in the product too; app.js switches them with the page. -->
+  <script src="../_catalog/dist/theme.js"></script>
+  <link rel="stylesheet" href="../_catalog/dist/settings.css" id="css-settings">
+  <link rel="stylesheet" href="../_catalog/dist/workbench.css" id="css-workbench" disabled>
+  <link rel="stylesheet" href="dist/feed.css" id="css-feed" disabled>
+  <link rel="stylesheet" href="../_catalog/prototype.css">
+  <link rel="stylesheet" href="proto.css">
+</head>
+<body class="proto-on">
+  <script src="../_catalog/dist/sprite.js"></script>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b id="p-title"></b>
+    <label><span id="p-scheme"></span><select class="mw-select" data-slot="select" id="scheme"></select></label>
+    <label><span id="p-host"></span><select class="mw-select" data-slot="select" id="host"></select></label>
+    <label><span id="p-state"></span><select class="mw-select" data-slot="select" id="state"></select></label>
+    <label><span id="p-data"></span><select class="mw-select" data-slot="select" id="data"></select></label>
+    <label><span id="p-lang"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="lang"><button type="button" class="mw-toggle" data-lang="zh">中</button><button type="button" class="mw-toggle" data-lang="en">EN</button></span>
+    </label>
+    <label><span id="p-theme"></span>
+      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="theme"><button type="button" class="mw-toggle" data-theme-set="light"></button><button type="button" class="mw-toggle" data-theme-set="dark"></button></span>
+    </label>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset"><span data-slot="button-label"></span></button>
+  </div>
+  <p class="proto-note" id="note" role="note"></p>
+  <div id="app"></div>
+  <script src="../_catalog/dist/foundation.js"></script>
+  <script src="../_catalog/parts.js"></script>
+  <script src="dist/fragments.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

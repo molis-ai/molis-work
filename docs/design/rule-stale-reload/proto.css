@@ -1,0 +1,50 @@
+/* The stale-submission sample: arranging the catalog's parts for these views ([编排]) and the second prototype strip ([原型]).
+   The product frames and the rule editor and Feed composer come from ../_catalog/dist/*.css and ./dist/feed.css; approved or
+   proposed parts the catalog lacks, from ../_catalog/prototype.css. Tokens only. */
+
+/* [原型] one line under the control strip saying what is simulated; not product UI */
+.proto-note { position: fixed; inset: 40px 0 auto 0; z-index: 79; height: 28px; margin: 0; padding: 0 12px; line-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: repeating-linear-gradient(-45deg, var(--surface-soft), var(--surface-soft) 8px, var(--rail) 8px, var(--rail) 16px); border-bottom: 1px dashed var(--line-strong); color: var(--ink-soft); font-size: 12px; }
+.proto-note:hover { position: fixed; height: auto; white-space: normal; line-height: 1.5; padding-block: 5px; }
+
+/* [原型] the rule editor's page: the settings sheet lays out body > header + shell; the prototype's #app takes that grid */
+body.proto-on.settings-page { display: block; height: 100dvh; padding-top: 68px; box-sizing: border-box; overflow: hidden; }
+body.proto-on.settings-page #app { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+
+/* [原型] Feed's page: a sheet on the desk above the product's bottom bar. The real tab strip is left out; it plays no part here */
+body.proto-on.immersive-workbench { height: 100dvh; margin: 0; padding-top: 68px; box-sizing: border-box; overflow: hidden; background: var(--desk); }
+body.proto-on.immersive-workbench #app { height: 100%; }
+.proto-desk { display: grid; grid-template-rows: minmax(0, 1fr) auto; height: 100%; min-height: 0; }
+.proto-sheet { position: relative; min-height: 0; margin: 8px 8px 0; border-radius: 14px; background: var(--paper); box-shadow: var(--sheet-shadow); overflow: hidden; }
+.proto-desk .workbench-bar { position: static; }
+@media (max-width: 759px) { .proto-sheet { margin: 0; border-radius: 0; } }
+
+/* [编排] the band takes the editor's existing feedback slot; the footer grows upward, so the field being typed in stays put */
+.functions-feedback.has-band { flex: 1; }
+.functions-editor-footer:has(.has-band) { align-items: flex-end; }
+@media (max-width: 760px) { .functions-feedback.has-band { flex: none; } }
+.functions-save-status .mw-btn--link { min-height: 0; margin-left: 4px; font-size: inherit; }
+.functions-save-status[data-tone="attention"] { color: var(--ink-soft); }
+.functions-save-status[data-tone="done"] { color: var(--ink-soft); }
+
+/* [编排] on a phone the band takes the footer's room: the steps at the top still move between steps */
+@media (max-width: 760px) { .functions-editor-footer:has(.has-band) .functions-actions:not(.cand-alert__actions) { display: none; } }
+
+/* [编排] Feed's rule composer: the band sits right under the buttons that were pressed */
+.feed-rule-composer [data-band]:not(:empty) { margin-top: 12px; }
+[data-feed-rule-status] .mw-btn--link { min-height: 0; font-size: inherit; }
+.feed-rule-composer label + .cand-kept { margin-top: -8px; margin-bottom: 16px; }
+.functions-col label + .cand-kept { margin-top: -16px; }
+.functions-criteria .cand-kept { margin-top: 8px; }
+.functions-sample-note { margin: 0; }
+
+/* [编排] the criteria rows the editor's script draws, filled with sample values */
+[data-functions-criteria] .functions-criterion .mw-input { min-width: 0; }
+.functions-dest[aria-pressed="true"] { background: var(--nav-active); }
+
+/* [编排] the list of what differs, in the ask dialog */
+.proto-diff-list { display: grid; gap: 4px; margin: 0 0 12px; padding: 0; list-style: none; }
+.proto-diff-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 4px 12px; border-radius: var(--r-control); background: var(--surface-soft); font-size: 13px; }
+.proto-diff-list small { flex: none; color: var(--muted); font-size: 12px; }
+.proto-ask-copy { margin: 0 0 12px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.mw-dialog .mw-alert { margin-bottom: 12px; }

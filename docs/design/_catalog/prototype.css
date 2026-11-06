@@ -102,3 +102,57 @@ body.proto-on .arrival { height: calc(100dvh - 40px); margin-top: 40px; }
 @media (max-width: 599px) { .cand-scope { display: grid; grid-template-columns: 1fr 1fr; } .cand-scope li + li { margin-left: 0; } .cand-scope li + li::before { display: none; } }
 .cand-scope .is-off { border: 1px dashed var(--line-strong); }
 .cand-scope .is-off .v { color: var(--faint); text-decoration: line-through; }
+
+/* [组件板新增] mw-alert's action slot — a band that names the state and carries what to do next, in one line when it fits (N14, proposed 2026-11-06).
+   renderAlert has no room for actions; a button written after the alert would read as belonging to the form. */
+.cand-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; animation: craft-rise var(--dur-move) var(--ease-quint); }
+.cand-alert.is-settled { animation: none; }
+.cand-alert:focus { outline: none; }
+.cand-alert__mark { display: inline-grid; place-items: center; flex: none; align-self: flex-start; width: 20px; height: 20px; margin-top: 1px; animation: cand-land var(--dur-move) var(--ease-spring); }
+@keyframes cand-land { from { transform: scale(.6); } to { transform: none; } }
+.cand-alert__copy { flex: 1 1 240px; min-width: 0; display: grid; gap: 0; }
+.cand-alert__copy strong { font-weight: var(--weight-control); overflow-wrap: anywhere; }
+.cand-alert__copy small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.cand-alert__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.cand-alert .mw-btn[aria-busy="true"] { pointer-events: none; }
+.cand-alert .mw-btn .mw-spinner { width: 14px; height: 14px; margin-right: 6px; }
+.cand-alert.is-nudged { animation: cand-nudge var(--dur-move) var(--ease-spring); }
+@keyframes cand-nudge { 0% { transform: none; } 40% { transform: translateY(-3px); } 100% { transform: none; } }
+
+/* [组件板新增] what you wrote, kept under the field it came from — the amber of "waits on the person"; once put back the same slot holds the latest version, neutral, with the way back (N14, scheme A) */
+.cand-kept { --i: 0; display: grid; gap: 4px; padding: 8px 8px 8px 12px; border-radius: var(--r-control); background: var(--amber-soft); animation: craft-rise var(--dur-move) var(--ease-quint) backwards; animation-delay: calc(var(--i) * 60ms); }
+.cand-kept.is-settled { animation: none; }
+.cand-kept.is-swapped { background: var(--surface-soft); }
+.cand-kept__head { display: flex; align-items: center; gap: 8px; }
+.cand-kept__who { flex: 1; min-width: 0; color: var(--ink); font-size: 12px; font-weight: var(--weight-control); }
+.cand-kept__text { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.cand-kept__text.is-open { display: block; -webkit-line-clamp: unset; }
+.cand-kept__text.is-blank { color: var(--muted); }
+.cand-kept__more { justify-self: start; min-height: 0; padding: 0; border: 0; background: none; color: var(--accent-strong); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* [组件板新增] a step that holds something to look at, while you are on another step — a dot on the step's number (N14) */
+.functions-steps button[data-cand-dot] { position: relative; }
+.functions-steps button[data-cand-dot] > span::after { content: ""; position: absolute; width: 8px; height: 8px; margin: -12px 0 0 18px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--paper); }
+
+/* [组件板新增] one field compared, in the side sheet — two cards, the chosen one graphite-edged with a check (N14, scheme B) */
+.cand-merge { display: grid; gap: 8px; padding-block: 16px; border-top: 1px solid var(--line); }
+.cand-merge:first-child { padding-top: 0; border-top: 0; }
+.cand-merge__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: var(--weight-control); }
+.cand-merge__sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cand-merge__side { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 8px 12px 12px; border: 0; border-radius: var(--r-row); background: var(--control-fill); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: inset 0 0 0 1px transparent; transition: background var(--dur-hover) var(--ease-standard), box-shadow var(--dur-hover) var(--ease-standard); }
+.cand-merge__side:hover { background: var(--nav-hover); }
+.cand-merge__side[aria-pressed="true"] { background: var(--paper); box-shadow: inset 0 0 0 2px var(--ink); }
+.cand-merge__label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control); }
+.cand-merge__label svg { width: 14px; height: 14px; color: var(--ink); opacity: 0; }
+.cand-merge__side[aria-pressed="true"] .cand-merge__label { color: var(--ink); }
+.cand-merge__side[aria-pressed="true"] .cand-merge__label svg { opacity: 1; }
+.cand-merge__text { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cand-merge__text mark { border-radius: 3px; background: var(--amber-soft); color: var(--ink); }
+.cand-merge__text.is-blank { color: var(--muted); }
+.cand-merge__foot { display: flex; flex: 1; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 12px; }
+.cand-merge__left { margin-right: auto; color: var(--muted); font-size: 12px; }
+@media (max-width: 640px) { .cand-merge__sides { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .cand-alert, .cand-alert.is-nudged, .cand-alert__mark, .cand-kept { animation: none; } .cand-merge__side { transition: none; } }
+
+/* [组件板新增] a field whose content just changed — the same [data-craft-new] moment, but the row's opaque wash would hide the words in a field, so here it is translucent (N14) */
+:is(.functions-col, .feed-rule-composer) [data-craft-new]::after { inset: -4px -8px; border-radius: var(--r-control); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }

@@ -275,9 +275,10 @@ test("PFG-24 口径 8 ① Goals open in the other column is recalled there from 
   await click(GOALS_ENTRY);
   await recalled("the Dock");
 
+  // Split, each column has its own strip and ＋ (the title bar's strip is the one column's only); the second column's.
   await focusColumn(second!);
   await evaluate("window.__toasts = []");
-  await click(PLUS);
+  await click(`[data-tab-pane="${second}"] .tab-add-button`);
   await waitFor(`document.querySelector('${OPEN_MENU}')?.matches(':popover-open')`);
   assert.equal(await evaluate(`document.querySelector('${OPEN_MENU} [data-plus-open=goals] .tab-menu-where')?.textContent`), "在第 1 栏");
   await click(`${OPEN_MENU} [data-plus-open=goals]`);

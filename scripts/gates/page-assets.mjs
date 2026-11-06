@@ -336,10 +336,17 @@ const headErrors = (measured, budget, base) => {
 // spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// 13④a 连接页 ASC-73～79，#1886，统筹审过放行 (2026-11-06): the settings' 服务连接 page as plan A — rows grouped by use that open in
+// place, an account's four rows, 换账号 among accounts, the steps, 高级 and its draft. Keyed on merge-base 875fb6be (after #1877's
+// compiled client and minified sheets), so the ④b entries above are spent and replaced. settings.css and workbench.css +712 B
+// each: the catalog's row part only (the card it does not draw is split out of the parts' styles), the four rows' card with a
+// container query, the switch choice and the draft note. workbench.js +7536 B: the parts' row program (625 B) and the page's
+// switch, usages, steps and draft. Tried: the draft note is a server template, the progress is ④b's, repeated DOM idioms are
+// small helpers (about 990 B).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827793, 830322],
-  "/assets/molis-work-workbench.css": [1204709, 1207238],
-  "/assets/molis-work-workbench.js": [1085847, 1089571],
+  "/assets/molis-work-settings.css": [760704, 761416],
+  "/assets/molis-work-workbench.css": [1107725, 1108437],
+  "/assets/molis-work-workbench.js": [885295, 892831],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],

@@ -342,15 +342,22 @@ const headErrors = (measured, budget, base) => {
 // reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
 // Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
 // one short fixed message; no cast.
+// 13④a 连接页 ASC-73～79，#1886，统筹审过放行 (2026-11-06): the settings' 服务连接 page as plan A — rows grouped by use that open in
+// place, an account's four rows, 换账号 among accounts, the steps, 高级 and its draft. Keyed on merge-base 875fb6be (after #1877's
+// compiled client and minified sheets), so the ④b entries above are spent and replaced. settings.css and workbench.css +617 B
+// each: the catalog's row part only (the card it does not draw is split out of the parts' styles), the four rows' card with a
+// container query, the switch choice and the draft note. workbench.js +7536 B: the parts' row program (625 B) and the page's
+// switch, usages, steps and draft. Tried: the draft note is a server template, the progress is ④b's, repeated DOM idioms are
+// small helpers (about 990 B).
 // proactive-assistant §12.1 capsule fix (user approved asking for this admission, 2026-11-06): the input capsule's current work, tabs and
-// new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +319 B (the same code measured +312 B before #1877 changed how the client is built), the
+// new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +307 B (the same code measured +312 B before #1877 changed how the client is built, +319 B before #1886), the
 // per-project key helper, one chosen-project path through setProject and the place named before the title. Tried: removed the
 // chooser's own draft map (the island owns drafts now) and its swap code, dropped a tooltip naming the project and its translation,
-// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 885295 base after #1877, where the ASC-60～63 workbench.js entry is spent.
+// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 892831 base after 13④a (#1886), whose workbench.js entry is spent there.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827793, 830322],
-  "/assets/molis-work-workbench.css": [1204709, 1207238],
-  "/assets/molis-work-workbench.js": [885295, 885614],
+  "/assets/molis-work-settings.css": [760704, 761321],
+  "/assets/molis-work-workbench.css": [1107725, 1108342],
+  "/assets/molis-work-workbench.js": [892831, 893138],
   "/assets/molis-work-plugin-frame.js": [188354, 188418],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],

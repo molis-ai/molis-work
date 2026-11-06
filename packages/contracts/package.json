@@ -202,6 +202,10 @@
       "types": "./dist/services/knowledge.d.ts",
       "import": "./dist/services/knowledge.js"
     },
+    "./services/sessions": {
+      "types": "./dist/services/sessions.d.ts",
+      "import": "./dist/services/sessions.js"
+    },
     "./services/search": {
       "types": "./dist/services/search.d.ts",
       "import": "./dist/services/search.js"

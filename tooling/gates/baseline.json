@@ -6,8 +6,8 @@
       "methods": 26
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
-      "lines": 267,
-      "methods": 39
+      "lines": 277,
+      "methods": 40
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
       "lines": 443,
@@ -15,7 +15,7 @@
     },
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 209,
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 261,
-    "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
+    "function apps/local-host/src/home-actions.ts#homeActionProvider": 180,
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 191,
     "class apps/local-host/src/home-plugins.ts#HomePluginHost": {
       "lines": 280,
@@ -31,7 +31,7 @@
       "methods": 23
     },
     "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 188,
-    "file apps/workbench/src/i18n/en.ts": 3212,
+    "file apps/workbench/src/i18n/en.ts": 3213,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "file horizontal/memory/src/service.ts": 1151,
     "class horizontal/memory/src/service.ts#MemoryService": {
@@ -347,11 +347,9 @@
     "plugins/native/goals/src/project-policy-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3
   },
-  "oldNamesTotal": 1,
-  "oldNames": {
-    "packages/storage/src/adapters/file-secret-store.ts": 1
-  },
-  "scriptConstantsTotal": 95,
+  "oldNamesTotal": 0,
+  "oldNames": {},
+  "scriptConstantsTotal": 94,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -390,7 +388,6 @@
     "apps/workbench/src/scripts/home-model-settings.ts": 1,
     "apps/workbench/src/scripts/mcp-access.ts": 1,
     "apps/workbench/src/scripts/project-settings.ts": 1,
-    "apps/workbench/src/scripts/settings-models.ts": 1,
     "apps/workbench/src/scripts/settings-web-service.ts": 1,
     "apps/workbench/src/scripts/settings.ts": 2,
     "packages/design-system/src/file-preview.ts": 1,

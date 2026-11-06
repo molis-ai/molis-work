@@ -79,6 +79,13 @@ function ownerConstant(file: string, name: string, seen = new Set<string>()): st
   return undefined;
 }
 
+test("N31-ALL-PROMPTS-01 every registered instruction, Agent prompt and built-in method starts at version 1", () => {
+  for (const [id, prompt] of registeredPrompts()) assert.equal(prompt.version, 1, id);
+  for (const definition of DEFINITIONS) for (const method of definition.manifest.methods ?? []) {
+    assert.equal(method.version, 1, `${definition.manifest.plugin_id}/${method.skill_id}`);
+  }
+});
+
 test("every instruction a built-in model call defines is registered where the person can see and edit it", () => {
   const known = registered();
   const defined: string[] = [];

@@ -3,7 +3,7 @@ import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis
 const OWNER = "io.molis.work.coding";
 
 export const CODING_COMMIT_DRAFT = defineInstructionPrompt({
-  owner_id: OWNER, prompt_id: "coding.commit-draft", version: 2, title: "提交说明",
+  owner_id: OWNER, prompt_id: "coding.commit-draft", version: 1, title: "提交说明",
   purpose: "从已落盘改动起草供用户审阅和编辑的 Git 提交说明", used_by: ["Coding 提交说明"],
   body: [
     "你为一组代码改动写 git 提交说明。",

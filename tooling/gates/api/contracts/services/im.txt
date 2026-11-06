@@ -146,9 +146,9 @@ export interface ImThreadState {
 }
 
 export declare const servicesImContract: {
-    readonly contractId: "io.molis.work.service.im.v2";
+    readonly contractId: "io.molis.work.service.im.v1";
     readonly kind: "horizontal";
-    readonly schemaVersion: 2;
+    readonly schemaVersion: 1;
     readonly maturity: "partial";
     readonly ssot: "specs/archive/molis-work-im/spec.md";
 };

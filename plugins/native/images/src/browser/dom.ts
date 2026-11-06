@@ -1,11 +1,13 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+export { messageOf };
 import type { Failure } from "./types.js";
 
 /** An element the server drew; the page cannot work without it. */
-export function required<T extends Element>(root: ParentNode, selector: string): T {
+export const required = <T extends Element>(root: ParentNode, selector: string): T => {
   const node = root.querySelector<T>(selector);
   if (!node) throw new Error(`Images page is missing ${selector}`);
   return node;
-}
+};
 
 export function text<K extends keyof HTMLElementTagNameMap>(tag: K, value: unknown, className?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -26,7 +28,6 @@ export function remembered(write: () => void): void {
   try { write(); } catch { return; }
 }
 
-export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 export const statusOf = (error: unknown): number | undefined => (error as Failure | null)?.status;
 
 export function dateLabel(value: string): string {

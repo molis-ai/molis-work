@@ -242,8 +242,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (!event.key?.startsWith(storageKey() + ":goal:") || !event.newValue) return;
     const goalId = event.key.slice((storageKey() + ":goal:").length);
     try {
-      frames[goalId] = JSON.parse(event.newValue); savedFrames.set(goalId, event.newValue); loadedFrames.add(goalId);
-      if (curTab === goalId && isFrameTabActive()) drawFrame();
+      const previous = frames[goalId], incoming = JSON.parse(event.newValue);
+      frames[goalId] = incoming; savedFrames.set(goalId, event.newValue); loadedFrames.add(goalId);
+      if (curTab === goalId && isFrameTabActive()) {
+        if (previous?.expanded === incoming.expanded && JSON.stringify(previous?.blocks) === JSON.stringify(incoming.blocks)) setCamera();
+        else drawFrame();
+      }
     } catch {}
   });
   const drawFrame = () => {

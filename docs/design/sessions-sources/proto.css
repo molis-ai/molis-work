@@ -1,6 +1,6 @@
 /* 22 · 外部会话原型自己的样式。界面本身全部用 mw.css（组件板现行样式的快照）；这里只有三类东西：
  * 1. 原型控制条与「标出组件」标注——不是产品界面；
- * 2. 一项「组件板新增」（外部会话原文）的原型画法——进产品前先由 D 轨在组件板补标本；
+ * 2. 两项「组件板新增」（外部会话原文、项目许可行）的原型画法——进产品前先由 D 轨在组件板补标本；
  * 3. 把现成组件放进工作台外壳的拼接（栏、目录、框的排版与间距），只用组件板的令牌，不新造控件。 */
 
 /* ---- 1. 原型控制条（斜纹表示「不是产品」） ---- */
@@ -8,7 +8,8 @@
   background: repeating-linear-gradient(-45deg, var(--rail), var(--rail) 8px, var(--paper) 8px, var(--paper) 16px);
   border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-soft); }
 .proto b { color: var(--ink); font-weight: 600; }
-.proto label { display: inline-flex; align-items: center; gap: 6px; }
+.proto label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.proto select { min-width: 0; max-width: 100%; }
 .proto select, .proto-btn, .proto-seg button { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 8px; min-height: 26px; }
 .proto-seg { display: inline-flex; }
 .proto-seg button + button { margin-left: -1px; }
@@ -18,6 +19,8 @@
 body.cat [data-cat] { outline: 1px dashed color-mix(in srgb, var(--accent) 75%, transparent); outline-offset: 2px; position: relative; }
 body.cat [data-cat]::before { content: attr(data-cat); position: absolute; top: -9px; right: 4px; z-index: 6; padding: 0 4px; border-radius: 3px;
   font: 500 10px/14px system-ui, sans-serif; background: var(--accent); color: var(--on-accent, #fff); pointer-events: none; white-space: nowrap; }
+body.cat dialog[data-cat] { position: fixed; outline: none; }
+body.cat dialog[data-cat]::before { display: none; }
 body.cat .mw-switch[data-cat]::before, body.cat .mw-mark[data-cat]::before { top: -15px; right: auto; left: 0; }
 body.cat [data-new] { outline: 2px solid var(--red); outline-offset: 2px; position: relative; }
 body.cat [data-new]:not(.rep)::after { content: "组件板新增 · " attr(data-new); position: absolute; left: 0; top: calc(100% + 4px); z-index: 7; width: max-content; max-width: 300px;
@@ -41,6 +44,30 @@ html[lang="en"] body.cat [data-new]:not(.rep)::after { content: "New for the com
 .ss-note { text-align: center; color: var(--muted); font-size: 12px; }
 .ss-log .is-focus { background: var(--nav-active); }
 .ss-hit { background: var(--amber-soft); color: var(--ink); border-radius: 3px; padding: 0 2px; box-shadow: inset 0 -1px 0 var(--amber); }
+
+/* ---- 2. 组件板新增：项目许可行（Setting Row 加项目标识和就地回执；保存中、已开、已关、失败都写在这一行里） ---- */
+.ss-pm { flex-wrap: nowrap; gap: 8px 16px; transition: background-color var(--dur-move, 250ms) var(--ease-quint, ease); }
+.mw-setting.ss-pm > div:first-child { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: start; flex: 1 1 0; }
+.mw-setting.ss-pm > div:last-child { flex: none; align-self: flex-start; min-height: 22px; }
+.ss-pm .project-monogram { margin-top: 1px; }
+.ss-pm__copy { display: grid; gap: 2px; min-width: 0; }
+.ss-pm__name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ss-pm__name strong { min-width: 0; }
+.ss-pm__name .mw-badge { flex: none; }
+.ss-pm-meta { margin: 0 !important; overflow-wrap: anywhere; }
+.ss-pm-meta .mw-btn--link, .ss-pm-note .mw-btn--link { min-height: 20px; padding: 0; font-size: 12px; vertical-align: baseline; }
+.ss-pm.is-target { background: var(--accent-soft); }
+.mw-settings .ss-pm.is-target:first-child { border-radius: calc(var(--r-card, 12px) - 1px) calc(var(--r-card, 12px) - 1px) 0 0; }
+.mw-settings .ss-pm.is-target:only-child { border-radius: calc(var(--r-card, 12px) - 1px); }
+.ss-pm-note:empty { display: none; }
+.ss-pm-note { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; animation: ss-rise var(--dur-move, 250ms) var(--ease-quint, ease) both; }
+.ss-pm-note[data-kind="saving"] { color: var(--muted); animation: none; }
+.ss-pm-note[data-kind="fail"] { color: var(--red); align-items: center; animation: ss-rise var(--dur-move, 250ms) var(--ease-quint, ease) both, mw-toast-nudge var(--dur-arrive, 420ms) var(--ease-quint, ease) var(--dur-hover, 130ms); }
+.ss-pm-note[data-kind="fail"] .mw-btn { color: var(--ink); }
+.ss-pm-note .mw-status { flex: none; }
+.ss-pm-note > span:last-child:not(.mw-status) { min-width: 0; flex: 1 1 200px; }
+.ss-pm-note .mw-loading { margin: 0; font-size: 12px; }
+@keyframes ss-rise { from { opacity: 0; transform: translateY(4px); } }
 
 /* ---- 3. 拼接：组件板「栏与内容框」撑满窗口 ---- */
 body { margin: 0; background: var(--desk); color: var(--ink); font: 13px/1.5 var(--font, system-ui, sans-serif); -webkit-font-smoothing: antialiased; }
@@ -78,6 +105,15 @@ body { margin: 0; background: var(--desk); color: var(--ink); font: 13px/1.5 var
 .ss-owner svg { width: 14px; height: 14px; color: var(--faint); }
 .ss-owner b { color: var(--ink); font-weight: var(--weight-control, 500); }
 .ss-owner .mw-btn { margin-left: auto; }
+.ss-owner .mw-btn + .mw-btn { margin-left: 0; }
+/* 组件板缺口，源头没改：.mw-status 行高 1，文字又 overflow: hidden，11px 下 p、y、g 的下沿被切 */
+.mw-status > span { line-height: 1.35; }
+/* 行悬停、选中后底色变深，这几个色调不到 4.5:1。色相不变，含义靠文字 */
+.mw-dir-row .mw-status--attention { --status-tone: color-mix(in srgb, var(--amber) 80%, var(--ink)); }
+.mw-dir-row .mw-status--quiet, .mw-dir-row .mw-status--idle { --status-tone: var(--ink-soft); }
+.mw-dir-row .mw-status--progress { --status-tone: color-mix(in srgb, var(--blue) 80%, var(--ink)); }
+.mw-dir-row .mw-status--blocked { --status-tone: color-mix(in srgb, var(--red) 80%, var(--ink)); }
+.ss-owner__hint { flex: 1 1 100%; }
 .ss-evidence { display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
 .ss-evidence li { display: flex; gap: 6px; align-items: center; }
 .ss-evidence svg { width: 13px; height: 13px; flex: none; }
@@ -113,6 +149,69 @@ body { margin: 0; background: var(--desk); color: var(--ink); font: 13px/1.5 var
 .ss-back { margin: -4px 4px 0 -8px; vertical-align: middle; }
 .mw-frame__heading { display: block; }
 .mw-frame__heading .ss-back + h2 { display: inline; }
+/* 组件板快照的缺口：深色下通用 select 规则的 background 简写把 .mw-select 的平铺、位置和大小清掉，箭头铺满整个框。这里只补回浅色的三项，源头修法另记 */
+html[data-resolved-theme="dark"] .mw-select { background-repeat: no-repeat; background-position: calc(100% - 8px) 50%; background-size: 14px 14px; }
+/* 读取范围 Sheet：分页、项目分组；从边上滑入（产品里由 body 上的页面类带来，原型没有那些类，这里按同样的令牌写一份） */
+dialog.mw-sheet[open] { transition: opacity var(--dur-move, 250ms) var(--ease-quint, ease), transform var(--dur-move, 250ms) var(--ease-quint, ease); }
+@starting-style { dialog.mw-sheet[open]:not(.ss-still) { opacity: 0; transform: translateX(32px); } }
+dialog.mw-sheet:has(> .proto) { height: calc(100dvh - var(--tab-strip-h, 32px) - var(--proto-h, 40px)); max-height: calc(100dvh - var(--tab-strip-h, 32px) - var(--proto-h, 40px)); border-radius: 16px 0 0 16px; }
+#ss-sheet-title:focus { outline: none; }
+.ss-sheet-tabs { padding: 4px 24px 8px; border-bottom: 1px solid var(--line); }
+.ss-sheet-tabs + .mw-form__body { padding-top: 16px; }
+.ss-sheet-tabs .mw-tabs__tab b { margin-left: 4px; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.ss-sheet-panel { display: grid; gap: 16px; animation: craft-fade-in var(--dur-hover, 130ms) var(--ease-quint, ease) both; }
+.ss-sheet-panel .mw-alert { margin: 0; }
+.ss-sheet-panel > .mw-settings, .ss-pm-list .mw-settings { width: 100%; }
+.ss-pm-lead { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.ss-pm-list { display: grid; gap: 16px; }
+.ss-pm-group { display: grid; gap: 6px; }
+.ss-pm-group h3 { margin: 0; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
+.ss-pm-group > p { margin: 0 0 2px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.ss-pm-search .mw-input-group { width: 100%; }
+.ss-scope-more { display: grid; gap: 8px; }
+.ss-scope-more .mw-settings { width: 100%; }
+/* 主区的项目总览（方案 C） */
+.ss-pm-table.mw-dt { width: 100%; max-width: 860px; }
+.ss-pm-table.mw-dt td { height: auto; padding-block: 10px; vertical-align: top; }
+.ss-pm-table.mw-dt:not(.mw-dt--small) :is(th, td):first-child { width: auto; padding-right: 12px; white-space: normal; }
+.ss-pm-table.mw-dt :is(th, td):last-child:not(:first-child, :nth-child(2)) { width: auto; padding-left: 12px; }
+.ss-pm-table.mw-dt td > span { display: flex; }
+.ss-pm-table .ss-pm-cell { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; min-width: 0; }
+.ss-pm-table .ss-pm__name { flex-wrap: wrap; gap: 2px 8px; }
+.ss-pm-table .ss-pm-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ss-pm-table tr.is-target > td { background: var(--accent-soft); }
+.ss-pm-table .ss-pm-end { display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+.ss-frame-mono { display: flex; align-items: center; gap: 10px; }
+.ss-frame-mono h2 { margin: 0; }
+/* 被挡的时候：对话里的一段、场景页上的一张卡 */
+.ss-mock { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ss-mock > .mw-frame { flex: 1; }
+.ss-log .mw-alert { margin: 0 0 0 34px; max-width: 560px; }
+.ss-arrive { animation: ss-rise var(--dur-arrive, 420ms) var(--ease-quint, ease) both; }
+.ss-mock .ss-step { max-width: 526px; }
+.ss-log .ss-quiet-note { margin-left: 34px; color: var(--muted); font-size: 12px; }
+.ss-scene { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; align-items: start; max-width: 900px; }
+.ss-scene .mw-card { min-width: 0; }
+.ss-scene p { margin: 0; color: var(--ink-soft); }
+.ss-scene .mw-items { width: 100%; grid-template-columns: minmax(0, 1fr); padding: 0; border: 0; box-shadow: none; background: none; }
+.ss-scene .mw-item { padding-left: 0; }
+.ss-scene .mw-item:nth-child(1) { animation-delay: 0ms; } .ss-scene .mw-item:nth-child(2) { animation-delay: 60ms; } .ss-scene .mw-item:nth-child(3) { animation-delay: 120ms; }
+.ss-gate { display: grid; gap: 4px; align-content: start; justify-items: start; }
+.ss-gate p { margin: 0 !important; }
+.ss-gate p b { color: var(--ink); font-weight: var(--weight-control, 500); }
+.ss-gate .mw-ix-actions { margin-top: 8px; }
+/* 待归类：卡片先到，建议随后到 */
+.ss-lead-more { display: flex; align-items: center; gap: 8px; margin: -8px 0 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ss-sugg-wait { display: grid; gap: 8px; padding: 2px 0; }
+.ss-sugg-wait .mw-skeleton { display: block; height: 13px; border-radius: 6px; }
+.ss-sugg-in { animation: ss-rise var(--dur-move, 250ms) var(--ease-quint, ease) both; }
+.ss-sugg-kept { margin-top: 6px !important; color: var(--muted) !important; font-size: 12px; }
+.ss-radio-copy { display: grid; gap: 2px; min-width: 0; }
+.ss-radio-copy small { color: var(--muted); font-size: 12px; line-height: 1.55; }
+@media (prefers-reduced-motion: reduce) {
+  dialog.mw-sheet[open], .ss-pm { transition: none; }
+  .ss-pm-note, .ss-pm-note[data-kind="fail"], .ss-sheet-panel, .ss-arrive, .ss-sugg-in { animation: none; }
+}
 @media (max-width: 1100px) {
   .ss-two { grid-template-columns: minmax(0, 1fr); }
   .ss-two .ss-outline { position: static; }
@@ -139,4 +238,12 @@ body { margin: 0; background: var(--desk); color: var(--ink); font: 13px/1.5 var
   .ss-step { margin-left: 0; grid-template-columns: 16px minmax(0, 1fr); }
   .ss-step small { grid-column: 2; }
   .ss-owner .mw-btn { margin-left: 0; }
+  dialog.mw-sheet:has(> .proto) { inset: 0 0 auto 0; height: calc(100dvh - var(--proto-h, 76px)); max-height: calc(100dvh - var(--proto-h, 76px)); border-radius: 0; }
+  .ss-sheet-tabs { padding: 4px 16px 8px; }
+  .ss-log .mw-alert, .ss-mock .ss-step { max-width: 526px; }
+.ss-log .ss-quiet-note { margin-left: 0; }
+  .ss-pm { padding-inline: 12px; }
+  .ss-pm--action { flex-wrap: wrap; }
+  .mw-setting.ss-pm--action > div:first-child { flex-basis: 100%; }
+  .mw-setting.ss-pm--action > div:last-child { flex: 1 1 100%; margin-left: 0; padding-left: 34px; justify-content: space-between; }
 }

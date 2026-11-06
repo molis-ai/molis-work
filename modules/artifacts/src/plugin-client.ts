@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginArtifactErrors } from "./plugin-errors.js";
 import type {
   PluginArtifactClient, PluginArtifactWriter, PluginStartContext, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput,
@@ -85,10 +86,12 @@ function sdkArtifactActions(installId: string) {
   const define = (operation: keyof typeof pluginArtifactContracts): ActionDefinition => {
     const read = operation !== "publish" && operation !== "record";
     const contract = pluginArtifactContracts[operation];
-    return { capability_id: `${providerId}.${operation}`, version: 1, provider_id: providerId, operation: read ? "query" : "command",
-      action: { title: titles[operation], description: "使用当前安装实例的类型合同和生产者身份访问成果", kind: read ? "query" : "operation",
-        scope: "project", audiences: ["plugin"], permissions: [read ? "artifact:read" : "artifact:write"], subject_kinds: ["artifact"],
-        input_schema: contract.input, output_schema: contract.output } };
+    const definition = createActionDefinition(`${providerId}.${operation}`, read ? "query" : "command", {
+      title: titles[operation], description: "使用当前安装实例的类型合同和生产者身份访问成果",
+      audiences: ["plugin"], permissions: [read ? "artifact:read" : "artifact:write"], subject_kinds: ["artifact"],
+      input_schema: contract.input, output_schema: contract.output,
+    });
+    return { ...definition, provider_id: providerId };
   };
   return { providerId, read: define("read"), head: define("head"), own: define("own"), publish: define("publish"), recordItem: define("record"),
     processHead: define("process-head"), processOwn: define("process-own"), list: define("list") };

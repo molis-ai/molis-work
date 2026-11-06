@@ -25,6 +25,19 @@ export interface SqliteBaseline {
   readonly schema: string;
 }
 
+/**
+ * The version half of every baseline check, on whichever driver owns the file: true when the store is at the baseline's version, false
+ * when it has no version and no table yet (the creation path). Anything else — another version, or tables without one — is refused with
+ * both versions, never upgraded in place.
+ */
+export function checkSqliteBaselineVersion(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline): boolean {
+  const found = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+  if (found === baseline.version) return true;
+  const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
+  if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
+  return false;
+}
+
 /** A baseline's expected shape, described once from its creation statements (the memory reference is not rebuilt per open). */
 const expectedShapes = new WeakMap<SqliteBaseline, SqliteSchemaShape>();
 function expectedShape(baseline: SqliteBaseline): SqliteSchemaShape {
@@ -66,12 +79,7 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline): boolean 
   try {
     const inspection = new DatabaseSync(path, { readOnly: true });
     try {
-      const found = Number((inspection.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
-      const empty = !inspection.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
-      if (found !== baseline.version) {
-        if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
-        return true;
-      }
+      if (!checkSqliteBaselineVersion(inspection, path, baseline)) return true;
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
       if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path);
@@ -101,14 +109,11 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
  */
 function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, shapeChecked: boolean): void {
   if (!Number.isInteger(baseline.version) || baseline.version < 1) throw new Error("基线版本必须是正整数");
-  const found = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
-  if (found === baseline.version) {
+  if (checkSqliteBaselineVersion(db, path, baseline)) {
     // The version mark claims the baseline's schema; missing baseline tables are damage even when no business table is left.
     if (!shapeChecked && !baselineShapePresent(db, baseline)) throw structureMismatch(path);
     return;
   }
-  const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
-  if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
   db.exec("BEGIN IMMEDIATE");
   try {
     db.exec(baseline.schema);

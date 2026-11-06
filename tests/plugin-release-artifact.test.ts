@@ -1,8 +1,9 @@
+import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import Database from "better-sqlite3";
+import type { SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 
 import {
   type PluginDefinition,
@@ -22,7 +23,7 @@ import {
   pluginManifestDigest,
   type PluginSupervisorReport,
 } from "@molis-ai/molis-work-plugin-runtime";
-import { nativePluginReleaseArtifact } from "../apps/local-host/src/native-plugin-release-artifact.js";
+import { nativePluginReleaseArtifact } from "../apps/local-host/dist/native-plugin-release-artifact.js";
 
 const PLUGIN_ID = "io.molis.work.release-fixture";
 const SIGNATURE = "release-fixture-publisher";
@@ -36,7 +37,7 @@ const NEWER = { permission: "feature:newer", required: false, reason: "只有新
 const NOTE = { permission: "storage:private", required: true, reason: "保存一条私人记录" } as const;
 
 test("SQLite release artifacts restore an installed Native version after Host restart and keep updates manual", async () => {
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   try {
     const runtimeRepository = new SqlitePluginRuntimeRepository(db);
     const releaseRepository = new SqlitePluginRuntimeReleaseArtifactRepository(db);
@@ -110,7 +111,7 @@ test("Native plugin factory archives are bundled and rehydrated as exact definit
 });
 
 test("an archived compatible Native release remains usable when a later candidate is incompatible", async () => {
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   try {
     const started: string[] = [];
     const old = definition("1.0.0", started);
@@ -153,7 +154,7 @@ test("an archived compatible Native release remains usable when a later candidat
 // A plugin that ships with the Host follows the Host's version (repository-anti-corruption §1, 2026-10-04): an older install
 // moves up on start without any per-version declaration and runs the new code; it does not fall back to its old release.
 test("a bundled Native plugin's older install moves up to the Host's version on start, without per-version declarations", async () => {
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   try {
     const started: string[] = [];
     const oldDefinition = definition("1.0.0", started);
@@ -187,7 +188,7 @@ test("a bundled Native plugin's older install moves up to the Host's version on 
 // did not start); the old bodies live on further down for a plugin that is not bundled, whose rules did not change.
 test("a bundled Manifest below the installed version is followed: the record moves down to it and the Host's code runs, with the stored release or without", async () => {
   for (const storedRelease of [true, false]) {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const started: string[] = [], seen: Array<string | null> = [];
       const owner = new SqlitePluginPrivateStorage(db);
@@ -222,7 +223,7 @@ test("a bundled Manifest below the installed version is followed: the record mov
 
 test("a bundled Manifest changed without a new version is followed: the record takes the new digest and the new build runs, with the stored build or without", async () => {
   for (const storedRelease of [true, false]) {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const started: string[] = [], seen: Array<string | null> = [];
       const owner = new SqlitePluginPrivateStorage(db);
@@ -254,7 +255,7 @@ test("a bundled Manifest changed without a new version is followed: the record t
 });
 
 test("a bundled plugin follows the build in both directions, and the stored release of a version it comes back to is no more restored than any other", async () => {
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   try {
     const started: string[] = [];
     const processes: HostProcess[] = [];
@@ -280,7 +281,7 @@ test("a bundled plugin follows the build in both directions, and the stored rele
 // other cases (first install, a permission the person switched off).
 for (const [target, installedVersion, hostVersion] of [["a higher version", "0.2.0", "0.3.0"], ["a lower version", "1.44.0", "0.3.0"], ["the same version with another Manifest", "0.3.0", "0.3.0"]] as const) {
   test(`a bundled follow to ${target} ends holding every permission the new Manifest declares, and none it no longer declares`, async () => {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const started: string[] = [], held: string[][] = [];
       const record = (context: PluginStartContext) => { held.push([...context.grants]); };
@@ -312,7 +313,7 @@ for (const [label, narrowed, storedRelease, expected] of [
   ["with the installed build's stored release gone, no optional permission is switched on", false, false, ["artifact:read", "artifact:write", "feature:kept"]],
 ] as const) {
   test(`a bundled follow to a higher version: ${label}`, async () => {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const installed = definition("0.2.0", [], undefined, undefined, { permissions: [READ, KEPT, RETIRED] });
       const host = definition("0.3.0", [], undefined, undefined, { permissions: [READ, WRITE, KEPT, NEWER] });
@@ -332,7 +333,7 @@ for (const [label, narrowed, storedRelease, expected] of [
 
 test("a bundled plugin whose new Manifest asks for another required permission is granted it, as when the Host's version is higher, with a same-version declaration or without", async () => {
   const outcome = async (version: string, declaration?: PluginManifest["upgrade_compatibility"]) => {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const installed = definition("0.3.0", [], undefined, undefined, { build: "A", permissions: [READ] });
       const widened = definition(version, [], undefined, declaration, { build: "B", permissions: [READ, WRITE] });
@@ -350,7 +351,7 @@ test("a bundled plugin whose new Manifest asks for another required permission i
 
 test("PluginRuntime.install with bundled moves the record to the build whatever its version, and keeps what is the installation's rather than the build's", async () => {
   for (const [direction, installedVersion, hostVersion] of [["lower", "1.44.0", "0.3.0"], ["higher", "0.2.0", "0.3.0"], ["the same version", "0.3.0", "0.3.0"]] as const) {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const installed = definition(installedVersion, [], undefined, undefined, { build: "before", publisherId: "molis-before", entrypoint: "./before.js" });
       const host = definition(hostVersion, [], undefined, undefined, { build: "after" });
@@ -387,7 +388,7 @@ test("PluginRuntime.install with bundled moves the record to the build whatever 
 });
 
 test("following a bundled build never changes the deployment of an installation", () => {
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   try {
     const entrypoints: PluginManifest["entrypoints"] = [{ deployment: "local", entrypoint: "./index.js" }, { deployment: "server", entrypoint: "./server.js" }];
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor(), { hostIds: ISOLATED_HOST_IDS });
@@ -402,7 +403,7 @@ test("following a bundled build never changes the deployment of an installation"
 
 test("a bundled plugin that could not start on the new build still has no market update pending, while a plugin that is not bundled keeps the update it is offered", async () => {
   for (const bundled of [true, false]) {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const installed = definition("1.0.0", []);
       const absent = [{ capability_id: "io.molis.work.absent.v1", version: 1, reason: "nobody provides it" }];
@@ -429,7 +430,7 @@ test("a bundled plugin that could not start on the new build still has no market
 // pin the same behaviour for bundled entries, with the entries no longer marked bundled.
 test("a Manifest below the installed version is not followed for a plugin that is not bundled: the stored release keeps running, or the plugin does not start", async () => {
   for (const storedRelease of [true, false]) {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const started: string[] = [];
       const installedDefinition = definition("1.44.0", started);
@@ -467,7 +468,7 @@ test("a Manifest below the installed version is not followed for a plugin that i
 
 test("a Manifest changed without a new version is not followed for a plugin that is not bundled: the stored build keeps running, or the plugin does not start", async () => {
   for (const storedRelease of [true, false]) {
-    const db = new Database(":memory:");
+    const db = openPluginTestDatabase(":memory:");
     try {
       const started: string[] = [];
       const buildA = definition("0.3.0", started, undefined, undefined, { build: "A" });
@@ -510,7 +511,7 @@ test("a Manifest changed without a new version is not followed for a plugin that
 });
 
 test("PluginRuntime.install without bundled refuses a lower version, a higher version without a declaration, and the same version with another Manifest", () => {
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   try {
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor(), { hostIds: ISOLATED_HOST_IDS });
     const refusal = (candidate: PluginDefinition) => {
@@ -529,7 +530,7 @@ test("PluginRuntime.install without bundled refuses a lower version, a higher ve
 });
 
 test("PluginRuntime.install refuses the same version with another Manifest, and only a same-version declaration lets it through", () => {
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   try {
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor(), { hostIds: ISOLATED_HOST_IDS });
     const buildA = definition("0.3.0", [], undefined, undefined, { build: "A" });
@@ -545,7 +546,7 @@ test("PluginRuntime.install refuses the same version with another Manifest, and 
 });
 
 test("a same-version declaration lets the changed build run without touching the record for a plugin that is not bundled, but only while the grants stay the same", async () => {
-  const db = new Database(":memory:");
+  const db = openPluginTestDatabase(":memory:");
   try {
     const started: string[] = [];
     const permission = { permission: "artifact:read", required: true, reason: "读取绑定的文本快照" } as const;
@@ -605,7 +606,7 @@ function checklistInstalledRecordsQuery(): string {
 }
 
 /** What that query returns on a project database: plugin id, version, digest of each installation record. */
-function installedRecordsAsChecked(db: Database.Database): unknown[][] {
+function installedRecordsAsChecked(db: SqliteDatabase): unknown[][] {
   return db.prepare(checklistInstalledRecordsQuery()).all().map(row => Object.values(row as Record<string, unknown>).slice(0, 3));
 }
 
@@ -634,7 +635,7 @@ interface HostProcess {
  * One Host process over a project database: a fresh Runtime and Supervisor, the way a restart builds them, started with the
  * one entry the build carries. `archive` is every definition an earlier process stored a release of, which `restore` can return.
  */
-async function startProcess(db: Database.Database, candidate: PluginDefinition,
+async function startProcess(db: SqliteDatabase, candidate: PluginDefinition,
   options: { bundled: boolean; archive: PluginDefinition[] }): Promise<HostProcess> {
   const restored: string[] = [];
   const label = (definition: PluginDefinition) => `native-${definition.manifest.version}-${pluginManifestDigest(definition.manifest).slice(0, 8)}`;
@@ -666,7 +667,7 @@ interface Restart extends HostProcess {
  * A Host process starts `installed` and shuts down normally; the next process starts `candidate` over the same database.
  * `storedRelease: false` is a database whose stored releases are gone.
  */
-async function installThenRestart(db: Database.Database, installed: PluginDefinition, candidate: PluginDefinition,
+async function installThenRestart(db: SqliteDatabase, installed: PluginDefinition, candidate: PluginDefinition,
   options: { bundled: boolean; storedRelease: boolean }): Promise<Restart> {
   const first = await startProcess(db, installed, { bundled: options.bundled, archive: [] });
   const installId = first.supervisor.state(PLUGIN_ID)?.install_id;

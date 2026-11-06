@@ -49,7 +49,7 @@ node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-co
 - 负责：Runtime 工作入口与项目的绑定关系、建议与拒绝记录、绑定语义的错误码。
 - 不负责：Session 与消息（已下线）、执行 Run、Goal、Artifact、Runtime 进程句柄。
 - 公开入口：`@molis-ai/molis-work-module-private-work-context`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/private-work-context`。
-- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。项目库的连接类型来自 storage。模块使用调用方持有的连接，不自行加载驱动，也不导入其他 Module 的实现或 Store。参见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)。
 - 不变量：
   - Runtime 项目绑定由 `createRuntimeContextModule` 在同一连接内装配；Repository 不对包外导出，Host 只提供项目创建与补偿端口，并调用绑定、创建并绑定及清理服务。
   - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `ledger`（`createRuntimeContextModule` 的选项，类型 `ContextLedgerApi`）并复用事务连接。

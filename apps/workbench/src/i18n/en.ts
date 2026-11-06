@@ -16,6 +16,7 @@ import { MEMORY_EN } from "./memory-en.js";
 import { KNOWLEDGE_EN } from "./knowledge-en.js";
 import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
+import { SERVICE_CONNECTION_EN } from "./service-connection-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
   "角色资料": "Role material",
@@ -29,6 +30,7 @@ export const EN: Record<string, string> = {
   ...SHARED_WORDS_EN,
   ...CONTEXTUAL_EN,
   ...SIDE_PANEL_EN,
+  ...SERVICE_CONNECTION_EN,
   "保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。": "Changes apply to subsequent runs. Restart text generation if its model or connection changes while it is running.",
   "连接不可用": "Connection unavailable",
   "原连接已不可用，请重新选择": "Previous connection unavailable; choose another",

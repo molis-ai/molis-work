@@ -1,3 +1,4 @@
+import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { feedErrors } from "./contract/feed.js";
 import { isAccountConnectorSyncKind } from "./contract/sources.js";
 import { ActionError, retainActionAuthority, type ActionAudience, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -15,14 +16,13 @@ const id = { type: "string", minLength: 1, maxLength: 200 };
 const text = { type: "string", maxLength: 2000 };
 const source = { type: "object", properties: { source_id: { type: "string" }, name: { type: "string" }, status: { type: "string" } }, required: ["source_id"] };
 const sourceResult: ActionSchema = { type: "object", properties: { source }, required: ["source"] };
-const closed = (properties: Record<string, unknown>, required: string[]): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const SHARED: readonly ActionAudience[] = ["user", "agent", "mcp"];
 /** Disconnecting removes an account's credentials: only the person at this computer does that. */
 const LOCAL: readonly ActionAudience[] = ["user"];
 function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema,
   audiences: readonly ActionAudience[] = SHARED, permissions: readonly string[] = ["feed:read", "feed:write"], scheduling?: "concurrent", execution?: ActionDefinition["action"]["execution"]): ActionDefinition<Input, Output> {
-  return { capability_id: `feed.sources.${suffix}`, version: 1, operation: "command", action: { title, description, ...(execution ? { execution } : {}), kind: "operation", scope: "project",
-    audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output, ...((scheduling ?? (suffix === "sync" ? "concurrent" : undefined)) ? { scheduling: scheduling ?? "concurrent" } : {}) } };
+  return createActionDefinition<Input, Output>(`feed.sources.${suffix}`, "command", { title, description, ...(execution ? { execution } : {}),
+    audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output, ...((scheduling ?? (suffix === "sync" ? "concurrent" : undefined)) ? { scheduling: scheduling ?? "concurrent" } : {}) });
 }
 
 export type FeedSourceRegistration = Record<string, unknown> & { kind: string };

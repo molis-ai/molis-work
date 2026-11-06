@@ -1,3 +1,4 @@
+import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
@@ -5,8 +6,6 @@ import type { ImagesService } from "./service.js";
 import { createImagesSearchHandlers, imagesSearchActions } from "./search.js";
 import { IMAGES_FILES_WRITE } from "./owner-files.js";
 const text = {type:"string"}, id = {...text,minLength:1,pattern:"\\S"};
-const object = (properties:Record<string,unknown>,required=Object.keys(properties)):ActionSchema=>({type:"object",properties,required,additionalProperties:false});
-const array = (items:unknown)=>({type:"array",items});
 const format={enum:["openai-images","gemini"]},mime={enum:["image/png","image/jpeg","image/webp"]};
 const connectionFields={id,name:text,api_format:format,base_url:text,model:text,has_key:{type:"boolean"},created_at:text,updated_at:text};
 const connection=object({...connectionFields,auth_connection_id:id,available:{type:"boolean"},unavailable_reason:text},Object.keys(connectionFields));
@@ -16,8 +15,8 @@ const job=object({id,project_id:id,request_id:id,connection_id:id,connection_nam
   status:{enum:["running","succeeded","failed","cancelled","interrupted"]},images:array(image),error:text,created_at:text,finished_at:{type:["string","null"]}});
 const changed=object({job});
 function define<I,O>(name:string,title:string,description:string,operation:"query"|"command",scope:"home"|"project",input:ActionSchema,output:ActionSchema,permissions:readonly string[],execution?:ActionDefinition["action"]["execution"]):ActionDefinition<I,O>{
-  return {capability_id:`images.${name}`,version:1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
-    status:{capability_id:"images.jobs.get",version:1},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),kind:operation==="query"?"query":"operation",scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}};
+  return createActionDefinition<I, O>(`images.${name}`, operation, {title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
+    status:{capability_id:"images.jobs.get",version:1},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions});
 }
 export const imagesActions={
   connectionUsages:defineConnectorUsagesAction("images.connection.usages","生图配置使用的连接",["images:connections:read"],"home"),

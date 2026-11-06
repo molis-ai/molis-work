@@ -1,5 +1,7 @@
 # Artifacts
 
+个人同步由本 Module 的公开 `createArtifactReplication` / `createProcessItemReplication` 复用固定版本引擎；两套原表、集合及技术日志保持独立。Host 创建目标项目之前调用公开纯校验函数，传输和回执仍归共同同步层。完整正文、来源和版本 digest 不在 Host 猜测改写，恢复过程项不启用或执行生产者；各生产者私有草稿及本机执行绑定不因此自动成为可携带数据。
+
 **定位：** 两套固定版本库的唯一 owner：成果库（人要留存、引用的结果）与过程项（插件之间交接的数据），及其内容引用。两者使用同一套版本规则，各自的表、事件和可见位置分开。
 
 **拥有：** `artifact_id + version`、Artifact Type、schema version、content/blob references、metadata、producer provenance、scope、可用性、生命周期和 supersession。

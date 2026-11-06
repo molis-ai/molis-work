@@ -119,7 +119,19 @@ const FOLD_MOTION = "grid-template-rows var(--dur-move) var(--ease-quint),opacit
 const CLIP_OPEN = "overflow:visible;transition:overflow 0s var(--dur-move) allow-discrete";
 const TONE = { hold: "var(--tone-attention,var(--amber))", failed: "var(--tone-blocked,var(--red))", done: "var(--tone-done,var(--green))" };
 
-export const SERVICE_CONNECTION_PART_STYLES = ""
+/** The step progress alone: the marks, then the line that says the step; the current mark takes the state's tone. A page that
+ * shows only a progress (the model settings' first key) takes these, not the rows and cards it does not draw. */
+export const SERVICE_CONNECTION_PROGRESS_STYLES = ""
+  + `.connection-progress{display:flex;align-items:center;gap:12px;min-width:0;color:var(--muted);font-size:12px;line-height:1.5}`
+  + `.connection-progress__marks{display:flex;flex:none}.connection-progress .mw-steps{margin:0}`
+  + `.connection-progress__caption{margin:0;min-width:0;overflow-wrap:anywhere}[data-connectors-settings] .connection-progress__caption,.connection-card .connection-progress__caption{color:var(--muted);font-size:12px}`
+  + `.connection-progress__caption:focus{outline:none}.connection-progress__caption:focus-visible{outline:var(--focus-stroke);outline-offset:1px;border-radius:var(--r-tag)}`
+  + `.connection-progress[data-state=hold] li[aria-current] > span{background:${TONE.hold}}.connection-progress[data-state=hold] .connection-progress__state{color:${TONE.hold}}`
+  + `.connection-progress[data-state=failed] li[aria-current] > span{background:${TONE.failed}}.connection-progress[data-state=failed] .connection-progress__state{color:${TONE.failed}}`
+  + `.connection-progress[data-state=cancelled] li[aria-current] > span{background:var(--muted);transform:none}`
+  + `.connection-progress[data-state=done] li > span{background:${TONE.done}}`;
+
+export const SERVICE_CONNECTION_PART_STYLES = SERVICE_CONNECTION_PROGRESS_STYLES
   // The row opening in place: the connections page's row, a wash on hover, the toggle's chevron turning, and the part under it
   // lined up with the row's name (40px mark + 12px gap); on a phone it takes the row's full width.
   + `.settings-connection-item{border-bottom:1px solid var(--line)}`
@@ -131,15 +143,6 @@ export const SERVICE_CONNECTION_PART_STYLES = ""
   + `.settings-connection-item[data-open=true]>.settings-connection-item__fold{grid-template-rows:1fr;opacity:1;visibility:visible;transition:${FOLD_MOTION},visibility 0s}`
   + `.settings-connection-item__clip{min-height:0;overflow:hidden;margin-inline:-4px;padding-inline:4px}.settings-connection-item[data-open=true] .settings-connection-item__clip{${CLIP_OPEN}}`
   + `.settings-connection-item__body{padding:4px 0 24px 52px}`
-  // The step progress: the marks, then the line that says the step; the current mark takes the state's tone.
-  + `.connection-progress{display:flex;align-items:center;gap:12px;min-width:0;color:var(--muted);font-size:12px;line-height:1.5}`
-  + `.connection-progress__marks{display:flex;flex:none}.connection-progress .mw-steps{margin:0}`
-  + `.connection-progress__caption{margin:0;min-width:0;overflow-wrap:anywhere}[data-connectors-settings] .connection-progress__caption,.connection-card .connection-progress__caption{color:var(--muted);font-size:12px}`
-  + `.connection-progress__caption:focus{outline:none}.connection-progress__caption:focus-visible{outline:var(--focus-stroke);outline-offset:1px;border-radius:var(--r-tag)}`
-  + `.connection-progress[data-state=hold] li[aria-current] > span{background:${TONE.hold}}.connection-progress[data-state=hold] .connection-progress__state{color:${TONE.hold}}`
-  + `.connection-progress[data-state=failed] li[aria-current] > span{background:${TONE.failed}}.connection-progress[data-state=failed] .connection-progress__state{color:${TONE.failed}}`
-  + `.connection-progress[data-state=cancelled] li[aria-current] > span{background:var(--muted);transform:none}`
-  + `.connection-progress[data-state=done] li > span{background:${TONE.done}}`
   // The card where a connection is missing, and the line it folds into. Its body is a fold too: closed while the card only
   // offers to connect, opened on the same clock when the connection starts; the action steps aside while it runs.
   + `.connection-need{display:grid;min-width:0}.connection-need [hidden]{display:none}`
@@ -158,7 +161,7 @@ export const SERVICE_CONNECTION_PART_STYLES = ""
   + `.connection-card__clip{min-height:0;overflow:hidden;margin-inline:-4px;padding-inline:4px}.connection-need:not([data-state=ask]) .connection-card__clip{${CLIP_OPEN}}`
   + `.connection-card__body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding-bottom:0}.connection-card__body .mw-status{max-width:100%;white-space:normal;line-height:1.4}.connection-card__fold:last-child .connection-card__body{padding-bottom:20px}`
   // Accounts to choose from stack one per line at the card's width; a long account line wraps instead of leaving the card.
-  + `.connection-card .mw-choice-group{display:grid}.connection-card .mw-choice{min-width:0;padding-block:10px}.connection-card .mw-choice__label{white-space:normal}`
+  + `.connection-card .mw-choice-group{display:grid}.connection-card .mw-choice{min-width:0;padding-block:10px}.connection-card .mw-choice__label{white-space:normal;align-items:start}`
   + `.connection-card .mw-card__footer{padding-top:16px}.connection-need[data-state=running] .connection-card .mw-card__footer{display:none}`
   + `@media (prefers-reduced-motion:reduce){:is(.settings-connection-item__fold,.connection-need__fold,.connection-need__done,.connection-card__fold,.settings-connection-item__toggle svg){transition:none}}`
   + `@media (max-width:760px){${ROW},[data-connectors-settings] ${ROW}{grid-template-columns:40px minmax(0,1fr) auto}`

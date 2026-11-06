@@ -109,7 +109,7 @@ test("AC-10, QA-001: on an English page the reason a next round could not start 
   const fixture = await parkedWork(t, "refused-en");
   t.mock.method(fixture.current().host, "start", async () => { throw new ActionError("agent.model_not_configured", "fixture: no model"); });
   const view = await runWithLocale("en", () => fixture.answer());
-  assert.equal(view.problem?.message, "Answered, but the next round couldn't start: No usable model is configured yet, so the assistant can't start");
+  assert.equal(view.problem?.message, "Answered, but the next turn couldn't start: No usable model is configured yet, so the assistant can't start");
   assert.doesNotMatch(view.problem?.message ?? "", /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
   assert.equal(view.problem?.action, "说“继续”接着做", "the action stays the key the page translates");
 });

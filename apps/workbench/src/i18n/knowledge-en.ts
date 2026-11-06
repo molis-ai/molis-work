@@ -28,7 +28,7 @@ export const KNOWLEDGE_EN: Record<string, string> = {
   "全选当前列出的资料": "Select all listed pieces",
   "显示更多": "Show more",
   "最近被谁用过": "Recently read by",
-  "Agent 读到资料原文的每一次：哪个 Agent、哪一轮、读了哪个版本多少字。保留 30 天。": "Every time an agent read a piece's original text: which agent, in which round, which version and how much. Kept for 30 days.",
+  "Agent 读到资料原文的每一次：哪个 Agent、哪一轮、读了哪个版本多少字。保留 30 天。": "Every time an agent read a piece's original text: which agent, in which turn, which version and how much. Kept for 30 days.",
   "查找资料": "Find in knowledge",
   "导入资料": "Import",
   "刷新资料列表": "Refresh the list",

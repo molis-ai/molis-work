@@ -13,7 +13,7 @@ export class HostAvailability {
   constructor(
     private readonly actionService: ActionService,
     private readonly capabilities: CapabilityRegistry<ActionCallContext>,
-    private readonly options: Pick<LocalHostOptions<unknown>, "actionAvailability" | "sceneAvailability">,
+    private readonly options: Pick<LocalHostOptions<unknown>, "actionAvailability" | "sceneAvailability" | "assertProjectAvailable">,
   ) {}
 
   async discover(caller: ActionCallContext): Promise<ActionView[]> {
@@ -78,6 +78,7 @@ export class HostAvailability {
 
   /** Throws the reason when the Host's policy, or what the action needs, says the call cannot go ahead now. */
   async check(caller: ActionCallContext, capability: Pick<HostCapabilityDescriptor, "capability_id" | "version">): Promise<void> {
+    if (caller.project_id) this.options.assertProjectAvailable?.(caller.project_id);
     const definition = this.capabilities.descriptor(capability, caller.project_id);
     if (!definition?.action || !definition.action_provider) return;
     admitPluginCall(caller, definition.capability_id, definition.action);

@@ -1,4 +1,4 @@
-// SECURITY-INVARIANTS S-109 (with S-08 and S-17): a background task of a plugin reads only what the person allowed that one task. Its
+// SECURITY-INVARIANTS S-141 (with S-08 and S-17): a background task of a plugin reads only what the person allowed that one task. Its
 // grant subject `agent:task:<project>:<installation>:<key>` is composed by the Host from the call (the plugin gives only the key), holds
 // nothing by default, reads only, and is checked again at every call (specs/proactive-assistant/schedule-task-reads.md §3–§4).
 // Every refusal asserts the refusal itself and that nothing was written or run.
@@ -211,7 +211,7 @@ async function world(t: TestContext) {
   return { home, localHost, served: served!, reader, rounds, hold, off, open, list, call, person, found, exact, records, plant };
 }
 
-test("S-109 a task's grant subject is the Host's: no default actions, then only the categories the person turned on for that one task", { timeout: 120_000 }, async t => {
+test("S-141 a task's grant subject is the Host's: no default actions, then only the categories the person turned on for that one task", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Tasks");
   const offered = (await w.list(a.project)).categories;
   assert.ok(offered.some(category => category.provider_id === a.providerId && category.group_id === "notes"), "the read group is offered as a category");
@@ -230,7 +230,7 @@ test("S-109 a task's grant subject is the Host's: no default actions, then only 
   assert.equal(called?.actor_id, a.subject("daily"), "the call is the subject's, composed from the call's project and installation");
   assert.match(called?.audit_actor_id ?? "", /^agent:prologue:s\d+$/, "the author recorded is the round's session");
 
-  // Another task of the same installation and project: another subject, with nothing (S-109 ①).
+  // Another task of the same installation and project: another subject, with nothing (S-141 ①).
   await a.run({ grant_subject: "weekly" }, async gateway => {
     assert.deepEqual(await w.found(gateway), []);
     await assert.rejects(gateway!.invoke({ capability_id: notes.capability_id, version: 1, provider_id: a.providerId }, {}), { code: "mcp.action_revoked" });
@@ -238,14 +238,14 @@ test("S-109 a task's grant subject is the Host's: no default actions, then only 
   assert.equal(w.reader.handled.length, 1, "the refused call did not run");
 });
 
-test("S-109 a task's grants are not the built-in Agent's or an MCP client's, and not another project's or installation's", { timeout: 120_000 }, async t => {
+test("S-141 a task's grants are not the built-in Agent's or an MCP client's, and not another project's or installation's", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("A"), b = await w.open("B");
   const control = { beforeEffect: async () => {} };
   const directory = async () => (await a.plugin.services!.actions!.invoke(agentHostCapabilities.listActions, [RUNTIME], control)).map(view => view.capability_id).sort();
   const mcp = async () => { const connected = await w.served.mcp("runtime:codex", a.project.project_id); return connected.client.discover(connected.caller); };
   const agentBefore = await directory(), mcpBefore = (await mcp()).map(view => view.capability_id).sort();
   await a.set("daily", [a.group]);
-  assert.deepEqual(await directory(), agentBefore, "the built-in Agent's directory gained nothing (S-109 ②)");
+  assert.deepEqual(await directory(), agentBefore, "the built-in Agent's directory gained nothing (S-141 ②)");
   assert.equal(agentBefore.includes(notes.capability_id), false);
   assert.deepEqual((await mcp()).map(view => view.capability_id).sort(), mcpBefore, "an MCP client's directory gained nothing");
   assert.equal(mcpBefore.includes(notes.capability_id), false);
@@ -258,7 +258,7 @@ test("S-109 a task's grants are not the built-in Agent's or an MCP client's, and
   assert.deepEqual(await w.records(`agent:task:${b.project.project_id}:`), [], "nothing was recorded in the other project");
 });
 
-test("S-109 S-08 taking a task's grants back refuses its next call and a call already under way, and runs neither", { timeout: 120_000 }, async t => {
+test("S-141 S-08 taking a task's grants back refuses its next call and a call already under way, and runs neither", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Revoke");
   await a.set("daily", [a.group]);
   const reference = { capability_id: notes.capability_id, version: 1, provider_id: a.providerId };
@@ -279,7 +279,7 @@ test("S-109 S-08 taking a task's grants back refuses its next call and a call al
   assert.deepEqual(await w.records("agent:task:"), []);
 });
 
-test("S-109 only the person sets a task's grants; a plugin clears and lists only its own installation's tasks", { timeout: 120_000 }, async t => {
+test("S-141 only the person sets a task's grants; a plugin clears and lists only its own installation's tasks", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Who writes");
   const input = { plugin_install_id: a.install, key: "daily", categories: [a.group], expected_revision: "" };
   // Not offered to the audience: the call is refused as one this caller has no such action for, before it runs.
@@ -302,7 +302,7 @@ test("S-109 only the person sets a task's grants; a plugin clears and lists only
   assert.deepEqual(await w.records("agent:task:"), []);
 });
 
-test("S-109 a task is only given reads: a provider's commands and writing queries are never recorded, and naming none of its reads is refused", { timeout: 120_000 }, async t => {
+test("S-141 a task is only given reads: a provider's commands and writing queries are never recorded, and naming none of its reads is refused", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Reads only");
   await assert.rejects(a.set("daily", [a.group, a.changes]), { code: "actions.input_invalid" }, "a provider without a read offers no category");
   assert.deepEqual(await w.records("agent:task:"), [], "the whole call was refused");
@@ -310,7 +310,7 @@ test("S-109 a task is only given reads: a provider's commands and writing querie
   assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id), [shelfRead.capability_id], "only the read was recorded");
 });
 
-test("S-109 a task is offered only plugins' categories: the Host's own providers are never one, naming one is refused, and a record of one reads nothing", { timeout: 120_000 }, async t => {
+test("S-141 a task is offered only plugins' categories: the Host's own providers are never one, naming one is refused, and a record of one reads nothing", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Plugins only");
   let systemCalls = 0;
   const systemRead = query("fixture.system.read");
@@ -339,7 +339,7 @@ test("S-109 a task is offered only plugins' categories: the Host's own providers
   assert.equal(systemCalls, 0);
 });
 
-test("S-109 a category that is not offered now is refused as a whole call: no group for a provider with groups (C3), a group it no longer declares (S3), a stale revision", { timeout: 120_000 }, async t => {
+test("S-141 a category that is not offered now is refused as a whole call: no group for a provider with groups (C3), a group it no longer declares (S3), a stale revision", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Named");
   await assert.rejects(a.set("daily", [{ provider_id: a.providerId }]), { code: "actions.input_invalid" });
   await assert.rejects(a.set("daily", [a.group, { provider_id: a.providerId, group_id: "gone" }]), { code: "actions.input_invalid" });
@@ -352,7 +352,7 @@ test("S-109 a category that is not offered now is refused as a whole call: no gr
   assert.deepEqual(await w.records("agent:task:"), [], "an empty list takes them all back");
 });
 
-test("S-109 R1 R2 PWA-152 turning on another category keeps a category that needs confirmation as it was: what its provider added stays unreadable", { timeout: 120_000 }, async t => {
+test("S-141 R1 R2 PWA-152 turning on another category keeps a category that needs confirmation as it was: what its provider added stays unreadable", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Keep unconfirmed");
   await a.set("daily", [a.shelf]);
   t.after(a.shelfAdds([shelfAdded]));
@@ -366,7 +366,7 @@ test("S-109 R1 R2 PWA-152 turning on another category keeps a category that need
   });
 });
 
-test("S-109 R1 §3.4 turning on another category while one is unavailable keeps its records, and it reads again when its provider is back", { timeout: 120_000 }, async t => {
+test("S-141 R1 §3.4 turning on another category while one is unavailable keeps its records, and it reads again when its provider is back", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Keep unavailable");
   await a.set("daily", [a.shelf]);
   w.off.add(shelfRead.capability_id);
@@ -379,7 +379,7 @@ test("S-109 R1 §3.4 turning on another category while one is unavailable keeps 
   await a.run({ grant_subject: "daily" }, async gateway => { assert.deepEqual(await w.found(gateway), [shelfRead.capability_id, notes.capability_id].sort()); });
 });
 
-test("S-109 R3 R4 only the person's confirm records a held category anew, and a held category left out of the call loses its records", { timeout: 120_000 }, async t => {
+test("S-141 R3 R4 only the person's confirm records a held category anew, and a held category left out of the call loses its records", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Confirm");
   await a.set("daily", [a.shelf, a.group]);
   t.after(a.shelfAdds([shelfAdded]));
@@ -392,7 +392,7 @@ test("S-109 R3 R4 only the person's confirm records a held category anew, and a 
   await a.run({ grant_subject: "daily" }, async gateway => { assert.deepEqual(await w.found(gateway), [notes.capability_id]); });
 });
 
-test("S-109 R5 a category new to the task whose provider is off records nothing and refuses the whole call", { timeout: 120_000 }, async t => {
+test("S-141 R5 a category new to the task whose provider is off records nothing and refuses the whole call", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Off");
   w.off.add(shelfRead.capability_id);
   await assert.rejects(a.set("daily", [a.group, a.shelf]), { code: "actions.input_invalid" });
@@ -403,7 +403,7 @@ test("S-109 R5 a category new to the task whose provider is off records nothing 
   assert.equal((await w.records("agent:task:")).length, 2, "switched back on, it can be turned on");
 });
 
-test("S-109 R1 a held category is taken by its records: a group no longer offered or no group at all keeps them, and the same reference new to a task is refused", { timeout: 120_000 }, async t => {
+test("S-141 R1 a held category is taken by its records: a group no longer offered or no group at all keeps them, and the same reference new to a task is refused", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Held by records");
   // New to the task, neither names a category offered now.
   await assert.rejects(a.set("daily", [{ provider_id: a.providerId }]), { code: "actions.input_invalid" });
@@ -414,7 +414,7 @@ test("S-109 R1 a held category is taken by its records: a group no longer offere
   assert.deepEqual((await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort(), before, "held, they are kept exactly");
 });
 
-test("S-109 R1 R4 C1 a category its provider no longer declares is listed as removed, kept exactly while it is held and unreadable meanwhile, and gone once left out", { timeout: 120_000 }, async t => {
+test("S-141 R1 R4 C1 a category its provider no longer declares is listed as removed, kept exactly while it is held and unreadable meanwhile, and gone once left out", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Removed");
   await a.set("daily", [a.group]);
   // The record a whole-provider grant left before the reader declared its groups: its Manifest now puts `loose` in no group. A fixture's
@@ -438,7 +438,7 @@ test("S-109 R1 R4 C1 a category its provider no longer declares is listed as rem
   assert.deepEqual(await status(), [[a.providerId, "notes", "granted"]]);
 });
 
-test("S-109 R3 confirm only re-records a category the task holds now, as the Host holds it, and not one that records nothing callable now", { timeout: 120_000 }, async t => {
+test("S-141 R3 confirm only re-records a category the task holds now, as the Host holds it, and not one that records nothing callable now", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Confirm held");
   await assert.rejects(a.set("daily", [{ ...a.group, confirm: true }]), { code: "actions.input_invalid" }, "confirm on a category the task does not hold");
   assert.deepEqual(await w.records("agent:task:"), []);
@@ -456,7 +456,7 @@ test("S-109 R3 confirm only re-records a category the task holds now, as the Hos
   assert.deepEqual(await w.records("agent:task:"), [], "nothing came back");
 });
 
-test("S-109 PWA-149 a task granted Schedule's 提醒 reads the reminders in its round, and not the task list of 定时操作", { timeout: 120_000 }, async t => {
+test("S-141 PWA-149 a task granted Schedule's 提醒 reads the reminders in its round, and not the task list of 定时操作", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Reminders");
   const offered = (await w.list(a.project)).categories.filter(category => category.plugin_id === SCHEDULE_PLUGIN_ID);
   const reminders = offered.find(category => category.group_id === "reminders");
@@ -474,7 +474,7 @@ test("S-109 PWA-149 a task granted Schedule's 提醒 reads the reminders in its 
   });
 });
 
-test("S-109 S-17 a plugin's round reads as a task only from a read-only business role, by a key alone, and without one it borrows nothing", { timeout: 120_000 }, async t => {
+test("S-141 S-17 a plugin's round reads as a task only from a read-only business role, by a key alone, and without one it borrows nothing", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Roles");
   await a.set("daily", [a.group]);
   for (const role_id of ["operator", "reviewer"]) {
@@ -494,7 +494,7 @@ test("S-109 S-17 a plugin's round reads as a task only from a read-only business
   assert.deepEqual(w.reader.handled, []);
 });
 
-test("S-109 S-08 a task's subject is no client of 对外接入 and cannot cross the action gateway", { timeout: 120_000 }, async t => {
+test("S-141 S-08 a task's subject is no client of 对外接入 and cannot cross the action gateway", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Not a client");
   await a.set("daily", [a.group]);
   const subject = a.subject("daily");
@@ -504,7 +504,7 @@ test("S-109 S-08 a task's subject is no client of 对外接入 and cannot cross 
   assert.equal((await w.records(subject)).length, 1, "its grant stays the task's");
 });
 
-test("S-109 a task reads a Home plugin's items only in its own project: all projects stays the person's (C2, S-74)", { timeout: 120_000 }, async t => {
+test("S-141 a task reads a Home plugin's items only in its own project: all projects stays the person's (C2, S-74)", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Home reads");
   const todo = (await w.list(a.project)).categories.filter(category => category.plugin_id === "io.molis.work.todo");
   assert.ok(todo.length, "Todo offers a category");
@@ -518,7 +518,7 @@ test("S-109 a task reads a Home plugin's items only in its own project: all proj
   });
 });
 
-test("S-109 deleting a project takes its tasks' grants with it and leaves another project's", { timeout: 120_000 }, async t => {
+test("S-141 deleting a project takes its tasks' grants with it and leaves another project's", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Deleted"), b = await w.open("Kept");
   await a.set("daily", [a.group]); await b.set("daily", [b.group]);
   assert.equal(await projectDeletedHooksFor(w.home).clear("task-grants", a.project.project_id), true);
@@ -526,7 +526,7 @@ test("S-109 deleting a project takes its tasks' grants with it and leaves anothe
   assert.equal((await w.records(`agent:task:${b.project.project_id}:`)).length, 1);
 });
 
-test("S-109 uninstalling a plugin takes its tasks' grants with it", mac, async t => {
+test("S-141 uninstalling a plugin takes its tasks' grants with it", mac, async t => {
   const home = await openTestHome(t), project = await home.createProject("Uninstalled");
   const client = home.host.actionClient(project.reference);
   const preview = await client.invoke(installer(project.project_id), ref(pluginInstallActions.preview), { bundle: homePackage() }) as { preview_id: string };

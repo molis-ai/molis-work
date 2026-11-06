@@ -6,18 +6,22 @@ import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from
  * project and stay.
  */
 const TODO_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "放在这个项目里的待办", order: 60, tables: [
+  { table: "todo_imported_changes", column: "item_id", parent: "todo_items" },
+  { table: "todo_editor_versions", column: "id", parent: "todo_items" },
   { table: "todo_changes", column: "item_id", parent: "todo_items" },
   { table: "todo_requests", column: "item_id", parent: "todo_items" },
   { table: "todo_source_memory", column: "item_id", parent: "todo_items" },
   { table: "todo_batches", column: "project_id" },
   { table: "todo_items", column: "project_id" },
+  // Deleting items creates these tombstones; project deletion clears them last.
+  { table: "todo_deleted_projects", column: "project_id" },
 ] };
 /**
  * The Todo library's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
  * created from it, existing ones must already be at its version. The Runtime opens it for the plugin; tests and the project's
  * deletion open the same file with their own connection.
  */
-export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO_PROJECT_ROWS, store_name: "todo", version: 1, read_permission: "todo:read", write_permission: "todo:write", schema: `
+export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO_PROJECT_ROWS, store_name: "todo", version: 4, read_permission: "todo:read", write_permission: "todo:write", schema: `
   CREATE TABLE todo_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -42,6 +46,13 @@ export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO
     reminder_acknowledged_at TEXT
   );
   CREATE INDEX todo_items_project ON todo_items (project_id);
+  CREATE TABLE todo_deleted_projects (id TEXT PRIMARY KEY, project_id TEXT);
+  CREATE TRIGGER todo_deleted_project AFTER DELETE ON todo_items BEGIN
+    INSERT INTO todo_deleted_projects(id,project_id) VALUES(OLD.id,OLD.project_id)
+      ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id;
+  END;
+  CREATE TABLE todo_editor_versions(id TEXT PRIMARY KEY,revision INTEGER NOT NULL);
+  CREATE TABLE todo_imported_changes(change_id TEXT PRIMARY KEY, item_id TEXT NOT NULL);
   CREATE TABLE todo_changes (
     change_id TEXT PRIMARY KEY,
     item_id TEXT NOT NULL,

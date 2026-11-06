@@ -40,11 +40,14 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 
 `server/`（身份、设备、接续回执与群聊领域）按 Module 规则检查，不算平台包：它有自己的业务事实（2026-10-08 决定第 4 项）。分类以 `scripts/workspace-packages.mjs` 的 `kind` 为准。
 
+这里的工作区登记指 `server/package.json` 的 Node 包，TypeScript 只编译 `server/src/**/*.ts`。Rust 同步业务也在统一源码目录下的 `server/src/sync`，由根部 `server/Cargo.toml` 指定库入口并由 native-checks 检查，不新增 pnpm 包；`apps/sync-worker` 通过该库的公开入口装配，不持有同步 SQL 或业务实现。
+
 ## 2. 强制禁止
 
 - Module implementation 或 Store 导入另一个 Module implementation 或 Store。
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
+- 项目库的同步连接只由 `packages/storage` 打开；测试使用 test-kit 的 `/sqlite` 子路径。Alchemist 保留既有例外。本次 `project-sqlite-driver` 检查工作区包源码、根测试、脚本和样例里的字面量 import、require，以及 Node `-e` 参数中的字面量程序；动态拼出的模块名不在此检查内。
 - Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
 - 生产源码导入任何插件的 `./testing` 出口，或插件自己的其他模块导入它的 `testing` 模块（`plugin-testing-entry-import`）。`./testing` 是测试在运行时之外开插件数据的入口（现在没有插件带这个出口：Pages 的 `openPagesStore` 已搬进测试夹具 `tests/fixtures/plugin-home-stores.ts`，PG-023；规则留着，不让它再长出来）；生产代码经 Plugin Runtime 取数据，不经它。同一条线上：插件包（Todo、Form、灵光、Dataset、PPT、Workflows、Jelly、Cognia、Pages）的 `package.json` 不依赖私有的 `@molis-ai/molis-work-storage`，不导出 `openXStore` 一类按路径开 Home 库文件的函数；运行中的插件用 Runtime 给的 `services.database`，测试要开库就用夹具 `tests/fixtures/plugin-home-stores.ts`（`tests/plugin-storage-dependency.test.ts` 钉住）。目前还依赖 storage 的只有 Images 与 Alchemist（Alchemist 随 BL-376/377 重做）。
 - Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）和逐行文本比较（`compareTexts` 等，工作台审查界面、Coding 与 Diff 从 SDK 取；结果与行的类型留在合同包）以及动作的两个绑定函数（`bindPluginActionRoute`、`bindOwnerPluginAction`，失败按错误的 kind 答，合同包里的那张状态表随之删除）；W3-03 要从合同包搬出的三样会运行的东西都已在 SDK 里；W3-02-C 又把这两个绑定函数从合同包搬了进来。
@@ -122,7 +125,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 
 `.github/workflows/ci.yml` 在 pull request 和 `main` push 上把挡合并的检查分成四组并行的作业（`ci.yml` 里 T-128 统计的各作业最长一次成功运行：`gates` 6.8 分钟、`health-gate-rules` 5.2、`architecture-boundaries` 5.8；`action-contracts` 的 15.4 是合并队列里一台慢 runner 上的那次），都在 `Verify` 的 `needs` 里：`gates`（不要构建）跑健康门禁（`health:check`，对照合并基点）、版本一致，以及文档门禁、翻译、包清单、vendored 记录、密钥扫描、探针与产品子集运行器、测试运行器自己的变异用例；`health-gate-rules`（只构建 contracts 包给一个门禁用例用）跑 `tests/health-gates-*.test.ts`，即健康门禁各条规则的变异用例，分在两个 runner 上（矩阵 `shard: [1, 2]`，每份取同一列表里隔一个的文件，`node scripts/run-tests.mjs --shard <k>/<n>`）；`architecture-boundaries` 跑同一条 `workspace:verify`，再在这次构建上跑页面资源预算（`page-assets:check`，宿主发出的样式表、脚本、插件客户端包与字体只许变小）、Goal 查询/存储边界、存储基线、发布资产、启动器类型检查、单一工作台外壳与成果门禁、炼金术士与创作台回放；`action-contracts` 自己构建，跑动作与插件合同（`pnpm test:contracts`），分在两个 runner 上：其中几个用例起真实宿主和 MCP 服务、自带时限，一个 4 核 runner 上同时跑 4 个时会超时。`gates`、`health-gate-rules`、`architecture-boundaries` 三个作业里一次点名多个文件的 `node scripts/run-tests.mjs` 都是几份同时跑、每份一个 `MOLIS_WORK_HOME`（`MOLIS_WORK_TEST_JOBS: 4`，见 [并行开发](PARALLEL-DEVELOPMENT.md) 第 5 节）；`action-contracts` 每个 runner 同时只跑 2 个文件（`MOLIS_WORK_TEST_JOBS: 2`）。上次用时长的先跑：各作业用 `actions/cache` 把运行器记下的用时带到下一次运行。安全不变量（`pnpm test:security`）是单独的 `security-invariants` 作业，和下面的 `product-subset` 一样在 `Verify` 的 `needs` 里（决定 #14，本次按只许变严合同落实）：合并队列里跑整张清单；PR 的 some 跑选中项，whole 或选择故障仍跑整套，只有成功且明确 none 才跳过（见「产品子集作业」的 PR 选择规则）。两者是挡合并的作业里最长的（T-128 统计窗口里最长一次成功运行 21.9 和 15.7 分钟，原来最长的 `action-contracts` 是 15.4），合并队列里一组要多等一些。全量产品测试仍在本地跑（见 PR 模板），但这些定向行为回归和 package 边界检查持续执行；用户动线上的一部分产品用例由下面的 `product-subset` 作业在 Linux 上跑。
 
-健康门禁里还有静态检查（Biome：空 `catch`、`as unknown as`、没处理的 promise、显式 `any`、`console`、`debugger`，按文件计数、只许减少，口径与按包开新规则见 `tooling/gates/README.md`「静态检查」）。非 TypeScript 的代码由两个作业查，都在 `Verify` 的 `needs` 里，不看数字、有告警就失败：`native-checks`（macOS：`apps/desktop` 的 `rustfmt --check`、`cargo clippy -D warnings` 与 `cargo test`，Rust 版本固定；Swift 的 `swiftc -typecheck`，`jelly-whisper` 包的 `swift build` 暂不挡合并，见 BL-122）和 `shell-checks`（Linux：被跟踪的 `.sh` 的 `shellcheck`，被跟踪的 `.py` 能解析）。脚本是 `scripts/gates/native-checks.mjs`，规则的测试是 `tests/native-checks.test.mjs`。
+健康门禁里还有静态检查（Biome：空 `catch`、`as unknown as`、没处理的 promise、显式 `any`、`console`、`debugger`，按文件计数、只许减少，口径与按包开新规则见 `tooling/gates/README.md`「静态检查」）。非 TypeScript 的代码由两个作业查，都在 `Verify` 的 `needs` 里，不看数字、有告警就失败：`native-checks`（macOS：`apps/desktop`、`apps/sync-worker` 与 `server/src/sync` 的 `rustfmt --check` 与 `cargo clippy -D warnings`，Rust 版本固定，同步 Worker 用 `wasm32-unknown-unknown` 目标；Swift 的 `swiftc -typecheck`，`jelly-whisper` 包的 `swift build` 暂不挡合并，见 BL-122）和 `shell-checks`（Linux：被跟踪的 `.sh` 的 `shellcheck`，被跟踪的 `.py` 能解析）。脚本是 `scripts/gates/native-checks.mjs`，规则的测试是 `tests/native-checks.test.mjs`。
 
 `ci.yml` 里另有一个不挡合并的 `linux-probe` 作业（依据 `specs/archive/repository-anti-corruption` 决定 #14）：`continue-on-error: true`，不在 `Verify` 的 `needs` 里，分支保护不动。它只在每晚的定时运行（main，`schedule`，有自己的并发组，夜里的合并取消不到它）和手动触发（`workflow_dispatch`）时跑，PR 和推送上不跑（用户 2026-10-14 定：每次推送占一小时 runner 却不决定任何事，main 上又常被下一次合并取消）。它在 ubuntu 上是六片矩阵（R-58，用户 2026-10-26）：每片 `--shard k/6`（k 为 1 到 6），按排序后的可跑文件列表每隔六个取一个，六片合起来每个文件恰好一次；每片各自装 uv、`pnpm build`，再用 `scripts/ci-linux-probe.mjs` 跑自己那份，记下哪些在 Linux 上通过：
 
@@ -240,7 +243,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `apps/mcp` | 应用 | 16 | 956 | `runtime-context-tools.ts` 193 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `apps/server` | 应用 | 5 | 192 | `main.ts` 81 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
 | `apps/workbench` | 应用 | 303 | 51,590 | `i18n/en.ts` 3,266 | 2 | 31 | 1 | 在用 | 深 | 已审 |
-| `horizontal/agent-host` | 横向 | 96 | 13,630 | `adapters/prologue-stream.ts` 723 | 1 | 2 | 1 | 在用 | 深 | 已审 |
+| `horizontal/agent-host` | 横向 | 95 | 13,586 | `adapters/prologue-stream.ts` 723 | 1 | 3 | 1 | 在用 | 深 | 已审 |
 | `horizontal/connector-host` | 横向 | 5 | 754 | `connection-store.ts` 396 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,300 | `index.ts` 425 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
@@ -252,9 +255,10 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `modules/context-ledger` | 模块 | 5 | 284 | `repository.ts` 98 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/judgment-rules` | 模块 | 17 | 1,963 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `modules/judgment-rules` | 模块 | 17 | 1,958 | `store.ts` 290 | 1 | 3 | 1 | 在用 | 中 | 已审 |
 | `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/sync-replication` | 模块 | 21 | 873 | `index.ts` 272 | 1 | 2 | 1 | 在用 | 深 | 待审 |
 | `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |
 | `packages/contracts` | 基础 | 139 | 21,034 | `modules/goals.ts` 776 | 63 | 0 | 67 | 在用 | 深 | 待审 |
 | `packages/design-system` | 基础 | 97 | 15,500 | `styles/primitives.ts` 1,258 | 1 | 2 | 5 | 在用 | 深 | 已审 |

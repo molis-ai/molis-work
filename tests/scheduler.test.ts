@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,7 +13,7 @@ import {
 import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 
 function service(clock: { now: Date }, calls: Array<Record<string, string>> = []) {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   const installation = wakeupInstallation("io.molis.work.test.owner");
   installation.action("test.wakeup", async (input) => {
     calls.push({ ...input });
@@ -25,7 +25,7 @@ function service(clock: { now: Date }, calls: Array<Record<string, string>> = []
 test("long wakeups renew through a second database connection without another owner tick", async t => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const home = mkdtempSync(join(tmpdir(), "schedule-lease-"));
-  const db = new Database(join(home, "jobs.sqlite")), observer = new Database(join(home, "jobs.sqlite"));
+  const db = openTestSqlite(join(home, "jobs.sqlite")), observer = openTestSqlite(join(home, "jobs.sqlite"));
   const released = Promise.withResolvers<void>();
   const clock = { now: new Date("2026-09-22T00:00:00Z") };
   let calls = 0;
@@ -50,7 +50,7 @@ test("long wakeups renew through a second database connection without another ow
 for (const afterExpiry of ["commit", "renew", "return"] as const) test(`expired scheduler lease cannot ${afterExpiry} before takeover`, async t => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const home = mkdtempSync(join(tmpdir(), "schedule-expired-"));
-  const db = new Database(join(home, "jobs.sqlite")), observer = new Database(join(home, "jobs.sqlite"));
+  const db = openTestSqlite(join(home, "jobs.sqlite")), observer = openTestSqlite(join(home, "jobs.sqlite"));
   const released = Promise.withResolvers<void>();
   const clock = { now: new Date("2026-09-22T00:00:00Z") };
   const installation = wakeupInstallation("io.molis.work.test.owner");
@@ -154,7 +154,7 @@ test("interval 漏打只叫醒一次，并跳到现在之后的下一拍", async
 
 test("重叠 tick 不会把还在执行的 job 再叫醒一次", async () => {
   const clock = { now: new Date("2026-09-20T03:00:00.000Z") };
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   const installation = wakeupInstallation("io.molis.work.test.owner");
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -281,7 +281,7 @@ interface LeaseRow {
   enabled: number;
 }
 
-function leaseOf(db: Database.Database, jobId: string): LeaseRow {
+function leaseOf(db: SqliteDatabase, jobId: string): LeaseRow {
   return db.prepare(
     "SELECT lease_until, lease_token, next_due_at, enabled FROM schedule_jobs WHERE job_id = ?",
   ).get(jobId) as LeaseRow;
@@ -290,7 +290,7 @@ function leaseOf(db: Database.Database, jobId: string): LeaseRow {
 test("长执行在租约到期前持续续租，同一服务不重叠且下一拍仍按周期", async t => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
@@ -333,7 +333,7 @@ test("长执行在租约到期前持续续租，同一服务不重叠且下一�
 
 test("执行者消失后过期租约可以接管，旧结束不能清掉新租约", async () => {
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   let releaseFirst!: () => void;
   let releaseNext!: () => void;
   const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
@@ -383,7 +383,7 @@ test("执行者消失后过期租约可以接管，旧结束不能清掉新租�
 
 test("取消或停止后，迟到的执行结果不能把任务复活", async () => {
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
@@ -438,7 +438,7 @@ test("取消或停止后，迟到的执行结果不能把任务复活", async ()
 
 test("超长执行仍不重叠", async () => {
   const clock = { now: new Date("2026-09-22T00:00:00.000Z") };
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
   let started = 0;
@@ -469,7 +469,7 @@ test("超长执行仍不重叠", async () => {
 // The Scheduler keeps the due point until the action answers, so it redelivers; the action's own ledger keeps the effect single.
 test("W2-18-SCHEDULE-02: close revokes waits before SQLite release; a dispatched one-shot is redelivered and its action's ledger keeps the effect single", async () => {
   const home = mkdtempSync(join(tmpdir(), "schedule-close-")), file = join(home, "project.sqlite");
-  const db = new Database(file), installation = wakeupInstallation("io.molis.work.test.owner"), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const db = openTestSqlite(file), installation = wakeupInstallation("io.molis.work.test.owner"), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   db.exec("CREATE TABLE owner_results (job_id TEXT PRIMARY KEY, value TEXT NOT NULL)");
   let lateRejected = false;
   installation.action("test.wakeup", async (input, control) => {
@@ -487,7 +487,7 @@ test("W2-18-SCHEDULE-02: close revokes waits before SQLite release; a dispatched
     const stopped = db.prepare("SELECT enabled, lease_token, lease_until, next_due_at FROM schedule_jobs WHERE job_id=?").get(job.job_id);
     assert.deepEqual(stopped, { enabled: 1, lease_token: null, lease_until: null, next_due_at: job.next_due_at }, "no answer came, so the due point is still there");
     db.close(); release.resolve(); await new Promise<void>(resolve => setImmediate(resolve)); assert.equal(lateRejected, true);
-    const reopened = new Database(file);
+    const reopened = openTestSqlite(file);
     try {
       let redelivered = 0;
       const after = wakeupInstallation("io.molis.work.test.owner");

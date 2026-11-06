@@ -94,6 +94,9 @@ SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+personal 分支整改（2026-10-16，本次评审问题已修复并完成本机定向验证）：只修复本分支新增的登录、空间和个人同步代码，不代表 main 防腐整线完成。用户允许调整本分支新增代码与配置；未放宽门禁，未改真实 Home。PERSAF-01 保留离线身份且不重放不确定刷新令牌；PERSAF-02 Pages 按单文档/文件夹导出与恢复，超过旧项目快照上限也不扫描整库；PERSAF-03 日志/编辑高水位/策略库纳入当前版本基线，旧版拒绝不补表；PERSAF-04 前端经 UiRequest，原生端口不修改全局 fetch；PERSAF-05 同步工厂随同一插件目录、错误归 owner、测试只用公开构建入口，接收不能复活明确停用的项目插件。Rust Worker 移至 apps/sync-worker，CI/检查只改路径；Node 联调工具归 examples/personal-sync-tools，Rust 产物用 dist。数据库版本见发布表，真实旧 Home 的备份维护须另行批准。
+
+本次证据：完整 `pnpm build`、包边界、API/版本快照、merge-base 防腐与 29 项资源预算通过（merge-base 19823a62，主干旧债并未清零；巨大单元快查只下调三项，公共 JS 预算从 1,097,484 下调为 873,721 字节）。受影响包必跑/安全/合同范围 175 项任务复跑中，173 通过，2 个任务指向同一个根凭据 Home 拒绝码回归；已保留有效根凭据的原 Home mismatch 语义、未知/关闭空间仍作不透明拒绝，随后全体 action-*、删除/空间及安装卸载等 40 文件全部通过。另 13 文件历史夹具/保护回归、11 文件工作台 Chrome 回归均通过，桌面/390px 明暗截图已检查；真实重新编译的 Rust WASM+D1 集成、WASM Clippy/rustfmt 通过；原生门禁自测 29 通过、2 项因无 shellcheck 跳过。未运行整仓全量 CI，未推送/部署，公网同步与剩余插件范围仍以各功能 spec 为准；不再沿用旧文档里“未跟踪文件可解释门禁失败”的结论。
 Workflows Store 交接收口（2026-10-18，Codex，本地组合通过）：DSH 已完成的纯 Store 前置已 merge 当前 Dataset/PPT/公共服务与实际 main 63639a764；只保留 owner SQL 端口与唯一 WORKFLOWS_DATABASE，尚未切换 Runtime、Manifest 路由或 Host 接线。整体 offline install/build、API（无额外变化）、动作快照、boundary、merge-base health 与资源通过；七个直接相关文件 42 条通过，覆盖流程/实例存储、停止/继续、固定交接键幂等、内容动作和发布库版本。快照额外六行来自 Dataset/PPT 前置的 D1 查询；25 项7,479,517 B，无本片资源增量。日志 /tmp/molis-workflows-closeout-{build,api,actions,health,boundary,assets,targeted}.log；原8文件33条证据保留。正式 PR/CI 与共享组合全量仍待队列，业务迁移交接后继续。
 
 Dataset 全量路由断言补齐（2026-10-18，W5-01-DATASET-05）：跨插件客户端回归必须匹配现行 Manifest 的 /api/plugins/io.molis.work.dataset/datasets，保留旧 URL 的真实 HTTP 拒绝与错误边界。只修迁移遗留断言，不改生产行为；当前组合整体构建通过，该文件和真实 HTTP 错误边界/路由表三文件 35 条通过，日志 /tmp/molis-dataset-route-assertions-after.log。
@@ -980,6 +983,9 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-18 | 个人版同步后必要防覆盖接口升级（本会话弹窗及继续核对） | 必要接口一起升级；暂留待办 | 用户允许必要的同步防覆盖接口一起升级 | `alchemist.directions.update@1`、`alchemist.memory.playbook.revise@1` → `@2`，强制携带并事务验证所读 `expectedEtag`；对应 MCP 名从 __v1 升为 __v2，不保留旧别名。新增只读 `alchemist.directions.editing@1` 与 `alchemist.memory.playbook.editing@1` 返回完整对象和内容指纹。Shelf 的 `shelf.items.edit@1` → `@2`，强制核对已读 `expected_content_hash`，读取动作沿用已提供的完整 `content_hash`；对应 MCP 名 shelf.items.edit__v1 → shelf.items.edit__v2。业务对象标识不变，页面和内部调用同步更新；固定旧版本的外部调用须更新，不包含真实 Home 维护或部署。 |
+| 2026-10-18 | 个人版同步后 Cognia 旧编辑防覆盖及 MCP 版本变更（本会话弹窗） | 纳入同步并升级；暂不修改 | 用户允许纳入并升级 | `cognia.material.get@1` → `@2` 增加所读资料 `etag`，`cognia.material.update@1` → `@2` 强制携带并事务校验；对应 `cognia.material.get__v1` / `cognia.material.update__v1` → `__v2`。网页、MCP 测试、Skill 与手册同步更新；固定旧版本的外部调用须更新，不加自动切换或旧名别名。授权不包含真实 Home 维护、发布或部署。 |
+| 2026-10-16 | 已安装的插件能不能在 Manifest 里声明默认数据来源（`default_source`、默认输入组；W4-03 第一片 #565 留下的产品问题，统筹弹窗） | 暂只在随宿主发的插件之间（推荐）；已安装的也生效 | 暂只在随宿主发的插件之间 | 已安装或生成的插件写了也当作没写，免得没人同意就拿到 Coding 的变更集或 Shelf 的材料；装插件时有同意流程后再议。改的是 #565 留下的「产品还没定」措辞（合同注释、宿主注释、EXTENSION-POINTS、Skill 的 elements/host、Host README、本规格），行为不变 |
 | 2026-10-17 | Images 已受理后台任务遇到原 MCP 动作授权撤销（弹窗） | 立即停止等待，不保存晚到结果（推荐）；保留既有行为继续已受理任务 | 立即停止等待，不保存晚到结果 | 后台保留原授权并持续检查；撤权后不写结果或失败业务记录。正常断开不等于撤权，已受理任务仍继续；本决定用于后续 Runtime 后台执行与 Images 迁移 |
 | 2026-10-16 | 已安装的插件能不能在 Manifest 里声明默认数据来源（`default_source`、默认输入组；W4-03 第一片 #565 留下的产品问题，统筹弹窗；2026-10-18 改为按声明与授权，见本表末） | 暂只在随宿主发的插件之间（推荐）；已安装的也生效 | 暂只在随宿主发的插件之间 | 已安装或生成的插件写了也当作没写，免得没人同意就拿到 Coding 的变更集或 Shelf 的材料；装插件时有同意流程后再议。改的是 #565 留下的「产品还没定」措辞（合同注释、宿主注释、EXTENSION-POINTS、Skill 的 elements/host、Host README、本规格），行为不变 |
 | 2026-10-15 | CI 全量占满 runner（弹窗） | 限流并只在加标签时跑（推荐）；只限流；全量只在每晚和集成分支跑 | 限流并只在加标签时跑 | 6 个带 `full-suite` 标签的 PR 每次推送各开 16 个分片，占满仓库的 20 台并发，`Verify` 与 main 的 CI 排队 10–20 分钟。`full-suite.yml`：PR 只在加上标签时跑一次，`max-parallel: 6`；要再跑就重新加标签或手动触发 |

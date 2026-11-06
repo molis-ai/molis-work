@@ -1,3 +1,4 @@
+export { workbenchClientSource } from "./page-assets.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
@@ -77,12 +78,14 @@ export {
 export { selectorNames, splitPluginStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";
+export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
 
+export {PERSONAL_ACCOUNT_CLIENT_SCRIPT} from './scripts/personal-account.js';
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";

@@ -1,3 +1,4 @@
+import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
@@ -10,12 +11,12 @@ import { dirname, join, resolve as resolvePath } from "node:path";
 import test, { after, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { WebSocket } from "ws";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, ProjectDeletionService, createMolisWorkLocalHost, molisWorkHostProjectReference, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, ProjectDeletionService, createWebCatalogAccess, createMolisWorkLocalHost, molisWorkHostProjectReference, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
 
@@ -24,7 +25,6 @@ import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtur
  * Host runs) all stop while one of the project's terminals is alive, all let go of the project's open runtime before its
  * directory moves, and all record who asked.
  */
-type Catalog = Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
 const TOKEN = "project-deletion-service-test-0123456789";
 const deletion = (id: string, key = `delete-${id}`) => ({ project_id: id, actor_id: "test-user", delete_confirmed: true, idempotency_key: key });
 
@@ -38,6 +38,12 @@ async function scratchHome(t: TestContext): Promise<{ directory: string; home: s
   await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
   scratchDirectories.push(directory);
   return { directory, home };
+}
+/** Keep one real catalog owner for both the fixture's direct observations and the deletion service's callbacks. */
+async function deletionCatalog(t: TestContext, home: string) {
+  const access = createWebCatalogAccess(home, openMolisWorkProjectCatalog);
+  t.after(() => access.close());
+  return { catalog: await access.withCatalog({ homeDirectory: home }, catalog => catalog), withCatalog: access.withCatalog };
 }
 function recordingPorts(alive: (panelId: string) => boolean = () => false): ProjectDeletionPorts & { released: string[]; asked: string[] } {
   const released: string[] = [], asked: string[] = [];
@@ -65,6 +71,28 @@ test("the service stops while a terminal of the project is alive, and changes no
   assert.equal((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjectDeletions())).length, 0, "no receipt is written");
   assert.deepEqual((await withCatalog({ homeDirectory: home }, catalog => catalog.terminalPanels.listIds(project.project_id))), [panel.panel_id]);
   assert.ok(ports.asked.every(panelId => panelId === panel.panel_id), "only the project's own terminals are asked about");
+});
+
+test("PCSYNC-20: a terminal started while runtime release waits prevents project deletion", async t => {
+  const { directory, home } = await scratchHome(t);
+  const { catalog, withCatalog } = await deletionCatalog(t, home);
+  const project = await catalog.createProject({ display_name: "释放期间打开终端", actor_id: "test-user" });
+  let livePanel: string | undefined;
+  const service = new ProjectDeletionService(withCatalog, {
+    isPanelAlive: panelId => panelId === livePanel,
+    async releaseProject() {
+      // Model a terminal opened by another entry during the asynchronous runtime shutdown.
+      await Promise.resolve();
+      livePanel = (await catalog.commit(() => catalog.terminalPanels.insert({panel_id: 'plugin-late-terminal', install_id: 'fixture-install',
+        project_id: project.project_id, actor_id: 'test-user', key: 'late', subject: 'goal-late', runtime: 'command',
+        launch_command: '/bin/cat', launch_args: [], title: 'late'}, directory))).panel_id;
+    },
+  });
+  await assert.rejects(service.deleteProject(home, deletion(project.project_id)), { code: "catalog.project_terminal_live" });
+  assert.equal(existsSync(project.database_path), true);
+  assert.ok(catalog.listProjects().some(p => p.project_id === project.project_id));
+  assert.equal(catalog.listProjectDeletions().length, 0);
+  assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), [livePanel]);
 });
 
 test("the service lets go of the project's runtime before the directory moves, and only for a confirmed request", async t => {
@@ -114,6 +142,63 @@ async function residentHost(t: TestContext, home: string) {
   };
   return { localHost, origin, token, stop };
 }
+
+test('PCSYNC-20 recycle refuses active work and fences Runtime and PTY starts until commit; recycled projects cannot reopen', {timeout:60_000}, async t => {
+  const {home}=await scratchHome(t);
+  const resident=await residentHost(t,home);let socket:WebSocket|undefined;
+  t.after(async()=>{socket?.terminate();await resident.stop();});
+  const {withCatalog}=resident.localHost.ensureWebCatalog(home,openMolisWorkProjectCatalog);
+  const catalog=await withCatalog({homeDirectory:home},catalog=>catalog);
+  const project=await catalog.createProject({display_name:'生命周期保护',actor_id:'test-user'});
+  const panel=await catalog.commit(()=>catalog.terminalPanels.insert({panel_id:'plugin-reserved-terminal',install_id:'fixture-install',project_id:project.project_id,
+    actor_id:'test-user',key:'reserved',subject:'goal',runtime:'command',launch_command:'/bin/cat',launch_args:[],title:'cat'},home));
+  await linkTerminalFolder(catalog,project.project_id,home);addTerminalGoal(project,'goal');
+  const reference=molisWorkHostProjectReference({databasePath:project.database_path,projectId:project.project_id});
+  let endWork!:()=>void,started!:()=>void;
+  const startedWork=new Promise<void>(resolve=>{started=resolve;});
+  const work=new Promise<void>(resolve=>{endWork=resolve;});
+  const active=resident.localHost.withProject(reference,async()=>{started();await work;},{activatePlugins:false});
+  await startedWork;
+  const input={project_id:project.project_id,actor_id:'test-user',operation_id:'recycle-live',expected_state:catalog.recycle.inspect(project.project_id).state,recycled:true,confirmed:true};
+  let released=0,finishRelease!:()=>void,releaseStarted!:()=>void;
+  const releasing=new Promise<void>(resolve=>{releaseStarted=resolve;});
+  const releaseWait=new Promise<void>(resolve=>{finishRelease=resolve;});
+  const service=new ProjectDeletionService(withCatalog,{
+    isPanelAlive:()=>false,
+    isProjectBusy:path=>resident.localHost.synchronization.isProjectBusy(path),
+    async releaseProject(path){released++;await resident.localHost.closeProject(path);releaseStarted();await releaseWait;},
+  });
+  try {
+    await assert.rejects(service.changeRecycled(home,input,()=>{}),{code:'catalog.project_task_live'});
+    assert.equal(released,0);assert.equal(catalog.recycle.inspect(project.project_id).recycled,false);
+  } finally {endWork();await active;}
+  socket=new WebSocket(resident.origin.replace('http:','ws:')+'/pty');await once(socket,'open');
+  const exchange=async(message:Record<string,unknown>)=>{const response=once(socket!,'message');socket!.send(JSON.stringify(message));return JSON.parse(String((await response)[0]));};
+  assert.equal((await exchange({type:'auth',token:resident.token})).type,'ready');
+  const startTerminal=()=>fetch(resident.origin+goalTerminalsPath(project.project_id,'goal'),{method:'POST',
+    headers:{'content-type':'application/json',origin:resident.origin,'x-molis-work-control-token':resident.token,'x-molis-work-idempotency-key':randomUUID()},
+    body:JSON.stringify({key:'reservation-probe',command:'/bin/cat'})});
+  const changing=service.changeRecycled(home,input,()=>{});
+  try {
+    await releasing;
+    await assert.rejects(resident.localHost.withProject(reference,()=>undefined,{activatePlugins:false}),{code:'host.sync_execution_busy'});
+    const blocked=await startTerminal();
+    assert.notEqual(blocked.status,200);assert.match(await blocked.text(),/生命周期|sync_execution_busy/);
+    assert.equal(catalog.recycle.inspect(project.project_id).recycled,false,'reservation alone changes no owner facts');
+  } finally {finishRelease();}
+  const archived=await changing;assert.equal(archived.recycled,true);
+  await assert.rejects(resident.localHost.withProject(reference,()=>undefined,{activatePlugins:false}),{code:'host.project_closing'});
+  const blocked=await startTerminal();
+  assert.notEqual(blocked.status,200);assert.match(await blocked.text(),/找不到.*项目|project_not_found/);
+  assert.equal(existsSync(project.database_path),true);
+  const restored=await service.changeRecycled(home,{...input,operation_id:'restore-live',expected_state:archived.state,recycled:false},()=>{});
+  assert.equal(restored.recycled,false);assert.equal(released,1,'restoration never starts or stops execution');
+  assert.equal((await service.changeRecycled(home,input,()=>{})).recycled,true,'old archive receipt cannot archive the restored project again');
+  await resident.localHost.withProject(reference,()=>undefined,{activatePlugins:false});
+  const attached=await exchange({type:'spawn',panelId:panel.panel_id,attachOnly:true});
+  assert.equal(attached.type,'spawned');assert.equal(attached.started,false,'restore does not restart the terminal');
+
+});
 
 /** A running Web server (the resident Host) with one live terminal on the project: a Goal's, started by Goals in a folder linked to the project. RAC-2568: the
  * Host refuses to delete the project while it runs, whichever door asks, and the record goes with the project once it is closed. */
@@ -173,7 +258,7 @@ test("the MCP tool asks the resident Host: a live terminal stops it (409), and o
   // The terminal's own work context is an alias of it; deleting the project takes the alias with it (RAC-2568).
   const aliases = () => {
     // The catalog's own SQLite (better-sqlite3), as the Host in this process opens it.
-    const db = new Database(join(home, "projects", "catalog.db"), { readonly: true });
+    const db = openTestSqlite(join(home, "projects", "catalog.db"), { readonly: true });
     try { return Number((db.prepare("SELECT COUNT(*) AS count FROM plugin_terminal_panel_aliases WHERE panel_id = ?").get(panelId) as { count: number }).count); }
     finally { db.close(); }
   };
@@ -540,4 +625,33 @@ test("RAC-1333 an unexpected failure of the demo removal answers the Host's gene
   assert.ok(!refused.stderr.includes(body.code ?? "actions.execution_failed"), "the CLI prints no code, including the one this answer carries");
   assert.doesNotMatch(refused.stderr, /project_deletion\.failed/, "and none of the old code names");
   assert.equal((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjectDeletions())).length, 0, "the CLI did not go on to delete in its own process");
+});
+
+test('PCSYNC-20 sync admission preserves owner state until receive and rechecks child writes after release',async t=>{
+ const {home}=await scratchHome(t),{catalog,withCatalog}=await deletionCatalog(t,home);
+ const project=await catalog.createProject({display_name:'Sync admission',actor_id:'test-user'});
+ let dirty=false,released=0,committed=0;
+ const ports={isPanelAlive:()=>false,isProjectBusy:()=>false,async releaseProject(){released++;await Promise.resolve();dirty=true;}};
+ const service=new ProjectDeletionService(withCatalog,ports),before=catalog.recycle.inspect(project.project_id);
+ await assert.rejects(service.admitSync(home,project.project_id,true,()=>{},()=>{if(dirty)throw new Error('CHILD_CHANGED');},()=>{committed++;}),/CHILD_CHANGED/);
+ assert.equal(released,1);assert.equal(committed,0);assert.deepEqual(catalog.recycle.inspect(project.project_id),before);
+ dirty=false;ports.releaseProject=async()=>{released++;};
+ const result=await service.admitSync(home,project.project_id,true,()=>{},()=>{assert.equal(dirty,false);},()=>{
+  committed++;assert.deepEqual(catalog.recycle.inspect(project.project_id),before,'admission must not recycle before receiver CAS');return 'received';
+ });
+ assert.equal(result,'received');assert.equal(committed,1);assert.equal(released,2);
+});
+
+// PTR-01: the trusted catalog Home decides the policy, before releasing a runtime or deleting any owner.
+test('PTR-01 personal permanent deletion refuses before effects and preserves project files',async t=>{
+  const directory=await mkdtemp(join(tmpdir(),'molis-personal-delete-refusal-')),home=join(directory,'personal');
+  scratchDirectories.push(directory);ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
+  const {catalog,withCatalog}=await deletionCatalog(t,home);
+  const project=await catalog.createProject({display_name:'唯一原件',actor_id:'test-user'});
+  const attachment=join(dirname(project.database_path),'unique-attachment.txt');await writeFile(attachment,'完整的离线附件');
+  const before=await readFile(project.database_path),ports=recordingPorts(),service=new ProjectDeletionService(withCatalog,ports);
+  await assert.rejects(service.deleteProject(home,deletion(project.project_id)),{code:'catalog.personal_deletion_unavailable'});
+  assert.deepEqual(ports.released,[]);assert.deepEqual(ports.asked,[]);
+  assert.deepEqual(await readFile(project.database_path),before);assert.equal(await readFile(attachment,'utf8'),'完整的离线附件');
+  assert.equal(catalog.listProjectDeletions().length,0);assert.ok(catalog.listProjects().some(item=>item.project_id===project.project_id));
 });

@@ -27,8 +27,7 @@ ${T} .tab-item-name{display:none;min-width:0;overflow:hidden;white-space:nowrap;
 /* The width steps at once; only the name fades in. The right padding is the 14px glyph's inset in the folded tab, (tab - 14) / 2,
    so the glyph does not move; the name gets a pixel more on its side. */
 ${T}.is-grown{width:max-content;max-width:208px;padding:0 calc(var(--glyph-tab) / 2 - 7px) 0 calc(var(--glyph-tab) / 2 - 6px)}
-${T}.is-grown .tab-item-name{display:block;animation:tab-name-in var(--dur-hover) var(--ease-quint) both}
-@keyframes tab-name-in{from{opacity:0}}
+${T}.is-grown .tab-item-name{display:block;animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
 /* The count of unfinished work on a glyph (background tasks). */
 .tab-count-badge{position:absolute;top:-1px;right:-1px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600;line-height:15px;text-align:center;font-variant-numeric:tabular-nums;pointer-events:none}
 /* A touch target folds to 44 × 44, as the generic tab grows to 44px high there; the open padding follows from the same width.

@@ -13,7 +13,7 @@ export function restoreJournalRegistry(journal: HomeRestoreJournal): HomeSnapsho
   for (const [file, digest] of [["registry-input.db", journal.registry_input], ["registry-original.db", journal.registry_original]] as const) {
     if (!digest) continue;
     const path = join(journal.originals_directory, file); assertRestoreDigest(path, digest);
-    const registry = homeStoresFromLibraryLedger(path);
+    const registry = homeStoresFromLibraryLedger(path, journal.home_directory);
     for (const store of registry.stores) if (!stores.has(store.path)) stores.set(store.path, store);
   }
   return Object.assign(homeStoreRegistry([...stores.values()]), { snapshotExclusions: registered.snapshotExclusions });

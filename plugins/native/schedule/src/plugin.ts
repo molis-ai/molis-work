@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync-binding.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createScheduleRouteHandlers } from "./route-handlers.js";
@@ -23,7 +24,7 @@ export function createSchedulePlugin(): PluginDefinition {
     const runtime = scheduleRuntimeDatabase(services.project_database, services.scheduler, services.notifications), grants = createScheduleTaskGrants(actions);
     services.background.keep(SCHEDULE_RECONCILE_JOB, control => reconcileSchedule(runtime, projectId, services.installations!, grants, control, value => { problem = value; }));
     const wakeups = new Set(Object.values(scheduleWakeupActions).map(item => item.capability_id));
-    return { kind: "app", views: [scheduleUiContribution], actions: scheduleManifest.actions!.map(definition => ({ ...definition,
+    return { kind: "app", sync: syncBindings(context), views: [scheduleUiContribution], actions: scheduleManifest.actions!.map(definition => ({ ...definition,
       handle: async (caller, input) => {
         if (wakeups.has(definition.capability_id)) return scheduleRuntimeWakeup(services, runtime, grants, context.install_id, caller, input as ScheduleWakeupInput);
         const bindings = await scheduleRuntimeActions(projectId, services, runtime, grants, caller, definition.capability_id);

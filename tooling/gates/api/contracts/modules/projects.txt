@@ -84,6 +84,7 @@ export interface ProjectPluginRegistry {
 }
 
 export interface ProjectRecord {
+    spaceId?: string;
     project_id: string;
     display_name: string;
     database_path: string;
@@ -131,7 +132,7 @@ export interface ProjectsApplicationApi {
 export interface ProjectsCommandApi {
     addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
     removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
-    renameProject(projectId: string, displayName: string, actorId: string): ProjectRecord;
+    renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
     addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
     repairWorkspaceProject(input: RepairWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
     setWorkspaceDefault(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[];
@@ -139,6 +140,7 @@ export interface ProjectsCommandApi {
 }
 
 export interface ProjectsQueryApi {
+    wasProjectPluginRemoved(projectId: string, pluginId: ProjectPluginId): boolean;
     storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
     projectPluginMembership(projectId: string): ProjectPluginMembership;
     listProjectPlugins(projectId: string): ProjectPluginId[];
@@ -181,6 +183,7 @@ export declare const projectCatalogErrors: {
     plugin_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_storage_invalid: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
+    project_name_conflict: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
 };
 
 export declare const projectSettingsCapabilities: {

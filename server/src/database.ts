@@ -1,7 +1,7 @@
 import { mkdirSync, chmodSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applySqliteBaseline, LocalSqliteStorage, type SqliteBaseline, type SqliteDatabase, SqliteSchemaVersionError, describeSqliteSchema, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, checkSqliteBaselineVersion, LocalSqliteStorage, type SqliteBaseline, type SqliteDatabase, describeSqliteSchema, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
 import { IM_SCHEMA_SQL } from "./im/schema.js";
 export type ServerDatabase = SqliteDatabase;
 const SERVER_SCHEMA_SQL = `
@@ -36,11 +36,8 @@ function inspectServerFile(file: string): string {
   if (!existsSync(file)) return file;
   const inspection = new LocalSqliteStorage(file, { readonly: true });
   try {
-    const found = Number((inspection.db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
-    if (found !== SERVER_DATABASE_BASELINE.version) {
-      const empty = !inspection.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
-      if (found !== 0 || !empty) throw new SqliteSchemaVersionError(file, found, SERVER_DATABASE_BASELINE.version);
-    } else if (JSON.stringify(describeSqliteSchema(inspection.db)) !== expectedShape()) {
+    // Unlike a project library, the server's file holds nothing beyond its baseline: the shape must match exactly.
+    if (checkSqliteBaselineVersion(inspection.db, file, SERVER_DATABASE_BASELINE) && JSON.stringify(describeSqliteSchema(inspection.db)) !== expectedShape()) {
       throw databaseErrors.structure_invalid("讨论库结构不符合当前完整基线，不会打开或修补");
     }
     return file;

@@ -5,7 +5,7 @@ export const SCHEDULE_MESSAGES = {
   "schedule.list.empty-body": { zh: "新建一条之后，到点会在它自己的对话里跑一轮只读 Agent。其他插件登记的闹钟也会出现在这里。", en: "Create one and a read-only agent will run in that task’s own chat when it is due. Alarms registered by other plugins also appear here." },
   "schedule.action.new": { zh: "新建定时任务", en: "New scheduled task" },
   "schedule.detail.choose": { zh: "选择一条定时任务", en: "Select a scheduled task" },
-  "schedule.form.help": { zh: "到点后会在这条任务自己的对话里跑一轮，不会进现有 Coding 会话。", en: "When due, it runs a round in this task’s own chat, not an existing Coding session." },
+  "schedule.form.help": { zh: "到点后会在这条任务自己的对话里跑一轮，不会进现有 Coding 会话。", en: "When due, it runs a turn in this task’s own chat, not an existing Coding session." },
   "schedule.action.close": { zh: "关闭", en: "Close" },
   "schedule.form.title": { zh: "标题", en: "Title" },
   "schedule.form.title-placeholder": { zh: "例如：每天早上汇总未读", en: "e.g. Morning unread summary" },

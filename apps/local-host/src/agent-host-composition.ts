@@ -65,6 +65,7 @@ export interface AgentHostComposition {
    */
   preparePlugin(caller: HostPluginCaller, subject?: string): Promise<{ authority: AgentStartAuthority; workspaces: readonly ProjectWorkspaceRef[] }>;
   readonly inference: PrologueInferenceClient;
+  readonly savedHistory: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["savedHistory"];
   mcpLibrary(): Promise<AgentMcpLibrary | undefined>;
   refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
@@ -169,7 +170,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { preparePlugin: (caller, subject) => preparePluginAgent(options, caller, subject), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { preparePlugin: (caller, subject) => preparePluginAgent(options, caller, subject), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}},  createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();

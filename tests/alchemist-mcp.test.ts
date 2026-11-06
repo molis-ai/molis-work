@@ -73,9 +73,14 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     const { direction } = await call(writer, "directions.create", { title: "外部 MCP 方向", description: "通过统一能力创建并跨进程读取方向" });
     assert.equal((await call(reader, "workspace.read")).directions[0].id, direction.id);
     assert.deepEqual((await call(other, "workspace.read")).directions, []);
+    assert.equal(tools.some(t=>t.name==='alchemist.directions.update__v2'||t.name==='alchemist.memory.playbook.revise__v2'),false);
+    assert.equal(tools.some(t=>t.name==='alchemist.directions.update__v1'),true);
+    assert.equal(tools.some(t=>t.name==='alchemist.memory.playbook.revise__v1'),true);
+    const {etag}=await call(writer,'directions.editing',{id:direction.id});
     for (const [client, name, args] of [[reader, "directions.create", { description: "只读调用不能创建方向" }], [writer, "directions.create", { description: "身份不得来自调用参数", project_id: "b" }],
-      [other, "directions.update", { id: direction.id, description: "不得修改其他项目已有方向" }]] as const) {
-      assert.equal((await client.callTool({ name: tool(name), arguments: args })).isError, true);
+      [other, "directions.update", { id: direction.id, description: "不得修改其他项目已有方向",expectedEtag:etag }]] as const) {
+      const version=alchemistManifest.actions!.find(a=>a.capability_id===`alchemist.${name}`)!.version;
+      assert.equal((await client.callTool({ name: `alchemist.${name}__v${version}`, arguments: args })).isError, true);
     }
     const receipt = await call(writer, "explorations.start", { id: direction.id });
     let events: any;

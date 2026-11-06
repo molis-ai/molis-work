@@ -12,6 +12,12 @@ import { parsePluginManifest } from "./manifest.js";
 export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContribution, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
 export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
+export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
+export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
+export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';
+export { syncTupleLocation } from './sync-location.js';
+export { createSyncConflictState } from './sync-conflict.js';
+export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxAgentBodyIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
@@ -77,7 +83,7 @@ export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plu
 export { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt, InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDeclaration, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDeclaration, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal, UiPageTaskGrants, UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type {
   IntegrationProviderPort,
@@ -285,6 +291,8 @@ const manifestFailures = {
 export { decodeMaterialUpload, supportsMaterialExtension, MATERIAL_EXTENSIONS, MATERIAL_UPLOAD_MAX_BYTES } from "./material-upload.js";
 export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
+export { type SyncMutation, type SyncEvent, type SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
+export { type ProjectCopyAsset, type ProjectCopyReference, type ProjectCopyIdentity, type ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -293,6 +301,13 @@ export type { PluginInstallationClient, PluginInstallationProjects, PluginInstal
 export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { arraySchema, nullableSchema, objectSchema } from "./action-schemas.js";
-export { canonicalJsonValue, isRecord } from "./json-value.js";
+export { canonicalJsonText, canonicalJsonValue, isRecord } from "./json-value.js";
 
 export { controlledConnectorFetch } from "./connector-call.js";
+
+export type { PluginSyncClient, SyncAggregateDefinition, SyncAggregateRecords, SyncPortableRow } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
+
+export type { SyncTrackedTable, SyncKeyPart, PluginSyncCollectionDefinition, PluginSyncCollectionOwner, PluginSyncBusinessDatabase, PluginSyncOwnerContext } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
+
+export { syncAggregateDeclaration, parseSyncTracking, parseSyncAggregates } from './sync-schema.js';
+export { syncSection, syncSectionsDeclaration, syncSectionsTracking } from './sync-sections.js';

@@ -31,6 +31,7 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-plugin-sandbox": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
@@ -42,6 +43,7 @@
     "registration": "./registration",
     "extraWorkspaceDependencies": [
       "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-plugin-sandbox",
       "@molis-ai/molis-work-plugin-sdk"
     ],
     "extraDependencies": {}

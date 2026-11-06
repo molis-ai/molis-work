@@ -1,5 +1,7 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginManifest, PluginPrivateStorage, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import {compareAndSetPrivateValue} from './private-value.js';
+export {privateValueReplicaOwner,validatePrivateValueReplication,installPrivateValueReplicationJournal} from './private-replication.js';
 import { assertPluginActionCurrent } from "./action-scope.js";
 
 export interface PluginPrivateStorageDatabase {
@@ -27,9 +29,7 @@ export const PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL = `
 
 /** Host-owned private data repository. Never expose this object or its database to Plugin code. */
 export class SqlitePluginPrivateStorage {
-  constructor(private readonly db: PluginPrivateStorageDatabase) {
-    db.exec(PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL);
-  }
+  constructor(private readonly db: PluginPrivateStorageDatabase) {}
 
   forPlugin(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage {
     if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version
@@ -72,12 +72,7 @@ export class SqlitePluginPrivateStorage {
         }
         // One conditional statement, including across separate DB connections.
         // Never emulate compare-and-set with a read followed by an unconditional write.
-        const result = expected === null
-          ? this.db.prepare(`INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)
-              ON CONFLICT (install_id, item_key) DO NOTHING`).run(installId, key, value)
-          : this.db.prepare(`UPDATE plugin_private_values SET item_value = ?
-              WHERE install_id = ? AND item_key = ? AND item_value = ?`).run(value, installId, key, expected);
-        return Number(result.changes) === 1;
+        return compareAndSetPrivateValue(this.db,installId,key,expected,value);
       },
     };
   }

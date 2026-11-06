@@ -2,7 +2,7 @@ import { renderModelSettingsDocument } from "./settings-models.js";
 import { NO_FAVICON_LINK } from "./document-shell.js";
 import { icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
-import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import type { MolisWorkSettingsView } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
@@ -14,6 +14,7 @@ import { renderAssistantSettings } from "./settings-assistant.js";
 import { renderMemorySettings } from "./settings-memory.js";
 import { renderLocalDirectorySettings } from "./settings-local-directories.js";
 import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
+import { renderSyncSettings } from './settings-sync.js';
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpSettings, renderRuntimeSettings } from "./settings-runtimes.js";
 import { renderProjectSettings } from "./settings-project-manager.js";
@@ -52,7 +53,7 @@ function renderAppearanceSettings(nextPath: string): string {
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
   const capabilities = view.capabilities ? createCapabilitiesRenderer(primitives, view.capabilities, view.context_project ?? null, view.projects, desktopShell) : undefined;
   const pluginPage = findPluginSettingsNavItem(view.section);
-  const title = capabilities ? L("能力") : view.section === "appearance"
+  const title = view.section === "sync" ? L("同步") : capabilities ? L("能力") : view.section === "appearance"
     ? L("界面与语言")
     : view.section === "models" ? L("模型设置")
     : view.section === "runtimes"
@@ -80,7 +81,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   const content = (view.capabilities?.rules ? renderFunctionsWorkbench({ primitives: { escape: escapeHtml, text: L } }) : view.capabilities?.section === "library" ? capabilities!.library() : view.capabilities?.section === "history" ? capabilities!.history() : undefined) || (view.section === "models" && view.model_settings ? renderModelSettingsDocument({
     ...view.model_settings, primitives: { L, escape: escapeHtml, icon: modelIcon },
   }) : view.plugin_settings_html)
-    || (view.section === "appearance"
+    || (view.section === "sync" ? renderSyncSettings(L) : view.section === "appearance"
       ? renderAppearanceSettings(settingsPath)
       : view.section === "runtimes"
         ? renderRuntimeSettings(view, primitives)

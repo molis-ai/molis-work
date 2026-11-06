@@ -1,3 +1,4 @@
+import { jellySync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { JELLY_PLUGIN_ID } from "./contract.js";
 import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -27,6 +28,7 @@ export const jellyManifest: PluginManifest = {
   runtime: { scope: "home" },
   databases: { home: JELLY_DATABASE },
   model_configuration: JELLY_MODEL_CONFIGURATION,
+  sync: jellySync,
   routes: [
     { route_id: "jelly.workspace", method: "GET", path: "/" },
     { route_id: "jelly.calendar", method: "GET", path: "/calendar" },

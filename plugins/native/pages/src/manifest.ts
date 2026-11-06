@@ -6,6 +6,7 @@ import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pagesSkills } from "./skills.js";
 import { PAGES_DATABASE } from "./database.js";
+import { pagesSyncDeclaration } from './sync-declaration.js';
 
 import { PAGES_MESSAGES } from "./messages.js";
 import { PAGES_EN } from "./en.js";
@@ -19,6 +20,7 @@ export const pagesManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: PAGES_PLUGIN_ID,
+  sync: pagesSyncDeclaration,
   version: "0.3.0",
   name: "Pages",
   summary: "写文档，可导出 Markdown / PDF。",

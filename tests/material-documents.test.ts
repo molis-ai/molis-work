@@ -9,7 +9,7 @@ import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createPagesActionHandlers, createPagesContentHandlers, ownPagesStores, pagesActions, pagesManifest, PAGES_ACTION_PERMISSIONS, preparePagesImport } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { readMaterialDocuments, readMaterialUploads } from "../apps/local-host/src/material-documents.js";
+import { readMaterialDocuments, readMaterialUploads } from "../apps/local-host/dist/material-documents.js";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 const { zipSync } = createRequire(new URL("../apps/local-host/package.json", import.meta.url))("fflate") as { zipSync(entries: Record<string, Uint8Array>, options?: { level: number }): Uint8Array };

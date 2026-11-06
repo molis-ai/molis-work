@@ -1,3 +1,4 @@
+import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingRunControlInput, controlInput } from "./run-inputs.js";
@@ -7,7 +8,6 @@ const session = { session_id: id };
 const round = { session_id: id, run_id: id };
 /** A session's fields, drafts and selections stay the route's own validation; the contract names the identity it acts on. */
 const open = (properties: Record<string, unknown>, required: readonly string[] = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required });
-const closed = (properties: Record<string, unknown>, required: readonly string[] = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const result: ActionSchema = { type: "object" };
 const READS: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 /** Starting, steering and planning rounds change files in authorized directories: only the person at this computer does that. */
@@ -16,8 +16,8 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 type Translate = { toInput(request: PluginRouteRequest): Record<string, unknown>; toRequest(input: Record<string, unknown>): Pick<PluginRouteRequest, "params" | "query" | "body"> & { method: PluginRouteMethod } };
 function define(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", version = 1): ActionDefinition<Record<string, unknown>, unknown> {
-  return { capability_id: `coding.${name}`, version, operation, action: { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}), kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: result } };
+  return createActionDefinition<Record<string, unknown>, unknown>(`coding.${name}`, operation, { title, description, ...(execution ? { execution } : {}), ...(scheduling ? { scheduling } : {}),
+    audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: result }, version);
 }
 const body = (request: PluginRouteRequest) => request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {};
 const params = (input: Record<string, unknown>) => ({ ...(typeof input.session_id === "string" ? { sessionId: input.session_id } : {}), ...(typeof input.run_id === "string" ? { runId: input.run_id } : {}) });
@@ -43,11 +43,11 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
   "coding.read-session": { definition: define("sessions.read", "读取编码会话", "读取会话、最近几轮执行与草稿；window 限制完整读取的轮次", "query",
       closed({ ...session, window: { type: "integer", minimum: 1, maximum: 50 }, known: { type: "string", maxLength: 20_000 }, earlier: { type: "string", maxLength: 200 } }, ["session_id"]), ["artifact:read"], READS),
     toInput: request => fromRequest(request, ["window", "known", "earlier"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["window", "known", "earlier"]), body: {} }) },
-  "coding.update-session": { definition: define("sessions.update", "修改编码会话", "改名、归档，或保存草稿、材料、方法、角色、预算等本会话设置", "command", open(session), ["storage:private"], LOCAL),
+  "coding.update-session": { definition: define("sessions.update", "修改编码会话", "改名、归档，或按原编辑版本保存草稿、材料、方法、角色、预算等本会话设置", "command", open({...session,expected_input_revision:{type:'integer',minimum:0}} ,['session_id']), ["storage:private"], LOCAL,undefined,undefined,1),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "PATCH", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.read-runs": { definition: define("runs.list", "编码会话的轮次", "分页读取一个编码会话里更早的执行轮次（用 before 往前翻，每页最多 50 条）；只读，不改变会话", "query",
-      closed({ ...session, before: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 50 } }, ["session_id"]), ["artifact:read"], READS),
-    toInput: request => fromRequest(request, ["before", "limit"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["before", "limit"]), body: {} }) },
+      closed({ ...session, before: { type: "integer", minimum: 0 }, history_before: {type:"integer",minimum:0}, limit: { type: "integer", minimum: 1, maximum: 50 } }, ["session_id"]), ["artifact:read"], READS,undefined,undefined,1),
+    toInput: request => fromRequest(request, ["before", "history_before", "limit"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["before", "history_before", "limit"]), body: {} }) },
   // A long session may first have the round's own model write a digest of its earlier rounds: that wait runs beside the project's queue.
   "coding.start-run": { definition: define("runs.start", "开始一轮编码", "在已授权的工作目录按所选方式（讨论、规划、修改、执行、评审、并行写入）开始一轮；写操作仍经审查", "command",
       open({ ...session, task: { type: "string", maxLength: 100_000 }, intent: { enum: ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"] }, workspace_id: id, provider_id: id, model_id: id }, ["session_id", "intent", "workspace_id", "provider_id", "model_id"]),

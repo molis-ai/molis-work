@@ -44,7 +44,7 @@ body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.
 }
 function closeAfterSubmit(){busy=false;closeDialog();}
 async function action(name,el){
-if(name==='to-goal'&&model){const nl=String.fromCharCode(10)+String.fromCharCode(10);const made=choice&&choice.decision;window.dispatchEvent(new CustomEvent('molis:placement-convert',{detail:{source:{kind:'alchemist-idea',id:model.ideaId||model.cardId},goal:true,payload:{title:model.title,body:[model.highlight||'',made&&made.reason?tx('决定：去做。')+made.reason:'',made&&made.revisitCondition?tx('下一步：')+made.revisitCondition:''].filter(Boolean).join(nl)||model.title},note:tx('这个想法和决定是它的来源；炼金术士里的记录不变')}}));return;}
+if(name==='to-goal'&&model){const nl='\n\n',made=choice&&choice.decision;window.dispatchEvent(new CustomEvent('molis:placement-convert',{detail:{source:{kind:'alchemist-idea',id:model.ideaId||model.cardId},goal:true,payload:{title:model.title,body:[model.highlight||'',made&&made.reason?tx('决定：去做。')+made.reason:'',made&&made.revisitCondition?tx('下一步：')+made.revisitCondition:''].filter(Boolean).join(nl)||model.title},note:tx('这个想法和决定是它的来源；炼金术士里的记录不变')}}));return;}
 if(name==='notice-close'){notice('');return;}
 if(name==='back'){closeDetail();return;}
 if(name==='close'){closeDialog();return;}
@@ -59,9 +59,9 @@ if(name==='sources'){await sources();return;}
 if(name==='pulse-start'){await api('/pulse/runs',{});view='pulse';await load();notice(L('正在采集，完成后会出现在报告列表中。'));return;}
 if(name==='explore'){await api('/directions/'+enc(focus.id)+'/explorations',{});await reopen();return;}
 if(name==='edit-direction'){
-const d=data.directions.find(item=>item.id===focus?.id);if(!d)return;
+if(!focus?.id)return;const path='/directions/'+enc(focus.id),{direction:d,etag}=await api(path+'/editing');
 show('编辑方向',field('标题','title',{required:true,value:d.title})+field('探索描述','description',{area:true,rows:5,required:true,max:4000,value:d.description}),'保存',async f=>{
-await api('/directions/'+enc(d.id),{title:f.get('title'),description:f.get('description')},'PATCH');closeAfterSubmit();await reopen();
+await api(path,{title:f.get('title'),description:f.get('description'),expectedEtag:etag},'PATCH');closeAfterSubmit();await reopen();
 });return;
 }
 if(name==='archive-direction'||name==='restore-direction'){

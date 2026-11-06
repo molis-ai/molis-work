@@ -4,6 +4,7 @@ import { mkdirSync } from "node:fs";
 import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { ALCHEMIST_STUDIO_BASELINE, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 export { ALCHEMIST_STUDIO_BASELINE };
+export {assertStudioProjectIdentity} from "@molis-ai/molis-work-plugin-alchemist";
 import { createSearchEvidenceRuntime } from "./search-evidence-runtime.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 

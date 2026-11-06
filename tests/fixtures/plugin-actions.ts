@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionService, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -147,7 +148,6 @@ const RUNTIME = { display_name: "", provider_version: "", capabilities: {} };
 const SKILL_TEXT = { version: 1, name: "", summary: "", tools: [] }, SKILL = { ...SKILL_TEXT, source: "installed", enabled: true };
 const MCP_SERVER = { id: "server", version: 0, label: "", enabled: true, transport: "http", timeout_ms: 1000, credential: "none", health: "disconnected", tools: [], resources: [] };
 const CANDIDATE = { candidate_id: "candidate", name: "", summary: "", source_label: "", files: [], body: "" };
-const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const runView = (value: unknown) => isRecord(value)
   ? { ...RUN_VIEW, ...value, frozen: { ...FROZEN, ...(isRecord(value.frozen) ? value.frozen : {}) }, usage: { ...USAGE, ...(isRecord(value.usage) ? value.usage : {}) } } : value;
 const filled = (base: object) => (value: unknown) => isRecord(value) ? { ...base, ...value } : value;

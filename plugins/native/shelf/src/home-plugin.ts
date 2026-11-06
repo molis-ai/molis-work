@@ -4,7 +4,7 @@ import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopb
 import { PLUGIN_PROJECTS_EXIST_LIMITS, type PluginDefinition, type PluginMaterialsClient, type PluginProjectsClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
 import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfItemRecord, ShelfMaterialPorts, ShelfModelSelection, ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
-import { initializeShelfFiles, openShelfStore, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { openShelfStore, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions, type ShelfActionPorts } from "./actions.js";
 import { shelfAiPorts } from "./ai.js";
 import { shelfManifest } from "./manifest.js";
@@ -88,7 +88,7 @@ export function shelfStorePorts(store: () => ShelfStore, availability: (selectio
     addClipboard: (text, extra) => store().addClipboard(text, extra),
     clipboardToMaterial: (clipId, control) => store().clipboardToMaterial(clipId, control),
     deleteClipboard: clipId => store().deleteClipboard(clipId),
-    writeCopy: (itemId, text) => store().writeCopy(itemId, text),
+    writeCopy: (itemId, text, expectedContentHash) => store().writeCopy(itemId, text, expectedContentHash),
     readFile: itemId => store().readFile(itemId),
   };
 }
@@ -97,9 +97,9 @@ export function shelfStorePorts(store: () => ShelfStore, availability: (selectio
 export function createHomeShelfPlugin(): PluginDefinition {
   return { manifest: shelfManifest, instructions: SHELF_INSTRUCTIONS, async start(context) {
     for (const grant of shelfManifest.permissions) if (grant.required) context.requireGrant(grant.permission);
-    const { store, model, actions, files, projects } = shelfServices(context);
+    const { store, model, actions, projects } = shelfServices(context);
     // The sample goes on a shelf that has never held anything, once: the instance writes it itself, under its own current grants.
-    await files.write(initializeShelfFiles);
+    await store().initialize();
     const handlers = createShelfActionHandlers(shelfStorePorts(store, selection => model.availability(selection ?? undefined), projects));
     return { kind: "app", views: [shelfUiContribution, shelfSettingsUiContribution], actions: [...handlers,
       { ...shelfActions.terminal, async handle(caller) {
@@ -154,5 +154,8 @@ function shelfServices(context: PluginStartContext) {
   const services = context.services, files = services?.ownerFiles, model = services?.model, materials = services?.materials, actions = services?.actions, tools = services?.localTools;
   if (!files || !model || !materials?.extract || !materials.readSource || !materials.readLocalPage || !actions?.dependencies) throw new ActionError("actions.unredeemed", "Shelf 需要公共文件、模型、材料与动作服务");
   const readers = shelfMaterialPorts(materials), ai = shelfAiPorts(model, readers);
-  return { actions, model, files, projects: services?.projects, store: () => openShelfStore(files.rootPath(), files, { ...(tools ? { tools } : {}) }, readers, ai) };
+  const scope=context.sync;
+  if(scope&&!scope.documents?.copies)throw new ActionError("actions.unredeemed","Shelf 同步文档服务未提供");
+  const sync=scope?{spaceId:scope.spaceId,storage:scope.documents!.copies!,authorize:()=>scope.assertActive()}:undefined;
+  return { actions, model, projects: services?.projects, store: () => openShelfStore(files.rootPath(), files, { ...(tools ? { tools } : {}) }, readers, ai, sync) };
 }

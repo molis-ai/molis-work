@@ -96,7 +96,7 @@ test("RAC-2923 PMAT-18 Coding keeps fixed knowledge versions and live Page revis
 
     // The saved choice is kept with the draft and survives a restart; the round reads each piece now, through knowledge.read.
     const chosen = [pick("page", "p1", "试用说明"), pick("artifact", REPORT, "执行报告"), pick("page", "long", "长文")];
-    assert.equal((await request("", "PATCH", { materials: chosen, draft: "保留草稿" })).status, 200);
+    assert.equal((await request("", "PATCH", { materials: chosen, draft: "保留草稿", expected_input_revision: (await request()).body.input_revision })).status, 200);
     await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request()).body.materials, chosen);
     reads.length = 0;

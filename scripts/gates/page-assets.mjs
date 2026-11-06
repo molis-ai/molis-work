@@ -311,17 +311,56 @@ const headErrors = (measured, budget, base) => {
 // spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
 // the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
 // the select in place instead of reloading the page, the host names no key so the page needs no second string.
+// ASC-59 (第 13 批③, #1865; admitted by the batch 13 coordinator on 2026-11-06: under 10 KB, no new asset): after logging in again
+// to a remote MCP service, the connections page offers to move what used the old connection to the new one, says what it could and
+// could not check (Coding's MCP settings, unread reporters), asks once before removing the old one (with cancel), and names the new
+// connection apart from the old. workbench.js +6558 B over 1078718, the budget at merge-base b1e0e5b6 (main after #1858; ASC-57's
+// entry keyed on 1077683 is spent there and replaced). Tried, from a first cut of +6199: the switch outcome counted per
+// usage instead of per code, the pair checked on the rows themselves instead of a serialized helper, the reasons table cut to the
+// codes an MCP connection's consumers can answer, errors through the page's own fail(), the two explanations and the two removal
+// confirmations sharing one sentence each; no new style or asset.
+// ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
+// the Assistant's "等你处理": workbench.js +573 B, keyed on main's budget 1085274 (after #1865 and #1790; ASC-59's workbench.js entry keyed on 1078718
+// is spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
+// UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
+// the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
+// settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
+// ASC-60～63 (第 13 批④b, #1881, admitted by the batch 13 coordinator after the review desk on 2026-11-06): the model settings page
+// and Images' image-service dialog as plan A. settings.css +2529 B and workbench.css +2529 B: the catalog's step progress as it is
+// (about 1.25 KB, split out of SERVICE_CONNECTION_PART_STYLES and referenced, not copied), the four rows, 高级, the save bar, the
+// rate-limit box and the model row's two lines (container queries; its icon buttons take the ID field's height so the first line shares one top edge). workbench.js +3724 B: the progress function shared with the
+// catalog (819 B, bundled from service-connection-item.ts), the coded check's split (a refused key under its field, saying whether
+// it was the new key or the one in use; the 429 recheck) and ↵ to save. images.js +1207 B: the presets' models and sizes, the
+// service choice and 高级, the compose form's size list; images.css +50 B: 高级's field spacing (the old preset rules removed).
+// Keyed on merge-base after #1870 (workbench.js 1085847, workbench.css 1204709, images.js 19896); the ASC-58 workbench.js entry is
+// spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
+// alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
+// what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// P3-0a (第 18 批, #1884; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin host
+// contract gains `taskGrants`, and until P3-1 draws the area the frame answers it with a refusing placeholder:
+// plugin-frame.js +64 B, keyed on main's budget 188354 (after #1880). The plugin-frame.js entry keyed on 208271 (the +54 B #1843
+// reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
+// Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
+// one short fixed message; no cast.
 // Batch 18 P2 (Schedule's task reads, design F; admitted by the batch 18 coordinator on 2026-11-06): schedule.css 1269 -> 2841 B
 // (+1572): the list row's one kind mark (read files / read data), the 「能读的数据」 section's lines around the platform's area, and the
 // new and edit form in the detail pane instead of a dialog. schedule.js 12570 -> 14878 B (+2308): one `/grants` read per list open,
 // the kind marks and the 「需要重新确认」 badge, the reads section's lines and the in-pane form. Tried: the form reuses the board's
 // .mw-form and .mw-btn, the two kind icons share one kept slot shown by one attribute, the area's own drawing is left to the
-// platform (P3), no new asset. The arrival, settings, workbench.css and workbench.js entries above (ASC-57 included) are spent (the merge-base
-// budget holds their ceilings) and are removed here.
+// platform (P3), no new asset. Rekeyed onto main's budget after #1884 (schedule.css 1122, schedule.js 12561, the minified build).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugin-frame.js": [208271, 208325],
-  "/assets/molis-work-plugins/schedule.css": [1269, 2841],
-  "/assets/molis-work-plugins/schedule.js": [12570, 14878],
+  "/assets/molis-work-settings.css": [827793, 830322],
+  "/assets/molis-work-workbench.css": [1204709, 1207238],
+  "/assets/molis-work-workbench.js": [1085847, 1089571],
+  "/assets/molis-work-plugin-frame.js": [188354, 188418],
+  // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
+  "/assets/molis-work-plugins/coding.js": [290006, 297761],
+  "/assets/molis-work-plugins/cognia.js": [22157, 22189],
+  "/assets/molis-work-plugins/shelf.js": [64967, 65319],
+  "/assets/molis-work-plugins/images.js": [19896, 21103],
+  "/assets/molis-work-plugins/images.css": [7851, 7901],
+  "/assets/molis-work-plugins/schedule.css": [1122, 2694],
+  "/assets/molis-work-plugins/schedule.js": [12561, 14869],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -1,3 +1,5 @@
+import { projectReplicationTriggers } from "./project-replication-triggers.js";
+import { projectPluginPlatformExtension } from "./project-plugin-databases.js";
 import { join } from "node:path";
 import { PLATFORM_PLUGIN_REGISTRATIONS, BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
 import { ProjectsModule, projectDatabasePath, listProjectRoots } from "@molis-ai/molis-work-module-projects";
@@ -25,7 +27,7 @@ export function inspectRestoreProjectDatabase(db: SqliteDatabase, file: string, 
   if (roots.length !== 1 || roots[0]!.project_id !== projectId) throw invalidRestore();
   const records = inspectPluginProjectDatabaseSet(db, {
     manifests: PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest),
-    platformTables: platformTables(),
+    platformTables: platformTables(), platformTriggers: projectReplicationTriggers(db), platformExtension: projectPluginPlatformExtension,
   }, inspector, file);
   return Object.fromEntries(records.flatMap(entry => [
     ["plugin:" + entry.plugin_id, entry.version], ["store:" + entry.plugin_id, entry.store_name], ["publisher:" + entry.plugin_id, entry.publisher_signature],

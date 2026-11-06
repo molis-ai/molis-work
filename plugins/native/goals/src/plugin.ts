@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync-binding.js";
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
@@ -153,7 +154,7 @@ export function createGoalsPlugin(): PluginDefinition {
       }
     }).done.then(() => undefined, () => undefined);
 
-    return { kind: "app", views: [goalsTreeUiContribution, goalsSettingsUiContribution, goalsStageUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [goalsTreeUiContribution, goalsSettingsUiContribution, goalsStageUiContribution],
       actions: handlers.map(windowed),
       routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
   }, async health() { return problem ? { ok: false, message: problem } : { ok: true, message: "Goals 已接通" }; } };

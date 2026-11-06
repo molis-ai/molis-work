@@ -1,3 +1,4 @@
+import ts from "typescript";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -69,8 +70,22 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/"\s*\+\s*encodeURIComponent\(pluginId\)\s*\+\s*"\/upgrade/);
   assert.match(script, /data-market-scope/);
   assert.match(script, /plugin-market-installed-item/);
-  assert.match(script, /grey: "var\(--hue-gray\)"/);
-  const tabIcons = JSON.parse(script.match(/const PLUGIN_TAB_ICON = (\{[^{}\n]*\})/)![1]!);
+  assert.match(script, /grey:\s*"var\(--hue-gray\)"/);
+  // Inspect the shipped program by object values: build-time minification may rename its private binding.
+  let tabIcons: Record<string, string> | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const fields: Record<string, string> = {};
+      for (const property of node.properties) {
+        if (ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+          && ts.isStringLiteral(property.initializer)) fields[property.name.text] = property.initializer.text;
+      }
+      if (fields.feed && fields.inbox && fields.alchemist) tabIcons = fields;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(ts.createSourceFile('workbench.js', script, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS));
+  assert.ok(tabIcons, 'the shipped bundle contains the plugin icon mapping');
   assert.equal(tabIcons.feed, "rss");
   assert.equal(tabIcons.inbox, "inbox");
   // No plugin borrows the AI mark: every plugin has its own glyph (spec → 第三轮 · 图标).

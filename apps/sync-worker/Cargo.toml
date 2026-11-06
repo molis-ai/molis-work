@@ -1,0 +1,17 @@
+[package]
+name = "molis-work-sync"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+worker = { version = "=0.8.6", features = ["d1"] }
+molis-work-server-sync = { path = "../../server" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = "debuginfo"

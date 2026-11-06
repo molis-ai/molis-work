@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HomeConsentLedger, readStudioDistribution, pluginInstallActions, MolisWorkUninstallService, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
 import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
+import { builderPrivateValueReplicationOwner } from '@molis-ai/molis-work-plugin-builder';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { readyPublication, publicationAuthority } from './fixtures/studio-publishing.js';
 import { fixture, mac, operate, operationsOf, person, ref, refused } from './fixtures/home-sandbox.js';
@@ -64,14 +65,28 @@ function heldAuthority(when: () => boolean) {
     assert_authority_current() { if (!current) throw new Error('authority expired'); } } };
 }
 
-for (const change of ['revise', 'remove', 'scope', 'authority', 'close'] as const) {
+for (const change of ['revise', 'synchronized removal', 'scope', 'authority', 'close'] as const) {
   test('PUB-2 ' + change + ' while publication awaits prevents stale release and first key creation', async t => {
     const home = await mkdtemp(join(tmpdir(), 't149-stale-')), h = readyPublication(home, 'author'), gate = heldAuthority(() => true);
     t.after(async () => { await h.workflow.close(); await rm(home, { recursive: true, force: true }); });
     const result = h.publish(gate.authority).then(() => null, error => error as Error);
     await gate.reached;
     if (change === 'revise') laterRevision(h);
-    if (change === 'remove') await h.workflow.action(h.build.id, { action: 'remove', revision: h.build.revision });
+    if (change === 'synchronized removal') {
+      const key = 'plugin-builder:agent-built:v1', raw = h.storage.get(key)!;
+      const bundle = h.build.checks.global!.bundlePath!, code = readFileSync(bundle);
+      await assert.rejects(h.workflow.action(h.build.id, { action: 'remove', revision: h.build.revision }), { code: 'plugin_builder.draft_deletion_unavailable' });
+      assert.equal(h.storage.get(key), raw, 'unsupported local deletion preserves the complete draft');
+      assert.deepEqual(readFileSync(bundle), code);
+      // A remote tombstone can invalidate the checked candidate while the publisher waits for authority.
+      const owner = builderPrivateValueReplicationOwner({home});
+      const current = JSON.parse(raw);
+      owner.beforeClear!(current, 'author', h.build.id);
+      const removed = owner.restore(null, current, 'author', h.build.id);
+      assert.equal(h.storage.compareAndSet!(key, raw, JSON.stringify(removed)), true);
+      assert.equal(h.workflow.store.get(h.build.id), null);
+      assert.deepEqual(readFileSync(bundle), code, 'the retained source survives the tombstone');
+    }
     if (change === 'scope') await h.workflow.action(h.build.id, { action: 'scope', scope: 'project', revision: h.build.revision });
     if (change === 'authority') gate.expire();
     if (change === 'close') await h.workflow.close();

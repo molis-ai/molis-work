@@ -33,6 +33,7 @@ export interface CodingExecution {
   readonly models: ReturnType<typeof codingModels>;
   readonly goalTitles: CodingGoalTitles;
   readonly characters: CodingCharacters;
+  savedHistoryView?(json:string):import('@molis-ai/molis-work-contracts/services/agent-host').AgentSavedHistoryView;
   /** The language of the page this call came from (route calls only): what a handler sends back to show is worded in it. */
   readonly locale?: ActionLocale;
 }
@@ -59,7 +60,7 @@ const failure = (error: unknown) => {
  */
 export function codingSurface(context: PluginStartContext, sessions: CodingSessionStore, goalTitles: CodingGoalTitles = codingGoalTitles(context)): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
   const actions: ActionHandlerBinding[] = [];
-  const execution: CodingExecution = { sessions, models: codingModels(context), goalTitles, characters: codingCharacters(context) };
+  const execution: CodingExecution = { sessions, models: codingModels(context), goalTitles, characters: codingCharacters(context), savedHistoryView: context.services?.savedHistory?.view };
   const activation = startCodingActivation(context, execution, actions, failure);
   const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes].flatMap(group => group(activation));
   // The work-executor roles have no route: they answer through the handlers just made.

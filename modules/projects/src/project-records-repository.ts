@@ -5,20 +5,21 @@ import { text, type ProjectsSqliteDatabase, type Row } from "./sqlite.js";
 
 /** The rows that are the project itself: `projects`, the plugins it has and hides, and its events. */
 export class ProjectRecordsRepository {
-  constructor(private readonly db: ProjectsSqliteDatabase, private readonly projectsDirectory: string) {}
+  constructor(private readonly db: ProjectsSqliteDatabase, private readonly projectsDirectory: string, readonly spaceId?: string) {}
 
   listProjects(): ProjectRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM projects ORDER BY display_name COLLATE NOCASE, created_at, project_id",
-    ).all() as Row[]).map(row => mapProject(row, this.projectsDirectory));
+      "SELECT * FROM projects WHERE project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1) ORDER BY display_name COLLATE NOCASE, created_at, project_id",
+    ).all() as Row[]).map(row => ({ ...mapProject(row, this.projectsDirectory), ...(this.spaceId ? { spaceId: this.spaceId } : {}) }));
   }
 
   getProject(projectId: string): ProjectRecord | null {
-    const row = this.db.prepare("SELECT * FROM projects WHERE project_id = ?").get(projectId) as Row | undefined;
-    return row ? mapProject(row, this.projectsDirectory) : null;
+    const row = this.db.prepare("SELECT * FROM projects WHERE project_id = ? AND project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)").get(projectId) as Row | undefined;
+    return row ? ({ ...mapProject(row, this.projectsDirectory), ...(this.spaceId ? { spaceId: this.spaceId } : {}) }) : null;
   }
 
   insertProject(record: ProjectRecord): void {
+    if (record.spaceId && record.spaceId !== this.spaceId) throw new Error("SPACE_OWNERSHIP_MISMATCH");
     this.db.prepare(`
       INSERT INTO projects (
         project_id, display_name, source,
@@ -44,13 +45,17 @@ export class ProjectRecordsRepository {
   }
 
   addProjectPlugin(projectId: string, pluginId: ProjectPluginId, at: string): boolean {
-    return Number(this.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
+    const portableChanged = Number(this.db.prepare('INSERT INTO project_portable_plugins(project_id,plugin_id) VALUES(?,?) ON CONFLICT DO NOTHING').run(projectId,pluginId).changes)>0;
+    const activeChanged = Number(this.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
       .run(projectId, pluginId, at).changes) > 0;
+    return portableChanged || activeChanged;
   }
 
   removeProjectPlugin(projectId: string, pluginId: ProjectPluginId): boolean {
-    return Number(this.db.prepare("DELETE FROM project_plugins WHERE project_id = ? AND plugin_id = ?")
+    const portableChanged = Number(this.db.prepare('DELETE FROM project_portable_plugins WHERE project_id=? AND plugin_id=?').run(projectId,pluginId).changes)>0;
+    const activeChanged = Number(this.db.prepare("DELETE FROM project_plugins WHERE project_id = ? AND plugin_id = ?")
       .run(projectId, pluginId).changes) > 0;
+    return portableChanged || activeChanged;
   }
 
   listHiddenPlugins(projectId: string): ProjectPluginId[] {

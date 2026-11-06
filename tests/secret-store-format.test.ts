@@ -159,6 +159,6 @@ test("N34-VS-02 a complete current seal writes v1 and refuses the identical ciph
   writeFileSync(file, JSON.stringify(body));
   resetSecretStoreCache();
   const before = readFileSync(file);
-  assert.equal(createLazyFileSecretStore(home).get("sample"), null);
+  assert.throws(() => createLazyFileSecretStore(home).get("sample"), /secret not AES-GCM sealed/);
   assert.deepEqual(readFileSync(file), before);
 });

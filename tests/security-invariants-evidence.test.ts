@@ -75,7 +75,7 @@ test("S-12 N30: passphrase vaults use the current salt and refuse earlier-salt c
   const oldKey = scryptSync(passphrase, "goalboard-feed-secretstore-v1", 32), iv = Buffer.alloc(12, 29);
   const cipher = createCipheriv("aes-256-gcm", oldKey, iv);
   const ct = Buffer.concat([cipher.update(original, "utf8"), cipher.final()]);
-  const sealed = Buffer.from(JSON.stringify({ v: 2, alg: "aes-256-gcm", iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ct: ct.toString("base64") })).toString("base64");
+  const sealed = Buffer.from(JSON.stringify({ v: 1, alg: "aes-256-gcm", iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ct: ct.toString("base64") })).toString("base64");
   writeFileSync(file, JSON.stringify({ version: 1, backend: "env-key+aes-gcm", entries: { [ref]: sealed } }));
   resetSecretStoreCache();
   const reopened = runWithMolisWorkHome(home, createFileSecretStore), before = homeStorageTree(home);

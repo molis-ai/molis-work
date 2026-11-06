@@ -79,10 +79,17 @@ function ownerConstant(file: string, name: string, seen = new Set<string>()): st
   return undefined;
 }
 
-test("N31-ALL-PROMPTS-01 every registered instruction, Agent prompt and built-in method starts at version 1", () => {
-  for (const [id, prompt] of registeredPrompts()) assert.equal(prompt.version, 1, id);
+test("N31-ALL-PROMPTS-01 every registered instruction, Agent prompt and built-in method declares the version its entry in tooling/versions.json gives", () => {
+  const versions = (JSON.parse(read("tooling/versions.json")) as { versions: Record<string, number> }).versions;
+  for (const [id, prompt] of registeredPrompts()) {
+    // Plugin Builder registers its stage prompts as `builder-<stage>` and names their entries after the plugin; `review` is the one stage whose entry is named for what it reviews.
+    const entry = `prompt.${(prompt.prompt_id === "builder-review" ? "builder-ui-review" : prompt.prompt_id).replace(/^builder-/, "plugin-builder.")}`;
+    assert.ok(Object.hasOwn(versions, entry), `${id} has no entry`);
+    assert.equal(prompt.version, versions[entry], id);
+  }
   for (const definition of DEFINITIONS) for (const method of definition.manifest.methods ?? []) {
-    assert.equal(method.version, 1, `${definition.manifest.plugin_id}/${method.skill_id}`);
+    assert.ok(Object.hasOwn(versions, `method.${method.skill_id}`), `${definition.manifest.plugin_id}/${method.skill_id} has no entry`);
+    assert.equal(method.version, versions[`method.${method.skill_id}`], `${definition.manifest.plugin_id}/${method.skill_id}`);
   }
 });
 

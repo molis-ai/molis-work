@@ -38,7 +38,7 @@ test("N4 fixed source signatures retain their bytes without adopting retired man
     assert.equal(bundle.payload.manifest.schema_version, 2, "these are the original source materials, not current installable replay packages");
     const publicKey = createPublicKey({ key: Buffer.from(bundle.publisher_key!.spki_base64, "base64"), format: "der", type: "spki" });
     assert.equal(verify(null, pluginPackageSigningBytes(bundle.payload), publicKey, Buffer.from(bundle.signature!.value_base64, "base64")), true);
-    assert.throws(() => parsePluginPackage(bundle), "signature preservation must not make a retired manifest installable");
+    assert.throws(() => parsePluginPackage(bundle), invalidPackage("plugin.manifest_invalid"), "signature preservation must not make a retired manifest installable");
   }
 });
 

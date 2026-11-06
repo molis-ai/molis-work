@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * Gmail live-sync cursor protocol — pure, versioned, privacy-safe.
  *
@@ -166,13 +167,10 @@ function invalid(
   return { decision: "invalid", reason, message };
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === "object" && !Array.isArray(value);
-}
 
 /** True when the value is the explicit fixture success cursor. */
 export function isGmailFixtureCursor(raw: unknown): boolean {
-  if (!isPlainObject(raw)) return false;
+  if (!isRecord(raw)) return false;
   return (
     raw.mode === GMAIL_FIXTURE_CURSOR.mode &&
     raw.historyId === GMAIL_FIXTURE_CURSOR.historyId
@@ -258,7 +256,7 @@ function normalizeAccountEmail(value: unknown): string | undefined | null {
 
 function historyPosition(value: unknown, historyId: string): GmailLiveCursor["position"] | null {
   if (value === undefined) return undefined;
-  if (!isPlainObject(value) || !isValidGmailHistoryId(value.historyId)
+  if (!isRecord(value) || !isValidGmailHistoryId(value.historyId)
     || BigInt(value.historyId) <= BigInt(historyId) || !Number.isSafeInteger(value.offset) || Number(value.offset) <= 0) return null;
   return { historyId: value.historyId, offset: Number(value.offset) };
 }
@@ -323,7 +321,7 @@ export function buildGmailLiveCursor(input: {
  */
 export function decideGmailSyncFromCursor(raw: unknown): GmailSyncEntryDecision {
   // A new Source starts with no cursor (null or an empty object).
-  if (raw == null || (isPlainObject(raw) && Object.keys(raw).length === 0)) {
+  if (raw == null || (isRecord(raw) && Object.keys(raw).length === 0)) {
     return fullSync("missing");
   }
 
@@ -335,7 +333,7 @@ export function decideGmailSyncFromCursor(raw: unknown): GmailSyncEntryDecision 
     return invalid("malformed", "Gmail cursor must be a JSON object");
   }
 
-  if (!isPlainObject(raw)) {
+  if (!isRecord(raw)) {
     return invalid("malformed", "Gmail cursor must be a JSON object");
   }
 
@@ -445,15 +443,15 @@ export function collectGmailHistoryMessageIds(history: unknown): string[] {
   const takeFromChanges = (changes: unknown) => {
     if (!Array.isArray(changes)) return;
     for (const row of changes) {
-      if (!isPlainObject(row)) continue;
+      if (!isRecord(row)) continue;
       const msg = (row as HistoryChangeMessage).message;
-      if (!isPlainObject(msg)) continue;
+      if (!isRecord(msg)) continue;
       pushId(msg.id);
     }
   };
 
   for (const record of history) {
-    if (!isPlainObject(record)) continue;
+    if (!isRecord(record)) continue;
     // Named change types only:
     // - messagesAdded / labelsAdded → candidate ids for Feed ingest
     // - messages (generic) → ignored (duplicates the specific arrays)
@@ -479,7 +477,7 @@ function consumeHistoryRecords(state: GmailHistoryReduceState, history: unknown,
   if (history !== undefined && !Array.isArray(history)) return unsafeHistoryPage();
   const seen = new Set(state.messageIds);
   for (const record of history ?? []) {
-    if (!isPlainObject(record) || !isValidGmailHistoryId(record.id) || BigInt(record.id) <= BigInt(state.cursor.historyId) || BigInt(record.id) > BigInt(ceiling)) return unsafeHistoryPage();
+    if (!isRecord(record) || !isValidGmailHistoryId(record.id) || BigInt(record.id) <= BigInt(state.cursor.historyId) || BigInt(record.id) > BigInt(ceiling)) return unsafeHistoryPage();
     const position = state.cursor.position;
     if (position && position.historyId !== record.id) return unsafeHistoryPage();
     const ids = collectGmailHistoryMessageIds([record]);

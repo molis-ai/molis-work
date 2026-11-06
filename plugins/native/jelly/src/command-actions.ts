@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { withActionEffect, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JellyItem, JellyNote, JellySeries, JellyWorkspace } from "./contract.js";
@@ -9,7 +10,7 @@ export const JELLY_READ = ["jelly:read"];
 // Every command returns the workspace, so write permission alone cannot disclose Home data.
 export const JELLY_WRITE = ["jelly:read", "jelly:write"];
 export function defineJellyAction<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = operation === "query" ? JELLY_READ : JELLY_WRITE, scheduling?: "concurrent", execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return { capability_id: `jelly.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "home", ...(scheduling ? { scheduling } : {}), audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["jelly_workspace"], input_schema: input, output_schema: output } };
+  return createActionDefinition<I, O>(`jelly.${name}`, operation, { title, description, ...(execution ? { execution } : {}), scope: "home", ...(scheduling ? { scheduling } : {}), audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["jelly_workspace"], input_schema: input, output_schema: output });
 }
 export type JellyCommandInput = { expected_revision: number; [key: string]: unknown };
 const commandInput = (fields: Record<string, unknown>, required: string[]) => s.object({ ...fields, expected_revision: s.revision }, [...required, "expected_revision"]);

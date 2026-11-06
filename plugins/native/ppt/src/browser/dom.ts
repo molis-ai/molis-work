@@ -1,3 +1,5 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+export { messageOf };
 /** An element the server drew; the page cannot work without it. */
 export function required<T extends Element>(root: ParentNode, selector: string): T {
   const node = root.querySelector<T>(selector);
@@ -13,8 +15,6 @@ export function textCell(className: string, text: string): HTMLSpanElement {
   node.textContent = text;
   return node;
 }
-
-export const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 /** The first line of a text, or `fallback` when it has none. */
 export function firstLine(value: string | null | undefined, fallback = ""): string {

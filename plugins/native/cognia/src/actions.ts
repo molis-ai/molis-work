@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionAvailability, ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { generateCogniaDraft, type CogniaAiPorts } from "./ai.js";
@@ -8,7 +9,7 @@ import { cogniaSearchActions, createCogniaSearchHandlers } from "./search.js";
 
 const read = ["cognia:read"], write = [...read, "cognia:write"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = operation === "query" ? read : write, concurrent = false, required_actions?: ActionDefinition["action"]["required_actions"], execution?: ActionDefinition["action"]["execution"], audiences: ActionDefinition["action"]["audiences"] = ["user", "workflow", "agent", "mcp"]): ActionDefinition<I, O> {
-  return { capability_id: `cognia.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "home", audiences, permissions, subject_kinds: ["cognia_material"], input_schema: input, output_schema: output, ...(concurrent ? { scheduling: "concurrent" } : {}), ...(required_actions ? { required_actions } : {}) } };
+  return createActionDefinition<I, O>(`cognia.${name}`, operation, { title, description, ...(execution ? { execution } : {}), scope: "home", audiences, permissions, subject_kinds: ["cognia_material"], input_schema: input, output_schema: output, ...(concurrent ? { scheduling: "concurrent" } : {}), ...(required_actions ? { required_actions } : {}) });
 }
 type Summary = Omit<Material, "body" | "frontmatter"> & { excerpt: string };
 type Filters = { query?: string; domain_id?: string; source_id?: string };

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { FEED_ITEMS_SCHEMA_SQL, fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
-import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { feedLedgerKey, feedLedgerPort } from "./fixtures/feed-ledger.js";
 
 const access: ContextAccess = { actor_id: "alice", scope: { kind: "personal", id: "project-a" } };
@@ -14,7 +14,7 @@ const reference = (module: ObjectRef["module"], id: string, version: number | nu
   ({ module, id, version, scope: access.scope });
 
 test("Ledger retains exact reference revisions, idempotent replay, removal and scope isolation", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     const ledger = createContextLedger(db, { authorize: (request) => request.actor_id === "alice" });
     const input = { key: "output", type: "goal.output", source: reference("goals", "goal-1"),
@@ -54,7 +54,7 @@ test("Ledger retains exact reference revisions, idempotent replay, removal and s
 });
 
 test("Ledger keeps a reference to an input an agent run holds as given, without reading it (RCPT-390)", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     const ledger = createContextLedger(db, { authorize: (request) => request.actor_id === "alice" });
     const input: ObjectRef = { ...reference("agent-host", "sess-1/inp-2"), object_type: "agent_input", project_id: "project-a" };
@@ -71,7 +71,7 @@ test("Ledger keeps a reference to an input an agent run holds as given, without 
 });
 
 function feedHarness() {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('project-a'); INSERT INTO project_root VALUES ('project-b');");
   // Feed's tables are its declaration's (FI-5): the platform makes them when it opens a library, and Feed's store does not.
@@ -79,6 +79,7 @@ function feedHarness() {
   const ledger = createContextLedger(db, { authorize: (request) => request.scope.kind === "personal" });
   let feed: FeedModule;
   let fail = false;
+  db.exec(ATTENTION_SCHEMA_SQL);
   const attention = new AttentionModule(db, { exists: (projectId, _type, itemId) => feed.query.exists(projectId, itemId) });
   const open = (api: ContextLedgerApi = ledger) => {
     feed = new FeedModule(fromBetterSqlite(db), attention, { ledger: feedLedgerPort(api), eventSink: () => { if (fail) throw new Error("event failed"); } });

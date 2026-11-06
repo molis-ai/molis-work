@@ -2,7 +2,7 @@
 
 /**
  * Where a floating layer goes: beside, above or below what it belongs to, kept inside the screen or the stage the person is
- * working in. A leaf with no import and no use of Node, so a page bundle (the Pages editor) can take it by itself:
+ * working in. A leaf with no import and no use of Node, so a page bundle can take it by itself:
  * `@molis-ai/molis-work-plugin-sdk/browser`. The toolbar that sits next to a selection, the editor's own menus and the
  * popovers in a split pane all place themselves with these, in one way.
  */
@@ -137,3 +137,8 @@ export { GAP as FLOATING_GAP, MARGIN as FLOATING_MARGIN, clampTo, pick as pickSi
 
 /** Text to show for an error raised by a client action, including a thrown string. */
 export const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
+
+/** Native JSON read comparison: preserve toJSON and JSON.stringify's value rules.
+ * Integer-shaped keys keep JavaScript's enumeration order; this is not signing text. */
+export const jsonComparisonText = (value: unknown): string | undefined => JSON.stringify(value, (_key, item: unknown) => item && typeof item === "object" && !Array.isArray(item)
+  ? Object.fromEntries(Object.keys(item).sort().map(name => [name, (item as Record<string, unknown>)[name]])) : item);

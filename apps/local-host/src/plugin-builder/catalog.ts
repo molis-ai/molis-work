@@ -1,3 +1,4 @@
+import { createActionDefinition, isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * The capability catalog generated plugins draw from: the project's unified action service, nothing else. The studio's
  * model capability is registered into that same service as a platform provider; Schedule owns reminders. What
@@ -54,7 +55,6 @@ export interface CatalogCapability {
   execution: ActionExecutionPolicy;
 }
 
-const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const pluginOf = (context: ActionCallContext) => context.actor_id.startsWith('plugin:') ? context.actor_id.slice('plugin:'.length) : '';
 
 /**
@@ -67,9 +67,10 @@ export function registerPlatformCapabilities(actions: ProjectActions, implementa
   const registeredId = home ? HOME_MODEL_GENERATE_ID : MODEL_GENERATE_ID;
   const define = (effect: 'read' | 'write', scheduling?: ActionDefinition['action']['scheduling']): ActionDefinition => {
     const known = studioCapability(MODEL_GENERATE_ID)!;
-    return { capability_id: registeredId, version: 1, operation: 'command', provider_id: providerId,
-      action: { ...(scheduling ? { scheduling } : {}), execution: known.execution, title: known.title, description: known.description, kind: 'operation', scope: home ? 'home' : 'project', effect, audiences: ['plugin'], permissions: [], subject_kinds: [],
-        input_schema: known.input as unknown as ActionSchema, output_schema: known.output as unknown as ActionSchema } };
+    return { ...createActionDefinition(registeredId, 'command', {
+      ...(scheduling ? { scheduling } : {}), execution: known.execution, title: known.title, description: known.description, scope: home ? 'home' : 'project', effect, audiences: ['plugin'], permissions: [], subject_kinds: [],
+      input_schema: known.input as unknown as ActionSchema, output_schema: known.output as unknown as ActionSchema,
+    }), provider_id: providerId };
   };
   const definitions = [define('read', 'concurrent')];
   const handlers: ActionHandlerBinding[] = [

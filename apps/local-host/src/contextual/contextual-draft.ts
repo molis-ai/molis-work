@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { FRAGMENT_OFFERS_INPUT_TYPE, type ActionView, type FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTEXTUAL_DRAFT_LIMITS, type ContextualCandidate, type ContextualDraft, type SurfaceFocus, type SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import type { DraftMaterial, DraftTarget } from "../drafting/draft-data.js";
@@ -14,7 +15,6 @@ import { fragmentOffersInput, type ContextualDirectory } from "./contextual-serv
  */
 
 type Intake = NonNullable<ActionView["action"]["intake"]>;
-const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 
 /** The view that declares this entry, still in the caller's directory under the identity the candidate or page named. */
 function entryView(views: readonly ActionView[], reference: { capability_id: string; version: number; provider_id?: string }, intakeId: string): (ActionView & { action: { intake: Intake } }) | undefined {

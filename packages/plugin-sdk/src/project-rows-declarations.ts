@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 // The shape of `databases.home.project_rows` (PG-024): which rows of a plugin's Home library go with a deleted project. Only what can
 // be read from the declaration is checked here: names, that each table is one the declaration's own `schema` creates, how the
 // children name their parent, and that the files the rows name are in a directory of the Manifest's own `owner_files`. Whether the columns exist is for the platform, which builds the schema in SQLite before it starts the
@@ -82,8 +83,4 @@ function parentProblems(path: string, parent: unknown, tables: readonly unknown[
 /** The tables a schema creates, lower-cased; a qualified name (`main.t`) is kept whole, so it never matches a plain table. */
 function createdTables(schema: string): Set<string> {
   return new Set([...schema.matchAll(CREATED_TABLE)].map(match => match[1]!.toLowerCase()));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

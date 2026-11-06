@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import { ACTION_ERROR_CODE, ACTION_ERROR_KIND_NAMES, ActionError, isActionErrorKind, platformErrorKind, type ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // One error model (specs/archive/repository-anti-corruption W3-02): the transport derives the status from the failure's kind, and every
@@ -35,8 +36,6 @@ interface CodedFailure {
   readonly kind?: unknown;
   readonly details?: unknown;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** A code of ours: `<owner>.<reason>`. A system or driver code (`ENOENT`, `ERR_SQLITE_ERROR`) is not, whoever raised it. */
 const isModelCode = (code: unknown): code is string => typeof code === "string" && ACTION_ERROR_CODE.test(code);

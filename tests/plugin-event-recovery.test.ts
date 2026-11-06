@@ -1,10 +1,11 @@
+import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import type { PluginEventRecoveryInput, PluginEventRecoveryView } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { MemoryPluginEventsRepository, PluginEventBus, PluginRuntime, PluginSupervisor, SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { eventCrashDefinition, EVENT_BOARD, EVENT_SOURCE, EVENT_SUBSCRIBER, EVENT_TYPE } from "./fixtures/plugin-event-crash.js";
@@ -20,7 +21,7 @@ function confirmation(view: PluginEventRecoveryView, decision: "skip" | "retry" 
 
 async function fixture(t: TestContext, memory = false) {
   const directory = mkdtempSync(join(tmpdir(), "event-recovery-")), file = join(directory, "events.db");
-  const db = new Database(file);
+  const db = openPluginTestDatabase(file);
   db.exec("CREATE TABLE effects (id INTEGER PRIMARY KEY, value TEXT)");
   const repository = memory ? new MemoryPluginEventsRepository() : new SqlitePluginEventsRepository(db);
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
@@ -66,7 +67,7 @@ for (const memory of [false, true]) {
       assert.deepEqual(rig.bus.recoveryHistory(EVENT_BOARD), [receipt]);
       assert.deepEqual(rig.bus.recoveryHistory("other-board"), []);
       if (!memory) {
-        const reopened = new Database(rig.file);
+        const reopened = openTestSqlite(rig.file);
         try { assert.deepEqual(new SqlitePluginEventsRepository(reopened).resolutions(EVENT_BOARD), [receipt]); }
         finally { reopened.close(); }
       }
@@ -85,7 +86,7 @@ test("a failed audit insert rolls back the cursor and a competing connection can
   assert.deepEqual(rig.bus.recoveryHistory(EVENT_BOARD), []);
   assert.equal(rig.count(), 1);
   rig.db.exec("DROP TRIGGER fail_resolution");
-  const other = new Database(rig.file), competitor = new SqlitePluginEventsRepository(other);
+  const other = openTestSqlite(rig.file), competitor = new SqlitePluginEventsRepository(other);
   try {
     const receipt = rig.bus.recover(EVENT_BOARD, "first-user", input);
     const current = rig.bus.cursors(EVENT_BOARD)[0]!;

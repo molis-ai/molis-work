@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // Goals' actions as Coding calls them (PG-111): by id and version, with the fields Coding reads. What a Goal is belongs to Goals;
@@ -9,9 +10,9 @@ import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/a
  * version, and runs that action's own schema, audience and permission checks, so nothing here is checked in its place.
  */
 function consumed<Input, Output>(capability_id: string, version: number, operation: "query" | "command"): ActionDefinition<Input, Output> {
-  return { capability_id, version, operation, action: { title: capability_id, description: `Goals action ${capability_id}, called by Coding`,
-    kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["plugin"], subject_kinds: ["goal"], input_schema: { type: "object" },
-    permissions: [operation === "query" ? "goals:read" : "goals:write"] } };
+  return createActionDefinition<Input, Output>(capability_id, operation, { title: capability_id, description: `Goals action ${capability_id}, called by Coding`,
+    audiences: ["plugin"], subject_kinds: ["goal"], input_schema: { type: "object" },
+    permissions: [operation === "query" ? "goals:read" : "goals:write"] }, version);
 }
 
 export const GOALS_ACTIONS = {

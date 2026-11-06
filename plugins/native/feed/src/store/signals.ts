@@ -1,3 +1,4 @@
+import { isRecord as isObject } from "@molis-ai/molis-work-plugin-sdk";
 import type { FeedSql } from "./sql.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
@@ -260,10 +261,6 @@ function stableJson(value: unknown): string {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
   }
   return JSON.stringify(value);
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function sha256(value: string): string {

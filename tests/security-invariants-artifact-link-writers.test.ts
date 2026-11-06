@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, artifactsActions, createArtifactActionHandlers, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
@@ -13,7 +13,7 @@ import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 const projectId = "link-writers", person: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: projectId, permissions: ["artifacts:read"] };
 
 function rig(t: test.TestContext, linkKinds: ReturnType<typeof artifactLinkKinds>) {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   t.after(() => db.close());
   db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('${projectId}'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);`);
   createArtifactsSchema(db);

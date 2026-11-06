@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { IntegrationProviderSyncResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 type ConnectorSyncFailure = Extract<IntegrationProviderSyncResult, { ok: false }>;
@@ -66,13 +67,13 @@ function configurationFailure(stage: GmailFailureStage, status: number): Connect
 
 /** Reads only Google's documented closed reason fields; messages are ignored. */
 export function classifyGmailForbiddenPayload(payload: unknown): GmailForbiddenDisposition {
-  if (!isPlainObject(payload) || !isPlainObject(payload.error)) return "provider";
+  if (!isRecord(payload) || !isRecord(payload.error)) return "provider";
   const error = payload.error;
   const reasons: string[] = [];
   for (const field of [error.errors, error.details]) {
     if (!Array.isArray(field)) continue;
     for (const item of field) {
-      if (isPlainObject(item) && typeof item.reason === "string") {
+      if (isRecord(item) && typeof item.reason === "string") {
         reasons.push(item.reason.toLowerCase());
       }
     }
@@ -150,8 +151,4 @@ export function invalidCursorFailure(message: string): ConnectorSyncFailure {
 
 export function safeFetchUnavailableFailure(): ConnectorSyncFailure {
   return liveFailure("provider", "Gmail fetch unavailable", { action: REAUTH_ACTION });
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === "object" && !Array.isArray(value);
 }

@@ -158,7 +158,7 @@ export const SERVICE_CONNECTION_PART_STYLES = ""
   + `.connection-card__clip{min-height:0;overflow:hidden;margin-inline:-4px;padding-inline:4px}.connection-need:not([data-state=ask]) .connection-card__clip{${CLIP_OPEN}}`
   + `.connection-card__body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding-bottom:0}.connection-card__body .mw-status{max-width:100%;white-space:normal;line-height:1.4}.connection-card__fold:last-child .connection-card__body{padding-bottom:20px}`
   // Accounts to choose from stack one per line at the card's width; a long account line wraps instead of leaving the card.
-  + `.connection-card .mw-choice-group{display:grid}.connection-card .mw-choice{min-width:0;padding-block:10px}.connection-card .mw-choice__label{white-space:normal}`
+  + `.connection-card .mw-choice-group{display:grid}.connection-card .mw-choice{min-width:0;padding-block:10px}.connection-card .mw-choice__label{white-space:normal;align-items:start}`
   + `.connection-card .mw-card__footer{padding-top:16px}.connection-need[data-state=running] .connection-card .mw-card__footer{display:none}`
   + `@media (prefers-reduced-motion:reduce){:is(.settings-connection-item__fold,.connection-need__fold,.connection-need__done,.connection-card__fold,.settings-connection-item__toggle svg){transition:none}}`
   + `@media (max-width:760px){${ROW},[data-connectors-settings] ${ROW}{grid-template-columns:40px minmax(0,1fr) auto}`

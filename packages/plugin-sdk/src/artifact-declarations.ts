@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import { isArtifactCompareAction, isArtifactContinueAction, isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -65,7 +66,6 @@ function fileProblems(type: Part): string[] {
   return problems;
 }
 
-
 function producedTypeProblems(type: Part, actions: ReadonlyMap<string, Part>): string[] {
   const key = keyOf(type), problems: string[] = [];
   if (typeof type.title !== "string" || !type.title.trim()) problems.push(`成果类型 ${key} 缺少显示名（title）`);
@@ -120,8 +120,4 @@ function keyOf(type: Part): string {
 
 function records(value: unknown): Part[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
-}
-
-function isRecord(value: unknown): value is Part {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

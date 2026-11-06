@@ -17,7 +17,7 @@ import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
 // specs/archive/repository-anti-corruption W3-02-G2: the Host's page and catalog edges answer through the one error model. The Functions mapper, the
@@ -175,7 +175,7 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   const project = await catalog.createProject({ display_name: "保留目录项目", actor_id: "test" });
   catalog.close();
   const databasePath = join(home, "projects", "catalog.db");
-  const future = new Database(databasePath);
+  const future = openTestSqlite(databasePath);
   const supported = Number(future.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get());
   future.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(supported + 1));
   future.close();
@@ -191,7 +191,7 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "catalog.reader_too_old",
     details: { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
       recovery: "new_or_fork_session_then_context_resolve" } });
-  const preserved = new Database(databasePath, { readonly: true });
+  const preserved = openTestSqlite(databasePath, { readonly: true });
   try {
     assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(supported + 1));
     assert.equal(preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id), "保留目录项目");

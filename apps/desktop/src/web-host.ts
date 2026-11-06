@@ -1,4 +1,4 @@
-import { createLocalWebServerFactory } from "@molis-ai/molis-work-app-local-host";
+import { createLocalWebServerFactory, TERMINAL_RUNTIMES, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
 import { isPtyCommandAvailable } from "@molis-ai/molis-work-service-runtime-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "./project-catalog.js";
 import { desktopWorkbenchRendererPorts } from "./shell.js";
@@ -6,13 +6,7 @@ import { isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "./shell.
 import { renderDesktopCapsuleShell } from "./capsule-shell.js";
 
 function desktopRuntimeAvailability(): Record<string, boolean> {
-  return {
-    "claude-code": isPtyCommandAvailable("claude"),
-    codex: isPtyCommandAvailable("codex"),
-    opencode: isPtyCommandAvailable("opencode"),
-    "pi-agent": isPtyCommandAvailable("pi"),
-    "grok-build": isPtyCommandAvailable("grok"),
-  };
+  return Object.fromEntries(TERMINAL_RUNTIMES.map(runtime => [runtime, isPtyCommandAvailable(terminalRuntimeRecipe(runtime).command)]));
 }
 
 export function createDesktopWebHost(assets: { ptyClientFilePath(): string }) {

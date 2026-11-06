@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { captureHostLog, createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -115,10 +115,10 @@ test("S-96 RAC-1063 what is not a short list of ids is refused before the Host i
  * the restored table invisible to the open Host connection. Overwriting the file also fails because that connection stays open.
  */
 function breakProjectCatalog(home: string): () => void {
-  const db = new Database(join(home, "projects", "catalog.db"));
+  const db = openTestSqlite(join(home, "projects", "catalog.db"));
   db.exec("ALTER TABLE projects RENAME TO projects_hidden");
   db.close();
-  return () => { const back = new Database(join(home, "projects", "catalog.db")); back.exec("ALTER TABLE projects_hidden RENAME TO projects"); back.close(); };
+  return () => { const back = openTestSqlite(join(home, "projects", "catalog.db")); back.exec("ALTER TABLE projects_hidden RENAME TO projects"); back.close(); };
 }
 
 // RAC-2735 (T-358): a project catalog that cannot be read is a Host failure the plugin must not see raw — the SQLite/filesystem error

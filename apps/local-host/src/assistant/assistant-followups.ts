@@ -305,7 +305,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
    * point calls `addRule`, and only the tests and `addRule` itself call this.
    */
   saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {
-    const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result", "material", "reminder"];
+    const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result", "material", "reminder", "connection"];
     if (!input || !["quiet", "pause"].includes(input.kind)) throw assistantErrors.invalid("规则只能是“在某处不提醒”或“暂停提醒”");
     const surfaces = Array.isArray(input.surfaces) ? [...new Set(input.surfaces.filter(value => typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,80}$/.test(value)))].slice(0, 20) : [];
     const except = Array.isArray(input.except) ? [...new Set(input.except.filter(kind => kinds.includes(kind)))] : [];

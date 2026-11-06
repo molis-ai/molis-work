@@ -1,16 +1,13 @@
+import { createActionDefinition, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreads } from "./assistant-threads.js";
 import type { StartThreadReply } from "./assistant-thread-types.js";
 
 const id = { type: "string", minLength: 1, maxLength: 160 };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const target = object({ provider_id: id, subject_kind: id, subject_id: id, thread_id: id });
-const define = (name: string, title: string, input: ActionSchema, model = false, query = false): ActionDefinition => ({
-  capability_id: `assistant.threads.${name}`, provider_id: "io.molis.work.assistant.rules", version: 1, operation: query ? "query" : "command",
-  action: { title, description: title, kind: query ? "query" : "operation", effect: query ? "read" : "write", scope: "project", audiences: ["user"],
+const define = (name: string, title: string, input: ActionSchema, model = false, query = false): ActionDefinition => ({ ...createActionDefinition(`assistant.threads.${name}`, query ? "query" : "command", { title, description: title, kind: query ? "query" : "operation", effect: query ? "read" : "write", scope: "project", audiences: ["user"],
     scheduling: "concurrent", permissions: model ? ["model:invoke"] : [], subject_kinds: [], input_schema: input, output_schema: { type: ["object", "null"] },
-    execution: { cost: model ? "metered" : "none", timeout_ms: 120000 } },
-});
+    execution: { cost: model ? "metered" : "none", timeout_ms: 120000 } }), provider_id: "io.molis.work.assistant.rules" });
 export const assistantThreadActions = {
   start: define("start", "请助理回复原评论", object({ target, message_id: id,
     draft: object({ text: { type: "string", maxLength: 100000 }, revision: id }) }, ["target", "message_id"]), true),

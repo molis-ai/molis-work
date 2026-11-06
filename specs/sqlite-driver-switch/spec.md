@@ -1,6 +1,6 @@
 # SQLite 第二步：项目库换到 node:sqlite（路线书 05 第 3 项）
 
-状态：设计稿（2026-11-06），没有实现。要不要换用户已定（台账 C3，分两步），这里只写怎么换。有一项要用户定：把 Node 升到 24.15 并锁定（§2）。第一步（驱动收拢到窄接口）在 #1790，还没合入。依据是 main `242d75d03` 和 #1790 头 `3585974c5`。
+状态：设计稿（2026-11-06），没有实现。要不要换用户已定（台账 C3，分两步），这里只写怎么换。用户 2026-11-06 定：把 Node 升到 24.15.x 并锁定（§2.1）。第一步（驱动收拢到窄接口）在 #1790，还没合入。依据是 main `242d75d03` 和 #1790 头 `3585974c5`。
 
 验收编号前缀 `SQLD`，见 §12。
 
@@ -49,15 +49,15 @@ export const PLUGIN_STATEMENT_SQLITE_VERSION = "3.51.3";
 
 失败是关闭的，不会放过不该放的语句。但项目里的插件表（Goals、Feed 等）都走这条路，等于这些插件全不能用。
 
-### 2.1 方案（要用户定）
+### 2.1 Node 升到 24.15.x 并锁定（用户 2026-11-06 定）
 
 | 方案 | 做法 | 代价 | 卡什么 |
 | --- | --- | --- | --- |
-| **A. 升到 24.15.x 并锁定（推荐）** | CI（3 个 workflow）、桌面（`prepare-macos-runtime.sh:7`）、新增 `.nvmrc` 都写确切的 24.15.x；`engines` 收窄到同一条线；宿主启动时若 `process.versions.sqlite` 不是审过的版本，明确说明，不等到第一条语句才拒。开发机不能用 Homebrew 的 Node 跑服务 | 动 CI、打包、根目录白名单（红线）；用户和开发机要换 Node；以后升 Node 要重读步骤清单 | 切换片（SQLD-d）；不卡别的 |
+| **A. 升到 24.15.x 并锁定（已定）** | CI（3 个 workflow）、桌面（`prepare-macos-runtime.sh:7`）、新增 `.nvmrc` 都写确切的 24.15.x；`engines` 收窄到同一条线；宿主启动时若 `process.versions.sqlite` 不是审过的版本，明确说明，不等到第一条语句才拒。开发机不能用 Homebrew 的 Node 跑服务 | 动 CI、打包、根目录白名单（红线）；用户和开发机要换 Node；以后升 Node 要重读步骤清单 | 切换片（SQLD-d）；不卡别的 |
 | B. 把清单重读到 24.14 的 3.51.2 | 只改常量，重读一遍清单，不动 CI | 把清单往旧版本重读一次；Node 还是 24.14（低于 RC 标记）；还是要锁，只是锁在旧版本 | 同上 |
 | C. 清单支持多个版本 | 常量改成审过的版本表，CI 矩阵每版跑安全用例 | 每加一版都要读一遍步骤清单，CI 变慢；Homebrew 的版本追不上 | 不卡 Node，但工作量最大 |
 
-推荐 A。它顺带拿到 RC 稳定度，步骤清单一个字不用改，比 B 省一次安全复核。C 留作以后真要支持多版本时再说。**不管选哪个，「宿主的 SQLite 版本由谁定」都从锁文件变成了 Node，这是这次切换真正的代价。** 决定 C3 时没有写到这一点，请用户知道；按主会话要求不重新讨论要不要换。
+用户选 A，否掉 B、C。它顺带拿到 RC 稳定度，步骤清单一个字不用改，比 B 省一次安全复核。C 留作以后真要支持多版本时再说。**「宿主的 SQLite 版本由谁定」从锁文件变成了 Node，这是这次切换真正的代价**；决定 C3 时没有写到，用户定这一项时已经知道。开发机从此不能再用 Homebrew 的 Node 跑服务，以后升 Node 要重读步骤清单。
 
 ## 3. 做法：一个适配层
 
@@ -224,7 +224,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 | 片 | 内容 | 主要文件 | 验收 | 档位 | 前置 |
 | --- | --- | --- | --- | --- | --- |
 | SQLD-a 收口 | **还在旧驱动上**：窄接口删 `pluck`、命名参数；加 `readonly` 属性；`sqliteErrorName` 和全部调用点；`snapshot-sqlite.ts` 去掉直接 import | `packages/storage/src/{sqlite-connection,snapshot-sqlite,index}.ts`、`catalog-commit.ts`、`web-catalog-access.ts`、约 6 个测试 | 全量（共享核心） | Sonnet 5.5 high | #1790；U1-a、U1-b（共用 `snapshot-sqlite.ts`） |
-| SQLD-b 锁 Node | §2.1 | CI 3 个、`prepare-macos-runtime.sh`、`.nvmrc`、`tooling/gates/root-allowlist.json`、`package.json` `engines`；启动时的版本说明 | SQLD-06 | Sonnet 5.5 high | **红线，用户定**；F 轨文件由 F 落；原生模块在新 ABI 上重建要核 |
+| SQLD-b 锁 Node | §2.1 | CI 3 个、`prepare-macos-runtime.sh`、`.nvmrc`、`tooling/gates/root-allowlist.json`、`package.json` `engines`；启动时的版本说明 | SQLD-06 | Sonnet 5.5 high | 用户 2026-11-06 已定（含改 CI）；F 轨文件由 F 落；原生模块在新 ABI 上重建要核 |
 | SQLD-c 适配层与符合性 | §3 全部，新文件；符合性用例：同一张表对两个驱动各跑一遍，差异全在表内。**不切换** | 新 `packages/storage/src/sqlite-node-connection.ts`、`tests/sqlite-driver-conformance.test.ts` | SQLD-01、02、03、04 | Opus 5.5 high | SQLD-a |
 | SQLD-d 切换 | `openSqliteConnection` 换实现；PLIB-08 与 S-46；沙箱核对；打包版本断言；全量加浏览器 | `sqlite-connection.ts`、`tests/security-invariants-plugin-*.test.ts`、`docs/system/SECURITY-INVARIANTS.md`、`plugin-project-library.ts`、`open-database.ts`、`prepare-runtime-payload.mjs`（F）、`scripts/gates/project-sqlite-driver.mjs`（门禁收紧，红线） | SQLD-05、07、08、09 | Opus 5.5 high | SQLD-b、c；**02③ 已做**（批次定的先后）；机器槽排全量 |
 | SQLD-e 清理 | 删 storage 的依赖；`ownsDriver` 只留 Alchemist；`sqliteErrorName` 只认一种 | `packages/storage/package.json`、`pnpm-lock.yaml`（枢纽）、`scripts/gates/project-sqlite-driver.mjs`、`tests/npm-*.{ts,mjs}`、`packages/storage/README.md` | SQLD-10 | Sonnet 5.5 high | SQLD-d 稳定一轮 |

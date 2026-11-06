@@ -1,6 +1,6 @@
 # 公共来源与呈现合同（路线书 05 ②）
 
-状态：设计稿，2026-11-04 写，没有实现。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。实现等 02 交接，以及 03、04 定样全部落定；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。
+状态：设计稿，2026-11-04 写，没有实现。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。实现等 02 交接，以及 03、04 定样全部落定；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。
 
 ## 0. 这份稿子做什么
 
@@ -363,12 +363,14 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 `is_default` 改成 `roles`，属于改库结构。第 02 批已经定下真实 Home 清空重建，各库从统一起点的第 1 版开始。所以这一步：
 
-分界是 **02③ 真实 Home 重建**（统筹 2026-11-04 定）。U1 只在重建之后才是前置；重建之前落的不等 U1：
+**真实 Home 重建不等这份合同（用户 2026-11-06 定）：#1837 合入就按检查单重建。** 分界仍是 02③（统筹 2026-11-04 定），但顺序定了，这份稿子动表的部分都落在重建之后，不再进第 1 版：
 
-- **重建之前落**：直接改第 1 版的建表，不写迁移。涉及的都是项目库里的表或字段：`workspaces` 的 `is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses`、组合服务纠正表。
-- **重建之后落**：真实 Home 已经按第 1 版建了表，不能再原地改第 1 版，只能走 U1 的升级链写一步升级，并过金样回放（U2）。写这一步算「新增迁移逻辑」，是红线：开 PR 之前由统筹先问用户。
+- `workspaces` 的 `is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses`：都走 U1 升级段，并过金样回放（U2）。这几段用户已同意，写的时候不用再问。
+- 组合服务纠正表属第 15 批，到时同样走升级段。
 
-不加读取兼容。开 PR 时先核 02③ 做完没有。`modules/projects` 现在没有升级步（#1805 第 6 条）：如果落在重建之后，这一步要先在 U1 的升级链上给它登记一步。
+这些段写在 05② 的实现片里，那一片要等 U1 和四份门禁就位（U1 设计第 14 节）。**合同片不动表，也就不等 U1。** 不加读取兼容。`modules/projects` 现在没有升级段（#1805 第 6 条），实现片先给它登记第一段。
+
+万一 C-1 的合同片赶在重建之前合入，也不要趁机把表写进第 1 版：重建随时会发生，分两条路只会多出一种要核的情况。
 
 本稿里另外两处存量：
 
@@ -381,10 +383,10 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 | 片 | 内容 | 前置 |
 | --- | --- | --- |
-| C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；唯一动表的是 `material_recent_uses`，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`、`RunDirectories`，第 3 节的五个动作与 `materials.recent@1`、`materials.recent.record@1` 的声明；`material_recent_uses` 表；删掉 `projects.settings.browsing-workspace.*`；三个错误码；`assertMaterialRef`；api、actions 快照 | 02 交接。`material_recent_uses` 随 C-1 落的条件是 02③ 还没做，这样直接写进第 1 版；02③ 已做就把这张表挪到实现片，走 U1 升级段，合同片不受影响 |
+| C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；动表的部分不在这一片，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`、`RunDirectories`，第 3 节的五个动作与 `materials.recent@1`、`materials.recent.record@1` 的声明；删掉 `projects.settings.browsing-workspace.*`；三个错误码；`assertMaterialRef`；api、actions 快照 | 02 交接。`material_recent_uses` 表挪到实现片走 U1 升级段（用户 2026-11-06 定重建不等 C-1）；这一片只声明动作 |
 | C-2 呈现声明合同 | `platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind；`validatePresentationDeclaration`、`presentationText`、`presentationFormFields`、`renderPresentationForm` 的签名；api 快照 | 02 交接；D 轨把状态环取值下沉到 contracts 的 `platform/ui.ts` 之后 |
 | C-3 组合服务合同 | `services/surface-composition.ts`、`SurfaceGroup`、`surfaces.compose@1`、`surfaces.correct@1` 的声明；context-ledger 的关系类型表；`assertSurfaceDescription`；actions 快照 | C-2；第 14 批 A 段的 `TextRef` 合入 |
-| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、删浏览设置表；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨 | C-1～C-3 合入 |
+| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、删浏览设置表；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节） |
 
 ## 10. D 轨的答复（2026-11-04 共审）
 
@@ -404,7 +406,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | 3 能力注册 | 第 3 节五个目录动作、`materials.recent@1`、`materials.recent.record@1`（`system.project-workspaces`）；`surfaces.compose@1`、`surfaces.correct@1`（组合服务）；values 动作由各插件在自己的声明里注册。都注册一次，页面、工作流、Agent、MCP 共用 |
 | 4 合同 | 改。新子路径 `platform/project-materials`、`platform/presentation`、`services/surface-composition`；改 `modules/projects`、`modules/context-ledger`、`services/agent-host`、Manifest、`platform/plugin-events`。按 N35 原地改形状，旧名不留；按第 9 节拆三片，按快照一次一个 PR |
 | 5 放在哪个包 | 合同在 contracts；共用校验在 SDK（只依赖 contracts）；状态环取值下沉到 contracts 的 `platform/ui.ts`（D 轨）；组合服务进 `horizontal/`，宿主只装配 |
-| 6 表与存储 | `workspaces` 去掉 `is_default`、改 `roles`；删 `project_browsing_settings`；新增 `material_recent_uses`（项目库，`modules/projects`）和组合服务的纠正表（项目库与它自己的 Home 库）。都登记进 `table-owners.json`，按 02③ 分界（第 8 节） |
+| 6 表与存储 | `workspaces` 去掉 `is_default`、改 `roles`；删 `project_browsing_settings`；新增 `material_recent_uses`（项目库，`modules/projects`）和组合服务的纠正表（项目库与它自己的 Home 库）。都登记进 `table-owners.json`，都走升级段（第 8 节） |
 | 7 兼容与迁移 | 不加读取兼容。哈希 id 照旧当不透明字符串用，不从路径推，不算兼容路径。重建之后才落的，走 U1 升级链，是红线，先问用户 |
 | 8 安全边界 | 碰。只有输出目录可写，有拒绝测试和不变量一行（SSC-15）；撤权、移除后马上拒绝（SSC-04）；`materials.recent` 给 plugin 不泄露无权项（SSC-12），`excluded` 件数只给 user；`record` 先按调用方授权现读、读不了不记；`host.workspace.changed@1` 的载荷改动核 S-54 |
 | 9 调用次数 | values 一次最多 50 个对象；授权核对复用 `discover()`；`record` 一次最多 10 个引用；描述可缓存，值另取 |

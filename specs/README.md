@@ -29,8 +29,8 @@
 - [surface-composition](surface-composition/spec.md)：确定组合平台服务（路线书 15 ①）。新的 horizontal 包按调用方、位置和对象排出操作面描述（形态、字段、操作、分组），不调模型；宿主只装配；基础首页的三组怎样给。设计稿，没有实现；C3 写稿，合同缺口交 C 轨，首页一节请 D 轨共审。
 - [work-mainline](work-mainline/spec.md)：主线。事项是平台的轻量容器（可以只起名字，Goal、待办等可以变成事项），用户把手头的事项按自己的分组和顺序排好，从顶部切换器一下切到某件事，工作台状态、相关对象、助理范围与等你随之切换；插件对象的内容仍归插件。
 - [upgrade-continuity](upgrade-continuity/spec.md)：升级后持续可用。库的升级链从统一起点起算（先快照、再升级、失败回退、只影响主人），新程序先在副本上演练再替换，从 M1 起合同有过渡期、保存的引用自动接上，每个发布版本留金样 Home 回放；用户只感觉到功能升级。
-- [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；要先把 Node 升到 24.15 并锁定；设计稿，没有实现。
-- [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，N22 从 schema 推导处理器输入类型；设计稿，没有实现，N22 范围待用户定。
+- [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；设计稿，没有实现。
+- [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 全部处理器一次迁到从 schema 推导的类型（用户 2026-11-06 定），约 30 片；设计稿，没有实现。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）；2026-10-27 补服务连接页面的默认直接连接、技术配置收起及连接后可用要求（ASC-45～50，需求阶段）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。

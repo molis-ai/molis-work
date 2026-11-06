@@ -1,6 +1,8 @@
 import { ConnectorObservationStore, type ConnectorCheckObservation } from "@molis-ai/molis-work-service-connector-host";
 import { openConnectorsStore } from "./connectors-store.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
+import { withoutRun } from "./connector-failure-runs.js";
+import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
 
 export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T): T {
   const db = openConnectorsStore(home);
@@ -14,16 +16,23 @@ export const REFRESH_REFUSED = "connector.refresh_refused";
  * A check cannot make a changed or disabled connection look current. The caller separately rechecks its authority. Every entry that
  * writes a check comes through here, so S-70 holds in this one place: while this revision's last check is a refused refresh, no other
  * check is written over it (a read that still passes on the old access token, a check that failed for another reason); only a forced
- * refresh that went through clears it (`clearsRefreshRefusal`), and reconnecting changes the revision.
+ * refresh that went through clears it (`clearsRefreshRefusal`), and reconnecting changes the revision. A check that went through also ends
+ * the run of failures on the last call and settles the connection's notices (ASC-58).
  */
 export function rememberConnectorCheck(home: string, id: string, value: ConnectorCheckObservation, options: { clearsRefreshRefusal?: boolean } = {}): boolean {
   const current = withConnectorConnections(home, store => store.get(id));
   if (!current?.enabled || current.disconnected_at || current.updated_at !== value.revision) return false;
-  return withConnectorObservations(home, store => {
-    const last = store.read(id).check;
-    if (last?.code === REFRESH_REFUSED && last.revision === value.revision && value.code !== REFRESH_REFUSED && !options.clearsRefreshRefusal) return false;
-    store.check(id, value); return true;
+  const ended = withConnectorObservations(home, store => {
+    const { check: last, call } = store.read(id);
+    if (last?.code === REFRESH_REFUSED && last.revision === value.revision && value.code !== REFRESH_REFUSED && !options.clearsRefreshRefusal) return undefined;
+    store.check(id, value);
+    // A check that went through ends the run of failures on the last call (ASC-58): the call stays, its run goes.
+    if (value.outcome !== "connected" || !call?.failures) return false;
+    store.call(id, withoutRun(call)); return true;
   });
+  if (ended === undefined) return false;
+  if (ended) settleConnectionNotices(home, id);
+  return true;
 }
 
 /**

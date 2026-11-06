@@ -186,7 +186,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   // The pages a rule may name are the ones installed: the server sends them with the rules, so this page keeps no list of plugins.
   const pageNames = {};
   const surfaceName = (id) => pageNames[id] || id;
-  const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果", material: "相关新资料", reminder: "你设的提醒" };
+  const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果", material: "相关新资料", reminder: "你设的提醒", connection: "服务连接要处理" };
   const rulesList = root.querySelector("[data-assistant-rules-list]");
   const rulesError = root.querySelector("[data-assistant-rules-error]");
   const surfacesBox = root.querySelector("[data-assistant-rule-surfaces]");

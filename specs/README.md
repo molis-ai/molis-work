@@ -105,6 +105,8 @@
 
 ## 梳理记录
 
+- 2026-11-06：[Frame 相机同步修复](archive/frame-camera-pointer-sync/spec.md)归档（已实现，负责人 Codex D 轨）；#1859 已合入 main，真实回归、普通 CI 与保护队列通过，02 组合 Full 的其它首败另由原负责人结算。
+
 - 2026-11-04：[系统性代码与架构防腐整理](archive/repository-anti-corruption/spec.md)归档（部分实现；工程项随 #1725 合入，剩余 BL-928～930）。同批归档本线的三份卫星：[项目库里的插件表](archive/plugin-project-database/spec.md)（已实现，BL-377）、[Home 级插件的库按项目分开](archive/plugin-project-partition/spec.md)（已实现，BL-639）、[双实例](archive/dual-instance-plugins/spec.md)（部分实现，BL-933）。防腐目录里另有早先归档的 6 份历史文件与 `evidence/`；`assistant-service-connections`、`repository-cleanup`、`pr-review-remediation` 不属本线，留在根目录。未实现的 C 端方案与依赖／SDK 方案的剩余在 BL-931、BL-932。
 - 2026-11-03：[第 01 批主线核对](post-anticorruption-roadmap/reference/batches/01.md#baseline-01)按合入提交归档三项性能修复、复审修正、双仓清理、状态环、五项 Goals／首页／引导小需求和 Issue V0；历史限制与待本人验收分别保留。
 - 2026-10-23：[系统评审问题修复](archive/system-review-fixes/spec.md)归档（本轮已实现，负责人 Codex）；#1018、#1058、#1061、#1062 已合入，#1049 收尾衔接随本 PR 合入。按一骏明确的完成边界，三项偶发测试与安装验收分别转 BL-412、BL-413。

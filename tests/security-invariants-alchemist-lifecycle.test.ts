@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm, access } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, alchemistManifest, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { LocalHost, MolisWorkLocalHost, ProjectDeletionService, molisWorkHostProjectReference, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
@@ -96,7 +96,7 @@ for (const operation of ["conversation", "plan", "settings"] as const) {
       release.resolve(); await rejected; await closing;
       if (refusal === "cancel") await finished.promise;
       f.ai.listModels = listModels;
-      const db = new Database(f.path, { readonly: true });
+      const db = openTestSqlite(f.path, { readonly: true });
       try {
         assert.equal((db.prepare("SELECT COUNT(*) AS count FROM research_plans").get() as { count: number }).count, 0);
         assert.equal((db.prepare("SELECT COUNT(*) AS count FROM mvp_scope_versions").get() as { count: number }).count, 0);
@@ -161,7 +161,7 @@ for (const operation of ["conversation", "settings"] as const) {
     assert.ok((await first.bound.discover()).some(item => item.capability_id === definition.capability_id && item.availability.available), "new registration is available before the old wait returns");
     release.resolve(); await rejected; await finished.promise;
     f.ai.generate = generate; f.ai.listModels = listModels;
-    const db = new Database(f.path, { readonly: true });
+    const db = openTestSqlite(f.path, { readonly: true });
     try {
       assert.equal((db.prepare("SELECT COUNT(*) AS count FROM conversation_messages WHERE author = 'assistant'").get() as { count: number }).count, 0, "old reply or failed reply is never persisted");
       assert.equal((db.prepare("SELECT COUNT(*) AS count FROM conversation_messages WHERE author = 'user'").get() as { count: number }).count, operation === "conversation" ? 1 : 0);

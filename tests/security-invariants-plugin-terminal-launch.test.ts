@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { WebSocket } from "ws";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor, captureHostLog, hostDependencyCheck, runningProjectPlatform, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
@@ -594,7 +594,7 @@ test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the r
   // A record that holds one anyway (written past the service here) is checked again on the way out, and starts a new session.
   assert.equal(await start("recorded-option"), "[]");
   // The catalog's own SQLite (better-sqlite3): a second SQLite copy in this process would drop the Host's file locks when it closes.
-  const db = new Database(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
+  const db = openTestSqlite(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
   try {
     db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ? WHERE panel_id = ?").run("--dangerously-bypass-approvals-and-sandbox", panelId("recorded-option"));
   } finally { db.close(); }
@@ -678,14 +678,14 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   let observed: unknown;
   const failed = await run(f, probe, "project", "query", async own => {
     // Break the actual list query in the isolated catalog; keep its data and restore with the Host's SQLite binding.
-    const db = new Database(join(f.home, "projects", "catalog.db"));
+    const db = openTestSqlite(join(f.home, "projects", "catalog.db"));
     db.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id TO actor_id_hidden"); db.close();
     const stopCapturing = captureHostLog(logged);
     try { return await own.terminal!.list({ subject: "kept-subject" }); }
     catch (error) { observed = error; throw error; }
     finally {
       stopCapturing();
-      const back = new Database(join(f.home, "projects", "catalog.db"));
+      const back = openTestSqlite(join(f.home, "projects", "catalog.db"));
       try { back.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id_hidden TO actor_id"); } finally { back.close(); }
     }
   }, { project });

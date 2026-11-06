@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { MolisWorkServer, runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
 
 
@@ -84,7 +84,7 @@ it("returns structured reader-too-old diagnostics without exposing the catalog p
       catalog.close();
       const databasePath = path.join(home, "projects", "catalog.db");
       const futureSchema = CATALOG_SCHEMA_VERSION + 1;
-      const future = new Database(databasePath);
+      const future = openTestSqlite(databasePath);
       try {
         future.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(futureSchema));
       } finally {

@@ -4,7 +4,7 @@ import test from "node:test";
 import { mkdtemp, rm, access as fileAccess } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 
@@ -28,7 +28,7 @@ async function fixture(legacy = true) {
     const projects = catalog.listProjects();
     const databasePath = catalog.databasePath;
     if (legacy) {
-      const db = new Database(databasePath);
+      const db = openTestSqlite(databasePath);
       try {
         db.transaction(() => {
           // Exact v9 owner schema. Fixtures are temporary; never rewrite the user's catalog.
@@ -54,7 +54,7 @@ async function fixture(legacy = true) {
 test("binding changes and deletion atomically preserve metadata, events, Ledger history and the other project", async () => {
   const data = await fixture(false);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });
-  const db = new Database(data.databasePath);
+  const db = openTestSqlite(data.databasePath);
   try {
     const ledger = createContextLedger(db, { authorize: () => true });
     const original = data.bindings.find((binding) => binding.stable_work_context_id === "first")!;

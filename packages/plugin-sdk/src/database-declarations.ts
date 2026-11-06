@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 // The shape of a Manifest's `databases` (PG-020, PG-022): which tables a plugin asks for in each scope. Only the shape is checked here;
 // what the statements may create, and whether they agree with what a project's library already holds, is for the platform to check when
 // it opens the library (packages/plugin-runtime `openPluginProjectDatabase`), and whether the Home's registry holds a `home` library
@@ -44,8 +45,4 @@ function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknow
   if (scope === "home" && declaration.partition !== undefined && declaration.partition !== "project") problems.push(`${path}.partition 只能是 "project"`);
   if (scope === "home") problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, declaration.partition !== undefined, ownerFiles));
   return problems;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

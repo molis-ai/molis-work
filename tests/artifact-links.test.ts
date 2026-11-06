@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
@@ -23,7 +23,7 @@ const goalNames = async (pluginId: string, ids: readonly string[]) =>
 const goalRow = (id: string, role: "input" | "output", proposal: boolean) => ({ id, title: `Goal ${id}`, role, proposal, open: { surface: "goals", id } });
 
 test("RAC-2080: a Goal's proposed input, deliverable and confirmed ones are each listed under Goals with their Goal, and nothing else is counted as other", async t => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   t.after(() => db.close());
   db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('${projectId}'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);`);
   createArtifactsSchema(db);
@@ -66,7 +66,7 @@ test("RAC-2080: a Goal's proposed input, deliverable and confirmed ones are each
 });
 
 test("RAC-420: with no Plugin declaring link kinds (Goals absent) the links and the Goal embeds are empty, not an error", async t => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   t.after(() => db.close());
   db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('${projectId}'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);`);
   createArtifactsSchema(db);
@@ -91,7 +91,7 @@ test("RAC-420: with no Plugin declaring link kinds (Goals absent) the links and 
 
 /** One version with edges from any module, read through `artifacts.links` with the given declarers and naming port. */
 function linkedVersion(t: { after(fn: () => void): void }, sources: readonly ArtifactProducerSource[], linkSubjects?: Parameters<typeof createArtifactActionHandlers>[0]["linkSubjects"]) {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   t.after(() => db.close());
   db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('${projectId}'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);`);
   createArtifactsSchema(db);

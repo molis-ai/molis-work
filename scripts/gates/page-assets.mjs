@@ -341,6 +341,7 @@ const headErrors = (measured, budget, base) => {
 // `host.taskGrants`, a refusing placeholder until P3-1) and batch 13 ④c's +21 (`host.connectionNeed`, the same refusal until the
 // shell slice; specs/assistant-service-connections/spec.md §13.5 C1). 208271 + 54 + 64 + 21 = 208410. Tried: the two
 // placeholders share one `unavailable` function instead of a second inline copy, one fixed Error, no frame message.
+// #1884's own entry (7a1596d315: [208271, 208389], its +64 B on #1846's +54 B) is folded into this one when the two branches merge.
 // Whichever lands moves the base; the others keep their own increments.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [827793, 830322],

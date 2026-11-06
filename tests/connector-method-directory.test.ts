@@ -4,13 +4,19 @@ import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
 import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
 import { listConnectorSettingsCards } from "../apps/local-host/src/connector-directory.ts";
 import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
-import { recommendedMethod, renderConnectorSetup } from "../apps/workbench/src/settings-connector-guide.ts";
+import { recommendedMethod, renderConnectorConnect, renderConnectorWays } from "../apps/workbench/src/settings-connector-guide.ts";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../apps/workbench/src/scripts/connectors-settings.ts";
+import { SERVICE_CONNECTION_PART_STYLES, SERVICE_CONNECTION_PROGRESS_STYLES } from "../apps/workbench/src/service-connection-parts.ts";
+import { CONNECTOR_EXPERIENCE_STYLES } from "../apps/workbench/src/styles/settings-connectors.ts";
 
 // A Home's registry is keyed by its path and nothing here reads the disk; the directory is what a Home with no installed package lists,
 // without the three flags a listing adds from this machine's own settings.
 const HOME = "connector-method-directory-test-home";
 const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards(HOME)).map((entry) => entry);
+/** A service's open part on the connections page: from its row to the next service's row. */
+const serviceBody = (html: string, id: string) => html.split(`data-connector-item="${id}"`)[1]?.split("data-connector-item=")[0] ?? "";
+/** The part of it before 高级: what the row offers without opening anything else. */
+const connectPart = (html: string, id: string) => serviceBody(html, id).split("data-connector-advanced")[0]!;
 
 test("every catalog service and the two host account services have official method choices", () => {
   const ids = new Set(["github", "gmail", ...CATALOG_CONNECTORS.map((row) => row.id)]);
@@ -68,7 +74,7 @@ test("all current Connector cards expose a method directory with safe official l
   const html = renderConnectorsSettings({
     connectors: HOST_CONNECTOR_DIRECTORY,
   }, { L: (value) => value, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
-  const notionDetail = html.match(/data-connector-detail="notion"[\s\S]*?(?=<section class="settings-connector-detail"|<\/section>\s*<section class="settings-connector-subgroup")/)?.[0] ?? "";
+  const notionDetail = serviceBody(html, "notion");
   assert.match(notionDetail, /data-connector-method="mcp" data-method-support="in_app"/);
   assert.match(notionDetail, /需另行授权/);
   assert.match(html, /data-connector-method="cli" data-method-support="in_app"/);
@@ -103,14 +109,15 @@ test("ASC-28: MCP method facts distinguish authentication from OAuth client regi
 });
 
 test("onboarding prefers ready account login and keeps developer configuration optional", () => {
-  const p = { L: (s: string) => s, escapeHtml: (v: unknown) => String(v ?? ""), icon: () => "" };
+  const L = (text: string, values?: Record<string, string | number>) => Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const p = { L, escapeHtml: (v: unknown) => String(v ?? ""), icon: () => "" };
   for (const service of ["gmail", "notion", "github"]) {
     const entry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === service)!;
     // Gmail's and Notion's ready login is their OAuth method's own `login_ready` (the generic flow's product client), never a per-service flag.
     const ready = { ...entry,
       method_options: entry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: true, ...(m.oauth?.device ? { oauth: { ...m.oauth, device: { login_ready: true } } } : {}) } : m) };
     assert.equal(recommendedMethod(ready)?.kind, "oauth", service);
-    const html = renderConnectorSetup(ready, p);
+    const html = renderConnectorConnect(ready, p);
     // Gmail and Notion sign in through the generic flow: the same start button, with no dedicated-login marker of their own.
     assert.equal(html.includes("data-device-login"), service === "github", service);
     // The device button names the service the code is typed at, and the page script starts the device flow from it, never the web one.
@@ -121,40 +128,45 @@ test("onboarding prefers ready account login and keeps developer configuration o
       assert.doesNotMatch(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /输入设备码[^)]*GitHub/u, "no service is written into the generic script");
     }
     assert.ok(html.includes("data-protocol-start=\"oauth\""), service);
-    assert.match(html, /<details class="settings-connector-help"><summary>使用其他应用配置/);
-    const primary = html.split('<details class="settings-connector-alternatives">')[0]!;
-    assert.doesNotMatch(primary, /<input[^>]* required/);
+    // ASC-75: the one click asks for nothing; an own app is under 高级, with its fields.
+    assert.doesNotMatch(html, /<input[^>]* required/);
+    const ways = renderConnectorWays(ready, p);
+    assert.match(ways, /data-method-choice="oauth"><summary>用自己的应用/);
+    assert.match(ways, /data-protocol-field="client_id"[^>]*required/);
   }
   const gmailEntry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "gmail")!;
   const gmail = { ...gmailEntry, method_options: gmailEntry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: false } : m) };
-  const html = renderConnectorSetup(gmail, p);
-  const main = html.split('<details class="settings-connector-alternatives">')[0]!;
-  assert.match(main, /登录接入准备中/);
+  const main = renderConnectorConnect(gmail, p);
+  // ASC-47 ASC-75: a service with no one-click login says so, why, and the ways that work now; no button that cannot work.
+  assert.match(main, /还不能一键连接：Molis Work 还没开通 Gmail 的一键登录/);
+  assert.match(main, /现在能走的路：用你自己的 Google 应用登录/);
+  assert.match(main, /data-connector-advanced-open/);
   assert.doesNotMatch(main, /<input|data-protocol-start/);
   assert.equal(recommendedMethod(gmail), undefined);
-  assert.match(html, /首次连接需要服务商的应用配置/);
-  assert.match(html, /data-protocol-field="client_id"[^>]*required/);
-  assert.doesNotMatch(html, /data-device-login/);
+  const ways = renderConnectorWays(gmail, p);
+  assert.match(ways, /data-protocol-field="client_id"[^>]*required/);
+  assert.doesNotMatch(main + ways, /data-device-login/);
   assert.equal(recommendedMethod({ ...gmail, connector_id: "loom", method_options: HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "loom")!.method_options })?.kind, "mcp");
   // Compile the actual generated browser program, including template escaping.
   assert.doesNotThrow(() => new Function(CONNECTORS_SETTINGS_CLIENT_SCRIPT));
 });
 
-test("directory starts ready official login directly but keeps account management and unavailable services separate", () => {
+test("ASC-73 ASC-75: a ready official login is the row's one click; account management and services without one stay apart", () => {
   const cards = HOST_CONNECTOR_DIRECTORY;
   const html = renderConnectorsSettings({ connectors: cards }, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" });
   for (const id of ["notion", "linear", "gitlab", "stripe"]) {
-    assert.match(html, new RegExp(`data-connector-open="${id}" data-connector-direct="mcp"`));
+    const main = connectPart(html, id);
+    assert.match(main, /data-protocol-start="mcp"/, id);
+    assert.doesNotMatch(main, /<input[^>]* required/, id);
     assert.equal(recommendedMethod(cards.find(c => c.connector_id === id)!)?.kind, "mcp");
   }
-  for (const id of ["gmail", "dropbox", "box", "zoom", "x"]) assert.doesNotMatch(html, new RegExp(`data-connector-open="${id}" data-connector-direct`));
-  const notion = cards.find(c => c.connector_id === "notion")!;
-  const main = renderConnectorSetup(notion, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" }).split('<details class="settings-connector-alternatives">')[0]!;
-  assert.match(main, /data-protocol-start="mcp"/);
-  assert.doesNotMatch(main, /<input[^>]* required/);
+  for (const id of ["gmail", "dropbox", "box", "zoom", "x"]) {
+    assert.doesNotMatch(connectPart(html, id), /data-protocol-start/, id);
+    assert.match(connectPart(html, id), /data-mw-state="unavailable">(还不能一键连接|暂未接入)/, id);
+  }
   const jira = cards.find(c => c.connector_id === "jira")!;
   const productJira = { ...jira, method_options: jira.method_options!.map(m => m.kind === "oauth" ? { ...m, login_ready: true } : m) };
-  const jiraMain = renderConnectorSetup(productJira, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" }).split('<details class="settings-connector-alternatives">')[0]!;
+  const jiraMain = renderConnectorConnect(productJira, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" });
   assert.match(jiraMain, /data-protocol-start="oauth"/);
   assert.doesNotMatch(jiraMain, /<input[^>]* required/, "server-owned workspace settings must not block the browser login button");
 });
@@ -164,12 +176,12 @@ test("composite credentials keep separate labeled inputs when adding and replaci
   const html = renderConnectorsSettings({ connectors: [{ ...card }], connector_connections: [{
     connection_id: "11111111-1111-4111-8111-111111111111", service_id: "jira", display_name: "工作 Jira", account_label: "me@example.com", auth_method: "token", source: "managed", state: "connected",
   }] }, { L: s => s, escapeHtml: v => String(v ?? ""), icon: () => "" });
-  const replace = html.match(/<form data-connection-replace=[\s\S]*?<\/form>/)![0];
+  const replace = html.match(/<form[^>]*data-connection-replace=[\s\S]*?<\/form>/)![0];
   assert.match(replace, /data-credential-separator="\|"/);
   assert.match(replace, /站点域名/);
   assert.match(replace, /Atlassian 邮箱/);
   assert.equal([...replace.matchAll(/data-credential-part/g)].length, 3);
-  assert.match(html, /<strong>工作 Jira<\/strong>/);
+  assert.match(html, /<h4>工作 Jira<\/h4>/);
 });
 
 // T-134: a connection made for a signed package's service says which package it was made for, the only one that may use it.
@@ -187,4 +199,12 @@ test("RAC-2528 a connection pinned to a package shows 建于 and its name throug
   const asked: string[] = [];
   render(value => { asked.push(value); return value; });
   assert.ok(asked.includes("建于"));
+});
+
+// The step progress's styles reach the page once, with the model settings' sheet both settings sheets carry; the connections sheet takes
+// the parts after them. That cut holds only while the parts' styles begin with the progress styles (§13.6).
+test("ASC-78: the connections sheet carries the parts' styles without a second copy of the step progress's", () => {
+  assert.ok(SERVICE_CONNECTION_PART_STYLES.startsWith(SERVICE_CONNECTION_PROGRESS_STYLES), "the parts' styles begin with the progress styles");
+  assert.ok(CONNECTOR_EXPERIENCE_STYLES.startsWith(SERVICE_CONNECTION_PART_STYLES.slice(SERVICE_CONNECTION_PROGRESS_STYLES.length)));
+  assert.equal(CONNECTOR_EXPERIENCE_STYLES.includes(SERVICE_CONNECTION_PROGRESS_STYLES), false);
 });

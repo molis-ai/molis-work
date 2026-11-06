@@ -1,4 +1,4 @@
-import { escapeHtml, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, renderAttrs, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderSteps } from "@molis-ai/molis-work-design-system";
 
 /**
@@ -57,6 +57,8 @@ export interface ConnectionItemView {
   /** What opens under the row: the connection's steps, its result, or what it can do now. */
   readonly body: string;
   readonly open?: boolean;
+  /** The page's own marks on the item (the connections page: which service it is, the words its search matches). */
+  readonly attrs?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -66,7 +68,7 @@ export interface ConnectionItemView {
 export function renderConnectionItem(view: ConnectionItemView, L: Say): string {
   const id = escapeHtml(view.id), open = view.open === true;
   const toggle = renderButton({ label: L("{name} 详情", { name: view.name }), variant: "ghost", icon: "chevron-down", iconOnly: true, className: "settings-connection-item__toggle", attrs: { "data-connection-toggle": "", "aria-expanded": String(open), "aria-controls": `${view.id}-body` } });
-  return `<div class="settings-connection-item" data-connection-item data-open="${open}">
+  return `<div class="settings-connection-item" data-connection-item data-open="${open}"${renderAttrs(view.attrs)}>
     <div class="settings-connection-row">${view.mark}<div class="settings-connection-row__identity"><strong id="${id}-name">${escapeHtml(view.name)}</strong><small>${escapeHtml(view.caption)}</small></div>${view.state}${toggle}</div>
     <div class="settings-connection-item__fold" id="${id}-body" role="region" aria-labelledby="${id}-name"><div class="settings-connection-item__clip"><div class="settings-connection-item__body settings-connector-flow">${view.body}</div></div></div>
   </div>`;
@@ -117,7 +119,7 @@ const ROW = ".settings-connection-item > .settings-connection-row";
 const FOLD_MOTION = "grid-template-rows var(--dur-move) var(--ease-quint),opacity var(--dur-move) var(--ease-quint)";
 /** A fold's clip lets focus rings and shadows out once it has opened; it clips only while closed or moving. */
 const CLIP_OPEN = "overflow:visible;transition:overflow 0s var(--dur-move) allow-discrete";
-const TONE = { hold: "var(--tone-attention,var(--amber))", failed: "var(--tone-blocked,var(--red))", done: "var(--tone-done,var(--green))" };
+const TONE = { hold: "var(--tone-attention)", failed: "var(--tone-blocked)", done: "var(--tone-done)" };
 
 /** The step progress alone: the marks, then the line that says the step; the current mark takes the state's tone. A page that
  * shows only a progress (the model settings' first key) takes these, not the rows and cards it does not draw. */
@@ -155,7 +157,7 @@ export const SERVICE_CONNECTION_PART_STYLES = SERVICE_CONNECTION_PROGRESS_STYLES
   + `.connection-need__line{min-height:0;overflow:hidden;font-size:13px}`
   + `.connection-need__done:focus{outline:none}.connection-need__done:focus-visible{outline:var(--focus-stroke);outline-offset:1px;border-radius:var(--r-tag)}`
   + `.mw-card.connection-card{width:auto;max-width:100%}`
-  + `.connection-card__head{justify-content:flex-start;align-items:flex-start}.connection-card__head>div{min-width:0}.connection-card .mw-card__title{text-wrap:balance;word-break:keep-all;overflow-wrap:anywhere}`
+  + `.connection-card__head{justify-content:flex-start;align-items:flex-start}.connection-card__head>div{min-width:0}.connection-card .mw-card__title{text-wrap:balance;overflow-wrap:anywhere}.connection-card .mw-card__title:lang(zh){word-break:keep-all}`
   + `.connection-card__fold{display:grid;grid-template-rows:1fr;transition:${FOLD_MOTION},visibility 0s}`
   + `.connection-need[data-state=ask] .connection-card__fold{grid-template-rows:0fr;opacity:0;visibility:hidden;transition:${FOLD_MOTION},visibility 0s linear var(--dur-move)}`
   + `.connection-card__clip{min-height:0;overflow:hidden;margin-inline:-4px;padding-inline:4px}.connection-need:not([data-state=ask]) .connection-card__clip{${CLIP_OPEN}}`

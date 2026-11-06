@@ -101,6 +101,7 @@ export interface ProjectSelection {
 
 export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
     project_ids: string[];
+    person_project_ids: string[];
     created_at: string;
     updated_at: string;
 }

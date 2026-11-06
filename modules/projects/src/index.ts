@@ -78,7 +78,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     ): StoredProjectDeletion;
     deletionRecord(record: StoredProjectDeletion): ProjectDeletionRecord;
     normalizeWorkspace: typeof normalizeProjectWorkspace;
-    upsertWorkspaceMembership: ProjectWorkspaceService["upsertMembership"];
+    upsertWorkspaceMembership: ProjectWorkspaceService["bindMembership"];
     unlinkWorkspaceMembership: ProjectWorkspaceService["unlink"];
   };
 
@@ -143,7 +143,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       deletionRecord: withSteps,
       normalizeWorkspace: normalizeProjectWorkspace,
       upsertWorkspaceMembership: (workspace, projectId, actorId) =>
-        this.workspaces.upsertMembership(workspace, projectId, actorId),
+        this.workspaces.bindMembership(workspace, projectId, actorId),
       unlinkWorkspaceMembership: (workspaceId, projectId, actorId) =>
         this.workspaces.unlink(workspaceId, projectId, actorId),
     };

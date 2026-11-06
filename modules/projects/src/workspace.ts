@@ -13,6 +13,7 @@ import type {
 
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectsRepository } from "./repository.js";
+import { toolBoundBy } from "./workspace-repository.js";
 
 export function normalizeProjectWorkspace(
   input: { canonical_path: string; realpath_verified: boolean } | null | undefined,
@@ -65,7 +66,7 @@ export class ProjectWorkspaceService {
     this.requireConfirmation(input.user_confirmed, "只有用户明确确认后才能关联工作目录");
     const workspace = this.normalize({ canonical_path: input.canonical_path, realpath_verified: false });
     if (!workspace) throw catalogErrors.workspace_required("工作目录必须是绝对路径");
-    this.repository.transaction(() => this.upsertMembership(workspace, projectId, actorId));
+    this.repository.transaction(() => this.upsertMembership(workspace, projectId, actorId, actorId));
     return this.requireDirectory(workspace.workspace_id);
   }
 
@@ -81,7 +82,7 @@ export class ProjectWorkspaceService {
     const next = this.normalize({ canonical_path: input.canonical_path, realpath_verified: false });
     if (!next) throw catalogErrors.workspace_required("新的工作目录必须是绝对路径");
     this.repository.transaction(() => {
-      this.upsertMembership(next, projectId, actorId);
+      this.upsertMembership(next, projectId, actorId, actorId);
       if (next.workspace_id !== workspaceId) {
         this.repository.workspaces.removeWorkspaceMembership(workspaceId, projectId);
         this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
@@ -115,14 +116,20 @@ export class ProjectWorkspaceService {
     return this.listMemberships();
   }
 
-  upsertMembership(workspace: ProjectWorkspaceRef, projectId: string, actorId: string): void {
+  /** The relation a tool binding brings in, the person's own terminal included: only `add` and `repair` write one that is the person's. */
+  bindMembership(workspace: ProjectWorkspaceRef, projectId: string, actorId: string): void {
+    const actor = this.requiredActorId(actorId);
+    this.upsertMembership(workspace, projectId, actor, toolBoundBy(actor));
+  }
+
+  private upsertMembership(workspace: ProjectWorkspaceRef, projectId: string, actorId: string, boundBy: string): void {
     const now = this.now();
     this.repository.workspaces.upsertWorkspace(workspace, now);
     this.repository.workspaces.upsertWorkspaceMembership({
       membership_id: this.id("workspace-membership"),
       workspace_id: workspace.workspace_id,
       project_id: this.requiredProjectId(projectId),
-      actor_id: this.requiredActorId(actorId),
+      bound_by: boundBy,
       now,
     });
     this.appendEvent(projectId, "project.workspace_member_bound", actorId, {
@@ -130,13 +137,14 @@ export class ProjectWorkspaceService {
     });
   }
 
+  /** A tool's unlink: it takes back what a tool brought in, and answers false when there was nothing it may remove. The person unlinks with `remove`. */
   unlink(
     workspaceId: string,
     projectId: string,
     actorId: string,
   ): boolean {
     return this.repository.transaction(() => {
-      const changes = this.repository.workspaces.removeWorkspaceMembership(
+      const changes = this.repository.workspaces.removeToolWorkspaceMembership(
         this.requiredWorkspaceId(workspaceId),
         this.requiredProjectId(projectId),
       );

@@ -53,6 +53,10 @@ export interface MolisWorkRuntimeContextUnbindResult {
     resolution: MolisWorkRuntimeContextResolution;
     unbound_project: MolisWorkProjectSelection | null;
     changed: boolean;
+    kept?: {
+        code: "work.context.person_relation_kept";
+        message: string;
+    };
 }
 
 export interface NormalizedRuntimeWorkContext {

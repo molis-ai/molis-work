@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import * as projectsExports from "@molis-ai/molis-work-module-projects";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 import {
@@ -188,6 +188,110 @@ test("RAC-2456 a deletion that fails after the memberships go puts the directory
     assert.deepEqual([rows(db, "workspaces"), rows(db, "workspace_project_memberships")], [2, 1], "rolled back: the directory and its membership are back");
     assert.equal(projects.lifecycle.removeWorkspaceMembershipsForProject(second), 0, "a project with no directory removes nothing");
     assert.equal(rows(db, "workspaces"), 2);
+  });
+});
+
+const personLinks = (projects: ProjectsModule, projectId: string, canonicalPath: string) => projects.commands.addWorkspaceProject({
+  canonical_path: canonicalPath, project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+const toolBinds = (projects: ProjectsModule, projectId: string, canonicalPath: string, actorId: string) => {
+  const workspace = projects.lifecycle.normalizeWorkspace({ canonical_path: canonicalPath, realpath_verified: false })!;
+  projects.lifecycle.upsertWorkspaceMembership(workspace, projectId, actorId);
+  return workspace.workspace_id;
+};
+const directoryRecord = (projects: ProjectsModule, workspaceId: string) =>
+  projects.query.listWorkspaceDirectory().find(record => record.workspace_id === workspaceId);
+const boundBy = (db: SqliteDatabase, workspaceId: string, projectId: string) =>
+  (db.prepare("SELECT bound_by FROM workspace_project_memberships WHERE workspace_id = ? AND project_id = ?").get(workspaceId, projectId) as { bound_by: string } | undefined)?.bound_by;
+const setBoundBy = (db: SqliteDatabase, workspaceId: string, projectId: string, value: string | null) =>
+  db.prepare("UPDATE workspace_project_memberships SET bound_by = ? WHERE workspace_id = ? AND project_id = ?").run(value, workspaceId, projectId);
+const eventActors = (db: SqliteDatabase, projectId: string, type: string) =>
+  (db.prepare("SELECT actor_id FROM project_events WHERE project_id = ? AND type = ? ORDER BY created_at, event_id").all(projectId, type) as { actor_id: string }[]).map(row => row.actor_id);
+
+test("SRB-14 only the person's id makes a relation the person's: a tool's, an empty value and another actor's are refused", () => {
+  withTwoProjects(({ db, projects, first, second }) => {
+    const shared = personLinks(projects, first, "/p1/shared").workspace_id;
+    assert.deepEqual(directoryRecord(projects, shared)?.person_project_ids, [first]);
+    // A tool binding that carries the person's id, as a terminal the person opened does, is still a tool's.
+    assert.equal(toolBinds(projects, second, "/p1/shared", LOCAL_PERSON_ACTOR_ID), shared);
+    assert.equal(boundBy(db, shared, second), `binding:${LOCAL_PERSON_ACTOR_ID}`);
+    assert.deepEqual(directoryRecord(projects, shared)?.project_ids.slice().sort(), [first, second].sort());
+    assert.deepEqual(directoryRecord(projects, shared)?.person_project_ids, [first]);
+    // An allow-list, not "no prefix means the person": nothing but the exact id counts, whoever or whatever wrote the row.
+    for (const value of ["", " ", `${LOCAL_PERSON_ACTOR_ID} `, LOCAL_PERSON_ACTOR_ID.toUpperCase(), `binding:${LOCAL_PERSON_ACTOR_ID}`, "codex:session-1", "user-1"]) {
+      setBoundBy(db, shared, first, value);
+      assert.deepEqual(directoryRecord(projects, shared)?.person_project_ids, [], JSON.stringify(value));
+    }
+    assert.throws(() => setBoundBy(db, shared, first, null), /NOT NULL/u, "a row cannot be without a value at all");
+    // The relations themselves stay: only who made them is judged.
+    assert.deepEqual(directoryRecord(projects, shared)?.project_ids.slice().sort(), [first, second].sort());
+  });
+});
+
+test("SRB-14 the mark is Projects' own: events keep the plain actor, and an empty actor is refused rather than hidden behind the prefix", () => {
+  withTwoProjects(({ db, projects, first }) => {
+    toolBinds(projects, first, "/p1/events", "codex:session-1");
+    assert.deepEqual(eventActors(db, first, "project.workspace_member_bound"), ["codex:session-1"]);
+    assert.throws(() => toolBinds(projects, first, "/p1/blank", "  "), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "catalog.context.user_confirmation_required");
+      return true;
+    });
+    assert.equal(rows(db, "workspace_project_memberships"), 1);
+  });
+});
+
+test("SRB-14 writing a relation again never takes it from the person; the person linking it again makes it theirs", () => {
+  withTwoProjects(({ db, projects, first, second }) => {
+    const kept = personLinks(projects, first, "/p1/kept").workspace_id;
+    toolBinds(projects, first, "/p1/kept", "codex:session-1");
+    assert.equal(boundBy(db, kept, first), LOCAL_PERSON_ACTOR_ID, "a tool does not overwrite the person's value");
+    projects.commands.addWorkspaceProject({ canonical_path: "/p1/kept", project_id: first, actor_id: "user-1", user_confirmed: true });
+    assert.equal(boundBy(db, kept, first), LOCAL_PERSON_ACTOR_ID, "nor does any other actor");
+    assert.deepEqual(directoryRecord(projects, kept)?.person_project_ids, [first]);
+
+    // A tool's relation, in the current mark and in the shape older rows have, becomes the person's once they link it.
+    const brought = toolBinds(projects, second, "/p1/brought", "codex:session-1");
+    assert.deepEqual(directoryRecord(projects, brought)?.person_project_ids, []);
+    toolBinds(projects, second, "/p1/brought", "claude:session-2");
+    assert.equal(boundBy(db, brought, second), "binding:claude:session-2", "between tools the last one is recorded");
+    personLinks(projects, second, "/p1/brought");
+    assert.deepEqual(directoryRecord(projects, brought)?.person_project_ids, [second]);
+    const older = toolBinds(projects, first, "/p1/older", "codex:session-1");
+    setBoundBy(db, older, first, "codex:session-1");
+    personLinks(projects, first, "/p1/older");
+    assert.deepEqual(directoryRecord(projects, older)?.person_project_ids, [first]);
+
+    // Repairing a relation is the person pointing it at a directory, so the new path is theirs.
+    const moved = toolBinds(projects, first, "/p1/moved-from", "codex:session-1");
+    const repaired = projects.commands.repairWorkspaceProject({ workspace_id: moved, canonical_path: "/p1/moved-to", project_id: first,
+      actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+    assert.deepEqual(repaired.person_project_ids, [first]);
+    assert.equal(directoryRecord(projects, moved), undefined);
+  });
+});
+
+test("SRB-16 a tool's unlink is refused on the person's relation and takes back only what a tool brought in", () => {
+  withTwoProjects(({ db, projects, first, second }) => {
+    const own = personLinks(projects, first, "/p1/own").workspace_id;
+    for (const actor of ["codex:session-1", LOCAL_PERSON_ACTOR_ID]) {
+      assert.equal(projects.lifecycle.unlinkWorkspaceMembership(own, first, actor), false, actor);
+    }
+    assert.deepEqual(directoryRecord(projects, own)?.person_project_ids, [first]);
+    assert.deepEqual(eventActors(db, first, "project.workspace_unlinked"), [], "nothing happened, so nothing is recorded");
+
+    const brought = toolBinds(projects, second, "/p1/brought", "codex:session-1");
+    assert.equal(projects.lifecycle.unlinkWorkspaceMembership(brought, second, "claude:session-2"), true);
+    assert.equal(directoryRecord(projects, brought), undefined, "the record goes with its last member");
+    assert.equal(projects.lifecycle.unlinkWorkspaceMembership(brought, second, "claude:session-2"), false, "nothing left to remove");
+
+    // The same allow-list: a row that is not the person's by exact id is one a tool can take back.
+    const older = toolBinds(projects, second, "/p1/older", "codex:session-1");
+    setBoundBy(db, older, second, "codex:session-1");
+    assert.equal(projects.lifecycle.unlinkWorkspaceMembership(older, second, "codex:session-1"), true);
+
+    // Control: the person's own command does remove it.
+    projects.commands.removeWorkspaceMembership({ workspace_id: own, project_id: first, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
+    assert.equal(directoryRecord(projects, own), undefined);
   });
 });
 

@@ -63,6 +63,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
   - 目录库不保存项目库路径：由必填的 `projects_directory` 与单段 `project_id` 推导，合同的 `database_path` 是读出值。不是普通目录名的 id 在创建和读取时拒绝，项目库不由本模块移动（W5-17、S-102）。
   - 身份只有 `project_id`：目录条目、项目数据库、库里的根行 `project_root` 与 Goals 的看板同值。项目库正好有一行根行，项目库里引用项目的外键（插件声明的表也一样）指向它，不指向 Goals 的表；根行不存标题，显示名只在目录里（`docs/platform/PLUGIN-DEVELOPMENT.md`「项目库里插件自己的表」）。
   - 目录关联只由本模块管理，不建第二份目录库；按项读取当前项目，不返回其他项目的关联。
+  - 目录关系的来源在 `bound_by`：等于本人的 id（`LOCAL_PERSON_ACTOR_ID`）才算本人建的，别的值一律不算，这是白名单，判法只在 `workspace-repository.ts`。别的包读 `ProjectWorkspaceDirectoryRecord.person_project_ids`，不比 actor。`lifecycle.upsertWorkspaceMembership` 是工具绑定的入口，本人打开的终端也走它，写 `binding:<actor>`；`addWorkspaceProject`、`repairWorkspaceProject` 写调用者。重写不降级本人的值，本人再连一次就升为本人的；`lifecycle.unlinkWorkspaceMembership` 解除不了本人建的关系，本人解除走 `removeWorkspaceMembership`。
   - `query.projectPluginMembership` 在一次同步查询中共用当前常开判断，返回派生成员与过滤后的隐藏标记；先读取注册表，再查项目。结果不留在实例中，后续调用及等待后的写前检查仍须重新读取当前状态。`storedProjectPluginMembership` 只返回显示事实，不能代替它作可达性判断。
   - 卸载检查只提供目录事实，不删除用户文件。
   - `query.wasProjectPluginRemoved` 只读本项目的移除事实，供可信 Host 区分从未安装和用户主动移除；同步到达不能覆盖后者的本机选择。

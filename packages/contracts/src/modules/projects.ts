@@ -104,6 +104,7 @@ export interface ProjectWorkspaceMembership {
   realpath_verified: boolean;
   project_id: string;
   is_default: boolean;
+  /** Who made the relation: the person's id, or `binding:<actor>` when a tool binding brought it in. Ask `person_project_ids`, not this. */
   bound_by: string;
   created_at: string;
   updated_at: string;
@@ -111,6 +112,8 @@ export interface ProjectWorkspaceMembership {
 
 export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
   project_ids: string[];
+  /** The `project_ids` the person linked this directory to themselves; the ones a tool binding brought in are not here. */
+  person_project_ids: string[];
   created_at: string;
   updated_at: string;
 }

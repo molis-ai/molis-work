@@ -57,7 +57,7 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
   {
     name: "molis_work_v1_context_unbind",
     description:
-      "用户明确要求后解除关联。默认只移除当前 Session 覆盖；binding_scope=workspace 时移除当前目录与指定项目的长期关联。不会删除项目或数据库。",
+      "用户明确要求后解除关联。默认只移除当前 Session 覆盖；binding_scope=workspace 时移除工具带进来的当前目录与指定项目的长期关联；用户本人建的目录关系不解除，返回 changed=false 和 kept，这时转告用户到项目设置里解除，不要说成已解除。不会删除项目或数据库。",
     inputSchema: {
       type: "object",
       properties: {

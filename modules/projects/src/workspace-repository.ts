@@ -4,8 +4,15 @@ import type {
   ProjectWorkspaceMembership,
   ProjectWorkspaceRef,
 } from "@molis-ai/molis-work-contracts/modules/projects";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { booleanInt, text, type ProjectsSqliteDatabase, type Row } from "./sqlite.js";
+
+/**
+ * `bound_by` of a relation a tool binding brought in. Which relations are the person's is an allow-list, `bound_by` equal to the person's id:
+ * this mark tells a terminal the person opened from a relation the person made, and a value nobody marked still counts as not theirs.
+ */
+export const toolBoundBy = (actorId: string): string => `binding:${actorId}`;
 
 /** The rows that tie a directory to its projects: `workspaces` and `workspace_project_memberships`. */
 export class WorkspaceRepository {
@@ -36,17 +43,19 @@ export class WorkspaceRepository {
       ORDER BY workspace.display_name COLLATE NOCASE, workspace.canonical_path
     `).all(...(projectId ? [projectId] : [])) as Row[];
     const memberships = this.listWorkspaceMemberships();
-    return rows.map((row) => ({
-      workspace_id: text(row.workspace_id),
-      canonical_path: text(row.canonical_path),
-      realpath_verified: booleanInt(row.realpath_verified),
-      display_name: text(row.display_name),
-      project_ids: memberships
-        .filter((membership) => membership.workspace_id === text(row.workspace_id))
-        .map((membership) => membership.project_id),
-      created_at: text(row.created_at),
-      updated_at: text(row.updated_at),
-    }));
+    return rows.map((row) => {
+      const own = memberships.filter((membership) => membership.workspace_id === text(row.workspace_id));
+      return {
+        workspace_id: text(row.workspace_id),
+        canonical_path: text(row.canonical_path),
+        realpath_verified: booleanInt(row.realpath_verified),
+        display_name: text(row.display_name),
+        project_ids: own.map((membership) => membership.project_id),
+        person_project_ids: own.filter((membership) => membership.bound_by === LOCAL_PERSON_ACTOR_ID).map((membership) => membership.project_id),
+        created_at: text(row.created_at),
+        updated_at: text(row.updated_at),
+      };
+    });
   }
 
   preferredWorkspacePath(projectId: string): string | null {
@@ -94,11 +103,12 @@ export class WorkspaceRepository {
     );
   }
 
+  /** A relation the person made stays theirs whoever writes it again; the person writing a relation someone else brought in makes it theirs. */
   upsertWorkspaceMembership(input: {
     membership_id: string;
     workspace_id: string;
     project_id: string;
-    actor_id: string;
+    bound_by: string;
     now: string;
   }): void {
     this.db.prepare(`
@@ -107,15 +117,16 @@ export class WorkspaceRepository {
       ) VALUES (?, ?, ?, 0, ?, ?, ?)
       ON CONFLICT(workspace_id, project_id) DO UPDATE SET
         is_default = 0,
-        bound_by = excluded.bound_by,
+        bound_by = CASE WHEN bound_by = ? THEN bound_by ELSE excluded.bound_by END,
         updated_at = excluded.updated_at
     `).run(
       input.membership_id,
       input.workspace_id,
       input.project_id,
-      input.actor_id,
+      input.bound_by,
       input.now,
       input.now,
+      LOCAL_PERSON_ACTOR_ID,
     );
   }
 
@@ -123,6 +134,13 @@ export class WorkspaceRepository {
     return Number(this.db.prepare(
       "DELETE FROM workspace_project_memberships WHERE workspace_id = ? AND project_id = ?",
     ).run(workspaceId, projectId).changes);
+  }
+
+  /** Removes the relation unless the person made it; a value that is not the person's id is not theirs. */
+  removeToolWorkspaceMembership(workspaceId: string, projectId: string): number {
+    return Number(this.db.prepare(
+      "DELETE FROM workspace_project_memberships WHERE workspace_id = ? AND project_id = ? AND bound_by <> ?",
+    ).run(workspaceId, projectId, LOCAL_PERSON_ACTOR_ID).changes);
   }
 
   /**

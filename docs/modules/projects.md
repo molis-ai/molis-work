@@ -12,4 +12,6 @@
 
 ## 当前项目设置读取
 
+目录关系分本人建的和工具带进来的：`ProjectWorkspaceDirectoryRecord.person_project_ids` 只列本人建的，`bound_by` 等于本人的 id 才算，别的值都不算；工具绑定（含本人打开的终端带的目录）写 `binding:<actor>`，覆盖不了本人的值，也解除不了本人建的关系。这项判断只在本模块，别的包不比 actor。
+
 目录关联仍由本模块唯一管理。插件通过 `projectSettingsCapabilities.workspaces / browsingWorkspace` 按项读取当前项目，Host 不返回其他项目关联。浏览偏好仅存目录 ID，位于 Local Host 的项目数据库。设置 UI、权限与归属细则见 [当前项目设置](../platform/PROJECT-SETTINGS.md)。

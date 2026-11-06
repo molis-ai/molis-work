@@ -5,14 +5,15 @@ import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import type { RuntimeBindingRecords } from "./runtime-binding-records.js";
 import { boundResolution, type RuntimeProjectResolution } from "./project-resolution.js";
 import type { RuntimeProjectBindingValidation } from "./project-binding-validation.js";
-import { bindingErrors } from "./binding-errors.js";
+import { bindingErrors, personRelationKept } from "./binding-errors.js";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export interface RuntimeProjectBindingPorts {
   query: Pick<ProjectsQueryApi, "getProject" | "listWorkspaceMemberships">;
   lifecycle: {
     upsertWorkspaceMembership(workspace: NormalizedRuntimeWorkspaceContext, projectId: string, actorId: string): void;
-    unlinkWorkspaceMembership(workspaceId: string, projectId: string, actorId: string): void;
+    /** False when the relation stays: the person made it, and only they can undo it. */
+    unlinkWorkspaceMembership(workspaceId: string, projectId: string, actorId: string): boolean;
     appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, string | null>): void;
   };
 }
@@ -127,11 +128,19 @@ export class RuntimeProjectBindingCommands {
             changed: false,
           };
         }
-        this.projects.lifecycle.unlinkWorkspaceMembership(
+        const unlinked = this.projects.lifecycle.unlinkWorkspaceMembership(
           normalized.workspace.workspace_id,
           projectId,
           actorId,
         );
+        if (!unlinked) {
+          return {
+            resolution: this.resolveRuntimeContext(input.context),
+            unbound_project: null,
+            changed: false,
+            kept: personRelationKept(),
+          };
+        }
         const project = this.projects.query.getProject(projectId);
         return {
           resolution: this.resolveRuntimeContext(input.context),

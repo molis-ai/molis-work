@@ -279,8 +279,8 @@ const headErrors = (measured, budget, base) => {
 // stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background tasks as a side view
 // with its count, and a removed plugin's tabs kept and marked with the stage that says how to add it back. After the review
 // (B1-B3 and its small fixes) it is +12340 B: a removed plugin's side tab drawn in place, the strip keeping its current tab in
-// view, ⌘\ heard after an editor, and a collapse undone with its tab. That is over 10 KB, so its ceiling waits for the user's
-// decision and is not written here. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the character typed.
+// view, ⌘\ heard after an editor, and a collapse undone with its tab. 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S1），
+// 待 07 批评审台审代码冗余. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the character typed.
 // The sheets fall (workbench.css -1219 B, arrival.css -5247 B, against 07-S0's adc08f54f budget): the side's own
 // tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab classes, less the narrow strip's scroll. (The N53/N54 entries
 // for these two scripts are spent once 07-S0 lands: its budget holds their ceilings.) Tried: the side reuses the workspace's
@@ -291,7 +291,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [826727, 827274],
   "/assets/molis-work-workbench.css": [1194521, 1204045],
-  "/assets/molis-work-workbench.js": [1075120, 1085050],
+  "/assets/molis-work-workbench.js": [1075120, 1087460],
   "/assets/molis-work-plugin-frame.js": [208271, 208400],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

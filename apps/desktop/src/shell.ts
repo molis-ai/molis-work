@@ -50,7 +50,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     new MutationObserver(notifyShelfSurface).observe(document.documentElement,{attributes:true,attributeFilter:["lang","data-resolved-theme"]});
     const panel=document.getElementById("side-panel");
     if(panel){
-      new MutationObserver(notifyShelfSurface).observe(panel,{subtree:true,attributes:true,attributeFilter:["aria-selected"]});
+      const tabs=document.querySelector("[data-side-tabs]");if(tabs)new MutationObserver(notifyShelfSurface).observe(tabs,{subtree:true,attributes:true,attributeFilter:["aria-selected"]});
       new ResizeObserver(notifyShelfSurface).observe(panel);
       panel.addEventListener("transitionend",notifyShelfSurface);
     }

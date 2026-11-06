@@ -111,6 +111,20 @@ test("N34-VS-02 a key stays with its own pattern: a string that carries a versio
   assert.ok(output.includes("/* @version contract.io.molis.work.platform.kernel */ 4"));
 });
 
+test("N34-VS-02 the one version Files and Git embedded pages send equals every action they can reach", () => {
+  // These two build the id from the route, so one literal stands for all of them (tooling/gates/version-exceptions.json). When
+  // an entry moves, this fails instead of the page asking for a version that no longer exists.
+  const { versions } = versionSource(repository);
+  const reached: Array<[string, string[]]> = [
+    ["plugins/native/files/src/browser/request.ts", ["files.capture", "files.directory", "files.open", "files.state", "text-stats.state", "diff.state"]],
+    ["plugins/native/git/src/browser/request.ts", ["git.conflict", "git.operations", "git.pr-support", "git.prepare-index", "git.prepare-operation", "git.results", "git.save-result", "git.select-diff", "git.state", "git.summary", "diff.state"]],
+  ];
+  for (const [file, actions] of reached) {
+    const sent = Number(/capability_id: capability, version: (\d+) \}/.exec(readFileSync(path.join(repository, file), "utf8"))?.[1]);
+    assert.deepEqual(actions.filter(id => versions[`action.${id}`] !== sent), [], file);
+  }
+});
+
 // ---- N34-VS-03: reproducible, and every way around it says so ---------------------------------------------------------------
 test("N34-VS-03 regenerating changes nothing, in the real tree and a scratch one", () => {
   const check = generate(repository, "--check");

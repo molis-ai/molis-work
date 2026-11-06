@@ -23,14 +23,20 @@ test("RAC-370 the component board lists every primitive's section once and carri
 });
 
 test("RAC-371 the finish layer's rules are one cascade cut between rules, not inside one", () => {
-  for (const file of ["bar", "assistant", "pages"]) {
-    const source = read(`packages/design-system/src/styles/craft-finish-${file}.ts`);
-    const css = source.slice(source.indexOf("`") + 1, source.lastIndexOf("`"));
+  // T01-STYLE-ORDER-01: navigation 07-S0 added the bar's zones between its base and the Assistant.
+  for (const file of ["craft-finish-bar", "bar-zones", "craft-finish-assistant", "craft-finish-pages"]) {
+    const source = read(`packages/design-system/src/styles/${file}.ts`);
+    const start = source.indexOf("= `");
+    assert.notEqual(start, -1, `${file}.ts has no style template`);
+    const css = source.slice(start + 3, source.lastIndexOf("`"));
     const open = css.split("{").length - 1, close = css.split("}").length - 1;
-    assert.equal(open, close, `craft-finish-${file}.ts ends inside a rule`);
+    assert.equal(open, close, `${file}.ts ends inside a rule`);
   }
   const whole = read("packages/design-system/src/styles/craft-finish.ts");
-  assert.match(whole, /CRAFT_BAR_STYLES \+ CRAFT_ASSISTANT_STYLES \+ CRAFT_PAGES_STYLES/, "the parts are not joined in cascade order");
+  assert.match(whole, /CRAFT_BAR_STYLES \+ BAR_ZONE_STYLES \+ CRAFT_ASSISTANT_STYLES \+ CRAFT_PAGES_STYLES/, "the parts are not joined in cascade order");
+  const zones = CRAFT_FINISH_STYLES.indexOf(".nav-warn-dot{display:inline-block");
+  const bar = CRAFT_FINISH_STYLES.indexOf("Bottom bar: the Dock");
+  assert.ok(bar >= 0 && zones > bar && zones < CRAFT_FINISH_STYLES.indexOf("概况: the state"), "the bar zones are not between the bar and Assistant rules");
   assert.ok(CRAFT_FINISH_STYLES.indexOf("Bottom bar: the Dock") < CRAFT_FINISH_STYLES.indexOf("Directory: rows on the desk"), "the sections changed order");
 });
 

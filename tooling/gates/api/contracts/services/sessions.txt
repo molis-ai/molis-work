@@ -166,7 +166,7 @@ export interface ExternalSessionListInput {
 }
 
 export interface ExternalSessionListOutput {
-    sessions: ExternalSessionRow[];
+    sessions: Array<ExternalSessionRow | ExternalSessionRowSummary>;
     sources: Array<ExternalSessionSource | ExternalSessionSourceSummary>;
     unfiled_count: number | null;
     next_cursor: string | null;
@@ -238,6 +238,10 @@ export interface ExternalSessionRow {
     } | null;
 }
 
+export type ExternalSessionRowSummary = Omit<ExternalSessionRow, "identity" | "return_target"> & {
+    return_target: null;
+};
+
 export interface ExternalSessionScopeReadInput {
     include_counts?: boolean;
 }
@@ -258,6 +262,7 @@ export type ExternalSessionScopeSource = Omit<ExternalSessionReadScope, "locatio
     display_name: string;
     adapter: "available" | "none";
     connections: ExternalSessionConnectionChoice[];
+    connect_service_id: string | null;
 };
 
 export interface ExternalSessionScopeView {

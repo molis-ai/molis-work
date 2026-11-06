@@ -53,7 +53,9 @@ export const externalSessionConnectionLocation = (connectionId: string): string 
 
 /**
  * `entry_id` is the main entry when two share sessions. `native_id` passes `EXTERNAL_SESSION_NATIVE_ID_PATTERN`; a tool's id that does
- * not is never indexed, which the service checks. A title, a directory or a sequence number is never identity.
+ * not is never indexed, which the service checks. A title, a directory or a sequence number is never identity. Only the person is
+ * given this: a `connection:` location is the same value in every project, so it would let a client recognise an account across
+ * projects, and nobody else needs it, because a read takes `session_key` alone.
  */
 export interface ExternalSessionIdentity { entry_id: ExternalToolId; location_key: string; native_id: string }
 
@@ -82,8 +84,9 @@ export type ExternalSessionSourceState = (typeof EXTERNAL_SESSION_SOURCE_STATES)
 
 /**
  * Why, for the states that have a why. `adapter_pending` is Molis not having connected what the tool gives; `tool_gap` is the tool not
- * giving it. `account_changed` is a `cli` connection whose program is logged in as someone else now: logging in again is not the fix
- * for a login that has not expired, connecting that account is.
+ * giving it. `account_changed` is a `cli` connection whose program is logged in as someone else now. Its login has not expired, so its
+ * `next_step` is `open_scope`, not `sign_in`, and the way out is one of two: switch the program back to this connection's account and
+ * read again, or connect the account it is on now and choose that in the read scope, which is another connection and so another source.
  */
 export const EXTERNAL_SESSION_SOURCE_REASONS = {
   complete: [],
@@ -165,6 +168,11 @@ export interface ExternalSessionRow {
   forked_from: string | null;
   return_target: { kind: "command" | "url"; label: string } | null;
 }
+/**
+ * What every other caller is told about a session: no `identity`, and no `return_target`, whose label is how to reach the native
+ * session and would give back what leaving out `identity` keeps. `session_key` stays: a read needs it and nothing can be worked out from it.
+ */
+export type ExternalSessionRowSummary = Omit<ExternalSessionRow, "identity" | "return_target"> & { return_target: null };
 
 /** `project` is the caller's current project; `unfiled` and `all` are the person's alone. */
 export interface ExternalSessionListInput {
@@ -175,11 +183,12 @@ export interface ExternalSessionListInput {
 }
 /**
  * Newest activity first, by a keyset cursor, so sessions found while paging are neither repeated nor missed. Only sessions in the
- * read scope. `sources` gives the person every source, and any other caller the summary of the sources with sessions in this project,
- * so it learns nothing of what else is connected. Empty and fine is never said for a source that was not read through.
+ * read scope. `sources` gives the person every source, and any other caller the summary of the sources with sessions in this project;
+ * the rows are summaries for that caller too, so it learns nothing of what else is connected. Empty and fine is never said for a
+ * source that was not read through.
  */
 export interface ExternalSessionListOutput {
-  sessions: ExternalSessionRow[];
+  sessions: Array<ExternalSessionRow | ExternalSessionRowSummary>;
   sources: Array<ExternalSessionSource | ExternalSessionSourceSummary>;
   /** Null for every caller but the person. */
   unfiled_count: number | null;
@@ -254,8 +263,14 @@ export type ExternalSessionScopeSource = Omit<ExternalSessionReadScope, "locatio
   decided_at: string | null;
   display_name: string;
   adapter: "available" | "none";
-  /** Empty on a local source. */
+  /** Empty on a local source, and on a cloud source until the person has connected an account for it. */
   connections: ExternalSessionConnectionChoice[];
+  /**
+   * The connector service to connect for this cloud source, worked out by the Host, since which service a program's login belongs to
+   * is the Host's table (`gh` is `github`) and a page cannot tell. Set whether or not `connections` is empty: connecting another account
+   * is also a way out of `account_changed`. Null on a local source, and on a cloud source Molis has no way to connect yet.
+   */
+  connect_service_id: string | null;
 };
 
 /** The counts behind one project's row. `ai_readable`, `reported` and the `blocked` counts do not overlap, and `filed` is their sum. */
@@ -371,9 +386,9 @@ const row = { type: "object", properties: { session_key: sessionKey,
     required: ["entry_id", "display_name", "surface", "region"], additionalProperties: false },
   seen_via: entryIds, title: nullableText, directory: nullableText, last_activity_at: text, activity, attribution, forked_from: { anyOf: [{ type: "null" }, sessionKey] },
   return_target: { anyOf: [{ type: "null" }, { type: "object", properties: { kind: { enum: ["command", "url"] }, label: text }, required: ["kind", "label"], additionalProperties: false }] } },
-  required: ["session_key", "identity", "tool", "seen_via", "title", "directory", "last_activity_at", "activity", "attribution", "forked_from", "return_target"], additionalProperties: false };
+  required: ["session_key", "tool", "seen_via", "title", "directory", "last_activity_at", "activity", "attribution", "forked_from", "return_target"], additionalProperties: false };
 
-/** One object, so a caller given the summary and the person given all of it read one shape; the branches only pair a state with its reasons. */
+/** One object, so a caller given the summary and the person given all of it read one shape, as `row` does; the branches only pair a state with its reasons. */
 const source = { type: "object", properties: { entry_id: entryId, display_name: text, state: { enum: EXTERNAL_SESSION_SOURCE_STATES }, reason: { type: ["string", "null"] },
   session_count: count, completed_at: nullableText, next_step: { enum: [...EXTERNAL_SESSION_NEXT_STEPS, null] }, location_key: nullableLocationKey, skipped_count: count,
   progress: { anyOf: [{ type: "null" }, { type: "object", properties: { read: count, total: { type: ["integer", "null"], minimum: 0 } }, required: ["read", "total"], additionalProperties: false }] } },
@@ -403,10 +418,10 @@ const projectCounts = { type: "object", properties: { filed: count, ai_readable:
 const projectAiRead = { type: "object", properties: { project, directories: { type: "array", items: text }, current: bool, allowed: bool, revision, decided_at: nullableText,
   counts: { anyOf: [{ type: "null" }, projectCounts] } }, required: ["project", "directories", "current", "allowed", "revision", "decided_at", "counts"], additionalProperties: false };
 const scopeSource = { type: "object", properties: { entry_id: entryId, location_key: nullableLocationKey, display_name: text, allowed: bool, directories,
-  connection_id: { anyOf: [{ type: "null" }, connectionId] }, revision, decided_at: nullableText, adapter: { enum: ["available", "none"] },
+  connection_id: { anyOf: [{ type: "null" }, connectionId] }, revision, decided_at: nullableText, adapter: { enum: ["available", "none"] }, connect_service_id: nullableText,
   connections: { type: "array", items: { type: "object", properties: { connection_id: connectionId, display_name: text, account_label: nullableText },
     required: ["connection_id", "display_name", "account_label"], additionalProperties: false } } },
-  required: ["entry_id", "location_key", "display_name", "allowed", "directories", "connection_id", "revision", "decided_at", "adapter", "connections"], additionalProperties: false };
+  required: ["entry_id", "location_key", "display_name", "allowed", "directories", "connection_id", "revision", "decided_at", "adapter", "connections", "connect_service_id"], additionalProperties: false };
 const scopeView = { type: "object", properties: { sources: { type: "array", items: scopeSource }, project_ai_reads: { type: "array", items: projectAiRead }, scope_revision: revision },
   required: ["sources", "project_ai_reads", "scope_revision"], additionalProperties: false };
 

@@ -21,6 +21,7 @@ import {
   type ExternalSessionListOutput,
   type ExternalSessionProjectAiRead,
   type ExternalSessionRow,
+  type ExternalSessionRowSummary,
   type ExternalSessionScopeView,
   type ExternalSessionSource,
   type ExternalSessionSourceSummary,
@@ -42,15 +43,15 @@ const row = (attribution: unknown): ExternalSessionRow => ({
   tool: { entry_id: "codex", display_name: "Codex", surface: "cli", region: "global" }, seen_via: ["codex"], title: "改登录页", directory: "/work/app",
   last_activity_at: "2026-11-07T00:00:00Z", activity: "unknown", attribution: attribution as ExternalSessionAttribution, forked_from: null, return_target: null,
 });
-const list = (sessions: ExternalSessionRow[], sources: readonly object[] = [source]) =>
+const list = (sessions: readonly object[], sources: readonly object[] = [source]) =>
   ({ sessions, sources, unfiled_count: 0, next_cursor: null, scope_revision: 1, trust: "untrusted" }) as ExternalSessionListOutput;
 const history: ExternalSessionHistoryOutput = { session_key: KEY, entries: [{ position: "p:1", role: "you", at: null, text: "你好", truncated: false }], older_cursor: null, newer_cursor: null,
   matches: [], search: null, read_state: "complete", stopped: null, activity: "idle", trust: "untrusted" };
 const permit: ExternalSessionProjectAiRead = { project: PROJECT, directories: ["/work/app"], current: true, allowed: false, revision: 0, decided_at: null, counts: null };
 const scope: ExternalSessionScopeView = { project_ai_reads: [permit], scope_revision: 0, sources: [
-  { entry_id: "codex", location_key: "local:default", display_name: "Codex", allowed: false, directories: { mode: "linked_projects" }, connection_id: null, revision: 0, decided_at: null, adapter: "none", connections: [] },
+  { entry_id: "codex", location_key: "local:default", display_name: "Codex", allowed: false, directories: { mode: "linked_projects" }, connection_id: null, revision: 0, decided_at: null, adapter: "none", connections: [], connect_service_id: null },
   { entry_id: "copilot-coding-agent", location_key: null, display_name: "Copilot 编码 Agent", allowed: false, directories: { mode: "all" }, connection_id: null, revision: 0, decided_at: null, adapter: "available",
-    connections: [{ connection_id: "external-0a1b", display_name: "GitHub", account_label: "octocat" }] },
+    connections: [{ connection_id: "external-0a1b", display_name: "GitHub", account_label: "octocat" }], connect_service_id: "github" },
 ] };
 
 test("SRB-11: the read side declares these six actions and no control action", () => {
@@ -142,6 +143,16 @@ test("SRB-13: the person's source says how far it read; any other caller's summa
   assert.equal(accepts(schema, list([], [{ ...source, progress: { read: -1, total: null } }])), false);
 });
 
+test("SRB-06: any other caller's row fits without `identity` or a way back, so no location or native id has to appear in the response", () => {
+  const { identity: _identity, return_target: _target, ...rest } = row({ state: "automatic", project: PROJECT, evidence: { kind: "directory", path: "/work/app" } });
+  const summaryRow: ExternalSessionRowSummary = { ...rest, return_target: null };
+  const response = { ...list([summaryRow], [summary]), unfiled_count: null };
+  assert.ok(accepts(output(sessionsActions.list), response));
+  assert.doesNotMatch(JSON.stringify(response), /location_key|native_id/u);
+  assert.equal(accepts(output(sessionsActions.list), list([{ ...summaryRow, identity: { entry_id: "codex" } }])), false, "an identity is whole or absent");
+  assert.ok(accepts(output(sessionsActions.list), list([row({ state: "unfiled", reason: "no_relation", candidates: [], suggestion: null })])), "the person's row keeps it");
+});
+
 test("SRB-14, SRB-15: every attribution state fits the list, and a state cannot borrow another's fields", () => {
   const suggestion = { status: "ready", project: PROJECT, alternatives: [], reason: "目录相同", evidence: [{ kind: "directory", text: "/work/app" }], created_at: "2026-11-07T00:00:00Z" };
   const states = [
@@ -204,11 +215,14 @@ test("SRB-06: a cloud entry reached by a command reads through a cli connection 
   assert.deepEqual(externalSessionConnectionRoute({ ...copilot, sessions: { ...copilot.sessions, discover: service, list: service } }), { via: "service", service_id: "devin" });
 });
 
-test("SRB-06: a cloud source with no connection chosen has no location, and the scope offers the connections it may take", () => {
+test("SRB-06: a cloud source with no connection chosen has no location, and the scope offers the connections it may take and the service to connect", () => {
   const schema = output(sessionsActions.scopeRead);
   assert.ok(accepts(schema, scope));
   const [first, cloud] = scope.sources;
   assert.equal(cloud.location_key, null);
+  assert.ok(accepts(schema, { ...scope, sources: [first, { ...cloud, connections: [] }] }), "not connected yet: no choice, and the service still named");
+  const { connect_service_id: _service, ...unnamed } = cloud;
+  assert.equal(accepts(schema, { ...scope, sources: [first, unnamed] }), false, "the Host always says, if only with null");
   assert.equal(accepts(schema, { ...scope, sources: [first, { ...cloud, connections: [{ connection_id: "Not An Id", display_name: "x", account_label: null }] }] }), false);
   assertActionInput(sessionsActions.scopeSet.action.input_schema, { sources: [{ entry_id: "copilot-coding-agent", connection_id: "external-0a1b", allowed: true, directories: { mode: "all" } }], expected_revision: 3 });
 });

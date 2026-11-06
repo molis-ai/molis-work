@@ -16,7 +16,7 @@
     ["deleted", ["这条规则已被删除", "Rule was deleted"]],
     ["second", ["连续第二次冲突", "Second collision in a row"]],
     ["clean", ["没有未保存内容", "Nothing unsaved"]],
-    ["noop", ["别处只试跑过，内容没变", "Only a test run elsewhere"]],
+    ["reverted", ["别处改了又改回（补充）", "Changed and changed back elsewhere (extra)"]],
     ["published", ["已在别处发布（补充）", "Published elsewhere (extra)"]],
   ];
 
@@ -94,14 +94,14 @@
   const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
   const startModel = () => {
     V = versions();
-    const conflictLike = !["normal", "clean", "noop"].includes(S.state);
+    const conflictLike = !["normal", "clean", "reverted"].includes(S.state);
     M = {
       phase: S.state, cur: structuredClone(conflictLike ? V.mine : V.base), kept: {}, step: "fn", washed: new Set(), busy: false, dialog: null,
       armed: S.state === "normal", savedAs: null, readonly: false, discarded: false, previewed: false, savedText: "",
     };
     if (S.state === "kept") { M.step = "use"; M.cur.instructions = (M.cur.instructions || "") + L("\n转发过来的也要看。", "\nForwarded messages count too."); }
     if (S.state === "clean") { M.step = "use"; M.cur = structuredClone(V.latest); M.washed = new Set(whoChangedAgainstBase()); M.lookAt = whoChangedAgainstBase(); M.phase = "clean"; }
-    if (S.state === "noop") M.savedText = L("已保存", "Saved");
+    if (S.state === "reverted") M.savedText = L("已保存", "Saved");
     if (S.state === "normal") M.savedText = L("草稿自动保存", "Drafts save automatically");
     if (S.host === "feed" && S.state === "normal") M.cur = structuredClone(V.mine); // what is typed in Feed reaches the rule only when you press a button
     if (S.state === "loaded") {
@@ -361,8 +361,8 @@
       deleted: L("[模拟] 现在的代码在这里会关掉编辑器、丢掉输入（client-records.ts 的 loadList），要改。", "[Simulated] Today's code closes the editor here and loses the input (loadList in client-records.ts); this changes that."),
       second: L("[模拟] 放回后自动保存又碰上了别处的改动。语气不升级，多给一条出路。", "[Simulated] After putting back, auto-save met another change. The tone doesn't escalate; there's one more way out."),
       clean: L("[模拟] 没有要保护的内容，所以直接换成最新版，并拦下这一次发布。", "[Simulated] Nothing to protect, so the latest comes straight in and this publish waits."),
-      noop: L(`[模拟] 别处只试跑过一次或加了样例：内容没变，自动接上新版本再存，不打扰。试试：${typed}。`, `[Simulated] Elsewhere only ran a test or added a sample: nothing changed, so it reconnects and saves without a word. Try: ${typed}.`),
-      published: L("[模拟] 补充状态：现在的后端在这里报另一种错。", "[Simulated] An extra state: today's backend returns a different error here."),
+      reverted: L(`[模拟] 别处改过又改回：版本变了，内容和你读到的相同，接上新版本再存，不打扰。别处只试跑或加样例不会走到这里，保存照常成功。试试：${typed}。`, `[Simulated] Elsewhere changed it and changed it back: a new version, the same content as you read, so it reconnects and saves without a word. A test run or a sample elsewhere never gets here; saving just works. Try: ${typed}.`),
+      published: L("[模拟] 补充状态：保存时得到「已发布不能再改」，或过期后读到已发布，都到这里。", "[Simulated] An extra state: saving is told a published rule can't change, or a stale save finds it published; both land here."),
     };
     return map[S.state] || "";
   };

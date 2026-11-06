@@ -69,7 +69,7 @@ body.proto-on.immersive-workbench #app { height: 100%; }
 .cand-band { animation: craft-rise var(--dur-move) var(--ease-quint); }
 .cand-band.is-settled { animation: none; }
 .cand-band:focus { outline: none; }
-.cand-band.is-nudged { animation: cand-nudge var(--dur-move) var(--ease-spring); }
+.cand-band.is-nudged { animation: cand-nudge var(--dur-move) var(--ease-quint); }
 .cand-band > strong { display: flex; align-items: flex-start; gap: 6px; font-weight: var(--weight-control); overflow-wrap: anywhere; }
 .cand-band__mark { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; animation: cand-land var(--dur-move) var(--ease-spring); }
 .cand-band.is-settled .cand-band__mark { animation: none; }

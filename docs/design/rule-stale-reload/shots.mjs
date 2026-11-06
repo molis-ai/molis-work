@@ -18,7 +18,7 @@ const all = args.includes("--all");
 const onlyAt = args.indexOf("--only");
 mkdirSync(out, { recursive: true });
 
-const STATES = ["normal", "conflict", "kept", "loaded", "offline", "deleted", "second", "clean", "noop", "published"];
+const STATES = ["normal", "conflict", "kept", "loaded", "offline", "deleted", "second", "clean", "reverted", "published"];
 const HOSTS = ["editor", "feed"];
 const SIZES = { 1440: [1440, 900], 1024: [1024, 768], 390: [390, 844] };
 

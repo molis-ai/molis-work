@@ -113,7 +113,7 @@ test("PRR-12 the Manifest fallback only renders stages no host path already rend
   const view = {
     ...emptyView(),
     enabled_plugins: ["goals", "lingguang", "issues"],
-    plugin_stage_ids: [LINGGUANG_UI_CONTRIBUTION_ID],
+    plugin_stage_surfaces: [{ contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, surface: "workbench" }],
     plugin_stages: ['<section data-work-surface="lingguang" data-stage="host"></section>'],
   } as MolisWorkWebView;
   const owner = renderMolisWorkWeb(withHostPluginFacts(view));
@@ -121,7 +121,7 @@ test("PRR-12 the Manifest fallback only renders stages no host path already rend
   assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's stage is kept once");
   assert.doesNotMatch(html, /data-lingguang="directory"/, "the fallback did not render a second Lingguang stage");
   assert.match(html, /data-issue-root/, "Issues, which needs no model, still comes from the Manifest stage");
-  assert.match(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts({ ...view, plugin_stage_ids: [], plugin_stages: [] } as MolisWorkWebView))).join("\n"), /data-lingguang="directory"/,
+  assert.match(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts({ ...view, plugin_stage_surfaces: [], plugin_stages: [] } as MolisWorkWebView))).join("\n"), /data-lingguang="directory"/,
     "without the host's stage, Lingguang comes from its Manifest stage");
 
   const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
@@ -146,9 +146,10 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   assert.match(stack, /data-assistant-island/);
   assert.doesNotMatch(stack, /data-assistant-toggle/, "助手是 Dock 里的一个容器，不再是浮窗开关");
   assert.match(stack, /data-assistant-composer/);
-  assert.match(stack, /<input class="assistant-composer-input"/);
+  // #1761（BL-953）把输入框改成一行起步的 textarea，才能保留多行粘贴的换行。
+  assert.match(stack, /<textarea class="assistant-composer-input"[^>]*\brows="1"/);
   assert.doesNotMatch(stack, /assistant-composer-toolbar/);
-  assert.doesNotMatch(stack, /<textarea class="assistant-composer-input"/);
+  assert.doesNotMatch(stack, /<input class="assistant-composer-input"/);
   assert.match(stack, /data-assistant-thread/);
   assert.match(stack, /data-assistant-target/, "输入框前说明下一次发送去哪项工作");
   assert.match(stack, /data-assistant-send/);

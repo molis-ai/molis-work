@@ -121,7 +121,7 @@ function liveFailure(
 export function createGithubProvider(opts?: {
   fixture?: ConnectorIngestItem[];
   token?: string;
-  resolveToken?: () => string | null | undefined;
+  resolveToken?: (control: ConnectorCallControl) => Promise<string | null | undefined>;
   /** Explicitly allow deterministic fixture responses (tests only). */
   allowFixture?: boolean;
   /** Injectable for tests — defaults to global fetch */
@@ -131,8 +131,8 @@ export function createGithubProvider(opts?: {
 }): ConnectorPort {
   const fixture = opts?.fixture ?? FIXTURE_ISSUES;
   const allowFixture = opts?.allowFixture ?? false;
-  const resolveToken = () =>
-    opts?.token ?? opts?.resolveToken?.() ?? undefined;
+  const resolveToken = (control: ConnectorCallControl) =>
+    opts?.token ?? opts?.resolveToken?.(control);
   const request = opts?.fetchImpl ?? globalThis.fetch?.bind(globalThis);
   const now = opts?.now ?? (() => new Date());
 
@@ -141,7 +141,8 @@ export function createGithubProvider(opts?: {
     async health(control: ConnectorCallControl): Promise<ConnectorHealth> {
       control.current();
       const fetchImpl = request ? controlledConnectorFetch(request, control) : undefined;
-      const token = resolveToken();
+      const token = await resolveToken(control);
+      await control.beforeEffect(); control.current();
       if (!token) {
         if (!allowFixture) {
           return {
@@ -183,13 +184,16 @@ export function createGithubProvider(opts?: {
           status: "error",
           message: failure.message,
           action: failure.action,
+          failure: failure.failure,
+          ...(failure.retryAfterAt ? { retryAfterAt: failure.retryAfterAt } : {}),
         };
       }
     },
     async sync({ cursor }, control: ConnectorCallControl): Promise<ConnectorSyncResult> {
       control.current();
       const fetchImpl = request ? controlledConnectorFetch(request, control) : undefined;
-      const token = resolveToken();
+      const token = await resolveToken(control);
+      await control.beforeEffect(); control.current();
       if (!token) {
         if (!allowFixture) {
           return liveFailure(

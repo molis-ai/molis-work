@@ -23,7 +23,7 @@ const FILE = { file_name: "note.md", data_base64: Buffer.from("# 标题\n正文"
 const ALL_METHODS_MANIFEST_PERMISSIONS = ["storage:private", "materials:read", "materials:fetch", "materials:fetch_local", "materials:original"];
 
 const manifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox materials probe", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox materials probe", kind: "app",
   publisher: { publisher_id: "example", signature: "probe-sbxmaterials" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: ALL_METHODS_MANIFEST_PERMISSIONS.map(permission => ({ permission, required: true, reason: "probe" })),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

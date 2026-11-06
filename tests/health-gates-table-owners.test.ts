@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
 import { scanTables, tableOwnerProblems } from "../scripts/gates/table-owners.mjs";
 
-// specs/repository-anti-corruption §4.11 (W2-06): a table is read and written only by the package that creates it
+// specs/archive/repository-anti-corruption §4.11 (W2-06): a table is read and written only by the package that creates it
 // (scripts/gates/table-owners.mjs, tooling/gates/table-owners.json). The rule has no baseline: it starts at zero. As in
 // tests/doc-reference-gates.test.ts, each way of breaking it is added on a branch of a small scratch repository and
 // `--base main` must fail with the rule's message; what the rule must not flag stays green; and the definitions are also

@@ -34,7 +34,7 @@ export const ASSISTANT_RULE_ACTIONS = {
       except: { type: "array", title: "仍然提醒的情况", items: { type: "string", enum: KINDS.map(([id]) => id) }, description: KINDS.map(([id, name]) => `${id}=${name}`).join("，") },
       until: { type: "string", format: "date-time", title: "到什么时候", description: "暂停必填；quiet 可不填（长期有效）" },
       label: { type: "string", title: "规则说法", maxLength: 200, description: "用户的原话，例如“写文档时不要提醒，失败除外”" },
-    } }, "write"), version: 2 },
+    } }, "write"), version: 1 },
   remove: define("assistant.rules.remove", "command", "删除提醒规则", "删除一条提醒规则（先用“查看提醒规则”找到它的 rule_id）。",
     { type: "object", additionalProperties: false, required: ["rule_id"], properties: { rule_id: { type: "string", title: "规则" } } }, "write"),
 } as const;
@@ -69,7 +69,7 @@ const methodRead = define("assistant.methods.read", "query", "读取角色资料
   { type: "object", additionalProperties: false, required: ["method_id"], properties: { method_id: { type: "string", title: "资料", maxLength: 200 },
     version: { type: "integer", minimum: 1 }, default_ref: signedRefSchema, installation: installationSchema } });
 const ASSISTANT_METHOD_ACTIONS = {
-  read: { ...methodRead, version: 2, action: { ...methodRead.action, scheduling: "concurrent", output_schema: { type: "object", additionalProperties: false, required: ["method_id", "name", "version", "body", "notice"], properties: {
+  read: { ...methodRead, version: 1, action: { ...methodRead.action, scheduling: "concurrent", output_schema: { type: "object", additionalProperties: false, required: ["method_id", "name", "version", "body", "notice"], properties: {
     method_id: { type: "string" }, name: { type: "string" }, plugin_title: { type: "string" }, version: { type: "integer" }, body: { type: "string" }, notice: { type: "string" },
     kind: { type: "string", enum: ["role", "method"] }, default_ref: signedRefSchema, installation: installationSchema, effective: { type: "string", enum: ["default", "user"] }, user_revision: { type: ["integer", "null"] } } } } },
 } as const;
@@ -84,7 +84,7 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
   const handlers: ActionHandlerBinding[] = [
     ...records.handlers, ...extra.handlers,
     { capability_id: "assistant.rules.list", version: 1, handle: async () => ({ rules: service().followUps.rules() }) },
-    { capability_id: "assistant.rules.add", version: 2, handle: async (_context, input) => ({ rules: await service().followUps.addRule(input as AssistantRuleInput) }) },
+    { capability_id: "assistant.rules.add", version: 1, handle: async (_context, input) => ({ rules: await service().followUps.addRule(input as AssistantRuleInput) }) },
     { capability_id: "assistant.rules.remove", version: 1, handle: async (_context, input) => ({ rules: service().followUps.removeRule(String((input as { rule_id?: unknown }).rule_id ?? "")) }) },
     { capability_id: "assistant.followups.list", version: 1, handle: async context => ({ followups: service().followUps.list(callingWork(context) ?? undefined) }) },
     { capability_id: "assistant.followups.add", version: 1, handle: async (context, input) => {
@@ -94,7 +94,7 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
       await service().followUps.save({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
       return { followups: service().followUps.list(work) };
     } },
-    { capability_id: "assistant.methods.read", version: 2, handle: async (context, input) => {
+    { capability_id: "assistant.methods.read", version: 1, handle: async (context, input) => {
       const work = callingWork(context), selection = checkedMethodSelection(input);
       const method = await service().reads.readMethod(work ? service().reads.workRecord(work) : null, selection.method_id, selection);
       await context.beforeEffect(); context.signal?.throwIfAborted(); context.assert_authority_current?.(); method.handoff?.assertCurrent();

@@ -33,7 +33,7 @@ async function fixture(run: (f: {
     const actions = Object.fromEntries(Object.entries(declarations).map(([role, definition]) => [role, version === undefined ? definition : { ...definition, version }])) as unknown as WorkflowContentActions;
     const plugin = definePlugin({ manifest: {
       upgrade_compatibility: { compatible_from_versions: ["1.0.0"] },
-      schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.unknown-drafts", version: `${version ?? 1}.0.0`, name: "未知草稿",
+      schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.unknown-drafts", version: `${version ?? 1}.0.0`, name: "未知草稿",
       kind: "app", publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: caller.permissions.map(permission => ({ permission, required: true, reason: "读取和保存草稿" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: Object.values(actions),
@@ -131,27 +131,27 @@ test("saved versions survive withdrawal and upgrades; old unbound workflows pin 
   });
 });
 
-test("W4-6-04 a receive pinned at v1 stays pinned and reports itself unavailable; removing and re-adding the station pins v2", async () => {
+test("W4-6-04 a receive pinned at v2 stays pinned and reports itself unavailable; removing and re-adding the station pins v1", async () => {
   await fixture(async ({ actions, store, ports, db }) => {
-    const flow = (await actions.invoke(w.create, { title: "接收 v2", chain: chain() })).workflow as Workflow;
-    assert.equal(flow.stations[1]!.content!.actions.receive!.version, 2, "a new station pins the current receive");
+    const flow = (await actions.invoke(w.create, { title: "现行接收", chain: chain() })).workflow as Workflow;
+    assert.equal(flow.stations[1]!.content!.actions.receive!.version, 1, "a new station pins the current receive");
     const run = (await actions.invoke(w.start, { id: flow.workflow_id, title: "原始草稿" })).instance as WorkflowInstance;
     db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("本地实际内容", run.steps[0]!.item!.item_id);
-    // A flow saved before the bump: station 2 holds `receive@1`, the rest are what they were.
+    // A flow saved before the reset: station 2 holds `receive@2`, the rest are what they were.
     const content = flow.stations[1]!.content!;
-    const pinned = { ...content, actions: { ...content.actions, receive: { ...content.actions.receive!, version: 1 } } };
-    const saved = store.create({ project_id: caller.project_id!, title: "接收 v1", chain: { stations: [flow.stations[0]!, { ...flow.stations[1]!, content: pinned }], links: flow.links } });
+    const pinned = { ...content, actions: { ...content.actions, receive: { ...content.actions.receive!, version: 2 } } };
+    const saved = store.create({ project_id: caller.project_id!, title: "旧接收引用", chain: { stations: [flow.stations[0]!, { ...flow.stations[1]!, content: pinned }], links: flow.links } });
     const drafts = db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n;
 
-    await assert.rejects(actions.invoke(w.start, { id: saved.workflow_id }), /已保存的接收能力 v1 不可用/);
+    await assert.rejects(actions.invoke(w.start, { id: saved.workflow_id }), /已保存的接收能力 v2 不可用/);
     // An instance already running against it reports the same, and nothing is written or swapped.
     const running = store.startInstance(saved, run.steps[0]!.item!);
-    await assert.rejects(actions.invoke(w.continue, { id: running.instance_id }), /已保存的接收能力 v1 不可用/);
-    await assert.rejects(ports.receive("unknown-drafts", { title: "x", body: "y" }, "workflow:pinned:1", pinned), /已保存的接收能力 v1 不可用/);
+    await assert.rejects(actions.invoke(w.continue, { id: running.instance_id }), /已保存的接收能力 v2 不可用/);
+    await assert.rejects(ports.receive("unknown-drafts", { title: "x", body: "y" }, "workflow:pinned:1", pinned), /已保存的接收能力 v2 不可用/);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, drafts);
     assert.equal(store.instance(running.instance_id, caller.project_id!).status, "active");
-    assert.equal(store.get(saved.workflow_id, caller.project_id!).stations[1]!.content!.actions.receive!.version, 1);
-    assert.equal(store.instance(running.instance_id, caller.project_id!).chain.stations[1]!.content!.actions.receive!.version, 1);
+    assert.equal(store.get(saved.workflow_id, caller.project_id!).stations[1]!.content!.actions.receive!.version, 2);
+    assert.equal(store.instance(running.instance_id, caller.project_id!).chain.stations[1]!.content!.actions.receive!.version, 2);
 
     // Removing the station and adding it back is how it is repaired: the new reference is the current receive.
     const repaired = store.create({ project_id: caller.project_id!, title: "接收 v1 修好", chain: { stations: saved.stations.map(({ content, ...station }) => station), links: saved.links } });
@@ -163,12 +163,12 @@ test("W4-6-04 a receive pinned at v1 stays pinned and reports itself unavailable
   });
 });
 
-test("W4-6-01 receive is v2 with a flat input and a required request id; the other roles stay v1; an old-shape receive is refused", () => {
-  assert.deepEqual(WORKFLOW_CONTENT_VERSIONS, { list: 1, read: 1, receive: 2, create: 1 });
+test("W4-6-01 receive is v1 with a flat input and a required request id; the other roles stay v1; an old-shape receive is refused", () => {
+  assert.deepEqual(WORKFLOW_CONTENT_VERSIONS, { list: 1, read: 1, receive: 1, create: 1 });
   const stations = defineWorkflowContentActions({ id: "unknown-drafts", title: "未知草稿", icon: "note", create: true, subject_kind: "unknown_draft",
     read_permissions: ["drafts:read"], write_permissions: ["drafts:write"] });
-  assert.deepEqual([stations.list.version, stations.read.version, stations.receive.version, stations.create!.version], [1, 1, 2, 1]);
-  assert.equal(stations.receive.action.input_type, "molis.workflow.content.receive.input.v2");
+  assert.deepEqual([stations.list.version, stations.read.version, stations.receive.version, stations.create!.version], [1, 1, 1, 1]);
+  assert.equal(stations.receive.action.input_type, "molis.workflow.content.receive.input.v1");
   assert.equal(stations.receive.action.output_type, "molis.workflow.content.receive.output.v1");
   assert.deepEqual(stations.list.action.input_type, "molis.workflow.content.list.input.v1");
   const schema = stations.receive.action.input_schema as { properties: Record<string, { minLength?: number; maxLength?: number } | undefined>; required: string[]; additionalProperties: boolean };
@@ -182,11 +182,11 @@ test("W4-6-01 receive is v2 with a flat input and a required request id; the oth
     definitions: [definition], handlers: [{ ...definition, handle: () => ({ plugin: "unknown-drafts", item_id: "1", title: "x" }) }] });
   const oldShape: ActionDefinition = { ...stations.receive, version: 1, action: { ...stations.receive.action, input_type: "molis.workflow.content.receive.input.v1",
     input_schema: { type: "object", properties: { payload: WORKFLOW_CONTENT_SCHEMAS.read.output, context: { type: "object" } }, required: ["payload", "context"], additionalProperties: false } } };
-  assert.throws(register(oldShape), /没有兑现工作流内容协议 receive v2 的输入合同/);
+  assert.throws(register(oldShape), /没有兑现工作流内容协议 receive v1 的输入合同/);
   // A flat input without the request id is the old shape too: the schema must be the protocol's own.
   const withoutRequestId: ActionDefinition = { ...stations.receive, action: { ...stations.receive.action,
     input_schema: { ...schema, properties: { ...schema.properties, request_id: undefined }, required: ["title", "body"] } as never } };
-  assert.throws(register(withoutRequestId), /没有兑现工作流内容协议 receive v2 的输入合同/);
+  assert.throws(register(withoutRequestId), /没有兑现工作流内容协议 receive v1 的输入合同/);
   assert.doesNotThrow(register(stations.receive as ActionDefinition));
 });
 

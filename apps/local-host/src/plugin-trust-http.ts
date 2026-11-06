@@ -9,6 +9,7 @@ import { withPluginPermissionSettingsEntry } from "./plugin-consent-settings-ent
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { runningProjectPlatform } from "./project-plugins.js";
 
 /** A package carries the plugin's code and files, base64 inside the signed bundle; the command line's route takes the same. */
 const MAX_PACKAGE_BYTES = 24 * 1024 * 1024;
@@ -40,7 +41,11 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
         client.invoke(person, { capability_id: definition.capability_id, version: definition.version, provider_id }, input);
       if (method === "GET" && route === "overview") {
         const [installed, publishers] = await Promise.all([call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.installed, {}), call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.publishers, {})]);
-        return { status: 200, body: { ...(installed as object), ...(publishers as object) } };
+        const managed = await ports.localHost.withProject(ports.projectRef, async runtime => {
+          const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
+          return platform?.runtime.list().filter(row => row.state !== "uninstalled" && platform.dualInstance(row.plugin_id)).map(row => row.install_id) ?? [];
+        });
+        return { status: 200, body: { ...(installed as object), ...(publishers as object), home_managed_install_ids: managed } };
       }
       if (method !== "POST") return null;
       if (route === "install/preview") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.preview, body) };

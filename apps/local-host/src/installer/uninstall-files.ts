@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs, type Stats } from "node:fs";
 import path from "node:path";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../web-control-token.js";
-import { CURRENT_LAUNCHER_NAMES, isOwnedInstaller, isOwnedLauncherText } from "./home-contract.js";
+import { CURRENT_LAUNCHER_NAMES, isCurrentInstallManifest, isCurrentReleaseManifest, isOwnedLauncherText } from "./home-contract.js";
 import type { MolisWorkUninstallChange } from "./uninstall-contract.js";
 export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
   ownedPaths: string[];
@@ -19,7 +19,7 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
   snapshotPaths.push(controlTokenPath);
   if (manifestText != null) {
     const manifest = parseOwnedJson(manifestText);
-    if (isOwnedInstaller(manifest?.installer)) ownedPaths.push(manifestPath);
+    if (isCurrentInstallManifest(manifest)) ownedPaths.push(manifestPath);
     else conflicts.push(`安装清单不属于 Molis Work：${manifestPath}`);
   }
   const controlToken = await readText(controlTokenPath);
@@ -46,7 +46,7 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
     const releaseManifestText = entry.isDirectory() ? await readText(releaseManifestPath) : null;
     snapshotPaths.push(releaseManifestPath);
     const manifest = releaseManifestText == null ? null : parseOwnedJson(releaseManifestText);
-    if (entry.isDirectory() && isOwnedInstaller(manifest?.installer)) ownedPaths.push(releasePath);
+    if (entry.isDirectory() && isCurrentReleaseManifest(manifest)) ownedPaths.push(releasePath);
     else conflicts.push(`release 不属于 Molis Work 或已损坏，不会删除：${releasePath}`);
   }
   return { ownedPaths, snapshotPaths, conflicts };
@@ -125,8 +125,8 @@ export async function removeEmptyDirectory(target: string): Promise<boolean> {
   }
 }
 
-function parseOwnedJson(text: string): { installer?: unknown } | null {
-  try { return JSON.parse(text) as { installer?: unknown }; } catch { return null; }
+function parseOwnedJson(text: string): unknown {
+  try { return JSON.parse(text); } catch { return null; }
 }
 
 export function digest(value: string | Buffer): string {

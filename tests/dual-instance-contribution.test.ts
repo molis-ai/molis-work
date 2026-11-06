@@ -8,7 +8,7 @@ import { ActionError, type ActionCallContext, type ActionSceneDefinition } from 
 import type { PluginAppContribution, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
- * S0-2b-1 (specs/dual-instance-plugins): a Plugin that runs both in the Home and in a project starts once in each, and each
+ * S0-2b-1 (specs/archive/dual-instance-plugins): a Plugin that runs both in the Home and in a project starts once in each, and each
  * half redeems only its own part of the one Manifest. Which redemption a start owes is the Host's word (`redemption`), never
  * the Plugin's; without it every declared item is owed, as before. What a half returns is still checked against the Manifest
  * in full, and ports and events still reach only project instances.
@@ -37,7 +37,7 @@ const subscribes = [{ event_type_id: "io.molis.work.files.refreshed", type_versi
 const inputs = [{ port: "snapshot", artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION, optional: true }];
 
 function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "双实例示例", kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "双实例示例", kind: "app",
     publisher: { publisher_id: "molis", signature: "dual-example" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     actions: [homeRead.definition, projectRead.definition], action_scenes: [scene],

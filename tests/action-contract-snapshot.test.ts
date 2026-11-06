@@ -10,7 +10,7 @@ import {
 } from "../scripts/gates/action-contract-snapshot.mjs";
 import { assertThrowawayHome, collectHost, loadProduct, withIsolatedHome } from "../scripts/gates/action-contract-host.mjs";
 
-// specs/repository-anti-corruption §4.7 (W2-15): the callable contract of every built-in Manifest is written down in
+// specs/archive/repository-anti-corruption §4.7 (W2-15): the callable contract of every built-in Manifest is written down in
 // tooling/gates/actions (capability@version, provider, the provider id the Host registers it under, who may call it, a hash of each
 // schema), together with the actions and the consumer scenes the Host registers that no Manifest declares. The Manifest layer needs no Host and is mutation-verified on copies of the real Manifests;
 // the Host layer is mutation-verified on copies of the directory a real Host listed. Nothing here writes to the repository:

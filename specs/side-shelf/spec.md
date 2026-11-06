@@ -1,6 +1,6 @@
 # 右栏里的 Shelf：左右互动与同一个动作池
 
-状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已打磨并实操；产品接入的 W1、W2 已在交接分支 #411 里通过工程用例，真实 Jev 评估、桌面原生拖出与一骏本人验收未完成。接续入口、现状、没做的事和下一步见[总纲第 20 节「远端交接」](../context-program/spec.md)，证据见总纲第 16 节；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
+状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已打磨并实操；产品接入的 W1、W2 随 #411（70c928ae0）已合入 main，后续已合片与未做片按总纲状态句核对，真实 Jev 评估、桌面原生拖出与一骏本人验收未完成。接续入口、现状、没做的事和下一步见[总纲第 20 节「远端交接」](../context-program/spec.md)，证据见总纲第 16 节；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
 
 相关的已归档需求：[平台侧栏](../archive/side-panel/spec.md)（右栏本身）、[情境驱动的动态交互](../archive/contextual-interaction/spec.md)（动作池、Jev 判断、底栏动作条）、[Shelf](../archive/shelf-plugin/spec.md)（DropAgent 复刻）、[craft-finish](../craft-finish/spec.md)（底栏）。
 
@@ -290,7 +290,7 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | --- | --- |
 | 底栏的 `BAR_RESIDENT_IDS` 和两个按钮 | 删掉，只留侧栏按钮；`dock-window-im`、`data-dock-window="im"`、`data-dock-frame="im"`、`data-dock-toggle="im"` 改用通用名字，不留兼容别名（`immersive-shell.ts`、`side-panel.ts`、`navigation-presentation.ts`、`docs/system/GLOSSARY.md` 一起改）；侧栏按钮的提示改为「侧栏：Shelf、灵光、文件、浏览器、电脑与讨论」 |
 | 右栏格的顺序 | 平台自带的格也给一个 `order`，与插件侧栏视图放在一起排序，不在宿主里写死 Shelf 排第一 |
-| Shelf 的 manifest | `navigator` 视图改为 `side` 视图，由宿主排版的侧栏文档出（已在整页门禁的例外清单里，不新增例外）；Manifest 声明 `always_on: true`（「常开插件」，2026-10-17 定名）：始终启用，不进插件列表；只有内置插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34；2026-10-18 改：要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前如此） |
+| Shelf 的 manifest | `navigator` 视图改为 `side` 视图，由宿主排版的侧栏文档出（已在整页门禁的例外清单里，不新增例外）；Manifest 声明 `always_on: true`（「常开插件」，2026-10-17 定名）：始终启用，不进插件列表；只有内置插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34；2026-10-18 改：要改成按声明与授权，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前如此） |
 | Shelf 在插件分组里（`immersive-shell.ts` 的「个人」组）、插件选择、市场、项目插件管理 | 撤下 |
 | 桌面的 `molisWorkOpenShelf` 和轮盘的 `over_shelf_panel` | 2026-10-18 W2'-3（统筹定）：`molisWorkOpenShelf` 只说插件名，调页面的 `molisWorkOpenPlugin("shelf")`（就是工作台的 `openPlugin`，落在哪里由声明决定，`openPluginInSide` 一处判断），不写死格名；壳从顶层文档报「右栏开着且选中的是 Shelf 格」时那一格的矩形（`shelf_surface_changed` 的 `panel`，代替原来的 `data-desktop-surface="shelf"`），轮盘只把这个矩形当 Shelf 的放入处，矩形先经检查（S-14）；热键的显示/隐藏开关以「Shelf 格正在显示」为准 |
 | 搜索、placement 与结果视图链接中打开 Shelf 材料 | 打开右栏的 Shelf 格，并选中那一行；包括 `shelf.items.admit` 结果视图里的 `?openPlugin=shelf&openItem=…`。整页门禁沿链接打开地址，改道后仍须落在工作台里（总纲 15.2） |

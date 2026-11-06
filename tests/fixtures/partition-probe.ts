@@ -11,7 +11,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { withLibrary } from "./home-library.js";
 import { person } from "./home-runtime.js";
 
-// A Home plugin whose library is partitioned by project (specs/plugin-project-partition), shipped the way a built-in one is: an entry
+// A Home plugin whose library is partitioned by project (specs/archive/plugin-project-partition), shipped the way a built-in one is: an entry
 // in the platform's registration list (`PLATFORM_PLUGIN_REGISTRATIONS`, the Host's own since W5-02 PR-B). The Home's store registry is made from the catalog once per process, so the entry is added when this
 // module loads, before anything asks for the registry, and stays for the test file's process.
 
@@ -71,7 +71,7 @@ export const probe = {
 
 function createProbe(): PluginDefinition {
   const actions = [write, read, homeRead, later, laterStatus];
-  return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: PROBE_ID, version: "1.0.0", name: PROBE, kind: "app",
+  return { manifest: { schema_version: 1, host_api_version: 1, plugin_id: PROBE_ID, version: "1.0.0", name: PROBE, kind: "app",
     publisher: { publisher_id: "example", signature: `home-${PROBE}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: PROBE_PERMISSIONS.map(permission => ({ permission, required: true, reason: "分区探针读写自己的库" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions, runtime: { scope: "home" }, databases: { home: PROBE_DATABASE },

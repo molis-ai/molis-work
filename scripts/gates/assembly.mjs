@@ -1,4 +1,4 @@
-// Built-in plugin assembly gates (specs/repository-anti-corruption §4.6/R-01/R-03, W1-05).
+// Built-in plugin assembly gates (specs/archive/repository-anti-corruption §4.6/R-01/R-03, W1-05).
 //
 // AGENTS.md: a new built-in plugin goes through the Plugin Runtime only (its registration's `runtime` or `project_runtime`). The old
 // build-time path (a registerProvider line in project-host.ts, an <plugin>-native-plugin-http.ts file, a catalog entry) is

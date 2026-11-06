@@ -1,10 +1,10 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { outsidePluginAction } from "./action-scope.js";
-
+import { outsidePluginAction, requirePluginPermission } from "./action-scope.js";
 
 /** Every activation owns a fresh grant snapshot and revocation cell, including Home activations. */
-export function createActivationContext(record: PluginInstanceRecord, definition: PluginDefinition, providerId: string) {
+export function createActivationContext(record: PluginInstanceRecord, definition: PluginDefinition, providerId: string,
+  permissionBound?: (permission: string) => (() => void) | undefined) {
   let active = true;
   const grants = Object.freeze([...record.grants]);
   const context: PluginStartContext = Object.freeze({
@@ -20,9 +20,17 @@ export function createActivationContext(record: PluginInstanceRecord, definition
       if (!active || !grants.includes(permission)) {
         throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
       }
+      requirePluginPermission(context, permission, () => permissionBound?.(permission));
     },
   });
-  return { context, definition, revoke() { active = false; }, revoked() { return !active; } };
+  return { context, definition, capturePermission(permission: string) {
+    if (!active || !grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
+    const bound = permissionBound?.(permission);
+    return () => {
+      if (!active || !grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
+      bound?.();
+    };
+  }, revoke() { active = false; }, revoked() { return !active; } };
 }
 
 /**

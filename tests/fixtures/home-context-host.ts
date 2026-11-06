@@ -17,7 +17,8 @@ export async function homeContextHost(t: TestContext) {
     await host?.close(); await rm(home, { recursive: true, force: true });
   });
   host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
-    workspacesFor: project => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(project)) });
+    workspacesFor: project => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(project)) });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");

@@ -17,7 +17,7 @@ export function scheduledOwnerPlugin(names: { name?: string; title?: string } = 
   } };
   const contexts: PluginStartContext[] = [];
   let calls = 0, execute: (caller: ActionExecutionContext, input: unknown) => Promise<unknown> = async (_caller, input) => input;
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name: names.name ?? "定时笔记", version: "1.0.0", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name: names.name ?? "定时笔记", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "scheduled-owner" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [...Object.values(reminderActions), ...Object.values(scheduledOperationActions)].map(item => item.capability_id) },
     actions: [action], artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

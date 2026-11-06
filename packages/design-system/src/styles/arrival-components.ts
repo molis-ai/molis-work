@@ -118,8 +118,7 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-brief__cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); margin-top: 44px; }
   .mw-brief__sec > h2 { margin: 0 0 10px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; }
   .mw-brief__list { display: flex; flex-direction: column; gap: 1px; margin: 0 -8px; }
-  .mw-brief__list .mw-dir-row--meta { height: auto; min-height: 48px; padding-block: 7px; border-radius: var(--r-row, 10px); }
-  .mw-brief__list .mw-dir-row--meta .mw-dir-row__copy { grid-template-rows: 18px 16px; row-gap: 1px; }
+  .mw-brief__list .mw-dir-row--meta { height: auto; min-height: 40px; padding-block: 7px; border-radius: var(--r-row, 10px); }
   .mw-brief__quiet { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
   .mw-brief__hint { margin: 0 0 6px; color: var(--muted); font-size: 12px; line-height: 1.6; }
   .mw-brief__recent { margin: 0; padding: 0; list-style: none; }

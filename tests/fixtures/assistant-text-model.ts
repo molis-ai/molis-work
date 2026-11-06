@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { asideReply } from "./ending-review.js";
 
@@ -11,7 +11,7 @@ import { asideReply } from "./ending-review.js";
  * Fixed model output; the Assistant, projection, HTTP, review and business effects remain real. With `pace`, the rest of the
  * first reply comes in that many pieces, `pause` ms apart, the way a model writes it.
  */
-export async function assistantTextModel(t: TestContext, home: string, text: string, pace?: { pieces: number; pause: number }) {
+export async function assistantTextModel(t: TestContext, home: string, text: string, pace?: { pieces: number; pause: number }, withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]> = withMolisWorkProjectCatalog) {
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const finish = Promise.withResolvers<void>();
   let first = true, nextReview: string | null = null;
@@ -47,7 +47,7 @@ export async function assistantTextModel(t: TestContext, home: string, text: str
     resetSecretStoreCache();
   });
   const address = model.address(); assert.ok(address && typeof address !== "string");
-  await runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
+  await runWithMolisWorkHome(home, () => withCatalog({ homeDirectory: home }, catalog => {
     const base = `http://127.0.0.1:${address.port}`;
     const connection = withConnectorConnections(home, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", base); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: base, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });

@@ -16,7 +16,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { seedBoard } from "./fixtures/goal-application.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// S-100 (provisional number; RAC-510, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a plugin pins a 成果 version
+// S-100 (provisional number; RAC-510, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a plugin pins a 成果 version
 // in its own project transaction through `services.artifacts.join`, as it writes an Inbox entry through `services.attention.join` (S-68). The
 // version is a savepoint of the plugin's transaction, committed with its rows or rolled back with them. Every `head` and `publish` asks the
 // gate S-68 asks (the installation and its grant, the original caller, a concurrent action that declares artifact:write), the type must be
@@ -43,7 +43,7 @@ function probe(short: string, grants: readonly string[], peer?: () => PluginHost
       output_schema: { type: "boolean" } } });
   // `act` waits and declares what the plugin holds; `serial` declares it but does not wait; `loose` waits but does not declare it; `peek` is a query.
   const act = define("act", grants, true), serial = define("serial", grants, false), loose = define("loose", [], true), peek = define("peek", grants, true, "query");
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", read, write, ...grants].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [preview.type], consumes: [] }, ui: { contributions: [] },

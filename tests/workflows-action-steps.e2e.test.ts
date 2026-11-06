@@ -18,6 +18,7 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
   if (!b) return;
   const shelfChild = await pluginFrameBrowser(t,b,"shelf",'[data-side-body="plugin:shelf/side"] iframe');
+  const feedReader = await pluginFrameBrowser(t,b,"feed",'iframe[data-plugin-embedded=feed]');
   const source = createLocalFeedSourceService(b.store.db, b.projectId!).register({
     kind: 'research_library', repository: 'molis-ai/research-library', research_source: 'workflow-review',
   }).source;
@@ -59,7 +60,8 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await click('[data-wf-dialog-submit]');
   await waitFor("document.querySelector('[data-wf-action=continue]')");
   // SYS-15-U7: the real source is readable inside the workflow, but its trusted document is outside the opaque page.
-  await b.waitFor("document.querySelector('iframe[data-plugin-embedded=feed]')?.contentDocument?.body.innerText.includes('这是端到端字段映射的原始正文')");
+  await b.waitFor("document.querySelector('iframe[data-plugin-embedded=feed]')");
+  await feedReader.waitFor("document.body.innerText.includes('这是端到端字段映射的原始正文')");
   assert.equal(await evaluate("(()=>{try{return Boolean(parent.document)}catch(error){return error.name}})()"), "SecurityError");
   // RING-07: current human-led station is static doing; future station waits.
   await waitFor("document.querySelector('.wf-vstep.is-current .mw-state-ring')?.dataset.mwState === 'doing'");
@@ -123,7 +125,7 @@ test('unknown plugin long results survive a late navigation response and render 
     output_schema: { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] },
     result_view: { summary: '长结果已保存', text_pointer: '/note' },
   } }, () => ({ note }));
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: 'io.molis.work.fixture.long-result', version: '1.0.0', name: '长结果', kind: 'app',
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: 'io.molis.work.fixture.long-result', version: '1.0.0', name: '长结果', kind: 'app',
     publisher: { publisher_id: 'test', signature: 'test' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action.definition] },
     async start() { return { kind: 'app', actions: [action.handler] }; } });

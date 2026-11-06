@@ -203,7 +203,7 @@ test("PMAT-24 a Coding round carries the knowledge open to its Agent now, inside
   const offered = (capability_id: string, available = true, provider_id = "system.knowledge"): ActionView => ({ capability_id, version: 1, operation: "query",
     provider: { provider_id, title: "项目资料", kind: "system" }, availability: available ? { available: true } : { available: false, code: "mcp.action_revoked", reason: "已撤销" },
     action: { ...knowledgeActions.read.action } }) as ActionView;
-  const picked = [{ capability_id: "pages.subject.read", version: 2, provider_id: "pages" }];
+  const picked = [{ capability_id: "pages.subject.read", version: 1, provider_id: "pages" }];
   const directory = [offered("knowledge.search"), offered("knowledge.read"), offered("knowledge.grep", false), offered("pages.subject.read", true, "pages")];
   assert.deepEqual(withKnowledgeTools(picked, directory).map(ref => ref.capability_id), ["pages.subject.read", "knowledge.search", "knowledge.read"],
     "a revoked one is left out; a non-knowledge action is not added");
@@ -225,15 +225,15 @@ test("PMAT-36 a Coding round that carries 「列出项目资料」 gets the cata
   } });
   const list = [{ capability_id: "knowledge.list", version: 1, provider_id: "system.knowledge" }];
 
-  assert.equal(await knowledgeCatalogMaterial(actions(3), [], "仓库着火", "s1"), null, "a round without the list tool gets none");
-  const small = await knowledgeCatalogMaterial(actions(3), list, "仓库着火", "s1");
+  assert.equal(await knowledgeCatalogMaterial(actions(3), [], "仓库着火"), null, "a round without the list tool gets none");
+  const small = await knowledgeCatalogMaterial(actions(3), list, "仓库着火");
   assert.ok(small?.text.startsWith("这个项目的资料一共 3 份，都列在下面。") && small.text.includes("- k0000002「资料 2」（Pages）：第 2 份的简介"), small?.text);
   assert.deepEqual([small!.title, asked.length], ["项目资料目录", 1]);
 
   asked.length = 0;
-  const large = await knowledgeCatalogMaterial(actions(50), list, "仓库着火", "s1");
+  const large = await knowledgeCatalogMaterial(actions(50), list, "仓库着火");
   assert.match(large!.text, /一共 50 份，下面是与这一轮最相关的 20 份/);
   assert.deepEqual(asked, [{ related_to: "仓库着火", limit: 40 }], "one listing, the related pieces first");
-  assert.equal(await knowledgeCatalogMaterial(actions(0), list, "仓库着火", "s1"), null, "nothing listed, nothing given");
-  assert.equal(await knowledgeCatalogMaterial(actions(3, true), list, "仓库着火", "s1"), null, "a listing that fails does not stop the round");
+  assert.equal(await knowledgeCatalogMaterial(actions(0), list, "仓库着火"), null, "nothing listed, nothing given");
+  assert.equal(await knowledgeCatalogMaterial(actions(3, true), list, "仓库着火"), null, "a listing that fails does not stop the round");
 });

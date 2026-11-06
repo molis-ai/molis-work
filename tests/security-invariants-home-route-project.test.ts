@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
+import { ISSUES_PLUGIN_ID, issuesManifest } from "@molis-ai/molis-work-plugin-issues";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginExecutionControl, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -18,16 +18,20 @@ import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-run
 const issue = { title: "项目里的问题", type: "bug", description: "在项目页面里记下" };
 
 test("S-31 W5-01-STREAM-01 a Home route keeps the Host-issued project's identity while forwarding real action progress", { timeout: 60_000 }, async t => {
+  // Give the real Home action a streamed route for this test. Its owner, SQL and Host-issued project control stay unchanged. The route
+  // is declared in Issue's own Manifest before the Host starts and hands the definition over: the platform runs on the frozen copy it
+  // takes then, so a route changed on the running instance would never be read.
+  const declared = issuesManifest.routes!.find(candidate => candidate.route_id === "issues.create")!, originalStream = declared.stream;
+  declared.stream = "ndjson";
+  t.after(() => { if (originalStream === undefined) delete declared.stream; else declared.stream = originalStream; });
   const { home, host, request, project } = await serveHomeRuntime(t), current = await project("Stream into this project");
   const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
-  const manifest = platform.supervisor.manifest(ISSUES_PLUGIN_ID)!;
-  const route = manifest.routes!.find(candidate => candidate.route_id === "issues.create")!;
+  assert.equal(platform.supervisor.manifest(ISSUES_PLUGIN_ID)!.routes!.find(candidate => candidate.route_id === "issues.create")!.stream, "ndjson",
+    "the running instance was handed the streamed route");
   const action = platform.runtime.contribution(install.install_id)!.actions!.find(candidate => candidate.capability_id === "issues.create")!;
-  const originalStream = route.stream, originalHandle = action.handle;
-  // Give the real Home action a streamed route for this test. Its owner, SQL and Host-issued project control stay unchanged.
-  route.stream = "ndjson";
+  const originalHandle = action.handle;
   action.handle = (caller, input) => { caller.on_progress?.({ stage: "saving", progress: 0.5 }); return originalHandle(caller, input); };
-  t.after(() => { if (originalStream === undefined) delete route.stream; else route.stream = originalStream; action.handle = originalHandle; });
+  t.after(() => { action.handle = originalHandle; });
   const lines = await streamLines(await request(`/projects/${current.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue }));
   assert.deepEqual(lines.filter(line => line.type === "progress"), [{ type: "progress", stage: "saving", progress: 0.5 }]);
   assert.equal(lines.at(-1)?.type, "result");
@@ -155,7 +159,7 @@ test("S-31 a plugin cannot name the project itself: a project on a control the H
   const where: ActionDefinition<Record<string, never>, string | null> = { capability_id: "relay.where", version: 1, operation: "query",
     action: { title: "在哪个项目", description: "说出这次调用所在的项目", scope: "home", permissions: ["relay:read"], kind: "query",
       audiences: ["user"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } };
-  const relay: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "relay", kind: "app",
+  const relay: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "relay", kind: "app",
     publisher: { publisher_id: "example", signature: "home-relay" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "探针" }, { permission: "relay:read", required: true, reason: "探针" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [where],

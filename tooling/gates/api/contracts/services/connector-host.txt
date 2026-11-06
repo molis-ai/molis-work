@@ -91,6 +91,74 @@ export declare const CONNECTOR_USAGES_OUTPUT_SCHEMA: {
 
 export declare const CONNECTOR_USAGES_OUTPUT_TYPE = "molis.connector-usages.output.v1";
 
+export declare const CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA: {
+    type: string;
+    properties: {
+        from_connection_id: {
+            maxLength: number;
+            type: string;
+            minLength: number;
+        };
+        to_connection_id: {
+            maxLength: number;
+            type: string;
+            minLength: number;
+        };
+        usage_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+                maxLength: number;
+            };
+            minItems: number;
+            maxItems: number;
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const CONNECTOR_USAGES_SWITCH_INPUT_TYPE = "molis.connector-usages-switch.input.v1";
+
+export declare const CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA: {
+    type: string;
+    properties: {
+        switched: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+                maxLength: number;
+            };
+        };
+        refused: {
+            type: string;
+            items: {
+                type: string;
+                properties: {
+                    usage_id: {
+                        type: string;
+                        minLength: number;
+                        maxLength: number;
+                    };
+                    code: {
+                        type: string;
+                        maxLength: number;
+                        pattern: string;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE = "molis.connector-usages-switch.output.v1";
+
 export declare const CONNECTOR_USAGE_SCHEMA: {
     type: string;
     properties: {
@@ -149,7 +217,7 @@ export declare const CONNECTOR_USAGE_SCHEMA: {
     additionalProperties: boolean;
 };
 
-export type ConnectorAuthKind = "github" | "gmail" | "notion" | "feishu" | "token" | "none";
+export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
 
 export interface ConnectorCallControl {
     readonly signal: AbortSignal;
@@ -184,6 +252,12 @@ export interface ConnectorCheckObservation {
     account?: {
         login: string;
         account_id?: string;
+    };
+    retry_at?: string;
+    subject?: {
+        kind: "model-provider";
+        id: string;
+        revision: string;
     };
 }
 
@@ -220,6 +294,7 @@ export interface ConnectorConnectionStatus {
         observed_at?: string;
         last_check?: ConnectorCheckObservation;
         current?: boolean;
+        retry_at?: string;
     };
     authorization: {
         service: {
@@ -304,6 +379,8 @@ export interface ConnectorHealth {
     status: "connected" | "disconnected" | "error" | "needs_auth";
     message: string;
     action?: string;
+    failure?: ConnectorFailureKind;
+    retryAfterAt?: string;
 }
 
 export interface ConnectorHostApi {
@@ -344,6 +421,10 @@ export interface ConnectorMethodOption {
         }[];
         readonly note?: string;
         readonly callback_path?: string;
+        readonly callback_host?: string;
+        readonly device?: {
+            readonly login_ready: boolean;
+        };
     };
     readonly cli?: {
         readonly binary: string;
@@ -436,6 +517,20 @@ export interface ConnectorUsagesInput {
     connection_id: string;
 }
 
+export interface ConnectorUsagesSwitchInput {
+    from_connection_id: string;
+    to_connection_id: string;
+    usage_ids?: string[];
+}
+
+export interface ConnectorUsagesSwitchResult {
+    switched: string[];
+    refused: Array<{
+        usage_id: string;
+        code: string;
+    }>;
+}
+
 export declare const connectorErrors: {
     "connector.connection.disconnected": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     "connector.connection.invalid": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
@@ -455,6 +550,8 @@ export declare const connectorErrors: {
 export declare function defineConnectorUsagesAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesInput, {
     usages: ConnectorUsage[];
 }>;
+
+export declare function defineConnectorUsagesSwitchAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult>;
 
 export declare const servicesConnectorHostContract: {
     readonly contractId: "io.molis.work.service.connector-host.v1";

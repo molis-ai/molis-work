@@ -134,7 +134,7 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
   const station = defineWorkflowContentActions({ id: "publisher-notes", title: "Other notes", icon: "note", subject_kind: "note", read_permissions: [], write_permissions: [], create: true });
   const stationActions = [station.list, station.read, station.receive, station.create];
   const definition: PluginDefinition = {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Other publisher", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "Other publisher", kind: "app",
       publisher: { publisher_id: "directory-fixture", signature: "different-publisher-signature" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: stationActions,
       ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: "Other publisher", icon: "note", group: "make",
@@ -237,7 +237,7 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
     escapeHtml: String, translate: (value: string) => value, installedByHand };
   const pluginId = "io.molis.work.example.directory-fixture";
   const definition = (name: string): PluginDefinition => admit({
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
       publisher: { publisher_id: "example", signature: "plugin-directory" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
       ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: name, icon: "note", group: "make", accepts_objects: true,
@@ -282,7 +282,7 @@ test("RAC-609-BLOCK-01 an installed plugin blocked by a missing dependency leave
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const blockedId = "io.molis.work.example.directory-blocked", siblingId = "io.molis.work.example.directory-sibling", starts: string[] = [];
   const definition = (pluginId: string, missing = false): PluginDefinition => ({
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
       publisher: { publisher_id: "directory-fixture", signature: pluginId }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: missing ? ["directory.missing.v1"] : [] }, artifacts: { produces: [], consumes: [] },
       ...(missing ? { requires: [{ capability_id: "directory.missing.v1", version: 1, reason: "Directory regression" }] } : {}),

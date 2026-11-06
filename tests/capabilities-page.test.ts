@@ -19,8 +19,10 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
   const project = catalog.getProject(created.project_id);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   // The project's plugins (Inbox among them) come from the Catalog, so the Host reads it the way the desktop does.
-  const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
+  const policy = projectActionAvailability((options, run) => withCatalog(options, run), home);
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} }, actionAvailability: policy, sceneAvailability: policy });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: "capabilities-ui-test-control-token" });
   let enabled = true, calls = 0;
   const definition: ActionDefinition = { capability_id: "unknown.fixture.judge", version: 7, operation: "command", action: {
@@ -106,6 +108,6 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
     assert.equal((await fetch(base + "/settings/mcp", { redirect: "manual" })).headers.get("location"), "/capabilities/access");
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+    await host.close(); await rm(home, { recursive: true, force: true });
   }
 });

@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, createInboxActionHandlers } from "@molis-ai/molis-work-plugin-inbox";
+import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, createInboxActionHandlers, inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -353,4 +353,37 @@ test("Inbox declares its page routes in the Manifest, the Runtime matches them, 
   assert.equal(match("GET", "/api/plugins/io.molis.work.inbox/entries/entry-1/status"), null, "the status route answers POST only");
   assert.equal(match("GET", "/api/plugins/io.molis.work.inbox/workbench"), null, "the stage fragment is the shell's, not a route of the plugin");
   assert.equal(match("GET", "/api/inbox"), null);
+});
+
+
+test("RAC-2511 RAC-2514 Inbox stage retains missing subjects and filters their recommendations without swallowing failures", async t => {
+  const record = (id: string, subject_type: AttentionEntryRecord["subject_type"]): AttentionEntryRecord => ({ entry_id: id, owner_plugin_id: null, project_id: "owner-stage", subject_type,
+    subject_id: id + "-subject", reason: subject_type === "source_fault" ? "source_fault" : subject_type === "goal_decision" ? "goal_decision" : "manual", status: "open", revision: 1, detail: {},
+    created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z", completed_at: null });
+  const records = [record("present", "feed_item"), record("missing-item", "feed_item"), record("missing-source", "source_fault"), record("missing-goal", "goal_decision")];
+  let failure: Error | undefined, allMissing = false;
+  let reached: ReadonlySet<string> | undefined;
+  const service = new ActionService();
+  const dispose = service.registerProvider({ provider: { provider_id: inboxManifest.plugin_id, plugin_id: inboxManifest.plugin_id, kind: "plugin", title: "Inbox", project_id: "owner-stage" }, definitions: INBOX_ACTIONS,
+    handlers: createInboxActionHandlers({ listEntries: () => records, setStatus: () => { throw new Error("No write belongs to a stage read"); },
+      stageSubjects: async entries => { if (failure) throw failure; return entries.map(entry => ({ entry_id: entry.entry_id, title: !allMissing && entry.entry_id === "present" ? "Readable owner item" : null, source_label: "Feed" })); },
+      readJudgment: () => ({ function_key: null, functions: [], summary: { name: null, enabled: false, available: false, reason: "尚未绑定规则" } }),
+      recommendations: async (_caller, ids) => { reached = ids; return { judgments: [] }; } }) });
+  t.after(dispose);
+  const caller = { actor_id: "stage-owner", audience: "user" as const, project_id: "owner-stage", permissions: [...INBOX_ACTION_PERMISSIONS] };
+  const data = await service.invoke(caller, inboxActions.stage, {});
+  assert.deepEqual(data.entries, records); assert.deepEqual([...reached!], ["present"]);
+  const ui = new UiHost(); ui.register(inboxUiContribution);
+  const render = (value: typeof data) => ui.render({ contribution_id: INBOX_UI_CONTRIBUTION_ID, surface: "workbench", model: {
+    route_prefix: "/projects/owner-stage", shown_plugins: ["inbox"], data: value, primitives,
+  } });
+  const html = render(data);
+  assert.match(html, /Readable owner item/); assert.match(html, /原 Feed Item 已不可用/); assert.match(html, /原来源已不可用/); assert.match(html, /原 Goal 已不可用/);
+  for (const entry of records) assert.ok(html.includes(`data-inbox-entry-id="${entry.entry_id}"`));
+  allMissing = true;
+  assert.match(render(await service.invoke(caller, inboxActions.stage, {})), /原 Feed Item 已不可用/);
+  assert.equal(reached?.size, 0);
+  failure = new Error("The subject owner failed while reading");
+  await assert.rejects(service.invoke(caller, inboxActions.stage, {}), error => error === failure);
+  assert.deepEqual(data.entries, records);
 });

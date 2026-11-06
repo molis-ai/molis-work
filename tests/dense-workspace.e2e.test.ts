@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { createLocalFeedApplication, createLocalFeedSourceService } from './fixtures/feed-library.js';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { GoalProjectApplication } from './fixtures/goal-application.js';
+import { pluginFrameBrowser } from './fixtures/plugin-frame-browser.js';
 
 test('Dense workspace keeps many long tabs, nested panes and long Feed content inside the viewport',{timeout:90000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   const {command,sessionId,evaluate,click,openGoalFrame,waitFor,navigate,origin,projectId}=b;
-  const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'density-test'});catalog.close();
+  const owners=await Promise.all([0,1,2].map(index=>pluginFrameBrowser(t,b,'feed',`iframe.tab-content-frame[data-dense-owner="${index}"]`)));
+  await addProjectPlugin(b.web, projectId!, "feed");
   const app=new GoalProjectApplication(b.store),ids:string[]=[];
   for(let i=0;i<12;i++)ids.push(app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:`工作区验收 ${i}：跨团队长期目标，保留清晰的信息层级和用户注意力`,outcome:'切换与分屏可连续使用',actor_id:'web-user',actor_kind:'user',idempotency_key:'dense-'+i}).goal.goal_id);
   const feed=createLocalFeedApplication(b.store.db),source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:'custom_rss',name:'长期观察来源：设计、工程与产品的连续记录',feed_url:'https://example.com/density.xml'}).source;
@@ -26,19 +28,23 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
     await click('[data-titlebar-tabs]:not([hidden]) [data-tab-split], .tab-pane.is-focused [data-tab-split]');await click(`[data-layout-split=${direction}]`);
     await waitFor(`document.querySelectorAll('iframe.tab-content-frame').length>=${direction==='right'?2:3}`);
   }
-  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.querySelector('[data-feed-entry-id]'))");
-  const frame="document.querySelector('iframe.tab-content-frame')";
+  const bindings=await evaluate<Array<{pane:string;tab:string;actualPane:string}>>("[...document.querySelectorAll('iframe.tab-content-frame')].filter(frame=>!frame.hidden&&frame.getClientRects().length).map((frame,index)=>{frame.dataset.denseOwner=String(index);return {pane:frame.dataset.paneOwner,tab:frame.dataset.paneTab,actualPane:document.querySelector('[data-tab-pane=\"'+CSS.escape(frame.dataset.paneOwner)+'\"]')?.dataset.tabPane}})");
+  assert.equal(bindings.length,3);assert.equal(new Set(bindings.map(binding=>binding.pane)).size,3);
+  assert.ok(bindings.every(binding=>binding.pane===binding.actualPane&&binding.tab),'each child belongs to its actual pane and tab');
+  for(const owner of owners)await owner.waitFor("document.querySelector('[data-feed-entry-id]')");
+  const reader=owners[0]!;
   // Wheel over the visible middle of the list: in a short pane its first entry may start below the fold.
-  const wheel=await evaluate<{x:number,y:number}>(`(()=>{const f=${frame},r=f.getBoundingClientRect(),t=f.contentDocument.querySelector('.feed-stage-tree').getBoundingClientRect(),bottom=Math.min(t.bottom,r.height);return {x:r.x+t.x+t.width/2,y:r.y+(t.top+bottom)/2}})()`);
+  const wheel=await reader.point('.feed-stage-tree');
   await command('Input.dispatchMouseEvent',{type:'mouseWheel',...wheel,deltaX:0,deltaY:550},sessionId);
-  await waitFor(`${frame}.contentDocument.querySelector('.feed-stage-tree').scrollTop>0`);
-  const entry=await evaluate<{x:number,y:number,id:string}>(`(()=>{const f=${frame},r=f.getBoundingClientRect(),tree=f.contentDocument.querySelector('.feed-stage-tree').getBoundingClientRect(),e=[...f.contentDocument.querySelectorAll('[data-feed-entry-id]')].find(e=>{const q=e.getBoundingClientRect();return q.top>=tree.top && q.bottom<=tree.bottom});const q=e.getBoundingClientRect();return {x:r.x+q.x+q.width/2,y:r.y+q.y+q.height/2,id:e.dataset.feedEntryId}})()`);
-  await command('Input.dispatchMouseEvent',{type:'mousePressed',x:entry.x,y:entry.y,button:'left',clickCount:1},sessionId);
-  await command('Input.dispatchMouseEvent',{type:'mouseReleased',x:entry.x,y:entry.y,button:'left',clickCount:1},sessionId);
-  await waitFor(`${frame}.contentDocument.querySelector('[data-feed-detail="${entry.id}"]')?.textContent.includes('记录 39')`);
+  await reader.waitFor("document.querySelector('.feed-stage-tree').scrollTop>0");
+  const entryId=await reader.evaluate<string>("(()=>{const tree=document.querySelector('.feed-stage-tree').getBoundingClientRect(),entry=[...document.querySelectorAll('[data-feed-entry-id]')].find(entry=>{const box=entry.getBoundingClientRect();return box.top>=tree.top&&box.bottom<=Math.min(tree.bottom,innerHeight)});return entry?.dataset.feedEntryId})()");
+  assert.ok(entryId,'one complete Feed row is visible in this pane');
+  await reader.click(`[data-feed-entry-id="${entryId}"]`);
+  await reader.waitFor(`document.querySelector('[data-feed-detail="${entryId}"]')?.textContent.includes('记录 39')`);
 
   assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollWidth<=innerWidth+1'),true);
   assert.equal(await evaluate("[...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument.scrollingElement.scrollHeight<=f.clientHeight+1)"),true);
+  for(const owner of owners)assert.equal(await owner.evaluate('document.scrollingElement.scrollHeight<=innerHeight+1&&document.scrollingElement.scrollWidth<=innerWidth+1'),true);
   const dir=`${REVIEW_EVIDENCE}/closing-v14`;await mkdir(dir,{recursive:true});
   const capture=async(name:string)=>{const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}.png`,Buffer.from(shot.data,'base64'));};
   await capture('dense-desktop');

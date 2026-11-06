@@ -1,4 +1,4 @@
-// The error gates as metrics for scripts/check-health-gates.mjs (specs/repository-anti-corruption W3-02-B). Four per-file counts that
+// The error gates as metrics for scripts/check-health-gates.mjs (specs/archive/repository-anti-corruption W3-02-B). Four per-file counts that
 // may only fall, compared with the merge-base like every health number, and the owner table that one of them reads:
 //
 //   errorSubclasses       classes that extend an `…Error`                         scripts/gates/error-scan.mjs

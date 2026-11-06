@@ -42,7 +42,7 @@ type Proposals = { proposals: Array<{ proposal_id: string }> };
  */
 function sessionKeeper() {
   const contexts: PluginStartContext[] = [];
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.round-sessions", version: "1.0.0",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.round-sessions", version: "1.0.0",
     name: "Round sessions", kind: "app", publisher: { publisher_id: "example", signature: "round-sessions" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [agentHostCapabilities.startRun.capability_id, agentHostCapabilities.listActions.capability_id, agentOfferActions.run.capability_id] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

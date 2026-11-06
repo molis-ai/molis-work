@@ -14,7 +14,7 @@ import { LocalProjectDatabase, openPluginProjectLibrary, seedDemoBoard } from "@
 import { pluginStatementGuard, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 
-// S-59 (BL-395; specs/repository-anti-corruption/slices/sandbox-project-database-limits.md): a sandboxed plugin's statements run in
+// S-59 (BL-395; specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md): a sandboxed plugin's statements run in
 // a process the Host can kill, not on the Host's thread, because neither SQLite driver the Host has can interrupt a statement and
 // `Worker.terminate()` cannot stop a native call. What this file asserts is the refusal: a statement past its time or its memory is
 // killed and answered with a code, a result past the rows or bytes is refused before crossing to the Host, a recursive query never starts,
@@ -32,7 +32,7 @@ const ROWS = 1000;
 const declaration: PluginDatabaseDeclaration = { store_name: "sbxlimit", version: 1, read_permission: "sbxlimit:read", write_permission: "sbxlimit:write",
   schema: "CREATE TABLE sbxlimit_rows (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
 const PLUGIN_ID = "io.molis.work.example.sbxlimit";
-const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: PLUGIN_ID, kind: "app",
+const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: PLUGIN_ID, kind: "app",
   publisher: { publisher_id: "molis", signature: "probe-sbxlimit" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: ["storage:private", declaration.read_permission, declaration.write_permission].map(permission => ({ permission, required: true, reason: "读写自己的表" })),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [],

@@ -14,7 +14,7 @@ import type { IntegrationAccountPresentation, IntegrationBinding } from '@molis-
 import { SANDBOX_INTEGRATION_LIMITS, SANDBOX_INTEGRATION_OPERATIONS, SANDBOX_INTEGRATION_SOURCE_SLOT, type SandboxEffects, type SandboxIdentity, type SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createCallConnectionsClient, type CallConnectionsPort } from '@molis-ai/molis-work-plugin-runtime';
 import { createSandboxRunner, sandboxServicesFor, type SandboxCallControl, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
-import { pollingIntegrationBinding } from '@molis-ai/molis-work-plugin-sdk';
+import { checkedSourcePresentation, checkedSourcePresentationInput, pollingIntegrationBinding } from '@molis-ai/molis-work-plugin-sdk';
 import type { InstalledRelease } from './installed-release.js';
 import { GONE } from './plugin-builder/installed.js';
 import { staleInstallation } from './installed-plugin-host.js';
@@ -39,6 +39,18 @@ export function sandboxIntegrationContribution(input: SandboxIntegrationProxyInp
   const answersAccount = input.operations.includes(SANDBOX_INTEGRATION_OPERATIONS.account);
   return {
     kind: 'integration',
+    ...(input.manifest.source_presentations?.length ? { async presentSource(id: string, request: import('@molis-ai/molis-work-contracts/platform/plugin-integrations').SourcePresentationInput) {
+      if (!input.manifest.source_presentations!.includes(id) || !input.operations.includes(SANDBOX_INTEGRATION_OPERATIONS.presentation)) {
+        throw sandboxIntegrationErrors.integration_source_invalid('来源展示没有声明或兑现');
+      }
+      const checked = checkedSourcePresentationInput(request);
+      // A pure operation: no source identity, binding, connections or other effect port is passed into the sandbox.
+      const answer = await input.call(SANDBOX_INTEGRATION_OPERATIONS.presentation,
+        { presentation_id: id, ...(checked.cursor === undefined ? {} : { cursor_json: JSON.stringify(checked.cursor) }) }, {}) as Answer;
+      let presentation: unknown;
+      try { presentation = JSON.parse(answer.presentation_json as string); } catch { return invalid('来源展示必须返回 presentation_json'); }
+      return checkedSourcePresentation(presentation);
+    } } : {}),
     bind(binding) {
       const config_json = JSON.stringify(binding.config ?? {});
       if (Buffer.byteLength(config_json, 'utf8') > SANDBOX_INTEGRATION_LIMITS.configLength) throw sandboxIntegrationErrors.integration_source_invalid(`来源 ${binding.source_id} 的设置太大，集成插件收不下`);

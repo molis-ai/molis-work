@@ -19,8 +19,9 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   const home = await mkdtemp(join(tmpdir(), "dataset-mcp-"));
   let host: MolisWorkLocalHost | undefined, web: TestHostServer | undefined;
   const start = async () => {
-    host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home),
+    host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home),
       completeText: async () => "MCP 列名" });
+    const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
     web = await serveTestHost(null, { home, host });
   };
   const stop = async () => { await web?.close(); await host?.close(); web = undefined; host = undefined; };
@@ -40,8 +41,8 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   const connect = (clientId: string, projectId: string): Tool => createActionMcpPorts({ serverInfo: { name: "external-dataset", version: "1" },
     service: new LocalActionGatewayClient({ url: web!.origin, homeDirectory: home, clientId, projectId, controlToken: web!.controlToken }),
     context: () => ({ actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [] }) });
-  // W4-6-07 RAC-633-MIG-01: content.receive and subject.read have version 2; the other tools keep version 1.
-  const tool = (name: string) => `dataset.${name}__v${["content.receive", "subject.read"].includes(name) ? 2 : 1}`;
+  // W4-6-07 RAC-633-MIG-01 N26: the reset keeps every current tool at version 1.
+  const tool = (name: string) => `dataset.${name}__v1`;
   const answer = async (client: Tool, name: string, args: Record<string, unknown>) =>
     (await handleMcpMessage({ id: 1, method: "tools/call", params: { name: tool(name), arguments: args } }, client))!.result as { isError: boolean; content: Array<{ text: string }>; structuredContent?: unknown };
   const call = async (client: Tool, name: string, args: Record<string, unknown> = {}): Promise<any> => {

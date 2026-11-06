@@ -14,7 +14,7 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// specs/repository-anti-corruption PG-036 (C8-3): the Assistant carries a work in any plugin that publishes the work-executor protocol,
+// specs/archive/repository-anti-corruption PG-036 (C8-3): the Assistant carries a work in any plugin that publishes the work-executor protocol,
 // found by the roles' types and kept by the plugin's id. These tests speak the protocol with a plugin that is not Coding.
 
 const PLUGIN = "io.molis.work.fixture-agent", KIND = "fixture_session", MODES = EXECUTOR_MODES;
@@ -336,7 +336,7 @@ test("MEM-35 executor supplements bind personal provenance to the installed gene
     if (roleOfCapability(PLUGIN, definition.capability_id) === "run.control") originals.push(context.original_input);
     return exec.respond(roleOfCapability(PLUGIN, definition.capability_id), input as Input);
   } }));
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "样例 Agent", kind: "app",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "样例 Agent", kind: "app",
     publisher: { publisher_id: "example", signature: "executor-original" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission, required: false, reason: "执行用户的工作" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: definitions },

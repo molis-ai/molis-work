@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/dist/project-arrival.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
@@ -24,11 +24,8 @@ async function openChooser(t: TestContext) {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return null;
   const { homeDirectory, projectId } = browser;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const others: string[] = [];
-  try {
-    for (const name of ["Coding 开发沙盒", LONG_NAME, "Footballnia"]) others.push((await catalog.createProject({ display_name: name, actor_id: "arrival-test" })).project_id);
-  } finally { catalog.close(); }
+  for (const name of ["Coding 开发沙盒", LONG_NAME, "Footballnia"]) others.push((await createProject(browser.web, name)).project_id);
   mkdirSync(join(homeDirectory, "config"), { recursive: true });
   const memory = { schema_version: 1, last_project_id: projectId!, projects: {
     [projectId!]: { last_opened_at: hoursAgo(2), description: "把目录交互的每一步都在真实浏览器里走一遍，确认它们顺手。" },
@@ -353,8 +350,7 @@ test("sixty projects scroll inside the directory, the keys keep the selection in
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { homeDirectory, command, sessionId, evaluate, waitFor, navigate, origin, click } = browser;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  try { for (let index = 1; index <= 60; index++) await catalog.createProject({ display_name: `项目 ${String(index).padStart(2, "0")}`, actor_id: "arrival-test" }); } finally { catalog.close(); }
+  for (let index = 1; index <= 60; index++) await createProject(browser.web, `项目 ${String(index).padStart(2, "0")}`);
   const press = async (key: string) => {
     const codes: Record<string, number> = { End: 35, Home: 36, ArrowDown: 40 };
     await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key, code: key, windowsVirtualKeyCode: codes[key] }, sessionId);

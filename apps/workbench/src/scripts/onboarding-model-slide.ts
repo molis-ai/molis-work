@@ -1,5 +1,5 @@
 /**
- * The journey's text-model step (specs/onboarding-model-link). It reads and saves through the model settings capability
+ * The journey's text-model step (specs/archive/onboarding-model-link). It reads and saves through the model settings capability
  * (`/api/settings/models?setup=1` and the same save). The screen is a journey step: the question on the left, this
  * step's own content on the right. The settings document is not drawn here.
  */

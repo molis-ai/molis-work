@@ -253,7 +253,8 @@ test("primitive controls keep authored states instead of a class dump", () => {
   // Soft Workbench (DESIGN.md → Buttons): links are copper.
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--link \{[^}]*color: var\(--accent\);/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-btn:disabled \{[^}]*background: var\(--control-fill\)/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:disabled,[\s\S]*background: var\(--action\)/);
+  // A disabled filled button gives up its fill for a flat wash; a loading one keeps its own look.
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn:is\(\.mw-btn--primary, \.mw-btn--secondary, \.mw-btn--danger\):disabled:not\(\[data-loading\]\) \{[^}]*background: color-mix\(in srgb, var\(--ink\) 5%, transparent\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-spinner \{[\s\S]*currentColor/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-catalog \.mw-btn \{ min-height: 44px/);
   // Soft Workbench (DESIGN.md → Focus): controls take the copper stroke, fields the copper border and halo.

@@ -397,10 +397,9 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.match(html, /capsule__goal-row/);
   assert.match(html, /aria-selected/);
   assert.match(html, /overflow-x: auto/);
-  // Soft Workbench (DESIGN.md → Colors, Typography): the capsule shares the shell tokens (copper accent) and the
-  // system font stack, with weight roles instead of a forced 400. The visual refinement darkened copper a step
-  // (#95624c → #93604b) so copper links and focus text reach 4.5:1 on paper (spec → 第三轮 · 对比度).
-  assert.match(html, /--accent: #93604b/);
+  // Soft Workbench (DESIGN.md → Colors, Typography): the capsule shares the shell tokens (mist-blue accent) and the
+  // system font stack, with weight roles instead of a forced 400. The accent reaches 4.5:1 on paper.
+  assert.match(html, /--accent: #3c6e98/);
   assert.match(html, /Noto Sans SC/);
   assert.doesNotMatch(html, /font-weight: 400 !important/);
   assert.doesNotMatch(html, /#4f6ff7/);
@@ -416,7 +415,12 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.match(html, /activeRequest\?\.controller\.abort\(\)/);
   assert.match(html, /if \(activeRequest\) return;/);
   assert.match(html, /load\(\{ showLoading: true \}\)/);
-  assert.match(html, /window\.setInterval\(refresh, 2500\)/);
+  // N54: the timers follow the window's visibility (tests/capsule-polling.test.ts runs them); the cadence is named, not a bare 2500.
+  assert.match(html, /const VISIBLE_REFRESH_MS = 2500;/);
+  assert.match(html, /const HIDDEN_REFRESH_MS = 30000;/);
+  assert.match(html, /window\.setInterval\(refresh, VISIBLE_REFRESH_MS\)/);
+  assert.match(html, /document\.addEventListener\("visibilitychange"/);
+  assert.match(html, /response\.status === 404/);
   assert.match(html, /prefers-reduced-motion: reduce/);
   assert.match(html, /molis-work:capsule-view:v1/);
   assert.match(html, /expandedGoals\.get\(projectId\)/);

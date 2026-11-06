@@ -12,7 +12,7 @@ export function queryProbe(name = "queryprobe", scope: "home" | "project" = "hom
   } };
   const target: { current: ActionReference } = { current: pagesContentActions.read };
   const behavior: { before?(): Promise<void>; after?(): Promise<void>; handle?(context: PluginStartContext, caller: ActionExecutionContext): Promise<unknown> } = {};
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `query-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", ...(pages ? ["pages:read"] : [])].map(permission => ({ permission, required: permission === "storage:private" || scope === "project", reason: "Delegated fixture material" })),
     capabilities: { provides: [], consumes: consumed ? [pagesContentActions.read.capability_id, pagesContentActions.list.capability_id, "query.target", "query.command"] : [] },

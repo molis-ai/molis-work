@@ -1,6 +1,6 @@
 # 门禁数据（tooling/gates）
 
-状态：现行；门禁脚本是 `scripts/check-health-gates.mjs`（入口）、`scripts/gates/`（各门禁的实现），规格在 [specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §5a。
+状态：现行；门禁脚本是 `scripts/check-health-gates.mjs`（入口）、`scripts/gates/`（各门禁的实现）。本文管现行口径和命令；历史方案与演进证据在 [specs/archive/repository-anti-corruption](../../specs/archive/repository-anti-corruption/spec.md) §5a。
 
 `pnpm health:check` 与 CI 的「Health gates」步骤读这里的文件。比较的规则、`--base`、`--update`、`--report` 的用法见 `AGENTS.md`「构建与测试」和 `scripts/check-health-gates.mjs` 开头的注释，这里只说有哪些文件，以及两类门禁的口径。
 
@@ -55,18 +55,22 @@
 
 验证：`node scripts/run-tests.mjs tests/health-gates-test-imports-tool.test.ts`——在临时仓库里：每种拆成两份的写法（源码加包名、帮手、别的包的构建、动态 import、`dist` 换成 `src`、新测试、没人导入的夹具一开始就拆开或多拆一个包）在 `--base main` 下必须失败，`--update` 藏不住；类型导入、`dist` 孪生、只用源码、没人导入而只有一份的夹具必须不变红；删掉拆分（含夹具里的）会降低、改名保留记录。同一个文件也验证重写工具（公开名字走入口、别名、非公开走 `dist`、动态导入的解构、`apps/*` 的名字规则、没有构建孪生时不动、自检失败时不写）。
 
+## 包清单（`scripts/gates/package-inventory.mjs`，W1-18）
+
+唯一现行表在 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，包登记仍来自 `scripts/workspace-packages.mjs`。门禁按首个完全匹配的 11 列表头读取，守包的行集合、层、代码判定的状态、人工列词汇及数字写法；缺文档或缺表就失败。不比较数字列的当前实测值，也不根据默认生成值覆盖人工审查。`--table` 供核对机器列；原包的计划深度、审查及证据须保留。`--check` 和健康门禁只读新表，不回读历史 spec。完整负例在 `tests/package-inventory-gate.test.ts`。
+
 ## 库的版本与维护清单（`scripts/gates/store-versions.mjs`，BL-157）
 
-每个 Home 库只认一个版本，别的一律拒绝（`docs/releases/CHECKLIST.md` 第 3 节）。所以一个 PR 改了某个库的版本，在用的 Home 装新构建之前就要做一次维护。10-13 Pages 由 1 升到 2，没有人写维护步骤，直到 10-17 只读核对真实 Home 才发现。这道门禁把它变成规则；它只会变严，不用基线。
+每个权威 Home 库只认当前版本，错版拒绝；派生库按既有重建合同处理（`docs/releases/CHECKLIST.md` 第 3 节）。一个 PR 改了某个库的版本，必须记录变更及处置。2026-10-30 旧迁移已取消，当前干净重建和真实 Home 的边界归 `docs/system/HOME-DATA.md`；登记不代表已做维护或授权旧转换。10-13 Pages 由 1 升到 2，没有人写维护步骤，直到 10-17 只读核对真实 Home 才发现。这道门禁把它变成规则；它只会变严，不用基线。
 
 | 项 | 说明 |
 | --- | --- |
-| 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `specs/repository-anti-corruption/spec.md` §4.1 的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑） |
-| 条目的写法 | 只认 §4.1 里（从「### 4.1 」到下一个标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，§4.1 之外的同样一张表也不算 |
-| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，都以退出码 2 结束，不会当作通过。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或 spec 也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 spec 的包清单表）不适用 |
+| 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `docs/system/CONTRACT-CHANGES.md`「存储版本变更登记」内的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑） |
+| 条目的写法 | 只认「存储版本变更登记」里（从固定标题「### 存储版本变更登记」到下一个一至三级标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，该节之外的同样一张表也不算 |
+| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，都以退出码 2 结束，不会当作通过。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
 | 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。它也不检查清单里写的维护有没有做 |
 
-验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在 §4.1 之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有 §4.1、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。
+验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。
 
 ## 错误模型（`scripts/gates/error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
 
@@ -100,7 +104,7 @@
 
 ## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
 
-共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter 先找出共用表里的那部分（已经按需加载的插件取 `shared`，没有框架的插件整张都在共用表），再**不扣 `stylesheetShared`** 地数这部分里点名该插件（名字空间或 `stylesheetPrefixes`）的规则块；登记的 `settingsStylesheet` 不拆、整张进设置与工作台两张共用表，所以它的规则块全部加进该插件的数（T-115）。声明共用、或页面跑在框架里，都不能把数字变成 0（门禁第一版被评审指出的绕过口）。Goals 没有框架，登记的 `stylesheet` 与 `settingsStylesheet` 整张在共用表里；数的仍是一直数的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES` 三个常量（PG-060 起由登记带进共用表，不再由 `page-assets.ts` 直接拼）。现在冻结五个插件：Coding 9、Feed 234、Form 6、Goals 321、插件创作台 5 —— Coding/Form 是注册里声明共用的属性/类规则，创作台是宿主预览页画的 `as-preview-page`/`pb-surface`，Feed/Goals 没有框架、由外壳画。
+共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/archive/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter 先找出共用表里的那部分（已经按需加载的插件取 `shared`，没有框架的插件整张都在共用表），再**不扣 `stylesheetShared`** 地数这部分里点名该插件（名字空间或 `stylesheetPrefixes`）的规则块；登记的 `settingsStylesheet` 不拆、整张进设置与工作台两张共用表，所以它的规则块全部加进该插件的数（T-115）。声明共用、或页面跑在框架里，都不能把数字变成 0（门禁第一版被评审指出的绕过口）。Goals 没有框架，登记的 `stylesheet` 与 `settingsStylesheet` 整张在共用表里；数的仍是一直数的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES` 三个常量（PG-060 起由登记带进共用表，不再由 `page-assets.ts` 直接拼）。现在冻结五个插件：Coding 9、Feed 234、Form 6、Goals 321、插件创作台 5 —— Coding/Form 是注册里声明共用的属性/类规则，创作台是宿主预览页画的 `as-preview-page`/`pb-surface`，Feed/Goals 没有框架、由外壳画。
 
 - 文件：`tooling/gates/plugin-styles.json`，`{ note, plugins: { "<project_plugin_id>": <rule blocks> }, prefixes: { "<project_plugin_id>": [<prefix>] } }`，只许下降。搬走规则后用 `node scripts/gates/plugin-styles.mjs --update --base origin/main` 在同一个 PR 里降数。
 - 前缀：预算里的每个插件前缀集合须与构建的 `stylesheetPrefixes` 相等，新增声明不能漏记，记过的前缀只许增加。第一次拆分只用当前声明，与生产 `splitOf` 相同；只在共享余量计数时用每个插件的「reference 记的 ∪ 当前预算记的 ∪ 构建声明的」，头部数组不能覆盖历史数组。余量不增长时，`--update` 允许新增并记录前缀，即使插件仍有正计数；删除声明和预算前缀会被拒绝，回到共享表的规则也仍可计数。
@@ -209,6 +213,13 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 ## Rust、Swift、shell 与 Python
 
 `scripts/gates/native-checks.mjs`（开头的注释是口径的出处）。这几项不是数字，没有基线：通过，或者失败，每个告警都算错误。CI 里 `native-checks` 任务（macOS）跑 Rust 和 Swift，`shell-checks` 任务（Linux）跑 shell 与 Python，两个都在 `Verify` 的 `needs` 里；本机 `node scripts/gates/native-checks.mjs rust|swift|shell|python`。
+
+**`native-checks` 只在相关改动时跑**（用户 2026-11-04 在弹窗里批准；改 CI 属红线，已问过）。原因：GitHub 的 macOS arm64 托管机器容量不够，任务排了约 40 分钟也领不到机器（「The job was not acquired by Runner of type hosted even after multiple attempts」），随后被取消，`Verify` 跟着红，PR 和合并队列里的条目都被堵。做法照 `security-invariants`、`product-subset` 已有的写法：`test-selection` 作业（`scripts/ci-test-selection.mjs`）多出一个 `native_mode`（`whole` 或 `none`），`native-checks` 的条件和 `Verify` 都读它：
+
+- **只有选择明确说 `none` 才放行**：事件是 `pull_request` 或 `merge_group`，`test-selection` 成功，`native_mode` 是 `none`，`native-checks` 被跳过，`Verify` 才算通过。选择作业失败、取消、被跳过，或 mode 为空、未知，`native-checks` 照旧要跑，跳过也不通过。直推 main、每晚和手动运行不看选择，照旧跑；合并队列已验过的 push main 照旧由 `queue-check` 放行（现行逻辑没动）。
+- **合并队列里也按同样的规则跳过**：`test-selection` 因此也在 `merge_group` 上跑（队列里的 `security-invariants`、`product-subset` 不读它，照旧整套）。它对队列条目用 `--base HEAD^1`，比的是这一条自己的改动。
+- **照旧要跑的改动**（`scripts/ci-test-selection.mjs` 的 `NATIVE_RUN_WHEN`；名单宁可宽，不可漏；改名按新旧两个路径都看；删除也算）：`apps/desktop/` 和 `apps/local-host/native/` 下任何文件；任何 `.rs`、`.swift`、`.sh`、`.py`；`.github/workflows/`；`scripts/gates/native-checks.mjs`、`tests/native-checks.test.mjs`、`scripts/ci-test-selection.mjs`；`Cargo.toml`、`Cargo.lock`、`rust-toolchain(.toml)`、`clippy.toml`、`rustfmt.toml`（任何目录）和 `.cargo/`；仓库根目录下不是 Markdown 的文件。其余（文档、spec、原型、产品的 TypeScript、测试、技能）跳过。
+- **要加新的触发路径**：改 `NATIVE_RUN_WHEN`，并在 `tests/ci-test-selection.test.ts`（RAC-1766）的清单里写出这个文件；工作流这一半钉在 `tests/ci-queue-verified.test.ts`（RAC-1907）。
 
 | 检查 | 命令 | 范围与说明 |
 | --- | --- | --- |

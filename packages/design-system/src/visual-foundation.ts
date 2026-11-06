@@ -1,9 +1,11 @@
 export {
   MOLIS_WORK_DENSITY_STORAGE_KEY,
+  MOLIS_WORK_SKIN_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
   type MolisWorkDensity,
+  type MolisWorkSkin,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,
 } from "./preferences.js";

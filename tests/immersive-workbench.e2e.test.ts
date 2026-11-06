@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { installProducers } from "./fixtures/installed-producers.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("Project navigation preserves the fixed Goal workspace, terminal instance, and camera without writing Goal facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -87,6 +87,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
+  const inbox = await pluginFrameBrowser(t, browser, "inbox"), feed = await pluginFrameBrowser(t, browser, "feed");
   const app = openProjectVersionStores(store);
   installProducers(store.db, { plugin_id: "example.writer", artifact_types: ["example.note"] });
   for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
@@ -130,17 +131,16 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   // This project: the page changes in place (the switcher's entry wakes, nothing is loaded again).
   await evaluate("window.__stayedOnPage = true");
   assert.equal(await evaluate("document.querySelector('[data-market-add=artifacts]')"), null, "the platform is not a market Plugin");
-  await withMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory }, catalog => {
-    for (const project_id of [projectId!, otherId]) {
-      const before = catalog.listProjectPlugins(project_id);
-      assert.equal(before.includes("artifacts"), false);
-      for (const operation of ["addProjectPlugin", "removeProjectPlugin"] as const) {
-        assert.throws(() => catalog[operation]({ project_id, plugin_id: "artifacts", actor_id: "browser-owner" }),
-          (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
-      }
-      assert.deepEqual(catalog.listProjectPlugins(project_id), before, "rejected platform membership operations do not change members");
+  const membership = async (project_id: string) => (await browser.web.get<{ projects: { project_id: string; plugins: string[] }[] }>("/api/settings/project-plugins")).projects.find(row => row.project_id === project_id)!.plugins;
+  for (const project_id of [projectId!, otherId]) {
+    const before = await membership(project_id);
+    assert.equal(before.includes("artifacts"), false);
+    for (const operation of ["post", "delete"] as const) {
+      await assert.rejects(browser.web[operation](`/api/settings/projects/${project_id}/plugins`, { plugin_id: "artifacts" }),
+        (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
     }
-  });
+    assert.deepEqual(await membership(project_id), before, "rejected platform membership operations do not change members");
+  }
   await click('[data-market-add="files"]');
   await waitFor("document.querySelector('[data-market-add=files]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=files]').classList.contains('is-available')");
   assert.equal(await evaluate("window.__stayedOnPage === true"), true, "adding to this project does not load the page again");
@@ -162,16 +162,18 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=feed]'))"));
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=inbox]'))"));
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
-  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-inbox-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  assert.match(await evaluate<string>("document.querySelector('[data-inbox-stage-group-empty]')?.textContent || document.querySelector('[data-inbox-detail-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
+  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await inbox.waitFor("document.querySelector('[data-inbox-stage-shell]')");
+  assert.match(await inbox.evaluate<string>("document.querySelector('[data-inbox-stage-group-empty]')?.textContent || document.querySelector('[data-inbox-detail-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
   assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
-  assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await feed.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-list]')");
+  assert.equal(await feed.evaluate("document.querySelector('[data-feed-views]')"), null);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
+  assert.ok(await feed.evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-task=all]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-list]')"), null);
 });
 
 test("Project entry lands at home, while refresh preserves work and Goal links remain direct", { timeout: 60_000 }, async (t) => {

@@ -66,6 +66,21 @@ test("S-30 a pane takes a message only from the page around it, from this origin
   assert.equal(top.fromParent({ origin: ORIGIN, source: alone, data: message }), false);
 });
 
+test("S-30 RAC-2687 generic view updates retain the exact pane-window and parent-origin refusals", () => {
+  const { paneA, paneB, stray, panes } = page();
+  for (const view of ["work", "source-a", "all", undefined]) {
+    const data = { type: "workbench-pane-view", view, paneId: "b" };
+    assert.equal(panes.from({ origin: ORIGIN, source: paneA.contentWindow, data }), paneA, "a supplied pane id cannot impersonate pane B");
+    assert.notEqual(panes.from({ origin: ORIGIN, source: paneA.contentWindow, data }), paneB);
+    assert.equal(panes.from({ origin: ORIGIN, source: stray.contentWindow, data }), null);
+    assert.equal(panes.from({ origin: "https://example.com", source: paneA.contentWindow, data }), null);
+    const inside = pane(), reply = { type: "workbench-view", view };
+    assert.equal(inside.panes.fromParent({ origin: ORIGIN, source: inside.around, data: reply }), true);
+    assert.equal(inside.panes.fromParent({ origin: ORIGIN, source: paneB.contentWindow, data: reply }), false);
+    assert.equal(inside.panes.fromParent({ origin: "null", source: inside.around, data: reply }), false);
+  }
+});
+
 test("S-30 a token handed to one pane is taken back only by that pane's frame, and only once", () => {
   const { paneA, paneB, panes } = page();
   const choice = { run: "the ranked landing" };

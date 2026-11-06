@@ -25,7 +25,7 @@
 | E 插件创作台体验规划与视觉组合 | `specs/archive/plugin-builder/` | #100 |
 | F Soft Workbench 全局升级 | `specs/archive/soft-workbench-rollout/`、`specs/archive/soft-workbench-ui/`（相关：`specs/ui-craft-floor/`、`specs/archive/shelf-dropagent-parity/`、`specs/archive/alchemist-plugin/` 的界面部分） | #101 |
 | G 标题栏插件通知铃铛 | `specs/archive/plugin-notification-bell/` | #102 |
-| H 仓库防腐整理与第一轨 | `specs/archive/repository-systematic-review/`、`docs/prompts/code-health-report-2026-09-30.md` | #91、#92、#93、#103、#135 |
+| H 仓库防腐整理与第一轨 | `specs/archive/repository-systematic-review/`、`docs/archive/reviews/code-health-report-2026-09-30.md` | #91、#92、#93、#103、#135 |
 | I Coding 左栏与任务图 | `specs/coding-plugin/` | #104 |
 | J 插件端到端复查与动线优化 | `specs/archive/plugin-e2e-review/` | #108、#112、#117、#120、#126、#131 |
 | K 页面动线与导航全量修复 | `specs/archive/page-interaction-flow/` | #114、#116 |
@@ -1017,6 +1017,6 @@
 
 ### 13.5 需要用户操作的事项
 
-- 删除已合入的远端分支：自动模式拦下了删除。清单见 [第二步 §7](../../repository-anti-corruption/spec.md)；也可以在仓库设置里打开「合并后自动删除分支」。
+- 删除已合入的远端分支：自动模式拦下了删除。清单见 [第二步 §7](../repository-anti-corruption/spec.md)；也可以在仓库设置里打开「合并后自动删除分支」。
 - BACKLOG「待你验收」类的事项（本人试用）。
 - 主检出的无主改动与 `wip/main-checkout-rescue-2026-10-01` 分支：用户在目标里说过由用户处理。

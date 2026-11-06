@@ -18,7 +18,7 @@ import { runningPluginDirectory, type DirectorySource } from "@molis-ai/molis-wo
 const primitives = (lang: "en" | "zh") => ({ L: (value: string) => value, escapeHtml, icon: (name: string) => `<svg data-icon="${name}"></svg>`, htmlLang: () => lang });
 
 const base = (pluginId: string, name: string, extra: Record<string, unknown>, ui: Record<string, unknown>): Record<string, unknown> => ({
-  schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
   publisher: { publisher_id: "example", signature: "example-signature" },
   entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
@@ -86,7 +86,7 @@ test("RAC-1720 the SDK accepts a name_en and a title_en that are one line of Eng
     assert.throws(() => parsePluginManifest(manifest), (error: unknown) => String((error as Error).message).includes(field), `${label} is refused and names ${field}`);
   }
   const v1 = { ...base(LEDGER, "记账本", { name_en: "Ledger Book", kind: "native" }, { contributions: [] }), schema_version: 1, host_api_version: 1 };
-  assert.throws(() => parsePluginManifest(v1), /name_en/u, "a v1 Manifest cannot carry name_en");
+  assert.equal(parsePluginManifest(v1).name_en, "Ledger Book");
 });
 
 test("RAC-1721 the directory carries the English through the sanitizer and the view registry, cut to one line of at most 80 code points", () => {

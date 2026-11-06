@@ -41,7 +41,22 @@ for (const width of [1440, 390]) {
     await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
     const address = model.address(); assert.ok(address && typeof address === "object");
     const modelUrl = `http://127.0.0.1:${address.port}/v1`;
-    const browser = await openGoalBrowser(t, true);
+    let firstConnection = "";
+    const prepareHome = async (home: string) => {
+      const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+      try {
+        for (const id of ["a", "b"]) {
+          const connection = withConnectorConnections(home, store => {
+            const c = store.createToken({ serviceId: "model-api", displayName: `测试账号 ${id}`, token: `browser-fixture-key-${id}` });
+            store.assertTarget(c.connection_id, "model-api", modelUrl); return c;
+          });
+          catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: id, display_name: id === "a" ? "原来的模型" : "备用模型", base_url: modelUrl,
+            api_format: "openai-chat-completions", models: [{ model_id: `${id}-model`, enabled: true }] });
+          if (id === "a") firstConnection = connection.connection_id;
+        }
+      } finally { catalog.close(); }
+    };
+    const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, { prepareHome });
     if (!browser) return;
     const { homeDirectory: home, command, sessionId, navigate, origin, controlToken, projectId } = browser;
     const views = {lingguang: await pluginFrameBrowser(t,browser,"lingguang"), jelly: await pluginFrameBrowser(t,browser,"jelly")};
@@ -63,19 +78,7 @@ for (const width of [1440, 390]) {
       }
       const result = await response.json(); assert.equal(response.status, 200, JSON.stringify(result)); return result as T;
     };
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    let firstConnection = "";
-    try {
-      for (const id of ["a", "b"]) {
-        const connection = withConnectorConnections(home, store => {
-          const c = store.createToken({ serviceId: "model-api", displayName: `测试账号 ${id}`, token: `browser-fixture-key-${id}` });
-          store.assertTarget(c.connection_id, "model-api", modelUrl); return c;
-        });
-        catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: id, display_name: id === "a" ? "原来的模型" : "备用模型", base_url: modelUrl,
-          api_format: "openai-chat-completions", models: [{ model_id: `${id}-model`, enabled: true }] });
-        if (id === "a") firstConnection = connection.connection_id;
-      }
-    } finally { catalog.close(); }
+
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));

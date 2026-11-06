@@ -9,6 +9,7 @@ import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
 import { attentionDeclarationProblems } from "./attention-declarations.js";
+import { readGroupDeclarationProblems } from "./read-group-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { integrationDeclarationProblems } from "./integration-declarations.js";
@@ -32,18 +33,14 @@ const SEMVER = new RegExp(`^${NUMERIC}\\.${NUMERIC}\\.${NUMERIC}(?:-${PRERELEASE
 export function parsePluginManifest(input: unknown): PluginManifest {
   const manifest = record(input, "Manifest");
   const publisher = record(manifest.publisher, "publisher");
-  const schemaVersion = manifest.schema_version;
-  if ((schemaVersion !== 1 && schemaVersion !== 2) || manifest.host_api_version !== schemaVersion) {
-    throw pluginErrors.manifest_invalid("Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同");
+  if (manifest.schema_version !== 1 || manifest.host_api_version !== 1) {
+    throw pluginErrors.manifest_invalid("Plugin Manifest schema_version 与 host_api_version 必须都是 1");
   }
   if (!text(manifest.plugin_id) || !PLUGIN_ID.test(manifest.plugin_id)
     || !text(manifest.version) || !SEMVER.test(manifest.version)
     || !text(manifest.name) || !text(publisher.publisher_id) || !text(publisher.signature)
     || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app")) {
     throw pluginErrors.manifest_invalid("Plugin Manifest 身份、名称、类型或版本不合法");
-  }
-  if (manifest.kind === "app" && schemaVersion !== 2) {
-    throw pluginErrors.manifest_invalid("app Plugin 必须使用 schema_version 2");
   }
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
@@ -121,13 +118,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
 
   const parsed = input as PluginManifest;
-  if (schemaVersion === 1) {
-    assertNoV2Blocks(manifest, ui);
-    assertArtifactDeclarations(parsed);
-  } else {
-    assertV2Blocks(parsed, ui);
-  }
-
+  assertDeclarations(parsed, ui);
   return parsed;
 }
 
@@ -196,48 +187,12 @@ export function comparePluginVersions(left: string, right: string): number {
   return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length < b.prerelease.length ? -1 : 1;
 }
 
-/** A v1 Manifest cannot carry v2 declarations: the version must state the contract. */
-function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, unknown>): void {
-  const v2Blocks: Array<[string, unknown]> = [
-    ["always_on", manifest.always_on],
-    ["name_en", manifest.name_en],
-    ["ports", manifest.ports],
-    ["events", manifest.events],
-    ["routes", manifest.routes],
-    ["requires", manifest.requires],
-    ["agent", manifest.agent],
-    ["actions", manifest.actions],
-    ["action_scenes", manifest.action_scenes],
-    ["background", manifest.background],
-    ["notifications", manifest.notifications],
-    ["connections", manifest.connections],
-    ["connection_services", manifest.connection_services],
-    ["integrations", manifest.integrations],
-    ["attention", manifest.attention],
-    ["ui.embedded_plugins", ui.embedded_plugins],
-    ["ui.views", ui.views],
-    ["ui.page_routes", ui.page_routes],
-    ["ui.messages", ui.messages],
-    ["ui.translations", ui.translations],
-  ];
-  for (const [name, value] of v2Blocks) {
-    if (value !== undefined) {
-      throw pluginErrors.declaration_invalid(`${name} 需要 schema_version 2；请递增 Manifest 版本而不是混用`);
-    }
-  }
-}
-
-/** A v1 Manifest has no problems list of its own to add the 成果 types to (v2 adds them to its list in `assertV2Blocks`). */
-function assertArtifactDeclarations(parsed: PluginManifest): void {
-  assertNoDeclarationProblems(artifactDeclarationProblems(parsed));
-}
-
 /** The one place a list of declaration problems becomes the refusal (the error-code gates count each literal of a code). */
 function assertNoDeclarationProblems(problems: readonly string[]): void {
   if (problems.length > 0) throw pluginErrors.declaration_invalid(problems.join("；"));
 }
 
-function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): void {
+function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>): void {
   const problems: string[] = [];
   problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes), ...inspectActionCrossReferences(parsed.actions));
   const declaredPermissions = new Set(parsed.permissions.map(p => p.permission));
@@ -272,6 +227,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
   problems.push(...integrationDeclarationProblems(parsed));
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
+  problems.push(...readGroupDeclarationProblems(parsed.read_groups, parsed.actions));
   assertNoDeclarationProblems(problems);
 }
 

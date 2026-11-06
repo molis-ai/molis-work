@@ -348,6 +348,9 @@ export const WORKSPACE_PACKAGES = [
       "artifacts.version-repository.v1",
       "artifacts.opaque-content.v1",
       "artifacts.compatibility.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
   entry("modules/shelf", "@molis-ai/molis-work-contracts/platform/package", {
@@ -387,8 +390,8 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "agent.host.v1",
       "agent.review-queue.v1",
-      "agent.runtimes.v1",
-      "agent.run.start.v1"
+      "agent.runtimes",
+      "agent.run.start"
     ],
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-storage"

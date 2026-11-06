@@ -18,7 +18,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { pageText } from "./fixtures/page-text.js";
 import { diffPageText } from "./fixtures/diff-page-text.js";
 
-// specs/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff and Text Stats draw their own `/state` answer for a
+// specs/archive/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff and Text Stats draw their own `/state` answer for a
 // page, in the page's language, with their own words; the Host no longer decorates their route results.
 
 const SOURCE = "io.molis.work.state-html-source", ACTOR = "tester", HAN = /[一-鿿]/;
@@ -31,7 +31,7 @@ const diffPrimitives = (locale: ActionLocale) => ({ ...pagePrimitives(locale), t
 
 const source: PluginDefinition & { outputs?: PluginOutputsClient } = {
   manifest: {
-    schema_version: 2, host_api_version: 2, plugin_id: SOURCE, version: "1.0.0", name: SOURCE, kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: SOURCE, version: "1.0.0", name: SOURCE, kind: "app",
     publisher: { publisher_id: "molis", signature: `${SOURCE}-binding` },
     entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "artifact:write", required: true, reason: "Hand on a snapshot" }],

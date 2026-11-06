@@ -9,7 +9,7 @@ import test, { type TestContext } from "node:test";
 import { completeApiOAuth, connectorLoginReady, connectorProtocolSecrets, handleConnectorApiMethodsHttp, listConnectorConnectionViews, resolveApiConnection,
   startApiOAuth, withConnectorConnections, withContextJourneys } from "@molis-ai/molis-work-app-local-host";
 
-// W5-11 slice 6 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.4): Gmail signs in through the generic
+// W5-11 slice 6 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.4): Gmail signs in through the generic
 // OAuth flow, by what its Manifest declares. What these show is that the person-facing behavior of the dedicated flow it replaced is
 // kept (its registered return address, the onboarding return, the loopback rule), and that what changed is only what §2.4 says: the
 // account is told apart by Google's `sub`, the product client comes from `MOLIS_WORK_CONNECTOR_GMAIL_OAUTH_CLIENT_*`.

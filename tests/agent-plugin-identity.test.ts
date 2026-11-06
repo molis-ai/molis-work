@@ -40,7 +40,7 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
   const contexts: PluginStartContext[] = [], definitions: PluginDefinition[] = [];
   let stopWait: Promise<void> | undefined, stopEntered = () => {};
   const make = (plugin_id: string) => {
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id, version: "1.0.0", name: "Unknown agent", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id, version: "1.0.0", name: "Unknown agent", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: Object.values(agent).map(item => item.capability_id) }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
       agent: { roles: [{ role_id: "private-reader", version: 1, execution: "read-only", prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }] } },

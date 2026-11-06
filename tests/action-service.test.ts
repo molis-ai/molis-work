@@ -45,7 +45,7 @@ test("unknown SDK plugin registers a real write and read through Runtime; stoppi
     action: { ...write.definition.action, title: "读取笔记", kind: "query", permissions: [],
       input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "array", items: { type: "object" } } },
   }, c => db.prepare("SELECT id, body FROM notes WHERE project = ? ORDER BY id").all(c.project_id));
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "测试笔记",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "测试笔记",
     kind: "app", publisher: { publisher_id: "example", signature: "example-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "notes:write", required: false, reason: "保存笔记" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [write.definition, read.definition] },
@@ -378,7 +378,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     return row ? { ...JSON.parse(row.binding), revision: row.revision } as ActionSceneBinding : null;
   };
   const configurable = { ...scene, configuration_permissions: ["notes:write"] };
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.configurable", version: "1.0.0", name: "配置位置插件",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.configurable", version: "1.0.0", name: "配置位置插件",
     kind: "app", publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:write", "notes:activate"].map(permission => ({ permission, required: false, reason: "配置原业务规则" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] }, actions: [], action_scenes: [configurable] }, async start() { return { kind: "app", action_scenes: [{ ...configurable,
@@ -403,7 +403,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     assert.equal(target.availability.available, false, "the caller's permission is not a plugin installation grant");
     const value = { ...binding, binding_id: target.binding_id, function: fn, title: "forged title", href: "/forged" };
     await assert.rejects(service.bind(context, value, { provider_id: target.provider_id, expected_revision: null }), { code: "actions.plugin_permission" });
-    repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write"] });
+    await runtime.regrant(installed.install_id, "notes:write", true);
     target = (await service.targets(context, fn))[0]!;
     assert.equal(target.availability.available, true);
     assert.equal((await service.targets({ ...context, permissions: [] }, fn))[0]!.availability.available, false);
@@ -415,7 +415,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     await assert.rejects(service.bind(context, value, { provider_id: target.provider_id, expected_revision: null }), { code: "actions.binding_changed" });
     needsActivation = true;
     const activationCaller = { ...context, permissions: [...context.permissions, "notes:activate"] };
-    repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write", "notes:activate"] });
+    await runtime.regrant(installed.install_id, "notes:activate", true);
     await assert.rejects(service.bind(activationCaller, value, { provider_id: target.provider_id, expected_revision: current()!.revision!, before_write: () => {
       repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write"] });
     } }), { code: "actions.plugin_permission" });

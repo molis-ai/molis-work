@@ -16,7 +16,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { diffPageText } from "./fixtures/diff-page-text.js";
 
-// specs/repository-anti-corruption PG-062 (C7, plugin half), slice 3: Coding draws its change reader and a child's integration
+// specs/archive/repository-anti-corruption PG-062 (C7, plugin half), slice 3: Coding draws its change reader and a child's integration
 // preview itself, with the plugin SDK's `/diff-view`; the server here runs no Coding route hooks, so nothing else could have.
 const CODING = "io.molis.work.coding", HAN = /[一-鿿]/u;
 /** What the Host drew with before: the page's translator as Diff's renderer used it, the design system's escape and icons. */

@@ -1,56 +1,56 @@
 ---
 name: Molis Work Soft Workbench
-description: A pearl desk holding one continuous white work surface, a resident bottom bar for navigation and conversation, graphite actions, copper focus and quiet motion.
+description: A mist-blue desk holding one continuous near-white work surface, a resident bottom bar for navigation and conversation, ink-blue actions, mist-blue focus and quiet motion.
 colors:
-  desk: "#eeefef"
-  paper: "#ffffff"
-  surface-soft: "#fafaf9"
-  rail: "#f5f5f3"
-  ink: "#292a2c"
-  ink-soft: "#5c5d60"
-  muted: "#636569"
-  faint: "#6a6c70"
-  line: "#e9e9e7"
-  line-strong: "#d5d6d4"
+  desk: "#eef3f7"
+  paper: "#fcfdfe"
+  surface-soft: "#f5f8fb"
+  rail: "#e9f0f6"
+  ink: "#1f2b37"
+  ink-soft: "#45525f"
+  muted: "#586574"
+  faint: "#616d7a"
+  line: "#e0e8ef"
+  line-strong: "#c9d5e0"
   nav-hover: "ink 5%"
   nav-active: "ink 8%"
   nav-press: "ink 11%"
-  action: "#292a2c"
-  action-hover: "#3d3e41"
+  action: "#2d4f6c"
+  action-hover: "#3a6283"
   action-ink: "#ffffff"
-  accent: "#93604b"
-  accent-strong: "#7a4d3a"
-  accent-soft: "#f6eee8"
-  green: "#42775d"
-  amber: "#8a5c18"
-  red: "#b03d45"
-  scrim: "rgba(21, 23, 29, .16)"
-  popover: "#ffffff"
+  accent: "#3c6e98"
+  accent-strong: "#2e5778"
+  accent-soft: "#e4eef7"
+  green: "#367556"
+  amber: "#8c5f0c"
+  red: "#b2454c"
+  scrim: "rgba(24, 38, 54, .16)"
+  popover: "#fcfdfe"
   on-accent: "#ffffff"
-  dark-desk: "#1c1d20"
-  dark-paper: "#242528"
-  dark-surface-soft: "#292a2d"
-  dark-rail: "#2e2f32"
-  dark-ink: "#f0efed"
-  dark-ink-soft: "#c0beba"
-  dark-muted: "#a2a19e"
-  dark-faint: "#979693"
-  dark-line: "#36373b"
-  dark-line-strong: "#4c4d50"
+  dark-desk: "#141a20"
+  dark-paper: "#1b2229"
+  dark-surface-soft: "#1f272f"
+  dark-rail: "#26303a"
+  dark-ink: "#e8eef3"
+  dark-ink-soft: "#bac6d1"
+  dark-muted: "#9aa8b5"
+  dark-faint: "#8e9ba8"
+  dark-line: "#2c3640"
+  dark-line-strong: "#3f4b57"
   dark-nav-hover: "ink 7%"
   dark-nav-active: "ink 11%"
   dark-nav-press: "ink 15%"
-  dark-action: "#ecebe8"
-  dark-action-hover: "#ffffff"
-  dark-action-ink: "#252628"
-  dark-accent: "#d6a18a"
-  dark-accent-strong: "#e8c0ad"
-  dark-accent-soft: "#382f2b"
-  dark-green: "#8db99d"
-  dark-amber: "#d9b67b"
-  dark-red: "#ee858c"
+  dark-action: "#dbe6ef"
+  dark-action-hover: "#f0f5f9"
+  dark-action-ink: "#17212b"
+  dark-accent: "#8fb8dc"
+  dark-accent-strong: "#b5d1ea"
+  dark-accent-soft: "#1e2d3b"
+  dark-green: "#86c0a0"
+  dark-amber: "#d8b46e"
+  dark-red: "#ec8a90"
   dark-scrim: "rgba(0, 0, 0, .5)"
-  dark-popover: "#2c2d31"
+  dark-popover: "#232c35"
   tone-progress: "{colors.accent}"
   tone-attention: "{colors.amber}"
   tone-blocked: "{colors.red}"
@@ -195,7 +195,7 @@ Shared controls, palette and icons are the `mw-*` HTML Slot primitives in `@moli
 - **Desk and surface.** The titlebar and the bottom bar are the desk. All work lies on one white sheet with 14px corners and a shadow you feel more than see. Split panes are separate sheets on the same desk. Plugin directories are columns inside the sheet, never a second chrome.
 - **One global navigation.** There is no global left sidebar. The resident bottom bar carries the Dock, the unified conversation (the Assistant with its plugin switcher), the personal residents and the project button.
 - **Tone before outline.** Ordinary content separates by spacing, weight and the occasional hairline. Only raised things cast a shadow: the composer, the current Dock item, menus, dialogs, sheets and toasts. A floating layer never also draws a heavy outline.
-- **Graphite does, copper points.** The primary action and a selected choice are graphite. Focus, links, work in progress and the small detail of a selection are copper. Colour otherwise says status only; plugins carry no identity colour, except as their tab group's colour on the tab strip.
+- **Graphite does, copper points.** The primary action and a selected choice are graphite. Focus, links, work in progress and the small detail of a selection are copper. Colour otherwise says status only; plugins carry no identity colour, except as their tab group's colour on the tab strip and in the tile and band that lead the presentation forms.
 - **Weight before decoration.** Hierarchy comes from size and three weights — 600 titles, 500 controls and item titles, 400 reading — before a new colour or container.
 - **Movement answers the operation.** Presses give and spring back, state changes take 250ms, arrivals rise a few pixels over 420ms, menus grow from their control and sheets from their edge. Reduced motion removes all of it.
 - **Real state and explicit actions.** Unavailable capabilities stay visibly unavailable, errors keep input and offer a retry, and demos say they are demos.
@@ -209,7 +209,8 @@ Shared controls, palette and icons are the `mw-*` HTML Slot primitives in `@moli
 | Control height and padding | `renderControlMetrics()` — declared only by early layers so compact (28px) and touch (44px) rules win |
 | Font stacks and weight roles | `packages/design-system/src/typeface.ts` (`FONT_STACK`, `MONO_FONT_STACK`, `TYPEFACE_STYLES`) |
 | `mw-*` primitives | `packages/design-system/src/styles/primitives.ts` and `src/primitives/*` |
-| Final expression layer: desk, sheet, bottom bar geometry, depth, motion, moments | `packages/design-system/src/styles/craft-finish.ts` (`CRAFT_FINISH_STYLES`, last on every page) |
+| Final expression layer: desk, sheet, bottom bar geometry, depth, motion, moments | `packages/design-system/src/styles/craft-finish.ts` (`CRAFT_FINISH_STYLES`, last on every page before the skins) |
+| Skins (Tray, Pill) | `packages/design-system/src/styles/skins.ts` (`SKIN_STYLES`, the very last layer; draws nothing for the default skin) |
 | Ways out and back: cover chip close, bar trays | `apps/workbench/src/styles/navigation-flow.ts` (`NAVIGATION_FLOW_STYLES`, right after the final layer on the workbench and settings pages) |
 | Navigation behaviour: history, covers, the bar's second press, kept page state | `apps/workbench/src/scripts/client/tab-workspace.ts` and its parts (`tab-workspace-places.ts` holds history and covers), `tab-workspace-ops.ts`; the rules in [specs/archive/page-interaction-flow](specs/archive/page-interaction-flow/spec.md) |
 | The one list of global settings categories | `apps/workbench/src/settings-sections.ts` |
@@ -218,7 +219,7 @@ Shared controls, palette and icons are the `mw-*` HTML Slot primitives in `@moli
 | Plugin glyphs / state rings | `packages/design-system/src/icons.ts` (the icon library), `state-ring-states.ts` and `state-ring.ts` |
 | Guards for the fixed scales (glyphs, durations and curves, loops, type steps, browser defaults, scrims) | `tests/soft-workbench-refinement.test.ts` |
 
-A later layer never re-declares a colour or metric with a different number. New rules do not use `!important` or a per-plugin override to win over an earlier rule; where an older `!important` rule conflicts with this spec, it is removed at its source (older layers still carry some that do not conflict). Plugin styles take colours from the shared tokens (`var(--paper)`, `var(--ink)`, `var(--accent)` …); literal values remain only for shadows, the terminal palette, onboarding's scoped `--ob-*` light and user content such as a deck's own colours. The plugin-builder and the generated-plugin renderer follow the same rule.
+A later layer never re-declares a colour or metric with a different number; the skin layer restates corners and control heights only under a non-default skin (Skins). New rules do not use `!important` or a per-plugin override to win over an earlier rule; where an older `!important` rule conflicts with this spec, it is removed at its source (older layers still carry some that do not conflict). Plugin styles take colours from the shared tokens (`var(--paper)`, `var(--ink)`, `var(--accent)` …); literal values remain only for shadows, the terminal palette, onboarding's scoped `--ob-*` light and user content such as a deck's own colours. The plugin-builder and the generated-plugin renderer follow the same rule.
 
 ## Colors
 
@@ -226,33 +227,33 @@ A later layer never re-declares a colour or metric with a different number. New 
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--desk` (`--page`, `--nav-bg`) | `#eeefef` | `#1c1d20` | Titlebar, bottom bar, the space around sheets |
-| `--paper` (`--surface`, `--panel`, `--canvas`) | `#ffffff` | `#242528` | The work sheet, dialogs, menus, the composer; `--canvas` is a full-pane canvas inside the sheet |
-| `--surface-soft` | `#fafaf9` | `#292a2d` | Plugin directory columns, inner blocks, pane tab strips |
-| `--rail` (`--wash`) | `#f5f5f3` | `#2e2f32` | Local groups, read-only fields, secondary buttons at rest |
-| `--ink` | `#292a2c` | `#f0efed` | Titles and body |
-| `--ink-soft` | `#5c5d60` | `#c0beba` | Directory titles, secondary copy, glyphs |
-| `--muted` / `--faint` | `#636569` / `#6a6c70` | `#a2a19e` / `#979693` | Captions, counts, placeholders (`--faint` is the WCAG floor on paper) |
-| `--line` / `--line-strong` | `#e9e9e7` / `#d5d6d4` | `#36373b` / `#4c4d50` | Hairlines where a boundary carries meaning |
+| `--desk` (`--page`, `--nav-bg`) | `#eef3f7` | `#141a20` | Titlebar, bottom bar, the space around sheets |
+| `--paper` (`--surface`, `--panel`, `--canvas`) | `#fcfdfe` | `#1b2229` | The work sheet, dialogs, menus, the composer; `--canvas` is a full-pane canvas inside the sheet |
+| `--surface-soft` | `#f5f8fb` | `#1f272f` | Plugin directory columns, inner blocks, pane tab strips |
+| `--rail` (`--wash`) | `#e9f0f6` | `#26303a` | Local groups, read-only fields, secondary buttons at rest |
+| `--ink` | `#1f2b37` | `#e8eef3` | Titles and body |
+| `--ink-soft` | `#45525f` | `#bac6d1` | Directory titles, secondary copy, glyphs |
+| `--muted` / `--faint` | `#586574` / `#616d7a` | `#9aa8b5` / `#8e9ba8` | Captions, counts, placeholders (`--faint` is the WCAG floor on paper) |
+| `--line` / `--line-strong` | `#e0e8ef` / `#c9d5e0` | `#2c3640` / `#3f4b57` | Hairlines where a boundary carries meaning |
 | `--nav-hover` / `--nav-active` / `--nav-press` | ink 5 / 8 / 11% | ink 7 / 11 / 15% | Row hover, selected row, press — composite over any surface |
 
 Body copy uses ink or ink-soft, never muted. Do not stack extra opacity on faint or muted type. Every text token meets 4.5:1 on its own surface in both themes (checked separately for Light and Dark). Browser defaults never show through: `accent-color`, `caret-color`, `::selection`, `mark`, `::placeholder` and autofill all take tokens, and there is no system blue anywhere in the interface.
 
-**Layers.** Light: desk → paper, with floating things on the same white separated by `--lift-3` alone. Dark shows three distinct layers — desk `#1c1d20`, paper `#242528`, and `--popover` `#2c2d31` for menus, popovers, dialogs and the Assistant panel — edged by a light ring instead of a heavier shadow.
+**Layers.** Light: desk → paper, with floating things on the same near-white separated by `--lift-3` alone. Every plane is tinted toward the accent's blue; there is no large neutral grey (user 2026-11-03). Dark shows three distinct layers — desk `#141a20`, paper `#1b2229`, and `--popover` `#232c35` for menus, popovers, dialogs and the Assistant panel — edged by a light ring instead of a heavier shadow.
 
 ### Primary
 
-Graphite `--action` (`#292a2c`, Dark `#ecebe8`) with `--action-ink` fills the primary button, a selected choice, the selected Home day, a selected canvas node or board card, the toast and the tooltip. Hover uses `--action-hover`. There is exactly one filled primary per decision.
+Ink blue `--action` (`#2d4f6c`, Dark `#dbe6ef`), the accent's deep shade, with `--action-ink` fills the primary button, a selected choice, the selected Home day, a selected canvas node or board card, the toast and the tooltip. Hover uses `--action-hover`. There is exactly one filled primary per decision.
 
-Copper `--accent` (`#93604b`, Dark `#d6a18a`) marks keyboard focus, text links, work in progress (`--tone-progress`), the Dock's current dot, the Home now-line and a field's focus halo. `--accent-soft` is its wash (new-item landing, copper tags). The historical names `--blue`, `--blue-dark`, `--blue-soft` and `--focus` resolve to copper so older consumers follow automatically. Copper never fills a primary button.
+Mist blue `--accent` (`#3c6e98`, Dark `#8fb8dc`) marks keyboard focus, text links, work in progress (`--tone-progress`), the Dock's current dot, the Home now-line and a field's focus halo. `--accent-soft` is its wash (new-item landing, accent tags). The historical names `--blue`, `--blue-dark`, `--blue-soft` and `--focus` resolve to the accent. The accent never fills a primary button. The palette was chosen on the component board from three candidates (mist, celadon, indigo; user 2026-11-03): immersive for long work, not sharp, no brown-red.
 
 ### Status
 
-`--green` marks completion, `--amber` attention and remaining work, `--red` a failed result. The shared state ring uses graphite for neutral states and `--status-interruption` (warm brown) for interrupted work. Partial completion combines green and amber; a result requiring review uses an amber ring and a small exclamation point. Existing status labels retain their domain wording and tone. A status is always a label or glyph plus its colour, never colour alone.
+`--green` marks completion, `--amber` attention and remaining work, `--red` a failed result. The shared state ring uses the action ink for neutral states and `--status-interruption` (a greyed blue) for interrupted work. Partial completion combines green and amber; a result requiring review uses an amber ring and a small exclamation point. Existing status labels retain their domain wording and tone. A status is always a label or glyph plus its colour, never colour alone.
 
 ### Plugin identity
 
-Plugins carry no identity colour on screen, with one exception: on the tab strip a plugin's automatic tab group takes the `hue` its Manifest declares (a design-system colour name on one of its views; a plugin that declares none gets a spare hue picked by its id) (see Grouped work tabs; specs/plugin-tab-groups). Wherever the shell draws a plugin, `--plugin-tint` is `--ink-soft`, the same for every plugin and named by no plugin id, so consumers (icons, kind labels, washes, `--station-tint`) stay calm. A plugin is recognised by its glyph, its name and where it sits. Each plugin has exactly one glyph, the `icon` its Manifest declares (the design system keeps no list of plugins), the same in the Dock, the switcher, tabs, the market, its empty state and search; no two plugins share one, and the AI mark (sparkles) is never a plugin identity. A low-saturation tint behind plugin glyphs was evaluated and rejected: with six to twenty glyphs on one screen it spends more colour than the rest of the interface put together. Outside the tab strip, `MW_PLUGINS[].hue` remains data for the catalog, not a rendering rule. The reading-surface family (`--content-*`, Shelf's `--da-*`) aliases these same tokens; only the terminal canvas keeps its own palette. The five `--mark-*` file-kind tones (PDF, text, image, link, folder) remain as small classification chips beside a label.
+Plugins carry no identity colour on screen, with two exceptions. On the tab strip a plugin's automatic tab group takes the `hue` its Manifest declares (a design-system colour name on one of its views; a plugin that declares none gets a spare hue picked by its id) (see Grouped work tabs; specs/plugin-tab-groups). In the presentation forms (row, card, receipt; specs/intelligent-surfaces) the plugin that owns a fact leads it: a tile in its hue's soft wash with the glyph in the hue's text step, and on a card a band in the same wash (batch 03 option B, kept when the forms were redrawn with board parts, user 2026-11-04). The platform assigns that hue from the plugin palette, separate from the status colours and stable for a plugin across devices and reinstalls; a status keeps to its status tag. Wherever the shell draws a plugin, `--plugin-tint` is `--ink-soft`, the same for every plugin and named by no plugin id, so consumers (icons, kind labels, washes, `--station-tint`) stay calm. A plugin is recognised by its glyph, its name and where it sits. Each plugin has exactly one glyph, the `icon` its Manifest declares (the design system keeps no list of plugins), the same in the Dock, the switcher, tabs, the market, its empty state and search; no two plugins share one, and the AI mark (sparkles) is never a plugin identity. A low-saturation tint behind plugin glyphs was evaluated and rejected for the shell's own navigation (Dock, switcher, directory, market): with six to twenty glyphs on one screen it spends more colour than the rest of the interface put together. The presentation forms are the deliberate exception above, where the colour says whose fact a row or card is. Outside the tab strip, `MW_PLUGINS[].hue` remains data for the catalog, not a rendering rule. The reading-surface family (`--content-*`, Shelf's `--da-*`) aliases these same tokens; only the terminal canvas keeps its own palette. The five `--mark-*` file-kind tones (PDF, text, image, link, folder) remain as small classification chips beside a label.
 
 ## Typography
 
@@ -293,7 +294,7 @@ Status copy stays direct and specific. Timeline events use human-readable labels
 
 **Desk and sheet.** On desktop the window is the titlebar (`--desktop-titlebar-height`), the work area and the bottom bar (`--dock-h` 76px). `.tab-workspace` leaves `--sheet-inset` (14px) of desk on the right; each pane and the exclusive cover (market, settings) is a sheet with 14px corners on `--paper` with `--sheet-shadow`. Split panes are separate sheets with a desk gap between them; the focused pane's sheet reads a step deeper. Pages inside the sheet do not draw a second card. Embedded panes and widths ≤ 600px keep no inset.
 
-**Plugin stage.** A plugin's own page reads as one centred column up to 960px wide (at least 32px from the sheet's edges), 32px from the top: the page heading (the surface's own name, 24px / 600) with one sentence under it on the left and the page's actions on the right, on the heading's line, then the list. The first create action is the page's one graphite button; an empty state repeating it uses the secondary style. Opening an item turns the list into a `--surface-soft` side column beside the item. Directories (Goals tree, Feed sources) are `--surface-soft` columns inside the sheet, 240px by default (220px at ≤ 1050px), resizable, with a saved project-local width; double-click restores the default. The directory scrolls on its own without a visible scrollbar.
+**Plugin stage.** A plugin's own page reads as one centred column up to 960px wide (at least 32px from the sheet's edges), 32px from the top: the page heading (the surface's own name, 24px / 600) with one sentence under it on the left and the page's actions on the right, on the heading's line, then the list. The first create action is the page's one ink-blue button; an empty state repeating it uses the secondary style. Opening an item turns the list into a `--surface-soft` side column beside the item. Directories (Goals tree, Feed sources) are `--surface-soft` columns inside the sheet, 240px by default (220px at ≤ 1050px), resizable, with a saved project-local width; double-click restores the default. The directory scrolls on its own without a visible scrollbar.
 
 **Scroll ownership.** The shell stays within one viewport. Tabs and primary toolbars stay in place while lists, readers, board columns and long forms scroll inside their own regions. Long content remains reachable at narrow widths and in split panes without shrinking text or introducing document scrolling.
 
@@ -341,7 +342,7 @@ What sits together lines up, so a page reads tidy before anyone reads a word (us
 - **An icon beside words is their size or one step up** (Iconography): 12–16px beside 12–15px words, 20px only beside 17–20px words or standing alone (the Dock, an empty-state mark). A leading icon centres on its words' first line; a trailing chevron centres on its row.
 - **Peers are one height, one line, one gap.** Buttons that sit together (a header's actions, a dialog footer, a part's actions) take one size: the variant never changes a button's height (`mw-btn--secondary` small is 28px like a small primary or ghost). Their gap is 8px, 4px inside a compact group, and 2px only between icon buttons or in a packed toolbar. A page header's actions sit on the heading's line. One larger target in a row is deliberate and rare: the bar's send.
 - **Words take the scale** (Typography): 11 / 12 / 13 / 15 / 17 / 20 / 24 / 30px, at most four on a page; no 10, 13.5 or 14px. Code, fields and an editor's own canvas keep their sizes.
-- **Corners take the scale** (Corners): 4 for a mark, 6 a tag, 8 a control, 10 a row, 12 a card, 14 a sheet, 16 a dialog, a capsule or a circle; a box around a rounded part is concentric with it. No 5, 7 or 9px. Density and theme change no corner and repaint no status.
+- **Corners take the scale** (Corners): 4 for a mark, 6 a tag, 8 a control, 10 a row, 12 a card, 14 a sheet, 16 a dialog, a capsule or a circle; a box around a rounded part is concentric with it. No 5, 7 or 9px. Density and theme change no corner and repaint no status; a skin has its own scale (Skins).
 - **Information has a place.** A list page is heading, one sentence, actions, then the list in one column; a row is lead mark, title, facts, then trailing actions, in that order on every plugin's page.
 
 `tests/visual-order.e2e.test.ts` reads the project page, thirteen plugin pages, settings and the component board in light, and the pages that lay out differently in dark, compact density and on a touch phone, and fails on a mark, an icon, a font size, a corner or a row of buttons out of order (the audit is `tests/fixtures/order-audit.ts`; the few places it leaves out are listed there with why).
@@ -359,9 +360,18 @@ Light shadows are diffuse and low-contrast (≤ 20% at the far layer); Dark shad
 
 ## Shapes
 
-A mark smaller than a control (check box, keycap, a drawn line or bar) 4px · `--r-tag` 6px (status tags, file-kind chips) · `--r-control` 8px (buttons, fields, choices, segmented tracks) · `--r-row` 10px (directory and stage rows, menu items) · `--r-card` 12px (cards, canvas nodes, board cards, grouped settings) · `--r-sheet` 14px (work sheets, inner sheets, the onboarding window uses its own 18px) · `--r-composer` 15px · `--r-dialog` 16px (dialogs, edge sheets on their open side). Dock buttons are 11px tiles; avatars and the project monogram are circles. No other corner: a box that holds a rounded part at an inset takes that part's corner plus the inset (the segmented track is its 6px thumb plus 4px padding, 10px), so the two curves stay concentric; a line thinner than its corner is a capsule. Density, theme and pointer never change a corner.
+A mark smaller than a control (check box, keycap, a drawn line or bar) 4px · `--r-tag` 6px (status tags, file-kind chips) · `--r-control` 8px (buttons, fields, choices, segmented tracks) · `--r-row` 10px (directory and stage rows, menu items) · `--r-card` 12px (cards, canvas nodes, board cards, grouped settings) · `--r-sheet` 14px (work sheets, inner sheets, the onboarding window uses its own 18px) · `--r-composer` 15px · `--r-dialog` 16px (dialogs, edge sheets on their open side). Dock buttons are 11px tiles; avatars and the project monogram are circles. No other corner: a box that holds a rounded part at an inset takes that part's corner plus the inset (the segmented track is its 6px thumb plus 4px padding, 10px), so the two curves stay concentric; a line thinner than its corner is a capsule. Density, theme and pointer never change a corner; only a skin does.
 
 Status presentation uses the shared twelve-segment state ring (`renderStateRing` or `renderStatusMark({ state, label })`) in directories, stage lists, boards and the canvas. The library covers 43 business states with 21 visual families; aliases share their appearance, while the caller keeps its own meaning and label. Ordinary work in progress is still; actual execution moves. A completed Agent round does not mean that its Goal is done. Known progress may supply a fraction; absent progress never implies a measured percentage. State changes keep the segments and transition to the new arrangement. Reduced motion, hidden pages and offscreen icons stop continuous drawing. Action icons, selection controls, object types and measured progress bars retain their own forms. Elsewhere a status tag is a borderless soft wash at 6px corners, never an outlined or stadium pill.
+
+## Skins
+
+A skin (皮肤) restates the primitives' material and geometry: corners, edges, fills, shadows and control height. Colour tokens, type, spacing between parts, motion, focus, status and layout stay the same in every skin. Soft Workbench is the default and is the rest of this document. The skin is a local preference like density: `html[data-skin]`, stored under `molis-work:skin`, switched from the component board's 皮肤 control. `styles/skins.ts` is the last layer of every stylesheet and scopes each rule to a non-default skin, so the default page keeps its cascade exactly and no rule needs `!important`.
+
+- **Tray (托盘).** A raised key on a sunken tray: more touch, sharper edges. Secondary buttons are paper keys with an ink-11% edge and `--lift-1`; the primary adds a 1px inner highlight. Fields and the segmented track sink: an ink 3% wash (5% for the track) with a 1px inset shadow, and the thumb is a paper key with a hairline ring. Cards have an ink-9% edge and `--lift-1`, menus and popovers a hairline ring over `--lift-2`, the toast is paper with a ring instead of graphite, and a status tag gains a 14% ring in its own tone. Corners stay Soft's: 8px controls and items, a 10px track around a 6px thumb, 12px cards and menus. In Dark the raised face is `--popover`.
+- **Pill (圆润).** Capsules, softer and a little taller. Controls are capsules 4px taller than the density height (36px standard) with 16px inline padding. Secondary buttons and fields are borderless washes (ink 6% and 5%, deeper on hover and press) without shadow, and the primary has no lift. The segmented track and its thumb are capsules; status tags are 20px capsules. Larger boxes stay concentric: textareas 16px, cards 20px with 20px padding, menus 16px with 6px padding around 10px items, dialogs 24px, the toast a graphite capsule.
+
+Phones and coarse pointers keep at least 44px controls in every skin. The first version covers the shared `mw-*` primitives and the segmented controls; product surfaces with their own control rules keep Soft until they move onto the primitives. `tests/visual-foundation.test.ts` holds the scoping and the order; `tests/visual-order.e2e.test.ts` audits the default skin.
 
 ## Iconography
 
@@ -410,14 +420,24 @@ Do not ship operating-system chrome as the product UI. A closed select may look 
 
 ## Components
 
+### Reading load
+
+Four rules every part keeps (user 2026-11-03):
+
+- **A button has a boundary.** A button with words is filled (primary, danger), washed (secondary) or outlined (ghost); it never reads as plain text. Only an icon-only button and a link inside a sentence are bare.
+- **Several kinds of content are separated.** When one area holds more than one kind of thing, each kind gets its own tag or container, and the kinds differ in colour too, from the palette's own tones so they stay in key: a record Molis checked on `--green-soft`, what an AI says about itself on `--accent-soft` with a dashed edge, what waits on the person on `--amber-soft` (the supplement receipt, the operation card's target and effect).
+- **A row is one line.** A row's name, its state (a tag in its state's colour) and its facts (time, count, where it lives, cut first when room runs out) sit on one line; a state never drops below the name. A choice that needs its explanation (an onboarding source) and reading content (a plugin's record) are not rows.
+- **Files and lists sit in containers.** A list of files or records is a list of containers on paper with a light shadow, not bare lines of text: a changed file is one line with its number, its path (shortened from the front so the name stays), and its added and removed counts as green and red tags.
+
 ### Buttons
 
-- **Primary** (`mw-btn--primary`): graphite fill, `--action-ink`, 500 weight, 8px corners, 32px, `--lift-1`; hover `--action-hover`. One per decision.
-- **Secondary** (`mw-btn--secondary`): borderless `--control-fill` wash, ink text; hover one step deeper. Its size is the button's own (`--sm` 28, default 32, `--lg` 36), like every variant.
-- **Ghost** (`mw-btn--ghost`): transparent until hover (`--nav-hover`), press `--nav-press`.
-- **Link** (`mw-btn--link`): copper text, underline on hover.
+- **Primary** (`mw-btn--primary`): ink-blue fill, `--action-ink`, 500 weight, 8px corners, 32px, `--lift-1`; hover `--action-hover`. One per decision.
+- **Secondary** (`mw-btn--secondary`): borderless `--control-fill` wash, ink text; hover one step deeper. Its size is the button's own (`--sm` 28, default 32, `--lg` 36 with 15px words, 16px padding and 16px glyphs), like every variant.
+- **Ghost** (`mw-btn--ghost`): transparent with a `--line-strong` outline, so a button with words never reads as plain text (user 2026-11-03); hover `--nav-hover`, press `--nav-press`. A ghost that is only an icon stays bare.
+- **Link** (`mw-btn--link`): accent text, underline on hover; only inside a sentence.
 - **Danger** (`mw-btn--danger`): red fill with page-coloured text, for the step that actually destroys something (usually inside an alert dialog). `mw-btn--danger-outline` is red text with a faint red boundary for a destructive entry point.
-- Icon-only buttons carry an accessible name and a tooltip. Disabled buttons stay visible at reduced contrast; a loading button keeps its width and shows a spinner.
+- Icon-only buttons carry an accessible name and a tooltip. A disabled filled button (primary, danger) fades whole and drops its lift; a disabled wash, ghost, outline or link keeps its ground and only its ink turns `--faint`, so it never vanishes into the sheet. A loading button keeps its width: without a glyph the spinner stands in for its words; with one, the spinner takes the glyph's place and the words stay.
+- A toggle on its own (`mw-toggle` outside a toggle group) is a 28px ghost tool whose pressed state is `--nav-active`, like a pressed tool in a bar; inside a group it is a segment of the track.
 
 Toolbars never use a filled primary; a stage empty state may offer one. Form footers pair Cancel (secondary or ghost) on the left with the specific Submit on the right; explanations sit outside that group.
 
@@ -427,7 +447,7 @@ Toolbars never use a filled primary; a stage empty state may offer one. Form foo
 
 ### Fields
 
-`mw-input`, `mw-textarea` and `mw-select` sit on paper with a 1px ink-12% border, 8px corners and 32px height; hover darkens the border; focus is the copper halo. `mw-input-group` and number fields keep the boundary on the shell: a wash at rest that turns white on focus. Errors set `aria-invalid`, turn the border red and show the message below with `mw-field__error`; input is kept. `mw-select` opens `mw-menu`, never the OS list. Sliders use a 4px track with a graphite fill and a paper thumb. Checkboxes are 16px with a graphite fill and a drawn check; switches have a paper knob on a graphite track when on.
+`mw-input`, `mw-textarea` and `mw-select` sit on paper with a 1px ink-12% border, 8px corners and 32px height; hover darkens the border; focus is the copper halo. `mw-input-group` and number fields keep the boundary on the shell: a wash at rest that turns white on focus. Errors set `aria-invalid`, turn the border red and show the message below with `mw-field__error`, led by an alert glyph on its first line so the error is a shape as well as a colour; input is kept. `mw-select` opens `mw-menu`, never the OS list. Sliders use a 4px track with a graphite fill and a paper thumb. Checkboxes are 16px with a graphite fill and a drawn check; switches have a paper knob on a graphite track when on.
 
 ### Segmented control
 
@@ -443,7 +463,7 @@ These parts exist for the way in and are on the board's 到达 section with a sp
 
 ### Menus, popovers and tooltips
 
-`mw-menu` and popovers are paper (`--popover` in Dark) with `--lift-3`, no border, 12px corners, 8px padding and 34px items, 44px on a phone or with a coarse pointer (8px corners, 16px `--ink-soft` glyphs, `--nav-hover` hover and keyboard focus, `--nav-active` current). They grow from their trigger over 250ms. Floating menus keep their CSS size cap and only shrink to fit. Tooltips are graphite with `--action-ink` text and 6px corners.
+`mw-menu` and popovers are paper (`--popover` in Dark) with `--lift-3`, no border, 12px corners, 8px padding and 34px items, 44px on a phone or with a coarse pointer (8px corners, 16px `--ink-soft` glyphs, `--nav-hover` hover and keyboard focus, `--nav-active` current). `renderMenuItem` takes a `shortcut`, shown at the far end in 12px `--muted` without a key chip; `disabled`, which turns the item and its glyph `--faint` with no hover; and `checked`, which makes it a `menuitemcheckbox` whose tick sits in the glyph slot. Once any item leads with a glyph, an item without one starts at the words' column. `renderMenuGroup` gathers related items under an optional 11px `--muted` heading; consecutive groups are divided by an inset hairline. They grow from their trigger over 250ms. Floating menus keep their CSS size cap and only shrink to fit. Tooltips are graphite with `--action-ink` text and 6px corners.
 
 ### Context toolbar
 
@@ -455,7 +475,7 @@ Creating or picking an item opens a centred modal — New Goal, Feed task config
 
 ### Toasts, alerts and empty states
 
-Toasts are one component, `.mw-toast` (`renderToast`; styles in the design system's primitives): a graphite capsule above the bottom bar, or at the foot of the plugin stage that shows it, with a success or failure glyph (`data-mw-state` `done` or `failed`; a plain note has none), as wide as their words up to the window less 16px on each side (never half the window), the glyph on the first line. A failure that has a diagnostic ID carries a 诊断编号 button after the message, or under it when the line is full, in the toast's ink and underlined; it is a link inside a sentence, so on phones and coarse pointers it is 44px tall by padding above and below that takes no line room. An undo or a follow-up is a `.mw-toast__action` in the toast's own ink after the words (the first of several is `--primary`, a faint wash); a completion card (made, moved, imported) is the same toast with a title, a line under it and its follow-ups. A toast rises in from 12px at .97 over `--dur-move` and leaves over `--dur-hover`; a failure nudges once after it lands. The host places it centred by inset and auto margins, never by `transform`, so the arrival and the nudge never fight the placement. A plugin never styles its own toast colours, radius or motion. `mw-alert` is a soft status wash with a glyph, a title and a retry or next action. `mw-empty` is a centred block — the paper mark, a 15px / 600 title, 13px body up to 34em — offering only a real available action. Its actions are secondary buttons 8px apart: the page's one graphite button is its header's create, so an empty state draws a graphite one only where the page shows no other (a phone, where the header's create folds away). A reading pane with nothing open (Feed's reader, the Files companion) is the same centred block. Directory empty states are the same block left-aligned inside the column.
+Toasts are one component, `.mw-toast` (`renderToast`; styles in the design system's primitives): a graphite capsule above the bottom bar, or at the foot of the plugin stage that shows it, with a success or failure glyph (`data-mw-state` `done` or `failed`; a plain note has none), as wide as their words up to the window less 16px on each side (never half the window), the glyph on the first line. A failure that has a diagnostic ID carries a 诊断编号 button after the message, or under it when the line is full, in the toast's ink and underlined; it is a link inside a sentence, so on phones and coarse pointers it is 44px tall by padding above and below that takes no line room. An undo or a follow-up is a `.mw-toast__action` in the toast's own ink after the words, on a faint wash when it stands alone or is the first of several (`--primary`), so it reads as something to press; a completion card (made, moved, imported) is the same toast with a title, a line under it and its follow-ups. A toast rises in from 12px at .97 over `--dur-move` and leaves over `--dur-hover`; a failure nudges once after it lands. The host places it centred by inset and auto margins, never by `transform`, so the arrival and the nudge never fight the placement. A plugin never styles its own toast colours, radius or motion. `mw-alert` is a soft status wash with a glyph, a title and a retry or next action. `mw-empty` is a centred block — the paper mark, a 15px / 600 title, 13px body up to 34em — offering only a real available action. Its actions are secondary buttons 8px apart: the page's one ink-blue button is its header's create, so an empty state draws an ink-blue one only where the page shows no other (a phone, where the header's create folds away). A reading pane with nothing open (Feed's reader, the Files companion) is the same centred block. Directory empty states are the same block left-aligned inside the column.
 
 **Loading.** One rule: content whose shape is known (a list, cards) shows a static `mw-skeleton` placeholder; anything else shows `.mw-loading`, a quiet line with a small spinner that appears only once the wait passes 250ms, so a fast load never flashes. Skeletons never shimmer; under reduced motion the spinner is still.
 
@@ -463,7 +483,7 @@ Toasts are one component, `.mw-toast` (`renderToast`; styles in the design syste
 
 ### Tables and cards
 
-`mw-card` is paper with a `--line` hairline and 12px corners where a card is needed at all; `mw-table` uses hairline rows and 500-weight headers. Settings documents group rows into cards on the sheet; plugins do not wrap sections in cards by default.
+`mw-card` is paper with a `--line` hairline and 12px corners where a card is needed at all; its padding is its only rhythm (a paragraph's own margins never add to the panel's) and footer actions sit in a row 8px apart; `mw-table` uses hairline rows and 500-weight headers. Settings documents group rows into cards on the sheet; plugins do not wrap sections in cards by default.
 
 ## The way in
 
@@ -479,7 +499,7 @@ The screens a person passes through on the way into the work — the **project c
 
 ## Component board
 
-`/__ui/catalog` is built from the production renderers and styles. Sections: 色板 (desk, surface, soft, wash, line; graphite, copper, status), 字体 (role specimens at 600/500/400), 空间 · 层次 · 动效 (lifts, corners, motion table, the desk–sheet–bar diagram), buttons, choice, fields, segmented, checks and switches, menus and popovers, dialogs and sheets, directory rows, status, toasts and alerts, empty states, **到达** (the way in's parts, below), icons, **图标清单** (every plugin's glyph, the state glyphs, sizes and strokes, and the empty / loading / failed trio), **动效标本** (one clickable specimen per motion moment), and **compositions**: list + detail split, toolbar + filter menu, form with errors, a menu inside a dialog, long content with nested scroll, and narrow width with density. `/__ui/catalog/bar` renders the real bottom bar (Dock, switcher, composer, residents, project menu) with the workbench stylesheet. A shared control, state or motion that meets the bar belongs on the board.
+`/__ui/catalog` is built from the production renderers and styles. Like the workbench, its specimens lie on one white sheet on the desk; the header holds the language, theme and skin switches, and a section opens on its specimens, not on a paragraph about them. Sections: 色板 (desk, surface, soft, wash, line; graphite, copper, status), 字体 (role specimens at 600/500/400), 空间 · 层次 · 动效 (lifts, corners, motion table, the desk–sheet–bar diagram), buttons, choice, fields, segmented, checks and switches, menus and popovers, dialogs and sheets, directory rows, status, toasts and alerts, empty states, **到达** (the way in's parts, below), icons, **图标清单** (every plugin's glyph, the state glyphs, sizes and strokes, and the empty / loading / failed trio), **动效标本** (one clickable specimen per motion moment), and **compositions**: list + detail split, toolbar + filter menu, form with errors, a menu inside a dialog, long content with nested scroll, and narrow width with density. `/__ui/catalog/bar` renders the real bottom bar (Dock, switcher, composer, residents, project menu) with the workbench stylesheet. A shared control, state or motion that meets the bar belongs on the board.
 
 ## Components in the workbench
 
@@ -491,7 +511,7 @@ Search (⌘K, from the composer or the directory) opens a palette above the bott
 
 ### Plugin stage lists
 
-When a plugin fills the stage (no item open), its list reads like the prototype's pages: one centred column up to 960px, the page heading drawn from the surface's own label (a CSS variable set once on the shell, so a plugin that re-renders its list keeps it; it is drawn text only, because the tab and the surface label already name the page), and the page's actions at the right of the heading. The first create action is the page's one graphite button; secondary actions are ghost buttons with a leading Lucide mark. Rows are at least 44px with a hover wash and 8px corners; folds read as quiet section labels 18px apart. When an item is open, the list becomes the `--surface-soft` side column and its create action returns to the soft wash. Editors that are a single form sit in a centred column inside a full-width scroller (Forms 52rem, Dataset 72rem); a note (灵光) is a writing page — a 24px document title and body text at 15px / 1.85 in a 46rem column, fields that show a wash on hover and the shared focus ring. Search sits inside its field (leading mark, ≤420px) and filters follow on the same row as `mw-select` at their natural width. Stage empty states use `mw-empty` (see above) at up to 30em so Chinese copy does not break mid-phrase. The selected row, including a Goal row, is the neutral `--nav-active` fill; plugins add no identity tint. Every detail view returns with the same rotated chevron in `plugin-stage-back`; a kicker that shares the back button's row starts after it, like a breadcrumb. Stage and dialog checkboxes are `mw-check`, date fields open the calendar from a calendar mark, and a dialog taller than the viewport keeps its footer (the submit action) sticky at the bottom. List dates follow the interface language (9月23日 / Sep 23). Every disclosure (`details`) uses one grammar: the OS triangle is hidden and a 12px chevron rotates from right to down (`mw-disclosure`, or the owner's own caret); remove, move-up and move-down controls are icon-only ghost buttons with `x` / `chevron-up` / `chevron-down` marks and an accessible name, never typed glyphs (×, ↑, ↓). Floating menus keep their CSS size cap (the Pages slash menu is a 380px scroller placed below the caret) and only shrink further to fit the stage. The Dock and the plugin switcher list are each one Tab stop: the current entry is tabbable, and Arrow/Home/End move between entries.
+When a plugin fills the stage (no item open), its list reads like the prototype's pages: one centred column up to 960px, the page heading drawn from the surface's own label (a CSS variable set once on the shell, so a plugin that re-renders its list keeps it; it is drawn text only, because the tab and the surface label already name the page), and the page's actions at the right of the heading. The first create action is the page's one ink-blue button; secondary actions are ghost buttons with a leading Lucide mark. Rows are at least 44px with a hover wash and 8px corners; folds read as quiet section labels 18px apart. When an item is open, the list becomes the `--surface-soft` side column and its create action returns to the soft wash. Editors that are a single form sit in a centred column inside a full-width scroller (Forms 52rem, Dataset 72rem); a note (灵光) is a writing page — a 24px document title and body text at 15px / 1.85 in a 46rem column, fields that show a wash on hover and the shared focus ring. Search sits inside its field (leading mark, ≤420px) and filters follow on the same row as `mw-select` at their natural width. Stage empty states use `mw-empty` (see above) at up to 30em so Chinese copy does not break mid-phrase. The selected row, including a Goal row, is the neutral `--nav-active` fill; plugins add no identity tint. Every detail view returns with the same rotated chevron in `plugin-stage-back`; a kicker that shares the back button's row starts after it, like a breadcrumb. Stage and dialog checkboxes are `mw-check`, date fields open the calendar from a calendar mark, and a dialog taller than the viewport keeps its footer (the submit action) sticky at the bottom. List dates follow the interface language (9月23日 / Sep 23). Every disclosure (`details`) uses one grammar: the OS triangle is hidden and a 12px chevron rotates from right to down (`mw-disclosure`, or the owner's own caret); remove, move-up and move-down controls are icon-only ghost buttons with `x` / `chevron-up` / `chevron-down` marks and an accessible name, never typed glyphs (×, ↑, ↓). Floating menus keep their CSS size cap (the Pages slash menu is a 380px scroller placed below the caret) and only shrink further to fit the stage. The Dock and the plugin switcher list are each one Tab stop: the current entry is tabbable, and Arrow/Home/End move between entries.
 
 ### Workflow chains
 
@@ -566,7 +586,7 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 ### Do
 
 - **Do** build hierarchy from spacing, weight and meaningful boundaries; keep work on the one continuous sheet and let only raised things cast a shadow.
-- **Do** use graphite for the one primary action and a selected choice, copper for focus, links and in-progress, and status colours only for status.
+- **Do** use ink blue for the one primary action and a selected choice, the accent blue for focus, links and in-progress, and status colours only for status.
 - **Do** take every colour, corner, height and duration from the shared tokens; add a missing one to `palette.ts` or the final layer rather than a local value.
 - **Do** keep the current tab, loaded body, selected directory item and owned terminal consistent without copying domain state.
 - **Do** retain source links, exact Artifact versions and original record IDs; make current facts distinct from historical evidence.
@@ -603,7 +623,7 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 
 ### Don't
 
-- **Don't** add a global left sidebar, a second persistent navigation, or a plugin identity colour; plugins are found in the Dock and the switcher.
+- **Don't** add a global left sidebar, a second persistent navigation, or a plugin identity colour outside the tab strip and the presentation forms; plugins are found in the Dock and the switcher.
 - **Don't** fight an earlier rule with `!important`, a per-plugin override or a restated token value; fix the source.
 - **Don't** force a font weight globally, synthesise bold, or use weights other than 400 / 500 / 600.
 - **Don't** outline a floating layer, draw a card inside the sheet by default, blur the scrim, or paint gradients outside the opening and Welcome's ambient light and the goal card's warm light (the overflow fade is a mask, not a painted band).

@@ -9,6 +9,8 @@ import { createHash } from "node:crypto";
 export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "./execution-lifetime.js";
 import { parsePluginManifest } from "./manifest.js";
 
+export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContribution, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
+export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxAgentBodyIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
@@ -32,7 +34,7 @@ export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 /** The rules of a question set and its answer, for a plugin that asks without an Agent run; the same verdicts as the Agent runtime's. */
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
-export { defineAction } from "./actions.js";
+export { createActionDefinition, defineAction } from "./actions.js";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
 export { PAGE_ROUTE_LIMITS, matchDeclaredPageRoute, matchPageRoute, pageRouteProblems, stageRequestParams, type DeclaredPageRouteMatch, type PageRouteMatch } from "./page-routes.js";
@@ -84,7 +86,8 @@ import type {
   PluginIntegrationContribution,
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IntegrationAccountPresentation, IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { IntegrationAccountPresentation, IntegrationBinding, SourcePresentation, SourcePresentationInput } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+export { checkedSourcePresentation, checkedSourcePresentationInput } from "./source-presentation.js";
 
 
 
@@ -102,6 +105,7 @@ export function definePollingIntegrationPlugin(input: {
   createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
   /** How a source's account reads after a pull (the cursor it left); `null` keeps the source's label and configuration as they are. */
   presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
+  presentSource?(id: string, input: SourcePresentationInput): SourcePresentation | Promise<SourcePresentation>;
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
@@ -112,6 +116,7 @@ export function definePollingIntegrationPlugin(input: {
     async start(context) {
       return {
         kind: "integration",
+        ...(input.presentSource ? { presentSource: input.presentSource } : {}),
         bind(binding) {
           const provider = input.createProvider(context, binding);
           return pollingIntegrationBinding({ manifest: input.manifest, provider, ...(input.now ? { now: input.now } : {}),
@@ -287,6 +292,7 @@ export type { PluginInstallationClient, PluginInstallationProjects, PluginInstal
 
 export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { canonicalJsonValue } from "./json-value.js";
+export { arraySchema, nullableSchema, objectSchema } from "./action-schemas.js";
+export { canonicalJsonValue, isRecord } from "./json-value.js";
 
 export { controlledConnectorFetch } from "./connector-call.js";

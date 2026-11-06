@@ -10,7 +10,7 @@ import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-c
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 
-// Security invariants S-08 and S-18 (docs/system/SECURITY-INVARIANTS.md), DUAL-06 (specs/dual-instance-plugins/spec.md): one plugin can
+// Security invariants S-08 and S-18 (docs/system/SECURITY-INVARIANTS.md), DUAL-06 (specs/archive/dual-instance-plugins/spec.md): one plugin can
 // run twice, as the Home's instance and as a project's. `install_id` is a hash of the plugin id and its publisher, so both databases hold
 // a record under the same `install_id`, each with its own generation and its own grants. The local person's call context reads each
 // instance's authority from the record of the database that instance lives in; it never lets one record stand in for the other.
@@ -21,7 +21,7 @@ const action = (capability_id: string, scope: "home" | "project"): ActionDefinit
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } });
 const homeAction = action("dual.home-read", "home"), projectAction = action("dual.project-read", "project");
 // Same plugin id, version and publisher signature, so the same installation identity; the actions are disjoint, so each half is a whole plugin today.
-const half = (definition: ActionDefinition<Record<string, never>, string>, answer: string) => definePlugin({ manifest: { schema_version: 2, host_api_version: 2,
+const half = (definition: ActionDefinition<Record<string, never>, string>, answer: string) => definePlugin({ manifest: { schema_version: 1, host_api_version: 1,
   plugin_id: PLUGIN_ID, version: "1.0.0", name: "双实例探针", kind: "app", publisher: { publisher_id: "example", signature: "dual-instance" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: PERMISSION, required: false, reason: "两个实例用同一个权限名" }],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },

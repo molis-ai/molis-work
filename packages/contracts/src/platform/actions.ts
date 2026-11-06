@@ -92,9 +92,22 @@ export interface ActionUserAction {
   readonly prompted_subject_id?: string;
 }
 
+/** Host-only metadata snapshot for one authenticated stage entry; never an execution grant or plugin callback field. */
+export interface StageSceneMetadataAuthority {
+  readonly actor_id: string;
+  readonly audience: ActionAudience;
+  readonly entry: ExactActionReference;
+  readonly owner: { readonly plugin_id: string; readonly install_id: string; readonly installation_generation: string; readonly scope: "home" | "project" };
+  readonly project_id: string | null;
+  readonly scenes: readonly { readonly scene_id: string; readonly version: number }[];
+  readonly actions: readonly ExactActionReference[];
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Only the same stage entry may inspect its own saved scene bindings through these accepted exact refs. */
+  readonly stage_scene_metadata?: StageSceneMetadataAuthority;
   /** Memory read intent fixed by a protected Host entry; never copied from business/model input. Absent means task. */
   readonly memory_read_mode?: "explicit" | "task";
   /** Validated Memory HTTP command identity, separate from this request's call_id. Grants nothing; never a model argument. */
@@ -446,7 +459,11 @@ export interface ActionSceneView {
   readonly reason?: string;
 }
 
-export interface ActionSceneUsage extends ActionSceneBinding { readonly availability: ActionAvailability }
+export interface ActionSceneUsage extends ActionSceneBinding {
+  readonly availability: ActionAvailability;
+  /** Present only on an exact own binding read by an authenticated stage metadata entry. */
+  readonly function_title?: string;
+}
 
 /** An actual configuration location owned by the consumer, including an unbound fixed slot. */
 export interface ActionSceneTargetDefinition {
@@ -689,7 +706,7 @@ const COMMON_FIELD_LABELS: Readonly<Record<string, string>> = {
   title: "标题", name: "名称", text: "内容", body: "正文", content: "内容", notes: "备注", note: "备注", description: "说明", summary: "摘要",
   kind: "类型", type: "类型", status: "状态", priority: "优先级", category_id: "分类", tags: "标签", url: "链接",
   date: "日期", start_date: "开始日期", end_date: "结束日期", due_date: "截止日期", start_time: "开始时间", end_time: "结束时间", time_zone: "时区",
-  starts_at: "开始", ends_at: "结束", remind_at: "提醒时间", expected_revision: "基于的版本", expected_version: "基于的版本", id: "对象", item: "内容",
+  starts_at: "开始时间", ends_at: "结束时间", remind_at: "提醒时间", expected_revision: "基于的版本", expected_version: "基于的版本", id: "对象", item: "内容",
   markdown: "正文", folder_id: "文件夹", goal_id: "目标", project_id: "项目", starred: "加星标",
 };
 export function actionFieldLabel(key: string, declared?: { title?: string; description?: string }): string {

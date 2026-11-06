@@ -174,9 +174,11 @@ test("project policy actions preserve normalized receipts, original binding hist
 
 test("Web relations and rules use live action policy for writes and selected page reads", async () => {
   const f = await fixture(); const { host, project, actions, denied, snapshot } = f;
+  const documentProof = "Configuration owner selected document proof";
   const token = "configuration-token-012345678901234";
   const server = createMolisWorkWebServer({ homeDirectory: f.home, localHost: host, controlToken: token });
   try {
+    await actions.invoke(goalsActions.note, { goal_id: "parent", body: documentProof, idempotency_key: "selected-read-proof" });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`, prefix = `${origin}/projects/${project.project_id}`;
@@ -217,15 +219,40 @@ test("Web relations and rules use live action policy for writes and selected pag
     const saved = await write("/api/plugins/io.molis.work.goals/policy-bindings", policy, "web-policy"); assert.equal(saved.status, 200, await saved.clone().text());
     assert.equal((await actions.invoke(goalsActions.policyHistory, {})).bindings.at(-1)?.created_by, "web-user");
     assert.equal((await fetch(prefix + "/settings/rules")).status, 200);
-    assert.equal((await fetch(prefix + "/goals/parent")).status, 200);
-    for (const [definition, path] of [[goalsActions.policyHistory, "/settings/rules"], [goalsActions.relations, "/goals/parent"], [goalsActions.policyResolve, "/goals/parent"],
-      [goalsActions.document, "/goals/parent"], [goalsActions.document, "/api/goals/parent/document"],
+    const selectedParent = async () => {
+      const response = await fetch(prefix + "/goals/parent");
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      assert.match(html, /data-goal-canvas-shell/);
+      assert.match(html, /data-goal-view="parent"/);
+      assert.ok(html.includes(documentProof), "the actual selected parent document retains its note body");
+    };
+    await selectedParent();
+    const beforeReads = await snapshot();
+    // PR1c: the complete page consumes the independent owner stage read, not these three direct-read actions.
+    for (const definition of [goalsActions.relations, goalsActions.policyResolve, goalsActions.document]) {
+      denied.add(definition.capability_id);
+      await assert.rejects(actions.invoke(definition, { goal_id: "parent" }), { code: "actions.plugin_disabled", message: "Configuration disabled" });
+      await selectedParent();
+      denied.clear();
+    }
+    for (const [definition, path] of [[goalsActions.policyHistory, "/settings/rules"], [goalsActions.document, "/api/goals/parent/document"],
       ...["/goals/parent", "/api/board", "/api/board/refresh", "/api/goals/parent/document", "/api/capsule"].map(path => [goalsActions.collection, path] as const)] as const) {
       denied.add(definition.capability_id);
       const response = await fetch(prefix + path);
-      assert.ok(response.status >= 400); assert.match(await response.text(), /Configuration disabled/);
+      assert.ok(response.status >= 400, `${definition.capability_id} ${path}: expected rejection, received ${response.status}`); assert.match(await response.text(), /Configuration disabled/);
       denied.clear();
       assert.equal((await fetch(prefix + path)).status, 200);
     }
+    denied.add(goalsActions.stage.capability_id);
+    await assert.rejects(actions.invoke(goalsActions.stage, { goal_id: "parent" }), { code: "actions.plugin_disabled", message: "Configuration disabled" });
+    const unavailable = await fetch(prefix + "/goals/parent");
+    assert.equal(unavailable.status, 200, "the current whole-page contract keeps the shell when an optional stage is disabled");
+    const shell = await unavailable.text();
+    assert.doesNotMatch(shell, /data-goal-canvas-shell|data-goal-view="parent"/);
+    assert.ok(!shell.includes(documentProof), "the denied stage does not supply the selected document body");
+    denied.clear();
+    await selectedParent();
+    assert.deepEqual(await snapshot(), beforeReads, "read denials and recovery do not change the Goal facts");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await f.close(); }
 });

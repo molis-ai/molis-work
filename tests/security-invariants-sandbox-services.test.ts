@@ -14,7 +14,7 @@ import { assertSandboxDeclarations, sandboxServicesFor, SANDBOX_NOT_GIVEN, SANDB
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { homeProbe } from "./fixtures/home-runtime.js";
 
-// S-60 (PG-017, specs/repository-anti-corruption/slices/pg017-sandbox-services.md): a sandboxed plugin is an install trust, not a second set
+// S-60 (PG-017, specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md): a sandboxed plugin is an install trust, not a second set
 // of permissions. The services it reaches are the ones the Host built for the activation from its Manifest and the person's grants, forwarded
 // through the broker. What the sandbox is not given is a refusal with a code when the installation starts, never a silent absence. This file
 // asserts those refusals; the per-service ones (over-reach, unapproved, after revoke) sit beside each service as it is given.
@@ -27,7 +27,7 @@ const MODEL_CONFIGURATION: NonNullable<PluginManifest["model_configuration"]> = 
 };
 
 const manifest = (extra: Partial<PluginManifest> = {}, permissions: PluginManifest["permissions"] = []): PluginManifest => ({
-  schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox services probe", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Sandbox services probe", kind: "app",
   publisher: { publisher_id: "example", signature: "probe-sbxservices" }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
   permissions: [{ permission: "storage:private", required: true, reason: "keeps its own data" }, ...permissions],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, ...extra,

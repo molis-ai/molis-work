@@ -21,6 +21,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "Proposal chain", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory: directory });
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = managementGoals(host.actionClient(reference), projectId);
@@ -96,7 +97,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     assert.deepEqual(await cli("goal-tree-check", checkInput), checked);
     assert.deepEqual(await snapshot(), checkedSnapshot, "a repeated management check preserves the stored item checks and history");
     // R2-02: the real Runtime discovers and calls the current planning-output contract.
-    const runtimeChecked = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.tree.check__v2", {
+    const runtimeChecked = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.tree.check__v1", {
       proposal_id: proposed.proposal.proposal_id, idempotency_key: "check-proposal-runtime",
     })) as { conflict_item_ids: string[] };
     assert.deepEqual(runtimeChecked.conflict_item_ids, checked.conflict_item_ids);
@@ -152,7 +153,6 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     await runtime.close();
     await served.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

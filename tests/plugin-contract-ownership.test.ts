@@ -124,7 +124,7 @@ test("RAC-870: Coding exposes its result-document action from its own public con
 
 test("RAC-871: the Shelf module exposes its contract from its own public entry", () => {
   assert.deepEqual([shelf.SHELF_ADMIT_ACTION.capability_id, shelf.SHELF_ADMIT_ACTION.version, shelf.SHELF_ADMIT_ACTION.operation],
-    ["shelf.items.admit", 2, "command"]);
+    ["shelf.items.admit", 1, "command"]);
 });
 
 test("RAC-872: the platform no longer exports the Coding or Shelf contracts", async () => {
@@ -241,6 +241,5 @@ test("RAC-1754: the Host, the integrations and the Runtime name no Feed contract
   }
   // The Host files that assembled or read Feed before T-110; the integrations and the platform packages name none.
   assert.deepEqual(naming.sort(), ["apps/local-host/src/demo-feed-library.ts", "apps/local-host/src/demo-plugin-seed.ts", "apps/local-host/src/index.ts",
-    "apps/local-host/src/native-content-permissions.ts", "apps/local-host/src/plugin-registry.generated.ts", "apps/local-host/src/source-pull-runtime.ts",
-    "apps/local-host/src/source-vocabulary.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-view.ts"]);
+    "apps/local-host/src/native-content-permissions.ts", "apps/local-host/src/plugin-registry.generated.ts", "apps/local-host/src/source-pull-runtime.ts"]);
 });

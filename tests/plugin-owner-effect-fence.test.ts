@@ -40,7 +40,7 @@ test("W3-09-AUTH-03 the SDK owner binder retains the real old invocation instead
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "boolean" },
   } };
   const definition: PluginDefinition = { manifest: {
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.owner-fence", version: "1.0.0", name: "Owner fence", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.owner-fence", version: "1.0.0", name: "Owner fence", kind: "app",
     publisher: { publisher_id: "example", signature: "example-owner-fence" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "storage:private", required: true, reason: "Keep this installation's own fact" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action],

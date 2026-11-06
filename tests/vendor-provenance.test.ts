@@ -8,7 +8,7 @@ import test, { after, before, describe } from "node:test";
 import { fileURLToPath } from "node:url";
 import { vendoredProvenanceProblems } from "../scripts/gates/vendored-provenance.mjs";
 
-// specs/repository-anti-corruption, decision 2026-10-08 "Prologue SDK 收敛与私有包" (W1-23): every vendored package archive has
+// specs/archive/repository-anti-corruption, decision 2026-10-08 "Prologue SDK 收敛与私有包" (W1-23): every vendored package archive has
 // a `.sha256` and a `.provenance.json` that match it, and vendor/prologue-sdk/patch-history.json records the patches deleted
 // from that folder. The rule lives in scripts/gates/vendored-provenance.mjs and is plugged into scripts/check-health-gates.mjs;
 // like tests/health-gates-merge-base.test.ts, each rule is mutation-verified on a small scratch repository: one violation
@@ -281,7 +281,7 @@ describe("the records of this repository", () => {
     assert.match(readme, new RegExp(`${record.upstream.commitsChecked.length}\\s*个\\s*Prologue\\s*提交`), "the README states how many Prologue commits the record checked");
     assert.ok(readme.includes(record.upstream.mainHead.slice(0, 8)), "the README names the upstream main head the record checked against");
     assert.ok(readme.includes(json(`${folder}/${current}.provenance.json`).source.commit));
-    // Statements the dependency plan (specs/repository-anti-corruption/dependencies-and-sdk-plan.md §4.1) showed to be wrong:
+    // Statements the dependency plan (specs/archive/repository-anti-corruption/dependencies-and-sdk-plan.md §4.1) showed to be wrong:
     // the source commits are pushed (merged upstream as PR #3), the network-dispatch hash was recorded.
     assert.doesNotMatch(readme, /暂未推到|没有推到 molis-ai\/prologue|当时没有记录|未记录/);
     assert.doesNotMatch(readme, /最后一次含有它们的提交/);

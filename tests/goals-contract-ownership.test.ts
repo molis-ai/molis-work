@@ -75,11 +75,11 @@ const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT
   "readGoalResumeFacts", "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema", "treeCheckResultSchema",
   "treeDecideInputSchema", "treeDecisionResultSchema", "treeItemDecisionSchema", "treeItemInputSchema", "treeNarrativeSchema", "treeProposalSchema",
   "treeReadInputSchema", "treeReadResultSchema", "treeSubmitInputSchema", "treeSubmitResultSchema"];
-const PLUGIN_ACTIONS = { list: ["goals.list", 1, "query"], contract: ["goals.contract.read", 2, "query"], state: ["goals.state.read", 1, "query"],
+const PLUGIN_ACTIONS = { list: ["goals.list", 1, "query"], contract: ["goals.contract.read", 1, "query"], state: ["goals.state.read", 1, "query"],
   progress: ["goals.progress.record", 1, "command"], receipt: ["goals.progress.receipt", 1, "query"] };
-const ENTRY_ACTIONS = { initialize: ["goals.board.initialize", 2, "command"], treeSubmit: ["goals.tree.submit", 1, "command"], treeRead: ["goals.tree.read", 1, "query"],
-  treeCheck: ["goals.tree.check", 2, "command"], treeDecide: ["goals.tree.decide", 2, "command"], active: ["goals.active.set", 1, "command"],
-  snapshot: ["goals.snapshot.read", 2, "query"], decide: ["goals.decisions.record", 1, "command"], guidanceRead: ["goals.guidance.read", 1, "query"],
+const ENTRY_ACTIONS = { initialize: ["goals.board.initialize", 1, "command"], treeSubmit: ["goals.tree.submit", 1, "command"], treeRead: ["goals.tree.read", 1, "query"],
+  treeCheck: ["goals.tree.check", 1, "command"], treeDecide: ["goals.tree.decide", 1, "command"], active: ["goals.active.set", 1, "command"],
+  snapshot: ["goals.snapshot.read", 1, "query"], decide: ["goals.decisions.record", 1, "command"], guidanceRead: ["goals.guidance.read", 1, "query"],
   create: ["goals.create", 1, "command"], directoryItem: ["goals.directory.read", 1, "query"], inputsConfirm: ["goals.inputs.confirm", 1, "command"] };
 
 test("RAC-1770: the Goals plugin's ./contract exports the contract with its old values, and the platform contracts' three Goals subpaths are gone", async () => {

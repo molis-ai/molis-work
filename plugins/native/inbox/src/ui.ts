@@ -1,5 +1,8 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { InboxStageData } from "./actions.js";
 import type { InboxJudgmentSummary } from "./route-handlers.js";
 import type {
+  StagePageModel,
   UiContribution,
   UiContributionDeclaration,
   UiRenderRequest,
@@ -9,9 +12,9 @@ import {
   INBOX_DONE_OPTION_ID,
   INBOX_COMPOSE_OPTION_ID,
   INBOX_VERIFY_OPTION_ID,
-  defaultInboxNextBehaviorIds,
+  defaultInboxNextOptionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
+import { buildInboxUiEntries, isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
 
 export const INBOX_UI_CONTRIBUTION_ID = "io.molis.work.native.inbox.ui.v1";
 
@@ -44,19 +47,40 @@ export const inboxUiDescriptor: UiContributionDeclaration = {
   slots: [],
 };
 
-export const inboxUiContribution: UiContribution<InboxUiModel> = {
+export const inboxUiContribution: UiContribution<InboxUiModel | StagePageModel<InboxStageData>> = {
   descriptor: inboxUiDescriptor,
-  render(request: UiRenderRequest<InboxUiModel>): string {
+  render(request: UiRenderRequest<InboxUiModel | StagePageModel<InboxStageData>>): string {
+    const model = "entries" in request.model ? request.model : inboxStageModel(request.model);
     switch (request.surface as InboxUiSurface) {
       case "directory":
-        return renderInboxDirectory(request.model);
+        return renderInboxDirectory(model);
       case "workbench":
-        return renderInboxWorkbench(request.model);
+        return renderInboxWorkbench(model);
       default:
         throw new Error(`Inbox UI surface ${(request as UiRenderRequest).surface} 不存在`);
     }
   },
 };
+
+function inboxStageModel(model: StagePageModel<InboxStageData>): InboxUiModel {
+  if (!model.data) throw new ActionError("actions.dependency_missing", "Inbox 舞台数据不可用");
+  const { entries, subjects, judgments, judgment } = model.data, p = model.primitives;
+  const byEntry = new Map(judgments.map(record => [record.subject.id, record]));
+  const names = new Map(subjects.map(subject => [subject.entry_id, subject]));
+  return { route_prefix: model.route_prefix, filter: "active", judgment, primitives: p,
+    entries: buildInboxUiEntries(entries.map(entry => {
+      const current = byEntry.get(entry.entry_id) ?? null;
+      return { ...entry, next_judgment: current, suggested_behavior_ids: current?.outcome === "ok" ? current.suggested_behavior_ids : [] };
+    }), entry => {
+      const subject = names.get(entry.entry_id), available = subject?.title !== undefined && subject.title !== null;
+      if (entry.subject_type === "feed_item") return { available, title: subject?.title || p.text("原 Feed Item 已不可用"),
+        source_label: subject?.source_label || "Feed", open: available ? { kind: "feed", item_id: entry.subject_id } : null };
+      if (entry.subject_type === "source_fault") return { available, title: available ? p.text("来源「{source}」需要处理", { source: subject!.title! }) : p.text("原来源已不可用"),
+        source_label: subject?.source_label || p.text("其他来源"), open: available ? { kind: "source", source_id: entry.subject_id } : null };
+      return { available, title: subject?.title || p.text("原 Goal 已不可用"), source_label: "Molis Work",
+        open: available ? { kind: "goal", href: `${model.route_prefix}/goals/${encodeURIComponent(entry.subject_id)}` } : null };
+    }, p.text) };
+}
 
 export function renderInboxDirectory(_model: InboxUiModel): string {
   return "";
@@ -115,8 +139,8 @@ function renderInboxFold(
 
 function renderInboxStageRow(entry: InboxUiEntry, p: InboxUiPrimitives): string {
   return `<article class="inbox-stage-item feed-stage-item" role="listitem" data-inbox-item-wrap="${p.escape(entry.entry_id)}">
-    <button class="feed-stage-entry directory-list-row" type="button" aria-selected="false" draggable="true" data-frame-asset="inbox" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.reason_label)}" data-frame-reading-reason="${p.escape(entry.reason_label)}" data-frame-reading-relation="${p.escape(entry.relation_label)}" data-frame-reading-next="${p.escape(entry.next_action)}" data-frame-reading-status="${p.escape(entry.status_label)}" data-inbox-row data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}" data-inbox-status="${p.escape(entry.status)}" data-inbox-subject-type="${p.escape(entry.subject_type)}" data-inbox-subject-id="${p.escape(entry.subject_id)}" data-inbox-reason="${p.escape(entry.reason)}">
-      <span class="feed-stage-leading"><strong title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong></span>
+    <button class="feed-stage-entry directory-list-row" type="button" aria-selected="false" data-frame-asset="inbox" data-frame-subject-kind="inbox_entry" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.reason_label)}" data-frame-reading-reason="${p.escape(entry.reason_label)}" data-frame-reading-relation="${p.escape(entry.relation_label)}" data-frame-reading-next="${p.escape(entry.next_action)}" data-frame-reading-status="${p.escape(entry.status_label)}" data-inbox-row data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}" data-inbox-status="${p.escape(entry.status)}" data-inbox-subject-type="${p.escape(entry.subject_type)}" data-inbox-subject-id="${p.escape(entry.subject_id)}" data-inbox-reason="${p.escape(entry.reason)}">
+      <span class="feed-stage-leading"><span data-frame-drag-slot aria-hidden="true" style="display:inline-block;width:24px;height:24px;flex:0 0 24px;vertical-align:middle"></span><strong title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong></span>
       <span class="feed-entry-source">${p.escape(entry.reason_label)}</span>
       <span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"} mw-status--plain feed-entry-status" data-mw-state="${entry.status === "open" ? "answer" : entry.status === "in_progress" ? "doing" : entry.status === "done" ? "done" : "cancelled"}">${p.escape(entry.status_label)}</span>
     </button>
@@ -147,7 +171,7 @@ function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
     return `<button class="mw-btn mw-btn--secondary" type="button" data-inbox-action="open" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("重新打开")}</button>`;
   }
   // Recommendations do not remove the person's other valid choices.
-  return defaultInboxNextBehaviorIds(true).map(id => writeButton(entry, id, entry.suggested_behavior_ids.includes(id), p)).join("");
+  return defaultInboxNextOptionIds(true).map(id => writeButton(entry, id, entry.suggested_behavior_ids.includes(id), p)).join("");
 }
 
 function renderMaterialActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
@@ -164,12 +188,12 @@ function renderNextSuggestion(entry: InboxUiEntry, p: InboxUiPrimitives): string
   return `<p class="inbox-next-suggestion">${p.escape(label)} <small>v${judgment.function_version} · ${p.escape(p.formatDate(judgment.created_at))}</small><button class="mw-btn mw-btn--ghost" type="button" data-inbox-evaluate="${p.escape(entry.entry_id)}">${p.text("重新判断")}</button></p>`;
 }
 
-function writeButton(entry: InboxUiEntry, behaviorId: string, primary: boolean, p: InboxUiPrimitives): string {
-  if (behaviorId === INBOX_DISMISS_OPTION_ID) {
+function writeButton(entry: InboxUiEntry, optionId: string, primary: boolean, p: InboxUiPrimitives): string {
+  if (optionId === INBOX_DISMISS_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
     return `<button class="${cls}" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`;
   }
-  if (behaviorId !== INBOX_DONE_OPTION_ID) return "";
+  if (optionId !== INBOX_DONE_OPTION_ID) return "";
   const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
   return `<button class="${cls}" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("标记已处理")}</button>`;
 }

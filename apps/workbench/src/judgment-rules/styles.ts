@@ -94,8 +94,8 @@ export const FUNCTIONS_STYLES = `
   }
   .functions-criteria-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .functions-criteria-head strong { font-size: 13px; font-weight: 500; color: var(--ink); }
-  .functions-behavior-group { display: flex; flex-direction: column; gap: 8px; margin: 0 0 4px; }
-  .functions-behavior-group > span {
+  .functions-option-group { display: flex; flex-direction: column; gap: 8px; margin: 0 0 4px; }
+  .functions-option-group > span {
     font-size: 11px; color: var(--muted); letter-spacing: 0.01em;
   }
   .functions-palette-row, .functions-map-row {

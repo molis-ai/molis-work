@@ -3,7 +3,20 @@ import test from "node:test";
 import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { collectRuntimeDependencies } from "../apps/local-host/src/installer/home-dependencies.js";
+import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
+
+test("T405-FULL-10: Feed's own release dependency collection includes its rich-text runtime peers", async () => {
+  const feed = WORKSPACE_PACKAGES.find(entry => entry.path === "plugins/native/feed");
+  assert.ok(feed);
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  const packages = await collectRuntimeDependencies(join(root, feed.path, "package.json"), { name: feed.name, dependencies: feed.extraDependencies });
+  for (const name of ["marked", "sanitize-html"]) {
+    assert.ok(Object.hasOwn(feed.extraDependencies, name), `Feed itself must declare ${name} for release collection`);
+    assert.ok(packages.some(entry => entry.name === name), `Feed's own installer metadata must collect the actual ${name} package`);
+  }
+});
 
 test("release collection resolves children of linked ESM packages from their real package location", async t => {
   const root = await mkdtemp(join(tmpdir(), "jelly-release-deps-"));

@@ -57,7 +57,11 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
 
 ## 开发要求
 
-生产 MCP 在需要宿主时按需启动当前 Home 已安装的 `bin/molis-work-web`，只传固定 Home 与配置端口，不注册登录服务。Web 初次就绪有界，Home 健康认证通过才转发；MCP 退出后宿主继续常驻，App 按现有规则复用外部宿主，不接管其 Child 或 owner。MCP 取消/EOF 只结束该请求的等待与 HTTP，Web 启动失败经私有 fd 3 返回安全错误码，详细规则及真实进程验收见 [W5-16 C5](../../specs/repository-anti-corruption/slices/w5-16-mcp-autostart.md)。
+生产 MCP 在需要宿主时按需启动当前 Home 已安装的 `bin/molis-work-web`，只传固定 Home 与配置端口，不注册登录服务。Web 初次就绪有界，Home 健康认证通过才转发；MCP 退出后宿主继续常驻，App 按现有规则复用外部宿主，不接管其 Child 或 owner。MCP 取消/EOF 只结束该请求的等待与 HTTP，Web 启动失败经私有 fd 3 返回安全错误码。安全约束（只探测受信回环地址与固定端口、命令只取 Home 下已安装入口、环境白名单、fd 3 的收尾）是 S-78（[SECURITY-INVARIANTS](../../docs/system/SECURITY-INVARIANTS.md)）。
+
+启动与等待（`apps/local-host/src/mcp-resident-start.ts`）：一次调用总预算 20 秒，单次探测不超过 1 秒，250 毫秒可中断退避；同一 MCP 进程内按 Home 与 origin 合并等待，各调用的取消互不影响，最后一个等待者离开才中止这次启动。地址上已有身份正确但仍在启动的宿主只等待；身份不符、属于别的 Home 或响应畸形时直接失败，不终止它、不换端口；静默监听者只在预算内重探测，不能据其超时启动候选。只有确认没有监听者、且地址是 `127.0.0.1` 时才启动，配置为未运行的 IPv6-only 地址时返回 `actions.service_unavailable`。两个 MCP 同时观察到无服务时可能各起一个候选，只有取得 Home 存储所有权的那个继续，其余退出（`storage.owner.busy` 保留为失败原因）；不保证只启动一次，也不新增锁、PID 表或租约。业务请求送出后断连或宿主更换不会再启动或重放（`actions.delivery_unknown`），下一次新请求才重新探测。
+
+退出策略是常驻：MCP 退出、断线或单次调用结束都不停宿主，直接启动的进程不注册成登录服务、崩溃后不自动拉起。不做空闲退出，因为最后一个 MCP 断开不等于 Home 空闲（App、调度与后台 Agent 仍可能用它）；停宿主走显式服务管理，不按 health 返回的 PID 终止外部进程。
 
 - 负责：macOS 产品外壳与原生桥的组合根，以及 CLI、MCP、Web 的启动器（`launchers/`）。
 - 不负责：业务事实、Module 规则、Runtime 状态。

@@ -1,6 +1,6 @@
 # 创建入口：每个插件一句话新建，选中内容自动创建
 
-状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已打磨并实操；产品接入的 W1、W2 已在交接分支 #411 里通过工程用例，真实 Jev 评估、桌面原生拖出与一骏本人验收未完成。接续入口、现状、没做的事和下一步见[总纲第 20 节「远端交接」](../context-program/spec.md)，证据见总纲第 16 节；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
+状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已打磨并实操；产品接入的 W1、W2 随 #411（70c928ae0）已合入 main，后续已合片与未做片按总纲状态句核对，真实 Jev 评估、桌面原生拖出与一骏本人验收未完成。接续入口、现状、没做的事和下一步见[总纲第 20 节「远端交接」](../context-program/spec.md)，证据见总纲第 16 节；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
 
 ## 1. 用户的话与要解决的事
 
@@ -194,6 +194,8 @@ interface ItemIntake {
 
 ## 11. W4-6 与 BL-174 计划（2026-10-19）
 
+第 02 批合同复位后，现行内容站的接收动作和输入类型均为第 1 版，保留平铺输入与必填请求编号。原来固定到第 2 版的流程、角色和 MCP 客户端需要重选。以下是 10 月的设计和决策记录，当前行为以 W4-6-01、W4-6-04 为准。
+
 状态：W4-6a 已实施，待评审合入（分支 `context/w4-6a-receive-v2`，2026-10-19）；W4-6b 与 BL-174 仍是计划，未实施。这一节由情境线 ⑧ 的规划会话写，对照的是 origin/main `ebad9a223` 的代码。11.9 的两个问题已由用户在 2026-10-19 回答，答复记在 11.9。
 
 ### 11.1 三片与顺序
@@ -247,7 +249,7 @@ W4-6b 排在 BL-174 后面的理由：Inbox 不声明 `fits`。有了 BL-174，�
 `receive` v2 的输入（输出不变，仍是 `{ plugin, item_id, title }`）：
 
 ```ts
-interface WorkflowReceiveInput {          // molis.workflow.content.receive.input.v2
+interface WorkflowReceiveInput {          // molis.workflow.content.receive.input.v1
   readonly title: string;
   readonly body: string;
   readonly url?: string | null;
@@ -262,7 +264,7 @@ interface WorkflowReceiveInput {          // molis.workflow.content.receive.inpu
 | --- | --- | --- | --- |
 | `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt` 的 `.content.receive` | 1 → **2** | 输入改成上面的平铺形状，`input_type` 改为 `….receive.input.v2`；`output_type` 仍是 `.output.v1`；`context.title` 去掉（没有站点读它） | W4-6a |
 | 以上各站，加成果库的 `.content.list` / `.read` / `.create` | 不变，仍是 1 | 无。`workflow_content.protocol` 仍是 1 | — |
-| `inbox.content.receive@2` | 2 | 多了派生出的 `intake` 和 `result_view`。它们是声明，不改输入输出的形状，所以不升版本，与 W4-2 给 `goals.tree.submit` 加创建入口声明同一做法；W4-2 的 `pages.create` 另改输入输出形状，已升到 2 | W4-6b |
+| `inbox.content.receive@1` | 2 | 多了派生出的 `intake` 和 `result_view`。它们是声明，不改输入输出的形状，所以不升版本，与 W4-2 给 `goals.tree.submit` 加创建入口声明同一做法；W4-2 的 `pages.create` 另改输入输出形状，已升到 2 | W4-6b |
 | `inbox.intake.offers` | 新增，1 | 只用作 `prepare`，没有自己的选项，不调模型 | W4-6b |
 | `todo.items.create`、`lingguang.create` | 不变 | `intake` 多了 `fits`，属于声明 | BL-174 |
 
@@ -358,7 +360,7 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 1. 人在别处（灵光、Pages、Coding 的回复、讨论、右栏 Shelf、助理面板）选中一段文字，浮条贴着选区出现。
 2. 有判断时，「放进 Inbox」和「记成待办」「记下灵光」「存为文档」「拆成目标步骤」一起进候选，判断按各自的 `describe` 和 `examples` 排。没有判断时，它不声明 `fits`，只有在没有别的去处声明这类内容时，才按目录顺序轮到它（BL-174）。
 3. 点「放进 Inbox」，按钮进入忙碌状态。宿主用 `inbox.intake.offers` 不调模型算出标题与正文，在助理面板里出一张预填卡片，标题和正文可以改。Inbox 没有 `undo`，所以不直接建。
-4. 点「确认」：以本人身份、带卡片的请求号调用 `inbox.content.receive@2`。
+4. 点「确认」：以本人身份、带卡片的请求号调用 `inbox.content.receive@1`。
    - Feed 在「放进来的内容」来源下存一条，Inbox 建一条 `added_by: "web_user"` 的事项，显示「手动加入」。
    - 然后 Inbox 做下一步判断。判断失败不影响收下内容。
    - 完成卡写「已放进 Inbox」，带「去 Inbox」。
@@ -415,10 +417,10 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 
 | 编号 | 验收内容 | 证明它的测试 |
 | --- | --- | --- |
-| W4-6-01 | 八个站的 `receive` 都是 `@2`，输入是平铺形状，`request_id` 必填（1–160 字），`input_type` 是 `.input.v2`；`list`、`read`、`create` 仍是 `@1`。SDK 拒绝按旧形状声明的 `receive`，也拒绝形状对了、动作版本低于 2 的（插件可以自己往上升版本），并说明理由 | `tests/workflow-content-actions.test.ts`、`tests/plugin-declaration-rules.test.ts` |
+| W4-6-01 | 八个站的 `receive@1` 使用平铺输入，`request_id` 必填（1–160 字），输入类型为 `molis.workflow.content.receive.input.v1`。SDK 拒绝旧嵌套形状、缺少请求编号或类型引用不符的声明。 | `tests/workflow-content-actions.test.ts`、`tests/plugin-declaration-rules.test.ts` |
 | W4-6-02 | 八个站各自：同一个请求号只建一个对象，重发返回同一个；换一个请求号会另建；请求号不是 `workflow:` 开头的也一样 | 新增 `tests/content-station-request-id.test.ts`（真实的八个站），以及 `tests/document-plugins-limits.test.ts`、`tests/lingguang-actions.test.ts`、`tests/pages-actions.test.ts`、`tests/content-owner-regressions.test.ts` 里改过的断言 |
 | W4-6-03 | 工作流交接照旧：用 `workflow:<实例>:<步骤>` 作请求号；崩溃后重试、两次并发推进，都只交一次；Feed → Inbox → Pages → 灵光整条走通 | `tests/workflows-handoff-idempotency.test.ts`、`tests/workflows-plugin.test.ts` |
-| W4-6-04 | 已固定 `receive@1` 的流程与实例：原引用保留，报「已保存的接收能力 v1 不可用」，不换成 v2，也不写任何内容；在编辑器里把这一站拿掉再加回来，就固定到 `receive@2`，能跑 | `tests/workflow-content-actions.test.ts`（「saved versions survive withdrawal and upgrades」那一组加一条） |
+| W4-6-04 | 固定旧 `receive@2` 的流程与实例仍保存原引用，使用时明确提示不可用，不写业务内容。移除再添加该站后重新固定现行 `receive@1`，能正常继续。 | `tests/workflow-content-actions.test.ts` |
 | W4-6-05 | 来源与归属只认可信的调用上下文。工作流交来的：Inbox 记 `added_by: "workflow"`，Feed 放在「工作流程」下。人经放置交来的：Inbox 记 `"web_user"`，Feed 放在「放进来的内容」下。输入里写什么都改不了这两项。Inbox 嵌套调用 Feed 时，受众不变 | `tests/inbox-action-scenes.test.ts`、`tests/workflows-plugin.test.ts`（:208）、`tests/work-placement.test.ts` |
 | W4-6-06 | 放置的「转成」用 `placement:<请求号>`，同一个请求只建一个 | `tests/work-placement.test.ts` |
 | W4-6-07 | MCP 里八个 `…content.receive__v1` 换成 `__v2`，其余工具名不变 | `tests/dataset-mcp.test.ts`、`tests/form-mcp.test.ts`、`tests/ppt-mcp.test.ts` |
@@ -476,7 +478,7 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 - SDK：新增 `packages/plugin-sdk/src/passage-draft.ts`，改 `packages/plugin-sdk/src/index.ts`
 - Inbox：`plugins/native/inbox/src/content-actions.ts`、`manifest.ts`，新增 `intake-offers.ts`；`plugins/native/inbox/package.json` 与 `pnpm-lock.yaml`
 - Pages：`plugins/native/pages/src/intake-offers.ts`（W4-2 新加的文件）
-- 包清单：`specs/repository-anti-corruption/spec.md` §5.1 包清单的行（用脚本重新生成）
+- 包清单：`specs/archive/repository-anti-corruption/spec.md` §5.1 包清单的行（用脚本重新生成）
 - 快照：`tooling/gates/actions/`、`tooling/gates/api/`
 - 文档：`skills/molis-plugin-dev/contextual.md`、本文 §7
 - 测试：`tests/workflow-content-actions.test.ts`、`tests/plugin-context-declarations.test.ts`、`tests/contextual-create.test.ts`、`tests/contextual-draft.test.ts`、`tests/pages-actions.test.ts`、`tests/inbox-action-scenes.test.ts`；新增 `tests/contextual-inbox.e2e.test.ts`
@@ -507,9 +509,9 @@ W4-6a 合入之前原本要请统筹（①）回答两个问题；⑧ 在自己�
 1. **真实 Home 里固定了 `receive@1` 的已存流程与运行中的实例，由用户自己在编辑器里修**（用户 2026-10-19 定）：把站点拿掉再加回来，新引用固定 `receive@2`，也就是 action-architecture §3 说的「显式修复」。
    - 产品里不写迁移代码，也不为开发用的 Home 写迁移脚本；W4-6a 的 PR 也不碰任何真实 Home 或真实数据。
    - 修之前，这些流程与实例照现行规则报「已保存的接收能力 v1 不可用」，不换成 v2，也不写任何记录（`W4-6-04`）。
-   - 因为不加迁移机制，所以不用登记到 `specs/repository-anti-corruption` 的保留机制；只在其 §1 的决定表里记一行（见下一条）。
-2. **八个 MCP 工具改名，不留别名**（用户 2026-10-19 同意，⑧ 问的）：`molis_work_v1_action_<站>.content.receive__v1` 变成 `__v2`，各插件自己的 MCP 服务里的 `<站>.content.receive__v1` 也一样，八个站是 `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt`。按 CONTRACT-CHANGES §3.5，已在 `specs/repository-anti-corruption/spec.md` §1 记了一行（2026-10-19），W4-6a 的 PR 里列出新旧名字。
-3. **授权与角色里固定的 `receive@1`**（用户 2026-10-19 定，D25）：按准确版本固定 `receive@1` 的另外两类引用也一样对不上，产品里不迁移：MCP 客户端与内置 Agent 的动作授权（`apps/local-host/src/mcp-action-grants.ts` 按版本配授权；授权页把 v1 那条列为「找不到原能力、版本或提供方」，v2 未授权，要在授权页重新授权 v2，之前调不到）；Characters 角色动作范围里选过的 v1（保存或发布时报「原能力 … · v1 不可用或尚未授权给内置 Agent」，要移除 v1、改选 v2；这项检查原在 `plugins/native/characters/src/plugin.ts`，CHR-1，2026-10-22 起在 `modules/characters/src/agent-actions.ts`）。用户原话：「不想手动改：在真实 Home 上做一次性维护，把授权和角色里的 receive v1 改成 v2。先在一次性 Home 上演练、先备份，时间由我定。」所以由一次性维护把八个站在这两类引用里的 v1 改成 v2：v2 的权限或受众比 v1 宽的那一条不带过去，列给用户在授权页重新授权；角色按人自己改角色时的版本规则处理，不就地改已发布的那一版；先在一次性 Home 上演练、整份备份，真实 Home 那一次由用户定时间、当次同意。维护脚本放会话临时目录、不进仓库，产品代码里也不加迁移，所以不登记到 `specs/repository-anti-corruption` 的保留机制（`docs/system/CONTRACT-CHANGES.md` §3 第 4 条）。**结项（用户 2026-10-20 定）：** 原来那台电脑上的 Home 不再用，现在的开发机上没有真实 Home，这次维护没有在任何真实 Home 上跑过；两次一次性 Home 演练都通过了，脚本留在会话临时目录、不进仓库。已存的工作流不在这次维护里，仍由用户在编辑器里修。
+   - 因为不加迁移机制，所以不用登记到 `specs/archive/repository-anti-corruption` 的保留机制；只在其 §1 的决定表里记一行（见下一条）。
+2. **八个 MCP 工具改名，不留别名**（用户 2026-10-19 同意，⑧ 问的）：`molis_work_v1_action_<站>.content.receive__v1` 变成 `__v2`，各插件自己的 MCP 服务里的 `<站>.content.receive__v1` 也一样，八个站是 `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt`。按 CONTRACT-CHANGES §3.5，已在 `specs/archive/repository-anti-corruption/spec.md` §1 记了一行（2026-10-19），W4-6a 的 PR 里列出新旧名字。
+3. **授权与角色里固定的 `receive@1`**（用户 2026-10-19 定，D25）：按准确版本固定 `receive@1` 的另外两类引用也一样对不上，产品里不迁移：MCP 客户端与内置 Agent 的动作授权（`apps/local-host/src/mcp-action-grants.ts` 按版本配授权；授权页把 v1 那条列为「找不到原能力、版本或提供方」，v2 未授权，要在授权页重新授权 v2，之前调不到）；Characters 角色动作范围里选过的 v1（保存或发布时报「原能力 … · v1 不可用或尚未授权给内置 Agent」，要移除 v1、改选 v2；这项检查原在 `plugins/native/characters/src/plugin.ts`，CHR-1，2026-10-22 起在 `modules/characters/src/agent-actions.ts`）。用户原话：「不想手动改：在真实 Home 上做一次性维护，把授权和角色里的 receive v1 改成 v2。先在一次性 Home 上演练、先备份，时间由我定。」所以由一次性维护把八个站在这两类引用里的 v1 改成 v2：v2 的权限或受众比 v1 宽的那一条不带过去，列给用户在授权页重新授权；角色按人自己改角色时的版本规则处理，不就地改已发布的那一版；先在一次性 Home 上演练、整份备份，真实 Home 那一次由用户定时间、当次同意。维护脚本放会话临时目录、不进仓库，产品代码里也不加迁移，所以不登记到 `specs/archive/repository-anti-corruption` 的保留机制（`docs/system/CONTRACT-CHANGES.md` §3 第 4 条）。**结项（用户 2026-10-20 定）：** 原来那台电脑上的 Home 不再用，现在的开发机上没有真实 Home，这次维护没有在任何真实 Home 上跑过；两次一次性 Home 演练都通过了，脚本留在会话临时目录、不进仓库。已存的工作流不在这次维护里，仍由用户在编辑器里修。
 
 ### 11.10 待补浏览器验证（用户 10-19 暂停）
 

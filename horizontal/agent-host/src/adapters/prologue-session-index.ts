@@ -13,7 +13,7 @@ import type { NodeHost } from "./prologue-node-kit.js";
  */
 export interface SessionIndex {
   schema: 1;
-  /** Missing on historical rooted sessions. Never infer none from an absent directory. */
+  /** Rooted child sessions may omit this; their frozen intent carries the authorized directory. */
   workspace?: "required" | "none" | "business";
   parent_run?: AgentRunRef;
   /** The work graph this session works on (an Assistant Work's, or the one a part of it was handed out on): its rounds stand there. */

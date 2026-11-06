@@ -18,8 +18,8 @@ const draft = { type: "object", required: ["character_id", "revision", "state", 
 const run = object({ run_id: id, panel_id: id, title: text, created_at: text, reference, workspace_path: text,
   status: { enum: ["starting", "dispatched", "failed"] }, status_message: { anyOf: [text, { type: "null" }] } });
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED, version = 1): ActionDefinition<I, O> {
-  return { capability_id: `characters.${name}`, version, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
+  permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED): ActionDefinition<I, O> {
+  return { capability_id: `characters.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "project", audiences, permissions, subject_kinds: ["character"], input_schema: input, output_schema: output } };
 }
 
@@ -42,7 +42,7 @@ export const charactersActions = {
     object({ reference, publication: { type: "object" }, replayed: { type: "boolean" } }), ["artifact:read", "artifact:write"]),
   /** v2 (Sessions cleanup SC-2): Characters' own records, without the terminal output v1 returned. */
   runs: define<{ id: string }, { runs: CharacterNativeRun[] }>("runs", "角色运行记录", "读取用本机 Agent 运行此角色的记录：何时、哪个版本、在哪个目录、是否派发成功；不含终端输出",
-    "query", object({ id }), object({ runs: { type: "array", items: run } }), [], LOCAL, 2),
+    "query", object({ id }), object({ runs: { type: "array", items: run } }), [], LOCAL),
   discover: define<Record<string, unknown>, { candidates: unknown[] }>("imports.discover", "查找可导入的 Agent", "在本机 Agent 配置目录中查找可导入为角色的设定",
     "query", { type: "object" }, object({ candidates: { type: "array" } }), [], LOCAL),
   importFile: define<Record<string, unknown>, unknown>("imports.file", "预览导入文件", "预览一个可导入设定中的文件", "query",
@@ -61,7 +61,7 @@ export const charactersActions = {
   /** v2 (Sessions cleanup SC-2): the run is Characters' own record and the terminal is reached by its panel alone, without a Session. */
   launch: define<CharacterLaunchInput, { run: CharacterNativeRun; spawn: { panelId: string; attachOnly: boolean } }>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
     { type: "object", properties: { reference, workspace_id: { type: "string" }, task: { type: "string" }, request_id: { type: "string" } },
-      required: ["reference", "workspace_id", "task", "request_id"] }, object({ run, spawn: object({ panelId: id, attachOnly: { type: "boolean" } }) }), ["artifact:read"], LOCAL, 2),
+      required: ["reference", "workspace_id", "task", "request_id"] }, object({ run, spawn: object({ panelId: id, attachOnly: { type: "boolean" } }) }), ["artifact:read"], LOCAL),
   /** System search: the person's Characters (not deleted) by title and how they work. */
   searchEntries: defineSearchEntriesAction("characters.search.entries", [{ kind: "character", title: "角色", surface: "characters" }], "角色", []),
   subject: defineSubjectContextAction("characters.subject.read", "character", "角色", []),

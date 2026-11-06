@@ -15,7 +15,7 @@ function packageFixture() {
   const spki = keys.publicKey.export({ type: "spki", format: "der" });
   const identity = `ed25519:sha256:${createHash("sha256").update(spki).digest("hex")}`;
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.package-trust", version: "1.0.0", name: "Package trust fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.package-trust", version: "1.0.0", name: "Package trust fixture", kind: "app",
     publisher: { publisher_id: "developer", signature: identity }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
   };

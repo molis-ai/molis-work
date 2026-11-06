@@ -259,7 +259,7 @@ const SIX = [agent.controlRun, agent.readCommandOutput, agent.inspectRecovery, a
 const READS = [agent.readSession, agent.readRun, agent.readRunReviews, agent.listSubagents, agent.prepareRewind];
 const recovery = { session_id: "s1", blockers: [], runs: [{ run_id: "r1", version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [] }] };
 
-async function roundsSetup(t: TestContext, home = false) {
+async function roundsSetup(t: TestContext, home = false, additionalConsumedIds: readonly string[] = []) {
   const directory = await mkdtemp(join(tmpdir(), "agent-host-rounds-"));
   // With a Home the Host keeps its call log, which RAC-181 reads.
   const localHost = home ? new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }) : new MolisWorkLocalHost();
@@ -285,7 +285,7 @@ async function roundsSetup(t: TestContext, home = false) {
     subagents: { list: answer("subagents", () => []), cancel: answer("cancel", () => undefined) },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumer = callerPlugin("rounds", "project", {}, [...SIX, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id));
+  const consumer = callerPlugin("rounds", "project", {}, [...[...SIX, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id), ...additionalConsumedIds]);
   const bystander = callerPlugin("rounds-bystander", "project");
   await startPlugin(localHost, reference, store, consumer, { actorId: "web-user" });
   await startPlugin(localHost, reference, store, bystander, { actorId: "web-user" });
@@ -303,7 +303,7 @@ const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", 
   started_at: "2026-10-23T00:00:00.000Z", ended_at: null };
 
 test("merged original-input Action shapes reject prior fixed versions through the real plugin dispatcher", async t => {
-  const { consumer, seen, owner } = await roundsSetup(t), actions = consumer.actions(PROJECT);
+  const { consumer, seen, owner } = await roundsSetup(t, false, ["agent.session.read.v1", "agent.run.read.v1", "agent.run.wait.v1", "agent.run.start.v1"]), actions = consumer.actions(PROJECT);
   owner.current = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
   const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
   const calls = [
@@ -311,8 +311,11 @@ test("merged original-input Action shapes reject prior fixed versions through th
     [agent.startRun, [RUNTIME, { session, task: "Read the project", role_id: "reader" }]],
   ] as const;
   for (const [definition, input] of calls) {
-    for (const version of definition === agent.startRun ? [1] : [1, 2]) {
-      await assert.rejects(actions.invoke({ ...definition, version } as ActionDefinition, input), { code: "actions.dependency_missing" }, `${definition.capability_id}@${version}`);
+    const previousId = definition.capability_id + ".v1";
+    const previousVersion = definition === agent.startRun ? 3 : definition === agent.readSession ? 2 : 4;
+    for (const ref of [{ capability_id: previousId, version: previousVersion }, { capability_id: previousId, version: 1 },
+      { capability_id: definition.capability_id, version: previousVersion }]) {
+      await assert.rejects(actions.invoke({ ...definition, ...ref } as ActionDefinition, input), { code: "actions.dependency_missing" }, `${ref.capability_id}@${ref.version}`);
     }
   }
   assert.deepEqual(seen, [], "none of the old references reached the Runtime");

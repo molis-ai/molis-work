@@ -1,5 +1,5 @@
 {
-  // Static checks (specs/repository-anti-corruption W1-09): the minimal rule set. tooling/gates/README.md ("Static checks")
+  // Static checks (specs/archive/repository-anti-corruption W1-09): the minimal rule set. tooling/gates/README.md ("Static checks")
   // says what each rule is for and how the frozen per-file baseline works; the gate is scripts/gates/lint.mjs, run by
   // `pnpm health:check`. Biome only lints here: no formatter and no import sorting, so nothing is ever reformatted wholesale.
   // The gate reads only the settings that this file uses (scripts/gates/lint.mjs, policyOf): a rule option, a per-language

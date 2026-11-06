@@ -1,9 +1,9 @@
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
@@ -13,14 +13,15 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, store, projectId, homeDirectory } = browser;
   const todo = await pluginFrameBrowser(t, browser, "todo");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "directory-test" });
-  const other = await catalog.createProject({ display_name: "另一项目", actor_id: "directory-test" });
-  catalog.close();
+  const feedView = await pluginFrameBrowser(t, browser, "feed");
+  for (const plugin_id of ["feed"] as const) await addProjectPlugin(browser.web, projectId!, plugin_id);
+  const other = await createProject(browser.web, "另一项目");
+
   new GoalProjectApplication(store).goalEvents.createIntent({ project_id: projectId!, goal_id: "long-child", parent_goal_id: "CORE", actor_id: "directory-test", actor_kind: "user", title: "迁移 Execution Claim / Run 生命周期并保留现有 Runtime 与 Goal 的完整关联", outcome: "验证多层目录中的长标题不会挤压状态标记。", idempotency_key: "long-child" });
   const before = boardSnapshot(store, projectId!);
   const page = origin + "/projects/" + projectId + "/?desktop=1";
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__uiErrors=[];addEventListener('error',e=>window.__uiErrors.push(e.message));" }, sessionId);
+  browser.setFrameInitScript("window.__uiErrors=[];addEventListener('error',e=>window.__uiErrors.push(e.message));");
   const viewport = (width: number, height = 1000) => command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
   const key = async (value: string, code: number) => {
     await command("Input.dispatchKeyEvent", { type: "keyDown", key: value, windowsVirtualKeyCode: code }, sessionId);
@@ -62,19 +63,21 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
-  // New Goal is the Goals page's one graphite button, like every list page's first create action
+  // New Goal is the Goals page's one ink-blue button, like every list page's first create action
   // (DESIGN.md → Plugin stage; specs/archive/plugin-e2e-review/spec.md §4 X5, kept by the user after #108):
-  // graphite --action fill, --action-ink text and glyph, 8px control corners, no outline.
-  assert.equal(create.bg, "rgb(41, 42, 44)", "New Goal is the graphite primary action");
+  // ink-blue --action fill (#2d4f6c), --action-ink text and glyph, 10px control corners, no outline.
+  // Values follow #1741: it made --action ink blue (DESIGN.md "Ink blue `--action`", the Primary button entry) and
+  // made the default skin 柔雾, whose controls are 10px; the earlier graphite #292a2c and 8px no longer apply.
+  assert.equal(create.bg, "rgb(45, 79, 108)", "New Goal is the ink-blue primary action");
   assert.equal(create.color, "rgb(255, 255, 255)");
   assert.equal(create.icon, create.color);
-  assert.equal(create.radius, "8px");
+  assert.equal(create.radius, "10px");
   assert.equal(create.border, "rgba(0, 0, 0, 0)", "New Goal has no outline");
   const filter = await evaluate<{ bg: string; color: string; radius: string; icon: string; height: number; width: number; border: string }>("(()=>{const button=document.querySelector('[data-tree-filter-trigger]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,height:Math.round(button.getBoundingClientRect().height),width:Math.round(button.getBoundingClientRect().width),border:s.borderTopColor};})()");
   // The filter stays a quiet toolbar control: the ink-4% wash, ink text and glyph, same corners, no outline.
-  assert.equal(filter.bg, "color(srgb 0.160784 0.164706 0.172549 / 0.04)", "Filter keeps the quiet control wash");
-  assert.equal(filter.color, "rgb(41, 42, 44)");
-  assert.equal(filter.icon, "rgb(41, 42, 44)");
+  assert.equal(filter.bg, "color(srgb 0.121569 0.168627 0.215686 / 0.04)", "Filter keeps the quiet control wash");
+  assert.equal(filter.color, "rgb(31, 43, 55)");
+  assert.equal(filter.icon, "rgb(31, 43, 55)");
   assert.equal(filter.radius, create.radius);
   assert.equal(filter.border, create.border);
   // Standard density controls are 32px tall (DESIGN.md → Density); compact keeps 28px. With room, the filter is named
@@ -189,16 +192,17 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await waitFor("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal==='long-child'");
   await click('[data-goal-collapse]');
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await feedView.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-list]')");
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-list]')"), null);
+  assert.equal(await feedView.evaluate("document.querySelector('[data-feed-views]')"), null);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=feed]')?.hidden"), true);
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=feed]')"), null);
   // Soft Workbench: adding a source sits in the Feed column heading; the empty list says what to do next.
-  assert.ok(await evaluate("document.querySelector('[data-feed-source-header] [data-feed-add-toggle]')?.getBoundingClientRect().width > 0"));
-  assert.ok(await evaluate("document.querySelector('[data-feed-empty]:not([hidden])')"), "Feed shows a page empty state");
+  assert.ok(await feedView.evaluate("document.querySelector('[data-feed-source-header] [data-feed-add-toggle]')?.getBoundingClientRect().width > 0"));
+  assert.ok(await feedView.evaluate("document.querySelector('[data-feed-empty]:not([hidden])')"), "Feed shows a page empty state");
   await capture("directory-feed-empty");
 
   const feed = createLocalFeedApplication(store.db);
@@ -207,8 +211,8 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   const item = feed.ingestItem({ source, externalId: "first", title: "从首次使用观察中找到下一步值得改进的地方", summary: "完整保留消息来源和正文，再决定如何推进。", body: "这条消息用于验证在真实目录中打开和阅读内容。", occurredAt: now, attention: false });
   feed.ingestItem({ source, externalId: "second", title: "终端与目标信息应当如何配合", summary: "切换工作时保留上下文，让记录留在正确的目标里。", body: "第二条目录内容。", occurredAt: now, attention: false });
   await reloadPage();
-  await waitFor("document.querySelectorAll('[data-feed-entry-task=\"directory-rss\"]').length===2");
-  const feedRow = await evaluate<{ height: number; size: string; weight: string; titleWidth: number; columns: string; status: boolean; chevron: boolean }>("(()=>{const row=document.querySelector('[data-feed-entry-id]'),title=row.querySelector('strong');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,titleWidth:Math.round(title.getBoundingClientRect().width),columns:getComputedStyle(row).gridTemplateColumns,status:Boolean(row.querySelector('.feed-entry-status')),chevron:Boolean(row.querySelector('.feed-entry-chevron'))};})()");
+  await feedView.waitFor("document.querySelectorAll('[data-feed-entry-task=\"directory-rss\"]').length===2");
+  const feedRow = await feedView.evaluate<{ height: number; size: string; weight: string; titleWidth: number; columns: string; status: boolean; chevron: boolean }>("(()=>{const row=document.querySelector('[data-feed-entry-id]'),title=row.querySelector('strong');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,titleWidth:Math.round(title.getBoundingClientRect().width),columns:getComputedStyle(row).gridTemplateColumns,status:Boolean(row.querySelector('.feed-entry-status')),chevron:Boolean(row.querySelector('.feed-entry-chevron'))};})()");
   // Soft Workbench prototype: a Feed row is a reading card (source line, title, one-line summary), not a single line.
   assert.ok(feedRow.height >= 72 && feedRow.height <= 130, "Feed rows are compact reading cards: " + feedRow.height);
   assert.equal(feedRow.size, "13px"); // on the fixed type scale (spec → 第三轮 · 字号)
@@ -218,19 +222,20 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.equal(feedRow.status, true, "Closed Feed rows use the Goal status mark");
   assert.equal(feedRow.chevron, false, "Closed Feed rows do not spend a column on a chevron");
   await capture("directory-feed-list");
-  await evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
-  await evaluate("(()=>{const status=document.querySelector('[data-feed-status-filter]');if(!status)return;status.value='archived';status.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-feed-filter-option=\"status\"][data-feed-filter-value=\"archived\"]')?.click();})()");
-  await waitFor("document.querySelector('[data-feed-empty]')?.hidden===false");
-  assert.ok(await evaluate("document.querySelector('[data-feed-clear-filters]').getClientRects().length>0"));
-  await evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
-  await click('[data-feed-clear-filters]');
-  await click('[data-feed-filter-trigger]');
-  assert.ok(await evaluate("(()=>{let p=document.querySelector('[data-feed-filter-panel]').getBoundingClientRect(),r=document.querySelector('[data-work-surface=feed]').getBoundingClientRect();return p.left>=r.left&&p.right<=r.right&&p.bottom<=innerHeight;})()"));
+  await feedView.evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
+  await feedView.evaluate("(()=>{const status=document.querySelector('[data-feed-status-filter]');if(!status)return;status.value='archived';status.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-feed-filter-option=\"status\"][data-feed-filter-value=\"archived\"]')?.click();})()");
+  await feedView.waitFor("document.querySelector('[data-feed-empty]')?.hidden===false");
+  assert.ok(await feedView.evaluate("document.querySelector('[data-feed-clear-filters]').getClientRects().length>0"));
+  await feedView.evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
+  await feedView.click('[data-feed-clear-filters]');
+  await feedView.click('[data-feed-filter-trigger]');
+  assert.ok(await feedView.evaluate("(()=>{let p=document.querySelector('[data-feed-filter-panel]').getBoundingClientRect(),r=document.querySelector('[data-work-surface=feed]').getBoundingClientRect();return p.left>=r.left&&p.right<=r.right&&p.bottom<=innerHeight;})()"));
   await capture("directory-feed-filter");
-  await click('[data-feed-filter-trigger]');
-  await click('[data-feed-entry-id][data-feed-item-id="' + item.item.item_id + '"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-shell]')?.dataset.expanded === 'true' && Boolean(document.querySelector('[data-feed-entry-detail=\"" + item.item.item_id + "\"]:not([hidden])')) && (document.querySelector('[data-work-surface=feed]')?.textContent || '').includes('从首次使用观察中找到下一步值得改进的地方')");
-  const feedBack = await evaluate<{ ok: boolean; dump: string }>(`(() => {
+  await feedView.click('[data-feed-filter-trigger]');
+  await feedView.click('[data-feed-entry-id][data-feed-item-id="' + item.item.item_id + '"]');
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await feedView.waitFor("document.querySelector('[data-feed-stage-shell]')?.dataset.expanded === 'true' && Boolean(document.querySelector('[data-feed-entry-detail=\"" + item.item.item_id + "\"]:not([hidden])')) && (document.querySelector('[data-work-surface=feed]')?.textContent || '').includes('从首次使用观察中找到下一步值得改进的地方')");
+  const feedBack = await feedView.evaluate<{ ok: boolean; dump: string }>(`(() => {
     const back = document.querySelector('[data-work-surface=feed] [data-feed-entry-detail]:not([hidden]) .plugin-stage-back');
     const workspace = back?.closest('.plugin-stage-workspace');
     if (!workspace || !back) return { ok: false, dump: 'missing' };
@@ -238,6 +243,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
     return { ok: inset >= 10 && inset <= 18, dump: JSON.stringify({ inset: Math.round(inset * 10) / 10 }) };
   })()`);
   assert.ok(feedBack.ok, "Feed close sits in the reading bar's inset " + feedBack.dump);
+  assert.deepEqual(await feedView.evaluate("window.__uiErrors"), []);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await evaluate("document.documentElement.dataset.resolvedTheme='dark'");
   await click('[data-plugin-strip] [data-plugin-id="todo"]');
@@ -313,7 +319,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await click("[data-assistant-attach]");
   await waitFor("!document.querySelector('[data-assistant-more]').hidden && /添加文件/.test(document.querySelector('[data-assistant-more]').textContent)");
   assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-more]').textContent;return /引用项目里的内容/.test(t) && /用一个能力或方法/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
-  assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search"); 
+  assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search");
   await evaluate("document.querySelector('[data-assistant-more] button').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("document.querySelector('[data-assistant-more]').hidden");
   // However many chips stand beside it, the input keeps room to type: a long work and what needs a look (what the Send carries

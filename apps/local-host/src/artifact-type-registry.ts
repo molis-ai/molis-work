@@ -6,7 +6,7 @@ import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugi
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 // The platform's table of 成果 types, read from what each producer's Manifest declares (PG-079, PG-064 in
-// specs/repository-anti-corruption/privileges.md; slices/ac-artifacts.md §3.3). It lives in the Host with the other platform
+// specs/archive/repository-anti-corruption/privileges.md; slices/ac-artifacts.md §3.3). It lives in the Host with the other platform
 // registrations (`plugin-registry.ts`); the workbench draws from what the Host hands it and exports none of it.
 
 /** A visible 成果 type as its owner declares it (specs/artifact-positioning A4). */

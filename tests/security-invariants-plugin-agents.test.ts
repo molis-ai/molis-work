@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
@@ -43,7 +44,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { release.resolve(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address === "object");
-  await seedConfiguredModels(f.home, [{ provider_id: "fixture", model_id: "fixture" }], `http://127.0.0.1:${address.port}`);
+  await seedConfiguredModels(f.home, [{ provider_id: "fixture", model_id: "fixture" }], `http://127.0.0.1:${address.port}`, f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog));
   const store = await f.host.withProject(project.reference, runtime => runtime.store);
   const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const actions = { registry: f.host.actionRegistry(project.reference), client: { ...f.host.actionClient(project.reference), ...f.host.syncActionClient(project.reference) }, project_id: project.project_id };
@@ -52,7 +53,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   let context: PluginStartContext, borrowed: PluginAgentClient | undefined;
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name: "Awaited Agent", version: "1.0.0", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name: "Awaited Agent", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "awaited-agent" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [grant, "storage:private"].map(permission => ({ permission, required: true, reason: "Run the declared role and store its answer" })),
     capabilities: { provides: [], consumes: [agentHostCapabilities.readSession.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [run, serial, denied, query],

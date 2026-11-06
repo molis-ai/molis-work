@@ -25,6 +25,7 @@ export function pluginBackgroundFor(definition: PluginDefinition, context: Plugi
   if (!hasPluginBackground(definition)) return undefined;
   const declarations = definition.manifest.background?.jobs ?? [];
   return createPluginBackgroundClient({ install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: permission => context.requireGrant(permission),
+    installationPermissions: definition.manifest.permissions.map(row => row.permission),
     ...(declarations.length ? { jobs: { declarations, actor_id: jobs.actor_id, ...(jobs.project_id ? { project_id: jobs.project_id } : {}),
       assertInstallationCurrent: installationCheck(jobs.record),
       // Each job is an operation of its own: the call records name it, never the call that kept it.

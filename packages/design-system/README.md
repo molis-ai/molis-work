@@ -99,6 +99,8 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
 
 ## 开发要求
 
+生成插件组件的 `requiredText` 在原生 invalid 事件中显示，不取消 required 或调用后端。读取失败替换旧内容为通用错误与真实重试按钮，保留表单草稿；`refresh(componentId?)` 可只刷新绑定读取的一个组件，读取快照观察不发请求。
+
 - 负责：设计令牌、控件、图标、主题与无障碍基础。
 - 不负责：产品页业务决定、插件状态、路由。
 - 公开入口：`@molis-ai/molis-work-design-system`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/ui`。

@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
@@ -40,7 +41,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
     const latest = "继续接入，但接好后只读取库存，不要创建或保存 Pages 文档";
     const call = (name: string, capability_id: string, provider_id: string, input: unknown, version = 1) => ({ name, input: { capability_id, version, provider_id, input } });
     const wait = () => ({ name: "board-wait", input: { on: [{ kind: "external", checker: "molis.connector-setup@1", params: { authorization_id: authorization } }], onFailure: "block", deadlineMinutes: 30, reason: "等待库存来源接入" } });
-    const page = () => call("change-capability", "pages.create", pagesManifest.plugin_id, { title: TITLE, markdown: SOURCE }, 2);
+    const page = () => call("change-capability", "pages.create", pagesManifest.plugin_id, { title: TITLE, markdown: SOURCE }, 1);
     const firstReadTurn = scenario === "read-only" ? 10 : 5;
     const model = await connectorAssistantModel(t, home.home, (body, turn) => {
       if (turn === 1) return { name: "find-capabilities", input: { query: "准备本地 MCP" } };
@@ -84,7 +85,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
         return scenario === "read-only" ? SOURCE : { name: "find-capabilities", input: { query: "Pages 新建文档" } };
       }
       if (stage === 3) return scenario === "recover"
-        ? call("change-capability", "pages.create", pagesManifest.plugin_id, { title: TITLE, body: { type: "doc", content: [{ type: "not_a_pages_node" }] } }, 2) : page();
+        ? call("change-capability", "pages.create", pagesManifest.plugin_id, { title: TITLE, body: { type: "doc", content: [{ type: "not_a_pages_node" }] } }, 1) : page();
       if (stage === 4) return scenario === "recover" ? "来源已经读到，Pages 拒绝了正文格式；没有保存文档。" : "已把库存保存到 Pages。";
       if (stage === 5) {
         assert.ok(JSON.stringify(body.messages).includes(SOURCE), "the original resource result survives Host restart in this work");
@@ -95,7 +96,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
       if (scenario !== "read-only" || model.requests.length !== firstReadTurn) return [];
       assert.match(given, /接入已完成。现在按你的最新要求/);
       return ["will_do"];
-    });
+    }, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
     const sent = await home.web.post<AssistantSendResult>(prefix + "/api/assistant/send", { text: "接入库存来源，读取 inventory://quarter 并保存到 Pages", request_id: crypto.randomUUID() });
     const read = () => server.web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${sent.work.work_id}`);
     const approved = new Set<string>();
@@ -149,7 +150,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
 test("ASC-25 ASC-34: setup context is scoped to the actor, session and project and respects the current read grant", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Setup context", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
-  const model = await connectorAssistantModel(t, home.home, () => "已查看本轮情况。");
+  const model = await connectorAssistantModel(t, home.home, () => "已查看本轮情况。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const sent = await home.web.post<AssistantSendResult>(prefix + "/api/assistant/send", { text: "先查看本轮情况", request_id: crypto.randomUUID() });
   const settled = (rounds: number) => untilSetup(async () => {
     const view = await home.web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${sent.work.work_id}`);

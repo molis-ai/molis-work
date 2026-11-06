@@ -14,7 +14,7 @@ import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 import { EXECUTOR_MODES, roleDefinitions, roleOfCapability } from "./fixtures/work-executor-fake.js";
 
-// S-51 (specs/repository-anti-corruption PG-036, C8-1): the Assistant calls a work's executor as the person at this computer, through
+// S-51 (specs/archive/repository-anti-corruption PG-036, C8-1): the Assistant calls a work's executor as the person at this computer, through
 // the same installation-grant checks the person's own page goes through, and a dispatch (a Send, a follow-up's round) binds the
 // person's client anew when it acts. A follow-up scheduled while the executor plugin held its grants is refused once they are gone.
 
@@ -52,7 +52,7 @@ function executorPlugin() {
     if (name === "run.start") { runs.push(String(input.task)); return { run_id: `run-${runs.length}` }; }
     return { accepted: true };
   };
-  const definition = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: EXECUTOR_ID, version: "1.0.0", name: "执行方样例",
+  const definition = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: EXECUTOR_ID, version: "1.0.0", name: "执行方样例",
     kind: "app", publisher: { publisher_id: "example", signature: "executor" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: USE, required: false, reason: "接手助理交来的工作" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] }, actions: definitions },

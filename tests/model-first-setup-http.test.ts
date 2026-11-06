@@ -19,7 +19,8 @@ const controlToken = "model-first-setup-control-token-0123456789abcdef";
 const goodKey = "stand-in-good-key-0123456789";
 const wrongKey = "stand-in-wrong-key-0123456789";
 
-interface SettingsList { providers: { provider_id: string; display_name: string; models: { model_id: string }[] }[]; health: { provider_id: string; status: string }[] }
+interface SettingsList { providers: { provider_id: string; display_name: string; models: { model_id: string }[] }[];
+  health: { provider_id: string; status: string; last_check?: { at: string; outcome: string; code?: string; current: boolean } }[] }
 
 async function withHost(run: (host: {
   origin: string;
@@ -28,14 +29,16 @@ async function withHost(run: (host: {
   save(id: string, body: Record<string, unknown>): Promise<{ status: number; text: string; json: Record<string, unknown> }>;
   providers(): Promise<SettingsList>;
   connections(): Promise<{ connection_id: string }[]>;
-}) => Promise<void>) {
+}) => Promise<void>, prepareHome?: (home: string) => Promise<void>) {
   const root = await mkdtemp(path.join(tmpdir(), "molis-first-model-"));
-  const server: Server = createMolisWorkWebServer({ homeDirectory: path.join(root, "home"), controlToken });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
+  let server: Server | undefined;
   try {
+    await prepareHome?.(path.join(root, "home"));
+    server = createMolisWorkWebServer({ homeDirectory: path.join(root, "home"), controlToken });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
     await run({
       origin, root,
       html: async (search, locale) => (await fetch(`${origin}/settings/models${search}`, { headers: locale ? { cookie: `molis_work_locale=${locale}` } : {} })).text(),
@@ -52,7 +55,7 @@ async function withHost(run: (host: {
       connections: async () => ((await (await fetch(`${origin}/api/settings/connectors/connections?service_id=model-api`)).json()) as { connections: { connection_id: string }[] }).connections,
     });
   } finally {
-    await new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); });
+    if (server) await new Promise<void>((resolve) => { server!.close(() => resolve()); server!.closeAllConnections(); });
     await rm(root, { recursive: true, force: true });
   }
 }
@@ -299,9 +302,8 @@ test("没有连接的供应商不能借检查把旧密钥发到新地址：改�
   const pinned = await startModelStandIn(goodKey);
   const other = await startModelStandIn(goodKey);
   try {
-    await withHost(async ({ save, providers, connections, root }) => {
+    const prepareHome = async (home: string) => {
       // A provider from before connections: its key sits under its own reference and no connection holds it.
-      const home = path.join(root, "home");
       const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
       const { runWithMolisWorkHome, createFileSecretStore } = await import("@molis-ai/molis-work-storage");
       await runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, (catalog) => {
@@ -309,6 +311,9 @@ test("没有连接的供应商不能借检查把旧密钥发到新地址：改�
         catalog.models.upsert({ credential_ref: "legacy-slot-key", provider_id: "legacy", display_name: "旧供应商", base_url: pinned.baseUrl,
           api_format: "openai-chat-completions", models: [{ model_id: "m", enabled: true }] });
       }));
+    };
+    await withHost(async ({ save, providers, connections, root }) => {
+      const home = path.join(root, "home");
       assert.deepEqual(await connections(), [], "the provider has no connection");
       const models = [{ model_id: "m", enabled: true }];
 
@@ -340,7 +345,7 @@ test("没有连接的供应商不能借检查把旧密钥发到新地址：改�
       assert.equal(other.requests.length, 1);
       assert.equal(other.requests[0]!.offeredKey, goodKey);
       assert.equal(withConnectorConnections(home, (store) => store.list("model-api").length), 1);
-    });
+    }, prepareHome);
   } finally { await pinned.close(); await other.close(); }
 });
 
@@ -386,6 +391,47 @@ test("英文界面里，检查失败的原因也是英文", async () => {
       assert.equal(response.status, 400);
       const { error } = await response.json() as { error: string };
       assert.match(error, /The connection check did not pass, so nothing was saved\. The service rejected this API key \(401\)/);
+    });
+  } finally { await standIn.close(); }
+});
+
+test("PF-A04 ASC-53 上次检查跟着供应商走：保存时的检查记下来，改名不算变，换了到达方式就不算当前；手动测试失败也记下原因，不带密钥", async () => {
+  const standIn = await startModelStandIn(goodKey);
+  try {
+    await withHost(async ({ origin, save, providers }) => {
+      const models = [{ model_id: "model-a", enabled: true }];
+      const unchecked = await save("p", form(standIn.baseUrl, models, { api_key: goodKey }));
+      assert.equal(unchecked.status, 200, unchecked.text);
+      assert.equal((await providers()).health[0]?.last_check, undefined, "没检查过就是没检查过，不显示成通过");
+
+      assert.equal((await save("p", form(standIn.baseUrl, [...models, { model_id: "model-b", enabled: true }], { check_connection: true }))).status, 200);
+      let last = (await providers()).health[0]?.last_check;
+      assert.equal(last?.outcome, "connected");
+      assert.equal(last?.current, true);
+
+      assert.equal((await save("p", form(standIn.baseUrl, models, { display_name: "改了名字", check_connection: true }))).json.checked, false);
+      assert.equal((await providers()).health[0]?.last_check?.current, true, "改名、关掉一个模型，上次检查仍然算数");
+
+      assert.equal((await save("p", form(standIn.baseUrl, models, { api_format: "anthropic-messages" }))).status, 200);
+      last = (await providers()).health[0]?.last_check;
+      assert.equal(last?.current, false, "到达方式变了（这次没要求检查），上次检查不再代表现在的配置");
+
+      // The stored key is turned away: the manual test fails, and the reason is remembered for this version, without the key.
+      assert.equal((await save("q", form(standIn.baseUrl, models, { api_key: wrongKey }))).status, 200);
+      const tested = await fetch(`${origin}/api/settings/models/q/test`, { method: "POST",
+        headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": controlToken },
+        body: JSON.stringify({ model_id: "model-a" }) });
+      assert.equal(tested.status, 400);
+      // The manual test says what a save would say, in words, not the provider's raw error.
+      const testedText = await tested.text();
+      assert.match(testedText, /服务拒绝了这个 API Key（401）/);
+      assert.doesNotMatch(testedText, /MODEL_HTTP_ERROR|provider rejected/);
+      const listed = await providers();
+      const failed = listed.health.find(entry => entry.provider_id === "q")?.last_check;
+      assert.equal(failed?.outcome, "failed");
+      assert.equal(failed?.code, "model_provider.key_rejected");
+      assert.equal(failed?.current, true);
+      assert.equal(JSON.stringify(listed).includes(wrongKey), false);
     });
   } finally { await standIn.close(); }
 });

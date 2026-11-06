@@ -58,7 +58,7 @@
   - BL-345：浏览器与真实模型验证。
 - 原归本线的 BL-222（Coding 时间线的退出码）、BL-245（生成插件先问再接续）、BL-246（Coding 回执留得够不够读屏读完）改为未分配。
 - 真机中文输入法与读屏是 BL-016。
-- PG-036（助理按插件名分支，§17 末的归属补记）不再归本线，按 `specs/repository-anti-corruption/privileges.md` 的 PG-036 行跟踪。
+- PG-036（助理按插件名分支，§17 末的归属补记）不再归本线，按 `specs/archive/repository-anti-corruption/privileges.md` 的 PG-036 行跟踪。
 
 **风险与不能碰的：**
 
@@ -330,76 +330,10 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 
 分别报告：工程通过、真实产品实操通过、用户本人验收状态。部署、发布及安装包等级未验证时不宣称可发布。
 
-## 14. 现状核对（开发 owner，2026-10-09）
 
-### 14.1 现场
+## 14. 开发时的现状核对
 
-- **Molis**：依据 origin/main `11878059`。主检出的本地 main `d81b12cb` 落后 394 个提交，还带着别的会话未提交的改动（goal-closure-identity），不作依据、不在里面改。开发在工作树 `.claude/worktrees/ai-interaction`，分支 `feat/ai-interaction-experience`（从 origin/main 开）。
-- **Prologue**：主线 `4f7110fe`。Molis 现用包来自 `9fc3b173`（主线祖先）；两者之间 `ask-user`、等待账本（Pending）的行为没有差别。在途包来源是 `feat/molis-adoption`（`c4b9fde3`，主线加 1 个提交，工作树 `~/code/prologue-molis-adoption`），`feat/desktop-computer-use` 叠在它上面。
-- **相关的在途工作**（都还没合入 main）：
-
-| 工作 | 状态 | 与本文的交点 |
-| --- | --- | --- |
-| `feat/prologue-adoption`（Molis）+ `feat/molis-adoption`（Prologue） | 执行中，未推送 | 换成 Prologue 主线包；改 `prologue-node.ts`、`prologue-stream.ts`、`AgentRunView`；占用 `vendor/prologue-sdk/` 唯一的在途包名额 |
-| `specs/ai-input-receipts`（另一会话） | 方案定（D1–D9），Molis 代码等 prologue-adoption 合入 | 它拥有「输入」生命周期与合同（它的 §6.2，新子路径 `services/agent-inputs`）；点选、表单提交、回答在它那里都是输入。它的 §13.2 把 Option、推荐动作、交互卡片、混合字段、对象选择分给本文 |
-| `feature/context-toolbar`（PR #180，只有文档） | 设计已定（2026-10-02），未开工 | 用户已定「底部动作条整个取消、不留兜底」，动作搬到对象旁的情境浮条；助理输入框上方只留「手上 + 落点」情境条。和本文 §3 第 2 条直接相交，见 §16 D1 |
-| `feat/computer-use` | 执行中 | 叠在 prologue-adoption 上；改助理的工作区与 agent-host 装配 |
-| 防腐整理 W4-05 / W5-10 | 未开工 | W5-10 要把助理的「操作卡与撤销」拆成协作者；本文的操作卡记录按那个形状拆（§15.4） |
-| PR #340 goal-closure-identity | 待合 | 不交叉 |
-
-- **门禁对本文的约束**：`assistant-island.ts`（2812 行）、`services/agent-host.ts`（1734 行）、`craft-finish.ts`、`assistant-service.ts` 都是冻结的巨大单元，只许变小；`/assets/` 字节只许变小（新界面要在同一个 PR 里删掉被替换的渲染）；合同改动刷新 `tooling/gates/api/` 快照并写影响；新中文文案要有英文。
-
-### 14.2 能力现状
-
-「已有」= 可以直接复用；「不完整」= 有但缺一块；「新增」= 确实没有。
-
-| 需求（§3、§5） | 判定 | 依据 |
-| --- | --- | --- |
-| 必答问询的等待、冻结、过期、取消、重启恢复 | 已有 | Prologue `effect-policy/core/pending-state.ts`、`pending.ts`（`open / answer / cancel / read / whenSettled / restore`）；Molis `answerPending`（`prologue-node.ts`）三层拒绝过期与重复回答 |
-| 问询的题型 | 不完整 | `ask-user` 只有自由文本与问卷；问卷每题只有冻结的纯文字选项、单选或多选、可选「其他」（`tool/core/system.ts` 的 `ask-user`）。没有数字、日期、对象引用、必填、预填、选项说明与推荐理由；选项写成 `{label, description}` 时说明被丢掉（`system-tools-agent.ts` 的 `parseAskUserQuestions`） |
-| 按字段报错 | 新增 | SDK 校验失败是整笔错误；助理把卡片执行失败显示成全局横幅（`assistant-service.ts` 的 `runCard`、`assistant-island.ts` 的 `showProblem`） |
-| 宿主能力感知 | 新增 | SDK 没有「这个 App 能渲染哪些题型」的配置；`ask-user` 的 schema 对所有 App 一样 |
-| 等待期限 | 不完整 | SDK 默认 `inputWaitTtlMs` 10 分钟，Molis 没配：人填表离开 10 分钟，题就过期 |
-| 非阻塞建议（操作卡） | 已有，只在助理 | `suggest-action` → `assistant_cards`（助理库）→ `AssistantCard`；字段只有文本、下拉、日期、日期时间；CAS 防重复执行；对象改动后 `stale` |
-| 操作卡跨入口 | 不完整 | 卡只在助理对话里渲染；Coding 的 Run 没有 `suggest-action` 的落点；卡片记录由 `AssistantService` 独占 |
-| 同排推荐 | 新增 | 现有情境动作条浮在输入框上方，助理面板打开时隐藏，和 AI 的卡、问题没有关联（`craft-finish.ts` 的 `[data-assistant-context-actions]`） |
-| AI 发起的对象选择 | 新增 | 模型不能请人挑对象；对象只经「+」菜单、「@」搜索、页面上下文进入（`assistant-island.ts`、`readReferences`） |
-| 预览与确认 | 不完整 | 只有副作用审批（`AssistantPendingReview`，不能改参数）与卡片上的影响标记；没有按待执行参数的预览 |
-| 结果与后续操作 | 不完整 | 卡片结果只有一行文字；一轮之后的「接下来」只能打开结果或重试 |
-| 草稿 | 不完整 | 助理：问询卡任何字段变化都整卡重绘、清掉正在填的；卡片字段在状态或版本变化时丢失；打开助理、起始语、带入、重试会覆盖输入框。Coding：问询卡有本地与服务端草稿（`plugins/native/coding/src/client.ts` 的 `renderQuestions`） |
-| 两份问询卡实现 | 重复 | 助理 `assistant-island.ts` 的 `renderQuestion` 与 Coding `ui.ts` + `client.ts` 各一份，行为不同（Coding 有逐题检查与草稿，助理没有） |
-| Prompt 指导 | 已有，要补 | `assistant-base` v24 已要求用 `ask-user` 给具体选项、用 `suggest-action` 给卡、不在正文模拟按钮；运行时的收尾核对（`prologue-stop-guard.ts`，D1②）把回复与这一轮的事实核对，拦「说有按钮却没有」。缺：字段题、推荐理由、对象选择、避免重复问 |
-| 单次生成插件的接续 | 新增 | Cognia、Pages、Form、Dataset、PPT、灵光、Todo、Workflows 用 `completeText`，一问一答；没有「需要补充信息」的结构化结果与接续约定 |
-
-### 14.3 入口盘点
-
-首轮（2026-10-12）按调用方式与界面分组；2026-10-19 逐个插件核过调用路径、装配与界面，下表是最终版（AC-01）。「共享交互」指同一张问卷卡（`agentQuestionHtml`）、操作卡与下一步，以及插件动作返回 `needs_input` 时宿主补上的问卷卡（`withPluginInteraction`，Native 与 Runtime 插件的路由出口都有）。
-
-| 对象 | 调模型的方式 | 装配 | 现在用的共享交互 | 结论 |
-| --- | --- | --- | --- | --- |
-| 全局助理 | Agent（`assistant-agent.ts`） | 平台 | 问卷卡、操作卡、下一步 | 首批，已接（AC-21、AC-23） |
-| Coding | Agent（`routes.ts` 发起 Run；角色带 `ask-user`、`suggest-action`，`plugins/native/coding/src/roles.ts`） | Plugin Runtime（项目） | 问卷卡（同一个函数）、下一步、操作卡 | 首批，已接（AC-22、AC-25）；Diff、命令审查、报告保留专业呈现 |
-| Form | `services.model`（`plugins/native/form/src/drafting.ts`） | Plugin Runtime（项目） | `needs_input` → 问卷卡 | 已接，单次接续的示例（AC-26）；题型只开放单选 |
-| 插件创作台 | 设计者与编码者是 Prologue Skill（`horizontal/agent-host/src/adapters/plugin-builder.ts`）；生成插件的 `model.generate` 经 `hostTextGeneration` | 构建期条目（旧路径） | 无：设计者的澄清是 JSON 里的字符串题，只能问一次（`plugins/native/plugin-builder/src/agent-workflow.ts`），页面列成编号列表、在输入框里自由作答；方案卡、启用插件、选部件是自写的按钮 | 第二批接入：澄清改成带类型的题、用同一张问卷卡；方案卡保留。动提示词要 `pnpm studio:replay` 加真实模型冒烟，所以排在浏览器验证恢复之后 |
-| PPT | `services.model` 的 `complete`（`plugins/native/ppt/src/actions.ts`） | Plugin Runtime（项目） | 无 | 第二批接入：「AI 生成大纲」缺受众、页数时返回 `needs_input`，照 Form 的做法 |
-| Pages | `services.model` 的 `complete`（`plugins/native/pages/src/plugin.ts`；`pages.ai`、`pages.generate`） | Plugin Runtime（项目；W5-01-PAGES，问卷卡出口随动作返回） | 无；选区动作的候选浮层可改、可采用或放弃 | 第二批接入：`pages.generate` 缺要求时返回 `needs_input`。选区动作与 context-toolbar 交叉，不动。Inbox 的 `inbox.pages.generate` 转给它，跟着得到 |
-| Cognia | `services.model`（`plugins/native/cognia/src/ai.ts`） | Plugin Runtime（Home） | 无；问一句 → 审阅知识草稿 | 第二批，排在 PPT、Pages 之后：范围不清时返回 `needs_input` |
-| 灵光 | `services.model`，已是流式（`plugins/native/lingguang/src/plugin.ts`；首轮写的「等 prologue-adoption」已过时） | Plugin Runtime（项目） | 无；自写的对话框 | 不接入问卷：它本身是自由对话，方向在对话里说；「只带过去」把材料交给助理 |
-| Alchemist | 自有 `AlchemistAiPort` → `hostTextGeneration`（`apps/local-host/src/alchemist-prologue.ts`） | 构建期；自有的流（`apps/local-host/src/alchemist-native-plugin-http.ts`），不经问卷卡出口 | 无；想法卡的保留、放弃、决定是自写的按钮 | 不接入：方向选择已经是想法卡，讨论是自由对话。以后要接，先让它的流经过 `withPluginInteraction` |
-| Dataset | `services.model`（`plugins/native/dataset/src/actions.ts`） | Plugin Runtime（项目） | 无 | 不接入：模型只按一句话起一个列名，没有要先问的 |
-| Workflows | 宿主注入的 `completeText`（`apps/local-host/src/workflows-actions.ts`），只用于 AI 交接环节 | 构建期 | 无 | 不接入：交接要的说明在编辑环节时填齐，运行前已核对就绪 |
-| Todo | `services.model`（整理）；整理角色带 `ask-user`（`plugins/native/todo/src/roles.ts`） | Plugin Runtime（Home） | Agent 一侧的 `ask-user` 用助理的问卷卡；批量审阅是自写的 | 已覆盖（Agent 路径） |
-| Issues | 助理方法 `issues-capture` 带 `ask-user`、`suggest-action`（`plugins/native/issues/src/skills.ts`） | Plugin Runtime（Home） | 经助理 | 已覆盖（经助理） |
-| Jelly | `services.model` 的 JSON 输出（`plan.generate`，`plugins/native/jelly/src/actions.ts`） | Plugin Runtime（Home） | 无；生成的是待采纳的任务，不自动写入 | 不接入问卷：已经是「先看再采纳」，输入是原文或选区 |
-| Shelf | `services.model`（`jobs.generate`，`plugins/native/shelf/src/ai.ts`） | Plugin Runtime（Home） | 无 | 不接入：固定配方处理选中的材料，没有要先问的 |
-| Schedule | 只读 Agent（`plugins/native/schedule/src/roles.ts`，读文件、搜索） | 构建期 | 无 | 不适用：定时任务在后台跑，没有人在场回答 |
-| Inbox、Feed | 场景声明 `model:invoke`（判断场景） | 构建期 | 无 | 不适用：判断不向人提问。`inbox.pages.generate` 跟 Pages |
-| Images | 不调文字模型（`services.imageGeneration`） | Plugin Runtime（Home） | 无 | 不适用：本文管文字模型的问与建议；尺寸、比例的选择器另议 |
-| 项目讨论 im-ui | 不调模型 | 平台侧栏 | 无 | 只核对一致性，不新增 AI 能力 |
-| Goals、Files、Characters、Artifacts、Diff、Git、Text-stats、Sessions（`plugins/native/work`） | 不调模型（`plugins/native/*/src` 里没有模型调用） | — | — | 不适用 |
-| 生成插件 | `model.generate`（沙箱 Broker → `hostTextGeneration`） | 创作台安装 | 无：沙箱没有 `ask-user`、`suggest-action`；操作结果包在 `value` 里交给部件，不经问卷卡出口 | 平台缺口（2026-10-18 插件一视同仁）：要先问的信息现在做成提交部件的字段（`skills/molis-plugin-dev/generated-ai.md`）；让生成插件也能 `needs_input`，要部件客户端会画问卷卡，另起一片（BL-245） |
-
-P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器验证恢复）。每个一片，各自补用例与证据，回填上表。
+[10 月 9 日的现场、能力与入口盘点](baseline-and-progress.md)。
 
 ## 15. 技术方案
 
@@ -481,7 +415,7 @@ P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器
 | 操作卡 | 现有 `AssistantCard` 的解剖迁过来：对象、关键参数、可改字段、预览、影响标记、结果与后续 | ready、needs-input、running、done、failed、unknown、stale、dismissed |
 | 结果条 | 真实成果与后续动作（打开、采用、调整、继续） | |
 
-**展示参数与外部合同的对应（2026-10-12 定稿，实现见 §19.2）**：设计系统不引用 SDK、Molis 合同或回执合同；消费方写一个纯函数，把自己的记录转成 `Interaction*View`。对应关系固定如下，接入时不改组件：
+**展示参数与外部合同的对应（2026-10-12 定稿，实现见 [§19.2](prototype-records.md#192-p2-第一刀共享部件进设计系统与组件板2026-10-12)）**：设计系统不引用 SDK、Molis 合同或回执合同；消费方写一个纯函数，把自己的记录转成 `Interaction*View`。对应关系固定如下，接入时不改组件：
 
 | 来源（消费方的记录） | 展示参数 |
 | --- | --- |
@@ -781,7 +715,7 @@ P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器
 
 每段按 `docs/system/PARALLEL-DEVELOPMENT.md` 拆 PR：合同与扩展点先合，实现后合；门禁改动不混进功能 PR。
 
-**归属补记（2026-10-19，统筹派单 D4）**：PG-036（`assistant-service.ts` 里 31 处 `executor.kind === "coding"`，讲助理怎样跨插件把活交给 Coding）改归本线，属防腐阶段 4，等阶段 3 与 W5-10 之后开工，现在只记归属；PG-054（Coding 把运行时写死成 `"prologue"`）仍归采用线（10-20 改派 ②，③ 执行，见 `specs/repository-anti-corruption/privileges.md`）。交互线 2026-10-20 收尾后，PG-036 不再归本线，按 `specs/repository-anti-corruption/privileges.md` 的 PG-036 行跟踪。
+**归属补记（2026-10-19，统筹派单 D4）**：PG-036（`assistant-service.ts` 里 31 处 `executor.kind === "coding"`，讲助理怎样跨插件把活交给 Coding）改归本线，属防腐阶段 4，等阶段 3 与 W5-10 之后开工，现在只记归属；PG-054（Coding 把运行时写死成 `"prologue"`）仍归采用线（10-20 改派 ②，③ 执行，见 `specs/archive/repository-anti-corruption/privileges.md`）。交互线 2026-10-20 收尾后，PG-036 不再归本线，按 `specs/archive/repository-anti-corruption/privileges.md` 的 PG-036 行跟踪。
 
 **P2 的落点（2026-10-12 核对，实施前再看一次）**：
 
@@ -827,7 +761,7 @@ P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器
 | C1+H1 带类型的题进宿主（一个 PR，叠在 #408 上；原 C1、H1 合并） | 新子路径 `services/agent-interaction`：带类型的题 `AgentQuestion`（六种题型、`required`、`help`、选项说明与推荐、`default`、上下界、`ref_kinds`/`max_count`）、回答 `AgentAnswerControl`（`answers[].value`）、字段问题 `AgentQuestionProblem`（SDK 的 19 个闭集原因）、`AgentPendingQuestion` 从 `agent-host.ts` 搬来、错误码 `agent.answer_invalid`（带 `problems`）。agent-host：`projectQuestion` 显式投影（不再透传 SDK 选项对象）；`answerPending` 先用 SDK 的 `validateQuestionnaireAnswer` 预检，形状错误与逐题问题都有码；配 `inputWaitTtlMs` 24 小时（D5）与 `askUserQuestionTypes`。宿主装配给 Runtime 的题型是**所有读 `awaiting_input` 的界面都画得了的交集**（D8）：助理、Coding 现在都只声明 `choice`，所以合入后产品行为不变，A1/A2 各自加上自己画得了的题型。回答的 `key` 不在这一片（归回执线 `services/agent-inputs`，那一线就绪时在 `AgentAnswerControl` 上加一个可选字段） | AC-19、AC-20 | #408 的分支（带带类型 `ask-user` 的 vendored SDK） | `pnpm api:update` 刷新快照；`agent-host.ts` 只减不增（本片净减 24 行）；`prologue.ts`、`prologue-node.ts` 不超上限；所有消费者在同一 PR 改完（`docs/system/CONTRACT-CHANGES.md`）；真实 Node Host 用例：带类型的问卷落盘、关闭、新 Runtime 读回并作答，`prologue-*` 用例按 AI Skill 要求跑 | `services/agent-host.ts`、`packages/contracts/package.json` exports、`tooling/gates/api/`、`prologue-node.ts`、`prologue.ts`、`prologue-questions.ts` | #408 合入 main 后 PR 的 base 改到 main；#408 之后 main 新增的错误模型（`error-owners.json`、`defineErrorCodes`）在 rebase 时要把 `agent.answer_invalid` 登记进去；回执线同改 `AgentRunControl`（搬出 steer 分支）：先合者先合，后合者重排 |
 | A1 助理接入 | 宿主把问题转成 `InteractionQuestionView`（新协作者 `assistant-questions.ts`，不让 `AssistantService` 变大）并服务端渲染出 HTML 放进视图（同 Coding 的 `question.html` 做法；岛是字符串脚本，不能在浏览器里调设计系统的渲染函数）；岛只接行为（I1 的共享函数）；草稿存助理库新表 `assistant_question_drafts`（主人助理）；删 `renderQuestion` 与对应样式；加载 `INTERACTION_STYLES`，同 PR 删掉被替换的助理问题样式抵字节；`assistant-base` 升版说明带类型的题与 `reference` 题 | AC-21 | C1+H1、I1 | `assistant-island.ts`、`assistant-service.ts` 只减；页面资源不涨（新样式进 workbench.css，旧样式出 craft-finish，三张表各算）；新界面文字有英文（`translations` 门禁） | `assistant-island.ts`、`assistant-service.ts`、`assistant-http.ts`、`craft-finish.ts`、`apps/workbench/src/i18n/en.ts` | 回执线 1e 同改岛的输入框目标芯片与 `dispatch`（G11/D5）：R4 定案后两线按同一语义各做一半，见下 |
 | A2 Coding 接入 | `ui.ts` 的问题卡改用 `renderInteractionQuestion`；`client.ts` 用 I1 的共享函数，删 `renderQuestions` 的重复部分；`routes.ts` 的 `questionAnswer` 收 `value`；`question_drafts` 收值；`coding-base` 升版 | AC-22 | C1+H1、I1 | Coding 客户端字节在 5 个包里都不涨；`client.ts`、`routes.ts` 只减 | Coding `client.ts`、`routes.ts`、`ui.ts`、`apps/local-host/src/coding-surface.ts`、`tooling/gates/page-assets.json` | 采用线在 Coding 客户端也有改动（时间线、模型选择）；回执线 1d 改 Coding 回执渲染 |
-| H2 操作卡协作者 | 按防腐 W5-10 的形状（协作者只经端口依赖宿主，不 import 兄弟实现，参照 W4-05 拆出的提醒与跟进）从 `AssistantService` 拆出 `assistant-offers.ts`（`recordOffer`、`offerFromPage`、`runCard`、`dismissCard`、`cardView`、失效巡检），存储按「回合与卡片」表组拆；卡片视图转 `InteractionOperationView`、服务端渲染；同排下一步由纯函数从卡片与问题派生，作为视图字段给岛；删 `renderCard`、「接下来」行；**每张卡保留产生它的 session 与 `run_id`，助理与 Coding 共用同一个卡片键空间**（见下「TaskBoard 前提」） | AC-23 | A1 | `AssistantService` 方法数与行数下降；新协作者 ≤25 方法、≤300 行；`table-owners` 不变（仍在 `apps/local-host`） | `assistant-service.ts`、`assistant-store.ts`、`assistant-island.ts`、`services/assistant.ts` | 防腐 W5-10（未开工）的同一块：助理那一半开工前，要等防腐线负责人确认先后（统筹已请用户转告）；本片的 PR 同时在 `specs/repository-anti-corruption` 的 W5-10 行写「由 ai-interaction H2 实现」并带上链接 |
+| H2 操作卡协作者 | 按防腐 W5-10 的形状（协作者只经端口依赖宿主，不 import 兄弟实现，参照 W4-05 拆出的提醒与跟进）从 `AssistantService` 拆出 `assistant-offers.ts`（`recordOffer`、`offerFromPage`、`runCard`、`dismissCard`、`cardView`、失效巡检），存储按「回合与卡片」表组拆；卡片视图转 `InteractionOperationView`、服务端渲染；同排下一步由纯函数从卡片与问题派生，作为视图字段给岛；删 `renderCard`、「接下来」行；**每张卡保留产生它的 session 与 `run_id`，助理与 Coding 共用同一个卡片键空间**（见下「TaskBoard 前提」） | AC-23 | A1 | `AssistantService` 方法数与行数下降；新协作者 ≤25 方法、≤300 行；`table-owners` 不变（仍在 `apps/local-host`） | `assistant-service.ts`、`assistant-store.ts`、`assistant-island.ts`、`services/assistant.ts` | 防腐 W5-10（未开工）的同一块：助理那一半开工前，要等防腐线负责人确认先后（统筹已请用户转告）；本片的 PR 同时在 `specs/archive/repository-anti-corruption` 的 W5-10 行写「由 ai-interaction H2 实现」并带上链接 |
 | H3 对象引用 | 只读动作 `interaction.references.search`（按种类与范围，从对象主人读当前有权限的候选）；提交前 Host 逐个再读，通过才交给 SDK | AC-24 | H1 | `pnpm actions:update`；安全不变量里「对象引用由宿主复核」加拒绝用例（`pnpm test:security`） | 动作目录、`tooling/gates/actions/`、`docs/system/SECURITY-INVARIANTS.md` | 情境线的对象落点读取：共用对象主人的读法，不另写一套 |
 | H4 Coding 的操作卡 | Coding 的 Run 也能 `suggest-action`，记录走 H2 的协作者；Coding 的专业后续（查看变更、核对并继续）进同排下一步 | AC-25 | H2 | 动作合同快照；Coding 客户端字节不涨 | `prologue-action-gateway.ts`、Coding `routes.ts` | 采用线 #408 把 `suggest-action` 改成 `mutate-external`、加了 `HOST_GOVERNED_TOOLS`：以合入后的形状为准 |
 | S1 单次接续 | 题型校验纯函数放 `packages/plugin-sdk`（作者与平台共用、会运行的工具的归处；`kernel` 的 K2 门禁不许 import services，且它不是外部作者要装的包）；与 Prologue 的 `validateQuestionnaireAnswer` 做一致性用例（同一批输入同一批结论，进 `tests/ci-product-subset.txt`）；Form「AI 生成表单」缺信息时返回 `needs_input` → 同一问卷卡（宿主提供客户端挂载）→ 接续生成。Form 现在没有这个功能，是**新功能**，不是接入 | AC-26 | C1+H1、I1，建议在 A1 之后 | 插件只经公开 SDK 与合同；`pnpm api:update` 刷新 SDK 快照；插件客户端字节不涨 | `packages/plugin-sdk`、Form 插件 | 为什么放到 A1、A2 之后：它要新增一个功能与一个公开 SDK 出口，字节与评审体量都比前面几片大，而且不阻塞助理与 Coding 的体验 |
@@ -863,80 +797,10 @@ P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器
 
 取舍：如果坚持 D5 的「每次都由用户点选」，就去掉默认，问题出现后第一次发送前多一次点击。两种都不会把发送当成回答。需要统筹按「界面交互和日常使用体验最好」的原则定；定案后 A1 与回执线 1e 按同一语义各做自己那一半（本线做问卷草稿目标，回执线做 steer 目标与回执）。
 
+
 ## 18. 进度
 
-- 2026-10-09：建工作树与分支；核对 Molis（助理、Coding、插件入口、设计与门禁约束）与 Prologue（`ask-user`、等待账本、MCP 征求）现状，结果见 §14；方案见 §15；待决见 §16。
-- 2026-10-11：I0 独立组合预览写成并交接（§19、§20）。
-- 2026-10-12（C1a，已取消）：曾把合同子路径先做成纯新增（#447）；统筹改序后并进 C1+H1（D11），#447 关闭。
-- 2026-10-13（交接 PR 合并 I1）：按用户决定，各线只在交接 PR 里提交；I1（#439）已合进交接分支（933c664f，无冲突）。I0 预览改用 `createInteractionClient`，删掉预览自己的 `calendar.ts` 和 `bindings.ts` 里的字段、日历、键盘处理（净减 128 行）；纯逻辑用例 21/21 与局部 typecheck 通过，**浏览器用例（`tests/ai-interaction-slice.e2e.test.ts`）等 browser 锁，尚未重跑**。
-- 2026-10-19（修 QA-001：英文界面下没配模型时，助理的失败原因是中文，AC-10，防腐复查）
-  - 起点：从 main `8eedf222` 起，合入 main `c0b204fd`（#775）后 merge-base 是 `c0b204fd`。Codex 独立验收报的 QA-001（P2），统筹分诊派给本线。
-  - 原因：宿主在 `assistant-error.ts` 把中文原文放进错误体，英文目录里有译文却没人用；页面拼「输入已保留」时还夹了一个中文句号。
-  - 改动：宿主自己的原因按这次请求的界面语言说（`L()`，请求的语言由 `web-server.ts` 的 `runWithLocale` 定，宿主已有几处错误这样做）。同一类的几句一起改：没配模型、执行服务被另一个进程占用，以及委托 Coding 时的四句（`assistant-coding.ts`）。`action` 不翻：页面按它的文字认出要给哪个控件（`/模型/` 给模型设置的链接），再自己翻译，所以它仍是中文键，英文目录补齐。页面把句号并进同一条译文（`L("。输入已保留")`，英文 ". Your text is kept"）。
-  - 字节：`workbench.js` 小 3 字节，预算已降。
-  - 用例：`assistant-business-gateway` 的「AC-10, QA-001」（英文页面上原因是英文、不留中文字和标点、原文保留、`action` 仍指向模型设置；中文页面照旧）。浏览器部分进 §15.10「待补浏览器验证」。
-  - 评审顺手改（⑤）：回答重启前停住的问题后下一轮没能开始时，「已回答，下一轮没能开始：」这半句也按界面语言说（`assistant-parked-answer.ts`）：原因已经是界面语言，前半句是中文就成了中英混排。用例 `interaction-parked-answer` 的「AC-10, QA-001」。
-  - 通过的检查：M1 边界；M2 健康门禁对照 merge-base（含翻译、DOM 事件）；M6 页面资源（只降不升）。
-  - 不变的：合同、动作、DOM 事件、错误码。
-- 2026-10-19（AC-10 第二片：Coding 收下回答后，回执写进卡自己的说明行，焦点回到输入框，AC-10-1～8，防腐复查）
-  - 起点：叠在 #759 的头 `17e49907` 上写（统筹 10-19：撞 `client.ts`，等它合入）。#759 合入后用 merge 合入 main `06e7ff4a`（没有 rebase），merge-base 是 `06e7ff4a`。#759 是 squash 合入的，`client.ts` 取 main 的版本，再把这一片的改动套上去：#759 最后加的草稿客户端（`draft-client.ts`）也改用这一片共用的 `ports`，收下回答后照旧经它存草稿。
-  - 改动（AC-10-8）：宿主收下回答后，卡里除了 `role=status` 说明行，别的都撤掉；这一行留在页面上，写上宿主的回执，读屏把它当成已在页面上的实时区域里的变化读出来。原来是整张卡换成一个新的段落，不在实时区域里，读屏不一定读。
-  - 改动（AC-10-3）：随着卡的字段一起落到页面上的焦点，回到输入框，对话不滚动；回答在路上时人自己挪到别处的焦点，留在原处。「去回答」那一步走到一道没有可按控件的题时，落在选中的那一项（没有就是第一项可按的），与设计系统自己的字段一样。
-  - 写法：回执的脚本是带类型的函数（`question-answered-client.ts`），用 `toString()` 注入，不新增 `_SCRIPT` 文本常量；客户端的各个工厂共用一个 `ports` 对象；十三处 `catch` 去掉了后面没有别的事的存活检查（评审修改又去掉十处）。
-  - 字节：`coding.js` 比合并点少 26 字节，预算降到 373881（373907 → 373881，CI 的 page-assets 实测）。评审修改比 373724 多 157 字节（焦点、标题、不是当前会话时不移焦点），由另外 10 处 `catch` 里重复的存活检查抵掉（后面只调 `status()` 或 `controls()`，它们自己先查；约 260 字节）。
-  - 验收说法：AC-10-2 原写「选项的边框和选中标记不低于 3:1」。没选中的选项边框是 `--line`（深色下约 1.3:1），做不到；WCAG 1.4.11 要 3:1 的是认出控件和状态所必需的部分，选项靠文字认出。改成量选中项的底色对卡面、选中标记对底色，用例照这个量。AC-10-8 写明只选一项是 radio、可选几项是 `aria-pressed` 的开关按钮（共享部件本来就这样画）。
-  - 评审修改（⑤ 评审 #815，AC-10-3、AC-10-8）：从输入框旁的下一步行答单选题时，焦点留在步骤按钮上，随后重读会话重画这一行，焦点掉到 `body`。现在重画这一行之前先记下焦点是否在行里：在，就还给同一步的按钮（新行里还有它、且没有禁用），没有就还给输入框；整行隐藏也一样。回答被拒（`coding.round_ended`、`agent.pending_not_open`）而控件锁住时，焦点原来在卡里或已落在 `body`，同样回输入框。收下回答后移焦点之前，先看是不是当前会话、页面可见、卡还在页面上（与 `offerApproval` 一样），否则不动。
-  - 评审修改（AC-10-8）：收下后卡的标题（`h3`）和装它的 `header` 留着，`aria-labelledby` 指到的名称不落空；`header` 里别的（kicker、徽标）照旧撤掉。回执只在这一轮继续之前出现，写进 AC-10-8；要不要多留一次重读，记 BL-246（真机读屏的结果定）。AC-10-2 的深色比值改成约 1.3:1（实测深色 1.29:1、浅色 1.22:1）。
-  - 用例：节点用例 `coding-question-answered-client`（AC-10-3、AC-10-8，六条：新增「卡留着标题」「不是当前会话时不移焦点」两条，「只剩说明行」的断言改成「只剩标题、说明行和装着它们的节点」）；评审修改后只在草稿夹具里对源码跑过，正式用例待跑；`coding-question-card.e2e` 的 AC-25 用例加了「行隐藏后焦点在输入框」；浏览器用例 `coding-question-card.e2e` 的 AC-10-1～8 写好，本机没跑（用户 10-19 暂停浏览器验证），记进 §15.10「待补浏览器验证」。
-  - 顺带：§14.3 末行与 AC-12 状态行引用 BL-245（生成插件先问再接续的平台缺口）；AC-12 的真实模型冒烟记进「待补浏览器验证」。
-  - 通过的检查：M1 边界；M2 健康门禁对照 merge-base；M6 页面资源。
-  - 不变的：合同、动作、DOM 事件、错误码。
-- 2026-10-19（AC-06 卡片的结果进下一步行，H4 Coding 同排，防腐复查）· 从 #780 的头 `0aa2a2bb` 起（统筹 10-19：叠在基 PR 上先写逻辑与 node 用例，基 PR 合入后并 main，不变基）· 并入 main `8eedf222`（#780 合入后）· merge-base `8eedf222`。做法见 §15.11：一份 `cardOutcomeSteps`（`agent-next-steps.ts`）给两处用——助理的结果槽（`assistant-outcome.ts`，排在交付说明之后、这一轮的结果之前，只看这一轮开始后跑完的卡、这一轮还在跑时不给），Coding 的下一步行（`coding-surface.ts` 的 `codingNextSteps`，排在 Coding 自己的「查看变更」之前）。这一步只按卡上结果自己的「打开」（`data-ix-press="open"`），不另开链接、不重跑；页面脚本不改（步骤行与 Coding 的处理早已认 `card:<id>:<name>` 与以 `[` 开头的选择器），所以 `coding.js`、`workbench.js` 不用排放行键。撤销不进这一步：`AssistantUndoable` 没有卡的编号，要改合同，记在 §15.11。没有新事件、新错误码、新合同、新动作；两句界面文字都是现成的（「打开「{title}」」「来自操作卡」）。用例：`assistant-interaction-html`（AC-06-1～3）、`assistant-step-row`（AC-06-4）、`coding-next-steps`（AC-06-5）。浏览器验证与截图待补（用户 10-19 暂停）。通过：M1 边界；M2 健康门禁对照 merge-base（没有变大的；含 API 快照、DOM 事件、翻译）；M6 页面资源不变（改动只在宿主的服务端代码，不进 `/assets/` 下的任何包）；M5 动作快照不变（没有新动作、没改 Manifest）。生成插件的问卷缺口随本片记为 BL-245。
-- 2026-10-19（AC-01 入口盘点定稿；AC-09 S1 回填；AC-12 生成插件的边界写进 Skill，防腐复查）· 从 main `b016513d` 起 · merge-base `b016513d` · 只改文档与 Skill。§14.3 逐个插件核了调用路径、装配与界面（调查读源码，关键行逐个抽查），定为终版：已接 3、已覆盖 2、第二批接入 4（顺序 PPT → Pages → Cognia → 插件创作台，各开一片）、不接入 6、不适用与只核对一致性的若干，生成插件记为平台缺口（沙箱的操作结果包在 `value` 里交给部件，不经 `withPluginInteraction`；沙箱也没有 `ask-user`）。首轮写的「灵光等 prologue-adoption」已过时，改正。AC-09 的 Form 证据早已在（#532，W4-04），回填为已实现。AC-12：`skills/molis-plugin-dev/generated-ai.md` 的「设计时」加一条——生成插件不能先问再接着做，要人补的信息做成提交部件的字段，输入不够以合同里声明的错误码失败、保留输入，不让模型反问、不返回 `needs_input`；`SKILL.md` 里同一句跟着改。`pnpm studio:replay --base origin/main` 离线回放通过（退出 0，合并基点上记的结果都成立；挂载摘要列出 design、code 两段文字变了，这是预期，固定答卷说不出对模型的影响）。真实模型冒烟要先在隔离 Home 的设置页配模型，用户 10-19 暂停了浏览器验证，记为待补。生成插件问卷缺口的 BL 号交统筹分配（main 上到 BL-221，之后的号在途 PR 占了），本片不新开。防腐复查：只动 `.md`；没有新的兼容或迁移；没改门禁、阈值、合同、动作 schema、页面资源；Skill 里新加的行内代码没有路径或带点的动作 id，§14.3 引的路径逐个核过都在；缺口照 2026-10-18「插件一视同仁」记成平台要补的，不给某个插件开私路。
-- 2026-10-19（修 QA-002：Form 补问被拒后重试，旧错误不撤；QA-003：AC-09、AC-11 的用例补编号，防腐复查）
-  - 起点：从 main `ddb65438` 起，先后合入 main `380d365e`（#778、#800）与 `06e7ff4a`（#798、#802、#806、#807）后 merge-base 是 `06e7ff4a`。Codex 独立验收报的 QA-002（P2，AC-26）与 QA-003（P3，AC-09、AC-11），统筹分诊派给本线，两条都碰 `form-draft-questions`，合成一片。
-  - QA-002 原因：「AI 生成题目」被宿主拒了时，原因写在编辑器的说明行上；同一要求再试、拿到合法的卡时，这一行没人撤，旧错误和新卡同时在。
-  - QA-002 改动：卡立起来时撤掉草稿自己写的那句（`draft.ts`）；作答后被逐字段退回时也撤（评审补，同一类：前一次作答因非字段原因失败、写在说明行上的话，不留在字段错误旁）。只撤草稿写的：说明行按来源记一个范围（`"draft"`），过滤写成 `status.ts` 的 `draftNote` 以便单独测，点按钮之前留下的保存、发布提示不受影响。
-  - 字节：`form.js` 修复多 78 字节（含作答路上的撤销与抽出的 `draftNote`）；同一个资源里把「导出填写页」「导出结果表」两条命令合成一个写法，少 123 字节；净少 45 字节，预算已降到 30244。
-  - 用例：`form-draft-retry`「AC-26, QA-002」，从页面源码打包后在小 DOM 上跑：第一次补问被拒，同一要求重试拿到合法的卡；断言旧错误撤下、卡可答且首题获焦、原要求保留、作答前不加题，作答后才加。另两条：作答被逐字段退回时，前一次作答失败的原因撤下、字段标在卡上、卡仍可答；卡立起来时不撤保存、发布等别处留在说明行上的话（用页面真实的 `showNote` 与 `draftNote`，把过滤改回不过滤即红）。去掉任一处修复，各红在自己那一条。进了 CI 产品子集。浏览器部分记进 §15.10「待补浏览器验证」。
-  - QA-003：Codex 指出 AC-09、AC-11 在用例里查不到编号。没有写空用例凑引用，只给已经证明子条件的真实用例改名或加一行注释：AC-09 是 `coding-changeset-http`、`agent-review-standing`、`coding-report-persistence`、`form-draft-questions`；AC-11 是 `agent-question-types`、`assistant-typed-questions.e2e`、`prologue-start-refusal`、`interaction-recovery`，以及证明审批语义的 `prologue-review-feedback`、`prologue-stop-review`（评审补：状态行原来写了审批语义，列出的用例只证明了等待；`agent-review-standing` 不经过包，只算 AC-09）。人工的复合条件写进 AC-09、AC-11 的状态行。两条按 Codex 的判定从「已实现」改回「部分」。
-  - 通过的检查：M1 边界；M2 健康门禁对照 merge-base；M6 页面资源（只降不升）。
-  - 不变的：合同、动作、DOM 事件、错误码。
-- 2026-10-19（AC-10 第一片：可选单选能清掉，AC-10-9，防腐复查）
-  - 起点：从 main `520db6d52` 起，merge-base 是 `520db6d52`。计划在 §15.10，按统筹 10-19 派单 §3a 分两片。
-  - 改动：共享问卷部件给「选填、单选」的题加「清除选择」。没选时藏起来；按下清空选择、草稿跟着清，焦点回到这一组的停留点。助理与 Coding 同一张卡，一起受益。
-  - 字节：在同一处抵掉，不用放行键。`workbench.css`、`arrival.css` 各少 36 字节，`workbench.js` 少 17 字节，预算已降。
-  - 用例：`interaction-components` 与 `coding-question-card` 的 AC-10-9 本机通过；`interaction-client.e2e` 的 AC-10-9 写给 CI 跑，本机浏览器验证暂停，记进「待补浏览器验证」。
-  - 通过的检查：M1 边界；M2 健康门禁对照 merge-base；M6 页面资源（预算等于实测）；M9 翻译（「清除选择」有英文）。
-  - 不变的：合同、动作、DOM 事件、错误码。
-  - 第二片（Coding 收下后焦点与回执，AC-10-1～8）等 #759。
-- 2026-10-18（AC-08 两个页签同时作答；AC-11 按现状改，防腐复查）· 从 main `b3499cda`（#702 之后）起 · merge-base `b3499cda` · 统筹批准计划：确定的先后、四件事都要断言、本机只跑相关文件；查出缺陷后同意修，要求码按类别给状态、页面按码判断、单独一个提交、重跑全量。用例：助理在 `assistant-typed-questions.e2e`，Coding 在 `interaction-no-crosstalk.e2e`（那里有会问问题的 Coding 一轮）；第二个页签的回答在它自己的页面里挡住，等第一个收下、这一轮跑完才放行。**缺陷**：Coding 的 `coding.control-run` 对已结束的一轮、对不属于这个会话的执行，抛的是不带码的 `Error`，页面收到 400、没有码。修法：`routes-sessions.ts` 里新声明 `defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" })`，状态码照旧由 plugin-sdk 的 `errors.ts` 按类别给（409、404）。Coding 页面的请求函数带上 `code`，答卷遇到 `coding.round_ended` 或 `agent.pending_not_open` 时，卡片关上、原话写在卡片上，再读会话也不撤这张卡；原来是把话写进提示、卡片却还能再交。最初放在状态行，合 main 后本机查出这一轮结束时状态行会清空、原因被冲掉，改成留在卡上，用例在重读之后断言卡还在（撤掉修复即红）。全量（CI 的 Linux）上第二个页签作为后台页签没能打开会话（只有前台页面读会话、跟着这一轮），改成单独开一个窗口，两边都在前台；这样也查出回答还在路上的卡会被跟随的那次刷新撤掉，一并修了，两处各自撤掉都会红。Coding 的页面没有英文目录，所以这两句和它旁边的话一样只有中文。通过：M1 边界；M2 健康门禁对照 merge-base（`client.ts` 是巨大单元，1638 → 1637：会话状态的文字表原来写了两份，留下一份）；M6 页面资源：`coding.js` 小了 131 字节，预算已降；M4 API 快照、M5 动作快照、M8 DOM 事件、M9 翻译都不变；错误模型的数字不变（新码在 `defineErrorCodes` 里，主人名是 `coding`）。浏览器冒烟名单已满（5 个），这两个用例不加进 `ci-product-subset.txt`。
-- 2026-10-17（BL-156 的 Molis 半边：回答停放的题，AC-07，S-33，防腐复查）· 从 main `102671ce`（#681 之后）起 · merge-base `102671ce` · 统筹批准计划并加了授权、零写入、开轮失败、关闭、合同、措辞几条。正常关机停放的一轮（Prologue `b541a8e6`）重启后卡片可答：`readPendingQuestion` 见到没有活执行者、但在会话索引里停放且 `inspect` 给了 `canAnswer` 的题，标 `parked`；`answerPending` 照旧核答案，再经 `sessions.answerInterrupted`（`assertBeforeAnswer` 是网关那一份 `effects.assertCurrent`）。助理与 Coding 各自开下一轮（§15.9「实现」）。通过：M1 边界；M2 健康门禁对照 merge-base（`AssistantService` 1533 行/91 个方法不变：开轮与措辞在新的小文件 `assistant-parked-answer.ts`，`assistant-service.ts` 1877 行不变：多出的一行 import 由把孤立的「Delegation bounds」注释放回 `assistant-delegation.ts` 里它的常量上抵掉；`prologue.ts` 不变大）；M4 API 快照（`agent-interaction` 的 `AgentPendingQuestion` 多 `parked`，`agent-host` 的 `AgentRecoveryReport.runs[]` 多 `can_answer` 与 `questions`）；M5 动作快照不变（`coding.runs.control` 的输出本来不封闭，回执 `message` 与 `next_round` 是多出的字段）；M6 页面资源：`coding.js` 小了 15 字节（回执的话搬到路由，页面只显示），预算已降；M9 翻译（三个码与两句助理的话有英文）；错误模型不变（三个 SDK 码映射到现有的 `agent.session_busy`）。Coding 等待醒来与停放回答的下一轮共用 `waits.ts` 的 `continuedBody`，不另写一份。安全：`SECURITY-INVARIANTS.md` 加 S-33。用例：`tests/security-invariants-parked-answer.test.ts`（五条拒绝，每条比对存储逐个文件不变，进 `pnpm test:security`）、`tests/interaction-parked-answer.test.ts`（六条：回答后下一轮带答案；开轮被拒答案留着、说「继续」带上；忙一次与两次；重启后 AC-08；停放时新消息被拒、草稿留着）、`tests/coding-session-recovery.test.ts`（Coding 的回执、读不到开法、忙时只看一次再试一次），`tests/prologue-start-refusal.test.ts` 的重启用例改成回答停放的题，`tests/interaction-reask.test.ts` 的提早重新问改断言 `assistant.state`，`tests/agent-control-errors.test.ts` 加三个码。把 `parkedOn` 改成总不认停放后，这几份里 11 条中 10 条失败（构建确实换了才算）。改到的文件读到的用例本机跑过；改了 agent-host、contracts、Coding，全量由统筹在 label-chain 跑。
-- 2026-10-17（「请 AI 重新问」，D5、D37，防腐复查）· 从 main `4fd585da`（#655 之后）起 · merge-base `4fd585da` · 统筹批准文件清单与插件 SDK 里的同一份构造。过期或宿主重启时结束的问题卡上多一个「请 AI 重新问」：页面只说是哪一个问题，宿主写这一轮的话（`QUESTION_REASK.task`），从这项工作或这个会话自己的 Run 读原问题，从宿主存的那份读草稿，带成一份只写事实的材料（插件 SDK 的 `questionDraftMaterial`，助理与 Coding 同一份文字），怎样用草稿写在以用户口吻说的那句话里；统筹复查后改：材料里不写给模型的指令（运行时已按数据交给模型），重新问被拒时不存草稿，HTTP 层先拒绝形状不对的请求。助理：新的小文件 `assistant-reask.ts`，发送路径里调一次；Coding：`plugins/native/coding/src/reask.ts`，错误码归 Coding（`defineErrorCodes("coding", …)`：还能回答、不是这个会话、已经不在、形状不对各一个码）。通过：M1 边界；M2 健康门禁对照 merge-base（`AssistantService` 1629/98 → 1627/97：删掉只转调一次的 `explain()`；`assistant-island.ts` 2277 → 2275：点按在 `assistant-send.ts`，删掉 `cardShell` 删除后留下的孤立注释；Coding `client.ts` 1637 不变：删掉一条重复的注释，两条放错位置的注释放回各自的函数；合同 `services/assistant.ts` 本来正好 800 行，按统筹定把只含类型的 `AssistantRecovery` 原样搬到 `services/assistant-recovery.ts` 并从原处转出，单独一个提交，API 快照不变，不加子路径）；M4 API 快照（`agent-interaction` 多 `AgentQuestionReask`，`AssistantSendInput` 多可选的 `reask`，插件 SDK 多 `QUESTION_REASK` 与 `questionDraftMaterial`）；M5 动作快照不变（`/send` 不经登记的动作，`coding.start-run` 的输入本来允许多余字段）；M6 页面资源：`coding.js` +184、`workbench.js` +271，用户 2026-10-17 经统筹的弹窗批准一次性放行，单独一个提交，每次合 main 后按新的 merge-base 重定（现在是 `e49f6a55`，增量不变），替换回执 3b-2a 用完的条目；M9 翻译（「请 AI 重新问」有英文）。用例：`tests/interaction-reask.test.ts`（四条：过期后重新问带草稿、宿主重启结束后重新问、助理拒绝还能回答的与别的工作的且不调模型、Coding 的四种拒绝），进 CI 产品子集；`assistant-island-script` 的发送处计数 2 → 3（新的那处同样标 `written_by: "page"`），`assistant-interaction-html` 的视图样例补上合同要求的 `executor`。改到的文件读到的 70 个用例本机通过，`issue-assistant-repair-page.e2e` 在干净的基线工作树上同样失败（时序，与本片无关）；全量由统筹在 label-chain 跑。
-- 2026-10-17（运行控制的错误映射，防腐复查）· 从 main `dd2bac58`（#659 之后）起 · merge-base `dd2bac58` · 统筹批准计划。SDK 的码在一处映射：`horizontal/agent-host/src/adapters/prologue-control-errors.ts` 的 `controlFailure`，`control()`（停、取消、暂停、继续、换模型、回答）整段经它出。Molis 的 `ActionError` 原样通过；SDK 的错误按 `isPrologueError` 认出，查一张以 SDK 的 `PrologueErrorCode` 为键的表（SDK 改名或删码就编译不过；SDK 不导出码常量，所以用类型）：`PENDING_ALREADY_SETTLED`、`PENDING_EXPIRED` 映射成 `agent.pending_not_open`，其余与普通异常映射成新的 `agent.control_failed`（`internal`，经 `defineErrorCodes` 声明），原错误放在 `cause`，SDK 的码放在 `details.runtime_code`，只供诊断，调用方按 `code` 与 `kind` 分支。§15.9 的 `SESSION_RECOVERY_BUSY`、`SESSION_RUN_PARKED` 换包后加在同一张表里，映射在 BL-156 的 Molis 片（换包片只改 `REFUSED_BEFORE_RUN`）。AC-08 的断言改成 `agent.pending_not_open`；新用例 `tests/agent-control-errors.test.ts`（只引公开路径）：原样的 `PENDING_*` 不到调用方、没列出的 SDK 码与普通异常是 `agent.control_failed`（停止也经同一处）、Molis 的拒绝原样通过。`prologue.ts` 文件与类都不变大：回答分支的三行 `if` 写成文件里常见的一行 `if … throw`，类型导入里一行空行删掉。错误模型的数字不变（以 SDK 码为键的表不是码的出处）。
-- 2026-10-17（AC-08 并发作答的用例；AC-07 的重启缺口，防腐复查）· 从 main `02829775`（#653 之后）起 · merge-base `02829775`。只加用例与文档：`tests/interaction-recovery.test.ts`（AC-08：两份同时交同一题，只收一份），AC-07、AC-08 两行，BACKLOG 新增 BL-156。写 AC-07 的用例时发现：关掉 Node Host 再开，等人回答的一轮读回是 `cancelled`，问题不能再交；草稿还在，卡上有说明，但没有「请 AI 重新问」。统筹 10-17 定：AC-07 的标准不改，行标为部分，缺口进 BL-156；「请 AI 重新问」是 Molis 侧的修，先问统筹；下一步先读 Prologue 源码再谈设计。页面资源、API 与动作快照、DOM 事件、错误码、翻译都不变。
-- 2026-10-17（BL-152 外部插件的种类，D38，防腐复查）· 从 main `b6d98559`（#670 之后）起 · merge-base `b6d98559` · 统筹认可计划并定五点。每一轮开跑时宿主按会话主人从项目的动作目录现算种类清单，经 SDK 的 `agent.askUserReferenceKinds` 交给这一轮；筛选在 agent-host（`prologue-reference-kinds.ts`，上限取 SDK 导出的 `QUESTIONNAIRE_LIMITS`），宿主的端口在 `agent-reference-kinds.ts`，规则与内置清单同一处（`agent-question-surfaces.ts` 的 `pluginReferenceKinds`、`projectReferenceKinds`），诊断进「插件接入诊断」（`assistant-contributions.ts`）。通过：M1 边界（`@prologue/sdk` 仍只在 agent-host 里引用）；M2 健康门禁对照 merge-base（新文件都在阈值以下，`prologue-run.ts` 596 行，不是巨大单元；新测试文件只引公开入口）；M4 API 快照不变（contracts 与插件 SDK 没动；agent-host 与 local-host 的导出不在快照里）；M5 动作快照不变；M6 页面资源不变（全在服务端）；M8 页面事件无新增；错误模型：没有新的错误码。安全：`SECURITY-INVARIANTS.md` 加 S-32，S-13 交叉引用到它。内置清单：`hostReferenceKinds()` 也走同一份筛选与顺序；与 main 的算法对同一批内置 Manifest 比过，22 种、显示名都相同，没有哪个种类由两个内置插件同时列出，只变了枚举的顺序（换成按插件标识、再按种类，部署后工具定义变一次，之后稳定）。用例：`tests/security-invariants-reference-kinds.test.ts`（五条拒绝，进 `pnpm test:security`）、`tests/agent-reference-questions.test.ts`（四条：外部种类能问到、两轮顺序不变、端口不在或为空退回内置、子任务问不了人），`tests/assistant-contributions.test.ts`（诊断按插件、按原因各一条）。改了 agent-host，全量由统筹在 label-chain 跑。
-- 2026-10-17（D1 文档与示例，AC-12，防腐复查）· 从 main `c276ab9c`（#648 之后）起 · merge-base `c276ab9c`。只动文档与用例，不改源码：`skills/molis-prologue-ai/SKILL.md` 加「交互」一节（含验证命令），`docs/platform/PROLOGUE-AI.md` §6 末尾加「问人、建议一步、引用对象」一小节（这两份归手册线，统筹 10-17 定：只加这一节，不动别的段落），`skills/molis-plugin-dev/SKILL.md` 的索引加一行，设计系统 README 补引用搜索的行为；新用例 `tests/interaction-examples.test.ts`（§15.8 示例 1，进 CI 产品子集）。`skills/molis-plugin-dev/SKILL.md` 不在创作台的 `CHAPTERS` 里，所以不需要 `studio:replay`；改了 `skills/` 后先 `pnpm build` 再跑安装类用例。通过：文档引用门禁（行内路径、动作 id 都存在）；页面资源、API 与动作快照、DOM 事件、错误码、翻译都不变。没改 `generated-ai.md`：它挂在创作台的 Skill 里，改了要 `pnpm studio:replay` 加真实模型冒烟，而生成插件沙箱没有 `ask-user` 与 `suggest-action`，`skills/molis-plugin-dev/SKILL.md` 的索引行已写明这条边界。
-- 2026-10-17（T2 对象引用题，防腐复查）· 从 main `7bf9b7a1`（#618、#632 之后）起 · merge-base `7bf9b7a1` · 决策 D36。通过：M1 边界（`boundary:check`；设计系统不引用合同与 SDK，宿主取种类只读内置 Manifest，插件之间不互相引用）；M2 健康门禁对照 merge-base（新的 `*_SCRIPT` 文本常量 0：引用搜索的接线写进工作台与项目选择页原有的两段脚本，不另立常量；`craft-finish.ts` 巨大单元行数不变）；M4 API 快照（`plugin-sdk` 的 `questionAnswer` 返回值多了引用数组，已 `api:update`）；动作快照（`coding.runs.control` 升到 v5，v1～v4 拒绝；`search.references@1` 不变）；DOM 事件 0 新增；翻译（9 句新中文都有英文，「没有找到」沿用 Todo 已有的 No matches，不新增冲突）；错误码 0 新增（`kind-not-allowed`、`too-many`、`reference-unavailable` 都是合同里已有的原因）；页面资源由用户弹窗批的一次性上限（D36 ⑤），实测 `workbench.css` +1,326、`arrival.css` +1,326、`workbench.js` +4,037、`settings.css` +19，`coding.js` 不变；S-26 加两条断言拒绝本身的用例（页面写的标题进不了回答；题目没要的种类搜不到也交不上）；用户 10-16 规则：种类清单来自 Manifest 与上游 enum，不写提示词禁令、不靠正则或特例。留下的：外部插件的种类不在清单里（BL-152）。
-- 2026-10-17（T1 后续：数字题的单位，防腐复查）· 从 main `cee899c4`（#615 换包之后）起 · 决策 D35。改动只在宿主的卡（`agent-question-card.ts`：把题目的 `unit` 交给共享控件、界限带单位）与设计系统的数字控件（`interaction.ts`：单位加 id，输入框的 `aria-describedby` 先指单位）；没有新事件、新错误码、新合同、新翻译句子；页面资源不变（单位是宿主画的 HTML，样式 T1 已有），四份资产与 main 相同。单位只经合同 `AgentQuestion.unit` 一处来，不从题干猜（用户 10-16 规则：不打补丁）。
-- 2026-10-16（T1 放开文字、数字、日期、日期时间，防腐复查）· 从 main `5ba635c8`（#597、#602 之后）起 · merge-base `5ba635c8` · 决策 D29–D33（三条统筹定、一条统筹定不升提示词、一条本线定）。做法：宿主的问卷卡（`agent-question-card.ts`）按题型画四种字段，日期旁显示星期、日期时间后显示一处本机时区；拒绝时每个字段旁的话写出界限（「不能超过 120」「不能早于 2026-10-19 09:00」），助理经工作视图、Coding 经路由把题目随拒绝带回，由宿主一处措辞；插件开发包的 `questionAnswer` 按字段名读出 `value`（数字转数，日期时间写成本机偏移）；两个界面的题型同时放开（D8）；Coding 页面交回卡上字段原样，路由读成回答，`coding.runs.control` 升到 v4（D33）。输入框的「回答上面的问题」芯片也覆盖只有一道文本题的问卷（D34，统筹实走发现原条件出不来）。样式：数字步进器从 `INTERACTION_NUMBER_STYLES` 拆出日历那段（`INTERACTION_CALENDAR_STYLES`，只在组件板），步进器进工作台与项目选择页两张表，与日期框等高、出错时边框变红，390 px 与触屏下输入框与 ± 至少 44 px；字节用 `immersive-navigation.ts` 里 `.assistant-plan` 的五条死规则抵掉（它的标记 09-28 在 `5c56d681` 删掉，样式没跟着删），两张表各少 29 字节，Coding 包少 842 字节，工作台脚本少 84 字节（芯片的条件改由宿主判、页面只读标记，D34）。留作后续：共享客户端打字时改写的星期只有中文（`interactionFields` 的 `weekdays`），英文界面下打字后会显示中文星期；数字题没有 `unit`（上游 Prologue，已报统筹）。
-- 2026-10-16（H4 第二部分 2c 防腐复查）· 从 #571 的头 `819a4e4c` 起（#571 合入后变基到 main）· merge-base `19dc13d4` · 通过：M1 边界、M2 健康门禁对照 merge-base（没有变大的；`client.ts` 1642 → 1641：卡的绑定放进已有的 `actions-client.ts`，它返回 `renderCards`，不新开文本脚本文件；`registerAgentHostCapabilities` 不变；Coding 样式里把等价的简写缩短，抵掉新样式的 56 字节）、M4 API 快照（只有 `services/agent-host`：新的 `agentOfferActions`、`AgentOfferRunRequest`，`AgentRunOffer` 多了必填的 `action_digest`）、M5 动作快照多一行 `agent.offers.run.v1@1`（宿主登记）、M6 页面资源全部变小（预算已降）、M8 没有新事件、M9 缺英文 0、M10 0 混用（新用例只经公开入口与已有夹具）、M14 新不变量 S-29 与断言拒绝本身的用例。人看要点：点卡的执行是新的安全边界（统筹 10-16 定 B）：宿主动作 `agent.offers.run@1` 只给插件、只能执行这一轮自己记下的那条建议点名的确切引用（引用对不上、不在冻结的动作工具里都拒），合同在建议之后变了按建议时记下的 `action_digest`（动作当时 `{operation, action}` 的 sha256）拒，授权已撤、动作已停用或已不在都拒，输入经组合层新加的 `check` 透传过动作自己的检查，`beforeEffect()` 之后才执行；宿主不另记状态，重复执行由 Coding 的卡按修订号认领兜住。Coding 的卡存在插件私有存储 `cards:<session_id>`（整份 `compareAndSet`，不加表、不升库版本），落卡按 `offer_id` 幂等、在 `beforeEffect()` 之后、动作此刻不在授权里就不落（D25 三条）。Coding 的 `failure` 对平台写法的错误码按 kind 给状态（D26），因此 `goals.event_progress.stale_goal` 与 `actions.expired` 400 → 409、`artifacts.plugin_denied` 400 → 403，三处用例改了并注明；不是平台写法的码与普通 Error 仍 400，Coding 自己点名的码（如 `agent.session_busy` 409）不变。页面：卡由宿主画（与助理同一个 `assistantCardHtml`，Coding 里不给「请助理重新准备」），挂在那一轮下面、与问题卡同一列宽；输入框上方的那一步在卡有未发送改动时只把卡带到眼前（FLOW-03，与助理一致）。浏览器用例 `coding-action-cards.e2e` 要带上 #575（本分支临时 cherry-pick；#575 之前延后的工具模型调不到，变基到 main 后这条提交自然去掉）。照用户 10-16 的规则：越界由宿主按记下的引用、摘要与动作此刻的状态核对，不在提示词里加禁令。留作后续：卡的 `readSubject` 返回 null（Coding 的卡还不判对象是否已变）；操作卡「将使用这些内容」里长字段名（如 `idempotency_key`）超出 84px 标签列、压到值上（设计系统共用，助理同样）；plugin-builder `agent-store.ts:9`、`:23`。
-- 2026-10-16（H4 第二部分 2a 防腐复查）· 从 main `bd2472ae`（#564 1d 之后）起 · merge-base `bd2472ae` · 通过：M1 边界、M2 健康门禁对照 merge-base（`AgentHost`、`start` 与合同文件 `services/agent-host.ts` 都没变大：只读角色的检查与本轮的动作客户端提成模块函数，`AgentActionOffer` 连同新的 `AgentRunOffer` 搬进 `services/agent-host-offers.ts`，经原来的子路径转出）、M4 API 快照（只有 `services/agent-host` 多了 `AgentRunOffer` 与 `AgentRunView.offers`，有意改动）、M5 动作快照不变、M6 不涉及页面资源、M7 改动文件 lint 0 新诊断（`prologue-run.ts:373` 的 `noFloatingPromises` 是 main 上已有的）、M8 没有新事件、M9 没有新句子、M10 0 混用、M14 新不变量 S-28 与它的拒绝用例。人看要点：逐项能力回合的角色 `host_tools` 带 `suggest-action` 时，这一轮的动作包多一个建议工具（`molis-suggest-<范围>`），只能点名本轮冻结的动作工具；点名别的、动作此刻不在、停用、合同已变、输入被动作自己的检查拒绝、整条记录超过 32 KiB，都拒，什么都不记（S-28）；建议只记录、不执行、不排审查（`codingExecutionRules` 按前缀放行，点卡才是确认，D27）；记录随工具结果进事件流，运行视图从事件回放出 `offers`（重启后读回同一份，不重新生成）；只读角色带 `suggest-action` 开跑前就拒；免审查的 `molis-suggest-` 前缀只有这一轮的建议工具能有（逐个核过工具名的来源，S-28 第三条用例钉住）。合入 main `cbf2341c` 后不变量改号为 S-28（#560 先占了 S-27）。没碰 `agent-host-composition.ts`、`assistant-island.ts`、发送路径；Coding 的角色、表与卡在 2c。照用户 10-16 的规则：越界由 agent-host 按冻结的引用与动作此刻的状态核对（事实核对），不在提示词里加禁令；超过 32 KiB 的拒绝是为了不让模型说「已展示」却没有卡（误导用户的一类）。
-- 2026-10-16（H4 2b 之后：卡按错误的 kind 判结果，防腐复查）· 从 main `e502470c` 起 · 起因：2b 把 `settled()` 原样搬进 SDK，它按消息文字（「版本」「已变化」……）和码名片段判「数据已变」，成了 SDK 的公开行为；也属于用户 10-16「不为模型或措辞加正则」的规则。改法：只看码与 kind——四个确切的平台码（outcome_unknown、output_invalid_after_effect、delivery_unknown、host_replaced）是未知，kind 为 conflict 是过期，其余是失败。核对谁在说「数据已变」却没声明 conflict：八个码改成 conflict（`characters.conflict`，Goals 三个 `stale_*`，Sessions `message_target_changed`、`message_attempt_changed`，`attention.revision_conflict`，`shelf.configuration_changed`），动作网关上从 400 变 409（统筹 10-16 定 A；F109 的「保留 400」是保行为的折中，不是用户决定）。Characters 的声明从模块搬进 contracts 一处（照 Attention 的 `attention-errors.ts`）；插件原来抛的是只带码的普通 Error，改为抛声明的码。按码自己映射 409 的三个边缘（Work 消息、Feed 的码翻译、Characters 路由）都不是多余的，留着并写进 PR。新用例 `tests/moved-on-error-kinds.test.ts` 钉住八个码的 kind、网关状态、HTTP 往返和卡的结果。留作后续：Schedule `job_invalid`、Files 与 Git 的 `invalid`（要在各主人新加码），Characters 的 not_found / deleted / disabled。
-- 2026-10-15（H4 第二部分 2b 防腐复查）· 从 main `bdcf6920`（#554 之后）起 · merge-base `bdcf6920` · 通过：M1 边界（SDK 只多依赖 contracts 的类型）、M2 健康门禁对照 merge-base、M4 API 快照（只有 `plugin-sdk/index` 多了操作卡的规则、两个端口与卡值读取，有意改动）、M6 页面资源（不变）、M7 改动文件 lint 0 诊断（`plugin-sdk/src/index.ts` 第 130 行的 `as unknown as` 是 main 上已有的、基线已收）、M8 页面事件（没有新事件）、M9 翻译（没有新句子，缺 0）、M10 测试引用（1024 个进程 0 混用）；M5 不适用（没有动作改动）。人看要点：判断规则（现在提供、输入合格、可改的字段、展示的 revision、对象是否已变、时刻是否已过、抛错后是未知 / 过期 / 失败、结果一句话）从 `assistant-offers.ts` 搬进 `packages/plugin-sdk/src/action-cards.ts`，只写一份，端口 `CardStore`（按 revision 比较后更新）与 `CardAuthority`（discover / check / invoke）定义在 SDK、不碰存储；SDK 不能依赖内核与 `assistant.*` 错误码，所以校验与拒绝也是端口（`check`、`refuse(reason)`），助理把 `revoked / invalid / conflict` 映射回自己原来的码；`assistant-offers.ts` 281 → 176 行，退成助理的适配层，消息、顺序、错误码不变，`assistant-*` 用例全过；卡值读取（`cardInputValues`、`instantIn`、`wallClockIn`）随之从 `assistant-card-view.ts` 进 SDK，宿主不再转出它们；`assistant-island.ts` 与发送路径没动（D28）。
-- 2026-10-15（H4 第一部分防腐复查）· 并入 main `a675dc8d`（#549 W4-07 之后）· merge-base `a675dc8d` · 通过：M1 边界、M2 健康门禁对照 merge-base（`styles.ts` 829 行，比 832 少；起初在宿主新建的 `coding-next-steps.ts` 让「Runtime 插件的宿主文件」3 → 4，改为 Coding 自己给后续步骤、宿主只在已有文件里合成，回到 3）、M6 页面资源对照 merge-base（Coding 等 5 个插件包各少 133 字节，工作台与设置样式各少 103 字节，预算已降）、M7 改动文件 lint 0 诊断、M8 页面事件（没有新事件）、M9 翻译（4 句新英文，缺 0）、M10 测试引用（1020 个进程 0 混用）、M15 密钥；M4、M5 不适用（没有合同与动作改动）。人看要点：步骤只派生到屏上已有的那条路（问题卡的选项与提交、轮次卡的「核对并继续」「查看变更」按钮），没有第二个执行入口；`agent-next-steps.ts`、`routes.ts`、`assistant-island.ts` 没动；`client.ts` 行数不变（1643）、字节 −28，抵消在同一文件里（会话地址收成一个 `sessionPath`，避开回执 1d 改的行）；轮次以「未变」存根返回时，页面留着的整轮视图带着它自己的 `next_html`，所以每轮都画、页面只显示最新一轮的。
-- 2026-10-15（H3 防腐复查）· 合入 main `7fe8ee65`（#534 P3a 之后）· merge-base `7fe8ee65` · 通过：M1 边界、M2 健康门禁对照 merge-base、M4 API 快照（`search` 多了引用候选的类型，`agent-interaction` 多了 `AGENT_QUESTION_HOST_REASONS`）、M5 动作快照（多一行 `search.references@1`）、M6 页面资源、M7 改动文件的 lint、M8 页面事件、M9 翻译、M10 测试引用、M14 `pnpm test:security` 55/55、M15 secrets。已修：合并时 main 把 S-24 给了 Assistant 的 HTML 投影，本线的对象引用改为 S-26（表、用例名、注释一起改）；`tests/security-invariants-object-references.test.ts` 第二条在暂停前没跑过，起跑方式不对（角色没有 `ask-user`），改成与 `agent-sdk-effects` 相同的起法。人看项：第 11 条，`search.references` 的页面调用者在情境线 W3-B（统筹 10-15 排在 H3 之后），本 PR 里它的使用者是宿主的提交复核（同一对 `findReferenceCandidates`/`confirmReferences`）与 MCP、工作流可发现的目录；`reference` 题型按 D23 在之后的切片开放。
-- 2026-10-15（S1 防腐复查，#532 合入 main `eebfa9f3`）· merge-base `414f61b4` · 通过：M1、M2、M4、M5、M6、M8、M9、M10、M14、M15；人看项 27 条见 #532 正文。暂缓：第 6 条（插件要模型走 `services.model`，W3-06-E）——Form 仍是构建期插件，`services.model` 只给 Plugin Runtime 运行的插件；Form 照旧经宿主注入的 `completeText` 端口，S1 没加新路径；Form 迁到 Plugin Runtime 时随 W5-11 换成 `services.model`（统筹 10-15 定）。
-- 2026-10-15（W4-04 第三片关掉上一条的暂缓第 6 条）：Form 改由 Plugin Runtime 装配，「AI 生成题目」经 `services.model` 调模型（`plugins/native/form/src/plugin.ts`），宿主不再给 Form 注入 `completeText`。先问的问题卡改从 Runtime 的出口出：`dispatchRuntimePluginRoute` 的 `withPluginInteraction`。`tests/form-runtime-routes.test.ts` 的 W4-04-05 走这条路：needs_input → 卡片 html → 回答后接着生成；去掉这个出口上的 `withPluginInteraction`，它就失败。`form-actions.e2e`、`form-draft-questions` 也通过。
-- 2026-10-13 晚（防腐复查 2）· 合入 main `1a9416ec` · merge-base `1a9416ec` · 通过：M1 边界、M2 健康门禁对照 merge-base、M4 API 快照（只有本线有意的 `agent-interaction` 新子路径与 `agent-host` 搬走的类型）、M5 动作快照无变化；人工项：新合同子路径同一次合入就有真实使用者（宿主、Coding、助理）和守它的用例；合同包只放类型与常量；新错误码沿 `AgentHostErrorCode`；巨大单元不变大（见 20.0）；没有改门禁。
-- 2026-10-13（防腐复查 1）· 合入 main `1ec92c18` · merge-base `1ec92c18` · 通过（机器项）：M2 `check-health-gates --base origin/main` 全绿（157 个巨大单元不变），M8 页面事件已登记；M9/M10 列出的是 main 上已有的翻译冲突与测试引用，不是本线新增。未做：M1 `boundary:check`、M5 动作快照、M6 页面资源（需要构建，等 build 锁）；人看项 3.19（页面资源）见下一条 A1 字节预算，暂缓，等 A1 开工前定办法。本线到目前只改了设计系统、预览脚本、需求书，没有动合同、动作、宿主。
-- 2026-10-13（A1 字节预算，实测）：`INTERACTION_CLIENT_SCRIPT` 17,644 字节、`INTERACTION_STYLES` 17,428 字节；助理岛里要被替换的 `renderQuestion`/`renderCard`/「接下来」行约 18 KB，`craft-finish` 里对应的助理样式约 6.6 KB。页面资源门禁只许变小，所以 A1 按现在的划分净增约 10 KB（`molis-work-workbench.css`）；样式若同时进另外两张表则更多。需要在 A1 开工前定办法：（a）把 `INTERACTION_STYLES` 缩到能与被替换的助理样式抵平；（b）同一 PR 里删 `molis-work-workbench.css` 里别处已被取代的样式；（c）请用户对这一项放宽门禁。构建锁放开后用真实构建量 `workbench.css` 与 `workbench.js` 再定。
-- 2026-10-12（C1+H1）：在 #408 的分支上写了带类型的题的合同、投影、预检、错误码与题型交集；验证在构建锁放开后做（证据另记）。
-- 2026-10-12（I1）：共享浏览器行为模块写成并在真浏览器验证（§19.2）；#423 的审查修改完成。
-- 2026-10-12（规划）：#423 之后的切片与 PR 序列、事实主人、跨线待定与 R4 推荐写进 §17.1；D7–D10 记入 §16。
-- 2026-10-12（P2 第一刀）：共享部件进设计系统与组件板，I0 预览改用它们（§19.2）。
-- 2026-10-12：分支 `feature/handoff-ai-interaction` 合入 origin/main `02ceba8c`；I0 预览在内置浏览器里逐条走查，按实物重做布局、信息层级、操作路径与状态反馈（§19.1）。三级证据：工程通过见 §19.1「证据」；真实产品实操——不适用（预览不连 Home，只有开发者原型走查）；用户本人验收——未开始。
-
+[分期实施与工程记录](baseline-and-progress.md#18-进度)。
 
 ## 19. I0 独立组合切片（2026-10-11）
 
@@ -970,241 +834,21 @@ SDK 已有 `feat/ask-user-fields@a06ae62e`：实际配置为 `config.tool.askUse
 验证计划：纯逻辑用 `node scripts/run-tests.mjs tests/ai-interaction-slice.test.ts`，调用预览实际状态逻辑；浏览器用例只准备，运行命令 `node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts` 留待统筹排期。预览启动与依赖要求在本节交付记录补充。截图仅入 `.impeccable/qa/review/ai-interaction-i0/`。本片不跑 build、完整 typecheck、资源更新或全量门禁；原 AC-01–12 整体验收仍未完成。
 
 
-### I0 交付记录与冻结交接（2026-10-11）
 
-代码已写完并冻结在本树的未提交差异中；共 20 个新增文件（含原需求书及参考资料）和 specs/README 的一行索引。没有提交、推送或修改任何产品源码、package 配置、SDK、合同、Host、预算或门禁。统筹可据此恢复 A0 writer；本会话不继续等资源或轮询。
-
-实现分工：model/validation/state/execution/recommendation 提供两种布局共用的演示数据与状态逻辑；render/styles 复用设计系统公开源码入口（同一个 index.ts）的 primitive/token，组合问卷、参数预览、执行确认、结果与同排推荐；controller/paint/dom/client 只绑定当前页面，后台更新不重建表单；server 与启动脚本仅提供固定 HTML 和允许列表中的浏览器模块。没有存储、生产输入编号、Run/TaskBoard、后台等待任务或外部调用。浏览器模块在将来启动时由 Node 的 stripTypeScriptTypes 在内存去类型，不输出 bundle，不构建产品。
-
-已执行：
-
-- 离线依赖安装 `pnpm install --frozen-lockfile --offline --ignore-scripts` 成功（没有生命周期脚本、没有改锁文件）。
-- `node scripts/run-tests.mjs tests/ai-interaction-slice.test.ts`：13/13 通过；使用实际预览状态函数，覆盖数据类型、字段错误、自然语言冲突、默认/草稿不授权、重复点击、取消/失效后的迟到结果、未知只核对、明确失败重试、继续调整及推荐占位。
-- `node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --strict --noUnusedLocals --noUnusedParameters --skipLibCheck --lib ES2023,DOM scripts/ai-interaction-slice/client.ts tests/ai-interaction-slice.test.ts`：通过，仅客户端和纯逻辑测试及其依赖的局部检查，不是全仓 typecheck。
-- Biome 对本片 15 个 TS/MTS 文件定向 lint：通过，无修复或规则改动。
-- 全部 15 个文件内存语法检查、9 个浏览器模块使用实际 stripTypeScriptTypes 的内存语法检查、renderPreview 的内存渲染均通过；没有启动服务器、端口或浏览器。Node 去类型 API 会给实验性提示，需在实际启动时确认运行环境。
-- 原 AC-01–12 的文字、D1–D6 和三张参考图与来源逐项比对保留；新增文件路径均在允许范围，唯一已有文件变更是 specs/README 本线索引。
-
-证据边界：AC-13/14 的演示逻辑部分通过，DOM 主路径仍待浏览器；AC-15 的推荐锁与组合输入结束后草稿保留逻辑通过，真实中文输入法、读屏、焦点/滚动、视觉、响应式与动效未验证；AC-16 静态分工与范围核对通过，两种实际布局尚未目视。准备好的 E2E 中 composition 事件是合成事件，不能作为真实 IME 验收。AC-01–12 整体仍未完成。
-
-下一安全时段（A0 构建验包优先，须统筹安排）可从本工作树执行：
-
-```sh
-node --import tsx scripts/preview-ai-interaction.mts --port 4319
-```
-
-浏览器打开 `http://127.0.0.1:4319`。入口只绑定 127.0.0.1；端口占用时报错，不接管其他进程。Ctrl-C 关闭；不需要 Home、凭据或产品构建。新独立树没有已构建的 test-kit/browser，因此自动化 E2E 的额外前提是统筹允许在安全构建时段完成 `pnpm --filter @molis-ai/molis-work-test-kit run build`；本轮未执行。人工/工具浏览器体验上述预览不依赖这一步。之后可执行：
-
-```sh
-node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts
-```
-
-该用例自己启停随机本机端口的同一预览、独立 Chrome 配置目录，不读真实 Home；准备了填写/修正/回答/预览/执行/结果、切换与草稿、后台更新、过期、失败/未知/重试、键盘、浅深色 × 1440/1024/390 × 两布局。截图只写被忽略的 `.impeccable/qa/review/ai-interaction-i0/`。未运行任何浏览器用例、build、完整 typecheck、全量回归、健康/资源门禁或真实模型，故不宣称原型实操完成或内部完整。
-
-### 19.1 第二轮：按实物重做（2026-10-12）
-
-基准：合入 origin/main `02ceba8c`（唯一冲突是 `specs/README.md` 索引，两行都留）。main 这段时间对本片有影响的只有设计系统：`craft-finish` 的底栏与触控尺寸、`touch-targets`、新增的 `plugin-components`（生成插件的组件目录，与本线无关）；`contracts/platform` 的变动（动作片段、插件 Agent 搬出）本片不消费。走查发现的两个缺陷都在 I0 自己身上：7 个图标名不在图标库里（`message-circle`、`file-text`、`layers` 等，渲染成空白），以及缺少工作台给 `svg` 的描边基础样式（`target` 画成实心黑圆）。设计系统公开入口本身没有让预览坏掉的变化。
-
-预览仍是独立页面（`scripts/preview-ai-interaction.mts`，固定示例、提交与执行全是模拟、不连 Home），只改了 `scripts/ai-interaction-slice/` 与两份测试。
-
-#### 改了什么，收益与取舍
-
-| # | 改动 | 收益 | 取舍 |
-| --- | --- | --- | --- |
-| R1 | 放进工作台框架：桌面、一张工作纸、底栏；助理面板按产品 `.assistant-panel` 的几何从输入框上方升起（≥1240 带 272px 的工作详情栏），Coding 是「会话目录 · 对话 · 结果与审查」三栏 | 问卷、操作卡在真实的宽度和高度里看：助理面板对话列约 600px、高 620px，Coding 对话列约 780px，手机是底栏之上的整宽面板。能直接判断「放不放得下、挡不挡工作」 | 框架里的 Goal 页、Dock、会话目录、Diff 是示意，`inert` 且写明「示意，不可操作」；不等于产品外壳的实现 |
-| R2 | 问卷紧凑：卡片按自身宽度（容器查询）在 ≥520px 时标签在左；只写一次「全部必填」，不在每题挂「必填」；推荐理由写在选项组下方 | 7 项字段在 600px 的列里不再是一长条；同一份标记在三种宽度都成立 | 选填题出现时要在题上标「选填」（I0 没有选填题） |
-| R3 | 回答交回后卡片折叠成「已交回 · 7 项回答」摘要，操作卡出现在下一条消息里 | 视线落到下一步的决定上；回答和执行在视觉上也分开 | 要看完整回答得看摘要；修改走「调整回答」重新打开 |
-| R4 | 输入框补充改成「回车放进补充要求」：问题可填时输入框前有「补充到问卷」标记，回车把这句接到「补充要求」末尾，输入框清空；里面写了时长就出冲突确认 | I0 原来让输入框和「补充要求」实时镜像同一段文字，两处显示同一份草稿，容易误以为是两份；现在一份草稿、一个落点，发送前的文字仍是输入框自己的草稿 | 有问题等回答时，输入框里回车不再发给助理一条新消息；要另说别的事，先收起或回答问题（真实接入时与输入回执线的「输入」合同一起定） |
-| R5 | 日期用设计系统的日历（`renderCalendar`，方向键、Esc、点外面收起，焦点回到按钮）；开始时间拆成日期 + 24 小时制时间，时区随问题给定、只显示不输入；时长可直接输入，也可 ±5 分钟步进 | 不再要求人手写 `2026-10-16T10:00-07:00`；交给 SDK 的值仍是带偏移的 ISO，由界面拼好 | I0 不支持改时区；日历只渲染了 10、11 两个月 |
-| R6 | 输入框旁的下一步不再是固定的「查看下一步」，而由记录推出具体操作：预览参数 → 执行（模拟）→ 执行中… → 打开结果 / 继续调整；结果未知只给「核对结果」；失效给「请助理重新问」或「按新版本重新准备」；Coding 完成后给专业后续「查看变更」。问题卡就在眼前时不占位，收起时给「继续填写」。同排最多一主一次，手机移到输入框上方，面板相应让出高度 | 按钮说清楚按了会怎样；底栏、对话卡是同一条记录的两个入口（§15.8 示例 2），在哪按都一样，计数只加一次 | 预览之后，输入框旁可以直接「执行（模拟）」——参数已经展开在卡片里；没有预览就没有执行入口 |
-| R7 | 下一步的位置规则细化：在输入框里打字、组合输入、焦点在这一排时，位置与文字都不动，失效的立即禁用，离开后再换；指针悬停只在按钮还能按时才锁（全是「执行中…」不必锁）；本人按下一步引起的变化立即显示 | I0 原规则在本人点了「预览参数」后，因为指针还停在按钮上，按钮会变灰、要移开才出现「执行」 | 外部变化（对象改版、过期）在指针停留期间仍只禁用不换位 |
-| R8 | 过期、被替换、选了不回答之后，字段仍可当草稿继续写，只是不能交回；横幅说明并给「请助理重新问」 | 不会在人写到一半时把字段整个禁用掉 | 这段时间的修改要等重新问时才交得出去 |
-| R9 | 问卷里的单行输入框回车跳到下一项，⌘/Ctrl+回车交回（DESIGN.md 对话框的同一约定）；中文输入法组合中的回车不算 | 不会因为在时间框里按回车就把整份问卷交出去 | 习惯回车提交的人要用快捷键或按钮 |
-| R10 | 状态反馈就近：问卷底部写交回状态与错误数，操作卡写执行状态；面板底部的一行状态只确认刚发生的事，6 秒后收起（读屏仍播报）；后台更新改到的未改字段标「已按最新材料更新」并有一次铜色底的落地；新内容到达时只在本来就在底部或焦点无处可去时跟随，否则出「回到最新」 | I0 的提示固定在对话最上方，填到下面时看不见；长期状态由卡片承载，不重复 | — |
-| R11 | 助理面板可最小化，输入框里出现这项工作的芯片和状态点，聚焦输入框即恢复；Coding 的「结果与审查」栏 ≥1281px 并排、以下从右侧滑出 | 草稿在收起、切换布局、最小化之后都在 | — |
-| R12 | 回答交回后问题才失效（过期、替换、对象改版）时，卡片保持回答摘要并加横幅，点「按新版本重新准备」才展开表单；完成后收起参数预览，结果进入视野 | 外部变化不再把整张问卷展开、把正在看的内容顶走 | 重新准备多一次点击 |
-| R13 | 执行失败后点「检查参数并重试」重新展开参数，卡片回到「待你执行」，输入框旁随之变成「执行（模拟）」 | 第一次 e2e 发现原推导让下一步停在「检查参数并重试」，点了只是再展开一次 | 重新核对后的执行仍要单独按一次，不会自动重放 |
-
-没有改的：§19 的状态规则（回答与执行分开、默认不授权、重复点击只一次、取消与失效后迟到结果无效、未知只核对）原样保留；只加了「输入框草稿」「开始时间两半」「下一步推导与锁」三块纯逻辑。未覆盖的：单选问询变成输入框上方的选项胶囊（§15.6 第二种来源）、超过两个下一步时的「更多」、对象引用的搜索与权限、跨页刷新后的草稿恢复——留给共享组件与真实接入阶段。
-
-#### 证据
-
-工程通过（本机，2026-10-12）：
-
-- `pnpm install --frozen-lockfile --offline` 成功；`pnpm --filter @molis-ai/molis-work-test-kit run build`（持 build 锁）通过。
-- `node scripts/run-tests.mjs tests/ai-interaction-slice.test.ts`：21/21 通过（原 13 条不改断言，新增 8 条：输入框补充、开始时间、失效后草稿、后台更新标记、下一步推导、位置锁、本人按下的变化、失败后重新核对参数）。
-- 局部严格 `tsc --noEmit`（client、render、server、两份测试及其依赖；设计系统源码因 contracts 未构建报的错不在本片）与 Biome 定向 lint：通过；本片最长函数 122 行，没有新增巨大单元。
-- `node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts`（持 browser 锁，本机 Chrome，减少动态）：10/10 通过。覆盖问卷修正→交回→预览→执行→结果；输入框补充、回车跳项、⌘/Ctrl+回车交回、日历键盘选日；收起、切换布局、最小化、后台更新（焦点与对话滚动位置不变）、过期后继续写草稿再重新问；组合输入期间失效的下一步不换位并禁用、结束后换成新操作，交回后对象改版保持回答摘要；回答失败重试、执行未知只核对、执行失败重新核对后再执行（下一步与卡片计数一致）；Coding 共用交互并给「查看变更」；键盘选项不提交；两种布局 × 浅深色 × 1440/1024/390 无横向滚动、可见按钮不出窗、手机触控 ≥44px、动效为 0s、Coding 审查栏只在 >1280 时并排。截图在被忽略的 `.impeccable/qa/review/ai-interaction-i0/`（矩阵 12 张，状态 11 张）。
-  - 第一次运行有两处失败，都已查清：一是用例自身——重新加载时等待表达式在新文档没有根元素的瞬间读到 null，改成可选链，断言不变；二是产品缺陷——执行失败后点「检查参数并重试」重新展开参数，但卡片仍停在失败态，输入框旁继续给「检查参数并重试」而不是「执行」，已改为重新核对参数即回到「待你执行」，并加了单测。看截图后另改三处：交回后对象改版不再把问卷整张展开、完成后收起参数预览让结果进入视野、Coding 审查栏随断点收放。
-- `node scripts/check-health-gates.mjs --base origin/main`：通过（对照 merge-base `02ceba8c`）。`pnpm secrets:check`：通过。
-
-原型走查（开发者在内置浏览器，1440×900、1024×768、375×812，浅深色）：混合问卷的填写、逐字段错误与定位、输入框补充与时长冲突、修正后交回；参数预览与显式执行、结果、同排下一步；结果未知只核对、执行失败重试、过期、替换、对象改版、取消；后台更新保留焦点与滚动位置；收起、最小化、切换布局后草稿仍在；日历键盘；手机下一步移到输入框上方、无横向滚动。这是开发者对独立预览的操作，不是真实产品实操，也不是用户验收；真实中文输入法与读屏未验证。
-
-真实产品实操：不适用（预览不连 Home、SDK 或模型）。用户本人验收：未开始。
-
-#### AC-13 到 AC-16
-
-- **AC-13**：工程通过（单测、浏览器用例）与开发者走查通过；真实调用链未接（AC-04 本体未开始）。
-- **AC-14**：工程通过与开发者走查通过（重复点击、取消后迟到结果、过期/替换/对象改版拒绝旧提交、失效后草稿可写、后台更新只改未动字段、失败重试、未知只核对）。跨页刷新与重启恢复不在 I0 范围。
-- **AC-15**：工程通过（位置锁、失效禁用、键盘、三档宽度、浅深色、手机触控尺寸、减少动态）与开发者走查通过；组合输入只用合成事件验证；真实中文输入法、读屏与用户的视觉判断未验证。
-- **AC-16**：两种布局共用同一份标记与状态逻辑，示意与模拟处处标明；没有触及产品入口、生产数据、SDK 或其他线。
-
-### 19.2 P2 第一刀：共享部件进设计系统与组件板（2026-10-12）
-
-**落点**：`packages/design-system/src/interaction.ts`（类型与渲染函数）、`src/styles/interaction.ts`（`INTERACTION_STYLES`）、`src/interaction-example.ts`（组件板样张）、`src/catalog-examples.ts`（组件板的示例区块在 `catalog.ts` 之外组合；`catalog.ts` 是已登记的巨大单元，这次原地改两行，行数不变）。从包根导出。
-
-**接口的取舍**：
-
-- 只收展示参数：`InteractionQuestionView`、`InteractionField`（`choice`/`text`/`number`/`date`/`datetime`/`reference` 六种控件，对应 §15.2 的题型）、`InteractionOperationView`、`InteractionNextStep`、`InteractionOption`、`InteractionReference`、`InteractionAction`。不引用 `services/*` 合同，也不认识 Run、回执或授权；调用方把自己的记录转换过来（§15.5、§19 的约定）。
-- 读人的文字都由调用方给；只有几个控件名（「打开日历」「选填」「推荐」）有可覆盖的默认值。
-- 行为钩子统一是 `data-ix-*`（字段 `data-ix-field`，值 `data-ix-value`/`data-ix-part`，选项 `data-ix-option`，对象 `data-ix-reference`，按钮 `data-ix-action`，下一步 `data-ix-step`），客户端不依赖类名。
-- 每个字段都留一个错误位（没有错误时隐藏），控件的 `aria-describedby` 指向说明和错误，修正时不改结构。
-- 交回后的问卷显示回答摘要，表单留在页面里隐藏，「调整回答」能带着草稿重新打开。
-- 下一步最多一主一次，多给的不渲染（其余操作属于卡片本身）。
-- 日期一律用设计系统的日历，不出现系统日期控件。
-- 样式单独导出，不并入 `PRIMITIVE_STYLES`（§17 P2 的字节约束）；组件板内联它，产品页面采用时再加载。
-
-**第一个活的使用方**：I0 预览改为直接用这些部件渲染问卷、操作卡、下一步与输入框标记，预览自己的卡片样式删掉，只留对话外壳；paint、事件绑定、日历与 e2e 都改到 `data-ix-*` 钩子上，断言内容不变。
-
-**同日补充（外部约束）**：统筹转来两条要在接口里算进去：SDK（Prologue `a13bf067`）已有带类型的 `ask-user`（`config.tool.askUserQuestionTypes`、`validateQuestionnaireAnswer`、`PENDING_KIND_MISMATCH`），问卷卡要能从这组真实题型与字段错误直接转换；回执线的 `request_id`/`key`、pending 的 `about` 与对象版本失效要有展示位。已补：`choice` 控件的 `other`（`allowOther`）、`number` 的 `min`/`max`/`integer`、卡片的 `about`、折叠的 `evidence`、问卷卡的 `target`（对象与版本）；对应关系表在 §15.5。决定记录：展示位只显示、不解释，键与 id 以等宽行给出便于查对；`reason → 文案` 由消费方做，设计系统不收机器原因。
-
-**未做**：
-- 共享的浏览器端行为模块（草稿合并、焦点、组合输入、日历、键盘），现在仍在预览自己的 `bindings.ts`、`calendar.ts` 里，下一刀抽成不依赖运行时 import 的函数，供助理岛与 Coding 客户端拼接。
-- 助理与 Coding 的产品采用与旧渲染删除（P3/P4，等真实接入一起做）。
-- 单选问询的输入框上方选项胶囊。
-
-**AC-17 的证据（2026-10-12）**：`tests/interaction-components.test.ts`、`tests/interaction-sdk-mapping.test.ts` 与 primitives、arrival-components、workbench-ui-platform、I0 单测共 66/66；I0 e2e 改用这些部件后 10/10（持 browser 锁）；组件板区块在隔离宿主上目视通过（浅色、桌面宽度）。深色与窄屏的组件板样张尚未逐张看。
-
-**#423 的审查修改（2026-10-12）**：id 与 scope 只在写进属性的那一处转义一次（带引号或 `&` 的 id 不再破坏属性、label 的 `for` 与控件 id 一致）；单选组是 `radiogroup`/`radio`（`aria-checked`），多选保持切换按钮（`aria-pressed`）；`aria-describedby` 只指向存在的说明；日历对话框名称由调用方给；去掉未渲染的 `other.selected`；组件板每个样张有自己的 id。受影响的 6 个浏览器用例（agent-studio、functions-draft-retention、plugin-builder-diagnostics、plugin-composition、select-menu-interaction、ui-client-lifecycle）14/14 通过。
-
-**I1 共享浏览器行为（分支 `feature/interaction-shared-behaviour`，2026-10-12）**：设计系统新增 `interaction-client.ts`：`createInteractionClient(root, host)` 读写字段（按 `data-ix-*` 钩子）、选项与对象切换、单选箭头键与单一 Tab 停靠、步进器上下界、日历弹层、回车跳项与 ⌘/Ctrl+回车提交、组合输入期间不报变化、逐字段错误；不存值，写入不夺走正在输入的字段。三个不依赖 import 的函数（109/108/137 行），`INTERACTION_CLIENT_SCRIPT` 是它们拼成的脚本表达式。组件板第一张问卷样张可操作。证据：`tests/interaction-client.e2e.test.ts` 在真浏览器里 9 个子用例通过（组合输入用合成事件，不能代替真实输入法）；相关单测 30/30。预览（#410）改用这个模块，等 I1 合入后做。
-
-**AC-17**（P2）：设计系统提供问卷、选项组、操作卡、下一步与输入框标记的共享部件，只收展示参数、调用方文字全部转义、六种题型都有不依赖系统控件的输入方式、每个字段有稳定的错误位；组件板有区块并进入目录；样式只用令牌、不进共享页面样式表；I0 预览用这些部件跑通全部路径。
+I0 的交付、第二轮实物与 P2 的共享部件记录见[原型与验证](prototype-records.md)。
 
 ## 20. 远端交接（2026-10-13，历史记录）
 
 > 已被开头的「交接（2026-10-20）」取代：下面的分支、工作树、授权与下一步都是 2026-10-13～14 的状态，留作历史，不再照做。§20.15 末的验收表（AC 各行）例外，它一直更新到 2026-10-20，是现行的。
 
-> **统筹补充（2026-10-13 晚，先读）：暂停期间 main 上有两次大合并，本节下文写于知道它们之前。**
->
-> - **#471**（yijunw0212，10-13 08:24 UTC，78 个文件）把桌面 Computer Use 合进 main，并把 main 的 vendored SDK 换成 `prologue-sdk-0.0.0-rc.1-computer-use.tgz`。它的来源是 Prologue `d4908c11`（分支 `feat/desktop-computer-use`，基于 `c4b9fde3` = `4f7110fe` + 采用修正 + 5 个 Computer Use 提交）；provenance 写着 `pushed: false`，这个提交**不在 Prologue main，也不在 GitHub 远端**。这份包**不含**已进 Prologue main 的 S1–S3、带类型问卷（`a06ae62e`）、P1 合同、P2a–P2f。main 上同时还留着旧的 side-panel-memory 包与补丁（两份 tgz）。#471 还新增了右栏的电脑格（`apps/workbench/src/side-panel-computer.ts`）、`contracts/services/computer.ts`、`services/ui-surfaces.ts`，改了助理服务、`assistant-island.ts`、`prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，并把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与参考图带进了 main。
-> - **#472**（yijunw0212，10-13 10:54 UTC，93 个文件 +3399/−953）把旧采用树 `feat/prologue-adoption` 的 10 个提交（10-09 的 `77fde104`…`8b1a0522`）合进 main：一轮的推理力度、运行中换模型、逐轮写入记录（约等于 A1）、灵光流式（A3 的一部分）、助理把交出去的工作收回来后接着做（`8b1a0522`「第 14 项」，A0 当时明确不纳入的私有接续）、变化等待（`b3235bb1`/`8c0b60fb`，约等于 A4）。它沿用 #471 的 computer-use 包，没有换包。main 上的 `specs/prologue-adoption/spec.md` 是 10-09 的旧版（标题「Prologue 新能力接入：修复、适配与功能优化」）。
-> - 统筹层的说明与后续顺序见远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/README.md` §2a。
-> - **以下更正优先于本节下文（统筹审查，2026-10-13）：**
->   1. 状态句与 §20.5-2「#408 进 main 后把 `feature/agent-typed-questions` 合进 #410」：不要整支合。那个分支叠在 #408 的旧点 `de111f91` 上（带的是旧的 `-fields` 包，比 #408 现在落后很多），整支合会带进 #472 已经取代的提交。做法：只取 `c50a5534` 这一个提交的改动，等统一 SDK 包进 main 后，在 main 上按 #471/#472 的新形状重做。
->   2. §20.2 的 head：#410 现在是 `cda21315`。顺序「#408 → #411 → #410 → #409」已过时，见 README §2a-4。
->   3. §20.4-1 把 ANTI-CORRUPTION-REVIEW.md 叫「本机文件」：它在远端分支 `coordination/handoff-2026-10-13` 的 `coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md`。
->   4. §20.4-3「`prologue-node.ts` 正好 1550/1551」：那是 #408 上的数；main 上这个文件被 #471/#472 改过，重做 C1+H1 时重新量。
->   5. §20.6 说 #408 的包是 `-fields.tgz`（`55b0c85a`）：#408 现在带的是 `-adoption-receipts-handling.tgz`（来源 `f5ef12e6`）；`-fields` 只在 C1+H1 那条旧分支上。
->   6. 把 main 合进 #410 时实际只冲突两个文件：`packages/design-system/README.md`、`specs/ai-interaction-experience/spec.md`（规格以 #410 为准）。
-> - 文中 `coordination/2026-10-13/…` 都是远端分支 `coordination/handoff-2026-10-13` 上的文件（原来写的本机路径 `.claude/locks/…` 已统一改成这里）。
->
-> **对本线的影响：**
-> 1. Molis main 现在的 SDK 包**不含带类型问卷**（`a06ae62e`）。C1+H1 在 Molis main 上要等采用线把统一包（Prologue main + Computer Use 分支合流后重打）换进 main 才能接；它现在叠在 #408 的分支上，那个包有问卷。#471/#472 也改了 C1+H1 会碰的 `prologue-node.ts`、`prologue-stream.ts`、`contracts/services/agent-host.ts`，合进来时要按 main 的新形状重做那部分。
-> 2. #471 把 10-09 版的 `specs/ai-interaction-experience/spec.md` 与三张参考图带进了 main，和 #410 的新版冲突：合 main 时**规格以 #410 为准**，参考图逐字节相同的话两边无差别。
-> 3. #471/#472 都改了 `assistant-island.ts`（A1 要动的地方）、助理服务和页面资源预算（`page-assets.json`）：A1 的「共享客户端进 workbench.js，删旧渲染抵字节」要按新的 main 重新量字节。
 
-
-写给另一台机器上的接手者：这一节取代 2026-10-11 的旧交接，只靠远端分支就能接续；本机工作树、本机锁文件与 scratchpad 你看不到，需要的内容已复述在下面。统筹层的事实也在远端分支 `coordination/handoff-2026-10-13`（目录 `coordination/2026-10-13/`），与本线直接相关的部分已写进 §20.6。
-
-### 20.0 当前状态（2026-10-13 晚，统筹接手后，先读）
-
-本节之后的 20.1–20.11 写于 10-13 白天；与本节不一致的以本节为准。
-
-- **合 main 到 `1a9416ec`**：#411 情境浮条、#408 采用线与过渡 SDK 包（`interim-p1-cu`，带带类型的问卷）都已在 main。冲突只有 `packages/design-system/README.md`（两边都留）。
-- **C1+H1 已在 main 的新形状上重做**（`69d8f660`），取自 `c50a5534` 这一个提交，没有整支合 `feature/agent-typed-questions`：
-  - 新合同子路径 `services/agent-interaction`；
-  - agent-host 的显式投影与按 SDK 规则的预检，错误码 `agent.answer_invalid`；
-  - 宿主声明各界面画得了的题型。
-- **与 C1+H1 原稿不同的两处**：
-  1. 回答里的数组改成只读，与 SDK 的 `QuestionnaireAnswer` 一致；原稿不能编译。
-  2. 题型清单改成「这个界面画得了的**带类型问卷**题型」，现在两个界面都是空（`82cc8c3e`）。原稿给 `["choice"]`，以为「产品行为不变」。实际上只要给了 `askUserQuestionTypes`，哪怕只有 `choice`，模型拿到的 `ask-user` 就换成带类型的形式（选项带说明、推荐与默认值）；现在的助理与 Coding 都画不出这些，Issue 的澄清页也依赖原来的形式。`issue-clarification-page` 的 ISSUE-34 抓到了这一处。现在宿主只在交集非空时才给这项配置，Runtime 维持原来的纯选择题；A1、A2 在教会界面画带类型形式的同一个改动里把 `choice` 加进各自的清单（D8 改订）。
-- **为了不让巨大单元变大**：
-  - 题型清单在宿主装配 Prologue 选项的地方（`system-agent-service.ts`）传入，不进 `composeAgentHost`；
-  - 助理用 `AgentRunView["awaiting_input"][number]` 取问题类型，不再多一行 import。
-- **I0 预览的浏览器用例**：迁到共享客户端之后第一次重跑，31/31。其中一处断言按共享客户端的既定行为改了（`37da9a0e`）：回车跳项落在下一组的已选项或第一个控件上，不落在组本身。
-- **工程证据**：
-  - 构建、健康门禁（对照 merge-base）、边界检查通过；API 快照只多 `agent-interaction.txt`，`agent-host.txt` 少了搬走的类型；动作快照没有变化。
-  - `affected-tests` 选出的 392 个文件、3335 条：3320 通过、11 失败。11 条都已处理：
-    - 7 条安装类：本树只增量构建过 local-host，源码与构建指纹对不上；整体重建后通过。
-    - 2 条 ISSUE-34：上面的第 2 处，已修，通过。
-    - 2 条 I0 预览：上面的断言，已改，通过。
-  - `interaction-client.e2e` 14/14。
-  - 全量（`node scripts/run-tests.mjs`，合 main `b15ba0b1` 之后的 `609a5fed`，约 111 分钟）：6211 条，6198 通过、4 失败、9 跳过。4 条都不是本线引入的：`settings-requests-through-helper` 一条 main 上同样失败，已由 #487 修好；`touch-targets.e2e` 两条 main 上同样失败；`goal-event-document.e2e` 一条是负载下的时序（单独跑本线与干净 main 都 3/3）。之后再合 main `703bd996`（#478、#486、#487）：没有冲突，重建、健康门禁、页面资源都过，这几次合并改过的 7 个用例文件 64 条，63 通过、0 失败、1 跳过。
-- **用户 2026-10-13 定**：A1 与 H2 合成一个改动落地，不放宽页面资源门禁（20.11 的 (a)+(b)+(b′)，加上 H2 删掉 `renderCard` 与「接下来」行）。H2 按 W5-10 的协作者形状做，算 W5-10 的一部分。
-- **A2 要带的合同改动**：main 上 #477 把 `coding.runs.control` 升到第 2 版，`answer` 的每一项只收 `question`、`indexes`、`other`（`additionalProperties: false`），对应现在的纯选择题。A2 让 Coding 画带类型的题时要加 `value`，按 `docs/system/CONTRACT-CHANGES.md` 升第 3 版，并在同一个改动里改完调用方。
-- **下一步**：#410 全量通过后由统筹合进 main；之后在新的 PR 上做 A1+H2，再 A2、H3、H4、S1。
-
-### 20.1 一句话现状
-
-I0 预览、共享展示部件（#423，已进 main）、共享浏览器行为（I1，已并入本分支）都已完成，I0 预览已改用共享客户端；**产品里还没有任何用户能看到的变化**：带类型的题进宿主（C1+H1）写完但没构建、没验证；助理与 Coding 的接入（A1/A2）、操作卡协作者（H2）、对象引用（H3）、Coding 操作卡（H4）、单次接续（S1）都没开始。
-
-三级证据分开记：
-
-| 级别 | 状态 |
-| --- | --- |
-| 工程通过 | I0 预览：纯逻辑 21/21、浏览器用例 10/10（2026-10-12，迁到共享客户端**之前**）；设计系统部件与 I1 客户端：单测与 13 个浏览器子用例（I1 自己的树上）。**迁移之后的预览浏览器用例、合并后的树上的 `interaction-client` 浏览器用例都还没重跑**；C1+H1 没构建、没跑任何用例 |
-| 真实产品实操（开发者走查） | I0 预览在内置浏览器里走查过（三个宽度、浅深色）；真实 Home、真实 SDK、真实模型：**不适用/未做**（预览不连这些）。迁到共享客户端后没有再走查 |
-| 用户验收 | **未开始**：用户还没看过实物；统筹代定的各项只是拍板，不等于验收 |
-
-### 20.2 分支与 PR（只列远端）
-
-仓库 `molis-ai/molis-work`，推送用 SSH 地址 `git@github.com:molis-ai/molis-work.git`。
-
-| 分支 / PR | 状态 | 说明 |
-| --- | --- | --- |
-| #410 = `feature/handoff-ai-interaction` | 开着，head `47babdd5`，**与 main 有冲突，未解** | 本线唯一的交接分支，也是此后唯一提交的地方（用户 2026-10-13 决定：各线只在交接 PR 里提交，防腐线在改架构，单开 PR 容易冲突）。冲突来自 main 上别的线的新合并（#408 与 #411 当时都还没合；统筹更正：#438 是关闭不是合并） |
-| #423 `feature/design-system-interaction-parts` | **已合进 main**（`05c46f67`） | 设计系统的展示部件与组件板「AI 交互」区块 |
-| #439 `feature/interaction-shared-behaviour`（`b4015af1`） | 内容**已并进 #410**，PR 已关 | I1 共享浏览器行为；远端旧分支不用再动 |
-| #447 `feature/agent-interaction-contract`（`704d95de`） | **作废**，PR 已关 | C1a（只有合同子路径、没有使用者）已并进 C1+H1，不要用 |
-| `feature/agent-typed-questions`（`c50a5534`） | 无 PR，统筹已代推，叠在 #408 的分支上 | C1+H1：**未构建、未验证**。#408 进 main 后：先把 main 合进 #410，再把这个分支并进 #410 |
-
-合入 main 的顺序（统筹定）：#408 → #411 → #410 → #409。#408（完整采用，带带类型 `ask-user` 的 vendored SDK）和 #411 在 2026-10-13 还开着。
-
-### 20.3 已完成（带证据等级）
-
-1. **I0 第二轮 R1–R13**（2026-10-12，§19.1）：按产品框架重做布局、信息层级、操作路径、状态反馈。工程通过（21/21、10/10）+ 开发者走查；用户验收未开始。R4（输入框补充）的最终语义见 §20.6。
-2. **#423 共享展示部件**（已在 main）：`packages/design-system` 的 `interaction.ts`、`styles/interaction.ts`（`INTERACTION_STYLES`，**不并入 `PRIMITIVE_STYLES`**，原因是页面资源冻结）、`interaction-example.ts`、`catalog-examples.ts`，组件板 `/__ui/catalog` 的「AI 交互」区块；单测 `tests/interaction-components.test.ts`、`tests/interaction-sdk-mapping.test.ts`。工程通过；组件板在隔离宿主上浅深色、三个宽度目视过。
-3. **I1 共享浏览器行为**（并入 #410）：`packages/design-system/src/interaction-client.ts`——`createInteractionClient(root, host)` 与脚本表达式 `INTERACTION_CLIENT_SCRIPT`（17,644 字节）；覆盖选项/对象切换、单选组方向键、步进器上下界、日历、回车跳项与 ⌘/Ctrl+回车、输入法组合期间不报变化、`write` 不夺走正在输入的字段、`showErrors` 逐字段；客户端不存值。用例 `tests/interaction-client.e2e.test.ts`（13 个子用例，I1 树上通过；合并后的树上未重跑）。评审里修过：点外面收起、WebKit 的 keyCode 229、焦点落在选中的 radio、选择器注入。工程通过；真实中文输入法、Safari/桌面壳、读屏未验证。
-4. **预览迁移**（并入 #410，`b06be31f`）：`scripts/ai-interaction-slice/` 改用 `createInteractionClient`，删掉预览自己的 `calendar.ts`，`bindings.ts` 只剩演示按钮与输入框；服务端额外提供 `/packages/design-system/src/interaction-client.ts`。净减 128 行。局部 typecheck 与纯逻辑 21/21 通过；**浏览器用例未重跑**。
-5. **防腐复查 1**（合入 main `1ec92c18` 后）：`check-health-gates --base origin/main` 全绿，页面事件已登记；构建类检查没跑（见 §20.4）。
-
-### 20.4 没完成
-
-1. **#410 要合 main 并解冲突**：`git fetch git@github.com:molis-ai/molis-work.git main`，合并 `FETCH_HEAD`（不 rebase、不 force-push）；枢纽文件两边都留；`tooling/gates/api/**`、`tooling/gates/actions/**`、`baseline.json`、`page-assets.json` 不手工合并，合完重新生成。合完按 `ANTI-CORRUPTION-REVIEW.md`（统筹维护，27 条人看项 + 16 条机器项；本机文件，复述在统筹分支里）复查并把结果写进 §18。
-2. **验证欠账**：合并后整体构建，然后重跑 `tests/ai-interaction-slice.e2e.test.ts`、`tests/interaction-client.e2e.test.ts`（需要本机 Chrome 与 browser 锁），再跑 `pnpm boundary:check`、动作快照、页面资源检查。
-3. **C1+H1**（分支 `feature/agent-typed-questions`，`c50a5534`）：
-   - 内容：新合同子路径 `@molis-ai/molis-work-contracts/services/agent-interaction`（`AgentQuestion` 六种题型、`AgentQuestionAnswer`、`AgentQuestionProblem` 与 19 个闭集原因、`AgentAnswerControl`、`AgentPendingQuestion` 从 `agent-host.ts` 搬来）；`agent-host.ts` 净减 24 行并加错误码 `agent.answer_invalid`；`prologue-questions.ts` 新增 `projectQuestion`（显式投影、不再透传 SDK 选项对象）与 `answerProblems`（调 SDK 的 `validateQuestionnaireAnswer`）；`prologue-node.ts` 的 `answerPending` 先预检、形状错误都有码，配 `inputWaitTtlMs` 24 小时与 `askUserQuestionTypes`；宿主装配（`apps/local-host/src/agent-question-surfaces.ts`）给 Runtime 的题型是助理与 Coding 声明的**交集**，现在两边都只有 `choice`，所以**合入后产品行为不变**；测试 `tests/agent-typed-questions.test.ts`（期望已用 SDK 校验函数单独核对过）。
-   - 没做：构建、`pnpm api:update`（agent-host 快照 + 新增 `agent-interaction.txt`）、`pnpm actions:update`、任何用例（含 `tests/agent-pending-questions.test.ts` 的类型修正）、`prologue-node.ts` 行数上限（正好 1550/1551）与 `@prologue/sdk` 的 `askUserQuestionTypes` 能否接受只读数组的类型核对；`agent.answer_invalid` 要登记进 main 上新的错误模型（`tooling/gates/error-owners.json`、`defineErrorCodes`）；真实 Node Host 用例（带类型问卷落盘、关闭、新 Runtime 读回并作答）。
-   - 回答的 `key` 不在这一片：归回执线 `services/agent-inputs`（D13）。
-4. **A1 里不依赖新 SDK 的部分：没有写代码，只做了测算（2026-10-13 合并 main 后用门禁的口径重新量过，结果与办法见 20.11，替换这里早先的数）**。早先的「被替换的助理 JS 约 18 KB、样式约 6.6 KB、`INTERACTION_CLIENT_SCRIPT` 17,644、`INTERACTION_STYLES` 17,428」是源码字节，不是门禁量的送出字节，作废。现状（`apps/workbench/src/scripts/client/assistant-island.ts`，2,802 行）：`renderQuestion` 591–646 行、`renderCard` 连同 `EFFECTS` 等 682–782 行、「接下来」行 993–1015 行；`craft-finish.ts` 与 `touch-targets.ts` 里有对应的 `.assistant-questionnaire/-choice/-card-*/-next-*` 样式。开工前的办法已有数字，要用户定一项（20.11）。
-
-### 20.5 下一步（按顺序）
-
-1. 合 main 进 #410、解冲突、复查、构建、补验证欠账（§20.4 第 1、2 条）。
-2. #408 进 main 后：再合一次 main，把 `feature/agent-typed-questions` 并进 #410，做完 §20.4 第 3 条的验证。
-3. **A1 助理接入**（前置 C1+H1、I1）：先定字节办法；宿主新协作者 `assistant-questions.ts` 把问题转成 `InteractionQuestionView` 并服务端渲染 HTML 放进视图（同 Coding 的 `question.html`；岛是字符串脚本，不能在浏览器里调设计系统的渲染函数）；岛只接行为（`INTERACTION_CLIENT_SCRIPT` 进 `workbench.js`）；草稿存助理库新表 `assistant_question_drafts`；删 `renderQuestion` 与对应样式，用删掉的字节抵新增；`assistant-island.ts`、`assistant-service.ts` 只减；新文案给英文；`assistant-base` 升版；在助理声明里加上它画得了的题型；验收 AC-21。
-4. **A2 Coding 接入**：`ui.ts` 问题卡改用 `renderInteractionQuestion`，`client.ts` 用共享函数，`routes.ts` 的 `questionAnswer` 收 `value`，`question_drafts` 收值，`coding-base` 升版，在 Coding 声明里加题型；Coding 客户端字节在 5 个包里都不涨；AC-22。
-5. **H2/H3/H4**：H2 操作卡协作者（`assistant-offers.ts`，W5-10 形状）、H3 对象引用只读动作 `interaction.references.search`（`pnpm actions:update`，安全不变量加拒绝用例）、H4 Coding 的 `suggest-action`；AC-23–25。
-6. **S1 单次接续**：题型校验纯函数放 `packages/plugin-sdk`（不放 kernel），与 Prologue 的 `validateQuestionnaireAnswer` 做一致性用例并加进 `tests/ci-product-subset.txt`；Form「AI 生成表单」缺信息返回 `needs_input` → 同一问卷卡（宿主提供客户端挂载）→ 接续生成。Form 现在没有这个功能，是新功能；AC-26。
-   - **S1 状态（2026-10-15，PR #532，分支 `feature/ai-interaction-s1`）**：已实现；构建、门禁与定向用例通过，全量在 CI 上跑。做法：
-     - `packages/plugin-sdk` 的 `questionProblems`、`questionSetFlaw`（在 Molis 的形状上复刻 Prologue 的规则）。`tests/question-rules-consistency.test.ts` 用 36 组输入覆盖全部 19 个原因，与 agent-host 的 `answerProblems`（背后是 `validateQuestionnaireAnswer`）逐条同结论，已进 `ci-product-subset`。
-     - 合同 `InteractionRequest` / `InteractionRequestResult`（`services/agent-interaction`）：插件动作「先问几个问题」时的结果形状 `{ status: "needs_input", interaction }`。
-     - 宿主 `withPluginInteraction`（`apps/local-host/src/plugin-interaction-answer.ts`）挂在插件路由共用的两处出口：Native 的 `dispatchNativePluginJsonHttp` 与 Runtime 的 `dispatchRuntimePluginRoute`。对任何插件，见到这个形状就补上共享问卷卡的 html，底部那句由插件的 `note` 给；见到 `details.problems` 是问卷原因的拒绝，就补上逐字段的 `details.errors`（与助理的卡同一套文字）。它不认插件、不认错误码。
-     - Form 新动作 `form.questions.draft@1`（「AI 生成题目」，concurrent，`model:invoke`），旧的 `form.questions.ai@1` 与提示词 `form.draft-question` 已删，不留兼容（防腐复查第 1 条）。
-       - 回答按问过的那几道题检查（`form.answer_invalid`，`details.problems`），通过后带着原要求与回答再调一次模型，只追问一次。
-       - 问卷里已有的题不发给模型，与旧动作「本地题目不出本机」一致。
-       - 问过的题只存在插件进程里（至多 32 组、一天），绑定问卷 id、项目与版本；问卷在回答期间改过就请人重新生成。这不是持久等待。
-     - 页面只绑定共享客户端（`host.interaction`）：请求在途时问卷区 inert，卡片出现时第一题取得焦点。`form.js` 37633 → 37472 字节，`client.ts` 930 → 899 行。
-     - 作者手册：`skills/molis-plugin-dev/ui.md`「动作先问几个问题再接着做」。
-     - 验证：`tests/form-draft-questions.test.ts`、`tests/plugin-interaction-answer.test.ts`（AC-26），以及 `tests/form-actions.e2e.test.ts` 在 1440/390 走「问 → 空答被拒在字段旁 → 回答 → 题目追加」。题型仍只开放 choice（D8 交集），开放其他题型是后面单独一片。
-7. **D1 文档**随各片：`skills/molis-prologue-ai`、`docs/platform/PROLOGUE-AI.md`、`skills/molis-plugin-dev`（含 `generated-ai.md`）、设计系统 README；§15.8 三个示例都要有用例。
+当时的状态、工作树、复现与后续实施记录见[10 月 13 日交接](handoff-2026-10-13.md)。下方保留 §20.6–20.8 的跨线约定、决定和工作规则，以及 §20.15 的逐项验收对照。
 
 ### 20.6 跨线约定
 
 - **X2：操作卡不进任务图**。卡与节点的关系靠推导 `card.run → boards.attemptOf(run) → node`；H2 必须给每张卡保留产生它的 session 与 `run_id`，助理与 Coding 共用同一个卡片键空间；卡不是等待条件，也不授予权限。
 - **X6：P2 之后不再有绕过看板的 Agent 协作**（dispatch 自动建子节点，session-send 的交接必须点名节点）。H4、A2 按此写。TaskBoard 与外部条件等待归采用线，本线只显示不另存。
-- **H2 = 防腐 W5-10**（从 `AssistantService` 拆操作卡协作者）：防腐线尚未开工，**开工前要等防腐线负责人确认先后**；本线 PR 要在 `specs/repository-anti-corruption` 的 W5-10 行写「由 ai-interaction H2 实现」并带链接。
+- **H2 = 防腐 W5-10**（从 `AssistantService` 拆操作卡协作者）：防腐线尚未开工，**开工前要等防腐线负责人确认先后**；本线 PR 要在 `specs/archive/repository-anti-corruption` 的 W5-10 行写「由 ai-interaction H2 实现」并带链接。
 - **回执线的三条约定**（在 `feature/handoff-ai-input-receipts` 的 `specs/ai-input-receipts/spec.md`，那一线的 PR 现为 #409；#438 已关）：D13 回答也是输入，身份类型与格式由 `services/agent-inputs` 定义，回答的 `key` 与 steer 的同一规则（SDK 里是可选的，所以回答的也可选），回答的「读到」回执等它的 S4，在那之前本线只在 Molis 侧做幂等；D14 把 D5 修订为问题待回答时输入框上方显示目标芯片、**默认值一直显示在芯片上、一下切换**；D15 `AgentRunControl` 搬迁先后：本线搬出 `answer` 分支，回执线搬出 `steer` 分支，先就绪的先合，后合的在同一个 PR 里改完所有消费者。
 - **R4 并进 D5 芯片**（本线推荐，统筹按「体验最好」原则定）：芯片三种目标——「写进问卷：补充要求」（**本线做**，只改问卷草稿，不交回，有自由文本题时才有、并且是默认）、「补充这一轮」（**回执线做**，一条 steer，排在回答之后，带回执）、无问题时芯片不出现。
 - **`catalog-examples.ts`**（组件板示例）情境线 W1 也会加区块：各加各的一行，先合者先合。
@@ -1212,14 +856,14 @@ I0 预览、共享展示部件（#423，已进 main）、共享浏览器行为�
 
 ### 20.7 决策记录与理由
 
-已记在 §16（D1–D11）与 §19.1（R1–R13），这里只列接手最需要的几条和统筹代定的事项：
+已记在 §16（D1–D11）与 [§19.1](prototype-records.md#191-第二轮按实物重做2026-10-12)（R1–R13），这里只列接手最需要的几条和统筹代定的事项：
 
 - **D7**：设计系统只收展示参数，不认识 SDK 与回执；消费方写纯函数转换，`reason → 文案` 由消费方做。理由：接入时不改组件。
 - **D8（改订）**：每个读 `awaiting_input` 的界面各声明自己画得了的题型，宿主给 Runtime **交集**；界面加一种题型与让它画出来的改动在同一个 PR。理由：SDK 把题型配置放在 Runtime 级，否则会有 Run 问出某界面画不出来的题把人卡住。代价：助理与 Coding 要么一起开放一种题型，要么都不开放。
 - **D9**：助理问题卡由宿主用设计系统渲染函数服务端渲染成 HTML，岛只接行为。理由：岛是字符串脚本，不能在浏览器里调渲染函数；只有一份渲染，岛的字节变小。
 - **D10**：回答的身份与 R4 交统筹，已由 D13/D14 落定（§20.6）。
 - **D11（统筹代定）**：C1 与 H1 合成一片叠在 #408 上；S1 移到 A1/A2 之后；校验函数放 `packages/plugin-sdk`。理由：C1a（#447）只有合同没有使用者，违反「新子路径要有真实使用者」；kernel 的 K2 门禁不许 import services，而且它不是外部作者要装的包；S1 要新开 Form 功能并动公开 SDK 出口，体量最大又不阻塞助理与 Coding 的体验。取舍：#408 迟迟不合时，C1+H1 要带着 #408 的提交一起评审。
-- **R1–R13**：见 §19.1 的表（布局放进工作台框架、问卷紧凑、回答后折叠为摘要、R4 回车放进补充要求、日历与开始时间拆分、由记录推出的下一步、下一步位置锁、失效后草稿可写、回车跳项与 ⌘/Ctrl+回车、就近状态反馈、助理面板可最小化、回答后失效保持摘要、失败后重试回到待执行），每条都有收益与取舍。
+- **R1–R13**：见 [§19.1](prototype-records.md#191-第二轮按实物重做2026-10-12) 的表（布局放进工作台框架、问卷紧凑、回答后折叠为摘要、R4 回车放进补充要求、日历与开始时间拆分、由记录推出的下一步、下一步位置锁、失效后草稿可写、回车跳项与 ⌘/Ctrl+回车、就近状态反馈、助理面板可最小化、回答后失效保持摘要、失败后重试回到待执行），每条都有收益与取舍。
 - **统筹代定的流程事项**：各线只在交接 PR 里提交；跨线依赖经 main，每次合 main 后按防腐清单复查本线 diff 并写进 §18；不单开 PR；合并由统筹做、各会话不自己合并。
 
 ### 20.8 工作规则（用户原话与已定规则）
@@ -1231,96 +875,6 @@ I0 预览、共享展示部件（#423，已进 main）、共享浏览器行为�
 - 推送用 SSH 地址，推送前先 `git fetch` main 再跑 `node scripts/check-secrets.mjs`（即 `pnpm secrets:check`）；提交署名为用户 `jing xu`；不重置、不覆盖别人的未提交改动；不碰真实 Home（4207/4173），预览一律用临时/隔离 Home。
 - 模型：规划用 Opus 5.5，执行用 Sonnet 5.5。
 - 2026-10-13 03:55 用户说「先暂停一下」：全部会话停在安全点、释放锁、不开新任务，等统筹的恢复通知；之后用户只为「写交接」和「把本地进展提交到远端」两件事临时解除暂停。
-
-### 20.9 已知问题
-
-- Molis 的 `tests/runtime-integration.test.ts` 在 Linux CI 上偶发失败，统筹判断与本线无关；#410 / #423 的 `Product subset` 失败曾因此出现，本线没有改它。
-- 页面资源字节预算（§20.4 第 4 条）。
-- Auto-fix 在持续报告 #410 与 main 的冲突（head `47babdd5`）；暂停期间没有处理，恢复后按 §20.4 第 1 条解决。
-- 预览的组合输入与 keyCode 229 用例用的是合成事件，只证明事件处理，不能代替真实中文输入法（含 Safari/桌面壳里的 WebKit）；读屏下未验证。
-- 浏览器侧只能用 `INTERACTION_CLIENT_SCRIPT` 字符串，不能从设计系统包根 import `createInteractionClient`（包根会带进只给 node 用的模块）。
-- `pnpm` 在有些非交互 shell 里不在 PATH：用 node 目录里的 corepack（`corepack pnpm …`）。
-- 旧分支 `feature/interaction-shared-behaviour`、`feature/design-system-interaction-parts` 的内容已经在 #410 或 main 里，不用再推。
-
-### 20.10 怎么复现
-
-```sh
-pnpm install --frozen-lockfile --offline
-pnpm build                                  # 或 pnpm workspace:build；浏览器用例前需要
-node --import tsx scripts/preview-ai-interaction.mts --port 4319   # I0 预览（固定示例、模拟提交）
-node scripts/run-tests.mjs tests/ai-interaction-slice.test.ts                     # 预览纯逻辑 21 条
-node scripts/run-tests.mjs tests/ai-interaction-slice.e2e.test.ts                 # 预览浏览器 10 条（本机 Chrome、browser 锁）
-node scripts/run-tests.mjs tests/interaction-client.e2e.test.ts                   # 共享客户端浏览器 13 个子用例
-node scripts/run-tests.mjs tests/interaction-components.test.ts tests/interaction-sdk-mapping.test.ts tests/primitives.test.ts
-node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --strict --noUnusedLocals --noUnusedParameters --skipLibCheck --lib ES2023,DOM,DOM.Iterable scripts/ai-interaction-slice/client.ts tests/ai-interaction-slice.test.ts
-node scripts/check-health-gates.mjs --base origin/main
-# 并入 C1+H1 之后
-node scripts/run-tests.mjs tests/agent-typed-questions.test.ts tests/agent-pending-questions.test.ts tests/coding-question-card.test.ts
-pnpm api:update && pnpm actions:update      # 然后看 tooling/gates/ 下的 diff
-node scripts/gates/page-assets.mjs --base origin/main
-```
-
-组件板：隔离宿主上打开 `/__ui/catalog` 的「AI 交互」区块。
-
-### 20.11 A1 字节预算：实测与办法（2026-10-13，合并 main 之后；只量不改）
-
-口径：门禁量的是宿主送出的字节（`tightenServedCss`/`tightenServedJs` 之后的长度），不是源码字节。我用同一批函数在一棵构建好的 main 等价树上复现了冻结预算（`workbench.css` 1,805,325、`workbench.js` 1,172,188），下面全是送出字节，括号里的「估」是没写代码的估计。早先 §18、§20.4 里的约 18 KB / 6.6 KB / 17.4 KB 是源码字节，作废。
-
-| 项 | 送出字节 | 落在哪 |
-| --- | ---: | --- |
-| 要加：`INTERACTION_CLIENT_SCRIPT` | 12,028（`interactionFields` 4,017、`interactionCalendar` 3,524、`assembleInteractionClient` 4,406） | `workbench.js`；若 Coding 自己嵌一份，5 个 Coding 系插件包（coding、diff、files、git、text-stats，各 462 KB）每个再加 12 KB，所以 A2 要用宿主提供的那一份，不嵌 |
-| 要加：`INTERACTION_STYLES` | 16,565（问卷卡、字段、选项、选择、通知、操作区约 9.2 K；日期与数字 1.5 K；对象行 1.2 K；操作卡 2.2 K；下一步 1.9 K；媒体查询与续行 0.6 K） | 只需进 `workbench.css`：助理岛与 Coding 页面只在工作台页（`workbench.js` 只被工作台页载入），`settings.css`、`arrival.css` 不需要 |
-| 要加：岛里的接线（挂载服务端渲染的 HTML、读写草稿、提交、字段错误） | 约 1.5 K（估：草拟了一份接线，送出 1.3 K，留余量；原因到文案的对照放在宿主，随错误一起返回，岛里不带 19 条的表） | `workbench.js` |
-| 可删（A1）：`renderQuestion`（island 591–646 行） | JS 3,068 | `workbench.js` |
-| 可删（A1）：`.assistant-choices/-choice/-choice-row/-answer/-questionnaire` 的样式（`craft-finish.ts`，另有一条在 `touch-targets.ts` 里与 `.assistant-code-head` 合写，只能改不能整条删） | CSS 约 2.0 K，三张表各一份 | `workbench.css`、`settings.css`、`arrival.css` |
-| 可删（H2，不是 A1）：`renderCard` 及 `EFFECTS` 等（682–782 行）、「接下来」行（993–1015 行） | JS 6,835 + 1,309 | `workbench.js` |
-| 可删（H2）：`.assistant-card-origin/-summary/-meta/-status`、`--action`、`.assistant-next-row/-label/-chip` | CSS 2.9 K，三张表各一份 | 同上 |
-| 必须留：卡片外壳 `.assistant-card-head/-kicker/-badge/-title/-hint/-actions`（复核卡、问题卡还在用） | 3.0 K | — |
-
-每个文件的净变化（送出字节，A1 单独合入；门禁对照 merge-base，每个 PR 每个文件都要 ≤ 0，**字节不能攒**：`settings.css` 与 `arrival.css` 的下降抵不了 `workbench.css`）：
-
-| 办法 | `workbench.js` | `workbench.css` | `settings.css` / `arrival.css` |
-| --- | ---: | ---: | ---: |
-| 原划分：整份脚本与样式进来，只删 A1 自己的旧渲染 | +10.5 K | +14.5 K | −2.0 K / −2.0 K |
-| (a)+(b) 只带 A1 用到的：日历拆成按需拼入的第四个函数（−3.5 K，日期题型开放时再带）；样式分成问卷 / 操作卡 / 下一步三段，A1 只带问卷段、先不带日期、数字、对象行（约 9.8 K）；与 `mw-choice`、`mw-badge` 等原语去重（估 −2.5 K，要改标记与用例）；再加上面「可删（A1）」 | +6.9 K | +5.3 K | −2.0 K / −2.0 K |
-| 同上，且 H2 同一个 PR（再删 `renderCard` 与「接下来」行） | 约 +0.3 K | 约 +5.9 K | −4.9 K / −4.9 K |
-| (b′) 在 (a)+(b) 之上，同一个 PR 再删**已核实无人引用**的旧皮肤规则 | 不适用 | 可到 0 或为负 | 同 |
-| (c) 请用户放宽（一次性、写明上限与偿还） | 见下 | 见下 | — |
-
-(b′) 的依据：对 `workbench.css` 做了一遍粗扫（类名只在样式文件里出现、没有任何标记或脚本引用），约 79 KB（4.4%）的规则落在这一类，大头是 `momentum.ts`、`personal-shell.ts` / `personal-workbench-v2.ts` / `-v3.ts`、`calm-desktop.ts`、`quiet-paper.ts`；抽查过 `.momentum-group`、`.momentum-queue-item`、`.personal-nav-item`、`.desktop-utility-heading`、`.navigator-goal-row`，确实只在样式文件里。这是启发式（动态拼出的类名按前缀放过，但可能漏判），**逐族人工核对后才能删**，也属于防腐 W5-05（删旧皮肤）的范围，要与防腐线确认先后；扫描脚本与候选清单在统筹的 scratchpad 里（`audit/dead-css.mjs`，不入库）。
-
-**建议**：(a)+(b) 无论如何都要做（把 A1 带进来的字节压到真正用到的那一段）；CSS 用 (b′) 抵平，不需要放宽；JS 在 (a)+(b) 之后仍多 +6.9 K，我没找到同量级的已核实无人引用的脚本，所以请用户对 `workbench.js` 给一次性 +7 K 的上限放宽（只给这一个文件，写明由 H2 合入后偿还：H2 删 8.1 K、加约 1.5 K，净 −6.6 K，A1+H2 之后回到现在的数以内），PR 里附实测。若不放宽，唯一不放宽的路是把 A1 与 H2 的 JS 并进同一个 PR（≈ +0.3 K，再删岛里问题卡的聚焦选择器等零碎即可到 0），但 H2 是 W5-10 形状的助理拆分、体量大、要等防腐线确认先后，**不建议为了字节把两片捆在一起**。不采用的办法：把样式或脚本改成页面 HTML 里的内联 `<style>`/`<script>`——`scripts/gates/page-assets.mjs` 头部写明它不量内联，这样能「绕过」预算，但每次渲染都重发、不能缓存，违背决定 #17 的本意。
-
-A1 开工时一起要改的断言（改成断言采用后的状态，不是放宽）：`tests/interaction-components.test.ts` 的「styles stay out of the frozen product sheets until adopted」（AC-17）；`tests/coss-control-language.test.ts` 的 `.assistant-choice-row, .assistant-code-head` 44px 一条；`tests/touch-targets.e2e.test.ts` 量到的助理问卷控件；`tests/assistant-island-script.test.ts`。
-
-### 20.13 A1+H2（2026-10-14，分支 `feature/ai-interaction-a1-h2`，[#492](https://github.com/molis-ai/molis-work/pull/492)）
-
-做了什么（一个改动，用户 10-13 定）：
-
-- **H2 操作卡协作者**（W5-10 形状）：`assistant-offers.ts`（`recordOffer`、`offerFromPage`、`runCard`、`dismissCard`、`card`、`html`、失效巡检；只经端口依赖宿主）与 `assistant-card-view.ts`（卡片视图、画成共享操作卡、控件值转成输入要的字符串、按人的时区换算时刻）。`AssistantService` 2,542 → 2,287 行。
-- **A1 问题卡**：`assistant-questions.ts` 把等待中的问题画成共享问卷卡（带草稿、选择题的默认值），把卡片送回的值转成 Runtime 的回答，把 SDK 拒绝的逐题原因转成字段旁的一句话；`assistant-view-html.ts` 在回复里给每个问题、每张卡、最新一轮的下一步附上 HTML（同 Coding 的 `question.html`），在助理 HTTP 的写出处统一做，记录本身不变。草稿走新路由 `works/:id/question-draft`；回答路由收 `values`；失效卡的「重新准备」改由宿主写那句话（`cards/:id/redo`，仍记为页面写的）。
-- **岛**：删 `renderQuestion`、`renderCard`（连同 `EFFECTS` 等）、「接下来」行、`localMoment`、`cardShell`；问题、卡、下一步都只挂宿主画好的 HTML 并用共享客户端接行为。2,803 → 约 2,650 行。
-- **设计系统**：操作卡可带可改的字段（`fields`）；不带日历的客户端脚本；样式分段（D15）。
-- **题型**：助理声明 `["choice"]`，交集仍为空，产品里模型的问法不变（D17）。
-
-字节（门禁实测，对照 merge-base `2768dd71`；`page-assets.json` 已按实测调低）：`workbench.js` −73；`workbench.css`、`arrival.css` 各 −10,768（新段约 +11.5 K，删旧助理样式约 −5.6 K，删 momentum 死规则约 −16.3 K）；`settings.css` −22,270。
-
-证据：整体构建、健康门禁 `--base`（助理的巨大单元都变小：`AssistantService` 类 1,830 行 / 112 个方法，岛 2,655 行）、边界、页面资源、动作快照、secrets 通过；相关单测 160/160；助理相关浏览器用例 13 个文件 32/32；在真实助理面板里看过浅色、深色与 390 px 的问卷卡与操作卡，按看到的把执行按钮挪到「将使用这些内容」之下、日期一开始就显示星期。全量（`95ffb6da`，约 110 分钟）6,225 条：6,214 通过、2 失败、9 跳过；2 条是 `touch-targets.e2e` 的触屏窗口，main 上同样失败。合 main `46cb083e`（#409 回执、#480）后重新构建，门禁对照新 merge-base 全过，两线交界的单测 234/234、助理浏览器用例 23/23。
-
-验收：新测试 `tests/assistant-interaction-html.test.ts`（AC-21、AC-23）；改动的断言（预期变化，不是放宽）：`interaction-components` AC-17 改成断言采用后的状态（D15）、`coss-control-language` 的 44 px 一条改到共享部件、`visual-foundation` 去掉钉死规则文字的断言（D16）、`assistant-page-written.e2e` 的失效卡改成库里真有的卡、`agent-typed-questions` 的助理题型。
-
-没做：A2（Coding）、`assistant-base` 升版（D17）、H3/H4、S1；日期题与日历（等有日期题时随那一片带）。
-
-### 20.14 A2（2026-10-14，分支 `feature/ai-interaction-a2`，从 `34d0d1fc` 起）
-
-- **Coding 的问卷卡换成共享的那张**：宿主在 `coding-surface.ts` 附 HTML 时改用 `agentQuestionHtml`（与助理同一个函数，D18）；Coding 插件删掉自己的 `renderPendingQuestionCard` 与卡片样式（只留一条让卡在线程里保持阅读宽度）。
-- **Coding 页面脚本接共享客户端**：`host.interaction` 绑定卡片，草稿用 `client.read()` 存进会话（`question_drafts`）、用 `client.write()` 还原，提交用插件开发包的 `questionAnswer` 读成回答；不能回答时禁用字段并在卡底说明原因。
-- **共享客户端只在 `workbench.js` 里一份**（D19）。
-- **开放带类型的选择题**（D20）。
-- 字节（门禁实测，对照 merge-base `34d0d1fc`）：5 个 Coding 系插件包各 −798；`workbench.css`、`settings.css` 各 −752；`workbench.js` −14。
-- 并入 main `9abcb963`（含 #488 状态环）：宿主问卷卡的标题环随 `answer`/`unavailable` 走（原来画在助理那份 `assistantQuestionHtml` 与 Coding 自己的卡上，现在画在共享的 `agentQuestionHtml` 上，Coding 页面在这一轮结束时把环切到 `unavailable`）；`assistant-strip-narrow.e2e` 的 RING-07 样例改用 `agentQuestionHtml`。并入后对照 merge-base `9abcb963`：5 个 Coding 系插件包各 −826，`workbench.css`、`settings.css` 各 −752，`workbench.js` −14。
-- 全量回归（并入 main 之前的 `1c7051a5`）：6261 条，6250 通过，9 跳过，2 失败——都是 main 上已知的 `touch-targets.e2e` 两条（亮、暗各一）。并入 main 之后重跑了相关单测 107 条与浏览器用例 8 条（`coding-question-card`、`issue-clarification-page`、`assistant-strip-narrow`、`coding-state-rings`、`assistant-page-written`），全部通过。
-- 用例：新 `tests/coding-question-card.e2e.test.ts`（AC-22：带类型的合同、推荐与说明、不预选、草稿随会话、回答到达模型、卡换成回执）；`coding-question-card.test.ts` 的规则（不预选、无忽略、无多余输入框、无空选项组、各卡 id 不串、转义）改到共享卡上，「没有问题时什么都不画」随列表渲染函数一起删掉（宿主按每个等待中的问题附一张卡）；`agent-typed-questions`、`issue-clarification-page` 的 ISSUE-34 按 D20 改。
 
 ### 20.15 现状核对（2026-10-14，交互线线会话，依据 origin/main `393e8958`）
 
@@ -1360,77 +914,3 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 **跨线**：同排推荐的位置（输入框旁 vs 线程里）属于助理面板的布局与动线，现在归情境线；本线只出合同（下一步视图 `InteractionNextStep` 与派生函数）与 Coding 侧的呈现。
 
 **实走（隔离 Home）**：待做。main 在 A2 之后要重新整体构建，构建锁被防腐线全量占着；拿到构建时段后在隔离 Home 里走助理与 Coding 的问卷卡、操作卡、Option、下一步，截图 1440/1024/390 与深色，补在这里。
-
-### 20.16 暂停点（2026-10-14，用户让需求线先停、整机让给防腐线）
-
-> 2026-10-15 恢复：S1 已经 #532 合入 main（`eebfa9f3`）。H3 在 #534（P3a）合入后并入 main `7fe8ee65`，构建、快照、用例与门禁见 §18 当天的记录；下面是暂停时的原文。
-
-**两条远端分支，都没构建、没跑任何用例、没开 PR：**
-
-| 分支 | 叠在哪 | 内容 |
-| --- | --- | --- |
-| `feature/ai-interaction-h3-on-w406` | #498（W4-06）的 `21d3853f`；#498 之后又推到 `02e6720a`，恢复时以合入 main 的为准 | H3 全部代码、§20.15 现状核对、D21–D24 |
-| `feature/ai-interaction-s1` | origin/main `393e8958` | S1：插件开发包的题型规则与一致性用例；Form「AI 生成题目」 |
-
-**已写完（未验证）：**
-
-- H3 候选：`search.references@1` 挂在 `system.search` 下（D21）。代码在 `packages/contracts/src/services/search.ts`、`horizontal/search/src/references.ts`（`findReferenceCandidates`、`confirmReferences`）、`apps/local-host/src/search-actions.ts`。
-- H3 复核：
-  - `prologue-questions.ts` 的 `ownedReferences`（T2 起：经主人再读并换上主人的标题）；`prologue-node-port.ts` 的 `answerPending` 在 SDK 校验之前调用它，读不到的在 SDK 的问题之后报。
-  - 没接复核的宿主一律拒绝带引用的回答。
-  - 宿主由 `system-agent-service.ts` 接上 `localHost.search.readReferences`，只认本机用户是会话主人的情况。
-  - 新原因 `reference-unavailable`（D22），字段旁的话写在 `agent-question-card.ts`，英文在 `renderer-gap-en.ts`。
-- 安全不变量 S-26（`docs/system/SECURITY-INVARIANTS.md`）及其用例 `tests/security-invariants-object-references.test.ts`（两条），候选用例 `tests/search-references.test.ts`，夹具 `tests/fixtures/reference-owners.ts`。
-- S1：
-  - `packages/plugin-sdk/src/question-rules.ts`（`questionProblems`、`questionSetFlaw`）与 `tests/question-rules-consistency.test.ts`。
-  - Form 新动作 `form.questions.draft@1`（`plugins/native/form/src/drafting.ts`）。不改 `form.questions.ai@1`，因为创作台回放语料引用它。
-  - 页面接线 `draft-client.ts`，宿主附问卷卡在 `form-native-plugin-http.ts`，用例 `tests/form-draft-questions.test.ts`。
-  - `agentQuestionHtml` 多了一个可选的卡底说明参数。
-
-**没做或没验证：**
-
-- 两条分支都没构建、没类型检查、没跑一条用例。
-- 没跑以下检查：`pnpm actions:update`（H3 多一行 `search.references`，S1 多一行 `form.questions.draft`）、`pnpm api:update`（合同多了类型与 `AGENT_QUESTION_HOST_REASONS`，插件开发包多了导出）、`check-health-gates --base`、`page-assets`（S1 改了 Form 客户端，字节可能变大，要实测）、`pnpm test:security`、`secrets:check`。
-- `tests/question-rules-consistency.test.ts` 还没进 `tests/ci-product-subset.txt`。
-- S1 没有浏览器用例。Form 页面的问卷卡没在真页面里看过。
-- 实走截图（§20.15 末）没做。
-  - 隔离 Home 的做法：`pnpm web --home <临时目录> --port <端口>`。
-  - 准备脚本：建项目、装插件、把模型指向本机。
-  - 脚本化模型：「复盘」→ 带类型的选择问卷 → `todo.items.create` 的操作卡；「登录」→ Coding 的问卷。
-  - 这两个脚本只写在本线会话的临时目录里，没入库。恢复时照这段重写即可。
-- H4、放开题型：没开工。
-  - H4 用情境线的 `apps/local-host/src/agent-next-steps.ts`（`interactionNextSteps`，情境线分支 `context/assistant-flow`）与 `card:` / `question:` 的步骤 id。
-  - H4 要先定 Coding 卡片的记录放哪：Coding 的轮次现在没有动作网关；卡片表 `assistant_cards` 按助理工作建。
-  - Coding 的 5 个客户端包字节不能涨。
-- 跨线已定：D24 与情境线 FLOW-01…05。failed 与 unknown 的卡在下一步里只带到卡上。
-
-**恢复时按这个顺序：**
-
-1. #498 合入 main 后，把 `feature/ai-interaction-h3-on-w406` 变基到 main。只留本线的提交 `7c52d038` 起，W4-06 的提交不带。
-2. 构建锁下 `pnpm build`。修类型错。`pnpm actions:update`、`pnpm api:update`，看 `tooling/gates/` 的差异。
-3. 跑 H3 的用例：`node scripts/run-tests.mjs tests/search-references.test.ts tests/security-invariants-object-references.test.ts tests/system-search.test.ts tests/agent-typed-questions.test.ts tests/agent-pending-questions.test.ts`，加 `node scripts/affected-tests.mjs` 选出的；再跑 `pnpm test:security`。
-4. 门禁：`check-health-gates --base origin/main`、`boundary:check`、`secrets:check`；推送并开 H3 的 PR。
-5. 实走截图：1440/1024/390 与深色，助理与 Coding 的问卷卡、操作卡、下一步；补进 §20.15。
-6. 再做 S1。同样构建、出快照、跑用例、量页面资源，加浏览器用例。改了插件开发包算共享核心，要跑全量。之后才是 H4、放开题型。
-
-### 20.12 C1+H1（`c50a5534`）重做时与 main 的碰撞（2026-10-13，只读核对，没有合并）
-
-`git show c50a5534`：17 个文件，+284 / −56。在合并后的树上 `git apply --check`：12 个文件干净，5 个只因上下文不同而失败，都是机械的：
-
-| 文件 | 冲突原因 | 做法 |
-| --- | --- | --- |
-| `apps/local-host/src/assistant/assistant-service.ts` | main 的 `agent-host` 导入列表已没有 `AgentDelegatedWork`、`AgentReviewRequest` | 只把 `AgentPendingQuestion` 挪到 `agent-interaction` 的导入；不加方法（现 `AssistantService` 118 个方法 / 2,543 行，都在基线上） |
-| `apps/local-host/src/coding-surface.ts` | main 只导入 `sendLocalWebJson` | 同上，改一行导入 |
-| `apps/local-host/src/index.ts` | main 的导出是 `handleAgentReviewHttp, handleUnscopedAgentReviews` | 在新的位置加 `agent-question-surfaces` 导出 |
-| `horizontal/agent-host/src/adapters/prologue.ts` | main 去掉了 `promptLayerOf` 导入行；`PrologueAdapterError` 的码联合没变 | 手工放进 `agent.answer_invalid` 与 `problems`；不新增 `Error` 子类（已有 85 个，只许减少） |
-| `horizontal/agent-host/src/index.ts` | main 多了 `surfaceRules` 导出 | 在新位置加 `projectQuestion`、`answerProblems` 的导出 |
-
-不是文本冲突、重做时必须当心的几处：
-
-1. **SDK 是前提**：main 的 vendored 包（computer-use 包，核对过 tgz 内容）没有 `validateQuestionnaireAnswer`、`askUserQuestionTypes`，`PendingQuestion` 也没有 `refKinds`、`multiline`、题型字段；`config.tool.inputWaitTtlMs` 有（默认 10 分钟）。所以 `prologue-questions.ts` 与 `prologue-node.ts` 的改动在换包前编不过；换包后先核对这些名字在统一包里没改。
-2. **`prologue-node.ts` 没有余量**：现在 1,551 行，门禁基线 1,552（门禁数法比 `wc -l` 多 1），正好顶格；`initializePrologueNodeAdapter` 1,281 行是已有的巨大函数；c50a5534 在这个文件里净 0 行（+1 个选项、−3 行投影、+2 行预检），所以只有保持净 0 才放得过；`config:` 那一行是一整行长字符串，就地改，不要拆开。
-3. **`prologue-stream.ts` 没有碰撞**：c50a5534 不碰它；#471/#472 把它改到 744 行（`applyPrologueEvent` 212 行，已有的巨大函数），但 `awaiting-input` 仍只带 `pending_id`、`pending_revision`、`kind`、`why`、`sequence`，带类型的题字段是在 `readPendingQuestion` 里从 Runtime 读的，所以不重叠；统一包若改了 `awaiting-input` 事件的形状（回执线 S4 会给 pending 加 `about`），再核对一次。
-4. **合同 `services/agent-host.ts`（基线 1,656 行）**：main 在 `AgentRunControl` 里 `answer` 之前加了 `switch-model`；c50a5534 只替换 `answer` 一员并搬走 `AgentPendingQuestion`，净 −24 行，应用干净。回执线（D15）要把 `steer` 分支搬出同一个联合，先就绪的先合。新子路径 `services/agent-interaction` 要 `pnpm api:update`（新快照 `agent-interaction.txt`，`agent-host` 的快照也变）并同 PR 带上全部消费者（宿主、助理合同、Coding `ui.ts`）。
-5. **错误码**：main 上 `AgentHostErrorCode` 仍是字符串联合；`agent.answer_invalid` 形如 `<主人>.<原因>`、`agent` 主人在 `tooling/gates/error-owners.json` 里已有 `horizontal/agent-host/`，按 c50a5534 的做法加进联合即可，不增加「形状不对的码」「没带主人名的码」两个数；若评审要求 `defineErrorCodes`，那时再定。
-6. **`AgentRunControl.answer` 的消费者（A2 也用得上）**：助理服务 4 处（`assistant-service.ts` 约 1078、1089、1890、1922 行）、Coding 的 `plugins/native/coding/src/run-inputs.ts` 27–60 行 `questionAnswer`（原来写在 `routes.ts`，#472 带来的 `ceac00a2b` 把它搬进了 `run-inputs.ts`，所以 §17.1 里说 A2 要改的 `routes.ts` 的 `questionAnswer`，现在在 `run-inputs.ts`）与 `plugins/native/coding/src/client.ts` 约 702 行。
-7. 测试 `tests/agent-typed-questions.test.ts`（新）、`tests/agent-pending-questions.test.ts`、`tests/coding-question-card.test.ts` 的改动应用干净；真实 Node Host 用例（带类型问卷落盘、关闭、新 Runtime 读回并作答）仍要在统一包上做。

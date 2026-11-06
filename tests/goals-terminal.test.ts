@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsTerminalActions } from "@molis-ai/molis-work-plugin-goals";
@@ -101,18 +101,18 @@ const runs = async () => existsSync(log) ? (await readFile(log, "utf8")).split("
 const json = async (response: Response) => ({ status: response.status, body: await response.json() as Record<string, unknown> });
 
 // RAC-2565 T-148: use the running project's production directory and gateway, not only the exported definitions.
-test("RAC-2565 Goals registers open/list at version 2 and close/prompt at version 1; an old fixed reference is refused without starting a terminal", async t => {
+test("RAC-2565 Goals registers every terminal action at the reset version 1; an old fixed reference is refused without starting a terminal", async t => {
   const { f, reference } = await served(t);
   const person = await f.host.localPersonContext(reference), client = f.host.actionClient(reference), before = await runs();
   const directory = (await client.discover(person)).filter(row => row.capability_id.startsWith("goals.terminal."));
   assert.deepEqual(directory.map(row => [row.capability_id, row.version]).sort(), [
-    ["goals.terminal.close", 1], ["goals.terminal.list", 2], ["goals.terminal.open", 2], ["goals.terminal.prompt", 1],
+    ["goals.terminal.close", 1], ["goals.terminal.list", 1], ["goals.terminal.open", 1], ["goals.terminal.prompt", 1],
   ], "the registered versions are the current contract");
   for (const capability_id of ["goals.terminal.open", "goals.terminal.list"]) {
-    const fixed = { capability_id, version: 1, provider_id: "io.molis.work.goals" };
+    const fixed = { capability_id, version: 2, provider_id: "io.molis.work.goals" };
     const input = capability_id.endsWith("open") ? { goal_id: "LEAF", runtime: "codex" } : { goal_id: "LEAF" };
     await assert.rejects(client.invoke(person, fixed, input), { code: "actions.missing" });
-    assert.equal(fixed.version, 1, "the caller's fixed reference is not silently changed");
+    assert.equal(fixed.version, 2, "the caller's fixed reference is not silently changed");
   }
   assert.equal(await runs(), before, "neither old reference started a terminal");
 });
@@ -201,7 +201,7 @@ test("RAC-2565 a terminal whose runtime reported its session starts again with t
   assert.equal(opened.status, 200, JSON.stringify(opened.body));
   const panelId = String(opened.body.panel_id);
   await logged(before + 1);
-  await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog =>
+  await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog =>
     catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panelId, runtime_id: "codex", host_session_id: "sess-42" })));
   const page = await goalsPage(t, f, project.project_id);
   const end = async () => {

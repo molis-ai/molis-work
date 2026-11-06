@@ -6,6 +6,7 @@
   "kind": "integration",
   "publisher": { "publisher_id": "io.adeptify", "signature": "adeptify-official-signature-v1" },
   "host_api_version": 1,
+  "source_presentations": ["rss-http"],
   "entrypoints": [
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],

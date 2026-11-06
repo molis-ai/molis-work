@@ -194,7 +194,7 @@ export class MolisWorkUninstallService {
         await this.writeReceipt(receipt);
       }
       if (prepared.demoProjectIds.length > 0) {
-        await this.options.projects.removeDemos({ project_ids: prepared.demoProjectIds, plan_id: plan.plan_id });
+        await this.options.projects.removeDemos({ project_ids: prepared.demoProjectIds, plan_id: plan.plan_id }, owner!);
         receipt.completed_steps.push("regenerable-demo-data");
         await this.writeReceipt(receipt);
       }

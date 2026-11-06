@@ -1,5 +1,5 @@
 // Generate apps/workbench/src/builtin-plugins.ts and apps/local-host/src/plugin-registry.generated.ts from the built-in plugins'
-// own registrations (W5-02, PG-065 in specs/repository-anti-corruption/privileges.md): the same list twice, once for the shell's
+// own registrations (W5-02, PG-065 in specs/archive/repository-anti-corruption/privileges.md): the same list twice, once for the shell's
 // resources and once for the platform, so the Host never takes what it decides from the workbench (W5-02 PR-B §3.0).
 //
 // Each plugin package under plugins/native/ that the workspace registry (scripts/workspace-packages.mjs) lists writes its

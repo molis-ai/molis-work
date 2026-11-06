@@ -14,12 +14,12 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
 
-// specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P2a: a plugin's files in the Home are declared in its
+// specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P2a: a plugin's files in the Home are declared in its
 // Manifest (`owner_files`) and nowhere else.
 
 const FILES = { store_name: "notes", entries: [{ name: "catalog.json", kind: "file" }, { name: "documents", kind: "directory" }], read_permission: "notes:read", write_permission: "notes:write" };
 const manifest = (owner_files: unknown, permissions = ["storage:private", "notes:read", "notes:write"]) => ({
-  schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
+  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
   publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: permissions.map(permission => ({ permission, required: true, reason: "自己的文件" })),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
@@ -103,11 +103,11 @@ test("RAC-327 there is no host start hook for initial files: Shelf puts its samp
   // The sample appears on the first start and not again after the person removed it: tests/shelf-owner-files.test.ts, "the first start writes the sample".
 });
 
-test("RAC-328 Images' generated images are written through ownerFiles under a required images:files:write: jobs.start is version 3 and jobs.delete version 2, both carry it, and no second files service is left", () => {
+test("RAC-328 Images' generated images are written through ownerFiles under a required images:files:write: jobs.start and jobs.delete use the reset version 1, both carry it, and no second files service is left", () => {
   const permission = imagesManifest.permissions.find(item => item.permission === "images:files:write");
   assert.equal(permission?.required, true, "without it a job cannot save its images, so it is not one the person can leave out");
   assert.deepEqual(imagesManifest.owner_files, { store_name: "images", entries: [{ name: "assets", kind: "directory" }], read_permission: "images:read", write_permission: "images:files:write" });
-  assert.equal(imagesActions.start.version, 3); assert.equal(imagesActions.delete.version, 2);
+  assert.equal(imagesActions.start.version, 1); assert.equal(imagesActions.delete.version, 1);
   for (const action of [imagesActions.start, imagesActions.delete]) assert.ok(action.action.permissions.includes("images:files:write"), action.capability_id);
   for (const [name, action] of Object.entries(imagesActions)) {
     if (action !== imagesActions.start && action !== imagesActions.delete) assert.equal(action.action.permissions.includes("images:files:write"), false, `${name} writes no files`);

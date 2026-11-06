@@ -7,7 +7,7 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import { impeccableGroup } from "../scripts/gates/impeccable-files.mjs";
 
-// specs/repository-anti-corruption, decision 2026-10-08 "评审截图与根目录材料" (W1-23): tracked files under any `.impeccable/`
+// specs/archive/repository-anti-corruption, decision 2026-10-08 "评审截图与根目录材料" (W1-23): tracked files under any `.impeccable/`
 // directory may only decrease, counted per review group. The rule lives in scripts/gates/impeccable-files.mjs and is
 // plugged into scripts/check-health-gates.mjs; like tests/health-gates-merge-base.test.ts, each rule is mutation-verified
 // on a small scratch repository: one violation added on a branch makes `--base main` fail, and `--update` on that branch

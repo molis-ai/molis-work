@@ -5,7 +5,7 @@ import type { AssistantExecutorOffer, AssistantSendResult, AssistantWorkView } f
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
-// specs/repository-anti-corruption PG-036 (C8-3), on a real Home: the Assistant finds Coding as an executor by the work-executor
+// specs/archive/repository-anti-corruption PG-036 (C8-3), on a real Home: the Assistant finds Coding as an executor by the work-executor
 // protocol Coding publishes (C8-2), offers it with the ways its own `state` gives, and carries a work in a Coding session that
 // Coding's page shows. Nothing in the Assistant names Coding.
 

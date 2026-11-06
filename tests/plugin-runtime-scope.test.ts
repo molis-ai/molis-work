@@ -7,14 +7,14 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { HOST_BUILD_TRUST, PluginRuntime, UNSIGNED_TRUST, assertHomeScopeAllowed, assertLocalToolsAllowed, assertScopeFitsRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
-// specs/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-011: where a plugin runs is its Manifest's `runtime`,
+// specs/archive/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-011: where a plugin runs is its Manifest's `runtime`,
 // and only code of the Host's build can be started in the Home. BL-628 (S-80, the person decided 2026-10-26) opens exactly one more
 // way in: a signed package of a pinned publisher that runs in the sandbox.
 
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
 const manifest = (runtime: unknown, extra: Partial<PluginManifest> = {}): PluginManifest => ({
-  schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.scope", version: "1.0.0", name: "Scope fixture", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.scope", version: "1.0.0", name: "Scope fixture", kind: "app",
   publisher: { publisher_id: "someone", signature: "scope-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
   ...(runtime === undefined ? {} : { runtime }), ...extra,

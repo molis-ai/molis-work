@@ -26,14 +26,27 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   } };
 }
 
-export function childNavigation(port: MessagePort, scope: FrameScope, config: FrameConfig): void {
+export function childNavigation(port: MessagePort, scope: FrameScope, config: FrameConfig, itemTab: () => FrameConfig["itemTab"]): void {
   const openBehind = (raw: Event) => {
     const event = raw as MouseEvent;
-    if (event.type === "click" ? !event.metaKey && !event.ctrlKey : event.button !== 1) return;
+    const behind = event.type === "click" ? event.metaKey || event.ctrlKey : event.button === 1;
+    const ordinary = event.type === "click" && event.isTrusted && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+    if (!behind && !ordinary) return;
     const target = event.target instanceof Element ? event.target : null, rowSpec = config.recordRow ?? config.searchRow;
     if (!target || !rowSpec || target.closest("a[href]")) return;
     const row = target.closest<HTMLElement>(rowSpec.selector), id = row?.dataset[rowSpec.idDataset];
-    if (!row || !id || event.type === "click" && row.closest('[aria-multiselectable="true"]')) return;
+    if (!row || !id) return;
+    if (ordinary) {
+      const current = itemTab();
+      if (!current || current.itemId === id) return;
+      const control = target.closest('button,a[href],input,select,textarea,summary,[contenteditable="true"],[role="button"]');
+      if (control && control !== row && row.contains(control)) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      port.postMessage({ type: "ui", name: "openItem", itemTabId: current.tabId,
+        args: [config.surface, id, row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || id] } satisfies FrameUp);
+      return;
+    }
+    if (event.type === "click" && row.closest('[aria-multiselectable="true"]')) return;
     event.preventDefault(); event.stopImmediatePropagation();
     port.postMessage({ type: "open-behind", itemId: id, title: row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || id } satisfies FrameUp);
   };

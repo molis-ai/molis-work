@@ -26,7 +26,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
-// specs/repository-anti-corruption W3-02-A: one error model. An error is a code, a message, and optionally a kind and details; the code
+// specs/archive/repository-anti-corruption W3-02-A: one error model. An error is a code, a message, and optionally a kind and details; the code
 // says whose it is (`<owner>.<reason>`), the kind says what sort of failure it is, and the transport derives the status from the kind.
 
 /** The eleven kinds and the one HTTP status each: the table the SDK edge answers with (`satisfies` keeps it exhaustive). */
@@ -255,7 +255,7 @@ test("a Runtime route answers a failure with the status of its kind: the platfor
   const fail: ActionDefinition<{ case: number }, never> = { capability_id: "failing.run", version: 1, operation: "command",
     action: { title: "失败", description: "按编号抛出一种失败", scope: "home", permissions: ["failing:write"], kind: "operation", audiences: ["user"], subject_kinds: [],
       input_schema: { type: "object", additionalProperties: false, required: ["case"], properties: { case: { type: "integer" } } } } };
-  const failing: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "failing", kind: "app",
+  const failing: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "failing", kind: "app",
     publisher: { publisher_id: "example", signature: "home-failing" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "探针" }, { permission: "failing:write", required: true, reason: "探针" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [fail],

@@ -564,11 +564,17 @@ test("service status reports a running process with an unavailable page as unhea
   }
 });
 
-test("stop, start, restart, and remove have distinct owned behavior", async () => {
+test("IMETA-05 stop, start, restart, and remove keep their owned behavior independently of unsupported installation metadata", async () => {
   const item = await fixture();
   try {
     const install = await item.manager.prepare("install");
     await item.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" });
+
+    const installationPath = join(item.home, "config", "installation.json");
+    await mkdir(dirname(installationPath), { recursive: true });
+    const unsupported = JSON.stringify({ schema_version: 4, installer: "molis-work-home-install-v1", release_path: "releases/old" });
+    await writeFile(installationPath, unsupported);
+    assert.equal(JSON.parse(await readFile(item.manager.receiptPath, "utf8")).schema_version, 1);
 
     const stop = await item.manager.prepare("stop");
     assert.equal((await item.manager.confirm({ plan_id: stop.plan_id, decision: "confirmed" })).status, "stopped");
@@ -596,6 +602,7 @@ test("stop, start, restart, and remove have distinct owned behavior", async () =
     await assert.rejects(stat(item.manager.plistPath));
     await assert.rejects(stat(item.manager.receiptPath));
     assert.ok(item.commands.some((command) => command.includes("bootout")));
+    assert.equal(await readFile(installationPath, "utf8"), unsupported);
   } finally {
     await rm(item.directory, { recursive: true, force: true });
   }

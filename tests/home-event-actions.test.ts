@@ -21,7 +21,7 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
   service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: caller.project_id! }, definitions: Object.values(homeEventActions), handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }) });
   const query = defineHomeEventsAction("unknown.notes.events", ["unknown-note"], "笔记事项", ["notes:read"]);
   let events = [original]; let duringRead: (() => void) | undefined;
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.event-notes", version: "1.0.0", name: "Notes", kind: "app",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.event-notes", version: "1.0.0", name: "Notes", kind: "app",
     publisher: { publisher_id: "example", signature: "events" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "notes:read", required: false, reason: "读取原笔记" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [query] },
     async start() { return { kind: "app", actions: [{ ...query, handle: async () => { await Promise.resolve(); duringRead?.(); return { source: { surface: "notes", title: "我的笔记", icon: "note" }, events }; } }] }; } });
@@ -204,11 +204,11 @@ test("RAC-2783/RAC-2784 real Host event reads use the project's actual plugin ca
   const calls: Record<string, number> = {};
   const title = "事项目录接线证据";
   try {
-    host.configurePersonalPlanning(home, withCatalog);
-    const create = (displayName: string) => withCatalog({ homeDirectory: home }, catalog =>
+    const ownedCatalog = host.configurePersonalPlanning(home, withCatalog);
+    const create = (displayName: string) => ownedCatalog({ homeDirectory: home }, catalog =>
       catalog.createProject({ display_name: displayName, actor_id: "owner" }));
     const listed = await create("列出 Feed 的项目"), bare = await create("没有列出 Feed 的项目");
-    await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listed.project_id, plugin_id: "feed", actor_id: "owner" }));
+    await ownedCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listed.project_id, plugin_id: "feed", actor_id: "owner" }));
     const ref = (project: { project_id: string; database_path: string }) =>
       molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
     for (const project of [bare, listed]) {

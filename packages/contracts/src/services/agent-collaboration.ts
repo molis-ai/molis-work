@@ -221,14 +221,14 @@ const AMENDMENT = { oneOf: [
 /** Read and control the project's waits; waiting for a continuation to be ready is the `agentHostCapabilities.awaitContinuations` action. */
 export const agentCollaborationActions = {
   read: {
-    capability_id: "agent.collaboration.read.v1", version: 1, operation: "query",
+    capability_id: "agent.collaboration.read", version: 1, operation: "query",
     action: { title: "读取会话的等待与接续", description: "读取调用插件自己在这个项目里的会话在等什么、等到哪了，以及等完之后怎样接着做；只读，别的插件的会话不在回答里。", kind: "query", scope: "project", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id"], additionalProperties: false, properties: { runtime_id: { type: "string", minLength: 1 }, session_id: { type: "string", minLength: 1 } } },
       output_schema: SESSION_VIEWS_OUTPUT },
   } as ActionDefinition<AgentCollaborationReadInput, { sessions: AgentCollaborationSessionView[] }>,
   control: {
-    capability_id: "agent.collaboration.control.v1", version: 1, operation: "command",
+    capability_id: "agent.collaboration.control", version: 1, operation: "command",
     action: { title: "取消等待或提前接着做", description: "用户放弃调用插件自己一个会话的等待，或不等了直接接着做；只改等待与接续，不碰它在等的那件事。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "kind", "wait_id"], additionalProperties: false, properties: {
@@ -238,7 +238,7 @@ export const agentCollaborationActions = {
   } as ActionDefinition<AgentCollaborationControlInput, { session: AgentCollaborationSessionView }>,
   /** The person changes a round's plan: the change is a report on the graph itself; the confirmed plan is never rewritten. */
   revise: {
-    capability_id: "agent.collaboration.revise.v2", version: 2, operation: "command",
+    capability_id: "agent.collaboration.revise", version: 1, operation: "command",
     action: { title: "调整一轮的计划", description: "用户在任务图上调整这一轮的计划：跳过、插入、调顺序、改派、给受阻的步骤做决定、报自己负责的步骤的结果；按看到的版本提交，别人先改了就拒绝。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "amendment", "expected_version"], additionalProperties: false, properties: {

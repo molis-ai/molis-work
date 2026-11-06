@@ -12,11 +12,12 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 
 test("local management discovers an unknown plugin, authorizes its exact contract and can revoke a missing provider without granting from supplied permissions", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "mcp-action-settings-")), token = "mcp-action-grant-test-control-token";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "授权范围", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
   let connected = true, calls = 0;
   const id = `unknown.${randomUUID()}`;
   const definition: ActionDefinition = { capability_id: id, version: 7, operation: "command", action: {
@@ -129,17 +130,18 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     assert.equal(calls, 1);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+    await host.close(); await rm(home, { recursive: true, force: true });
   }
 });
 
 test("an action that writes through other actions is granted together with them: refused naming the missing grants, saved all or nothing when sent in one request", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "mcp-action-settings-together-")), token = "mcp-action-grant-together-control-token";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "一起授权", actor_id: "test" });
   if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test" });
   const projectId = created.project_id;
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   try {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -197,17 +199,18 @@ test("an action that writes through other actions is granted together with them:
     assert.deepEqual((await read(third)).grants, []);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+    await host.close(); await rm(home, { recursive: true, force: true });
   }
 });
 
 test("RAC-1331 W3-02-G4-04 an unavailable action answers by the kind its owner declares; one without a kind still answers 400", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "mcp-action-kind-")), token = "mcp-action-kind-test-control-token";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "授权的种类", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
   let connected = true, kind: "conflict" | "unavailable" | undefined;
   const id = `kind.${randomUUID()}`;
   const definition: ActionDefinition = { capability_id: id, version: 1, operation: "command", action: {
@@ -238,14 +241,12 @@ test("RAC-1331 W3-02-G4-04 an unavailable action answers by the kind its owner d
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close();
-    catalog.close();
     await rm(home, { recursive: true, force: true });
   }
 });
 
 test("RAC-1332 an oversized body answers 413 and a POST naming a missing project answers 404, both with their codes", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "mcp-action-limits-")), token = "mcp-action-limits-test-control-token";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   try {
@@ -263,18 +264,18 @@ test("RAC-1332 an oversized body answers 413 and a POST naming a missing project
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close();
-    catalog.close();
     await rm(home, { recursive: true, force: true });
   }
 });
 
 test("RAC-1333 the whole-read failures of the MCP settings answer by kind over HTTP, and an unknown failure keeps its text out", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "mcp-action-get-")), token = "mcp-action-get-test-control-token";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "整次读取", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
   const id = `whole-read.${randomUUID()}`;
   const definition: ActionDefinition = { capability_id: id, version: 1, operation: "command", action: {
     title: "Whole read", description: "An action that is discoverable but currently unavailable", kind: "operation", scope: "project", audiences: ["mcp"],
@@ -326,7 +327,6 @@ test("RAC-1333 the whole-read failures of the MCP settings answer by kind over H
     replaceInspect(originalInspect);
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close();
-    catalog.close();
     await rm(home, { recursive: true, force: true });
   }
 });

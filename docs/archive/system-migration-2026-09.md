@@ -1,4 +1,4 @@
-> 归档（2026-10-04，repository-anti-corruption 第二步）：迁移期的旧路径与迁移状态记录，不再维护。现行的兼容清单与删除进度见 [specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4；文中提到的 `tooling/migrations/` 审计脚本与 `tooling/boundaries/compatibility-allowlist.json` 已删除。
+> 归档（2026-10-04，repository-anti-corruption 第二步）：迁移期的旧路径与迁移状态记录，不再维护。现行的兼容清单与删除进度见 [specs/archive/repository-anti-corruption](../../specs/archive/repository-anti-corruption/spec.md) §4；文中提到的 `tooling/migrations/` 审计脚本与 `tooling/boundaries/compatibility-allowlist.json` 已删除。
 
 # 架构重组迁移矩阵
 

@@ -28,12 +28,15 @@ export { pluginModelFor } from "./plugin-model-service.js";
 export { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
 export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-model-settings.js";
 export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";
-export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from "./plugin-builder/exposed-actions.js";
+export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts, exposedOperationPolicies, type ExposedOperationPolicy } from "./plugin-builder/exposed-actions.js";
+export { createStudioPublisher, readStudioDistribution } from "./plugin-builder/studio-release.js";
 export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
+export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type HomeRestoreRecoveryOptions } from "./home-restore.js";
+export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
 export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-contract.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
@@ -106,7 +109,6 @@ export { seedSceneRules, withFunctionsService } from "./judgment-rules-host.js";
 export { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
 
-export { listFeedSourceCatalog } from "./source-vocabulary.js";
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
@@ -114,8 +116,11 @@ export { connectLocalMcp } from "./connector-local-mcp-setup.js";
 export { installManagedConnectorTool, removeManagedConnectorTool } from "./connector-tool-install.js";
 export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
+export { checkConnectorConnection } from "./connector-check-service.js";
 export { connectorUsagesAction } from "./connector-usage-actions.js";
-export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
+export { connectorPluginSlotActions, connectorPluginSlotSwitch, connectorPluginSlotUsages } from "./connector-plugin-slot-actions.js";
+export { connectorUsagesSwitchAction } from "./connector-usage-switch.js";
+export { modelProviderSwitch } from "./model-provider-switch.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 export { publisherStanding } from "./installed-publisher-standing.js";
 export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
@@ -125,7 +130,7 @@ export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-in
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
-export { sandboxDerivedPermissions, sandboxOperationPermissions, sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
+
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { installedStageSection } from "./installed-stage-section.js";
@@ -147,12 +152,13 @@ export { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
 export { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
 export { startSharedRefresh } from "./connector-shared-refresh.js";
 export { publicOAuthFetch } from "./connector-oauth-send.js";
-export { readConnectorAccount } from "./connector-account-actions.js";
+export { connectorAccountActionProvider, readConnectorAccount } from "./connector-account-actions.js";
 export { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 export { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthClientAuth, oauthContextValue, oauthDeviceRequest, oauthEndpoint, oauthEndpointFingerprint, oauthExpiry, oauthKept, oauthMethodOption, oauthPinnedTenant, oauthScope, oauthSecretRequired, oauthTenantOrigin, oauthTokenRequest, resolveOAuthSettings } from "./connector-oauth-declarations.js";
 export { listConnectorConnectionViews } from "./connector-connection-views.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
-export * from "./github-oauth.js";
+export { startDeviceOAuth, pollDeviceOAuth, registerConnectorDevicePolling } from "./connector-device-oauth.js";
+export { createPeriodicTasks } from "./periodic-tasks.js";
 
 
 export { createGithubConnector } from "./github-connector.js";
@@ -164,8 +170,6 @@ export { connectorDirectory, connectorLoginReady } from "./connector-directory.j
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
-/** One Feed item for the shell's reader (`/api/stage/feed/items/<id>`), read through Feed's own actions. */
-export { feedItemForReader } from "./web-request.js";
 export { handleFunctionsHttp } from "./judgment-rules-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-library-http.js";
@@ -235,7 +239,7 @@ export {
 export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
 export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
-export { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
+export { captureRuntimeStageOwner, renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 export { announceConnectionChanged } from "./connection-change-events.js";

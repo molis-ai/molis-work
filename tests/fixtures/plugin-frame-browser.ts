@@ -112,6 +112,13 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     const deadline = Date.now() + 10000;
     const remaining = () => Math.max(1, deadline - Date.now());
     await waitFor(`document.querySelector(${JSON.stringify(target)})`, remaining());
+    // As the owner's own click waits (#150): while the frame's surface is still mounting it is inert, and the selection it was
+    // opened with is delivered only when the mount settles. A menu opened before then would be closed by that selection.
+    const settled = `(()=>{${owner}const frame=doc.querySelector(${JSON.stringify(selector)});return Boolean(frame)&&!frame.closest('[data-ui-client-state="loading"]');})()`;
+    while (!await browser.evaluate<boolean>(settled)) {
+      if (Date.now() >= deadline) throw new Error("Plugin frame surface is still loading its client: " + target);
+      await new Promise(resolve => setTimeout(resolve, 40));
+    }
     const current = await context();
     // The DOM hit can be ready before Chromium routes input to the opaque child. Keep the receipt in a
     // temporary remote object, never on window; a previous move or another document cannot satisfy it.

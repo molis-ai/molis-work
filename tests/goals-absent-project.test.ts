@@ -10,7 +10,7 @@ import { resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
 
-// ac-trust T3b (RAC-400, specs/repository-anti-corruption/slices/ac-trust-install.md §3.4.1): the person takes back the agreement that keeps Goals
+// ac-trust T3b (RAC-400, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4.1): the person takes back the agreement that keeps Goals
 // in every project, and a project made after that has no Goals. Its pages draw and answer with the plugin list, home and links as for any other plugin that is not on (Goals' stage and dialogs stay
 // in the page's hidden pool, which the one workbench program binds), and nothing says "internal error" or opens a Goal view; a project that still has Goals is drawn as before.
 
@@ -21,6 +21,7 @@ async function withoutGoals(t: Parameters<typeof test>[1] extends (t: infer T, .
   const project = await catalog.createProject({ display_name: "没有 Goals", actor_id: "test" });
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false, "the project has no Goals");
   // The server builds its own Host, with the catalog policy for which plugins a project's actions may reach, as the app's does.
+  catalog.close();
   const controlToken = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
   await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
@@ -28,7 +29,7 @@ async function withoutGoals(t: Parameters<typeof test>[1] extends (t: infer T, .
   t.after(async () => {
     server.closeAllConnections();
     await new Promise<void>(done => server.close(() => done()));
-    catalog.close(); await rm(home, { recursive: true, force: true });
+    await rm(home, { recursive: true, force: true });
   });
   return { home, project, controlToken, origin: `http://127.0.0.1:${address.port}`, prefix: `http://127.0.0.1:${address.port}/projects/${project.project_id}` };
 }
@@ -73,7 +74,7 @@ test("RAC-400 the management entry refuses an unregistered Goals tool as missing
       project_id: env.project.project_id, call_id: randomUUID(), capability, input }) });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   };
-  const refused = await post({ capability_id: "goals.board.initialize", version: 2 }, { idempotency_key: randomUUID() });
+  const refused = await post({ capability_id: "goals.board.initialize", version: 1 }, { idempotency_key: randomUUID() });
   assert.equal(refused.body.code, "actions.missing", JSON.stringify(refused.body));
   assert.ok(refused.status >= 400 && refused.status < 500, `a refusal the caller can read, not a failure: ${refused.status}`);
   assert.deepEqual(goalFacts(), before, "the refused initialize created no Goal table, board or Goal fact");

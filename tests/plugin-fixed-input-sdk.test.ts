@@ -21,7 +21,7 @@ const type = { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1 };
 
 function portPlugin(pluginId: string, outputs: boolean, library = true): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
     publisher: { publisher_id: "molis", signature: `${pluginId}-binding` },
     entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: outputs ? "artifact:write" : "artifact:read", required: outputs, reason: "Exchange exact inputs" }],

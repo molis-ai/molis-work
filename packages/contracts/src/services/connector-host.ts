@@ -1,8 +1,9 @@
 import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 export type { ConnectorCheckObservation, ConnectorCallObservation, ConnectorObservations, ConnectorConnectionStatus } from "./connector-status.js";
-export { defineConnectorUsagesAction, CONNECTOR_USAGES_INPUT_TYPE, CONNECTOR_USAGES_OUTPUT_TYPE, CONNECTOR_USAGES_INPUT_SCHEMA, CONNECTOR_USAGE_SCHEMA, CONNECTOR_USAGES_OUTPUT_SCHEMA } from "./connector-usages.js";
-export type { ConnectorUsage, ConnectorUsagesInput } from "./connector-usages.js";
+export { defineConnectorUsagesAction, CONNECTOR_USAGES_INPUT_TYPE, CONNECTOR_USAGES_OUTPUT_TYPE, CONNECTOR_USAGES_INPUT_SCHEMA, CONNECTOR_USAGE_SCHEMA, CONNECTOR_USAGES_OUTPUT_SCHEMA,
+  defineConnectorUsagesSwitchAction, CONNECTOR_USAGES_SWITCH_INPUT_TYPE, CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE, CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA, CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA } from "./connector-usages.js";
+export type { ConnectorUsage, ConnectorUsagesInput, ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult } from "./connector-usages.js";
 
 export const servicesConnectorHostContract = {
   contractId: "io.molis.work.service.connector-host.v1",
@@ -27,6 +28,9 @@ export interface ConnectorHealth {
   status: "connected" | "disconnected" | "error" | "needs_auth";
   message: string;
   action?: string;
+  /** Same meaning as on a failed poll result; a rate limit sets `rate_limited` and, when known, `retryAfterAt`. */
+  failure?: ConnectorFailureKind;
+  retryAfterAt?: string;
 }
 
 export type ConnectorFailureKind =
@@ -90,7 +94,7 @@ export interface ConnectorHostApi {
 }
 
 export type ConnectorDirectoryAvailability = "live" | "placeholder";
-export type ConnectorAuthKind = "github" | "gmail" | "notion" | "feishu" | "token" | "none";
+export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
 export type ConnectorDirectoryGroupId =
   | "mail"
   | "files"
@@ -126,7 +130,7 @@ export interface ConnectorMethodOption {
   readonly note: string;
   readonly links: readonly ConnectorSetupLink[];
   readonly mcp?: { readonly endpoint: string; readonly client_registration?: "dynamic" | "manual"; readonly note?: string };
-  readonly oauth?: { readonly client_secret_required: boolean; readonly fields: readonly { key: string; label: string; placeholder?: string; required?: boolean }[]; readonly note?: string; /** The local path the sign-in returns to by default; absent for the generic callback. */ readonly callback_path?: string };
+  readonly oauth?: { readonly client_secret_required: boolean; readonly fields: readonly { key: string; label: string; placeholder?: string; required?: boolean }[]; readonly note?: string; /** The local path the sign-in returns to by default; absent for the generic callback. */ readonly callback_path?: string; /** The loopback name that address is registered under, for a provider that takes no numeric IP (the page shows `http://<host>:<port><path>`). */ readonly callback_host?: string; /** Present when the service also declares the device grant: the person types a code on the service's page, and `login_ready` says whether the product has a client for it. */ readonly device?: { readonly login_ready: boolean } };
   readonly cli?: { readonly binary: string; readonly installed: boolean; readonly install_url: string; readonly setup_available?: boolean; readonly environment_fields?: readonly { readonly name: string; readonly label: string; readonly secret: boolean }[]; readonly note?: string };
 }
 

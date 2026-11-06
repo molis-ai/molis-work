@@ -74,7 +74,7 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     const cache = new Map();
     const viewOptions = { databasePath, projectId: reference.project_id, homeDirectory: home };
     const view = await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
-    assert.equal("home_dock_suggested_behavior_ids" in view.feed.feed_items.find(row => row.item_id === item.item_id)!, false, "WebView no longer holds a second copy of Home recommendations");
+    assert.equal("feed" in view, false, "the cached platform WebView holds no Feed aggregate or second copy of Home recommendations");
     denied = "functions.published.system_pick_home_dock";
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, []);
     await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
@@ -205,7 +205,7 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     let marker = "original", available = true;
     const now = new Date().toISOString();
     let onRead: (() => void) | undefined;
-    const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.judgment-subject", version: "1.0.0", name: "笔记事项",
+    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.judgment-subject", version: "1.0.0", name: "笔记事项",
       kind: "app", publisher: { publisher_id: "example", signature: "judgment-subject" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: ["notes:read", "notes:write"].map(permission => ({ permission, required: false, reason: "读写原始笔记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [reader, events, offerQuery, write] },
       async start() { return { kind: "app", actions: [{ ...write, handle: (_caller, value) => {
@@ -231,8 +231,8 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     const choice = () => subjectOfferChoiceKey({ ...offerQuery, provider_id: installId }, offerQuery.action.subject_offer_choices![0]!);
     let selectedKey = choice();
     const authoring = liveHostJudgmentRuleAuthoringCatalog(await host.actionClient(reference).discover(caller), await host.sceneClient(reference).discoverScenes(caller));
-    assert.ok(authoring.destinations.find(destination => destination.destination_id === HOME_DOCK_SCENE_ID)!.behavior_ids.includes(selectedKey));
-    assert.equal(authoring.behaviors.find(behavior => behavior.behavior_id === selectedKey)!.title, "完成笔记");
+    assert.ok(authoring.destinations.find(destination => destination.destination_id === HOME_DOCK_SCENE_ID)!.option_ids.includes(selectedKey));
+    assert.equal(authoring.options.find(option => option.option_id === selectedKey)!.title, "完成笔记");
     const authored = await withFunctionsServiceAsync(home, async service => {
       const draft = service.create({ primitive: "noul", function_key: "unknown_note_decision", name: "笔记完成判断" });
       service.updateDraft(draft.id, { instructions: "依据原文判断是否完成", criteria: { true_description: "已完成", false_description: "待确认完成" },

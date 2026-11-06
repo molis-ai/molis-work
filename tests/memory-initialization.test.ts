@@ -9,8 +9,8 @@ import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contract
 import { openMemoryLedger, openHomeSqliteDatabase, homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { MemoryService, isCompletePrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend, hostTextGeneration, ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost, MolisWorkServer, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { homeBusinessTree } from "./fixtures/home-storage-files.js";
+import { createDesktopWebHost, MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { homeBusinessTree, homeStorageTree } from "./fixtures/home-storage-files.js";
 
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -32,13 +32,14 @@ function scratch(t: TestContext) {
 
 async function open(home: string) {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const agents = ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  const agents = ensureSystemAgentService(host, home, withCatalog);
   await agents.ready;
   const ledger = openMemoryLedger({ homeDirectory: home });
   const service = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => agents.agentHost.adapter("prologue").memory!) });
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null,
     audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
-  return { host, service, ledger, actions, adapter: agents.agentHost.adapter("prologue"), close: async () => { ledger.close(); await host.close(); } };
+  return { host, withCatalog, service, ledger, actions, adapter: agents.agentHost.adapter("prologue"), close: async () => { ledger.close(); await host.close(); } };
 }
 
 async function createProject(home: string) {
@@ -51,7 +52,7 @@ async function createProject(home: string) {
 async function learnedAutomatic(home: string, env: Awaited<ReturnType<typeof open>>) {
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), store = new AssistantStore(db);
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT_A, plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.getProject(PROJECT_A));
+  const project = await env.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(PROJECT_A));
   const sources: AgentMemorySourceSnapshot[] = [];
   try {
     for (let index = 0; index < 2; index++) {
@@ -153,6 +154,29 @@ test("current complete saved preferences retain automatic writing, project overr
 function files(directory: string) {
   return Object.fromEntries(Object.entries(homeBusinessTree(directory)).filter(([, state]) => "bytes" in state));
 }
+
+// T405-FULL-02 T405-FULL-07: product initialization, including late binding, refuses before any owner or root metadata write.
+test("a nonempty Home without a ledger is refused before creating its owner directory", async t => {
+  const home = scratch(t);
+  writeFileSync(join(home, "retained.txt"), "keep these original bytes");
+  const before = homeStorageTree(home);
+  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "memory.unavailable" });
+  assert.deepEqual(readdirSync(home), ["retained.txt"]);
+  assert.deepEqual(homeStorageTree(home), before);
+  const unbound = new MolisWorkLocalHost({ completeText: null });
+  try {
+    for (const [entry, open] of [
+      ["Web Catalog", () => unbound.ensureWebCatalog(home, openMolisWorkProjectCatalog)],
+      ["personal Catalog", () => unbound.configurePersonalPlanning(home, withMolisWorkProjectCatalog)],
+      ["system Agent", () => ensureSystemAgentService(unbound, home)],
+    ] as const) {
+      assert.throws(open, { code: "memory.unavailable" }, entry);
+      assert.deepEqual(homeStorageTree(home), before, entry + " changed the refused Home");
+    }
+  } finally { await unbound.close(); }
+  assert.throws(() => ensureSystemAgentService(unbound, home), { code: "host.closed" });
+  assert.deepEqual(homeStorageTree(home), before);
+});
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
 for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs"] as const) {

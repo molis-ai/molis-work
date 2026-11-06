@@ -17,7 +17,7 @@ import { describeSqliteSchema, homeSqlitePath, homeStoreRegistry, openBaselineHo
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// PG-024 (specs/repository-anti-corruption/slices/w5-02-registry.md §2): a library in the Home declares which of its rows belong to a
+// PG-024 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §2): a library in the Home declares which of its rows belong to a
 // project (`databases.home.project_rows`), and the platform deletes them with the project, on its own connection to that library,
 // running none of the plugin's code.
 
@@ -101,7 +101,7 @@ const LIBRARY: HomePluginDatabaseDeclaration = { store_name: "rows-probe", versi
   schema: "CREATE TABLE items (id TEXT PRIMARY KEY, project_id TEXT NOT NULL); CREATE TABLE notes (id TEXT PRIMARY KEY, item_id TEXT NOT NULL);", project_rows: ROWS };
 
 function manifest(library: unknown = LIBRARY, id = "io.molis.work.example.rowsprobe"): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "Rows probe", kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Rows probe", kind: "app",
     publisher: { publisher_id: "example", signature: "publisher-one" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [...PERMISSIONS], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     databases: { home: library as HomePluginDatabaseDeclaration } };

@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -80,7 +81,7 @@ test(`source snapshot withdrawal: ${scenario}`, { timeout: 60_000 }, async t => 
   await connectorAssistantModel(t, home.home, (_body, turn) => turn === 1
     ? { name: "list-memories", input: {} } : turn === 2
       ? scenario === "propose" ? { name: "suggest-memory", input: { text, scope: "personal", why: "以后交付时使用", applies: "交付答复时" } }
-        : { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。");
+        : { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const sent = await home.web.post<AssistantSendResult>("/api/assistant/send", { text: scenario === "unrelated" ? `${text}。` : "整理本周安排", request_id: randomUUID() });
   await modelReached.promise;
   const unrelatedText = "顺便列出明天的安排";

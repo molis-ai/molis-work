@@ -17,7 +17,8 @@ test("AQD-05 actual MCP parent-only and partial grants refuse, full exact grants
   const page = await s.host.actionClient(project.reference).invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: ["pages:write"] }, pagesActions.create,
     { title: "MCP material", markdown: "Exact delegated content" }) as { document: { id: string } };
   const context = { runtime_id: "query-client", stable_work_context_id: "query-session", host_declares_stable: true }, clientId = "runtime:query-client";
-  await withMolisWorkProjectCatalog({ homeDirectory: s.home }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true }));
+  const withCatalog = s.host.configurePersonalPlanning(s.home, withMolisWorkProjectCatalog);
+  await withCatalog({ homeDirectory: s.home }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true }));
   const sdk = new Client({ name: "query-client", version: "1" });
   const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/mcp/server.ts", import.meta.url))], env: {
     ...Object.fromEntries(Object.entries(process.env).filter((row): row is [string, string] => row[1] !== undefined)),

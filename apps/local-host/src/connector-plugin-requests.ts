@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { setTimeout as pause } from "node:timers/promises";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginConnectionDescription, PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { pluginBindingScope, type ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { CallConnection, CallConnectionsPort, PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionTarget } from "@molis-ai/molis-work-plugin-runtime";
 import { resolveApiConnection } from "./connector-access.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { credentialHeader, gatewayUrl } from "./connector-request-credentials.js";
 import { shownState } from "./connector-refresh-refusals.js";
@@ -48,7 +49,7 @@ export function forgetInstallationBindings(home: string, install_id: string): vo
 
 /** The installations that have any plugin binding at all (BL-596); none when the Home never saved an account. */
 export function installationIdsWithBindings(home: string): string[] {
-  return existsSync(homeSqlitePath(home, "connectors")) ? withConnectorConnections(home, store => store.bindingInstallationIds()) : [];
+  return existsSync(homeSqlitePath(home, "connectors")) ? withConnectorConnections(home, store => [...new Set(store.pluginBindings().map(binding => binding.install_id))]) : [];
 }
 
 /** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-71 provisional). */
@@ -80,7 +81,7 @@ export interface PluginConnectionsPortOptions {
  * says for the kind of connection, and redirects come back unfollowed.
  * A 401 to a credential the Host can refresh (S-70 provisional: the service's `refresh: "host"` and real OAuth refresh material) is refreshed once
  * and the same request sent once more; a second 401 goes back to the plugin as it is, and so does the first one when there is no refresh
- * material. A failed refresh refuses the request.
+ * material. A failed refresh refuses the request. A GET or HEAD that hits a short break is sent again, at most twice (`send`).
  */
 export function createPluginConnectionsPort(home: string, options: PluginConnectionsPortOptions = {}): PluginConnectionsPort {
   return {
@@ -122,7 +123,7 @@ export function createCallConnectionsPort(home: string, options: PluginConnectio
       return withConnectorConnections(home, store => {
         const connection = store.get(call.connection_id!);
         if (!connection || pinnedToAnother(store, connection.connection_id, call.install_id)) return { bound: true, state: "disconnected" as const };
-        return { bound: true, display_name: connection.display_name, state: connection.service_id === call.service_id ? shownState(home, connection, store.state(connection)) : "disconnected" };
+        return { bound: true, display_name: connection.display_name, state: connection.service_id === call.service_id ? shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) : "disconnected" };
       });
     },
   };
@@ -187,7 +188,7 @@ function describeBinding(home: string, target: PluginConnectionTarget): PluginCo
     const connection = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     if (!connection) return { bound: false };
     if (pinnedToAnother(store, connection.connection_id, target.install_id)) return { bound: true, state: "disconnected" };
-    const state = connection.service_id === target.service_id ? shownState(home, connection, store.state(connection)) : "disconnected";
+    const state = connection.service_id === target.service_id ? shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) : "disconnected";
     const origin = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, target.service_id) && CONNECTOR_REQUEST_SERVICES[target.service_id]!.tenant
       ? store.targetOrigin(connection.connection_id) : null;
     const needsReconnect = state === "connected" && !origin && Boolean(CONNECTOR_REQUEST_SERVICES[target.service_id]?.tenant);
@@ -211,7 +212,7 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
  * publisher's verified signature. A package of another publisher that declares the same service later is another installation, so
  * it never gets the account the first one was given. A built-in or platform service's connection has no pin and is judged as before.
  */
-function pinnedToAnother(store: ConnectorConnectionStore, connection_id: string, install_id: string): boolean {
+export function pinnedToAnother(store: ConnectorConnectionStore, connection_id: string, install_id: string): boolean {
   const pin = store.declarers.get(connection_id);
   return pin !== null && pin.install_id !== install_id;
 }
@@ -224,7 +225,7 @@ function usableConnection(home: string, store: ConnectorConnectionStore, connect
   : { connection_id: string; auth_method: "token" | "oauth" } {
   const connection = store.get(connection_id);
   if (connection && pinnedToAnother(store, connection.connection_id, install_id)) throw pluginRequestErrors.connection_unavailable("所绑定的账号不是为这个插件建的，请在设置里为它新建连接");
-  const usable = connection && connection.service_id === service_id && shownState(home, connection, store.state(connection)) === "connected"
+  const usable = connection && connection.service_id === service_id && shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) === "connected"
     && (connection.auth_method === "token" || connection.auth_method === "oauth") && service.credential[connection.auth_method] !== undefined;
   if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");
   const pinned = store.targetOrigin(connection.connection_id);
@@ -234,12 +235,37 @@ function usableConnection(home: string, store: ConnectorConnectionStore, connect
   return { connection_id: connection.connection_id, auth_method: connection.auth_method as "token" | "oauth" };
 }
 
+/**
+ * A short break is ridden out (ASC-53) for a request that changes nothing: a GET or HEAD that could not connect, timed out, or got a 502, 503 or
+ * 504 is sent again at most twice, after 0.5 s and then 2 s, one at a time. Each resend leaves only after `sendPublicHttps` has asked the call
+ * again (`beforeEffect`), so a call cancelled, revoked or stopped meanwhile sends nothing more, and the wait itself ends with the call. A write
+ * is never resent: whether it took effect may be unknown (`actions.outcome_unknown`), and that is for its caller to check first. A rate limit
+ * (429) goes back to the plugin as it is, with the service's `retry-after`.
+ */
+const RESEND_AFTER_MS = [500, 2_000] as const;
+const TRANSIENT_STATUS = new Set([502, 503, 504]);
+const TRANSIENT_FAILURE = new Set(["connector.plugin_requests.timeout", "connector.plugin_requests.upstream", "actions.outcome_unknown"]);
+
 async function send(dispatch: PluginConnectionDispatch, credential: Record<string, string> | undefined, options: PluginConnectionsPortOptions): Promise<PluginConnectionResponse> {
+  const resendable = dispatch.method === "GET" || dispatch.method === "HEAD";
+  for (let attempt = 0; ; attempt++) {
+    const wait = resendable ? RESEND_AFTER_MS[attempt] : undefined;
+    try {
+      const response = await sendOnce(dispatch, credential, options);
+      if (wait === undefined || !TRANSIENT_STATUS.has(response.status)) return response;
+    } catch (error) {
+      if (wait === undefined || !(error instanceof ActionError && TRANSIENT_FAILURE.has(error.code))) throw error;
+    }
+    await pause(wait, undefined, { signal: dispatch.signal });
+  }
+}
+
+async function sendOnce(dispatch: PluginConnectionDispatch, credential: Record<string, string> | undefined, options: PluginConnectionsPortOptions): Promise<PluginConnectionResponse> {
   const headers = { "user-agent": "Molis-Work", ...dispatch.headers, ...credential };
   const response = await sendPublicHttps({ url: dispatch.url, method: dispatch.method, headers, ...(dispatch.body === undefined ? {} : { body: dispatch.body }),
     signal: dispatch.signal, beforeEffect: dispatch.beforeEffect, current: dispatch.current, ...(options.lookup ? { lookup: options.lookup } : {}),
     ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.testServer ? { testServer: options.testServer } : {}),
-    failure: (reason, detail) => FAILURES[reason](detail) });
+    failure: (reason, detail, outcome) => outcome === 'unknown' ? new ActionError('actions.outcome_unknown', detail + '；请求已发出，结果尚未确认，请先核对再决定是否重试') : FAILURES[reason](detail) });
   const visible: Record<string, string> = {};
   for (const [name, value] of Object.entries(response.headers)) if (typeof value === "string" && visibleHeader(name)) visible[name] = value;
   return { status: response.status, headers: visible, body: response.body, authenticated: credential !== undefined };

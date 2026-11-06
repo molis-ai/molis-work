@@ -24,7 +24,7 @@ createRssIntegrationPlugin 接收 Provider port 并注册轮询贡献；catalog/
 
 ## 接入与边界
 
-当前 Host 实际使用本包的来源/传输辅助函数；上文 Integration 工厂已导出，但尚无生产调用方。不能把工厂存在视为已通过 Plugin Runtime 接入。
+Host 的 `builtinIntegrationDefinitions` 已启动本包 Integration 工厂提供真实纯 presenter，`rss-http` 从原 HTTP cursor 投影条件请求状态与主页地址。公开 Feed 拉取仍由现有 `sourcePull` 输送；此接线不代表轮询链已全部迁入 Plugin Runtime。
 
 这里只处理 RSS 接入，不建立第二套 Feed/Source 状态。网络可达性和站点内容由实际运行决定；测试中的响应 fixture 不代表所有订阅源在线。
 
@@ -61,7 +61,7 @@ node scripts/run-tests.mjs tests/feed-sources.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 状态变化归 Signals 与 Feed；外部正文是不可信输入。
-  - 工厂存在不等于已经通过 Plugin Runtime 接入。
+  - 纯 presenter 不绑定来源、不联网；现有公开 Feed 拉取与 Integration 展示各走原 owner。回归：`tests/integration-registry.test.ts`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/feed-sources.test.ts tests/feed-source-actions.test.ts tests/security-invariants-urls.test.ts tests/rss-socket.test.ts`。socket 用例需要 Node 24.5+ 与 OpenSSL，只在隔离进程和临时 CA/TLS/TCP 端点上运行；不是外网或真实订阅验收。
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

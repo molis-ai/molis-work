@@ -6,7 +6,7 @@ import type {
   PluginRouteResponse,
   PluginExecutionControl,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { actionErrorResponse, createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse, createExecutionLifetime, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 
 import { watchInstance, type InstanceWatchTimers } from "./instance-watch.js";
 import type { PluginHostLifecycle } from "./lifecycle.js";
@@ -135,12 +135,14 @@ export class PluginRouteRouter {
   readonly #routes: CompiledRoute[];
   readonly #lifecycle: PluginHostLifecycle;
   readonly #timers: InstanceWatchTimers | undefined;
+  readonly #capturePermission: ((pluginId: string, permission: string) => () => void) | undefined;
 
   /** `timers` is the clock a streamed route's instance watch runs on; omitted, the real one. */
-  constructor(lifecycle: PluginHostLifecycle, manifests: readonly PluginManifest[], options: { timers?: InstanceWatchTimers } = {}) {
+  constructor(lifecycle: PluginHostLifecycle, manifests: readonly PluginManifest[], options: { timers?: InstanceWatchTimers; capturePermission?(pluginId: string, permission: string): () => void } = {}) {
     this.#lifecycle = lifecycle;
     this.#routes = manifests.flatMap(compile);
     this.#timers = options.timers;
+    this.#capturePermission = options.capturePermission;
   }
 
   match(method: string, pathname: string): PluginRouteMatch | null {
@@ -159,7 +161,12 @@ export class PluginRouteRouter {
       return actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件"));
     }
 
+    let permissionCheck: (() => void) | undefined;
+    try { permissionCheck = match.permission ? this.#capturePermission?.(match.plugin_id, match.permission) : undefined; }
+    catch (error) { if (isCodedFailure(error)) return actionErrorResponse(error); throw error; }
     const instance = await this.#lifecycle.ensureStarted(match.plugin_id);
+    try { permissionCheck?.(); }
+    catch (error) { if (isCodedFailure(error)) return actionErrorResponse(error); throw error; }
     if (!instance || !instance.active()) {
       return actionErrorResponse(new ActionError("actions.plugin_unavailable", "插件未运行或已停用"));
     }
@@ -180,13 +187,18 @@ export class PluginRouteRouter {
       body: input.body ?? null,
       actor_id: input.actor_id,
       ...(input.execution ? { execution: input.execution } : {}),
-      ...(match.stream && input.emit ? { emit: liveEmit(instance, event => { lifetime?.assertActive(); input.emit!(event); }) } : {}),
+      ...(match.stream && input.emit ? { emit: liveEmit(instance, event => { lifetime?.assertActive(); permissionCheck?.(); input.emit!(event); }) } : {}),
     };
     const unwatch = match.stream && input.stopped ? watchInstance(instance, input.stopped, this.#timers) : undefined;
     try {
       lifetime?.assertActive();
       const result = binding.handle(request);
-      return await (lifetime ? lifetime.wait(Promise.resolve(result)) : result);
+      const response = await (lifetime ? lifetime.wait(Promise.resolve(result)) : result);
+      permissionCheck?.();
+      return response;
+    } catch (error) {
+      if (isCodedFailure(error)) return actionErrorResponse(error);
+      throw error;
     } finally {
       unwatch?.();
       lifetime?.dispose();

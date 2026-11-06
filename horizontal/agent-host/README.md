@@ -8,7 +8,7 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失、空值、相对路径以 `agent.storage_root_invalid` 在 SDK 与磁盘初始化前拒绝，不回退到 cwd 或用户默认目录。适配器通过 storage 的同一 SQLite 独占端口取得所有权，或借用本 Home Host 已持有的 opaque owner；没有另一套锁、同 PID 放行或可复制的 proof。获取或第二借用失败报告 `agent.storage_busy`，不读取恢复记录。只有实际 SDK 关闭成功才归还借用；失败关闭保留所有权，下一次明确 close 可以重试。初始化失败先清理已创建的 Runtime 资源再归还自己的部分，父 Host 继续持锁。跨进程入口转发给常驻 Host，不能用多个 Runtime 直接共享目录。回归：`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
 
-`verifyPrologueNodeStorageContents` 是离线快照/恢复的无正文薄包装，直接调用 SDK 的公开 `verifyNodeStorageContents`，不创建 Node Host 或 Runtime。可信 Host 从同一 registry 和已持的离线 lease 提供已有归档数据根、原 Home key 根、同步 `assertCurrent` 和 signal；认证所有实际记录 kind/分页、空正文和带密文墓碑，所有 SDK 拒绝都传回。它不读取原锁 fd，不复制 key、补 leases/claims、生成 key 或运行模型；无 sealed 数据不要求 key、不声称认证了 key。回归：`tests/security-invariants-home-snapshot-sdk.test.ts`，完整 C2 结论见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+`verifyPrologueNodeStorageContents` 是离线快照/恢复的无正文薄包装，直接调用 SDK 的公开 `verifyNodeStorageContents`，不创建 Node Host 或 Runtime。可信 Host 从同一 registry 和已持的离线 lease 提供已有归档数据根、原 Home key 根、同步 `assertCurrent` 和 signal；认证所有实际记录 kind/分页、空正文和带密文墓碑，所有 SDK 拒绝都传回。它不读取原锁 fd，不复制 key、补 leases/claims、生成 key 或运行模型；无 sealed 数据不要求 key、不声称认证了 key。回归：`tests/security-invariants-home-snapshot-sdk.test.ts`，完整 C2 结论见 [W5-16 slice](../../specs/archive/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
 
 `createPrologueNodeAdapter(options)` 返回可等待的初始化句柄，`await` 仍取得原 adapter；从创建时保留该句柄，其 `close()` 即使初始化拒绝也可继续清理。初始化失败后的清理再次失败会继续占锁，显式重试只处理未完成项，全部成功才归还 borrow/独立 owner。成功 adapter 的 `close()` 复用同一入口；同次并发共享结果，失败后可以明确重试。Local Host composition 在初始化前保存句柄，dispose 总能关闭它；失败后的显式 ready 先完成旧实例清理，再创建新实例，关闭中的实例不登记为可用。回归：`tests/security-invariants-agent-initialization-cleanup.test.ts`。
 
@@ -56,7 +56,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 是谁的会话、角色、方法库，只按调用者算，输入里不带插件名（R8）。
 
 注册入口是 `registerAgentHostCapabilities`，已由 Local Host 的生产装配调用，Coding 经 `services.actions` 使用。
-`agent.run.reviews.v1` 按当前项目、原 Session、Run 和生产者读取文本审查与原回执；读取先刷新 SDK 原恢复事实，失败明确报不可用。
+`agent.run.reviews` 按当前项目、原 Session、Run 和生产者读取文本审查与原回执；读取先刷新 SDK 原恢复事实，失败明确报不可用。
 它不会批准、派出或结算副作用。固定成果的保存与阅读由消费插件通过原 Artifact 服务完成，批准仍属于宿主审查面。
 
 **批准刻意不是插件可调的动作**：那是用户在宿主审查面里的动作；开成插件可调的能力，
@@ -73,6 +73,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 ## 开发要求
 
 - 负责：Agent Runtime 注册、能力矩阵、冻结的启动授权、宿主审查队列与 Prologue 推理接线。
+- MCP 连接的 Host 解析结果可带同步 `assertCurrent`；这是本次原来源/世代的可信运行期闭包，不进入 SDK 配置。连接、刷新和工具调用在后续等待、实际网络派发及结果交付前复查同一闭包，不以新世代替换旧快照。回归：`tests/connector-mcp.test.ts` 的 RAC2885 Agent source withdrawal 两组真实交错。
 - 不负责：编码业务含义、角色与提示词正文、模型选择与凭据、批准决定本身。
 - 公开入口：`@molis-ai/molis-work-service-agent-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/agent-host`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：依赖合同、同目录适配端口与 storage 的排他所有权技术端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -91,7 +92,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
   - 插件 caller 的项目身份只取 Host；`HostPluginCaller.project_id` 为 `null` 的 Home caller 在原归属检查处以 `agent.session_unknown` 拒绝，不补造项目。通过检查后才窄化成项目 caller；回归见 `tests/home-plugin-platform.test.ts` 的 Home 消费身份与 Agent 拒绝用例。
   - 逐项能力回合（冻结的 `action_tools`）的角色 `host_tools` 带 `suggest-action` 时，这一轮多一个建议工具（`molis-suggest-<范围>`，与动作工具同一个包）：只能点名这一轮的动作工具，按动作此刻的状态与它自己的输入检查核过才记下，什么都不执行、不排审查；记下的建议原样进运行视图的 `offers`（`AgentRunView.offers`，从保存的事件回放，不重新生成），落成什么由调用方决定（D25）。只读角色带 `suggest-action` 开跑前就拒（`agent.role_execution_exceeded`）。`suggest-action` 不是 Prologue 的系统工具，不经 `prologueToolName`。建议工具按名字前缀免审查放行，所以别的工具来源都不能产生这个前缀（MCP 是 `mcp:…`、动作是 `molis-action-…`、其余是固定名字或 SDK 系统工具）；新增工具来源时要守住这一点。安全不变量 S-28，回归：`tests/security-invariants-agent-suggestions.test.ts`、`tests/agent-host-offers.test.ts`。
   - 逐项能力回合的包 id（`molis-actions-<范围>`）算进包里声明的一切：时限、有没有建议工具、每个动作的引用、操作、声明与提供方的显示名。SDK 在一个进程里按 id 只认第一次登记的声明，漏掉一项，两轮动作相同、声明不同时第二轮就被拒（`SCENARIO_PACK_INVALID`）；Coding 同一个会话先「执行」（可以建议）再「修改」（不能）就是这样撞的。范围按每轮记在会话索引的 `action_tool_scope` 里，读回时用记下的、不重新算，所以改算法只影响新的轮。回归：`tests/agent-action-tools-prologue.test.ts`、`tests/coding-mode-switch-pack.test.ts`。
-  - 插件执行一轮的建议只经 `agent.offers.run.v1`（只给插件受众）：只执行这条建议记下的那个确切引用，且只在调用插件自己会话的这一轮里；用这一轮的授权此刻重新发现，合同与建议时的 `action_digest` 不同就拒；输入过动作自己的检查，`beforeEffect()` 之后才调。动作的上下文带点的那一轮所在、刚核过归属的会话（`runtime_session_id`、`audit_actor_id` 为 `agent:<runtime_id>:<会话>`，点击里自带的不算），与这一轮自己的工具调用一样。宿主不另记状态，重复执行由插件的卡自己认领挡住。安全不变量 S-29、S-17，回归：`tests/security-invariants-agent-offer-runs.test.ts`、`tests/security-invariants-agent-run-session.test.ts`。
+  - 插件执行一轮的建议只经 `agent.offers.run`（只给插件受众）：只执行这条建议记下的那个确切引用，且只在调用插件自己会话的这一轮里；用这一轮的授权此刻重新发现，合同与建议时的 `action_digest` 不同就拒；输入过动作自己的检查，`beforeEffect()` 之后才调。动作的上下文带点的那一轮所在、刚核过归属的会话（`runtime_session_id`、`audit_actor_id` 为 `agent:<runtime_id>:<会话>`，点击里自带的不算），与这一轮自己的工具调用一样。宿主不另记状态，重复执行由插件的卡自己认领挡住。安全不变量 S-29、S-17，回归：`tests/security-invariants-agent-offer-runs.test.ts`、`tests/security-invariants-agent-run-session.test.ts`。
   - 写后检查（`src/adapters/prologue-after-write.ts`，specs/prologue-adoption §6.0p，S-42）：Coding 一类有工作区的轮，包里带一样标了 `afterWriteCheck: true` 的 `safe-read` 工具（名字随包，不给模型）；工作区此刻已授权、存了检查器，这一轮才给它执行器，否则 SDK 零调用。执行器只照人存的配置答一条命令（第一个适用的、只查它 `cwd` 里的文件，`{file}` 是相对这个 `cwd` 的路径，以 `-` 开头的写成 `./…`），每次回答前再核这一轮的授权与工作区，一轮至多 10 次；自己不起进程，命令由 SDK 走同一道审查、Effect 和回执。答了哪个检查器、哪个版本，按 SDK 给的 `operationKey` 记在这一轮的索引里（`write_checks`），审查卡按同一个键读；读不到就不能批准。
 - 改动后必跑：`node scripts/run-tests.mjs tests/agent-sdk-effects.test.ts tests/agent-budget-prologue.test.ts tests/prologue-documents.test.ts tests/agent-host.test.ts tests/agent-host-composition.test.ts tests/agent-host-wiring.test.ts tests/agent-start-authority.test.ts tests/agent-action-tools-prologue.test.ts tests/coding-mode-switch-pack.test.ts tests/agent-host-offers.test.ts tests/security-invariants-agent-suggestions.test.ts tests/security-invariants-agent-offer-runs.test.ts tests/host-inference-completion.test.ts tests/prologue-inference-native.test.ts tests/prologue-external-checks.test.ts tests/security-invariants-external-checks.test.ts tests/coding-checkers-settings.test.ts tests/coding-diagnose-after-write.test.ts tests/security-invariants-checkers.test.ts`
 - 动作网关的调用与建议均以当前 input schema 校验；参数错误使用 SDK `TOOL_ARGUMENTS_INVALID` 返回有界合同与嵌套要求，不带用户值或任意异常正文，避免未知 Host 异常被截成 240 字后模型重复同一错误。输入合同已通过、却被能力的主人（或它调用的主人）以 `actions.input_invalid` 拒绝的，回执改为主人自己的原因（截到 600 字），说明输入符合合同，不再给合同让模型改形状。能力找不到时：这一轮确实见过、现在没了的确切身份（能力、版本、提供方）才说已关闭或移除；从没见过的身份按写错处理，提供方写错时说出这个能力实际由哪个提供方提供，并指回 find-capabilities。直接执行的可撤销修改（`change-reversible`）在运行前被网关钩子拒绝，回执同样写出完整的 input 合同并说明没有执行；它不算交互工具，模型一直不改时由运行时的重复调用保护停下。通用 input 明确声明 JSON 类型，继续由当前能力 schema 校验具体字段，不从按钮文案猜输入。其他失败不转成参数重试，写入结果未知仍先核对。真实 SDK 回归见 `tests/issue-assistant.test.ts`（ISSUE-25）、`tests/assistant-business-gateway.test.ts`。
@@ -128,7 +129,7 @@ Prologue Node 接上宿主审查队列时声明子任务能力 `partial`。同�
 
 此接口尚未接入 Coding 的工作树准备、选择、成果整合与 TaskBoard。现有正式角色不会因新增 Runtime 接口自动开放并行写入；需完成调用方的目录授权和产品流程后再启用。
 
-`agent.subagents.list.v1` / `agent.subagents.cancel.v1` 先核对项目、安装、原 Session 与 Run，再读取或停止该父运行名下的子任务。SDK 登记与原事件拥有状态、正文、活动和用量；Host 只额外保存角色来源，关闭重启不重派。成功结束与用户接受分别记录，后者由消费插件拥有。完整报告通过原 SDK `await-subagents` 的 `reportOffset` 分页读取最后一段结果，默认回传明确为摘要。分派引用、搜索语义和输出质量仍需产品实操核对，能力 `partial` 不代表并行写入或整体协作已完成。
+`agent.subagents.list` / `agent.subagents.cancel` 先核对项目、安装、原 Session 与 Run，再读取或停止该父运行名下的子任务。SDK 登记与原事件拥有状态、正文、活动和用量；Host 只额外保存角色来源，关闭重启不重派。成功结束与用户接受分别记录，后者由消费插件拥有。完整报告通过原 SDK `await-subagents` 的 `reportOffset` 分页读取最后一段结果，默认回传明确为摘要。分派引用、搜索语义和输出质量仍需产品实操核对，能力 `partial` 不代表并行写入或整体协作已完成。
 
 ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner 新记录的成功、失败或未知回执，重复 settle 与 Prologue 恢复历史不重复通知。监听错误不改写已提交 Effect，也不触发执行重试；消费者必须按项目过滤并自行释放。插件发起的 Host 操作，监听者另收到发起时记下的 `ReviewAuthority`（只在本进程里，不写进审查记录）；它的 `holds()` 说那次激活是否还在。宿主据此把 `host.review.settled@1` 只发给发起的那个安装（X-6，S-54，`apps/local-host/src/review-settlement-events.ts`）；没有发起安装的（Agent 自己的改动、恢复出来的审查）不发。
 
@@ -150,7 +151,7 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 每次派子任务之前，宿主协作口（`admitDispatch`）都会再跑一遍这一轮自己的派出前复核。让出（`yield`）、`board-wait`、带 `wait` / `park` 的简写，都只登记等待并结束这一轮，Runtime 不会自己起父跑。等待满足后，接续停在可以接着做；下一轮由宿主照常开跑时，才把接续接过去（`tests/prologue-adoption-guard.test.ts`）。
 
-等待与接续的视图在 `services/agent-collaboration`，读与控制是两个动作，等到能接着做是一个宿主等待（`agent.collaboration.await.v1`）。
+等待与接续的视图在 `services/agent-collaboration`，读与控制是两个动作，等到能接着做是一个宿主等待（`agent.collaboration.await`）。
 
 等外面的结果（P3c）：`board-wait` 的 `external` 条件由 `prologue-checkers.ts` 里的两个检查器去看，不经模型。`molis.action-query@1` 只查这一轮此刻能调用的只读查询（`operation` 与 `kind` 都是 `query`、effect 是 `read`）；模型给的是动作工具名，`remember()` 时用 `prologue-action-tools.ts` 的 `actionToolRefs` 按这一轮的冻结动作建好名字到引用的表，检查器不自己算名字；`molis.file-present@1` 只看这一轮授权目录里的相对路径。登记时一个 `tool-before` 钩子先拒掉写类、判断、声明了 `model:invoke` 的查询、导航和这一轮没给的动作；之后每次看都重新复核：轮次还被记得、这一轮自己的 `beforeDispatch` 通过、动作经统一动作服务用这一轮的授权重新发现，目录经宿主的 `checks.directoryAuthorized` 端口确认仍授权。不过就回 `refused`，等待停下（`docs/system/SECURITY-INVARIANTS.md` S-27，`tests/prologue-external-checks.test.ts`、`tests/security-invariants-external-checks.test.ts`）。
 
@@ -160,7 +161,7 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 可信初始输入由受保护 Host 入口交给现 Session attempt 保存原件，后续同 Session 接续只带引用；业务 DTO 不能自证本人身份。`tests/coding-original-inputs.test.ts` 走真实 HTTP/Node 验证原文、首个时间、重启、失败重试同身份、并发拒绝及跨 Session/派生输入拒绝；这只证明原件桥，不代表学习形成已接通。
 
-原件输入与输出对应的正式动作当前为 `agent.run.start.v1@2`、`agent.session.read.v1@3`、`agent.run.read.v1@3`、`agent.run.wait.v1@3`。读取三口旧 @1/@2、启动口旧 @1 固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
+原件输入与输出对应的正式动作当前为 `agent.run.start@1`、`agent.session.read@1`、`agent.run.read@1`、`agent.run.wait@1`。读取三口旧 @1/@2、启动口旧 @1 固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
 
 `readOriginalInput(ref)` 从该 Session attempt 读取首原件的精确正文、作者、身份和首次时间；`accepted_run` 则指向同原件最近一次已接受且未 refused 的直接尝试（排除 `frozen.continued_from`）。拒绝且未建立 Run 的尝试不阻挡后续真实重试，派生继续不能让失败原件取得学习资格。来源消费方仍检查定位 Run 的当前状态、Session owner、工作和权限；缺失或未接受不从拼接任务恢复。原时间和身份不因读取、继续或重试变化，不扫描 SDK 历史，不增加正文存储；Source Port 的 App 规则见记忆策略 §9.4。
 

@@ -75,14 +75,14 @@ const list = { type: "object", required: ["workspace_id", "version", "checkers"]
  */
 export const agentWriteCheckerActions = {
   list: {
-    capability_id: "agent.write_checkers.list.v1", version: 2, operation: "query",
+    capability_id: "agent.write_checkers.list", version: 1, operation: "query",
     action: { title: "写后检查器", description: "列出当前项目每个已授权工作区的写后检查器与版本：写入文件后，由人配置的检查命令", kind: "query", scope: "project",
       audiences: ["user"], permissions: [], subject_kinds: ["project"],
       input_schema: { type: "object", additionalProperties: false, properties: {} },
       output_schema: { type: "object", required: ["lists"], additionalProperties: false, properties: { lists: { type: "array", items: list } } } },
   } as ActionDefinition<Record<string, never>, { lists: AgentWriteCheckerList[] }>,
   save: {
-    capability_id: "agent.write_checkers.save.v1", version: 2, operation: "command",
+    capability_id: "agent.write_checkers.save", version: 1, operation: "command",
     action: { title: "保存写后检查器", description: "替换一个已授权工作区的整份写后检查器清单；带上读取时的版本，版本过时就不保存", kind: "operation", scope: "project",
       audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
       input_schema: { type: "object", required: ["workspace_id", "expected_version", "checkers"], additionalProperties: false, properties: {

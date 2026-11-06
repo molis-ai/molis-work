@@ -3,6 +3,12 @@ import { openReadOnlyHomeSqlite, openBaselineHomeSqlite } from "@molis-ai/molis-
 import type { PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginDatabaseClient } from "./plugin-database-client.js";
 
+/** The single typed declaration bridge used by the authorized Host client and the bounded SQL worker. */
+export function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration,
+  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
+  return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id);
+}
+
 /**
  * A plugin's library in the Home. The Host owns both connections; read calls use SQLite read-only enforcement, not only a SQL
  * keyword filter. The rules every call follows are the client's (`pluginDatabaseClient`), the same as in the project's library.
@@ -16,7 +22,7 @@ export function openPluginDatabase(home: string, declaration: PluginDatabaseDecl
 } {
   if (!/^[a-z][a-z0-9-]*$/u.test(declaration.store_name)) throw new Error("插件库名称必须是可信的单个目录名");
   authorize("storage:private");
-  const writer = openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id);
+  const writer = openPluginDatabaseConnection(home, declaration, partition);
   let reader: ReturnType<typeof openReadOnlyHomeSqlite>;
   try {
     writer.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 1000;");

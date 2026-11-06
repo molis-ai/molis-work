@@ -4,7 +4,7 @@
 
 Molis Work 是本地优先的插件基座加多插件工作平台：你和你用的 AI Runtime 在同一处推进目标、会话、信息流、代码、文档和日程，每项内容由它所属的插件保存。
 
-平台提供一个 Home 的常驻宿主、统一的动作目录与授权、插件运行时、工作台外壳和同一个 AI 运行时。每个项目都带 Goals，可以按需添加 Sessions、Inbox、Feed、Schedule、成果和 Coding 一族；Jelly（日历与笔记）、待办、Pages、灵光、Cognia 等个人插件在所有项目里可用。插件的能力登记在同一个动作目录，页面、助理、工作流和外部 MCP 客户端都从这里按授权调用。
+平台提供一个 Home 的常驻宿主、统一的动作目录与授权、插件运行时、工作台外壳和同一个 AI 运行时。每个项目都带 Goals，可以按需添加 Inbox、Feed、Schedule 和 Coding 一族；Jelly（日历与笔记）、待办、Pages、灵光、Cognia 等个人插件在所有项目里可用。插件的能力登记在同一个动作目录，页面、助理、工作流和外部 MCP 客户端都从这里按授权调用。
 
 Goals 插件对付长程任务常见的失败：新 Session 看不到上一轮，原目标被局部决定改掉，“完成了”只是一句话、没法核对。缺的不是更聪明的模型，而是一份所有 Runtime 都能对着记账的项目事实：已确认的 Goal、怎么拆的、卡在哪、凭什么算完成。
 
@@ -79,7 +79,7 @@ Molis Work 把这份记录放在本地。Codex、Claude Code、OpenCode 或其�
 
 ### 一个基座，按需添加插件
 
-每个项目都带 Goals，可以在插件切换器里就地添加 Sessions、Inbox、Feed、Schedule、成果和 Coding 一族；Jelly、待办、Pages、灵光、Cognia、Shelf 等个人插件在所有项目里可用。插件的能力登记在同一个动作目录，页面、助理、工作流和外部 MCP 客户端都从这里按授权调用。下面几节是 Goals 插件的功能。
+每个项目都带 Goals，可以在插件切换器里就地添加 Inbox、Feed、Schedule 和 Coding 一族；Jelly、待办、Pages、灵光、Cognia、Shelf 等个人插件在所有项目里可用。插件的能力登记在同一个动作目录，页面、助理、工作流和外部 MCP 客户端都从这里按授权调用。成果库由平台提供。Sessions 插件已下线，重做能力尚未实现，见 [Sessions 需求](specs/sessions-rebuild/spec.md)；Goals 的目标终端仍可使用。下面几节是 Goals 插件的功能。
 
 ### 看清目标、已经做成了什么，以及下一步
 
@@ -91,7 +91,7 @@ Molis Work 把这份记录放在本地。Codex、Claude Code、OpenCode 或其�
 
 ### 改题要你点头
 
-Runtime 可以把新工作和新依赖写成结构提案，也可以记下阻塞完成的问题，但不能悄悄替换已经约定的结果或降低要求，也不能自填 user 身份。可信用户决定由 Host Web 或管理入口记录。决定中心把问题、为什么现在要决定、依据或缺口、每个选择会改什么放在同一页。
+Runtime 可以把新工作和新依赖写成结构提案，也可以记下阻塞完成的问题，但不能悄悄替换已经约定的结果或降低要求，也不能自填 user 身份。可信用户决定由 Host Web 或管理入口记录。决定卡片列出问题、作决定的原因、建议依据和每个选择的影响。
 
 ### 终端跟着 Goal 走
 
@@ -117,9 +117,11 @@ macOS 上，当前这条 Goal 也在 **屏幕顶部菜单栏**。点 Molis Work 
 
 ## 3 分钟体验
 
-### macOS Desktop（推荐）
+### macOS Desktop（待公开发布）
 
-从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 下载与你的 Mac 匹配的 DMG：
+截至 2026-11-03，v0.3.0 仍是发布草稿，尚未公开；最新公开正式版 v0.2.0 只有源码，不能用它代表本文的开发中功能。现在试用请按下节从源码运行。发布范围与验证缺口见 [v0.3.0 发布记录](docs/releases/v0.3.0.md)。
+
+公开安装包发布后，从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 按实际附件选择与你的 Mac 匹配的 DMG：
 
 - Apple Silicon（M1/M2/M3/M4…）：`macos-arm64`
 - Intel Mac：`macos-x64`
@@ -193,6 +195,7 @@ pnpm desktop:start:macos
 
 ## 更多文档
 
+- [按任务找文档](docs/README.md)：使用产品、开发插件、修改平台、发布维护与接续任务。
 - [架构 SSOT 与迁移归属](docs/SSOT-MATRIX.md)
 - [安装与维护](docs/installation.md)
 - [运行时协议](docs/runtime.md)
@@ -200,7 +203,8 @@ pnpm desktop:start:macos
 - [CLI 与开发](docs/cli-and-development.md)
 - [Runtime Skill](skills/goal-advance/SKILL.md)
 - [Plugin 开发 Skill](skills/molis-plugin-dev/SKILL.md)
-- [Molis Work Bug 卡台账](docs/molis-work-bug-cards.md)
+
+当前需求和剩余事项见[规格书索引](specs/README.md)与[统一待办](specs/BACKLOG.md)。[0.1.x Bug 卡台账](docs/molis-work-bug-cards.md)仅作历史记录，其中的工作流程已退役。
 
 ## License
 

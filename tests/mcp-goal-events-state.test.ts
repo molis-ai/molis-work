@@ -32,12 +32,13 @@ test("Runtime state tools record progress and close without applying user identi
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-goal-events-state-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const project = await catalog.createProject({ display_name: "状态闭环", actor_id: "user" });
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
   let runtime: MolisWorkServer | undefined;
   let management: MolisWorkServer | undefined;
   try {
-    const project = await catalog.createProject({ display_name: "状态闭环", actor_id: "user" });
     served = await serveTestHost(null, { home: homeDirectory, host });
     await grantGoalsMcp(served, project);
     const runtimeHost = {
@@ -141,12 +142,12 @@ test("Runtime state tools record progress and close without applying user identi
     }), false), project_id).invoke(goalsActions.snapshot, {});
     assert.equal("claims" in persisted, false, "the retired claim protocol has no state");
 
-    const progressEvent = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.read__v2", { goal_id, event_id: progress.event_id,
+    const progressEvent = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.read__v1", { goal_id, event_id: progress.event_id,
     }));
     assert.equal(progressEvent.payload.operation, "progress_summary");
     assert.equal(progressEvent.payload.summary, "开场可玩");
 
-    const beforeClose = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id, limit: 100 }));
+    const beforeClose = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 }));
     await assert.rejects(
       () => runtime!.callTool("molis_work_v1_action_goals.closure.submit__v1", { goal_id, idempotency_key: "close-invalid", kind: "not-a-valid-kind",
         reason: "非法枚举必须拒绝", expected_config_version: ready.config.version,
@@ -154,14 +155,13 @@ test("Runtime state tools record progress and close without applying user identi
       }),
       { code: "actions.input_invalid" },
     );
-    const afterInvalid = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id, limit: 100 }));
+    const afterInvalid = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 }));
     assert.equal(afterInvalid.events.length, beforeClose.events.length);
   } finally {
     await runtime?.close();
     await management?.close();
     await served?.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -170,11 +170,12 @@ test("Runtime agree unknown field and omitted close version are rejected with no
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-goal-events-unknown-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const project = await catalog.createProject({ display_name: "未知字段", actor_id: "user" });
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
   let runtime: MolisWorkServer | undefined;
   try {
-    const project = await catalog.createProject({ display_name: "未知字段", actor_id: "user" });
     served = await serveTestHost(null, { home: homeDirectory, host });
     await grantGoalsMcp(served, project);
     runtime = new MolisWorkServer("runtime", {
@@ -214,7 +215,6 @@ test("Runtime agree unknown field and omitted close version are rejected with no
     await runtime?.close();
     await served?.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -223,12 +223,13 @@ test("MCP agreement_change request keeps request-time commitment; later related 
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-goal-events-stale-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const project = await catalog.createProject({ display_name: "过期请求", actor_id: "user" });
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
   let runtime: MolisWorkServer | undefined;
   let management: MolisWorkServer | undefined;
   try {
-    const project = await catalog.createProject({ display_name: "过期请求", actor_id: "user" });
     served = await serveTestHost(null, { home: homeDirectory, host });
     await grantGoalsMcp(served, project);
     const connection = {
@@ -298,7 +299,6 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     await management?.close();
     await served?.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

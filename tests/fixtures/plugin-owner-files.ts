@@ -29,7 +29,7 @@ export function ownerFilesProbe(name = "ownerprobe", scope: "home" | "project" =
     start(context: PluginStartContext): void | Promise<void>;
     stop(context: PluginStartContext): void | Promise<void>;
   } = { read: client => client.list("documents"), write: client => client.write(writer => writer.mkdir("documents")), start: () => {}, stop: () => {} };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version, name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version, name, kind: "app",
     publisher: { publisher_id: "example", signature: `owner-files-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "Own files" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [readAction, writeAction, queryWrite, undeclared], owner_files,

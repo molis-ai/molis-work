@@ -28,10 +28,6 @@ export interface SandboxBackgroundLane {
   stop(): Promise<void>;
 }
 
-/** The codes after which the process is gone (the runner shuts it down for each of them): the next run starts a new one. */
-const PROCESS_GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_error', 'sandbox.channel_limit',
-  'sandbox.protocol_error', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.cancelled']);
-
 /**
  * The lane of one installation. `create` starts the runner of the package for background runs (the same bundle, contract and grants as the first,
  * with `SANDBOX_BACKGROUND_LIMITS` and no `background` service, so a run cannot start more runs); it is called when the first run is accepted.
@@ -53,8 +49,14 @@ export function createBackgroundLane(options: { contract: SandboxPluginContract;
       const process = live ??= options.create();
       let runner: SandboxRunner;
       try { runner = await process; } catch (error) { discard(process); throw error; }
-      try { return await runner.call(operationId, input, control); }
-      catch (error) { if (error instanceof SandboxError && PROCESS_GONE.has(error.code)) discard(process); throw error; }
+      if (stopped) { await runner.stop(); throw new SandboxError('sandbox.stopped', 'The background lane stopped while opening its process'); }
+      try {
+        return await runner.call(operationId, input, { ...control, limits: { ...control.limits, ...SANDBOX_BACKGROUND_LIMITS } });
+      } catch (error) {
+        // The runner owns dispatch: a queued caller's refusal does not mean its shared process has stopped.
+        if (runner.stopped) discard(process);
+        throw error;
+      }
     },
     async stop() { stopped = true; const gone = live; live = undefined; if (gone) await (await gone.catch(() => undefined))?.stop(); },
   };

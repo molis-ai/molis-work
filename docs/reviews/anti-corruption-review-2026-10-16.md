@@ -73,7 +73,7 @@ RAC-14：open finding F-30。`docs/system/HOME-DATA.md` 第 6 行写：第 10 �
 
 RAC-15：pass（现有机器）。这次健康运行用合并基线 `dfc81998` 比较并退出码 0。未标记的兼容逻辑仍是 F-05 与 F-29。
 
-RAC-16：open finding F-31。规格完成节仍有这一棵树没有关上的行（F-02、F-30、F-39）。`specs/repository-anti-corruption/spec.md` 第 3 行状态是「执行中，整线未完成」，下一步写的是第 4–6 波。迁移状态句是 F-40。§12.4 有两行和当前树不一致，是 F-41。
+RAC-16：open finding F-31。规格完成节仍有这一棵树没有关上的行（F-02、F-30、F-39）。`specs/archive/repository-anti-corruption/spec.md` 第 3 行状态是「执行中，整线未完成」，下一步写的是第 4–6 波。迁移状态句是 F-40。§12.4 有两行和当前树不一致，是 F-41。
 
 RAC-17：partial，F-27 与 F-32。不变量表的形状由这次健康运行检查。拒绝测试作业是 `continue-on-error`，并且不在 `Verify` 的 `needs` 里。Vendored 包的提交是 `e5123369`。
 
@@ -161,7 +161,7 @@ F-39。扩展演练未达目标，见 RAC-03。方向表第 37–51 行，演练
 
 F-40。`docs/system/RUNTIME-MIGRATION.md` 第 3 行（2026-10-08，对照 `31c357df`）仍写「还没有合入的迁移样板」和「Form 与 Todo 迁移尚未开始」。第 39–40 行仍把 `RUNTIME_ASSEMBLED` 写成 7 个且不含 form，并把 form 列在 `BUILD_TIME_ASSEMBLED` 的 18 个里面。`dfc81998a` 上 Form 已在 Runtime 名单上，两份宿主文件已不在。这是文档滞后。RAC-01 的代码裁决仍是 pass。
 
-F-41。`specs/repository-anti-corruption/spec.md` §12.4 是 2026-10-12 的裁决表，有两行和 `dfc81998a` 的树不一致。第 1892 行 RAC-01 仍写「未通过；8/18 装配仍并存，Form 样板未合」。第 1904 行 RAC-13 仍写「登记门禁 W4-11 未交付」。该提交上 Form 由 `createFormPlugin` 启动，`homeStores()` 已存在。这两行不改变本文对 RAC-01（pass）和 RAC-13（partial）的代码裁决。
+F-41。`specs/archive/repository-anti-corruption/spec.md` §12.4 是 2026-10-12 的裁决表，有两行和 `dfc81998a` 的树不一致。第 1892 行 RAC-01 仍写「未通过；8/18 装配仍并存，Form 样板未合」。第 1904 行 RAC-13 仍写「登记门禁 W4-11 未交付」。该提交上 Form 由 `createFormPlugin` 启动，`homeStores()` 已存在。这两行不改变本文对 RAC-01（pass）和 RAC-13（partial）的代码裁决。
 
 ## 抽查过的路径
 

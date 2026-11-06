@@ -24,16 +24,16 @@ test("W5-01-STREAM-05 repeated success, throw, cancellation and stop release eve
   const router = new PluginRouteRouter(supervisor, [definition.manifest], { timers });
   for (let round = 0; round < 3; round++) for (const outcome of ["success", "throw", "cancel", "stop"] as const) {
     const entered = deferred(), release = deferred(), finished = deferred(), abort = new AbortController();
-    let captured: PluginRouteRequest | undefined, stopped = 0;
+    let captured: PluginRouteRequest | undefined, stopped = 0, effects = 0;
     probe.behavior.route = async request => {
       captured = request; entered.resolve();
-      try { await release.promise; if (outcome === "throw") throw new Error("handler failed"); return { status: 200, body: "done" }; }
+      try { await release.promise; if (outcome === "throw") throw new Error("handler failed"); await request.execution!.beforeEffect(); effects++; return { status: 200, body: "done" }; }
       finally { finished.resolve(); }
     };
     const result = router.dispatch({ method: "POST", pathname: `/api/plugins/${probe.id}/direct`, actor_id: "person",
       execution: { signal: abort.signal, beforeEffect: async () => { abort.signal.throwIfAborted(); } }, emit: () => {},
       stopped: () => { stopped++; abort.abort(new ActionError("actions.cancelled", "stopped")); } });
-    const expected = outcome === "success" ? result : assert.rejects(result, outcome === "throw" ? /handler failed/ : { code: "actions.cancelled" });
+    const expected = outcome === "throw" ? assert.rejects(result, /handler failed/) : result;
     await entered.promise; assert.equal(pending.size, 1);
     for (const tick of pending.values()) tick();
     assert.equal(pending.size, 1, "an active instance keeps its watch");
@@ -42,12 +42,17 @@ test("W5-01-STREAM-05 repeated success, throw, cancellation and stop release eve
       await runtime.stop(supervisor.state(probe.id)!.install_id!);
       for (const tick of [...pending.values()]) tick();
       assert.equal(stopped, 1);
-      assert.throws(() => captured!.emit!({ stage: "late", progress: 1 }), { code: "actions.cancelled" });
     } else release.resolve();
     const answer = await expected;
     if (outcome === "success") assert.deepEqual(answer, { status: 200, body: "done" });
+    if (outcome === "cancel" || outcome === "stop") {
+      assert.deepEqual(answer, { status: 499, body: { error: outcome === "cancel" ? "cancelled" : "stopped", code: "actions.cancelled" } });
+      await assert.rejects(captured!.execution!.beforeEffect(), { code: "actions.cancelled" });
+      assert.throws(() => captured!.emit!({ stage: "late", progress: 1 }), { code: "actions.cancelled" });
+    }
     assert.equal(pending.size, 0, `${outcome} released the timer before a late handler returns`);
     release.resolve(); await finished.promise;
+    assert.equal(effects, outcome === "success" ? 1 : 0, `${outcome} cannot apply a late effect`);
     if (outcome === "stop") await supervisor.restart(probe.id);
   }
 });

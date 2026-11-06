@@ -31,7 +31,7 @@ interface Package { readonly manifest: PluginManifest; readonly install_id: stri
 /** A signed integration package: its installation is the plugin id and its publisher's signature, as the Home derives it. */
 function pack(plugin_id: string, name: string, publisher = newPublisher()): Package {
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id, version: "1.0.0", name, kind: "integration",
+    schema_version: 1, host_api_version: 1, plugin_id, version: "1.0.0", name, kind: "integration",
     publisher: { publisher_id: "example", signature: publisher.identity },
     entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }],

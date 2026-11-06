@@ -13,7 +13,7 @@ export interface TestProducer { plugin_id: string; artifact_types?: readonly str
 export function installProducers(db: object, ...producers: readonly TestProducer[]): () => void {
   const manifests = producers.map((producer): PluginManifest => {
     const types = producer.artifact_types ?? [], previews = types.map(type => defineArtifactPreviewAction(`${type}.preview`, "预览", []));
-    return { schema_version: 2, host_api_version: 2, plugin_id: producer.plugin_id, version: "1.0.0", name: producer.plugin_id, kind: "app",
+    return { schema_version: 1, host_api_version: 1, plugin_id: producer.plugin_id, version: "1.0.0", name: producer.plugin_id, kind: "app",
       publisher: { publisher_id: "fixture", signature: `fixture-${producer.plugin_id}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, ui: { contributions: [], views: [] }, actions: previews,
       artifacts: { produces: types.map(type => ({ artifact_type_id: type, schema_version: 1, title: type, preview: { capability_id: `${type}.preview`, version: 1 } })), consumes: [] },

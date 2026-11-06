@@ -72,10 +72,12 @@ const PANE_PART = String.raw`  const L = host.translate;
       if (block.tagName === "PRE") return "code";
       return "paragraph";
     };
+    // A heading names the passage only if it is in what is shown: a surface's closed dialog or hidden panel keeps its own h2 in the DOM
+    // (Shelf's "Save to project knowledge" dialog), and that is interface text, not a heading of what was selected (BL-952).
     const headingPath = (root, node) => {
       const stack = [];
       root.querySelectorAll("h1, h2, h3, h4").forEach((heading) => {
-        if (!(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
+        if (!(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) || heading.closest("dialog:not([open]),[hidden],[inert]")) return;
         const level = Number(heading.tagName.slice(1));
         while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
         stack.push({ level, text: cutWhole(heading.textContent.trim(), 120) });
@@ -121,8 +123,9 @@ const PANE_PART = String.raw`  const L = host.translate;
   if (host.surfaceOnly) return;
 
   // What the plugins declare as their search sources: surface → the one kind it opens and the plugin that owns it. Read once.
+  // The declarations are a project's: a page with no project open (choosing one) has none and asks nothing (N53).
   let surfaces = null;
-  const known=()=>surfaces||(surfaces=molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
+  const known=()=>!document.body.dataset.projectId?Promise.resolve({}):surfaces||(surfaces=molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
   // A surface opened an item (the workbench's molis-work:select-item) but did not name it: name it from what the
   // plugins declare as their search sources (surface → kind), so its text can be acted on like any declared object.
   (() => {

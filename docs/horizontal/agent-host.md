@@ -28,7 +28,7 @@ adapter 不自己解析角色，也不发明 Prompt。
 
 Prologue Node 用 SDK 的 SkillRegistry、prepareSkillIntent、fillSkillBody 准备有界文本方法，将正文固定到本轮指令，保留原任务和副作用审查。当前能力为 partial：内置和已安装方法可显式选择，安装管理已接通，模型自动调用和派生方法尚未接通。运行中选择变化只供下一轮，冻结结果必须与 Host 选择一致；已展开正文不代表任务已经执行或验收。
 
-安装使用 `agent.skills.discover.v1` 与 `agent.skills.install.v1`：发现只接受当前项目已授权根内的相对目录，通过 SDK reader 读取后返回完整候选快照；重新发现/重启后旧候选失效。安装复用 SDK 包扫描和 secureBody 存储，版本 1 不覆盖同名，原子 expectedVersion=0 阻止重复写入。安装只保存文本（工具声明为空），不执行包内脚本，也不自动选择或扩大本轮权限。
+安装使用 `agent.skills.discover` 与 `agent.skills.install`：发现只接受当前项目已授权根内的相对目录，通过 SDK reader 读取后返回完整候选快照；重新发现/重启后旧候选失效。安装复用 SDK 包扫描和 secureBody 存储，版本 1 不覆盖同名，原子 expectedVersion=0 阻止重复写入。安装只保存文本（工具声明为空），不执行包内脚本，也不自动选择或扩大本轮权限。
 
 ## Review 队列：批准是一次性的
 
@@ -94,4 +94,4 @@ Host 审查队列可登记原操作的核对处理器；HTTP 入口沿用项目�
 
 核对不重放：有 SDK 执行回执时按回执更新；没有回执时保持未知。仅在执行方已结束、当前内容与操作前一致且与目标不同、操作者有可靠的“未发生”依据并明确确认、两次快照与授权核验一致时，才将原 Effect 按 known-not-happened 收口。内容一致本身不是执行证明。核对者/时间/依据存入已有加密审查决定，只描述来源；如果其保存后快照变化或 SDK 收口失败，仍为未知，重启不能用这些字段制造成功。收口后需要重新预览并创建新操作，原 operation ID 只返回历史审查。
 
-宿主动作 `projects.workspace.git.results.v1`（只给插件，要 `workspace:read`）只投影当前获授权工作区的已确定 Git 审查结果，供 Git 插件发布固定 `result` Artifact。批准本身、结果未知和决定送达未知均不提供确定结果；动作调用不派出、不批准、不核对收口。产物保留决定来源与独立核对来源，Artifact 保存时间不等于原执行时间。Git 只索引固定引用，SDK 继续拥有执行事实；Coding/Goal 消费与验收另由各自声明和流程负责。
+宿主动作 `projects.workspace.git.results`（只给插件，要 `workspace:read`）只投影当前获授权工作区的已确定 Git 审查结果，供 Git 插件发布固定 `result` Artifact。批准本身、结果未知和决定送达未知均不提供确定结果；动作调用不派出、不批准、不核对收口。产物保留决定来源与独立核对来源，Artifact 保存时间不等于原执行时间。Git 只索引固定引用，SDK 继续拥有执行事实；Coding/Goal 消费与验收另由各自声明和流程负责。

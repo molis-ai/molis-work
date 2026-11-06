@@ -37,7 +37,7 @@ async function startPlugin(host: LocalHost<unknown>, project: ReturnType<typeof 
   const modules = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const raw = host.client(project), contexts: PluginStartContext[] = [];
   const definition: PluginDefinition = {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.dependency", version: "1.0.0", name: "Dependency", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.dependency", version: "1.0.0", name: "Dependency", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [...consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
       ...(options.definitions ? { actions: options.definitions } : {}) },

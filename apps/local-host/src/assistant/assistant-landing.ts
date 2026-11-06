@@ -35,8 +35,7 @@ export function checkLanding(context: AssistantContextSnapshot): { landing?: Ass
 }
 
 /** The round's material for the landing, when its object is still the person's to use in the work's project. */
-export async function landingMaterials(ports: AssistantLandingPorts, projectId: string | null, context: AssistantContextSnapshot | null,
-  base: Omit<AgentTextMaterial, "text" | "material_id" | "title">): Promise<AgentTextMaterial[]> {
+export async function landingMaterials(ports: AssistantLandingPorts, projectId: string | null, context: AssistantContextSnapshot | null): Promise<AgentTextMaterial[]> {
   const landing = context?.landing;
   if (!landing || !projectId || !ports.readReferences) return [];
   const [owned] = await ports.readReferences(projectId, [{ kind: landing.object.kind, id: landing.object.id }]).catch(() => [null]);
@@ -46,5 +45,5 @@ export async function landingMaterials(ports: AssistantLandingPorts, projectId: 
     landing.selected ? `选中的文字：\n${landing.selected}` : "",
     landing.before ? `位置之前的原文：\n${landing.before}` : "",
     landing.after ? `位置之后的原文：\n${landing.after}` : ""].filter(Boolean);
-  return [{ ...base, material_id: "landing", title: "左边可以放进去的位置（页面报告，对象已由所有者确认）", text: lines.join("\n") }];
+  return [{ material_id: "landing", title: "左边可以放进去的位置（页面报告，对象已由所有者确认）", text: lines.join("\n") }];
 }

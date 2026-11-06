@@ -1,5 +1,5 @@
 // molis/no-empty-catch: a `catch` clause whose block holds no statement and no comment ("catch {}", "catch (error) { }").
-// It reports exactly what the earlier empty-catch counter reported (specs/repository-anti-corruption W1-04): a block with
+// It reports exactly what the earlier empty-catch counter reported (specs/archive/repository-anti-corruption W1-04): a block with
 // a comment is a decision somebody wrote down, a block with any statement handles the error, and a promise's
 // `.catch(() => {})` is a callback, not a catch clause. Biome's own noEmptyBlockStatements is not used for this because it
 // also reports every empty function, which is a different thing (481 sites against 4).

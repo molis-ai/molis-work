@@ -18,7 +18,7 @@ import { homeSqlitePath, resolveMolisWorkHome } from "@molis-ai/molis-work-stora
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// FI-4 step 4c-4 (S-97 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12): `services.sourcePull.connector` lets a
+// FI-4 step 4c-4 (S-97 provisional, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12): `services.sourcePull.connector` lets a
 // plugin pull an account source through the Home's integration registry. The account is the one the person bound to the plugin's `per_record`
 // slot for that record (S-71); the plugin never names a connection or a credential. RAC-1020 (what the Runtime refuses before the Host is
 // asked), RAC-1021 (a call that loses its authority), RAC-1022 (the Host's side: the binding, the registry, the receipt), RAC-1023 (through
@@ -29,7 +29,7 @@ const CONNECTOR = "sources:pull_connector", SECRET_VALUE = "fixture-token-value-
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
 const manifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "Connector source", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "Connector source", kind: "app",
   publisher: { publisher_id: "example", signature: "connector-source" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: [{ permission: CONNECTIONS, required: false, reason: "连接服务测试声明" }, { permission: CONNECTOR, required: false, reason: "账号来源测试声明" }],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
@@ -401,7 +401,7 @@ test("S-97 RAC-1023: through the platform, a plugin pulls with the person's bind
       scope: "project", kind: "operation", subject_kinds: [], audiences: ["user"], permissions, scheduling: "concurrent", input_schema: { type: "object", additionalProperties: false }, output_schema: {} } };
     const contexts: Array<{ services: PluginHostServices | undefined }> = [];
     let work: (services: PluginHostServices, caller: ActionExecutionContext) => Promise<unknown> = async () => null;
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name, version: "1.0.0", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name, version: "1.0.0", kind: "app",
       publisher: { publisher_id: "example", signature: `fixture-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: permissions.map(permission => ({ permission, required: true, reason: "Pull an account source" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [run],

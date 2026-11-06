@@ -1,14 +1,14 @@
 import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { connectorAccountControl, oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { CatalogLiveError, catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
+import { catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { ApiOAuthError, apiOAuthConnectionId, apiOAuthContext, readApiOAuthAccount, resolveApiOAuthToken } from "./connector-api-oauth.js";
 import type { OAuthNetwork } from "./connector-oauth-send.js";
-import { clearRefreshRefused, markRefreshRefused, tokenEndpointRefused } from "./connector-refresh-refusals.js";
-import { resolveUsableNotionToken } from "./notion-oauth.js";
+import { clearRefreshRefused, markRefreshRefused } from "./connector-refresh-refusals.js";
 import { replacedOAuthShape, REPLACED_OAUTH_NOTE } from "./connector-oauth-shape.js";
 import { feishuCliFetch, feishuCliMarker } from "./feishu-cli.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
@@ -24,6 +24,24 @@ function cliConnectionFetch(home: string, id: string): typeof fetch {
     await inspectCliConnection(home, id);
     return result;
   };
+}
+
+/** The service, not the connection, said no for now: a check that ends this way is remembered with when to look again. */
+export const connectorCheckErrors = defineErrorCodes("connector.check", { rate_limited: "rate_limited" });
+
+/** The longest wait a service's `Retry-After` is taken at: a far-off time from outside would leave "check again" unusable for that long. */
+const LONGEST_RETRY_WAIT_MS = 60 * 60 * 1000;
+
+/** The time a service gave to come back, no later than an hour from now; none when it is unreadable or already past. */
+export function boundedRetryAt(value: string | undefined, now = Date.now()): string | undefined {
+  const at = value === undefined ? Number.NaN : Date.parse(value);
+  return Number.isFinite(at) && at > now ? new Date(Math.min(at, now + LONGEST_RETRY_WAIT_MS)).toISOString() : undefined;
+}
+
+/** A failed identity or health read as the error a check remembers: a rate limit keeps the time the service gave, bounded. */
+function readFailure(result: { message: string; failure?: string; retryAfterAt?: string }): Error {
+  const retry_at = boundedRetryAt(result.retryAfterAt);
+  return result.failure === "rate_limited" ? connectorCheckErrors.rate_limited(result.message, retry_at ? { retry_at } : undefined) : new Error(result.message);
 }
 
 interface ApiConnectionAccess {
@@ -50,7 +68,7 @@ export async function resolveApiConnection(home: string, id: string, control: Co
   const refresh = forceRefresh !== false;
   // A refresh the token endpoint refuses marks the connection (`connector-refresh-refusals.ts`); a forced refresh that succeeds clears it.
   const refreshing = async <T>(run: () => Promise<T>, refusedBy: (error: unknown) => boolean): Promise<T> => {
-    try { const value = await run(); await control.beforeEffect(); current(); if (refresh) clearRefreshRefused(home, id); return value; }
+    try { const value = await run(); await control.beforeEffect(); current(); if (refresh) clearRefreshRefused(home, connection); return value; }
     catch (error) { await control.beforeEffect(); current(); if (refusedBy(error)) markRefreshRefused(home, connection); throw error; }
   };
   return runWithMolisWorkHome(home, async () => {
@@ -72,41 +90,11 @@ export async function resolveApiConnection(home: string, id: string, control: Co
         error => error instanceof ApiOAuthError && error.refused);
       return { connection, token, authExtras: apiOAuthContext(home, id), fetchImpl: undefined };
     }
-    if (connection.auth_method === "oauth" && connection.service_id === "notion" && connection.refresh_ref) {
-      const token = await refreshing(() => resolveUsableNotionToken(id, control, refresh),
-        error => error instanceof CatalogLiveError && error.kind === "needs_auth" && tokenEndpointRefused(error.status));
-      if (!token) throw new Error("Notion 连接需要重新授权");
-      return { connection, token, authExtras: undefined, fetchImpl: undefined };
-    }
     if (forceRefresh === "if_available") return null;
     const token = connection.credential_ref ? createFileSecretStore().get(connection.credential_ref) : null;
     if (!token) throw new Error("所选连接凭据缺失，请重新授权");
     return { connection, token, authExtras: undefined, fetchImpl: undefined };
   });
-}
-
-/** Local authorization facts for model consumers; no remote material or secret leaves this port. */
-export async function inspectSourceAuthorization(home: string, source: {
-  kind: string; sync_kind: string; status: string; enabled: boolean;
-  config: Record<string, unknown>; credential_ref: string | null;
-}): Promise<{ authorized: boolean; connection_id: string | null; revision: string | null; reason?: string }> {
-  const id = typeof source.config.connection_id === "string" ? source.config.connection_id : null;
-  const denied = (reason: string, revision: string | null = null) => ({ authorized: false, connection_id: id, revision, reason });
-  const lifecycle = source.config._molis_work_lifecycle as { deleted_at?: string } | undefined;
-  if (!source.enabled || source.status !== "active" || lifecycle?.deleted_at) return denied("来源已暂停、断开或移除");
-  if (["manual", "public_source"].includes(source.sync_kind)) return { authorized: true, connection_id: null, revision: null };
-  try {
-    const connection = id ? withConnectorConnections(home, store => store.require(id, source.kind)) : null;
-    if (connection) {
-      if (!connection.enabled || connection.disconnected_at) return denied("连接已断开", connection.updated_at);
-      if (connection.auth_method === "cli") await inspectCliConnection(home, connection.connection_id);
-      else await resolveApiConnection(home, connection.connection_id, connectorAccountControl(home, connection.connection_id), source.kind);
-      const latest = withConnectorConnections(home, store => store.require(connection.connection_id));
-      if (!latest.enabled || latest.disconnected_at || latest.updated_at !== connection.updated_at) return denied("检查期间连接已改变", latest.updated_at);
-      return { authorized: true, connection_id: connection.connection_id, revision: connection.updated_at };
-    }
-    return denied("来源缺少当前有效的账号连接");
-  } catch { return denied("账号需要重新授权或 CLI 当前账号已改变"); }
 }
 
 /** What a preview reads with the connection once its account is checked: the service's first page, if its reader has one. */
@@ -151,7 +139,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
       result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
       await control.beforeEffect(); control.current();
     }
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw readFailure(result);
     const verified = { ok: true, account: result.login, verified_account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, checked_at: new Date().toISOString() };
     if (!preview) return verified;
     return { ...verified, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead) };
@@ -159,7 +147,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
   if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、Images、Functions 或 Coding 设置中运行对应功能，验证目标服务");
   const provider = runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }));
   const health = await provider.health(control);
-  if (!health.ok) throw new Error(health.message);
+  if (!health.ok) throw readFailure(health);
   if (!preview) return { ...health, checked_at: new Date().toISOString() };
   return { ...health, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead), checked_at: new Date().toISOString() };
   });

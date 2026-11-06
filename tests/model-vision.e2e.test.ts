@@ -7,12 +7,17 @@ import { issueModel } from "./fixtures/issue-model.js";
 import { issueView } from "./fixtures/issue-browser.js";
 
 test("SYS-12 ISSUE-54 model settings preserve three image states and Issue uses the saved declaration", { timeout: 180_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  const { requests, namings } = await issueModel(t, b.homeDirectory);
-  await withMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory }, catalog => {
-    const provider = catalog.models.get("issue-fixture")!;
-    catalog.models.upsert({ ...provider, models: provider.models.map(({ vision: _vision, ...model }) => model) });
-  });
+  let modelFixture!: Awaited<ReturnType<typeof issueModel>>;
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => {
+      modelFixture = await issueModel(t, homeDirectory);
+      await withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+        const provider = catalog.models.get("issue-fixture")!;
+        catalog.models.upsert({ ...provider, models: provider.models.map(({ vision: _vision, ...model }) => model) });
+      });
+    },
+  }); if (!b) return;
+  const { requests, namings } = modelFixture;
   const v = await issueView(t, b, "model-vision");
   const settings = "/settings/models?provider=issue-fixture";
   const selected = "document.querySelector('[data-model-vision]')";

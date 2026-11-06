@@ -12,7 +12,7 @@ import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// PG-002 (specs/repository-anti-corruption/slices/pg002-plugin-permission-settings.md): the person's switch for one optional permission,
+// PG-002 (specs/archive/repository-anti-corruption/slices/pg002-plugin-permission-settings.md): the person's switch for one optional permission,
 // `PluginRuntime.regrant`. The grants change only while no activation holds the old ones, so a running plugin is stopped, given the new
 // grants and started again as one step; taking a permission away withdraws the live activation's authority at once and the new grants
 // are saved before anything is stopped. These tests drive the Runtime itself and, for the in-flight call, a real platform.
@@ -33,7 +33,7 @@ interface Probe { starts: string[][]; stops: number; failStart: boolean; failSto
 
 function build(version: string, permissions: PluginManifest["permissions"], probe: Probe, withAction = true): PluginDefinition {
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version, name: "Regrant fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version, name: "Regrant fixture", kind: "app",
     publisher: { publisher_id: "molis", signature: "regrant-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: withAction ? [USE_OPTIONAL] : [],
   };
@@ -49,6 +49,23 @@ function build(version: string, permissions: PluginManifest["permissions"], prob
 }
 
 const newProbe = (): Probe => ({ starts: [], stops: 0, failStart: false, failStop: false });
+
+test("RAC2865 a permission switch waiting behind an upgrade cannot grant against the previous saved declaration", async () => {
+  const probe = newProbe(), { runtime, installId } = await running(probe);
+  await runtime.regrant(installId, OPTIONAL.permission, false);
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+  const target = build("2.0.0", [REQUIRED, OPTIONAL, OTHER], probe, false);
+  target.manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
+  target.validateUpgrade = async () => { enter(); await gate; };
+  const upgraded = runtime.upgrade({ install_id: installId, definition: target });
+  await entered;
+  const refused = assert.rejects(runtime.regrant(installId, OPTIONAL.permission, true), { code: "plugin.definition_conflict" });
+  release(); await upgraded; await refused;
+  assert.equal(runtime.get(installId).version, "2.0.0");
+  assert.equal(runtime.get(installId).grants.includes(OPTIONAL.permission), false);
+  await runtime.stop(installId);
+});
 
 /** A running plugin of the Host's build in a bare Runtime, the way a switch finds it. */
 async function running(probe: Probe, permissions: PluginManifest["permissions"] = [REQUIRED, OPTIONAL, OTHER]) {

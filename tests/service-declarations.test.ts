@@ -11,14 +11,14 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 
-// specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P3: a plugin's model settings and image connections are
+// specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P3: a plugin's model settings and image connections are
 // declared in its Manifest (`model_configuration`, `image_generation`) and nowhere else.
 
 const MODEL = { preference: { store_name: "notes", file_name: "preferences.json" }, custom_provider: { provider_id: "notes-text", display_name: "Notes 模型" },
   actions: { read: { capability_id: "notes.model.settings", version: 1 }, save: { capability_id: "notes.model.configure", version: 1 } } };
 const IMAGES = { store_name: "notes", read_permission: "notes:read", write_permission: "notes:write", generate_permission: "notes:generate" };
 const manifest = (extra: Record<string, unknown>, permissions = ["storage:private", "model:invoke", "notes:read", "notes:write", "notes:generate"]) => ({
-  schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
+  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
   publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: permissions.map(permission => ({ permission, required: true, reason: "自己的设置" })),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, ...extra,

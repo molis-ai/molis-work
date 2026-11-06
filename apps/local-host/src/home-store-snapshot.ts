@@ -16,13 +16,17 @@ export const homeSnapshotErrors = defineErrorCodes("host.home_snapshot", {
   key_unavailable: "unavailable", published_unconfirmed: "internal",
 });
 
-export type SnapshotDisposition = { readonly kind: "keep" | "sealed" } | { readonly kind: "key"; readonly bytes?: number } | { readonly kind: "omit"; readonly reason: string };
+export type HomeRestoreDisposition = "replace" | "preserve" | "reset" | "owner";
+export type SnapshotDisposition = { readonly kind: "keep" | "sealed"; readonly restore?: "preserve" }
+  | { readonly kind: "key"; readonly bytes?: number } | { readonly kind: "omit"; readonly reason: string; readonly restore: Exclude<HomeRestoreDisposition, "replace"> };
 export interface SnapshotKeyDependency {
   readonly kind: "file-key" | "master-key";
   readonly location: string;
   readonly sha256: string;
 }
 export interface HomeStoreSnapshotPolicy {
+  readonly restore?: "replace" | "preserve" | "reset";
+  readonly restoreEntry?: (relativePath: string, incoming: boolean) => HomeRestoreDisposition;
   readonly omit?: string;
   readonly emptyOnly?: boolean;
   readonly entry?: (home: string, relativePath: string) => SnapshotDisposition;
@@ -40,8 +44,8 @@ export interface HomeSnapshotStoreRegistry extends HomeStoreRegistry<HomeSnapsho
 }
 
 export const ordinarySnapshot: HomeStoreSnapshotPolicy = {};
-export const omittedSnapshot = (reason: string): HomeStoreSnapshotPolicy => ({ omit: reason });
-export const excluded = (reason: string): SnapshotDisposition => ({ kind: "omit", reason });
+export const omittedSnapshot = (reason: string, restore: "preserve" | "reset"): HomeStoreSnapshotPolicy => ({ omit: reason, restore });
+export const excluded = (reason: string, restore: Exclude<HomeRestoreDisposition, "replace"> = "reset"): SnapshotDisposition => ({ kind: "omit", reason, restore });
 
 export const projectSnapshot: HomeStoreSnapshotPolicy = {
   database: file => {
@@ -65,8 +69,9 @@ export const alchemistSnapshot: HomeStoreSnapshotPolicy = {
 
 /** Current SDK paths, not SDK decryption: unknown leftovers cannot accidentally export a renamed original key. */
 function sdkEntry(file: string): SnapshotDisposition {
-  if (/^\.molis-runtime-owner\.db(?:-journal|-wal|-shm)?$/u.test(file)) return excluded("Storage ownership lock");
-  if (/^(?:leases|image-intake|logs)(?:\/|$)/u.test(file)) return excluded("Agent temporary state or logs");
+  if (/^\.molis-runtime-owner\.db(?:-journal|-wal|-shm)?$/u.test(file)) return excluded("Storage ownership lock", "preserve");
+  if (/^logs(?:\/|$)/u.test(file)) return excluded("Agent diagnostic logs", "preserve");
+  if (/^(?:leases|image-intake)(?:\/|$)/u.test(file)) return excluded("Agent temporary state");
   if (/^records\/[^/]+\/[^/]+\.json(?:\.cas|\.[0-9a-f]{12}\.tmp)$/u.test(file)) return excluded("Uncommitted SDK claim/temporary file");
   if (file === "storage.key") return { kind: "key", bytes: 32 };
   if (/^(?:records|checkpoints)$/u.test(file) || /^records\/[^/]+(?:\/[^/]+\.json)?$/u.test(file) || /^checkpoints\/[^/]+\.json$/u.test(file)) return { kind: "keep" };
@@ -94,7 +99,7 @@ export const builderSnapshot: HomeStoreSnapshotPolicy = {
 };
 
 export const feedSnapshot: HomeStoreSnapshotPolicy = {
-  entry: (_home, file) => /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("SecretStore mutex")
+  entry: (_home, file) => /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("SecretStore mutex", "preserve")
     : file === "secrets.key" ? { kind: "key" } : file === "secrets.json"
       || /^evidence(?:-recovered-v2)?(?:\/blobs(?:\/[0-9a-f]{2}(?:\/[0-9a-f]{64}\.blob)?)?)?$/u.test(file) ? { kind: "keep" } : unknown(file),
   validateFile: async (home, file) => {
@@ -128,21 +133,35 @@ function unknown(file: string): never { throw homeSnapshotErrors.unknown_data(`ç
 
 export const managedToolsSnapshot: HomeStoreSnapshotPolicy = {
   capture: captureConnectorPrivateState,
+  restoreEntry: (file, incoming) => {
+    if (!file || file === "connectors" || file === "connectors/installs") return "replace";
+    if (/^connectors\/runtimes(?:\/|$)/u.test(file)) return "preserve";
+    if (/^connectors\/cache(?:\/|$)/u.test(file)) return "reset";
+    const match = /^connectors\/installs\/([^/]+)(?:\/(.+))?$/u.exec(file);
+    if (!match) return unknown(file);
+    if (!match[2]) return "replace";
+    if (/^\.home(?:\/|$)/u.test(match[2])) return "owner";
+    if (/^\.tmp(?:\/|$)/u.test(match[2])) return "reset";
+    return match[2] === "installation.json" && incoming ? "replace" : "preserve";
+  },
   entry: (home, file) => {
     if (file === "connectors" || file === "connectors/installs") return { kind: "keep" };
-    if (/^connectors\/(?:runtimes|cache)(?:\/|$)/u.test(file)) return excluded("Reinstallable managed tool runtime/cache");
+    if (/^connectors\/runtimes(?:\/|$)/u.test(file)) return excluded("Original managed tool runtime", "preserve");
+    if (/^connectors\/cache(?:\/|$)/u.test(file)) return excluded("Reinstallable managed tool cache");
     const parts = /^connectors\/installs\/([^/]+)(?:\/(.+))?$/u.exec(file);
     if (!parts) return unknown(file);
     if (!parts[2]) return { kind: "keep" };
     const inside = parts[2];
-    if (/^\.home(?:\/|$)/u.test(inside)) return excluded("Captured by connector-private-state owner as sealed payload");
-    if (/^(?:node_modules|\.venv|\.tmp|release)(?:\/|$)/u.test(inside)) return excluded("Reinstallable managed package or temporary state");
-    if (/^(?:installation\.json|package\.json|package-lock\.json|requirements\.lock|user\.npmrc|global\.npmrc)$/u.test(inside)) return { kind: "keep" };
+    if (/^\.home(?:\/|$)/u.test(inside)) return excluded("Captured by connector-private-state owner as sealed payload", "owner");
+    if (/^\.tmp(?:\/|$)/u.test(inside)) return excluded("Managed package temporary state");
+    if (/^(?:node_modules|\.venv|release)(?:\/|$)/u.test(inside)) return excluded("Original managed package", "preserve");
+    if (inside === "installation.json") return { kind: "keep" };
+    if (/^(?:package\.json|package-lock\.json|requirements\.lock|user\.npmrc|global\.npmrc)$/u.test(inside)) return { kind: "keep", restore: "preserve" };
     // Whatever is wrong with the record, the snapshot's answer is the same: this file cannot be classified.
     let installation: ReturnType<typeof readManagedConnectorTool>;
     try { installation = readManagedConnectorTool(home, parts[1]!); }
     catch { return unknown(file); }
-    if (relative(join(home, "runtime"), installation.executable).split("\\").join("/") === file) return excluded("Reinstallable native executable");
+    if (relative(join(home, "runtime"), installation.executable).split("\\").join("/") === file) return excluded("Original native executable", "preserve");
     return unknown(file);
   },
 };

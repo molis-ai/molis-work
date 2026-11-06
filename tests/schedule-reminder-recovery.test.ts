@@ -110,7 +110,7 @@ test("reminder recovery through Host and HTTP uses current authorization and can
   const mine = await setBeforeReinstall(f.db, f.sdk, f.person, at), foreign = await setBeforeReinstall(other.db, other.sdk, other.person, at);
   const input = confirmation(await f.view(mine.job.job_id));
   await assert.rejects(f.client.invoke({ ...f.caller, project_id: "elsewhere" }, scheduleActions.recoverReminder, input), { code: "actions.scope_mismatch" });
-  await assert.rejects(f.sdk.invoke(scheduleActions.recoverReminder, input), { code: "actions.forbidden" });
+  await assert.rejects(f.sdk.invoke(scheduleActions.recoverReminder, input), { code: "plugin.grant_denied" });
   await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["schedule:read"] }, scheduleActions.recoverReminder, input), { code: "actions.forbidden" });
   await assert.rejects(f.client.invoke({ ...f.caller, validate_authority() { throw new Error("authority-revoked"); } }, scheduleActions.recoverReminder, input), /authority-revoked/);
   await assert.rejects(other.person.invoke(scheduleActions.recoverReminder, { ...input, job_id: foreign.job.job_id }), /安装已变更/);

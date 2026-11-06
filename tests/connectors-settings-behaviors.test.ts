@@ -28,7 +28,7 @@ import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connec
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home")).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home"));
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TOKEN = "ghp_liveTokenABCD";
@@ -92,14 +92,14 @@ async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): 
   }
 }
 
-function agentBehaviorIds(catalog: ReturnType<typeof liveHostJudgmentRuleAuthoringCatalog>): readonly string[] {
-  return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
+function agentOptionIds(catalog: ReturnType<typeof liveHostJudgmentRuleAuthoringCatalog>): readonly string[] {
+  return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.option_ids ?? [];
 }
 
-test("GitHub Integration Manifest is schema 2; its account check is the connector action", () => {
+test("GitHub Integration Manifest is schema 1; its account check is the connector action", () => {
   const parsed = parsePluginManifest(githubIntegrationManifest);
-  assert.equal(parsed.schema_version, 2);
-  assert.equal(parsed.host_api_version, 2);
+  assert.equal(parsed.schema_version, 1);
+  assert.equal(parsed.host_api_version, 1);
   assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
 });
 
@@ -124,7 +124,7 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
     assert.ok(row.capabilities.every((item) => item.label.length > 0), row.connector_id);
     assert.ok(row.capabilities.some((item) => item.fulfillment === "live"), row.connector_id);
     if (!["model-api", "typesafe", "image-api", "mcp-bearer", "github", "gmail"].includes(row.connector_id)) {
-      assert.equal(row.auth_kind, row.connector_id === "loom" ? "none" : row.connector_id === "notion" || row.connector_id === "feishu" ? row.connector_id : "token", row.connector_id);
+      assert.equal(row.auth_kind, row.connector_id === "loom" ? "none" : row.connector_id === "notion" ? "oauth" : row.connector_id === "feishu" ? "feishu" : "token", row.connector_id);
       assert.equal(existsSync(join(ROOT, "..", "plugins", "official-integrations", row.connector_id)), false, row.connector_id);
     }
   }
@@ -144,7 +144,7 @@ test("Connectors settings cards distinguish account states and never echo the se
         connector_id: "github",
         title: "GitHub",
         availability: "live",
-        auth_kind: "github",
+        auth_kind: "oauth",
         group_id: "code",
         summary: "本机账号。Feed 拉未读通知，Functions 可勾已兑现动作。",
         outbound_note: "已兑现动作：查看当前 GitHub 账号（github.whoami）。判断只挑，不会自动调用。",
@@ -157,7 +157,7 @@ test("Connectors settings cards distinguish account states and never echo the se
         connector_id: "gmail",
         title: "Gmail",
         availability: "live",
-        auth_kind: "gmail",
+        auth_kind: "oauth",
         group_id: "mail",
         summary: "本机账号。Feed 只读收信。",
         outbound_note: "出站动作未兑现：当前只读收信，不发送邮件。",
@@ -353,7 +353,7 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
   // RING-05: the saved credentials retain their original claim beside the shared mark.
   assert.match(html, /data-connection-state data-mw-state="saved">已保存/);
   assert.match(html, /data-protocol-start="oauth"/);
-  assert.doesNotMatch(html, /data-account-login="gmail"/, "Gmail signs in through the generic flow, not a dedicated login");
+  assert.doesNotMatch(html, /data-device-login/, "Gmail signs in through the web flow, not a device code");
   assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
   assert.match(html, /data-connection-manage="disable"/);
   assert.match(html, /data-connection-manage="remove"/);
@@ -453,11 +453,11 @@ test("GitHub whoami is the fulfilled GET /user action", async () => {
 
 test("a saved connection does not invent Agent capabilities absent from the action directory", async () => {
   await withIsolatedHome(async (homeDirectory) => {
-    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().options, []);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
-    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().options, [], "credentials alone are not action registration or authorization");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().options, []);
   });
 });
 
@@ -503,11 +503,11 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       assert.match(mcp, /data-settings-section="mcp"/);
       assert.doesNotMatch(mcpDocument, /data-connectors-settings|data-connector-token/);
       const emptyCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
-        catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
+        catalog: { destinations: Array<{ destination_id: string; option_ids: string[] }>; options: Array<{ option_id: string }> };
       };
       assert.equal(
         emptyCatalog.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes("github.whoami"),
+          ?.option_ids.includes("github.whoami"),
         false,
       );
       const created = await fetch(`${origin}/api/settings/connectors/connections`, {
@@ -516,34 +516,37 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
         body: JSON.stringify({ service_id: "github", display_name: "工作 GitHub", token: TOKEN }),
       });
       assert.equal(created.status, 201);
-      const createdBody = await created.json() as { connection: { connection_id: string; state: string } };
+      const createdBody = await created.json() as { connection: { connection_id: string; state: string }; verification?: { available: boolean } };
       assert.equal(JSON.stringify(createdBody).includes(TOKEN), false);
       assert.equal(createdBody.connection.state, "connected");
+      // ASC-45 PF-A04: a saved key is checked once right away, so the page shows it works without another click.
+      assert.equal(createdBody.verification?.available, true);
+      assert.deepEqual(githubCalls, ["https://api.github.com/user"], "the save's own check is one read of the account");
       const connectionId = createdBody.connection.connection_id;
       const connectedPage = await (await fetch(`${origin}/settings/connectors`)).text();
       assert.match(connectedPage, /工作 GitHub/);
       assert.doesNotMatch(connectedPage, new RegExp(TOKEN));
       assert.match(connectedPage, new RegExp(`data-connection-row="${connectionId}"`));
       const liveCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
-        catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
+        catalog: { destinations: Array<{ destination_id: string; option_ids: string[] }>; options: Array<{ option_id: string }> };
       };
-      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
+      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.option_ids.includes("github.whoami"), false,
         "the account check is the registered connector action, not a catalog behavior");
       assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
       assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId, connectorControl()),
         { connection_id: connectionId, service_id: "github", login: "octocat", scopes: ["notifications"] });
-      assert.deepEqual(githubCalls, ["https://api.github.com/user"]);
+      assert.deepEqual(githubCalls, ["https://api.github.com/user", "https://api.github.com/user"], "the account read is one more request, nothing else");
       const disconnected = await fetch(`${origin}/api/settings/connectors/connections/${connectionId}`, {
         method: "DELETE",
         headers: headers(),
       });
       assert.equal(disconnected.status, 200);
       const after = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
-        catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }> };
+        catalog: { destinations: Array<{ destination_id: string; option_ids: string[] }> };
       };
       assert.equal(
         after.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes("github.whoami"),
+          ?.option_ids.includes("github.whoami"),
         false,
       );
     } finally {
@@ -593,11 +596,11 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
   if (result.ok) assert.equal(result.login, "molis");
   assert.deepEqual(urls, ["https://slack.com/api/auth.test"]);
   await withIsolatedHome(async (homeDirectory) => {
-    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentOptionIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "slack", displayName: "Slack", token: "xoxb-liveTokenABCD" }));
-    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
+    assert.equal(agentOptionIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentOptionIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
   });
 });
 

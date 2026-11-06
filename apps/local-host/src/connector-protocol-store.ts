@@ -22,7 +22,7 @@ export function connectorProtocolSecrets(home: string, sessionId: string) {
     delete: (name: string) => runWithMolisWorkHome(home, () => createFileSecretStore().delete(reference(name))),
     clear: () => runWithMolisWorkHome(home, () => {
       const store = createFileSecretStore();
-      for (const name of ["access", "oauth", "expires", "client", "verifier", "environment"]) store.delete(reference(name));
+      for (const name of ["access", "oauth", "expires", "client", "verifier", "environment", "device"]) store.delete(reference(name));
     }),
   };
 }

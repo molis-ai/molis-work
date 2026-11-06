@@ -1,0 +1,102 @@
+/*
+ * 风险插件原型的版式。控件、卡片、提示、状态、人像、进展列表都是组件板的 mw-*（dist/board.css），这里只排位置。
+ * 只用组件板的令牌：--paper / --surface-soft / --line / --line-strong / --ink / --ink-soft / --muted / --tone-* / --r-* / --dur-* / --ease-*。
+ * 标「组件板新增」的两处（影响 × 可能性小格、提示里的按钮）在 README 里写了理由，交 D 轨补标本。
+ */
+.rk-frame { min-width: 0; }
+.rk-frame .mw-frame__panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.rk-frame .mw-items { width: 100%; grid-template-columns: minmax(0, 1fr); }
+.rk-wide { max-width: 1120px; }
+.rk-back { padding: 16px 32px 0; }
+
+.rk-h { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: var(--weight-control, 560); color: var(--ink-soft); }
+.rk-sub { margin: 8px 0 0; font-size: 12px; font-weight: var(--weight-control, 560); color: var(--muted); }
+.rk-sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.rk-sec__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.rk-prose { margin: 0; font-size: 14px; line-height: 1.65; color: var(--ink); white-space: pre-line; max-width: 64ch; }
+.rk-muted { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.rk-muted svg { width: 14px; height: 14px; flex: none; }
+.rk-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rk-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rk-actions--end { justify-content: flex-end; }
+.rk-count { margin-inline-start: 4px; font-size: 12px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rk-kv { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.rk-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rk-pair .mw-preview-card p { white-space: pre-line; }
+
+/* 组件板新增 · 提示里的按钮 */
+.rk-alert-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.mw-alert > p + .rk-alert-actions { margin-top: 0; }
+
+/* 组件板新增 · 影响 × 可能性小格：3 × 3，亮的那一格按严重程度着色（--tone-blocked / --tone-attention / --tone-quiet） */
+.rk-mm { display: inline-grid; grid-template-columns: repeat(3, 5px); gap: 2px; flex: none; }
+.rk-mm i { width: 5px; height: 5px; border-radius: 1.5px; background: var(--line-strong); opacity: .55; }
+.rk-mm i[data-on] { opacity: 1; }
+.rk-mm i[data-on="hi"] { background: var(--tone-blocked); }
+.rk-mm i[data-on="mid"] { background: var(--tone-attention); }
+.rk-mm i[data-on="lo"] { background: var(--tone-quiet); }
+.rk-mm--big { grid-template-columns: repeat(3, 12px); gap: 3px; }
+.rk-mm--big i { width: 12px; height: 12px; border-radius: 3px; }
+
+/* 弹出层：菜单与安排复查 */
+.rk-anchor { position: relative; display: inline-flex; }
+.rk-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; min-width: 220px; animation: rk-arrive var(--dur-move) var(--ease-quint); }
+.rk-pop--form { width: min(340px, calc(100vw - 32px)); display: grid; gap: 10px; }
+.rk-side .rk-pop { left: auto; right: 0; }
+.rk-label { font-size: 12px; color: var(--muted); }
+.rk-status-btn { gap: 4px; }
+@keyframes rk-arrive { from { opacity: 0; transform: translateY(4px); } }
+
+/* 总览：筛选与按状态分组 */
+.rk-filters { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+.rk-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.rk-filter .mw-select { width: auto; }
+.rk-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.rk-frame .mw-item[role="button"] { cursor: pointer; }
+.rk-frame .mw-item[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rk-due { display: inline-flex; align-items: center; gap: 4px; }
+.rk-due svg { width: 14px; height: 14px; }
+.rk-closed .mw-collapsible__body { padding-top: 8px; }
+
+/* 记录 B：左读正文，右边要点 */
+.rk-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 32px; align-items: start; }
+.rk-col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-width: 0; }
+.rk-dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 16px; align-items: center; font-size: 13px; }
+.rk-dl dt { color: var(--muted); font-size: 12px; }
+.rk-dl dd { margin: 0; min-width: 0; }
+.rk-mmrow { display: flex; align-items: center; gap: 12px; }
+.rk-mmrow > span { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.rk-log { margin: 0; }
+
+/* 记录 C、复查：主区与右侧并排 */
+.rk-peek { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 440px); gap: 16px; max-width: 1280px; margin: 0 auto; align-items: start; }
+.rk-peek > .proto-sheet { max-width: none; margin: 0; }
+.rk-dim .mw-frame__panel { opacity: .72; }
+.rk-frame--side .mw-frame__header, .rk-frame--side .mw-frame__panel { padding-inline: 20px; }
+.rk-chead { display: flex; align-items: center; gap: 10px; }
+.rk-reqs { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; color: var(--ink); }
+
+/* 简报里的风险段（Work Brief 的） */
+.rk-brief { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.rk-brief > li { display: grid; gap: 6px; }
+.rk-potential { display: grid; gap: 8px; justify-items: start; padding: 12px; border-radius: var(--r-card); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.rk-stub { padding: 12px; border-radius: var(--r-card); background: var(--surface-soft); }
+.rk-note { margin-top: 6px; }
+
+/* 新建 */
+.rk-form { display: grid; gap: 16px; }
+.rk-form__row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+
+@media (max-width: 900px) {
+  .rk-two, .rk-peek { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .rk-frame .mw-frame__header, .rk-frame .mw-frame__panel { padding-inline: 16px; }
+  .rk-back { padding-inline: 16px; }
+  .rk-pair { grid-template-columns: 1fr; }
+}
+
+/* 风险标题当链接按钮用时（简报、引用）：长标题照常折行，不出界 */
+.rk-line > .mw-btn--link { white-space: normal; text-align: start; height: auto; min-width: 0; max-width: 100%; }
+.rk-filter { max-width: 100%; min-width: 0; }
+.rk-filter .mw-select { min-width: 0; max-width: 100%; text-overflow: ellipsis; }

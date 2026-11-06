@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID, goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchLocale, inWordsOf } from "@molis-ai/molis-work-app-workbench";
@@ -41,7 +41,7 @@ const PROBE: ActionDefinition<Record<string, never>, null> = { capability_id: "g
 /** A plugin that holds Goals' read and write permissions and declares the acknowledge action, started by the Host like any other. */
 function goalsPlugin() {
   const contexts: PluginStartContext[] = [];
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.goals-ack", version: "1.0.0",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.goals-ack", version: "1.0.0",
     name: "Goals ack", kind: "app", publisher: { publisher_id: "example", signature: "goals-ack" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["goals:read", "goals:write"].map(permission => ({ permission, required: true, reason: "读写目标" })),
     capabilities: { provides: [], consumes: [PROBE.capability_id, ack] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
@@ -83,26 +83,32 @@ async function hostRig(label: string, plugin?: ReturnType<typeof goalsPlugin>) {
     assert.equal(issued.plugin_id, plugin.definition.manifest.plugin_id, "the caller is the one the Host issued that plugin");
     return { actor_id: issued.actor_id, actor_kind: "user", project_id, audience: "plugin", permissions, plugin_install_id: issued.install_id, host_plugin: issued };
   };
-  return { home, project_id, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input, pluginCaller,
+  const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+  return { home, project_id, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input, pluginCaller, withCatalog: withHostCatalog,
     close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 async function mcpRig(runtimeId: string, stable: string | null) {
   const directory = await mkdtemp(join(tmpdir(), "goals-ack-mcp-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  // T405-OWNER-CI-01: finish the offline seed before the real Host takes the Home owner.
+  const project = await withCatalog({ homeDirectory }, catalog => catalog.createProject({ display_name: "Ack MCP", actor_id: "user" }));
   const host = createMolisWorkLocalHost({ homeDirectory });
-  const project = await catalog.createProject({ display_name: "Ack MCP", actor_id: "user" });
-  // The rig's Host is the Home's: the grants go through the access settings it serves.
-  const served = await serveTestHost(null, { home: homeDirectory, host });
-  await grantGoalsMcp({ web: served.web }, project, `runtime:${runtimeId}`);
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const actions = host.actionClient(ref), project_id = project.project_id, person = managementGoals(actions, project_id);
-  const mcp = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project_id, webBaseUrl: "http://127.0.0.1:4173" },
-    { homeDirectory, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: stable, host_declares_stable: stable !== null } }, host);
-  const call = async (id: string, input: object) => JSON.parse(await mcp.callTool(TOOL(id), input));
-  return { mcp, call, host, actions, person, project_id,
-    close: async () => { await mcp.close(); await served.close(); await host.close(); catalog.close(); await rm(directory, { recursive: true, force: true }); } };
+  // T405-OWNER-CI-02: failed setup must close every transport already started.
+  let served: Awaited<ReturnType<typeof serveTestHost>> | undefined, mcp: MolisWorkServer | undefined;
+  const close = async () => { await mcp?.close(); await served?.close(); await host.close(); await rm(directory, { recursive: true, force: true }); };
+  try {
+    // The rig's Host is the Home's: the grants go through the access settings it serves.
+    served = await serveTestHost(null, { home: homeDirectory, host });
+    await grantGoalsMcp({ web: served.web }, project, `runtime:${runtimeId}`);
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+    const actions = host.actionClient(ref), project_id = project.project_id, person = managementGoals(actions, project_id);
+    const running = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project_id, webBaseUrl: "http://127.0.0.1:4173" },
+      { homeDirectory, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: stable, host_declares_stable: stable !== null } }, host);
+    mcp = running;
+    const call = async (id: string, input: object) => JSON.parse(await running.callTool(TOOL(id), input));
+    return { mcp: running, call, host, actions, person, project_id, close };
+  } catch (error) { await close(); throw error; }
 }
 
 test("RCPT-376: a stable-session MCP caller says how it will treat the person's note: one system record under the session, the note it answers, replayed by key", { timeout: 120_000 }, async () => {
@@ -111,13 +117,13 @@ test("RCPT-376: a stable-session MCP caller says how it will treat the person's 
     const goal_id = "ACK-MCP";
     const note = await r.person.invoke(goalsActions.create, { goal_id, title: "接口先行", outcome: "先交付接口", idempotency_key: "create" })
       .then(() => r.person.invoke(goalsActions.note, { goal_id, body: NOTE, idempotency_key: "note" }));
-    // RCPT-383: the strict output union changed, so only @2 is offered; the old pinned tools cannot silently receive it.
+    // RCPT-383: the strict output union is offered only at @1; the old pinned tools cannot silently receive it.
     const catalog = await r.mcp.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) as { result: { tools: Array<{ name: string }> } };
     const names = catalog.result.tools.map(tool => tool.name);
     for (const id of ["goals.events.list", "goals.events.latest", "goals.events.read"]) {
-      assert.ok(names.includes(`molis_work_v1_action_${id}__v2`));
-      assert.ok(!names.includes(`molis_work_v1_action_${id}__v1`));
-      await assert.rejects(r.mcp.callTool(`molis_work_v1_action_${id}__v1`, { goal_id, event_id: note.event_id }), { code: "mcp.tool_unknown" });
+      assert.ok(names.includes(`molis_work_v1_action_${id}__v1`));
+      assert.ok(!names.includes(`molis_work_v1_action_${id}__v2`));
+      await assert.rejects(r.mcp.callTool(`molis_work_v1_action_${id}__v2`, { goal_id, event_id: note.event_id }), { code: "mcp.tool_unknown" });
     }
     const noted = await r.call("goals.events.read", { goal_id, event_id: note.event_id }) as GoalWorkEventRecord;
     const input = { goal_id, event_id: note.event_id, treatment: "later-step", note: SAID, read_cursor: note.observed_event_cursor, idempotency_key: "ack-1" };
@@ -140,7 +146,7 @@ test("RCPT-376: a stable-session MCP caller says how it will treat the person's 
     assert.deepEqual(await r.call("goals.events.acknowledge", input), { ...said, replayed: true });
     await assert.rejects(r.call("goals.events.acknowledge", { ...input, treatment: "noted" }), { code: "goals.request.idempotency_key_reused" });
 
-    // All three @2 reads accept the new strict system payload: the lists, the latest page and one record.
+    // All three @1 reads accept the new strict system payload: the lists, the latest page and one record.
     const listed = await r.call("goals.events.list", { goal_id }), latest = await r.call("goals.events.latest", { goal_id });
     for (const page of [listed, latest]) {
       assert.equal((page.events as GoalWorkEventRecord[]).filter(event => operationOf(event) === "input_acknowledged").length, 1);
@@ -202,7 +208,7 @@ test("RCPT-377/378: only a note, a requirement or the person's decision is answe
     for (const [index, event_id] of wrongKind.entries()) await refusal("goals.event_acknowledgement.reference_kind", () => say(goal_id, event_id, cursor, `kind-${index}`), `kind ${index}`);
     await refusal("goals.event_acknowledgement.reference_missing", () => say(goal_id, "gevt-no-such-record", cursor, "missing"), "an unknown record");
     await refusal("goals.event_acknowledgement.reference_missing", () => say(goal_id, foreign.event_id, cursor, "foreign-goal"), "a record of another Goal");
-    const project2 = await withCatalog({ homeDirectory: r.home }, c => c.createProject({ display_name: "Other", actor_id: "user" }));
+    const project2 = await r.withCatalog({ homeDirectory: r.home }, c => c.createProject({ display_name: "Other", actor_id: "user" }));
     const ref2 = molisWorkHostProjectReference({ projectId: project2.project_id, databasePath: project2.database_path });
     const otherPerson = managementGoals(r.host.actionClient(ref2), project2.project_id);
     await otherPerson.invoke(goalsActions.create, { goal_id, title: "另一个项目里同名的目标", outcome: "x", idempotency_key: "create-2" });
@@ -356,8 +362,8 @@ test("RCPT-382: the timeline says which session read what, how it will be handle
 
 // RCPT-383: the callable contract is written down in tooling/gates/actions (the action-contract snapshot, which tests/action-contract-snapshot
 // checks against the Manifests): the new action is one row at @1 that only an Agent or an MCP session may call, and the three event reads
-// are registered only at @2 for the expanded strict system payload (docs/system/CONTRACT-CHANGES.md).
-test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for agent and mcp only, and the event reads only at @2", async () => {
+// are registered only at @1 for the expanded strict system payload (docs/system/CONTRACT-CHANGES.md).
+test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for agent and mcp only, and the event reads only at @1", async () => {
   const text = await readFile(new URL("../tooling/gates/actions/actions.tsv", import.meta.url), "utf8");
   const header = text.split("\n").find(line => line.startsWith("capability_id\t"))!.split("\t");
   const rows = text.split("\n").filter(line => line && !line.startsWith("#") && !line.startsWith("capability_id\t")).map(line => {
@@ -375,7 +381,7 @@ test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for a
   assert.equal(row!.permissions, "goals:write");
   for (const id of ["goals.events.list", "goals.events.latest", "goals.events.read"]) {
     const reads = of(id);
-    assert.deepEqual(reads.map(read => read.version), ["2"], `${id} is registered only at @2`);
+    assert.deepEqual(reads.map(read => read.version), ["1"], `${id} is registered only at @1`);
     assert.equal(reads[0]!.audiences, "agent,mcp,user,workflow");
   }
 });

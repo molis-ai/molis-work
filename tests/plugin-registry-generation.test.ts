@@ -13,7 +13,7 @@ import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 import { assemblyMetrics } from "../scripts/gates/assembly.mjs";
 import { projectRuntimePackages } from "../scripts/gates/home-runtime-entries.mjs";
 
-// W5-02 (specs/repository-anti-corruption/privileges.md PG-065): each built-in plugin writes its catalog entry in its own
+// W5-02 (specs/archive/repository-anti-corruption/privileges.md PG-065): each built-in plugin writes its catalog entry in its own
 // src/registration.ts, and scripts/generate-plugin-registry.mjs writes apps/workbench/src/builtin-plugins.ts (the shell's
 // resources) and apps/local-host/src/plugin-registry.generated.ts (the platform's list, W5-02 PR-B) from them. These tests drive
 // the generator's pure functions on the repository's own tree with one file changed at a time, and the built catalog's validator

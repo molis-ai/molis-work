@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { hostQuestionTypes, hostReferenceKinds, MolisWorkLocalHost, molisWorkHostProjectReference, projectReferenceKinds, referenceKindsPort } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AgentReviewQueue, boundReferenceKinds, createPrologueNodeAdapter, type ReferenceKindCandidate } from "@molis-ai/molis-work-service-agent-host";
@@ -94,6 +94,7 @@ test("PRR-13 a Runtime built-in plugin is recognized by its provider id, not by 
 test("S-32 another project's plugin is not in this project's round, and only the local person's rounds list a project's kinds", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "reference-kinds-projects-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   try {
     const a = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "A", actor_id: "user" }));
     const b = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "B", actor_id: "user" }));

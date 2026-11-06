@@ -6,10 +6,12 @@ import { issueModel } from "./fixtures/issue-model.js";
 // ISSUE-29: the chooser's next work belongs to the selected project (or to the person),
 // and its HTTP route must give the Host that same trusted context.
 test("the chooser sends from the selected project and switches back to personal work", { timeout: 90_000 }, async t => {
-  const browser = await openGoalBrowser(t, "user");
+  let model!: Awaited<ReturnType<typeof issueModel>>;
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await issueModel(t, homeDirectory, { replyText: "已收到本轮查询。" }); },
+  });
   if (!browser) return;
-  const { homeDirectory, projectId, origin, command, sessionId, navigate, evaluate, waitFor, click } = browser;
-  const model = await issueModel(t, homeDirectory, { replyText: "已收到本轮查询。" });
+  const { projectId, origin, command, sessionId, navigate, evaluate, waitFor, click } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);

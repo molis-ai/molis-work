@@ -9,7 +9,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
 
-// specs/plugin-project-database: a plugin declares its tables in a project's library in its Manifest; the platform tries the
+// specs/archive/plugin-project-database: a plugin declares its tables in a project's library in its Manifest; the platform tries the
 // statements on an empty database, makes them the first time the plugin opens and records them in one ledger. The Host does not
 // call this yet (L1b), so these run on an in-memory library: the ledger, a stand-in for the project's root row, and one table of
 // someone else's.
@@ -138,7 +138,7 @@ test("PLIB-03 tried on the scratch database, a declaration may make only its own
 
 test("PLIB-03 RAC-300 the Manifest's databases declare a project library and a Home library, each with a store name, a positive version, statements and declared permissions; only the Home one may be partitioned by project", () => {
   const manifest = (databases: unknown) => ({
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
     publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "把笔记存进项目库里自己的表" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

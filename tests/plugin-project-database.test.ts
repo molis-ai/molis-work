@@ -63,7 +63,7 @@ function probe(options: ProbeOptions = {}) {
       input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "number" } } };
   const started: Array<PluginHostServices | undefined> = [];
   const preflight: Array<PluginUpgradeContext["services"]> = [];
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: idOf(name), version, name: idOf(name), kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: idOf(name), version, name: idOf(name), kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [note, count],
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
@@ -221,7 +221,7 @@ test("a start list that declares a library wrongly does not start at all, and no
     assert.equal(homeStores().get("unlisted"), undefined);
     await refuse("not registered", [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: "unlisted" }), trust: { level: "host" } }], /没有登记/);
     await refuse("another baseline", [{ definition: withLibrary(probe().definition, { ...DECLARATION, version: 2 }), trust: { level: "host" } }], /基线不同/);
-    // PART-02 (specs/plugin-project-partition): a project's plugin keeps its data in the project already; only a Home plugin's library is split by project.
+    // PART-02 (specs/archive/plugin-project-partition): a project's plugin keeps its data in the project already; only a Home plugin's library is split by project.
     await refuse("partitioned", [{ definition: withLibrary(probe().definition, { ...DECLARATION, partition: "project" } as PluginDatabaseDeclaration), trust: { level: "host" } }], /Home 级插件/);
     for (const name of ["Dataset", "../data", "a/b", ""]) {
       await refuse(`name ${JSON.stringify(name)}`, [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: name }), trust: { level: "host" } }], /库名|目录名/);

@@ -1,4 +1,4 @@
-// W6-02 rest (specs/repository-anti-corruption/slices/w6-02-lifecycle-rest.md; RAC-1200, RAC-1201): the lifecycle walk of
+// W6-02 rest (specs/archive/repository-anti-corruption/slices/w6-02-lifecycle-rest.md; RAC-1200, RAC-1201): the lifecycle walk of
 // tests/fixtures/shipped-lifecycle.ts, for the two plugins the C line moved onto Plugin Runtime (BL-805): Feed and Inbox, each on a
 // project's supervisor. Feed's project half keeps the sources the person registers; a source made through Feed's own route is read
 // back from its snapshot through removal from the project and adding back, a revoked required permission and its return, and an

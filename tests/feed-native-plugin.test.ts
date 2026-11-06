@@ -1,4 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -6,15 +6,24 @@ import {
   FEED_STYLES,
   FEED_UI_CONTRIBUTION_ID,
   createFeedRouteHandlers,
+  createFeedQueryHandlers,
+  feedQueryActions,
   feedManifest,
   feedUiContribution,
+  buildFeedStageUiModel,
   type FeedPluginRouteHandler,
   type FeedUiModel,
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { FEED_SAVE_OPTION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
-import { createWorkbenchFeedProjectionRenderer, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 
 const primitives: FeedUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -521,10 +530,10 @@ test("Feed draws only what its model holds: an inbox-bound entry keeps the stage
 });
 
 test("A demo project whose Feed holds nothing is given no invented sources or messages (E-3)", () => {
-  const { buildFeedNativePluginModel } = createWorkbenchFeedProjectionRenderer({ L: text => text, dateTimeLocale: () => "zh-CN" });
-  const view = { route_prefix: "/projects/demo", demo: true, snapshot: { board: { project_id: "demo" } },
-    feed: { feed_items: [], sources: [], runs: [], out_rules: [] } } as Partial<MolisWorkWebView> as MolisWorkWebView;
-  const built = buildFeedNativePluginModel(view, "feed");
+  const built = buildFeedStageUiModel({ route_prefix: "/projects/demo", shown_plugins: ["feed"], primitives,
+    context: { project: { project_id: "demo", display_name: "Demo" }, demo: true, cli_availability: {} },
+    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [] }, inbox_entries: [], source_catalog: [], source_presentations: {},
+      connector_auth: { github: { bound: false }, gmail: { bound: false } } } });
   assert.deepEqual(built.entries, []);
   assert.deepEqual(built.sources, []);
   assert.equal("demo" in built, false, "the model has no demo flag for the plugin to draw a prototype from");
@@ -601,4 +610,53 @@ test("Feed's Manifest declares exactly the routes Feed answers, matched under it
   assert.equal(match("GET", "/api/feed/out-rules"), null, "the Host's retired edge is not Feed's");
   assert.equal(match("GET", "/api/plugins/io.molis.work.feed/out-rules")?.route_id, "feed.out-rules.list");
   assert.equal(match("GET", "/api/plugins/io.molis.work.feed/workbench"), null);
+});
+
+
+test("RAC-2507 RAC-2512 Feed stage and reader keep instance data, current suggestions and independent action availability", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "feed-owner-stage-")), databasePath = join(directory, "project.db"), projectId = "feed-stage-project";
+  seedDemoBoard(databasePath, projectId);
+  const database = new LocalProjectDatabase(databasePath);
+  t.after(() => { database.close(); rmSync(directory, { recursive: true, force: true }); });
+  const feed = createLocalFeedApplication(database.db);
+  const source = createLocalFeedSourceService(database.db, projectId).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "owner-stage" }).source;
+  const item = feed.ingestItem({ source, externalId: "reader", title: "Owner stage item", summary: "Owner summary", body: "Exact owner body", occurredAt: "2026-11-01T00:00:00Z", attention: false }).item;
+  feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual");
+  let entries = feed.listInboxEntries(projectId), promote = true, catalogReads = 0;
+  let recommendationsFailure: Error | undefined;
+  let waitForInbox: (() => Promise<typeof entries>) | undefined;
+  const catalog = [{ id: "instance-only", name: "This instance's vocabulary", kind: "rss" as const, feed_url: "https://example.com/feed.xml", category: "technology", category_label: "技术", limitations: [] }];
+  const definitions = Object.values(feedQueryActions);
+  const service = new ActionService();
+  const dispose = service.registerProvider({ provider: { provider_id: feedManifest.plugin_id, plugin_id: feedManifest.plugin_id, kind: "plugin", title: "Feed", project_id: projectId }, definitions,
+    handlers: createFeedQueryHandlers(feed, projectId, { hydrate: async value => value, authStatus: () => ({ github: { bound: true }, gmail: { bound: false } }), linkedContext: async () => null,
+      stage: { sourceCatalog: () => { catalogReads++; return catalog; }, recommendations: async () => {
+        if (recommendationsFailure) throw recommendationsFailure;
+        return { recommendations: [{ item_id: item.item_id, suggested_behavior_ids: [FEED_SAVE_OPTION_ID] }] };
+      }, inboxEntries: async () => waitForInbox ? waitForInbox() : entries, promoteAvailable: async () => promote } }) });
+  t.after(dispose);
+  const caller: ActionCallContext = { actor_id: "stage-reader", audience: "user", project_id: projectId, permissions: [...new Set(definitions.flatMap(definition => definition.action.permissions))] };
+  const stage = await service.invoke(caller, feedQueryActions.stage, {});
+  assert.deepEqual(stage.source_catalog, catalog); assert.equal(catalogReads, 1);
+  assert.equal(stage.connector_auth.github.bound, true);
+  const row = stage.snapshot.feed_items.find(row => row.item_id === item.item_id);
+  assert.equal(row?.body, null); assert.deepEqual(row?.suggested_behavior_ids, [FEED_SAVE_OPTION_ID]);
+  assert.equal(stage.inbox_entries.some(entry => entry.subject_id === item.item_id), true);
+  const reader = await service.invoke(caller, feedQueryActions.reader, { object_id: item.item_id });
+  assert.equal(reader.item.body, "Exact owner body"); assert.deepEqual(reader.item.suggested_behavior_ids, [FEED_SAVE_OPTION_ID]);
+  assert.equal(reader.inbox_active, true); assert.equal(reader.promote_available, true);
+  entries = entries.map(entry => ({ ...entry, status: "done" })); promote = false;
+  const closed = await service.invoke(caller, feedQueryActions.reader, { object_id: item.item_id });
+  assert.equal(closed.inbox_active, false); assert.equal(closed.promote_available, false);
+  const before = feed.getFeedItem(projectId, item.item_id);
+  recommendationsFailure = new Error("the real recommendation service failed");
+  await assert.rejects(service.invoke(caller, feedQueryActions.stage, {}), error => error === recommendationsFailure);
+  recommendationsFailure = undefined;
+  const entered = Promise.withResolvers<void>(), resumed = Promise.withResolvers<typeof entries>();
+  waitForInbox = () => { entered.resolve(); return resumed.promise; };
+  let current = true;
+  const pending = service.invoke({ ...caller, validate_authority: async () => { if (!current) throw new ActionError("actions.forbidden", "The original authority was withdrawn"); } }, feedQueryActions.reader, { object_id: item.item_id });
+  await entered.promise; current = false; resumed.resolve(entries);
+  await assert.rejects(pending, { code: "actions.forbidden" });
+  assert.deepEqual(feed.getFeedItem(projectId, item.item_id), before, "owner queries and a refused late read do not alter the item");
 });

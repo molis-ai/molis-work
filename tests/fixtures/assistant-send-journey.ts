@@ -6,9 +6,11 @@ import { issueModel } from "./issue-model.js";
 
 export type SendBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 export async function sendBrowser(t: TestContext, modelAvailable = true) {
-  const browser = await openGoalBrowser(t, "user");
+  let model!: Awaited<ReturnType<typeof issueModel>> | null;
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = modelAvailable ? await issueModel(t, homeDirectory, { replyText: "收到本次发送。" }) : null; },
+  });
   if (!browser) return null;
-  const model = modelAvailable ? await issueModel(t, browser.homeDirectory, { replyText: "收到本次发送。" }) : null;
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
   await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, browser.sessionId);
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/" }, browser.sessionId));

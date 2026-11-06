@@ -9,5 +9,5 @@ export type { SandboxImageGeneration } from './image.js';
 export { sandboxServicesFor, storageTransactions, assertSandboxDeclarations, SANDBOX_NOT_GIVEN, SANDBOX_SERVICE_FATE, type NotGiven, type SandboxServiceFate, type SandboxHostServices, type SandboxHostExtras, type SandboxDeclarations } from './services.js';
 export { createHttpsProxy, isPublicAddress, validateNetworkRequest } from './https-proxy.js';
 export type { HttpsProxyOptions, SandboxSecret } from './https-proxy.js';
-export { assertContract, assertSchema, assertMatches, assertEffects, assertJson, effectsFromContract, sandboxNotAuthorized, SandboxError } from './schema.js';
+export { assertContract, assertSchema, assertMatches, assertEffects, assertJson, sandboxNotAuthorized, SandboxError } from './schema.js';
 export { seatbeltProfile } from './seatbelt.js';

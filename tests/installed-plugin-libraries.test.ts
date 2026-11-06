@@ -13,7 +13,7 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P1b: a plugin the Host did not ship, run by the Host, gets the
+// specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P1b: a plugin the Host did not ship, run by the Host, gets the
 // library its Manifest declares (`databases.home`) under a ledger in the Home. The publisher is the install record's; once a library has
 // an owner no other publisher's plugin opens it, and a name a shipped store, another plugin or a directory of the Home has is not taken.
 // That the signature is not checked at install is PG-001's gap: these tests pin only what the ledger itself promises.
@@ -42,7 +42,7 @@ function probe(options: ProbeOptions = {}) {
     action: { ...shape, title: "记一行", description: "把一行字写进插件自己的库", kind: "operation",
       input_schema: { type: "object", additionalProperties: false, required: ["text"], properties: { text: { type: "string" } } }, output_schema: { type: "string" } } };
   const started: Array<PluginHostServices | undefined> = [];
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version, name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version, name: id, kind: "app",
     publisher: { publisher_id: "molis", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [STORAGE, READ, WRITE], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     actions: [note], databases: { home: { ...LIBRARY, ...library } },

@@ -16,7 +16,7 @@ function manifest() {
     entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "artifact:write", required: true, reason: "分享用户选择的笔记" }],
     capabilities: { provides: [], consumes: [] },
-    // A v1 Manifest cannot declare the preview a pinned 成果 type needs, so what it shares is a process item.
+    // This plugin shares a process item. It does not publish a pinned artifact.
     artifacts: { produces: [], consumes: [] },
     process_items: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }], consumes: [] },
     ui: { contributions: ["notes.main"] },

@@ -32,7 +32,7 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 （`goals.context.list.v1`、`goals.context.read.v1`、`goals.progress.record.v1`、`goals.progress.receipt.v1`，
 定义在 `plugins/native/goals/src/contract/goals.ts`（PG-111 前在 `packages/contracts/src/modules/goals.ts`），由 `apps/local-host/src/project-capabilities.ts` 注册）。
 这些随 W3-07 改成 Goals 的动作，旧入口删除（用户 2026-10-10，见
-[防腐整理 spec](../repository-anti-corruption/spec.md) §1、`docs/system/CALL-CHAINS.md` §10.2）。当年写在这里的
+[防腐整理 spec](../archive/repository-anti-corruption/spec.md) §1、`docs/system/CALL-CHAINS.md` §10.2）。当年写在这里的
 「Goals 的 38 个能力定义放在 `plugins/native/goals/src/goals-entry-capabilities.ts`」已不成立：那个文件和 26 个没有
 生产调用方的 typed 入口在 2026-10-09（W2-08）一起删除了。
 
@@ -40,13 +40,13 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 
 | 能力 | 定义在 | 给 Coding 用来 |
 | --- | --- | --- |
-| `projects.workspace.read.v1` | `packages/contracts/src/modules/projects.ts` | 读本项目已授权的工作区目录与目录树（只读） |
+| `projects.workspace.read` | `packages/contracts/src/modules/projects.ts` | 读本项目已授权的工作区目录与目录树（只读） |
 | `agent.command-output.v1` | `packages/contracts/src/services/agent-host.ts` | 只读本轮执行跑过的命令回执，喂右栏终端页 |
 
 
 ### 边界
 
-- **只读就是只读**。`projects.workspace.read.v1` 不返回可写句柄，不接受路径参数逃逸出授权根；
+- **只读就是只读**。`projects.workspace.read` 不返回可写句柄，不接受路径参数逃逸出授权根；
   调用前按 realpath 核一次。
 - **命令回执不是命令执行**。`agent.command-output.v1` 只读已经发生的回执，没有 `run` 一类的入口。
   它包装的是 `AgentRuntimeAdapter.readCommandOutput`——契约早就在，两个 adapter 也都实现了，

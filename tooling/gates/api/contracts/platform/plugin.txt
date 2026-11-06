@@ -398,6 +398,7 @@ export type ActionAvailability = {
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly stage_scene_metadata?: StageSceneMetadataAuthority;
     readonly memory_read_mode?: "explicit" | "task";
     readonly memory_operation_id?: string;
     readonly assistant_reply?: import("@molis-ai/molis-work-contracts/services/assistant").AssistantReplyDelivery;
@@ -744,6 +745,7 @@ export interface ActionSceneTargetDefinition {
 
 export interface ActionSceneUsage extends ActionSceneBinding {
     readonly availability: ActionAvailability;
+    readonly function_title?: string;
 }
 
 export interface ActionSceneView {
@@ -2378,6 +2380,8 @@ export interface IntegrationProviderPort {
         status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
         message: string;
         action?: string;
+        failure?: IntegrationProviderFailure;
+        retryAfterAt?: string;
     }>;
     sync(input: {
         cursor: unknown;
@@ -2622,6 +2626,7 @@ export interface PluginAgentRunInput {
     task: string;
     workspace_id?: string;
     timeout_ms?: number;
+    grant_subject?: string;
 }
 
 export interface PluginAgentRunResult {
@@ -3218,6 +3223,7 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
     kind: "integration";
+    presentSource?(id: string, input: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentationInput): import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentation | Promise<import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentation>;
     bind(binding: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationBinding): {
         connector_driver: ConnectorDriver;
         signal_adapter: RawEventAdapter;
@@ -3355,7 +3361,7 @@ export interface PluginLocalToolsDeclaration {
 }
 
 export interface PluginManifest {
-    schema_version: 1 | 2;
+    schema_version: 1;
     plugin_id: string;
     version: string;
     name: string;
@@ -3365,7 +3371,7 @@ export interface PluginManifest {
         publisher_id: string;
         signature: string;
     };
-    host_api_version: 1 | 2;
+    host_api_version: 1;
     always_on?: boolean;
     summary?: string;
     developer?: true;
@@ -3443,6 +3449,7 @@ export interface PluginManifest {
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     connection_services?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginConnectionServiceDeclaration[];
     integrations?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginIntegrationDeclaration[];
+    source_presentations?: readonly string[];
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
@@ -3450,6 +3457,7 @@ export interface PluginManifest {
     notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
+    read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
 }
 
 export interface PluginManifestDatabases {
@@ -3898,6 +3906,13 @@ export interface PluginProjectsClient {
     exist(ids: readonly string[], options?: {
         readonly signal?: AbortSignal;
     }): Promise<Readonly<Record<string, boolean>>>;
+}
+
+export interface PluginReadGroupDeclaration {
+    readonly group_id: string;
+    readonly title: string;
+    readonly description: string;
+    readonly actions: readonly string[];
 }
 
 export interface PluginRequirementDeclaration {
@@ -4800,6 +4815,24 @@ export interface SearchSourceKind {
     surface: string;
 }
 
+export interface StageSceneMetadataAuthority {
+    readonly actor_id: string;
+    readonly audience: ActionAudience;
+    readonly entry: ExactActionReference;
+    readonly owner: {
+        readonly plugin_id: string;
+        readonly install_id: string;
+        readonly installation_generation: string;
+        readonly scope: "home" | "project";
+    };
+    readonly project_id: string | null;
+    readonly scenes: readonly {
+        readonly scene_id: string;
+        readonly version: number;
+    }[];
+    readonly actions: readonly ExactActionReference[];
+}
+
 export interface SubjectActionOffer {
     offer_id: string;
     title: string;
@@ -4854,7 +4887,7 @@ export declare const WORKFLOW_CONTENT_SCHEMAS: {
 export declare const WORKFLOW_CONTENT_VERSIONS: {
     readonly list: 1;
     readonly read: 1;
-    readonly receive: 2;
+    readonly receive: 1;
     readonly create: 1;
 };
 

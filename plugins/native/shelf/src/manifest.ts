@@ -18,8 +18,8 @@ export const SHELF_PROJECT_PLUGIN_ID = "shelf";
  * permission is required, as a dual-instance Manifest's must be.
  */
 export const shelfManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: SHELF_PLUGIN_ID,
   version: "0.3.0",
   name: "Shelf",

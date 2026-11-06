@@ -1,6 +1,6 @@
 // Health gate: every vendored package archive tells where it came from, and what the record says is what the files are
-// (specs/repository-anti-corruption §1, decision 2026-10-08 "Prologue SDK 收敛与私有包"; plan:
-// specs/repository-anti-corruption/dependencies-and-sdk-plan.md §4.4 step 1, §4.5; the folder's rules are
+// (specs/archive/repository-anti-corruption §1, decision 2026-10-08 "Prologue SDK 收敛与私有包"; plan:
+// specs/archive/repository-anti-corruption/dependencies-and-sdk-plan.md §4.4 step 1, §4.5; the folder's rules are
 // vendor/prologue-sdk/README.md).
 //
 // The counts the other health gates keep only ever fall; this one is an invariant of the working tree, like the status line

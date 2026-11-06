@@ -12,31 +12,27 @@ import http from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve as resolvePath } from "node:path";
 import test, { type TestContext } from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalActionGatewayClient } from "@molis-ai/molis-work-app-local-host";
 import { main as runCli } from "../apps/desktop/launchers/cli/main.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "security-invariants-gateway-0123456789abcdef";
 
-type Catalog = Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
-
-/** A real Web host (the resident Host) for a scratch Home, and the catalog of that Home to look at what a refusal left. */
-async function startResidentHost(t: TestContext): Promise<{ home: string; origin: string; port: number; catalog: Catalog }> {
+/** A real Web host (the resident Host) for a scratch Home. */
+async function startResidentHost(t: TestContext): Promise<{ home: string; origin: string; port: number }> {
   const directory = await mkdtemp(join(tmpdir(), "security-invariants-gateway-"));
   const home = join(directory, "home");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
   t.after(async () => {
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));
-    catalog.close();
     await rm(directory, { recursive: true, force: true });
   });
-  return { home, origin: `http://127.0.0.1:${address.port}`, port: address.port, catalog };
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  return { home, origin: `http://127.0.0.1:${address.port}`, port: address.port };
 }
 
 const homeId = (home: string) => createHash("sha256").update(resolvePath(home)).digest("hex");
@@ -44,24 +40,24 @@ const homeId = (home: string) => createHash("sha256").update(resolvePath(home)).
 test("S-07 a process that forwards to the resident Host asks a numeric loopback HTTP address only, and sends the Home's control token nowhere else", { timeout: 60_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "security-invariants-forward-"));
   const home = join(directory, "home");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const requests: string[] = [];
   const listener = http.createServer((incoming, response) => { requests.push(`${incoming.method} ${incoming.url}`); response.statusCode = 500; response.end("{}"); });
-  await new Promise<void>(resolve => listener.listen(0, "127.0.0.1", resolve));
-  const address = listener.address();
-  assert.ok(address && typeof address === "object");
-  // The Home has run a Host before: its token is in the Home, so a forwarding process would find it and send it.
-  await mkdir(join(home, "config"), { recursive: true });
-  await writeFile(join(home, "config", "web-control-token"), `${TOKEN}\n`, { mode: 0o600 });
-  const demo = (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project;
   const environment = process.env.MOLIS_WORK_WEB_URL;
   t.after(async () => {
     if (environment === undefined) delete process.env.MOLIS_WORK_WEB_URL; else process.env.MOLIS_WORK_WEB_URL = environment;
     listener.closeAllConnections();
     await new Promise<void>(resolve => listener.close(() => resolve()));
-    catalog.close();
     await rm(directory, { recursive: true, force: true });
   });
+
+  await new Promise<void>(resolve => listener.listen(0, "127.0.0.1", resolve));
+  const address = listener.address();
+  assert.ok(address && typeof address === "object");
+  const demo = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog =>
+    (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project);
+  // The Home has run a Host before: its token is in the Home, so a forwarding process would find it and send it.
+  await mkdir(join(home, "config"), { recursive: true });
+  await writeFile(join(home, "config", "web-control-token"), `${TOKEN}\n`, { mode: 0o600 });
 
   // The listener really answers at 127.0.0.1:<port>; every other spelling of that address is refused before a request is made.
   const refused = [`http://localhost:${address.port}`, `http://127.0.0.1.evil.example:${address.port}`, `https://127.0.0.1:${address.port}`,
@@ -83,7 +79,7 @@ test("S-07 a process that forwards to the resident Host asks a numeric loopback 
   assert.ok(failures.every(message => /数字回环/.test(message)), failures.join("\n"));
   assert.deepEqual(requests, [], "no request reached any address, the numeric loopback one included");
   assert.equal(existsSync(demo.database_path), true, "the demo is still there");
-  assert.equal(catalog.listProjectDeletions().length, 0);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => assert.equal(catalog.listProjectDeletions().length, 0));
 });
 
 test("S-07 the action gateway takes the number of an operation only on an invocation and only as the UUID the forwarding process made, and does nothing otherwise", { timeout: 60_000 }, async t => {
@@ -120,4 +116,25 @@ test("S-07 the action gateway takes the number of an operation only on an invoca
   const stranger = await fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify({ ...invoke, call_id: randomUUID() }), headers: {
     origin, "content-type": "application/json", "x-molis-work-call-id": id, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
   assert.notEqual(stranger.headers.get("x-molis-work-call-id"), id, "a number in a request header is not read");
+});
+
+test("S-08 the action gateway refuses a forwarding process that names itself as one of the Host's own Agents, and records nothing", { timeout: 60_000 }, async t => {
+  const { home, origin } = await startResidentHost(t);
+  const post = (body: unknown) => fetch(`${origin}/api/internal/action-service`, { method: "POST", body: JSON.stringify(body), headers: {
+    origin, "content-type": "application/json", "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": randomUUID() } });
+  const log = () => { try { return readFileSync(join(home, "logs", "action-calls.jsonl"), "utf8"); } catch { return ""; } };
+  const envelope = { home_id: homeId(home), project_id: null };
+  const instance = (await (await post({ ...envelope, client_id: "runtime:codex", operation: "discover" })).json() as { instance_id: string }).instance_id;
+  // The built-in Agent's id, and the shape a task's grant subject takes (specs/proactive-assistant/schedule-task-reads.md §3.1).
+  for (const client_id of ["agent:prologue", "agent:task:project:install:task", "agent:"]) {
+    for (const body of [{ ...envelope, client_id, operation: "discover" },
+      { ...envelope, client_id, operation: "invoke", instance_id: instance, call_id: randomUUID(), capability: { capability_id: "nobody.provides.this", version: 1 }, input: {} }]) {
+      const answer = await post(body);
+      assert.equal(answer.status, 400, `${client_id} ${body.operation}`);
+      assert.equal((await answer.json() as { code: string }).code, "actions.input_invalid", `${client_id} ${body.operation}`);
+    }
+  }
+  assert.equal(log(), "", "a refused identity made no call, so no row was written");
+  // A Runtime and a cross-device member still reach the Host.
+  for (const client_id of ["runtime:codex", "runtime:cross-device:member"]) assert.equal((await post({ ...envelope, client_id, operation: "discover" })).status, 200, client_id);
 });

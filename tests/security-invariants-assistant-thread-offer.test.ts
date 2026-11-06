@@ -1,4 +1,4 @@
-// PG-057, S-47 (specs/repository-anti-corruption/slices/pg031-pg057.md §5): a plugin page asks for an AI reply to one of its
+// PG-057, S-47 (specs/archive/repository-anti-corruption/slices/pg031-pg057.md §5): a plugin page asks for an AI reply to one of its
 // comment threads by handing it to the Assistant (`molis:assistant-message` with `thread`). The reply starts only from the
 // shell: the shell names the plugin from the frame that sent it, never from what the page says, and the Assistant starts the
 // reply as the person (`assistant.threads.start@1`, audience `user` only) when the person presses the step it draws.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Secret scan (specs/repository-anti-corruption §4.18): looks for credentials in the lines a branch ADDS, so a key never
+// Secret scan (specs/archive/repository-anti-corruption §4.18): looks for credentials in the lines a branch ADDS, so a key never
 // reaches a pushed commit or a pull request. Lines that are already on the base are not rescanned. Every commit of the
 // branch is read, not only the net change: a key added in one commit and removed in the next is still in the pushed
 // history, so it still fails (rewrite the branch, and rotate the key).

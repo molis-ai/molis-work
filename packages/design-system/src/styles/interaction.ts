@@ -10,8 +10,9 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-card { container: mw-ix / inline-size; display: grid; gap: 12px; padding: 14px 16px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); text-align: left; }
 .mw-ix-card [hidden] { display: none; }
 .mw-ix-head { display: flex; align-items: flex-start; gap: 10px; }
-.mw-ix-heading { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.mw-ix-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+/* The title leads its own line and the kind of card sits beside it as a tag, so the heading is one line, not a stack. */
+.mw-ix-heading { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mw-ix-kicker { order: 1; display: inline-flex; align-items: center; gap: 5px; padding: 0 7px 0 6px; border-radius: 6px; background: var(--rail); color: var(--muted); font-size: 11px; line-height: 20px; white-space: nowrap; }
 .mw-ix-kicker > svg:not(.mw-state-ring) { width: 12px; height: 12px; }
 .mw-ix-card h3 { margin: 0; color: var(--ink); font-size: 15px; font-weight: var(--weight-title, 600); }
 .mw-ix-card h4 { margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); }
@@ -23,7 +24,7 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-badge[data-tone="done"] { background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--ink); }
 .mw-ix-badge[data-tone="failed"] { background: color-mix(in srgb, var(--red) 11%, transparent); color: var(--ink); }
 .mw-ix-intro { color: var(--ink-soft); font-size: 12px; }
-.mw-ix-about { color: var(--muted); font-size: 12px; }
+.mw-ix-about { order: 2; flex-basis: 100%; color: var(--muted); font-size: 12px; }
 .mw-ix-other { display: grid; gap: 4px; width: 100%; margin-top: 2px; color: var(--ink-soft); font-size: 12px; }
 .mw-ix-other .mw-input { width: 100%; max-width: none; }
 .mw-ix-form { display: grid; gap: 14px; }
@@ -73,6 +74,7 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-note[data-tone="error"] { color: var(--red); }
 .mw-ix-keys { margin-left: auto; color: var(--faint); font: inherit; font-size: 11px; }
 @media (hover: none) { .mw-ix-keys { display: none; } }
+.mw-ix-answered dl { padding: 10px 12px; border-radius: var(--r-row, 10px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
 .mw-ix-answered dl, .mw-ix-preview dl { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 6px 14px; width: 100%; font-size: 12px; }
 .mw-ix-answered dt, .mw-ix-preview dt { color: var(--muted); }
 .mw-ix-answered dd, .mw-ix-preview dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; white-space: pre-line; }
@@ -151,11 +153,16 @@ export const INTERACTION_REFERENCE_STYLES = `
 /** The operation card: what it acts on, exactly what would run, how it stands. Needs the question segment. */
 export const INTERACTION_OPERATION_STYLES = `
 /* The operation card: what it acts on and exactly what would run. */
-.mw-ix-target, .mw-ix-impact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+/* What it acts on and what it will do sit on one row as two tags of their own colours: the target in the accent's wash, the
+   effect in amber. */
+.mw-ix-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mw-ix-target, .mw-ix-impact { display: inline-flex; align-items: start; gap: 6px; max-width: 100%; min-height: 24px; padding: 2px 8px; border-radius: 8px; font-size: 12px; line-height: 18px; }
+.mw-ix-target { justify-self: start; background: var(--accent-soft); color: var(--ink-soft); }
 .mw-ix-target strong { color: var(--ink); font-weight: var(--weight-control, 500); }
-.mw-ix-impact { color: var(--muted); align-items: flex-start; flex-wrap: nowrap; }
-.mw-ix-target svg, .mw-ix-impact svg { width: 14px; height: 14px; flex: none; color: var(--ink-soft); }
-.mw-ix-impact svg { margin-top: 2px; }
+.mw-ix-impact { background: color-mix(in srgb, var(--amber) 11%, transparent); color: var(--ink-soft); }
+.mw-ix-target svg, .mw-ix-impact svg { width: 13px; height: 13px; margin-top: 3px; flex: none; }
+.mw-ix-target svg { color: var(--accent); }
+.mw-ix-impact svg { color: var(--amber); }
 .mw-ix-preview { display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--r-row, 10px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); outline: 0; }
 .mw-ix-preview:not([hidden]) { animation: craft-rise var(--dur-move) var(--ease-quint); }
 .mw-ix-status { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; }
@@ -220,6 +227,7 @@ export const INTERACTION_TRACE_STYLES = `
 .mw-ix-notice:not([hidden]) { animation: craft-rise var(--dur-move) var(--ease-quint); }
 .mw-ix-answered { display: grid; gap: 8px; justify-items: start; }
 .mw-ix-version { display: inline-flex; padding: 0 6px; border-radius: var(--r-tag, 6px); background: var(--control-fill); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
+.mw-ix-target .mw-ix-version:not([data-changed]) { background: var(--paper); }
 .mw-ix-version[data-changed] { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--ink); }
 .mw-ix-result { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 12px 14px; border-radius: var(--r-row, 10px); background: color-mix(in srgb, var(--green) 7%, var(--paper)); outline: 0; }
 .mw-ix-result:not([hidden]) { animation: craft-rise var(--dur-arrive) var(--ease-quint); }

@@ -14,7 +14,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 
-// S-46, the per-statement half (PLIB-06, PLIB-08; specs/plugin-project-database §2.4): a plugin given `services.project_database`
+// S-46, the per-statement half (PLIB-06, PLIB-08; specs/archive/plugin-project-database §2.4): a plugin given `services.project_database`
 // reaches its own tables in the project's library and nothing else. Every statement is read through `EXPLAIN` before it runs and
 // refused for a step that makes or drops anything, a pragma, a b-tree that is not the plugin's own (the project's root row
 // excepted, which it may read), a database other than the library, a write in a read, or a virtual table other than the JSON
@@ -28,7 +28,7 @@ interface Probe { readonly id: string; readonly declaration: PluginDatabaseDecla
 function probe(name: string, schema: string): Probe {
   const id = `io.molis.work.example.${name}`;
   const declaration: PluginDatabaseDeclaration = { store_name: name, version: 1, read_permission: `${name}:read`, write_permission: `${name}:write`, schema };
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", declaration.read_permission, declaration.write_permission].map(permission => ({ permission, required: true, reason: "读写自己的表" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [],

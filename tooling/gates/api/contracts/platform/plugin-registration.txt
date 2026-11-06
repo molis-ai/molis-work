@@ -58,6 +58,7 @@ export interface PluginWorkbenchRegistration {
     readonly stylesheetPrefixes?: readonly string[];
     readonly stylesheetUses?: readonly string[];
     readonly clientFactory?: string;
+    readonly clientMounts?: "surfaces";
     readonly clientServed?: true;
     readonly clientUses?: readonly string[];
     readonly clientAssets?: readonly string[];

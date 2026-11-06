@@ -45,7 +45,7 @@ test("a workflow step runs any registered action — even one the Host never hea
       if (failAfterWrite) { const code = failAfterWrite; failAfterWrite = undefined; throw new ActionError(code, "工单已写入，后续步骤失败"); }
       return { ticket_id: tickets.length, ...(tickets.length === 1 ? { note: "工单正文".repeat(1500), trace: "内部诊断".repeat(6000) } : {}) };
     });
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.tickets", version: "1.0.0", name: "工单", kind: "app",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.fixture.tickets", version: "1.0.0", name: "工单", kind: "app",
     publisher: { publisher_id: "test", signature: "test" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "tickets:write", required: true, reason: "建工单" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [create.definition] }, async start() { return { kind: "app", actions: [create.handler] }; } });

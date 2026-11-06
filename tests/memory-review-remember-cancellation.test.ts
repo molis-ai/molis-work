@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -79,7 +80,7 @@ for (const { boundary, action } of scenarios) {
     }
     await connectorAssistantModel(t, home.home, (_body, turn) => hasSupplement && turn === 1
       ? { name: "list-memories", input: {} } : turn === (hasSupplement ? 2 : 1)
-        ? { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。");
+        ? { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
     const sent = await home.web.post<AssistantSendResult>("/api/assistant/send", { text: hasSupplement ? "整理本周安排" : text, request_id: randomUUID() });
     let inputId: string | undefined, unrelatedId: string | undefined;
     if (hasSupplement) {
@@ -180,7 +181,7 @@ test("MEM-35: a fresh explicit original in the same work can be remembered after
     return write.apply(this, args);
   });
   await connectorAssistantModel(t, home.home, (_body, turn) => turn === 1 || turn === 3
-    ? { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。");
+    ? { name: "remember", input: { text, said: text, scope: "personal" } } : "已处理。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const send = (workId?: string) => home.web.post<AssistantSendResult>("/api/assistant/send", { text, request_id: randomUUID(), ...(workId ? { work_id: workId } : {}) });
   const settle = async (sent: AssistantSendResult) => untilSetup(async () => {
     const run = await adapter.read({ session_id: sent.work.session_id!, run_id: sent.run_id! });

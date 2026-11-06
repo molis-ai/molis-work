@@ -56,7 +56,7 @@ test("「加输入…」 on a Goal takes a document either following the origina
   assert.deepEqual(left.inputs, []);
 });
 
-// An input an Agent only proposed reads 「待确认」 on the Goal, and the person decides it right there (specs/repository-anti-corruption §1, 2026-10-10).
+// An input an Agent only proposed reads 「待确认」 on the Goal, and the person decides it right there (specs/archive/repository-anti-corruption §1, 2026-10-10).
 test("a proposed input on a Goal reads 待确认 and is accepted or removed from the same list", { timeout: 120_000 }, async t => {
   const seed = async (databasePath: string, projectId?: string) => {
     await seedDemoGoals(databasePath, projectId);

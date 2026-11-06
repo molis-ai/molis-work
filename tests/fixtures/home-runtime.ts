@@ -44,9 +44,10 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
     // A supplied single-folder port remains the authority; explicit list options below still win, including an intentional undefined.
     workspacesFor: workspaceFor
       ? async projectId => { const workspace = await workspaceFor(projectId); return workspace === null ? [] : [workspace]; }
-      : projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+      : projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
     ...options,
   });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const token = randomUUID();
   server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token, ...webOptions });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
@@ -88,7 +89,7 @@ export function homeProbe(name = "homeprobe", version = "1.0.0") {
   const seen: Array<Pick<ActionExecutionContext, "project_id" | "page_context">> = [];
   const behavior = { ask: async (context: PluginStartContext) => (await context.services!.model!.complete(instructed(instruction, "  原始材料\n"))).text,
     stop: async (_context: PluginStartContext) => {} };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version, name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version, name, kind: "app",
     publisher: { publisher_id: "example", signature: `home-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "Home 探针的声明授权" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

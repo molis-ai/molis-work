@@ -36,7 +36,7 @@ ActionService.registerProvider 注册同一提供方的合同、处理器与消�
 
 为什么在这里：决定 N-03 选了「平台产品服务」这一类，代码位置不变。内核的核心（上面表格里除 `contextual.ts` 以外的文件）保留目录、分发、可用性、授权与场景兼容。宿主那一半在 `apps/local-host/src/contextual/`，负责 I/O：目录缓存、模型调用、记忆召回、取消、计时与凭据。
 
-它只给工作台自己的选区条用，没有登记成系统动作：HTTP 在 `apps/local-host/src/contextual/contextual-http.ts` 的 `/api/contextual/*`，准备输入与上报信号都经调用者自己的动作，判断只排序、不执行。这是 2026-10-10 的日常取舍，删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作（[spec 决策记录](../../specs/repository-anti-corruption/spec.md)）。
+它只给工作台自己的选区条用，没有登记成系统动作：HTTP 在 `apps/local-host/src/contextual/contextual-http.ts` 的 `/api/contextual/*`，准备输入与上报信号都经调用者自己的动作，判断只排序、不执行。这是 2026-10-10 的日常取舍，删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作（[spec 决策记录](../../specs/archive/repository-anti-corruption/spec.md)）。
 
 用的人从子入口取：`import { planContextualLayout } from "@molis-ai/molis-work-kernel/contextual"`；根入口不再转出它，所以只用核心的人加载不到它。边界由 `pnpm health:check` 的规则 K1–K5 守着（`scripts/gates/kernel-contextual.mjs`，见 [门禁说明](../../scripts/gates/README.md)）：核心不依赖情境排序；只有情境排序读合同的 `services/contextual`；它只读 `platform/actions`、`services/contextual`、`node:crypto` 与内核自己的文件；它无副作用、无模块级可变状态；从目录派生候选的代码不点名任何能力 id 或插件。
 
@@ -76,6 +76,7 @@ node scripts/run-tests.mjs tests/local-host.test.ts
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；最后一次异步检查后以可信 `assert_authority_current` 同步核对精确来源/目标及原注册、时限和取消，Promise 尾检被拒绝。场景绑定与成功/失败消费在最后等待后使用同一尾检，同时核对当前场景/启用声明的独立权限；停用绑定仍核原配置权限和来源，不新增目标函数授权。调用结束后不能再产生副作用。 可用性拒绝的可选 `kind` 与码、原因一起抛出；动作派发与 Registry 的 typed 派发使用同一分类。
   - 一次同步目录是一轮（`directory-pass.ts`）：提供方自身状态及经 `rememberInDirectoryPass` 读的设置在轮内各读一次，轮外（含每次调用）现读，读失败不留存，轮内一次写（`forgetInDirectoryPass`）让同一轮后面的读重新读；不能把轮内结果带到调用或下一次目录。调用者自己的授权检查（不带引用的 `assert_authority_current`，委托调用者的这一项会沿原调用逐层往上查）也按这一轮算：各行的可用性在轮内只问它一次，只留通过的，拒绝每行照抛；带引用的检查、调用和它的 `beforeEffect` 与最后一次检查都照旧现问（`action-service.ts` 的 `rowCaller`）。`allowed_actions` 名单在轮内第二次被问到时建索引，轮外照旧逐条比对。
   - 场景读回调只能查询；绑定与成功/失败消费获得 `ActionSceneExecutionContext.beforeEffect`，原场景和判断被替换、原调用者撤权或取消、回调结束后都拒绝写入。嵌套调用不能移除只读约束，付费查询也不在只读范围内（`tests/security-invariants-plugin-scenes.test.ts`）。
+  - 已认证舞台只可通过自身实际绑定读取 Host 发出的 `stage_scene_metadata` 精确引用。独立 metadata availability 只改变声明的可见性判据及依赖递归，所有回调仍接原窄 caller；普通发现、执行与 retained authority 不读取它。精确引用命中后的纯可见性检查临时使用目标声明的权限，不将它们写回 caller 或交给回调。`usages` 返回前复核来源、目标注册与当前授权，并重读绑定版本；不同入口派发删除该字段。回归见 `tests/security-invariants-plugin-scene-client.test.ts` 的 FULL17，不能把快照解释成最终多舞台 HTML 响应的原子保障。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`kernel.runtime_identity_missing`）。
   - 注册时检查同一次注册里的交叉引用（规则在插件 SDK 的 `inspectActionCrossReferences`）：撤销命令、后台任务状态查询、片段与事项选项的目标要在同一次注册里、种类与范围对，被指的字段和位置要在输入输出合同里。检查在 `registerProvider` 原有的一行里调用，不往函数里加行；谁能用目标留到使用时按调用者核对。

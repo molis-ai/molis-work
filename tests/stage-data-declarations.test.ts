@@ -8,7 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { BUILTIN_PLUGIN_CATALOG, stageDataAction } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, stageDataAction, renderStagePage } from "@molis-ai/molis-work-app-workbench";
 import { scheduleActions, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { MolisWorkLocalHost, declaredStageData, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -56,7 +56,7 @@ test("RAC-2500 Schedule's stage-opening view names its own task list, and the wo
   assert.equal(stageDataAction(scheduleManifest), scheduleManifest.actions!.find(action => action.capability_id === scheduleActions.list.capability_id));
   assert.equal(stageDataAction(scheduleManifest)?.capability_id, "schedule.tasks.list");
   const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => stageDataAction(entry.manifest)).map(entry => entry.project_plugin_id);
-  assert.deepEqual(declaring, ["schedule"], "slice 1 moves Schedule alone; Feed and Inbox follow in slice 2");
+  assert.deepEqual(declaring, ["goals", "inbox", "schedule", "feed"], "each owner declares its own stage read");
 });
 
 /** A binder that records the action each stage read is bound for, and answers through `answer`. */
@@ -71,10 +71,10 @@ function recordingBinder(answer: (capabilityId: string) => unknown) {
 
 test("RAC-2505 a stage read is bound for its own action alone, and only for the plugins the page shows", async () => {
   const { bound, bind } = recordingBinder(() => ({ jobs: [], tasks: [], operations: [] }));
-  assert.deepEqual(await declaredStageData(["schedule", "goals"], bind), { schedule: { jobs: [], tasks: [], operations: [] } });
-  assert.deepEqual(bound, [`${scheduleActions.list.capability_id}@${scheduleActions.list.version}`]);
+  assert.deepEqual(await declaredStageData(["schedule", "goals"], bind), { goals: { jobs: [], tasks: [], operations: [] }, schedule: { jobs: [], tasks: [], operations: [] } });
+  assert.deepEqual(bound, ["goals.stage.read@1", `${scheduleActions.list.capability_id}@${scheduleActions.list.version}`]);
   const none = recordingBinder(() => { throw new Error("not called"); });
-  assert.deepEqual(await declaredStageData(["goals", "pages"], none.bind), {}, "no shown plugin declares a stage read");
+  assert.deepEqual(await declaredStageData(["pages"], none.bind), {}, "no shown plugin declares a stage read");
   assert.deepEqual(none.bound, [], "a plugin the page does not show is not asked");
 });
 
@@ -149,10 +149,9 @@ test("RAC-2501 RAC-2502 RAC-2503 the page and its redraw take Schedule's stage f
   }
 });
 
-// Verification of slice 1 (#1590, Codex A): the binder was handed the action's permissions, but the local web adapter joined every running
-// installation's back into the caller. What is asserted here is the caller the Host's action client really gets, for the page and its
-// redraw: the person in this project, exactly the action's own permissions, and no other action it may reach.
-test("RAC-2505 the page and its redraw call the stage read as the person in the project with exactly its own permissions and no other action", { timeout: 60_000 }, async t => {
+// T402 accepted internal-read mode preserves the external single entrance and gives its handler only the same person's
+// precise owner/consumes references, with effect execution refused. The unchanged default binder is checked in local-web-actions.
+test("RAC-2505 the page and redraw keep the person, owner references, read-only effects and current authority checks", { timeout: 60_000 }, async t => {
   const { host, scheduled, actions, base } = await servedHome(t);
   await actions.invoke(scheduleActions.createTask, { title: "Morning digest", instructions: "Read the news", time: "08:00" });
   const callers: ActionCallContext[] = [], actionClient = MolisWorkLocalHost.prototype.actionClient;
@@ -171,8 +170,52 @@ test("RAC-2505 the page and its redraw call the stage read as the person in the 
     assert.equal(callers.length, 1, `${path}: the stage read is called once`);
     const [caller] = callers;
     assert.deepEqual([caller!.actor_id, caller!.audience, caller!.project_id], [LOCAL_PERSON_ACTOR_ID, "user", scheduled.project_id], path);
-    assert.deepEqual([...caller!.permissions].sort(), [...scheduleActions.list.action.permissions].sort(), `${path}: only the read's own permissions`);
-    assert.deepEqual(caller!.allowed_actions?.map(item => `${item.capability_id}@${item.version}`), [`${scheduleActions.list.capability_id}@${scheduleActions.list.version}`], `${path}: no other action`);
+    assert.ok(scheduleActions.list.action.permissions.every(permission => caller!.permissions.includes(permission)), path);
+    assert.equal(caller!.read_only_effects, true, `${path}: an internal read cannot execute writes or paid queries`);
+    assert.equal(caller!.query_only, undefined, `${path}: promotion metadata may remain visible`);
+    const own = new Set(scheduleManifest.actions!.map(action => `${action.capability_id}@${action.version}`));
+    assert.ok(caller!.allowed_actions!.every(reference => own.has(`${reference.capability_id}@${reference.version}`)
+      || scheduleManifest.capabilities.consumes.includes(reference.capability_id)), `${path}: no unrelated authority`);
+    const provider = caller!.allowed_actions!.find(reference => reference.capability_id === scheduleActions.list.capability_id)!.provider_id;
+    assert.ok(provider && caller!.allowed_actions!.filter(reference => own.has(`${reference.capability_id}@${reference.version}`)).every(reference => reference.provider_id === provider), `${path}: own references stay on the selected provider`);
     assert.equal(typeof caller!.validate_authority, "function", `${path}: the installation's grant is still checked per call`);
   }
+});
+
+
+test("RAC-2510 object reads and finite stage surfaces obey the same owner/read/placement declarations", () => {
+  const object = readAction({}, "notes.object");
+  const opening = navigator({ stage_data: { action: "notes.snapshot", object_action: "notes.object" }, stage_surfaces: ["workbench", "source-workbench"] });
+  assert.equal(manifestProblems(withViews([opening], [readAction(), object])), "");
+  for (const invalid of [readAction({}, "notes.other"), readAction({ effect: "write" }, "notes.object"),
+    { ...object, operation: "command", action: { ...object.action, kind: "operation" } }, readAction({ audiences: ["agent"] }, "notes.object")]) {
+    assert.match(manifestProblems(withViews([opening], [readAction(), invalid])), /stage_data.object_action/);
+  }
+  assert.match(manifestProblems(withViews([opening], [readAction(), object, readAction({}, "notes.object", 2)])), /stage_data.object_action/);
+  for (const list of [[], ["source-workbench"], ["workbench", "workbench"], ["workbench", ""], "workbench"]) {
+    assert.match(manifestProblems(withViews([navigator({ stage_surfaces: list })])), /stage_surfaces/);
+  }
+  assert.match(manifestProblems(withViews([navigator({ stage_data: undefined, stage_surfaces: ["workbench"] }), { view_id: "other", title: "Other", slot: "stage" }])), /stage_surfaces.*打开舞台/);
+  assert.match(manifestProblems(withViews([navigator({ slot: "settings", stage_data: undefined, stage_surfaces: ["workbench"] })])), /stage_surfaces.*打开舞台/);
+});
+
+test("RAC-2508 finite automatic surfaces share one model, skip already drawn pairs and exclude object/fragment main surfaces", () => {
+  const manifest = scheduleManifest;
+  const calls: string[] = [], data = { owner: "same result" }, model = { data };
+  const contribution = { descriptor: { contribution_id: "surface-owner", kind: "embedded" as const, label: "Surface owner", slots: [], surfaces: [
+    ...["workbench", "source-workbench", "persisted-detail", "frame-block", "workbench-fragment"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })),
+    { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" }, { surface_id: "overlay", target_slot_id: "workbench.overlay", format: "declarative-html" },
+  ] }, render(request: { surface: string; model: typeof model }) { assert.equal(request.model.data, data); calls.push(request.surface); return `<div data-surface="${request.surface}"></div>`; } };
+  const selected = { ...manifest, ui: { ...manifest.ui, views: [{ view_id: "stage", title: "Stage", slot: "stage" as const, stage_surfaces: ["workbench", "source-workbench"] }] } };
+  const result = renderStagePage(contribution, model, "surface-owner", false, undefined, { manifest: selected });
+  assert.deepEqual(calls, ["workbench", "source-workbench", "directory", "overlay"]);
+  assert.deepEqual(result.surfaces.map(row => row.surface), calls);
+  assert.match(result.panels, /data-surface="directory"/); assert.match(result.overlays, /data-surface="overlay"/);
+  calls.length = 0;
+  renderStagePage(contribution, model, "surface-owner", false, undefined, { manifest: selected, rendered: [{ contribution_id: "surface-owner", surface: "workbench" }] });
+  assert.deepEqual(calls, ["source-workbench", "directory", "overlay"]);
+  calls.length = 0;
+  assert.throws(() => renderStagePage(contribution, model, "surface-owner", false, undefined, { manifest: { ...selected, ui: { ...selected.ui,
+    views: [{ ...selected.ui.views[0]!, stage_surfaces: ["workbench", "overlay"] }] } } }), /Stage main surface/);
+  assert.deepEqual(calls, [], "an invalid declaration renders nothing");
 });

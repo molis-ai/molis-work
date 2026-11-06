@@ -31,6 +31,13 @@ test("Manifest gates individual settings; host scopes and projects records, reje
   try {
     const a = client("a"), b = client("b");
     await a.invoke(projectsCapabilities.listWorkspaces, []);
+    // N29: check registration independently of the caller's audience. The selector is restricted to the person.
+    const registered = host.status().capabilities;
+    for (const id of ["projects.workspaces.list", "projects.settings.workspaces.read",
+      "projects.settings.browsing-workspace.read", "projects.settings.browsing-workspace.select"]) {
+      assert.ok(registered.some(row => row.capability_id === id && row.version === 1 && row.action), id);
+      assert.ok(!registered.some(row => row.capability_id === id + ".v1"), id + ".v1");
+    }
     // Files reads the current directory only; Coding reads the current directory (one directory for new rounds, Files and Git) as well as the list.
     assert.deepEqual([settings.workspaces, settings.browsingWorkspace].map(item => filesManifest.capabilities.consumes.includes(item.capability_id)), [false, true]);
     assert.deepEqual([settings.workspaces, settings.browsingWorkspace].map(item => codingManifest.capabilities.consumes.includes(item.capability_id)), [true, true]);
@@ -93,8 +100,8 @@ test("RAC-454 the project's Runtime pick is the person's own setting: Coding rea
   const store = new LocalProjectDatabase(join(home, "plugins.db"));
   // A plugin started in `projectId` through the Host's plugin executor, consuming what `manifest` declares of the Runtime pick.
   const pick = [settings.runtime, settings.selectRuntime].map(item => item.capability_id);
-  const consumer = async (name: string, manifest: { capabilities: { consumes: readonly string[] } }, projectId: string) => {
-    const plugin = callerPlugin(name, "project", {}, manifest.capabilities.consumes.filter(id => pick.includes(id)));
+  const consumer = async (name: string, manifest: { capabilities: { consumes: readonly string[] } }, projectId: string, permissions: Readonly<Record<string, boolean>> = {}) => {
+    const plugin = callerPlugin(name, "project", permissions, manifest.capabilities.consumes.filter(id => pick.includes(id)));
     await startPlugin(host, reference(projectId), store, plugin);
     return plugin.actions(projectId);
   };
@@ -112,7 +119,10 @@ test("RAC-454 the project's Runtime pick is the person's own setting: Coding rea
     assert.equal(hasTable("a"), true);
     assert.equal(await codingOfB.invoke(settings.runtime, [], control), null, "another project does not see it");
     await assert.rejects((await consumer("files", filesManifest, "a")).invoke(settings.runtime, [], control), /没有声明/);
-    await assert.rejects(coding.invoke(settings.selectRuntime, ["engine-c"], control), /没有声明/, "a plugin reads the pick and never makes it");
+    await assert.rejects(coding.invoke(settings.selectRuntime, ["engine-c"], control), { code: "plugin.grant_denied" }, "Coding has no grant to choose the person's Runtime");
+    const granted = await consumer("granted-unconsumed", codingManifest, "a", { "projects:settings": true });
+    await assert.rejects(granted.invoke(settings.selectRuntime, ["engine-c"], control), { code: "actions.forbidden", message: /没有声明/ }, "a granted plugin must still declare the specific action");
+    assert.equal(await coding.invoke(settings.runtime, [], control), "engine-b", "both refusals retain the person's existing pick");
     for (const input of [[], [5], ["x", "y"], [""]]) await assert.rejects(host.actionClient(a).invoke(user, settings.selectRuntime, input as never), { code: "actions.input_invalid" });
     assert.equal(await host.actionClient(a).invoke(user, settings.selectRuntime, [null]), null);
     assert.equal(await coding.invoke(settings.runtime, [], control), null, "null puts the project back on the Home default");

@@ -30,6 +30,11 @@ export function productApiLoginReady(service: string, method: PluginOAuthMethodD
   } catch { return false; }
 }
 
+/** Whether the product's own client can start a device authorization for the service: it needs the client's id alone, and no broker takes part. */
+export function productDeviceLoginReady(service: string): boolean {
+  return Boolean(connectorProductAuth(service, "oauth")?.clientId);
+}
+
 /** Explicit deployment allowlist; do not advertise an unconfigured cloud app. The caller has the service's declared `oauth` method. */
 export function connectorBrokerOrigin(service: string): string | undefined {
   if (!readProductEnv("CONNECTOR_BROKER_SERVICES")?.split(",").map(s => s.trim()).includes(service)) return undefined;

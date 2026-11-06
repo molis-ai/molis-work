@@ -396,6 +396,7 @@ export type ActionAvailability = {
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly stage_scene_metadata?: StageSceneMetadataAuthority;
     readonly memory_read_mode?: "explicit" | "task";
     readonly memory_operation_id?: string;
     readonly assistant_reply?: import("@molis-ai/molis-work-contracts/services/assistant").AssistantReplyDelivery;
@@ -742,6 +743,7 @@ export interface ActionSceneTargetDefinition {
 
 export interface ActionSceneUsage extends ActionSceneBinding {
     readonly availability: ActionAvailability;
+    readonly function_title?: string;
 }
 
 export interface ActionSceneView {
@@ -2883,6 +2885,24 @@ export interface SearchSourceKind {
     surface: string;
 }
 
+export interface StageSceneMetadataAuthority {
+    readonly actor_id: string;
+    readonly audience: ActionAudience;
+    readonly entry: ExactActionReference;
+    readonly owner: {
+        readonly plugin_id: string;
+        readonly install_id: string;
+        readonly installation_generation: string;
+        readonly scope: "home" | "project";
+    };
+    readonly project_id: string | null;
+    readonly scenes: readonly {
+        readonly scene_id: string;
+        readonly version: number;
+    }[];
+    readonly actions: readonly ExactActionReference[];
+}
+
 export interface SubjectActionOffer {
     offer_id: string;
     title: string;
@@ -2937,7 +2957,7 @@ export declare const WORKFLOW_CONTENT_SCHEMAS: {
 export declare const WORKFLOW_CONTENT_VERSIONS: {
     readonly list: 1;
     readonly read: 1;
-    readonly receive: 2;
+    readonly receive: 1;
     readonly create: 1;
 };
 

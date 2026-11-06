@@ -1,8 +1,9 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginConsentGrant, PluginConsentGranter, PluginConsentKind, PluginDeclarationNeedingConsent, PluginTrust, PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { definitionOrigin } from "./platform-definitions.js";
+import type { PluginConsentGrant, PluginConsentGranter, PluginDeclarationNeedingConsent, PluginTrust, PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
-// Install trust and the declarations that need consent (ac-trust T1, specs/repository-anti-corruption/slices/ac-trust-install.md §2–§3).
+// Install trust and the declarations that need consent (ac-trust T1, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §2–§3).
 // Pure rules: the install, the supervisor and the tests read the same ones. A level is evidence the Host gives; nothing a plugin writes
 // (its Manifest, its package, a caller's input) can name its own.
 
@@ -115,7 +116,8 @@ export function assertLocalToolsAllowed(manifest: PluginManifest, trust: PluginT
 /** What `install` asks of a definition's trust: it fits where the code runs, a Home scope in the Manifest is the Host build's or a pinned sandbox package's, and a look for local tools is the Host build's alone. */
 export function assertTrustFitsDefinition(definition: PluginDefinition, trust: PluginTrust, inProcess?: InProcessAdmission): void {
   const execution = definition.execution ?? "host";
-  assertTrustFitsExecution(trust, execution, !inProcess || inProcess.admit.has(definition));
+  // The Host admits its own definition objects; the platform's view of one is checked as that object.
+  assertTrustFitsExecution(trust, execution, !inProcess || inProcess.admit.has(definitionOrigin(definition)));
   assertHomeScopeAllowed(definition.manifest, trust, execution);
   assertLocalToolsAllowed(definition.manifest, trust);
 }
@@ -127,13 +129,14 @@ export const consentGranter = (trust: PluginTrust): PluginConsentGranter => trus
 export const consentSubject = {
   alwaysOn: (): string => "always_on",
   defaultGroup: (groupId: string): string => groupId,
+  projectReach: (projectId: string, installId: string): string => JSON.stringify([projectId, installId]),
   /** The target port reads the source plugin's output by default, for the source publisher that was current when the consent was given. */
   defaultWiring: (targetPort: string, source: { plugin_id: string; port: string }, sourcePublisherSignature: string): string =>
     `${targetPort}<-${source.plugin_id}:${source.port}@${sourcePublisherSignature}`,
 };
 
 /** A declaration of a Manifest that asks for consent. A default wiring's subject is complete once the source's publisher signature follows `prefix`. */
-interface DeclaredConsent { readonly kind: PluginConsentKind; readonly prefix: string; readonly complete: boolean; readonly summary: string }
+interface DeclaredConsent { readonly kind: PluginConsentGrant["kind"]; readonly prefix: string; readonly complete: boolean; readonly summary: string }
 
 function declaredConsents(manifest: PluginManifest): DeclaredConsent[] {
   const declared: DeclaredConsent[] = [];
@@ -153,8 +156,8 @@ function declaredConsents(manifest: PluginManifest): DeclaredConsent[] {
  * What the Manifest declares that asks for consent, for a preview. `sourceSignature` says the publisher signature of a default
  * wiring's source plugin; a wiring whose source it cannot name is not listed, as it cannot be agreed to (nor bound).
  */
-export function declarationsNeedingConsent(manifest: PluginManifest, sourceSignature: (pluginId: string) => string | undefined): PluginDeclarationNeedingConsent[] {
-  const listed: PluginDeclarationNeedingConsent[] = [];
+export function declarationsNeedingConsent(manifest: PluginManifest, sourceSignature: (pluginId: string) => string | undefined): (PluginDeclarationNeedingConsent & { kind: PluginConsentGrant["kind"] })[] {
+  const listed: (PluginDeclarationNeedingConsent & { kind: PluginConsentGrant["kind"] })[] = [];
   for (const declaration of declaredConsents(manifest)) {
     if (declaration.complete) { listed.push({ kind: declaration.kind, subject: declaration.prefix, summary: declaration.summary }); continue; }
     const source = manifest.ports?.inputs.find(input => declaration.prefix.startsWith(`${input.port}<-`) && input.default_source)?.default_source;

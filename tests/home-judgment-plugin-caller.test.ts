@@ -61,7 +61,7 @@ async function fixture(t: import("node:test").TestContext) {
     const command: ActionDefinition = { capability_id: name + ".run", version: 1, operation: "command", action: { title: name, description: "Runs a dock judgment as the plugin", kind: "operation", scope: "project",
       audiences: ["user"], permissions: [], scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object" }, output_schema: {} } };
     let work: (directory: PluginActionDirectory) => Promise<unknown> = async () => null, directory: PluginActionDirectory | undefined;
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, name, version: "1.0.0", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, name, version: "1.0.0", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture-" + name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: permissions.map(permission => ({ permission, required: true, reason: "Run the Home dock's judgment" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [command] },

@@ -1,5 +1,10 @@
 import { MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopPanelTables } from "./adapters/sqlite-panels.js";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+
+export function inspectMolisWorkProjectCatalogSnapshot(database: SqliteDatabase): Readonly<Record<string, string | number>> {
+  return MolisWorkProjectCatalog.inspectSnapshot(database, { createPanelSchema: createDesktopPanelTables });
+}
 
 /** Open the one Host catalog with the current desktop platform adapters. */
 export function openMolisWorkProjectCatalog(options: MolisWorkProjectCatalogOptions = {}): Promise<MolisWorkProjectCatalog> {

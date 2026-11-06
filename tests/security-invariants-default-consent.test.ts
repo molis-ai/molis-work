@@ -24,7 +24,7 @@ const SIGNATURE = "probe-wordcount";
 const filesSignature = createFilesPlugin().manifest.publisher.signature;
 
 function probe(inputs: PluginInputPortDeclaration[], groups?: PluginInputGroupDeclaration[]): PluginDefinition {
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: PROBE, version: "1.0.0", name: "字数", kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PROBE, version: "1.0.0", name: "字数", kind: "app",
     publisher: { publisher_id: "molis", signature: SIGNATURE }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "artifact:read", required: true, reason: "读绑来的快照" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [{ artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION }] }, ui: { contributions: [] },

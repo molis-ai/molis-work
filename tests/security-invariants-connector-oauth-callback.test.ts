@@ -26,7 +26,7 @@ import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// S-101 (docs/system/SECURITY-INVARIANTS.md), W5-11 slice 3 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md
+// S-101 (docs/system/SECURITY-INVARIANTS.md), W5-11 slice 3 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md
 // §3.3, §3.4): the generic OAuth callback, judged in order. The Host is checked before the store; once the record is taken by its state,
 // every refusal ends it. Rules 1–7 refuse before any request; rules 8 and 9 refuse after the token request, and what it exchanged is
 // neither staged nor committed. A refusal writes only the taken record, the authorization's status and the cleared stage: no connection,

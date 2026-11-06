@@ -1,0 +1,326 @@
+/* No transitions until the first render settles: buttons must not animate in from the browser's own colours. */
+html.booting *,html.booting *::before{transition:none!important}
+/* 07-1 workbench navigation prototype — layout only. Colours, shadows, corners, durations and curves are the component
+   board's tokens from ../kit/kit.css; the tab strip, group wash and bar geometry restate the product's own numbers
+   (apps/workbench/src/styles/tab-groups.ts, DESIGN.md "Tabs and panes", "The bottom bar") so the three schemes are
+   compared on the real frame. Nothing here defines a colour of its own. */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--desk);color:var(--ink);font:400 13px/1.5 var(--font);letter-spacing:-.011em;overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fact{font-size:12px;color:var(--muted)}
+
+/* ---------- Prototype controls: solid rail with a hatched lower edge, clearly outside the product ---------- */
+.proto{position:fixed;inset:0 0 auto 0;height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;z-index:80;overflow-x:auto;scrollbar-width:none;
+  background:repeating-linear-gradient(-45deg,var(--line-strong) 0 4px,transparent 4px 8px) bottom/100% 3px no-repeat,var(--rail);box-shadow:inset 0 -1px 0 var(--line)}
+.proto b{font-size:12px;white-space:nowrap}
+.proto label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);white-space:nowrap}
+.proto select{height:28px;border-radius:var(--r-control);border:1px solid var(--line-strong);background:var(--paper);padding:0 6px;font-size:12px}
+.proto .mw-toggle-group{padding:2px;gap:2px;border-radius:10px}.proto .mw-toggle{min-height:24px;padding:0 10px;font-size:12px}
+.proto .mw-btn{flex:none}
+/* A note that explains what the screen demonstrates: hatched edge like the control rail, never product chrome. */
+.explain{position:fixed;z-index:70;right:24px;bottom:96px;max-width:min(360px,calc(100vw - 32px));padding:10px 12px 10px 14px;border-radius:var(--r-card);
+  background:repeating-linear-gradient(-45deg,var(--line-strong) 0 4px,transparent 4px 8px) left/4px 100% no-repeat,var(--rail);color:var(--ink-soft);font-size:12px;line-height:1.55;box-shadow:var(--lift-2)}
+.explain strong{display:block;color:var(--ink);font-weight:500;margin-bottom:2px}
+.explain[data-hide]{display:none}
+
+/* ---------- Frame: titlebar · desk · bar ---------- */
+.app{position:fixed;inset:40px 0 0 0;display:grid;grid-template-rows:40px minmax(0,1fr) 76px}
+.titlebar,.desk{display:grid;grid-template-columns:var(--cols);column-gap:0}
+.titlebar{padding:0 14px 0 8px;align-items:center;min-width:0}
+.desk{padding:0 14px 0 14px;min-height:0}
+.gap{width:8px}
+.strip{display:flex;align-items:center;gap:4px;min-width:0;height:40px;padding-right:2px}
+.strip+.gap+.strip,.titlebar>.strip:not(:first-child){padding-left:0}
+.hist{display:flex;gap:2px;margin-right:2px;flex:none}
+.hist button,.tools>button:not(.more){width:28px;height:28px;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink-soft);display:grid;place-items:center;flex:none;transition:background-color var(--dur-hover) var(--ease-quint)}
+.hist button{color:var(--faint)}
+.hist button:hover,.tools>button:not(.more):hover{background:var(--nav-hover);color:var(--ink)}
+.hist button:focus-visible,.tools>button:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
+.tools{display:flex;align-items:center;gap:2px;flex:none;margin-left:auto}
+.tools>button[aria-expanded=true]{background:var(--nav-active);color:var(--ink)}
+.tbstatus{display:flex;align-items:center;gap:4px;flex:none;margin-left:6px}
+.tbstatus .mw-btn{height:26px;min-height:26px}
+
+/* Tabs scroll on their own; the edges fade where more waits beyond them. */
+.tabs{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 auto;overflow-x:auto;scrollbar-width:none;padding:0 2px;
+}
+.tabs[data-end]{mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent)}
+.tabs[data-start]{mask-image:linear-gradient(90deg,transparent,#000 24px)}
+.tabs[data-start][data-end]{mask-image:linear-gradient(90deg,transparent,#000 24px,#000 calc(100% - 24px),transparent)}
+.tabs::-webkit-scrollbar{display:none}
+.lead{display:flex;align-items:center;gap:6px;flex:none}
+.lead:empty{display:none}
+.tw{position:relative;display:flex;flex:none}
+.tw.rt{flex:0 1 172px;min-width:96px;contain:inline-size} /* shrink like Chrome before the strip scrolls (DESIGN allows 72px) */
+.tw.rt>.tab{width:100%}
+/* The current tab keeps its full width so its title stays readable when the strip is crowded. */
+.tw.rt:has(>.tab[aria-selected=true]){flex:0 0 172px}
+.tab{display:flex;align-items:center;gap:6px;height:26px;max-width:172px;min-width:0;padding:0 26px 0 9px;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink-soft);
+  font-size:12px;font-weight:500;white-space:nowrap;position:relative;transition:background-color var(--dur-move) var(--ease-quint),box-shadow var(--dur-move) var(--ease-quint),color var(--dur-hover) var(--ease-quint)}
+.tab>span.t{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tab svg{width:14px;height:14px;color:var(--muted)}
+.tab:hover{background:var(--nav-hover);color:var(--ink)}
+.tab:active{transform:scale(.975)}
+.tab:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
+.tab[aria-selected=true]{background:var(--paper);color:var(--ink);box-shadow:var(--lift-1)}
+.tab[aria-selected=true] svg{color:var(--ink-soft)}
+.tw>.x{position:absolute;right:4px;top:50%;margin-top:-10px;width:20px;height:20px;border:0;border-radius:5px;background:transparent;color:var(--faint);display:grid;place-items:center;opacity:0;transition:opacity var(--dur-hover) var(--ease-quint)}
+.tw>.x svg{width:12px;height:12px}
+.tw:hover>.x,.tw>.x:focus-visible,.tw:has(.tab[aria-selected=true])>.x{opacity:1}
+.tw>.x:hover{background:var(--nav-active);color:var(--ink)}
+.tab.fixed{min-width:0;padding:0 10px;max-width:none}            /* home and plugin tabs keep their names */
+.tab.icon{min-width:0;width:30px;padding:0;justify-content:center} /* pinned and phone home */
+.tab.icon>span.t{display:none}
+/* Open-task count on the background-tasks glyph (right side) and on the bar's side toggle while the side is hidden. */
+.tab,.dock{position:relative}
+.badge{position:absolute;top:0;right:0;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--action);color:var(--action-ink);
+  font-size:10px;font-weight:600;line-height:14px;text-align:center;font-variant-numeric:tabular-nums;pointer-events:none}
+.dock .badge{top:3px;right:3px}
+/* Glyph-only tabs (right side, pinned, rail) grow in place after a short rest or on keyboard focus: the tab widens to show
+   its name. The width changes at once and only the name fades in (motion stays on opacity). On the right, and in the
+   rail, the name sits before the glyph so the tab grows leftward and its glyph stays under the pointer. */
+.tab.icon.grow{width:auto;max-width:200px;padding:0 10px 0 8px;justify-content:flex-start}
+.tab.icon.grow>span.t{display:block;overflow:hidden;text-overflow:ellipsis;animation:grow-in var(--dur-hover) var(--ease-quint) both}
+:is(.strip.side,.rail) .tab.icon.grow{flex-direction:row-reverse;padding:0 8px 0 10px}
+.tab.icon.grow:not([aria-selected=true]){background:var(--nav-hover);color:var(--ink)}
+.grp .tab.icon.grow:not([aria-selected=true]){background:color-mix(in srgb,var(--g) 14%,transparent)}
+@keyframes grow-in{from{opacity:0}to{opacity:1}}
+/* The right side: "+" first, its glyphs pushed to the right edge. */
+.strip.side .tools{order:-1;margin-left:0;margin-right:auto}
+.strip.side .tabs{flex:0 1 auto}
+.strip.side .tabs>:first-child{margin-left:auto}
+.strip.side .more>span:not(.n){display:none}
+/* The window's layout tools, once, at the titlebar's right end; with the right side hidden its glyphs stay there as a rail. */
+.rail{display:flex;align-items:center;gap:4px;flex:none;margin-left:10px}
+.wintools{display:flex;align-items:center;gap:2px;flex:none;margin-left:4px}
+.wintools .tdiv{width:1px;height:16px;margin:0 4px;background:var(--line-strong)}
+.wintools button{width:28px;height:28px;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink-soft);display:grid;place-items:center;transition:background-color var(--dur-hover) var(--ease-quint)}
+.wintools button:hover,.wintools button[aria-expanded=true]{background:var(--nav-hover);color:var(--ink)}
+.wintools button:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
+.wintools button[aria-pressed=true]{color:var(--ink)}
+.pindiv{width:1px;height:16px;background:var(--line-strong);flex:none;margin:0 2px}
+/* A tab in a pane that does not have the focus: where that pane is, without the lift that says "you are here". */
+.strip:not(.focus) .tab[aria-selected=true]{background:var(--nav-active);box-shadow:none;color:var(--ink)}
+.strip:not(.focus) .tab[aria-selected=true]::after{display:none}
+/* A tab whose content is gone or could not start: faint words and a mark of the words' size. */
+.tab.gone>span.t{color:var(--faint);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--faint) 60%,transparent)}
+.tab .warn{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:none;margin-left:-2px}
+.tab.focusring{outline:var(--focus-stroke);outline-offset:1px}
+
+/* ---------- Groups (specs/plugin-tab-groups visual, refined per scheme) ---------- */
+.grp{--wash:color-mix(in srgb,var(--g) 10%,transparent);--gink:color-mix(in srgb,var(--g) 72%,var(--ink));
+  display:flex;align-items:center;gap:2px;height:30px;padding:2px;border-radius:var(--r-row);background:var(--wash);flex:0 1 auto;transition:background-color var(--dur-move) var(--ease-quint)}
+.grp.cur{--wash:color-mix(in srgb,var(--g) 15%,transparent)}
+.grp .tab{color:color-mix(in srgb,var(--g) 35%,var(--ink));font-weight:400}
+.grp .tab svg{color:var(--g)}
+.grp .tab:hover{background:color-mix(in srgb,var(--g) 12%,transparent);color:var(--ink)}
+.grp .tab[aria-selected=true]{background:var(--paper);color:var(--ink);font-weight:500}
+.strip.focus .grp .tab[aria-selected=true]::after{content:"";position:absolute;left:50%;bottom:1px;width:14px;height:2px;margin-left:-7px;border-radius:2px;background:var(--gf)}
+.strip:not(.focus) .grp .tab[aria-selected=true]{background:color-mix(in srgb,var(--g) 18%,transparent)}
+.grp .tab.head{color:var(--gink);font-weight:500;padding-right:10px}
+.grp .tab.head svg{color:var(--g)}
+.grp .tw.head-w>.x{display:none}
+.grp .sep{width:1px;height:14px;background:color-mix(in srgb,var(--g) 30%,transparent);flex:none;margin:0 2px}
+.grp .count{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:var(--r-tag);background:var(--gf);color:var(--paper);font-size:11px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;border:0}
+button.count{cursor:pointer;margin:0 3px 0 -2px;height:18px;min-width:20px}
+button.count:hover{background:color-mix(in srgb,var(--gf) 86%,var(--ink))}
+button.count:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
+/* A person's group: a solid label in its colour. */
+.grp .label{display:inline-flex;align-items:center;height:20px;padding:0 7px;margin:0 2px;border:0;border-radius:var(--r-tag);background:var(--gf);color:var(--paper);font-size:11px;font-weight:600;white-space:nowrap}
+.grp .label:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
+.grp.off{--g:var(--faint);--gf:var(--faint)}
+.grp.off .tab.head>span.t{color:var(--faint)}
+.grp .gtag{font-size:11px;font-weight:500;color:var(--muted);padding:0 4px 0 0;white-space:nowrap}
+.undo{display:inline-flex;align-items:center;gap:6px;height:26px;margin:0 4px;padding:0 10px 0 8px;border:0;border-radius:var(--r-control);flex:none;
+  background:color-mix(in srgb,var(--g) 12%,var(--paper));color:color-mix(in srgb,var(--g) 72%,var(--ink));font-size:12px;font-weight:500;white-space:nowrap;box-shadow:var(--lift-1);animation:craft-fade-in var(--dur-move) var(--ease-quint)}
+.undo svg{width:13px;height:13px}
+.more{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 8px;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink-soft);font-size:12px;font-weight:500;flex:none;white-space:nowrap}
+.more:hover{background:var(--nav-hover);color:var(--ink)}
+.more[aria-expanded=true]{background:var(--nav-active)}
+.more .n{font-variant-numeric:tabular-nums;color:var(--muted)}
+.solochip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:0;border-radius:var(--r-control);flex:none;background:var(--accent-soft);color:var(--accent-strong);font-size:12px;font-weight:500;white-space:nowrap}
+.solochip:hover{background:color-mix(in srgb,var(--accent) 18%,var(--paper))}
+
+/* Scheme C: the titlebar carries the groups; a group's own tabs sit in a row at the top of its sheet. */
+.c-head{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 9px;border:0;border-radius:var(--r-control);flex:none;white-space:nowrap;position:relative;
+  background:color-mix(in srgb,var(--g) 10%,transparent);color:color-mix(in srgb,var(--g) 72%,var(--ink));font-size:12px;font-weight:500;transition:background-color var(--dur-move) var(--ease-quint),box-shadow var(--dur-move) var(--ease-quint)}
+.c-head svg{width:14px;height:14px;color:var(--g)}
+.c-head:hover{background:color-mix(in srgb,var(--g) 16%,transparent)}
+.c-head[aria-selected=true]{background:var(--paper);box-shadow:var(--lift-1);color:var(--ink)}
+.strip.focus .c-head[aria-selected=true]::after{content:"";position:absolute;left:50%;bottom:1px;width:14px;height:2px;margin-left:-7px;border-radius:2px;background:var(--gf)}
+.strip:not(.focus) .c-head[aria-selected=true]{background:color-mix(in srgb,var(--g) 18%,transparent);box-shadow:none}
+.c-head .count{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:var(--r-tag);background:color-mix(in srgb,var(--g) 20%,transparent);color:var(--gink,var(--ink));font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.c-head:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
+.c-head.label{background:var(--gf);color:var(--paper)}.c-head.label svg{color:var(--paper)}
+.c-head.label[aria-selected=true]{background:var(--paper);color:var(--ink)}.c-head.label[aria-selected=true] svg{color:var(--g)}
+.c-head.off{--g:var(--faint);--gf:var(--faint);color:var(--faint)}
+.subtabs{display:flex;align-items:center;gap:4px;height:38px;padding:6px 10px 0;flex:none;min-width:0;overflow-x:auto;scrollbar-width:none;box-shadow:inset 0 -1px 0 var(--line)}
+/* Second-level tabs size to their titles (no plate behind them, so fixed widths read as gaps). */
+.subtabs .tw.rt,.subtabs .tw.rt:has(>.tab[aria-selected=true]){flex:0 1 auto;min-width:0;max-width:260px;contain:none}
+.subtabs .tw.rt>.tab{padding-right:26px}
+.subtabs[data-start]{mask-image:linear-gradient(90deg,transparent,#000 24px)}
+.subtabs .tab{height:28px;max-width:240px;border-radius:var(--r-control) var(--r-control) 0 0;padding-bottom:2px;color:var(--ink-soft);font-weight:400}
+.subtabs .tab svg{color:var(--g)}
+.subtabs .tab[aria-selected=true]{background:transparent;box-shadow:inset 0 -2px 0 var(--gf);color:var(--ink);font-weight:500}
+.subtabs .tab:hover{background:var(--nav-hover)}
+.subtabs .tw>.x{margin-top:-11px}
+
+/* ---------- Panes: sheets on the desk ---------- */
+.pane{background:var(--paper);border-radius:var(--r-sheet);box-shadow:var(--sheet-shadow);min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;position:relative;margin-bottom:0}
+.pane.focus{box-shadow:var(--sheet-shadow),inset 0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent)}
+.pane .body{flex:1;min-height:0;overflow:auto;scrollbar-width:none}
+.pane.arrive .body{animation:craft-rise var(--dur-arrive) var(--ease-quint)}
+.desk .gap{position:relative}
+.desk .gap::after{content:"";position:absolute;left:3px;top:50%;width:2px;height:32px;margin-top:-16px;border-radius:2px;background:var(--line-strong);opacity:0;transition:opacity var(--dur-hover) var(--ease-quint)}
+.desk .gap:hover::after{opacity:1}
+
+/* Page content — the stage column of DESIGN "Plugin stage", sample data only. */
+.stage{max-width:960px;margin:0 auto;padding:32px 32px 48px}
+.side .stage,.narrowpane .stage{padding:20px 18px 32px}
+.phead{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+.phead .grow{flex:1;min-width:0}
+.phead h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.25}
+.side .phead h1{font-size:15px}
+.phead p{margin:4px 0 0;color:var(--ink-soft)}
+.rec h1{margin:0 0 4px;font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.3}
+.rec .facts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.rec p,.doc p{margin:0 0 12px;line-height:1.75;max-width:68ch;color:var(--ink)}
+.rec h2,.doc h2{font-size:15px;font-weight:600;margin:22px 0 8px}
+.doc h1{font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1.25;margin:0 0 16px}
+.rows{display:flex;flex-direction:column;gap:2px}
+.row{display:flex;align-items:center;gap:10px;min-height:40px;padding:4px 10px;border-radius:var(--r-row)}
+.row:hover{background:var(--nav-hover)}
+.row .nm{flex:1;min-width:0;display:flex;flex-direction:column}
+.row .nm strong{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .nm .fact{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row svg{color:var(--ink-soft)}
+.row .mw-state-ring{flex:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.card{background:var(--surface-soft);border-radius:var(--r-card);padding:14px 16px}
+.card h3{margin:0 0 4px;font-size:13px;font-weight:500;display:flex;gap:8px;align-items:center}
+.card p{margin:0;color:var(--ink-soft);font-size:12px;line-height:1.55}
+.turn{max-width:72ch;margin-bottom:14px}
+.turn .who{font-size:12px;color:var(--muted);margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.turn p{margin:0;line-height:1.65}
+.step{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--r-row);background:var(--surface-soft);font-size:12px;max-width:72ch;margin-bottom:14px}
+.bubble{background:var(--surface-soft);border-radius:var(--r-card);padding:8px 12px;margin:0 0 10px;max-width:92%}
+.bubble.me{background:var(--accent-soft);margin-left:auto}
+.bubble .who{font-size:12px;color:var(--muted);margin-bottom:2px}
+.timer{font:600 30px/1.2 var(--font);letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin:8px 0 4px}
+.paneempty{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
+.paneempty .mw-empty{max-width:420px}
+
+/* ---------- Bottom bar ---------- */
+.bar{display:flex;align-items:center;gap:16px;padding:0 14px;min-width:0}
+.tray{display:flex;align-items:center;gap:4px;height:50px;padding:6px;border-radius:var(--r-composer);background:var(--control-fill);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent);flex:none;min-width:0}
+.switcher{height:38px;display:flex;align-items:center;gap:4px;padding:0 6px 0 10px;border:0;border-radius:11px;background:transparent;font-weight:500;color:var(--ink);max-width:260px;min-width:0}
+.switcher:hover{background:var(--nav-hover)}
+.switcher[aria-expanded=true]{background:var(--nav-active)}
+.switcher .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.switcher .chips{display:flex;gap:2px;padding:2px;border-radius:var(--r-control);background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.switcher .chip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 8px;border-radius:6px;color:var(--ink-soft);font-size:12px;white-space:nowrap}
+.switcher .chip.cur{background:var(--paper);box-shadow:var(--lift-1);color:var(--ink)}
+.switcher .chip svg{width:14px;height:14px}
+.dock{width:38px;height:38px;border-radius:11px;border:0;background:transparent;display:grid;place-items:center;color:var(--ink-soft);position:relative;flex:none;transition:background-color var(--dur-hover) var(--ease-quint)}
+.dock svg{width:20px;height:20px;stroke-width:1.6}
+.dock:hover{background:var(--nav-hover);color:var(--ink)}
+.dock:active{transform:scale(.97)}
+.dock[aria-current]{background:var(--paper);box-shadow:var(--lift-1);color:var(--ink)}
+.dock[aria-current]::after{content:"";position:absolute;bottom:3px;left:50%;width:3px;height:3px;margin-left:-1.5px;border-radius:50%;background:var(--accent)}
+.dock.pressed{outline:var(--focus-stroke);outline-offset:1px}
+.dock .warn{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 2px var(--control-fill)}
+.dock:focus-visible,.switcher:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
+.composer{flex:1;max-width:680px;margin:0 auto;min-width:0;display:flex;align-items:center;gap:8px;height:50px;padding:0 8px 0 16px;border-radius:var(--r-composer);background:var(--paper);box-shadow:var(--lift-2)}
+.composer .ph{flex:1;color:var(--faint);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.composer .send{width:34px;height:34px;border-radius:10px;border:0;background:var(--control-fill);display:grid;place-items:center;color:var(--ink-soft);flex:none}
+.dock.switcher{width:38px;max-width:none;padding:0;justify-content:center;gap:0}
+.bdiv{width:1px;height:20px;margin:0 2px;background:var(--line-strong);flex:none}
+.mono{width:40px;height:40px;border-radius:50%;background:var(--hue-steel-fill);color:var(--paper);display:grid;place-items:center;font-size:13px;font-weight:600;border:0;flex:none}
+
+/* ---------- Menus (mw-menu from the board, placed beside their control) ---------- */
+.pop{position:fixed;z-index:60;min-width:260px;max-width:min(380px,calc(100vw - 16px));max-height:calc(100vh - 140px);overflow:auto;scrollbar-width:none}
+.pop.mw-menu{background:var(--popover);border-radius:var(--r-card);box-shadow:var(--lift-3);padding:6px;animation:craft-drop var(--dur-move) var(--ease-quint);transform-origin:top left}
+.pop.up{animation-name:craft-rise-from-bar;transform-origin:bottom left}
+.pop .mw-menu__item{width:100%}
+.pop .cap{display:block;padding:8px 10px 4px;font-size:11px;font-weight:500;color:var(--muted)}
+.pop .head{display:block;padding:6px 10px 4px;font-size:12px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pop .foot{display:block;padding:8px 10px 4px;font-size:11px;color:var(--muted);box-shadow:inset 0 1px 0 var(--line);margin-top:4px}
+.pop .find{display:flex;align-items:center;gap:8px;height:32px;margin:2px 2px 6px;padding:0 10px;border-radius:var(--r-control);border:1px solid color-mix(in srgb,var(--ink) 12%,transparent);background:var(--paper);color:var(--faint)}
+.pop .find input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font-size:13px}
+.pop .find:focus-within{border-color:color-mix(in srgb,var(--accent) 55%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+.pop .find input:focus,.pop .find input:focus-visible{outline:none;box-shadow:none}
+.pop>.find:first-child{position:sticky;top:-6px;z-index:1;margin-top:-6px;padding-top:0;box-shadow:0 -6px 0 var(--popover)}
+.pop>.find:first-child:focus-within{box-shadow:0 -6px 0 var(--popover),0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+.pop .find kbd{font:500 11px var(--font);color:var(--muted)}
+/* A row with a trailing action that appears while the row is looked at (the switcher's row pattern). */
+.prow{position:relative;display:flex;align-items:center}
+.prow>.mw-menu__item{padding-right:44px}
+.prow>.mw-menu__item .where{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap;padding-left:8px}
+.prow>.side-btn{position:absolute;right:4px;top:50%;margin-top:-14px;width:28px;height:28px;min-height:28px;opacity:0;transform:translateX(8px);transition:opacity var(--dur-hover) var(--ease-quint),transform var(--dur-move) var(--ease-quint)}
+.prow:hover>.side-btn,.prow:focus-within>.side-btn{opacity:1;transform:none}
+.mw-menu__item .two{display:flex;flex-direction:column;min-width:0;text-align:left}
+.mw-menu__item .two span{white-space:normal;line-height:1.35}
+.mw-menu__item .two small{font-size:11px;color:var(--muted)}
+.mw-menu__item .warnword{margin-left:auto;font-size:11px;color:var(--amber);white-space:nowrap;padding-left:8px}
+.pop.switch{min-width:340px}
+.pop.switch .tools-row{display:flex;gap:8px;padding:2px 2px 8px;flex-wrap:wrap}
+.pop.switch .tools-row .find{flex:1 1 100%;margin:0}
+.pop .mw-menu__item[aria-current=true]{background:var(--nav-active)}
+.pop .kv{margin-left:auto;font-size:11px;color:var(--muted);padding-left:12px;white-space:nowrap}
+
+/* ---------- Toast ---------- */
+.mw-toast{position:fixed;left:0;right:0;bottom:92px;margin:0 auto;z-index:65;width:max-content;max-width:calc(100vw - 32px)}
+
+/* ---------- Narrow windows ---------- */
+@media (max-width:1180px){.tbstatus .mw-btn span[data-slot=button-label]{display:none}}
+@media (max-width:1039px){.switcher .nm,.switcher .chev{display:none}}
+@media (max-width:760px){
+  .app{grid-template-rows:auto minmax(0,1fr) 116px}
+  .titlebar,.desk{grid-template-columns:minmax(0,1fr)!important}
+  .titlebar{padding:0 8px;row-gap:0}
+  .desk{padding:0 8px}
+  .titlebar>.gap,.desk>.gap{display:none}
+  .titlebar>.strip:not(.focus),.desk>.pane:not(.focus){display:none}
+  .strip{height:52px}
+  .winsel{display:flex!important}
+  .tab,.c-head,.more,.undo,.solochip{height:44px;min-height:44px}
+  .tab{min-width:98px;padding-right:44px}
+  .tab.fixed,.tab.icon{min-width:44px}
+  .tab.icon{width:44px}
+  .tw>.x{width:44px;height:44px;margin-top:-22px;right:0;opacity:1}
+  .grp{height:auto;padding:0;border-radius:12px}
+  .grp .tab{border-radius:12px}
+  .hist,.tools>button.split-btn,.tbstatus{display:none}
+  .tools>button:not(.more){width:44px;height:44px}
+  .tw.rt{min-width:98px}
+  .tabs>.grp.cur:has(>.tw.rt){flex:1 1 auto;min-width:0}
+  .tabs>.grp.cur>.tw.rt,.tabs>.tw.rt{flex:1 1 auto;min-width:0}
+  .more>span:not(.n){display:none}
+  .more{width:auto;padding:0 10px}
+  .bar .tray:first-child{gap:0}
+  .subtabs{height:52px}.subtabs .tab{height:44px}.subtabs .tw.rt,.subtabs .tw.rt:has(>.tab[aria-selected=true]){flex:none;max-width:200px}.subtabs .tw.rt>.tab{padding-right:44px}.subtabs .tw>.x{margin-top:-22px}
+  .bar{flex-wrap:wrap;align-content:center;gap:4px 0;padding:6px 8px;justify-content:space-between}
+  .composer{order:-1;flex-basis:100%;max-width:none;height:50px;margin:0 0 4px}
+  .tray{background:transparent;box-shadow:none;padding:0;height:auto;gap:0}
+  .dock,.switcher{width:44px;height:44px;padding:0;justify-content:center;border-radius:12px}
+  .switcher .chips{display:none}
+  .mono{width:44px;height:44px}
+  .pop{left:8px!important;right:8px;max-width:none;width:auto}
+  .pop .mw-menu__item{min-height:44px}
+  .prow>.side-btn{opacity:1;transform:none;width:44px;height:44px;margin-top:-22px}
+  .prow>.mw-menu__item{padding-right:52px}
+  .explain{left:16px;right:16px;bottom:128px;max-width:none}
+  .mw-toast{bottom:132px}
+  .stage{padding:20px 16px 32px}
+  .phead h1{font-size:20px}
+  .doc h1{font-size:24px}
+}
+.winsel{display:none;align-items:center;flex:none;margin-right:4px}
+.winsel .mw-toggle{min-height:40px;padding:0 9px;font-size:12px}
+.dock.fold{font-size:13px;font-weight:500;color:var(--ink-soft)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

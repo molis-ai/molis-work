@@ -87,7 +87,7 @@ HTTP 体同样改名 `expected_updated_at`，`route-handlers.ts:19-20` 的解构
 
 **一个看得见的小变化：** 列表按 `updated_at` 排序（`store.ts:48`），试跑和改样例不再把规则顶到最上面。发布仍然要顶上去，排序改成 `ORDER BY datetime(COALESCE(published_at, updated_at)) DESC`。
 
-`tests/functions-store-versions.test.ts` 开头写着「每次写都推版本」，这一条要改：**这是合同有意改变，不是放宽。** 改成断言试跑、样例、发布、无变化的保存都不推版本，并保留「定义变了之后旧版本被拒」的全部断言。
+`tests/functions-store-versions.test.ts` 开头写着「每次写都推版本」，这一条要改：**这是合同有意改变，不是放宽。** 文件里的旧版本大多靠样例或试跑造出来（`:31`、`:33`、`:39`、`:42`，只有 `:25` 靠定义），新合同下这些版本不再旧，照字面改就会变成「成功」，所以不能删。改法写在 AIC-09：update、addSample、removeSample、preview、publish 五种拒绝都留，旧版本改由定义写入造出来，错误码改 `draft_stale`；`:30`、`:35`、`:41`、`:46` 的「版本前进」翻成「不变」；同一毫秒那半段（`laterThan`）留着。文件头注释和 `store.ts:31` 的注释一起改成「定义内容变了才往前走」。
 
 ### 2.5 service 与 store
 
@@ -124,27 +124,37 @@ sample_not_found: "not_found",
 
 用户选的是方案 A：提示就地出现，载入不丢输入，两边都改的字段摆出「你写的」。合同只负责让页面判断得出来、拿得到数据；版面和文案按设计台定样。
 
-**页面的判断（编辑器和 Feed 同一套）：**
+**页面的判断（编辑器和 Feed 同一套）：** 下面的「未保存内容」指表单和基准版不同。状态名对应设计台定样（`docs/design/rule-stale-reload/README.md`，随 #1873 合入）。
 
-| 收到 | 接着 | 对应定样的状态 |
-| --- | --- | --- |
-| `draft_stale` | `get(id)`，往下走 | |
-| `get` 得 `not_found` | | 已被删除 |
-| `get` 得 `status === "published"` | | 已在别处发布 |
-| `get` 得草稿，定义字段和页面的基准版相同 | 接上新的 `updated_at`，静默重存，不打扰 | 只是元数据变了（改了又改回才会走到这里） |
-| `get` 得草稿，定义字段不同 | | 发生冲突 |
-| `not_found` | | 已被删除 |
-| `published_immutable` | `get(id)` 拿版本号，供「查看 v1」 | 已在别处发布 |
-| `sample_not_found` | `get(id)` 刷新样例列表，不当成规则没了 | 不提示 |
+| 收到 | 条件 | 接着 | 对应定样的状态 |
+| --- | --- | --- | --- |
+| `draft_stale` | | `get(id)`，往下走 | |
+| `get` 失败（断网、服务不可用） | | 表单不动，「再试一次」 | 重新载入失败 |
+| `get` 得 `not_found`，或保存直接得 `not_found` | 有未保存内容 | 不关编辑器，输入留着 | 已被删除 |
+| 同上 | 没有未保存内容 | 工作台照旧关掉；Feed 删掉草稿，下一次预览再建 | 没有未保存内容时不提示 |
+| `get` 得 `status === "published"`，或保存得 `published_immutable` | 有未保存内容 | `get(id)` 拿版本号，供「查看 v1」 | 已在别处发布 |
+| 同上 | 没有未保存内容 | 直接进只读的 v1 | 只读查看（定样 `viewing`） |
+| `get` 得草稿，定义字段和基准版相同 | | 接上新的 `updated_at`，静默重存，不打扰 | 别处改了又改回 |
+| `get` 得草稿，定义字段不同 | 没有未保存内容 | 直接换成最新版；这次提交是发布就拦下，再点一次才发布 | 没有未保存内容 |
+| 同上 | 有未保存内容 | 提示，等用户点「载入最新版」（再 `get` 一次，拿那一刻最新的） | 发生冲突；载入后是已载入最新版 |
+| 放回之后保存又得 `draft_stale` | | 同上，多一条出路「存成新规则」 | 连续第二次冲突 |
+| `sample_not_found` | | `get(id)` 刷新样例列表，不当成规则没了 | 不提示 |
 
 **页面要握住的数据：**
 
 | 数据 | 从哪来 | 用来 |
 | --- | --- | --- |
 | 基准版 | 最后一次成功保存或载入的记录，工作台是 `sel`，Feed 是 `saved.function`（存的是完整的 `JudgmentRuleRecord`，定义字段都在，够比较） | 比出「只有你改的」「只有别处改的」「两边都改的」 |
-| 最新版 | `functions.authoring.get`，现有动作，返回完整记录，带新的 `updated_at`。**不需要新动作** | 载入、比较。比较的字段就是 §2.4 那份定义字段 |
+| 最新版 | `functions.authoring.get`，现有动作，返回完整记录，带新的 `updated_at`。**不需要新动作，但要给 Feed 打开**（下面） | 载入、比较。比较的字段就是 §2.4 那份定义字段 |
 | 你写的 | 还在表单里。合同不碰它。`draft_stale` 时页面**不要**自动覆盖表单 | 放回、换回 |
 | 规则的 `primitive` 和原 `function_key` | 基准版 | 「存成新规则」 |
+
+**Feed 现在调不到 `get`，两道关都要开：**
+
+- `get` 的 `audiences` 不含 `plugin`：`authoring-actions.ts:34-37` 的 `define` 默认不开，`:45` 没传，而 list、create、update、preview、publish 都传了。改成打开。`list` 已经对插件开放，权限同样是 `functions:manage`，并且返回全部记录，所以没有多放开什么。
+- Feed 没声明消费它：`plugins/native/feed/src/manifest.ts:37` 的 `capabilities.consumes` 加这一项，否则 `apps/local-host/src/plugin-page-actions.ts:29-30` 报 `actions.forbidden`。`rule-authoring.ts:21` 的 `action` 联合类型加 `get`，文件头注释「five exact」改成六个。
+
+否掉的路：Feed 用 `list` 再按 id 找，不改合同，但每次冲突都拉全部规则。
 
 **「存成新规则」用现有的两个动作，不加新动作：** `create({ primitive, name })` 拿到新 id 和新版本，再 `update` 写其余定义字段。
 
@@ -168,8 +178,8 @@ sample_not_found: "not_found",
 | 动作与服务 | `modules/judgment-rules/src/{authoring-actions,service,store,errors}.ts`；动作说明里「`updated_at` 用于拒绝过期编辑」「读取时的修订号」一起改（说明文字不进动作哈希） |
 | HTTP | `apps/local-host/src/judgment-rules-http/route-handlers.ts` |
 | 工作台 | `apps/workbench/src/judgment-rules/client-events.ts`（`:70,193,204,236,277`）、`client-records.ts`（`:128,138,149,157,200`）。`settings-client.ts`、`client-render.ts` 查过，没有这个用法。界面部分按定样，部件走 D 轨 |
-| Feed | `plugins/native/feed/src/browser/rule-authoring.ts`（`:55,80,87`，**E 轨**）。Inbox 没有直接消费者 |
-| 快照 | `tooling/gates/actions/host-actions.tsv`：`functions.authoring.*` 14 行里输入哈希变 6 行，`pnpm actions:update`。公开 API 快照预计不变，开工时跑 `pnpm api:update` 确认 |
+| Feed | `plugins/native/feed/src/browser/rule-authoring.ts`（`:21,55,80,87`）、`plugins/native/feed/src/manifest.ts:37`（消费 `get`，§2.7），**E 轨**。Inbox 没有直接消费者 |
+| 快照 | `tooling/gates/actions/host-actions.tsv`：`functions.authoring.*` 14 行里输入哈希变 6 行，`get` 一行的「谁能调」加 `plugin`，共变 7 行，`pnpm actions:update`，PR 里写明影响。公开 API 快照预计不变，开工时跑 `pnpm api:update` 确认 |
 | 测试 | `action-version-precondition`（`:23,26,59-64`）、`feed-capture.e2e`、`functions-authoring-actions`、`connector-consumer-usages`（`:70-72`）、`functions-draft-retention`（`:62` 的假服务要改字段名）、`functions-store-versions`（§2.4 的合同变化）、`functions-scene-configuration`、`personal-plugins-review-fixes`、`workbench-functions-late.e2e`、`functions-effect-boundaries`、`host-pages-error-model`（`:77`） |
 | 文档与 Skill | `docs/mcp.md:62`、`packages/kernel/README.md:106`、`skills/goal-advance/SKILL.md:17`（全量回归期间不能改 `skills/`，排好时段）、`docs/releases/CHANGELOG.md` 的升级须知一条（**F 轨独占**，由 F 落或经 F 同意：MCP 客户端的 `updated_at` 改成 `expected_updated_at`） |
 | 不用改 | `tests/fixtures/studio-replay/recorded.json` 只有动作 id，不带这个字段；开工时再 grep 一次 |
@@ -219,7 +229,9 @@ export type InferActionInput<S> =
 | --- | --- | --- |
 | `InferActionInput<S>` | 所有人 | §4.2，只有类型 |
 | `bindActionHandler(definition, run, extra?)` | 所有处理器 | 把定义和处理函数接成 `ActionHandlerBinding`。**全仓只在这里写一次 `input as I`**，这里是 kernel 校验过的边界。各包的 `bind` 小包装改成调它；要多包一层的（写入检查、取权限）还留自己的包装，但不再各写一次 `as` |
-| `inputSchemaFor<I>()(schema)` | 手写接口的公开合同 | 证明 schema 放进来的输入，手写接口都接得住；接不住就编译失败。返回类型是 `ActionSchema`，所以 `.d.ts` 和公开 API 快照都不变 |
+| `inputSchemaFor<I>()(schema)` | 手写接口的公开合同 | 两个方向都查，不符就编译失败。正向：schema 放进来的输入，手写接口都接得住。反向：接口里的键都要在 schema 的 `properties` 里，否则调用方照接口写、运行时被拒。接口是 `Record<string, unknown>` 这种开放形状时不查键。返回类型是 `ActionSchema`，所以 `.d.ts` 和公开 API 快照都不变 |
+
+反向检查只比顶层的键（TS 5.9.3 原型跑过：接口多键、接口必填而 schema 没写都报错，好的配对照常通过）。**查不到的两种：** 接口写 `string` 而 schema 是枚举；嵌套对象里多的键。这两种由 N22-02、N22-03 各用一次严格比较（`I extends InferActionInput<S>`）列出来，记进 S0，由 S0 收紧接口。这个比较不进工具，接口本来可以比 schema 严，不能一直当错。
 
 SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收口片（N22-Z）删掉手写 `Input` 的那个写法：N35 阶段一不留第二种写法。
 
@@ -228,9 +240,9 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 | 情形 | 写法 | 为什么 |
 | --- | --- | --- |
 | 包内部的动作（插件、宿主动作、模块私有） | 从 schema **推导**，删掉手写的 `I` | 类型没有别的用处，一份事实 |
-| 输入类型是公开合同的一部分（`packages/contracts/src/services/*`、`modules/*`、`platform/{placement,file-sources,search-sources,artifact-pins,workflow-content}`，共 118 个定义加 5 组共享帮手） | **留着手写接口**，schema 外面包 `inputSchemaFor<I>()` | 调用方在用这些接口的名字；改成推导类型会把 schema 字面量写进 `.d.ts`，14 份 API 快照一起变，还和 05② 抢队列。证明它们一致，效果相同，代价小得多 |
+| 输入类型是公开合同的一部分（`packages/contracts/src/services/*`、`modules/*`、`platform/{placement,file-sources,search-sources,artifact-pins,workflow-content}`，共 118 个定义加 5 组共享帮手） | **留着手写接口**，schema 外面包 `inputSchemaFor<I>()`（用户 2026-11-06 定） | **这 118 个是两份事实，由编译器钉住**，这是有意的例外。调用方在用这些接口的名字；改成推导类型会把 schema 字面量写进 `.d.ts`，14 份 API 快照一起刷新，还和 05② 抢合同队列，TS7056 也要量 |
 | 输入形状运行时才知道（`connector-mcp-actions.ts`、`external-mcp-actions.ts`、`plugin-builder/exposed-actions.ts`、`functions.published.*`） | `input: unknown`，不断言形状，原样转发 | 没有东西可推。名单写进收口片的记录 |
-| Alchemist | **不迁**，核一遍就结束 | 它已经是一份事实：`operation.input.safeParse(input)`，处理函数拿到 `parsed.data`（`action-operations.ts:176-187`），没有手写检查可删。它是用户批过的例外，由 BL-377 重做。这是对「全部处理器」的解读，不是缩范围：它的处理器已经拿着解析后的类型 |
+| Alchemist | **不迁**，核一遍就结束 | 它已经是一份事实：`operation.input.safeParse(input)`，处理函数拿到 `parsed.data`（`action-operations.ts:176-187`），没有手写检查可删。它是用户批过的例外，由 BL-377 重做。这是对「全部处理器」的解读，不是缩范围。**只有项目级操作是这样；** Home 级的两个操作是 `run(input)` 直接调（`:237`），靠 `:230` 一处 `as` 和 kernel 的校验，类型来自同一份 zod（`studio/shared/contracts/actions.ts:118`）。N22-Z 核的时候把这两个写进名单 |
 
 ### 4.5 字面量怎样保住（迁移写法）
 
@@ -260,8 +272,9 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 3. 编译报错的地方逐个判断：
    - 存储函数类型太窄：当场改。
    - **schema 比处理器要的松**（可选写成了必填、`{ type: "object" }` 没写字段）：T 片不能改 schema，这一处的 `as` 留着，记进 **S 清单**。
+   - **公开合同过不了 `inputSchemaFor`**（N22-02、N22-03）：T 片不改 schema，也不改公开接口，这一处先不包，记进 S0 的清单，S0 改完再包上。
 4. 不删任何运行时检查，不改错误码和文字。行为零变化。
-5. PR 描述列出 S 清单和处理器里的重复检查。**清单是空的，这个包的 S 片就取消。**
+5. PR 描述列出 S 清单和处理器里的重复检查。**两样都空，这个包的 S 片才取消。** 比如 T09 的 `as` 只有 3 处，手写检查有 28 处。
 
 ### 5.2 S 片：收约束
 
@@ -326,7 +339,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 ### 8.2 分片表
 
-除 N22-06 外，所有片都等 **#1837 合入**（02 的三个 PR 碰了 33 个处理器文件，Goal Prompt 写明 02 收尾前不碰）。「同时最多 3 个写手」把 N14 也算在内。写手一律子代理。
+除 N22-06 和 N14 外，所有片都等 **#1837 合入**（02 的三个 PR 碰了 33 个处理器文件，Goal Prompt 写明 02 收尾前不碰）。「同时最多 3 个写手」把 N14 也算在内。写手一律子代理。
 
 **第一段：工具和样板**
 
@@ -336,8 +349,8 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | N22-06 `normalizeProjectId` | §6 | Dataset、Form、Lingguang、Pages、PPT 的 `store.ts`（5） | E | 无 | Sonnet 5.5 high | **不依赖工具，也不等 #1837**：02 的 PR 没碰这五个 store（已查）。统筹可以最先开它 |
 | N14 | §2、§3 | §3 | 无归属（kernel 按 C1），Feed 一个文件 E | `host-actions.tsv` 6 行 | Opus 5.5 high，全量 | #1790；定样 PR；E 轨预警 |
 | N22-04 试点 Jelly | T＋S 同一个 PR，把两种片都走通，**定下写法样板**，量 §4.6 | Jelly（5） | E | `actions.tsv` | Opus 5.5 high | N22-01。**它通过之前，下面的 T 片不开** |
-| N22-02 共享帮手 | 共享定义 `bind*` 改调工具，schema 包 `inputSchemaFor`。T 片 | contracts `platform/{artifact-pins,file-sources,placement,search-sources,workflow-content}.ts`、SDK `routes.ts`（6） | C1 | 预计无（实测为准，有变化排 api 队列） | Sonnet 5.5 high，全量 | N22-01 |
-| N22-05 判断规则 | T＋S 同一个 PR：包小，N14 刚改过 | `modules/judgment-rules/src/{authoring-actions,actions}.ts`、宿主 `judgment-rules-actions.ts`（3） | 无归属 | `host-actions.tsv` | Sonnet 5.5 high，全量 | **N14**（同一个文件）、N22-01 |
+| N22-02 共享帮手 | 共享定义 `bind*` 改调工具，schema 包 `inputSchemaFor`。T 片 | contracts `platform/{artifact-pins,file-sources,placement,search-sources,workflow-content}.ts`、SDK `routes.ts`（6） | C1 | 预计无（实测为准，有变化排 api 队列） | Opus 5.5 high，全量 | N22-01 |
+| N22-05 判断规则 | T＋S 同一个 PR：包小，N14 刚改过 | `modules/judgment-rules/src/{authoring-actions,actions}.ts`、宿主 `judgment-rules-actions.ts`（3） | 无归属 | `host-actions.tsv` | Opus 5.5 medium，全量 | **N14**（同一个文件）、N22-01 |
 
 **N14 和工具谁先：** 互不依赖，可以同时开。只有 N22-05 必须排在 N14 后面。
 
@@ -345,7 +358,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 | 片 | 包（文件数） | 动作行 | `as` 处数 | 轨道 | 档位 | 排序依据与要注意的 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T01 | Goals（18） | 76 | 63 | E | Sonnet 5.5 high | 最大，最先开。它的写法是 `Input<"submitGoalTreeProposal">`，类型来自应用层接口，方向和别的包相反：推出来的类型要能赋给接口 |
+| T01 | Goals（18） | 76 | 63 | E | Sonnet 5.5 xhigh | 最大，最先开。它的写法是 `Input<"submitGoalTreeProposal">`，类型来自应用层接口，方向和别的包相反：推出来的类型要能赋给接口 |
 | T02 | Feed（9） | 48 | 12 | E | Sonnet 5.5 high | |
 | T03 | Todo、Schedule（9） | 44 | 12 | E | Sonnet 5.5 high | Schedule 的 `bind` 包了写入检查 |
 | T04 | Pages、PPT、Form（9） | 96 | 7 | E | Sonnet 5.5 high | |
@@ -355,36 +368,36 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | T08 | Coding（5） | 28 | 1 | B | Sonnet 5.5 high | 和 #1851（文案）撞文件的话 rebase |
 | T09 | Git、Diff、Files（3） | 18 | 3 | B | Sonnet 5.5 high | 手写检查最多（28 处），S 片才动 |
 | T10 | 宿主 `assistant/`（3） | - | 9 | A | Sonnet 5.5 high | 和 #1870 共用 `assistant-rule-actions.ts`，等它合入。A 轨预警 |
-| T11 | 宿主其余（11） | 约 60 | 52 | 无归属 | Sonnet 5.5 high | `home-actions.ts` 等，规则 4 的热文件不碰 |
-| T12 | 连接器与模型（17） | 29＋ | 31 | 无归属 | Sonnet 5.5 high | 第 13 批正在这里写，**排在 T 片最后**。动态 schema 的两个文件照 §4.4 |
+| T11 | 宿主其余（11） | 约 60 | 52 | 无归属 | Sonnet 5.5 xhigh | `home-actions.ts` 等，规则 4 的热文件不碰 |
+| T12 | 连接器与模型（17） | 29＋ | 31 | 无归属 | Sonnet 5.5 xhigh | 第 13 批正在这里写，**排在 T 片最后**。动态 schema 的两个文件照 §4.4 |
 | T13 | `modules/{artifacts,characters}`、宿主 `memory/`、`computer/`、`plugin-builder/`（8） | 56＋ | 13 | 无归属 | Sonnet 5.5 high，全量 | `modules` 是共享核心。`plugin-builder` 走 §5.3 |
 
 还有一片和上面同等地位、但要排合同队列：
 
 | 片 | 包（文件数） | 轨道 | 档位 | 前置 |
 | --- | --- | --- | --- | --- |
-| N22-03 合同服务动作 | `services/{agent-host,memory,placement,knowledge,search,agent-task-grants,agent-collaboration,agent-inputs,agent-host-write-checkers,agent-host-offers}.ts`、`modules/{projects,workspace-artifacts,workspace-writers,characters}.ts`（14，118 个定义）；`local-host.ts` 那一处 `as` 改调工具 | C1 | Sonnet 5.5 high，全量 | N22-01；**排在 05② C-1 之后**（C-1 改 `services/agent-host`、`modules/projects`）。预计不改任何快照；若实测要改就停下，按子路径排队 |
+| N22-03 合同服务动作 | `services/{agent-host,memory,placement,knowledge,search,agent-task-grants,agent-collaboration,agent-inputs,agent-host-write-checkers,agent-host-offers}.ts`、`modules/{projects,workspace-artifacts,workspace-writers,characters}.ts`（14，118 个定义）；`local-host.ts` 那一处 `as` 改调工具 | C1 | Opus 5.5 high，全量 | N22-01；**排在 05② C-1 之后**（C-1 改 `services/agent-host`、`modules/projects`）。预计不改任何快照；若实测要改就停下，按子路径排队 |
 
 **第三段：S 片（按改哪份快照串行，每片一个 PR）**
 
 | 片 | 包 | 轨道 | 快照 | 档位 | 前置 |
 | --- | --- | --- | --- | --- | --- |
-| S0 合同里的共享 schema（清单空就取消） | N22-02、N22-03 记下的 | C1 | 两份都占，可能还有 api | Opus 5.5 high，全量 | 这两片之后；占两份，这一轮别的 S 片让开 |
-| S1 | Goals | E | `actions.tsv` | Sonnet 5.5 high | T01 |
-| S2 | Feed、Inbox、Issues | E | `actions.tsv` | Sonnet 5.5 high | T02、T07 |
-| S3 | Todo、Schedule、Workflows | E | `actions.tsv` | Sonnet 5.5 high | T03、T06 |
-| S4 | Pages、PPT、Form、Dataset、Lingguang | E | `actions.tsv` | Sonnet 5.5 high | T04、T05 |
-| S5 | Git、Diff、Files、Coding | B | `actions.tsv` | Sonnet 5.5 high | T08、T09 |
-| S6 | Shelf、Cognia、Images、Text Stats | E | 两份都占（Shelf 两边都有） | Sonnet 5.5 high | T05、T06、T07 |
-| S7 | 宿主其余、`assistant/` | 无归属，A 预警 | `host-actions.tsv` | Sonnet 5.5 high | T10、T11 |
-| S8 | 连接器与模型 | 无归属 | `host-actions.tsv` | Sonnet 5.5 high | T12 |
-| S9 | `modules/*`、`memory/`、`computer/`、`plugin-builder/` | 无归属 | `host-actions.tsv` | Sonnet 5.5 high，全量 | T13 |
+| S0 合同里的共享 schema 与接口（清单空就取消） | N22-02、N22-03 记下的：schema 太松的；接口宽于枚举、多了嵌套键的，收紧接口（§4.3） | C1 | 两份都占，可能还有 api | Opus 5.5 high，全量 | 这两片之后；占两份，这一轮别的 S 片让开 |
+| S1 | Goals | E | `actions.tsv` | Opus 5.5 medium | T01 |
+| S2 | Feed、Inbox、Issues | E | `actions.tsv` | Opus 5.5 medium | T02、T07 |
+| S3 | Todo、Schedule、Workflows | E | `actions.tsv` | Opus 5.5 medium | T03、T06 |
+| S4 | Pages、PPT、Form、Dataset、Lingguang | E | `actions.tsv` | Opus 5.5 medium | T04、T05 |
+| S5 | Git、Diff、Files、Coding | B | `actions.tsv` | Opus 5.5 medium | T08、T09 |
+| S6 | Shelf、Cognia、Images、Text Stats | E | 两份都占（Shelf 两边都有） | Opus 5.5 medium | T05、T06、T07 |
+| S7 | 宿主其余、`assistant/` | 无归属，A 预警 | `host-actions.tsv` | Opus 5.5 medium | T10、T11 |
+| S8 | 连接器与模型 | 无归属 | `host-actions.tsv` | Opus 5.5 medium | T12 |
+| S9 | `modules/*`、`memory/`、`computer/`、`plugin-builder/` | 无归属 | `host-actions.tsv` | Opus 5.5 medium，全量 | T13 |
 
 **第四段：收口**
 
 | 片 | 做什么 | 轨道 | 档位 | 前置 |
 | --- | --- | --- | --- | --- |
-| N22-Z 收口 | 全仓再找一遍（其他批新加的处理器）；删 `defineAction` 手写 `Input` 的写法；`examples/probe-plugin`、`tooling/plugin-cli` 模板、`skills/molis-plugin-dev`（全量回归期间不能改 `skills/`）；核 Alchemist；动态 schema 名单写进这份 spec | C1 | Opus 5.5 high，全量 | 全部 T、S |
+| N22-Z 收口 | 全仓再找一遍（其他批新加的处理器）；删 `defineAction` 手写 `Input` 的写法（改 `api/plugin-sdk/index.txt`，排 api 队列，过公共合同合审）；`examples/probe-plugin`、`tooling/plugin-cli` 模板、`skills/molis-plugin-dev`（全量回归期间不能改 `skills/`）；核 Alchemist（项目级与 Home 级两种，§4.4）；动态 schema 名单写进这份 spec | C1 | Opus 5.5 high，全量 | 全部 T、S |
 | N22-G 防回潮门禁 | §9.2 的绝对门禁，带变异用例，一个小 PR。用户 2026-11-06 已同意改门禁 | 无归属 | Opus 5.5 high | N22-Z |
 
 **合并分片的理由。** 账上按包算 28 片。这里把 20 个插件的 T 片并成 9 片（Jelly 是试点，Alchemist 不迁），宿主和 `modules` 按主题拆成 4 片，S 片也一样并。规矩是：
@@ -499,6 +512,8 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 
 **全部处理器迁到推导类型，补约束，删重复检查。** 合同台原来推荐的是工具加试点（A），用户选了 B。否掉的是 A 和「全量只换类型」（C）。代价用户知道：跨 A、B、C1、E 约 30 片，第 06 批之后的实现要等它。**不降级。**
 
+**一个用户定的例外（2026-11-06）：** 118 个公开合同定义和 5 组共享帮手留手写接口，证明加反向（§4.3、§4.4）。处理器这一半照样没有 `as`，编译时对照；这 118 个是两份事实，由编译器钉住。否掉的是全部推导：API 快照刷新、抢合同队列、TS7056 风险。
+
 ### 9.2 防止回潮：一条绝对门禁（用户 2026-11-06 定）
 
 原来那条「`input as` 只许减少」是工具加试点方案的配套，用来容忍两种写法并存。一次迁完之后没有存量要容忍，**不留它**。但类型本身挡不住回潮：`ActionHandlerBinding.handle` 的 `input` 还是 `unknown`，谁都能再写一句 `input as X`。
@@ -520,12 +535,12 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 1 | 事实主人 | 不新增事实。版本字段的语义归动作合同；`updated_at` 归 `modules/judgment-rules` |
 | 2 | 插件同等待遇 | 过：N14 删掉内核给一个提供方的分支；N22 的工具在 SDK，内置和外部同一份 |
 | 3 | 能力注册 | 不新增动作。可信身份不变（项目 id 取自调用上下文，§6 正是核实这一点）；预览是 `concurrent`，保持 |
-| 4 | 合同 | N14 改 6 个动作输入和 `updated_at` 的语义，原版本上改（N35），一个 PR 改完所有消费者；N22-01 加公开类型和两个函数，单独排合同队列；T 片不改公开 API 和动作快照；S 片只改 schema 约束 |
+| 4 | 合同 | N14 改 6 个动作输入和 `updated_at` 的语义，`functions.authoring.get` 对插件打开（`host-actions.tsv` 多变一行，§2.7），都在原版本上改（N35），一个 PR 改完所有消费者；N22-01 加公开类型和两个函数，单独排合同队列；T 片不改公开 API 和动作快照；S 片只改 schema 约束 |
 | 5 | 放在哪个包 | 类型和两个小函数在 contracts（`bindActionHandler`、`inputSchemaFor` 都不到 20 行，无副作用），SDK 只依赖 contracts，不加第三方（§4.1） |
 | 6 | 表与存储 | 不改表。`updated_at` 语义收窄，存量值继续有效，不用升级 |
 | 7 | 兼容与迁移 | 不加。旧字段名直接拒绝 |
 | 8 | 安全边界 | 不改表。N14 收紧（缺版本拒绝）；§6 的放宽（81～120 字符）已写明，项目 id 仍来自可信上下文。`SECURITY-INVARIANTS.md` 没有登记版本前提这一条（查过 `version_required`），不需要新行 |
-| 9 | 调用次数 | N14 预览少一次无效的模型调用；无变化的保存不写库；载入最新版是用户动作一次 `get`，只有收到冲突才多这一次。N22 只有类型，运行时不变，删检查略省 |
+| 9 | 调用次数 | N14 预览少一次无效的模型调用；无变化的保存不写库；只有收到冲突才多 `get`：判断一次，用户点「载入最新版」再一次。N22 只有类型，运行时不变，删检查略省 |
 | 10 | 升级与数据 | 库不变。MCP 客户端和已存的固定调用：字段名变了，按现行 schema 明确失败，升级须知写一条。S 片补约束不改取值范围之外的行为，只改错误码（§5.3） |
 | 11 | 成果与过程项 | 不涉及 |
 | 12 | 页面与外壳 | 「载入最新版」是新状态，用户选了方案 A，定样 PR 另开，组件板新增走 D 轨；不加 DOM 事件。页面资源：工作台和 Feed 有增长，一个资源涨超过 10 KB 先问用户（`AGENTS.md`） |
@@ -542,7 +557,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 2026-11-06 | 预览先比版本再调模型 | 只在保存时比 | 过期的预览不该花模型钱 |
 | 2026-11-06 | 载入最新版不加新动作，用 `functions.authoring.get` | `draft_stale` 的 `details` 带回最新记录 | 错误里不回显内容；`get` 已有 |
 | 2026-11-06 | **「载入最新版」的样子用方案 A 就地接住**（用户定）：底部提示加一个按钮，只有两边都改的字段摆出你写的，可放回、可换回；不提供一键覆盖 | B 对比后决定、C 拦下来问 | 定样 PR 记录；合同上的要求见 §2.7 |
-| 2026-11-06 | N14 定样的取舍以路线书第 05 批记录为准（`reference/batches/05.md` 的 `batch-05-n14-sample`，随 #1863 合入），这里不重复 | - | 批次文件是定样的出处，本稿只写合同这一半 |
+| 2026-11-06 | N14 定样的取舍以路线书第 05 批记录为准（`reference/batches/05.md` 的 `batch-05-n14-sample`，随 #1873 合入），这里不重复 | - | 批次文件是定样的出处，本稿只写合同这一半 |
 | 2026-11-06 | **`updated_at` 只代表定义内容**：试跑、样例、发布、无变化的保存都不推它 | 另加内容版本列；照旧推、让页面重读比较 | 不改表、不等 U1；所有调用方一起受益。`functions-store-versions.test.ts` 的旧断言是这条合同，要改 |
 | 2026-11-06 | **发布时读到的版本和已发布的不同，报 `published_immutable`**，相同才幂等成功 | 一律幂等成功；输出加 `already_published` 字段 | 版本不同说明调用方没读过这次发布的内容，不能当成功；发布不推版本之后，这个判断不用加列 |
 | 2026-11-06 | 新错误码 `functions.sample_not_found` | 和规则不在共用 `not_found` | 页面只看码就要分清「规则没了」和「样例没了」，后者不该提示 |
@@ -551,8 +566,9 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 2026-11-06 | 80 字符上限删掉不搬 | 搬到 SDK | 和放置 schema 的 120 不一致，谁都不是主人 |
 | 2026-11-06 | **N22 一次迁完**（用户 2026-11-06 定） | 工具加试点、全量只换类型 | 代价是约 30 片、第 06 批之后等它，用户知道 |
 | 2026-11-06 | 拆成 T 片和 S 片，T 片不动 schema 值、不占快照 | 每包一个 PR 两件一起做 | §8.3 |
-| 2026-11-06 | 公开合同的输入类型留手写接口，用 `inputSchemaFor` 证明和 schema 一致 | 全部改成推导类型 | 不用把 schema 字面量写进 `.d.ts`，14 份 API 快照不动，不和 05② 抢队列 |
-| 2026-11-06 | Alchemist 不迁，核一遍；动态 schema 留 `unknown` | 硬迁 | Alchemist 已是解析后的类型，且是用户批过的例外（BL-377）；动态的没有东西可推 |
+| 2026-11-06 | **公开合同的 118 个定义和 5 组共享帮手留手写接口，证明加反向**（用户定）：`inputSchemaFor` 加键集合的反向检查；接口宽于枚举的情形收紧接口，记进 S0；这 118 个是两份事实，由编译器钉住 | 全部推导（`export type X = InferActionInput<typeof schema>`）；只查一个方向 | 全部推导要刷新 14 份 API 快照、和 05② 抢合同队列，还有 TS7056 风险。只查一个方向时，接口多键、接口宽于枚举都能编译通过，调用方照接口写、运行时被拒 |
+| 2026-11-06 | **`functions.authoring.get` 对插件打开，Feed 声明消费** | Feed 用 `list` 再按 id 找 | `list` 已开放且返回全部记录，没有多放开什么；不打开 Feed 载入不了最新版 |
+| 2026-11-06 | Alchemist 不迁，核一遍；动态 schema 留 `unknown` | 硬迁 | Alchemist 的类型已来自同一份 zod（项目级拿解析后的值，Home 级两个操作靠一处 `as` 和 kernel 校验），且是用户批过的例外（BL-377）；动态的没有东西可推 |
 | 2026-11-06 | `input as` 只许减少的门禁不做 | 留作过渡 | 那是工具加试点方案的配套；一次迁完没有存量要容忍 |
 | 2026-11-06 | **防回潮用一条绝对门禁**（用户定）：N22-Z 之后单独一个小 PR，处理器的输入参数上不许有 `as`，基线为 0，例外写明理由，测试不查 | 不加门禁；品牌类型封死 | §9.2。不加门禁成果会被慢慢磨掉；品牌类型要改 189 个测试文件 |
 
@@ -567,15 +583,15 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | AIC-05 | 预览传旧值：不调模型（假模型计数 0）；调用期间被别人改了内容：`savePreview` 得 `draft_stale`，不写 |
 | AIC-06 | 内核里没有能力名字面量：`version-precondition.ts` 不再读 `capability_id` |
 | AIC-07 | 工作台连续保存两次都成功（第二次用第一次响应的版本）；两个页面同时改，后保存的得 `draft_stale`，未保存的输入还在，载入最新版后拿到新内容；别处只试跑或只加样例，这边保存成功，不出提示；别处删除后，未保存的输入还看得到，并有说明（界面断言按定样补；前两种情形的合同半见 AIC-09，删除的合同半见 AIC-15） |
-| AIC-08 | Feed：`draft_stale` 后存的旧版本作废，下一次提交用新版本成功；载入后要求重新预览；已发布后走重建草稿，新草稿不撞 key |
-| AIC-09 | 试跑、加样例、删样例、发布、规整后无变化的保存，都不改 `updated_at`；定义字段真的变了才改。别处点一下试跑（含它先存一遍），这边的保存照常成功，不提示。列表顺序：发布顶到前面，试跑不动 |
-| AIC-10 | 类型测试：必填、可选、enum、`oneOf`、`["string","null"]`、数组、`additionalProperties` 推导正确；只写 `{ type: "object" }` 时字段值是 `unknown`；`inputSchemaFor` 在 schema 比接口松、字段类型不符时编译失败，`.d.ts` 不含 schema 字面量 |
+| AIC-08 | Feed：`draft_stale` 后存的旧版本作废，下一次提交用新版本成功；载入后要求重新预览；已发布后走重建草稿，新草稿不撞 key；Feed 走通 `functions.authoring.get`（`audiences` 含 `plugin`，Manifest 已声明，不报 `actions.forbidden`） |
+| AIC-09 | 试跑、加样例、删样例、发布、规整后无变化的保存，都不改 `updated_at`；定义字段真的变了才改。别处点一下试跑（含它先存一遍），这边的保存照常成功，不提示。列表顺序：发布顶到前面，试跑不动。`tests/functions-store-versions.test.ts`：update、addSample、removeSample、preview、publish 五种拒绝都留，旧版本改由定义写入造出来，错误码是 `draft_stale`；`:30`、`:35`、`:41`、`:46` 的「版本前进」翻成「不变」；同一毫秒两次定义写入仍能分开 |
+| AIC-10 | 类型测试：必填、可选、enum、`oneOf`、`["string","null"]`、数组、`additionalProperties` 推导正确；只写 `{ type: "object" }` 时字段值是 `unknown`；`inputSchemaFor` 在 schema 比接口松、字段类型不符、接口有 schema 没写的键（可选和必填都算）时编译失败，开放形状的接口不查键，`.d.ts` 不含 schema 字面量 |
 | AIC-11 | SDK 只依赖 contracts（`pnpm boundary:check`），公开 API 快照写明新类型和两个函数 |
 | AIC-12 | 每个 S 片：包内处理器不再有 `input as`；每个搬进 schema 的约束都有一个断言拒绝的用例，错误码写明；留下的检查有理由；动作快照刷新 |
 | AIC-13 | 试点量一次 `tsc` 时间与内存，记进 PR；超过 §4.6 估计三倍或碰到 TS7056，回到设计 |
 | AIC-14 | 五个 store 没有 `normalizeProjectId`；Home 级调用没有项目时仍得 `actions.project_required`；`to_project_id` 带空白、超 120 被放置 schema 拒；81 字符的项目 id 可用 |
 | AIC-15 | 规则被别处删除：有未保存输入时编辑器不关，输入还在，「存成新规则」得到一条带这些内容的新草稿；第二步失败时输入还在；没有未保存输入时照旧关掉。`sample.remove` 得 `sample_not_found` 时不当成规则没了 |
-| AIC-16 | 规则在别处发布：保存得 `published_immutable`，页面进「已在别处发布」，输入还在；「存成新规则」不撞 key；传发布的那一版点发布按成功 |
+| AIC-16 | 规则在别处发布：保存得 `published_immutable`，页面进「已在别处发布」，输入还在；「存成新规则」不撞 key；直接调动作、传的是发布的那一版，按成功（幂等只对直接调动作的调用方：编辑器点发布先 `saveDraft`，`update` 对已发布记录一律 `published_immutable`，走不到这里） |
 | AIC-17 | 每个 T 片：`pnpm actions:update`、`pnpm api:update` 无差异，运行时检查和错误码没动，PR 带 S 清单 |
 | AIC-18 | N22-Z：全仓处理器的输入参数上只剩 `bindActionHandler` 一处 `as` 和 §4.4 名单里的例外；`defineAction` 没有手写 `Input` 的写法；模板和 Skill 用新写法；读动作输入的 `text`、`optionalText` 只剩有理由的 |
 | AIC-19 | N22-G：新写一处处理器输入参数上的 `as`，门禁失败（变异用例）；基线为 0；`bindActionHandler` 和 §4.4 名单里的例外通过，名单每条有理由；测试文件不查 |

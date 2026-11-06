@@ -5,6 +5,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel, type IssueModelBehavior } from "./fixtures/issue-model.js";
 import { putInput, readWork, sendBarrier, waitWork, type SendBrowser } from "./fixtures/assistant-send-journey.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { CURRENT_WORK, UNSENT_WORDS } from "./fixtures/assistant-current-work.js";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7, D14 (stage 1e): in the Assistant, the person picks where words go while a
 // question waits, each supplement carries the runtime's receipt, and a Send whose outcome was lost goes again after a
@@ -45,7 +46,7 @@ const receipts = (browser: SendBrowser) => browser.evaluate<string[]>("[...docum
 test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does, a supplement's receipt says the question still waits, and a changed receipt is said once on the status region", { timeout: 120_000 }, async t => {
   const browser = await assistantPage(t, { question: "free-text" }); if (!browser) return;
   await send(browser, "帮我记一个问题");
-  const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.rounds.at(-1)?.phase === "awaiting-input");
   await browser.waitFor("!document.querySelector('[data-assistant-answer]').hidden");
   assert.equal(await chip(browser), "回答上面的问题", "the default is on the chip");
@@ -100,7 +101,7 @@ test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does,
 test("RC-16: a Send whose outcome was lost goes again after a refresh under the same key, and the Host keeps one round", { timeout: 120_000 }, async t => {
   const browser = await assistantPage(t, { replyText: "收到本次发送。" }); if (!browser) return;
   await send(browser, "第一句");
-  const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.work.state === "completed");
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
   try {
@@ -109,15 +110,15 @@ test("RC-16: a Send whose outcome was lost goes again after a refresh under the 
   } finally { await barrier.close(); }
   await browser.waitFor("Boolean(document.querySelector('.assistant-problem'))", 15_000);
   assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "第二句", "the words stay in the composer");
-  const kept = JSON.parse(await browser.evaluate<string>("localStorage.getItem('molis.assistant.unsent')")) as { work: string; text: string; id: string };
+  const kept = JSON.parse(await browser.evaluate<string>(UNSENT_WORDS)) as { work: string; text: string; id: string };
   assert.equal(kept.work, id); assert.equal(kept.text, "第二句");
   await browser.reloadPage();
-  await browser.waitFor(`localStorage.getItem('molis.assistant.current') === ${JSON.stringify(id)}`);
+  await browser.waitFor(`${CURRENT_WORK} === ${JSON.stringify(id)}`);
   const again = await sendSeen(browser, "第二句");
   assert.equal(again.request_id, kept.id, "the same words to the same work go under the same key");
   await waitWork(browser, id, view => view.work.state === "completed");
   assert.deepEqual((await readWork(browser, id)).rounds.map(round => round.text), ["第一句", "第二句"], "the Host took the words once");
-  assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.unsent')"), null, "an answered Send leaves nothing to resend");
+  assert.equal(await browser.evaluate(UNSENT_WORDS), null, "an answered Send leaves nothing to resend");
   const fresh = await sendSeen(browser, "第三句");
   assert.notEqual(fresh.request_id, kept.id, "other words are a new Send");
 });
@@ -136,7 +137,7 @@ test("RC-16: without local storage the Assistant still sends; only the key acros
 test("RC-19 (D32): words the person asked to keep that the write gate held show as 「你刚才让我记住」, the gate's reason only in the details, and one press keeps them", { timeout: 90_000 }, async t => {
   const browser = await assistantPage(t, { remember: { text: "周报先写风险", said: "周报先写风险" } }); if (!browser) return;
   await send(browser, "帮我整理这周的周报。另外请记住：周报先写风险");
-  const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.work.state === "completed" && (view.memory_candidates?.length ?? 0) === 1);
   const candidate = (await readWork(browser, id)).memory_candidates![0]!;
   assert.match(candidate.held ?? "", /原样照抄/, "the person asked, and the gate's reason stays the memory service's own");
@@ -155,7 +156,7 @@ test("RC-19 (D32): words the person asked to keep that the write gate held show 
 test("RCPT-361, 3e-1: what the AI says it takes as a constraint shows in the side pane's AI 记下的约定, as its word, and opens the supplement's receipt", { timeout: 120_000 }, async t => {
   const browser = await assistantPage(t, { question: "free-text", acknowledge: { treatment: "apply-now", kind: "constraint", impacts: ["constraint"] } }); if (!browser) return;
   await send(browser, "帮我记一个问题");
-  const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.rounds.at(-1)?.phase === "awaiting-input");
   await browser.waitFor("!document.querySelector('[data-assistant-answer]').hidden");
   await browser.click("[data-assistant-answer]");

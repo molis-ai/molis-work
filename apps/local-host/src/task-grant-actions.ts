@@ -36,7 +36,7 @@ type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectAct
  * The providers' declarations, from the Manifest each installation was installed with: the project's own installations first (a
  * dual-instance plugin's halves share one), then the Home's. A provider is an installation's id, or (a plugin the Host ships) its plugin
  * id, as the Plugin Runtime registers it. A plugin provider whose Manifest cannot be read offers nothing (`null`); a provider of the
- * Host's own has none to read (`{}`).
+ * Host's own has none to read (`{}`), and offers a task nothing either (`readableByTask`).
  */
 export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "homePlugins">, reference: LocalHostProjectReference): Promise<TaskGrantDeclarations> {
   const entries = await host.withProject(reference, runtime => installedPluginEntries(runtime.store.db));

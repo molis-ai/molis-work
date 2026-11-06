@@ -306,12 +306,17 @@ const headErrors = (measured, budget, base) => {
 // FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
 // The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
 // Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// Batch 18 P2 (Schedule's task reads, design F; admitted by the batch 18 coordinator on 2026-11-06): schedule.css 1269 -> 2841 B
+// (+1572): the list row's one kind mark (read files / read data), the 「能读的数据」 section's lines around the platform's area, and the
+// new and edit form in the detail pane instead of a dialog. schedule.js 12570 -> 14878 B (+2308): one `/grants` read per list open,
+// the kind marks and the 「需要重新确认」 badge, the reads section's lines and the in-pane form. Tried: the form reuses the board's
+// .mw-form and .mw-btn, the two kind icons share one kept slot shown by one attribute, the area's own drawing is left to the
+// platform (P3), no new asset. The arrival, settings, workbench.css and workbench.js entries above are spent (the merge-base
+// budget holds their ceilings) and are removed here.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 693169],
-  "/assets/molis-work-settings.css": [826998, 827545],
-  "/assets/molis-work-workbench.css": [1194792, 1204497],
-  "/assets/molis-work-workbench.js": [1077514, 1077683],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-plugins/schedule.css": [1269, 2841],
+  "/assets/molis-work-plugins/schedule.js": [12570, 14878],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -3,7 +3,8 @@
 // nothing by default, reads only, and is checked again at every call (specs/proactive-assistant/schedule-task-reads.md §3–§4).
 // Every refusal asserts the refusal itself and that nothing was written or run.
 import assert from "node:assert/strict";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -17,6 +18,7 @@ import { agentHostCapabilities, type AgentActionClient, type AgentRunView, type 
 import {
   agentTaskGrantActions, type TaskGrantSetCategory, type TaskGrantListResult, type TaskGrantSubject,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { isLocalHostHttpError, readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { homePackage, mac, person as installer, ref } from "./fixtures/home-sandbox.js";
 import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
@@ -64,6 +66,23 @@ function taskReader() {
   return { definition, contexts, handled };
 }
 
+const SHELF = "io.molis.work.example.taskshelf", CHANGES = "io.molis.work.example.taskchanges";
+/** The shelf declares no read groups, so it is one whole category: its read, beside a command and a query that writes. */
+const shelfRead = query("taskshelf.list"), shelfAdded = query("taskshelf.count");
+const shelfChange: ActionDefinition = { capability_id: "taskshelf.change", version: 1, operation: "command", action: { title: "Change", description: "Changes",
+  kind: "operation", scope: "project", audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: empty } };
+const shelfTouch: ActionDefinition = { ...query("taskshelf.touch"), action: { ...query("taskshelf.touch").action, effect: "write" } };
+/** A plugin whose only action is a command: it reads nothing. */
+const changesChange: ActionDefinition = { ...shelfChange, capability_id: "taskchanges.change" };
+
+/** A plugin with a Manifest and no read groups, offering these actions as declared; each answers `{}`. */
+function plainPlugin(plugin_id: string, name: string, actions: readonly ActionDefinition[]): PluginDefinition {
+  return { manifest: { schema_version: 1, host_api_version: 1, plugin_id, version: "1.0.0", name, kind: "app",
+    publisher: { publisher_id: "example", signature: name.toLowerCase() }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [...actions] },
+    async start() { return { kind: "app", actions: actions.map(action => ({ ...action, handle: () => ({}) })) }; } };
+}
+
 type During = (gateway: AgentActionClient | undefined) => Promise<void>;
 
 /**
@@ -77,7 +96,8 @@ async function world(t: TestContext) {
   const hold: { subject?: string; entered?: PromiseWithResolvers<void>; release?: PromiseWithResolvers<void> } = {};
   /** Actions whose provider is switched off: in the catalog, not callable. */
   const off = new Set<string>();
-  const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [reader.definition] },
+  const plugins = [reader.definition, plainPlugin(SHELF, "Shelf", [shelfRead, shelfChange, shelfTouch]), plainPlugin(CHANGES, "Changes", [changesChange])];
+  const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: plugins },
     actionAvailability: async (caller, action) => {
       if (hold.subject && caller.actor_id === hold.subject && action.capability_id === notes.capability_id && hold.entered && hold.release) {
         const { entered, release } = hold; hold.subject = undefined; entered.resolve(); await release.promise;
@@ -150,6 +170,15 @@ async function world(t: TestContext) {
     const plugin = reader.contexts.at(-1), view = views.find(item => item.capability_id === notes.capability_id);
     assert.ok(plugin && view, "the task reader runs in the project");
     const install = plugin.install_id, providerId = view.provider.provider_id;
+    const shelfView = views.find(item => item.capability_id === shelfRead.capability_id), changesView = views.find(item => item.capability_id === changesChange.capability_id);
+    assert.ok(shelfView && changesView, "the shelf and the changes plugin run in the project");
+    const shelfProvider = shelfView.provider;
+    /**
+     * What the shelf offers beyond its Manifest's actions, registered as its own installation's: the catalog as it reads after the
+     * shelf added an action. Its Manifest says nothing of them, and it declares no groups, so they are in its one whole category.
+     */
+    const shelfAdds = (definitions: readonly ActionDefinition[]) => localHost.actionRegistry(project.reference).registerProvider({ provider: { ...shelfProvider },
+      definitions, handlers: definitions.map(definition => ({ ...definition, handle: () => ({}) })) });
     const subject = (key: string) => `agent:task:${project.project_id}:${install}:${key}`;
     /** The categories by the person's switches, from the revision `list` gave. */
     const set = async (key: string, categories: readonly TaskGrantSetCategory[], expected?: string) => {
@@ -164,13 +193,22 @@ async function world(t: TestContext) {
           { role_id: "brief", title: "读一读", task: "读这个任务能读的", ...input });
       } finally { during = undefined; }
     };
-    return { project, plugin, install, providerId, subject, set, run, group: { provider_id: providerId, group_id: "notes" } };
+    return { project, plugin, install, providerId, subject, set, run, group: { provider_id: providerId, group_id: "notes" },
+      shelf: { provider_id: shelfProvider.provider_id }, changes: { provider_id: changesView.provider.provider_id }, shelfAdds };
   }
   /** What a gateway finds, as `capability_id`s. */
   const found = async (gateway: AgentActionClient | undefined) => { assert.ok(gateway, "the round has the Host's gateway"); return (await gateway.discover()).map(view => view.capability_id).sort(); };
   const exact = (view: Pick<ActionView, "capability_id" | "version" | "provider">): ExactActionReference => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
   const records = async (prefix: string) => (await readMcpToolPreference(home)).action_grants.filter(grant => grant.client_id.startsWith(prefix));
-  return { home, localHost, served: served!, reader, rounds, hold, off, open, list, call, person, found, exact, records };
+  type Grant = Awaited<ReturnType<typeof records>>[number];
+  /** Grants written into the Home's action grants as an earlier write left them, beside the ones there (setup only, never what is asserted). */
+  const plant = async (grants: ReadonlyArray<Omit<Grant, "generation">>) => {
+    const current = await readMcpToolPreference(home);
+    await mkdir(join(home, "config"), { recursive: true });
+    await writeFile(join(home, "config", "mcp-tools.json"), `${JSON.stringify({ version: current.version,
+      action_grants: [...current.action_grants, ...grants.map(grant => ({ ...grant, generation: randomUUID() }))] }, null, 2)}\n`);
+  };
+  return { home, localHost, served: served!, reader, rounds, hold, off, open, list, call, person, found, exact, records, plant };
 }
 
 test("S-109 a task's grant subject is the Host's: no default actions, then only the categories the person turned on for that one task", { timeout: 120_000 }, async t => {
@@ -266,19 +304,39 @@ test("S-109 only the person sets a task's grants; a plugin clears and lists only
 
 test("S-109 a task is only given reads: a provider's commands and writing queries are never recorded, and naming none of its reads is refused", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Reads only");
-  const command: ActionDefinition = { capability_id: "fixture.mixed.change", version: 1, operation: "command", action: { title: "Change", description: "Changes", kind: "operation",
-    scope: "project", audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: empty } };
-  const writingQuery: ActionDefinition = { ...query("fixture.mixed.touch"), action: { ...query("fixture.mixed.touch").action, effect: "write" } };
-  const read = query("fixture.mixed.read"), registry = w.localHost.actionRegistry(a.project.reference);
-  const handlers = (definitions: readonly ActionDefinition[]) => definitions.map(definition => ({ ...definition, handle: () => ({}) }));
-  t.after(registry.registerProvider({ provider: { provider_id: "fixture.mixed", kind: "system", title: "Mixed", project_id: a.project.project_id },
-    definitions: [command, writingQuery, read], handlers: handlers([command, writingQuery, read]) }));
-  t.after(registry.registerProvider({ provider: { provider_id: "fixture.changes", kind: "system", title: "Changes", project_id: a.project.project_id },
-    definitions: [{ ...command, capability_id: "fixture.changes.change" }], handlers: handlers([{ ...command, capability_id: "fixture.changes.change" }]) }));
-  await assert.rejects(a.set("daily", [a.group, { provider_id: "fixture.changes" }]), { code: "actions.input_invalid" }, "a provider without a read offers no category");
+  await assert.rejects(a.set("daily", [a.group, a.changes]), { code: "actions.input_invalid" }, "a provider without a read offers no category");
   assert.deepEqual(await w.records("agent:task:"), [], "the whole call was refused");
-  await a.set("daily", [{ provider_id: "fixture.mixed" }]);
-  assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id), [read.capability_id], "only the read was recorded");
+  await a.set("daily", [a.shelf]);
+  assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id), [shelfRead.capability_id], "only the read was recorded");
+});
+
+test("S-109 a task is offered only plugins' categories: the Host's own providers are never one, naming one is refused, and a record of one reads nothing", { timeout: 120_000 }, async t => {
+  const w = await world(t), a = await w.open("Plugins only");
+  let systemCalls = 0;
+  const systemRead = query("fixture.system.read");
+  t.after(w.localHost.actionRegistry(a.project.reference).registerProvider({ provider: { provider_id: "system.fixture", kind: "system", title: "System fixture",
+    project_id: a.project.project_id }, definitions: [systemRead], handlers: [{ ...systemRead, handle: () => { systemCalls++; return {}; } }] }));
+  // The Host's own reads open to an Agent (search, project knowledge, memory, placement, and this one) have no Manifest and may read
+  // across plugins: none of them is a category, and naming any of them, beside a category that is offered, refuses the whole call.
+  const views = await w.localHost.inspectActions(w.person(a.project), a.project.reference);
+  const systemProviders = [...new Set(views.filter(view => view.provider.kind !== "plugin" && view.action.audiences.includes("agent") && view.operation === "query")
+    .map(view => view.provider.provider_id))].sort();
+  assert.ok(systemProviders.includes("system.fixture") && systemProviders.length > 1, `the catalog holds the Host's own reads: ${systemProviders.join(", ")}`);
+  const offered = (await w.list(a.project)).categories;
+  assert.deepEqual(offered.filter(category => systemProviders.includes(category.provider_id) || !category.plugin_id), [], "every category is a plugin's");
+  for (const provider_id of systemProviders) {
+    await assert.rejects(a.set("daily", [a.group, { provider_id }]), { code: "actions.input_invalid" }, provider_id);
+  }
+  assert.deepEqual(await w.records("agent:task:"), [], "nothing of the refused calls was recorded");
+  // A record of one, however it got there, reads nothing: a task's round finds only plugins' reads, and the call is refused unrun.
+  await a.set("daily", [a.group]);
+  await w.plant([{ client_id: a.subject("daily"), project_id: a.project.project_id, capability_id: systemRead.capability_id, version: 1, provider_id: "system.fixture", permissions: [], enabled: true }]);
+  await a.run({ grant_subject: "daily" }, async gateway => {
+    assert.deepEqual(await w.found(gateway), [notes.capability_id]);
+    await assert.rejects(gateway!.invoke({ capability_id: systemRead.capability_id, version: 1, provider_id: "system.fixture" }, {}),
+      (error: unknown) => error instanceof Error && "code" in error && ["mcp.action_revoked", "actions.missing"].includes(String(error.code)));
+  });
+  assert.equal(systemCalls, 0);
 });
 
 test("S-109 a category that is not offered now is refused as a whole call: no group for a provider with groups (C3), a group it no longer declares (S3), a stale revision", { timeout: 120_000 }, async t => {
@@ -296,54 +354,39 @@ test("S-109 a category that is not offered now is refused as a whole call: no gr
 
 test("S-109 R1 R2 PWA-152 turning on another category keeps a category that needs confirmation as it was: what its provider added stays unreadable", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Keep unconfirmed");
-  const registry = w.localHost.actionRegistry(a.project.reference), first = query("fixture.shelf.list"), added = query("fixture.shelf.count");
-  const shelf = (definitions: readonly ActionDefinition[]) => registry.registerProvider({ provider: { provider_id: "fixture.shelf", kind: "system", title: "Shelf", project_id: a.project.project_id },
-    definitions, handlers: definitions.map(definition => ({ ...definition, handle: () => ({}) })) });
-  let dispose = shelf([first]);
-  t.after(() => dispose());
-  await a.set("daily", [{ provider_id: "fixture.shelf" }]);
-  dispose(); dispose = shelf([first, added]);
-  const status = async () => (await w.list(a.project)).subjects[0]?.categories.map(category => [category.provider_id, category.status]);
-  assert.deepEqual(await status(), [["fixture.shelf", "needs_confirmation"]]);
-  await a.set("daily", [{ provider_id: "fixture.shelf" }, a.group]);
-  assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id).sort(), [first.capability_id, notes.capability_id].sort(), "the shelf's records are as they were");
-  assert.deepEqual((await status())?.sort(), [[a.providerId, "granted"], ["fixture.shelf", "needs_confirmation"]].sort());
+  await a.set("daily", [a.shelf]);
+  t.after(a.shelfAdds([shelfAdded]));
+  const status = async () => (await w.list(a.project)).subjects[0]?.categories.map(category => [category.provider_id, category.status]).sort();
+  assert.deepEqual(await status(), [[a.shelf.provider_id, "needs_confirmation"]]);
+  await a.set("daily", [a.shelf, a.group]);
+  assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id).sort(), [shelfRead.capability_id, notes.capability_id].sort(), "the shelf's records are as they were");
+  assert.deepEqual(await status(), [[a.providerId, "granted"], [a.shelf.provider_id, "needs_confirmation"]].sort());
   await a.run({ grant_subject: "daily" }, async gateway => {
-    assert.deepEqual(await w.found(gateway), [first.capability_id, notes.capability_id].sort(), "what the shelf added is still not readable");
+    assert.deepEqual(await w.found(gateway), [shelfRead.capability_id, notes.capability_id].sort(), "what the shelf added is still not readable");
   });
 });
 
 test("S-109 R1 §3.4 turning on another category while one is unavailable keeps its records, and it reads again when its provider is back", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Keep unavailable");
-  const registry = w.localHost.actionRegistry(a.project.reference), shelfRead = query("fixture.shelf.list");
-  const shelf = () => registry.registerProvider({ provider: { provider_id: "fixture.shelf", kind: "system", title: "Shelf", project_id: a.project.project_id },
-    definitions: [shelfRead], handlers: [{ ...shelfRead, handle: () => ({}) }] });
-  let dispose = shelf();
-  t.after(() => dispose());
-  await a.set("daily", [{ provider_id: "fixture.shelf" }]);
-  dispose(); dispose = () => {};
+  await a.set("daily", [a.shelf]);
+  w.off.add(shelfRead.capability_id);
   const status = async () => (await w.list(a.project)).subjects[0]?.categories.map(category => [category.provider_id, category.status]).sort();
-  assert.deepEqual(await status(), [["fixture.shelf", "unavailable"]]);
-  await a.set("daily", [{ provider_id: "fixture.shelf" }, a.group]);
+  assert.deepEqual(await status(), [[a.shelf.provider_id, "unavailable"]]);
+  await a.set("daily", [a.shelf, a.group]);
   assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id).sort(), [shelfRead.capability_id, notes.capability_id].sort(), "the shelf's record is kept");
-  dispose = shelf();
-  assert.deepEqual(await status(), [[a.providerId, "granted"], ["fixture.shelf", "granted"]].sort(), "back unchanged, it is granted again");
+  w.off.delete(shelfRead.capability_id);
+  assert.deepEqual(await status(), [[a.providerId, "granted"], [a.shelf.provider_id, "granted"]].sort(), "back unchanged, it is granted again");
   await a.run({ grant_subject: "daily" }, async gateway => { assert.deepEqual(await w.found(gateway), [shelfRead.capability_id, notes.capability_id].sort()); });
 });
 
 test("S-109 R3 R4 only the person's confirm records a held category anew, and a held category left out of the call loses its records", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Confirm");
-  const registry = w.localHost.actionRegistry(a.project.reference), first = query("fixture.shelf.list"), added = query("fixture.shelf.count");
-  const shelf = (definitions: readonly ActionDefinition[]) => registry.registerProvider({ provider: { provider_id: "fixture.shelf", kind: "system", title: "Shelf", project_id: a.project.project_id },
-    definitions, handlers: definitions.map(definition => ({ ...definition, handle: () => ({}) })) });
-  let dispose = shelf([first]);
-  t.after(() => dispose());
-  await a.set("daily", [{ provider_id: "fixture.shelf" }, a.group]);
-  dispose(); dispose = shelf([first, added]);
-  await a.set("daily", [{ provider_id: "fixture.shelf", confirm: true }, a.group]);
-  assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id).sort(), [added.capability_id, first.capability_id, notes.capability_id].sort(),
+  await a.set("daily", [a.shelf, a.group]);
+  t.after(a.shelfAdds([shelfAdded]));
+  await a.set("daily", [{ ...a.shelf, confirm: true }, a.group]);
+  assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id).sort(), [shelfAdded.capability_id, shelfRead.capability_id, notes.capability_id].sort(),
     "allowed again, the shelf records what it offers now");
-  await a.run({ grant_subject: "daily" }, async gateway => { assert.ok((await w.found(gateway)).includes(added.capability_id)); });
+  await a.run({ grant_subject: "daily" }, async gateway => { assert.ok((await w.found(gateway)).includes(shelfAdded.capability_id)); });
   await a.set("daily", [a.group]);
   assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id), [notes.capability_id], "the shelf left out of the call is taken off");
   await a.run({ grant_subject: "daily" }, async gateway => { assert.deepEqual(await w.found(gateway), [notes.capability_id]); });
@@ -351,43 +394,58 @@ test("S-109 R3 R4 only the person's confirm records a held category anew, and a 
 
 test("S-109 R5 a category new to the task whose provider is off records nothing and refuses the whole call", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Off");
-  const registry = w.localHost.actionRegistry(a.project.reference), shelfRead = query("fixture.shelf.list");
-  t.after(registry.registerProvider({ provider: { provider_id: "fixture.shelf", kind: "system", title: "Shelf", project_id: a.project.project_id },
-    definitions: [shelfRead], handlers: [{ ...shelfRead, handle: () => ({}) }] }));
   w.off.add(shelfRead.capability_id);
-  await assert.rejects(a.set("daily", [a.group, { provider_id: "fixture.shelf" }]), { code: "actions.input_invalid" });
-  await assert.rejects(a.set("daily", [a.group, { provider_id: "fixture.shelf", confirm: true }]), { code: "actions.input_invalid" });
+  await assert.rejects(a.set("daily", [a.group, a.shelf]), { code: "actions.input_invalid" });
+  await assert.rejects(a.set("daily", [a.group, { ...a.shelf, confirm: true }]), { code: "actions.input_invalid" });
   assert.deepEqual(await w.records("agent:task:"), [], "no empty grant and nothing else of the call was recorded");
   w.off.delete(shelfRead.capability_id);
-  await a.set("daily", [a.group, { provider_id: "fixture.shelf" }]);
+  await a.set("daily", [a.group, a.shelf]);
   assert.equal((await w.records("agent:task:")).length, 2, "switched back on, it can be turned on");
 });
 
 test("S-109 R1 a held category is taken by its records: a group no longer offered or no group at all keeps them, and the same reference new to a task is refused", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Held by records");
-  const registry = w.localHost.actionRegistry(a.project.reference), shelfRead = query("fixture.shelf.list");
-  t.after(registry.registerProvider({ provider: { provider_id: "fixture.shelf", kind: "system", title: "Shelf", project_id: a.project.project_id },
-    definitions: [shelfRead], handlers: [{ ...shelfRead, handle: () => ({}) }] }));
   // New to the task, neither names a category offered now.
   await assert.rejects(a.set("daily", [{ provider_id: a.providerId }]), { code: "actions.input_invalid" });
-  await assert.rejects(a.set("daily", [{ provider_id: "fixture.shelf", group_id: "gone" }]), { code: "actions.input_invalid" });
-  await a.set("daily", [a.group, { provider_id: "fixture.shelf" }]);
+  await assert.rejects(a.set("daily", [{ ...a.shelf, group_id: "gone" }]), { code: "actions.input_invalid" });
+  await a.set("daily", [a.group, a.shelf]);
   const before = (await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort();
-  await a.set("daily", [{ provider_id: a.providerId }, { provider_id: "fixture.shelf", group_id: "gone" }]);
+  await a.set("daily", [{ provider_id: a.providerId }, { ...a.shelf, group_id: "gone" }]);
   assert.deepEqual((await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort(), before, "held, they are kept exactly");
+});
+
+test("S-109 R1 R4 C1 a category its provider no longer declares is listed as removed, kept exactly while it is held and unreadable meanwhile, and gone once left out", { timeout: 120_000 }, async t => {
+  const w = await world(t), a = await w.open("Removed");
+  await a.set("daily", [a.group]);
+  // The record a whole-provider grant left before the reader declared its groups: its Manifest now puts `loose` in no group. A fixture's
+  // Manifest is the one its installation was installed with, so the record is written as that earlier grant left it.
+  await w.plant([{ client_id: a.subject("daily"), project_id: a.project.project_id, capability_id: loose.capability_id, version: 1, provider_id: a.providerId, permissions: [], enabled: true }]);
+  const status = async () => (await w.list(a.project)).subjects[0]?.categories.map(category => [category.provider_id, category.group_id ?? null, category.status]).sort();
+  assert.deepEqual(await status(), [[a.providerId, null, "removed"], [a.providerId, "notes", "granted"]].sort());
+  const before = (await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort();
+  // Turning a switch sends the removed row back as it is listed: the provider with no group. Held, it keeps its record as it was.
+  await a.set("daily", [a.group, { provider_id: a.providerId }]);
+  assert.deepEqual((await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort(), before, "the removed category's record is kept exactly");
+  await a.run({ grant_subject: "daily" }, async gateway => {
+    assert.deepEqual(await w.found(gateway), [notes.capability_id], "what the provider no longer offers a task is not readable, whatever the record says");
+    await assert.rejects(gateway!.invoke({ capability_id: loose.capability_id, version: 1, provider_id: a.providerId }, {}),
+      (error: unknown) => error instanceof Error && "code" in error && ["mcp.action_revoked", "actions.missing"].includes(String(error.code)));
+  });
+  assert.deepEqual(w.reader.handled, [], "the refused call did not run");
+  // 「移除」: the row left out of the call loses its record.
+  await a.set("daily", [a.group]);
+  assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id), [notes.capability_id]);
+  assert.deepEqual(await status(), [[a.providerId, "notes", "granted"]]);
 });
 
 test("S-109 R3 confirm only re-records a category the task holds now, as the Host holds it, and not one that records nothing callable now", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Confirm held");
-  const registry = w.localHost.actionRegistry(a.project.reference), shelfRead = query("fixture.shelf.list");
-  t.after(registry.registerProvider({ provider: { provider_id: "fixture.shelf", kind: "system", title: "Shelf", project_id: a.project.project_id },
-    definitions: [shelfRead], handlers: [{ ...shelfRead, handle: () => ({}) }] }));
   await assert.rejects(a.set("daily", [{ ...a.group, confirm: true }]), { code: "actions.input_invalid" }, "confirm on a category the task does not hold");
   assert.deepEqual(await w.records("agent:task:"), []);
-  const first = await a.set("daily", [a.group, { provider_id: "fixture.shelf" }]);
+  const first = await a.set("daily", [a.group, a.shelf]);
   const before = (await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort();
   w.off.add(shelfRead.capability_id);
-  await assert.rejects(a.set("daily", [a.group, { provider_id: "fixture.shelf", confirm: true }]), { code: "actions.input_invalid" }, "nothing callable to record now");
+  await assert.rejects(a.set("daily", [a.group, { ...a.shelf, confirm: true }]), { code: "actions.input_invalid" }, "nothing callable to record now");
   w.off.delete(shelfRead.capability_id);
   assert.deepEqual((await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort(), before, "the refused call changed nothing");
   // What the task holds is what the Host holds at the call: once a plugin has cleared it, the person's earlier view confirms nothing.
@@ -396,6 +454,24 @@ test("S-109 R3 confirm only re-records a category the task holds now, as the Hos
   await assert.rejects(a.set("daily", [{ ...a.group, confirm: true }], first.revision), { code: "actions.conflict" });
   await assert.rejects(a.set("daily", [{ ...a.group, confirm: true }]), { code: "actions.input_invalid" });
   assert.deepEqual(await w.records("agent:task:"), [], "nothing came back");
+});
+
+test("S-109 PWA-149 a task granted Schedule's 提醒 reads the reminders in its round, and not the task list of 定时操作", { timeout: 120_000 }, async t => {
+  const w = await world(t), a = await w.open("Reminders");
+  const offered = (await w.list(a.project)).categories.filter(category => category.plugin_id === SCHEDULE_PLUGIN_ID);
+  const reminders = offered.find(category => category.group_id === "reminders");
+  assert.ok(reminders && offered.some(category => category.group_id === "operations"), "Schedule offers 提醒 and 定时操作 as two categories");
+  await a.set("daily", [{ provider_id: reminders.provider_id, group_id: "reminders" }]);
+  await a.run({ grant_subject: "daily" }, async gateway => {
+    assert.ok(gateway);
+    const views = await gateway.discover(), ids = views.map(view => view.capability_id);
+    assert.ok(ids.includes(scheduleActions.reminders.capability_id), "the reminders query is readable by the task");
+    assert.equal(ids.includes(scheduleActions.list.capability_id), false, "the task list is not");
+    const answer = await gateway.invoke(w.exact(views.find(view => view.capability_id === scheduleActions.reminders.capability_id)!), {}) as { reminders?: unknown };
+    assert.ok(Array.isArray(answer.reminders), "and it answers");
+    await assert.rejects(gateway.invoke({ capability_id: scheduleActions.list.capability_id, version: scheduleActions.list.version, provider_id: reminders.provider_id }, {}),
+      { code: "mcp.action_revoked" });
+  });
 });
 
 test("S-109 S-17 a plugin's round reads as a task only from a read-only business role, by a key alone, and without one it borrows nothing", { timeout: 120_000 }, async t => {

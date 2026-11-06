@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFile, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
@@ -15,7 +15,7 @@ import type { PluginPackageBundle } from '@molis-ai/molis-work-contracts/platfor
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
-import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions } from '@molis-ai/molis-work-app-local-host';
+import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions, readMcpToolPreference } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
@@ -186,6 +186,29 @@ test('SYS-15-S1 Host alone restores installed actions and scheduled operations, 
       assert.equal(new SqlitePluginRuntimeRepository(runtime.store.db).get(fixture.install.install_id)?.manifest_digest, fixture.install.manifest_digest, 'no same-version manifest rewrite');
     });
     assert.equal(await host.actionClient(ref).invoke(caller, action('read'), null), 'scheduled');
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// SECURITY-INVARIANTS S-109 ⑩: what the person let a project installation's background tasks read goes with that installation when it
+// is uninstalled there (the installed-plugin lifecycle's `forget`), and only that: the same installation's tasks in another project, and
+// another installation's tasks here, keep theirs. The grants are written as an earlier `agent.task_grants.set` left them (setup only).
+test("S-109 uninstalling a plugin from a project takes its tasks' grants there with it, and leaves another project's and another installation's", mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-task-grants-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project');
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  try {
+    const installed = await host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+      actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
+    const install = fixture.install.install_id;
+    const grant = (project_id: string, install_id: string) => ({ client_id: `agent:task:${project_id}:${install_id}:daily`, project_id, capability_id: 'fixture.read',
+      version: 1, provider_id: 'fixture', permissions: [], enabled: true, generation: randomUUID() });
+    const kept = [grant('project-elsewhere', install), grant(DEMO_PROJECT_ID, 'plugin-install-another')];
+    await mkdir(join(home, 'config'), { recursive: true });
+    await writeFile(join(home, 'config', 'mcp-tools.json'), `${JSON.stringify({ version: 1, action_grants: [grant(DEMO_PROJECT_ID, install), ...kept] }, null, 2)}\n`);
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.deepEqual((await readMcpToolPreference(home)).action_grants.map(row => row.client_id).sort(), kept.map(row => row.client_id).sort(),
+      'kept data or not, what its tasks in this project could read goes with it');
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

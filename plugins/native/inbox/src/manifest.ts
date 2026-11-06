@@ -7,6 +7,7 @@ import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, INBOX_STAGE_GOAL_READ, inboxAc
 import { INBOX_PROJECT_DATABASE } from "./database.js";
 
 import { INBOX_PLUGIN_ID } from "./identity.js";
+import { INBOX_EN } from "./en.js";
 export { INBOX_PLUGIN_ID } from "./identity.js";
 /** What the project database stores for this Plugin. */
 export const INBOX_PROJECT_PLUGIN_ID = "inbox";
@@ -45,6 +46,9 @@ export const inboxManifest: PluginManifest = {
     ...PLATFORM_PERMISSIONS],
   actions: [...INBOX_ACTIONS, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxHomeEventsAction],
   action_scenes: [inboxNextScene],
+  // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
+  read_groups: [{ group_id: "inbox", title: "来信", description: "Inbox 里待处理的事项与它们的内容",
+    actions: ["inbox.list", "inbox.subject.read", "inbox.search.entries", "inbox.home.events", "inbox.content.list", "inbox.content.read"] }],
   // The page's requests: each adapts one HTTP call to one of the plugin's own actions (`createInboxRouteHandlers`), under /api/plugins/<plugin_id>/.
   routes: [
     { route_id: "inbox.list", method: "GET", path: "/entries", permission: "inbox:read" },
@@ -59,6 +63,7 @@ export const inboxManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content", INBOX_STAGE_GOAL_READ.capability_id] },
   artifacts: { produces: [], consumes: [] },
   ui: {
+    translations: INBOX_EN,
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", hue: "mint", order: 30, rail: "core", pinned_default: true, accepts_objects: true,

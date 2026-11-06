@@ -94,6 +94,8 @@ export interface ScheduleActionPorts {
   createTask(input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
   updateTask(taskId: string, input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
   archiveTask(taskId: string): void;
+  /** After an archive has committed: the task's read grants go with it (the platform's; Schedule only asks it to clear them). */
+  archived?(taskId: string): Promise<void>;
   setTaskEnabled(taskId: string, enabled: boolean): ScheduleConversationTaskView;
   openTask(taskId: string): ScheduleConversationTaskView;
 }
@@ -103,16 +105,22 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
   const project = (caller: ActionCallContext) => {
     if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请求项目与定时任务所在项目不一致");
   };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
+  // `after` runs once the write has committed, outside its transaction: what it calls is another owner's, not part of this write.
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>,
+    after?: (input: I) => Promise<void>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     // The scheduler service's refusals leave Schedule as Schedule's own declared failures.
     handle: async (caller, input) => { try {
       project(caller);
-      if (definition.operation === "command") {
+      const run = async () => {
+        if (definition.operation !== "command") return await handle(input as I, caller);
         if (write) return await write(caller, () => handle(input as I, caller));
         await caller.beforeEffect();
-      }
-      return await handle(input as I, caller);
+        return await handle(input as I, caller);
+      };
+      const output = await run();
+      await after?.(input as I);
+      return output;
     } catch (error) { throw scheduleFailure(error); } },
   });
   const editable = (input: ScheduleTaskInput) => ({ title: input.title, instructions: input.instructions, ...parseClockTime(input.time), notify_important: input.notify_important !== false });
@@ -124,7 +132,8 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
     }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
     bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input)) })),
-    bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; }),
+    bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; },
+      async input => { await ports.archived?.(input.task_id); }),
     bind(scheduleActions.setTaskEnabled, input => ({ task: ports.setTaskEnabled(input.task_id, input.enabled) })),
     bind(scheduleActions.openTask, input => ({ task: ports.openTask(input.task_id) })),
     bind(scheduleActions.setJobEnabled, input => ({ job: ports.setEnabled(input.job_id, input.enabled) })),

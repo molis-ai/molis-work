@@ -89,26 +89,32 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
       ${listBody}
     </div>
     <div class="plugin-stage-workspace" data-schedule-stage-workspace hidden>
-      ${model.tasks.map((task) => renderTaskDetail(task, p)).join("")}
+      ${renderTaskForm(model.route_prefix, p)}
+      ${model.tasks.map((task) => renderTaskDetail(task, model.route_prefix, p)).join("")}
       ${jobs.map((job) => renderScheduleDetail(job, p)).join("")}
       ${operations.map(run => renderOperationDetail(run, p)).join("")}
       <div class="feed-detail-empty mw-empty" data-schedule-detail-empty>${p.icon("timer")}<h1>${p.text("schedule.detail.choose")}</h1></div>
     </div>
-    ${renderCreateDialog(model.route_prefix, p)}
     ${renderReminderRecoveryDialog(p)}
     ${renderOperationRecoveryDialog(p)}
   </section>`;
 }
 
-function renderCreateDialog(routePrefix: string, p: ScheduleUiPrimitives): string {
-  return `<dialog class="mw-dialog mw-dialog--form" data-schedule-create-dialog aria-labelledby="schedule-create-title">
-    <form class="mw-form mw-dialog__shell" data-schedule-create-form>
-      <header class="mw-form__header"><div><h2 id="schedule-create-title" data-schedule-form-title>${p.text("schedule.action.new")}</h2><p>${p.text("schedule.form.help")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-schedule-create-close aria-label="${p.text("schedule.action.close")}">${p.icon("x")}</button></header>
+/**
+ * New and edit are written in the right-hand pane, where a task's detail goes (decided 2026-11-04: no dialog). What a task may read
+ * is chosen once it exists, in its detail, so the form only says so.
+ */
+function renderTaskForm(routePrefix: string, p: ScheduleUiPrimitives): string {
+  return `<section class="feed-detail schedule-task-form" data-schedule-create-pane aria-labelledby="schedule-create-title" hidden>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-create-close aria-label="${p.text("schedule.action.back")}" title="${p.text("schedule.action.back")}">${p.icon("chevron-right")}</button></header>
+    <form class="mw-form" data-schedule-create-form>
+      <header class="mw-form__header"><div><h2 id="schedule-create-title" data-schedule-form-title>${p.text("schedule.action.new")}</h2><p>${p.text("schedule.form.help")}</p></div></header>
       <div class="mw-form__body">
         <label class="mw-field"><span class="mw-field__label">${p.text("schedule.form.title")}</span><input class="mw-input" name="title" required maxlength="80" autocomplete="off" placeholder="${p.text("schedule.form.title-placeholder")}"></label>
-        <label class="mw-field"><span class="mw-field__label">${p.text("schedule.form.instructions")}</span><textarea class="mw-textarea" name="instructions" rows="6" required maxlength="8000" placeholder="${p.text("schedule.form.instructions-placeholder")}"></textarea><small class="mw-field__hint">${p.text("schedule.form.instructions-hint")}</small></label>
-        <label class="mw-field"><span class="mw-field__label">${p.text("schedule.form.daily")}</span><input class="mw-input" name="time" type="time" required value="09:00"><small class="mw-field__hint">${p.text("schedule.form.time-hint")}</small></label>
+        <label class="mw-field"><span class="mw-field__label">${p.text("schedule.form.instructions")}</span><textarea class="mw-textarea" name="instructions" rows="5" required maxlength="8000" placeholder="${p.text("schedule.form.instructions-placeholder")}"></textarea><small class="mw-field__hint">${p.text("schedule.form.instructions-hint")}</small></label>
+        <label class="mw-field schedule-time-field"><span class="mw-field__label">${p.text("schedule.form.daily")}</span><input class="mw-input" name="time" type="time" required value="09:00"><small class="mw-field__hint">${p.text("schedule.form.time-hint")}</small></label>
         <label class="mw-check-row"><input class="mw-check" type="checkbox" name="notify_important" checked><span>${p.text("schedule.form.notify")}</span></label>
+        <div class="mw-field" data-schedule-form-reads><span class="mw-field__label">${p.text("schedule.reads.title")}</span><p class="schedule-reads__line">${p.icon("database")}<span>${p.text("schedule.form.reads")}</span></p></div>
         <div class="mw-alert mw-alert--warning" data-schedule-hint="model" role="status" hidden><span>${p.text("schedule.hint.model")} <a href="/settings/models" style="white-space:nowrap">${p.text("schedule.hint.model-link")}</a></span></div>
         <div class="mw-alert mw-alert--warning" data-schedule-hint="workspace" role="status" hidden><span>${p.text("schedule.hint.workspace")} <a href="${p.escape(routePrefix)}/settings/workspaces" style="white-space:nowrap">${p.text("schedule.hint.workspace-link")}</a></span></div>
         <p class="form-error" data-schedule-create-error role="alert" hidden></p>
@@ -118,7 +124,39 @@ function renderCreateDialog(routePrefix: string, p: ScheduleUiPrimitives): strin
         <button class="mw-btn mw-btn--primary" type="submit">${p.text("schedule.action.create")}</button>
       </footer>
     </form>
-  </dialog>`;
+  </section>`;
+}
+
+/**
+ * What a task reads comes from the platform's grants, read once for the list after the page is drawn (`/grants`): the stage's data
+ * is the task list alone. Both marks are drawn and the page shows the one that applies; until it knows, neither, in a kept place.
+ */
+function renderKindMark(p: ScheduleUiPrimitives): string {
+  const mark = (kind: "files" | "data", icon: string, label: string) =>
+    `<span class="schedule-kind__icon" data-kind="${kind}" title="${label}">${p.icon(icon)}<span class="mw-sr-only">${label}</span></span>`;
+  return `<span class="schedule-kind" data-schedule-kind-mark="unknown">${mark("files", "file", p.text("schedule.kind.files"))}${mark("data", "database", p.text("schedule.kind.data"))}</span>`;
+}
+
+/**
+ * 「能读的数据」 in a task's detail. What the person may switch on and off is the platform's to draw and write, in its own area
+ * (batch 18 P3, specs/proactive-assistant/schedule-task-reads.md §3.7 F): Schedule only says where it goes and which task it is
+ * for, and the lines around it say what Schedule can tell from the platform's list (counts and states, never another plugin's words).
+ */
+function renderReadsSection(task: ScheduleConversationTaskView, routePrefix: string, p: ScheduleUiPrimitives): string {
+  const note = (state: string, warning: boolean, text: string) => `<div class="mw-alert${warning ? " mw-alert--warning" : ""}" data-schedule-reads-note="${state}" role="status" hidden><span>${text}</span></div>`;
+  return `<section class="schedule-reads" data-schedule-reads aria-labelledby="schedule-reads-${p.escape(task.task_id)}">
+      <h2 class="schedule-reads__title" id="schedule-reads-${p.escape(task.task_id)}">${p.text("schedule.reads.title")}</h2>
+      <p class="schedule-reads__line schedule-reads__line--fresh" data-schedule-reads-created hidden>${p.icon("sparkles")}<span>${p.text("schedule.reads.created")}</span></p>
+      <p class="schedule-reads__line" data-schedule-reads-summary="files" hidden>${p.icon("file")}<span>${p.text("schedule.reads.none")}</span></p>
+      <p class="schedule-reads__line" data-schedule-reads-summary="data" hidden>${p.icon("database")}<span data-schedule-reads-count></span></p>
+      <div class="schedule-reads__area" data-schedule-reads-area="${p.escape(task.task_id)}"></div>
+      ${note("needs_confirmation", true, p.text("schedule.reads.needs-confirmation"))}
+      ${note("removed", true, p.text("schedule.reads.removed"))}
+      ${note("unavailable", false, p.text("schedule.reads.unavailable"))}
+      ${note("nothing", true, p.text("schedule.reads.nothing-readable"))}
+      <div class="mw-alert mw-alert--warning" data-schedule-reads-note="workspace" role="status" hidden><span>${p.text("schedule.reads.workspace")} <a href="${p.escape(routePrefix)}/settings/workspaces" style="white-space:nowrap">${p.text("schedule.hint.workspace-link")}</a></span></div>
+      <div class="mw-alert mw-alert--warning" data-schedule-reads-failed role="status" hidden><strong>${p.text("schedule.reads.failed")}</strong><p>${p.text("schedule.reads.failed-body")}</p><div class="schedule-reads__actions"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-schedule-reads-retry>${p.icon("refresh")}<span>${p.text("schedule.reads.retry")}</span></button></div></div>
+    </section>`;
 }
 
 function renderTaskRow(task: ScheduleConversationTaskView, p: ScheduleUiPrimitives): string {
@@ -127,14 +165,15 @@ function renderTaskRow(task: ScheduleConversationTaskView, p: ScheduleUiPrimitiv
   const next = task.next_due_at ? `${p.text("schedule.label.next")} ${p.escape(p.formatDate(task.next_due_at))}` : p.text("schedule.label.not-scheduled");
   return `<article class="inbox-stage-item feed-stage-item" data-schedule-item-wrap="${p.escape(task.task_id)}">
     <button class="feed-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="task" data-schedule-task-id="${p.escape(task.task_id)}" data-schedule-enabled="${task.enabled ? "true" : "false"}">
-      <span class="feed-stage-leading"><strong title="${p.escape(task.title)}">${p.escape(task.title)}</strong></span>
+      <span class="feed-stage-leading">${renderKindMark(p)}<strong title="${p.escape(task.title)}">${p.escape(task.title)}</strong></span>
       <span class="feed-entry-source">${p.text("schedule.label.daily-at", { time: task.clock_label })} · ${next}</span>
       <span class="mw-status mw-status--${tone} mw-status--plain feed-entry-status" data-mw-state="${task.unread ? "unread" : task.enabled ? "ready" : "paused"}" data-schedule-row-status>${p.escape(status)}</span>
+      <span class="mw-status mw-status--attention mw-status--plain feed-entry-status" data-mw-state="approval" data-schedule-row-reconfirm hidden>${p.text("schedule.status.reconfirm")}</span>
     </button>
   </article>`;
 }
 
-function renderTaskDetail(task: ScheduleConversationTaskView, p: ScheduleUiPrimitives): string {
+function renderTaskDetail(task: ScheduleConversationTaskView, routePrefix: string, p: ScheduleUiPrimitives): string {
   const enabled = task.enabled;
   const status = task.unread ? p.text("schedule.status.updated") : enabled ? p.text("schedule.status.enabled") : p.text("schedule.status.paused");
   const toggle = enabled
@@ -147,10 +186,10 @@ function renderTaskDetail(task: ScheduleConversationTaskView, p: ScheduleUiPrimi
     return `<article class="schedule-turn schedule-turn--${p.escape(turn.kind)}"><header><small>${p.escape(who)}</small>${important}<time>${p.escape(p.formatDate(turn.created_at))}</time></header><p>${p.escape(turn.text)}</p></article>`;
   }).join("");
   return `<article class="feed-detail inbox-reference-detail schedule-task-detail" data-schedule-detail="${p.escape(task.task_id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text("schedule.action.back")}" title="${p.text("schedule.action.back")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.text("schedule.label.daily-at", { time: task.clock_label })}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-mw-state="${task.unread ? "unread" : enabled ? "ready" : "paused"}" data-schedule-detail-status>${p.escape(status)}</span></div><button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-edit="${p.escape(task.task_id)}">${p.text("schedule.action.edit")}</button>${toggle}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-archive="${p.escape(task.task_id)}">${p.text("schedule.action.archive")}</button></header>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text("schedule.action.back")}" title="${p.text("schedule.action.back")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.text("schedule.label.daily-at", { time: task.clock_label })}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-mw-state="${task.unread ? "unread" : enabled ? "ready" : "paused"}" data-schedule-detail-status>${p.escape(status)}</span><span class="mw-status mw-status--attention" data-mw-state="approval" data-schedule-detail-reconfirm hidden>${p.text("schedule.status.reconfirm")}</span></div><button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-edit="${p.escape(task.task_id)}">${p.text("schedule.action.edit")}</button>${toggle}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-archive="${p.escape(task.task_id)}">${p.text("schedule.action.archive")}</button></header>
     <textarea data-schedule-task-instructions hidden>${p.escape(task.instructions)}</textarea><input data-schedule-task-time type="hidden" value="${p.escape(task.clock_label)}"><input data-schedule-task-notify type="hidden" value="${task.notify_important ? "true" : "false"}">
     <header class="feed-detail-header"><h1>${p.escape(task.title)}</h1><p>${p.text("schedule.label.next")} ${p.escape(next)}</p></header>
-    <div class="schedule-thread" data-schedule-thread>${turns}</div>
+    <div class="schedule-thread" data-schedule-thread>${renderReadsSection(task, routePrefix, p)}${turns}</div>
     <p class="feed-action-status" data-schedule-action-status role="status" hidden></p>
   </article>`;
 }

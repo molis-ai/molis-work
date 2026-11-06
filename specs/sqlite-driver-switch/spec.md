@@ -173,9 +173,11 @@ Home 库今天就在 `node:sqlite` 上走同一个 `pluginDatabaseClient`（`hom
 
 FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）。SQLD-c 记一份官方 24.15 的 `PRAGMA compile_options` 进用例，将来 Node 升级看差异。
 
+**`setAuthorizer`。** `project-database-statements.ts` 开头写着宿主的 SQLite 没有 authorizer，`node:sqlite` 有（本机 24.22.2 有，24.15 没核）。SQLD-c 顺手核一下，有就报统筹记 BL：切换之后插件语句检查可以考虑改用它。不在本批，U1-f 不等它。
+
 ## 4. 文件锁用例 PLIB-08／S-46
 
-两份 SQLite 关连接会互相放掉 POSIX 锁，这是当初不换也不混用的理由。**切换后理由还在，因为 Alchemist 留着 `better-sqlite3`。** 只是范围变了：宿主进程里项目库和别的库都是同一份，第二份只开 Alchemist 自己的 `studio.sqlite`。
+两份 SQLite 关连接会互相放掉 POSIX 锁，这是当初不换也不混用的理由。放掉锁只发生在同一个文件上，所以**要钉住的不变量是：同一个进程里，同一个文件不同时被两份 SQLite 开着。** 切换后这条还要守，因为 Alchemist 留着 `better-sqlite3`。只是范围变了：宿主进程里项目库和别的库都是同一份，第二份只开 Alchemist 自己的 `studio.sqlite`。离线快照也会检查 `studio.sqlite`（`home-store-snapshot.ts:65`），切换后用的是 `node:sqlite`，这不违反不变量：快照时 Alchemist 没在跑。
 
 `tests/security-invariants-plugin-project-database.test.ts:279`（PLIB-08）不能只把断言翻过来。改成：
 
@@ -191,7 +193,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 
 这样比现在更严。同步要改：`docs/system/SECURITY-INVARIANTS.md` S-46 的表述；`apps/local-host/src/plugin-project-library.ts:28-30` 的注释；`tests/security-invariants-plugin-terminal-launch.test.ts:596`（注释和它直接开的驱动）；`docs/platform/PLUGIN-DEVELOPMENT.md`（`:205` 一次一句的说明不变，来源改成适配层）。
 
-**「文件不重叠」把 U1 算进去。** U1 的升级过程会在宿主里用 `better-sqlite3` 开 `studio.sqlite`（U1 设计 §2.3），它的安全靠这时「这个进程还没开业务库」。切换后这一点还要成立：升级段不许在同一进程已开业务库之后再碰 `studio.sqlite`，U1-d 接 Alchemist 时写用例。
+**这条不变量把 U1 算进去。** U1 的升级过程会在宿主里用 `better-sqlite3` 开 `studio.sqlite`（U1 设计 §2.3）。别的业务库开着没有关系，§7 里宿主和 Alchemist 本来就并存。U1-d 的用例查：升级过程开 `studio.sqlite` 时，读版本用的通用连接已经关了。
 
 ## 5. 沙箱子进程
 
@@ -219,7 +221,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 
 - `plugins/native/alchemist/package.json:36,52,58` 留依赖，`open-database.ts:1` 不动，24 处 `.transaction(` 不动。出处：`tests/builtin-plugin-assembly-gate.test.ts` 的批准例外（BL-377 重做）。
 - 宿主侧的 `alchemist-search.ts` 走 `LocalSqliteStorage`，跟着切（`search.sqlite`）。
-- **同一个进程里仍然有两份 SQLite**（Alchemist 在宿主里跑时）。今天也是这样，只是换了分工。安全靠「文件不重叠」，§4 新增了拒绝用例；U1 的升级过程也算在内（§4 末段）。
+- **同一个进程里仍然有两份 SQLite**（Alchemist 在宿主里跑时）。今天也是这样，只是换了分工。安全靠 §4 那条不变量（同一个文件不同时被两份 SQLite 开着），§4 新增了拒绝用例；U1 的升级过程也算在内（§4 末段）。
 - **门禁改严，切换后旧驱动只许 Alchemist 用（用户 2026-11-06 定）。** `scripts/gates/project-sqlite-driver.mjs`（#1790）的 `ownsDriver` 现在放行整个 `packages/storage/` 和 `plugins/native/alchemist/`，分两步收：
   - SQLD-d：`packages/storage/` 收窄到保留旧实现的那一个文件（`sqlite-connection.ts`），留给 revert（§9）。符合性用例从 `packages/storage` 取旧实现，不直接 import。
   - SQLD-e：`packages/storage` 那一项删掉，只剩 Alchemist。符合性用例的旧驱动那一半同时删掉，期望值已经写在用例里。

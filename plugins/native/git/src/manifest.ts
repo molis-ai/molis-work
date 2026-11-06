@@ -47,7 +47,7 @@ export const gitManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: GIT_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "Git",
   summary: "查看工作区的版本与变更。",
   kind: "app",

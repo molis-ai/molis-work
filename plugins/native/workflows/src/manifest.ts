@@ -13,7 +13,7 @@ export const workflowsManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: WORKFLOWS_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "工作流程",
   name_en: "Workflows",
   summary: "把插件串成流程，一步步做完。",

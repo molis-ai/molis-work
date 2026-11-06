@@ -2,10 +2,12 @@
 
 每次发布把这份清单复制进发布 PR 的描述，逐项勾选；做不到的项写明原因，不删项。规则出处是 [POLICY.md](POLICY.md)。
 
+当前准备 [0.1.0 统一起点候选](v0.1.0.md)：N34 已在源码中复位产品与全部内置 Manifest，旧同名 release/tag 已按 2026-11-06 追加授权删除并核实释放；最终构建、登记与隔离安装另验。新版本未发布，真实 Home 未重建，统一起点日期仍未生效。旧 0.3.0 候选的构建和产物证据不能替代本次检查。
+
 ## 1. 定版本，写材料
 
 - [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看第 3 节的表：`git diff <上个 tag> -- <表里的定义处文件>`。
-- [ ] 这个版本是 1.0.0 或之后、并且会装到开发机之外吗？用户 2026-10-08 的决定 #15：「不留兼容」到第一个装到开发机之外的版本为止；用户 2026-10-29 又定「1.0.0 之前都是开发版本」，所以 1.0.0 之前的版本都不是它（`specs/archive/repository-anti-corruption/spec.md` §1）。两样都是的话，发布 PR 把版本号、日期和提交写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md) 顶部的「起点日期」，并把它的第 3 节标为已结束；从那以后合同变更走那份文件第 4 节的读取兼容流程，库的版本变更要带升级路径，不再是拒绝加一次性维护（[POLICY.md](POLICY.md) 第 2、5 节和本清单第 4.3 节写的做法只到这一版为止）。那份文件第 5 节列的前置（公开 API 快照、动作合同快照、插件回放工具等）要在发这个版本之前就位；库的升级机制现在也没有，方案见 `specs/archive/repository-anti-corruption/c-end-readiness.md` §3.2。有一样不是的话，在这一项写明「不是外部版本」，仍按「不留兼容」办。
+- [ ] 这个版本是 1.0.0 或之后、并且会装到开发机之外吗？用户 2026-10-08 的决定 #15：「不留兼容」到第一个装到开发机之外的版本为止；用户 2026-10-29 又定「1.0.0 之前都是开发版本」，所以 1.0.0 之前的版本都不是它（`specs/archive/repository-anti-corruption/spec.md` §1）。两样都是的话，发布 PR 把版本号、日期和提交写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md) 顶部的「起点日期」，并把它的第 3 节标为已结束；从那以后合同变更走那份文件第 4 节的读取兼容流程。那份文件第 5 节列的前置（公开 API 快照、动作合同快照、插件回放工具等）要在发这个版本之前就位。有一样不是的话，在这一项写明「不是外部版本」，仍按「不留兼容」办。存储结构变更另从第 4 节真实 Home 重建核实的统一起点开始，须升版本并带连续升级步骤，不等到首次外部安装；见 [POLICY.md](POLICY.md) 第 5 节。
 - [ ] 改版本号：根 `package.json`；`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`；`apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`（Feed、搜索运行时、MCP 客户端、Codex 会话传输的版本都从它取；[POLICY.md](POLICY.md) 第 1 节）。
 - [ ] 内置插件清单的版本与摘要：`BUILTIN_PLUGIN_CATALOG` 中现行的内置 Manifest（不在这里写死个数）均等于产品版本；`verify-release-versions.mjs` 核对源码，`tests/builtin-manifests-contract.test.ts` 核对构建后的目录。官方集成、示例与第三方插件独立编号。跑 `tests/plugin-release-artifact.test.ts` 验证 `bundled` 清单降版及同版本摘要变化仍跟随宿主。按第 4.5 节方法取得实际清单摘要并写入发布说明；表应覆盖整个目录，不只覆盖早期 7 个项目 Runtime 插件。
 - [ ] [CHANGELOG.md](CHANGELOG.md)：`[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`，页尾比较链接（若有）跟着改。
@@ -92,7 +94,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 用户已于 2026-11-04 确认[第 02 批维护窗口](../../specs/post-anticorruption-roadmap/reference/batches/02.md#batch-02-item-3)。待 ① 遗留核账、② 共享代码与合同、④ 升级规则的 PR 合入后，按以下步骤在用户在场时执行，并记录实际构建、原 Home 路径和操作者。若需改期，由统筹提前一天与用户另约窗口。重建日期在实操通过后填写。
 
-1. 统筹列出新旧构建、可回退的旧安装包、实际 Home 路径、备份位置，以及本次会使用的版本号。N34 涉及的旧 GitHub `v0.1.0` release 和同名标签，由用户于 2026-11-06 另行授权 Codex 删除；本次授权只覆盖这两个已核对的旧对象。统筹核对同名 release 和标签均已释放才准备用 0.1.0 的构建，运行 `node scripts/verify-release-versions.mjs`。这里不发布新版本。
+1. 统筹列出新旧构建、可回退的旧安装包、实际 Home 路径、备份位置，以及本次会使用的版本号。N34 涉及的旧 GitHub `v0.1.0` release（`375162104`，8 个附件）及指向 `60ca973e2b` 的同名标签，已按用户 2026-11-06 追加授权于 13:18 UTC 删除；随后发布查询返回 404，远端标签查询成功且为空。本次只释放这两个旧对象的名称，其他发布与标签保留。准备用于窗口的 0.1.0 构建仍须运行 `node scripts/verify-release-versions.mjs`，并另验构建和安装；这里不发布新版本。
 2. 按 §4.1 在隔离 Home 演练新建、重启与恢复。维护当天由用户确认开始，停止原 Home 的所有写入者，再按 §4.2 完成可恢复备份。任何路径、所有权、旧构建或原密钥无法确认，停在搬开旧 Home 之前。
 3. 按 §4.2 搬开整份旧 Home，§4.3–4.4 在原路径建立干净 Home 并安装已经验证的构建。依 [BL-937 的决定](https://github.com/molis-ai/molis-work/blob/29cec0f63b82935500c0950202ab689791c87567/specs/post-anticorruption-roadmap/reference/decisions.md#policy-bl-937)，重建时删除旧助理轮次。新助理库从空库开始，不补标、不导入旧轮次。
 4. 按 §4.5 核对各库、安装清单、首次授权与重启，并在新助理界面核对旧轮次为零。失败时停止新进程，保留失败现场。将新 Home 移到另一未占用位置，把完整旧 Home 放回原路径，使用对应旧构建与原密钥，核对原项目可读后才恢复服务。
@@ -121,6 +123,8 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 ### 4.4 装新构建
 
 用户批准开始且旧Home已搬开后，使用合入后的干净main构建执行 `pnpm install:local`；`service status` 是 `needs_repair` 才执行 `service install --confirm`。新Home需要的密钥条目由构建正常创建，保留旧条目；不人工清钥匙串。
+
+装过 0.3.0 的开发机在本窗口手动重装经验证的 0.1.0 构建，不仅重开现有桌面 App，也不依赖常规版本更新检测完成降版。安装后核对实际运行的提交、`content_digest` 与版本，不能只看产品界面显示 0.1.0。
 
 ### 4.5 动完之后
 

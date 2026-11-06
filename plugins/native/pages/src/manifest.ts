@@ -19,7 +19,7 @@ export const pagesManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: PAGES_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "Pages",
   summary: "写文档，可导出 Markdown / PDF。",
   // Offered to other Agents for business work; bodies in ./skills.ts.

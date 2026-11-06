@@ -19,7 +19,7 @@ export const scheduleManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: SCHEDULE_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "Schedule",
   summary: "定时跑对话任务，也替插件准时提醒。",
   kind: "native",

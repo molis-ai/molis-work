@@ -80,7 +80,7 @@ export const goalsManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: GOALS_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "Goals",
   summary: "确定目标，推进工作，留下结果。",
   kind: "native",

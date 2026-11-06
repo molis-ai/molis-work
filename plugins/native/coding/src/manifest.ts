@@ -48,7 +48,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: CODING_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "Coding",
   summary: "和 Agent 一起写代码，留每轮记录。",
   kind: "app",

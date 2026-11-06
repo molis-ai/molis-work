@@ -10,7 +10,7 @@ export const alchemistManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: ALCHEMIST_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "炼金术士",
   name_en: "Alchemist",
   summary: "写下方向，炼成可比较的卡再决定。",

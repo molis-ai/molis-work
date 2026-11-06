@@ -21,7 +21,7 @@ export const shelfManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: SHELF_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "Shelf",
   summary: "把文件放上来处理副本，原件不动。",
   kind: "native",

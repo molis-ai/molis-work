@@ -25,7 +25,7 @@ export const imagesManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: IMAGES_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "图片",
   name_en: "Images",
   summary: "连接生图服务，按描述生成图片。",

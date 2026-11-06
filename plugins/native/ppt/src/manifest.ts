@@ -20,7 +20,7 @@ export const pptManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: PPT_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "PPT",
   summary: "写大纲，放映或导出 PowerPoint。",
   kind: "native",

@@ -16,7 +16,7 @@ export const lingguangManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: LINGGUANG_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "灵光",
   name_en: "Lingguang",
   summary: "先记下想法，再决定留下或丢掉。",

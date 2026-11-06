@@ -23,7 +23,7 @@ export const textStatsManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: TEXT_STATS_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "Text stats",
   summary: "统计文件快照的字数、字节与行数。",
   developer: true,

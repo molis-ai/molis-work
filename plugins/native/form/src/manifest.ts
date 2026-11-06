@@ -21,7 +21,7 @@ export const formManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: FORM_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "Forms",
   summary: "建问卷，收答卷，看逐题汇总。",
   kind: "native",

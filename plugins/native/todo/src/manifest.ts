@@ -16,7 +16,7 @@ export const todoManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: TODO_PLUGIN_ID,
-  version: "0.3.0",
+  version: "0.1.0",
   name: "待办",
   name_en: "Todo",
   summary: "记下要做的事，分清今天、在等谁。",

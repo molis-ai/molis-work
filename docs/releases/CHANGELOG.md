@@ -1,6 +1,6 @@
 # 变更记录
 
-每个版本一节，最新的在最上面，写法参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。版本怎么选、什么时候改，见 [POLICY.md](POLICY.md)；每个版本的故事在 `v<版本>.md`，发布前要过 [CHECKLIST.md](CHECKLIST.md)。发布时把 `[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`。
+每个版本一节，最新的在最上面，写法参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。版本怎么选、什么时候改，见 [POLICY.md](POLICY.md)；每个版本的故事在 `v<版本>.md`，发布前要过 [CHECKLIST.md](CHECKLIST.md)。发布时把 `[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`。0.1.0 是 2026-11-06 复位后的新候选，按时间排在旧 0.3.0 候选之前；数字较小不表示回到旧发行物。
 
 ## [Unreleased]
 
@@ -90,9 +90,16 @@
 - **外部集成包装进 Home（BL-530 第二部分，`claude/ac-registry-bl530`）**：集成包照 BL-628 的预览、确认装进 Home，代码在 Home 的沙箱实例里跑，运行时由 Home 交给集成登记（`IntegrationRegistry.attach/detach`，登记自己的 Runtime 仍只装内置），停用、卸载、Host 关闭时放掉。预览与确认都拿包的 id 对登记查撞（`plugin.integration_declaration_conflict`），`plugins.install.preview@2` 的输出多一个可选的 `origins`（集成包写的来源，BL-691）。**升级须知**：集成包的清单现在要写 `runtime: { scope: "home" }`，且只声明一个来源和它的一个服务；第一部分做的集成包（还装不进 Home）照此改清单。`PluginInstallService.preview` 改成异步。
 - **合作源码许可**：Molis Work 项目代码（含 SDK、contracts 与内置插件）从 MIT 声明切换为 [Molis AI Cooperation Source License](../../LICENSE)。合作方可在约定范围内阅读和参与开发；对外销售、提供收费服务或转授权须事先取得实际著作权人或其合法授权代表的明确书面授权。Molis AI 的主体公司尚未设立，未来公司须取得相应权利或授权。第三方许可、独立工作成果以及旧版本已合法授予的权利保留；本条不追溯改变过去的发行物。
 
-## [0.3.0] - 2026-10-16
+## [0.1.0] - 统一起点候选，未发布
 
-本版汇集 v0.2.0 之后至 main `aadce77ac` 的变化。发布范围与实际验证见 [v0.3.0.md](v0.3.0.md)。
+### 升级须知（需要动手）
+
+- **产品与内置插件复位 0.1.0（N34）。** 按用户 2026-11-02 决定，根产品、桌面端、宿主和全部现行内置 Manifest 一起复位；63 个私有工作区包仍为 0.0.0，独立插件、示例及上游版本保留原归属。装过 0.3.0 的开发机随约定的真实 Home 重建窗口手动重装，不能把版本数字变小当成可直接打开旧数据的证明。
+- **旧同名发布已经释放，新候选尚未发布。** 旧 GoalBoard `v0.1.0` release 及同名 tag 已于 2026-11-06 按追加授权删除并核实；不影响 v0.2.0 或历史许可。本候选的最终构建、清单摘要、登记和隔离安装另验，真实 Home 尚未切换。范围与待验项见 [v0.1.0.md](v0.1.0.md)。
+
+## [0.3.0] - 2026-10-16（历史候选，未发布）
+
+本节固定记录 v0.2.0 之后至 main `aadce77ac` 的原候选，已由上面的 0.1.0 复位计划取代。以下库版本、升级步骤与清单数量均保留当时含义，不代表当前源码或真实 Home 的状态。原发布范围与实际验证见 [v0.3.0.md](v0.3.0.md)；现行版本与重建步骤以 [CHECKLIST.md](CHECKLIST.md)为准。
 
 ### 升级须知（需要动手）
 
@@ -167,8 +174,9 @@
 
 ## [0.2.0] - 2026-09-11
 
-事件工作流与 Runtime 简化：Goal 详情收敛为当前整体进展、时间线和事件阅读；Runtime 工具从 57 个收敛为 35 个，移除旧 Claim、Run、Evidence、Review、Draft Dialogue 入口；事件类型可以演化，人工验收要求真实保存；安装器校验源码与构建产物一致。完整说明见 [v0.2.0.md](v0.2.0.md)（正文里「旧项目有数据库升级路径」一句对今天的 main 已不成立，见上面 `[0.3.0]` 的升级须知）。公开 macOS 安装包尚未提供，需要 Developer ID 签名与 Apple 公证。
+已发布的 GoalBoard 历史版本，保留当时 MIT 许可及已合法授予的权利。事件工作流与 Runtime 简化：Goal 详情收敛为当前整体进展、时间线和事件阅读；Runtime 工具从 57 个收敛为 35 个，移除旧 Claim、Run、Evidence、Review、Draft Dialogue 入口；事件类型可以演化，人工验收要求真实保存；安装器校验源码与构建产物一致。完整说明见 [v0.2.0.md](v0.2.0.md)（正文里「旧项目有数据库升级路径」一句对今天的 main 已不成立；现行 0.1.0 候选按上面的升级须知干净重建）。当时未提供公开 macOS 安装包，仍须按现行发布流程完成 Developer ID 签名与 Apple 公证。
 
-[Unreleased]: https://github.com/molis-ai/molis-work/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/molis-ai/molis-work/compare/v0.2.0...v0.3.0
+[Unreleased]: https://github.com/molis-ai/molis-work/compare/v0.2.0...HEAD
+[0.1.0]: v0.1.0.md
+[0.3.0]: https://github.com/molis-ai/molis-work/compare/v0.2.0...aadce77ac5d35ca08c27624a4e38aaeb4244cde7
 [0.2.0]: https://github.com/molis-ai/molis-work/compare/v0.1.14...v0.2.0

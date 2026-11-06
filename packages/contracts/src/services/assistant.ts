@@ -8,7 +8,7 @@ export type { AssistantActivity, AssistantActivityFailure } from "./assistant-ac
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRetryWait, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
-import type { AgentInputSend, AgentQueuedInput } from "./agent-inputs.js";
+import type { AgentInputSend, AgentQueuedInput, AgentSteerMode } from "./agent-inputs.js";
 import type { MemoryChange } from "./memory.js";
 
 /**
@@ -508,6 +508,13 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
    * one free-text question, `steer` adds the words to the round. Absent is `steer`: the Host never decides it is an answer.
    */
   target?: "answer" | "steer";
+  /**
+   * How a supplement reaches the round under way (specs/ai-input-receipts §4.1; specs/unified-input-voice §4): `next-boundary`
+   * (补充) when absent, `interrupt` (打断并改向) or `after-run` (下一轮再做). Only for an existing work's supplement: refused with
+   * `target: "answer"`, on a new work, and for any other value. `interrupt` and `after-run` never start a round: when the
+   * round has ended they wait in its session for the next one (outcome `queued`); a work with no round yet refuses them.
+   */
+  delivery?: AgentSteerMode;
   reask?: AgentQuestionReask;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;

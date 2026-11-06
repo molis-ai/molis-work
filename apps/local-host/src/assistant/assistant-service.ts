@@ -17,10 +17,11 @@ import { adoptSession } from "./assistant-executor-session.js";
 import { linkSent } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { AssistantJobs } from "./assistant-jobs.js";
+import { AGENT_STEER_MODES } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { assistantErrors } from "./assistant-errors.js";
 import type { MemoryChange } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
-import { inputsOf, withdrawInput } from "./assistant-inputs.js";
+import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-inputs.js";
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
@@ -178,12 +179,16 @@ export class AssistantService {
     if (input.executor_session_id !== undefined && (input.work_id || choice?.kind !== "plugin" || typeof input.executor_session_id !== "string" || !input.executor_session_id)) {
       throw assistantErrors.invalid("只有交给执行方插件的新工作可以接着一个已有的会话");
     }
+    if (input.delivery !== undefined && !(AGENT_STEER_MODES as readonly unknown[]).includes(input.delivery)) throw assistantErrors.invalid("delivery 只能是 next-boundary、interrupt 或 after-run");
+    if (input.delivery !== undefined && (!input.work_id || input.target === "answer")) throw assistantErrors.invalid("送达方式只用在已有工作的补充上，新工作和回答问题都不带");
     const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined;
     try {
       const created = !input.work_id;
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice);
+      // Before the input hold and the material links: a work with no session yet has no round to interrupt or wait behind.
+      if (!created) assertRoundToAddress(Boolean(work.executor.kind === "plugin" ? work.executor.session_id : work.session_id), input.delivery);
       if (work.reply_target && caller.thread_request !== work.thread_round?.attempt_id) throw assistantErrors.scope("请在原评论内继续这项讨论");
       if (created && input.executor_session_id) work = await adoptSession(this.store, this.actorId, work, await this.dispatcher.executorOf(work), input.executor_session_id);
       if (!writtenBy && !input.written_by && work.executor.kind === "assistant") {
@@ -197,7 +202,7 @@ export class AssistantService {
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       linkSent(this.store.relations, work, materials, created ? context : null);
-      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
+      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;

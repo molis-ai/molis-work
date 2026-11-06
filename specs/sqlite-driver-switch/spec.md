@@ -1,6 +1,6 @@
 # SQLite 第二步：项目库换到 node:sqlite（路线书 05 第 3 项）
 
-状态：设计稿（2026-11-06），没有实现。要不要换用户已定（台账 C3，分两步），这里只写怎么换。用户 2026-11-06 定：把 Node 升到 24.15.x 并锁定（§2.1，决策记录 §13）。第一步（驱动收拢到窄接口）在 #1790，还没合入。依据是 main `242d75d03` 和 #1790 头 `3585974c5`。
+状态：设计稿（2026-11-06），没有实现。要不要换用户已定（台账 C3，分两步），这里只写怎么换。用户 2026-11-06 定：把 Node 升到 24.15.x 并锁定（§2.1，决策记录 §13）。第一步（驱动收拢到窄接口）已随 #1790 合入（`a942bd9c3`）。依据是合入后的 main。
 
 验收编号前缀 `SQLD`，见 §12。
 
@@ -67,7 +67,7 @@ export const PLUGIN_STATEMENT_SQLITE_VERSION = "3.51.3";
 
 ## 3. 做法：一个适配层
 
-**#1790 已经把项目库收到窄接口 `SqliteDatabase`（`packages/storage/src/sqlite-connection.ts`）。第二步只换这个文件里 `openSqliteConnection` 的实现**，返回包在 `DatabaseSync` 外面的适配对象，语义按 `better-sqlite3` 保持。调用方（生产 22 个文件以上）一行不动。
+**第一步已经把项目库收到窄接口 `SqliteDatabase`（`packages/storage/src/sqlite-connection.ts`）。第二步只换这个文件里 `openSqliteConnection` 的实现**，返回包在 `DatabaseSync` 外面的适配对象，语义按 `better-sqlite3` 保持。调用方（生产 22 个文件以上）一行不动。
 
 差异逐条定。「实测」指本机 Node，`better-sqlite3@12.8.0` 与 `node:sqlite` 并排跑过。★ 是核账没列的。
 
@@ -118,7 +118,7 @@ function transaction(run) {
 | ★ 参数太少 | 抛 | **静默绑 NULL，写成功**（实测） | 会悄悄写坏数据。适配层在 `prepare` 时数参数（跳过字符串、引号标识符和注释，`?`、`?NNN`），`get/all/iterate/run` 时比，不符就抛。太多两边都抛 |
 | ★ 一条 `prepare` 写了多句 | 抛 `more than one statement` | **只编译第一句，丢掉其余，第一句照常执行，不报错**（实测；v24.15.0 `node_sqlite.cc`） | 项目库现在就靠驱动拒绝：关键字过滤只看开头（`project-statement-protocol.ts:52-57`），`EXPLAIN` 也只看第一句，`PLIB-06`（`tests/security-invariants-plugin-project-database.test.ts:218`）和 `docs/platform/PLUGIN-DEVELOPMENT.md:205` 都写着一次一句。适配层数参数的词法扫描顺带做：第一句之后只许空白和注释，否则抛，文字保留 `more than one statement`。适配层不做语法分析，`CREATE TRIGGER` 这种中间带分号的写 `exec`（`exec` 不过这个检查）；Alchemist 之外的生产代码没有（评审台查过），有人写了就是报错，失败是关闭的 |
 | ★ 命名参数缺一个 | 抛 | **静默绑 NULL**（实测） | 生产没有命名参数，只有 `tests/desktop-tui.test.ts:234`。适配层拒绝，测试改成位置参数（SQLD-a） |
-| ★ 数组当位置参数 | `.get([1,2])` 接受 | 抛 `Unknown named parameter '0'`（实测） | 适配层展开成位置参数，保持现状。#1790 头上没有这种写法 |
+| ★ 数组当位置参数 | `.get([1,2])` 接受 | 抛 `Unknown named parameter '0'`（实测） | 适配层展开成位置参数，保持现状。main 上没有这种写法 |
 | ★ `get`／`all`／`iterate` 跑写语句 | 抛（语句不返回数据） | **返回空，写成功**（实测） | 适配层在 `prepare` 时读 `columns()`，长度为 0 就抛，文字同 `better-sqlite3`。`INSERT … RETURNING` 有列，不受影响；`run` 不查，两边都允许。`pragma`（§3.4）的 `PRAGMA x=y` 也是 0 列，它走内部的原始语句，不过这个检查 |
 | ★ `undefined` 参数 | 接受，绑 NULL（实测） | 抛 | 适配层转成 `null`，保持现状 |
 | ★ 布尔、`Date` 等对象 | 抛 | **接受**（实测） | 适配层抛 `TypeError`，防止存进去一个意外的值 |
@@ -127,7 +127,7 @@ function transaction(run) {
 | 超 2^53 的整数 | 丢精度的 double | 抛 `ERR_OUT_OF_RANGE` | 更严格，不转。`project-statement-engine.ts:139` 的 `carried` 本来就要拒绝过大的整数，结果都是拒绝，错误码按用例核（SQLD-c） |
 | `pluck` | 有 | 没有 | 只有测试用（15 行／6 个文件），从窄接口删，改写法（SQLD-a） |
 | `iterate` | 迭代中连接忙，`exec` 抛 | 可以继续 `exec`（实测） | 只有 `project-statement-engine.ts:86`，中途抛错时迭代器能关（实测）。放宽不影响 |
-| `changes`、`lastInsertRowid` | number（大了 bigint） | 同（实测） | 不用做 |
+| `changes`、`lastInsertRowid` | number；超过 2^53 时丢精度，不抛（实测） | 本机 24.22 同（实测）；但 #1844 碰到过 FTS 写入在连接上留下 64 位行号后，已成功的写入在取结果时抛 `ERR_OUT_OF_RANGE` | SQLD-c 在 24.15.0 上实测，用例钉住。会抛的话，适配层的 `run` 先 `setReadBigInts(true)`（`packages/storage/src/adapters/fts-statement.ts` 的办法）再转 number，已成功的写入不因取结果报错 |
 | `function` | 有 | 有 | 适配返回 `this`，测试 2 处 |
 
 实测转换的成本（10 列、10 万行）：`better-sqlite3` 65 ms，`node:sqlite` 裸 71 ms，加转换 103 ms。1000 次按主键 `get`：3.2 ms 对 4.0 ms。行多的读慢 50%，单行几乎没差。项目库的查询绝大多数是小结果集；不做按查询跳过转换这种优化，免得差异重新出现。写入 `node:sqlite` 略快（52 对 64 ms）。`prepare` 多一次词法扫描的成本 SQLD-c 顺手量。
@@ -144,7 +144,7 @@ Home 库今天就在 `node:sqlite` 上走同一个 `pluginDatabaseClient`（`hom
 
 模块级 `backup(db, path, { rate, progress })`。实现 `backup(destination, { progress })`：
 
-- `rate: 128`（原来 `progress` 返回 128 决定每轮页数）。适配层保留 `progress` 的回调形状，返回值忽略。窄接口就一个调用者（`snapshot-sqlite.ts:150`），改成把 `rate` 放进选项。
+- `rate: 128`（原来 `progress` 返回 128 决定每轮页数）。适配层保留 `progress` 的回调形状，返回值忽略。窄接口就一个调用者（`snapshot-sqlite.ts:151`），改成把 `rate` 放进选项。
 - `progress` 里抛错能中止（实测：Promise 拒绝，抛的是原错误），所以 `signal.throwIfAborted()` 这个用法不变。中止后目标文件留着，**这与原来相同与否按用例核**，`backupSnapshotSqlite` 现有清理兜底。
 - 目标是已有的垃圾文件时报 `file is not a database`（实测）；只读连接能备份（实测）。
 - 副本头字节仍带 WAL 标记（实测 `[2,2]`），`snapshot-sqlite.ts:175` 的 `journal_mode = DELETE` 正好接上，`inspect` 不用改。
@@ -208,11 +208,10 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 
 | 位置 | 现在 | 切换后 |
 | --- | --- | --- |
-| `apps/desktop/tooling/prepare-runtime-payload.mjs:25`（#1790 已改用 `openSqliteConnection`） | 冒烟开内存库 | 不用改驱动。**加一条**：断言 `sqlite_version()` 等于 `PLUGIN_STATEMENT_SQLITE_VERSION`，版本对不上打包就失败。这是 F 轨文件 |
+| `apps/desktop/tooling/prepare-runtime-payload.mjs:25`（已改用 `openSqliteConnection`） | 冒烟开内存库 | 不用改驱动。**加一条**：断言 `sqlite_version()` 等于 `PLUGIN_STATEMENT_SQLITE_VERSION`，版本对不上打包就失败。这是 F 轨文件 |
 | `prepare-macos-runtime.sh:7` | `24.14.0` | §2.1。F 轨 |
 | CI 3 个 workflow | `24.14.0` | §2.1，写确切补丁版本。用户 2026-11-06 已定 |
 | `packages/storage/package.json` | 依赖 `better-sqlite3`、`@types/better-sqlite3` | SQLD-e 删 |
-| 根 `package.json:139`（main；#1790 已删） | - | 不再出现 |
 | `tests/npm-package.test.ts:64`、`tests/npm-distribution-smoke.mjs:21,31` | 钉着 | 按 Alchemist 的实际依赖改，见 §7 |
 | `pnpm-workspace.yaml:43 allowBuilds`、`pnpm-lock.yaml:2005` | 有 | 仍有（Alchemist） |
 | `node-pty` | 原生模块 | 不变，所以「要在目标架构上准备」的限制不会消失。别把这次切换说成去掉了原生依赖 |
@@ -222,7 +221,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 - `plugins/native/alchemist/package.json:36,52,58` 留依赖，`open-database.ts:1` 不动，24 处 `.transaction(` 不动。出处：`tests/builtin-plugin-assembly-gate.test.ts` 的批准例外（BL-377 重做）。
 - 宿主侧的 `alchemist-search.ts` 走 `LocalSqliteStorage`，跟着切（`search.sqlite`）。
 - **同一个进程里仍然有两份 SQLite**（Alchemist 在宿主里跑时）。今天也是这样，只是换了分工。安全靠 §4 那条不变量（同一个文件不同时被两份 SQLite 开着），§4 新增了拒绝用例；U1 的升级过程也算在内（§4 末段）。
-- **门禁改严，切换后旧驱动只许 Alchemist 用（用户 2026-11-06 定）。** `scripts/gates/project-sqlite-driver.mjs`（#1790）的 `ownsDriver` 现在放行整个 `packages/storage/` 和 `plugins/native/alchemist/`，分两步收：
+- **门禁改严，切换后旧驱动只许 Alchemist 用（用户 2026-11-06 定）。** `scripts/gates/project-sqlite-driver.mjs` 的 `ownsDriver` 现在放行整个 `packages/storage/` 和 `plugins/native/alchemist/`，分两步收：
   - SQLD-d：`packages/storage/` 收窄到保留旧实现的那一个文件（`sqlite-connection.ts`），留给 revert（§9）。符合性用例从 `packages/storage` 取旧实现，不直接 import。
   - SQLD-e：`packages/storage` 那一项删掉，只剩 Alchemist。符合性用例的旧驱动那一半同时删掉，期望值已经写在用例里。
   - 宿主也不许直接 import：U1 的升级过程开 `studio.sqlite` 要调 Alchemist 自己的打开函数（`open-database.ts`）。门禁的变异用例：`packages/storage` 里别的文件、宿主、别的插件 import `better-sqlite3` 都失败。
@@ -247,7 +246,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 
 | 片 | 内容 | 主要文件 | 验收 | 档位 | 前置 |
 | --- | --- | --- | --- | --- | --- |
-| SQLD-a 收口 | **还在旧驱动上**：窄接口删 `pluck`、命名参数；加 `readonly` 属性；`sqliteErrorName` 和全部调用点；`snapshot-sqlite.ts` 去掉直接 import | `packages/storage/src/{sqlite-connection,snapshot-sqlite,index}.ts`、`catalog-commit.ts`、`web-catalog-access.ts`、约 6 个测试 | 全量（共享核心） | Opus 5.5 high | #1790；U1-a、U1-b（共用 `snapshot-sqlite.ts`） |
+| SQLD-a 收口 | **还在旧驱动上**：窄接口删 `pluck`、命名参数；加 `readonly` 属性；`sqliteErrorName` 和全部调用点；`snapshot-sqlite.ts` 去掉直接 import | `packages/storage/src/{sqlite-connection,snapshot-sqlite,index}.ts`、`catalog-commit.ts`、`web-catalog-access.ts`、约 6 个测试 | 全量（共享核心） | Opus 5.5 high | U1-a、U1-b（共用 `snapshot-sqlite.ts`） |
 | SQLD-b 锁 Node | §2.1 | CI 3 个、`prepare-macos-runtime.sh`、`.nvmrc`、`tooling/gates/root-allowlist.json`、`package.json` `engines`；启动时的版本说明 | SQLD-06 | Sonnet 5.5 high | 用户 2026-11-06 已定（含改 CI）；F 轨文件由 F 落；原生模块在新 ABI 上重建要核 |
 | SQLD-c 适配层与符合性 | §3 全部，新文件；符合性用例：同一张表对两个驱动各跑一遍，差异全在表内。在官方 24.15 上让适配层跑一遍 S-46 全部用例（§2.1）。**不切换** | 新 `packages/storage/src/sqlite-node-connection.ts`、`tests/sqlite-driver-conformance.test.ts` | SQLD-01、02、03、04、11 | Opus 5.5 high | SQLD-a |
 | SQLD-d 切换 | `openSqliteConnection` 换实现；PLIB-08 与 S-46；沙箱核对；打包版本断言；全量加浏览器 | `sqlite-connection.ts`、`tests/security-invariants-plugin-*.test.ts`、`docs/system/SECURITY-INVARIANTS.md`、`plugin-project-library.ts`、`open-database.ts`、`prepare-runtime-payload.mjs`（F）、`scripts/gates/project-sqlite-driver.mjs`（门禁收紧第一步，§7；用户 2026-11-06 已定） | SQLD-05、07、08、09 | Opus 5.5 high | SQLD-b、c；**02③ 已做**（批次定的先后）；机器槽排全量 |

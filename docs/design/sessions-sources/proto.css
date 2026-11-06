@@ -108,9 +108,11 @@ body { margin: 0; background: var(--desk); color: var(--ink); font: 13px/1.5 var
 .ss-owner .mw-btn + .mw-btn { margin-left: 0; }
 /* 组件板缺口，源头没改：.mw-status 行高 1，文字又 overflow: hidden，11px 下 p、y、g 的下沿被切 */
 .mw-status > span { line-height: 1.35; }
-/* 行悬停、选中后底色变深，这两个色调不到 4.5:1。色相不变，含义靠文字 */
+/* 行悬停、选中后底色变深，这几个色调不到 4.5:1。色相不变，含义靠文字 */
 .mw-dir-row .mw-status--attention { --status-tone: color-mix(in srgb, var(--amber) 80%, var(--ink)); }
-.mw-dir-row .mw-status--quiet { --status-tone: var(--ink-soft); }
+.mw-dir-row .mw-status--quiet, .mw-dir-row .mw-status--idle { --status-tone: var(--ink-soft); }
+.mw-dir-row .mw-status--progress { --status-tone: color-mix(in srgb, var(--blue) 80%, var(--ink)); }
+.mw-dir-row .mw-status--blocked { --status-tone: color-mix(in srgb, var(--red) 80%, var(--ink)); }
 .ss-owner__hint { flex: 1 1 100%; }
 .ss-evidence { display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
 .ss-evidence li { display: flex; gap: 6px; align-items: center; }

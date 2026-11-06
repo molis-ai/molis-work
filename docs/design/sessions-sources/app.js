@@ -504,7 +504,7 @@
     if (blocked.length) parts.push(L(`另 ${blocked.reduce((sum, x) => sum + x.n, 0)} 个在没允许的工具里（${blocked.map((x) => `${toolName(x.tool)} ${x.n}`).join("、")}）`, `${blocked.reduce((sum, x) => sum + x.n, 0)} more in tools that aren't allowed (${blocked.map((x) => `${toolName(x.tool)} ${x.n}`).join(", ")})`));
     if (p.reported) parts.push(L(`另 ${p.reported} 个是工具报的，你确认后才算`, `${p.reported} more reported by a tool, counted once you confirm`));
     if (parts.length) return L(`${p.dir} · AI 能读 ${pmReadableN(p)} 个；${parts.join("；")}`, `${p.dir} · AI can read ${pmReadableN(p)}; ${parts.join("; ")}`);
-    return L(`${p.dir} · AI 能读这 ${n} 个会话`, `${p.dir} · AI can read these ${n} sessions`);
+    return L(`${p.dir} · AI 能读这 ${pmReadableN(p)} 个会话`, `${p.dir} · AI can read these ${pmReadableN(p)} sessions`);
   }
   function pmNote(p) {
     const note = S.pmNote[p.id]; if (!note) return "";
@@ -611,8 +611,8 @@
     const say = (text, cls = "") => `<li class="ss-turn${cls}" data-who="ai">${ai}<div><p class="ss-turn__head"><b>${L("助理", "Assistant")}</b></p><p>${text}</p></div></li>`;
     const step = (r) => `<li class="ss-step">${ic("history")}<span><b>${L("读外部会话", "Read external sessions")}</b></span><small>${r}</small></li>`;
     let tail;
-    if (a === "retried") tail = step(L(`读到 ${p.n} 个，看最近 3 个`, `${p.n} found, reading the latest 3`)) + say(L("找到了。「统一输入的回执放进气泡里」停在 390 宽下按钮折行，我从这里接着做。", "Found it. “Move input receipts into the bubble” stopped at buttons wrapping at 390 wide; I'll pick up from there."), " ss-arrive");
-    else if (a === "on") tail = `<li class="ss-arrive">${alert("success", L(`已开。${T(p.name)} 的 AI 能读这 ${p.n} 个会话了`, `On. ${T(p.name)}'s AI can read these ${p.n} sessions`), "", btn(L("让它再试一次", "Let it try again"), { attrs: 'data-act="pmagain" data-after-focus' }))}</li>`;
+    if (a === "retried") tail = step(L(`读到 ${pmReadableN(p)} 个，看最近 3 个`, `${pmReadableN(p)} found, reading the latest 3`)) + say(L("找到了。「统一输入的回执放进气泡里」停在 390 宽下按钮折行，我从这里接着做。", "Found it. “Move input receipts into the bubble” stopped at buttons wrapping at 390 wide; I'll pick up from there."), " ss-arrive");
+    else if (a === "on") tail = `<li class="ss-arrive">${alert("success", L(`已开。${T(p.name)} 的 AI 能读这 ${pmReadableN(p)} 个会话了`, `On. ${T(p.name)}'s AI can read these ${pmReadableN(p)} sessions`), "", btn(L("让它再试一次", "Let it try again"), { attrs: 'data-act="pmagain" data-after-focus' }))}</li>`;
     else if (a === "later") tail = `<li class="ss-quiet-note ss-arrive" data-after-focus tabindex="-1">${L("这次不读。想开的时候在「读取范围 › 项目的 AI」。", "Not reading this time. It's in Reading scope › Project AI whenever you want it.")}</li>${say(L("好，我不看那些记录。说一下昨天做到哪了？", "All right, I'll leave those records alone. Where did yesterday's work stop?"), " ss-arrive")}`;
     else tail = `<li class="ss-arrive">${pmAskCard()}</li>`;
     return `<section class="mw-frame" data-slot="frame" data-cat="Frame"><header class="mw-frame__header"><div class="mw-frame__heading"><div class="ss-frame-mono">${monogram(p)}<h2>${L("接着做回执", "Continue the receipts")}</h2></div><p>${T(p.name)} · ${L("助理对话（示意）", "Assistant conversation (mock)")}</p></div></header><div class="mw-frame__panel ss-panel"><ol class="ss-log" aria-label="${L("对话", "Conversation")}">

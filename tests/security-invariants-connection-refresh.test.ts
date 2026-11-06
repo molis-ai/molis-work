@@ -9,9 +9,10 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { completeApiOAuth, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { checkConnectorConnection, completeApiOAuth, connectorAccountActionProvider, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, resolveApiConnection, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
-import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { DatabaseSync } from "node:sqlite";
 
 // S-70 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X3): a 401 to a credential the Host can
 // refresh is refreshed in the Host once, and the same request sent once more. The refreshed token never reaches the plugin.
@@ -210,7 +211,7 @@ test("S-70 RAC-349 refresh none returns the first 401 even with real OAuth refre
   assert.doesNotMatch(JSON.stringify(answer), /stale-access|refresh-1/u);
 });
 
-test("S-70 RAC-349 a refresh the token endpoint refuses marks the account for reconnecting: shown so, refused without asking again, cleared by reconnecting", { timeout: 30_000 }, async t => {
+test("S-70 RAC-349 a refresh the token endpoint refuses marks the account for reconnecting: shown so, refused without asking again, kept across a restart, cleared by reconnecting", { timeout: 30_000 }, async t => {
   const home = await connected(t);
   const refreshes = tokenEndpoint(t, () => json({ error: "invalid_grant" }, 400));
   const { seen, options } = await asana(t, ["stale-access"]);
@@ -220,11 +221,48 @@ test("S-70 RAC-349 a refresh the token endpoint refuses marks the account for re
   // Refused before anything leaves: no request to the service, no second call to the token endpoint.
   await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
   assert.deepEqual([seen.length, refreshes.length], [1, 1]);
+  // The mark is the connection's remembered last check, not something this process holds: a restarted Host reads it the same way.
+  const db = new DatabaseSync(homeSqlitePath(home, "connectors"));
+  const stored = db.prepare("SELECT check_json FROM connector_observations WHERE connection_id = ?").get(account!.connection_id) as { check_json: string } | undefined;
+  db.close();
+  assert.equal(JSON.parse(stored?.check_json ?? "{}").code, "connector.refresh_refused", "stored with the connection, not held in memory");
+  assert.doesNotMatch(stored?.check_json ?? "", /stale-access/, "no token in the stored mark");
+  const restarted = createPluginConnectionsPort(home, options);
+  await assert.rejects(restarted.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
+  assert.deepEqual([seen.length, refreshes.length], [1, 1], "after a restart it is still refused before anything is sent");
+  // A check neither asks the service (the old access token could still pass and clear the mark) nor writes over the mark.
+  await assert.rejects(checkConnectorConnection(home, account!.connection_id, () => {}), /重新登录/);
+  assert.deepEqual([seen.length, refreshes.length], [1, 1], "the check sent nothing");
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "reauth_required", "the mark is still there after the check");
+  // Nor does the account read an Agent or MCP may call (`connectors.account.read@1`): no read with the old access token, nothing written over the mark.
+  const accountRead = connectorAccountActionProvider(home, () => {}).handlers.find(handler => handler.capability_id === "connectors.account.read")!;
+  await assert.rejects(Promise.resolve(accountRead.handle({ actor_id: "s70", audience: "agent", permissions: ["connectors:management:read"], beforeEffect: async () => {} } as never,
+    { connection_id: account!.connection_id })), code("connector.account.needs_auth"));
+  assert.deepEqual([seen.length, refreshes.length], [1, 1], "the account read sent nothing");
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "reauth_required");
+  await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
   // The person reconnects the same account: the mark belonged to the connection as it was, and is gone.
   await authorize(home, "renewed-access", account!.connection_id);
   assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");
   assert.equal((await port.request(target, dispatch())).status, 200);
   assert.deepEqual(seen.at(-1), "Bearer renewed-access");
+});
+
+test("S-70 RAC-349 a forced refresh that goes through clears the mark: the account is shown connected and the plugin's next request is sent", { timeout: 30_000 }, async t => {
+  const home = await connected(t);
+  let accepts = false;
+  const refreshes = tokenEndpoint(t, () => accepts ? json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }) : json({ error: "invalid_grant" }, 400));
+  const { seen, options } = await asana(t, ["stale-access"]);
+  const port = createPluginConnectionsPort(home, options), [account] = listConnectorConnectionViews(home, "asana");
+  await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "reauth_required");
+  // A Host reader of the account forces a refresh (a document import does after a 401); this time the token endpoint answers.
+  accepts = true;
+  assert.equal((await resolveApiConnection(home, account!.connection_id, connectorControl(), "asana", true, options)).token, "fresh-access");
+  assert.equal(refreshes.length, 2);
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected", "the refresh that went through cleared the mark");
+  assert.equal((await port.request(target, dispatch())).status, 200);
+  assert.equal(seen.at(-1), "Bearer fresh-access");
 });
 
 test("S-70 RAC-349 a network failure while refreshing refuses only this request: nothing is marked and the next request tries again", { timeout: 30_000 }, async t => {

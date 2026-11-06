@@ -148,7 +148,7 @@ export class FeedSourceService {
       config = { ...config, feed_url: feedUrl, config_fingerprint: fingerprint };
       cursor = {};
     }
-    // The account an account source reads with is the person's binding on the platform (`connectors.plugin_slot.bind@2`, the source
+    // The account an account source reads with is the person's binding on the platform (`connectors.plugin_slot.record.bind@1`, the source
     // being the record), never a field of the source: changing it is disconnecting and binding again.
     const updated = this.feed.sources.upsert({
       ...source,

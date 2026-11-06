@@ -47,7 +47,7 @@ test("RAC-1755: the judgment-rule editor's options are Options: twelve *_OPTION_
   assert.deepEqual(typeErrors(`
     import type { JudgmentRuleAuthoringCatalog, JudgmentRuleAuthoringOption } from "@molis-ai/molis-work-contracts/modules/functions";
     ${EXACT}
-    export const option: Exact<JudgmentRuleAuthoringCatalog["behaviors"][number], JudgmentRuleAuthoringOption> = true;
+    export const option: Exact<JudgmentRuleAuthoringCatalog["options"][number], JudgmentRuleAuthoringOption> = true;
   `), []);
   assert.equal(typeErrors(`import type { JudgmentRuleAuthoringBehavior } from "@molis-ai/molis-work-contracts/modules/functions"; export type T = JudgmentRuleAuthoringBehavior;`).length, 1);
 });
@@ -73,4 +73,24 @@ test("RAC-1758: no source outside the tests names a Behavior or Method identifie
   const old = new RegExp(`\\b(?:${OLD_NAMES.join("|")})\\b`, "u");
   const naming = files.filter(file => old.test(readFileSync(join(REPOSITORY, file), "utf8")));
   assert.deepEqual(naming, []);
+});
+
+// BL-900: the editor catalog that the Host builds and the rules page reads is not stored, so its fields follow R-A5 too.
+// The stored, schema-declared `suggested_behavior_ids` is R-B4 and keeps its name (GLOSSARY R-C).
+test("BL-900: the editor catalog names options/option_id/option_ids, and the stored suggested_behavior_ids stays", () => {
+  assert.deepEqual(typeErrors(`
+    import type { JudgmentRuleAuthoringCatalog, JudgmentRuleAuthoringDestination, JudgmentRuleAuthoringOption, JudgmentRuleInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
+    ${EXACT}
+    export const catalog: Exact<keyof JudgmentRuleAuthoringCatalog, "subjects" | "destinations" | "options"> = true;
+    export const option: Exact<JudgmentRuleAuthoringOption["option_id"], string> = true;
+    export const destination: Exact<JudgmentRuleAuthoringDestination["option_ids"], readonly string[]> = true;
+    export const stored: Exact<JudgmentRuleInvokeResult["suggested_behavior_ids"], readonly string[] | undefined> = true;
+  `), []);
+  const exported = functions as Record<string, unknown>;
+  for (const name of ["filterSuggestedOptionIds", "defaultInboxNextOptionIds", "defaultFeedCaptureOptionIds"]) assert.equal(typeof exported[name], "function", name);
+  for (const name of ["filterSuggestedBehaviorIds", "defaultInboxNextBehaviorIds", "defaultFeedCaptureBehaviorIds"]) assert.equal(name in exported, false, name);
+  const files = execFileSync("git", ["ls-files", "-z", "apps", "packages", "plugins", "horizontal", "modules"], { cwd: REPOSITORY, encoding: "utf8" })
+    .split("\0").filter(file => /\.(?:m?ts|mjs)$/u.test(file) && !/(?:^|\/)tests?\/|\.test\./u.test(file));
+  const old = /\b(?:behaviors|behavior_id|catalogBehaviorIds|filterSuggestedBehaviorIds|defaultInboxNextBehaviorIds|defaultFeedCaptureBehaviorIds)\b|(?<!suggested_)\bbehavior_ids\b/u;
+  assert.deepEqual(files.filter(file => old.test(readFileSync(join(REPOSITORY, file), "utf8"))), []);
 });

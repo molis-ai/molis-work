@@ -1,16 +1,17 @@
 import { defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_CONNECTION_RECORD_KEY_MAX, type PluginConnectionSlotDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
-import { defineConnectorUsagesAction, type ConnectorConnectionView, type ConnectorUsage, type ConnectorUsagesInput } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { defineConnectorUsagesAction, defineConnectorUsagesSwitchAction, type ConnectorConnectionView, type ConnectorUsage, type ConnectorUsagesInput, type ConnectorUsagesSwitchInput, type ConnectorUsagesSwitchResult } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
-import { pluginSlotScope, targetScope } from "./connector-plugin-requests.js";
+import { pinnedToAnother, pluginSlotScope, targetScope } from "./connector-plugin-requests.js";
 import { shownState } from "./connector-refresh-refusals.js";
+import { connectionSwitchErrors as switchErrors, refusalCode, switchTarget } from "./connector-usage-switch.js";
 
 // Which of the person's accounts a plugin installation's connection slot uses (`services.connections`, S0b-2, S-57). Only the person
 // binds: the audience is `user`, so neither a plugin page nor an Agent nor MCP can choose the account a plugin sends requests with.
 // Binding checks the installation's Manifest (BL-350): an installation of that plugin in the caller's project (or the Home's) that
-// declares the slot, for that service and with that kind of binding; the plugin's send checks the declaration again. Version 1 binds an
-// `installation` slot: one account for the installation, in every project. Version 2 binds a `per_record` slot (S-71 provisional): one
+// declares the slot, for that service and with that kind of binding; the plugin's send checks the declaration again. The installation action binds an
+// `installation` slot: one account for the installation, in every project. The record action binds a `per_record` slot (S-71 provisional): one
 // account for one of the plugin's records, in the caller's project.
 
 const slot = {
@@ -26,7 +27,8 @@ const record = { ...slot, record_key: { type: "string", minLength: 1, maxLength:
 const binding = { service_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" }, connection_id: { anyOf: [{ type: "string", pattern: "^[a-z0-9-]{1,100}$" }, { type: "null" }] } };
 const result = { type: "object", properties: { connection: { type: ["object", "null"] } }, required: ["connection"], additionalProperties: false };
 
-export const pluginSlotErrors = defineErrorCodes("connector.plugin_slots", { installation_missing: "not_found", slot_undeclared: "invalid", project_required: "invalid" });
+export const pluginSlotErrors = defineErrorCodes("connector.plugin_slots", { installation_missing: "not_found", slot_undeclared: "invalid", project_required: "invalid",
+  usage_missing: "not_found", connection_pinned: "forbidden", switch_failed: "conflict" });
 
 /** The slots an installation in the caller's project (or the Home) declares, `null` when there is no such installation of that plugin. */
 export type PluginSlotDeclarations = (caller: ActionCallContext, install_id: string, plugin_id: string) => Promise<readonly PluginConnectionSlotDeclaration[] | null>;
@@ -45,12 +47,12 @@ export const connectorPluginSlotActions = {
       connection_id: { anyOf: [{ type: "string", pattern: "^[a-z0-9-]{1,100}$" }, { type: "null" }] } },
     required: ["install_id", "plugin_id", "slot_id", "service_id", "connection_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { connection: { type: ["object", "null"] } }, required: ["connection"], additionalProperties: false } } } as ActionDefinition<SlotInput & { service_id: string; connection_id: string | null }, { connection: ConnectorConnectionView | null }>,
-  readRecord: { capability_id: "connectors.plugin_slot.read", version: 2, operation: "query", action: { ...metadata, scope: "project",
+  readRecord: { capability_id: "connectors.plugin_slot.record.read", version: 1, operation: "query", action: { ...metadata, scope: "project",
     title: "查看插件记录的账号", description: "读取本项目里一个插件安装按记录绑定的连接槽上，某条记录绑定的账号；没有绑定时插件为这条记录发的请求不带凭据。不返回凭据。",
     kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ],
     input_schema: { type: "object", properties: record, required: ["install_id", "plugin_id", "slot_id", "record_key"], additionalProperties: false },
     output_schema: result } } as ActionDefinition<RecordInput, { connection: ConnectorConnectionView | null }>,
-  bindRecord: { capability_id: "connectors.plugin_slot.bind", version: 2, operation: "command", action: { ...metadata, scope: "project",
+  bindRecord: { capability_id: "connectors.plugin_slot.record.bind", version: 1, operation: "command", action: { ...metadata, scope: "project",
     title: "为插件的一条记录选择账号", description: "在本项目里，把本人的一条已连通的服务连接绑定到插件安装按记录绑定的连接槽上的一条记录，或传 connection_id: null 解除绑定。只认这个项目（或 Home）里安装、在 Manifest 里声明为 per_record 的槽。插件看不到凭据。",
     kind: "operation", effect: "write", permissions: [CONNECTOR_MANAGEMENT_WRITE],
     input_schema: { type: "object", properties: { ...record, ...binding }, required: ["install_id", "plugin_id", "slot_id", "record_key", "service_id", "connection_id"], additionalProperties: false },
@@ -74,7 +76,7 @@ function bound(home: string, input: SlotInput, scope = pluginSlotScope(input.ins
   return withConnectorConnections(home, store => {
     const binding = store.binding(scope, input.plugin_id, input.slot_id);
     const connection = binding && store.get(binding.connection_id);
-    return connection ? { ...store.view(connection), state: shownState(home, connection, store.state(connection)) } : null;
+    return connection ? { ...store.view(connection), state: shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) } : null;
   });
 }
 
@@ -96,11 +98,11 @@ export function connectorPluginSlotHandlers(home: string, declarations: PluginSl
         : store.bind({ scopeId: pluginSlotScope(input.install_id), pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id }));
       return { connection: bound(home, input) };
     } },
-    { capability_id: connectorPluginSlotActions.readRecord.capability_id, version: 2, handle: (caller, value) => {
+    { capability_id: connectorPluginSlotActions.readRecord.capability_id, version: 1, handle: (caller, value) => {
       const input = value as RecordInput;
       return { connection: bound(home, input, recordScope(caller, input)) };
     } },
-    { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: 2, handle: async (caller, value) => {
+    { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: 1, handle: async (caller, value) => {
       const input = value as BindInput<RecordInput>, scope = recordScope(caller, input);
       if (input.connection_id !== null) await assertDeclared(declarations, caller, input, "per_record");
       await caller.beforeEffect();
@@ -118,20 +120,76 @@ export function connectorPluginSlotHandlers(home: string, declarations: PluginSl
  */
 export const connectorPluginSlotUsages = defineConnectorUsagesAction("connectors.plugin_slot.usages", "插件连接槽使用的连接", [CONNECTOR_MANAGEMENT_READ], "home");
 
+/** One use of a connection: an installation slot, or one plugin slot's `per_record` bindings in one project; `scopes` are its binding rows. */
+interface SlotUse { usage_id: string; install_id: string; plugin_id: string; slot_id: string; project_id?: string; scopes: string[] }
+
+/** The uses of a connection the caller may see: a caller in a project sees that project's records only, one at the Home every project's. */
+function slotUses(home: string, caller: ActionCallContext, connectionId: string): { connected: boolean; uses: Map<string, SlotUse> } | null {
+  const found = withConnectorConnections(home, store => { const connection = store.get(connectionId); return connection ? { connected: store.state(connection) === "connected", bindings: store.pluginBindings(connectionId) } : null; });
+  if (!found) return null;
+  const uses = new Map<string, SlotUse>();
+  for (const binding of found.bindings) {
+    if (binding.project_id !== undefined && caller.project_id && binding.project_id !== caller.project_id) continue;
+    const usage_id = JSON.stringify([binding.install_id, binding.plugin_id, binding.slot_id, binding.project_id ?? null]);
+    const use = uses.get(usage_id) ?? { usage_id, install_id: binding.install_id, plugin_id: binding.plugin_id, slot_id: binding.slot_id, ...(binding.project_id === undefined ? {} : { project_id: binding.project_id }), scopes: [] };
+    use.scopes.push(targetScope(binding));
+    uses.set(usage_id, use);
+  }
+  return { connected: found.connected, uses };
+}
+
 export function connectorPluginSlotUsagesHandler(home: string): ActionHandlerBinding {
   return { ...connectorPluginSlotUsages, handle: (caller, value) => {
-    const id = (value as ConnectorUsagesInput).connection_id;
-    const found = withConnectorConnections(home, store => { const connection = store.get(id); return connection ? { connected: store.state(connection) === "connected", bindings: store.pluginBindings(id) } : null; });
+    const found = slotUses(home, caller, (value as ConnectorUsagesInput).connection_id);
     if (!found) return { usages: [] };
-    const counted = new Map<string, { binding: (typeof found.bindings)[number]; records: number }>();
-    for (const binding of found.bindings) {
-      if (binding.project_id !== undefined && caller.project_id && binding.project_id !== caller.project_id) continue;
-      const key = JSON.stringify([binding.install_id, binding.plugin_id, binding.slot_id, binding.project_id ?? null]);
-      counted.set(key, { binding, records: (counted.get(key)?.records ?? 0) + 1 });
-    }
-    const usages: ConnectorUsage[] = [...counted].map(([key, { binding, records }]) => ({ usage_id: key, title: `${binding.plugin_id} · ${binding.slot_id}`,
+    const usages: ConnectorUsage[] = [...found.uses.values()].map(use => ({ usage_id: use.usage_id, title: `${use.plugin_id} · ${use.slot_id}`,
       enabled: found.connected, actions: [],
-      detail: binding.project_id === undefined ? "插件这个安装发出的请求都用这个账号" : `项目 ${binding.project_id} 里 ${records} 条记录用这个账号` }));
+      detail: use.project_id === undefined ? "插件这个安装发出的请求都用这个账号" : `项目 ${use.project_id} 里 ${use.scopes.length} 条记录用这个账号` }));
     return { usages };
+  } };
+}
+
+/**
+ * Switching a plugin slot's account (§13.4) is binding it again, so each use passes what binding it would (S-57, S-71): an installation here
+ * that declares the slot for this service with this kind of binding, and an account not made for another package's installation (T-134). A
+ * `per_record` use is switched only in the caller's own project, which comes from the call, never from the input. A use that does not pass is
+ * refused alone; the account the use already has stays. Nothing is written before `beforeEffect`, and a use whose binding changed meanwhile is left.
+ */
+export const connectorPluginSlotSwitch = defineConnectorUsagesSwitchAction("connectors.plugin_slot.switch", "换用插件连接槽的账号", [CONNECTOR_MANAGEMENT_WRITE], "home");
+
+export function connectorPluginSlotSwitchHandler(home: string, declarations: PluginSlotDeclarations = noInstallations): ActionHandlerBinding {
+  return { ...connectorPluginSlotSwitch, handle: async (caller, value) => {
+    const input = value as ConnectorUsagesSwitchInput;
+    const { to } = switchTarget(home, input.from_connection_id, input.to_connection_id);
+    const found = slotUses(home, caller, input.from_connection_id), uses = found?.uses ?? new Map<string, SlotUse>();
+    const pinned = withConnectorConnections(home, store => new Set([...uses.values()].filter(use => pinnedToAnother(store, to.connection_id, use.install_id)).map(use => use.usage_id)));
+    const result: ConnectorUsagesSwitchResult = { switched: [], refused: [] }, ready: SlotUse[] = [];
+    for (const usage_id of input.usage_ids ?? [...uses.keys()]) {
+      const use = uses.get(usage_id);
+      try {
+        if (!use) throw pluginSlotErrors.usage_missing("这个账号没有这处使用位置");
+        if (use.project_id !== undefined && use.project_id !== caller.project_id) throw pluginSlotErrors.project_required("按记录绑定的账号要在它所在的项目里换");
+        if (pinned.has(usage_id)) throw pluginSlotErrors.connection_pinned("要换成的账号是为另一个插件建的");
+        await assertDeclared(declarations, caller, { ...use, service_id: to.service_id }, use.project_id === undefined ? "installation" : "per_record");
+        ready.push(use);
+      } catch (error) { caller.signal?.throwIfAborted(); result.refused.push({ usage_id, code: refusalCode(error, pluginSlotErrors.switch_failed) }); }
+    }
+    for (const use of ready) {
+      await caller.beforeEffect();
+      try {
+        // Asked again at the write, in the one open this use takes: the account switched to may have been disconnected, marked (S-70)
+        // or pinned to another package meanwhile, and the slot may have been bound to something else.
+        withConnectorConnections(home, store => {
+          const now = store.get(to.connection_id);
+          if (!now || shownState(home, now, store.state(now), lastConnectorCheck(store, now.connection_id)) !== "connected") throw switchErrors.target_unavailable("要换成的账号现在不可用，请先连好它");
+          if (pinnedToAnother(store, to.connection_id, use.install_id)) throw pluginSlotErrors.connection_pinned("要换成的账号是为另一个插件建的");
+          for (const scope of use.scopes) {
+            if (store.binding(scope, use.plugin_id, use.slot_id)?.connection_id === input.from_connection_id) store.bind({ scopeId: scope, pluginId: use.plugin_id, slotId: use.slot_id, serviceId: to.service_id, connectionId: to.connection_id });
+          }
+        });
+        result.switched.push(use.usage_id);
+      } catch (error) { result.refused.push({ usage_id: use.usage_id, code: refusalCode(error, pluginSlotErrors.switch_failed) }); }
+    }
+    return result;
   } };
 }

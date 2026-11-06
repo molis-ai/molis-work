@@ -48,7 +48,7 @@ function sandboxedProbe(instructions: readonly InstructionPrompt[]) {
     operation: "command", action: { ...shape, title: id, description: `探针动作 ${id}`, permissions, ...(concurrent ? { scheduling: "concurrent" as const } : {}) } });
   const ask = define("ask", true, [MODEL_INVOKE]), serial = define("ask-serial", false, [MODEL_INVOKE]), plain = define("ask-plain", true, []);
   const state: { behavior: Behavior; model?: PluginModelClient } = { behavior: async () => null };
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: PLUGIN_ID, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: PLUGIN_ID, kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-sbxmodel" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: MODEL_INVOKE, required: false, reason: "让模型把材料压成一句话" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [ask, serial, plain], upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };

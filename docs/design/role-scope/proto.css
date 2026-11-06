@@ -1,0 +1,152 @@
+/* 36 · arranging the catalog's parts for the role-scope views ([编排]). The product frames and controls come from
+   ../_catalog/dist/arrival.css and settings.css; approved parts the catalog lacks, and the prototype strip, from
+   ../_catalog/prototype.css. Nothing here defines a new look. Tokens only. */
+
+/* [原型] the settings sheet lays out body > header + shell; the prototype's #app wrapper takes that grid instead */
+body.proto-on.settings-page { display: block; padding-top: 40px; box-sizing: border-box; }
+body.proto-on.settings-page #app { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+
+/* [编排] shared with 04 and 25/26: a row of buttons, the workbench page's own scroll and head, facts at a row's end */
+.q-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mw-alert .q-row { margin-top: 8px; }
+.land-scroll { height: 100%; overflow: auto; padding: 32px 24px 48px; }
+.land-scroll .mw-brief { max-width: 720px; margin-inline: auto; }
+.land-head { display: flex; align-items: center; gap: 16px; }
+.land-head :is(.project-monogram, .mw-avatar) { width: 48px; height: 48px; border-radius: 50%; font-size: 18px; }
+.land-head .mw-avatar svg { width: 20px; height: 20px; }
+.land-head .mw-brief__title { margin: 0; }
+.mw-brief__list .mw-dir-row--meta { grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.mw-brief__list .mw-dir-row__icon { display: grid; place-items: center; width: 32px; height: 32px; margin: 0; background: none; }
+.mw-brief > .mw-alert { margin-top: 16px; }
+.rr-fact { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mw-avatar svg { width: 14px; height: 14px; }
+
+/* [编排] the Assistant's role chooser: the product's popover and rows, each row led by the role's mark, its source at the end */
+.rs-island { position: relative; }
+.rs-pop { width: min(400px, calc(100vw - 32px)); }
+.rs-pop .mw-alert { margin: 0 4px 6px; }
+.rs-starter { display: flex; align-items: center; gap: 10px; }
+.rs-starter .mw-avatar { flex: none; width: 28px; height: 28px; font-size: 12px; }
+.rs-starter:disabled .mw-avatar { opacity: .5; }
+.rs-starter__copy { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 2px; overflow: hidden; }
+.rs-starter__copy strong { flex: none; }
+.rs-starter__copy .assistant-material-origin { overflow: hidden; text-overflow: ellipsis; }
+.rs-starter .mw-badge { flex: none; }
+.rs-self, .rs-me { background: var(--accent-soft); color: var(--accent-strong); }
+.rs-pop-foot { display: grid; gap: 8px; margin-top: 4px; padding: 10px 8px 4px; border-top: 1px solid var(--line); }
+.rs-pop-foot p { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 12px; }
+.rs-pop-foot p svg { flex: none; width: 13px; height: 13px; }
+
+/* [编排] settings: a section's title with its actions on the right; member rows; the source ladder under the default */
+.rs-sec-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.rs-sec-head h2 { margin-right: auto; }
+.rs-sec-head > :not(h2) { display: inline-flex; align-items: center; gap: 8px; }
+.rs-hint { margin: 4px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.settings-section > .mw-alert { margin: 12px 0; }
+.settings-document > .mw-alert { margin-bottom: 16px; }
+.rs-member .settings-record-title { align-items: center; }
+.rs-member .settings-record-title h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
+.rs-member .settings-record-title p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.rs-member .mw-avatar { flex: none; width: 32px; height: 32px; font-size: 13px; }
+.setting-value { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.rs-ladder-row { padding: 4px 0 12px; }
+.rs-field { display: block; }
+.rs-field textarea { width: 100%; min-height: 120px; resize: vertical; line-height: 1.6; }
+.settings-section .mw-check-row { margin: 4px 0 8px; }
+.settings-heading-title .mw-avatar { width: 32px; height: 32px; order: -1; margin-right: 12px; }
+
+/* [编排] the difference between two versions of a section: side by side, the added text marked */
+.rs-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rs-diff section { padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); }
+.rs-diff h3 { margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control); }
+.rs-diff p { margin: 0; font-size: 13px; line-height: 1.7; }
+.rs-diff mark { padding: 1px 2px; border-radius: 3px; background: var(--green-soft, color-mix(in srgb, var(--green) 18%, transparent)); color: inherit; }
+
+@media (max-width: 759px) {
+  .land-scroll { padding: 20px 16px 40px; }
+  .rs-diff { grid-template-columns: 1fr; }
+  .rs-member { flex-wrap: wrap; }
+}
+.mw-brief__cols.rs-one { grid-template-columns: minmax(0, 1fr); }
+.rs-pop-foot--row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rs-pop-foot--row .mw-btn { flex: none; }
+
+/* [编排] same-page role actions (user 2026-11-04): the editor is the catalog's right drawer over the current page;
+   confirmations, differences and additions open as an inset right under what opened them */
+dialog.rs-drawer { width: min(520px, 100vw); }
+.rs-drawer .mw-drawer__shell { display: flex; flex-direction: column; }
+.rs-drawer__head { align-items: center; }
+.rs-drawer__title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rs-drawer__title .mw-avatar { flex: none; width: 40px; height: 40px; font-size: 15px; }
+.rs-drawer__title h2 { margin: 0; font-size: 18px; }
+.rs-drawer__title p { margin: 2px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.rs-drawer .mw-form__body { gap: 20px; }
+.rs-drawer .mw-alert .q-row { margin-top: 8px; }
+.rs-dsec { display: grid; gap: 8px; }
+.rs-dsec__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 28px; }
+.rs-dsec__head h3 { margin: 0 auto 0 0; font-size: 13px; font-weight: var(--weight-title); }
+.rs-field__k { display: block; margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+.rs-field input { width: 100%; }
+.rs-where { display: flex; align-items: center; gap: 8px; }
+.rs-where__k { color: var(--muted); font-size: 12px; }
+.rs-versions .mw-collapsible__body { display: grid; gap: 4px; }
+.rs-ver { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: var(--r-row); transition: background var(--dur-moment) var(--ease-standard); }
+.rs-ver span { display: grid; gap: 2px; min-width: 0; }
+.rs-ver strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.rs-ver small { color: var(--muted); font-size: 12px; }
+.rs-ver.is-flash, .rs-member.is-flash { animation: cand-flash var(--dur-reveal) var(--ease-standard); }
+.rs-drawer__foot { flex-wrap: wrap; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
+.rs-impact { display: flex; align-items: flex-start; gap: 6px; flex: 1 1 100%; margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.rs-impact svg { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--muted); }
+.rs-drawer__btns { margin-left: auto; }
+
+.rs-inset { margin: 8px 0 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); animation: rs-rise var(--dur-move) var(--ease-standard); }
+.mw-alert .rs-inset { margin-bottom: 0; background: var(--paper); }
+.rs-inset__title { margin: 0 0 8px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.rs-inset .settings-setting-row { padding: 8px 0; }
+.rs-inset__end { justify-content: flex-end; margin-top: 8px; }
+.rs-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }
+.rs-fact + .rs-fact { border-top: 1px solid var(--line); }
+@keyframes rs-rise { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .rs-inset { animation: none; } }
+
+/* [编排] the chooser: each role row keeps a quiet "adjust" at its end that opens the drawer over the workbench */
+.rs-opts { display: grid; gap: 2px; }
+.rs-opt { position: relative; display: flex; align-items: center; }
+.rs-opt .rs-starter { flex: 1; min-width: 0; }
+.rs-opt__tune { position: absolute; right: 4px; opacity: 0; transition: opacity var(--dur-hover) var(--ease-standard); }
+.rs-opt:is(:hover, :focus-within) .rs-opt__tune { opacity: 1; }
+.rs-opt:is(:hover, :focus-within) .rs-starter .mw-badge { visibility: hidden; }
+@media (hover: none) { .rs-opt__tune { position: static; opacity: 1; } .rs-opt .rs-starter .mw-badge { visibility: visible; } }
+.rs-add { background: var(--rail); color: var(--muted); }
+.rs-new { margin-top: 2px; }
+.rs-pop-mode { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 4px; }
+.rs-pop-mode .assistant-popover-title { margin: 0; color: var(--accent-strong); font-size: 12px; font-weight: var(--weight-control); }
+.rs-pop.is-mode { box-shadow: var(--lift-2, var(--shadow)), inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+
+@media (max-width: 599px) {
+  .rs-where { flex-wrap: wrap; }
+  .rs-drawer__btns { width: 100%; justify-content: flex-end; }
+}
+
+/* [原型] the catalog's note lives in arrival.css only; on the settings pages the drawer reuses the same look */
+.settings-page .ob-note { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.settings-page .ob-note svg { flex: none; width: 14px; height: 14px; margin-top: 3px; }
+
+/* [编排] D-track review (2026-11-04): a row's "more" menu (catalog mw-menu) anchored under its button; the question
+   about unsaved edits takes the drawer's footer in place; a row that receives focus after turning off shows it */
+.rs-more { position: relative; display: inline-flex; }
+.rs-more .mw-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 20; animation: rs-rise var(--dur-move) var(--ease-standard); }
+.rs-member:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: var(--r-row, 10px); }
+.rs-member:focus:not(:focus-visible) { outline: none; }
+.rs-drawer__foot.is-asking { background: color-mix(in srgb, var(--amber) 8%, var(--paper)); }
+.rs-ask { display: grid; gap: 4px; width: 100%; animation: rs-rise var(--dur-move) var(--ease-standard); }
+.rs-ask__title { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-title); }
+.rs-ask__title:focus { outline: none; }
+.rs-ask__title:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+.rs-ask__title svg { flex: none; width: 16px; height: 16px; color: var(--amber); }
+.rs-ask__body { margin: 0 0 8px 24px; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+.rs-inset__title:focus { outline: none; }
+@media (prefers-reduced-motion: reduce) { .rs-more .mw-menu, .rs-ask { animation: none; } }
+/* [编排] the page intro balances its lines, so no line is left holding a single word (English especially) */
+.settings-heading p, .rs-hint { text-wrap: pretty; }

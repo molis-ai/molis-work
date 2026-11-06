@@ -21,7 +21,7 @@ export {
 } from "./provider.js";
 
 export const gmailIntegrationManifest = {
-  schema_version: 2,
+  schema_version: 1,
   plugin_id: "io.molis.work.integration.gmail",
   // 1.1.0: schema 2, declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.2.0: declares its OAuth flow as data (W5-11).
@@ -29,7 +29,7 @@ export const gmailIntegrationManifest = {
   name: "Gmail",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-  host_api_version: 2,
+  host_api_version: 1,
   source_presentations: ["gmail-scope"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [

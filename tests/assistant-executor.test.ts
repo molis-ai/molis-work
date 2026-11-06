@@ -195,6 +195,37 @@ test("RC-06: words that reach a round as it ends are said to wait for the next r
   assert.equal(late.outcome, "queued");
 });
 
+// specs/unified-input-voice/implementation-plan.md K0b (UIC-03), UIV-17: the executor's control carries the delivery as chosen;
+// interrupt and after-run never start a round in the plugin's session — one that has ended keeps them for the next (`queued`).
+test("UIC-03 UIV-17: an executor's round gets the delivery as chosen, and interrupt or after-run never start a round there", async () => {
+  const { exec, store, service, caller, plugin, project } = fixture();
+  const first = await service.send({ executor: plugin, scope: project, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
+  const round = exec.sessions.get((first.work.executor as { session_id: string }).session_id)!.runs.at(-1)!;
+  const send = (text: string, delivery?: "next-boundary" | "interrupt" | "after-run") => service.send({ work_id: first.work.work_id, text, request_id: randomUUID(), ...(delivery ? { delivery } : {}) }, caller);
+  const modes = (from: number) => exec.controls().slice(from).map(call => [call.input.kind, call.input.text, call.input.mode]);
+
+  round.phase = "running";
+  for (const delivery of [undefined, "next-boundary", "interrupt", "after-run"] as const) assert.equal((await send(`方式 ${delivery}`, delivery)).outcome, "steered");
+  assert.deepEqual(modes(0), [["steer", "方式 undefined", undefined], ["steer", "方式 next-boundary", "next-boundary"], ["steer", "方式 interrupt", "interrupt"], ["steer", "方式 after-run", "after-run"]],
+    "UIC-03 the executor's control gets each mode as chosen");
+
+  // The round has ended: the executor keeps them for the next round and says so; no round is started for them.
+  round.phase = "completed"; exec.receipt.delivered = "queued";
+  assert.equal((await send("打断它", "interrupt")).outcome, "queued", "UIV-17 the ended round keeps 打断并改向 for the next round");
+  assert.equal((await send("排到下一轮", "after-run")).outcome, "queued", "UIV-17 the ended round keeps 下一轮再做 for the next round");
+  assert.deepEqual(modes(4), [["steer", "打断它", "interrupt"], ["steer", "排到下一轮", "after-run"]], "UIV-17 both reached the round it saw, with their modes");
+  assert.equal(exec.started.length, 1, "UIV-17 no round was started for them");
+  assert.equal((await send("开始下一轮", "next-boundary")).outcome, "started", "补充 with nothing under way starts the next round, as with no delivery");
+
+  // A work the plugin carries but whose session was never opened has no round: refused before a session is opened.
+  const opened = exec.calls.filter(call => call.role === "session.open").length;
+  const empty = store.create({ actor_id: "web-user", title: "还没开始", scope: project, origin: null, project_ref: PROJECT_REF, executor: plugin });
+  for (const delivery of ["interrupt", "after-run"] as const) {
+    await assert.rejects(service.send({ work_id: empty.work_id, text: "先别做", request_id: randomUUID(), delivery }, caller), (error: { code?: string }) => error.code === "assistant.state", `UIV-17 ${delivery} with no session is refused`);
+  }
+  assert.equal(exec.calls.filter(call => call.role === "session.open").length, opened, "UIV-17 no session was opened for them");
+});
+
 test("RC-06: an answer to a question names the question's own revision, and one without a revision is not sent", async () => {
   const { exec, service, caller, plugin, project } = fixture();
   const first = await service.send({ executor: plugin, scope: project, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
@@ -336,7 +367,7 @@ test("MEM-35 executor supplements bind personal provenance to the installed gene
     if (roleOfCapability(PLUGIN, definition.capability_id) === "run.control") originals.push(context.original_input);
     return exec.respond(roleOfCapability(PLUGIN, definition.capability_id), input as Input);
   } }));
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "样例 Agent", kind: "app",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "样例 Agent", kind: "app",
     publisher: { publisher_id: "example", signature: "executor-original" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission, required: false, reason: "执行用户的工作" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: definitions },

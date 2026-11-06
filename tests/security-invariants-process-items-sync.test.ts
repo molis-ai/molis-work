@@ -34,7 +34,7 @@ function fixture(t: TestContext, projectId = 'project-shared') {
   return { db, borrowed, owner, context, options, replication, publish, revoke: () => { active = false; } };
 }
 
-test('S-108 PCSYNC-22 process items preserve complete fixed versions without entering the library or executing their producer', t => {
+test('S-140 PCSYNC-22 process items preserve complete fixed versions without entering the library or executing their producer', t => {
   const a = fixture(t), b = fixture(t);
   a.publish(1, 'full-body:'.repeat(40000)); a.publish(2, 'Second fixed version');
   a.owner.commands.archiveVersion({ project_id: a.context.projectId, artifact_id: 'coding-plan:session:1', version: 1, actor_id: 'plugin:coding' });
@@ -59,7 +59,7 @@ test('process identity remains independent from a library identity with the same
   assert.deepEqual(b.owner.query.getArtifactVersion(b.context.projectId, { artifact_id: 'coding-plan:session:1', version: 1 })!.payload, { text: 'Fixed plan' });
 });
 
-test('S-108 PCSYNC-01 tampered, foreign, library-shaped and incomplete process bundles leave original versions unchanged', t => {
+test('S-140 PCSYNC-01 tampered, foreign, library-shaped and incomplete process bundles leave original versions unchanged', t => {
   const a = fixture(t), b = fixture(t); a.publish(); a.publish(2); const snapshot = a.replication.read('coding-plan:session:1')!;
   const corrupt: ((bundle: PortableProcessItem) => void)[] = [
     value => { value.spaceId = 'space-bob'; }, value => { value.projectId = 'another-project'; },
@@ -83,7 +83,7 @@ test('S-108 PCSYNC-01 tampered, foreign, library-shaped and incomplete process b
   assert.deepEqual(other.replication.read('coding-plan:session:1')!.versions[0]!.payload, { text: 'different' });
 });
 
-test('S-108 PCSYNC-06 late revocation rolls back imported process versions and their project events', t => {
+test('S-140 PCSYNC-06 late revocation rolls back imported process versions and their project events', t => {
   const a = fixture(t), b = fixture(t); a.publish();
   let calls = 0;
   const denied = createProcessItemReplication(b.borrowed, { ...b.context, authorize() { if (++calls === 4) throw new Error('REVOKED'); } }, b.options);
@@ -115,7 +115,7 @@ test('process journal freezes a per-item prefix and cascading deletion has no nu
   assert.deepEqual(replica.counts(), { pending: 0, conflicts: 0 });
 });
 
-test('S-108 PCSYNC-01 a process id owned by another project cannot be rebound', t => {
+test('S-140 PCSYNC-01 a process id owned by another project cannot be rebound', t => {
   const a = fixture(t), b = fixture(t); a.publish();
   b.db.prepare('INSERT INTO project_root VALUES (?)').run('another-project');
   b.owner.commands.registerVersion({ project_id: 'another-project', artifact_id: 'coding-plan:session:1', version: 1,
@@ -128,7 +128,7 @@ test('S-108 PCSYNC-01 a process id owned by another project cannot be rebound', 
   assert.deepEqual(b.owner.query.getArtifactVersion('another-project', { artifact_id: 'coding-plan:session:1', version: 1 }), before);
 });
 
-test('S-108 PCSYNC-14 pure validation rejects incomplete bodies before any target project can be created', t => {
+test('S-140 PCSYNC-14 pure validation rejects incomplete bodies before any target project can be created', t => {
   const source = fixture(t); source.publish(); const snapshot = source.replication.read('coding-plan:session:1')!;
   assert.deepEqual(validateProcessItemReplication(snapshot, source.context), snapshot);
   const bad = structuredClone(snapshot); bad.versions[0]!.payload = { tampered: true };

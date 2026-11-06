@@ -597,7 +597,7 @@ test("no new asset path is admitted, the Issue client included, and an establish
 });
 
 // ISSUE-45/46 spent their one approved increase (23,451 → 24,379 measured, under the 24 KiB the user allowed on 2026-10-15,
-// specs/issue-home-v0): the Issue client, even back at its old size, grows under the same rule as every asset.
+// specs/archive/issue-home-v0): the Issue client, even back at its old size, grows under the same rule as every asset.
 test("the spent Issue draft/preview increase leaves no allowance, even at the Issue client's old size", () => {
   const asset = "/assets/molis-work-plugins/issues.js";
   branch("issue-draft-old", () => { sizes[asset] = 23451; putBudget(sizes); });

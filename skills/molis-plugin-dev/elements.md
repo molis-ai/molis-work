@@ -4,8 +4,8 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 ## 身份
 
-- `schema_version`：产品插件用 `2`（ports、events、views、routes、agent、actions）。CLI 样例脚手架仍可能生成 `1`。
-- `host_api_version`：与 schema 对齐，产品用 `2`。
+- `schema_version`：现行格式为 `1`，支持 ports、events、views、routes、agent 和 actions。
+- `host_api_version`：与 schema 对齐，使用 `1`。
 - `plugin_id`：反向域名，如 `io.molis.work.feed`。
 - `*_PROJECT_PLUGIN_ID`：项目库短名（`feed`）。和全球 id 不是同一个字段。
 - `name`、`version`：给人看的名字；代码变化必须自己递增 version。同一 `plugin_id + version + signature` 的 Manifest 不能静默改内容。升级来源要通过 `upgrade_compatibility` 精确声明。
@@ -183,7 +183,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 ## 当前项目设置能力
 
-从 `contracts/modules/projects` 导入 `projectSettingsCapabilities`：`workspaces` 返回当前项目已关联目录，`browsingWorkspace` 返回 Files/Git 的当前浏览目录或 null。逐项将完整 `capability_id` 写入 Manifest consumes，然后调用 `invoke(capability, [])`。不可传 project_id，不支持 key 袋或通配读取。Host 裁剪其他项目关联字段。工作目录在项目设置中维护，不再接 Workspace 输出。Coding 会话执行目录独立；`projects.workspace.read.v1` 返回项目的首选工作区，Coding 在没有浏览目录时用它。
+从 `contracts/modules/projects` 导入 `projectSettingsCapabilities`：`workspaces` 返回当前项目已关联目录，`browsingWorkspace` 返回 Files/Git 的当前浏览目录或 null。逐项将完整 `capability_id` 写入 Manifest consumes，然后调用 `invoke(capability, [])`。不可传 project_id，不支持 key 袋或通配读取。Host 裁剪其他项目关联字段。工作目录在项目设置中维护，不再接 Workspace 输出。Coding 会话执行目录独立；`projects.workspace.read` 返回项目的首选工作区，Coding 在没有浏览目录时用它。
 
 `settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目说明仍属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。
 

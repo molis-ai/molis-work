@@ -26,7 +26,7 @@ test("an unknown plugin owns its Home event, context and real action; failure an
     input_schema: { type: "object", properties: { revision: { type: "integer" }, request_id: { type: "string" } }, required: ["revision", "request_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { done: { type: "boolean" } }, required: ["done"], additionalProperties: false } } };
   let fail = false, writes = 0;
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.own-home-events", version: "1.0.0", name: "自有笔记",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.own-home-events", version: "1.0.0", name: "自有笔记",
     kind: "app", publisher: { publisher_id: "example", signature: "home-events" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["fixture:read", "fixture:write"].map(permission => ({ permission, required: false, reason: "操作原笔记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [events, context, offers, complete] },
     async start() { return { kind: "app", actions: [

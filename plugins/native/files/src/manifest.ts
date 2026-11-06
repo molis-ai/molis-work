@@ -44,8 +44,8 @@ export const FILES_SELECTION_OUTPUT_PORT = "selection";
  * current value.
  */
 export const filesManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: FILES_PLUGIN_ID,
   version: "0.3.0",
   name: "Files",

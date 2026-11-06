@@ -31,7 +31,7 @@ const body = (skill_id: string, version = 1, text = `${skill_id} 第 ${version} 
 
 function probe(options: { pluginId?: string; version?: string; methods?: AgentSkillDeclaration[]; bodies?: AgentSkillDefinition[]; execution?: "sandbox"; signature?: string } = {}) {
   const { pluginId = PLUGIN_ID, version = "1.0.0", methods = [declared("triage")], bodies = [body("triage")], execution, signature = "probe-methods" } = options;
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version, name: "方法探针", kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version, name: "方法探针", kind: "app",
     publisher: { publisher_id: "molis", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, methods,
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };

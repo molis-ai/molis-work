@@ -39,7 +39,7 @@ function stopProbe(name: string) {
       subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } };
   const view = { contribution_id: `${id}.list`, kind: "embedded" as const, label: "列表", slots: [] };
   const contexts: PluginStartContext[] = [], ran: number[] = [], atStop: unknown[] = [];
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `stopped-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: write, required: true, reason: "改动自己的内容" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },

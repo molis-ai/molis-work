@@ -142,6 +142,10 @@
       "types": "./dist/services/agent-inputs.d.ts",
       "import": "./dist/services/agent-inputs.js"
     },
+    "./services/agent-task-grants": {
+      "types": "./dist/services/agent-task-grants.d.ts",
+      "import": "./dist/services/agent-task-grants.js"
+    },
     "./services/assistant": {
       "types": "./dist/services/assistant.d.ts",
       "import": "./dist/services/assistant.js"

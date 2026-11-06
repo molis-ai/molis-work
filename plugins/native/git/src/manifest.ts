@@ -44,8 +44,8 @@ export const GIT_RESULT_OUTPUT_PORT = "result";
  * `result` so whoever asked for an operation learns how it went.
  */
 export const gitManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: GIT_PLUGIN_ID,
   version: "0.3.0",
   name: "Git",

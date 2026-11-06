@@ -14,7 +14,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
 const manifest = (runtime: unknown, extra: Partial<PluginManifest> = {}): PluginManifest => ({
-  schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.scope", version: "1.0.0", name: "Scope fixture", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.scope", version: "1.0.0", name: "Scope fixture", kind: "app",
   publisher: { publisher_id: "someone", signature: "scope-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
   ...(runtime === undefined ? {} : { runtime }), ...extra,

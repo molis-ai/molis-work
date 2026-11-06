@@ -8,8 +8,8 @@ import { ALCHEMIST_EN } from "./en.js";
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID };
 
 export const alchemistManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: ALCHEMIST_PLUGIN_ID,
   version: "0.3.0",
   name: "炼金术士",

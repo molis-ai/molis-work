@@ -54,6 +54,12 @@
 | 发布者签名 | 插件包由谁发布的签名；它只决定安装信任：要不要首次确认、跑不跑沙箱、动作提供方身份。官方、个人、创作台生成和第三方插件在别处待遇一样 | 界面里没有单独的词 | 官方插件、第三方插件（不是待遇上的分类） |
 | 归属角色 | SSOT 各表「归属」列的角色词，由 `scripts/package-owners.mjs` 的 `ROLE_BY_KIND` 按包的类别生成：应用、平台包、Module、横向服务、内置插件、官方集成、工具；`packages/contracts`、`packages/kernel`、`packages/plugin-sdk`、`apps/local-host`、`apps/workbench`、`horizontal/agent-host` 另记「共享核心」。评审人写在 `.github/CODEOWNERS`，同一个脚本生成，`pnpm boundary:check` 校验 | 界面里没有 | — |
 | 组件板 | 设计系统的组件与状态标本页，本地宿主的 `/__ui/catalog`（`pnpm web` 起宿主，默认 `http://127.0.0.1:4173`）；不是 Goals 的看板 | 规格板、控件板混用 | 规格板、控件板、component board |
+| 工作（助理的） | 助理里一项持续的事：用户说的话、助理的回复和它派出去的任务都归在一项工作下，有自己的草稿和进展 | 工作（新工作、我的工作、切换工作）；英文 work | 任务（指它时）、会话（指它时）、受托工作（只在文档里，不对外） |
+| 任务 | 交给某个执行者（Coding、子代理、后台）去做的具体一件 | 任务；英文 task | 工作（指它时）、作业（界面不用；代码与错误信息里的「后台作业」见 2.5） |
+| 子任务 | 一项任务或工作再委托出去的一件 | 子任务；英文 sub-task（不写 subtask、Subtask） | 子工作、子代理（指被委托的那件事时；子代理是执行它的 Agent） |
+| 一轮（turn） | AI 从读到输入到交回结果的一次运行 | 这一轮、下一轮；英文 turn（不写 round） | round |
+| 送达方式 | AI 运行中再发一句时的三种送法：补充（默认，模型边界读到）、打断并改向、下一轮再做；键位说明里「下一轮再做」叫排队 | 补充、打断并改向、下一轮再做；英文 Add、Interrupt and redirect、Do it next turn | 这一轮结束后再做、打断（单写，指它时） |
+| 接收者（发给谁） | 输入框里这句话发给的对象：助理、某项工作或任务、子任务、项目讨论的群或话题 | 「发给：对象」；英文 Send to | 目标（界面上「目标」只指 Goal）、发到 |
 
 ## 2. 定义
 
@@ -121,7 +127,7 @@
 **推荐选项（recommendation option）**
 
 - 定义：判断结果里「建议做什么」的一项。一项要么是一个动作引用（`recommended_actions`，精确的 `ActionReference` 加 `provider_id`），要么是消费场景在 `result_schema` 里列出的符号（`suggested_behavior_ids`，只在该场景内有意义，由场景所有者映射到自己的按钮或动作）。推荐不授予执行权限。
-- 代码里这一概念大多还叫 behavior：结果类型 `molis.behavior-recommendation.v1`，字段 `suggested_behavior_ids`（也存在 `function_judgments.suggested_json` 里），编辑器目录里的字段 `behaviors`、`behavior_id`（类型已改名 `JudgmentRuleAuthoringOption`，`packages/contracts/src/modules/functions.ts`；`apps/local-host/src/recommendation-catalog.ts`），场景常量已改名 `*_OPTION_ID`。Manifest 的 `behaviors` 已在 2026-10 删除。
+- 代码里这一概念大多还叫 behavior：结果类型 `molis.behavior-recommendation.v1`，字段 `suggested_behavior_ids`（也存在 `function_judgments.suggested_json` 里），场景常量已改名 `*_OPTION_ID`；编辑器目录（类型 `JudgmentRuleAuthoringOption`，`packages/contracts/src/modules/functions.ts`；`apps/local-host/src/recommendation-catalog.ts`）的字段已改为 `options`、`option_id`、`option_ids`（2026-11-03，BL-900）。Manifest 的 `behaviors` 已在 2026-10 删除。
 - 旧称：行为。文档不再用这个词指它。
 
 ### 2.3 AI 执行体系
@@ -159,7 +165,7 @@
 
 - 定义：一份按需读取的文字做法，有名称、适用说明和正文，可声明它会用到的工具；它不授予任何权限，权限仍来自动作授权。同一种东西有三处载体：
   1. 仓库的 `skills/<名>/SKILL.md`，给外部编码 Runtime 和插件创作台用（`goal-advance` 随安装发进用户的 Runtime，创作台挂载 `molis-plugin-dev` 的章节，见 `apps/local-host/src/plugin-builder/skill.ts`）。
-  2. 插件为 Agent 提供的 Skill：类型 `AgentSkillDeclaration` / `AgentSkillDefinition`（`skill_id`、`version`、`name`、`summary`、`tools`、`body`），Manifest 里有两个位置：`agent.skills` 是插件自己的 Agent 用的，`methods` 是提供给别的 Agent（助理、Character）用的；也可从项目目录安装（`agent.skills.discover.v1`、`agent.skills.install.v1`，只存文本，不执行包内脚本）。起跑时只接受精确的 id 与版本。
+  2. 插件为 Agent 提供的 Skill：类型 `AgentSkillDeclaration` / `AgentSkillDefinition`（`skill_id`、`version`、`name`、`summary`、`tools`、`body`），Manifest 里有两个位置：`agent.skills` 是插件自己的 Agent 用的，`methods` 是提供给别的 Agent（助理、Character）用的；也可从项目目录安装（`agent.skills.discover`、`agent.skills.install`，只存文本，不执行包内脚本）。起跑时只接受精确的 id 与版本。
   3. Character 里导入的 Skill 快照（`import_snapshot.skills`），每轮选用其中几个。
 - 取舍：Prologue SDK、导入来源和代码类型都叫 Skill；只有界面和少数标识符（Manifest 的 `methods` 键、`assistant.methods.*`）叫「方法」，而「方法」在界面里还指规划方法、研究方法、连接方式。所以文档统一写 Skill，其余三个「方法」必须写全名。
 - 旧称：方法（指 Skill 时）、Method。
@@ -172,7 +178,7 @@
 
 **写后检查器与等待检查器（必须写全名）**
 
-- 写后检查器：人在平台的项目设置里（和工作区授权在一起，不在 Coding 的设置页）给一个已授权工作区保存的一组命令（`agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`；配置的主人是 `horizontal/agent-host`）。Agent 写完一个文件，宿主按配置顺序取第一个适用的，换进文件路径，交给 SDK 经命令审查去跑（`specs/prologue-adoption/spec.md` §6.0p）。代码与存储里叫 write-checker。
+- 写后检查器：人在平台的项目设置里（和工作区授权在一起，不在 Coding 的设置页）给一个已授权工作区保存的一组命令（`agent.write_checkers.list`、`agent.write_checkers.save`；配置的主人是 `horizontal/agent-host`）。Agent 写完一个文件，宿主按配置顺序取第一个适用的，换进文件路径，交给 SDK 经命令审查去跑（`specs/prologue-adoption/spec.md` §6.0p）。代码与存储里叫 write-checker。
 - 等待检查器：Agent 的一步等一个外部条件时，宿主替 SDK 去看那个条件的代码（`molis.action-query`、`molis.file-present`，在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`），只看不改。
 - 两者都不调模型，也都不是判断规则。裸写「检查器」分不出是哪一个，所以必须写全名。
 
@@ -400,6 +406,12 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 - 建议：连接说明里的插件名一律取界面显示名（「图片」「判断规则」）。显示名的中英混用本身不改，等用户另行决定统一语言。`Text Stats` 与 `Text stats` 统一为 `Text stats`。
 - 备选：统一所有显示名的语言（范围大，需另起一项）；保持现状。
 
+**U8　助理里的工作、任务、子任务与输入框用词（H4，已批准）**
+
+- 现状：助理说「工作」，Coding 与看板说「任务」，同一件被委托出去的事在助理里叫「子任务」、在 Coding 看板叫「子代理」；同一个「轮」在助理英文里是 round、在 Coding 英文里是 turn；排到下一轮的那一项有「下一轮再做」「这一轮结束后再做」「排队」三种写法；输入框的接收者有「发到」「发给」「目标」几种写法。「工作简报」「受托工作」「子工作」只在文档里。盘点见 `specs/post-anticorruption-roadmap/reference/batches/10.md`「H4 对外用词方案」。
+- 决定（用户 2026-11-04，看第 10 批定样 `docs/design/unified-input/` 时定）：方案一。工作＝助理里一项持续的事；任务＝交给执行者的具体一件；子任务＝再委托出去的一件；「受托工作」「子工作」不对外，界面写「受托于 X」和「子任务」；简报的产物名仍叫「工作简报」。三条小决定：送达方式叫补充、打断并改向、下一轮再做（键位说明里叫排队）；接收者那一行写「发给」，界面上「目标」只指 Goal；一轮的英文统一 turn。英文 work、task、sub-task。
+- 落地：第 1 节的六行；界面文案替换随第 10 批实现做（助理约 38 处 round、若干 subtask，Coding 看板的「子代理」标签改成「子任务」或说明它是执行者）。
+
 ## 5. 代码改名后续清单
 
 按类别分。规模是 2026-10-08 在 main `bf99c8cb` 上数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`）。
@@ -412,7 +424,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | R-A2 | 文件 `plugins/native/goals/src/module/board-commands.ts`、`plugins/native/goals/src/board-actions.ts`、`board-entry-capabilities.ts`、`board-snapshot-query.ts`；`tests/goals-board-actions.test.ts` | 去掉 `board-` 前缀 | 5 个文件。**2026-10-29 已做（W5-14 片 6）**：`board-entry-capabilities.ts` 已在 #523（`f74e29d86`）删除；其余四个用 `git mv` 改为 `module/library-commands.ts`、`library-actions.ts`、`snapshot-query.ts`、`tests/goals-library-actions.test.ts`，内容不变（测试只改临时目录前缀）。`actions.ts`、`tests/goals-actions.test.ts` 已有，直接去前缀会撞名，所以这两个和 `module/` 里的命令文件用 R-A1 的「目标资料库」叫法 `library-`；`snapshot-query.ts` 不撞名，直接去前缀。文件里的 `MolisWorkCommands`、`goalsBoardActions`、`readMolisWorkSnapshot` 等标识符属 R-A1，没动 | 引用这些路径的 README 和 `docs/` 同步 |
 | R-A3 | 判断规则的 TypeScript 类型：`FunctionRecord`、`FunctionDraftPatch`、`FunctionSummary`、`FunctionDescribe`、`FunctionSample`、`FunctionCriteria`、`FunctionInvokeResult`、`FunctionsPrimitive`、`FunctionStatus`、`FunctionAuthoring*` | `JudgmentRule*` | 源码 9 个文件、测试 3 个。**2026-10-26 已做（W5-14 片 4，用户 Q1 批准合同导出名）**：上面各名改为 `JudgmentRuleRecord` 等，`FunctionAuthoring*` → `JudgmentRuleAuthoring*`；同文件里同族的 `FunctionActionMap`、`FunctionSceneMap`、`Functions{CredentialSource,Outcome,PreviewRecord,SettingsStatus}` → `JudgmentRule…`，`FUNCTION_AUTHORING_SUBJECTS`、`isFunctionDestinationId` → `JUDGMENT_RULE_AUTHORING_SUBJECTS`、`isJudgmentRuleDestinationId`。`SYSTEM_*_FUNCTION_KEY` 常量名和 `function_key` 字段是 R-B2，没动。`FunctionAuthoringBehavior` 现叫 `JudgmentRuleAuthoringBehavior`，改成 `…Option` 随 R-A5 | 只改类型名；`function_key`、表和动作 id 见 R-B2 |
 | R-A4 | 包 `@molis-ai/molis-work-module-functions`、目录 `modules/functions`、`apps/workbench/src/functions/`、`apps/local-host/src/functions-*.ts` | `judgment-rules` | 原规模为 2026-10-08 的估计。**2026-11-01 已做（T-392）**：私有包与 37 个实现路径原子迁到 `judgment-rules`，活动 import、23 条 dist 导入及现行文档同片更新；公开 `contracts/modules/functions`、导出名、动作与权限保持 | Home 的 `functions` 库路径和快照 owner `modules/functions` 保持，见 R-B2 |
-| R-A5 | `FunctionAuthoringBehavior`、`behavior-catalog.ts`、`liveHostFunctionAuthoringCatalog`、常量 `*_BEHAVIOR_ID`（如 `HOME_TALK_BEHAVIOR_ID`） | `…Option`、`recommendation-catalog.ts`、`*_OPTION_ID` | **2026-10-26 已做（W5-14 片 3）**：文件 `behavior-catalog.ts` → `recommendation-catalog.ts`，`liveHostFunctionAuthoringCatalog` → `liveHostJudgmentRuleAuthoringCatalog`（与 R-A3 的 `JudgmentRule*` 一致，宿主内部名）。**2026-10-29 已做（T-111）**：合同导出的 `JudgmentRuleAuthoringBehavior` → `JudgmentRuleAuthoringOption`，12 个 `*_BEHAVIOR_ID` → `*_OPTION_ID`（值不变），源码 7 个文件、测试 6 个。没改：编辑器目录的字段 `behaviors`、`behavior_id`、`behavior_ids`，与落库、进动作 schema 的 `suggested_behavior_ids` 同名，分开改易错，记 BL-900；`behavior_id` 字样（含 `suggested_behavior_ids`）源码 35 个文件、测试 29 个（2026-10-28 数，口径见本节开头） | 常量的值（`inbox.admit` 等）不变；编辑器目录是宿主与编辑器之间的形状，未持久化，可一起改 |
+| R-A5 | `FunctionAuthoringBehavior`、`behavior-catalog.ts`、`liveHostFunctionAuthoringCatalog`、常量 `*_BEHAVIOR_ID`（如 `HOME_TALK_BEHAVIOR_ID`） | `…Option`、`recommendation-catalog.ts`、`*_OPTION_ID` | **2026-10-26 已做（W5-14 片 3）**：文件 `behavior-catalog.ts` → `recommendation-catalog.ts`，`liveHostFunctionAuthoringCatalog` → `liveHostJudgmentRuleAuthoringCatalog`（与 R-A3 的 `JudgmentRule*` 一致，宿主内部名）。**2026-10-29 已做（T-111）**：合同导出的 `JudgmentRuleAuthoringBehavior` → `JudgmentRuleAuthoringOption`，12 个 `*_BEHAVIOR_ID` → `*_OPTION_ID`（值不变），源码 7 个文件、测试 6 个。**2026-11-03 已做（BL-900）**：编辑器目录的字段 `behaviors`、`behavior_id`、`behavior_ids` → `options`、`option_id`、`option_ids`，函数 `filterSuggestedBehaviorIds`、`defaultInboxNextBehaviorIds`、`defaultFeedCaptureBehaviorIds` → `…OptionIds`；落库、进动作 schema 的 `suggested_behavior_ids` 属 R-B4，不改；`behavior_id` 字样（含 `suggested_behavior_ids`）源码 35 个文件、测试 29 个（2026-10-28 数，口径见本节开头） | 常量的值（`inbox.admit` 等）不变；编辑器目录是宿主与编辑器之间的形状，未持久化，可一起改 |
 | R-A6 | `AgentMethodView`、`AgentMethodRegistration`、`METHOD_TOOLS`、`inspectMethodDeclarations`、`method_owner`、`codingMethods`/`pagesMethods`/`todoMethods` 及其所在文件（`plugins/native/coding/src/methods.ts`、`plugins/native/pages/src/methods.ts`、`plugins/native/todo/src/roles.ts`）。**2026-10-26 已做（W5-14 片 2）**：`codingSkills`/`pagesSkills`/`todoSkills`/`issuesSkills`（Issues 同型，表里原先没列），`coding|pages|issues/src/methods.ts` → `skills.ts`；`todo/src/roles.ts` 里还有 Todo 的角色与提示词，不是只放 Skill 的文件，所以文件不改名，只改常量。其余前五项 **2026-10-29 已做（T-111）**：`AgentMethodView`、`AgentMethodRegistration` → `AgentSkillView`、`AgentSkillRegistration`，`METHOD_TOOLS` → `SKILL_TOOLS`（值不变），`inspectMethodDeclarations` → `inspectSkillDeclarations`，agent-host 授权里的 `method_owner` → `skill_owner`（内存字段，不落库） | `AgentSkill*`、`SKILL_TOOLS`、`inspectSkillDeclarations`、`skill_owner`、`*Skills`、`skills.ts` | 前五项源码 7 个文件，`codingMethods`/`pagesMethods`/`todoMethods` 11 个文件 | 只含类型、函数和文件名。Manifest 的 `methods` 键、`assistant.methods.*`、字段 `method_id` 和助理物料种类值 `"method"` 都是合同或已存数据，见 R-B5 |
 | R-A7 | （已作废，2026-10-23）目录 `plugins/native/work` 与包 `@molis-ai/molis-work-plugin-work` 随 Sessions 下线（SC-4）一起删除，改名不再需要 | — | — | 重做 Sessions 时按 BL-177 另起包名 |
 | R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（键里的字样有「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」，前一个出现在一整句的键里）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/judgment-rules/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |

@@ -55,7 +55,7 @@ function aggregatePlugin() {
     }
     return { project: caller.project_id };
   } });
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "homeagg", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "homeagg", kind: "app",
     publisher: { publisher_id: "example", signature: "home-aggregate" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: READ, required: true, reason: "读自己的进行中工作" }, { permission: EXTRA, required: false, reason: "多读一些" }],
     capabilities: { provides: [], consumes: [touch.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

@@ -28,7 +28,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 function manifest(service_id: string): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.connectionservices", version: "1.0.0", name: "Connection services", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.connectionservices", version: "1.0.0", name: "Connection services", kind: "app",
     publisher: { publisher_id: "example", signature: "connection-services" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "connections:use", required: false, reason: "连接服务测试声明" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

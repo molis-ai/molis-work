@@ -1,3 +1,4 @@
+import { prepareFtsStatement } from "./fts-statement.js";
 import { existsSync, rmSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -170,11 +171,11 @@ function relatedSnippet(content: string, terms: readonly Run[]): string {
 function relatedDocuments(db: DatabaseSync, projectId: string, query: string, limit: number, snippets: boolean): Array<{ kind: string; object_id: string; snippet: string }> {
   const plan = relatedQueryPlan(query);
   if (!plan) return [];
-  const rows = db.prepare(`SELECT d.doc_id, d.kind, d.object_id FROM search_fts JOIN search_documents d ON d.doc_id = search_fts.rowid
+  const rows = prepareFtsStatement(db, `SELECT d.doc_id, d.kind, d.object_id FROM search_fts JOIN search_documents d ON d.doc_id = search_fts.rowid
     WHERE search_fts MATCH ? AND d.project_id = ? ORDER BY bm25(search_fts, 8.0, 1.0) LIMIT ?`).all(plan, projectId, limit) as Row[];
   const terms = relatedTerms(query), texts = new Map<string, string>();
   const first = snippets ? rows.slice(0, RELATED_SNIPPETS).map(row => Number(row.doc_id)) : [];
-  if (first.length) for (const row of db.prepare(`SELECT doc_id, content FROM search_documents WHERE content_policy = 'context' AND doc_id IN (${first.map(() => "?").join(",")})`).all(...first) as Row[]) {
+  if (first.length) for (const row of prepareFtsStatement(db, `SELECT doc_id, content FROM search_documents WHERE content_policy = 'context' AND doc_id IN (${first.map(() => "?").join(",")})`).all(...first) as Row[]) {
     texts.set(str(row.doc_id), relatedSnippet(str(row.content), terms));
   }
   return rows.map(row => ({ kind: str(row.kind), object_id: str(row.object_id), snippet: texts.get(str(row.doc_id)) ?? "" }));
@@ -194,7 +195,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
   const open = (): DatabaseSync => {
     const db = openHomeSqliteDatabase(options.homeDirectory, TEXT_SEARCH_STORE);
     db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
-    const check = db.prepare("PRAGMA quick_check").all() as Row[];
+    const check = prepareFtsStatement(db, "PRAGMA quick_check").all() as Row[];
     if (!check.every(row => Object.values(row).every(value => value === "ok"))) throw new Error("search index failed integrity check");
     return db;
   };
@@ -205,7 +206,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     db = open();
   }
   db.exec("CREATE TABLE IF NOT EXISTS search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
-  const version = (db.prepare("SELECT value FROM search_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
+  const version = (prepareFtsStatement(db, "SELECT value FROM search_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
   if (version !== SCHEMA_VERSION) {
     db.exec("DROP TABLE IF EXISTS search_fts; DROP TABLE IF EXISTS search_documents; DROP TABLE IF EXISTS search_sources;");
     db.exec(`
@@ -221,7 +222,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
       CREATE INDEX search_documents_project ON search_documents (project_id);
       CREATE VIRTUAL TABLE search_fts USING fts5(title, body, content='', contentless_delete=1, tokenize='unicode61 remove_diacritics 0', prefix='2 3');
     `);
-    db.prepare("INSERT OR REPLACE INTO search_meta (key, value) VALUES ('schema', ?)").run(SCHEMA_VERSION);
+    prepareFtsStatement(db, "INSERT OR REPLACE INTO search_meta (key, value) VALUES ('schema', ?)").run(SCHEMA_VERSION);
   }
 
   const transaction = <T>(run: () => T): T => inTransaction(db, run);
@@ -234,34 +235,34 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     revision: str(row.revision), title: str(row.title), summary: str(row.summary), content: str(row.content), updated_at: nullable(row.updated_at), open: openOf(row.open_json),
     content_policy: row.content_policy === "context" ? "context" : "summary" });
 
-  const selectDocId = db.prepare("SELECT doc_id FROM search_documents WHERE source_key = ? AND kind = ? AND object_id = ?");
-  const insertDocument = db.prepare(`INSERT INTO search_documents (source_key, kind, object_id, project_id, revision, title, summary, content, updated_at, open_json, content_policy)
+  const selectDocId = prepareFtsStatement(db, "SELECT doc_id FROM search_documents WHERE source_key = ? AND kind = ? AND object_id = ?");
+  const insertDocument = prepareFtsStatement(db, `INSERT INTO search_documents (source_key, kind, object_id, project_id, revision, title, summary, content, updated_at, open_json, content_policy)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const updateDocument = db.prepare(`UPDATE search_documents SET project_id = ?, revision = ?, title = ?, summary = ?, content = ?, updated_at = ?, open_json = ?, content_policy = ? WHERE doc_id = ?`);
-  const deleteFts = db.prepare("DELETE FROM search_fts WHERE rowid = ?");
-  const insertFts = db.prepare("INSERT INTO search_fts (rowid, title, body) VALUES (?, ?, ?)");
-  const deleteDocument = db.prepare("DELETE FROM search_documents WHERE doc_id = ?");
+  const updateDocument = prepareFtsStatement(db, `UPDATE search_documents SET project_id = ?, revision = ?, title = ?, summary = ?, content = ?, updated_at = ?, open_json = ?, content_policy = ? WHERE doc_id = ?`);
+  const deleteFts = prepareFtsStatement(db, "DELETE FROM search_fts WHERE rowid = ?");
+  const insertFts = prepareFtsStatement(db, "INSERT INTO search_fts (rowid, title, body) VALUES (?, ?, ?)");
+  const deleteDocument = prepareFtsStatement(db, "DELETE FROM search_documents WHERE doc_id = ?");
   const dropDocuments = (where: string, value: string) => {
-    const ids = db.prepare(`SELECT doc_id FROM search_documents WHERE ${where}`).all(value) as Row[];
+    const ids = prepareFtsStatement(db, `SELECT doc_id FROM search_documents WHERE ${where}`).all(value) as Row[];
     for (const row of ids) { deleteFts.run(Number(row.doc_id)); deleteDocument.run(Number(row.doc_id)); }
     return ids.length;
   };
 
   return {
-    sources: () => (db.prepare("SELECT * FROM search_sources ORDER BY source_key").all() as Row[]).map(fromSource),
-    source: key => { const row = db.prepare("SELECT * FROM search_sources WHERE source_key = ?").get(key) as Row | undefined; return row ? fromSource(row) : null; },
+    sources: () => (prepareFtsStatement(db, "SELECT * FROM search_sources ORDER BY source_key").all() as Row[]).map(fromSource),
+    source: key => { const row = prepareFtsStatement(db, "SELECT * FROM search_sources WHERE source_key = ?").get(key) as Row | undefined; return row ? fromSource(row) : null; },
     saveSource: record => {
-      db.prepare(`INSERT INTO search_sources (source_key, project_id, provider_id, capability_id, version, plugin_id, title, collection_revision, state, error, synced_at, checked_at)
+      prepareFtsStatement(db, `INSERT INTO search_sources (source_key, project_id, provider_id, capability_id, version, plugin_id, title, collection_revision, state, error, synced_at, checked_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(source_key) DO UPDATE SET plugin_id = excluded.plugin_id, title = excluded.title,
         collection_revision = excluded.collection_revision, state = excluded.state, error = excluded.error, synced_at = excluded.synced_at, checked_at = excluded.checked_at`)
         .run(record.source_key, record.project_id, record.provider_id, record.capability_id, record.version, record.plugin_id, record.title,
           record.collection_revision, record.state, record.error, record.synced_at, record.checked_at);
     },
-    removeSource: key => transaction(() => { const removed = dropDocuments("source_key = ?", key); db.prepare("DELETE FROM search_sources WHERE source_key = ?").run(key); return removed; }),
-    removeProject: projectId => transaction(() => { const removed = dropDocuments("project_id = ?", projectId); db.prepare("DELETE FROM search_sources WHERE project_id = ?").run(projectId); return removed; }),
-    revisions: key => new Map((db.prepare("SELECT kind, object_id, revision FROM search_documents WHERE source_key = ?").all(key) as Row[])
+    removeSource: key => transaction(() => { const removed = dropDocuments("source_key = ?", key); prepareFtsStatement(db, "DELETE FROM search_sources WHERE source_key = ?").run(key); return removed; }),
+    removeProject: projectId => transaction(() => { const removed = dropDocuments("project_id = ?", projectId); prepareFtsStatement(db, "DELETE FROM search_sources WHERE project_id = ?").run(projectId); return removed; }),
+    revisions: key => new Map((prepareFtsStatement(db, "SELECT kind, object_id, revision FROM search_documents WHERE source_key = ?").all(key) as Row[])
       .map(row => [`${str(row.kind)}\u0000${str(row.object_id)}`, str(row.revision)])),
-    count: key => Number((db.prepare("SELECT COUNT(*) AS n FROM search_documents WHERE source_key = ?").get(key) as Row).n),
+    count: key => Number((prepareFtsStatement(db, "SELECT COUNT(*) AS n FROM search_documents WHERE source_key = ?").get(key) as Row).n),
     upsert: documents => transaction(() => {
       for (const document of documents) {
         const title = document.title.slice(0, 1000), summary = document.summary.slice(0, 4000), content = document.content.slice(0, SEARCH_INDEX_CONTENT_CHARS);
@@ -287,10 +288,10 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
       }
     }),
     document: (key, kind, objectId) => {
-      const row = db.prepare("SELECT * FROM search_documents WHERE source_key = ? AND kind = ? AND object_id = ?").get(key, kind, objectId) as Row | undefined;
+      const row = prepareFtsStatement(db, "SELECT * FROM search_documents WHERE source_key = ? AND kind = ? AND object_id = ?").get(key, kind, objectId) as Row | undefined;
       return row ? fromDocument(row) : null;
     },
-    documents: projectId => (db.prepare("SELECT * FROM search_documents WHERE project_id = ? ORDER BY doc_id").all(projectId) as Row[]).map(fromDocument),
+    documents: projectId => (prepareFtsStatement(db, "SELECT * FROM search_documents WHERE project_id = ? ORDER BY doc_id").all(projectId) as Row[]).map(fromDocument),
     search: (input: SearchIndexQuery) => {
       const plan = searchQueryPlan(input.query);
       const allowed = input.sources.filter((source, index, all) => all.findIndex(other => other.source_key === source.source_key) === index);
@@ -303,7 +304,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
         scope.push(`(d.source_key = ?${readable.length ? ` AND (d.content_policy = 'summary' OR d.kind IN (${readable.map(() => "?").join(",")}))` : " AND d.content_policy = 'summary'"})`);
         params.push(source.source_key, ...readable);
       }
-      const rows = db.prepare(`SELECT d.*, bm25(search_fts, 8.0, 1.0) AS rank FROM search_fts JOIN search_documents d ON d.doc_id = search_fts.rowid
+      const rows = prepareFtsStatement(db, `SELECT d.*, bm25(search_fts, 8.0, 1.0) AS rank FROM search_fts JOIN search_documents d ON d.doc_id = search_fts.rowid
         WHERE search_fts MATCH ? AND (${scope.join(" OR ")})${kinds.length ? ` AND d.kind IN (${kinds.map(() => "?").join(",")})` : ""}
         ORDER BY rank LIMIT ${MAX_CANDIDATES}`).all(plan.expression, ...params, ...kinds) as Row[];
       const whole = normalizeSearchText(input.query.trim().replace(/\s+/gu, " ")).text;
@@ -333,7 +334,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     },
     related: (projectId, query, limit, snippets = false) => relatedDocuments(db, projectId, query, limit, snippets),
     clear: () => transaction(() => {
-      const removed = Number((db.prepare("SELECT COUNT(*) AS n FROM search_documents").get() as Row).n);
+      const removed = Number((prepareFtsStatement(db, "SELECT COUNT(*) AS n FROM search_documents").get() as Row).n);
       db.exec("INSERT INTO search_fts (search_fts) VALUES ('delete-all'); DELETE FROM search_documents; DELETE FROM search_sources;");
       return removed;
     }),

@@ -62,7 +62,9 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     const tools = (await writer.listTools()).tools;
     // MCP offers the actions that name it as an audience; choosing which GitHub account the market pulse uses stays with the person (user only).
-    const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp")).map(action => `${action.capability_id}__v${action.version}`).sort();
+    // RAC-633-MIG-01 N26: the reset keeps context readers and every other Alchemist tool at version 1.
+    const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp"))
+      .map(action => `${action.capability_id}__v1`).sort();
     // W5-01-ALC-RES-AUTH-04: the four model actions also declare model:invoke and keep version 1 (① 10-20), so MCP still offers them under their v1 names
     // and a client granted before sees the changed permissions and grants again, rather than finding no tool.
     for (const name of ["reuse.assess", "conversation.send", "explorations.start", "research.start"]) assert.ok(offered.includes(`alchemist.${name}__v1`) && !offered.includes(`alchemist.${name}__v2`), `${name} is offered as v1`);

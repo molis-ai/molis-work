@@ -25,7 +25,7 @@ export interface ImportClient {
 
 interface Candidate { candidate_id: string; label: string; executable: string | null; snapshot: ImportSnapshot; warnings: string[] }
 interface Selection { rule_paths: string[]; skill_ids: string[] }
-/** A native run as Characters records it (`characters.runs@2`): no terminal output is kept, the terminal shows it while the process runs. */
+/** A native run as Characters records it (`characters.runs@1`): no terminal output is kept, the terminal shows it while the process runs. */
 interface RunRecord { run_id: string; panel_id: string; created_at: string; reference: ArtifactVersionRef; status: "starting" | "dispatched" | "failed"; status_message: string | null }
 interface Execution { workspaces: Array<{ workspace_id: string; canonical_path: string }>; notice: string; executable: boolean }
 interface Published { reference: ArtifactVersionRef; publication: { payload: PublicationPayload } }

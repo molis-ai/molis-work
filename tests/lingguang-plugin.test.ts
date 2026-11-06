@@ -146,9 +146,10 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   assert.match(stack, /data-assistant-island/);
   assert.doesNotMatch(stack, /data-assistant-toggle/, "助手是 Dock 里的一个容器，不再是浮窗开关");
   assert.match(stack, /data-assistant-composer/);
-  assert.match(stack, /<input class="assistant-composer-input"/);
+  // #1761（BL-953）把输入框改成一行起步的 textarea，才能保留多行粘贴的换行。
+  assert.match(stack, /<textarea class="assistant-composer-input"[^>]*\brows="1"/);
   assert.doesNotMatch(stack, /assistant-composer-toolbar/);
-  assert.doesNotMatch(stack, /<textarea class="assistant-composer-input"/);
+  assert.doesNotMatch(stack, /<input class="assistant-composer-input"/);
   assert.match(stack, /data-assistant-thread/);
   assert.match(stack, /data-assistant-target/, "输入框前说明下一次发送去哪项工作");
   assert.match(stack, /data-assistant-send/);

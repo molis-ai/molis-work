@@ -33,7 +33,7 @@ function hello(id: string): ActionDefinition<Record<string, never>, string> {
 function probe(options: { pluginId?: string; execution?: "sandbox"; signature?: string } = {}): PluginDefinition {
   const { pluginId = PROBE, execution, signature = "fixture-probe" } = options;
   const action = hello(pluginId);
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
     publisher: { publisher_id: "molis", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action] };
   return { manifest, ...(execution ? { execution } : {}),

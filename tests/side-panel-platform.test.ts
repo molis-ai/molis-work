@@ -71,7 +71,7 @@ test("file entries page by kind and id with a revision over every entry; preview
 
 test("PAS-08: the side slot places a plugin's tab only while the plugin is enabled, and the panel renders it as a frame", () => {
   assert.equal(UI_VIEW_SLOTS.includes("side"), true);
-  const manifest = { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.side", version: "1.0.0", name: "侧栏样例", kind: "native",
+  const manifest = { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.side", version: "1.0.0", name: "侧栏样例", kind: "native",
     publisher: { publisher_id: "example", signature: "example-side" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: ["io.molis.work.example.side.notes"], views: [{ view_id: "notes", slot: "side", context_binding: "focused-object", title: "随手记", icon: "note" }] } } as const;
@@ -130,7 +130,7 @@ test("real Host: the file tab lists and previews plugin files through the action
     // A plugin nobody told the Host about: its declarations alone put its files in the panel.
     const entries = defineFileEntriesAction("newcomer.files.entries", [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
     const content = defineFileContentAction("newcomer.files.content", [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
-    const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.newcomer-files", version: "1.0.0", name: "新插件",
+    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer-files", version: "1.0.0", name: "新插件",
       kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "newcomer:read", required: false, reason: "读取文件" }], actions: [entries, content], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
       async start() { return { kind: "app", actions: [

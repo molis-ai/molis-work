@@ -1,5 +1,5 @@
 import { managementGoals } from "./goal-management-caller.js";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -12,6 +12,7 @@ import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-plugin-goals/contract";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("actual CLI snapshot and MCP event handlers finish one Goal without the retired claim/run protocol", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-command-chain-"));
@@ -91,6 +92,11 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
       /未知 V1 operation: select-goal/,
     );
 
+    // The MCP session's supports report is its own word (PWA-144): the person accepts the requirement through the protected entry before closing.
+    await host.withProject(reference, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
+      project_id: projectId, goal_id, idempotency_key: "accept", authority: hostEventDecisionAuthority("web", projectId, "web-user", "accept"),
+      conclusion: "跨入口结果我核对过", accepts_requirements: true, scope: { requirement_ids: ["result"] },
+    }));
     const ready = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     await mcp.callTool("molis_work_v1_action_goals.closure.submit__v1", {
       goal_id, idempotency_key: "close", kind: "complete",

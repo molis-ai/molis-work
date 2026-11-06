@@ -45,7 +45,7 @@ async function openProbe() {
       output_schema: { type: "object", additionalProperties: false, required: ["id", "state"], properties: { id: { type: "string" }, state: { type: "string" } } },
       background_job: { status: { capability_id: status.definition.capability_id, version: 1 }, id: "id", input: "id", state: "state", done: ["succeeded"], failed: ["failed"] } } },
     async () => ({ id: "unused", state: "running" }));
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN, version: "1.0.0", name: "模型结果探针", kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN, version: "1.0.0", name: "模型结果探针", kind: "app",
     publisher: { publisher_id: "molis", signature: "held-results-example" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: MODEL, required: true, reason: "模型结果探针" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [ask.definition, status.definition, start.definition] };

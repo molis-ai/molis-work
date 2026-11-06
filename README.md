@@ -4,7 +4,7 @@
 
 Molis Work is a local-first work platform: a plugin base with many plugins, where you and the AI Runtimes you use work on the same goals, sessions, feeds, code, documents and calendar, each kept by the plugin that owns it.
 
-The platform is one resident host per Home, a shared action catalog with grants, the plugin runtime, the workbench shell, and one AI runtime. Every project has Goals and can add Sessions, Inbox, Feed, Schedule, Results and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
+The platform is one resident host per Home, a shared action catalog with grants, the plugin runtime, the workbench shell, and one AI runtime. Every project has Goals and can add Inbox, Feed, Schedule and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
 
 The Goals plugin is for a boring way long-running work fails: a new Session cannot see the last one, the original outcome drifts as local decisions pile up, and “done” is a sentence with nothing to check. What is missing is not a smarter model. It is one project record every Runtime can read: the accepted Goal, how it was split, what is blocked, and what counts as done.
 
@@ -79,7 +79,7 @@ Plain use, and the problem each one is for.
 
 ### One base, plugins as you need them
 
-Every project has Goals; add Sessions, Inbox, Feed, Schedule, Results and the Coding family in place from the plugin switcher, while personal plugins such as Jelly, Todo, Pages, Lingguang, Cognia and Shelf work in every project. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. The sections below are the Goals plugin.
+Every project has Goals; add Inbox, Feed, Schedule and the Coding family in place from the plugin switcher, while personal plugins such as Jelly, Todo, Pages, Lingguang, Cognia and Shelf work in every project. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. The artifact library is provided by the platform. The Sessions plugin has been removed and its replacement is not implemented yet; see the [Sessions requirements](specs/sessions-rebuild/spec.md). Goal terminals remain available. The sections below are the Goals plugin.
 
 ### See the Goal, what is done, and what to do next
 
@@ -91,7 +91,7 @@ The Graph is for when the list is no longer enough. Parent/child describes struc
 
 ### You confirm material changes
 
-A Runtime can propose new work or a new dependency as a structure proposal and can record a concern that blocks completion. It cannot quietly replace an agreed outcome or weaken its requirements, and it cannot fill in a user identity. Trusted user decisions are recorded in Host Web or the management entry. The Decision Center puts the question, why it matters now, the evidence or the gap, and what each choice changes in one place.
+A Runtime can propose new work or a new dependency as a structure proposal and can record a concern that blocks completion. It cannot quietly replace an agreed outcome or weaken its requirements, and it cannot fill in a user identity. Trusted user decisions are recorded in Host Web or the management entry. Each decision card shows the question, why a decision is needed, the evidence behind the recommendation, and what each choice would change.
 
 ### Keep the terminal on the Goal
 
@@ -117,9 +117,11 @@ With no Runtime connected Molis Work is still a full workbench: plugins work as 
 
 ## Try it in 3 minutes
 
-### macOS Desktop (recommended)
+### macOS Desktop (not yet publicly released)
 
-Download the DMG for your Mac from [GitHub Releases](https://github.com/molis-ai/molis-work/releases):
+As of 2026-11-03, v0.3.0 remains a release draft and is not public. The latest public stable release, v0.2.0, has source only and does not represent the development features described here. To try them now, run from source as described below. Release scope and validation gaps are in the [v0.3.0 release record](docs/releases/v0.3.0.md).
+
+Once a public installer is released, choose a DMG for your Mac from the actual assets on [GitHub Releases](https://github.com/molis-ai/molis-work/releases):
 
 - Apple Silicon (M1/M2/M3/M4…): `macos-arm64`
 - Intel Mac: `macos-x64`
@@ -193,6 +195,7 @@ Each architecture ships separately because Molis Work's SQLite and PTY native ad
 
 ## Further reading
 
+- [Documentation by task (Chinese)](docs/README.md): use the product, develop plugins, change the platform, release and maintain, or resume a task.
 - [Architecture SSOT and migration ownership](docs/SSOT-MATRIX.md)
 - [Install & Maintenance](docs/installation.en.md)
 - [Runtime Protocol](docs/runtime.en.md)
@@ -200,7 +203,8 @@ Each architecture ships separately because Molis Work's SQLite and PTY native ad
 - [CLI & Development](docs/cli-and-development.en.md)
 - [Runtime Skill](skills/goal-advance/SKILL.md)
 - [Plugin 开发 Skill](skills/molis-plugin-dev/SKILL.md)
-- [Molis Work Bug Card Ledger (Chinese)](docs/molis-work-bug-cards.md)
+
+For ongoing requirements and remaining work, see the [spec index](specs/README.md) and [backlog](specs/BACKLOG.md) (Chinese). The [0.1.x Bug Card Ledger](docs/molis-work-bug-cards.md) is historical; its workflows have been retired.
 
 ## License
 

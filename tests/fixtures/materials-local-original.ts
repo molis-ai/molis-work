@@ -38,7 +38,7 @@ export function localOriginalProbe(name = "localoriginal", options: { permission
   };
   const route = (route_id: string, method: "GET" | "POST") => ({ route_id, method, path: `/${route_id}`, permission: "storage:private" });
   const definition: PluginDefinition = { manifest: {
-    schema_version: 2, host_api_version: 2, plugin_id: id, version: options.version ?? "1.0.0", name, kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: id, version: options.version ?? "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `local-original-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: options.required === true || permission === "storage:private", reason: "本机页面与原始文件测试声明" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions,

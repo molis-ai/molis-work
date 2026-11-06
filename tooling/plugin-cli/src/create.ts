@@ -12,7 +12,7 @@ export interface CreatePluginProjectInput {
 
 export async function createPluginProject(input: CreatePluginProjectInput): Promise<{ directory: string; plugin_id: string }> {
   const manifest = parsePluginManifest({
-    schema_version: 2, host_api_version: 2, plugin_id: input.plugin_id, version: "2.0.0",
+    schema_version: 1, host_api_version: 1, plugin_id: input.plugin_id, version: "2.0.0",
     name: "Local Plugin Sample", kind: "integration",
     publisher: { publisher_id: input.publisher_id, signature: input.binding_signature },
     entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],

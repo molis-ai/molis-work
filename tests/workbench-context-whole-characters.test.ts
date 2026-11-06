@@ -50,12 +50,14 @@ function page(script: string, mode: "frame" | "full") {
     return self;
   };
   // The surface that declares its object (data-assistant-context), the headings above the passage, and the text the person selected in it.
-  let passage = "", above: string[] = [];
+  let passage = "", above: string[] = [], unseen: string[] = [];
   const surface = element({
     contains: () => true,
     getAttribute: (name: string) => name === "data-assistant-context"
       ? JSON.stringify({ plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "doc-1", title: "计划" } }) : null,
-    querySelectorAll: () => above.map(textContent => ({ tagName: "H2", textContent, compareDocumentPosition: () => 4 })),
+    // `unseen` are headings of a closed dialog (they come first in the document, as Shelf's do); the page leaves out a heading inside a closed dialog or a hidden element.
+    querySelectorAll: () => [...unseen.map(textContent => ({ tagName: "H2", textContent, compareDocumentPosition: () => 4, closest: () => ({}) })),
+      ...above.map(textContent => ({ tagName: "H2", textContent, compareDocumentPosition: () => 4, closest: () => null }))],
     dispatchEvent: (event: { init: { detail: Focus | null } }) => { reported.push(JSON.parse(JSON.stringify(event.init.detail)) as Focus | null); return true; },
   });
   const paragraph = element({ nodeType: 1, closest: (selector: string) => selector === "[data-assistant-context]" ? surface : null });
@@ -91,8 +93,8 @@ function page(script: string, mode: "frame" | "full") {
   const settle = async () => { for (let round = 0; round < 6; round += 1) { await new Promise(resolve => setImmediate(resolve)); timers.splice(0).forEach(fn => fn()); } };
   return {
     /** The person selects `text` under the headings `titles`; what the surface reports of it (the page settles 120 ms after the selection changes). */
-    select(text: string, titles: string[] = []): Focus | null {
-      passage = text; above = titles;
+    select(text: string, titles: string[] = [], hidden: string[] = []): Focus | null {
+      passage = text; above = titles; unseen = hidden;
       (documentListeners.selectionchange ?? []).forEach(fn => fn({}));
       timers.splice(0).forEach(fn => fn());
       return reported.at(-1) ?? null;
@@ -146,6 +148,22 @@ for (const { name, title, expected } of HEADINGS) {
     assert.ok(focus);
     assert.deepEqual(focus.surroundings?.heading_path, [expected]);
   });
+}
+
+// BL-952 (QA-030): Shelf keeps a closed "save to project knowledge" dialog in its page, and its h2 sits above every passage selected there.
+// It is interface text; it must not be the heading the passage is "under" (Pages titles a new document by that heading).
+for (const label of ["存到项目资料", "Save to project knowledge"]) {
+  for (const [mode, script] of [["page", CONTEXT_ACTIONS_FACTORY_SCRIPT], ["plugin frame", frameCopy()]] as const) {
+    test(`BL-952 a heading of a closed dialog (${label}) is not a heading of the passage selected below it, in the ${mode}'s reader`, () => {
+      const focus = page(script, "frame").select(SAYS, [], [label]);
+      assert.ok(focus);
+      assert.deepEqual(focus.surroundings?.heading_path, []);
+      assert.ok(!JSON.stringify(focus).includes(label), "the interface text is nowhere in what is reported");
+    });
+    test(`BL-952 the headings the person can see stay, the hidden one goes (${label}, ${mode})`, () => {
+      assert.deepEqual(page(script, "frame").select(SAYS, ["第一章"], [label])?.surroundings?.heading_path, ["第一章"]);
+    });
+  }
 }
 
 for (const { name, second, expected } of CARDS) {

@@ -7,8 +7,8 @@ import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actio
 
 export function validateManifest(manifest: PluginManifest): void {
   if (
-    (manifest.schema_version !== 1 && manifest.schema_version !== 2)
-    || manifest.host_api_version !== manifest.schema_version
+    manifest.schema_version !== 1
+    || manifest.host_api_version !== 1
     || !manifest.plugin_id.trim()
     || !manifest.version.trim()
     || !manifest.publisher.publisher_id.trim()

@@ -239,10 +239,10 @@ Manifest 草案（**设计意图，不是最终声明**）：
 plugin_id   io.molis.work.coding      kind app      schema_version 2
 permissions artifact:write / artifact:read / storage:private / ui:register
 capabilities.consumes
-            agent.runtimes.v1 · agent.roles.v1 · agent.session.create.v1 · agent.session.read.v1
-            agent.run.start.v1 · agent.run.read.v1 · agent.run.control.v1 · agent.reviews.list.v1
-            projects.workspace.read.v1 · goals.event.append.v1
-requires    agent.run.start.v1（必需）· projects.workspace.read.v1（必需）
+            agent.runtimes · agent.roles · agent.session.create · agent.session.read
+            agent.run.start · agent.run.read · agent.run.control · agent.reviews.list.v1
+            projects.workspace.read · goals.event.append.v1
+requires    agent.run.start（必需）· projects.workspace.read（必需）
             goals.event.append.v1（可选，缺失则不写回 Goal）
 ports
   inputs    goal      goals.goal@1            optional   ← 关联的目标

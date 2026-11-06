@@ -29,7 +29,7 @@ export function reviewPlugins(host: MolisWorkLocalHost, reference: LocalHostProj
     async start(plugin_id: string, permissions: PluginManifest["permissions"], grants: readonly string[], consumes: readonly string[]): Promise<string> {
       const name = plugin_id.split(".").at(-1)!;
       const { install } = runtime.install({ trust: { level: "unsigned" }, deployment: "local", grants: [...grants], definition: {
-        manifest: { schema_version: 2, host_api_version: 2, plugin_id, version: "1.0.0", name, kind: "app",
+        manifest: { schema_version: 1, host_api_version: 1, plugin_id, version: "1.0.0", name, kind: "app",
           publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
           permissions, capabilities: { provides: [], consumes: [...consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
         async start(context) { started.set(plugin_id, context); return { kind: "app" }; } } });

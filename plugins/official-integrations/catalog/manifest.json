@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "plugin_id": "io.molis.work.integration.catalog",
   "version": "1.0.0",
   "name": "Connector Catalog",
@@ -8,7 +8,7 @@
     "publisher_id": "io.adeptify",
     "signature": "adeptify-official-signature-v1"
   },
-  "host_api_version": 2,
+  "host_api_version": 1,
   "entrypoints": [
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],

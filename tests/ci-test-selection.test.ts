@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { decideJob, FULL_WHEN, outputLines, securityList } from "../scripts/ci-test-selection.mjs";
+import { decideJob, decideNative, FULL_WHEN, NATIVE_RUN_WHEN, outputLines, securityList } from "../scripts/ci-test-selection.mjs";
 import { blockingJobs, blockingTestRuns, evaluateExpression, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -29,7 +29,7 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   const whole = (job: "security" | "product", input: Partial<Record<keyof Affected, unknown>> | null, pattern: RegExp, list: Array<string | { file: string; browser: boolean }> = LIST) => {
     const decision = decideJob({ job, list, affected: input, failure: input ? undefined : "affected-tests failed: boom" });
     assert.equal(decision.mode, "whole", `${pattern}: ${JSON.stringify(decision)}`);
-    assert.deepEqual(decision.shards, [1, 2], "whole is the two legs of today");
+    assert.deepEqual(decision.shards, job === "security" ? [1, 2, 3] : [1, 2], "whole is every leg of the job: three for the security invariants, two for the product subset");
     assert.deepEqual(decision.files, [], "whole names no files: an empty list is what the jobs read as the whole list");
     assert.ok(decision.reasons.some((reason: string) => pattern.test(reason)), `${pattern} in ${JSON.stringify(decision.reasons)}`);
   };
@@ -99,13 +99,14 @@ test("RAC-1760 every file the selection, affected-tests and the two runners load
   for (const file of product) assert.ok(trigger("product", file), `product: ${file} is loaded by its runner`);
 });
 
-test("RAC-1761 none skips the job; some runs the touched files on one runner when they fit in one shard, the smokes counted apart", () => {
+test("RAC-1761 none skips the job; some runs the touched files on as many runners as they need at the size of a shard, the smokes counted apart", () => {
   const none = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching("tests/not-in-the-list.test.ts") }) });
   assert.equal(none.mode, "none");
   assert.deepEqual(none.files, []);
-  const one = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 5), "tests/not-in-the-list.test.ts") }) });
-  assert.deepEqual({ mode: one.mode, shards: one.shards, files: one.files }, { mode: "some", shards: [1], files: LIST.slice(0, 5) }, "five of ten fit in one leg");
-  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 6)) }) }).shards, [1, 2], "six of ten do not");
+  const one = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 4), "tests/not-in-the-list.test.ts") }) });
+  assert.deepEqual({ mode: one.mode, shards: one.shards, files: one.files }, { mode: "some", shards: [1], files: LIST.slice(0, 4) }, "four of ten fit in one of three legs (a shard of ten files is four)");
+  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 5)) }) }).shards, [1, 2], "five of ten do not");
+  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 8)) }) }).shards, [1, 2], "eight of ten fill two legs of four");
   const smokes = PRODUCT.filter((entry) => entry.browser).map((entry) => entry.file);
   assert.deepEqual(decideJob({ job: "product", list: PRODUCT, affected: affected({ tests: touching(...smokes.slice(0, 2), LIST[0]!) }) }).shards, [1], "two of four smokes fit in one leg");
   assert.deepEqual(decideJob({ job: "product", list: PRODUCT, affected: affected({ tests: touching(...smokes.slice(0, 3), LIST[0]!) }) }).shards, [1, 2], "three of four smokes do not, however few other files");
@@ -124,7 +125,7 @@ test("RAC-1762 the outputs: files only for some, an anchored pattern that matche
   assert.ok(!only.test(`${LIST[1]}x`) && !only.test(`x${LIST[1]}`) && !only.test("tests/item-1-test-ts"), "anchored, and a dot is a dot");
   const whole = decideJob({ job: "security", list: LIST, affected: null });
   const wholeLines = outputLines({ security: whole, product: whole });
-  assert.ok(wholeLines.includes("security_files=") && wholeLines.includes("product_only=") && wholeLines.includes("security_shards=[1,2]"), wholeLines.join(" | "));
+  assert.ok(wholeLines.includes("security_files=") && wholeLines.includes("product_only=") && wholeLines.includes("security_shards=[1,2,3]"), wholeLines.join(" | "));
 });
 
 test("RAC-1762 the security list is test:security with its globs expanded over tests/", () => {
@@ -181,7 +182,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   commit("docs");
   const docs = select(root);
   assert.equal(docs.code, 0, docs.text);
-  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "" }, docs.text);
+  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none" }, docs.text);
 
   put("plugins/native/demo/src/thing.ts", "export function demoThingCount() { return 3; }\n");
   commit("demo");
@@ -191,19 +192,21 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   assert.equal(demo.outputs.security_files, "tests/demo-guard.test.ts");
   assert.equal(demo.outputs.product_mode, "some");
   assert.equal(demo.outputs.product_only, "^(?:tests/demo-flow\\.test\\.ts)$");
+  assert.equal(demo.outputs.native_mode, "none", "a plugin's TypeScript is not read by the Rust and Swift checks");
   assert.match(demo.text, /### Security invariants: some, 1 runner/);
 
   put("tests/security-invariants-host.test.ts", 'import test from "node:test";\ntest("still ok", () => {});\n');
   commit("an invariant test");
   const invariant = select(root);
   assert.equal(invariant.outputs.security_mode, "whole", invariant.text);
-  assert.equal(invariant.outputs.security_shards, "[1,2]");
+  assert.equal(invariant.outputs.security_shards, "[1,2,3]");
   assert.equal(invariant.outputs.product_mode, "none", "the invariant test is not in the product list");
 
   const broken = select(root, "no-such-ref");
   assert.equal(broken.code, 0, broken.text);
   assert.equal(broken.outputs.security_mode, "whole");
   assert.equal(broken.outputs.product_mode, "whole");
+  assert.equal(broken.outputs.native_mode, "whole", "a selection that failed runs the macOS checks");
   assert.match(broken.text, /affected-tests failed/);
 
   put("tests/ci-product-subset.txt", "tests/i18n.test.ts\n");
@@ -212,6 +215,11 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   assert.equal(badList.code, 0, badList.text);
   assert.deepEqual([badList.outputs.security_mode, badList.outputs.product_mode], ["whole", "whole"], badList.text);
   assert.match(badList.text, /the job lists could not be read/);
+  assert.equal(badList.outputs.native_mode, "none", "the native decision reads no test list: an unreadable one does not make it run");
+
+  put("apps/desktop/src-tauri/src/lib.rs", "pub fn one() -> u8 { 1 }\n");
+  commit("a Rust file");
+  assert.equal(select(root).outputs.native_mode, "whole");
 
   const usage = spawnSync(process.execPath, [path.join(root, "scripts/ci-test-selection.mjs"), "--bogus"], { encoding: "utf8" });
   assert.equal(usage.status, 2);
@@ -243,7 +251,7 @@ test("RAC-1763 end to end: a summary that cannot be written fails nothing, and a
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
 test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untrusted selections run the complete list", () => {
   const selection = jobBlock("test-selection");
-  assert.match(selection, /^    if: \$\{\{ github\.event_name == 'pull_request' \}\}$/m, "only on a pull request: a push, the nightly and manual runs and the merge queue run the whole lists");
+  assert.match(selection, /^    if: \$\{\{ github\.event_name == 'pull_request' \|\| github\.event_name == 'merge_group' \}\}$/m, "a pull request, and the merge queue for the macOS checks alone: a push, the nightly and manual runs run the whole lists");
   assert.match(selection, /^    timeout-minutes: \d+$/m);
   assert.match(selection, /fetch-depth: 2/, "HEAD^1 is in the checkout");
   assert.match(selection, /run: node scripts\/ci-test-selection\.mjs --base HEAD\^1$/m);
@@ -257,7 +265,7 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
     const job = jobBlock(name);
     assert.match(job, /^    needs: \[test-selection, queue-check\]$/m, name);
     assert.ok(job.includes(`    if: \${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.${key}_mode != 'none') }}`), `${name}: only successful none skips on a PR; all other selections run, except a trusted verified push`);
-    assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '[1, 2]') }}`), `${name}: two legs unless a selection that succeeded said one`);
+    assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '${key === "security" ? "[1, 2, 3]" : "[1, 2]"}') }}`), `${name}: every leg unless a selection that succeeded said fewer`);
     assert.doesNotMatch(job, /^    continue-on-error:/m, `${name} blocks: a red run turns Verify red (decision #14, 2026-10-31)`);
     assert.ok(job.includes("${{ matrix.shard }}/${{ strategy.job-total }}"), `${name}: the shard is counted out of the legs that run`);
   }
@@ -275,26 +283,26 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
   const SECURITY_NONE = { ...SOME, security_mode: "none" };
   const PRODUCT_NONE = { ...SOME, product_mode: "none" };
   type Expected = { runs: boolean; shards?: number[]; list?: string };
-  const all: Expected = { runs: true, shards: [1, 2], list: "" };
+  const everything = { security: { runs: true, shards: [1, 2, 3], list: "" } as Expected, product: { runs: true, shards: [1, 2], list: "" } as Expected };
   const some: Expected = { runs: true, shards: [1], list: "some" };
   const none: Expected = { runs: false };
   const both = (expected: Expected) => ({ security: expected, product: expected });
   const cases: Array<[string, string, Record<string, string>, { security: Expected; product: Expected }]> = [
     ["pull_request", "success", NONE, both(none)],
     ["pull_request", "success", SOME, both(some)],
-    ["pull_request", "success", WHOLE, both(all)],
-    ["pull_request", "success", EMPTY, both(all)],
-    ["pull_request", "success", UNKNOWN, both(all)],
+    ["pull_request", "success", WHOLE, everything],
+    ["pull_request", "success", EMPTY, everything],
+    ["pull_request", "success", UNKNOWN, everything],
     ["pull_request", "success", SECURITY_NONE, { security: none, product: some }],
     ["pull_request", "success", PRODUCT_NONE, { security: some, product: none }],
     ...["failure", "cancelled", "skipped"].flatMap(result =>
       [NONE, SOME, WHOLE, EMPTY, UNKNOWN, SECURITY_NONE, PRODUCT_NONE].map(left =>
-        ["pull_request", result, left, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>])),
+        ["pull_request", result, left, everything] as [string, string, Record<string, string>, ReturnType<typeof both>])),
     ...["merge_group", "push", "schedule", "workflow_dispatch"].flatMap(event => [
-      [event, "skipped", EMPTY, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
+      [event, "skipped", EMPTY, everything] as [string, string, Record<string, string>, ReturnType<typeof both>],
       // A selector cannot legitimately succeed on these events; even stale successful some/none outputs are ignored.
-      [event, "success", SOME, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
-      [event, "success", NONE, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
+      [event, "success", SOME, everything] as [string, string, Record<string, string>, ReturnType<typeof both>],
+      [event, "success", NONE, everything] as [string, string, Record<string, string>, ReturnType<typeof both>],
     ]),
   ];
   for (const [name, key, env] of [["security-invariants", "security", "SELECTED"], ["product-subset", "product", "ONLY"]] as const) {
@@ -313,9 +321,9 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
       assert.equal(evaluate(list, scope), expected.list === "some" ? SOME[key === "security" ? "security_files" : "product_only"] : expected.list, `${what}: the files`);
     }
   }
-  // The merge queue runs exactly the blocking jobs and Verify (the two above among them, evaluated in the cases): the probe, which
-  // does not block, and the selection stay out of it.
-  for (const name of ["linux-probe", "test-selection"]) assert.match(jobBlock(name), /^    if: \$\{\{.*(?:== 'pull_request'|== 'schedule').*\}\}$/m, `${name} is not in the merge queue`);
+  // The merge queue runs the blocking jobs and Verify (the two above among them, evaluated in the cases), and the selection, which there
+  // decides only `native-checks` (RAC-1907): the probe, which does not block, stays out of it.
+  assert.match(jobBlock("linux-probe"), /^    if: \$\{\{.*(?:== 'pull_request'|== 'schedule').*\}\}$/m, "linux-probe is not in the merge queue");
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-test-selection.test.ts")), "a blocking job runs this file");
 });
 
@@ -331,11 +339,44 @@ function evaluate(expression: string, scope: { event: string; result: string; ou
 
 test("RAC-1765 ci.yml: every output the script writes is passed on by the job, and the jobs read only those", () => {
   const security = decideJob({ job: "security", list: LIST, affected: null });
-  const written = outputLines({ security, product: security }).map((line: string) => line.split("=")[0]).sort();
+  const written = outputLines({ security, product: security, native: decideNative({ affected: null }) }).map((line: string) => line.split("=")[0]).sort();
   const selection = jobBlock("test-selection");
   const passed = [...selection.matchAll(/^      ([a-z_]+): \$\{\{ steps\.select\.outputs\.([a-z_]+) \}\}$/gm)].map((match) => { assert.equal(match[1], match[2]); return match[1]!; }).sort();
   assert.deepEqual(passed, written);
   const read = [...new Set([...workflow.matchAll(/needs\.test-selection\.outputs\.([a-z_]+)/g)].map((match) => match[1]!))].sort();
   assert.deepEqual(read.filter((name) => !written.includes(name)), [], "no job reads an output that is never written");
   assert.deepEqual(written.filter((name: string) => !read.includes(name)), [], "every output is read by a job");
+});
+
+test("RAC-1766 the Rust and Swift checks run when a changed file is one they read, and are skipped for anything else", () => {
+  const change = (...paths: string[]) => decideNative({ affected: affected({ changes: paths.map((file) => ({ path: file })) }) });
+  // Written out here, one file for each kind, not read from NATIVE_RUN_WHEN, so that dropping one of them from the script is seen.
+  for (const file of [
+    "apps/desktop/src-tauri/src/lib.rs", "apps/desktop/src-tauri/Cargo.lock", "apps/desktop/package.json", "apps/desktop/adapters/tauri/src/drop_wheel.rs",
+    "apps/local-host/native/materials/JellyMaterial.swift", "apps/local-host/native/computer/Sources/main.swift", "apps/local-host/native/computer/build.sh",
+    "apps/local-host/native/materials/whisper/Package.swift", "scripts/anything.sh", "tools/helper.py", "crates/elsewhere/src/lib.rs", "other/Cargo.toml", "other/Cargo.lock",
+    "rust-toolchain.toml", "sub/rust-toolchain", "clippy.toml", "rustfmt.toml", ".cargo/config.toml", ".github/workflows/ci.yml", ".github/workflows/full-suite.yml",
+    "scripts/gates/native-checks.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "package.json", ".nvmrc", "pnpm-lock.yaml",
+  ]) {
+    const decision = change("docs/guide.md", file);
+    assert.equal(decision.mode, "whole", `${file}: ${JSON.stringify(decision)}`);
+    assert.match(decision.reasons[0]!, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  // A rename is read by both names, so moving a Rust file out of the shell, or a document into it, is seen.
+  assert.equal(decideNative({ affected: affected({ changes: [{ path: "docs/old.md", from: "apps/desktop/src-tauri/src/old.rs", status: "R" }] }) }).mode, "whole");
+  assert.equal(decideNative({ affected: affected({ changes: [{ path: "apps/desktop/src-tauri/src/new.rs", from: "docs/new.md", status: "R" }] }) }).mode, "whole");
+  // What it does not read: documents, specs, prototypes, the product's TypeScript, tests and skills.
+  const none = change("docs/system/ARCHITECTURE.md", "specs/post-anticorruption-roadmap/spec.md", "AGENTS.md", "README.md", "prototypes/onboarding/index.html",
+    "packages/design-system/src/styles/toast.ts", "plugins/native/todo/src/store.ts", "tests/board-overflow.e2e.test.ts", "skills/molis-plugin-dev/SKILL.md", "apps/workbench/src/primitive-catalog.ts",
+    "tooling/gates/README.md", "specs/BACKLOG.md");
+  assert.deepEqual(none.mode, "none", JSON.stringify(none));
+  assert.equal(change().mode, "none", "an empty change reads nothing");
+  // Every other way out runs it: no answer, a failed one, one without the changes.
+  for (const input of [{ affected: null, failure: "affected-tests failed: boom" }, { affected: null }, { affected: { tests: [], full: [], uncovered: [] } }, { affected: { changes: "docs/guide.md" } }]) {
+    assert.equal(decideNative(input as Parameters<typeof decideNative>[0]).mode, "whole", JSON.stringify(input));
+  }
+  assert.match(decideNative({ affected: null, failure: "affected-tests failed: boom" }).reasons[0]!, /affected-tests failed: boom/);
+  // The outputs name the mode and nothing else: no shards, no files.
+  assert.deepEqual(outputLines({ security: decideJob({ job: "security", list: LIST, affected: null }), product: decideJob({ job: "product", list: LIST, affected: null }), native: none }).filter((line: string) => line.startsWith("native")), ["native_mode=none"]);
+  assert.ok(NATIVE_RUN_WHEN.extensions.includes(".rs") && NATIVE_RUN_WHEN.extensions.includes(".swift"));
 });

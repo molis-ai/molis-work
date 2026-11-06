@@ -20,7 +20,7 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 内置 owner 在 `BUILTIN_PLUGIN_CATALOG` 同一条目的 `sync` 工厂接线；Host 通用装配复用目录，不另加硬编码插件清单。文件 Home owner 可声明 `home-document` 与固定相对路径，由可信 Host 注入原子文件 CAS；Shelf 目录 v2 是实际消费者，正常动作与同步共用同一目录，文件先保存不可变版本再提交业务与日志，设置、剪贴板和在途执行留在设备。SQLite 日志表由 Storage 提供基线 SQL/队列端口，随 owner 当前 schema 建库，业务插件不直接访问 replica 表。声明解析从 SDK、空间配置解析从 sync-replication 公开入口取；错误归各 owner 的 `ActionError`。细则和验收命令见同步作者规范。
 
-写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
+写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 选择开发路径并依次交付。本文件维护命令、MCP 登记、动作录取与打包机制；交付步骤与质量线在 Skill 中维护，关键约束保留自包含，供编码 Agent 与创作台使用。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
 新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在插件自己 `src/registration.ts` 的 `registration` 上声明 `project_runtime: { create, package_name, factory_export }`，由每个项目的监督器按登记装配（`apps/local-host/src/project-plugins.ts` 不为新插件改），Home 级的（个人数据跨项目一致、没有项目也能用）Manifest 写 `runtime: { scope: "home" }`、在同一份 `registration` 上给出 `runtime: { create, package_name, factory_export, … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `shell-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是目录里要有它的条目：写在插件包的 `src/registration.ts`（导出 `registration: PluginRegistration`，Manifest、`summary`、`workbench` 次序与客户端资源都在里面；`package.json` 声明 `exports["./registration"]` 与 `"molis-work": { "registration": "./registration" }`），运行 `node scripts/generate-plugin-registry.mjs` 生成 `apps/workbench/src/builtin-plugins.ts`（不手改，`pnpm health:check` 跑它的 `--check`），它在登记表里的那一条是自己 `package.json` 的 `molis-work` 块，两个应用与根 `package.json` 里对它的依赖也由生成器写，再跑 `pnpm install`（PG-069，包外不手改一个文件）（`tests/builtin-plugin-assembly-gate.test.ts` 从生成的登记读 Runtime 装配的 id，不用改）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
 
@@ -34,17 +34,11 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 正文在 `skills/molis-plugin-dev/`（`SKILL.md` 加 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`），随 npm 包和 `molis-work install` 的 Home release 一起发布。它**不会**在「设置 → AI 与执行工具」里自动挂到 Codex / Claude；那条链路只接 Runtime 工作协议 `goal-advance`。
 
-安装到自己的 Agent 后才能在别的仓库里用。把 `<release>` 换成 `~/.molis-work/config/installation.json` 的 `release_path`：
-
-```bash
-ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/skills/molis-plugin-dev"
-```
-
-Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plugin-dev`。npm 包路径是 `node_modules/@molis-ai/molis-work/skills/molis-plugin-dev`。本仓库里 `.cursor/skills/molis-plugin-dev` 已指向这份正文。
+安装到自己的 Agent 后才能在别的仓库里用；命令、`release_path` 的取法与 npm 包路径见 [Skill「安装」](../../skills/molis-plugin-dev/SKILL.md#安装)。Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plugin-dev`。本仓库里 `.cursor/skills/molis-plugin-dev` 已指向这份正文。
 
 ## 一套标准：官方插件与生成插件
 
-`skills/molis-plugin-dev` 是做插件的唯一标准：官方插件（人或编码 Agent 手写）按它写，插件创作台生成插件时，主线设计与代码 Agent 在运行时经 Prologue 挂载它（设计阶段挂 `process.md`、`generated-design.md`、`generated-ai.md`、`ui.md` 的质量线与 `capabilities.md`；代码阶段挂 `generated-code.md`、`generated-ai.md` 与 `capabilities.md`；版本取正文摘要，写进每次运行的 promptVersion）。
+`skills/molis-plugin-dev` 是做插件的唯一标准：手写插件按它交付，插件创作台也在运行时经 Prologue 挂载其中的章节。各阶段实际挂载的章节与顺序以 [`skill.ts` 的 `CHAPTERS`](../../apps/local-host/src/plugin-builder/skill.ts) 为准，版本取挂载正文的摘要并写入每次运行的 promptVersion。这里不再维护第二份章节清单；改挂载内容仍按[创作台 Skill 回放与冒烟](STUDIO-SKILL-REPLAY.md)验证。
 
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
 - 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。视觉统一按 [DESIGN.md](../../DESIGN.md) 的 Soft Workbench：插件共用连续的工作面，不画自己的外框卡片、不带身份色；主操作用 `--action`，焦点与链接用 `--accent`，随皮肤切换。默认柔雾皮肤的主操作为墨蓝色，焦点与链接为雾蓝色；字重 400/500/600；全局入口在底栏（Dock 与插件切换器），`navigator` Slot id 保留，没有全局侧栏。
@@ -109,7 +103,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 - **继续**：能从一版新建自己的工作对象的插件写 `continue`（`defineArtifactContinueAction` 的命令）；产出的类型和只读的类型（`artifacts.consumes`）上都可以写。
 - **能继续哪些导入的文件**：成果库把导入的文件列给「从这一版继续」时，名单是登记表里该类型的续写者，再按续写者声明的 `consumes[].file` 过滤：`extensions` 是它能读的小写、带点的扩展名（非空、不重复），`stored_text: true` 表示导入时只存了正文的文件（原件过大）只要正文非空也算；没写 `file` 就收所有文件，写了 `file` 必须同时写 `continue`。声明只决定列不列，续写动作仍走动作授权，声明扩展名的插件也拿不到文件正文；宿主里不点名任何插件的文件类型。过滤在 `apps/local-host/src/artifact-type-registry.ts` 的 `continuerReadsFile`，形状检查在 `packages/plugin-sdk/src/artifact-declarations.ts`。成果类型登记表由全部有效安装的 Manifest 派生，类型 id 与链接种类在整个 Home 里只有一个属主（S-81、S-82）。
 - **都在本插件里**：这些引用只认本 Manifest 的 `actions`，同时核对种类与 `operation`（预览、比较是查询，固定、继续是命令）；指向别的插件的动作、不存在的动作、种类不对的动作都被拒绝。
-- **v1 不能产出成果类型**：v1 Manifest 不能声明动作，也就没有预览，所以要进成果库就用 `schema_version: 2`。只在插件之间交换数据、不需要人留存的，声明成 `process_items`（过程项），不进成果库，也就不要名称和预览。
+- **成果要有预览**：现行 Manifest 的 `schema_version` 和 `host_api_version` 都是 1。产出成果类型的插件在同一份声明里提供预览动作。只在插件之间交换数据、不需要人留存的，声明成 `process_items`（过程项），不进成果库，也就不要名称和预览。
 
 跨插件的规则（一种类型一个 owner、一种对象至多一个固定者、哪些类型可以没有「继续」）仍只对内置插件，由 `tests/artifact-type-gate.test.ts` 守。2026-10-18 改：插件不分官方与第三方、待遇一样，这条「只对内置」的做法要在防腐线里改成对所有插件一致，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。校验的测试在 `tests/action-artifact-references.test.ts`。
 
@@ -193,7 +187,7 @@ Manifest 的 `databases.home`（`PluginDatabaseDeclaration`，PG-022；项目库
 
 Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbench.side` surface。Host 用 `/plugins/<短名>?side=<view_id>` 渲染正在运行的 contribution，拒绝未声明的视图；客户端收到 `side: true`。首页及项目右上角的 Home 工具由目录声明派生，在既有侧栏打开该文档，保留主页面。侧栏按需加载，收起及切换标签不销毁文档；插件自行决定初次展示什么内容，位置和宽度仍归 Host。Home 侧栏不要求创建或授权一个假项目。
 
-新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
+新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/archive/issue-home-v0/spec.md)。
 
 ## 双实例插件
 
@@ -509,7 +503,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 `parsePluginPackageManifest` 校验原 wire；签名和 `manifest.json` 都保留该形状。宿主读取资源后用 SDK 的唯一派生 helper 生成 workspace:none 的 roles/prompts 和顶层 tools:[] methods，整份有效清单再经 `parsePluginManifest`。id 为 UTF-8 JSON tuple `[plugin_id,kind,name]` 的完整 SHA-256，展示名字不截断；Agent 声明的数字 version 固定为 1，来源版本以完整包 SemVer 为准。包不能塞入完整 AgentManifest、工具、目录、MCP、子 Agent 或执行权限；没有新增 `agent:run`。
 
-预览 @4 列出每项 kind、名字及前 200 个 Unicode 码点。升级按同身份条目全文比较，标明新增、正文已变化、移除，摘要相同也显示尾部变化。确认使用原 held 签名包；取消不安装或登记。角色资料与方法沿助理现有材料入口选择和 `assistant.methods.read@2` 读取；它们及包内元数据都以固定不可信说明后的 JSON 数据进入上下文，不加入 system/role prompt 或 inlineMethods。角色资料允许用户覆盖，返回 effective/user_revision；方法不增加编辑账。精确来源含 plugin_id、完整 plugin_version、publisher_signature、kind/entry_id 与当前安装/世代/范围；失效需重选，不自动换最新版。本次 handoff 得到接受回执后才记角色使用，后续撤销保留当时历史，新的读取和交付仍复核。真实模型质量须另验。
+预览 @4 列出每项 kind、名字及前 200 个 Unicode 码点。升级按同身份条目全文比较，标明新增、正文已变化、移除，摘要相同也显示尾部变化。确认使用原 held 签名包；取消不安装或登记。角色资料与方法沿助理现有材料入口选择和 `assistant.methods.read@1` 读取；它们及包内元数据都以固定不可信说明后的 JSON 数据进入上下文，不加入 system/role prompt 或 inlineMethods。角色资料允许用户覆盖，返回 effective/user_revision；方法不增加编辑账。精确来源含 plugin_id、完整 plugin_version、publisher_signature、kind/entry_id 与当前安装/世代/范围；失效需重选，不自动换最新版。本次 handoff 得到接受回执后才记角色使用，后续撤销保留当时历史，新的读取和交付仍复核。真实模型质量须另验。
 
 **集成包**（BL-530）：给 Feed 当来源的外部集成也是沙箱包，`payload.files` 只有 `manifest.json`、`contract.json`、`plugin.mjs` 三个文件，没有界面和提示词。清单是 Integration Plugin 的：`kind: "integration"`，入口 `./plugin.mjs`，权限只有 `storage:private`，运行范围写 `runtime: { scope: "home" }`（集成的来源是 Home 的，与 BL-628 的 Home 包同一条），没有路由和视图，作者另外写自己的一个连接服务和它的一个集成（`connection_services`、`integrations` 各一项，现在只收 `kind: "source"`）。平台请求表（`CONNECTOR_REQUEST_SERVICES`）里有的服务不写 `origins`，没有的必须写：一到八个正好是 `https://主机[:端口]` 的公开域名，带账号的请求只能发到这些来源（S-95）。合同只有平台定的操作，`kind`、输入输出 schema 和权限与 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 一字不差：`integration.health`、`integration.poll`，可选 `integration.account`；`errors` 和 `examples` 是作者的。拉取时插件经 `sdk.connections.request("source", …)` 用来源的账号，只能 GET 或 HEAD，这次调用结束就不能再用；游标是插件自己的文字，Feed 存着、下次原样交回。装的时候走与别的签名包同一条预览、确认：预览列出包写的来源，并拿包的插件 ID、服务 ID、集成 ID 对 Home 的集成登记查一遍，撞了内置或已装的就拒（`plugin.integration_declaration_conflict`，点名撞的 id 和占着它的插件），确认时再查一次。装上后代码在 Home 的沙箱实例里跑，它运行时登记才有它的来源；停用、卸载、发布者被撤销时它的 id 放掉，用它的 Feed 来源拉取得 `plugin.integration_unavailable`，人的连接记录和 Feed 来源都留着，再启用就接着拉。集成包不出动作、不进个人插件名单。设置页的服务卡片、粘贴凭据的新建连接读这个 Home 的集成登记，所以包声明的服务有它的卡片、能新建连接，卸载后卡片随之消失（人建好的连接记录留着）。
 
@@ -656,7 +650,7 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 
 `service_id` 只能是平台登记了的服务（`CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail，目录里发到固定地址的服务，如 Google Calendar、Microsoft Graph 系、Notion、Slack、Discord、GitLab、Figma、Linear、ClickUp、monday.com；一项可以有几个来源，如 Cloudflare 的 API 与控制台；还有按租户分地址的 Salesforce、Jira、Confluence，地址是人连接时的那个租户站点，绑定后用 `describe(slot_id)` 读 `origin`；先用应用凭据换令牌的飞书、Lark、企业微信不在里面）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放，只认这里装着的、Manifest 里声明了这个按安装绑定的槽与服务；人在「服务连接 › 插件用的账号」里选）；没绑时请求照发，不带凭据。
 
-一条记录一个账号（例如每个订阅来源各用一个账号）时，槽写 `"binding": "per_record"`：人在某个项目里为插件的一条记录选账号（`connectors.plugin_slot.bind@2`，只对 `user`，项目取调用上下文），插件发请求时写 `record_key`（至多 128 个字符，不含 `/`、`:` 和控制字符），只在本项目的调用里有效；`describe(slot_id, record_key)` 读有没有绑、账号显示名和状态，看不到是哪条连接；插件删记录时用 `release(slot_id, record_key)` 解除，之后这条记录的请求不带凭据。插件不能绑账号。不写 `binding` 就是按安装（`installation`）：一个安装一个账号，各项目共用。绑了 OAuth 账号的请求得到 401 时，宿主刷新一次令牌、把同一个请求重发一次；第二次还是 401 就原样交回，插件看到的只有 `status`，看不到令牌。
+一条记录一个账号（例如每个订阅来源各用一个账号）时，槽写 `"binding": "per_record"`：人在某个项目里为插件的一条记录选账号（`connectors.plugin_slot.record.bind@1`，只对 `user`，项目取调用上下文），插件发请求时写 `record_key`（至多 128 个字符，不含 `/`、`:` 和控制字符），只在本项目的调用里有效；`describe(slot_id, record_key)` 读有没有绑、账号显示名和状态，看不到是哪条连接；插件删记录时用 `release(slot_id, record_key)` 解除，之后这条记录的请求不带凭据。插件不能绑账号。不写 `binding` 就是按安装（`installation`）：一个安装一个账号，各项目共用。绑了 OAuth 账号的请求得到 401 时，宿主刷新一次令牌、把同一个请求重发一次；第二次还是 401 就原样交回，插件看到的只有 `status`，看不到令牌。
 
 在本插件自己声明了 `connections:use` 的并发动作（`scheduling: "concurrent"`）里调：
 

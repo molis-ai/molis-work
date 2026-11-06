@@ -18,12 +18,12 @@ const job={...object({id,project_id:id,request_id:id,connection_id:{anyOf:[id,{c
   if:{properties:{status:{const:"running"}}},then:{properties:{connection_id:id}}};
 const changed=object({job});
 function define<I,O>(name:string,title:string,description:string,operation:"query"|"command",scope:"home"|"project",input:ActionSchema,output:ActionSchema,permissions:readonly string[],execution?:ActionDefinition["action"]["execution"]):ActionDefinition<I,O>{
-  return {capability_id:`images.${name}`,version:name === "jobs.start" ? 4 : name === "jobs.delete" ? 3 : ["jobs.list","jobs.get","jobs.cancel"].includes(name) ? 2 : 1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
-    status:{capability_id:"images.jobs.get",version:2},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),kind:operation==="query"?"query":"operation",scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}};
+  return {capability_id:`images.${name}`,version:1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
+    status:{capability_id:"images.jobs.get",version:1},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),kind:operation==="query"?"query":"operation",scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}};
 }
 export const imagesActions={
   connectionUsages:defineConnectorUsagesAction("images.connection.usages","生图配置使用的连接",["images:connections:read"],"home"),
-  connections:{...define<Record<string,never>,{connections:ImageConnection[];auth_connections:ConnectorConnectionView[]}>("connections.list","生图服务列表","读取 Home 生图配置及当前服务连接状态，不返回凭据","query","home",object({}),object({connections:array(connection),auth_connections:array(auth)}),["images:connections:read"]),version:2},
+  connections:{...define<Record<string,never>,{connections:ImageConnection[];auth_connections:ConnectorConnectionView[]}>("connections.list","生图服务列表","读取 Home 生图配置及当前服务连接状态，不返回凭据","query","home",object({}),object({connections:array(connection),auth_connections:array(auth)}),["images:connections:read"]),version:1},
   saveConnection:define<ImageConnectionInput,{connection:ImageConnection}>("connections.save","保存生图服务","保存协议、地址、模型及已有系统连接引用；API Key 在服务连接中管理","command","home",object({id,name:id,api_format:format,base_url:id,model:id,auth_connection_id:text},["name","api_format","base_url","model"]),object({connection}),["images:connections:write"]),
   deleteConnection:define<{id:string},{deleted:true}>("connections.delete","删除生图服务","删除生图配置及其绑定，保留生成历史和图片","command","home",object({id}),object({deleted:{const:true}}),["images:connections:write"]),
   list:define<Record<string,never>,{jobs:ImageJob[]}>("jobs.list","生成记录","读取当前项目的生成状态、提示和图片记录","query","project",object({}),object({jobs:array(job)}),["images:read"]),

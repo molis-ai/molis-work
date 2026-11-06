@@ -8,6 +8,8 @@
 
 2026-10-30统一起点：用户决定旧Home整体搬开、以现行完整结构干净重建，现行库/存储 JSON 合为第1版；旧迁移/采用/搬迁、演练、旧结构、按版本分支与残留清理计划取消。不迁移、不猜偏好、不在启动时改表；每个库只保留当前建库结构，错版明确拒绝，可从权威数据重建的派生库按既有合同重建。[当前分片与授权边界](../../specs/archive/repository-anti-corruption/slices/home-maintenance-window.md)，真实操作步骤只归 [CHECKLIST.md 第4节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)。各片落地前本表逐步对齐实际代码；项目主库和Feed声明已归1。旧Home等用户另说“开始”才整体搬开，不删Keychain或只读副本；真实Home尚未重建，不把代码版本当实测版本。
 
+**库升级的起算日。** 以发布检查单中真实 Home 重建成功的日期、所用提交和核实过的第 1 版为准。从那次重建起，每个库和带版本文件由主人提供逐版升级；升级机制见[升级连续性 §3–4](../../specs/upgrade-continuity/spec.md)。该日期与首次外部安装分开记录。
+
 版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。已知例子：旧角色库曾为1但没有 `character_runs`；#661之前的连接库也曾为1；记忆账本旧1曾带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1。数字重新从1起算不证明这些旧形状会被拒绝；原有明确的结构、路径、权限与密钥检查仍保留。这里只引用既有记录，没有重新读取真实Home。
 
 ## 1. 怎么读
@@ -158,7 +160,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是空操作；改任何一段都要提高项目库的版本（`PROJECT_DATABASE_BASELINE.version`）。
 
-宿主自己按需建的表也不在基线里：`project_runtime_settings(project_id, runtime_id)`（`apps/local-host/src/project-runtime-settings.ts`）记项目选定的 Agent 运行时，第一次选择时才建表，没有行就是 Home 默认；读取不建表，删除项目时随项目库文件一起走。只有 `apps/local-host` 读写这张表，Coding 与 Characters 经 `projects.settings.runtime.read.v1` 取。
+宿主自己按需建的表也不在基线里：`project_runtime_settings(project_id, runtime_id)`（`apps/local-host/src/project-runtime-settings.ts`）记项目选定的 Agent 运行时，第一次选择时才建表，没有行就是 Home 默认；读取不建表，删除项目时随项目库文件一起走。只有 `apps/local-host` 读写这张表，Coding 与 Characters 经 `projects.settings.runtime.read` 取。
 
 插件自己的表不在基线里（规则见 [PLUGIN-DEVELOPMENT 项目库里插件自己的表](../platform/PLUGIN-DEVELOPMENT.md#项目库里插件自己的表)）：插件在 Manifest 的 `databases.project` 声明，宿主开库时经平台的打开函数第一次建表、在账本 `plugin_project_databases` 记一行（列与拒绝码见上面链接），之后每次打开核对发布者、版本和形状，不符只停这个插件（`apps/local-host/src/project-plugin-databases.ts`）。现在声明了的：
 

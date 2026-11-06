@@ -2,6 +2,7 @@ import type { ProjectGuidanceView } from "@molis-ai/molis-work-plugin-goals/cont
 import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MolisWorkWebView } from "./page-view.js";
+import { NO_FAVICON_LINK } from "./document-shell.js";
 import { type WebProjectNavigation, type createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import type { StagePageModel, StagePageDrawing, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./project-settings-folds.js";
@@ -49,7 +50,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   function planningDocument(controlToken: string, desktopShell: boolean, navigation: string): NonNullable<StagePageDrawing["document"]> {
     return { lang: htmlLang(), navigation_html: navigation, client_i18n: clientI18nScript(), request_client: UI_REQUEST_CLIENT_SCRIPT,
       foundation_client: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-      render: (document: WorkbenchDocumentRenderRequest) => `<!doctype html>${document.preamble_html ?? ""}<html lang="${document.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${escapeHtml(document.title)}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head><body class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${document.body_html}</body></html>`,
+      render: (document: WorkbenchDocumentRenderRequest) => `<!doctype html>${document.preamble_html ?? ""}<html lang="${document.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${escapeHtml(document.title)}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head><body class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${document.body_html}</body></html>`,
     };
   }
 
@@ -93,7 +94,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     const page = renderHubSection(view, guidance, methods, open, desktopShell), navigation = renderProjectSettingsNavigation(guidance === null && GOALS_SETTINGS_SECTIONS.has(open) ? "general" : open, project, desktopShell, [], { goals: guidance !== null });
     return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("项目设置")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${L("项目设置")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
 <body class="settings-page project-preferences-page" data-route-prefix="${escapeHtml(routePrefix)}" data-settings-section="${open}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   <!-- THESIS: Project settings are a dedicated space for deliberate changes. OWN-WORLD: Coss neutral surfaces, fine dividers, 8px controls. STORY: Choose a category, edit the shared project contract, return to the same workspace. FIRST VIEWPORT: 224px rail, 840px content column, 24px title, settings rows with controls on the right. FORM: Independent preferences; project-settings-v2. Interaction: category navigation preserves workspace tabs; disclosures reveal advanced controls with 160ms arrow motion and reduced-motion support. FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance -->
   ${renderIconSprite()}

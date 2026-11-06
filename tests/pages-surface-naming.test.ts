@@ -132,7 +132,9 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     MutationObserver: class { observe() {} },
     window: windowStub,
     document: {
-      body: { dataset: { routePrefix: "" }, hasAttribute: () => false, matches: () => false, append() {} },
+      // A project's workbench page: the shell stamps the open project on the body (shell-page-renderer's data-project-id), and the
+      // fallback naming reads the surfaces only when one is open (N53).
+      body: { dataset: { routePrefix: "", projectId: "project-a" }, hasAttribute: () => false, matches: () => false, append() {} },
       documentElement: { dataset: {} as Record<string, string> },
       activeElement: null,
       querySelector: (selector: string) => selector === "[data-pages=workbench]" ? surface : null,

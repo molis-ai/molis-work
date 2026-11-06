@@ -375,6 +375,11 @@ test("official MCP launcher: work records and tree proposals retain provenance a
       expected_config_version: current.config.version, expected_agreement_version: agreed.agreement.version });
     assert.equal(closed.work_status, "cancelled");
     assert.equal((await invokeWork(goalsActions.resume, { idempotency_key: "public-resume", reason: "继续实际工作" })).work_status, "open");
+    // The MCP session's supports report is its own word (PWA-144): the real user accepts the requirement through the protected entry.
+    await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
+      project_id: project.project_id, goal_id: input.goal_id, idempotency_key: "real-user-accept", authority: hostEventDecisionAuthority("web", project.project_id, "real-user", "real-user-accept"),
+      conclusion: "交付正文已核对", accepts_requirements: true, scope: { requirement_ids: ["delivered"] },
+    }));
     const finalState = await invokeWork(goalsActions.state, {});
     const completed = await invokeWork(goalsActions.close, { kind: "complete", result: "用户可查看完整报告", reason: "完成交付", idempotency_key: "public-complete",
       expected_config_version: finalState.config.version, expected_agreement_version: finalState.agreement.version });
@@ -393,7 +398,7 @@ test("official MCP launcher: work records and tree proposals retain provenance a
     assert.equal(parseText(await sdk.callTool({ name: "molis_work_v1_action_goals.tree.submit__v1", arguments: treeInput })).replayed, true);
     const treeQuery = { proposal_id: proposed.proposal.proposal_id };
     const treeCheck = { ...treeQuery, idempotency_key: "mcp-tree-check" };
-    const checkedWire = await sdk.callTool({ name: "molis_work_v1_action_goals.tree.check__v2", arguments: treeCheck });
+    const checkedWire = await sdk.callTool({ name: "molis_work_v1_action_goals.tree.check__v1", arguments: treeCheck });
     assert.equal(checkedWire.isError, false, JSON.stringify(checkedWire));
     assert.deepEqual(parseText(checkedWire).conflict_item_ids, []);
     assert.deepEqual(parseText(await sdk.callTool({ name: "molis_work_v1_action_goals.tree.read__v1", arguments: treeQuery })), await invokePlanning(goalsActions.treeRead, treeQuery));

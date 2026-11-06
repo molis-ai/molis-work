@@ -1,4 +1,5 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { Translate } from "./types.js";
 /** The page's own lifetime (packages/ui-host client-lifecycle): its timers and listeners end with the page. */
 interface DraftLifetime {
   timeout(job: () => void, delay: number): number;
@@ -21,15 +22,17 @@ export interface DraftPorts {
   /** Each choice for a session's next round this window holds, by session, under the name it is saved as. */
   readonly choices: Readonly<Record<string, Map<string, unknown>>>;
   readonly status: (text: string, isError?: boolean) => void;
+  /** The page's words (`coding.composer.*` in src/messages.ts). */
+  readonly translate: Translate;
 }
 
 /**
  * The composer's draft and the choices for a session's next round, kept in this window and saved to the session. The box
  * is a session's once that session's first read has put its draft in (`claim`); until then (`owns` is false) nothing
  * typed, added or saved from the box goes to it, so the words still showing from the session before never land there.
- * Built with esbuild into `dist/draft-bundle.js` (src/draft-client.ts reads it); type-checked by tsconfig.browser.json.
+ * Part of the Coding page bundle (mounted by browser/main/mount-composer.ts); type-checked by tsconfig.browser.json.
  */
-export function codingDraft({ lifetime, q, write, premise, input, current, key, choices, status }: DraftPorts) {
+export function codingDraft({ lifetime, q, write, premise, input, current, key, choices, status, translate: L }: DraftPorts) {
   const drafts = new Map<string, string>(), writes = new Map<string, Promise<unknown>>(), done = Promise.resolve();
   let owner = "", timer: number | undefined;
   const note = (text: string) => { q("[data-coding-draft-status]").textContent = text; };
@@ -57,22 +60,22 @@ export function codingDraft({ lifetime, q, write, premise, input, current, key, 
     const observed = premise(id);
     const next = (writes.get(id) ?? done).catch(() => undefined).then(() => write(id, body, observed));
     writes.set(id, next);
-    return next.then(() => { if (own && current() === id && input.value === value) note("草稿已保存；模型与方式用于下一轮。"); });
+    return next.then(() => { if (own && current() === id && input.value === value) note(L("coding.composer.draft-saved")); });
   };
   lifetime.listen(input, "input", () => {
     const id = current(), value = input.value;
     if (!owns(id)) return;
-    remember(id, value); note("正在保存草稿…");
-    later(() => void save(id, value).catch((error: Error) => status(`草稿暂未写入服务，当前窗口仍保留：${error.message}`, true)));
+    remember(id, value); note(L("coding.composer.draft-saving"));
+    later(() => void save(id, value).catch((error: Error) => status(L("coding.composer.draft-unsaved", { error: error.message }), true)));
   });
   return {
     owns, local, remember, later, save,
     /** An adopted snapshot supersedes the unsent timer's captured body; queued writes retain their original premise. */
     adopt(id: string, value: string) { if(id===current())lifetime.clearTimeout(timer); remember(id,value); },
     // This window's copy wins while it holds something; an empty copy never hides a draft the service kept.
-    claim(id: string, saved?: string) { input.value = local(id) ?? saved ?? ""; window.molisFit?.(input); remember(id, input.value); owner = id; note("草稿已恢复；模型与方式用于下一轮。"); },
+    claim(id: string, saved?: string) { input.value = local(id) ?? saved ?? ""; window.molisFit?.(input); remember(id, input.value); owner = id; note(L("coding.composer.draft-restored")); },
     // Another session is on show: until its first read claims the box, the box is no session's.
-    release() { owner = ""; note("正在读取会话…"); },
+    release() { owner = ""; note(L("coding.composer.session-reading")); },
     flush() { const id = current(); return owns(id) ? save(id, input.value) : done; },
     saveChoices: (id: string) => save(id, id === current() ? input.value : local(id) || ""),
     // Words put in from elsewhere (review notes handed back, a rework request) go only to the session the box holds.

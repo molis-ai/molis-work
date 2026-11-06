@@ -52,7 +52,7 @@ function executorPlugin() {
     if (name === "run.start") { runs.push(String(input.task)); return { run_id: `run-${runs.length}` }; }
     return { accepted: true };
   };
-  const definition = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: EXECUTOR_ID, version: "1.0.0", name: "执行方样例",
+  const definition = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: EXECUTOR_ID, version: "1.0.0", name: "执行方样例",
     kind: "app", publisher: { publisher_id: "example", signature: "executor" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: USE, required: false, reason: "接手助理交来的工作" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] }, actions: definitions },

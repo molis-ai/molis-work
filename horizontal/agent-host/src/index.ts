@@ -48,6 +48,7 @@ export {
   type ModelSelectionPort,
   type ResolvedModelSelection,
 } from "./model-configuration.js";
+export { fetchModelList, listProviderModels, modelListErrors, modelListRequest, readModelList, type ListedModel, type ModelListSend } from "./model-list.js";
 export { registerAgentHostCapabilities } from "./capability-registration.js";
 export { runViewVersion } from "./run-wait.js";
 export { actionDigest } from "./action-digest.js";

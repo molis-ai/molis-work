@@ -124,7 +124,7 @@ test("RAC-870: Coding exposes its result-document action from its own public con
 
 test("RAC-871: the Shelf module exposes its contract from its own public entry", () => {
   assert.deepEqual([shelf.SHELF_ADMIT_ACTION.capability_id, shelf.SHELF_ADMIT_ACTION.version, shelf.SHELF_ADMIT_ACTION.operation],
-    ["shelf.items.admit", 2, "command"]);
+    ["shelf.items.admit", 1, "command"]);
 });
 
 test("RAC-872: the platform no longer exports the Coding or Shelf contracts", async () => {

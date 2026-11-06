@@ -62,9 +62,9 @@ test("the fixture Manifest is clean, so a problem in a case below is the case's 
 
 const incomplete = [`能力 ${KEY} 的输入输出、权限或展示定义不完整`];
 const workflowShape = { id: "example-list", title: "Example", icon: "list", protocol: 1, role: "list" };
-/** A `receive` as the protocol declares it now (W4-6-01): version 2 of the input, version 1 of the output. */
+/** A `receive` as the protocol declares it now (W4-6-01): the current flat input with a required request id. */
 const receiveNow = { workflow_content: { ...workflowShape, role: "receive" }, kind: "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
-  input_type: "molis.workflow.content.receive.input.v2", output_type: "molis.workflow.content.receive.output.v1",
+  input_type: "molis.workflow.content.receive.input.v1", output_type: "molis.workflow.content.receive.output.v1",
   input_schema: WORKFLOW_CONTENT_SCHEMAS.receive.input, output_schema: WORKFLOW_CONTENT_SCHEMAS.receive.output };
 const oldReceiveInput = { type: "object", additionalProperties: false, required: ["payload", "context"],
   properties: { payload: WORKFLOW_CONTENT_SCHEMAS.read.output, context: { type: "object" } } };
@@ -124,16 +124,16 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
   { rule: "a workflow content protocol other than 1", actions: [defined({ workflow_content: { ...workflowShape, protocol: 2 } })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
   { rule: "workflow content that receives while it is the receiver", actions: [defined({ workflow_content: { ...workflowShape, role: "receive", receives: false } })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
   { rule: "workflow content without the station contract", actions: [defined({ workflow_content: workflowShape })], expected: [`能力 ${KEY} 没有兑现工作流内容协议 list v1 的输入输出合同`] },
-  { rule: "W4-6-01 a receive at the current version", actions: [defined(receiveNow, { operation: "command", version: 2 })], expected: [] },
+  { rule: "W4-6-01 a receive at the current version", actions: [defined(receiveNow, { operation: "command", version: 1 })], expected: [] },
   { rule: "W4-6-01 a receive whose version moved up on its own", actions: [defined(receiveNow, { operation: "command", version: 3 })], expected: [] },
-  { rule: "W4-6-01 a receive in the current shape still declared as version 1", actions: [defined(receiveNow, { operation: "command" })],
-    expected: [`能力 ${KEY} 的版本低于工作流内容协议 receive 的现行版本 2`] },
-  { rule: "W4-6-01 a receive that still takes the v1 input", actions: [defined({ ...receiveNow, input_type: "molis.workflow.content.receive.input.v1", input_schema: oldReceiveInput }, { operation: "command" })],
-    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
+  { rule: "W4-6-01 a receive naming a retired input type with the current schema", actions: [defined({ ...receiveNow, input_type: "molis.workflow.content.receive.input.v2" }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v1 的输入合同`] },
+  { rule: "W4-6-01 a receive with the old wrapped input shape", actions: [defined({ ...receiveNow, input_type: "molis.workflow.content.receive.input.v1", input_schema: oldReceiveInput }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v1 的输入合同`] },
   { rule: "W4-6-01 a receive whose flat input has no request id", actions: [defined({ ...receiveNow, input_schema: { ...WORKFLOW_CONTENT_SCHEMAS.receive.input, properties: flatWithoutRequestId, required: ["title", "body"] } }, { operation: "command" })],
-    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
-  { rule: "W4-6-01 a receive that names the v2 input type but returns another output", actions: [defined({ ...receiveNow, output_type: "molis.workflow.content.receive.output.v2" }, { operation: "command" })],
-    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输出合同`] },
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v1 的输入合同`] },
+  { rule: "W4-6-01 a receive that names the current input type but returns another output", actions: [defined({ ...receiveNow, output_type: "molis.workflow.content.receive.output.v2" }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v1 的输出合同`] },
   { rule: "a query whose kind is operation", actions: [defined({ kind: "operation" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is judgment", actions: [defined({ kind: "judgment" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a navigation whose operation is command", actions: [defined({ kind: "navigation" }, { operation: "command" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
@@ -506,48 +506,38 @@ test("Manifest declarations: a v2 Manifest that breaks every section reports the
   ].join(SEPARATOR));
 });
 
-// ---- (b) v1 Manifests may not carry v2 blocks -----------------------------------------------------------------------------
+// ---- (b) declarations in the current Manifest -----------------------------------------------------------------------------
 
-type V1Manifest = Record<string, unknown> & { ui: Record<string, unknown> };
-const V1_BLOCKS: ReadonlyArray<readonly [string, (manifest: V1Manifest) => void]> = [
+type BlockFixture = Record<string, unknown> & { ui: Record<string, unknown> };
+const BLOCKS: ReadonlyArray<readonly [string, (manifest: BlockFixture) => void]> = [
   ["ports", manifest => { manifest.ports = { inputs: [], outputs: [] }; }],
   ["events", manifest => { manifest.events = {}; }],
   ["routes", manifest => { manifest.routes = []; }],
   ["requires", manifest => { manifest.requires = []; }],
-  ["agent", manifest => { manifest.agent = { roles: [], prompts: [] }; }],
+  ["agent", manifest => { manifest.agent = agentOf(); }],
   ["actions", manifest => { manifest.actions = []; }],
   ["action_scenes", manifest => { manifest.action_scenes = []; }],
   ["ui.embedded_plugins", manifest => { manifest.ui.embedded_plugins = ["io.molis.work.other"]; }],
   ["ui.views", manifest => { manifest.ui.views = []; }],
 ];
 
-function v1Manifest(): V1Manifest {
+function blockFixture(): BlockFixture {
   return { ...declarationManifest(), ui: { contributions: [] }, schema_version: 1, host_api_version: 1 };
 }
 
-test("a v1 Manifest is refused for each v2 block, naming the first block it carries", () => {
-  for (const [name, add] of V1_BLOCKS) {
-    const manifest = v1Manifest();
+test("N26: each extended declaration is read in the current format and refused with an unsupported format", () => {
+  for (const [name, add] of BLOCKS) {
+    const manifest = blockFixture();
     add(manifest);
-    assert.equal(manifestProblems(manifest), `${name} 需要 schema_version 2；请递增 Manifest 版本而不是混用`, name);
+    assert.equal(manifestProblems(manifest), "", name);
+    assert.match(manifestProblems({ ...manifest, schema_version: 2, host_api_version: 2 }), /必须都是 1/, name);
   }
-  assert.equal(manifestProblems(v1Manifest()), "");
-  // With every block present the first in the list is named; take them away one by one and the next one is.
-  const everything = v1Manifest();
-  for (const [, add] of V1_BLOCKS) add(everything);
-  for (const [name] of V1_BLOCKS) {
-    const [field, nested] = name.split(".");
-    assert.equal(manifestProblems(everything), `${name} 需要 schema_version 2；请递增 Manifest 版本而不是混用`);
-    if (nested) delete everything.ui[nested]; else delete everything[field!];
-  }
-  assert.equal(manifestProblems(everything), "");
 });
 
-test("a Manifest of either version that still declares ui.commands is refused: nothing calls them any more (BL-363)", () => {
-  for (const manifest of [v1Manifest(), { ...declarationManifest({}), ui: { contributions: [] } } as V1Manifest]) {
-    manifest.ui.commands = [];
-    assert.match(manifestProblems(manifest), /^ui\.commands 已取消/);
-  }
+test("ui.commands remains invalid even in the current format (BL-363)", () => {
+  const manifest = blockFixture();
+  manifest.ui.commands = [];
+  assert.match(manifestProblems(manifest), /^ui\.commands 已取消/);
 });
 
 // ---- (e) the shape checks that run before any declaration is read ---------------------------------------------------------
@@ -559,15 +549,15 @@ const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestC
   { rule: "not an object", input: null, code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
   { rule: "an array", input: [], code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
   { rule: "no publisher", input: declarationManifest({ publisher: undefined }), code: "plugin.manifest_invalid", message: "publisher 必须为对象" },
-  { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同" },
-  { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 1 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同" },
+  { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
+  { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 2 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
   { rule: "a plugin id outside the namespace", input: declarationManifest({ plugin_id: "io.example.thing" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a version that is not SemVer", input: declarationManifest({ version: "1.0" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a numeric prerelease with a leading zero", input: declarationManifest({ version: "1.0.0-01" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a blank name", input: declarationManifest({ name: " " }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "an empty signature", input: declarationManifest({ publisher: { publisher_id: "molis", signature: "" } }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "an unknown kind", input: declarationManifest({ kind: "service" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "an app on schema_version 1", input: declarationManifest({ kind: "app", schema_version: 1, host_api_version: 1 }), code: "plugin.manifest_invalid", message: "app Plugin 必须使用 schema_version 2" },
+  { rule: "an app on unsupported schema_version 2", input: declarationManifest({ kind: "app", schema_version: 2, host_api_version: 2 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
   { rule: "no entrypoint", input: declarationManifest({ entrypoints: [] }), code: "plugin.entrypoint_missing", message: "Plugin 至少需要一个 entrypoint" },
   { rule: "an entrypoint for an unknown deployment", input: declarationManifest({ entrypoints: [{ deployment: "edge", entrypoint: "./entry.mjs" }] }), code: "plugin.entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
   { rule: "two entrypoints for one deployment", input: declarationManifest({ entrypoints: [{ deployment: "local", entrypoint: "./a.mjs" }, { deployment: "local", entrypoint: "./b.mjs" }] }), code: "plugin.entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
@@ -617,7 +607,7 @@ for (const { rule, input, code, message } of SHAPE_RULES) {
   });
 }
 
-test("Manifest shape: a v2 Manifest with every optional block spelled out parses and comes back as the same value", () => {
+test("Manifest shape: a current Manifest with every optional block spelled out parses and comes back as the same value", () => {
   const input = declarationManifest({
     permissions: [...ARTIFACT_PERMISSIONS, { permission: "surface:browser", required: false, reason: "Show a site", origins: ["https://example.com", "http://localhost:3000"] }],
     artifacts: CONSUMES_INPUT, actions: [OUTPUT_PREVIEW], process_items: { produces: [], consumes: [] }, ports: portsOf(),

@@ -41,7 +41,7 @@ function probe(short: string, options: ProbeOptions = {}) {
       input_schema: { type: "object", required: ["step"], properties: { step: { type: "string" }, scene: { type: "string" }, version: { type: "integer" }, binding: { type: "string" }, project: { type: "string" } } },
       output_schema: { type: "boolean" } } });
   const wait = define("wait", "command", "concurrent"), serial = define("serial", "command"), look = define("look", "query");
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: grants.map(permission => ({ permission, required: true, reason: "用自己的场景" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [wait, serial, look],

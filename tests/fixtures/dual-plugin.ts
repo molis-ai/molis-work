@@ -31,7 +31,7 @@ export function dualPlugin(name = "dualprobe", writes = false, viewIn: Half = "h
   const actions = { home: action("home", "home", ["user", "mcp", "workflow"], writes), homeReach: action("home-reach", "home", ["user"]),
     project: action("project", "project", ["user", "mcp", "workflow"], writes), reach: action("reach", "project", ["user"]) };
   const own = Object.values(actions);
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `dual-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", "artifact:read", read].map(permission => ({ permission, required: true, reason: "双实例探针" })),
     capabilities: { provides: [], consumes: [] },

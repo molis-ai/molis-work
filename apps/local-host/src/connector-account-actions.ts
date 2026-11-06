@@ -5,7 +5,9 @@ import type { ActionClient, ActionCallContext } from "@molis-ai/molis-work-contr
 import { connectorUsagesAction, connectorUsagesHandler } from "./connector-usage-actions.js";
 import { modelConnectionUsages, modelConnectionUsagesHandler } from "./model-connection-usages.js";
 import { connectorCliActions, connectorCliHandlers } from "./connector-cli-actions.js";
-import { connectorPluginSlotActions, connectorPluginSlotHandlers, connectorPluginSlotUsages, connectorPluginSlotUsagesHandler, type PluginSlotDeclarations } from "./connector-plugin-slot-actions.js";
+import { connectorPluginSlotActions, connectorPluginSlotHandlers, connectorPluginSlotSwitch, connectorPluginSlotSwitchHandler, connectorPluginSlotUsages, connectorPluginSlotUsagesHandler, type PluginSlotDeclarations } from "./connector-plugin-slot-actions.js";
+import { connectorUsagesSwitchAction, connectorUsagesSwitchHandler } from "./connector-usage-switch.js";
+import { modelProviderSwitch, modelProviderSwitchHandler } from "./model-provider-switch.js";
 import { ActionError, defineErrorCodes, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { githubWhoami } from "@molis-ai/molis-work-integration-github";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
@@ -23,6 +25,7 @@ import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import type { ConnectorActionInspector } from "./connector-status-view.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { rememberConnectorCheck } from "./connector-observations.js";
+import { refreshRefused } from "./connector-refresh-refusals.js";
 
 export const CONNECTOR_PROVIDER_ID = "system.connectors";
 
@@ -106,10 +109,12 @@ export async function readConnectorAccount(home: string, connectionId: string, c
 export function connectorAccountActionProvider(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp, inspect?: ConnectorActionInspector, clientFor?: (caller: ActionCallContext) => ActionClient, pluginSlots?: PluginSlotDeclarations): ActionProviderRegistration {
   return {
     provider: { provider_id: CONNECTOR_PROVIDER_ID, title: "服务连接", kind: "system" },
-    definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
-    handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home), { capability_id: connectorAccountActions.read.capability_id, version: 1,
+    definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, connectorUsagesSwitchAction, modelProviderSwitch, connectorPluginSlotSwitch, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
+    handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: 1,
       handle: async (caller, input) => {
-        const id = (input as { connection_id: string }).connection_id, revision = withConnectorConnections(home, store => store.get(id)?.updated_at);
+        const id = (input as { connection_id: string }).connection_id, row = withConnectorConnections(home, store => store.get(id)), revision = row?.updated_at;
+        // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.
+        if (row?.auth_method === "oauth" && refreshRefused(home, row)) throw accountErrors.needs_auth("这个账号的登录已失效，请重新登录");
         await caller.beforeEffect();
         const result = await readConnectorAccount(home, id, { signal: caller.signal ?? AbortSignal.any([]), beforeEffect: () => caller.beforeEffect(), current: () => caller.signal?.throwIfAborted() });
         await caller.beforeEffect(); caller.signal?.throwIfAborted();

@@ -252,13 +252,13 @@ const RUNTIME_PICK_SCHEMA = { anyOf: [{ type: "string", minLength: 1, maxLength:
 
 export const projectsCapabilities = {
   listWorkspaces: {
-    capability_id: "projects.workspaces.list.v1",
+    capability_id: "projects.workspaces.list",
     version: 1,
     operation: "query",
     action: workspaceQuery("项目工作区", "列出当前项目已授权的工作区目录", false),
   } as ActionDefinition<[], readonly ProjectWorkspaceRef[]>,
   readWorkspace: {
-    capability_id: "projects.workspace.read.v1",
+    capability_id: "projects.workspace.read",
     version: 1,
     operation: "query",
     action: workspaceQuery("首选工作区", "读取当前项目的首选工作区；没有绑定时返回空值", true),
@@ -270,20 +270,20 @@ export const projectsCapabilities = {
  */
 export const projectSettingsCapabilities = {
   workspaces: {
-    capability_id: "projects.settings.workspaces.read.v1",
+    capability_id: "projects.settings.workspaces.read",
     version: 1,
     operation: "query",
     action: workspaceQuery("工作区设置", "读取当前项目可供插件选择的工作区", false),
   } as ActionDefinition<[], readonly ProjectWorkspaceRef[]>,
   browsingWorkspace: {
-    capability_id: "projects.settings.browsing-workspace.read.v1",
+    capability_id: "projects.settings.browsing-workspace.read",
     version: 1,
     operation: "query",
     action: workspaceQuery("浏览工作区", "读取当前项目选中的浏览工作区；选择已失效时返回空值", true),
   } as ActionDefinition<[], ProjectWorkspaceRef | null>,
   /** Choosing which folder Files and Git browse is the person's own setting: the local user only. */
   selectBrowsingWorkspace: {
-    capability_id: "projects.settings.browsing-workspace.select.v1",
+    capability_id: "projects.settings.browsing-workspace.select",
     version: 1,
     operation: "command",
     action: { title: "选择浏览工作区", description: "从当前项目已授权的工作区中选一个，供文件、Git 等浏览；不改变工作区授权", kind: "operation", scope: "project",
@@ -293,7 +293,7 @@ export const projectSettingsCapabilities = {
   } as ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>,
   /** The Runtime the person picked for this project's Agent sessions (`resolveProjectRuntime` reads it); null means the Home default. */
   runtime: {
-    capability_id: "projects.settings.runtime.read.v1",
+    capability_id: "projects.settings.runtime.read",
     version: 1,
     operation: "query",
     action: { title: "项目运行时", description: "读取当前项目选定的 Agent 运行时标识；没有选择时返回空值，表示用默认运行时", kind: "query", scope: "project",
@@ -302,7 +302,7 @@ export const projectSettingsCapabilities = {
   } as ActionDefinition<[], string | null>,
   /** Which Runtime this project's sessions run on is the person's own setting: the local user only. Null returns to the Home default. */
   selectRuntime: {
-    capability_id: "projects.settings.runtime.select.v1",
+    capability_id: "projects.settings.runtime.select",
     version: 1,
     operation: "command",
     action: { title: "选择项目运行时", description: "为当前项目选一个 Agent 运行时；空值恢复为默认运行时。选定的运行时不可用时，新会话与新一轮会被拒绝，不会换别的运行时", kind: "operation", scope: "project",
@@ -312,19 +312,19 @@ export const projectSettingsCapabilities = {
 } as const;
 
 /** Which folders belong to this project is the person's own setting at this computer: local user only. Kept by the Home catalog. */
-const membership = <Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>, version = 1): ActionDefinition<Input, Output> => ({
-  capability_id: id, version, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
+const membership = <Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>): ActionDefinition<Input, Output> => ({
+  capability_id: id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
     subject_kinds: ["project"], input_schema: { type: "object", properties: input, required: Object.keys(input), additionalProperties: false }, output_schema: { type: "object", properties: output, required: Object.keys(output) } },
 });
 const folderPath = { type: "string", minLength: 1, maxLength: 4096 }, folderId = { type: "string", minLength: 1, maxLength: 200 };
 export const projectWorkspaceActions = {
   add: membership<{ workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.add", "关联工作目录", "把本机一个目录加入当前项目的工作目录",
     { workspace_path: folderPath }, { workspace: { type: "object" } }),
-  // v2: Sessions are retired (BL-177), so repair and unlink no longer move them or report how many moved.
+  // Sessions are retired (BL-177), so repair and unlink no longer move them or report how many moved.
   repair: membership<{ workspace_id: string; workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.repair", "修复工作目录路径",
-    "目录搬走或改名后，把项目关系指向新路径", { workspace_id: folderId, workspace_path: folderPath }, { workspace: { type: "object" } }, 2),
+    "目录搬走或改名后，把项目关系指向新路径", { workspace_id: folderId, workspace_path: folderPath }, { workspace: { type: "object" } }),
   unlink: membership<{ workspace_id: string }, { changed: boolean }>("projects.workspaces.unlink", "解除工作目录", "解除当前项目与这个目录的关系；目录本身保留",
-    { workspace_id: folderId }, { changed: { type: "boolean" } }, 2),
+    { workspace_id: folderId }, { changed: { type: "boolean" } }),
 };
 
 function workspaceQuery(title: string, description: string, nullable: boolean): ActionMetadata {

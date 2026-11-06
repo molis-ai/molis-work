@@ -50,7 +50,7 @@ function dependency() {
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const action: ActionDefinition = {capability_id:'fixture.bgwait',version:1,operation:'command',action:{title:'Held effect',description:'Controlled real dependency',kind:'operation',scope:'home',
     scheduling:'concurrent',permissions:['fixture:write'],audiences:['user','plugin'],subject_kinds:[],input_schema:{type:'string'},output_schema:{type:'string'},execution:{cost:'none',timeout_ms:60000}}};
-  const definition: PluginDefinition = {manifest:{schema_version:2,host_api_version:2,plugin_id:'io.molis.work.example.bgdependency398',version:'1.0.0',name:'Dependency',kind:'app',
+  const definition: PluginDefinition = {manifest:{schema_version:1,host_api_version:1,plugin_id:'io.molis.work.example.bgdependency398',version:'1.0.0',name:'Dependency',kind:'app',
     publisher:{publisher_id:'fixture',signature:'fixture-background398'},entrypoints:[{deployment:'local',entrypoint:'./entry.mjs'}],permissions:[{permission:'fixture:write',required:true,reason:'Controlled fixture effect'}],
     capabilities:{provides:[],consumes:[]},artifacts:{produces:[],consumes:[]},ui:{contributions:[]},actions:[action]},
     async start(){return {kind:'app',actions:[{...action,async handle(caller,input){entered.resolve();await release.promise;await caller.beforeEffect();return input}}]}}};
@@ -232,7 +232,9 @@ test('RAC2874 RAC2876 actual project deletion and a fresh installation generatio
   await r.launch('independent');await r.until(async()=> (await r.status('independent')).state==='done');
 });
 
-test('RAC2875 a true background request whose controlled HTTPS acknowledgement is lost retains trusted unknown and the already committed DB/files',mac,async t=>{
+// K06-01/02, ASC-53: reads have two bounded resends; a write with a lost acknowledgement is never replayed.
+for(const {mode,method,requests} of [{mode:'https-catch',method:'GET',requests:3},{mode:'https-write-catch',method:'POST',requests:1}]) {
+test(`RAC2875 a true background request whose controlled HTTPS acknowledgement is lost retains trusted unknown and the already committed DB/files (${method})`,mac,async t=>{
   const tls=await signedResourceHttps(t),r=await backgroundRig(t),observed=observeBackground(t);await r.h.install(signedBackgroundPackage());await r.approve();
   const connection=withConnectorConnections(r.h.home,store=>store.createToken({serviceId:'github',displayName:'Lost HTTPS reply',token:'dummy-t397-resource-credential'}));
   await r.h.homeClient().invoke({...person(null),permissions:[CONNECTOR_MANAGEMENT_WRITE]},ref(connectorPluginSlotActions.bind),{
@@ -240,14 +242,16 @@ test('RAC2875 a true background request whose controlled HTTPS acknowledgement i
   tls.server.prependListener('request',(_request,response)=>{
     t.mock.method(response,'end',function(){this.write('{"login":"partial');const socket=this.socket;setImmediate(()=>socket?.destroy());return this});
   });
-  await r.launch('lost-https','https-catch');await r.until(()=>observed.results.length===1);const result=await observed.results[0]!;
-  assert.equal(tls.seen.length,1);assert.ok(result.error instanceof SandboxError);assert.equal(result.error.outcome,'unknown');
+  await r.launch('lost-https',mode);await r.until(()=>observed.results.length===1);const result=await observed.results[0]!;
+  assert.equal(tls.seen.length,requests);assert.ok(tls.seen.every(entry=>entry.method===method&&entry.path==='/user'&&entry.authorized));
+  assert.ok(result.error instanceof SandboxError);assert.equal(result.error.outcome,'unknown');
   assert.equal(r.read("SELECT * FROM results WHERE id LIKE 'lost-https:%'").length,2);
   assert.equal(readFileSync(join(r.h.home,'plugin-files',r.record().install_id,'files','data','lost-https.txt'),'utf8'),'done');
-  assert.equal((await r.status('lost-https')).state,'待核对');assert.equal(r.read("SELECT * FROM jobs WHERE state='failed'").length,0);assert.equal(tls.seen.length,1);
+  assert.equal((await r.status('lost-https')).state,'待核对');assert.equal(r.read("SELECT * FROM jobs WHERE state='failed'").length,0);assert.equal(tls.seen.length,requests);
   await r.launch('before-https','https-denied');await r.until(()=>observed.results.length===2);const denied=await observed.results[1]!;
-  assert.ok(denied.error instanceof SandboxError);assert.equal(denied.error.outcome,undefined,'a pre-dispatch origin refusal is not unknown');assert.equal(tls.seen.length,1);
+  assert.ok(denied.error instanceof SandboxError);assert.equal(denied.error.outcome,undefined,'a pre-dispatch origin refusal is not unknown');assert.equal(tls.seen.length,requests);
 });
+}
 
 test('RAC2872 RAC2874 repeated enable keeps Runtime grant admission, and regrant restores the same signed package without duplicate registrations',mac,async t=>{
   const r=await backgroundRig(t);await r.h.install(signedBackgroundPackage());await r.approve();await r.set('owner-files:write',false);

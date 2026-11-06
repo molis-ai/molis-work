@@ -40,13 +40,13 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 
 | 能力 | 定义在 | 给 Coding 用来 |
 | --- | --- | --- |
-| `projects.workspace.read.v1` | `packages/contracts/src/modules/projects.ts` | 读本项目已授权的工作区目录与目录树（只读） |
+| `projects.workspace.read` | `packages/contracts/src/modules/projects.ts` | 读本项目已授权的工作区目录与目录树（只读） |
 | `agent.command-output.v1` | `packages/contracts/src/services/agent-host.ts` | 只读本轮执行跑过的命令回执，喂右栏终端页 |
 
 
 ### 边界
 
-- **只读就是只读**。`projects.workspace.read.v1` 不返回可写句柄，不接受路径参数逃逸出授权根；
+- **只读就是只读**。`projects.workspace.read` 不返回可写句柄，不接受路径参数逃逸出授权根；
   调用前按 realpath 核一次。
 - **命令回执不是命令执行**。`agent.command-output.v1` 只读已经发生的回执，没有 `run` 一类的入口。
   它包装的是 `AgentRuntimeAdapter.readCommandOutput`——契约早就在，两个 adapter 也都实现了，

@@ -39,7 +39,7 @@ const at = "2026-10-21T00:00:00Z";
 /** A plugin that only lists the models, to see the list any other plugin is given. */
 function modelReader() {
   let client: PluginModelClient | undefined;
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.modelreader", version: "1.0.0", name: "modelreader", kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.modelreader", version: "1.0.0", name: "modelreader", kind: "app",
     publisher: { publisher_id: "example", signature: "example-modelreader" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "model:read", required: true, reason: "Lists the models" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], routes: [] };
@@ -204,7 +204,7 @@ async function consumers() {
     ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
   const contexts = new Map<string, PluginStartContext>();
   const plugin = (name: string, consumes: string[]): PluginDefinition => ({
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
       publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "artifact:read", required: false, reason: "Reads the Characters it is shown" }], capabilities: { provides: [], consumes },
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], routes: [] },

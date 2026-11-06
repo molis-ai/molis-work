@@ -130,7 +130,7 @@ function routeProbe() {
     title: "Record the person's operation", description: "R7 route probe", kind: "operation", scope: "project", scheduling: "concurrent",
     audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],
     input_schema: { type: "object", properties: { reference: { type: "object" } }, additionalProperties: false } } };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "r7route", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "r7route", kind: "app",
     publisher: { publisher_id: "example", signature: "r7-route" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "Run its own action" },
       { permission: "actions:delegate", required: true, reason: "Call a target as the person" }],

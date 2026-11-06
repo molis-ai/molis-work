@@ -121,4 +121,4 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 
 首页通过 `feed.home.events` 读取 Feed 的原事项与来源状态。已进入 Inbox 的材料或来源故障由 Inbox 提供，完成或忽略后不会作为原始 Feed 事项重复出现。普通材料按请求窗口筛选；需要处理的来源放到今天，并提供“查看来源”的分组导航。断连和同步异常分别说明，不把任意错误称为需要重新授权。关联 Goal 名称通过共同对象查询读取；无权读取 Goal 时保留 Feed 自己拥有的关联 ID。首页不再持有 Feed 分类或数据拼装分支。
 
-来源用哪个账号是本人在平台上按来源绑定的（`connectors.plugin_slot.bind@2`，槽即服务、记录即来源；T-121），Feed 不在来源配置里写连接 id、凭据引用或 token 引用；换账号是先断开（`feed.sources.disconnect`，清游标并释放绑定）再选。账号来源由 `feed.sources.add_account@1` 新建（GitHub、Gmail），新建时不带账号。连接的使用位置由平台的 `connectors.plugin_slot.usages@1` 报，Feed 不另报。
+来源用哪个账号是本人在平台上按来源绑定的（`connectors.plugin_slot.record.bind@1`，槽即服务、记录即来源；T-121），Feed 不在来源配置里写连接 id、凭据引用或 token 引用；换账号是先断开（`feed.sources.disconnect`，清游标并释放绑定）再选。账号来源由 `feed.sources.add_account@1` 新建（GitHub、Gmail），新建时不带账号。连接的使用位置由平台的 `connectors.plugin_slot.usages@1` 报，Feed 不另报。

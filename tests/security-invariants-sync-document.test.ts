@@ -107,7 +107,7 @@ test('S-135 PCSYNC-15/16 JSON comparison rejects newer local text even when the 
 
 test('S-135 PCSYNC-06/25 public document uses real private-KV CAS and rejects revoked and contended writes without replay', () => {
   const db = new DatabaseSync(':memory:');
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: 'example.notes', name: 'Notes', version: '1.0.0', kind: 'app',
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: 'example.notes', name: 'Notes', version: '1.0.0', kind: 'app',
     publisher: { publisher_id: 'example', signature: 'signed-notes' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }], permissions: [{ permission: 'storage:private', required: true, reason: 'notes' }] };
   let active = true;
   const context = { plugin_id: manifest.plugin_id, version: manifest.version, install_id: 'notes-install', deployment: 'local' as const, grants: ['storage:private'], requireGrant() { if (!active) throw errors.revoked('revoked'); } };

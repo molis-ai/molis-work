@@ -78,8 +78,8 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
  * being started and isolated by Plugin Runtime.
  */
 export const goalsManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: GOALS_PLUGIN_ID,
   version: "0.3.0",
   name: "Goals",

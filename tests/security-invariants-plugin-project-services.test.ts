@@ -73,7 +73,7 @@ function probe(short: string, grants: readonly string[], subjects: readonly stri
     input_schema: { type: "object", additionalProperties: false, required: ["name", "step"], properties: { name: { type: "string" }, step: { type: "string" },
       which: { type: "string" }, subject: { type: "string" }, target_owner: { type: "string" }, target_id: { type: "string" }, entry_id: { type: "string" },
       status: { enum: ["open", "in_progress", "done", "dismissed"] }, revision: { type: "integer" } } }, output_schema: { type: "boolean" } } };
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", read, write, ...grants].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [act], databases: { project: table },
@@ -564,7 +564,7 @@ test("S-68 an Inbox entry and the plugin's own rows land together or not at all:
 
 // RAC-279
 test("S-68 a Manifest declares attention subjects only with attention:write, only the platform's kinds, once each", () => {
-  const base = { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.subjects", version: "1.0.0", name: "subjects", kind: "app",
+  const base = { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.subjects", version: "1.0.0", name: "subjects", kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-subjects" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };

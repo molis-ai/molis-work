@@ -6,6 +6,8 @@
 
 ## 起点：防腐收尾之后的代码
 
+现行基线是 [01 逐项核账](batches/01.md#baseline-01)，以下保留路线书起草时的预期与 11-02 历史快照，不当作当前主线事实。
+
 防腐线的收口范围是 §1 的 2026-10-18 那一行：W5、W6 全做完，[privileges.md](../../archive/repository-anti-corruption/privileges.md) 的行全部清掉。按这个范围，后面的需求面对的是这样一份代码：
 
 - 插件一律经 Plugin Runtime 装配，同一套 SDK、Manifest 和平台服务。Goals、Feed、Inbox 都是普通插件，构建期装配名单清空（W6-01）。新插件和新能力只有这一条路可走，没有宿主私路可抄。
@@ -63,13 +65,13 @@
 
 | 需求 | 现状 | 去处 |
 | --- | --- | --- |
-| [diff-frame-performance](../../diff-frame-performance/spec.md)、[long-turn-performance](../../long-turn-performance/spec.md)、[attention-aggregate-performance](../../attention-aggregate-performance/spec.md) | #1010、#1017、#1073 都已合入 main，状态句没跟上 | 0：核对后归档 |
-| [pr-review-remediation](../../pr-review-remediation/spec.md) | #901 已合入 | 0：归档，QA-017 没跑通的进 BACKLOG |
-| [repository-cleanup](../../repository-cleanup/spec.md) | 状态句已写「已实现」 | 0：归档 |
-| [status-ring-system](../../status-ring-system/spec.md) | 组件和 43 个状态已在 design-system，状态句还停在 10-13 | 0：核对后归档，视觉验收进「待你验收」 |
+| [diff-frame-performance](../../archive/diff-frame-performance/spec.md)、[long-turn-performance](../../archive/long-turn-performance/spec.md)、[attention-aggregate-performance](../../archive/attention-aggregate-performance/spec.md) | #1010、#1017、#1073 都已合入 main；2026-11-03 已核对并同步状态句，历史验证与未验证范围保留在各 spec | 0：核对后归档 |
+| [pr-review-remediation](../../archive/pr-review-remediation/spec.md) | #901 已合入 | 0：归档，QA-017 没跑通的进 BACKLOG |
+| [repository-cleanup](../../archive/repository-cleanup/spec.md) | 状态句已写「已实现」 | 0：归档 |
+| [status-ring-system](../../archive/status-ring-system/spec.md) | #488 已合入 main，2026-11-03 已同步状态句；用户视觉验收仍待进行 | 0：核对后归档，视觉验收进「待你验收」 |
 | [plugin-tab-groups](../../plugin-tab-groups/spec.md) | PTG 用例在 main | 0：核对后归档 |
-| [empty-goal-create](../../empty-goal-create/spec.md)、[quiet-home-refresh](../../quiet-home-refresh/spec.md)、[onboarding-intake-progress](../../onboarding-intake-progress/spec.md)、[onboarding-model-link](../../onboarding-model-link/spec.md)、[onboarding-folder-places](../../onboarding-folder-places/spec.md) | 原列待验收；10-28 核实 #1306 已关闭、未合入 | 0：逐项核对成果是否由其他提交承接，保留未交付与待体验项；不再等待 #1306 合入 |
-| [issue-home-v0](../../issue-home-v0/spec.md) | V0 与首期体验按工程验证完成（用户 10-12 定）；BL-149 的分支待评审 | 0：BL-149 合入或关掉后归档 |
+| [empty-goal-create](../../archive/empty-goal-create/spec.md)、[quiet-home-refresh](../../archive/quiet-home-refresh/spec.md)、[onboarding-intake-progress](../../archive/onboarding-intake-progress/spec.md)、[onboarding-model-link](../../archive/onboarding-model-link/spec.md)、[onboarding-folder-places](../../archive/onboarding-folder-places/spec.md) | 原列待验收；10-28 核实 #1306 已关闭、未合入 | 0：逐项核对成果是否由其他提交承接，保留未交付与待体验项；不再等待 #1306 合入 |
+| [issue-home-v0](../../archive/issue-home-v0/spec.md) | V0 与首期体验按工程验证完成（用户 10-12 定）；BL-149 的分支待评审 | 0：BL-149 合入或关掉后归档 |
 | [computer-use](../../computer-use/spec.md) | 能力已合入，等真机（BL-325） | 0：真机验收后归档；BL-326、BL-327 留在 BACKLOG |
 | [ai-development-handbook](../../ai-development-handbook/spec.md) | 正文已写 | 0：BL-320 你验收；BL-321（ADH-23）随技能包在 1·C 做 |
 | [prologue-memory-strategy](../../prologue-memory-strategy/spec.md) | #1101、#1059 在途，P0 的形成、召回、SDK 接入未完 | 0：两个 PR 收掉；P0 余项仍属 1·C；沿原暂停边界，恢复授权前不启动 |
@@ -136,7 +138,7 @@
 | 事项 | 去处 |
 | --- | --- |
 | 签名与公证（BL-021；产品建议 A1） | 1·F；2026-10-27 已定使用现有个人 Apple Developer 账号，凭据接入与发行物验证待实施 |
-| 数据升级链与升级前自动备份（产品建议 A2、C-2），从各库的第 1 版起算。真实 Home 按用户 10-30 的决定清空重建、不迁移（旧 Home 整个搬开，不删），由你说「开始」；BL-413 的 v8 → v9 迁移、BL-583 的改名、BL-487 的旧 Sessions 清理随重建逐行核掉，BL-157 已不在 BACKLOG | 重建随防腐收尾；升级链及其余按 [upgrade-continuity](../../upgrade-continuity/spec.md) 分八片，见[需求来源](requirements.md)里的「升级后持续可用怎样接进来」 |
+| 数据升级链与升级前自动备份（产品建议 A2、C-2），从各库的第 1 版起算。真实 Home 按用户 10-30 的决定清空重建、不迁移（旧 Home 整个搬开，不删），由你说「开始」；旧单曾列 BL-413 的 v8 → v9 迁移、BL-583 的目录改名与 BL-487 的 Sessions 清理。当前由 BL-928 做完整备份与干净重建，BL-413 接安装验收；BL-487 的副本清理保留单独授权，BL-157 已不在 BACKLOG | 重建随防腐收尾；升级链及其余按 [upgrade-continuity](../../upgrade-continuity/spec.md) 分八片，见[需求来源](requirements.md)里的「升级后持续可用怎样接进来」 |
 | 运行条件：常驻、休眠后补跑、错过的怎样显示（产品建议 A5；BL-030、BL-645、BL-352） | 1·F |
 | 对外许可口径（产品建议 A4，在官网仓库） | 0 |
 | 原生组件随包预置与首次自检（产品建议 H14） | 2·F |

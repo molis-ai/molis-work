@@ -1,6 +1,6 @@
 # 创建入口：每个插件一句话新建，选中内容自动创建
 
-状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已打磨并实操；产品接入的 W1、W2 已在交接分支 #411 里通过工程用例，真实 Jev 评估、桌面原生拖出与一骏本人验收未完成。接续入口、现状、没做的事和下一步见[总纲第 20 节「远端交接」](../context-program/spec.md)，证据见总纲第 16 节；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
+状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已打磨并实操；产品接入的 W1、W2 随 #411（70c928ae0）已合入 main，后续已合片与未做片按总纲状态句核对，真实 Jev 评估、桌面原生拖出与一骏本人验收未完成。接续入口、现状、没做的事和下一步见[总纲第 20 节「远端交接」](../context-program/spec.md)，证据见总纲第 16 节；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
 
 ## 1. 用户的话与要解决的事
 
@@ -194,6 +194,8 @@ interface ItemIntake {
 
 ## 11. W4-6 与 BL-174 计划（2026-10-19）
 
+第 02 批合同复位后，现行内容站的接收动作和输入类型均为第 1 版，保留平铺输入与必填请求编号。原来固定到第 2 版的流程、角色和 MCP 客户端需要重选。以下是 10 月的设计和决策记录，当前行为以 W4-6-01、W4-6-04 为准。
+
 状态：W4-6a 已实施，待评审合入（分支 `context/w4-6a-receive-v2`，2026-10-19）；W4-6b 与 BL-174 仍是计划，未实施。这一节由情境线 ⑧ 的规划会话写，对照的是 origin/main `ebad9a223` 的代码。11.9 的两个问题已由用户在 2026-10-19 回答，答复记在 11.9。
 
 ### 11.1 三片与顺序
@@ -247,7 +249,7 @@ W4-6b 排在 BL-174 后面的理由：Inbox 不声明 `fits`。有了 BL-174，�
 `receive` v2 的输入（输出不变，仍是 `{ plugin, item_id, title }`）：
 
 ```ts
-interface WorkflowReceiveInput {          // molis.workflow.content.receive.input.v2
+interface WorkflowReceiveInput {          // molis.workflow.content.receive.input.v1
   readonly title: string;
   readonly body: string;
   readonly url?: string | null;
@@ -262,7 +264,7 @@ interface WorkflowReceiveInput {          // molis.workflow.content.receive.inpu
 | --- | --- | --- | --- |
 | `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt` 的 `.content.receive` | 1 → **2** | 输入改成上面的平铺形状，`input_type` 改为 `….receive.input.v2`；`output_type` 仍是 `.output.v1`；`context.title` 去掉（没有站点读它） | W4-6a |
 | 以上各站，加成果库的 `.content.list` / `.read` / `.create` | 不变，仍是 1 | 无。`workflow_content.protocol` 仍是 1 | — |
-| `inbox.content.receive@2` | 2 | 多了派生出的 `intake` 和 `result_view`。它们是声明，不改输入输出的形状，所以不升版本，与 W4-2 给 `goals.tree.submit` 加创建入口声明同一做法；W4-2 的 `pages.create` 另改输入输出形状，已升到 2 | W4-6b |
+| `inbox.content.receive@1` | 2 | 多了派生出的 `intake` 和 `result_view`。它们是声明，不改输入输出的形状，所以不升版本，与 W4-2 给 `goals.tree.submit` 加创建入口声明同一做法；W4-2 的 `pages.create` 另改输入输出形状，已升到 2 | W4-6b |
 | `inbox.intake.offers` | 新增，1 | 只用作 `prepare`，没有自己的选项，不调模型 | W4-6b |
 | `todo.items.create`、`lingguang.create` | 不变 | `intake` 多了 `fits`，属于声明 | BL-174 |
 
@@ -358,7 +360,7 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 1. 人在别处（灵光、Pages、Coding 的回复、讨论、右栏 Shelf、助理面板）选中一段文字，浮条贴着选区出现。
 2. 有判断时，「放进 Inbox」和「记成待办」「记下灵光」「存为文档」「拆成目标步骤」一起进候选，判断按各自的 `describe` 和 `examples` 排。没有判断时，它不声明 `fits`，只有在没有别的去处声明这类内容时，才按目录顺序轮到它（BL-174）。
 3. 点「放进 Inbox」，按钮进入忙碌状态。宿主用 `inbox.intake.offers` 不调模型算出标题与正文，在助理面板里出一张预填卡片，标题和正文可以改。Inbox 没有 `undo`，所以不直接建。
-4. 点「确认」：以本人身份、带卡片的请求号调用 `inbox.content.receive@2`。
+4. 点「确认」：以本人身份、带卡片的请求号调用 `inbox.content.receive@1`。
    - Feed 在「放进来的内容」来源下存一条，Inbox 建一条 `added_by: "web_user"` 的事项，显示「手动加入」。
    - 然后 Inbox 做下一步判断。判断失败不影响收下内容。
    - 完成卡写「已放进 Inbox」，带「去 Inbox」。
@@ -415,10 +417,10 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 
 | 编号 | 验收内容 | 证明它的测试 |
 | --- | --- | --- |
-| W4-6-01 | 八个站的 `receive` 都是 `@2`，输入是平铺形状，`request_id` 必填（1–160 字），`input_type` 是 `.input.v2`；`list`、`read`、`create` 仍是 `@1`。SDK 拒绝按旧形状声明的 `receive`，也拒绝形状对了、动作版本低于 2 的（插件可以自己往上升版本），并说明理由 | `tests/workflow-content-actions.test.ts`、`tests/plugin-declaration-rules.test.ts` |
+| W4-6-01 | 八个站的 `receive@1` 使用平铺输入，`request_id` 必填（1–160 字），输入类型为 `molis.workflow.content.receive.input.v1`。SDK 拒绝旧嵌套形状、缺少请求编号或类型引用不符的声明。 | `tests/workflow-content-actions.test.ts`、`tests/plugin-declaration-rules.test.ts` |
 | W4-6-02 | 八个站各自：同一个请求号只建一个对象，重发返回同一个；换一个请求号会另建；请求号不是 `workflow:` 开头的也一样 | 新增 `tests/content-station-request-id.test.ts`（真实的八个站），以及 `tests/document-plugins-limits.test.ts`、`tests/lingguang-actions.test.ts`、`tests/pages-actions.test.ts`、`tests/content-owner-regressions.test.ts` 里改过的断言 |
 | W4-6-03 | 工作流交接照旧：用 `workflow:<实例>:<步骤>` 作请求号；崩溃后重试、两次并发推进，都只交一次；Feed → Inbox → Pages → 灵光整条走通 | `tests/workflows-handoff-idempotency.test.ts`、`tests/workflows-plugin.test.ts` |
-| W4-6-04 | 已固定 `receive@1` 的流程与实例：原引用保留，报「已保存的接收能力 v1 不可用」，不换成 v2，也不写任何内容；在编辑器里把这一站拿掉再加回来，就固定到 `receive@2`，能跑 | `tests/workflow-content-actions.test.ts`（「saved versions survive withdrawal and upgrades」那一组加一条） |
+| W4-6-04 | 固定旧 `receive@2` 的流程与实例仍保存原引用，使用时明确提示不可用，不写业务内容。移除再添加该站后重新固定现行 `receive@1`，能正常继续。 | `tests/workflow-content-actions.test.ts` |
 | W4-6-05 | 来源与归属只认可信的调用上下文。工作流交来的：Inbox 记 `added_by: "workflow"`，Feed 放在「工作流程」下。人经放置交来的：Inbox 记 `"web_user"`，Feed 放在「放进来的内容」下。输入里写什么都改不了这两项。Inbox 嵌套调用 Feed 时，受众不变 | `tests/inbox-action-scenes.test.ts`、`tests/workflows-plugin.test.ts`（:208）、`tests/work-placement.test.ts` |
 | W4-6-06 | 放置的「转成」用 `placement:<请求号>`，同一个请求只建一个 | `tests/work-placement.test.ts` |
 | W4-6-07 | MCP 里八个 `…content.receive__v1` 换成 `__v2`，其余工具名不变 | `tests/dataset-mcp.test.ts`、`tests/form-mcp.test.ts`、`tests/ppt-mcp.test.ts` |

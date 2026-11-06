@@ -2,6 +2,7 @@ import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderWordmark } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs, renderHomePluginNavigation, type HomePluginNavigationEntry } from "../home-plugin-navigation.js";
 import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
+import { NO_FAVICON_LINK } from "../document-shell.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
@@ -93,6 +94,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${NO_FAVICON_LINK}
   ${p.controlTokenMeta(options.controlToken)}
   <title>${escapeHtml(options.title)}</title>
   <script>${p.themeBootstrapScript}</script>

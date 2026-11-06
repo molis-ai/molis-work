@@ -14,8 +14,8 @@ const MATERIAL_BYTES = 36_000_000;
 const BODY_BYTES = 1_000_000;
 
 export const lingguangManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: LINGGUANG_PLUGIN_ID,
   sync: lingguangSync,
   version: "0.3.0",

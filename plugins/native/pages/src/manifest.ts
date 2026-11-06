@@ -17,8 +17,8 @@ const PAGES_BODY_BYTES = 1_000_000;
 const PAGES_IMPORT_BYTES = 15_000_000;
 
 export const pagesManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: PAGES_PLUGIN_ID,
   sync: pagesSyncDeclaration,
   version: "0.3.0",

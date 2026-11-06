@@ -55,7 +55,11 @@ export const operations = {
     statements.push(input.mode==='commit-fail' ? {sql:'INSERT INTO results(id,text,parent) VALUES (?,?,42)',parameters:[input.job_id+':b','second']} : {sql:'INSERT INTO results(id,text) VALUES (?,?)',parameters:[input.job_id+':b','second']});
     await sdk.homeDatabase.transaction(statements);
     await sdk.ownerFiles.write([{op:'write',path:'data/'+input.job_id+'.txt',data_base64:'ZG9uZQ==',mode:'create'}]);
-    if(['https','https-catch','https-denied'].includes(input.mode)) {try {await sdk.connections.request('github',{url:input.mode==='https-denied'?'https://outside.t398.example/':'https://api.github.com/user',method:'GET'})}catch(error){if(input.mode!=='https-catch')throw error;try{await sdk.homeDatabase.transaction([{sql:"UPDATE jobs SET state='failed' WHERE job_id=?",parameters:[input.job_id]}])}catch(refused){return true}return true}}
+    if(['https','https-catch','https-write-catch','https-denied'].includes(input.mode)) {
+      const write=input.mode==='https-write-catch';
+      try {await sdk.connections.request('github',{url:input.mode==='https-denied'?'https://outside.t398.example/':'https://api.github.com/user',method:write?'POST':'GET',...(write?{body:'{}'}:{})})}
+      catch(error){if(!['https-catch','https-write-catch'].includes(input.mode))throw error;try{await sdk.homeDatabase.transaction([{sql:"UPDATE jobs SET state='failed' WHERE job_id=?",parameters:[input.job_id]}])}catch(refused){return true}return true}
+    }
     if(input.mode==='materials') {const material=await sdk.materials.readDocuments([{file_name:'result.txt',data_base64:'QmFja2dyb3VuZCBtYXRlcmlhbCB3b3Jrcy4='}]);await sdk.homeDatabase.transaction([{sql:'INSERT INTO results(id,text) VALUES (?,?)',parameters:[input.job_id+':material',JSON.stringify(material)]}]);}
     await sdk.homeDatabase.transaction([{sql:"UPDATE jobs SET state='done' WHERE job_id=?",parameters:[input.job_id]}]);
     return true;

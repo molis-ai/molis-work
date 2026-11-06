@@ -31,8 +31,8 @@ const PLATFORM_PERMISSIONS = [
  * Runtime (`createInboxPlugin`, one instance per project).
  */
 export const inboxManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: INBOX_PLUGIN_ID,
   version: "0.3.0",
   name: "Inbox",

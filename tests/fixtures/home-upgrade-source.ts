@@ -15,7 +15,7 @@ export const operations = {
 export function integrationPackage(publisher = newPublisher(), options: { pluginId?: string; serviceId?: string; integrationId?: string; version?: string; origins?: string[]; title?: string; code?: string } = {}): PluginPackageBundle {
   const pluginId = options.pluginId ?? PLUGIN_ID, serviceId = options.serviceId ?? "example-feed";
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: options.version ?? "1.0.0", name: "Feed probe", ...(options.version ? { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } } : {}), kind: "integration",
+    schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: options.version ?? "1.0.0", name: "Feed probe", ...(options.version ? { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } } : {}), kind: "integration",
     publisher: { publisher_id: "example", signature: publisher.identity },
     entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }],

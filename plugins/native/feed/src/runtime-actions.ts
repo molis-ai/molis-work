@@ -74,7 +74,7 @@ export const runtimeAction = (definition: ActionDefinition): ActionDefinition =>
 };
 /** What the platform's clock wakes: a tick, for the plugin audience, with the wakeup's input. */
 export const WAKE = feedWakeAction(runtimeAction(feedSourceActions.tick));
-export const GOAL_CONTRACT = { capability_id: "goals.contract.read", version: 2, provider_id: "io.molis.work.goals" };
+export const GOAL_CONTRACT = { capability_id: "goals.contract.read", version: 1, provider_id: "io.molis.work.goals" };
 
 /** What each project's half answers: the actions as the Plugin Runtime needs them declared, and the clock's wakeup. */
 export const FEED_PROJECT_ACTIONS: ActionDefinition[] = [

@@ -2384,6 +2384,8 @@ export interface IntegrationProviderPort {
         status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
         message: string;
         action?: string;
+        failure?: IntegrationProviderFailure;
+        retryAfterAt?: string;
     }>;
     sync(input: {
         cursor: unknown;
@@ -2628,6 +2630,7 @@ export interface PluginAgentRunInput {
     task: string;
     workspace_id?: string;
     timeout_ms?: number;
+    grant_subject?: string;
 }
 
 export interface PluginAgentRunResult {
@@ -3372,7 +3375,7 @@ export interface PluginLocalToolsDeclaration {
 
 export interface PluginManifest {
     sync?: import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncDeclaration;
-    schema_version: 1 | 2;
+    schema_version: 1;
     plugin_id: string;
     version: string;
     name: string;
@@ -3382,7 +3385,7 @@ export interface PluginManifest {
         publisher_id: string;
         signature: string;
     };
-    host_api_version: 1 | 2;
+    host_api_version: 1;
     always_on?: boolean;
     summary?: string;
     developer?: true;
@@ -3468,6 +3471,7 @@ export interface PluginManifest {
     notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
+    read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
 }
 
 export interface PluginManifestDatabases {
@@ -3916,6 +3920,13 @@ export interface PluginProjectsClient {
     exist(ids: readonly string[], options?: {
         readonly signal?: AbortSignal;
     }): Promise<Readonly<Record<string, boolean>>>;
+}
+
+export interface PluginReadGroupDeclaration {
+    readonly group_id: string;
+    readonly title: string;
+    readonly description: string;
+    readonly actions: readonly string[];
 }
 
 export interface PluginRequirementDeclaration {
@@ -5134,7 +5145,7 @@ export declare const WORKFLOW_CONTENT_SCHEMAS: {
 export declare const WORKFLOW_CONTENT_VERSIONS: {
     readonly list: 1;
     readonly read: 1;
-    readonly receive: 2;
+    readonly receive: 1;
     readonly create: 1;
 };
 

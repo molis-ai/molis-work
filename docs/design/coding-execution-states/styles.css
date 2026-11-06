@@ -1,0 +1,221 @@
+/* Layout layer only. Every control, tag, status ring, menu, alert, toast, field and motion comes from kit/kit.css
+   (the component board's own VISUAL_FOUNDATION_STYLES + MOTION_STYLES). This file places them on the desk:
+   spacing 4/8/12/16/24/32, type 11/12/13/15/17, corners 6/8/10/12/14/15, the four durations and two curves. */
+html,body{height:100%}
+body{margin:0;background:var(--desk);color:var(--ink);font:400 13px/1.5 var(--font);letter-spacing:-.011em;overflow:hidden;-webkit-font-smoothing:antialiased}
+svg:not([class]),.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:14px;height:14px}.ic.xs{width:12px;height:12px}
+.mono{font-family:var(--font-mono,ui-monospace,"SF Mono",Menlo,monospace);font-size:12px}
+.ell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grow{flex:1;min-width:0}
+.cap{font-size:12px;color:var(--muted)}
+.faint{color:var(--faint)}
+
+/* ── Prototype strip: outside the product, striped so it never reads as UI. ── */
+.proto{position:fixed;inset:0 0 auto 0;height:48px;display:flex;align-items:center;gap:16px;padding:0 16px;z-index:40;overflow-x:auto;scrollbar-width:none;
+  background:repeating-linear-gradient(-45deg,var(--surface-soft),var(--surface-soft) 8px,var(--rail) 8px,var(--rail) 16px);box-shadow:inset 0 -1px 0 var(--line-strong)}
+.proto b{font-size:12px;font-weight:600;white-space:nowrap}
+.proto label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);white-space:nowrap}
+.proto select{height:28px;border-radius:8px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);padding:0 8px;font:inherit;font-size:12px}
+.proto .mw-toggle-group{padding:2px;gap:2px;border-radius:10px}.proto .mw-toggle{min-height:24px;padding:0 10px;font-size:12px}
+.proto .sname{font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* ── Desk and sheet (DESIGN Layout: 14px of desk around a 14px-corner sheet). ── */
+.desk{position:fixed;inset:48px 0 0 0;padding:14px;display:flex}
+.sheet{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--paper);border-radius:14px;box-shadow:var(--sheet-shadow,var(--surface-shadow));overflow:hidden;position:relative}
+
+/* Header: the page's own name, its facts on the right; no rule under it — the columns below carry the edge. */
+.c-head{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px 0 20px;flex:none;min-width:0}
+.c-head h1{margin:0;font-size:15px;font-weight:600;letter-spacing:-.02em;white-space:nowrap}
+.c-head .sub{color:var(--muted);font-size:13px}
+.c-head .facts{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px;white-space:nowrap}
+.c-head .facts span{display:inline-flex;align-items:center;gap:6px}
+.c-head .tools{display:flex;gap:8px}
+
+/* Location line (folders A): one quiet line of facts under the header, a hairline beneath. */
+.c-loc{display:flex;align-items:center;gap:16px;min-height:36px;padding:0 16px 0 20px;flex:none;font-size:12px;color:var(--muted);box-shadow:inset 0 -1px 0 var(--line);min-width:0}
+.c-loc .f{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;min-width:0}
+.c-loc .f b{color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis}
+
+/* Banners: one line, a soft wash in the kind's own tone; the words ellipsize, the actions stay. */
+.banner{display:flex;align-items:center;gap:12px;min-height:44px;padding:6px 12px 6px 20px;flex:none;min-width:0;font-size:13px;animation:craft-rise var(--dur-move) var(--ease-quint) both}
+.banner .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.banner .acts{display:flex;gap:8px;flex:none}
+.tone-info{background:color-mix(in srgb,var(--accent) 9%,var(--paper));color:var(--accent-strong)}
+.tone-wait{background:var(--amber-soft,color-mix(in srgb,var(--amber) 12%,var(--paper)));color:var(--amber)}
+.tone-err{background:var(--red-soft,color-mix(in srgb,var(--red) 10%,var(--paper)));color:var(--red)}
+.tone-ok{background:var(--green-soft,color-mix(in srgb,var(--green) 11%,var(--paper)));color:var(--green)}
+
+/* ── Body: directory column · main column · board column ── */
+.c-body{flex:1;min-height:0;display:grid;grid-template-columns:240px minmax(0,1fr);position:relative}
+.c-body.has-board{grid-template-columns:240px minmax(0,1fr) 300px}
+.c-dir,.c-board{background:var(--surface-soft);display:flex;flex-direction:column;min-height:0;min-width:0}
+.c-dir{border-radius:0 12px 0 0}
+.c-board{border-radius:12px 0 0 0}
+.c-dir__head{padding:12px 12px 8px;display:grid;gap:8px}
+.c-dir__label{font-size:11px;font-weight:500;color:var(--faint);padding:0 8px;display:flex;align-items:center;gap:6px}
+.c-dir__list{overflow:auto;padding:0 8px 12px;scrollbar-width:none;display:grid;align-content:start;gap:2px}
+.c-dir .mw-dir-row{grid-template-columns:auto minmax(0,1fr) auto;column-gap:8px;color:var(--ink-soft)}
+.c-dir .mw-dir-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.c-dir .mw-dir-row .m{font:500 11px var(--font-mono,ui-monospace,monospace);color:var(--amber)}
+.c-dir.is-dim .c-dir__list{opacity:.45}
+/* The working-folder picker (folders C): a row that is a button, with its kind's tag and one caption line. */
+.picker{display:grid;grid-template-columns:auto minmax(5ch,max-content) minmax(0,auto) auto;justify-content:start;align-items:center;column-gap:8px;min-height:40px;padding:0 10px;border:0;border-radius:10px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft);color:var(--ink);font:inherit;text-align:left;cursor:pointer;transition:background var(--dur-hover)}
+.picker:hover{background:color-mix(in srgb,var(--ink) 3%,var(--paper))}
+.picker .nm{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:5ch}
+.picker .mw-badge{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} /* the badge gives way before the folder name does */
+.dir-note{display:grid;gap:8px;padding:0 4px;font-size:12px;color:var(--muted);line-height:1.5}
+.dir-note.tone{padding:8px 10px;border-radius:10px}
+.dir-note .acts{display:flex;flex-wrap:wrap;gap:8px}
+
+.c-main{display:flex;flex-direction:column;min-height:0;min-width:0}
+.c-scroll{flex:1;overflow:auto;min-height:0}
+.c-column{max-width:760px;margin:0 auto;padding:24px 32px 32px;display:grid;gap:16px}
+
+/* Conversation pieces */
+.you{justify-self:end;max-width:min(560px,86%);padding:8px 12px;border-radius:12px;background:var(--surface-soft);font-size:13px;line-height:1.6}
+.round{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint);min-width:0}
+.round::after{content:"";flex:1;height:1px;background:var(--line)}
+.round b{color:var(--ink-soft);font-weight:500}
+.ai{display:grid;gap:8px;font-size:13px;line-height:1.6}
+.ai .who{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--muted)}
+.ai p{margin:0}
+.cites{display:flex;flex-wrap:wrap;gap:8px}
+.cite{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--control-fill);color:var(--ink-soft);font-size:12px;white-space:nowrap}
+/* What an AI says about itself: accent wash with a dashed edge (Reading load). */
+.self{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:var(--accent-soft);border:1px dashed color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent-strong);font-size:12px}
+.working{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--accent-strong)}
+
+/* A list of things is a container on paper with a light lift; each row one line: mark, name, facts, state. */
+.list{border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft);overflow:hidden}
+.list__head{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px 0 16px;font-size:12px;font-weight:500;color:var(--muted)}
+.list__head .grow{display:flex;align-items:center;gap:8px}
+.row{display:flex;align-items:center;gap:12px;min-height:40px;padding:4px 12px 4px 16px;box-shadow:inset 0 1px 0 var(--line);min-width:0}
+.row > .mw-state-ring{flex:none}
+.row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .t{font-size:12px;color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+.row.is-quiet .nm{color:var(--muted)}
+.row.is-open{background:color-mix(in srgb,var(--amber) 5%,var(--paper))}
+.row.is-open.is-err{background:color-mix(in srgb,var(--red) 4%,var(--paper))}
+.row .mw-status{flex:none}
+.row-x{padding:4px 16px 16px 44px;background:color-mix(in srgb,var(--amber) 5%,var(--paper))}
+.row-x.is-err{background:color-mix(in srgb,var(--red) 4%,var(--paper))}
+.row-x.is-info{background:color-mix(in srgb,var(--accent) 5%,var(--paper))}
+.list__foot{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;box-shadow:inset 0 1px 0 var(--line);font-size:12px;color:var(--muted);min-width:0}
+.list__foot b{color:var(--ink-soft);font-weight:500}
+.list__foot .ell{flex:1}
+
+/* Recovery block — 04's failure frame on the shared alert: what happened, why and what to do, what is kept, actions, details. */
+.recover{display:grid;gap:8px;padding:16px;border-radius:12px;font-size:13px;line-height:1.6}
+.recover__title{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--ink)}
+.recover p{margin:0;color:var(--ink-soft)}
+.recover.tone-wait{background:color-mix(in srgb,var(--amber) 11%,var(--paper))}
+.recover.tone-err{background:color-mix(in srgb,var(--red) 8%,var(--paper))}
+.recover.tone-info{background:color-mix(in srgb,var(--accent) 8%,var(--paper))}
+.recover.tone-ok{background:color-mix(in srgb,var(--green) 9%,var(--paper))}
+.kept{display:flex;flex-wrap:wrap;gap:8px}
+/* A record Molis checked: green wash (Reading load). */
+.kept span{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--green-soft,color-mix(in srgb,var(--green) 12%,var(--paper)));color:var(--green);font-size:12px;white-space:nowrap}
+.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tech{font-size:12px;color:var(--muted)}
+.tech summary{cursor:pointer;width:max-content;list-style:none;display:inline-flex;align-items:center;gap:4px;border-radius:6px}
+.tech summary::-webkit-details-marker{display:none}
+.tech summary .ic{transition:transform var(--dur-move) var(--ease-quint)}
+.tech[open] summary .ic{transform:rotate(90deg)}
+.tech code{display:block;margin-top:8px;padding:8px 12px;border-radius:8px;background:color-mix(in srgb,var(--paper) 72%,transparent);font:12px/1.6 var(--font-mono,ui-monospace,monospace);color:var(--ink-soft);white-space:pre-wrap;word-break:break-all}
+.tech[open] code{animation:craft-rise var(--dur-move) var(--ease-quint) both}
+
+/* Plan card and TaskBoard rows */
+.plan .list__head{color:var(--ink);font-size:13px;font-weight:600}
+.meter{height:4px;margin:0 16px 8px;border-radius:999px;background:var(--rail);overflow:hidden;display:flex}
+.meter i{display:block;height:100%;background:var(--green);transition:width var(--dur-arrive) var(--ease-quint)}
+.meter i.unk{background:repeating-linear-gradient(-45deg,var(--amber),var(--amber) 3px,color-mix(in srgb,var(--amber) 35%,transparent) 3px,color-mix(in srgb,var(--amber) 35%,transparent) 6px)}
+.num{width:22px;height:22px;flex:none;display:inline-grid;place-items:center;border-radius:6px;background:var(--control-fill);color:var(--ink-soft);font:500 11px var(--font-mono,ui-monospace,monospace);font-variant-numeric:tabular-nums}
+.num.is-cur{background:var(--accent-soft);color:var(--accent-strong)}
+.num.is-sub{width:28px}
+.num.is-faint{background:transparent;color:var(--faint);width:16px}
+.dotnum{width:22px;height:22px;flex:none;display:inline-grid;place-items:center;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line-strong);color:var(--muted);font:500 11px var(--font-mono,ui-monospace,monospace)}
+.row.is-sub{padding-left:52px}
+.note{display:flex;align-items:center;gap:8px;padding:0 16px 12px 52px;font-size:12px;color:var(--muted)}
+.note.is-wide{padding:12px 16px;box-shadow:inset 0 1px 0 var(--line)}
+.c-board__head{display:flex;align-items:center;gap:8px;min-height:52px;padding:0 12px 0 16px;font-size:13px;font-weight:600}
+.c-board__head .cap{font-weight:400}
+.c-board__list{overflow:auto;padding:0 12px 16px;display:grid;align-content:start;gap:8px;scrollbar-width:none}
+.bcard{border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft);overflow:hidden;transition:box-shadow var(--dur-move) var(--ease-quint)}
+.bcard .row{box-shadow:none;padding-left:12px}
+.bcard .row.is-sub{padding-left:24px;box-shadow:inset 0 1px 0 var(--line)}
+.bcard.is-cur{box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent),var(--shadow-raised)}
+.bcard.is-unk{box-shadow:0 0 0 1px color-mix(in srgb,var(--amber) 50%,transparent),var(--shadow-raised)}
+.bcard.is-err{box-shadow:0 0 0 1px color-mix(in srgb,var(--red) 45%,transparent),var(--shadow-raised)}
+.bcard .acts{padding:0 12px 12px 46px}
+
+/* Composer: paper, 15px corners, the one raised thing at the foot of the column (DESIGN composer, --lift-2). */
+.c-compose{flex:none;padding:0 32px 20px}
+.c-compose__in{max-width:760px;margin:0 auto;display:grid;gap:8px}
+.chips{display:flex;gap:8px;min-width:0;overflow:hidden}
+.hint{display:flex;align-items:center;gap:8px;min-height:40px;padding:4px 6px 4px 12px;border-radius:10px;font-size:13px;min-width:0;animation:craft-rise var(--dur-move) var(--ease-quint) both}
+.hint .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hint .acts{flex:none;flex-wrap:nowrap}
+.box{min-width:0;border-radius:15px;background:var(--paper);box-shadow:var(--lift-2,var(--shadow-raised));transition:box-shadow var(--dur-move) var(--ease-quint)}
+.box.is-ro{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--accent) 45%,transparent),var(--lift-2,var(--shadow-raised))}
+.box textarea{display:block;box-sizing:border-box;width:100%;border:0;background:transparent;resize:none;min-height:48px;max-height:140px;padding:12px 16px 4px;outline:none;font:inherit;font-size:13px;line-height:1.5;color:var(--ink);box-shadow:none}
+.box textarea::placeholder{color:var(--faint)}
+.box__foot{display:flex;align-items:center;gap:8px;padding:4px 8px 8px 10px;min-width:0}
+.box__foot .cap{white-space:nowrap}
+.box .send{width:34px;min-width:34px;height:34px;padding:0;border-radius:10px}
+.modes{margin:8px 8px 0}
+
+/* Popover layer: the shared menu, placed by the prototype next to its trigger. */
+.pop{position:fixed;z-index:60;max-width:min(360px,calc(100vw - 16px))}
+.pop .mw-menu{position:static;display:grid;min-width:260px;max-width:100%}
+.pop .mw-menu.is-up{animation-name:craft-rise-from-bar}
+.pop .mw-menu__item small{display:block;font-size:12px;color:var(--muted);line-height:1.4;white-space:normal}
+.pop .mw-menu__item{min-height:34px;height:auto;padding-top:6px;padding-bottom:6px}
+.pop .mw-menu__item .grow{display:block}
+.pop .mw-menu__item .mw-badge{margin-left:auto}
+.pop .foot{padding:8px 12px 4px;font-size:12px;color:var(--muted);line-height:1.5}
+.pop .body{padding:8px 12px;font-size:13px;color:var(--ink-soft);line-height:1.6}
+.pop .body b{color:var(--ink);font-weight:600}
+.pop .pacts{display:flex;justify-content:flex-end;gap:8px;padding:8px 8px 4px;flex-wrap:wrap}
+.pop .wide{min-width:320px}
+
+/* Toast: the shared graphite capsule, placed by inset and auto margins above the foot (never by transform). */
+.toast-slot{position:fixed;left:16px;right:16px;bottom:136px;display:flex;justify-content:center;pointer-events:none;z-index:70} /* sits above the composer, never over its controls */
+.toast-slot .mw-toast{pointer-events:auto;margin:0 auto}
+
+/* Drawers below 900/760: the columns slide in from their edge over a scrim. */
+.scrim{display:none}
+@media (max-width:1050px){.c-body{grid-template-columns:220px minmax(0,1fr)}.c-body.has-board{grid-template-columns:220px minmax(0,1fr) 280px}.c-column{padding:24px 24px 32px}.c-compose{padding:0 24px 16px}}
+@media (max-width:900px){
+  .c-body.has-board{grid-template-columns:220px minmax(0,1fr)}
+  .c-board{position:absolute;top:0;right:0;bottom:0;width:min(320px,88%);z-index:20;box-shadow:var(--lift-3,var(--shadow));display:none;border-radius:12px 0 0 12px}
+  .c-body.board-open .c-board{display:flex;animation:drawer-r var(--dur-arrive) var(--ease-quint) both}
+}
+@media (max-width:760px){
+  .c-body,.c-body.has-board{grid-template-columns:minmax(0,1fr)}
+  .c-dir{position:absolute;top:0;left:0;bottom:0;width:min(300px,86%);z-index:20;box-shadow:var(--lift-3,var(--shadow));display:none;border-radius:0 12px 12px 0}
+  .c-body.files-open .c-dir{display:flex;animation:drawer-l var(--dur-arrive) var(--ease-quint) both}
+  .c-body.files-open .scrim,.c-body.board-open .scrim{display:block;position:absolute;inset:0;z-index:15;border:0;background:var(--scrim);animation:craft-fade-in var(--dur-move) var(--ease-quint) both}
+  .mw-btn,.picker{min-height:44px}
+  .box .send{width:44px;min-width:44px;height:44px}
+}
+@media (min-width:761px){.only-narrow{display:none!important}}
+@media (max-width:760px){.only-wide{display:none!important}}
+@media (min-width:901px){.only-board-narrow{display:none!important}}
+@media (max-width:600px){
+  .desk{padding:0}
+  .sheet{border-radius:0;box-shadow:none}
+  .c-head{padding:0 12px 0 16px}
+  .c-head .sub{display:none}
+  .c-column{padding:16px 16px 24px}
+  .c-compose{padding:0 12px 12px}
+  .banner,.hint{flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+  .banner .grow,.hint .grow{white-space:normal;flex-basis:calc(100% - 28px)}
+  .banner .acts,.hint .acts{margin-left:24px}
+  .c-loc .hide-xs{display:none}
+}
+@keyframes drawer-l{from{transform:translateX(-16px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes drawer-r{from{transform:translateX(16px);opacity:.4}to{transform:none;opacity:1}}
+/* First reveal of a view: pieces rise once, at most twelve, 32ms apart (DESIGN Motion: list cascade on first arrival only). */
+.is-arriving .rise{animation:craft-rise var(--dur-arrive) var(--ease-quint) both;animation-delay:calc(var(--i,0) * 32ms)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

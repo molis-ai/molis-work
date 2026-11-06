@@ -18,6 +18,8 @@
 - 具名函数在同文件只有一个实现时保留原键；出现同名的多个实现时，按具名词法 owner 区分，例如 `Big.handle`、`Small.handle` 或 `left.handle`。重载签名不算第二个实现。两实现仍不能用具名 owner 区分时，门禁明确拒绝，不能默默取最大值，也不用行号或序号作身份；仅在上方插行不改变键。
 - 新增第二个同名实现会把已有函数的 flat 键改为带 owner 的键，比较时保守地视为新单元；没有自动别名放行，合理的每个单元仍可按实测分别标明。此规则在 base/head 用同一份生产脚本，不统一迁移现有的唯一函数名。2026-10-25 在 `54437998` 盘点，无涉及巨大函数的同名具名实现组，现有巨大函数键不变。匿名回调仍有上一条所述的顺序限制；同名类的聚合也是独立的测量局限，本片只修具名函数。
 
+每条巨大单元例外由文件所在包的主人跟进，按[包归属表](../SSOT-MATRIX.md)和 [CODEOWNERS](../../.github/CODEOWNERS) 的路径确定。调整记录的尺寸、改变职责或生成方式时，主人须重新核对该条理由。职责已分离或降到阈值以内时，删除相应登记。
+
 判定有三种，每个单元必有其一：
 
 | 判定 | 含义 |
@@ -255,7 +257,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
 | `capsule-items.ts` | `createCapsuleItemProjection` 函数 229 行 | 拆 · W5-10 | 22 条语句：`stateFromItem`（26）加六个条目构造（决定 19、可做 17、阻塞 15、进行中 14、等待 14、最近完成 17）。每种条目一个函数，投影函数只做组合。 | 2 |
-| `feed-projection-ui.ts` | `createWorkbenchFeedProjectionRenderer` 函数 401 行（W5-10 前已降到 251 行） | 已拆 · W5-10（批 F），离开工作台归 BL-880 | 已做（T-058，统筹 2026-10-28 批「原地拆」）：工厂里嵌着的模型函数（`buildFeedModel`、`feedEntries`、`itemModel`、`sourceModel`、`sourceStatusLabel`、`provider`）和界面原语（`feedUiPrimitivesFor`）提到模块级，译文与日期区域经 `FeedText` 显式传入；工厂只建一次原语、组合三个出口，现约 40 行。没有另开文件：新文件要再点名 Feed 包，插件被外部点名的文件数只许减少。随 Feed 离开工作台（让 Feed 自己读数据、改门禁 `checkMigratedFeedUiOwnership` 与枢纽 `renderer.ts`）记为 BL-880。 | 3 |
+| `feed-projection-ui.ts` | `createWorkbenchFeedProjectionRenderer` 函数 401 行（W5-10 前已降到 251 行） | 已拆 · W5-10（批 F）；已随 #1725 离开工作台（文件已删） | 已做（T-058，统筹 2026-10-28 批「原地拆」）：工厂里嵌着的模型函数（`buildFeedModel`、`feedEntries`、`itemModel`、`sourceModel`、`sourceStatusLabel`、`provider`）和界面原语（`feedUiPrimitivesFor`）提到模块级，译文与日期区域经 `FeedText` 显式传入；工厂只建一次原语、组合三个出口，现约 40 行。没有另开文件：新文件要再点名 Feed 包，插件被外部点名的文件数只许减少。之后 #1725 让 Feed 自己读数据、文件从工作台删除，门禁 `checkMigratedFeedUiOwnership` 随之改写，用户 2026-11-04 确认接受（[07 核账](../../specs/post-anticorruption-roadmap/reference/batches/07.md#batch-07-audit)）。 | 3 |
 | `functions/client.ts` | 已在阈值以下（W5-10 批 A，2026-10-26） | 过渡拆分 | 脚本模板按原顺序拆成 `client.ts`（404 行）和 `client-render.ts`、`client-records.ts`、`client-events.ts` 三个部件，拼回后与原脚本逐字节相同；打包成 TS 仍归 W5-04 | 1 |
 | `shell-page-renderer.ts`（原 `goals-page-renderer.ts`，W5-06 改名） | `createWorkbenchGoalsPageRenderer` 函数 227 行<br>`renderMolisWorkWeb` 函数 191 行 | 拆 · W5-10 | 外壳页面渲染器（名字不对）。W5-06 改名、换掉 15 个挂载适配器（它们是别的 `goals-*.ts` 文件），第 2 片删掉手写的舞台行，不拆这两个函数。`renderMolisWorkWeb` 191 行里 `html` 模板 109 行、`goalStage` 25 行、`frameStage` 13 行：页面骨架、目标舞台、框架舞台各成函数。它内嵌在 `createWorkbenchGoalsPageRenderer` 里（同一段计两次）。 | 11 |
 | `i18n/en.ts` | 文件 3,380 行 | 归线 · §4.7 · W5-03 | 英文词典：一个对象字面量（1,458 行）加几块 `Object.assign(EN, …)`，没有逻辑，没有函数要拆。它也不是例外：决定 #16（全部换成稳定键，词典按主人分）已定，W5-03（§4.7，翻译词典、路由登记这类聚合点改成各主人自己登记）把插件自有词条移给主人、删无引用的键，它随之变小，降到 800 行以下时这一行删除。它是窗口里被改得最多的文件，还从 17 个插件包 import 各自的词条表。在那之前它和所有巨大单元一样只许变小。 | 24 |

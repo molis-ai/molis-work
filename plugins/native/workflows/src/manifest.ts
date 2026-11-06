@@ -11,8 +11,8 @@ import { WORKFLOWS_EN } from "./en.js";
 const WORKFLOWS_BODY_BYTES = 400_000;
 
 export const workflowsManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: WORKFLOWS_PLUGIN_ID,
   sync: workflowsSync,
   version: "0.3.0",

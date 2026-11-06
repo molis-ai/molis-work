@@ -6,8 +6,8 @@ import type { SyncAggregateDefinition } from '@molis-ai/molis-work-contracts/pla
 import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 
 const manifest: PluginManifest = {
-  schema_version: 2, plugin_id: 'example.sync', version: '1', name: 'Sync', kind: 'app',
-  publisher: { publisher_id: 'example', signature: 'example' }, host_api_version: 2,
+  schema_version: 1, plugin_id: 'example.sync', version: '1', name: 'Sync', kind: 'app',
+  publisher: { publisher_id: 'example', signature: 'example' }, host_api_version: 1,
   entrypoints: [], permissions: [], capabilities: {provides: [], consumes: []},
   artifacts: {produces: [], consumes: []}, ui: {contributions: []},
   sync: {protocol_version: 1, collections: [{id: 'records', title: 'Records', schema_version: 1, requires: [], aggregates:[{kind:'record',table:'records',columns:['id','project_id','body'],children:[]}]}]},

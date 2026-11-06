@@ -63,7 +63,7 @@ function probe(options: ProbeOptions = {}) {
       input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "number" } } };
   const started: Array<PluginHostServices | undefined> = [];
   const preflight: Array<PluginUpgradeContext["services"]> = [];
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: idOf(name), version, name: idOf(name), kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: idOf(name), version, name: idOf(name), kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [note, count],
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };

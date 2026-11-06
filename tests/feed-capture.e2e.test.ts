@@ -147,7 +147,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     title: "插件判断：需要跟进", description: "判断原材料是否需要跟进", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: [], subject_kinds: ["feed_item"],
     input_schema: feedCaptureScene.input_schema, output_schema: feedCaptureScene.result_schema, output_type: feedCaptureScene.result_type } };
   const inputs: string[] = [];
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.capture", version: "1.0.0", name: "捕捉判断示例",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.capture", version: "1.0.0", name: "捕捉判断示例",
     kind: "app", publisher: { publisher_id: "example", signature: "capture-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, args) => { inputs.push((args as { content: string }).content); return { status: "ok", suggested_behavior_ids: ["inbox.admit"] }; } }] }; } });

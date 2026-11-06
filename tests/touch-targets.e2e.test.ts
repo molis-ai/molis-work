@@ -100,7 +100,7 @@ const SHELL_CONTROLS = `(() => {
   const out = [];
   const roots = [["bar", ".workbench-bar"], ["strip", "nav.tab-strip"], ["strip", ".immersive-titlebar"]];
   for (const [area, root] of roots) {
-    for (const el of document.querySelectorAll(root + " :is(button, summary, input, [role=tab])")) {
+    for (const el of document.querySelectorAll(root + " :is(button, summary, input, textarea, [role=tab])")) {
       if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover")) continue;
       const box = el.getBoundingClientRect();
       if (box.width < 2 || box.height < 2) continue;
@@ -132,7 +132,7 @@ const LINE_FIT = `(() => {
  * one another, so the room it needs is an exact sum of them. */
 const ROW_FIT = `(() => {
   const vw = document.documentElement.clientWidth;
-  const boxes = [...document.querySelectorAll(".workbench-bar :is(.bar-start, .bar-end) :is(button, summary, input, [role=tab], a[href])")]
+  const boxes = [...document.querySelectorAll(".workbench-bar :is(.bar-start, .bar-end) :is(button, summary, input, textarea, [role=tab], a[href])")]
     .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover"))
     .map(el => ({ name: el.getAttribute("aria-label") || el.textContent.trim().slice(0, 12), box: el.getBoundingClientRect() }))
     .filter(item => item.box.width >= 2)
@@ -219,7 +219,7 @@ const popoversScript = (floor: number) => `(async () => {
     if (name === "the mode") await pickExecutor(true);
     opener.hidden = false;
     // The strip shows while the input has focus.
-    if (button) { if (opener.matches("input")) opener.focus(); else opener.click(); }
+    if (button) { if (opener.matches("input, textarea")) opener.focus(); else opener.click(); }
     else window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: "touch-offer", purpose: "suggest", source: { surface: "todo", title: "待办" }, text: "整理本周的待办" } }));
     await wait(300);
     const pop = document.querySelector(popover);
@@ -230,7 +230,7 @@ const popoversScript = (floor: number) => `(async () => {
       items: controls.filter(el => el.matches(".dock-overflow-item")).map(el => ({ pin: el.dataset.dockPin, h: Math.round(el.getBoundingClientRect().height) })),
       small: controls.map(el => { const box = el.getBoundingClientRect(); return { cls: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 16), w: Math.round(box.width), h: Math.round(box.height) }; }).filter(item => Math.min(item.w, item.h) < ${floor}),
     };
-    if (!pop.hidden && button) { if (opener.matches("input")) opener.blur(); else opener.click(); }
+    if (!pop.hidden && button) { if (opener.matches("input, textarea")) opener.blur(); else opener.click(); }
     await wait(120);
     if (name === "the mode") await pickExecutor(false);
   }

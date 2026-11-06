@@ -242,10 +242,73 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// Personal merge, approved on 2026-11-04 against cbd019de6. Freeze only the measured growth.
-// Coding preserves concurrent drafts and saved history. Cognia checks the observed version on write.
-// Shelf uses the immutable version produced by the completed save for native copy.
+// Component board upgrade (DESIGN「皮肤」「Reading load」, 2026-10-30 to 11-03), approved by the user on 2026-11-03 over the 10 KB line.
+// In all: arrival.css +10997 B, settings.css +9713 B, workbench.css +14784 B, workbench.js +765 B, coding.css +890 B.
+// - The Tray and Pill skins (design-system styles/skins.ts, its toast rule) close each of the three page sheets, about +7.3 KB on
+//   each; the page script reads, applies and follows the skin preference (the +765 B on workbench.js). The default components'
+//   details (legible disabled buttons, field error glyphs, menu shortcuts and groups) add about +2.6 KB on each sheet.
+// - The reading-load rules (DESIGN「Reading load」): outlined ghost buttons, one-line meta rows, the diff file list, the operation
+//   card's target and impact chips and the input receipt's zones as containers in their own colours; workbench.css also carries
+//   the diff view and receipts, and coding.css the one-line session row with its state chip. Record actions take their kind's
+//   colour (read in the accent, delete in red); the frame header no longer thins its action to a text link, which saves 439 B. The mist palette and the soft-fog
+//   defaults replace values and add next to nothing.
+// Tried: each skin rule is written once over shared `--sk-*` tokens; the board's own samples stay inlined on the board page;
+// the palette switch was removed from the board instead of shipped; the soft-fog commit's rewrite of buttons and badges is
+// smaller than what it replaced; no new asset.
+// BL-953 (A track): the home bar's input is a growing textarea, not a one-line input: arrival.css +132 B, workbench.css +132 B, settings.css
+// +43 B (the phone rule). Tried: the field's own sizing comes from the shared data-fit rule, so only the bar's line height, ceiling and
+// one-line prompt are written; the comments are not in the sheet.
+// N53/N54 D half (#1811, admitted by the coordinator on 2026-11-05): pages stop sending reads that can only fail. plugin-frame.js
+// +238 B: the frames a page mounts at once share one in-flight surfaces read per address, and a page with no project asks none;
+// workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
+// address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
+// read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
+// BL-952 (2026-11-04): the selection reader skips headings inside a closed dialog or a hidden element, +56 B on workbench.js and on
+// plugin-frame.js (the same reader). Tried: one `closest` test with a short selector, no feature check, no second path.
+// WORK-03 (2026-11-05, explicitly approved by the user): product-local account forms and protected GET.
+// Reuses existing controls and request helper, minifies the typed browser program, and adds no served asset.
+// Exact growth: workbench.js +6876 B, plugin-frame.js +54 B, each stylesheet +452 B; see specs/unified-account/spec.md.
+// WORK-04 (2026-11-05, explicitly approved by the user): provider window/native opener, cancellation and result polling.
+// Reuses the same dialog, request helper and existing native bridge; minified into workbench.js, +1562 B more (8438 B total).
+// WORK-05 (2026-11-05, explicitly approved by the user): profile and security forms share verification helpers, minified in the existing bundle. +8,994 bytes over 1,083,008; no other asset changes.
+// WORK-06 (2026-11-05, explicitly approved by the user): tenant/member/platform forms reuse the account UI and pagination; +8,918 bytes over 1,092,002, minified in the same bundle with no new assets.
+// WORK-07 (2026-11-05, explicitly approved by the user): subscription, seat and platform forms share cards, fields and error states; +10,408 bytes over 1,100,920, minified into the existing bundle. No other assets grow.
+// WORK-08 (2026-11-05, explicitly approved by the user up to +2,374 bytes): entitlement sources reuse subscription UI and the request helper; final +2,340 bytes over 1,111,328 after removing invalid cross-batch revision comparison. Other assets unchanged.
+// T-01 integration: rebase the already approved account deltas onto main a00f5ba1.
+// The integrated measurement adds exactly the same account bytes: +410 / +452 / +39629 / +54.
+// Upstream growth is already in main; this rebases the admission and grants no additional growth.
+// K-07 (2026-11-06, explicitly approved): arrival side panels follow the stage grid above the wrapping bar.
+// Scoped selectors were shortened; arrival.css adds exactly 273 B over 690296, with no new asset.
+// Main #1747 reduced workbench.css by 4 B; preserve its approved +452 B on the new 1194521 B base.
+// ASC-56 (第 13 批⑦, approved by the user on 2026-11-05): the model settings page fetches the models a service offers and lists
+// them with the board's combobox to filter and pick. settings.css +271 B and workbench.css +271 B (header alignment, the picked mark,
+// the listed name), workbench.js +2357 B (fetch, filter, pick, keyboard). These add on top of the account entries above, which
+// share the same merge-base. Tried: the picker reuses `.model-field` and the board's combobox styles, the save and the fetch share
+// one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441.
+// 07-S0 (workbench navigation specimens; 07 批评审台与 D 轨合审审过（#1852）): the README's new tab-strip, titlebar and
+// three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
+// workbench.css +9705 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
+// the phone titlebar's strip (6422 B), the glyph row with its own tab and count (2736 B, glyph-tabs.ts) and the bar zones (547 B).
+// arrival.css +3283 B: the same glyph row, which the arrival titlebar draws without the project page's tab rules, and the bar
+// zones. settings.css +547 B: the bar zones through craft-finish. (The BL-953 entries for these three are spent: the merge-base
+// budget holds their ceilings.) Tried: the board-only scaffolding stays inline on the board's frame page; the layout button is
+// the ghost icon .mw-btn and "open beside" the switcher row's button, not classes of their own; the new class names drop the
+// body.immersive-workbench prefix where no rule competes (it stays on the tab, group and toggle overrides); one class for the
+// strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
+// weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
+// On main's base after ASC-56 (settings.css 826998, workbench.css 1194792) the account and ASC-56 entries for those two are spent,
+// so 07-S0 keys its own there; arrival.css still shares the 689886 key with the account admission, and 07-S0's ceiling there
+// also covers the account PR's +683 B. Whichever lands second moves its own entry onto the new base.
+// BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
+// one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
+// table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
+// account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-arrival.css": [689886, 693169],
+  "/assets/molis-work-settings.css": [826998, 827545],
+  "/assets/molis-work-workbench.css": [1194792, 1204497],
+  "/assets/molis-work-workbench.js": [1077477, 1077514],
+  "/assets/molis-work-plugin-frame.js": [208271, 208325],
   "/assets/molis-work-plugins/coding.js": [290023, 297778],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],
   "/assets/molis-work-plugins/shelf.js": [64967, 65319],

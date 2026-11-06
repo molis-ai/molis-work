@@ -35,7 +35,7 @@ const NOTES: PluginDatabaseDeclaration = {
 const OWNER = { plugin_id: "io.molis.work.notes-probe", publisher_signature: "publisher-a", declaration: NOTES };
 
 const manifest = (databases: unknown) => ({
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
     publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "把笔记存进项目库里自己的表" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

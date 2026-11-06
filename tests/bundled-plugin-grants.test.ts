@@ -31,7 +31,7 @@ const USE_OPTIONAL: ActionDefinition<Record<string, never>, string> = {
 
 function build(version: string, permissions: PluginManifest["permissions"]): PluginDefinition {
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version, name: "Bundled grants fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version, name: "Bundled grants fixture", kind: "app",
     publisher: { publisher_id: "molis", signature: "bundled-grants-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [USE_OPTIONAL],
   };

@@ -27,7 +27,7 @@ const changeAction={capability_id:'io.molis.work.example.personal-notes.change',
 export function createPersonalNotesSample(version = '1.0.0') {
   let document: SyncDocument<Data> | undefined;
   const definition = definePlugin({
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: 'io.molis.work.example.personal-notes', version,
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: 'io.molis.work.example.personal-notes', version,
       name: '个人同步笔记样例', kind: 'app', publisher: { publisher_id: 'sample-author', signature: 'sample-author-binding' },
       entrypoints: [{ deployment: 'local', entrypoint: './plugin.js' }], permissions: [{ permission: 'storage:private', required: true, reason: '保存笔记和原子同步日志' }],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

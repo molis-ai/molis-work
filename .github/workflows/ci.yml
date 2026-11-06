@@ -180,7 +180,7 @@ jobs:
       # (scripts/ci-queue-verified.mjs, `queue-check`), and so does the parallel test runner every step here uses
       # (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill links hold.
       - name: Gate rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/ci-test-selection.test.ts tests/ci-queue-verified.test.ts tests/ci-timeouts.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/ci-test-selection.test.ts tests/ci-queue-verified.test.ts tests/ci-timeouts.test.ts tests/run-tests-pool.test.ts tests/run-tests-shard.test.ts tests/cursor-skill-links.test.ts
 
   # The health gates' own rules (scripts/check-health-gates.mjs and scripts/gates/): each one is broken once on a scratch repository
   # and must go red, and so must the same branch after `--update` rewrote the baseline. The glob takes every
@@ -484,10 +484,12 @@ jobs:
   # red build. Moving the pin is a deliberate change (clean the new warnings in the same PR).
   native-checks:
     name: Rust and Swift checks
-    needs: [queue-check]
-    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
-    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
+    needs: [test-selection, queue-check]
+    # Skipped in two cases only. A push to main that `queue-check` found verified by the merge queue: it succeeded and said true. And a
+    # pull request or merge queue entry whose `test-selection` succeeded and said `none`: no changed file is one these checks read
+    # (scripts/ci-test-selection.mjs, NATIVE_RUN_WHEN; 用户 2026-11-04: GitHub's macOS runners could not be had for 40 minutes). On any
+    # other event, or when a job failed or said anything else (whatever it wrote before failing), this runs as it always did.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && ((github.event_name != 'pull_request' && github.event_name != 'merge_group') || needs.test-selection.result != 'success' || needs.test-selection.outputs.native_mode != 'none') }}
     runs-on: macos-latest
     env:
       RUSTUP_TOOLCHAIN: 1.96.0
@@ -607,11 +609,12 @@ jobs:
           TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}
           SECURITY_MODE: ${{ needs.test-selection.outputs.security_mode }}
           PRODUCT_MODE: ${{ needs.test-selection.outputs.product_mode }}
+          NATIVE_MODE: ${{ needs.test-selection.outputs.native_mode }}
           QUEUE_CHECK_RESULT: ${{ needs.queue-check.result }}
           QUEUE_VERIFIED: ${{ needs.queue-check.outputs.verified }}
           QUEUE_RUN_URL: ${{ needs.queue-check.outputs.run_url }}
         # Reuse only the trusted push the queue verified. Otherwise all nine actual results must succeed, except a PR job
-        # skipped after its own successful none selection. The selector is evidence, not a required test result; failed or
+        # skipped after its own successful none selection (and the Rust and Swift checks, also on a merge queue entry). The selector is evidence, not a required test result; failed or
         # stale selection outputs cannot waive a skipped security or product job.
         run: |
           if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$QUEUE_CHECK_RESULT" = "success" ] && [ "$QUEUE_VERIFIED" = "true" ]; then
@@ -623,8 +626,13 @@ jobs:
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
           test "$ACTION_CONTRACTS_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
-          test "$NATIVE_CHECKS_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success"
+          if [ "$NATIVE_CHECKS_RESULT" != "success" ]; then
+            test "$GITHUB_EVENT_NAME" = "pull_request" || test "$GITHUB_EVENT_NAME" = "merge_group"
+            test "$TEST_SELECTION_RESULT" = "success"
+            test "$NATIVE_MODE" = "none"
+            test "$NATIVE_CHECKS_RESULT" = "skipped"
+          fi
           if [ "$SECURITY_INVARIANTS_RESULT" != "success" ]; then
             test "$GITHUB_EVENT_NAME" = "pull_request"
             test "$TEST_SELECTION_RESULT" = "success"
@@ -642,11 +650,14 @@ jobs:
   # PR selection (T-130): some runs the selected files, whole runs the full list, and only successful none skips a job.
   # Selector failure/cancellation/empty or unknown modes fall back to both complete shards; no stale file/shard output is used.
   # The merge queue, a direct push, nightly and manual runs run both whole. A trusted queue-verified push reuses its result.
+  # The same selection also decides `native-checks` (the macOS Rust and Swift checks), on a pull request and in the merge queue: only a
+  # successful `native_mode` of none skips it; a failed selector runs it. The queue's two test jobs ignore the selection and run whole.
   # Verify directly needs this job to judge per-job PR skips, but a failed selector is not a failed required test: both jobs
   # run whole instead. Only success + some on a PR may supply selected files and shards.
   test-selection:
     name: PR test selection
-    if: ${{ github.event_name == 'pull_request' }}
+    # A pull request, and the merge queue for `native-checks` alone: the queue's security and product jobs read nothing from it and run whole.
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -656,6 +667,7 @@ jobs:
       product_mode: ${{ steps.select.outputs.product_mode }}
       product_shards: ${{ steps.select.outputs.product_shards }}
       product_only: ${{ steps.select.outputs.product_only }}
+      native_mode: ${{ steps.select.outputs.native_mode }}
     steps:
       # The merge commit GitHub builds and its two parents: HEAD^1 is the base branch as merged, so the change is exactly the pull request's.
       - uses: actions/checkout@v6
@@ -678,11 +690,14 @@ jobs:
   # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
   # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates.
   # Blocking (decision #14): after its observation period, one of Verify's required test results.
-  # Two legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
+  # Three legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
   # limit, and four at a time on one 4-core runner pushed tests/mcp-scene-effect-authority.test.ts from about 20 s to 22-36 s against
-  # its 30 s limit (half the runs on main failed). Every second file of the list (`--shard`), each file in exactly one leg.
-  # The merge queue runs the whole list on two legs. PR some runs selected files; whole or an untrusted selector runs both
-  # complete shards. Only successful none skips the job. Direct pushes, nightly and manual runs run the complete list too.
+  # its 30 s limit (half the runs on main failed). The files are dealt out to the legs by how long they take (`--shard`,
+  # tests/ci-shard-weights.json, scripts/run-tests/shard.mjs), each file in exactly one leg. Two legs with every second file took
+  # 1348 s and 2704 s of test time in merge queue run 42023765782, and the merge waited 25 minutes for the second; three balanced legs
+  # take about 1340 s each, two files at a time.
+  # The merge queue runs the whole list on three legs. PR some runs selected files; whole or an untrusted selector runs all
+  # three complete shards. Only successful none skips the job. Direct pushes, nightly and manual runs run the complete list too.
   security-invariants:
     name: Security invariants (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [test-selection, queue-check]
@@ -694,7 +709,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2]') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2, 3]') }}
     env:
       MOLIS_WORK_TEST_JOBS: 2
     steps:
@@ -838,7 +853,8 @@ jobs:
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
   # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
   # writes its report on that signal, and the upload below is `if: always()`.
-  # Two disjoint shards cover the same full list once; each keeps the phase/attempt limits above.
+  # Two disjoint shards cover the same full list once, dealt out by how long the files take (tests/ci-shard-weights.json; with every
+  # second file the legs took 2527 s and 1336 s of test time in run 42023765782); each keeps the phase/attempt limits above.
   # fail-fast is off so one failed shard does not hide the other shard's results.
   # The merge queue runs the full list on two shards. PR some runs selected files, while whole or a selector fault runs
   # both complete shards; only successful none skips. Direct pushes, nightly and manual runs also run the full list.

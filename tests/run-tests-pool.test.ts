@@ -28,6 +28,13 @@ test("plan: the longest expected file starts first; a file with no recorded dura
   assert.deepEqual(Object.keys(plan(entries, {})[0]).sort(), ["browser", "expected", "file"]);
 });
 
+test("CIP-07 a new shard starts known long files first before it has a private duration cache", () => {
+  const entries = [{ file: "quick", browser: false }, { file: "slow", browser: true }, { file: "medium", browser: true }];
+  const weights = { quick: 10, slow: 600, medium: 120 };
+  assert.deepEqual(plan(entries, {}, weights).map(entry => entry.file), ["slow", "medium", "quick"]);
+  assert.deepEqual(plan(entries, { medium: 800 }, weights).map(entry => entry.file), ["medium", "slow", "quick"], "a runner can refine its own start order without changing shard ownership");
+});
+
 test("runQueue: never more than `jobs` files at once nor more than `browserJobs` browser files, and every file runs once", async () => {
   const queue = [
     ...Array.from({ length: 5 }, (_, index) => ({ file: `tests/e2e-${index}.e2e.test.ts`, browser: true })),

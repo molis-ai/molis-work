@@ -365,3 +365,9 @@ K-20 最终整体构建后，Workbench README 与动画/资源相关 22 文件 3
 新主线连接卡允许账号说明换行，但前导图标仍对齐整段中点。将该卡的选项内部按首行对齐，完整保留文字和外层按钮布局；仅更改组件的内嵌样式，不新增网络资源。
 
 - **T01-CONNECTION-CHOICE-LINE-01** 连接卡账号说明换行后，图标仍在首行中线上；浅色、深色、紧凑和手机模式均按原 VUX-46～50 对齐规则校验。证明：`tests/visual-order.e2e.test.ts`。
+
+### K-26 桌面看板列在页面切换后的展开状态
+
+最终候选 `88f595b3b` 的 Verify 通过，Full 为 1,665/1,666；`page-interaction-flow.e2e.test.ts` 的真实隐藏看板展开状态检查持续失败。本机同一文件在候选为 2/3、干净主线 `20bdb4c16` 为 3/3。Goals 的列展开监听遗漏捕获阶段，收不到不冒泡的原生 `toggle`；点击其他入口时，共用浮层关闭逻辑会将绝对定位卡片所在的列关闭。由 Goals 自己捕获并恢复桌面列，继续按看板容器宽度判断，手机仍保留用户折叠。
+
+- **T01-KANBAN-TOGGLE-01** 桌面看板经真实 Dock 点击切走、隐藏及重新显示后，列保持展开；看板隐藏刷新后卡片可读，手机折叠仍保留。证明：`tests/goals-kanban-visibility.e2e.test.ts`。原 `tests/page-interaction-flow.e2e.test.ts` 的隐藏浮层与 Escape 断言保持不变。

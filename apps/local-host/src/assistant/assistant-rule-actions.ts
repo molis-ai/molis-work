@@ -14,7 +14,7 @@ import { computerRecordFileSource } from "../computer/computer-record-source.js"
 
 export const ASSISTANT_RULES_PROVIDER = "io.molis.work.assistant.rules";
 
-const KINDS: ReadonlyArray<[string, string]> = [["failed", "一轮失败"], ["needs-decision", "需要你确认或回答"], ["completed", "你不在时做完"], ["result", "插件交回结果"], ["material", "与工作目标相关的新资料"], ["reminder", "你在插件里设的提醒到时间"]];
+const KINDS: ReadonlyArray<[string, string]> = [["failed", "一轮失败"], ["needs-decision", "需要你确认或回答"], ["completed", "你不在时做完"], ["result", "插件交回结果"], ["material", "与工作目标相关的新资料"], ["reminder", "你在插件里设的提醒到时间"], ["connection", "服务连接需要你处理（要重新登录、密钥或权限被拒、一直连不上）"]];
 
 const rulesOutput: ActionSchema = { type: "object", properties: { rules: { type: "array", title: "现在的提醒规则", items: { type: "object" } } }, required: ["rules"] };
 

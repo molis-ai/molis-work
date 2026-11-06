@@ -90,7 +90,7 @@
 | `copilot-cli` | Copilot CLI | 待（线索：`~/.copilot/session-state/<id>/`，三） | 界 `--resume` 选择器 | 待（线索：`events.jsonl`，格式未公开，三） | 待 | 命 `--resume <id>` | 待 | 待 | 待 | 官（命令） |
 | `copilot-ide` | Copilot IDE 会话 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待（盘点漏了，本稿补） |
 | `copilot-coding-agent` | Copilot 编码 Agent（云端） | 命 `gh agent-task list` | 命 `gh agent-task list` | 命 `gh agent-task view --log` | 待 | 无 | 待 | 待 | 待 | 官，preview；盘点第 5 节写未查到，本稿查到 |
-| `cursor` | Cursor Agent CLI | 私：`~/.cursor/chats` 是私有库（三） | 界：`agent ls` 不支持无头，官方人员确认过（2026-01 版） | 私 | 待 | 命 `--resume=<chat-id>` | 待 | 待 | 待 | 官 |
+| `cursor` | Cursor Agent CLI | 私：`~/.cursor/chats` 是私有库（三） | 界：`agent ls` 不支持无头，官方人员确认过（2026-01 版） | 私 | 待 | 命 `--resume [chatId]` | 待 | 待 | 待 | 官 |
 | `cursor-editor` | Cursor 编辑器 | 私 | 界 | 私 | 界 | 界 | 界 | 界 | 无 | 三 |
 | `cursor-cloud` | Cursor 云端 Agent | 待（线索：`GET /v0/agents`，三） | 待（同左） | 待（线索：`/conversation`，三） | 待 | 待 | 待（线索：followup，三） | 待（线索：stop，三） | 待 | 三；需求 §2 没列，本稿补，官方页要再核 |
 | `kiro-cli` | Kiro CLI | 待（`--list-sessions` 存在，输出格式未核） | 待（同左） | 待（线索：`~/.kiro/sessions/`，三） | 待 | 命 `--resume-id <id>` | 待：无头模式拿不到会话 ID（问题单） | 待 | 待 | 官（命令） |
@@ -130,7 +130,7 @@
 | `zulu` | Zulu | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 | 待 |
 | `codearts-agent` | CodeArts 代码智能体 | 待 | 待 | 待 | 待 | 待：有 `codearts run`，会话命令未查到 | 待 | 待 | 待 | 官（CLI 存在） |
 | `opencode` | OpenCode | 待（线索：`opencode session list`，三） | 待（同左） | 待（线索：`opencode export <id>`，三） | 待 | 命 `--session <id>`（工作终端已接） | 待 | 待 | 待（同左） | 仓（恢复）；其余三 |
-| `pi-agent` | Pi Agent | 录 `~/.pi/agent/sessions/`（可被 `--session-dir` 与环境变量改） | 界 `--resume` 选择器 | 录 | 待 | 命 `--session <id>`（工作终端已接；接受路径和部分 ID，只传完整 ID） | 待：`--mode rpc` 未核 | 待 | 命 `--export <file>`（HTML） | 帮 1.5.0；盘点写待核，本稿查到 |
+| `pi-agent` | Pi Agent | 录 `~/.pi/agent/sessions/`（可被 `--session-dir` 与环境变量改） | 界 `--resume` 选择器 | 录 | 待 | 命 `--session <id>`（工作终端已接；接受路径和部分 ID，只传完整 ID） | 待：`--mode rpc` 未核 | 待 | 待（`--export <file>` 存在，出 HTML；参数是文件不是会话号，占位符写不下） | 帮 1.5.0；盘点写待核，本稿查到 |
 
 ### 3.3 三个读表要注意的
 
@@ -162,7 +162,7 @@ export type ExternalToolAccess =
 /** 接入方式只认这三种：第三方说法和未核的只能是缺口。 */
 export type ExternalToolReachedTrust = "official" | "help" | "repository";
 
-/** 路径写成「基准 + 相对段」，由宿主按当前用户展开；`env` 覆盖基准，只认绝对路径。 */
+/** 路径写成「基准 + 相对段」，由宿主按当前用户展开；`env` 是绝对路径时就是整条路径（`CODEX_HOME` 是目录本身，不是 `.codex` 的上级）。 */
 export interface ExternalToolPath {
   base: "home" | "xdg_config";
   segments: readonly string[];
@@ -214,21 +214,27 @@ export interface ExternalToolEntry {
 export const EXTERNAL_TOOLS = [ /* 第 3 节的每一行 */ ] as const satisfies readonly ExternalToolEntry[];
 export type ExternalToolId = (typeof EXTERNAL_TOOLS)[number]["id"];
 
-type ToolWith<Key extends string> = Extract<(typeof EXTERNAL_TOOLS)[number], Record<Key, unknown>>;
+export type ExternalToolWith<Key extends string> = Extract<(typeof EXTERNAL_TOOLS)[number], Record<Key, unknown>>;
 
-const idsWith = <Key extends string>(key: Key): readonly ToolWith<Key>["id"][] =>
-  EXTERNAL_TOOLS.filter(tool => key in tool).map(tool => tool.id) as ToolWith<Key>["id"][];
+export const externalToolIdsWith = <Key extends string>(key: Key): readonly ExternalToolWith<Key>["id"][] =>
+  EXTERNAL_TOOLS.filter(tool => key in tool).map(tool => tool.id) as ExternalToolWith<Key>["id"][];
+
+export const externalTool = <Id extends ExternalToolId>(id: Id): Extract<(typeof EXTERNAL_TOOLS)[number], { id: Id }> =>
+  EXTERNAL_TOOLS.find(tool => tool.id === id) as Extract<(typeof EXTERNAL_TOOLS)[number], { id: Id }>;
 ```
 
 | 名字 | 怎样得出 | 留在哪 |
 | --- | --- | --- |
-| `SUPPORTED_RUNTIME_IDS`、`SupportedRuntimeId` | `idsWith("mcp_integration")` | `installation-detection.ts`，`app-host.ts` 的转出不动 |
+| `SUPPORTED_RUNTIME_IDS`、`SupportedRuntimeId` | `externalToolIdsWith("mcp_integration")` | `installation-detection.ts`，`app-host.ts` 的转出不动 |
 | `RUNTIME_DISPLAY_NAMES` | 这些 id 的 `display_name` | 同上 |
-| `TERMINAL_RUNTIMES`、`TerminalRuntime` | `idsWith("terminal")` | `apps/local-host/src/plugin-terminal-runtimes.ts`，`RECIPES` 删掉，`terminalRuntimeRecipe` 读 `terminal.command` 与 `sessions.resume.argv` |
-| `CHARACTER_IMPORT_RUNTIMES`、`CharacterImportRuntimeId` | `idsWith("character_import")` | `character-import.ts` |
+| `TERMINAL_RUNTIMES`、`TerminalRuntime` | `externalToolIdsWith("terminal")` | `apps/local-host/src/plugin-terminal-runtimes.ts`，`RECIPES` 删掉，`terminalRuntimeRecipe` 读 `terminal.command` 与 `sessions.resume.argv` |
+| `CHARACTER_IMPORT_RUNTIMES`、`CharacterImportRuntimeId` | `externalToolIdsWith("character_import")` | `character-import.ts` |
 
-三个要点：
+派生分散在合同和宿主的几个文件里，所以这两个函数和 `ExternalToolWith` 都导出。
 
+四个要点：
+
+- **矩阵的入口名不等于显示名。** 第 3 节「产品入口」一列是入口的名字，`display_name` 是界面上写的字。前六行沿用今天的显示名（`codex` 写 `Codex`，不写「Codex CLI」），界面文字不变。
 - **顺序是合同。** 登记表把这六家排在最前：`codex`、`claude-code`、`cursor`、`opencode`、`pi-agent`、`grok-build`。这样三份名单的成员和顺序都和今天一样，界面排序不变，PR 里写「成员不变，对调用方无影响」。
 - **`cursor` 这个 id 留给 Agent CLI 一行。** 它今天只用于角色导入，配置根目录 `~/.cursor` 由 CLI 和编辑器共用；编辑器是另一行 `cursor-editor`，不带 `character_import`。
 - **命令名不够认人。** 本机 `agent` 是指向 grok 的链接，而 Cursor 的命令也叫 `agent`。`character-import-discovery.ts` 现在已按真实路径核（命令名是 `agent` 时匹配 `.cursor` 或 `grok`，注释写明光看文件名不够），换成 `detect` 时**这个检查要保住**，写成 `real_path_pattern`。顺序是先看路径，路径不符不运行；过了才跑 `version_argv` 匹配 `version_pattern`，不符就当没装，不把输出交给这家的解析器。比现在多运行一次本机程序，所以写进 S-115。`version_argv` 的运行随 S-115 在第 34 批接，C-1 只把它写进登记表：角色导入不运行它，`real_path_pattern` 也只保今天的检查，即几家共用的命令名（现在是 `agent`）才核真实路径，`grok`、`cursor-agent` 这些自己的命令名不核。
@@ -251,7 +257,7 @@ const idsWith = <Key extends string>(key: Key): readonly ToolWith<Key>["id"][] =
 
 `character-import-runtimes.ts` 的扫描函数表和 `runtime-config-adapters.ts` 的适配是行为，不是名单，留在宿主，用 `Record<CharacterImportRuntimeId, …>` 这类派生类型钉住，缺一家就编译不过。
 
-**第十二处，这次不收：** `modules/shelf/src/runtimes.ts` 的 `SHELF_ENGINES`（9 家）。它的键是 `grok`、`claude` 这样的另一套值，已存进 Shelf 的设置；说的是「能跑无头任务的引擎」，命令名也和这里不同（Cursor 只认 `cursor-agent`）。硬收要么改存量键，要么在登记表再加一套键，都超出 C-1。留作 BL-955 的余项，第 4.5 节的扫描也拦不到它。
+**第十二处，这次不收：** `modules/shelf/src/runtimes.ts` 的 `SHELF_ENGINES`（9 家）。它的键是 `grok`、`claude` 这样的另一套值，已存进 Shelf 的设置；说的是「能跑无头任务的引擎」，命令名也和这里不同（Cursor 只认 `cursor-agent`）。硬收要么改存量键，要么在登记表再加一套键，都超出 C-1。留作 BL-955 的余项。第 4.5 节的扫描拦得到它（`opencode`、`cursor`、`codex` 碰巧和登记 id 同名），测试里只点名放行这一处，写明理由；收掉时这条放行一起删。
 
 **页面资源。** 登记表 50 行，浏览器不许 import 它。插件里 `RUNTIME_DISPLAY_NAMES` 的值只有 `plugins/native/goals/src/event-acknowledgement-body.ts` 在用，写手要跑 `pnpm page-assets:check` 确认这个文件不进页面包；进了就改由宿主给名字，不放宽预算。
 
@@ -267,7 +273,7 @@ const idsWith = <Key extends string>(key: Key): readonly ToolWith<Key>["id"][] =
 | `via` 不是 `gap` 时 `trust` 只能是 `official`、`help`、`repository`（类型挡一层，测试再挡一层）；`gap` 必须有 `note` | 未核的写成支持 |
 | `sessions` 八项都有；`shares_sessions_with` 指向存在的 id、不成链；`surface` 不是 `cloud` 时必须写 `data_root` 这个键 | 漏项 |
 | 有 `terminal` 的行 `sessions.resume` 必须是 `via: "command"`；`argv` 里每个占位符独占一个元素；`command` 是裸命令名 | 拼接注入；终端能跑却没有恢复参数 |
-| 用 TypeScript AST 扫 `apps`、`horizontal`、`modules`、`packages`、`plugins` 的 `.ts`：数组字面量含两个以上登记 id 一律失败；对象字面量含两个以上登记 id 作键时，只有声明类型是派生类型的 `Record<…>`、**且值都是函数**才放过；登记表文件自身除外 | 手写名单回潮。`Record<…, string>` 的手写显示名表照样拦。放在测试里，不改门禁脚本 |
+| 用 TypeScript AST 扫 `apps`、`horizontal`、`modules`、`packages`、`plugins` 的 `.ts`：数组字面量含两个以上登记 id 一律失败，元素是数组时取第一个字符串，是对象时取字符串属性值，一起计数；对象字面量含两个以上登记 id 作键时（计算键也算），只有声明类型是派生类型的 `Record<…>`、**且值都是函数**才放过；字符串和模板文本里有两个以上 `value="<登记 id>"` 失败；登记表文件自身除外，`SHELF_ENGINES` 点名放行一处（第 4.4 节） | 手写名单回潮：`Record<…, string>` 的显示名表、`[id, 名字]` 对、`new Map`、对象数组、HTML 下拉选项。放在测试里，不改门禁脚本 |
 
 ## 5. 会话身份与去重
 
@@ -1012,6 +1018,8 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | S-4 | 搜索来源 |
 | S-5 | 工作台界面（入口随第 03 批；「外部会话原文」先由 D 轨补标本）；读取范围 Sheet 两页；`project-ai-read` 路由；`open_project_ai_read` 的浮层；项目设置里本人连的目录和工具带进来的目录分开显示，后者给确认入口 |
 | S-6 | B 组适配；D 组保持缺口 |
+
+接适配时要复核登记表里 C-1 没核过的项：`qodercli`、`kiro-cli`、`kimi`、`codebuddy` 这几个命令名，以及各家 `detect` 的 `version_argv`、`version_pattern`。`cursor` 的恢复按官方参数表写成 `--resume [chatId]`，本机没装 `cursor-agent`，第 59 批接恢复之前要实测一次。`vendor` 一列没人读，也没逐家核实，别当已核事实用。
 
 其余后续批次要接的：
 

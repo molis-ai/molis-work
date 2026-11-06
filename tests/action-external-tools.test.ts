@@ -40,7 +40,24 @@ function declaredType(literal: ts.Expression): ts.TypeNode | undefined {
 const isDerivedRecord = (type: ts.TypeNode | undefined): boolean => type !== undefined && ts.isTypeReferenceNode(type) && type.typeName.getText() === "Record"
   && type.typeArguments !== undefined && DERIVED_ID_TYPES.has(type.typeArguments[0].getText());
 
-/** A hand-written tool list in one source file: an array with two registered ids, or an object keyed by two, unless it is a function table on a derived type. */
+/** What an array element says about a tool: a string itself, the first string of a pair (`[id, name]`, `new Map` entries), every string value of a row (`{ id }`). */
+function namedByElement(element: ts.Expression): string[] {
+  if (ts.isStringLiteralLike(element)) return [element.text];
+  if (ts.isArrayLiteralExpression(element)) return element.elements.filter(ts.isStringLiteralLike).slice(0, 1).map(first => first.text);
+  if (!ts.isObjectLiteralExpression(element)) return [];
+  return element.properties.flatMap(property => ts.isPropertyAssignment(property) && ts.isStringLiteralLike(property.initializer) ? [property.initializer.text] : []);
+}
+
+/** The written text of a string or a template, without what its substitutions add. */
+function writtenText(node: ts.Node): string | undefined {
+  if (ts.isStringLiteralLike(node)) return node.text;
+  return ts.isTemplateExpression(node) ? [node.head.text, ...node.templateSpans.map(span => span.literal.text)].join("") : undefined;
+}
+
+/**
+ * A hand-written tool list in one source file: an array naming two registered ids, an object keyed by two (unless it is a function table
+ * on a derived type), or a string or template with two `value="<id>"` options.
+ */
 function handWrittenLists(file: string, text: string, ids: ReadonlySet<string>): string[] {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const functions = new Set<string>();
@@ -57,14 +74,21 @@ function handWrittenLists(file: string, text: string, ids: ReadonlySet<string>):
     const value = property.initializer;
     return ts.isArrowFunction(value) || ts.isFunctionExpression(value) || (ts.isIdentifier(value) && functions.has(value.text));
   };
-  const keyOf = (property: ts.ObjectLiteralElementLike): string | undefined =>
-    property.name && (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name)) ? property.name.text : undefined;
+  const keyOf = ({ name }: ts.ObjectLiteralElementLike): string | undefined => {
+    if (name && ts.isComputedPropertyName(name)) return ts.isStringLiteralLike(name.expression) ? name.expression.text : undefined;
+    return name && (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) ? name.text : undefined;
+  };
   const where = (node: ts.Node): string => `${file}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
   const found: string[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isArrayLiteralExpression(node)) {
-      const named = new Set(node.elements.filter(ts.isStringLiteralLike).map(element => element.text).filter(value => ids.has(value)));
+      const named = new Set(node.elements.flatMap(namedByElement).filter(value => ids.has(value)));
       if (named.size >= 2) found.push(`${where(node)} array of ${[...named].join(", ")}`);
+    }
+    const written = writtenText(node);
+    if (written !== undefined) {
+      const options = new Set([...written.matchAll(/value="([^"]*)"/gu)].map(match => match[1]).filter(value => ids.has(value)));
+      if (options.size >= 2) found.push(`${where(node)} text with options ${[...options].join(", ")}`);
     }
     if (ts.isObjectLiteralExpression(node)) {
       const keyed = node.properties.filter(property => ids.has(keyOf(property) ?? ""));
@@ -166,6 +190,18 @@ test("SRB-07 the scan finds hand-written lists and passes a function table on a 
   assert.equal(scan("const run: Record<string, () => void> = { codex: () => {}, amp: () => {} };").length, 1);
   assert.equal(scan("function a() {}\nconst run: Record<TerminalRuntime, () => void> = { codex: a, amp: () => {} };").length, 0);
   assert.equal(scan('const one = ["codex", "other"];').length, 0);
+  // The two shapes the register replaced, as they stood before it.
+  assert.equal(scan('const runtimeKinds: Array<[string, string]> = [["claude-code", "Claude Code"], ["codex", "Codex"], ["opencode", "OpenCode"], ["pi-agent", "Pi Agent"], ["grok-build", "Grok Build"]];').length, 1);
+  assert.equal(scan('const html = `<select><option value="">自动发现</option><option value="codex">Codex</option><option value="claude-code">Claude Code</option></select>`;').length, 1);
+  // The same lists written another way.
+  assert.equal(scan('const html = `<option value="codex">${a}</option><option value="amp">${b}</option>`;').length, 1);
+  assert.equal(scan("const html = '<option value=\"codex\">Codex</option><option value=\"amp\">Amp</option>';").length, 1);
+  assert.equal(scan('const names = new Map([["codex", "Codex"], ["amp", "Amp"]]);').length, 1);
+  assert.equal(scan('const rows = [{ id: "codex" }, { id: "amp" }];').length, 1);
+  assert.equal(scan('const names = { ["codex"]: "Codex", ["amp"]: "Amp" };').length, 1);
+  // One registered id is not a list of tools, however often it is written.
+  assert.equal(scan('const pairs = [["codex", "Codex"], ["other", "Other"]];').length, 0);
+  assert.equal(scan('const html = `<option value="codex">Codex</option><option value="codex">Again</option>`;').length, 0);
 });
 
 test("SRB-07 no tool list is written by hand outside the register", () => {
@@ -173,5 +209,9 @@ test("SRB-07 no tool list is written by hand outside the register", () => {
   const found = ["apps", "horizontal", "modules", "packages", "plugins"].flatMap(root => sourceFiles(join(ROOT, root)))
     .map(path => relative(ROOT, path)).filter(file => file !== REGISTER_FILE)
     .flatMap(file => handWrittenLists(file, readFileSync(join(ROOT, file), "utf8"), ids));
-  assert.deepEqual(found, []);
+  // SHELF_ENGINES is what BL-955 left: its keys are stored in Shelf's settings and name headless engines, not product entries, and only
+  // some of them match a registered id. Exactly this one hit is allowed; when it goes, this line goes with it.
+  const shelf = found.filter(hit => hit.startsWith("modules/shelf/src/runtimes.ts:"));
+  assert.equal(shelf.length, 1, `SHELF_ENGINES is the one allowed list here: ${shelf.join("; ")}`);
+  assert.deepEqual(found.filter(hit => !shelf.includes(hit)), []);
 });

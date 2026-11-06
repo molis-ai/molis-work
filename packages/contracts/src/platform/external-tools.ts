@@ -122,7 +122,7 @@ export const EXTERNAL_TOOLS = [
     data_root: null, character_import: { config_root: { base: "home", segments: [".cursor"] } },
     sessions: { ...ALL_PENDING,
       discover: hidden("`~/.cursor/chats` 是私有库（第三方说法）"), list: inApp("`agent ls` 不支持无头，官方人员确认过（2026-01 版）"), read: hidden("`~/.cursor/chats` 是私有库（第三方说法）"),
-      // Documented as `--resume=<chat-id>`. A placeholder must be a whole element, so confirm the two-element form before anything runs it.
+      // The official form is `--resume [chatId]`, so two elements. Not tried on this machine: `cursor-agent` is not installed here.
       resume: { via: "command", argv: ["--resume", "{session_id}"], output: "interactive", trust: "official" } },
     checked: CHECKED },
   { id: "opencode", display_name: "OpenCode", vendor: "OpenCode", surface: "cli", region: "unspecified", detect: { commands: ["opencode"], ...VERSION }, data_root: null,

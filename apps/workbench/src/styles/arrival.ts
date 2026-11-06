@@ -1,4 +1,3 @@
-import { BACKGROUND_TASKS_MENU_STYLES } from "./background-tasks.js";
 
 /**
  * Arrival: the three screens a person passes through on the way in — the project chooser, the opening and Welcome
@@ -38,14 +37,11 @@ export const ARRIVAL_STYLES = String.raw`
   /* Only the chooser shows the caption. */
   .arrival:not([data-screen="chooser"]) .arrival-titlebar .mw-caption { opacity: 0; visibility: hidden; pointer-events: none; }
   .arrival[data-screen="chooser"] .arrival-titlebar .mw-caption { transition-delay: 0s; }
-  .arrival-tools { display: flex; align-items: center; gap: 2px; }
+  .arrival-tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
+  /* One row with the right side's tabs at its end (07-S1): the strip is a flex row of its own. */
+  .arrival-global { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
   .arrival-tools .mw-btn { color: var(--ink-soft); }
   .arrival-tools .mw-btn:hover:not(:disabled) { color: var(--ink); }
-  .arrival-bg { position: relative; display: inline-flex; }
-  .arrival-bg .mw-btn { padding-right: 34px; }
-  .arrival-bg .mw-btn[hidden] { display: none; }
-  .arrival-bg [data-background-tasks-count] { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--action); color: var(--action-ink); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 17px; text-align: center; font-variant-numeric: tabular-nums; pointer-events: none; }
-  .arrival-bg [data-background-tasks-count][hidden], .arrival-bg:has(.mw-btn[hidden]) [data-background-tasks-count] { display: none; }
   .arrival[data-screen="opening"] .arrival-tools { visibility: hidden; }
   /* The way on arrives a moment after the name has been typed (any key or click ends the typing at once, and a still page has it already). */
   .arrival[data-screen="opening"] .arrival-bar .bar-end { opacity: 0; visibility: hidden; transform: translateY(8px); }
@@ -281,7 +277,6 @@ export const ARRIVAL_STYLES = String.raw`
     .onboard .welcome-scene { display: block; justify-items: stretch; padding: 0 clamp(32px, 7vw, 120px) 32px; }
     .ob-right { width: auto; max-height: none; }
     .arrival-tools .mw-btn [data-slot="button-label"] { display: none; }
-    .arrival-bg .mw-btn { padding-right: 30px; }
   }
   @media (max-width: 760px) {
     .stage-split { padding-right: 0; }
@@ -302,6 +297,8 @@ export const ARRIVAL_STYLES = String.raw`
     html body.immersive-workbench.arrival-page .arrival { grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) auto; }
     html body.immersive-workbench.arrival-page .arrival > .arrival-bar { grid-row: 3; }
     .arrival-titlebar { padding-left: 14px; }
+    /* The right side's 44px glyphs share the row with the Home tools (07-S1): the brand keeps its mark, the name gives way. */
+    .arrival:not([data-screen="welcome"]) .arrival-brand > .mw-wordmark { display: none; }
     .mw-bar-context__text, .mw-btn__key { display: none; }
     /* The three blocks never share a cell: the status on its own row, the way back and the actions below it (the actions wrap rather than run under it). */
     html body.immersive-workbench.arrival-page .arrival-bar { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; gap: 4px 8px; padding-block: 8px max(8px, env(safe-area-inset-bottom)); }
@@ -324,5 +321,4 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-model-form { display: grid; gap: 14px; margin-top: 16px; }
   .ob-model-form .mw-input { width: 100%; }
   @media(max-width:360px){.arrival-brand .mw-wordmark{display:none}}
-  ${BACKGROUND_TASKS_MENU_STYLES}
 `;

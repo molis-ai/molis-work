@@ -96,6 +96,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-item-trigger .tab-item-name { flex: 1; }
   body.immersive-workbench .tab-item[data-pinned] { width: 36px; min-width: 36px; max-width: 36px; padding: 0; }
   body.immersive-workbench .tab-item[data-pinned] .tab-item-trigger { justify-content: center; }
+  body.immersive-workbench .tab-removed-stage { margin: auto; max-width: 420px; padding: 24px; text-align: center; }
   body.immersive-workbench .tab-item[data-pinned] .tab-item-name { display: none; }
   body.immersive-workbench .tab-item:active { background: var(--nav-active); }
   body.immersive-workbench .tab-item:hover { background: var(--nav-hover); color: var(--ink); }

@@ -28,7 +28,7 @@ test("DESK-SHELF-01 DESK-SHELF-02 the hotkey's Shelf opens its side tab, and the
 
   // DESK-SHELF-01: the hotkey and the menu bar call molisWorkOpenShelf; it opens Shelf by name, into its side tab.
   await evaluate("globalThis.molisWorkOpenShelf()");
-  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`, 8_000);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`, 8_000);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=shelf], [data-tab-workspace] [data-tab-plugin=shelf]')"), null, "nothing of Shelf opens in the work area");
 
   // DESK-SHELF-02: the shell is told where the Shelf tab is, as the page lays it out once the panel has settled.
@@ -39,7 +39,7 @@ test("DESK-SHELF-01 DESK-SHELF-02 the hotkey's Shelf opens its side tab, and the
   assert.ok(await evaluate<boolean>(`${reports}.every((call) => call.top)`), "only the top page reports; a frame never does");
 
   // Another tab in the panel, then the panel closed: no Shelf box either way.
-  await evaluate(`document.querySelector('#side-panel [role=tab][data-side-tab]:not([data-side-tab=${JSON.stringify(SHELF_TAB)}])').click()`);
+  await evaluate(`document.querySelector('[data-side-tabs] [role=tab][data-side-tab]:not([data-side-tab=${JSON.stringify(SHELF_TAB)}])').click()`);
   await waitFor(`${last}?.panel === null`, 8_000);
   await evaluate("globalThis.molisWorkOpenShelf()");
   await waitFor(`Boolean(${last}?.panel)`, 8_000);
@@ -59,13 +59,13 @@ for (const locale of ["zh", "en"] as const) test(`PG-026-S1-S3-5 PG-026-S1-S3-7 
   const translated = locale === "en" ? "The copy was saved, but the original could not be registered. Later processing cannot check whether the original has changed." : message;
   const toast = "document.querySelector('[data-settings-toast], [data-toast]')";
   const state = `({open:document.body.dataset.sideOpen,
-    tab:document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab ?? null,
+    tab:document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab ?? null,
     focus:document.activeElement === document.querySelector('[data-side-toggle]')})`;
   await evaluate("window.__shelfNotices=[];window.addEventListener('molis-shelf-notice',event=>window.__shelfNotices.push(event.detail.message))");
   for (const opened of [false, true]) {
     if (opened) {
       await evaluate("globalThis.molisWorkOpenShelf()");
-      await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`);
+      await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`);
       await waitFor(`document.querySelector('[data-side-body=${JSON.stringify(SHELF_TAB)}] iframe')`);
     } else {
       await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");

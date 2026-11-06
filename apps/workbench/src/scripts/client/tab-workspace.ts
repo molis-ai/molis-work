@@ -1,8 +1,9 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
-import { openPluginInSide, sideOpenedTabs } from "./plugin-place.js";
+import { sideOpenedTabs } from "./plugin-place.js";
+import { SIDE_PANE_FACTORY } from "../../side-panel.js";
 import { recordRows, searchRows } from "../../search-rows.js";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
-import { createTabWorkspaceOps, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
+import { createTabWorkspaceOps, isLoosePluginTab, settlePluginTabs, withPluginGroups, withSidePane } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
 import { OPENED_PLUGIN_RECORD_SCRIPT } from "./plugin-open-record.js";
 import { TAB_DRAG_SLOT_FACTORY } from "./tab-drag-slot.js";
@@ -29,12 +30,19 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
-  const openInSide = (${openPluginInSide}).bind(null, ${sideOpenedTabs()});
+  // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
+  // the side's own open (recall or open, never a second copy), not an event sent before the workspace knows.
+  const SIDE_OPENED = ${sideOpenedTabs()};
+  const openInSide = (plugin, item, title) => {
+    const key = Object.hasOwn(SIDE_OPENED, plugin) && SIDE_OPENED[plugin];
+    if (key) sidePane?.open(key, item ? { item, title } : null);
+    return Boolean(key);
+  };
   const PLUGIN_TAB_TITLES = { home: "项目首页", market: L("插件市场"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
   document.querySelectorAll("[data-work-surface]").forEach((surface) => { const id = surface.dataset.workSurface; if (surface.dataset.workSurfaceLabel) PLUGIN_TAB_TITLES[id] = surface.dataset.workSurfaceLabel; if (!PLUGIN_TAB_ICON[id]) PLUGIN_TAB_ICON[id] = surface.dataset.installedPluginIcon || PLUGIN_TAB_ICON[surface.dataset.pluginClient] || "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
-  const ops = (${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()});
+  const ops = (${withSidePane.toString()})((${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()}));
 ${TAB_WORKSPACE_PANES_PART}
 ${TAB_WORKSPACE_STRIP_PART}
 ${TAB_WORKSPACE_PLACES_PART}
@@ -70,6 +78,24 @@ ${TAB_WORKSPACE_DRAG_PART}
       notifyParent("workbench-open-settings", { href: link.href });
     });
   }
+  const offeredPlugin = (plugin) => Boolean(document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(plugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(plugin) + '"]')); // a link opens only a plugin this project offers: its menu or strip lists the plugins it has on (Goals included, RAC-400)
+  // A plugin taken out of the project keeps its tabs where they were, greyed and marked, with nothing else moving; added back,
+  // they work again (design README, shared part 7). A Host surface is never one: it has its own stage or settings page.
+  const removedPlugin = (plugin) => Boolean(plugin) && plugin !== "home" && plugin !== "market" && !offeredPlugin(plugin)
+    && !document.querySelector('[data-work-surface="' + CSS.escape(plugin) + '"], [data-settings-page="' + CSS.escape(plugin) + '"]');
+  /** What a pane shows for a tab of a plugin no longer in the project: what happened, and that adding it back brings it back. */
+  const showRemoved = (pane, plugin) => {
+    const body = panesEl.querySelector('[data-tab-pane="' + pane.id + '"] [data-tab-pane-body]');
+    let stage = body?.querySelector(":scope > [data-tab-removed-stage]");
+    if (!plugin || !body) { stage?.remove(); return; }
+    if (!stage) { stage = document.createElement("div"); stage.className = "mw-empty tab-removed-stage"; stage.setAttribute("role", "status"); body.append(stage); }
+    if (stage.dataset.tabRemovedStage === plugin) return;
+    stage.dataset.tabRemovedStage = plugin;
+    const title = document.createElement("h2"), note = document.createElement("p");
+    title.textContent = L("{plugin} 已从这个项目移除", { plugin: L(ops.pluginTitle(plugin)) });
+    note.textContent = L("标签和内容都还在；把它加回这个项目，就能接着用。");
+    stage.replaceChildren(title, note);
+  };
   let state = ops.create();
   let unsaved = false; // a layout this device would not keep is said once, and again only after it saved since
   const restore = (requestedGoalId = "", resetLayout = false) => {
@@ -94,18 +120,18 @@ ${TAB_WORKSPACE_DRAG_PART}
       apply();
       return;
     }
-    const offeredPlugin = (plugin) => Boolean(document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(plugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(plugin) + '"]')); // a link opens only a plugin this project offers: its menu or strip lists the plugins it has on (Goals included, RAC-400)
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
-      const plugins = { ...PLUGIN_TAB_ICON }; if (!offeredPlugin("goals")) delete plugins.goals; // a layout saved with Goals starts fresh in a project without it, as for any plugin gone
-      document.querySelectorAll("[data-settings-page]").forEach(node => { plugins[node.dataset.settingsPage] = true; });
-      if (!resetLayout && isCurrent(stored, plugins)) {
+      // Only a layout of another shape starts fresh (口径 4). One naming a plugin this project no longer offers, or one Home no
+      // longer has at all, is read as it is: that plugin's tabs stay, marked removed (removedPlugin), until added back or closed.
+      if (!resetLayout && isCurrent(stored)) {
         state = ops.ensureHome(stored);
       } else if (stored || resetLayout) {
         state = ops.create();
         tabHistory.clear(); sessionStorage.removeItem(HISTORY_KEY);
       }
     } catch {}
+    sidePane?.restore();
     if (state.exclusive) coverPlace = historyCoverPlace(state.exclusive);
     const dropParams = (...names) => { const url = new URL(location.href); names.forEach(name => url.searchParams.delete(name)); history.replaceState(history.state, "", url); };
     let requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
@@ -242,7 +268,11 @@ ${TAB_WORKSPACE_DRAG_PART}
   const SEARCH_ROWS = ${JSON.stringify(searchRows())};
   // Each plugin's group colour is the hue its Manifest declares, which the Host writes into the page's plugin directory.
   const DIRECTORY_HUES = Object.fromEntries(JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter((entry) => entry.hue).map((entry) => [entry.id, entry.hue]));
-  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, hues: DIRECTORY_HUES });
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: RECORD_ROWS.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab, removed: removedPlugin, hues: DIRECTORY_HUES });
+  // The right side, drawn from state.side; a tab closed there joins the closed groups, so ⌘⇧T reopens whichever closed last.
+  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, removed: removedPlugin, L });
+  // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
+  document.addEventListener("molis-work:plugins-changed", () => apply());
   let cancelRecordJump = null;
   // Remember the record chosen on a plugin's own page (not inside one of its tabs).
   document.addEventListener("click", (event) => {

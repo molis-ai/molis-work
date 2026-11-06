@@ -29,6 +29,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     trigger.tabIndex = selected ? 0 : -1;
     trigger.ariaLabel = label;
     trigger.setAttribute("aria-selected", String(selected));
+    if (tab.kind !== "system" && removedPlugin(tab.plugin)) { button.dataset.tabRemoved = "true"; button.title = trigger.ariaLabel = label + " · " + L("已移除"); }
     const name = document.createElement("span");
     name.textContent = label;
     const close = document.createElement("button");

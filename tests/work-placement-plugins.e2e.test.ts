@@ -172,7 +172,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   // Shelf is a 常开插件 living in the side panel (W2'-2): its tab is its own document, so the steps inside it run there, and
   // what it asks of the page (the shared dialog, the cards) reaches the page through the side panel.
   const shelfShows = async (id: string) => {
-    await waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'", 15_000);
+    await waitFor("document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'", 15_000);
     await shelf.waitFor(`document.querySelector('[data-shelf-list=materials] [data-shelf-item="${id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
   };
   // A row's actions show on hover; the first visible match, or else the first one.

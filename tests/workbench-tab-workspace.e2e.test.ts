@@ -141,10 +141,12 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE]') != null"), true);
   await browser.setViewport(1440, 1000);
   await evaluate(`(() => { for (let i = 0; i < 32; i += 1) document.querySelector("[data-tab-close]")?.click(); })()`);
-  // Closing every tab, plugin tabs included, leaves the project's home.
-  await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home]')");
+  // Closing every tab, plugin tabs included, leaves the project's home. The work's tabs only: 07-S1 put the right side's glyph
+  // tabs (also .tab-item) in the title bar on real pages, an expected change.
+  const workTabs = "document.querySelectorAll('.tab-item:not([data-side-tabs] .tab-item)').length";
+  await waitFor(`${workTabs} === 1 && document.querySelector('.tab-item[data-tab-kind=home]')`);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
-  await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor(`${workTabs} === 1 && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')`);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
 

@@ -601,11 +601,100 @@ export function withPluginGroups(base, settlePane, loose) {
   return ops;
 }
 
-/** Saved tabs use only the fields written by this workspace; a plugin's page is its plugin tab, shown through pane.viewPlugin. */
-export function isCurrentTabWorkspace(value, plugins) {
+/*
+ * The right side (specs/product-flow-governance §4.6.2 口径 1): one more pane of the same workspace state, `state.side`. Its tabs
+ * are the views the page offers beside the work (the discussion, Shelf, 灵光, 资料, the browser, the computer, the background
+ * tasks, each plugin's `slot: "side"` view), one tab per view, keyed by the view (`itemId`). Whether it is open, which tab it
+ * shows and how wide it is are kept with the rest, so a reload, a project switch and a collapse keep them (PFG-22, PFG-24).
+ * A view is a document that stays where it is: these rules only say which one shows; nothing here loads or rebuilds one.
+ * (The function ships as its own text, so what each rule does is said here, not inside it.)
+ * - syncSide(state, views, only, keep): settle the tabs on the views the page offers now (`views`, in their declared order): a
+ *   tab whose view is gone leaves, unless `keep(tab)` says to hold it (a plugin taken out of the project keeps its tabs where
+ *   they were, marked removed, as the main area's do: 口径 4); a view the page newly offers gets its tab where its order puts
+ *   it. `only` limits the views that may join (a view closed in this page stays closed when the plugins change); without it
+ *   every offered view without a tab joins, as on a page load.
+ * - openSide(state, key, views): bring a view forward: the tab it has is chosen (never a second one); one without gets it back.
+ * - selectSide(state, key): choose a tab without opening or closing the side (a collapsed side remembers it for the next open).
+ * - closeSideTab(state, tabId): close a tab; the answer is what puts it back (`reopenSideTab`), the record a closed plugin group
+ *   has too. reopenSideTab puts it back where it was; a view that got its tab again meanwhile is not doubled. A close that
+ *   collapsed the side (its last tab) says so (`collapsed`), and putting that tab back opens the side again, as it was.
+ */
+export function withSidePane(base) {
+  const uid = () => "t" + Math.random().toString(36).slice(2, 10);
+  const RATIO_MIN = .25, RATIO_MAX = .55;
+  const createSide = () => ({ id: "side", tabs: [], activeTabId: null, open: false, ratio: .35 });
+  const tabOf = (side, key) => side.tabs.find((tab) => tab.itemId === key) || null;
+  const viewTab = (view) => ({ id: uid(), kind: "side", plugin: view.plugin || "", itemId: view.key, title: view.title || view.key });
+  const syncSide = (state, views, only, keep = () => false) => {
+    const side = state.side, offered = new Set(views.map((view) => view.key));
+    side.tabs = side.tabs.filter((tab) => offered.has(tab.itemId) || keep(tab));
+    views.forEach((view, index) => {
+      const tab = tabOf(side, view.key);
+      if (tab) { tab.title = view.title || tab.title; tab.plugin = view.plugin || ""; return; }
+      if (only && !only.has(view.key)) return;
+      const after = views.slice(index + 1).map((next) => side.tabs.findIndex((candidate) => candidate.itemId === next.key)).find((at) => at >= 0);
+      side.tabs.splice(after ?? side.tabs.length, 0, viewTab(view));
+    });
+    if (!side.tabs.some((tab) => tab.id === side.activeTabId)) side.activeTabId = side.tabs[0]?.id || null;
+    return state;
+  };
+  const openSide = (state, key, views = []) => {
+    const side = state.side;
+    if (!tabOf(side, key) && views.some((view) => view.key === key)) syncSide(state, views, new Set([key]));
+    const tab = tabOf(side, key);
+    if (!tab) return null;
+    side.activeTabId = tab.id;
+    side.open = true;
+    return tab;
+  };
+  const selectSide = (state, key) => {
+    const tab = tabOf(state.side, key);
+    if (tab) state.side.activeTabId = tab.id;
+    return tab;
+  };
+  const closeSideTab = (state, tabId) => {
+    const side = state.side, index = side.tabs.findIndex((tab) => tab.id === tabId);
+    if (index < 0) return null;
+    const [tab] = side.tabs.splice(index, 1), active = side.activeTabId === tabId, collapsed = side.open && !side.tabs.length;
+    if (active) side.activeTabId = (side.tabs[index] || side.tabs[index - 1])?.id || null;
+    if (!side.tabs.length) side.open = false;
+    return { paneId: side.id, side: true, plugin: tab.plugin, title: tab.title, tab, index, active, collapsed };
+  };
+  const reopenSideTab = (state, record) => {
+    const side = state.side;
+    let tab = tabOf(side, record?.tab?.itemId);
+    if (!record?.tab) return null;
+    if (!tab) { tab = record.tab; side.tabs.splice(Math.min(record.index, side.tabs.length), 0, tab); }
+    if (record.active || !side.tabs.some((candidate) => candidate.id === side.activeTabId)) side.activeTabId = tab.id;
+    if (record.collapsed) side.open = true;
+    return tab;
+  };
+  const setSideOpen = (state, open) => { state.side.open = Boolean(open) && state.side.tabs.length > 0; return state.side.open; };
+  const setSideRatio = (state, ratio) => {
+    const next = Number(ratio);
+    if (Number.isFinite(next)) state.side.ratio = Math.min(RATIO_MAX, Math.max(RATIO_MIN, next));
+    return state.side.ratio;
+  };
+  const sideActive = (state) => state.side.tabs.find((tab) => tab.id === state.side.activeTabId) || null;
+  return { ...base, create: () => ({ ...base.create(), side: createSide() }), SIDE_RATIO: [RATIO_MIN, RATIO_MAX],
+    syncSide, openSide, selectSide, closeSideTab, reopenSideTab, setSideOpen, setSideRatio, sideActive };
+}
+
+/** Saved tabs use only the fields written by this workspace; a plugin's page is its plugin tab, shown through pane.viewPlugin.
+ * Only the shape is checked (口径 4): a plugin id is a value, so a tab of a plugin this build and Home no longer know (one
+ * uninstalled from Home) is read as it is and drawn removed, never a reason to start the whole layout again. */
+export function isCurrentTabWorkspace(value) {
   if (!value || !Array.isArray(value.panes) || !value.panes.length || typeof value.focusedPaneId !== "string") return false;
-  if (!Object.keys(value).every(key => ["panes", "layout", "focusedPaneId", "exclusive"].includes(key))) return false;
+  if (!Object.keys(value).every(key => ["panes", "layout", "focusedPaneId", "exclusive", "side"].includes(key))) return false;
   if (value.exclusive !== null && typeof value.exclusive !== "string") return false;
+  // The right side is part of the shape: a layout saved before it (no `side`) is not read, it is started again (口径 4).
+  const side = value.side;
+  if (!side || side.id !== "side" || !Array.isArray(side.tabs) || typeof side.open !== "boolean" || !(side.ratio >= .25 && side.ratio <= .55)) return false;
+  if (side.activeTabId !== null && typeof side.activeTabId !== "string") return false;
+  if (!Object.keys(side).every(key => ["id", "tabs", "activeTabId", "open", "ratio"].includes(key))) return false;
+  if (new Set(side.tabs.map(tab => tab?.itemId)).size !== side.tabs.length) return false;
+  if (!side.tabs.every(tab => tab && tab.kind === "side" && typeof tab.id === "string" && typeof tab.itemId === "string" && typeof tab.title === "string"
+    && typeof tab.plugin === "string" && Object.keys(tab).every(key => ["id", "kind", "plugin", "itemId", "title"].includes(key)))) return false;
   const layout = value.layout;
   if (!layout || !["row", "column"].includes(layout.direction) || !Array.isArray(layout.sizes)) return false;
   if (!Object.keys(layout).every(key => ["direction", "sizes", "tree"].includes(key))) return false;
@@ -615,9 +704,9 @@ export function isCurrentTabWorkspace(value, plugins) {
     if (new Set(heads).size !== heads.length) return false;
     if (!Object.keys(pane).every(key => ["id", "tabs", "activeTabId", "groups", "viewPlugin"].includes(key))) return false;
     if (pane.activeTabId !== null && typeof pane.activeTabId !== "string") return false;
-    if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || plugins && !Object.hasOwn(plugins, pane.viewPlugin))) return false;
+    if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || pane.viewPlugin === "")) return false;
     return pane.tabs.every(tab => tab && typeof tab.id === "string" && typeof tab.title === "string"
-      && typeof tab.plugin === "string" && (!plugins || Object.hasOwn(plugins, tab.plugin))
+      && typeof tab.plugin === "string" && tab.plugin !== ""
       && (tab.kind === "home" && tab.plugin === "home" || tab.kind === "item" && typeof tab.itemId === "string" || tab.kind === "plugin" && tab.plugin !== "home")
       && (tab.collapsed === undefined || tab.kind === "plugin" && tab.collapsed === true)
       && (tab.pinned === undefined || typeof tab.pinned === "boolean") && (tab.groupId === undefined || typeof tab.groupId === "string")

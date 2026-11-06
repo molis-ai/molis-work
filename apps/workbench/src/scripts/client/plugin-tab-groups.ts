@@ -12,7 +12,7 @@ const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow
  * Plugin groups on the tab strip: drawing a plugin's automatic group, the plugin tab as the current place, closing a
  * group with a way back, and ⌘/Ctrl- or middle-click on a record opening it as a tab in its group.
  */
-export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, hues = {} }) => {
+export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab, removed = () => false, hues = {} }) => {
   const HUES = { ...${JSON.stringify(SURFACE_HUES)}, ...hues };
   const SPARE = ${JSON.stringify(SPARE_HUES)};
   const hueOf = (plugin) => HUES[plugin] || SPARE[[...String(plugin)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % SPARE.length];
@@ -52,6 +52,12 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
       count.title = L("组里还有 {n} 个标签", { n: items }); count.setAttribute("aria-hidden", "true");
       pages.querySelector('[data-tab-kind="plugin"]')?.append(count);
     }
+    // A plugin taken out of the project keeps its group where it was, marked removed (07-S1; the look is S3's).
+    if (removed(plugin)) {
+      wrap.dataset.groupState = "removed";
+      const tag = document.createElement("span"); tag.className = "tab-group-tag"; tag.textContent = L("已移除");
+      pages.append(tag);
+    }
     wrap.append(pages); parent.append(wrap);
     return end;
   };
@@ -71,9 +77,15 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     undoTimer = setTimeout(() => apply(), UNDO_MS + 20);
     return record;
   };
+  /** Something closed elsewhere in the workspace (a tab of the right side) joins the same way back; it says how it reopens. */
+  const keep = (record, reopenIt) => {
+    closed.push({ record, until: Date.now() + UNDO_MS, reopen: reopenIt });
+    if (closed.length > 10) closed.shift();
+  };
   const reopen = () => {
     const last = closed.pop();
     if (!last) return false;
+    if (last.reopen) return last.reopen() !== false;
     ops.reopenPluginGroup(getState(), last.record);
     apply(); persist();
     return true;
@@ -131,5 +143,5 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
   };
   window.addEventListener("click", openInBackground, true);
   window.addEventListener("auxclick", openInBackground, true);
-  return { shows, render, close, reopen, undoChip, menu, hueOf, openBehind };
+  return { shows, render, close, keep, reopen, undoChip, menu, hueOf, openBehind };
 }`;

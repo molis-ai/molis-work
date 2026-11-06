@@ -201,7 +201,7 @@ export const BOARD_EN: Record<string, string> = {
   "主区": "Main",
   "右侧": "Right",
   "布局": "Layout",
-  "{n} 个后台任务没做完": "{n} background tasks not finished",
+  "{n} 个后台任务没做完": "{n} background {n|task|tasks} not finished",
   "右侧的标签": "Tabs on the right",
   "显示哪一栏": "Which pane to show",
   "已恢复 {plugin}": "Reopened {plugin}",

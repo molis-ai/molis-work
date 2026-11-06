@@ -1,3 +1,4 @@
+import { syncBindings } from './sync-binding.js';
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -29,7 +30,7 @@ export function createDatasetPlugin(): PluginDefinition {
     const ports: DatasetActionPorts = { ...stores, ...datasetArtifactPorts(context, artifacts),
       modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
       ...(model ? { completeText: async (prompt, options) => (await model.complete(prompt, { signal: options.signal })).text } : {}) };
-    return { kind: "app", views: [datasetUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [datasetUiContribution],
       actions: [...createDatasetActionHandlers(ports), ...createDatasetContentHandlers(stores)],
       routes: datasetRoutes(context) };
   } };

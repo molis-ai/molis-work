@@ -67,8 +67,8 @@ test("real workspace payload installs offline from an unrelated directory and pr
     const help = await exec(installed.launchers.cli, ["--help"], { cwd: directory, env: { ...process.env, PATH: "/usr/bin:/bin", NODE_PATH: "" } });
     assert.match(help.stdout, /molis-work plugin/);
     const moduleResult = await exec(join(installed.release_directory, "runtime", "node"), ["--input-type=module", "-e", `
-      const { default: Database } = await import('better-sqlite3');
-      const db = new Database(':memory:'); db.exec('CREATE TABLE probe(value TEXT)'); db.close();
+      const { openSqliteConnection } = await import('@molis-ai/molis-work-storage');
+      const db = openSqliteConnection(':memory:'); db.exec('CREATE TABLE probe(value TEXT)'); db.close();
       await import('node-pty');
       const { ProjectsModule } = await import('@molis-ai/molis-work-module-projects');
       const { loadBuiltinPlanningMethodPacks } = await import('@molis-ai/molis-work-plugin-goals/module');

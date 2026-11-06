@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,24 +12,24 @@ import { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot } from "@molis-ai/molis-work-
 
 // The tables are the ones Goals declares for a project's library; the rows only fill their required columns. The board is keyed to the
 // project's root row, which the platform's baseline makes (PLIB-13), so a project's root goes in before its board.
-function createLibrary(db: Database.Database): void {
+function createLibrary(db: SqliteDatabase): void {
   db.exec(PROJECT_ROOT_SCHEMA_SQL);
   db.exec(GOALS_PROJECT_DATABASE.schema);
 }
 
-function insertBoard(db: Database.Database, projectId: string): void {
+function insertBoard(db: SqliteDatabase, projectId: string): void {
   writeProjectRoot(db, projectId, "2026-09-01T00:00:00Z");
   db.prepare("INSERT INTO boards (project_id, created_at, updated_at) VALUES (?, '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')").run(projectId);
 }
 
-function insertGoal(db: Database.Database, goalId: string, projectId: string): void {
+function insertGoal(db: SqliteDatabase, goalId: string, projectId: string): void {
   db.prepare(`INSERT INTO goals (goal_id, project_id, title, outcome, why, business_logic, definition_state, decomposition_state,
     validity_state, fulfillment_state, created_at, updated_at) VALUES (?, ?, 'Goal', 'Outcome', 'Why', 'Logic', 'draft', 'abstract',
     'valid', 'unmet', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')`).run(goalId, projectId);
 }
 
 test("Goal input receipts retain opaque locators and snapshots, isolate Projects, and share rollback", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
   createLibrary(db);
   insertBoard(db, "project-a");
@@ -63,7 +63,7 @@ const feedReceipt: GoalInputBindingRecord = {
   state: "confirmed", reason: "Confirmed by user", created_by: "original-user", created_at: "2026-09-01T10:00:00Z",
 };
 
-function seedGoal(db: Database.Database): void {
+function seedGoal(db: SqliteDatabase): void {
   createLibrary(db);
   insertBoard(db, "project-a");
   insertGoal(db, "goal-a", "project-a");
@@ -72,7 +72,7 @@ function seedGoal(db: Database.Database): void {
 test("Feed input provenance is recorded once and survives reopen independently of current Feed links", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-input-ledger-"));
   const path = join(directory, "test.db");
-  let db = new Database(path);
+  let db = openTestSqlite(path);
   try {
     seedGoal(db);
     let ledger = createContextLedger(db, { authorize: () => true });
@@ -94,7 +94,7 @@ test("Feed input provenance is recorded once and survives reopen independently o
     ledger.commands.remove(access, "feed.goal:item-a", "feed.item_deleted");
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
     db.close();
-    db = new Database(path);
+    db = openTestSqlite(path);
     ledger = createContextLedger(db, { authorize: () => true });
     inputs = new GoalInputBindings(db, ledger);
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
@@ -108,7 +108,7 @@ test("Feed input provenance is recorded once and survives reopen independently o
 });
 
 test("Source registration rolls back ledger writes and receipt changes on failure", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     seedGoal(db);
     const ledger = createContextLedger(db, { authorize: () => true });

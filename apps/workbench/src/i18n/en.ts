@@ -17,6 +17,7 @@ import { KNOWLEDGE_EN } from "./knowledge-en.js";
 import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 import { SERVICE_CONNECTION_EN } from "./service-connection-en.js";
+import { MODEL_SETTINGS_EN } from "./model-settings-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
   "角色资料": "Role material",
@@ -31,7 +32,7 @@ export const EN: Record<string, string> = {
   ...CONTEXTUAL_EN,
   ...SIDE_PANEL_EN,
   ...SERVICE_CONNECTION_EN,
-  "保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。": "Changes apply to subsequent runs. Restart text generation if its model or connection changes while it is running.",
+  ...MODEL_SETTINGS_EN,
   "连接不可用": "Connection unavailable",
   "原连接已不可用，请重新选择": "Previous connection unavailable; choose another",
   "官方连接方式": "Official connection methods",
@@ -2003,7 +2004,7 @@ Object.assign(EN, {
   "代码与发布": "Code & shipping",
   "任务与知识": "Tasks & knowledge",
   "设计": "Design",
-  "客户与增长": "Customers",
+  "客户与销售": "Customers & sales",
   "社交": "Social",
   "本机只显示令牌末四位": "This computer only shows the last four characters of the token",
   "账号属于这台电脑上的人，不是某个项目。凭据只进本机 SecretStore，这里不显示明文。": "The account belongs to the person on this computer, not to a project. Credentials go into the local SecretStore only; this page does not show them in plaintext.",

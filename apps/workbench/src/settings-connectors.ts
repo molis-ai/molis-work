@@ -1,30 +1,44 @@
-import { icon as designIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon as designIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./judgment-rules/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, loginReady } from "./settings-connector-guide.js";
+import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, recommendedMethod, renderConnectorConnect, renderConnectorWays } from "./settings-connector-guide.js";
+import { connectionOrder, renderConnectionAccount, renderConnectionManage, serviceState } from "./settings-connector-account.js";
 import { connectorMark } from "./connector-marks.js";
+import { renderConnectionItem, renderConnectionProgress } from "./service-connection-parts.js";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
-import { renderConnectionStatus } from "./settings-connection-status.js";
 import { renderPluginSlots } from "./settings-plugin-slots.js";
 
-function groupTitle(groupId: ConnectorDirectoryGroupId, L: ConnectorsSettingsPrimitives["L"]): string {
-  if (groupId === "mail") return L("邮件与日历");
-  if (groupId === "files") return L("云盘与文档");
-  if (groupId === "chat") return L("沟通");
-  if (groupId === "code") return L("代码与发布");
-  if (groupId === "work") return L("任务与知识");
-  if (groupId === "design") return L("设计");
-  if (groupId === "crm") return L("客户与增长");
-  return L("社交");
-}
-
+/**
+ * 设置 › 服务连接, plan A of the service-connection decision (specs/assistant-service-connections §13.1, 2026-11-04): one column of
+ * services grouped by what they are for; a press on a row opens it in place (`renderConnectionItem`), with the service's accounts —
+ * four plain rows each — or its one way to connect, and a folded 高级 at the bottom for an own app, addresses, other ways, permission
+ * names and diagnostics. The page program is `CONNECTORS_SETTINGS_CLIENT_SCRIPT`; what the parts do in place is
+ * src/browser/service-connection-item.ts.
+ */
 interface ConnectorsSettingsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: "link" | "mail" | "back" | "tree"): string;
   /** Where the docs page that lists every outbound network class is read, in the interface language; no link without it. */
   networkDocHref?: string;
+}
+
+/** The page's groups, by what a service is for; the directory's groups are the contract's and stay as they are. */
+const DISPLAY_GROUPS: ReadonlyArray<{ id: string; title: string; directory: readonly ConnectorDirectoryGroupId[] }> = [
+  { id: "models", title: "模型", directory: [] },
+  { id: "code", title: "代码与项目", directory: ["code", "work"] },
+  { id: "mail", title: "邮件与日程", directory: ["mail"] },
+  { id: "docs", title: "文档与笔记", directory: ["files"] },
+  { id: "chat", title: "消息", directory: ["chat", "social"] },
+  { id: "design", title: "设计", directory: ["design"] },
+  { id: "crm", title: "客户与销售", directory: ["crm"] },
+];
+const MODEL_SERVICES: readonly string[] = ["model-api", "image-api"];
+
+function displayGroup(card: ConnectorSettingsCardView): string {
+  if (MODEL_SERVICES.includes(card.connector_id)) return "models";
+  return DISPLAY_GROUPS.find(group => group.directory.includes(card.group_id))?.id ?? "code";
 }
 
 export function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
@@ -37,168 +51,124 @@ export function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsS
   return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="${mark.on}" aria-hidden="true"><img src="data:image/svg+xml,${encodeURIComponent(mark.svg)}" alt="" width="24" height="24"></span>`;
 }
 
-function connectionMethod(method: ConnectorConnectionView["auth_method"], L: ConnectorsSettingsPrimitives["L"]): string {
-  if (method === "oauth") return L("账号授权");
-  if (method === "cli") return L("本机客户端");
-  if (method === "mcp") return L("官方工具");
-  if (method === "none") return L("无需鉴权");
-  return L("访问令牌");
-}
-
-function connectionState(state: ConnectorConnectionView["state"], L: ConnectorsSettingsPrimitives["L"]): { label: string; tone: string } {
-  if (state === "connected") return { label: L("已保存"), tone: "neutral" };
-  if (state === "reauth_required") return { label: L("需重新授权"), tone: "warning" };
-  return { label: L("已断开"), tone: "neutral" };
-}
-
-function renderConnectionRow(connection: ConnectorSettingsConnection, card: ConnectorSettingsCardView | undefined, p: ConnectorsSettingsPrimitives, inDetail = false): string {
-  const { L, escapeHtml } = p;
-  const state = connection.enabled === false ? { label: L("已停用"), tone: "neutral" } : connectionState(connection.state, L);
-  const name = escapeHtml(connection.display_name);
-  const serviceTitle = escapeHtml(card?.title || connection.service_id);
-  const project = !!connection.project_id, canManage = !project && (connection.source !== "external" || connection.auth_method === "cli");
-  const credential = card ? credentialInputs(card, p) : { fields: `<input class="mw-input" type="password" autocomplete="off" aria-label="${escapeHtml(L("新令牌"))}" data-connector-token required>` };
-  const id = escapeHtml(connection.connection_id);
-  const serviceId = escapeHtml(connection.service_id);
-  return `<div class="settings-connection-row" data-connection-row="${id}" data-connection-service="${serviceId}" data-connection-revision="${escapeHtml(connection.revision)}">
-    ${renderConnectorMark(connection.service_id, escapeHtml)}
-    <div class="settings-connection-row__identity"><strong>${name}</strong><small>${serviceTitle} · ${escapeHtml(connectionMethod(connection.auth_method, L))}${connection.account_label ? ` · ${escapeHtml(connection.account_label)}` : ""}</small>${connection.target_origin ? `<small>${escapeHtml(L("绑定地址"))} · ${escapeHtml(connection.target_origin)}</small>` : ""}${connection.declared_by ? `<small data-connection-declared-by>${escapeHtml(L("建于"))} · ${escapeHtml(connection.declared_by.title)}</small>` : ""}${connection.reauth_note ? `<small class="settings-connection-row__note" data-connection-reauth-note>${escapeHtml(L(connection.reauth_note))}</small>` : ""}</div>
-    <span class="settings-state settings-state--${state.tone}" data-connection-state data-mw-state="${connection.state === "reauth_required" ? "reauth" : connection.state === "connected" ? "saved" : "disconnected"}">${escapeHtml(state.label)}</span>
-    ${inDetail ? `${renderConnectionStatus(connection.status, p)}<div class="settings-connection-row__actions">
-      ${project || connection.state !== "disconnected" && !["model-api", "image-api", "typesafe", "mcp-bearer"].includes(connection.service_id) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-check="${id}">${L("检查连接")}</button><button class="mw-btn mw-btn--secondary" type="button" data-connection-preview="${id}">${L(connection.auth_method === "mcp" ? "查看可用工具" : "查看读取结果")}</button>` : ""}
-      ${card && canManage && ["oauth", "mcp"].includes(connection.auth_method) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-reauthorize="${id}" data-connection-method="${connection.auth_method}">${L(connection.auth_method === "mcp" ? "新增 MCP 授权" : "重新授权")}</button>` : ""}
-      ${canManage && connection.auth_method === "token" ? `<details class="settings-connection-inline"><summary>${L("更换令牌")}</summary><form data-connection-replace="${id}"${credential.separator ? ` data-credential-separator="${credential.separator}"` : ""}>${credential.fields}<button class="mw-btn mw-btn--secondary" type="submit">${L("保存")}</button></form></details>` : ""}
-      ${canManage ? `<details class="settings-connection-inline"><summary>${L("重命名")}</summary><form data-connection-rename="${id}"><input class="mw-input" value="${name}" maxlength="100" required aria-label="${escapeHtml(L("连接名称"))}"><button class="mw-btn mw-btn--secondary" type="submit">${L("保存")}</button></form></details>
-        ${connection.state !== "disconnected" ? `<button class="mw-btn mw-btn--danger-outline" type="button" data-connection-disconnect="${id}">${L("断开")}</button>` : ""}` : project ? `<small>${escapeHtml(connection.project_id)}</small>` : `<small>${L("由外部环境管理凭据")}</small>`}
-      ${canManage || project ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-manage="${connection.enabled === false ? "enable" : "disable"}">${connection.enabled === false ? L("启用") : L("停用")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-connection-manage="remove">${L("移除")}</button>` : ""}
-    </div><div class="settings-connection-result" data-connection-result role="status" aria-live="polite" hidden></div>
-    ${!project && connection.auth_method === "mcp" && connection.state !== "disconnected" ? `<details class="settings-connection-tool"><summary>${L("开发者工具：手动调用 MCP")}</summary><label class="settings-connector-field"><span>${L("工具名称（先查看工具列表）")}</span><input class="mw-input" data-mcp-tool-name></label><label class="settings-connector-field"><span>${L("参数 JSON")}</span><textarea class="mw-input" data-mcp-tool-arguments rows="4">{}</textarea></label><p>${L("根据工具说明确认作用范围；点击后会执行该工具，包括它声明的写入操作。")}</p><button type="button" class="mw-btn mw-btn--secondary" data-mcp-tool-call="${id}">${L("执行工具")}</button></details><details class="settings-connection-tool"><summary>${L("开发者工具：读取 MCP 资源")}</summary><label class="settings-connector-field"><span>URI</span><input class="mw-input" data-mcp-resource-uri></label><button type="button" class="mw-btn mw-btn--secondary" data-mcp-resource-read="${id}">${L("读取资源")}</button></details>` : ""}` : `<button class="mw-btn mw-btn--ghost" type="button" data-connector-open="${serviceId}">${L("管理")}</button>`}
-  </div>`;
-}
-
-function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives, count: number): string {
-  const { L, escapeHtml } = p;
-  const placeholder = card.availability === "placeholder";
-  const method = recommendedMethod(card);
-  const direct = !placeholder && !count && loginReady(method);
-  // A package writes the card's words: the card shows them within its limits, cut in whole characters.
-  const name = connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS);
-  const purpose = connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS);
-  // null is the platform's own; an object names the declaring package; undefined means nothing said where the service comes from, so
-  // the card shows no source line at all rather than a trust label it cannot back.
-  const source = card.declared_by === null ? L("Molis Work（内置）")
-    : card.declared_by ? connectorCardText(card.declared_by.title, CONNECTOR_SOURCE_MAX_CHARS) : undefined;
-  return `<button class="mw-card settings-connector-card${placeholder ? " settings-connector-card--placeholder" : ""}" type="button" data-connector-open="${escapeHtml(card.connector_id)}"${direct ? ` data-connector-direct="${method!.kind}"` : ""} data-connector-search="${escapeHtml((card.title + " " + card.connector_id + " " + connectorPurpose(card, L)).toLowerCase())}" aria-label="${escapeHtml(L("{name}，{action}", { name, action: count ? L("{count} 条连接", { count }) : direct ? L("登录并连接") : L("查看连接方式") }))}">
-    ${renderConnectorMark(card.connector_id, escapeHtml)}
-    <span class="settings-connector-card__body">
-      <span class="settings-connector-card__title"><strong>${escapeHtml(name)}</strong><span class="settings-state settings-state--neutral">${escapeHtml(count ? L("{count} 个账号", { count }) : direct ? L("登录并连接") : pathLabel(card, L))}</span></span>
-      ${source === undefined ? "" : `<span class="settings-connector-card__copy settings-connector-card__source" data-connector-source>${escapeHtml(L("来自 {package}", { package: source }))}</span>`}
-      <span class="settings-connector-card__copy">${escapeHtml(purpose)}</span>
-    </span>
-  </button>`;
-}
-
 function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly ConnectorConnectionView[], p: ConnectorsSettingsPrimitives): string {
   const { L, escapeHtml: e } = p;
   const active = connections.filter(connection => connection.state === "connected");
+  if (!active.length) return "";
   const instructions: Array<{ text: string; label?: string; href?: string; plugin?: string }> = [];
-  if (!active.length) {
-    const method = recommendedMethod(card)?.kind;
-    const text = method === "mcp" ? L("连接完成后，在 Coding 的 MCP 设置中选择此账号，再选择本轮可用的工具。")
-      : method === "cli" ? L("完成本机客户端登录后，回到这里检查账号与可用操作。")
-      : L("先完成账号连接。连接成功后，这里会显示可用的下一步。");
-    instructions.push({ text });
-  } else {
-    if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: L("在 Coding 的 MCP 设置中选择已授权账号，保存并连接后，在会话中选择本轮工具。"), label: L("设置 Agent 工具"), href: "/settings/coding-settings" });
-    if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: L("此连接使用服务商的原生传输。可以在上方查看工具并执行明确的工具操作；当前传输暂不支持 Coding。") });
-    if (active.some(row => row.auth_method === "cli")) instructions.push({ text: L("账号由本机客户端管理。可以在上方检查连接、查看读取结果；本机客户端连接不用于 Feed 自动同步。") });
-    if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
-      if (card.connector_id === "model-api") instructions.push({ text: L("在模型设置中选择此连接，再选择模型并检查可用性。"), label: L("打开模型设置"), href: "/settings/models" });
-      else if (card.connector_id === "image-api") instructions.push({ text: L("在项目 Images 中选择此连接，配置图像服务并尝试生成。"), label: L("选择项目，打开 Images"), href: "/", plugin: "images" });
-      else if (card.connector_id === "typesafe") instructions.push({ text: L("在 Functions 中选择此账号。"), label: L("查看 Functions"), href: "/capabilities/library" });
-      else if (card.feed_available) instructions.push({ text: L("在项目 Feed 中添加来源并选择已连接的 API 账号与内容范围。"), label: L("选择项目，添加来源"), href: "/", plugin: "feed" });
-      else if (card.connector_id !== "mcp-bearer") instructions.push({ text: L("可以在上方检查账号授权。此 API 连接暂不提供 Feed 同步。") });
-    }
+  if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: L("在 Coding 的 MCP 设置中选择已授权账号，保存并连接后，在会话中选择本轮工具。"), label: L("设置 Agent 工具"), href: "/settings/coding-settings" });
+  if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: L("此连接使用服务商的原生传输。可以在「高级」里查看工具并执行明确的工具操作；当前传输暂不支持 Coding。") });
+  if (active.some(row => row.auth_method === "cli")) instructions.push({ text: L("账号由本机客户端管理。可以检查连接，在「高级」里查看读取结果；本机客户端连接不用于 Feed 自动同步。") });
+  if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
+    if (card.connector_id === "model-api") instructions.push({ text: L("在模型设置中选择此连接，再选择模型并检查可用性。"), label: L("打开模型设置"), href: "/settings/models" });
+    else if (card.connector_id === "image-api") instructions.push({ text: L("在项目 Images 中选择此连接，配置图像服务并尝试生成。"), label: L("选择项目，打开 Images"), href: "/", plugin: "images" });
+    else if (card.connector_id === "typesafe") instructions.push({ text: L("在 Functions 中选择此账号。"), label: L("查看 Functions"), href: "/capabilities/library" });
+    else if (card.feed_available) instructions.push({ text: L("在项目 Feed 中添加来源并选择已连接的 API 账号与内容范围。"), label: L("选择项目，添加来源"), href: "/", plugin: "feed" });
+    else if (card.connector_id !== "mcp-bearer") instructions.push({ text: L("可以检查账号授权。此 API 连接暂不提供 Feed 同步。") });
   }
-  return `<section class="settings-connector-next" data-connector-next><h3>${L(active.length ? L("连接后，下一步") : "连接后可以做什么")}</h3>${instructions.map(step => `<p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}" href="${e(step.href)}">${e(step.label!)}</a>` : ""}`).join("")}<small>${L("连接只保存账号授权。你可以在使用时选择账号与内容范围。")}</small></section>`;
+  if (!instructions.length) return "";
+  return `<section class="settings-connector-next" data-connector-next><h3>${L("连好以后")}</h3>${instructions.map(step => `<div class="settings-connector-next__step"><p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}" href="${e(step.href)}">${e(step.label!)}</a>` : ""}</div>`).join("")}</section>`;
+}
+
+/** The folded 高级 at the bottom of a service (§13.1 ② plan A): each account's own settings, then the other ways to connect. */
+function renderAdvanced(body: string, p: ConnectorsSettingsPrimitives): string {
+  return body.trim() ? `<details class="mw-collapsible settings-connector-advanced" data-slot="collapsible" data-connector-advanced><summary>${p.L("高级")}</summary><div class="mw-collapsible__body">${body}</div></details>` : "";
+}
+
+/** A service's open part: what it is, its accounts, the way to connect it (or one more account), what to do next, and 高级. */
+function renderServiceBody(card: ConnectorSettingsCardView, connections: readonly ConnectorSettingsConnection[], view: Pick<MolisWorkSettingsView, "functions_settings">, p: ConnectorsSettingsPrimitives): string {
+  const { L, escapeHtml: e } = p;
+  // null is the platform's own; an object names the declaring package; undefined means nothing said where the service comes from, so
+  // no source line is shown rather than a trust label the page cannot back.
+  const source = card.declared_by === null ? L("Molis Work（内置）")
+    : card.declared_by ? connectorCardText(card.declared_by.title, CONNECTOR_SOURCE_MAX_CHARS) : undefined;
+  const live = connections.filter(connection => connection.state !== "disconnected");
+  const connect = renderConnectorConnect(card, p);
+  const add = live.length && card.availability !== "placeholder"
+    ? `<details class="mw-collapsible settings-connector-add" data-slot="collapsible" data-connector-add><summary>${L(recommendedMethod(card) ? "再加一个账号" : "再加一个账号或密钥")}</summary><div class="mw-collapsible__body settings-connector-flow">${connect}</div></details>`
+    : `<div class="settings-connector-flow" data-connector-add>${connect}</div>`;
+  return `<div class="settings-connector-panel" data-connector-detail="${e(card.connector_id)}">
+    ${source === undefined ? "" : `<p class="settings-connector-source"><small data-connector-source>${e(L("来自 {package}", { package: source }))}</small></p>`}
+    <div class="settings-connector-feedback" data-connector-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+    ${connections.map(connection => renderConnectionAccount(connection, card, p, connections.filter(other => other !== connection && other.state === "connected" && other.enabled !== false && !other.project_id && other.auth_method === connection.auth_method))).join("")}
+    ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: e, text: L } }) : ""}
+    ${add}
+    ${renderNextSteps(card, connections, p)}
+    ${renderAdvanced(connections.map(connection => renderConnectionManage(connection, card, p)).join("") + renderConnectorWays(card, p), p)}
+  </div>`;
 }
 
 export function renderConnectorsSettings(
   view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "connector_setup" | "capabilities" | "functions_settings" | "plugin_slots" | "context_project">,
   primitives: ConnectorsSettingsPrimitives,
 ): string {
-  const { L, escapeHtml, icon } = primitives;
+  const { L, escapeHtml } = primitives;
   const cards = view.connectors ?? [];
   if (view.connector_setup !== undefined) return renderConnectorRequest(view.connector_setup, cards, primitives);
-  const connections = view.connector_connections ?? [];
-  const live = cards.filter((card) => card.availability !== "placeholder");
-  const placeholders = cards.filter((card) => card.availability === "placeholder");
-  const details = cards.map((card) => {
-    const serviceConnections = connections.filter((connection) => connection.service_id === card.connector_id);
-    const body = renderConnectorSetup(card, primitives);
-    return `<section class="settings-connector-detail" data-connector-detail="${escapeHtml(card.connector_id)}" hidden>
-      <button class="mw-btn mw-btn--ghost settings-connector-back" type="button" data-connectors-back>${icon("back")}${L("返回列表")}</button>
-      <header class="settings-connector-detail__head">
-        ${renderConnectorMark(card.connector_id, escapeHtml)}
-        <h2 tabindex="-1">${escapeHtml(connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS))}</h2>
-        <span class="settings-state settings-state--neutral">${escapeHtml(pathLabel(card, L))}</span>
-      </header>
-      <p class="settings-connector-purpose">${escapeHtml(connectorCardText(connectorPurpose(card, L), CONNECTOR_SUMMARY_MAX_CHARS))}</p>
-      <div class="settings-connector-feedback" data-connector-feedback role="status" aria-live="polite" hidden></div>
-      ${serviceConnections.length ? `<section class="settings-connection-detail-list"><h3>${L("已有连接")}</h3>${serviceConnections.map((connection) => renderConnectionRow(connection, card, primitives, true)).join("")}</section>` : ""}
-      ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: escapeHtml, text: L } }) : ""}
-      ${serviceConnections.length ? `<details class="settings-connector-add" data-connector-add><summary>${L("添加另一个账号")}</summary>${body}</details>` : `<div data-connector-add>${body}</div>`}
-      ${renderNextSteps(card, serviceConnections, primitives)}
-    </section>`;
+  const connections = [...view.connector_connections ?? []].sort((a, b) => connectionOrder(a) - connectionOrder(b));
+  const of = (serviceId: string) => connections.filter(connection => connection.service_id === serviceId);
+  // Within a group: services that have an account first, then those that connect now, then those not in yet.
+  const rank = (card: ConnectorSettingsCardView) => of(card.connector_id).some(connection => connection.state !== "disconnected") ? 0 : card.availability === "placeholder" ? 2 : 1;
+  const item = (card: ConnectorSettingsCardView) => {
+    const purpose = connectorPurpose(card, L);
+    return renderConnectionItem({
+      id: `connector-${card.connector_id}`, mark: renderConnectorMark(card.connector_id, escapeHtml),
+      // A package writes the row's words: the row shows them within their limits, cut in whole characters; the search reads them whole.
+      name: connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS), caption: connectorCardText(purpose, CONNECTOR_SUMMARY_MAX_CHARS),
+      state: serviceState(card, of(card.connector_id), primitives), body: renderServiceBody(card, of(card.connector_id), view, primitives),
+      attrs: { "data-connector-item": card.connector_id, "data-connector-search": `${card.title} ${card.connector_id} ${purpose}`.toLowerCase() },
+    }, L);
+  };
+  const groups = DISPLAY_GROUPS.map(group => {
+    const rows = cards.filter(card => displayGroup(card) === group.id).map((card, index) => ({ card, index })).sort((a, b) => rank(a.card) - rank(b.card) || a.index - b.index);
+    return rows.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="${group.id}"><h3>${L(group.title)}</h3>${rows.map(row => item(row.card)).join("")}</section>` : "";
   }).join("");
-  const liveGroups = (["mail", "files", "chat", "code", "work", "design", "crm", "social"] as const).map((groupId) => {
-    const groupCards = live.filter((card) => card.group_id === groupId);
-    if (!groupCards.length) return "";
-    return `<section class="settings-connector-subgroup" data-connector-subgroup="${groupId}">
-      <h3>${groupTitle(groupId, L)}</h3>
-      <div class="settings-connectors-grid">${groupCards.map((card) => renderCardButton(card, primitives, connections.filter((connection) => connection.service_id === card.connector_id && connection.state !== "disconnected").length)).join("")}</div>
-    </section>`;
-  }).join("");
-  const placeholderGroups = (["mail", "files", "chat", "code", "work", "design", "crm", "social"] as const).map((groupId) => {
-    const groupCards = placeholders.filter((card) => card.group_id === groupId);
-    if (!groupCards.length) return "";
-    return `<section class="settings-connector-subgroup" data-connector-subgroup="${groupId}">
-      <h3>${groupTitle(groupId, L)}</h3>
-      <div class="settings-connectors-grid">${groupCards.map((card) => renderCardButton(card, primitives, 0)).join("")}</div>
-    </section>`;
-  }).join("");
+  // A connection whose service is no longer declared (its package was removed) has no way to connect left: its row opens on the account
+  // and what can still be done with it.
+  const orphans = connections.filter(connection => !cards.some(card => card.connector_id === connection.service_id));
+  const orphanGroup = orphans.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="orphan"><h3>${L("目录里已没有的服务")}</h3>${orphans.map(connection => renderConnectionItem({
+    id: `connection-${connection.connection_id}`, mark: renderConnectorMark(connection.service_id, escapeHtml), name: connection.display_name,
+    caption: L("提供它的插件已不在；连接还在，可以检查或移除"), state: `<span class="settings-state settings-state--neutral" data-connector-state data-mw-state="unavailable">${escapeHtml(L("不在目录里"))}</span>`,
+    // Not a service the page can open or connect: no `data-connector-item`, no service panel, only this account and what can be done with it.
+    body: `<div class="settings-connector-panel">${renderConnectionAccount(connection, undefined, primitives)}${renderAdvanced(renderConnectionManage(connection, undefined, primitives), primitives)}</div>`,
+    attrs: { "data-connector-orphan": connection.connection_id, "data-connector-search": `${connection.display_name} ${connection.service_id}`.toLowerCase() },
+  }, L)).join("")}</section>` : "";
   // Under the heading, like the MCP page's link to the external-tools page: a footnote below the whole catalog is rarely seen.
   const networkDoc = primitives.networkDocHref ? `<p data-network-doc>${L("Molis Work 自己联网的去处（模型、搜索、订阅源、依赖下载等）逐类写在这一页：")}<a href="${escapeHtml(primitives.networkDocHref)}" target="_blank" rel="noopener noreferrer">${L("Molis Work 会联网去哪里")}</a></p>` : "";
   return `<section class="settings-document" aria-labelledby="settings-title" data-connectors-settings>
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("服务连接")}</h1></div><p>${L("连接你常用的应用，把工作内容和工具带进 Molis。")}</p>${networkDoc}</header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("服务连接")}</h1></div><p>${L("连接你常用的应用，把工作内容和工具带进 Molis。点一行就在原处展开。")}</p>${networkDoc}</header>
     <div class="settings-body">
       <p class="settings-form-error" data-connectors-error role="alert" hidden></p>
-      <div data-connectors-list>
-        <section class="settings-connection-section" aria-label="${escapeHtml(L("我的连接"))}">
-          <header><div><h2>${L("我的连接")}</h2><p>${L("同一个服务可以连接多个账号，各自保存授权和状态。")}</p></div><button class="mw-btn mw-btn--primary" type="button" data-connectors-add>${L("添加连接")}</button></header>
-          ${connections.length ? `<div class="settings-connection-list">${connections.map((connection) => {
-            // A connection whose service is no longer declared (its package was removed) has no detail panel to open, so its row carries the controls itself.
-            const card = cards.find((entry) => entry.connector_id === connection.service_id);
-            return renderConnectionRow(connection, card, primitives, !card);
-          }).join("")}</div>`
-            : `<div class="settings-connection-empty"><strong>${L("从你常用的一个应用开始")}</strong><p>${L("选择下方服务，按提示登录或填写密钥。你可以稍后再添加其他账号。")}</p></div>`}
-        </section>
-        ${renderPluginSlots(view, cards, connections, { L, escapeHtml, mark: serviceId => renderConnectorMark(serviceId, escapeHtml) })}
-        <section class="settings-connector-catalog" data-connectors-catalog>
-          <header><h2>${L("添加服务")}</h2><p>${L("点击“登录并连接”前往官方授权；标记为准备中的服务尚未开放直接登录。")}</p></header>
-          <div class="settings-connector-filters"><label class="settings-connector-field"><span>${L("搜索服务")}</span><input class="mw-input" type="search" data-connectors-search placeholder="${L("搜索 Gmail、Notion、飞书…")}"></label><label class="settings-connector-field"><span>${L("分类")}</span><select class="mw-input" data-connectors-category><option value="">${L("所有服务")}</option>${(["mail", "files", "chat", "code", "work", "design", "crm", "social"] as const).map(id => `<option value="${id}">${groupTitle(id, L)}</option>`).join("")}</select></label></div>
-          <p data-connectors-no-results role="status" hidden>${L("没有找到这个服务。换个关键词，或查看所有分类。")} <button type="button" class="mw-btn mw-btn--ghost" data-connectors-reset>${L("清除筛选")}</button></p>
-        ${live.length ? `<section class="settings-connector-group" data-connector-group="live">
-
-    ${liveGroups}
-  </section>` : ""}
-        ${placeholders.length ? `<section class="settings-connector-group" data-connector-group="placeholder">
-    <h2>${L("暂未接入")}</h2>
-    ${placeholderGroups}
-  </section>` : ""}
-        </section>
+      <div class="settings-connector-catalog" data-connectors-list>
+        <label class="settings-connector-field settings-connector-search"><span>${L("搜索服务")}</span><input class="mw-input" type="search" data-connectors-search placeholder="${L("搜索 Gmail、Notion、飞书…")}"></label>
+        <p class="settings-connector-empty" data-connectors-no-results role="status" hidden><span>${L("没有找到这个服务。换个关键词试试。")}</span><button type="button" class="mw-btn mw-btn--secondary" data-connectors-reset>${L("清除搜索")}</button></p>
+        ${groups}${orphanGroup}
       </div>
-      ${details}
+      ${renderPluginSlots(view, cards, connections, { L, escapeHtml, mark: serviceId => renderConnectorMark(serviceId, escapeHtml) })}
+      ${CLIENT_TEMPLATES(primitives)}
     </div>
   </section>`;
+}
+
+/**
+ * What the page program draws in place, written once here so the program never writes the words or the markup again: the step
+ * progress of a login and of a key (`renderConnectionProgress`), and the row's running state.
+ */
+function CLIENT_TEMPLATES(p: ConnectorsSettingsPrimitives): string {
+  const progress = (steps: readonly string[]) => renderConnectionProgress({ steps: steps.map(step => p.L(step)), at: 0, state: "running" }, p.L);
+  return `<template data-connector-template="progress-login">${progress(["在浏览器登录", "看能做什么", "能用了"])}</template>
+    <template data-connector-template="progress-key">${progress(["填密钥", "验证密钥", "能用了"])}</template>
+    <template data-connector-template="running">${renderStatusMark({ label: p.L("连接中"), state: "running", tone: "progress", plain: true })}</template>
+    <template data-connector-template="switching">${renderStatusMark({ label: p.L("换账号"), state: "answer", tone: "attention", plain: true })}</template>
+    <template data-connector-template="reach-connected">${renderStatusMark({ label: p.L("连得上 · {time} 检查"), state: "connected", tone: "done", plain: true })}</template>
+    <template data-connector-template="reach-failed">${renderStatusMark({ label: p.L("没通过检查 · {time}"), state: "failed", tone: "blocked", plain: true })}</template>
+    <template data-connector-template="reach-limited">${renderStatusMark({ label: p.L("服务那边暂时限流 · {time} 后自动再查"), state: "retrying", tone: "hold", plain: true })}</template>
+    <template data-connector-template="draft">${draftNote(p)}</template>`;
+}
+
+/** The note before 高级 when it holds changes not saved in this window: the alert as it is, and its two answers under it. */
+function draftNote(p: ConnectorsSettingsPrimitives): string {
+  const answer = (attr: string, label: string) => renderButton({ label: p.L(label), variant: "secondary", attrs: { [attr]: "" } });
+  const alert = renderAlert({ title: p.L("「高级」里有上次没保存的改动"), body: p.L("只留在这个窗口里；密钥不会留下，要重新填。") });
+  return `<div class="settings-connector-draft" data-connector-draft>${alert}<div class="settings-connector-actions">${answer("data-draft-resume", "接着改")}${answer("data-draft-drop", "放弃改动")}</div></div>`;
 }

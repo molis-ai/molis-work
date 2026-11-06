@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * SecretStore v2 — AES-256-GCM ciphertext only; never returns plaintext to Item rows.
  *
@@ -19,8 +20,8 @@ import {
   scryptSync,
 } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { withFileLock } from './file-lock.js';
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DatabaseSync } from "node:sqlite";
 import { atomicWriteFileSync } from "./atomic-write.js";
 import { readProductEnv, resolveHomeSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
 
@@ -95,37 +96,7 @@ function secretsLockDbPath(): string {
  * holder is released by the OS/SQLite; no durable lock file is required.
  */
 function withSecretsLock<T>(fn: () => T): T {
-  const lockDbPath = secretsLockDbPath();
-  fs.mkdirSync(path.dirname(lockDbPath), { recursive: true });
-  let db: DatabaseSync | undefined;
-  let begun = false;
-  try {
-    db = new DatabaseSync(lockDbPath);
-    db.exec("PRAGMA busy_timeout = 5000;");
-    db.exec("BEGIN IMMEDIATE;");
-    begun = true;
-    const result = fn();
-    db.exec("COMMIT;");
-    begun = false;
-    return result;
-  } catch (error) {
-    if (begun && db) {
-      try {
-        db.exec("ROLLBACK;");
-      } catch {
-        /* already rolled back */
-      }
-    }
-    throw error;
-  } finally {
-    if (db) {
-      try {
-        db.close();
-      } catch {
-        /* ignore */
-      }
-    }
-  }
+  return withFileLock(secretsLockDbPath(), fn);
 }
 
 /** Test helper: hold the secrets mutex until `fn` returns. */
@@ -379,7 +350,7 @@ function parseSecretsFile(contents: string): SecretsFileV2 {
   } catch {
     throw new Error("secrets file is corrupt");
   }
-  if (!isPlainObject(parsed)) {
+  if (!isRecord(parsed)) {
     throw new Error("secrets file has invalid structure");
   }
   if (!("entries" in parsed) || !isStringRecord(parsed.entries)) {
@@ -397,12 +368,8 @@ function parseSecretsFile(contents: string): SecretsFileV2 {
   };
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 function isStringRecord(value: unknown): value is Record<string, string> {
-  if (!isPlainObject(value)) return false;
+  if (!isRecord(value)) return false;
   return Object.values(value).every((entry) => typeof entry === "string");
 }
 
@@ -541,8 +508,8 @@ export function sealExistingHomePayload(homeDirectory: string, binding: string, 
 /** Opens a previously sealed owner payload even when the live vault has been lost or damaged. */
 export function openExistingHomePayload(homeDirectory: string, binding: string, payload: unknown): string {
   const home = payloadHome(homeDirectory);
-  if (!isPlainObject(payload) || payload.schema_version !== 1 || !isSecretStoreBackend(payload.backend)
-    || typeof payload.ciphertext !== "string" || !payload.ciphertext || !isPlainObject(payload.key_reference)
+  if (!isRecord(payload) || payload.schema_version !== 1 || !isSecretStoreBackend(payload.backend)
+    || typeof payload.ciphertext !== "string" || !payload.ciphertext || !isRecord(payload.key_reference)
     || typeof binding !== "string" || !binding) throw snapshotErrors.invalid("密封数据格式或主人绑定无效");
   const master = payloadMaster(home, payload.backend), reference = masterReference(master);
   if (payload.key_reference.location !== reference.location || payload.key_reference.sha256 !== reference.sha256) {
@@ -552,7 +519,7 @@ export function openExistingHomePayload(homeDirectory: string, binding: string, 
   if (text === null) throw snapshotErrors.integrity_failed("原密钥与密封数据不匹配，或密文已损坏");
   let body: unknown;
   try { body = JSON.parse(text); } catch { throw snapshotErrors.invalid("密封数据正文格式无效"); }
-  if (!isPlainObject(body) || body.schema_version !== 1 || body.home !== home || body.binding !== binding || typeof body.contents !== "string") {
+  if (!isRecord(body) || body.schema_version !== 1 || body.home !== home || body.binding !== binding || typeof body.contents !== "string") {
     throw snapshotErrors.integrity_failed("密封数据不属于当前 Home 或主人");
   }
   return body.contents;

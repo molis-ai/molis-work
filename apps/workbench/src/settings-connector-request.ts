@@ -1,6 +1,6 @@
 import type { ConnectorPrimitives } from "./settings-connector-guide.js";
 import { renderLocalConnectorPlan } from "./settings-connector-local.js";
-import { renderMethodGuide } from "./settings-connector-guide.js";
+import { renderMethodGuide, requestGuideVariant } from "./settings-connector-guide.js";
 import type { ConnectorMethodKind } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { ConnectorSettingsCardView } from "./settings-view.js";
 
@@ -36,7 +36,7 @@ export function renderConnectorRequest(request: ConnectorSetupView | null, cards
     <section class="settings-connector-detail" data-connector-detail="${e(card.connector_id)}">
       <header class="settings-heading"><h2 tabindex="-1">${e(plan.display_name)}</h2><p>${e(plan.local_setup ? L("本地 MCP") : card.title)}</p></header>
       <p data-connector-feedback role="status">${L(message)}</p><div class="settings-body">
-      ${prepared ? `${plan.cli_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) + (request.installation_ready ? renderMethodGuide(card, selected!, p, plan, request.presentation?.cli_job) : "") : plan.local_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) : renderMethodGuide(card, selected!, p, plan)}<input data-connector-new-name type="hidden" value="${e(plan.display_name)}">` : ""}
+      ${prepared ? `${plan.cli_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) + (request.installation_ready ? renderMethodGuide(card, selected!, p, plan, request.presentation?.cli_job) : "") : plan.local_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) : renderMethodGuide(card, selected!, p, plan, undefined, requestGuideVariant(selected!))}<input data-connector-new-name type="hidden" value="${e(plan.display_name)}">` : ""}
       ${pending ? `<div data-protocol="${e(plan.method)}" data-protocol-service="${e(card.connector_id)}" data-pending-setup="${e(request.id)}" data-setup-expires="${request.expires_at}"><div data-protocol-result></div>
         ${request.presentation?.authorization_url ? `<a class="mw-btn mw-btn--secondary" href="${e(request.presentation.authorization_url)}" target="_blank" rel="noopener noreferrer">${L("重新打开官方授权页")}</a>` : ""}
         ${request.presentation?.user_code ? `<p>${e(L("在 {name} 输入设备码：{code}", { name: card.title, code: request.presentation.user_code }))}</p>` : ""}</div>` : ""}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ArtifactsModule, createArtifactsSchema, createProcessItemsSchema, ProcessItemsModule, type ArtifactsSqliteDatabase, ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -19,7 +19,7 @@ const person = LOCAL_PERSON_ACTOR_ID;
 const producer = { plugin_id: "io.example.writer", plugin_version: "1.0.0", binding_signature: "writer-binding" };
 
 function harness() {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('p'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);");
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);

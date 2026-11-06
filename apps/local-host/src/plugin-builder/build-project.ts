@@ -3,6 +3,7 @@ import { constants } from 'node:fs';
 import { mkdir, readdir, realpath, writeFile, open, lstat } from 'node:fs/promises';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { assertContract, assertEffects, assertJson } from '@molis-ai/molis-work-plugin-sandbox';
+import { isDeepStrictEqual } from "node:util";
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildManifest, BuildProject, DeveloperCapabilities } from './build-types.js';
 import { sdkDeclarations } from './build-sdk-declarations.js';
@@ -99,6 +100,85 @@ export function canonical(value: unknown): unknown {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]));
   return value;
 }
+/** Carry authored helpers and dependency declarations, never generated entrypoints, installed packages or grants. */
+async function copyBuildRevisionInputs(source: string, target: string, reuseHelpers: boolean): Promise<void> {
+  if ((await lstat(source)).isSymbolicLink()) throw new Error('Symbolic links are not allowed: revision root');
+  const files = new Map<string, Buffer>();
+  let total = 0;
+  const capture = async (name: string, limit = 2 * 1024 * 1024) => {
+    const bytes = await readBuildFile(source, name, limit);
+    total += bytes.length;
+    if (files.size >= 512 || total > 80 * 1024 * 1024) throw new Error('Revision inputs exceed limit');
+    files.set(name, bytes);
+  };
+  const walk = async (name: string) => {
+    const directory = await lstat(join(source, name));
+    if (directory.isSymbolicLink()) throw new Error('Symbolic links are not allowed: ' + name);
+    if (!directory.isDirectory()) throw new Error('Build source must be a directory: ' + name);
+    for (const entry of await readdir(join(source, name), { withFileTypes: true })) {
+      const path = name + '/' + entry.name;
+      if (entry.isSymbolicLink()) throw new Error('Symbolic links are not allowed: ' + path);
+      if (entry.isDirectory()) await walk(path);
+      else if (!entry.isFile()) throw new Error('Build source must be a regular file: ' + path);
+      else if (!path.endsWith('.ts')) throw new Error('Revision inputs must be TypeScript files: ' + path);
+      else if (path !== 'src/index.ts' && !/^(?:src|tests)\/operations\/[0-9]+\.ts$/.test(path)) await capture(path);
+    }
+  };
+  if (reuseHelpers) { await walk('src'); await walk('tests'); }
+  for (const name of ['package.json', 'package-lock.json', 'dependency-lock.json', 'tsconfig.json']) {
+    try { await capture(name, name === 'package.json' ? 128 * 1024 : 4 * 1024 * 1024); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  }
+  // All source reads have completed before modifying the newly host-created revision.
+  for (const [name, bytes] of files) {
+    await mkdir(dirname(join(target, name)), { recursive: true, mode: 0o700 });
+    await writeFile(join(target, name), bytes, { mode: 0o600 });
+  }
+}
+/** Operation files follow stable operation ids, not the index assigned by a new contract revision. */
+export async function copyBuildRevision(source: string, target: string, before: SandboxPluginContract, after: SandboxPluginContract, connected: readonly string[], settledRoot: string): Promise<void> {
+  const reusable = after.operations.flatMap((operation, index) => {
+    const old = before.operations.findIndex(item => item.id === operation.id);
+    return old >= 0 && isDeepStrictEqual(canonical(before.operations[old]), canonical(operation)) ? [{ index, operation, old }] : [];
+  });
+  await copyBuildRevisionInputs(source, target, reusable.length > 0);
+  for (const { index, operation, old } of reusable) {
+    for (const kind of ['src', 'tests']) {
+      try {
+        const bytes = await readBuildFile(source, `${kind}/operations/${old}.ts`);
+        await writeFile(join(target, kind, 'operations', index + '.ts'), bytes, { mode: 0o600 });
+        if (kind === 'src' && connected.includes(operation.id)) {
+          const settled = join(settledRoot, 'src/operations');
+          await mkdir(settled, { recursive: true, mode: 0o700 });
+          await writeFile(join(settled, index + '.ts'), bytes, { mode: 0o600 });
+        }
+      } catch { continue; /* A missing or unsafe operation is written again by the code agent. */ }
+    }
+  }
+}
+/** Snapshot only selected operation tests and shared helpers, under the same bounds as authored source. */
+export async function copyBuildCheckSources(root: string, contract: SandboxPluginContract, operationIds: readonly string[], settled: ((index: number, id: string) => Promise<Buffer>) | undefined, put: (name: string, bytes: Buffer) => Promise<void>): Promise<void> {
+  let count = 0;
+  const walk = async (directory: string) => {
+    for (const entry of await readdir(join(root, directory), { withFileTypes: true })) {
+      const name = directory + '/' + entry.name;
+      if (entry.isSymbolicLink()) throw new Error('Source symlinks are prohibited: ' + name);
+      if (entry.isDirectory()) { await walk(name); continue; }
+      if (/^tests\/operations\/[0-9]+\.ts$/.test(name)) continue;
+      if (!entry.isFile() || !name.endsWith('.ts') || ++count > 512) throw new Error('Only bounded TypeScript source files are accepted');
+      const current = /^src\/operations\/([0-9]+)\.ts$/.exec(name), index = current ? Number(current[1]) : -1;
+      const operation = contract.operations[index];
+      await put(name, settled && operation && !operationIds.includes(operation.id) ? await settled(index, operation.id) : await readBuildFile(root, name));
+    }
+  };
+  await walk('src'); await walk('tests');
+  // Require every selected test, even when a directory entry was missing.
+  for (const id of operationIds) {
+    const name = 'tests/operations/' + contract.operations.findIndex(operation => operation.id === id) + '.ts';
+    if (++count > 512) throw new Error('Only bounded TypeScript source files are accepted');
+    await put(name, await readBuildFile(root, name));
+  }
+}
 export function pathInside(root: string, path: string): boolean { const rel = relative(root, resolve(path)); return !isAbsolute(rel) && rel !== '..' && !rel.startsWith('../'); }
 /** Reject symbolic links at every component, then bounded no-follow reads. */
 export async function readBuildFile(root: string, path: string, maxBytes = 2 * 1024 * 1024): Promise<Buffer> {
@@ -106,6 +186,6 @@ export async function readBuildFile(root: string, path: string, maxBytes = 2 * 1
   if (!pathInside(root, full)) throw new Error(`Build path escapes root: ${path}`);
   let current = root;
   for (const part of relative(root, full).split('/')) { current = join(current, part); if ((await lstat(current)).isSymbolicLink()) throw new Error(`Symbolic links are not allowed: ${path}`); }
-  const handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW);
-  try { const stat = await handle.stat(); if (!stat.isFile() || stat.size > maxBytes) throw new Error(`Build file exceeds limit: ${path}`); const buffer = Buffer.alloc(stat.size + 1); const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0); if (bytesRead !== stat.size) throw new Error(`Build file changed during read: ${path}`); return buffer.subarray(0, bytesRead); } finally { await handle.close(); }
+  const handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try { const stat = await handle.stat(); if (!stat.isFile()) throw new Error(`Build source must be a regular file: ${path}`); if (stat.size > maxBytes) throw new Error(`Build file exceeds limit: ${path}`); const buffer = Buffer.alloc(stat.size + 1); const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0); if (bytesRead !== stat.size) throw new Error(`Build file changed during read: ${path}`); return buffer.subarray(0, bytesRead); } finally { await handle.close(); }
 }

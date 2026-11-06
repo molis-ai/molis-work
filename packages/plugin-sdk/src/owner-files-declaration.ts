@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 // The shape of a Manifest's `owner_files` (PG-102): the root a plugin's files live under in the Home and the top-level entries it may
 // touch. Only the shape is checked here; whether the Home's store registry holds the root as this plugin's own, and that no other
 // declaration uses it, is for the Host to check when it starts the plugin. `parsePluginManifest` is the one caller.
@@ -35,8 +36,4 @@ export function ownerFilesDeclarationProblems(value: unknown, permissions: Reado
     if (!ENTRY_KINDS.includes(entry.kind as string)) problems.push("owner_files.entries 的 kind 只能是 file 或 directory");
   }
   return problems;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

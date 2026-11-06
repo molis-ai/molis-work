@@ -1,3 +1,4 @@
+import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import type { ErrorObject } from "ajv";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { compileActionSchema, validateActionValue, type ActionValidator } from "./action-schema.js";
@@ -14,7 +15,6 @@ function fields(definition: Pick<ActionDefinition, "capability_id" | "operation"
   return [...VERSION_FIELDS.filter(field => Object.hasOwn(declared, field)),
     ...(definition.capability_id.startsWith("functions.authoring.") && Object.hasOwn(declared, "updated_at") ? ["updated_at"] : [])];
 }
-const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 function required(context: ActionCallContext): boolean {
   return (context.audience === "agent" || context.audience === "mcp") && !isActiveNestedAction(context);
 }

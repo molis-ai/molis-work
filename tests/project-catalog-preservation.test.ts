@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -33,7 +33,7 @@ function mark(project: ProjectRecord) {
   } finally { store.close(); }
 }
 function createdEvents(database: string, id: string) {
-  const db = new Database(database, { readonly: true });
+  const db = openTestSqlite(database, { readonly: true });
   try { return db.prepare("SELECT count(*) FROM project_events WHERE project_id=? AND type='project.created'").pluck().get(id); }
   finally { db.close(); }
 }
@@ -43,7 +43,7 @@ test("a stable project recovered during real lock waiting keeps the committed id
     const owner = acquireStorageOwner(join(home, "agent-runtime"));
     const a = await openMolisWorkProjectCatalog({ homeDirectory: home, storageOwner: owner });
     const b = await openMolisWorkProjectCatalog({ homeDirectory: home, storageOwner: owner });
-    const writer = new Database(a.databasePath); writer.exec("BEGIN IMMEDIATE");
+    const writer = openTestSqlite(a.databasePath); writer.exec("BEGIN IMMEDIATE");
     let release!: () => void, reached!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const entered = new Promise<void>(resolve => { reached = resolve; });
@@ -86,7 +86,7 @@ test("simultaneous stable project preparation adopts the winner without deleting
 test("a stable project commit timeout retains the promoted database and a retry recovers it once", { timeout: 15_000 }, async () => {
   await withHome(async home => {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    const writer = new Database(catalog.databasePath); writer.exec("BEGIN IMMEDIATE");
+    const writer = openTestSqlite(catalog.databasePath); writer.exec("BEGIN IMMEDIATE");
     const id = `project-onboarding-${randomUUID()}`, input = { project_id: id, display_name: "超时后恢复", actor_id: "user" };
     try {
       await assert.rejects(catalog.createProject(input), { code: "SQLITE_BUSY" });
@@ -105,11 +105,11 @@ test("a stable project commit timeout retains the promoted database and a retry 
 test("demo reset lock timeout restores the original body and catalog record, and a later reset still works", { timeout: 60_000 }, async () => {
   await withHome(async home => {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    let writer: Database.Database | undefined;
+    let writer: SqliteDatabase | undefined;
     try {
       const project = (await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true })).project;
       const before = mark(project);
-      writer = new Database(catalog.databasePath); writer.exec("BEGIN IMMEDIATE");
+      writer = openTestSqlite(catalog.databasePath); writer.exec("BEGIN IMMEDIATE");
       await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), { code: "SQLITE_BUSY" });
       assert.deepEqual(catalog.getProject(project.project_id), project);
       assert.deepEqual(snapshot(project), before);
@@ -131,7 +131,7 @@ test("PG-026-S4-04 a failure in demo post-initialization restores the previous d
       const projectDirectory = join(home, "projects", project.project_id);
       const rename = fs.rename;
       const countReceipts = () => {
-        const db = new Database(catalog.databasePath, { readonly: true });
+        const db = openTestSqlite(catalog.databasePath, { readonly: true });
         try { return db.prepare("SELECT count(*) FROM project_events WHERE type='project.demo_reset'").pluck().get(); } finally { db.close(); }
       };
       let backupDirectory: string | undefined, atPromotion: { official: unknown; aside: unknown; record: unknown; plugins: unknown; receipts: unknown } | undefined;
@@ -147,7 +147,7 @@ test("PG-026-S4-04 a failure in demo post-initialization restores the previous d
       // The failure comes after the promotion and before the reset receipt: refusing that receipt in the catalog is the first thing the
       // rebuild writes once the new database is in place (no Sessions registry opens after promotion since SC-4, which was this test's seam).
       const refusal = "fixture: demo post-initialization storage unavailable";
-      const writer = new Database(catalog.databasePath);
+      const writer = openTestSqlite(catalog.databasePath);
       try { writer.exec(`CREATE TRIGGER fixture_refuse_demo_reset BEFORE INSERT ON project_events WHEN NEW.type = 'project.demo_reset' BEGIN SELECT RAISE(ABORT, '${refusal}'); END`); }
       finally { writer.close(); }
       await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), new RegExp(refusal, "u"));
@@ -161,7 +161,7 @@ test("PG-026-S4-04 a failure in demo post-initialization restores the previous d
       assert.deepEqual(catalog.getProject(project.project_id), project);
       assert.deepEqual(snapshot(project), before);
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), plugins);
-      const db = new Database(catalog.databasePath, { readonly: true });
+      const db = openTestSqlite(catalog.databasePath, { readonly: true });
       try { assert.equal(db.prepare("SELECT count(*) FROM project_events WHERE type='project.demo_reset'").pluck().get(), 0); }
       finally { db.close(); }
     } finally { catalog.close(); }

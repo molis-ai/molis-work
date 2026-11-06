@@ -113,7 +113,7 @@
 **任务主体**
 
 - 定义：一个后台任务在动作授权里的客户端身份，`agent:task:<project_id>:<plugin_install_id>:<key>`（`apps/local-host/src/task-grant-subjects.ts`）。项目与安装由宿主从当次调用上下文取，插件只给 `key`（合同 `TASK_GRANT_SUBJECT_KEY_PATTERN`，不含 `:`）；同一个 key 在别的安装或项目里是另一个主体。前缀 `agent:` 让它用 Agent 受众，动作网关拒绝任何转发进程自称它（S-08）。
-- 只有本人经 `agent.task_grants.set@1` 为它写授权；它没有默认放开的动作（项目资料也要打开），只读、只在自己的项目里；插件的只读业务角色带 `grant_subject` 起跑时，这一轮的动作身份就是它（`docs/system/SECURITY-INVARIANTS.md` S-109）。
+- 只有本人经 `agent.task_grants.set@1` 为它写授权；它没有默认放开的动作（项目资料也要打开），只读、只在自己的项目里；插件的只读业务角色带 `grant_subject` 起跑时，这一轮的动作身份就是它（`docs/system/SECURITY-INVARIANTS.md` S-141）。
 - 不是：内置 Agent 的 `agent:<runtime>`，也不是外部 Runtime 的 `runtime:<id>`；「对外接入」一页不列它。
 
 **宿主能力（typed capability）与 Capability**

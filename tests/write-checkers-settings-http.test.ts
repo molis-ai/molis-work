@@ -113,7 +113,7 @@ test("PA-43 the page's markup holds every sentence; its program holds none, asks
     const workbench = await f.get("/assets/molis-work-workbench.js");
     assert.equal(workbench.status, 200);
     // The host tightens the whitespace and syntax of every script it serves, so the bundle is not there byte for byte.
-    const made = workbench.text.search(/const molisWorkWriteCheckers ?= ?\(?host\)? ?=> ?\{/);
+    const made = workbench.text.search(/const molisWorkWriteCheckers\s*=\s*\(?[A-Za-z_$][\w$]*\)?\s*=>\s*\{/);
     assert.ok(made >= 0 && workbench.text.includes("/api/project-settings/write-checkers"), "the Workbench program carries it, for the settings opened inside the workbench");
     assert.ok(made < workbench.text.indexOf("typeof molisWorkWriteCheckers"), "ahead of the script that binds it");
   } finally { await f.close(); }

@@ -60,7 +60,9 @@ async function bringCharacter(page: Page, selected: CharacterCodingDetail) {
   const { L, host, input, refs, s } = page;
   const result = await api<{ session: { session_id: string } }>(page, "/sessions", "POST", { title: selected.title }), id = result.session.session_id;
   // Persist the exact publication and task before navigation; never start a paid run automatically.
-  await api(page, sessionPath(id), "PATCH", { draft: selected.task || "", character: selected.reference, character_skill_ids: selected.skill_ids || [] });
+  await page.refs.inputEditor.write(id, { draft: selected.task || "", character: selected.reference, character_skill_ids: selected.skill_ids || [] }, 0);
+  page.refs.draft.remember(id, selected.task || "");
+  page.s.questionDrafts.set(id, {});
   await refreshState(page);
   host.openItem("coding", id, selected.title);
   await select(page, id);

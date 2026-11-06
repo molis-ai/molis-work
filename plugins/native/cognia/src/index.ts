@@ -13,3 +13,6 @@ export * from "./en.js";
 export { COGNIA_INSTRUCTIONS } from "./prompts.js";
 
 export * from "./actions.js";
+export { cogniaSync, cogniaCollection, cogniaSyncProjection } from './replication.js';
+
+export { syncBindings as createCogniaSyncBindings } from "./sync-binding.js";

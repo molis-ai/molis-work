@@ -511,14 +511,17 @@ jobs:
           node-version: 24.14.0
 
       - name: Install the pinned Rust toolchain
-        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
+        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt --target wasm32-unknown-unknown
 
       # The key names what the cache holds: since cargo test runs here, the dependencies built with code, not only clippy's
       # metadata. rust-cache does not save again on an exact hit, so without a new key the clippy-only cache saved earlier kept
       # being restored and the test build was redone every run (about 80 s; 统筹 10-18 定).
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri
+          workspaces: |
+            apps/desktop/src-tauri
+            apps/sync-worker
+            server
           key: with-tests
 
       # Each check is broken once on a scratch repository and must go red (the shell cases use a stand-in for shellcheck here).
@@ -645,7 +648,7 @@ jobs:
           echo "Gates, health gate rules, package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift, shell, security invariant and product subset verification passed."
 
   # PR selection (T-130): some runs the selected files, whole runs the full list, and only successful none skips a job.
-  # Selector failure/cancellation/empty or unknown modes fall back to both complete shards; no stale file/shard output is used.
+  # Selector failure/cancellation/empty or unknown modes fall back to all complete shards; no stale file/shard output is used.
   # The merge queue, a direct push, nightly and manual runs run both whole. A trusted queue-verified push reuses its result.
   # The same selection also decides `native-checks` (the macOS Rust and Swift checks), on a pull request and in the merge queue: only a
   # successful `native_mode` of none skips it; a failed selector runs it. The queue's two test jobs ignore the selection and run whole.
@@ -687,14 +690,15 @@ jobs:
   # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
   # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates.
   # Blocking (decision #14): after its observation period, one of Verify's required test results.
-  # Three legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
+  # Four legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
   # limit, and four at a time on one 4-core runner pushed tests/mcp-scene-effect-authority.test.ts from about 20 s to 22-36 s against
   # its 30 s limit (half the runs on main failed). The files are dealt out to the legs by how long they take (`--shard`,
   # tests/ci-shard-weights.json, scripts/run-tests/shard.mjs), each file in exactly one leg. Two legs with every second file took
-  # 1348 s and 2704 s of test time in merge queue run 42023765782, and the merge waited 25 minutes for the second; three balanced legs
-  # take about 1340 s each, two files at a time.
-  # The merge queue runs the whole list on three legs. PR some runs selected files; whole or an untrusted selector runs all
-  # three complete shards. Only successful none skips the job. Direct pushes, nightly and manual runs run the complete list too.
+  # 1348 s and 2704 s of test time in merge queue run 42023765782, and the merge waited 25 minutes for the second. Three balanced legs
+  # then took 15.3 minutes at the slowest; four, since the organization's Team plan (2026-11-06) raised the 20 concurrent jobs, leave
+  # about 1000 s of test time on each.
+  # The merge queue runs the whole list on four legs. PR some runs selected files; whole or an untrusted selector runs all
+  # four complete shards. Only successful none skips the job. Direct pushes, nightly and manual runs run the complete list too.
   security-invariants:
     name: Security invariants (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [test-selection, queue-check]
@@ -706,7 +710,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2, 3]') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2, 3, 4]') }}
     env:
       MOLIS_WORK_TEST_JOBS: 2
     steps:
@@ -850,11 +854,11 @@ jobs:
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
   # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
   # writes its report on that signal, and the upload below is `if: always()`.
-  # Two disjoint shards cover the same full list once, dealt out by how long the files take (tests/ci-shard-weights.json; with every
+  # Three disjoint shards cover the same full list once, dealt out by how long the files take (tests/ci-shard-weights.json; with every
   # second file the legs took 2527 s and 1336 s of test time in run 42023765782); each keeps the phase/attempt limits above.
   # fail-fast is off so one failed shard does not hide the other shard's results.
-  # The merge queue runs the full list on two shards. PR some runs selected files, while whole or a selector fault runs
-  # both complete shards; only successful none skips. Direct pushes, nightly and manual runs also run the full list.
+  # The merge queue runs the full list on three shards. PR some runs selected files, while whole or a selector fault runs
+  # all complete shards; only successful none skips. Direct pushes, nightly and manual runs also run the full list.
   # A trusted queue-verified push reuses that result, as the other required jobs do.
   product-subset:
     name: Product subset (${{ matrix.shard }}/${{ strategy.job-total }})
@@ -862,7 +866,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2]') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2, 3]') }}
     # The same condition as `security-invariants`, with this job's mode.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.product_mode != 'none') }}
     runs-on: ubuntu-latest

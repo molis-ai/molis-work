@@ -3,6 +3,7 @@ import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/pl
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { FEED_PLUGIN_ID, FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 import { FEED_HOME_DATABASE } from "./content-ledger.js";
+import { feedSync } from './replication.js';
 import { FEED_PROJECT_DATABASE } from "./database.js";
 import { FEED_EN } from "./en.js";
 import { feedReconcileJob } from "./runtime-reconcile.js";
@@ -39,6 +40,7 @@ export const feedManifest: PluginManifest = {
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息",
     preview: { capability_id: "feed.artifacts.preview", version: 1 } }], consumes: [] },
   requires: [],
+  sync: feedSync,
   runtime: { scope: "home" },
   databases: { project: FEED_PROJECT_DATABASE, home: FEED_HOME_DATABASE },
   // The kinds of Inbox entry Feed adds and removes: an item's, and a source's fault. Both are the person's Inbox: Feed writes them under

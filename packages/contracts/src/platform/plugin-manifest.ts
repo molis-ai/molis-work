@@ -111,6 +111,8 @@ export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: s
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
 export interface PluginManifest {
+  /** Portable collections; requires an authorized owner adapter. */
+  sync?: import("./plugin-sync.js").PluginSyncDeclaration;
   /** The current Manifest format; all plugins declare version 1. */
   schema_version: 1;
   plugin_id: string;
@@ -246,4 +248,6 @@ export interface PluginManifest {
   action_scenes?: readonly import("./actions.js").ActionSceneDefinition[];
   /** What a background task of another plugin may be allowed to read, one switch per group (`plugin-read-groups.ts`). */
   read_groups?: readonly import("./plugin-read-groups.js").PluginReadGroupDeclaration[];
+  /** What this plugin's background tasks are, by its own object kind (`plugin-task-subjects.ts`). */
+  task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaration;
 }

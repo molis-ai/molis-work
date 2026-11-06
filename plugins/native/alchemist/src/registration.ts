@@ -6,7 +6,10 @@ import { ALCHEMIST_PROJECT_PLUGIN_ID, alchemistManifest, ALCHEMIST_CLIENT_FACTOR
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
+import { openAlchemistSyncStore } from "./index.js";
+import { createSyncJsonContent } from "@molis-ai/molis-work-plugin-sdk";
 export const registration: PluginRegistration = {
+  sync:{studio:{scope:'project-library',kind:'project_studio',open:openAlchemistSyncStore,content:createSyncJsonContent}},
   project_plugin_id: ALCHEMIST_PROJECT_PLUGIN_ID, catalog_order: 19,
   manifest: alchemistManifest,
   personal: true,

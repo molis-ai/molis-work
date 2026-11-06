@@ -14,13 +14,13 @@ export const DIFF_MESSAGES = {
   "diff.sign.delete": { zh: "删除", en: "Removed" },
   "diff.sign.same": { zh: "未改变", en: "Unchanged" },
   "diff.fold.reveal": { zh: "展开 {count} 行未改变", en: "Show {count} unchanged lines" },
-  "diff.board.files": { zh: "一轮的文件行 · 增删行数与长路径", en: "A round's file rows · lines added and removed, long paths" },
+  "diff.board.files": { zh: "一轮的文件行 · 增删行数与长路径", en: "A turn's file rows · lines added and removed, long paths" },
   // The view's and the actions' own sentences are action output an Agent reads too, so they stay as written and are their
   // own keys here: the page shows them through the translator.
   // Sentences with a path or a count in them are written in Chinese by the producer (an Agent reads them too), so each is a
   // template here (`DIFF_TEMPLATES`): the SDK's `diffViewText` finds which template a sentence is, and the page says it with the
   // values in its own words. The three about a hunk are the sentences the SDK's `parseUnifiedDiff` refuses with.
-  "diff.msg.no-change-in": { zh: "这一轮没有改动 {path}", en: "This round didn't change {path}" },
+  "diff.msg.no-change-in": { zh: "这一轮没有改动 {path}", en: "This turn didn't change {path}" },
   "diff.msg.renamed": { zh: "重命名：{from} → {to}", en: "Renamed: {from} → {to}" },
   "diff.msg.hunk-count": { zh: "hunk 行数与 @@ 头不一致：声明 {declaredBefore}/{declaredAfter}，实际 {sawBefore}/{sawAfter}", en: "A hunk's line counts don't match its @@ header: declared {declaredBefore}/{declaredAfter}, found {sawBefore}/{sawAfter}" },
   "diff.msg.hunk-header": { zh: "读不懂的 hunk 头：{header}", en: "Can't read this hunk header: {header}" },

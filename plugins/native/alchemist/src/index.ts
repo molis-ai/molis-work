@@ -6,6 +6,7 @@ export { ALCHEMIST_EN } from "./en.js";
 export { ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID, alchemistManifest } from "./manifest.js";
 export { createLocalRuntime as createAlchemistStudioRuntime } from "./studio/server/bootstrap/local-runtime.js";
+export { assertStudioProjectIdentity } from "./studio/server/sync/journal.js";
 export { ALCHEMIST_STUDIO_BASELINE } from "./studio/server/db/schema.js";
 export type { LocalRuntime as AlchemistStudioRuntime } from "./studio/server/bootstrap/local-runtime.js";
 export type { AlchemistAiPort } from "./studio/server/runtime/host-port.js";
@@ -18,4 +19,5 @@ export { createApp as createAlchemistHttpApp } from "./studio/server/app.js";
 
 export type { WorkReuseHostPort, ReuseSelection, ReuseSnapshot, ReuseCandidates, ReuseReceipt } from "./work-reuse/contracts.js";
 export { WorkReuseService, artifactReuseKey } from "./work-reuse/service.js";
+export {openAlchemistSyncStore} from './studio/server/sync/replication.js';
 

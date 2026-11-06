@@ -38,6 +38,7 @@ export {
   formatClockTime,
 } from "./calendar.js";
 export { scheduleErrors } from "./error.js";
+export { scheduleCollection } from "./replication.js";
 export {
   parseScheduledAgentReply,
   composeScheduledTaskPrompt,
@@ -66,4 +67,4 @@ export {
 export type { ScheduledTaskRunner, ScheduleJobPort } from "./wakeup.js";
 export { scheduledTaskRunner } from "./runtime-wakeups.js";
 
-export { SCHEDULE_PROJECT_DATABASE } from "./database.js";
+export { SCHEDULE_PROJECT_DATABASE, SCHEDULE_TASKS_SCHEMA_SQL } from "./database.js";

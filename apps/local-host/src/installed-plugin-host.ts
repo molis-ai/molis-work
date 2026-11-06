@@ -12,7 +12,7 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { openProjectVersionStores } from './project-version-stores.js';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
-export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-builder';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
@@ -57,6 +57,11 @@ interface InstalledPluginHostOptions {
 type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
 const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost> }>>();
 
+/** Passive projection of the unique installed execution owner; never installs or starts a second platform. */
+export async function runningInstalledPluginPlatform(store: LocalProjectDatabase, projectId: string) {
+  const entry = hosts.get(store)?.get(projectId);
+  return entry ? (await entry.ready).platform : null;
+}
 /** The refusal a sandbox's Host call gets once the installation it belongs to is no longer the running one (a project's or the Home's). */
 export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
 

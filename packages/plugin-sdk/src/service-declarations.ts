@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 // The shape of a Manifest's `model_configuration`, `image_generation` (PG-102), `local_tools` (PG-112) and `runtime` (PG-011): the settings of
 // the model a plugin uses, the image connections it uses, the command-line tools it looks for and where it runs. Only the shape is checked here. Whether the Home's store registry holds the directory or namespace as
 // this plugin's own, and that the two settings actions are the plugin's own, is for the Host to check when it starts the plugin.
@@ -108,8 +109,4 @@ export function runtimeDeclarationProblems(value: unknown): string[] {
   if (unknown.length > 0) problems.push(`runtime 不认这些字段：${unknown.join("、")}${unknown.includes("dual_instance") ? "（双实例的标记只来自宿主的登记，Manifest 说不了）" : ""}`);
   if (value.scope !== "home") problems.push("runtime.scope 只能写 \"home\"（项目级插件不写 runtime）");
   return problems;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

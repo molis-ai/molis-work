@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { createSqliteReplica, initializeReplica, replicaSchemaSql } from '@molis-ai/molis-work-storage';
+import { defineErrorCodes } from '@molis-ai/molis-work-plugin-sdk';
+
+const scopeErrors=defineErrorCodes('retained_owner',{hidden:'forbidden'});
+
+test('retained bodies keep their original scope after the current row disappears or moves',t=>{
+ const db=new DatabaseSync(':memory:');db.exec(replicaSchemaSql());initializeReplica(db);t.after(()=>db.close());
+ const key='moved-item',event={key,value:{project:'hidden',body:'private remote history'},base:0,revision:1,operationId:'remote'};
+ let active=true,applies=0;
+ const owner={authorize(){if(!active)throw new ActionError('actions.forbidden','account stopped');},authorizeKey(_key:string,value?:unknown){if(value&&typeof value==='object'&&'project' in value&&value.project==='hidden')throw scopeErrors.hidden('hidden project');},read:()=>null,apply(){applies++;},canUpload:()=>true};
+ const replica=createSqliteReplica(db,owner);
+ db.prepare('INSERT INTO replica_conflicts(key,event,reason,waiting) VALUES (?,?,?,0)').run(key,JSON.stringify(event),'retained');
+ db.prepare('INSERT INTO replica_resolutions(key,choice,local_json,remote_json) VALUES (?,?,?,?)').run(key,'remote',JSON.stringify({project:'visible',body:'local'}),JSON.stringify(event));
+ assert.deepEqual(replica.conflicts(),[],'a visible current key does not expose an inaccessible retained remote conflict');
+ assert.deepEqual(replica.recoveries!(),[],'recovery metadata requires access to both saved branches, not only the current key');
+ db.prepare('UPDATE replica_resolutions SET local_json=?,remote_json=? WHERE id=1').run(JSON.stringify(event.value),JSON.stringify({...event,value:{project:'visible',body:'remote'}}));
+ assert.deepEqual(replica.recoveries!(),[],'an inaccessible retained local branch is filtered even when its remote branch is visible');
+ db.prepare('UPDATE replica_resolutions SET local_json=?,remote_json=? WHERE id=1').run(JSON.stringify({project:'visible',body:'local'}),JSON.stringify(event));
+ assert.throws(()=>replica.inspectConflict!(key),/hidden project/,'a missing local row cannot authorize a retained remote body');
+ assert.throws(()=>replica.inspectRecovery!('1'),/hidden project/,'both historical branches are checked, even when the key now belongs to a visible project');
+ assert.throws(()=>replica.resolve(key,'local',1),/hidden project/,'choosing local cannot settle an inaccessible remote branch');
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM replica_conflicts').get()!.n,1);
+ db.prepare('DELETE FROM replica_conflicts').run();
+ for(const choice of ['local','remote'] as const)assert.throws(()=>replica.restoreRecovery!('1',choice,0),/hidden project/);
+ assert.equal(applies,0);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM replica_resolutions').get()!.n,1);
+ db.prepare('INSERT INTO replica_changes(key) VALUES (?)').run(key);
+ const frozen={key,value:event.value,operationId:'frozen',base:0};db.prepare('INSERT INTO replica_outbox(key,through_seq,operation) VALUES (?,?,?)').run(key,1,JSON.stringify(frozen));
+ assert.throws(()=>replica.next(),/hidden project/,'a frozen upload cannot borrow the moved current row scope');
+ assert.throws(()=>replica.acknowledge(key,'frozen',2),/hidden project/,'a late receipt cannot settle the revoked original scope');
+ assert.throws(()=>replica.receive(event),/hidden project/);assert.equal(replica.cursor(),0);assert.equal(replica.counts().pending,1);
+ active=false;assert.throws(()=>replica.recoveries!(),/account stopped/,'list filtering must not swallow account revocation');
+ active=true;owner.authorizeKey=()=>{active=false;throw new ActionError('actions.forbidden','hidden project');};
+ assert.throws(()=>replica.recoveries!(),/account stopped/,'revocation during a failed key check must propagate instead of becoming an empty list');
+ active=true;owner.authorizeKey=()=>{throw new Error('owner check failed');};
+ assert.throws(()=>replica.recoveries!(),/owner check failed/,'only a current owner scope refusal is filtered');
+});

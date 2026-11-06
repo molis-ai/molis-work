@@ -411,6 +411,15 @@ test("--list shows what runs, what is held and what has ended, and runs nothing"
   assert.match(only.text, /3 files in tests\/ci-product-subset\.txt: 3 browser smokes and 0 other files count/);
 });
 
+test("a shard the deal gave no browser smoke passes on its other files", () => {
+  const root = scratch({ files: { ...basics(), "tests/ok.test.ts": passing }, list: [...BASIC_LIST, "tests/ok.test.ts"] });
+  // The list has more legs than smokes can fill once the weights put the smokes elsewhere; `--only` gives the same leg: no smoke at all.
+  const run = subset(root, ["--only", "ok\\.test", "--shard", "1/1", "--today", "2026-10-09", "--retries", "0"]);
+  assert.equal(run.code, 0, run.text);
+  assert.equal(run.report?.files.filter((item) => item.kind === "browser").length, 0);
+  assert.equal(byFile(run.report, "ok.test.ts").status, "pass");
+});
+
 test("two shards cover the complete list exactly once and retain failure and quarantine decisions", () => {
   const files = { ...basics(), "tests/held.test.ts": failingTest, "tests/ended.test.ts": passing, "tests/broken.test.ts": failingTest, "tests/ok.test.ts": passing };
   const list = [...BASIC_LIST, "tests/held.test.ts", "tests/ended.test.ts", "tests/broken.test.ts", "tests/ok.test.ts"];
@@ -472,7 +481,7 @@ test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a 
   assert.doesNotMatch(job, /^    continue-on-error:/m, "a red subset turns Verify red (decision #14, 2026-10-31)");
   assert.match(job, /^    name: Product subset \(\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}\)$/m);
   assert.match(job, /^      fail-fast: false$/m, "a failure does not cancel the other shard");
-  assert.ok(job.includes("        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2]') }}"), "only a PR's successful some consumes selected shards; whole or untrusted outputs retain both complete shards (RAC-1764)");
+  assert.ok(job.includes("        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2, 3]') }}"), "only a PR's successful some consumes selected shards; whole or untrusted outputs retain both complete shards (RAC-1764)");
   assert.ok(job.includes("--shard ${{ matrix.shard }}/${{ strategy.job-total }}"));
   assert.ok(job.includes("name: product-subset-${{ matrix.shard }}"), "each shard preserves its own artifact");
   assert.match(job, /^\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux /m, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");

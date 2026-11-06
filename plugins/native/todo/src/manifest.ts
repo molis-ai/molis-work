@@ -1,3 +1,4 @@
+import { todoSync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "./contract.js";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
@@ -30,7 +31,7 @@ export const todoManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: ["assistant.works.related"] },
   artifacts: { produces: [], consumes: [] },
-  actions: [...TODO_ACTIONS],
+  actions: [...TODO_ACTIONS], sync:todoSync,
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   read_groups: [{ group_id: "todo", title: "待办", description: "待办事项、它们的日期与到期提醒",
     actions: ["todo.items.list", "todo.items.get", "todo.item.subject.read", "todo.search.project_entries", "todo.reminders.due", "todo.home.events"] }],

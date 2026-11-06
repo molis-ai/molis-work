@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { CreateAndBindRuntimeContextInput } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { ProjectsQueryApi } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -10,7 +10,7 @@ import { createRuntimeProjectSetup, type RuntimeProjectSetupPorts } from "./proj
 import { RuntimeBindingRecords } from "./runtime-binding-records.js";
 
 export interface RuntimeContextModuleOptions {
-  db: Database.Database;
+  db: SqliteDatabase;
   ledger: ContextLedgerApi;
   projects: RuntimeProjectBindingPorts & { query: ProjectsQueryApi };
   validation: RuntimeProjectBindingValidation;

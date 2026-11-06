@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectOffersInput, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -76,19 +77,18 @@ export async function readInboxStageSubjects(entries: readonly InboxActionEntry[
   });
 }
 
-
 export type InboxPagesResult = Omit<InboxPagesGeneration, "inputs"> & { entry_ids: string[] };
 export interface InboxGeneratedPages { document: InboxPagesDocument; replayed: boolean; request_id: string; entry_ids: string[] }
 
 function action<Input, Output>(id: string, title: string, description: string, operation: "query" | "command",
   input: ActionSchema, output: ActionSchema, permissions: string[], requiredScene?: { scene_id: string; version: number }, requiredActions?: readonly ActionReference[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<Input, Output> {
-  return { capability_id: id, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
-    kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
+  return createActionDefinition<Input, Output>(id, operation, { title, description, ...(execution ? { execution } : {}),
+    audiences: ["user", "agent", "workflow", "mcp"],
     permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), ...(requiredActions ? { required_actions: requiredActions } : {}),
     subject_kinds: ["inbox_entry"], input_schema: input, output_schema: output,
     // Writing a document waits on a model through Pages and writes nothing of its own here.
     // The status change asks Feed whether the item may come back, and `services.attention` writes only from a waiting action.
-    ...(["inbox.pages.generate", "inbox.judgment.evaluate", "inbox.entry.status"].includes(id) ? { scheduling: "concurrent" as const } : {}) } };
+    ...(["inbox.pages.generate", "inbox.judgment.evaluate", "inbox.entry.status"].includes(id) ? { scheduling: "concurrent" as const } : {}) });
 }
 
 export interface InboxStatusInput { entry_id: string; status: AttentionStatus; expected_revision: number }

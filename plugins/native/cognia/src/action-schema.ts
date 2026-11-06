@@ -1,11 +1,9 @@
-import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { nullableSchema as nullable, arraySchema as array, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
+export { nullable, array, object };
 export const text = { type: "string" };
 export const id = { type: "string", minLength: 1, maxLength: 500 };
 export const integer = { type: "integer", minimum: 0 };
 export const revision = { type: "integer", minimum: 1 };
-export const nullable = (schema: unknown) => ({ anyOf: [schema, { type: "null" }] });
-export const array = (items: unknown) => ({ type: "array", items });
-export const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 export const domain = object({ id, name: text });
 export const kind = { enum: ["obsidian", "llm-wiki", "markdown"] };
 const role = { enum: ["material", "wiki", "index", "log", "attachment"] };
@@ -17,7 +15,7 @@ const reference = object({ label: id, material_id: id, revision, title: text, pa
 export const draftFields = { id, title: text, domain_id: nullable(id), mode: { enum: ["synthesize", "query"] }, saved_id: nullable(id), created_at: text };
 export const draft = object({ ...draftFields, body: text, references: array(reference) });
 const link = object({ target: text, label: text, status: { enum: ["resolved", "missing", "ambiguous", "external", "unsafe"] }, material_id: id }, ["target", "label", "status"]);
-export const detail = object({ material, outgoing: array(link), incoming: array(material), references: array(reference) });
+export const detail = object({ material, etag:{...text,pattern:'^[a-f0-9]{64}$'}, outgoing: array(link), incoming: array(material), references: array(reference) });
 const file = object({ path: { ...id, maxLength: 1000 }, data: text, reason: text }, ["path"]);
 export const files = { ...array(file), maxItems: 1000 };
 const entry = object({ path: text, status: { enum: ["new", "update", "unchanged", "skipped"] }, reason: text, role, bytes: integer }, ["path", "status"]);

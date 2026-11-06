@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, openPluginProjectDatabase, type PluginProjectSchemaInspector,
+  PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, inspectPluginProjectDatabaseSet, openPluginProjectDatabase, type PluginProjectSchemaInspector,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
 
@@ -33,6 +33,14 @@ const NOTES: PluginDatabaseDeclaration = {
   `,
 };
 const OWNER = { plugin_id: "io.molis.work.notes-probe", publisher_signature: "publisher-a", declaration: NOTES };
+
+const manifest = (databases: unknown) => ({
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
+    publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [{ permission: "storage:private", required: true, reason: "把笔记存进项目库里自己的表" }],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    ...(databases === undefined ? {} : { databases }),
+  });
 
 function library(): DatabaseSync {
   const db = new DatabaseSync(":memory:");
@@ -137,13 +145,6 @@ test("PLIB-03 tried on the scratch database, a declaration may make only its own
 });
 
 test("PLIB-03 RAC-300 the Manifest's databases declare a project library and a Home library, each with a store name, a positive version, statements and declared permissions; only the Home one may be partitioned by project", () => {
-  const manifest = (databases: unknown) => ({
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
-    publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-    permissions: [{ permission: "storage:private", required: true, reason: "把笔记存进项目库里自己的表" }],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
-    ...(databases === undefined ? {} : { databases }),
-  });
   assert.deepEqual(parsePluginManifest(manifest({ project: NOTES })).databases, { project: NOTES });
   assert.deepEqual(parsePluginManifest(manifest({ home: NOTES })).databases, { home: NOTES });
   assert.deepEqual(parsePluginManifest(manifest({ home: { ...NOTES, partition: "project" } })).databases, { home: { ...NOTES, partition: "project" } });
@@ -243,4 +244,24 @@ test("PRR-15 a rollback that throws keeps the original failure", () => {
   } });
   assert.throws(() => open(failing), (error: unknown) => error instanceof Error && error.message === "disk full");
   assert.equal(db.isTransaction, false);
+});
+
+test("offline project inspection verifies the same compiled sync triggers as the opener and refuses foreign executable objects", t => {
+  const db = library(), schema = inspector();
+  t.after(() => db.close());
+  const platformSchema = "CREATE TABLE notes_changes (key TEXT); CREATE TRIGGER notes_changed AFTER INSERT ON notes_items BEGIN INSERT INTO notes_changes VALUES (NEW.note_id); END;";
+  openPluginProjectDatabase(db, OWNER, schema, {path: PATH, platformSchema});
+  const read = () => inspectPluginProjectDatabaseSet(db, {
+    manifests: [parsePluginManifest(manifest({project: NOTES}))],
+    platformTables: ["plugin_project_databases", "project_root", "feed_items"],
+    platformExtension: () => ({platformSchema}),
+  }, schema, PATH);
+  assert.equal(read()[0]!.plugin_id, OWNER.plugin_id);
+  db.exec("CREATE TRIGGER unowned AFTER DELETE ON notes_items BEGIN DELETE FROM feed_items; END");
+  assert.throws(read, {code:"plugin.project_database.shape_mismatch"});
+  db.exec("DROP TRIGGER unowned; DROP TRIGGER notes_changed");
+  assert.throws(read, {code:"plugin.project_database.shape_mismatch"});
+  db.exec("CREATE TRIGGER notes_changed AFTER INSERT ON notes_items BEGIN DELETE FROM feed_items; END");
+  assert.throws(read, {code:"plugin.project_database.shape_mismatch"});
+  assert.throws(() => openPluginProjectDatabase(db, OWNER, schema, {path:PATH,platformSchema}), {code:"plugin.project_database.shape_mismatch"});
 });

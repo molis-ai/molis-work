@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import type { ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ProjectsModule, createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 
@@ -16,7 +16,7 @@ const shipped: ProjectPluginRegistry = {
 };
 
 function openProjects(directory: string, plugins: ProjectPluginRegistry = shipped) {
-  const db = new Database(join(directory, "catalog.db"));
+  const db = openTestSqlite(join(directory, "catalog.db"));
   createProjectsSchema(db);
   const projects = new ProjectsModule({
     db,

@@ -1,3 +1,4 @@
+import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { parseClockTime } from "./calendar.js";
@@ -10,7 +11,6 @@ import { createScheduleSearchHandlers, scheduleSearchActions } from "./search.js
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
 const nullableText = { type: ["string", "null"] };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const turn = object({ turn_id: id, task_id: id, kind: { enum: ["user", "assistant", "system"] }, text, important: { type: "boolean" }, created_at: text });
 const task = object({ task_id: id, title: text, instructions: text, hour: { type: "integer", minimum: 0, maximum: 23 }, minute: { type: "integer", minimum: 0, maximum: 59 },
   notify_important: { type: "boolean" }, enabled: { type: "boolean" }, archived: { type: "boolean" }, unread: { type: "boolean" }, job_id: nullableText,
@@ -41,9 +41,9 @@ const read = ["schedule:read"], write = ["schedule:write"];
 // `schedule.register/list/...` are the platform wakeup capabilities other plugins consume; the plugin's own tasks live beside them.
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], options: { plugin?: false } = {}): ActionDefinition<I, O> {
-  return { capability_id: `schedule.${name}`, version: 1, operation, action: { title, description,
-    kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
-    permissions, subject_kinds: ["schedule_task"], input_schema: input, output_schema: output, ...options } };
+  return createActionDefinition<I, O>(`schedule.${name}`, operation, { title, description,
+    audiences: ["user", "workflow", "agent", "mcp"],
+    permissions, subject_kinds: ["schedule_task"], input_schema: input, output_schema: output, ...options });
 }
 
 /** A reminder of this project, without the operations other plugins scheduled or their input (`schedule.reminders.list`). */

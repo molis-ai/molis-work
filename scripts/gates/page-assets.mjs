@@ -336,10 +336,16 @@ const headErrors = (measured, budget, base) => {
 // spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// P3-0a (第 18 批, #1884; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin host
+// contract gains `taskGrants`, and until P3-1 draws the area the frame answers it with a refusing placeholder:
+// plugin-frame.js +64 B, keyed on main's budget 188354 (after #1880). The plugin-frame.js entry keyed on 208271 (the +54 B #1843
+// reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
+// Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
+// one short fixed message; no cast.
 // K0c (batch 10, #1872; admitted by the coordinator for the main session on 2026-11-06): the D-track review of #1850, item 5,
 // folds the open ▾'s pressed fill into the primary button's own rule, `.mw-btn--primary:is(:active, [aria-expanded="true"])`,
 // instead of the board copying its color-mix; it is in the page sheets because K2 draws that split button in product pages.
-// +26 B on each of arrival.css, settings.css and workbench.css, keyed on main's budgets after #1880 (the ASC-60～63 settings.css
+// +26 B on each of arrival.css, settings.css and workbench.css, keyed on main's budgets after #1884 (the ASC-60～63 settings.css
 // and workbench.css entries are spent there, so they are replaced). The source is still 29 characters longer; since #1877 the
 // served CSS is minified (served-page-text.ts), which drops the space and the quotes in `:is(:active,[aria-expanded=true])`.
 // Tried: no comment in the sheet, one selector list instead of a second rule.
@@ -348,7 +354,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [760704, 760730],
   "/assets/molis-work-workbench.css": [1107725, 1107751],
   "/assets/molis-work-workbench.js": [1085847, 1089571],
-  "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-plugin-frame.js": [188354, 188418],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],

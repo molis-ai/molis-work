@@ -28,6 +28,7 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   /** Asked first on every read and write: a library partitioned by project says why that project's library is gone. */
   refuse?(): void;
   /** What each statement passes after the keyword filters, on the connection that will run it; a library in the Home has nothing more. */
+  perform?<T>(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write", execute: () => T): T;
   check?(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write"): void;
 }
 
@@ -56,6 +57,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
   declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, instance: PluginInstance, closed: () => boolean,
   journal?: ProjectJournalBinding): PluginDatabase | PluginProjectDatabase {
   const { reader, writer } = connections;
+  const perform = <T>(db: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write", run: () => T): T => connections.perform ? connections.perform(db, sql, parameters, mode, run) : run();
   const permit = (permission: string) => {
     connections.refuse?.();
     if (closed()) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
@@ -73,6 +75,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
   // statement by itself when the schema changes.
   const kept = new Map<Connection, Map<string, ReturnType<Connection["prepare"]>>>();
   const prepared = (db: Connection, sql: string): ReturnType<Connection["prepare"]> => {
+    if (connections.perform) return db.prepare(sql) as ReturnType<Connection["prepare"]>;
     const statements = kept.get(db) ?? new Map<string, ReturnType<Connection["prepare"]>>();
     kept.set(db, statements);
     const statement = statements.get(sql) ?? db.prepare(sql) as ReturnType<Connection["prepare"]>;
@@ -82,8 +85,8 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     return statement;
   };
   const reads = (db: Connection, check: () => void): PluginDatabaseReader => ({
-    get(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => (prepared(db, sql).get(...parameters) as PluginSqlRow | undefined) ?? null); },
-    all(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => prepared(db, sql).all(...parameters) as PluginSqlRow[]); },
+    get(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => perform(db, sql, parameters, "read", () => (prepared(db, sql).get(...parameters) as PluginSqlRow | undefined) ?? null)); },
+    all(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => perform(db, sql, parameters, "read", () => prepared(db, sql).all(...parameters) as PluginSqlRow[])); },
   });
   const client: PluginProjectDatabase | PluginDatabase = Object.freeze({
     ...reads(reader, () => permit(declaration.read_permission)),
@@ -109,7 +112,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
             check();
             assertWriteStatement(sql);
             connections.check?.(writer, sql, parameters, "write");
-            return prepared(writer, sql).run(...parameters) as { changes: number | bigint };
+            return perform(writer, sql, parameters, "write", () => prepared(writer, sql).run(...parameters) as { changes: number | bigint });
           },
           // The point's name is the platform's: nothing the plugin passes reaches the SQL text.
           savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T {

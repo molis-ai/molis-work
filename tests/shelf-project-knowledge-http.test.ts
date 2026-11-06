@@ -61,7 +61,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
 
   // An edit after the preview is a conflict; confirmed again, it is the next version of the same document, the first kept as it was.
   const changed = "新版🙂\n现在只允许核对文档，不做修改。";
-  assert.equal((await request(`${shelf}/items/${id}/edit`, { text: changed })).status, 200);
+  assert.equal((await request(`${shelf}/items/${id}/edit`, { text: changed, expected_content_hash: (await fetch(`${origin}${shelf}/items/${id}/file`)).headers.get("etag")?.replaceAll('"', "") })).status, 200);
   assert.equal((await request(path, { expected_fingerprint: preview.body.fingerprint })).status, 409);
   const second = await request(path); assert.notEqual(second.body.fingerprint, preview.body.fingerprint);
   const saved2 = await request(path, { expected_fingerprint: second.body.fingerprint });

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ModelApiFormat, ModelPromptCacheMode, ModelRecord, ModelThinkingMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
@@ -101,7 +102,10 @@ export async function handleModelSettingsHttp(
       sendLocalWebJson(response, 200, await withCatalog({ homeDirectory }, (catalog) => removeModelProvider(catalog, homeDirectory, providerId)));
     } else sendLocalWebJson(response, 405, { error: "不支持的模型设置操作" });
   } catch (error) {
-    sendLocalWebJson(response, 400, { error: error instanceof Error ? error.message : "模型设置操作失败" });
+    // A failed check says why with its `model_provider.*` code: the page puts a refused key under its field and a rate limit with
+    // when it checks again. Other refusals carry their words only.
+    const code = error instanceof ActionError && error.code.startsWith("model_provider.") ? { code: error.code } : {};
+    sendLocalWebJson(response, 400, { error: error instanceof Error ? error.message : "模型设置操作失败", ...code });
   }
   return true;
 }

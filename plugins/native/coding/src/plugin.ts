@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync-binding.js";
 import type {
   PluginAppContribution,
   PluginDefinition,
@@ -57,6 +58,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       const startedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
       return {
         kind: "app",
+        sync:syncBindings(context),
         // The page's session directory is read from this store at render, not by the Host from Coding's tables.
         views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitles.known)), codingSettingsContribution],
         routes: surface.routes,

@@ -1,3 +1,4 @@
+import { syncBindings } from './sync-binding.js';
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createJellyActionHandlers } from "./actions.js";
@@ -30,7 +31,7 @@ export function createJellyPlugin(): PluginDefinition {
         throw error;
       }
     };
-    return { kind: "app", views: [jellyUiContribution], routes: jellyRoutes(context), actions: [
+    return { kind: "app", sync: syncBindings(context), views: [jellyUiContribution], routes: jellyRoutes(context), actions: [
       ...createJellyActionHandlers({ ...stores,
         modelAvailability: () => { try { return model?.availability(configuration.selection()) ?? unavailable(); } catch { return unavailable(); } },
         ai: caller => ({ onProgress: progress => caller.on_progress?.(progress), completeJson: async (prompt, options) => {

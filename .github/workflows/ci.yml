@@ -511,14 +511,17 @@ jobs:
           node-version: 24.14.0
 
       - name: Install the pinned Rust toolchain
-        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
+        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt --target wasm32-unknown-unknown
 
       # The key names what the cache holds: since cargo test runs here, the dependencies built with code, not only clippy's
       # metadata. rust-cache does not save again on an exact hit, so without a new key the clippy-only cache saved earlier kept
       # being restored and the test build was redone every run (about 80 s; 统筹 10-18 定).
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri
+          workspaces: |
+            apps/desktop/src-tauri
+            apps/sync-worker
+            server
           key: with-tests
 
       # Each check is broken once on a scratch repository and must go red (the shell cases use a stand-in for shellcheck here).

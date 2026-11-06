@@ -1,4 +1,5 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginSyncDeclaration } from "./plugin-sync.js";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -43,6 +44,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
     || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app")) {
     throw pluginErrors.manifest_invalid("Plugin Manifest 身份、名称、类型或版本不合法");
   }
+  inspectOptionalDeclarations(manifest);
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
   if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
@@ -121,6 +123,12 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   const parsed = input as PluginManifest;
   assertDeclarations(parsed, ui);
   return parsed;
+}
+
+function inspectOptionalDeclarations(manifest: Record<string, unknown>): void {
+  if (manifest.sync === undefined) return;
+  try { parsePluginSyncDeclaration(manifest.sync); }
+  catch (error) { invalid(error instanceof Error ? error.message : "同步声明不合法"); }
 }
 
 const SUMMARY_LIMIT = 120;

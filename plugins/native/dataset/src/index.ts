@@ -16,3 +16,5 @@ export type { DatasetSql, DatasetSqlValue, DatasetStores } from "./store.js";
 export { mergeDatasetDraftRows } from "./row-merge.js";
 export type { DatasetDraftColumn, DatasetDraftRow } from "./row-merge.js";
 export { datasetErrors } from "./error.js";
+
+export { syncBindings as createDatasetSyncBindings } from "./sync-binding.js";

@@ -8,6 +8,7 @@ import { createFeedPlugin, FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribut
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
+
   project_plugin_id: FEED_PROJECT_PLUGIN_ID, catalog_order: 10,
   manifest: feedManifest,
   project_runtime: { create: createFeedPlugin, package_name: "@molis-ai/molis-work-plugin-feed", factory_export: "createFeedPlugin" },

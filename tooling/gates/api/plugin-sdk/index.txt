@@ -307,6 +307,18 @@ export type { PluginScheduleWriter } from "@molis-ai/molis-work-contracts/platfo
 export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncBinding } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncClient } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncCollection } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncCollectionOwner } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncIdentity } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncOwnerContext } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncSnapshot } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 export type { PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginWakeupDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -314,6 +326,11 @@ export interface PorcelainInput {
     stdout: string;
     truncated?: boolean;
 }
+
+export type { ProjectCopyAsset } from "@molis-ai/molis-work-contracts/services/placement";
+export type { ProjectCopyIdentity } from "@molis-ai/molis-work-contracts/services/placement";
+export type { ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
+export type { ProjectCopyReference } from "@molis-ai/molis-work-contracts/services/placement";
 
 export declare const QUESTION_LIMITS: Readonly<{
     maxQuestions: 10;
@@ -384,6 +401,45 @@ export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/a
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { SyncAggregateDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { SyncAggregateRecords } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+
+export interface SyncDocument<T> {
+    read(): T;
+    update<R>(mutate: (data: T) => R): R;
+    replica: SyncReplicaAdapter;
+}
+
+export interface SyncDocumentOwner<T> {
+    spaceId: string;
+    storage: SyncDocumentStorage;
+    authorize(): void;
+    authorizeKey(data: T, key: string, value?: unknown): void;
+    initial(): T;
+    validate(value: unknown): T;
+    observe(data: T): ReadonlyMap<string, string>;
+    read(data: T, key: string): unknown | null;
+    apply(data: T, key: string, value: unknown | null): void;
+    canUpload?(data: T, key: string): boolean;
+    locate?(data: T, key: string): string | null;
+    belongsToProject?(data: T, key: string, projectId: string, retained: readonly import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncMutation[]): boolean;
+}
+
+export type { SyncDocumentStorage } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+export type { SyncEvent } from "@molis-ai/molis-work-contracts/platform/sync-transport";
+
+export interface SyncJsonContentOptions {
+    spaceId: string;
+    authorize(): void;
+    project?(key: string, value: unknown, put: (bytes: Uint8Array) => SyncBlobReference): unknown;
+    restore?(key: string, value: unknown, read: (reference: SyncBlobReference) => Promise<Uint8Array>): Promise<unknown>;
+}
+
+export type { SyncKeyPart } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { SyncMutation } from "@molis-ai/molis-work-contracts/platform/sync-transport";
+export type { SyncPortableRow } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
+export type { SyncTrackedTable } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -491,6 +547,12 @@ export declare function createActionDefinition<Input = unknown, Output = unknown
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 
+export declare function createSyncConflictState(event: SyncEvent, local: unknown, localRevision: number): string;
+
+export declare function createSyncDocument<T>(owner: SyncDocumentOwner<T>): SyncDocument<T>;
+
+export declare function createSyncJsonContent(options: SyncJsonContentOptions): SyncContentCodec;
+
 export declare function decodeMaterialUpload(upload: MaterialUpload): MaterialSource;
 
 export declare function defineAction<Input, Output>(definition: ActionDefinition<Input, Output>, handle: (context: ActionExecutionContext, input: Input) => Output | Promise<Output>): {
@@ -538,6 +600,8 @@ export declare function dismissActionCard<Card extends ActionCard>(card: Card, s
 export declare function draftActionCard(cardId: string, offer: AgentActionOffer, views: readonly ActionView[], ports: Pick<ActionCardPorts, "readSubject" | "now" | "refuse"> & Pick<CardAuthority, "check">): Promise<ActionCard>;
 
 export declare function effectsFromContract(contract: SandboxPluginContract): SandboxEffects;
+
+export declare function expandPluginSyncSelection(declaration: PluginSyncDeclaration, selected: readonly string[]): readonly string[];
 
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -597,7 +661,13 @@ export declare function parsePluginManifest(input: unknown): PluginManifest;
 
 export declare function parsePluginPackageManifest(input: unknown): PluginPackageManifest;
 
+export declare function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaration;
+
 export declare function parsePorcelainStatus(input: PorcelainInput): GitStatus;
+
+export declare function parseSyncAggregates(value: unknown): readonly SyncAggregateDeclaration[];
+
+export declare function parseSyncTracking(value: unknown): readonly SyncTrackedTable[];
 
 export declare function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
     manifest: PluginManifest;
@@ -698,6 +768,16 @@ export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions"
 export declare function supportsMaterialExtension(extension: string): boolean;
 
 export declare function sweepActionCard<Card extends ActionCard>(card: Card, ports: Pick<ActionCardPorts<Card>, "store" | "readSubject" | "now" | "timeZone">): Promise<Card>;
+
+export declare function syncAggregateDeclaration(definitions: readonly SyncAggregateDefinition[]): readonly SyncAggregateDeclaration[];
+
+export declare function syncSection(definition: ProjectReplicaDefinition): SyncSectionDefinition;
+
+export declare function syncSectionsDeclaration(definition: SyncSectionsDefinition): SyncSectionsDeclaration;
+
+export declare function syncSectionsTracking(definition: SyncSectionsDeclaration): readonly SyncTrackedTable[];
+
+export declare function syncTupleLocation(surface: string, project: boolean, index?: number | undefined, itemTab?: boolean): (key: string) => string | null;
 
 export declare function textDiffRow(op: DiffOp): TextDiffRow;
 

@@ -4,6 +4,7 @@ import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { MolisWorkPtyHost, type PtySpawnRequest } from "@molis-ai/molis-work-service-runtime-host";
+import { resolveConfiguredHome } from "./product-home.js";
 import { pageTerminalOwnership, type PageTerminalAccess } from "./pty-page-access.js";
 import { controlTokenMatches } from "./web-control-token.js";
 
@@ -80,6 +81,7 @@ export function attachMolisWorkPtySocket(
   const sockets = new Set<WebSocket>();
   const pageSockets = new Map<WebSocket, { access: PageTerminalAccess; panels: Set<string>; sending: Promise<void> }>();
   const ownership = pageTerminalOwnership(homeDirectory);
+  const spawnHome = resolveConfiguredHome(homeDirectory);
   const broadcast = (panelId: string, value: unknown) => {
     for (const socket of sockets) send(socket, value);
     for (const [socket, page] of pageSockets) if (page.panels.has(panelId)) {
@@ -90,7 +92,7 @@ export function attachMolisWorkPtySocket(
   class RecordedPtyHost extends MolisWorkPtyHost {
     override spawn(request: PtySpawnRequest) {
       ownership.record(request.panelId, request.attachOnly === true, this.alive(request.panelId));
-      return super.spawn(request);
+      return super.spawn({ ...request, env: { ...request.env, MOLIS_WORK_HOME: spawnHome } });
     }
     override kill(panelId: string) {
       const wasAlive = this.alive(panelId);

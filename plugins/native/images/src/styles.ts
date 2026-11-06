@@ -47,9 +47,9 @@ export const IMAGES_STYLES = `
   .images-status-panel[data-status=running] > p:first-child { color: var(--blue); }
   .images-status-panel[data-status=failed] > p:first-child { color: var(--red); }
   .images-status-panel small { display: block; color: var(--muted); line-height: 1.65; margin-bottom: 12px; }
-  .images-actions, .images-presets, .images-protocols, .images-saved-connections { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .images-actions, .images-protocols, .images-saved-connections { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .images-saved-connection { display: inline-flex; align-items: center; gap: 4px; }
-  .images-presets .mw-btn[aria-pressed=true], .images-protocols .mw-btn[aria-pressed=true], .images-saved-connections .mw-btn[aria-pressed=true] { background: var(--nav-active); color: var(--ink); }
+  .images-protocols .mw-btn[aria-pressed=true], .images-saved-connections .mw-btn[aria-pressed=true] { background: var(--nav-active); color: var(--ink); }
   dialog.mw-dialog.images-connections-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 0; }
   .images-connections-dialog > form { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
   .images-dialog-header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
@@ -57,6 +57,7 @@ export const IMAGES_STYLES = `
   .images-dialog-body { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 16px; padding: 16px 24px; }
   .images-connection-fields { display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 0; border: 0; min-width: 0; }
   .images-connection-fields legend { margin-bottom: 12px; padding: 0; font-size: 13px; color: var(--ink-soft); }
+  .images-advanced .mw-collapsible__body { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
   .images-dialog-footer { display: flex; flex-direction: column; gap: 12px; flex: none; padding: 12px 24px 16px; border-top: 1px solid var(--line); }
   .images-dialog-footer > .images-note { margin: 0; }
   .images-dialog-footer .images-actions { justify-content: flex-end; }

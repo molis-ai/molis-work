@@ -78,6 +78,10 @@ const pages: Record<string, Draw> = {
 // The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
 // each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.
 // Every other byte, JSON block and record stayed fixed; the candidate was not used to record these expectations.
+// PR #1877: all 66 original hashes were first reproduced by independently built main b1e0e5b6.
+// The 26 changed records were derived from those pages by only the reviewed personal-shell additions:
+// sync indicator/settings links, active account label/local-space status, and the observed project-name attribute
+// (plus its settings whitespace). The derived markup matched every candidate byte; no Goals content was re-recorded.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

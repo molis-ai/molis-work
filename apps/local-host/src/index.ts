@@ -1,4 +1,7 @@
+export {syncDocumentFiles} from './sync-document-files.js';
+export { openRuntimeProjectCopyDirectory, type RuntimeProjectCopyDirectory, type RuntimeProjectCopyInput } from "./runtime-project-copy.js";
 export { installMolisWorkHome } from "./installer/home.js";
+export {openProjectCopyJournal} from './project-copy-journal.js';
 
 export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep } from "./installer/home-contract.js";
 export { computeBuildSourceDigest, writeMolisWorkBuildManifest, digestPaths } from "./installer/fingerprint.js";
@@ -59,6 +62,11 @@ export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } fr
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
 
 export { LocalProjectDatabase } from "./project-database.js";
+export { createProjectEvidenceContent } from './project-replication-content.js';
+export { createPersonalSync } from './personal-sync.js';
+export {createPersonalPluginRegistrations} from './personal-plugin-sync.js';
+export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
+export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
@@ -311,6 +319,12 @@ export {
   type ComputerRoundHolder,
 } from "./computer/computer-policy.js";
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
+
+export {PersonalAuth,personalCloudConfig} from './personal-auth.js';
+export {personalReturnPath} from './personal-http.js';
+export {PersonalWebSessions} from './personal-web-sessions.js';
+export {createPersonalNativeSession,NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER} from './personal-native-session.js';
+export {artifactSyncSelection,createPersonalArtifactRegistration} from './personal-artifact-sync.js';
 export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
@@ -319,11 +333,12 @@ export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-backgrou
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { hostLog, captureHostLog, eachListener, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
 
+
 export { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
-
 export { connectorLocalActions } from "./connector-local-actions.js";
-
 export { connectorCliActions } from "./connector-cli-actions.js";
+export { handleProjectRecycleHttp } from "./web-project-recycle.js";
+export { bindSavedHistory } from "./saved-history-host.js";
 
 export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
@@ -332,3 +347,24 @@ export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type Termi
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";
 export { entryUserAction } from "./entry-user-action.js";
+
+export { builtinSyncBindings } from "./builtin-sync.js";
+
+export { personalRuntimeSyncAuthority } from "./personal-runtime-sync-authority.js";
+export { bindPersonalSpaceAuthority, assertPersonalSpaceAuthority } from "./personal-space-authority.js";
+export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-authority.js";
+export { createProjectGoalContent } from "./project-goal-content.js";
+
+// Trusted embedders compile declared baselines and bind their existing account/copy lease.
+export { pluginSyncDatabaseDeclaration, pluginSyncNamespace } from "./plugin-sync-database.js";
+
+export type { LocalWebCatalogRunner } from "./web-project-settings.js";
+
+export { runtimeSyncRegistration } from "./runtime-sync-registration.js";
+
+export { createWebCatalogAccess } from "./web-catalog-access.js";
+
+/** Space-isolated HTTP dispatcher for embedders that supply their own Host surface lifecycle. */
+export { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.js";
+
+export { verifySyncPluginDistribution } from "./sync-distribution.js";

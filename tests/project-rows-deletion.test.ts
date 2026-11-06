@@ -13,7 +13,7 @@ import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { describeSqliteSchema, homeSqlitePath, homeStoreRegistry, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { readDatabaseSpace, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, homeStoreRegistry, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
@@ -42,7 +42,7 @@ function seed(home: string, library: HomePluginDatabaseDeclaration, projects: re
     const shape = describeSqliteSchema(db).tables, rows = library.project_rows!.tables;
     const links = new Map(rows.flatMap(row => "parent" in row ? [[`${row.table}.${row.column}`, row.parent] as const] : []));
     const direct = new Set(rows.flatMap(row => "parent" in row ? [] : [`${row.table}.${row.column}`]));
-    const tables = Object.keys(shape).sort((a, b) => Number(shape[a]!.foreign_keys.length > 0 || rows.some(row => row.table === a && "parent" in row))
+    const tables = Object.keys(describeSqliteBaseline(library).tables).sort((a, b) => Number(shape[a]!.foreign_keys.length > 0 || rows.some(row => row.table === a && "parent" in row))
       - Number(shape[b]!.foreign_keys.length > 0 || rows.some(row => row.table === b && "parent" in row)));
     for (const project of projects) for (const table of tables) {
       const columns = shape[table]!.columns, keys = shape[table]!.foreign_keys;
@@ -61,10 +61,10 @@ function seed(home: string, library: HomePluginDatabaseDeclaration, projects: re
 }
 
 /** How many rows of each table still carry each project's mark in any column. */
-function marks(home: string, store: string, projects: readonly string[]): Record<string, Record<string, number>> {
-  const db = new DatabaseSync(homeSqlitePath(home, store), { readOnly: true });
+function marks(home: string, library: HomePluginDatabaseDeclaration, projects: readonly string[]): Record<string, Record<string, number>> {
+  const db = new DatabaseSync(homeSqlitePath(home, library.store_name), { readOnly: true });
   try {
-    const shape = describeSqliteSchema(db).tables;
+    const shape = describeSqliteBaseline(library).tables;
     return Object.fromEntries(Object.entries(shape).map(([table, { columns }]) => [table, Object.fromEntries(projects.map(project => [project,
       (db.prepare(`SELECT count(*) AS n FROM "${table}" WHERE ${columns.map(column => `"${column.name}" = ? OR "${column.name}" LIKE ?`).join(" OR ")}`)
         .get(...columns.flatMap(() => [project, `%-${project}`])) as { n: number }).n])),
@@ -79,10 +79,16 @@ test("RAC-560 deleting a project deletes every row of it in the seven declaring 
   for (const entry of declaring.filter(item => WHOLLY_PROJECT.includes(item.project_plugin_id))) {
     const library = entry.manifest.databases!.home!;
     seed(home, library, ["pa", "pb"]);
-    const before = marks(home, library.store_name, ["pa", "pb"]);
+    const binding = () => {
+      const db = new DatabaseSync(homeSqlitePath(home, library.store_name), { readOnly: true });
+      try { return readDatabaseSpace(db); } finally { db.close(); }
+    };
+    const space = binding();
+    const before = marks(home, library, ["pa", "pb"]);
     for (const [table, counts] of Object.entries(before)) assert.ok(counts.pa! > 0 && counts.pb! > 0, `${entry.project_plugin_id}: ${table} seeded for both`);
     assert.equal(await projectDeletedHooksFor(home).clear(entry.project_plugin_id, "pa"), true);
-    const after = marks(home, library.store_name, ["pa", "pb"]);
+    const after = marks(home, library, ["pa", "pb"]);
+    assert.deepEqual(binding(), space, "project deletion preserves the platform space binding");
     for (const [table, counts] of Object.entries(after)) {
       assert.equal(counts.pa, 0, `${entry.project_plugin_id}: ${table} keeps nothing of the deleted project`);
       assert.equal(counts.pb, before[table]!.pb, `${entry.project_plugin_id}: ${table} keeps the other project's rows`);
@@ -133,7 +139,7 @@ test("RAC-561 the platform deletes only from the declaring plugin's own library,
     try { await assert.rejects(projectDeletedHooksFor(home).clear("borrowing", "pa"), { code: "plugin.declaration_invalid" }); }
     finally { catalog.pop(); }
   }
-  assert.ok(marks(home, datasetLibrary.store_name, ["pa"]).datasets!.pa! > 0, "the other plugin's library is untouched");
+  assert.ok(marks(home, datasetLibrary, ["pa"]).datasets!.pa! > 0, "the other plugin's library is untouched");
 });
 
 function rowsProbe(label = ROWS.label, id = "io.molis.work.example.rowsprobe") {
@@ -161,7 +167,7 @@ test("RAC-562 S-暂A a plugin the Host did not ship has its declared rows go wit
   const calls = [...probe.calls];
   assert.equal(await projectDeletedHooksFor(f.home).clear(probe.id, "pa"), true);
   assert.deepEqual(probe.calls, calls, "no start, stop or handler of the plugin ran for the deletion");
-  assert.deepEqual(marks(f.home, LIBRARY.store_name, ["pa", "pb"]), { items: { pa: 0, pb: 1 }, notes: { pa: 0, pb: 1 } });
+  assert.deepEqual(marks(f.home, LIBRARY, ["pa", "pb"]), { items: { pa: 0, pb: 1 }, notes: { pa: 0, pb: 1 } });
 });
 
 function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
@@ -295,7 +301,7 @@ test("RAC-563 a deletion waits for a write another connection holds on the libra
   assert.equal(await projectDeletedHooksFor(home).clear("pages", "pa"), true);
   await exited;
   assert.ok(events.includes("released"), "the deletion ran only once the write was let go");
-  assert.equal(marks(home, library.store_name, ["pa"]).pages!.pa, 0);
+  assert.equal(marks(home, library, ["pa"]).pages!.pa, 0);
 });
 
 test("RAC-577 S-86 the files a project's rows name go with them, and only plain files in the declared directory of the plugin's own", async t => {

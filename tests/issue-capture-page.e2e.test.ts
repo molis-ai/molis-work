@@ -20,7 +20,7 @@ test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘�
   await v.chord(); await v.composerFocused();
   await v.type("  切换页面以后，输入没了。\n"); await v.paste();
   await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");
-  await v.send();
+  await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   // Sent at once: the composer is empty and keeps the keyboard; the record is on its way, not yet written.
   await v.until("$('[data-issue-list] [data-state=organizing]') && $('[data-issue-composer] [name=description]').value === '' && d.activeElement === $('[data-issue-composer] [name=description]')");
   assert.equal(await v.ask("d.querySelectorAll('[data-issue-thumbs] img').length"), 0);
@@ -83,7 +83,7 @@ test("ISSUE-37 ISSUE-50 a capture Issue cannot name stays at the top and opens w
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
   await v.type("111"); await v.paste(); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
-  await v.send();
+  await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   await v.until("$('[data-state=attention]')?.textContent.includes('需要补充：你在哪个页面做了什么')", 20_000);
   await b.waitFor(`${button}.dataset.sideBusy === 'attention'`, 5_000);
   // The row is the one place to continue: nothing waits on the same question in the Assistant.
@@ -103,7 +103,7 @@ test("ISSUE-37 ISSUE-50 a capture Issue cannot name stays at the top and opens w
 
   // The model is down: the capture says so and is saved by hand, with the page it was written on.
   behavior.unavailable = true;
-  await v.press("[data-issue-composer] [name=description]"); await v.type("保存按钮点了没反应"); await v.send();
+  await v.press("[data-issue-composer] [name=description]"); await v.type("保存按钮点了没反应"); await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用')", 30_000);
   await v.press("[data-state=attention]"); await v.until("d.activeElement === $('[data-issue-editor] [name=title]')");
   assert.equal(await v.ask("!!$('[data-issue-flag] a[href=\"/settings/models\"]')"), true, "the note leads to the model settings");
@@ -141,7 +141,7 @@ test("ISSUE-37 an unfinished capture survives leaving the page and saves once fr
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
   await v.type("离开页面前没整理完的一条"); await v.paste(); await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1");
-  await v.send();
+  await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用')", 30_000);
   // A full navigation: the words and why it is waiting come back with the page that opens next; the picture has to be added again.
   await v.go(`/projects/${b.projectId}/?desktop=1`);
@@ -180,7 +180,7 @@ test("ISSUE-36 while an input method is composing, ⌘↵ and the IME's own Ente
   await v.until("$('[data-issue-composer] [name=description]').value.endsWith('截图')");
   const held = await v.ask<string>("$('[data-issue-composer] [name=description]').value");
   assert.match(held, /^登录页.*截图$/);
-  await v.send();
+  await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   await v.until("$('[data-issue-composer] [name=description]').value === ''");
   await v.until("!$('[data-issue-list] [data-state]') && $('[data-issue-list] .issues-row')", 20_000);
   const { items } = await v.list(); assert.equal(items.length, 1, "one ⌘↵ after the composition sends once");

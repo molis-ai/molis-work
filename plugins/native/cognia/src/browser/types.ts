@@ -22,7 +22,7 @@ export interface Workspace {
   ai_unavailable_reason: string | null;
 }
 /** One material opened for reading, with the links it makes and receives and the sources it cites. */
-export interface Detail { material: Material; outgoing: Link[]; incoming: Material[]; references: Reference[] }
+export interface Detail { etag: string; material: Material; outgoing: Link[]; incoming: Material[]; references: Reference[] }
 
 /** Which step the dialog is on; the submit button does what the step says. */
 export type Flow = "" | "import" | "preview" | "receipt" | "add" | "edit" | "domain" | "ai" | "review" | "drafts";

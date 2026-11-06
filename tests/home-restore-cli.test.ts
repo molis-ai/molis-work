@@ -36,7 +36,8 @@ test("RAC-2915: untrusted manifest format, identity, ownership and paths refuse 
   await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
   const file = join(f.snapshot, "manifest.json"), original = readFileSync(file, "utf8"), before = homeBusinessTree(f.home);
   const mutations: Array<(manifest: HomeSnapshotManifest) => void> = [
-    manifest => { Object.assign(manifest, { schema_version: 2 }); },
+    manifest => { Object.assign(manifest, { schema_version: 1 }); },
+    manifest => { Object.assign(manifest, { schema_version: 3 }); },
     manifest => { Object.assign(manifest, { product_version: "another-product-version" }); },
     manifest => { Object.assign(manifest, { home_directory: f.directory }); },
     manifest => { Object.assign(manifest.stores[0]!, { owner: "another-owner" }); },

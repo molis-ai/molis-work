@@ -10,8 +10,10 @@ export function publishCheckedStudioFixture(storage: PluginPrivateStorage, relea
     // Some installation tests require the same fixed publishing identity in two projects, or a specific sort order.
     // Seed that draft identity only; qualification and release below use the production store contract.
     const key = 'plugin-builder:agent-built:v1';
-    const state = JSON.parse(storage.get(key)!) as { builds: AgentBuild[]; releases: AgentRelease[] };
+    const state = JSON.parse(storage.get(key)!) as { builds: AgentBuild[]; releases: AgentRelease[]; revisions: Record<string,number> };
     state.builds.find(build => build.id === draft.id)!.id = release.buildId;
+    state.revisions[release.buildId] = draft.revision;
+    delete state.revisions[draft.id];
     storage.set(key, JSON.stringify(state));
   }
   const current = builder.require(release.buildId), checked = builder.update(current.id, current.revision, build => {

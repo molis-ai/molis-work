@@ -1,6 +1,6 @@
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
@@ -91,10 +91,7 @@ test("RAC-2600 the installed list says why an installation is not running when i
 // View-only inputs exercise the existing client renderer with multiple services; signed source packages currently allow one service.
 // The separate RAC-2619 e2e file uses real signed files and real preview/confirm responses throughout.
 test("RAC-2619-VIEW service rows preserve multiple exact origins as text and omit an empty group", { skip: process.platform !== "darwin", timeout: 60_000 }, async t => {
-  const executable = process.env.MOLIS_WORK_TEST_CHROME;
-  assert.equal(executable, "/Users/yijunwang/.local/bin/molis-test-browser");
-  await access(executable, constants.X_OK);
-  await access("/Users/yijunwang/.local/share/molis-test-browser/engine/chrome-headless-shell", constants.X_OK);
+  const executable = requiredHeadlessTestBrowser();
   const directory = await mkdtemp(join(tmpdir(), "t141-preview-view-"));
   let browser: ChromeHarness | undefined;
   t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });

@@ -57,6 +57,7 @@ export const FULL_REGRESSION = {
     "apps/local-host/src/web-server.ts",
     "apps/local-host/src/web-request.ts",
     "apps/local-host/src/web-catalog.ts",
+    "apps/local-host/src/space-sync-http.ts",
     "apps/local-host/src/mcp-server.ts",
     "apps/local-host/src/system-agent-service.ts",
     "apps/local-host/src/home-side.ts",

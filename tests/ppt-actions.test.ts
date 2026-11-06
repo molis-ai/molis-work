@@ -73,13 +73,15 @@ test("PPT fixed publication survives partial success, actor isolation, restart a
   const f=await fixture(t);const {presentation}=await f.bound.invoke(actions.create,{title:'Original snapshot'});
   const id=presentation.id,db=openHomeSqliteDatabase(f.home,'ppt');
   try{
-    db.exec("CREATE TRIGGER fail_ppt BEFORE UPDATE OF artifact_version ON presentations WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failure'); END");
-    await assert.rejects(f.bound.invoke(actions.promote,{id}),/fixture association failure/);
+    const sentinel = (await f.bound.invoke(actions.create, { title: 'Published constraint fixture' })).presentation;
+    await f.bound.invoke(actions.promote, { id: sentinel.id });
+    db.exec("CREATE UNIQUE INDEX fail_ppt ON presentations ((1)) WHERE artifact_version > 0");
+    await assert.rejects(f.bound.invoke(actions.promote,{id}),/UNIQUE constraint failed/);
     assert.equal((await f.bound.invoke(actions.get,{id})).presentation.publication_pending!.version,1);
     await assert.rejects(f.bound.invoke(actions.delete,{id}),{code:'ppt.publication_pending'});
     await f.bound.invoke(actions.update,{id,title:'Later edit',slides});
     await assert.rejects(f.client.invoke({...f.caller,actor_id:'other'},actions.promote,{id}),{code:'ppt.publication_owner'});
-    db.exec('DROP TRIGGER fail_ppt');
+    db.exec('DROP INDEX fail_ppt');
   }finally{db.close();}
   await f.host.closeProject(f.ref);
   const restored=await f.bound.invoke(actions.promote,{id});

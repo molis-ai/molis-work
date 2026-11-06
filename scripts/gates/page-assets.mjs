@@ -337,15 +337,19 @@ const headErrors = (measured, budget, base) => {
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
 // proactive-assistant §12.1 capsule fix (user approved asking for this admission, 2026-11-06): the input capsule's current work, tabs and
-// new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +312 B, the
+// new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +319 B (the same code measured +312 B before #1877 changed how the client is built), the
 // per-project key helper, one chosen-project path through setProject and the place named before the title. Tried: removed the
 // chooser's own draft map (the island owns drafts now) and its swap code, dropped a tooltip naming the project and its translation,
-// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 1089571 base after ASC-60～63, whose workbench.js entry is spent there.
+// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 885295 base after #1877, where the ASC-60～63 workbench.js entry is spent.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [827793, 830322],
   "/assets/molis-work-workbench.css": [1204709, 1207238],
-  "/assets/molis-work-workbench.js": [1089571, 1089883],
+  "/assets/molis-work-workbench.js": [885295, 885614],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
+  "/assets/molis-work-plugins/coding.js": [290006, 297761],
+  "/assets/molis-work-plugins/cognia.js": [22157, 22189],
+  "/assets/molis-work-plugins/shelf.js": [64967, 65319],
   "/assets/molis-work-plugins/images.js": [19896, 21103],
   "/assets/molis-work-plugins/images.css": [7851, 7901],
 };

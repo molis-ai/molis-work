@@ -1,7 +1,7 @@
 import { lstatSync, readdirSync, realpathSync, type Stats } from "node:fs";
 import { join } from "node:path";
 import type { HomeSnapshotSourceEntry } from "./home-snapshot-contract.js";
-import { isSnapshotSqlite, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
+import { readStorageSpace, isSnapshotSqlite, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
 import { homeSnapshotErrors, type HomeSnapshotStore, type HomeSnapshotStoreRegistry, type SnapshotDisposition, type SnapshotExclusion } from "./home-store-snapshot.js";
 
 export interface SnapshotSourceEntry { readonly relative: string; readonly path: string; readonly info: Stats; readonly disposition: SnapshotDisposition; readonly database?: SqliteSnapshotOptions }
@@ -25,7 +25,9 @@ export function snapshotSourceInventory(home: string, registry: HomeSnapshotStor
     while (parts.length > 1) { parts.pop(); paths.add(parts.join("/")); }
   }
   // A current exclusion records existence and kind too; never descend into its private tree.
+  const opaque = new Set(stores.filter(item => item.state === "omitted").map(item => item.store.path));
   for (const path of [...paths]) {
+    if (opaque.has(path)) continue;
     const absolute = join(home, path), stat = lstatSync(absolute, { throwIfNoEntry: false });
     if (stat?.isDirectory() && !stat.isSymbolicLink())
       for (const child of readdirSync(absolute)) paths.add(path ? path + "/" + child : child);
@@ -34,7 +36,7 @@ export function snapshotSourceInventory(home: string, registry: HomeSnapshotStor
     const absolute = join(home, path), stat = lstatSync(absolute, { throwIfNoEntry: false });
     if (!stat) return { path, kind: "absent", links: 0 };
     const kind = stat.isSymbolicLink() ? "link" : stat.isDirectory() ? "directory" : stat.isFile() ? "file" : "special";
-    return { path, kind, links: stat.nlink, ...(kind === "directory" ? { children: readdirSync(absolute).sort() } : {}) };
+    return { path, kind, links: stat.nlink, ...(kind === "directory" ? { children: opaque.has(path) ? [] : readdirSync(absolute).sort() } : {}) };
   });
 }
 
@@ -68,7 +70,7 @@ export function snapshotDatabaseOptions(store: HomeSnapshotStore, file: string):
   if (!store.library) return undefined;
   const expected = store.library.file ?? store.path + ".db";
   const matches = store.library.partition === "project" ? file.split("/").length === 3 && file.startsWith("projects/") && file.endsWith("/" + expected) : file === expected;
-  return matches ? { baseline: store.library.baseline } : undefined;
+  return matches ? { baseline: store.library.baseline, requireSpace: store.path !== "server" } : undefined;
 }
 
 /** Read metadata and file headers only. Ownership locks and sealed private trees are removed before any content read. */
@@ -105,7 +107,7 @@ export function inventorySnapshotStore(home: string, store: HomeSnapshotStore): 
     if (options && !sqlite) throw homeSnapshotErrors.invalid(`登记的 SQLite 库不是有效文件: ${entry.path}`);
     if (sqlite && !options) throw homeSnapshotErrors.unknown_data(`登记目录有未知 SQLite 库，未生成快照: ${entry.path}`);
     if (sqlite) for (const suffix of ["-journal", "-wal", "-shm"]) technical.add(entry.relative + suffix);
-    classified.push({ ...entry, ...(sqlite ? { database: options } : {}) });
+    classified.push({ ...entry, ...(sqlite ? { database: { ...options, space: readStorageSpace(home) ?? undefined } } : {}) });
   }
   for (const entry of files.filter(item => /-(?:journal|wal|shm)$/u.test(item.relative))) {
     if (!technical.has(entry.relative)) throw homeSnapshotErrors.unknown_data(`孤立 SQLite 侧车须先处理: ${entry.path}`);

@@ -19,6 +19,8 @@ export type ActionAvailabilityPolicy = ActionAvailabilityCheck & {
 
 export interface LocalHostOptions<Runtime> {
   runtimeFactory: LocalHostRuntimeFactory<Runtime>;
+  /** Synchronous lifecycle fence; does not grant project access. */
+  assertProjectAvailable?(projectId: string): void;
   instanceId?: string;
   sceneAvailability?(context: ActionCallContext, scene: ActionSceneView): ActionAvailability | Promise<ActionAvailability>;
   /** A plugin scene retains its original producer authority across preparation, judgment and consumption. */

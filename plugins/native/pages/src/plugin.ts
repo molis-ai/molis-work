@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync-binding.js";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginMaterialsClient, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -56,7 +57,7 @@ export function createPagesPlugin(): PluginDefinition {
           { actorId: caller.actor_id, expectedVersion, readArtifact: artifactPorts.readArtifact ? value => artifactPorts.readArtifact!(value, caller) : undefined, lineHead: artifactPorts.lineHead,
             beforePublish: async () => { await caller.beforeEffect(); current(); } });
       } };
-    return { kind: "app", views: [pagesUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [pagesUiContribution],
       actions: [...createPagesActionHandlers(ports), ...createPagesContentHandlers(actions)],
       routes: pagesRoutes(context) };
   } };

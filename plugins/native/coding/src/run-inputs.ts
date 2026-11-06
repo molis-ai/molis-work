@@ -90,6 +90,15 @@ export function nextConfiguration(value: unknown) {
     ...(config.writer_assignments === undefined ? {} : { writer_assignments: codingWriterAssignments(config.writer_assignments) }) };
 }
 
+/** A saved budget is informational; validate it before any session fields are committed. */
+export function codingBudgetSelection(value: unknown): {tokens:number}|null {
+  const tokens = (value as {tokens?:unknown}|null)?.tokens;
+  if(value===null||tokens===null)return null;
+  if(typeof tokens!=="number"||!Number.isSafeInteger(tokens)||tokens<1_000||tokens>10_000_000_000)
+    throw codingFailure("coding.server.budget-range");
+  return {tokens};
+}
+
 /** Picked objects as a reference question's answer: within the SDK's limits, each a kind, an id and a label as text. */
 function pickedObjects(given: unknown[]): Array<{ kind: string; id: string; label: string }> {
   if (given.length > QUESTION_LIMITS.maxReferences) throw codingFailure("coding.server.pick-limit", { count: QUESTION_LIMITS.maxReferences });

@@ -1,3 +1,4 @@
+import { syncBindings } from './sync-binding.js';
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createCogniaActionHandlers } from "./actions.js";
@@ -27,7 +28,7 @@ export function createCogniaPlugin(): PluginDefinition {
         completeText: async (prompt, request) => (await service!.complete(prompt, { signal: request?.signal, system: COGNIA_EVIDENCE, timeout_ms: 180_000 })).text,
       } : { unavailableReason: state && !state.available ? state.reason : "请先在「模型设置」里连接文字模型" };
     };
-    return { kind: "app", views: [cogniaUiContribution], routes: cogniaRoutes(context),
+    return { kind: "app", sync: syncBindings(context), views: [cogniaUiContribution], routes: cogniaRoutes(context),
       actions: createCogniaActionHandlers({ ...stores, model, ai: caller => ({ ...model(), signal: caller.signal }), actions,
         scan: (grantId, path, signal) => scanCogniaDirectory(context.services?.directory, grantId, path, signal) }) };
   } };

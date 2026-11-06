@@ -35,7 +35,9 @@ Host 把任务和 job 记录交给隔离页中的 UI contribution；Plugin Runti
 
 任务、提醒与定时操作均由 Schedule 的 Manifest 注册，采用同一启停规则。新项目通过普通插件 membership 默认启用；关闭 Schedule 会一起暂停页面和后台，重开同一安装沿原身份恢复，重装不能接管旧任务。现有项目不会在读取时自动补启用。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。
+
+个人空间本机同步可选传输对话任务和历史回复。接收设备的任务默认暂停，不复制 job ID、Scheduler lease 或安装级提醒；要在接收设备运行，用户需明确重新启用。插件通用提醒与定时 operation 仍是本机运行状态，不参与此集合。
 
 ## 本地开发
 

@@ -1,0 +1,143 @@
+# U2 金样 Home 与回放：设计
+
+状态：设计稿（2026-11-03，2026-11-06 按第 05 批核账第三节修订，路线书第 05 批第 1 项里可以并行先做的那一半）；尚未实现。U0 规则已合入（#1786）；真实 Home 重建是否做过没有核实，`docs/releases/CHECKLIST.md` 第 4 节没有回填统一起点记录，开工时先核。第一份金样要等第 02 批真实 Home 重建、各库回到第 1 版之后才能生成；「改建库语句必须带升级段」的门禁要等 U1 合入才打开。N41 的 `scripts/gates/initial-versions.mjs` 在 U1 首次接手持久化版本时由连续升级与回放接替，做法见 [U1 设计](upgrade-chain-design.md) §11.1。行为与验收以[升级后持续可用](spec.md) §6、§9 为准，本文只写怎么做。
+
+验收编号沿用 `UPG-01`、`UPG-10`、`UPG-11`、`UPG-14`（§9）；本文新增的检查用 `UPG2-` 前缀，在 §7 列出。
+
+## 0. 给人讲清楚
+
+以后每发一个版本，我们就把「那一版用了一阵子的 Home」原样存一份，叫金样。里面的数据都是编出来的，但每个库、每个插件、每种要升级的文件都有。之后每改一次代码，CI 就把每份金样拿出来，用新代码打开、升级、读写一遍，再把装上的第三方插件跑一遍。哪一步不过，这个改动就合不进去。这样「装了新版本，旧数据打不开」这种事，在你碰到之前就会被拦下。
+
+这一步你在界面上看不到变化。现在能做的只是把方案写定；第一份金样要等真实 Home 重建、所有版本回到 1 之后才生成。要你做的只有一件，而且不是现在：开新的 CI 检查之前，统筹会弹窗问你同不同意（§5）。「金样放在哪里」按推荐的方案 A 定了，统筹 2026-11-04 审过。
+
+## 1. 现在已有的，可以直接接上
+
+| 已有 | 在哪里 | U2 怎么用 |
+| --- | --- | --- |
+| 每个库和文件的主人、版本、备份分类 | `docs/system/HOME-DATA.md` §2～§6 | 金样要覆盖的清单就从这张表来，表里多一项就要求金样也多一项（§5 第 3 条） |
+| 离线 Home 快照，带清单与摘要 | `apps/local-host/src/home-snapshot{,-capture,-contract,-inventory,-publication}.ts`、`home-store-snapshot.ts`，SQLite 备份在 `packages/storage/src/snapshot-sqlite.ts`；`molis-work home snapshot`（`docs/cli-and-development.md`「Home 离线快照」） | 金样就是一份快照：同一套店铺登记、同一种清单格式，不另写打包代码 |
+| 所有无参数读取跑一遍 | `tests/action-read-compatibility.test.ts:35` 的 `probe`（未导出，绑着 `serveHomeRuntime`、`LocalSqliteStorage` 和目录库登记，抽的时候一起带走；`:83` 标题里的「historical v35」已陈旧，顺手改） | 抽成回放用的公共函数，从「一个项目库」扩到「整份 Home、所有项目、Home 级与项目级的读取」 |
+| 插件回放 | `scripts/replay-plugins.mjs`、`tests/fixtures/replay-plugins/corpus.json` | 金样里装的第三方插件就取语料里的签名包样本；回放时对升级后的 Home 再跑一遍 |
+| 演示种子、历史 Goal 数据 | `seedDemoBoard`（`apps/local-host/src/demo-seed.ts:102`）、`tests/fixtures/goal-event-history/*.sql`（已是 `user_version=1`）与加载器 `tests/goal-event-history-fixture.ts` | 生成金样时用它们填项目库，不另编一套 Goal 数据。`seedDemoBoard` 是一个 538 行的函数，`docs/system/HUGE-CLASS-MIGRATION.md` 登记的拆分对象，只调用它，不依赖它的内部形状 |
+| 各库版本表与代码一致 | `docs/releases/CHECKLIST.md` §3、`scripts/verify-release-versions.mjs` | 金样清单里记下的每库版本，与这张表同源 |
+
+## 2. 一份金样里有什么
+
+一份金样对应一个产品版本（或开发期间一次升了某个库版本的中间点），目录名就是版本号：
+
+```text
+tests/fixtures/golden-homes/<版本>/
+  manifest.json          生成它的提交、产品版本、每个库与文件的路径、结构版本、逐表行数、摘要
+  stores/<库的相对路径>.sql   每个 SQLite 库的文本转储（稳定排序，转储器自写，见下）
+  files/<文件的相对路径>     带版本的 JSON 文件、加密文件的密文，原样保存
+  README.md              这份金样怎么来的、用哪个命令重新生成、不含真实内容的说明
+```
+
+覆盖面以 `HOME-DATA.md` 为准，必须有：
+
+1. **平台库**：`projects/catalog.db`、至少两个项目的 `molis-work.db`（一个演示种子，一个带 Goal 事件历史）、§3.2 的全部 Home 级库、§3.4 的 `plugin-runtime.db`、`plugin-libraries.db`。
+2. **内置插件库**：§3.3 的每一个个人插件库都有至少一行数据，项目级插件的表在项目库里都有数据。
+3. **带版本的文件**：`config/mcp-tools.json`、`shelf/catalog.json`、`browser/sites.json`、`jelly/preferences.json`、`config/installation.json`、`feed/secrets.json` 及其测试密钥，再加核账第二节补出来的 `computer/settings.json`、`computer/records/<id>/record.json`、`config/onboarding.json`、`config/project-arrival.json`。`config/installation.json` 在离线快照的 `snapshotExclusions` 里（它是这次安装的收据），所以金样单独放它，不靠快照带。`computer/` 现在不在 `homeStores()` 里，有这个目录的 Home 离线快照会报 `unknown_data`，要先登记才能生成（[U1 设计](upgrade-chain-design.md) §15.2）。
+4. **一个装上的第三方插件**：语料里的签名包样本，装上、启用、写过数据，有自己的库和主人文件。
+5. **Prologue 的存储**：`agent-runtime/records/` 里至少一段会话、一条记忆条目，用脚本化的假模型生成，不调真模型（§4.5 要求换包前回放它）。
+
+不放进去的：可重建的派生库与锁（HOME-DATA §5）、临时目录、日志、浏览器用户数据目录、模型缓存。这些在金样清单里记成「不收」，并写原因，与离线快照的排除规则一致。
+
+**数据一律合成。** 文字是生成脚本里写死的样例；没有真实的人名、邮箱、密钥。密钥文件用一把只用于金样的测试钥匙，写进清单并标「测试」；`pnpm secrets:check` 的例外按开发手册的写法，写确切值和理由。
+
+**转储器要自写。** `.dump` 是 sqlite3 命令行的功能，`better-sqlite3` 和 `node:sqlite` 都没有。写在 `packages/storage`，只用 `SqliteBaselineDatabase` 的 `exec`、`prepare` 和 `sqlite_master`，这样换驱动不用碰它：SQLite 第二步不是它的前置，它也不是第二步的前置，只是同包，文件不重叠（路线书第 05 批第 3 项）。
+
+**稳定可比。** 生成时固定时钟和 ID 种子（能注入的都注入）；转储按表名、主键排序；仍然会变的字段（如 SQLite 内部页序）不进摘要。同一个提交生成两次，`manifest.json` 与所有转储逐字节相同（`UPG2-02`）。
+
+## 3. 怎样生成
+
+一个脚本，在构建好的工作区上跑，只用临时 Home：
+
+```text
+node scripts/golden-home.mjs create --version <版本> [--out tests/fixtures/golden-homes/<版本>]
+node scripts/golden-home.mjs check  --version <版本>     # 重新生成到临时目录，与入库的逐字节比较
+```
+
+步骤：
+
+1. 新建一个临时 Home，用脚本化的假模型启动常驻宿主（与 `replay-plugins.mjs` 相同的入口）。
+2. 建项目、启用全部内置插件，**经各主人自己的动作**写数据；不直接写 SQL，这样数据的形状就是主人真实会写出的形状。少数还没有写入动作的（如历史 Goal 事件），用已有的转储导入，并在清单里注明。
+3. 装第三方插件样本，调一次写入动作。
+4. 写带版本的文件：经各自的设置入口写，不手工拼 JSON。
+5. 停宿主，走离线快照的同一套枚举（`homeStores()`、inventory 分类），用自写的转储器导出成 §2 的目录形状，算清单。快照本身是二进制备份，不能直接入库。
+
+生成在三个时候做：
+
+- **统一起点**：第 02 批重建、版本回到 1 之后，生成第一份（`0.1.0`）。
+- **每次发版**：发布检查单里加一步「生成本版金样并入库」，由 F 轨在发布 PR 里做。
+- **开发中升了某个库的版本**：那个 PR 自己加一份中间金样，目录名写成 `<下一个版本>-dev.<序号>`。
+
+## 4. 怎样回放
+
+```text
+node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
+```
+
+对每一份金样：
+
+1. **还原**：把转储和文件还原到一个新的临时 Home，路径、权限与原来一致。
+2. **升级**：用当前代码启动常驻宿主。U1 合入以前，各库版本必须与当前代码相同，打开时的结构检查就是唯一的检查；U1 合入以后，启动时的升级过程把每个库升到当前版本（[U1 设计](upgrade-chain-design.md) §3、§4）。还原时不写升级戳记，所以这一步必定全量扫。
+3. **结构**：每个库的结构与当前基线逐表一致（`applySqliteBaseline` 已有的检查）；带版本的文件经各自的读取入口读成功。
+4. **读**：所有不需要参数的读取，在 Home 级和每个项目里各跑一遍，沿用 `probe` 的判断：除了金样里本就没配置的依赖（列在一张带确切错误码的表里），任何错误都算失败。
+5. **行数不减**：清单里记下的逐表行数，升级后不能变少；主人在升级段里明确声明会删除或合并的表除外，声明写在升级段旁边。
+6. **写**：每个库的主人提供一个「最小写入」用例（新建一条、改一条），在升级后的 Home 上跑，再读回来。**靠约定的文件位置发现，不改合同**：内置的主人在 `tests/golden-writes/<主人>.ts` 放一个文件，默认导出一个函数，参数是回放脚本给的动作客户端与调用者，只经动作写读；`<主人>` 用 `HOME-DATA.md` 里的 owner 名。装上的第三方插件不进仓库，沿用插件回放语料已有的 `write` 字段（`tests/fixtures/replay-plugins/corpus.json`），第三方作者在自己的样本里声明，不需要平台新字段。不在插件的 `registration`、Manifest 或 SDK 上加声明；以后要让第三方插件随包自带写入用例，那是合同改动，先单独开合同 PR（轨道规则 1）。覆盖面门禁按同一约定核对：`HOME-DATA.md` 里每个必备份库的主人，`tests/golden-writes/` 下都要有它的文件。
+7. **插件回放**：对升级后的 Home 跑 `replay-plugins.mjs` 的同一组检查，确认装上的第三方插件还能加载、调用、再升级。
+8. **重启**：关掉宿主再开一次，第 3、4 步再跑一遍，确认升级不是只在内存里生效。
+
+失败时输出：哪份金样、哪个库或哪个动作、哪一步、错误码。不打印数据内容。
+
+## 5. 门禁
+
+| 门禁 | 什么时候开 | 拦什么 |
+| --- | --- | --- |
+| 金样回放（挡合并） | 第一份金样入库即开 | 最近 3 份金样有任何一份回放不过。U1 之前这已经能拦住「同版本改了结构」，因为打开时的结构检查会拒绝 |
+| 金样回放（定时） | 同上 | 全部金样，每天一次；失败开 issue，不挡合并 |
+| 建库语句与版本（UPG-01） | U1 合入后 | 每个库的基线结构算一个哈希，入库在 `tooling/gates/schemas/`（与动作合同快照同一种做法，`pnpm schemas:update` 刷新）。哈希变了而版本没升，失败；版本升了却没有对应的升级段，失败；升了版本却没有新的中间金样或回放没过，失败 |
+| 覆盖面 | 第一份金样入库即开 | `HOME-DATA.md` 里登记的每个「必备份」库和带版本的文件，在最新一份金样里都存在；少一项就失败。新库在登记表里加一行，就要在同一个 PR 里让金样也有它。开工时先把 `HOME-DATA.md` 缺的 `feed-content/feed-content.db`、`computer/` 补上（核账第二节），否则覆盖面本身有洞 |
+| 换 Prologue 包（UPG-11） | 第一份金样入库即开 | 改了 `vendor/prologue-sdk/` 的 PR 回放全部金样，不只最近 3 份 |
+
+**这张表里的每一项都是改门禁本身，本文只写方案**：新的 CI 任务 `golden-replay`、定时作业、覆盖面门禁、`tooling/gates/schemas/` 与 `pnpm schemas:update`。按 `AGENTS.md`，改门禁要经用户确认，由统筹弹窗问。升版本这条路要改的另外四份门禁在 [U1 设计](upgrade-chain-design.md) §11，一起问。所以 U2-c、U2-d、U2-e 里开门禁和 CI 的部分，开工前先等用户确认；本设计和不开门禁的 U2-a、U2-b 不等这一步（统筹 2026-11-04 审阅）。
+
+挡合并的作业放在 Linux，单独一个 CI 任务 `golden-replay`；时长目标是最近 3 份加起来不超过 5 分钟，超了就减少每份的项目数，不砍检查步骤。
+
+## 6. 金样放在哪里（按推荐先定）
+
+| 方案 | 好处 | 代价 |
+| --- | --- | --- |
+| **A. 文本转储入库（推荐）** | CI 不用联网；改动能在 PR 里看 diff；与 `goal-event-history/*.sql` 的先例一致 | 仓库会慢慢变大。按每份 2～5 MB 估，一年十几份在可接受范围；超过 50 MB 时，把一年以前的金样移到发布附件，仓库里只留它们的 SHA-256 和下载地址 |
+| B. 只放发布附件 | 仓库不长 | CI 要联网下载；开发中的中间金样没有发布可挂；看不到 diff |
+| C. 另开一个仓库 | 主仓库不长，也能看 diff | 多一个仓库要维护权限和同步；PR 要跨仓库提交 |
+
+按 A 写进本设计，统筹 2026-11-04 审阅同意。真实大小在第一份生成后量，超出估计时回到这张表重新定。
+
+## 7. 本设计新增的检查
+
+| 编号 | 检查 |
+| --- | --- |
+| UPG2-01 | 金样只经主人的动作和设置入口生成；回放脚本与生成脚本都只用临时 Home，不读写真实 Home（4207／4208、`~/.molis-work`） |
+| UPG2-02 | 同一个提交生成两次，清单和转储逐字节相同 |
+| UPG2-03 | 回放失败的输出只有位置和错误码，不含数据内容 |
+| UPG2-04 | 覆盖面门禁：`HOME-DATA.md` 里每个必备份的库和带版本的文件，在最新金样里都有 |
+| UPG2-05 | 升级后重启一次，结构检查和全部读取再过一遍 |
+
+## 8. 分片与顺序
+
+| 片 | 内容 | 等什么 |
+| --- | --- | --- |
+| U2-a 生成脚本 | `scripts/golden-home.mjs`、§2 的目录形状、清单格式；先在当前版本上跑通，但不入库 | 可以在第 02 批进行中写，只要不入库金样，也不碰 02 在改的文件（`packages/storage/src/snapshot-sqlite.ts`、`sqlite-baseline.ts`、`home-store-snapshot.ts` 等，清单见核账第二节）。转储器放新文件 |
+| U2-b 回放脚本 | `scripts/replay-golden-homes.mjs`；把 `probe` 抽成公共函数；按 §4 第 6 步的约定在 `tests/golden-writes/` 放各主人的最小写入用例（不改合同，第三方用语料的 `write`） | U2-a |
+| U2-c 第一份金样与挡合并作业 | 生成 `0.1.0`，入库，开 `golden-replay` 任务和覆盖面门禁 | 第 02 批重建、版本回到 1；**开任务与门禁前经用户确认**（改门禁，统筹弹窗问） |
+| U2-d 建库语句门禁 | `tooling/gates/schemas/`、`pnpm schemas:update`、UPG-01 | U1 合入；**开工前经用户确认**（改门禁，统筹弹窗问） |
+| U2-e 发布步骤 | 发布检查单加「生成本版金样」，定时作业回放全部 | U2-c；定时作业同样先经用户确认 |
+
+按[决定 26](../post-anticorruption-roadmap/reference/decisions.md#decision-26)，本批由主会话派子代理，轨道只管独占文件；`scripts/golden-home.mjs`、`tests/` 不归 C1 独占。U2-a、U2-b 和 U1 串着写，理由是两边读同一份快照枚举、都要往 `packages/storage` 加东西，不是因为同轨；文件不重叠，开工时看 U1 进度，错开也行（[U1 设计](upgrade-chain-design.md) §15.1）。U2-e 是 F 轨。
+
+## 9. 不在本设计里
+
+- 升级链本身（U1）、失败时只停主人的界面（U3）、插件声明升级段（U4）、合同过渡期（U5）、副本演练与回退（U6）。
+- 整份导出与导入（U7）：金样不是给人用的导出格式。

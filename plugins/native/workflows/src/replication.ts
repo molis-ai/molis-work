@@ -1,3 +1,4 @@
+import { V_FORMAT_WORKFLOWS_PORTABLE, V_SYNC_COLLECTION_WORKFLOWS_WORKFLOW_HISTORY, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition, PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -43,7 +44,7 @@ export const workflowsCollection: PluginSyncCollectionDefinition = {
       const columns = kind === "workflow" ? workflowColumns : instanceColumns;
       const record = Object.fromEntries(columns.map(column => [column, row[column]]));
       validate(kind, record);
-      const value = { format: 1, spaceId: context.spaceId, project: { id: projectId, title: project.title }, record };
+      const value = { format: V_FORMAT_WORKFLOWS_PORTABLE, spaceId: context.spaceId, project: { id: projectId, title: project.title }, record };
       checkSize(value);
       return value;
     },
@@ -63,7 +64,7 @@ export const workflowsCollection: PluginSyncCollectionDefinition = {
       checkSize(value);
       const envelope = recordOf(value, ["format", "spaceId", "project", "record"]);
       const project = recordOf(envelope.project, ["id", "title"]);
-      if (envelope.format !== 1 || envelope.spaceId !== context.spaceId || project.id !== projectId ||
+      if (envelope.format !== V_FORMAT_WORKFLOWS_PORTABLE || envelope.spaceId !== context.spaceId || project.id !== projectId ||
         typeof project.title !== "string" || project.title.length > 120) invalid();
       const columns = kind === "workflow" ? workflowColumns : instanceColumns;
       const record = recordOf(envelope.record, [...columns]);
@@ -128,6 +129,6 @@ function checkSize(value: unknown): void {
 function invalid(): never { throw syncError("invalid", "工作流程同步数据不合法"); }
 
 export const workflowsSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "workflow_history", title: "工作流程与运行记录", schema_version: 1, requires: [], tracking: workflowsCollection.tracking }],
+  protocol_version: V_SYNC_PROTOCOL,
+  collections: [{ id: "workflow_history", title: "工作流程与运行记录", schema_version: V_SYNC_COLLECTION_WORKFLOWS_WORKFLOW_HISTORY, requires: [], tracking: workflowsCollection.tracking }],
 };

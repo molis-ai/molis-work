@@ -93,7 +93,7 @@ export function createPrologueSkillLibrary(runtime: Runtime): AgentSkillLibrary 
         const assembled = assemble(pack);
         const candidate_id = randomUUID();
         const skill_id = "installed-" + createHash("sha256").update(JSON.stringify([key, name])).digest("hex").slice(0, 40);
-        const meta: MethodMeta = { ...owner, skill_id, version: 1, name, summary: summary(candidate.summary), source_label: folder };
+        const meta: MethodMeta = { ...owner, skill_id, version: /* @version template.prologue.imported-method */ 1, name, summary: summary(candidate.summary), source_label: folder };
         captured.set(candidate_id, { owner: { ...owner }, meta, pack });
         result.push({ candidate_id, name, summary: meta.summary, source_label: folder, ...assembled });
       }

@@ -5,12 +5,12 @@ import type { FeedItemRecord, FeedOutRuleRecord } from "./projection.js";
 import { feedOutRuleMatches } from "./out-rules.js";
 
 export const feedCaptureScene: ActionSceneDefinition = {
-  scene_id: "feed.capture", version: 1, title: "捕捉规则", description: "判断命中捕捉条件的消息；按规则保存建议或加入 Inbox。",
+  scene_id: "feed.capture", version: /* @version scene.feed.capture */ 1, title: "捕捉规则", description: "判断命中捕捉条件的消息；按规则保存建议或加入 Inbox。",
   trigger: "来源产生或更新消息，或用户要求处理已有消息", scope: "project", subject_kinds: ["feed_item"],
   permissions: ["feed:read", "model:invoke"], configuration_permissions: ["feed:write"],
   event_schema: { type: "object", properties: { item_id: { type: "string", minLength: 1 }, rule_id: { type: "string", minLength: 1 } }, required: ["item_id", "rule_id"], additionalProperties: false },
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
-  result_type: "molis.behavior-recommendation.v1",
+  result_type: /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1",
   default_rule: { function_key: SYSTEM_INBOX_ADMIT_FUNCTION_KEY, name: "是否进 Inbox", instructions: "看这条消息要不要进 Inbox。", subject_kinds: ["feed_item"],
     options: [{ key: INBOX_ADMIT_OPTION_ID, description: "进入 Inbox" }, { key: FEED_OPEN_OPTION_ID, description: "留在 Feed" }] },
   recommendation_labels: { "inbox.admit": "加入 Inbox", "feed.open": "打开", "feed.save": "保存为资料", "feed.promote": "升格为 Goal", "feed.archive": "忽略" },

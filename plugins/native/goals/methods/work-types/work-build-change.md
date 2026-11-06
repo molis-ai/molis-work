@@ -1,6 +1,7 @@
 ---
 method_id: work-build-change
-version: 2
+# @version method.goals.work-build-change
+version: 1
 kind: work_type
 name: "构建与改变"
 summary: "从可观察结果反推能力、基础和交付闭环。"

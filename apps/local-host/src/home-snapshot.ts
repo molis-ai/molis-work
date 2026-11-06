@@ -1,3 +1,4 @@
+import { V_FORMAT_HOME_SNAPSHOT_MANIFEST } from "./versions.generated.js";
 import { snapshotSpaceDigest } from "./home-restore-space.js";
 import { lstatSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
@@ -69,7 +70,7 @@ export async function createHomeSnapshot(
           });
       }
     const manifest: HomeSnapshotManifest = {
-      schema_version: 1,
+      schema_version: V_FORMAT_HOME_SNAPSHOT_MANIFEST,
       space_digest: scope,
       product_version: PRODUCT_VERSION,
       created_at: new Date().toISOString(),

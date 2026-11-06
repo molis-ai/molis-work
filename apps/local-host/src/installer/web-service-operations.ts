@@ -1,3 +1,4 @@
+import { V_FORMAT_WEB_SERVICE_RECEIPT } from "../versions.generated.js";
 import { installerErrors } from "./errors.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -32,7 +33,7 @@ export class WebServiceOperations {
       await writeAtomic(this.environment.plistPath, plist);
       filesMutated = true;
       await writeAtomic(this.environment.receiptPath, `${JSON.stringify({
-        schema_version: 1,
+        schema_version: V_FORMAT_WEB_SERVICE_RECEIPT,
         owner: SERVICE_OWNER,
         label: SERVICE_LABEL,
         plist_path: this.environment.plistPath,

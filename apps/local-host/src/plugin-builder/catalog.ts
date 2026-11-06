@@ -19,7 +19,7 @@ import { latestCapability, type ModelGenerateInput, type CapabilityImplementatio
 import { projectReachSubject } from '../plugin-project-reach-subject.js';
 
 /** The catalog version a design records: designs call real actions with their real schemas. */
-export const CATALOG_VERSION = 'actions/1';
+export const CATALOG_VERSION = /* @version type.actions "actions/{version}" */ "actions/1";
 export const PLATFORM_PROVIDER_ID = 'plugin-platform';
 /** The Home's instance of the platform capabilities has a provider of its own: it has no project, the project's provider is the project's. */
 export const HOME_PLATFORM_PROVIDER_ID = 'plugin-platform.home';
@@ -70,11 +70,11 @@ export function registerPlatformCapabilities(actions: ProjectActions, implementa
     return { ...createActionDefinition(registeredId, 'command', {
       ...(scheduling ? { scheduling } : {}), execution: known.execution, title: known.title, description: known.description, scope: home ? 'home' : 'project', effect, audiences: ['plugin'], permissions: [], subject_kinds: [],
       input_schema: known.input as unknown as ActionSchema, output_schema: known.output as unknown as ActionSchema,
-    }), provider_id: providerId };
+    }, home ? /* @version action.model.generate.home */ 1 : /* @version action.model.generate */ 1), provider_id: providerId };
   };
   const definitions = [define('read', 'concurrent')];
   const handlers: ActionHandlerBinding[] = [
-    { capability_id: registeredId, version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as ModelGenerateInput, context.signal ?? new AbortController().signal,
+    { capability_id: registeredId, version: definitions[0]!.version, handle: async (context, input) => implementations.generate(pluginOf(context), input as ModelGenerateInput, context.signal ?? new AbortController().signal,
       () => context.beforeEffect(), { project_id: context.project_id, plugin_install_id: context.plugin_install_id }),
       // Visible to every project's callers (an entry without a project is), answered only for the Home's own: a project's package asks the project's.
       ...home ? { availability: (context: ActionCallContext): ActionAvailability => context.project_id === null ? { available: true }

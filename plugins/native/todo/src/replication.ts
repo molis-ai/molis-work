@@ -1,3 +1,4 @@
+import { V_FORMAT_TODO_PORTABLE, V_SYNC_COLLECTION_TODO_TODO_ITEMS, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition, PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { TODO_STATUSES } from "./contract.js";
@@ -64,7 +65,7 @@ export const todoCollection: PluginSyncCollectionDefinition = {
       const changes = db.prepare("SELECT * FROM todo_changes WHERE item_id=? ORDER BY revision_after,at,change_id").all(id) as Row[];
       const requests = db.prepare("SELECT * FROM todo_requests WHERE item_id=? ORDER BY request_id").all(id) as Row[];
       const project = item.project_id ? { id: item.project_id, title: context.project(String(item.project_id)).title } : null;
-      const value = { format: 1, spaceId: context.spaceId, project, item, changes, requests };
+      const value = { format: V_FORMAT_TODO_PORTABLE, spaceId: context.spaceId, project, item, changes, requests };
       validate(value, id, context.spaceId);
       size(value);
       return value;
@@ -107,7 +108,7 @@ function validate(value: unknown, id: string, spaceId: string): {
 } {
   const wire = object(value);
   exact(wire, ["format", "spaceId", "project", "item", "changes", "requests"]);
-  if (wire.format !== 1 || wire.spaceId !== spaceId) invalid("同步空间不匹配", "scope");
+  if (wire.format !== V_FORMAT_TODO_PORTABLE || wire.spaceId !== spaceId) invalid("同步空间不匹配", "scope");
   const project = wire.project === null ? null : object(wire.project);
   if (project) {
     exact(project, ["id", "title"]);
@@ -195,6 +196,6 @@ function invalid(message = "待办同步数据不合法", code: Parameters<typeo
 }
 
 export const todoSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "todo_items", title: "待办与修改历史", schema_version: 1, requires: [], tracking: todoCollection.tracking }],
+  protocol_version: V_SYNC_PROTOCOL,
+  collections: [{ id: "todo_items", title: "待办与修改历史", schema_version: V_SYNC_COLLECTION_TODO_TODO_ITEMS, requires: [], tracking: todoCollection.tracking }],
 };

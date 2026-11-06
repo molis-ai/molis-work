@@ -1,12 +1,13 @@
+import { V_FORMAT_HOME_INSTALLATION } from "../versions.generated.js";
 /** App-owned installation API and release-format types. No project facts. */
 
-export const INSTALLER_ID = "molis-work-home-install-v1";
+export const INSTALLER_ID = /* @version type.molis-work-home-install "molis-work-home-install-v{version}" */ "molis-work-home-install-v1";
 
 export function isOwnedInstaller(installer: unknown): boolean {
   return installer === INSTALLER_ID;
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = V_FORMAT_HOME_INSTALLATION;
 
 /** Skills that must exist in the install source and every owned release. */
 export const REQUIRED_RELEASE_SKILL_FILES = [
@@ -98,7 +99,7 @@ export function isCurrentInstallManifest(value: unknown): value is InstallManife
   const item = value as Record<string, unknown>;
   const keys = ["schema_version", "installer", "version", "release_path", "content_digest", "updated_at"];
   return Object.keys(item).every(key => keys.includes(key))
-    && item.schema_version === SCHEMA_VERSION && item.installer === INSTALLER_ID
+    && item.schema_version === V_FORMAT_HOME_INSTALLATION && item.installer === INSTALLER_ID
     && typeof item.version === "string" && /^[0-9A-Za-z][0-9A-Za-z._+-]*$/.test(item.version)
     && typeof item.release_path === "string" && item.release_path.replaceAll("\\", "/") === `releases/molis-work-${item.version}`
     && typeof item.content_digest === "string" && /^[0-9a-f]{64}$/.test(item.content_digest)
@@ -110,7 +111,7 @@ export function isCurrentReleaseManifest(value: unknown): value is ReleaseManife
   const item = value as Record<string, unknown>;
   const keys = ["schema_version", "installer", "version", "dependencies", "node_runtime", "content_digest", "created_at"];
   return Object.keys(item).every(key => keys.includes(key))
-    && item.schema_version === SCHEMA_VERSION && item.installer === INSTALLER_ID
+    && item.schema_version === V_FORMAT_HOME_INSTALLATION && item.installer === INSTALLER_ID
     && typeof item.version === "string" && /^[0-9A-Za-z][0-9A-Za-z._+-]*$/.test(item.version)
     && item.dependencies === "embedded" && (!("node_runtime" in item) || item.node_runtime === "embedded")
     && typeof item.content_digest === "string" && /^[0-9a-f]{64}$/.test(item.content_digest)

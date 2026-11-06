@@ -1,3 +1,4 @@
+import { V_FORMAT_HOME_SNAPSHOT_FILE_BODY, V_FORMAT_HOME_SNAPSHOT_FILE_WRAPPER } from "./versions.generated.js";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { openExistingHomePayload } from "@molis-ai/molis-work-storage";
@@ -19,14 +20,14 @@ function masterDependency(value: unknown): SnapshotKeyDependency {
 
 /** The snapshot-file owner alone interprets its own wrapper; the OS bookmark inside remains opaque original bytes. */
 export function preflightSnapshotFile(home: string, archive: string, owner: string, entry: HomeSnapshotFile): { readonly file: HomeRestoreIncomingFile; readonly dependency: SnapshotKeyDependency } {
-  const binding = JSON.stringify(["home-snapshot-file/v1", owner, entry.path]);
+  const binding = JSON.stringify([/* @version type.home-snapshot-file "home-snapshot-file/v{version}" */ "home-snapshot-file/v1", owner, entry.path]);
   const wrapper = restoreRecord(readRestoreJson(join(archive, entry.payload_path)));
   restoreFields(wrapper, ["schema_version", "binding", "payload"]);
-  if (wrapper.schema_version !== 1 || wrapper.binding !== binding || entry.binding !== binding) throw invalidRestore();
+  if (wrapper.schema_version !== V_FORMAT_HOME_SNAPSHOT_FILE_WRAPPER || wrapper.binding !== binding || entry.binding !== binding) throw invalidRestore();
   let contents: unknown;
   try { contents = JSON.parse(openExistingHomePayload(home, binding, wrapper.payload)) as unknown; } catch { throw invalidRestore(); }
   const body = restoreRecord(contents); restoreFields(body, ["schema_version", "path", "mode", "contents_base64"]);
-  if (body.schema_version !== 1 || body.path !== entry.path || body.mode !== entry.mode || typeof body.contents_base64 !== "string"
+  if (body.schema_version !== V_FORMAT_HOME_SNAPSHOT_FILE_BODY || body.path !== entry.path || body.mode !== entry.mode || typeof body.contents_base64 !== "string"
     || body.contents_base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(body.contents_base64) || body.contents_base64.length > 4 * Math.ceil(32 * 1024 * 1024 / 3)) throw invalidRestore();
   const bytes = Buffer.from(body.contents_base64, "base64");
   if (bytes.length > 32 * 1024 * 1024 || bytes.toString("base64") !== body.contents_base64) throw invalidRestore();

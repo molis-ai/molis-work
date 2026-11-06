@@ -1,3 +1,4 @@
+import { V_PACKAGE_APPS_LOCAL_HOST_AGENT_HOST_COMPOSITION_CLIENT } from "./versions.generated.js";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
@@ -115,7 +116,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
         // File, owner and background-job waits each recheck the authority of their own source.
         checks: hostConditionChecks(options),
         reviewQueue: agentHost.reviews,
-        app: { appId: "io.molis.work", appVersion: "0.0.0" },
+        app: { appId: "io.molis.work", appVersion: V_PACKAGE_APPS_LOCAL_HOST_AGENT_HOST_COMPOSITION_CLIENT },
       });
       const adapter = await initialization;
       if (disposed) return;
@@ -246,7 +247,7 @@ async function startAuthority(
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
   const manifest = caller?.declaration.manifest ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
-  const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
+  const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === /* @version type.character.definition */ 1);
   const original = currentOriginalInput(caller);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];

@@ -1,3 +1,4 @@
+import { V_FORMAT_COGNIA_PORTABLE, V_SYNC_COLLECTION_COGNIA_KNOWLEDGE, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import type { PluginSyncBusinessDatabase, PluginSyncCollectionDefinition } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
 import type { SyncBlobReference } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type { PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -18,8 +19,8 @@ export const cogniaCollection: PluginSyncCollectionDefinition = {
  create(db,context){
  const key=(value:string)=>requireCognia(value===KEY,'知识同步资产不匹配');
  return {authorizeKey(id){key(id);context.authorize();},belongsToProject(id){key(id);return false;},
-  read(id){key(id);const graph=readGraph(db);validateKnowledgeGraph(graph);return {format:1,spaceId:context.spaceId,graph};},
-  apply(id,value){key(id);const w=syncObject(value);requireCognia(Object.keys(w).sort().join(',')==='format,graph,spaceId'&&w.format===1&&w.spaceId===context.spaceId,'知识同步空间或字段不匹配');const g=validateKnowledgeGraph(w.graph);
+  read(id){key(id);const graph=readGraph(db);validateKnowledgeGraph(graph);return {format:V_FORMAT_COGNIA_PORTABLE,spaceId:context.spaceId,graph};},
+  apply(id,value){key(id);const w=syncObject(value);requireCognia(Object.keys(w).sort().join(',')==='format,graph,spaceId'&&w.format===V_FORMAT_COGNIA_PORTABLE&&w.spaceId===context.spaceId,'知识同步空间或字段不匹配');const g=validateKnowledgeGraph(w.graph);
    const localPaths=new Map(db.prepare('SELECT id,body FROM cognia_sources').all().map(s=>[String(s.id),(JSON.parse(String(s.body)) as Source).locator]));
    for(const table of [...tables].reverse())db.exec(`DELETE FROM ${table}`);
    for(const d of g.domains)db.prepare('INSERT INTO cognia_domains(id,name) VALUES (?,?)').run(d.id,d.name);
@@ -41,4 +42,4 @@ export const cogniaSyncProjection={
   },
 };
 
-export const cogniaSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'knowledge',title:'知识材料、历史与草稿',schema_version: 1,requires:[],tracking:cogniaCollection.tracking}]};
+export const cogniaSync:PluginSyncDeclaration={protocol_version:V_SYNC_PROTOCOL,collections:[{id:'knowledge',title:'知识材料、历史与草稿',schema_version: V_SYNC_COLLECTION_COGNIA_KNOWLEDGE,requires:[],tracking:cogniaCollection.tracking}]};

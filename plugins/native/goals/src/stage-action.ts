@@ -17,7 +17,7 @@ const stageRead = goalAction<GoalsStageInput, GoalsStageData>("goals.stage.read"
   "读取当前项目的目标集合及所选目标正文、关系和规则；不启动工作或改变目标", "query",
   object({ goal_id: identifier, collection: { type: "string", enum: ["current", "archive", "trash"] } }, []),
   object({ collection: goalsCollectionAction.action.output_schema!, selection: { type: "string", enum: ["current", "archive", "trash"] },
-    selected: nullable(object({ goal_id: identifier, document: goalDocumentAction.action.output_schema! })) }));
+    selected: nullable(object({ goal_id: identifier, document: goalDocumentAction.action.output_schema! })) }), undefined, /* @version action.goals.stage.read */ 1);
 
 /** The stage read is for the person opening the page; identity is the existing action context, never request input. */
 export const goalsStageAction = { ...stageRead, action: { ...stageRead.action, audiences: ["user" as const] } };

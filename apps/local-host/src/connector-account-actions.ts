@@ -32,7 +32,7 @@ export const CONNECTOR_PROVIDER_ID = "system.connectors";
 interface ConnectorAccount { connection_id: string; service_id: string; login: string; scopes?: string[]; account_id?: string }
 const text = { type: "string" };
 export const connectorAccountActions = {
-  read: { capability_id: "connectors.account.read", version: 1, operation: "query", action: {
+  read: { capability_id: "connectors.account.read", version: /* @version action.connectors.account.read */ 1, operation: "query", action: {
     title: "查看连接账号", description: "读取一条服务连接当前授权的账号身份（与 GitHub 的授权范围）；不返回凭据", kind: "query", scope: "home",
     scheduling: "concurrent", audiences: ["user", "agent", "mcp"], permissions: ["connectors:account:read"], subject_kinds: ["connector"],
     input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,80}$" } }, required: ["connection_id"], additionalProperties: false },
@@ -110,7 +110,7 @@ export function connectorAccountActionProvider(home: string, remember: Connector
   return {
     provider: { provider_id: CONNECTOR_PROVIDER_ID, title: "服务连接", kind: "system" },
     definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, connectorUsagesSwitchAction, modelProviderSwitch, connectorPluginSlotSwitch, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
-    handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: 1,
+    handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: connectorAccountActions.read.version,
       handle: async (caller, input) => {
         const id = (input as { connection_id: string }).connection_id, row = withConnectorConnections(home, store => store.get(id)), revision = row?.updated_at;
         // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.

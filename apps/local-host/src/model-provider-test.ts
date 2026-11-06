@@ -1,3 +1,4 @@
+import { V_PACKAGE_APPS_LOCAL_HOST_MODEL_PROVIDER_TEST_CLIENT } from "./versions.generated.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,7 +12,7 @@ export async function testConfiguredModel(selection: ResolvedModelSelection) {
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   try {
     adapter = await createPrologueNodeAdapter({
-      app: { appId: "io.molis.work", appVersion: "0.0.0" },
+      app: { appId: "io.molis.work", appVersion: V_PACKAGE_APPS_LOCAL_HOST_MODEL_PROVIDER_TEST_CLIENT },
       storageRoot: path.join(directory, "runtime"),
       modelConfiguration: async () => prologueModelConfiguration(selection),
       resolveCredential: (ref) => ref === selection.provider.credential_ref ? selection.api_key : null,
@@ -23,7 +24,7 @@ export async function testConfiguredModel(selection: ResolvedModelSelection) {
     const handle = await adapter.start({
       project_id: "model-settings", install_id: "host", actor_id: "user", plugin_id: "host", session, task: "Reply with exactly MOLIS_OK.", role_id: "model-check",
       directory: { canonical_path: directory, realpath_verified: true },
-      role: { role_id: "model-check", version: 1, execution: "read-only", prompts: [], host_tools: [] },
+      role: { role_id: "model-check", version: /* @version role.model-check */ 1, execution: "read-only", prompts: [], host_tools: [] },
     });
     const activeAdapter = adapter;
     const final = await new Promise<Awaited<ReturnType<typeof activeAdapter.read>>>((resolve, reject) => {

@@ -53,7 +53,7 @@ function reclaim(directory: string, build: AgentBuild, version: number, signer: 
     || bundle.payload.manifest.publisher.signature !== signer) throw new Error('未登记发行物不属于这个草稿版本，保留待检查');
   for (const file of bundle.payload.files) if (file.path !== SANDBOX_PACKAGE_FILES.manifest && !readFileSync(join(directory, file.path)).equals(Buffer.from(file.content_base64, 'base64'))) throw new Error('发布目录与签名内容不符，保留待检查');
   const original: unknown = JSON.parse(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.manifest), 'utf8'));
-  if (!isDeepStrictEqual(original, { version: 1, pluginId: kept.contract.pluginId, revision: kept.contract.revision, effects: effectsFromContract(kept.contract) })) throw new Error('发布构建清单不符，保留待检查');
+  if (!isDeepStrictEqual(original, { version: /* @version format.builder.build-manifest */ 1, pluginId: kept.contract.pluginId, revision: kept.contract.revision, effects: effectsFromContract(kept.contract) })) throw new Error('发布构建清单不符，保留待检查');
   control.assertCurrent();
   if (control.referenced(directory)) throw new Error('发布目录已被另一发布引用');
   rmSync(directory, { recursive: true });
@@ -85,7 +85,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
           publisher: { publisher_id: 'molis-studio', signature: identity }, presentation: design.presentation !== undefined,
           effects: manifest.effects, contract: design.contract, upgradesFrom: compatible, ...(scope === 'home' ? { runtime: { scope: 'home' } } : {}) });
         const files = Object.entries({ ...originalFiles, 'manifest.json': JSON.stringify(distributed) }).map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString('base64') }));
-        return parsePluginPackage({ payload: { schema_version: 1, manifest: distributed, files }, signature: null, publisher_key: null });
+        return parsePluginPackage({ payload: { schema_version: /* @version format.plugin.package */ 1, manifest: distributed, files }, signature: null, publisher_key: null });
       };
       const admitted = readKeptSandboxPackage(candidate('agent-built:' + build.id).payload);
       if (scope === 'home') assertHomePackageAllowed(admitted.manifest);

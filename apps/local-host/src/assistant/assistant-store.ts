@@ -1,3 +1,4 @@
+import { V_DATABASE_ASSISTANT_STORE_BASELINE } from "../versions.generated.js";
 import type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
@@ -25,7 +26,7 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The current schema retains the table and its stored work shape.
  * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: V_DATABASE_ASSISTANT_STORE_BASELINE, schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL

@@ -1,3 +1,4 @@
+import { V_DATABASE_INBOX_PROJECT_DATABASE } from "./versions.generated.js";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** The binding of Inbox's next-step scene in each project: which judgment rule the project uses (one row, optimistic by `binding_revision`). */
@@ -19,7 +20,7 @@ export const INBOX_SCENE_BINDINGS_SCHEMA_SQL = `
  */
 export const INBOX_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "inbox",
-  version: 1,
+  version: V_DATABASE_INBOX_PROJECT_DATABASE,
   schema: INBOX_SCENE_BINDINGS_SCHEMA_SQL,
   read_permission: "storage:private",
   write_permission: "storage:private",

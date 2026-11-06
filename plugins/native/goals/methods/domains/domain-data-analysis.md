@@ -1,6 +1,7 @@
 ---
 method_id: domain-data-analysis
-version: 2
+# @version method.goals.domain-data-analysis
+version: 1
 kind: domain
 name: "数据分析"
 summary: "从决策问题、口径和数据质量走到可复现结论。"

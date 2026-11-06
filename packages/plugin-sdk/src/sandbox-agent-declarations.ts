@@ -52,12 +52,12 @@ export function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick
     return ids;
   };
   const roles = (manifest.agent ?? []).map(row => ({ row, ...identity("role", row.name) }));
-  const methods = (manifest.methods ?? []).map(row => ({ skill_id: identity("method", row.name).entry_id, version: 1,
+  const methods = (manifest.methods ?? []).map(row => ({ skill_id: identity("method", row.name).entry_id, version: /* @version template.sandbox.method */ 1,
     name: row.name, summary: row.purpose, tools: [] }));
   return {
     ...(roles.length ? { agent: {
-      roles: roles.map(({ row, entry_id, prompt_id }) => ({ role_id: entry_id, version: 1, name: row.name, workspace: "none" as const, prompts: [prompt_id] })),
-      prompts: roles.map(({ prompt_id }) => ({ prompt_id, version: 1, layer: "role" as const })),
+      roles: roles.map(({ row, entry_id, prompt_id }) => ({ role_id: entry_id, version: /* @version template.sandbox.role */ 1, name: row.name, workspace: "none" as const, prompts: [prompt_id] })),
+      prompts: roles.map(({ prompt_id }) => ({ prompt_id, version: /* @version template.sandbox.prompt */ 1, layer: "role" as const })),
     } } : {}),
     ...(methods.length ? { methods } : {}),
   };
@@ -78,14 +78,14 @@ export function assertSandboxAgentDefinition(definition: Pick<PluginDefinition, 
     || prompts.length !== roles.length || bodies.length !== methods.length) invalid("沙箱只接受包内派生的文字角色与空工具方法");
   for (const [index, role] of roles.entries()) {
     const prompt = prompts.find(item => item.prompt_id === role.prompts?.[0]);
-    if (!prompt || prompt.version !== 1 || prompt.layer !== "role" || prompt.user_revision !== undefined
+    if (!prompt || prompt.version !== /* @version template.sandbox.prompt */ 1 || prompt.layer !== "role" || prompt.user_revision !== undefined
       || Object.keys(prompt).some(key => !["prompt_id", "version", "layer", "body"].includes(key))
       || definition.agent_prompt_names?.[prompt.prompt_id]?.title !== wire.agent?.[index]?.name) invalid("沙箱角色正文与派生声明不符");
   }
   for (const method of methods) {
     const body = bodies.find(item => item.skill_id === method.skill_id);
     if (!body || Object.keys(body).some(key => !["skill_id", "version", "name", "summary", "tools", "body"].includes(key))
-      || body.version !== 1 || body.name !== method.name || body.summary !== method.summary || body.tools.length) invalid("沙箱方法正文与派生声明不符");
+      || body.version !== /* @version template.sandbox.method */ 1 || body.name !== method.name || body.summary !== method.summary || body.tools.length) invalid("沙箱方法正文与派生声明不符");
   }
   for (const row of [...prompts, ...bodies]) if (typeof row.body !== "string" || !row.body.trim() || row.body.length > 8000 || Buffer.byteLength(row.body, "utf8") > 32_000) invalid("沙箱正文为空或过长");
 }

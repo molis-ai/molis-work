@@ -5,7 +5,7 @@ const PAGE_ACTIONS = "/api/host/plugin-page-actions";
 
 /** One page action of the Host: the way a page asks a plugin that is not its own for something (the page names no route). */
 const action = (host: FilesFactoryHost, capability: string, input: unknown, signal?: AbortSignal): Promise<unknown> =>
-  molisWorkRequest(host.route(PAGE_ACTIONS), { body: { reference: { capability_id: capability, version: 1 }, input }, signal });
+  molisWorkRequest(host.route(PAGE_ACTIONS), { body: { reference: { capability_id: capability, version: /* @version protocol.action-reference.default */ 1 }, input }, signal });
 
 /**
  * The requests Files makes. On its own page they go to Files' routes; in Coding's panel the page is not Files', so the same

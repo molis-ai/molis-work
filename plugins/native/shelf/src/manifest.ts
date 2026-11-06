@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_SHELF_MANIFEST_SHELFMANIFEST, V_SYNC_COLLECTION_SHELF_COPIES, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { PLUGIN_LOCAL_TOOLS_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
@@ -18,10 +19,10 @@ export const SHELF_PROJECT_PLUGIN_ID = "shelf";
  * permission is required, as a dual-instance Manifest's must be.
  */
 export const shelfManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
+  host_api_version: V_HOST_API,
   plugin_id: SHELF_PLUGIN_ID,
-  version: "0.1.0",
+  version: V_PACKAGE_PLUGINS_NATIVE_SHELF_MANIFEST_SHELFMANIFEST,
   name: "Shelf",
   summary: "把文件放上来处理副本，原件不动。",
   kind: "native",
@@ -58,11 +59,11 @@ export const shelfManifest: PluginManifest = {
   local_tools: SHELF_LOCAL_TOOLS,
   // Each Runtime instance redeems only the actions it owns.
   actions: [...SHELF_ACTIONS, ...SHELF_PROJECT_ACTIONS, shelfReceiveCopy, ...SHELF_RUNTIME_ACTIONS],
-  sync:{protocol_version:1,collections:[{id:'copies',title:'材料、结果与终态任务',schema_version:1,requires:[]}]},
-  artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },
+  sync:{protocol_version:V_SYNC_PROTOCOL,collections:[{id:'copies',title:'材料、结果与终态任务',schema_version:V_SYNC_COLLECTION_SHELF_COPIES,requires:[]}]},
+  artifacts: { produces: [], consumes: [{ artifact_type_id: /* @version type.coding.report "coding.report.v{version}" */ "coding.report.v1", schema_version: /* @version type.coding.report */ 1 }] },
   // A Coding change set offered to Shelf is exchange data, not a 成果. What Shelf saves into a project is an imported document there.
-  process_items: { produces: [], consumes: [{ artifact_type_id: "coding.changeset.v1", schema_version: 1 }] },
-  ports: { inputs: [{ port: "coding-report", artifact_type_id: "coding.report.v1", schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "report" } }, { port: "coding-changeset", artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "changeset" } }], outputs: [] },
+  process_items: { produces: [], consumes: [{ artifact_type_id: /* @version type.coding.changeset "coding.changeset.v{version}" */ "coding.changeset.v1", schema_version: /* @version type.coding.changeset */ 1 }] },
+  ports: { inputs: [{ port: "coding-report", artifact_type_id: /* @version type.coding.report "coding.report.v{version}" */ "coding.report.v1", schema_version: /* @version type.coding.report */ 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "report" } }, { port: "coding-changeset", artifact_type_id: /* @version type.coding.changeset "coding.changeset.v{version}" */ "coding.changeset.v1", schema_version: /* @version type.coding.changeset */ 1, optional: true, default_source: { plugin_id: "io.molis.work.coding", port: "changeset" } }], outputs: [] },
   // The project instance answers the Coding-result routes; the Home instance the panel's own, saving into a project included.
   routes: [
     ...SHELF_HOME_ROUTES,

@@ -1,3 +1,4 @@
+import { V_FORMAT_ARTIFACT_PORTABLE } from "./versions.generated.js";
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { ArtifactIdentityRecord, ArtifactVersionRecord, FixedVersionRecord } from '@molis-ai/molis-work-contracts/modules/artifacts';
 import { canonicalArtifactJson, artifactContentDigest, artifactContentSize, normalizeArtifactMetadata, normalizeArtifactPayload } from './content.js';
@@ -5,7 +6,7 @@ import { normalizeRegistration } from './registration.js';
 import type { ArtifactReplicationContext } from './replication.js';
 
 export interface PortableVersionBundle<R extends FixedVersionRecord> {
-  format: 1;
+  format: /* @version format.artifact.portable */ 1;
   spaceId: string;
   projectId: string;
   identity: Omit<ArtifactIdentityRecord, 'project_id'>;
@@ -35,7 +36,7 @@ function portableStrings(value: unknown, depth = 0): void {
 /** Exactly one current shape per store. The library's presentation fields never turn process items into library entries. */
 export function validateFixedVersionBundle<R extends FixedVersionRecord>(input: unknown, context: ArtifactReplicationContext, library: boolean): PortableVersionBundle<R> {
   const row = object(input, ['format', 'spaceId', 'projectId', 'identity', 'versions']);
-  if (row.format !== 1 || row.spaceId !== context.spaceId || row.projectId !== context.projectId) fixedVersionInvalid('固定版本空间或版本不匹配');
+  if (row.format !== V_FORMAT_ARTIFACT_PORTABLE || row.spaceId !== context.spaceId || row.projectId !== context.projectId) fixedVersionInvalid('固定版本空间或版本不匹配');
   const identity = object(row.identity, IDENTITY_FIELDS);
   for (const field of IDENTITY_FIELDS.filter(key => key !== 'created_at')) text(identity[field]);
   timestamp(identity.created_at);

@@ -20,8 +20,8 @@ const resultSchema = { type: "object", properties: {
   probabilities: { type: "object", additionalProperties: { type: "number" } }, confidence: { type: ["number", "null"] },
 }, required: ["suggested_behavior_ids", "status", "function_key", "version", "model", "config_hash", "primitive", "data", "probabilities", "confidence"] };
 
-function define<Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>, judgment = false): ActionDefinition<Input, Output> {
-  return { capability_id: id, version: 1, operation: judgment ? "command" : "query", action: {
+function define<Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>, judgment = false, version = /* @version factory.modules.judgment-rules.define */ 1): ActionDefinition<Input, Output> {
+  return { capability_id: id, version: version, operation: judgment ? "command" : "query", action: {
     title, description, kind: judgment ? "judgment" : "query", scope: "home", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: judgment ? ["functions:invoke"] : [], subject_kinds: [], input_schema: input, output_schema: output,
     ...(judgment ? { scheduling: "concurrent" as const, execution: { cost: "metered" as const } } : {}),
@@ -29,18 +29,18 @@ function define<Input, Output>(id: string, title: string, description: string, i
 }
 
 export const functionsActions = {
-  connectionUsages: defineConnectorUsagesAction("functions.connection.usages", "判断规则使用的连接", [], "home"),
+  connectionUsages: defineConnectorUsagesAction("functions.connection.usages", "判断规则使用的连接", [], "home", /* @version action.functions.connection.usages */ 1),
   list: define<Record<string, never>, { functions: JudgmentRuleSummary[] }>("functions.list", "已发布判断规则", "列出已发布规则及稳定身份；草稿不在调用目录中。", empty,
-    { type: "object", properties: { functions: { type: "array", items: summary } }, required: ["functions"] }),
+    { type: "object", properties: { functions: { type: "array", items: summary } }, required: ["functions"] }, undefined, /* @version action.functions.list */ 1),
   describe: define<{ function_key: string }, { function: JudgmentRuleDescribe }>("functions.describe", "查看判断合同", "读取指定已发布规则的输入、判断条件和版本。", {
     type: "object", properties: { function_key: { type: "string", minLength: 1 } }, required: ["function_key"], additionalProperties: false,
   }, { type: "object", properties: { function: { ...summary, properties: { ...summary.properties, instructions: text,
     input: { type: "object", properties: { content: { const: "string" } }, required: ["content"] }, criteria: { oneOf: [{ type: "array" }, { type: "object" }] } },
-    required: [...summary.required, "instructions", "input", "criteria"] } }, required: ["function"] }),
+    required: [...summary.required, "instructions", "input", "criteria"] } }, required: ["function"] }, undefined, /* @version action.functions.describe */ 1),
   invoke: define<{ function_key: string; input: string }, JudgmentRuleInvokeResult>("functions.invoke", "调用判断规则", "执行已发布规则并保存判断记录；needs_review 表示需要人判断，结果不授予业务操作权限。", {
     type: "object", properties: { function_key: { type: "string", minLength: 1 }, input: { type: "string", minLength: 1, maxLength: 8000 } },
     required: ["function_key", "input"], additionalProperties: false,
-  }, resultSchema, true),
+  }, resultSchema, true, /* @version action.functions.invoke */ 1),
 } as const;
 
 /** Stable identity for a published rule; callers do not need its complete action definition. */
@@ -65,7 +65,7 @@ export function publishedFunctionAction(record: JudgmentRuleRecord): ActionDefin
   return { ...definition, version: reference.version, action: { ...definition.action, subject_kinds: [...record.subject_kinds],
     ...(Object.keys(record.action_map ?? {}).length ? { required_actions: Object.values(record.action_map!) } : {}),
     ...(record.scene_id && record.scene_version && record.scene_provider_id ? { result_scene: { scene_id: record.scene_id, version: record.scene_version, provider_id: record.scene_provider_id } } : {}),
-    output_type: recommendations ? "molis.behavior-recommendation.v1" : "molis.judgment.v1",
+    output_type: recommendations ? /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1" : /* @version type.molis.judgment "molis.judgment.v{version}" */ "molis.judgment.v1",
     ...(recommendations && choices.length ? { output_schema: { ...definition.action.output_schema,
       properties: { ...(definition.action.output_schema!.properties as Record<string, unknown>),
         suggested_behavior_ids: { type: "array", items: { enum: [...new Set(choices)] } } } } } : {}),

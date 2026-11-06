@@ -5,10 +5,10 @@ import { pptErrors } from "./error.js";
 
 /** PPT's part in the system search: title, description and every slide's title, bullets and notes. */
 export const pptSearchActions = {
-  entries: defineSearchEntriesAction("ppt.search.entries", [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
-  subject: defineSubjectContextAction("ppt.subject.read", PPT_SUBJECT_KIND, "演示稿", ["ppt:read"]),
+  entries: defineSearchEntriesAction("ppt.search.entries", [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"], undefined, undefined, /* @version action.ppt.search.entries */ 1),
+  subject: defineSubjectContextAction("ppt.subject.read", PPT_SUBJECT_KIND, "演示稿", ["ppt:read"], undefined, /* @version action.ppt.subject.read */ 1),
   /** The side panel's file tab (specs/archive/side-panel): each deck; its preview is the outline `subject` reads. */
-  files: defineFileEntriesAction("ppt.files.entries", [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
+  files: defineFileEntriesAction("ppt.files.entries", [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"], undefined, undefined, /* @version action.ppt.files.entries */ 1),
 };
 
 function pptSearchContent(presentation: PptRecord): string {

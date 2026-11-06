@@ -1,5 +1,6 @@
 ---
 method_id: overlay-marketplace
+# @version method.goals.overlay-marketplace
 version: 1
 kind: overlay
 name: "双边市场"

@@ -1,3 +1,4 @@
+import { V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_NODE_PORT_IMPLEMENTATION } from "../versions.generated.js";
 import { readOriginalInput, resolveOriginalInput } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
@@ -49,8 +50,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     preset: "local-agent",
     onQueuedWork: runScheduled,
     slots: {
-      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } : {}),
-      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: "1.0.0", impl: memoryAccess.extractor } } : {}),
+      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_NODE_PORT_IMPLEMENTATION, impl: options.documentParsers } } : {}),
+      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_NODE_PORT_IMPLEMENTATION, impl: memoryAccess.extractor } } : {}),
     },
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
@@ -89,14 +90,14 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
     try {
       const decision = JSON.parse(new TextDecoder().decode(original));
       bytes = new TextEncoder().encode(JSON.stringify({ ...decision, ...patch }));
-      await host.storage.commit({ kind, id, expectedVersion: record.version, metadata: { schema: 1 }, secureBody: bytes });
+      await host.storage.commit({ kind, id, expectedVersion: record.version, metadata: { schema: /* @version format.prologue.session-metadata */ 1 }, secureBody: bytes });
     } finally { original.fill(0); bytes?.fill(0); }
   };
   return createPrologueGitReviews({ runtime, queue: options.reviewQueue,
     publish: value => stageTextResource(runtime, JSON.stringify(value), "git-index-review"), read: ref => readResource(runtime, ref),
     async saveDecision(id, value) {
       const bytes = new TextEncoder().encode(JSON.stringify(value));
-      try { await host.storage.commit({ kind, id, expectedVersion: 0, metadata: { schema: 1 }, secureBody: bytes }); }
+      try { await host.storage.commit({ kind, id, expectedVersion: 0, metadata: { schema: /* @version format.prologue.session-metadata */ 1 }, secureBody: bytes }); }
       finally { bytes.fill(0); }
     },
     async saveFailure(id, reason) {
@@ -202,7 +203,7 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
     const { event, runId, root } = matches[0]!;
     const record = await readResource(runtime, event.receiptRef);
     const receipt = record.receipt;
-    if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== 1 || !sameRef(record.rootRef, root)
+    if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== /* @version format.prologue.session-metadata */ 1 || !sameRef(record.rootRef, root)
       || typeof record.executable !== "string" || !Array.isArray(record.argv) || !record.argv.every((arg: unknown) => typeof arg === "string")
       || !receipt || receipt.commandId !== event.commandId || !sameRef(receipt.effectRef, event.effectRef)
       || typeof receipt.stdout !== "string" || typeof receipt.stderr !== "string" || typeof receipt.truncated !== "boolean"
@@ -220,7 +221,7 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
   return {
     create: (input, execution) => deps.effects.start(execution, async () => {
       const session = await deps.runtime.sessions.create();
-      try { await deps.index.save({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
+      try { await deps.index.save({ schema: /* @version format.prologue.session-metadata */ 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
         owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] }); }
       catch (error) {
         try {

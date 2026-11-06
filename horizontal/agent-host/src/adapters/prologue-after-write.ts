@@ -25,7 +25,7 @@ const FILE = "{file}";
  */
 export function afterWriteTool(scope: string): PackTool {
   return { executor: AFTER_WRITE_EXECUTOR, optional: true, afterWriteCheck: true, registration: {
-    name: `molis-after-write-${scope}`, version: "1", description: "The person's after-write check for a file just written: answers with the command to run, which the SDK reviews and runs; nothing runs here.",
+    name: `molis-after-write-${scope}`, version: /* @version protocol.prologue.after-write-tool "{version}" */ "1", description: "The person's after-write check for a file just written: answers with the command to run, which the SDK reviews and runs; nothing runs here.",
     parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"], additionalProperties: false },
     effectKind: "safe-read", gate: "broker", timeoutMs: 10_000, idempotency: "none" } };
 }

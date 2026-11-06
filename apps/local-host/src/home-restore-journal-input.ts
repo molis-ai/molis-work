@@ -1,3 +1,4 @@
+import { V_FORMAT_HOME_RESTORE_JOURNAL } from "./versions.generated.js";
 import type { RestoreNodeIdentity, RestoreTargetNode } from "./home-restore-files.js";
 import type { RestoreDirectoryPlan } from "./home-restore-target.js";
 import { invalidRestore, parseRestoreDependency, parseRestoreSqliteInfo, restoreFields, restoreHash, restoreInteger, restoreMode, restoreRecord, restoreRelative, restoreString } from "./home-restore-input.js";
@@ -8,7 +9,7 @@ import { PRODUCT_VERSION } from "./product-version.js";
 export type HomeRestorePhase = "prepared" | "publishing" | "committed";
 export interface RestoreJournalFile { readonly path: string; readonly mode: number; readonly size: number; readonly sha256: string; readonly sqlite?: SqliteSnapshotInfo }
 export interface HomeRestoreJournal {
-  readonly schema_version: 1;
+  readonly schema_version: /* @version format.home.restore.journal */ 1;
   readonly space_digest: string | null;
   readonly initialize_local_space?: string;
   readonly product_version: string;
@@ -78,13 +79,13 @@ export function parseHomeRestoreJournal(value: unknown, home: string): HomeResto
   const item = restoreRecord(value);
   restoreFields(item, ["schema_version", "space_digest", "product_version", "home_directory", "operation_id", "originals_directory", "phase", "home_identity", "runtime_identity",
     "work_identity", "home_mode", "originals", "directories", "files", "preserved", "dependencies"], ["registry_input", "registry_original", "initialize_local_space"]);
-  if (item.schema_version !== 1 || item.product_version !== PRODUCT_VERSION || item.home_directory !== home
+  if (item.schema_version !== V_FORMAT_HOME_RESTORE_JOURNAL || item.product_version !== PRODUCT_VERSION || item.home_directory !== home
     || typeof item.operation_id !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/u.test(item.operation_id)
     || item.phase !== "prepared" && item.phase !== "publishing" && item.phase !== "committed") throw invalidRestore();
   const root = identity(item.home_identity), runtime = identity(item.runtime_identity), work = identity(item.work_identity);
   if (root.kind !== "directory" || runtime.kind !== "directory" || work.kind !== "directory" || work.mode !== 0o700) throw invalidRestore();
   const inputRegistry = registry(item.registry_input), originalRegistry = registry(item.registry_original);
-  return { schema_version: 1, space_digest: item.space_digest === null ? null : restoreHash(item.space_digest),
+  return { schema_version: V_FORMAT_HOME_RESTORE_JOURNAL, space_digest: item.space_digest === null ? null : restoreHash(item.space_digest),
     ...(item.initialize_local_space === undefined ? {} : { initialize_local_space: restoreString(item.initialize_local_space) }), product_version: PRODUCT_VERSION, home_directory: home, operation_id: item.operation_id,
     originals_directory: restoreString(item.originals_directory), phase: item.phase, home_identity: root, runtime_identity: runtime, work_identity: work,
     home_mode: restoreMode(item.home_mode), originals: list(item.originals, node), directories: list(item.directories, directory), files: list(item.files, file),

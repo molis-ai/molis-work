@@ -1,5 +1,6 @@
 ---
 method_id: overlay-ugc-trust-safety
+# @version method.goals.overlay-ugc-trust-safety
 version: 1
 kind: overlay
 name: "UGC 与信任安全"

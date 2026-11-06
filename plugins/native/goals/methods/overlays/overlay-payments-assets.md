@@ -1,5 +1,6 @@
 ---
 method_id: overlay-payments-assets
+# @version method.goals.overlay-payments-assets
 version: 1
 kind: overlay
 name: "支付与资产"

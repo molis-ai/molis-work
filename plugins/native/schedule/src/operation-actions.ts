@@ -5,16 +5,16 @@ import type { ScheduledOperationIdentity, ScheduledOperationInput } from "./oper
 import type { ScheduleActionWrite } from "./actions.js";
 
 export const SCHEDULE_OPERATION_PROVIDER_ID = "schedule.operations";
-const define = <I, O>(capability_id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>): ActionDefinition<I, O> => createActionDefinition<I, O>(capability_id, "command", { title, description, effect: "write", audiences: ["plugin"],
-    permissions: [], subject_kinds: [], execution: { timeout_ms: 10_000, cost: "none" }, input_schema: input, output_schema: output });
+const define = <I, O>(capability_id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>, version = /* @version factory.plugins.native.schedule.define */ 1): ActionDefinition<I, O> => createActionDefinition<I, O>(capability_id, "command", { title, description, effect: "write", audiences: ["plugin"],
+    permissions: [], subject_kinds: [], execution: { timeout_ms: 10_000, cost: "none" }, input_schema: input, output_schema: output }, version);
 /** Stable capability ids and schemas preserve published plugin contracts. */
 export const scheduledOperationActions = {
   add: define<ScheduledOperationInput, { scheduleId: string }>("schedules.add", "定时执行", "按时间运行当前安装自己的一项功能，可将结果放入收件箱；每天/每周为固定间隔，每个安装最多 20 条。尚未派出的工作会等待执行入口，结果未知的工作不会自动重跑",
     object({ operation: { type: "string", minLength: 1, maxLength: 120 }, at: { type: "string", format: "date-time" },
       repeat: { type: "string", enum: ["none", "daily", "weekly"] }, input: { type: "object" }, inbox: { type: "boolean" } }, ["operation", "at"]),
-    object({ scheduleId: { type: "string" } })),
+    object({ scheduleId: { type: "string" } }), /* @version action.schedules.add */ 1),
   cancel: define<{ scheduleId: string }, { cancelled: boolean }>("schedules.cancel", "取消定时", "取消当前安装创建的定时操作；其他安装或已完成的一次性操作返回 false",
-    object({ scheduleId: { type: "string", minLength: 1, maxLength: 100 } }), object({ cancelled: { type: "boolean" } })),
+    object({ scheduleId: { type: "string", minLength: 1, maxLength: 100 } }), object({ cancelled: { type: "boolean" } }), /* @version action.schedules.cancel */ 1),
 };
 export const SCHEDULE_OPERATION_ACTIONS = Object.values(scheduledOperationActions);
 export interface ScheduledOperationActionPorts {

@@ -1,6 +1,7 @@
 ---
 method_id: domain-research-content
-version: 2
+# @version method.goals.domain-research-content
+version: 1
 kind: domain
 name: "研究与内容"
 summary: "确保来源、方法、审核和发布链路可信。"

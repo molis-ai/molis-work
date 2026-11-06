@@ -41,17 +41,17 @@ const confirmedView = (record: GoalInputBindingRecord, source: GoalConfirmedInpu
 export const goalsInputActions = {
   bind: inGoalRelation(goalAction<{ goal_id: string; subject: { kind: string; id: string }; title: string }, { binding: GoalBoundObject; replayed: boolean }>("goals.inputs.bind",
     "把资料关联到目标", "把一份资料（文档、演示稿、问卷、数据表、Shelf 材料等）记为目标的绑定资料；不复制、不移动原对象，重复关联返回原记录", "command",
-    object({ goal_id: identifier, subject, title: { ...identifier, maxLength: 200 } }), object({ binding: bound, replayed: boolean })), "bind"),
+    object({ goal_id: identifier, subject, title: { ...identifier, maxLength: 200 } }), object({ binding: bound, replayed: boolean }), undefined, /* @version action.goals.inputs.bind */ 1), "bind"),
   confirm: usingServices(goalEntryActions.inputsConfirm, [CONTEXT_LEDGER_WRITE_PERMISSION]),
   accept: userOnly(goalAction<{ goal_id: string; binding_id: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.accept",
     "认可待确认的输入", "用户本人认可一条由助理、Agent、工作流或外部工具提议的输入，把「待确认」记为「已确认」，摘要和理由不变；只有用户本人能调用；已确认的返回原记录，已移除的不能再认可", "command",
-    object({ goal_id: identifier, binding_id: identifier }), object({ binding: confirmed, replayed: boolean }))),
+    object({ goal_id: identifier, binding_id: identifier }), object({ binding: confirmed, replayed: boolean }), undefined, /* @version action.goals.inputs.accept */ 1)),
   release: inGoalRelation(goalAction<{ goal_id: string; binding_id: string }, { released: boolean }>("goals.inputs.release",
     "移除目标的输入", "结束一条输入（绑定的资料，或来源材料的输入）；原对象和原材料不受影响，记录保留为历史；已确认的来源输入只能由用户移除，其他调用者只能撤回待确认的提议", "command",
-    object({ goal_id: identifier, binding_id: identifier }), object({ released: boolean })), "release"),
+    object({ goal_id: identifier, binding_id: identifier }), object({ released: boolean }), undefined, /* @version action.goals.inputs.release */ 1), "release"),
   list: inGoalRelation(goalAction<{ goal_id?: string | null; subject?: { kind: string; id: string } | null }, { bindings: GoalBoundObject[] }>("goals.inputs.list",
     "目标的绑定资料", "列出目标绑定的插件资料，或某份资料绑定到了哪些目标；只含仍然有效的绑定", "query",
-    object({ goal_id: nullable(identifier), subject: nullable(subject) }, []), object({ bindings: array(bound) })), "list"),
+    object({ goal_id: nullable(identifier), subject: nullable(subject) }, []), object({ bindings: array(bound) }), undefined, /* @version action.goals.inputs.list */ 1), "list"),
 } as const;
 
 /** A Goal's confirmed bound Plugin objects, by the owner's subject and the name they were bound under. */

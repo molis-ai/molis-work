@@ -5,7 +5,7 @@ import { readMcpToolPreference } from "./mcp-settings-store.js";
 interface ReportedActionUsage extends ActionUsage { source: ActionReference; reporter: string }
 export interface ActionUsagesResult { usages: ReportedActionUsage[]; issues: string[] }
 
-const readDefinition: ActionDefinition<ActionUsagesInput, ActionUsagesResult> = { capability_id: "actions.usages.read", version: 1, operation: "query", action: {
+const readDefinition: ActionDefinition<ActionUsagesInput, ActionUsagesResult> = { capability_id: "actions.usages.read", version: /* @version action.actions.usages.read */ 1, operation: "query", action: {
   title: "能力的使用位置", description: "汇总各插件保存的、引用这个能力的位置（流程步骤、角色范围、对外授权等）；只读，不调用该能力。", kind: "query", scope: "home", scheduling: "concurrent",
   audiences: ["user", "agent", "mcp"], permissions: [], subject_kinds: [], input_schema: ACTION_USAGES_INPUT_SCHEMA,
   output_schema: { type: "object", properties: { usages: { type: "array", items: { ...ACTION_USAGE_SCHEMA, properties: { ...ACTION_USAGE_SCHEMA.properties, source: ACTION_REFERENCE_SCHEMA, reporter: { type: "string" } },
@@ -18,7 +18,7 @@ const readDefinition: ActionDefinition<ActionUsagesInput, ActionUsagesResult> = 
  */
 export function actionUsagesProvider(clientFor: (caller: ActionCallContext) => ActionClient, homeDirectory?: string): ActionProviderRegistration {
   const read = readDefinition;
-  const grants = defineActionUsagesAction("mcp.grants.usages", "对外接入的授权", [], "home");
+  const grants = defineActionUsagesAction("mcp.grants.usages", "对外接入的授权", [], "home", /* @version action.mcp.grants.usages */ 1);
   // Which clients may call what is the owner's own configuration; other clients never read it.
   const grantReporter: ActionDefinition<ActionUsagesInput, { usages: ActionUsage[] }> = { ...grants, action: { ...grants.action, audiences: ["user"] } };
   const handlers: ActionHandlerBinding[] = [{ ...read, handle: async (caller, value) => {

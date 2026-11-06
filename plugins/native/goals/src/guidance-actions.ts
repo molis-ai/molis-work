@@ -20,10 +20,10 @@ export const goalsGuidanceActions = {
   guidanceRead: goalEntryActions.guidanceRead,
   guidanceAdd: goalAction<AddInput, AddProjectGuidanceResult>("goals.guidance.add", "新增项目长期说明", "先向用户展示精确分类和原文，说明长期保存原因并获得明确同意，再保存说明。保留去重及原幂等回执，不创建 Goal 或用户决定", "command",
     object({ ...write, kind, content: identifier, source_refs: array(text) }, [...Object.keys(write), "kind", "content"]),
-    object({ entry, created: boolean, observed_event_cursor: count, replayed: boolean })),
+    object({ entry, created: boolean, observed_event_cursor: count, replayed: boolean }), undefined, /* @version action.goals.guidance.add */ 1),
   guidanceUpdate: goalAction<UpdateInput, UpdateProjectGuidanceResult>("goals.guidance.update", "修改项目长期说明", "用户明确同意精确变更后编辑、停用或恢复说明，保留修订历史。edit 必须提供 kind 和 content；重试保留原幂等键", "command",
     object({ ...write, guidance_id: identifier, action: enumeration(["edit", "deactivate", "restore"]), kind, content: text, source_refs: array(text) }, [...Object.keys(write), "guidance_id", "action"]),
-    object({ entry, revision, observed_event_cursor: count, replayed: boolean })),
+    object({ entry, revision, observed_event_cursor: count, replayed: boolean }), undefined, /* @version action.goals.guidance.update */ 1),
 } as const;
 
 export function createGoalsGuidanceActionHandlers(ports: GoalsGuidanceActionPorts, projectId: string): ActionHandlerBinding[] {

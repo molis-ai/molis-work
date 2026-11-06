@@ -1,3 +1,4 @@
+import { V_IDENTITY_ARTIFACT_PRODUCER } from "./versions.generated.js";
 /** The 成果 plugin's id: the owner of the 成果库's page and the project key's shell, until that shell goes (PG-077 step 2). */
 export const ARTIFACTS_PLUGIN_ID = "io.molis.work.artifacts";
 /** What the project database stores for this provider. */
@@ -11,6 +12,6 @@ export const ARTIFACTS_PROVIDER_TITLE = "成果";
 /** The identity a version imported through the 成果库 carries: what is stored on the version, whatever registers the actions. */
 export const ARTIFACT_PRODUCER = {
   plugin_id: ARTIFACTS_PLUGIN_ID,
-  plugin_version: "0.3.0",
+  plugin_version: V_IDENTITY_ARTIFACT_PRODUCER,
   binding_signature: "official-artifacts-binding",
 } as const;

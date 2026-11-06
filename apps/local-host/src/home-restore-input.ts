@@ -1,3 +1,4 @@
+import { V_FORMAT_HOME_SNAPSHOT_MANIFEST } from "./versions.generated.js";
 import { isAbsolute } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SqliteSnapshotInfo } from "@molis-ai/molis-work-storage";
@@ -121,10 +122,10 @@ function sourceEntry(value: unknown): HomeSnapshotSourceEntry {
 export function parseHomeSnapshotManifest(value: unknown, home: string): HomeSnapshotManifest {
   const item = restoreRecord(value);
   restoreFields(item, ["schema_version", "space_digest", "product_version", "created_at", "home_directory", "home_mode", "container_directories", "stores", "exclusions", "external_dependencies"], ["source_inventory"]);
-  if (item.schema_version !== 1 || item.product_version !== PRODUCT_VERSION || item.home_directory !== home) throw invalidRestore();
+  if (item.schema_version !== V_FORMAT_HOME_SNAPSHOT_MANIFEST || item.product_version !== PRODUCT_VERSION || item.home_directory !== home) throw invalidRestore();
   const created = restoreString(item.created_at);
   if (!Number.isFinite(Date.parse(created))) throw invalidRestore();
-  return { schema_version: 1, space_digest: item.space_digest === null ? null : restoreHash(item.space_digest), product_version: PRODUCT_VERSION, created_at: created, home_directory: home, home_mode: restoreMode(item.home_mode),
+  return { schema_version: V_FORMAT_HOME_SNAPSHOT_MANIFEST, space_digest: item.space_digest === null ? null : restoreHash(item.space_digest), product_version: PRODUCT_VERSION, created_at: created, home_directory: home, home_mode: restoreMode(item.home_mode),
     container_directories: array(item.container_directories, directory), stores: array(item.stores, store), exclusions: array(item.exclusions, exclusion),
     external_dependencies: array(item.external_dependencies, restoreString),
     ...(Object.hasOwn(item, "source_inventory") ? { source_inventory: array(item.source_inventory, sourceEntry) } : {}) };

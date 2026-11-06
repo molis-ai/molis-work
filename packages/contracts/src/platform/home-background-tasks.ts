@@ -6,8 +6,8 @@ import type { ActionDefinition } from "./actions.js";
  * project (S-49) and the page shows what the answers say. The page knows no plugin: where a row opens, what it reads and where its
  * commands stop all come from the row.
  */
-export const HOME_BACKGROUND_TASKS_INPUT_TYPE = "molis.home-background-tasks.query.v1";
-export const HOME_BACKGROUND_TASKS_OUTPUT_TYPE = "molis.home-background-tasks.collection.v1";
+export const HOME_BACKGROUND_TASKS_INPUT_TYPE = /* @version type.molis.home-background-tasks.query "molis.home-background-tasks.query.v{version}" */ "molis.home-background-tasks.query.v1";
+export const HOME_BACKGROUND_TASKS_OUTPUT_TYPE = /* @version type.molis.home-background-tasks.collection "molis.home-background-tasks.collection.v{version}" */ "molis.home-background-tasks.collection.v1";
 
 /** One phrase of what a row says under its title. `text` is a sentence the page may have a translation for; `{n}` in it is `count`. */
 export interface HomeBackgroundTaskPhrase { text: string; count?: number }
@@ -46,8 +46,8 @@ const HOME_BACKGROUND_TASK_SCHEMA = { type: "object", properties: {
 const HOME_BACKGROUND_TASKS_SCHEMA = { type: "object", properties: { source: { type: "object", properties: { surface: token }, required: ["surface"], additionalProperties: false },
   tasks: { type: "array", maxItems: 500, items: HOME_BACKGROUND_TASK_SCHEMA } }, required: ["source", "tasks"], additionalProperties: false };
 
-export function defineHomeBackgroundTasksAction(capabilityId: string, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: "读取本项目里还在跑、或等着你处理的后台任务，给首页标题栏的后台任务列表；只读，不会执行任务上的动作。",
+export function defineHomeBackgroundTasksAction(capabilityId: string, title: string, permissions: string[], version = /* @version factory.packages.contracts.defineHomeBackgroundTasksAction */ 1): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "读取本项目里还在跑、或等着你处理的后台任务，给首页标题栏的后台任务列表；只读，不会执行任务上的动作。",
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions, subject_kinds: [], home_aggregate: true,
     input_type: HOME_BACKGROUND_TASKS_INPUT_TYPE, output_type: HOME_BACKGROUND_TASKS_OUTPUT_TYPE,
     input_schema: HOME_BACKGROUND_TASKS_INPUT_SCHEMA, output_schema: HOME_BACKGROUND_TASKS_SCHEMA } };

@@ -1,3 +1,4 @@
+import { V_DATABASE_PROJECT_DATABASE_BASELINE } from "./versions.generated.js";
 import { PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
@@ -30,7 +31,7 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * Listener Host tables along with its out rules.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 1,
+  version: V_DATABASE_PROJECT_DATABASE_BASELINE,
   schema: ([
     STORAGE_SPACE_SCHEMA_SQL,
     PROJECT_ROOT_SCHEMA_SQL,

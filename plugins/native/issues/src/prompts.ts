@@ -35,7 +35,7 @@ const bullets = (lines: readonly string[]) => lines.map(line => "- " + line);
 
 /** Names one capture or one edit of a saved record: a title and a type, or the one question to ask instead (ISSUE-50, ISSUE-51). */
 export const ISSUES_NAME = defineInstructionPrompt({
-  owner_id: "io.molis.work.issues", prompt_id: "issues.name", version: 1, title: "给 Issue 起标题",
+  owner_id: "io.molis.work.issues", prompt_id: "issues.name", version: /* @version prompt.issues.name */ 1, title: "给 Issue 起标题",
   purpose: "按用户写下的问题描述和截图起一个标题、判一个类型；依据不足时只问一句", used_by: ["Issue 页面录入", "Issue 重新整理"],
   body: [
     "下面是用户在开发中遇到的一个问题：原话和截图由用户决定，你只起标题、判类型，不分析原因，不给解决办法。",

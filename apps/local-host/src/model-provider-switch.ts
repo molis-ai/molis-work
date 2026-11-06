@@ -11,7 +11,7 @@ import { connectionSwitchErrors, refusalCode, switchTarget } from "./connector-u
 
 export const modelProviderSwitchErrors = defineErrorCodes("model_provider", { origin_mismatch: "invalid", usage_missing: "not_found", switch_failed: "conflict" });
 
-export const modelProviderSwitch = defineConnectorUsagesSwitchAction("models.connection.switch", "换用模型配置的账号", ["connectors:management:write"], "home");
+export const modelProviderSwitch = defineConnectorUsagesSwitchAction("models.connection.switch", "换用模型配置的账号", ["connectors:management:write"], "home", /* @version action.models.connection.switch */ 1);
 
 /** A provider's address as an origin, or `null` when it cannot be read (then no key is moved to it). */
 function originOf(address: string): string | null {

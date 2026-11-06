@@ -1,3 +1,4 @@
+import { V_FORMAT_SEARCH_SCAN_CURSOR } from "../versions.generated.js";
 import { randomBytes } from "node:crypto";
 import {openLocalAead,sealLocalAead} from "./local-aead.js";
 import type { SqliteDatabase } from "../sqlite.js";
@@ -10,12 +11,12 @@ import type {
 
 import type { SecretStore } from "./file-secret-store.js";
 
-const AEAD_PREFIX = "molis-work-feed-aead-v1";
+const AEAD_PREFIX = /* @version type.molis-work-feed-aead "molis-work-feed-aead-v{version}" */ "molis-work-feed-aead-v1";
 const SQLITE_NOW_MS = "CAST(unixepoch('now', 'subsec') * 1000 AS INTEGER)";
 
 type SqliteChanges = { changes?: number | bigint };
 
-const CURSOR_PREFIX = "molis-work-feed-blob-cursor-v1";
+const CURSOR_PREFIX = /* @version type.molis-work-feed-blob-cursor "molis-work-feed-blob-cursor-v{version}" */ "molis-work-feed-blob-cursor-v1";
 const utf8Fatal = new TextDecoder("utf-8", { fatal: true });
 
 type SecretBackend = Pick<SecretStore, "get" | "createIfAbsent" | "deleteIfPresent">;
@@ -250,7 +251,7 @@ function newCasToken(): string {
 
 function encodeScanCursor(namespace: string, lastKey: string): string {
   return `${CURSOR_PREFIX}.${Buffer.from(
-    JSON.stringify({ version: 1, namespace, lastKey }),
+    JSON.stringify({ version: V_FORMAT_SEARCH_SCAN_CURSOR, namespace, lastKey }),
     "utf8",
   ).toString("base64url")}`;
 }
@@ -281,7 +282,7 @@ function decodeScanCursor(cursor: string, namespace: string): string {
 
 function isScanCursorPayload(
   value: unknown,
-): value is { version: 1; namespace: string; lastKey: string } {
+): value is { version: /* @version format.search.scan-cursor */ 1; namespace: string; lastKey: string } {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   if (Object.getPrototypeOf(value) !== Object.prototype) return false;
   if (Object.getOwnPropertySymbols(value).length !== 0) return false;
@@ -289,7 +290,7 @@ function isScanCursorPayload(
   if (keys.length !== 3) return false;
   const rec = value as Record<string, unknown>;
   return (
-    rec.version === 1
+    rec.version === V_FORMAT_SEARCH_SCAN_CURSOR
     && typeof rec.namespace === "string"
     && rec.namespace.length > 0
     && typeof rec.lastKey === "string"

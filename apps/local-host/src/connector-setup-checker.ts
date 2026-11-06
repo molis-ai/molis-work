@@ -13,7 +13,7 @@ export function connectorSetupChecker(home: string, authorize: (scope: Connector
   const params = { type: "object", properties: { authorization_id: { type: "string", minLength: 36, maxLength: 36 } }, required: ["authorization_id"], additionalProperties: false };
   const idOf = (input: unknown) => (input as { authorization_id: string }).authorization_id;
   return {
-    id: CONNECTOR_SETUP_CHECKER, version: "1", params,
+    id: CONNECTOR_SETUP_CHECKER, version: /* @version checker.molis.connector-setup "{version}" */ "1", params,
     checkParams: input => {
       if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length !== 1
         || typeof idOf(input) !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOf(input))) return "需要本会话准备接入后得到的 authorization_id";

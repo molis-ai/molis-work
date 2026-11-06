@@ -1,5 +1,6 @@
 ---
 method_id: overlay-sensitive-data-privacy
+# @version method.goals.overlay-sensitive-data-privacy
 version: 1
 kind: overlay
 name: "敏感数据与隐私"

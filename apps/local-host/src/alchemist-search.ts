@@ -1,3 +1,4 @@
+import { V_DATABASE_ALCHEMIST_SEARCH_BASELINE } from "./versions.generated.js";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
@@ -14,7 +15,7 @@ import { alchemistProjectDirectory } from "./alchemist-paths.js";
  * and never upgraded in place. A change to the opaque blob table means a new version here and a new fixture in
  * `tests/fixtures/home-store-schemas/`.
  */
-export const ALCHEMIST_SEARCH_BASELINE: SqliteBaseline = { version: 1, schema: LOCAL_OPAQUE_BLOB_SCHEMA_SQL };
+export const ALCHEMIST_SEARCH_BASELINE: SqliteBaseline = { version: V_DATABASE_ALCHEMIST_SEARCH_BASELINE, schema: LOCAL_OPAQUE_BLOB_SCHEMA_SQL };
 
 /** Own the search database and encrypted material directory independently of Studio's schema/lifecycle. */
 export function createAlchemistSearchPort(options: { homeDirectory: string; projectId: string; secretStore?: SecretStore }): {
@@ -50,7 +51,7 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
       const selectors = [{ kind: "provider" as const, value: "anysearch" }, { kind: "channel" as const, value: "web" as const },
         { kind: "source_definition" as const, namespace: "app" as const, value: "anysearch" }];
       const result = await runtime.intelligenceCollect.executeExact({
-        schema: "search-intent-v1", operationId: crypto.randomUUID(), goal: "为炼金术研究收集相关公开证据",
+        schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1", operationId: crypto.randomUUID(), goal: "为炼金术研究收集相关公开证据",
         taskProfile: input.lens === "build_cost" ? "technical_open_source_research" : "market_opportunity_research", mode: "exact",
         input: { kind: "query", query: input.query.slice(0, 2000) }, sourcePolicy: { required: selectors, allowed: selectors },
         budget: { maxProviderCalls: 1, maxFetchExtractCalls: 3, maxModelInputTokens: 0, maxModelOutputTokens: 0, maxMaterials: 5, maxBytes: 1_048_576, maxConcurrency: 1, deadlineMs: 30_000 },

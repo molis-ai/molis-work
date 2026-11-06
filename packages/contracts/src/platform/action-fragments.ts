@@ -7,8 +7,8 @@ import type { SurfacePlace } from "../services/contextual.js";
  * statically (so a judgment can only pick among declared keys) and prepares each one's complete input on request.
  * Preparing never writes; the chosen action runs only when the person clicks it.
  */
-export const FRAGMENT_OFFERS_INPUT_TYPE = "molis.fragment-offers.input.v1";
-export const FRAGMENT_OFFERS_OUTPUT_TYPE = "molis.fragment-offers.output.v1";
+export const FRAGMENT_OFFERS_INPUT_TYPE = /* @version type.molis.fragment-offers.input "molis.fragment-offers.input.v{version}" */ "molis.fragment-offers.input.v1";
+export const FRAGMENT_OFFERS_OUTPUT_TYPE = /* @version type.molis.fragment-offers.output "molis.fragment-offers.output.v{version}" */ "molis.fragment-offers.output.v1";
 
 /**
  * Declared in `subject_kinds` by a fragment offers query whose choices fit a fragment of any object (search it, note
@@ -155,8 +155,8 @@ export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
 };
 
 export function defineFragmentOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[],
-  choices: readonly FragmentOfferChoice[], scope: "project" | "home" = "project"): ActionDefinition<FragmentOffersInput, { offers: FragmentActionOffer[] }> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: "按选中的片段准备本插件真实动作的完整参数；不会执行这些动作。", kind: "query", scope, scheduling: "concurrent",
+  choices: readonly FragmentOfferChoice[], scope: "project" | "home" = "project", version = /* @version factory.packages.contracts.defineFragmentOffersAction */ 1): ActionDefinition<FragmentOffersInput, { offers: FragmentActionOffer[] }> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "按选中的片段准备本插件真实动作的完整参数；不会执行这些动作。", kind: "query", scope, scheduling: "concurrent",
     permissions, audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: kinds, fragment_offer_choices: choices,
     input_type: FRAGMENT_OFFERS_INPUT_TYPE, output_type: FRAGMENT_OFFERS_OUTPUT_TYPE, input_schema: FRAGMENT_OFFERS_INPUT_SCHEMA, output_schema: FRAGMENT_OFFERS_OUTPUT_SCHEMA } };
 }

@@ -9,10 +9,10 @@ import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, type ArtifactVersionRecord } 
  * A source that declares no content action is previewed through the plugin's subject reader (`<plugin>.subject.read`).
  * A plugin turned off leaves the directory, and its files leave the panel with it.
  */
-export const FILE_ENTRIES_INPUT_TYPE = "molis.files.entries.window.v1";
-export const FILE_ENTRIES_OUTPUT_TYPE = "molis.files.entries.page.v1";
-export const FILE_CONTENT_INPUT_TYPE = "molis.files.content.request.v1";
-export const FILE_CONTENT_OUTPUT_TYPE = "molis.files.content.v1";
+export const FILE_ENTRIES_INPUT_TYPE = /* @version type.molis.files.entries.window "molis.files.entries.window.v{version}" */ "molis.files.entries.window.v1";
+export const FILE_ENTRIES_OUTPUT_TYPE = /* @version type.molis.files.entries.page "molis.files.entries.page.v{version}" */ "molis.files.entries.page.v1";
+export const FILE_CONTENT_INPUT_TYPE = /* @version type.molis.files.content.request "molis.files.content.request.v{version}" */ "molis.files.content.request.v1";
+export const FILE_CONTENT_OUTPUT_TYPE = /* @version type.molis.files.content "molis.files.content.v{version}" */ "molis.files.content.v1";
 export const FILE_ENTRIES_PAGE_LIMIT = 500;
 /** One preview at most; larger files are shown as too large with the way to open them in their plugin. */
 export const FILE_CONTENT_MAX_BYTES = 8 * 1024 * 1024;
@@ -78,16 +78,16 @@ const metadata = (kinds: readonly FileSourceKind[], title: string, permissions: 
 
 /** One declaration per source: which kinds of files it lists and where each opens. Discovery confers no authority. */
 export function defineFileEntriesAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
-  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES): ActionDefinition<FileEntriesInput, FileEntriesPage> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "entries"),
+  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES, version = /* @version factory.packages.contracts.defineFileEntriesAction */ 1): ActionDefinition<FileEntriesInput, FileEntriesPage> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "entries"),
     description: `分页列出${title}里的文件，供侧栏的文件标签展示；不修改数据。`,
     input_type: FILE_ENTRIES_INPUT_TYPE, output_type: FILE_ENTRIES_OUTPUT_TYPE, input_schema: FILE_ENTRIES_INPUT_SCHEMA, output_schema: FILE_ENTRIES_OUTPUT_SCHEMA } };
 }
 
 /** Optional: the file itself for a preview, text or bytes, at most `FILE_CONTENT_MAX_BYTES`. */
 export function defineFileContentAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
-  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES): ActionDefinition<FileContentInput, FileContent> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "content"),
+  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES, version = /* @version factory.packages.contracts.defineFileContentAction */ 1): ActionDefinition<FileContentInput, FileContent> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "content"),
     description: `读取${title}里一个文件的内容，供侧栏预览；不修改数据。`,
     input_type: FILE_CONTENT_INPUT_TYPE, output_type: FILE_CONTENT_OUTPUT_TYPE, input_schema: FILE_CONTENT_INPUT_SCHEMA, output_schema: FILE_CONTENT_OUTPUT_SCHEMA } };
 }
@@ -139,13 +139,13 @@ export function fileContentOf(input: { subject: ActionSubject; revision: string;
  * A 成果 type's preview (specs/artifact-positioning A4): its owner turns one version into the file the 成果库 and the
  * side panel show. The Host passes the version it read; the owner only converts its own payload and reads no store.
  */
-export const ARTIFACT_PREVIEW_INPUT_TYPE = "molis.artifacts.preview.request.v1";
+export const ARTIFACT_PREVIEW_INPUT_TYPE = /* @version type.molis.artifacts.preview.request "molis.artifacts.preview.request.v{version}" */ "molis.artifacts.preview.request.v1";
 /** The same shape as a side panel file, under its own type: a preview is not a side panel file source. */
-export const ARTIFACT_PREVIEW_OUTPUT_TYPE = "molis.artifacts.preview.v1";
+export const ARTIFACT_PREVIEW_OUTPUT_TYPE = /* @version type.molis.artifacts.preview "molis.artifacts.preview.v{version}" */ "molis.artifacts.preview.v1";
 export interface ArtifactPreviewInput { artifact: ArtifactVersionRecord }
 
-export function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+export function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[], version = /* @version factory.packages.contracts.defineArtifactPreviewAction */ 1): ActionDefinition<ArtifactPreviewInput, FileContent> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `预览${typeTitle}`, description: `把一版${typeTitle}转成可读的文件，供成果库与侧栏预览、工作流从这一版起步；不修改数据。`,
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "workflow"], plugin: false,
     permissions: [...permissions], subject_kinds: ["artifact"],

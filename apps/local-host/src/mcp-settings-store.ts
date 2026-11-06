@@ -1,3 +1,4 @@
+import { V_FORMAT_MCP_TOOL_PREFERENCE } from "./versions.generated.js";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -14,7 +15,7 @@ export interface McpActionGrant {
   readonly enabled: boolean;
 }
 
-const MCP_TOOL_PREFERENCE_VERSION = 1;
+const MCP_TOOL_PREFERENCE_VERSION = V_FORMAT_MCP_TOOL_PREFERENCE;
 const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
 
 /** Which actions each MCP client may use; nothing else switches an MCP tool on or off. */

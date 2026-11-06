@@ -15,7 +15,7 @@ export const goalDocumentAction = goalAction<{ goal_id: string }, GoalEventDocum
     description: object({ title: text, outcome: text, why: text, business_logic: text, in_scope: strings, out_of_scope: strings,
       constraints: strings, required_inputs: strings, promised_outputs: strings }),
     relations: array(goalRelationSchema), planning_methods: array(planningMethodSchema),
-    transfer: object({ available: boolean, kind: enumeration(["resume_cancelled", "reopen_event_completed", null]) }), types: array(eventType) }));
+    transfer: object({ available: boolean, kind: enumeration(["resume_cancelled", "reopen_event_completed", null]) }), types: array(eventType) }), undefined, /* @version action.goals.document.read */ 1);
 
 interface GoalDocumentPorts {
   goal(goalId: string): GoalRecord;

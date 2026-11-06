@@ -1,3 +1,4 @@
+import { V_FORMAT_ARTIFACT_PORTABLE } from "./versions.generated.js";
 import type { FixedVersionRecord, RecordFixedVersionInput } from '@molis-ai/molis-work-contracts/modules/artifacts';
 import { canonicalArtifactJson } from './content.js';
 import { ArtifactsRepository, type ArtifactsSqliteDatabase, type VersionStoreTables } from './repository.js';
@@ -20,7 +21,7 @@ export function createFixedVersionReplication<R extends FixedVersionRecord>(db: 
       if (!identity) return null;
       const { project_id: _project, ...portableIdentity } = identity;
       const versions = repository.listVersions(context.projectId, artifactId).map(({ project_id: _project, ...version }) => version);
-      const result = validate({ format: 1, spaceId: context.spaceId, projectId: context.projectId, identity: portableIdentity, versions });
+      const result = validate({ format: V_FORMAT_ARTIFACT_PORTABLE, spaceId: context.spaceId, projectId: context.projectId, identity: portableIdentity, versions });
       check(); return result;
     },
     apply(input: unknown): void {

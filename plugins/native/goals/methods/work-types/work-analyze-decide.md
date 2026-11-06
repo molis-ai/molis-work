@@ -1,6 +1,7 @@
 ---
 method_id: work-analyze-decide
-version: 2
+# @version method.goals.work-analyze-decide
+version: 1
 kind: work_type
 name: "分析与决策"
 summary: "从问题、证据和备选方案走到可追溯决定。"

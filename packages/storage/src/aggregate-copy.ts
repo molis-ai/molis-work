@@ -1,3 +1,4 @@
+import { V_FORMAT_AGGREGATE_COPY } from "./versions.generated.js";
 import type {ProjectCopyAsset,ProjectCopyOwner} from '@molis-ai/molis-work-contracts/services/placement';
 import {createAggregatePortableOwner,validateAggregatePortableRow,type AggregateDefinition,type AggregateRecords,type AggregateReplicaContext,type PortableRow} from './aggregate-replica.js';
 import {readDatabaseSpace} from './space.js';
@@ -20,7 +21,7 @@ export function createAggregateCopy(db:ReplicaDatabase,definitions:readonly Aggr
   if(!Array.isArray(key)||key.length!==3||key.some(part=>typeof part!=='string'||!part||part.length>80))throw syncError('invalid','复制资产标识无效');
   const definition=definitions.find(d=>d.kind===key[1]);if(!definition?.copy)throw syncError('unsupported','此内容尚未提供复制接口');
   const value=asset.value as {format?:unknown;spaceId?:unknown;project?:{id?:unknown;title?:unknown};record?:PortableRow;children?:Record<string,PortableRow[]>};
-  if(!value||Object.keys(value).sort().join(',')!=='children,format,project,record,spaceId'||value.format!==1||value.spaceId!==context.spaceId||value.project?.id!==key[0]||typeof value.project?.title!=='string'||!value.record||value.record.id!==key[2]||value.record.project_id!==key[0]||!value.children||Object.keys(value.children).sort().join(',')!==definition.children.map(c=>c.table).sort().join(','))throw syncError('scope','复制资产与原空间、项目不匹配');
+  if(!value||Object.keys(value).sort().join(',')!=='children,format,project,record,spaceId'||value.format!==V_FORMAT_AGGREGATE_COPY||value.spaceId!==context.spaceId||value.project?.id!==key[0]||typeof value.project?.title!=='string'||!value.record||value.record.id!==key[2]||value.record.project_id!==key[0]||!value.children||Object.keys(value.children).sort().join(',')!==definition.children.map(c=>c.table).sort().join(','))throw syncError('scope','复制资产与原空间、项目不匹配');
   const record=validateAggregatePortableRow(value.record,definition.columns),children:Record<string,PortableRow[]>={};
   for(const child of definition.children){const rows=value.children[child.table];if(!Array.isArray(rows)||rows.length>10000)throw syncError('invalid','复制子记录清单无效');const seen=new Set<string>();children[child.table]=rows.map(input=>{const row=validateAggregatePortableRow(input,child.columns),ids=(child.identityColumns??['id']).map(column=>row[column]);if(row[child.parent]!==key[2]||child.columns.includes('project_id')&&row.project_id!==key[0]||ids.some(id=>typeof id!=='string'||!id||id.length>200)||seen.has(JSON.stringify(ids)))throw syncError('invalid','复制子记录归属或标识无效');seen.add(JSON.stringify(ids));return row;});}
   const records={record,children};definition.validate(records);return {definition,records,projectId:String(key[0]),id:String(key[2])};
@@ -38,7 +39,7 @@ export function createAggregateCopy(db:ReplicaDatabase,definitions:readonly Aggr
    const next=structuredClone(records),targetId=identity.id(definition.copy!.kind,id);if(typeof targetId!=='string'||!targetId||targetId.length>80||targetId===id)throw syncError('invalid','复制必须建立独立新标识');next.record.id=targetId;next.record.project_id=identity.targetProjectId;
    for(const child of definition.children)for(const row of next.children[child.table]!){row[child.parent]=targetId;if(child.columns.includes('project_id'))row.project_id=identity.targetProjectId;if((child.identityColumns??['id']).includes('id'))row.id=identity.id(definition.copy!.kind+'.'+child.table,String(row.id));}
    definition.copy!.rebase?.(next,identity);definition.validate(next);context.authorize();
-   return {key:JSON.stringify([identity.targetProjectId,definition.kind,targetId]),value:{format:1,spaceId:identity.targetSpaceId,project:{id:identity.targetProjectId,title:identity.targetTitle},...next}};
+   return {key:JSON.stringify([identity.targetProjectId,definition.kind,targetId]),value:{format:V_FORMAT_AGGREGATE_COPY,spaceId:identity.targetSpaceId,project:{id:identity.targetProjectId,title:identity.targetTitle},...next}};
   },
   apply(asset){context.authorize();replicaTransaction(db,()=>{
    context.authorize();if(context.direction!=='target'||binding.kind!=='personal')throw syncError('scope','复制只能写入当前个人空间');

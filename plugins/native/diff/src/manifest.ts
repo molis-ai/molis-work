@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_DIFF_MANIFEST_DIFFMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   CODING_CHANGESET_TYPE,
@@ -36,10 +37,10 @@ export const DIFF_GIT_GROUP = "git-change-set";
  * activation, and Diff with nothing bound is a legitimate, explainable state.
  */
 export const diffManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
+  host_api_version: V_HOST_API,
   plugin_id: DIFF_PLUGIN_ID,
-  version: "0.1.0",
+  version: V_PACKAGE_PLUGINS_NATIVE_DIFF_MANIFEST_DIFFMANIFEST,
   name: "Diff",
   summary: "比较固定版本，逐项阅读差异。",
   kind: "app",
@@ -55,7 +56,7 @@ export const diffManifest: PluginManifest = {
     consumes: [
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },
       { artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: DIFF_CHANGESET_SCHEMA_VERSION },
-      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
+      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1 },
     ],
   },
   process_items: {
@@ -63,7 +64,7 @@ export const diffManifest: PluginManifest = {
     consumes: [
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },
       { artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: DIFF_CHANGESET_SCHEMA_VERSION },
-      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
+      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1 },
     ],
   },
   ports: {
@@ -85,7 +86,7 @@ export const diffManifest: PluginManifest = {
       {
         port: DIFF_CHANGESET_INPUT_PORT,
         artifact_type_id: CODING_CHANGESET_TYPE,
-        schema_version: 1,
+        schema_version: /* @version type.coding.changeset */ 1,
         optional: true,
         default_source: { plugin_id: "io.molis.work.coding", port: "changeset" },
       },

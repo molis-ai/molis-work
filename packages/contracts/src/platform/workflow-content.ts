@@ -1,3 +1,5 @@
+import { V_TYPE_MOLIS_WORKFLOW_CONTENT_LIST_OUTPUT, V_TYPE_MOLIS_WORKFLOW_CONTENT_READ_OUTPUT, V_TYPE_MOLIS_WORKFLOW_CONTENT_RECEIVE_OUTPUT, V_TYPE_MOLIS_WORKFLOW_CONTENT_CREATE_OUTPUT } from "../versions.generated.js";
+const workflowOutputVersions = { list: V_TYPE_MOLIS_WORKFLOW_CONTENT_LIST_OUTPUT, read: V_TYPE_MOLIS_WORKFLOW_CONTENT_READ_OUTPUT, receive: V_TYPE_MOLIS_WORKFLOW_CONTENT_RECEIVE_OUTPUT, create: V_TYPE_MOLIS_WORKFLOW_CONTENT_CREATE_OUTPUT } as const;
 import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionReference, ActionSchema } from "./actions.js";
 
 /** Content handoffs are one explicit workflow protocol, not a claim that every action returns text. */
@@ -7,7 +9,7 @@ export interface WorkflowContentStation {
   readonly title: string;
   readonly icon: string;
   readonly role: WorkflowContentRole;
-  readonly protocol: 1;
+  readonly protocol: /* @version protocol.workflow-content */ 1;
   /** `false` on every role of a station that only starts a run; a station that receives says nothing. */
   readonly receives?: false;
 }
@@ -26,7 +28,7 @@ export interface WorkflowItemRef { readonly plugin: string; readonly item_id: st
 export interface WorkflowStartItem { readonly item_id: string; readonly title: string; readonly caption: string; readonly at: string | null }
 /** The version each role of the protocol is at now. A role changes shape only by raising its own number here: a station declares
  * every role at this version (the platform refuses another), so a saved reference to an older one stays pinned and reports why. */
-export const WORKFLOW_CONTENT_VERSIONS = { list: 1, read: 1, receive: 1, create: 1 } as const;
+export const WORKFLOW_CONTENT_VERSIONS = { list: /* @version protocol.workflow-content.list */ 1, read: /* @version protocol.workflow-content.read */ 1, receive: /* @version protocol.workflow-content.receive */ 1, create: /* @version protocol.workflow-content.create */ 1 } as const;
 
 export interface WorkflowReceiveInput extends WorkflowPayload {
   /** One delivery. A receiver makes one object for a request id and returns that same object when the id arrives again (a retry
@@ -67,13 +69,13 @@ const ROLE_TITLE = { list: "可交接内容", read: "读取内容", receive: "�
 const ROLE_SUMMARY = { list: "列出全部可选内容", read: "读取现有内容", receive: "写入交接内容", create: "创建空白内容" } as const;
 const isQueryRole = (role: WorkflowContentRole) => role === "read" || role === "list";
 
-/** What a role takes and returns is named by its own version; what it returns stays at `output.v1` until a role changes it. */
+/** Input types follow their role; each output format has its own independently maintained version. */
 function roleTypes(role: WorkflowContentRole) {
-  return { input_type: `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}`, output_type: `molis.workflow.content.${role}.output.v1` };
+  return { input_type: `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}`, output_type: `molis.workflow.content.${role}.output.v${workflowOutputVersions[role]}` };
 }
 
 function roleStation(station: WorkflowStationSpec & { receive?: boolean }, role: WorkflowContentRole): WorkflowContentStation {
-  return { id: station.id, title: station.title, icon: station.icon, role, protocol: 1, ...(station.receive === false ? { receives: false as const } : {}) };
+  return { id: station.id, title: station.title, icon: station.icon, role, protocol: /* @version protocol.workflow-content */ 1, ...(station.receive === false ? { receives: false as const } : {}) };
 }
 
 /** One role of one station, at the role's current version. Every station gets its roles from here, so a version moves for all of them at once. */

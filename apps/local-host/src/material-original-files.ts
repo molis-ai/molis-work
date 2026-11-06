@@ -1,3 +1,4 @@
+import { V_DATABASE_ORIGINAL_FILES_BASELINE } from "./versions.generated.js";
 import { createHash } from "node:crypto";
 import { constants, existsSync, type Stats } from "node:fs";
 import { lstat, open, realpath, stat, type FileHandle } from "node:fs/promises";
@@ -15,7 +16,7 @@ import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type
  * Reading is read-only and re-resolves the path first: a path that now leads somewhere else (a symlink put in its place, a directory
  * swapped) is refused, a directory is never listed, and nothing here writes to the file or its folder.
  */
-const ORIGINAL_FILES_BASELINE: SqliteBaseline = { version: 1, schema: `
+const ORIGINAL_FILES_BASELINE: SqliteBaseline = { version: V_DATABASE_ORIGINAL_FILES_BASELINE, schema: `
   CREATE TABLE plugin_original_files (
     plugin_id TEXT NOT NULL, install_id TEXT NOT NULL, project_id TEXT NOT NULL, record_key TEXT NOT NULL,
     real_path TEXT NOT NULL, registered_at TEXT NOT NULL,

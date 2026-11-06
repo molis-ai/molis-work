@@ -1,3 +1,4 @@
+import { V_PACKAGE_APPS_LOCAL_HOST_CONNECTOR_TOOL_INSTALL_IMPLEMENTATION } from "./versions.generated.js";
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import { installGraphConnectorTool } from "./connector-powershell.js";
 import { installNativeConnectorTool } from "./connector-native-install.js";
@@ -27,7 +28,7 @@ async function installNpm(home: string, source: Extract<ManagedToolSource, { kin
   const runtime = await ensureManagedNode(home, source.node_version, control);
   const userConfig = join(directory, "user.npmrc"), globalConfig = join(directory, "global.npmrc");
   for (const config of [userConfig, globalConfig]) writeFileSync(config, "", { mode: 0o600 });
-  writeFileSync(join(directory, "package.json"), JSON.stringify({ name: "molis-managed-tool", version: "1.0.0", private: true }), { mode: 0o600 });
+  writeFileSync(join(directory, "package.json"), JSON.stringify({ name: "molis-managed-tool", version: V_PACKAGE_APPS_LOCAL_HOST_CONNECTOR_TOOL_INSTALL_IMPLEMENTATION, private: true }), { mode: 0o600 });
   const runtimePath = [dirname(runtime.node)];
   await runToolInstallProcess(runtime.node, [runtime.npm, "install", "--save-exact", "--ignore-scripts", "--engine-strict", "--omit=dev", "--no-audit", "--no-fund",
     "--userconfig", userConfig, "--globalconfig", globalConfig, "--cache", managedToolDirectory(home, "cache", "npm"), "--registry", source.registry!, `${source.package}@${source.version}`],

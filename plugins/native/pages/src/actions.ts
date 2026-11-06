@@ -75,12 +75,12 @@ export const PAGES_SUBJECT_KIND = "pages_document";
 /** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. */
 export const PAGES_READABLE_EXTENSIONS = [".md", ".markdown", ".txt", ".html", ".htm", ".csv", ".docx", ".zip"];
 export const PAGES_READABLE_FILE = new RegExp(`(?:${PAGES_READABLE_EXTENSIONS.map(extension => extension.replace(".", "\\.")).join("|")})$`, "iu");
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"], scheduling?: ActionDefinition["action"]["scheduling"]): ActionDefinition<I, O> {
+function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"], scheduling?: ActionDefinition["action"]["scheduling"], version = /* @version factory.plugins.native.pages.define */ 1): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(`pages.${name}`, operation, { title, description, ...(execution ? { execution } : {}),
     audiences: ["user", "workflow", "agent", "mcp"],
     permissions, subject_kinds: [PAGES_SUBJECT_KIND], input_schema: input, output_schema: output,
     ...(operation === "command" && (output as { properties?: Record<string, unknown> }).properties?.document ? { result_subject: { id: "document.id", revision: "document.version" } } : {}),
-    ...(scheduling ? { scheduling } : {}) });
+    ...(scheduling ? { scheduling } : {}) }, version);
 }
 const withAction = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<ActionDefinition["action"]>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, ...extra } });
 const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => withAction(definition, { effect: "read" });
@@ -91,76 +91,76 @@ const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I,
  */
 const PAGES_INTAKE = { intake_id: PAGES_DOCUMENT_INTAKE, item_kind: PAGES_SUBJECT_KIND, title: "文档", verb: "存为文档", material_field: "markdown",
   describe: "能独立成篇、以后还要改的内容：一段完整的说明、方案或纪要；一句话的事、要跟进的事、一闪而过的想法不放这里",
-  examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: 1 } } as const;
+  examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: /* @version action.pages.intake.offers */ 1 } } as const;
 export const pagesActions = {
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
-  subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read),
+  subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read, undefined, /* @version action.pages.subject.read */ 1),
   /** What can be done with part of a document; preparing reads and writes nothing (specs/archive/contextual-interaction §5.1). */
-  fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES),
+  fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES, undefined, /* @version action.pages.fragment.offers */ 1),
   /** The input of 「存为文档」 for a passage from anywhere; no choices of its own, so it is only the `prepare` of `create`. */
-  intakeOffers: defineFragmentOffersAction("pages.intake.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以存为文档", read, []),
+  intakeOffers: defineFragmentOffersAction("pages.intake.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以存为文档", read, [], undefined, /* @version action.pages.intake.offers */ 1),
   /** System search: every document of the project by version; its text is read back through `subject`. */
-  searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
+  searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read, undefined, undefined, /* @version action.pages.search.entries */ 1),
   /** The side panel's file tab (specs/archive/side-panel): documents by folder; the preview reads the same `subject` text. */
-  fileEntries: defineFileEntriesAction("pages.files.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
+  fileEntries: defineFileEntriesAction("pages.files.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read, undefined, undefined, /* @version action.pages.files.entries */ 1),
   /** The document as Markdown, the same conversion Pages uses when it hands a page to another plugin. */
-  fileContent: defineFileContentAction("pages.files.content", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
+  fileContent: defineFileContentAction("pages.files.content", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read, undefined, undefined, /* @version action.pages.files.content */ 1),
   /** A pinned version of a document as Markdown (artifact-positioning A4), for the 成果库 and the side panel. */
-  artifactPreview: defineArtifactPreviewAction("pages.artifacts.preview", "文档", read),
+  artifactPreview: defineArtifactPreviewAction("pages.artifacts.preview", "文档", read, /* @version action.pages.artifacts.preview */ 1),
   /** Pins a document's current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: defineArtifactPinAction("pages.artifacts.pin", PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"]),
+  artifactPin: defineArtifactPinAction("pages.artifacts.pin", PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"], /* @version action.pages.artifacts.pin */ 1),
   /** Whether a pinned version still matches the pages object it came from (A4b, 「原文已改」); compares content, not revisions. */
-  artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", "文档", [...read]),
+  artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", "文档", [...read], /* @version action.pages.artifacts.compare */ 1),
   /** 「从这一版继续」 (A4b): a new document from a version of a document, or from an imported text file Pages can read. */
   // Continuing from an imported file parses it, which is a material read inside the action itself.
-  artifactContinue: withAction(defineArtifactContinueAction("pages.artifacts.continue", "文档", [...read, ...write, MATERIALS_READ]), { scheduling: "concurrent" }),
+  artifactContinue: withAction(defineArtifactContinueAction("pages.artifacts.continue", "文档", [...read, ...write, MATERIALS_READ], /* @version action.pages.artifacts.continue */ 1), { scheduling: "concurrent" }),
   /** 「被谁引用」 (artifact-positioning 五.1): documents whose text links to a version in the 成果库. */
-  artifactReferrers: defineArtifactReferrersAction("pages.artifacts.referrers", "文档", read),
+  artifactReferrers: defineArtifactReferrersAction("pages.artifacts.referrers", "文档", read, /* @version action.pages.artifacts.referrers */ 1),
   /** Where a document lives (specs/archive/work-placement): moving keeps its id; copying makes an independent document. */
-  move: defineObjectMoveAction("pages.placement.move", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
-  copy: defineObjectCopyAction("pages.placement.copy", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
-  list: define<Record<string, never>, { documents: PagesRecord[]; folders: PagesFolder[] }>("list", "文档列表", "读取当前项目全部文档和文件夹", "query", object({}), object({ documents: array(page), folders: array(folder) }), read),
-  templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read),
-  get: define<{ id: string }, { document: PagesRecord }>("get", "读取文档", "读取当前项目里的一篇文档（标题、正文、所在文件夹和版本号）；只读。之后修改它时要带这里的 version", "query", object({ id }), object({ document: page }), read),
+  move: defineObjectMoveAction("pages.placement.move", [PAGES_SUBJECT_KIND], "文档", [...read, ...write], undefined, /* @version action.pages.placement.move */ 1),
+  copy: defineObjectCopyAction("pages.placement.copy", [PAGES_SUBJECT_KIND], "文档", [...read, ...write], /* @version action.pages.placement.copy */ 1),
+  list: define<Record<string, never>, { documents: PagesRecord[]; folders: PagesFolder[] }>("list", "文档列表", "读取当前项目全部文档和文件夹", "query", object({}), object({ documents: array(page), folders: array(folder) }), read, undefined, undefined, /* @version action.pages.list */ 1),
+  templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read, undefined, undefined, /* @version action.pages.templates */ 1),
+  get: define<{ id: string }, { document: PagesRecord }>("get", "读取文档", "读取当前项目里的一篇文档（标题、正文、所在文件夹和版本号）；只读。之后修改它时要带这里的 version", "query", object({ id }), object({ document: page }), read, undefined, undefined, /* @version action.pages.get */ 1),
   // A new document can be taken back while no one has changed it, so the Assistant may create one when asked without a confirmation.
   // Only the call that made it can take it back: a retry under the same request id returns the document as it is now (maybe edited
   // since) and carries no `created_version`, so the undo, which reads it, is not offered there.
   create: { ...withAction(define<WrittenFields & { template_id?: string; request_id?: string }, CreatedPagesDocument>("create", "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换；带同一 request_id 重试同样的内容时返回第一次创建的那篇（这时没有 created_version，也就没有可撤销的新建），同一 request_id 换了内容会被拒绝", "command",
-    object({ ...writeFields, template_id: text, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ document: page, created_version: version }, ["document"]), write),
-    { intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "created_version" } } }), version: 1 },
+    object({ ...writeFields, template_id: text, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ document: page, created_version: version }, ["document"]), write, undefined, undefined, /* @version action.pages.create */ 1),
+    { intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: /* @version action.pages.discard */ 1, input: { id: "document.id", expected_version: "created_version" } } }), version: 1 },
   // Taking a document back removes it for good (only while unchanged): an agent calling it directly is asked every time.
-  discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write),
+  discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write, undefined, undefined, /* @version action.pages.discard */ 1),
     { effect: "irreversible" }),
   // An edit by an agent or a workflow keeps what it replaced (change_id), so the person can take it back while nothing changed since.
-  update: withAction(define<WrittenFields & { id: string; expected_version?: number }, { document: PagesRecord; change_id?: string | null }>("update", "修改文档", "修改文档；提供读取时的 version，避免覆盖其他编辑；正文可用 markdown 给出，由 Pages 转换", "command", object({ id, ...writeFields, expected_version: version }, ["id"]), { type: "object", properties: { document: page, change_id: { type: ["string", "null"] } }, required: ["document"], additionalProperties: false }, write),
-    { undo: { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } } }),
-  revert: define<{ change_id: string }, { document: PagesRecord }>("revert", "撤销对文档的修改", "把一次由助理或流程做的修改撤回到修改前；之后又被改过就不撤并说明", "command", object({ change_id: id }), object({ document: page }), write),
-  delete: define<{ id: string }, { ok: true }>("delete", "删除文档", "永久删除当前项目的一篇文档，不能撤销；已存为固定版本的成果不会随之删除", "command", object({ id }), object({ ok: { const: true } }), write),
-  createFolder: define<{ title?: string }, { folder: PagesFolder }>("folders.create", "新建文件夹", "在当前项目创建一个文档文件夹（可带名称）并返回它；文件夹只用来整理文档，不改动任何文档内容", "command", object({ title: { type: "string", maxLength: 40 } }, []), object({ folder }), write),
-  updateFolder: define<{ id: string; title?: string }, { folder: PagesFolder }>("folders.update", "修改文件夹", "修改当前项目里一个文档文件夹的名称；只改名称，不移动或改动里面的文档", "command", object({ id, title: { type: "string", maxLength: 40 } }, ["id"]), object({ folder }), write),
-  deleteFolder: define<{ id: string }, { ok: true }>("folders.delete", "删除文件夹", "删除文件夹并将文档移回根目录，保留文档", "command", object({ id }), object({ ok: { const: true } }), write),
-  previewImport: define<{ files: PagesImportFile[] }, PreparedPagesImport>("import.preview", "预览导入", "解析上传的文档，不写入文档库", "query", object({ files }), prepared, [...read, MATERIALS_READ], undefined, "concurrent"),
+  update: withAction(define<WrittenFields & { id: string; expected_version?: number }, { document: PagesRecord; change_id?: string | null }>("update", "修改文档", "修改文档；提供读取时的 version，避免覆盖其他编辑；正文可用 markdown 给出，由 Pages 转换", "command", object({ id, ...writeFields, expected_version: version }, ["id"]), { type: "object", properties: { document: page, change_id: { type: ["string", "null"] } }, required: ["document"], additionalProperties: false }, write, undefined, undefined, /* @version action.pages.update */ 1),
+    { undo: { capability_id: "pages.revert", version: /* @version action.pages.revert */ 1, input: { change_id: "change_id" } } }),
+  revert: define<{ change_id: string }, { document: PagesRecord }>("revert", "撤销对文档的修改", "把一次由助理或流程做的修改撤回到修改前；之后又被改过就不撤并说明", "command", object({ change_id: id }), object({ document: page }), write, undefined, undefined, /* @version action.pages.revert */ 1),
+  delete: define<{ id: string }, { ok: true }>("delete", "删除文档", "永久删除当前项目的一篇文档，不能撤销；已存为固定版本的成果不会随之删除", "command", object({ id }), object({ ok: { const: true } }), write, undefined, undefined, /* @version action.pages.delete */ 1),
+  createFolder: define<{ title?: string }, { folder: PagesFolder }>("folders.create", "新建文件夹", "在当前项目创建一个文档文件夹（可带名称）并返回它；文件夹只用来整理文档，不改动任何文档内容", "command", object({ title: { type: "string", maxLength: 40 } }, []), object({ folder }), write, undefined, undefined, /* @version action.pages.folders.create */ 1),
+  updateFolder: define<{ id: string; title?: string }, { folder: PagesFolder }>("folders.update", "修改文件夹", "修改当前项目里一个文档文件夹的名称；只改名称，不移动或改动里面的文档", "command", object({ id, title: { type: "string", maxLength: 40 } }, ["id"]), object({ folder }), write, undefined, undefined, /* @version action.pages.folders.update */ 1),
+  deleteFolder: define<{ id: string }, { ok: true }>("folders.delete", "删除文件夹", "删除文件夹并将文档移回根目录，保留文档", "command", object({ id }), object({ ok: { const: true } }), write, undefined, undefined, /* @version action.pages.folders.delete */ 1),
+  previewImport: define<{ files: PagesImportFile[] }, PreparedPagesImport>("import.preview", "预览导入", "解析上传的文档，不写入文档库", "query", object({ files }), prepared, [...read, MATERIALS_READ], undefined, "concurrent", /* @version action.pages.import.preview */ 1),
   import: define<{ files: PagesImportFile[]; selected_keys: string[]; request_id: string; folder_id?: string }, { documents: PagesRecord[]; warnings: string[] }>("import", "导入文档", "提交预览选中的文档；同一请求标识可重试，保留已经导入后的编辑", "command",
-    object({ files, selected_keys: { ...array(id), minItems: 1, maxItems: 100, uniqueItems: true }, request_id: { type: "string", pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }, folder_id: text }, ["files", "selected_keys", "request_id"]), object({ documents: array(page), warnings: array(text) }), [...write, MATERIALS_READ], undefined, "concurrent"),
+    object({ files, selected_keys: { ...array(id), minItems: 1, maxItems: 100, uniqueItems: true }, request_id: { type: "string", pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }, folder_id: text }, ["files", "selected_keys", "request_id"]), object({ documents: array(page), warnings: array(text) }), [...write, MATERIALS_READ], undefined, "concurrent", /* @version action.pages.import */ 1),
   importDocuments: define<{ request_id: string; request_hash: string; documents: { title: string; body: PagesBody }[]; folder_id?: string }, { documents: PagesRecord[] }>("documents.import", "保存材料文档", "批量保存已解析的文档；调用方提供已确认意图的稳定请求标识与摘要，重试返回原文档且不覆盖后续编辑", "command",
-    object({ ...requestIdentity, documents: { ...array(object({ title: fields.title, body })), minItems: 1, maxItems: 1000 }, folder_id: text }, ["request_id", "request_hash", "documents"]), object({ documents: array(page) }), write),
+    object({ ...requestIdentity, documents: { ...array(object({ title: fields.title, body })), minItems: 1, maxItems: 1000 }, folder_id: text }, ["request_id", "request_hash", "documents"]), object({ documents: array(page) }), write, undefined, undefined, /* @version action.pages.documents.import */ 1),
   /**
    * Markdown as a Pages body, and nothing else: no document is read or written. The person's first-run flow converts the text it
    * adopts with it, so it needs none of Pages' internals; it is offered to the person only (not to workflows, agents or MCP). The
    * result never passes one document's limit: a text that converts to more gets `pages.body_too_large`, not a cut or a huge body.
    */
   bodyFromMarkdown: withAction(define<{ markdown: string }, { body: PagesBody }>("documents.body_from_markdown", "Markdown 转文档正文", "把 Markdown 转成 Pages 的文档正文；只转换，不读取也不写入任何文档。转换结果超过一篇文档能存的大小时返回 pages.body_too_large", "query",
-    object({ markdown: { type: "string", minLength: 1, maxLength: 1_000_000 } }), object({ body }), read), { audiences: ["user"], subject_kinds: [] }),
-  generations: define<Record<string, never>, { records: PagesGenerationRecord[] }>("generations.list", "文稿生成记录", "查看当前项目生成任务的输入快照、状态和文档引用", "query", object({}), object({ records: array(generation) }), read),
-  generation: define<{ request_id: string }, { record: PagesGenerationRecord | null }>("generations.get", "读取文稿生成任务", "读取一个稳定请求对应的生成记录；不存在时返回空", "query", object({ request_id: requestIdentity.request_id }), object({ record: { anyOf: [generation, { type: "null" }] } }), read),
+    object({ markdown: { type: "string", minLength: 1, maxLength: 1_000_000 } }), object({ body }), read, undefined, undefined, /* @version action.pages.documents.body_from_markdown */ 1), { audiences: ["user"], subject_kinds: [] }),
+  generations: define<Record<string, never>, { records: PagesGenerationRecord[] }>("generations.list", "文稿生成记录", "查看当前项目生成任务的输入快照、状态和文档引用", "query", object({}), object({ records: array(generation) }), read, undefined, undefined, /* @version action.pages.generations.list */ 1),
+  generation: define<{ request_id: string }, { record: PagesGenerationRecord | null }>("generations.get", "读取文稿生成任务", "读取一个稳定请求对应的生成记录；不存在时返回空", "query", object({ request_id: requestIdentity.request_id }), object({ record: { anyOf: [generation, { type: "null" }] } }), read, undefined, undefined, /* @version action.pages.generations.get */ 1),
   generate: define<{ request_id: string; request_hash: string; inputs: PagesInputSnapshot[]; title: string; instructions: string }, { document: PagesRecord; replayed: boolean }>("generate", "材料生成文稿", "按调用方提供的材料快照生成文稿并保存；同一请求重试使用原快照，保留已生成后的手工编辑", "command",
-    object({ ...requestIdentity, inputs: { ...array(snapshot), minItems: 1, maxItems: 20 }, title: { ...fields.title, minLength: 1, pattern: "\\S" }, instructions: { type: "string", minLength: 1, maxLength: 4000, pattern: "\\S" } }), object({ document: page, replayed: { type: "boolean" } }), [...read, ...write, "model:invoke"], { cost: "metered" }, "concurrent"),
+    object({ ...requestIdentity, inputs: { ...array(snapshot), minItems: 1, maxItems: 20 }, title: { ...fields.title, minLength: 1, pattern: "\\S" }, instructions: { type: "string", minLength: 1, maxLength: 4000, pattern: "\\S" } }), object({ document: page, replayed: { type: "boolean" } }), [...read, ...write, "model:invoke"], { cost: "metered" }, "concurrent", /* @version action.pages.generate */ 1),
   // Only proposes text: nothing in the document changes until the person applies it through `update`.
   ai: readOnly(define<PagesAiRequest & { id: string; expected_version?: number }, PagesAiResult>("ai", "文档写作助手", "使用文字模型生成候选正文；用户确认或后续动作负责写入，缺少模型时拒绝执行", "command",
     object({ id, command: { enum: PAGES_AI_COMMANDS.map(command => command.id) }, text: { type: "string", minLength: 1, maxLength: 180000, pattern: "\\S" }, style: { enum: ["concise", "expand", "formal", "casual"] }, expected_version: version }, ["id", "command", "text"]),
-    object({ text, command: text, style: text }, ["text", "command"]), [...read, "model:invoke"], { cost: "metered" }, "concurrent")),
-  promote: define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布文档成果", "将文档保存为成果；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"]),
-  extract: define<{ id: string }, { document: PagesRecord; cards: number; created: PagesRecord[] }>("extract", "提取任务与知识", "从文档提取任务卡和知识页，一次事务保存全部结果", "command", object({ id }), object({ document: page, cards: { type: "integer", minimum: 0 }, created: array(page) }), [...read, ...write]),
+    object({ text, command: text, style: text }, ["text", "command"]), [...read, "model:invoke"], { cost: "metered" }, "concurrent", /* @version action.pages.ai */ 1)),
+  promote: define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布文档成果", "将文档保存为成果；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"], undefined, undefined, /* @version action.pages.promote */ 1),
+  extract: define<{ id: string }, { document: PagesRecord; cards: number; created: PagesRecord[] }>("extract", "提取任务与知识", "从文档提取任务卡和知识页，一次事务保存全部结果", "command", object({ id }), object({ document: page, cards: { type: "integer", minimum: 0 }, created: array(page) }), [...read, ...write], undefined, undefined, /* @version action.pages.extract */ 1),
 };
 /** The body of a Markdown text: Pages' own reader, else one paragraph; never one a document could not hold. */
 function bodyFromMarkdown(markdown: string): PagesBody {

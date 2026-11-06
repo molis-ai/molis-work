@@ -3,7 +3,7 @@ import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis
 const OWNER = "io.molis.work.coding";
 
 export const CODING_COMMIT_DRAFT = defineInstructionPrompt({
-  owner_id: OWNER, prompt_id: "coding.commit-draft", version: 1, title: "提交说明",
+  owner_id: OWNER, prompt_id: "coding.commit-draft", version: /* @version prompt.coding.commit-draft */ 1, title: "提交说明",
   purpose: "从已落盘改动起草供用户审阅和编辑的 Git 提交说明", used_by: ["Coding 提交说明"],
   body: [
     "你为一组代码改动写 git 提交说明。",
@@ -15,7 +15,7 @@ export const CODING_COMMIT_DRAFT = defineInstructionPrompt({
 });
 
 export const CODING_HISTORY_SUMMARY = defineInstructionPrompt({
-  owner_id: OWNER, prompt_id: "coding.history-summary", version: 1, title: "接续摘要",
+  owner_id: OWNER, prompt_id: "coding.history-summary", version: /* @version prompt.coding.history-summary */ 1, title: "接续摘要",
   purpose: "根据已有轮次记录整理供下一轮使用的摘要", used_by: ["Coding 接续摘要"],
   body: [
     "你为一个编码会话写「接续摘要」：下一轮的模型只看得到这份摘要和当前工作区，看不到前面的对话。",

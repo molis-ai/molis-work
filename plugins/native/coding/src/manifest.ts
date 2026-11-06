@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_CODING_MANIFEST_CODINGMANIFEST } from "./versions.generated.js";
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -20,7 +21,7 @@ import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from ".
 import { CODING_ACTIONS } from "./route-actions.js";
 import { codingExecutorActions } from "./executor-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
-import { CODING_PLAN_SCHEMA_VERSION } from "./plans.js";
+import { CODING_ARTIFACT_SCHEMA_VERSIONS } from "./artifacts.js";
 import { codingSync } from './session-replication.js';
 import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "./contract.js";
@@ -47,10 +48,10 @@ export const CODING_PROJECT_PLUGIN_ID = "coding";
  * Their absence never blocks an ordinary task.
  */
 export const codingManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
+  host_api_version: V_HOST_API,
   plugin_id: CODING_PLUGIN_ID,
-  version: "0.1.0",
+  version: V_PACKAGE_PLUGINS_NATIVE_CODING_MANIFEST_CODINGMANIFEST,
   name: "Coding",
   sync: codingSync,
   summary: "和 Agent 一起写代码，留每轮记录。",
@@ -106,30 +107,30 @@ export const codingManifest: PluginManifest = {
   },
   // The run report is the version people keep; plans, goal context, change sets and diagrams are exchange data.
   artifacts: {
-    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: 1, title: "Coding 执行报告", preview: { capability_id: "coding.artifacts.preview", version: 1 } }],
-    consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
+    consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CHARACTER_ARTIFACT_TYPE ? /* @version type.character.definition */ 1 : CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
   process_items: {
-    produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CODING_PLAN_TYPE ? CODING_PLAN_SCHEMA_VERSION : 1 })),
-    consumes: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CODING_PLAN_TYPE ? CODING_PLAN_SCHEMA_VERSION : 1 })),
+    produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
+    consumes: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
   ports: {
     // What a round takes from elsewhere is picked from project knowledge (specs/project-knowledge §9), not wired in by port.
     inputs: [],
     outputs: [
-      { port: "changeset", artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
-      { port: "report", artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
-      { port: "diagram", artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
+      { port: "changeset", artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1 },
+      { port: "report", artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1 },
+      { port: "diagram", artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: /* @version type.coding.diagram */ 1 },
     ],
   },
   events: {
     // What Coding tells the project: a file under the workspace changed, and a
     // prepared change set no longer matches what is on disk.
     publishes: [
-      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1 },
-      { event_type_id: CODING_FILE_CHANGED_EVENT, type_version: 1 },
-      { event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT, type_version: 1 },
-      { event_type_id: CODING_PREFERENCE_EVENT, type_version: 1 },
+      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: /* @version event.io.molis.work.coding.run-updated */ 1 },
+      { event_type_id: CODING_FILE_CHANGED_EVENT, type_version: /* @version event.io.molis.work.coding.file-changed */ 1 },
+      { event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT, type_version: /* @version event.io.molis.work.coding.workspace-invalidated */ 1 },
+      { event_type_id: CODING_PREFERENCE_EVENT, type_version: /* @version event.io.molis.work.coding.preference */ 1 },
     ],
     subscribes: [],
   },

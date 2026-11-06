@@ -1,6 +1,7 @@
 ---
 method_id: domain-market-analysis
-version: 2
+# @version method.goals.domain-market-analysis
+version: 1
 kind: domain
 name: "市场分析"
 summary: "形成市场格局、差异、选项和待验证假设，而不是堆资料。"

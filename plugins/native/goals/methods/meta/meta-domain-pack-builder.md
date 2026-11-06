@@ -1,6 +1,7 @@
 ---
 method_id: meta-domain-pack-builder
-version: 2
+# @version method.goals.meta-domain-pack-builder
+version: 1
 kind: meta
 name: "陌生领域方法包生成"
 summary: "先弄清领域中的对象、生命周期、产物、证据和专业依赖，再拆实际 Goal。"

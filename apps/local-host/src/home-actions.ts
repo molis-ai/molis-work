@@ -31,12 +31,12 @@ const judgmentProperties = { judgment_id: text, function_key: text, function_ver
 const resultSchema = { type: "object", properties: { judgments: { type: "array", items: { type: "object", properties: judgmentProperties, required: Object.keys(judgmentProperties) } } }, required: ["judgments"] };
 
 export const homeDockScene: ActionSceneDefinition = {
-  scene_id: HOME_DOCK_SCENE_ID, version: 1, title: "首页下一步",
+  scene_id: HOME_DOCK_SCENE_ID, version: /* @version scene.home.dock */ 1, title: "首页下一步",
   description: "根据首页事项内容推荐下一步，保留判断记录，由用户选择执行。",
   trigger: "插件事项到达或用户重新判断；按所选规则声明的对象类型适用", scope: "project", subject_kinds: [],
   permissions: ["home:read", "model:invoke"], configuration_permissions: ["home:write"], event_schema: subjectSchema,
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
-  result_type: "molis.behavior-recommendation.v1", recommendation_source: "subject-offers",
+  result_type: /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1", recommendation_source: "subject-offers",
   default_rule: { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, name: "首页事项处理建议", instructions: "根据事项原文，在当前可用动作中推荐完成或忽略，由用户决定是否执行。",
     subject_kinds: ["inbox_entry"], options: [{ key: INBOX_DONE_OPTION_ID, description: "做完了" }, { key: INBOX_DISMISS_OPTION_ID, description: "忽略" }] },
   // The shared scene service checks the rule's complete finite set against the
@@ -44,25 +44,25 @@ export const homeDockScene: ActionSceneDefinition = {
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },
     suggested_behavior_ids: { type: "array", items: {} } }, required: ["status", "suggested_behavior_ids"] },
 };
-const define = <I, O>(id: string, title: string, description: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> => createActionDefinition<I, O>(id, operation, {
+const define = <I, O>(id: string, title: string, description: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }, execution?: ActionDefinition["action"]["execution"], version = /* @version factory.apps.local-host.define */ 1): ActionDefinition<I, O> => createActionDefinition<I, O>(id, operation, {
   title, description, ...(execution ? { execution } : {}), audiences: ["user", "agent", "workflow", "mcp"], permissions,
   ...(requiredScene ? { required_scene: requiredScene } : {}), subject_kinds: [], input_schema: input, output_schema: output,
   ...(id === "home.judgment.evaluate" ? { scheduling: "concurrent" as const } : {}),
-});
+}, version);
 export const homeActions = {
   ...homeEventActions,
   ...homeOfferActions,
   readJudgment: define<Record<string, never>, HomeJudgmentState>("home.judgment.read", "首页判断规则", "读取这个项目首页判断现在用的判断规则、可以选用的已发布规则、可交给判断的能力和当前绑定；只读，不调用模型。", "query", empty, {
     type: "object", properties: { function_key: { type: ["string", "null"] }, functions: { type: "array", items: { type: "object", properties: { function_key: text, name: text }, required: ["function_key", "name"] } },
       capabilities: { type: "array", items: { type: "object" } }, binding: { type: ["object", "null"] } }, required: ["function_key", "functions", "capabilities", "binding"],
-  }, ["home:read"]),
+  }, ["home:read"], undefined, undefined, /* @version action.home.judgment.read */ 1),
   writeJudgment: define<{ function_key: string | null }, { function_key: string | null }>("home.judgment.write", "设置首页判断", "为这个项目的首页选定一条已发布的判断规则；function_key 为空则停用首页判断。只改绑定，不会立刻重新判断事项。", "command", {
     type: "object", properties: { function_key: { type: ["string", "null"] } }, required: ["function_key"], additionalProperties: false,
-  }, { type: "object", properties: { function_key: { type: ["string", "null"] } }, required: ["function_key"] }, ["home:write"]),
+  }, { type: "object", properties: { function_key: { type: ["string", "null"] } }, required: ["function_key"] }, ["home:write"], undefined, undefined, /* @version action.home.judgment.write */ 1),
   evaluate: define<{ subjects: HomeSubject[] }, HomeRecommendations>("home.judgment.evaluate", "重新判断首页事项", "对给定的 1 至 20 件首页事项逐件运行已启用的首页判断规则，记录并返回新的判断结果；会调用模型并可能产生费用，没有启用判断规则时不可用。", "command", {
     type: "object", properties: { subjects: { type: "array", minItems: 1, maxItems: 20, items: subjectSchema } }, required: ["subjects"], additionalProperties: false,
-  }, resultSchema, [...homeDockScene.permissions], homeDockScene, { cost: "metered" }),
-  recommendations: define<Record<string, never>, HomeRecommendations>("home.recommendations.read", "当前首页建议", "读取首页事项现有的判断结果（建议与可用动作），只含调用者有权读取的事项；没有启用判断规则时返回空。只读，不调用模型、不重新判断。", "query", empty, resultSchema, ["home:read"]),
+  }, resultSchema, [...homeDockScene.permissions], homeDockScene, { cost: "metered" }, /* @version action.home.judgment.evaluate */ 1),
+  recommendations: define<Record<string, never>, HomeRecommendations>("home.recommendations.read", "当前首页建议", "读取首页事项现有的判断结果（建议与可用动作），只含调用者有权读取的事项；没有启用判断规则时返回空。只读，不调用模型、不重新判断。", "query", empty, resultSchema, ["home:read"], undefined, undefined, /* @version action.home.recommendations.read */ 1),
 };
 export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "feed:read", "inbox:read", "model:invoke", "functions:invoke"] as const;
 export const homeDockBindingId = (project: string) => `${HOME_DOCK_SCENE_ID}:${project}`;
@@ -153,7 +153,7 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
     return judgment;
   };
   const handler: ActionSceneHandlerBinding = {
-    scene_id: HOME_DOCK_SCENE_ID, version: 1, bindings: () => { const value = binding(); return value ? [value] : []; },
+    scene_id: HOME_DOCK_SCENE_ID, version: /* @version scene.home.dock */ 1, bindings: () => { const value = binding(); return value ? [value] : []; },
     targets: () => { const value = binding(); return [{ binding_id: homeDockBindingId(projectId), title: "首页下一步",
       href: `/projects/${encodeURIComponent(projectId)}/`, revision: value?.revision ?? null }]; },
     bind: (caller, value, options) => {

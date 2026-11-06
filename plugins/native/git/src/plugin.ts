@@ -56,7 +56,7 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
             const { workspace_id, operation_id, outcome } = event.payload as HostReviewSettledPayload;
             // Files reads again on Git's own event, as before; publication checks this activation first.
             const update: GitOperationUpdate = { workspace_id, operation_id, outcome };
-            context.services?.events?.publish({ event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1, payload: update });
+            context.services?.events?.publish({ event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: /* @version event.io.molis.work.git.operation-updated */ 1, payload: update });
           }
           readAgain();
         },

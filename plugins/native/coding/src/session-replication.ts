@@ -1,3 +1,4 @@
+import { V_SYNC_COLLECTION_CODING_SESSIONS, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { syncSection, syncSectionsDeclaration } from "@molis-ai/molis-work-plugin-sdk";
 import type { SyncSectionsDefinition, SyncTrackedTable } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -86,4 +87,4 @@ export const codingTracking:readonly SyncTrackedTable[] = ['coding_sessions','co
  table,key:[{column:'project_id'},{literal:CODING_CONTENT_REPLICA_ID},{column:'project_id'}],
  ...(table==='coding_sessions'?{updateAny:[{changed:['title','archived','goal_id']},{changed:['state'],where:[{column:'state',op:'in' as const,values:['done','failed','stopped','cancelled']},{column:'runtime_session_id',op:'not-null' as const}]}]}:{}),
 }));
-export const codingSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'sessions',title:'编码会话与草稿',schema_version: 1,requires:[],tracking:codingTracking,sections:syncSectionsDeclaration(codingSections()),database:'project'}]};
+export const codingSync:PluginSyncDeclaration={protocol_version:V_SYNC_PROTOCOL,collections:[{id:'sessions',title:'编码会话与草稿',schema_version: V_SYNC_COLLECTION_CODING_SESSIONS,requires:[],tracking:codingTracking,sections:syncSectionsDeclaration(codingSections()),database:'project'}]};

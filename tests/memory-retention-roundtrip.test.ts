@@ -113,7 +113,7 @@ test("v2 export and import retain classification, namespace, repeated basis and 
     meta: { kind: "convention", source: "manual", basis: "repeated", approved_by: { by: "person" }, namespace: "example.plugin",
       classification: { scenes: ["assistant"], lifecycle: "short-term" }, expires_at_ms: expires } });
   const pack = await f.service.exportScope(caller("export"), "personal");
-  assert.equal(pack.version, 2);
+  assert.equal(pack.version, 1);
   assert.equal(pack.entries[0]!.basis, "repeated");
   assert.deepEqual(pack.entries[0]!.classification, { scenes: ["assistant"], lifecycle: "short-term" });
   assert.equal(pack.entries[0]!.namespace, "example.plugin");

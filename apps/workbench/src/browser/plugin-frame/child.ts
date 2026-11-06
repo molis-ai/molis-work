@@ -97,7 +97,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     hideDirectory: () => intent("hideDirectory", []), showToast: (...args: unknown[]) => intent("showToast", args), page: () => config.page,
     status: (status: unknown) => intent("status", [status]), interaction: (element: HTMLElement, options: { onSubmit?: () => void }) => ui.interaction(element, {
       references: (source: string, query: string) => call<SearchReferencesResponse>(route("/api/host/plugin-page-actions"), {
-        body: { reference: { capability_id: "search.references", version: 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
+        body: { reference: { capability_id: "search.references", version: /* @version action.search.references */ 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
       }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })),
       ...options,
     }), receipts: ui.receipts,

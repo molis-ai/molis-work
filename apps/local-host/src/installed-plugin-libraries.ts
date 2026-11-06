@@ -1,3 +1,4 @@
+import { V_DATABASE_LEDGER_BASELINE } from "./versions.generated.js";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -27,7 +28,7 @@ export const installedLibraryErrors = defineErrorCodes("plugin.home_database", {
 export const INSTALLED_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
 
 const LEDGER_BASELINE: SqliteBaseline = {
-  version: 1,
+  version: V_DATABASE_LEDGER_BASELINE,
   schema: `
     CREATE TABLE IF NOT EXISTS plugin_home_libraries (
       plugin_id TEXT PRIMARY KEY,

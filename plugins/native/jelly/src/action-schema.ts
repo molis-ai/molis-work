@@ -44,7 +44,7 @@ export const plan = object({ id, title: text, source_type: { enum: ["note", "tex
 // Native Swift backups and Work exports have different versioned contracts. The import owner
 // decodes and validates the complete source; consumers must pass the unchanged preview source.
 export const importSource = { anyOf: [{ type: "string" }, { type: "object" }], description: "原 Jelly 或 Work 的完整 JSON 备份；提交时须与预览内容完全相同" };
-export const workspace = object({ schema_version: { const: 1 }, revision, categories: array(category), items: array(item), series: array(series), notes: array(note), relations: array(object(relationFields)),
+export const workspace = object({ schema_version: { const: /* @version format.jelly.workspace */ 1 }, revision, categories: array(category), items: array(item), series: array(series), notes: array(note), relations: array(object(relationFields)),
   relation_overrides: array(object({ owner_id: id, original_date: date, primary: text, added_reference_ids: ids, removed_reference_ids: ids })),
   task_links: array(object({ item_id: id, note_id: id, block_id: id })), applied_plan_ids: ids,
   imported_sources: array(object({ sha256: sha, schema_version: { type: "integer", minimum: 1 }, source: { type: "object" }, imported_at: text })),

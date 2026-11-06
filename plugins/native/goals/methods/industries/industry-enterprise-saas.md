@@ -1,5 +1,6 @@
 ---
 method_id: industry-enterprise-saas
+# @version method.goals.industry-enterprise-saas
 version: 1
 kind: industry
 name: "企业 SaaS"

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Release version consistency (docs/releases/POLICY.md). One product version lives in the root package.json; everything
+// Release version consistency (docs/releases/POLICY.md). Product and owner versions live in tooling/versions.json; everything
 // that carries it must agree, the workspace packages stay private 0.0.0, the current version has release notes and a
 // CHANGELOG section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has (every
 // SqliteBaseline constant is listed, and every baseline handed to applySqliteBaseline is such a constant).
@@ -11,6 +11,7 @@
 // Exit codes: 0 consistent, 1 something disagrees (every finding is listed), 2 the command line is unusable.
 // It only reads files: no build, no git.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { generateVersions, versionInspectionSource } from "./generate-versions.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,7 +47,11 @@ const root = path.resolve(options.root ?? path.join(path.dirname(fileURLToPath(i
 // ---- reading --------------------------------------------------------------------------------------------------------
 const problems = [];
 const problem = message => problems.push(message);
-const readOptional = file => existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), "utf8") : null;
+const inspectSource = (file, text) => /\.m?[tj]s$/.test(file) ? versionInspectionSource(root, file, text) : text;
+const readOptional = file => existsSync(path.join(root, file)) ? inspectSource(file, readFileSync(path.join(root, file), "utf8")) : null;
+try {
+  for (const file of generateVersions({ root })) problem(`${file}: differs from tooling/versions.json (run pnpm versions:generate)`);
+} catch (error) { problem(`tooling/versions.json: ${error.message}`); }
 function readNeeded(file) {
   const text = readOptional(file);
   if (text === null) problem(`${file}: the file is missing`);
@@ -250,7 +255,7 @@ function declaredBaselines(directories) {
   const found = [];
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
-      for (const name of baselineNames(readFileSync(path.join(root, file), "utf8"))) found.push(`${file}#${name}`);
+      for (const name of baselineNames(inspectSource(file, readFileSync(path.join(root, file), "utf8")))) found.push(`${file}#${name}`);
     }
   }
   return found;

@@ -1,5 +1,6 @@
 ---
 method_id: industry-investing-wealth
+# @version method.goals.industry-investing-wealth
 version: 1
 kind: industry
 name: "投资与财富管理"

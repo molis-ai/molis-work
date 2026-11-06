@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_PPT_MANIFEST_PPTMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   PPT_ARTIFACT_SCHEMA_VERSION,
@@ -18,11 +19,11 @@ export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 const PPT_BODY_BYTES = 1_000_000;
 
 export const pptManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
+  host_api_version: V_HOST_API,
   plugin_id: PPT_PLUGIN_ID,
   sync: pptSync,
-  version: "0.1.0",
+  version: V_PACKAGE_PLUGINS_NATIVE_PPT_MANIFEST_PPTMANIFEST,
   name: "PPT",
   summary: "写大纲，放映或导出 PowerPoint。",
   kind: "native",
@@ -53,8 +54,8 @@ export const pptManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["pages.content.read", "pages.content.list"] },
   artifacts: {
     produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿",
-      preview: { capability_id: "ppt.artifacts.preview", version: 1 }, pin: { capability_id: "ppt.artifacts.pin", version: 1 },
-      compare: { capability_id: "ppt.artifacts.compare", version: 1 }, continue: { capability_id: "ppt.artifacts.continue", version: 1 } }],
+      preview: { capability_id: "ppt.artifacts.preview", version: /* @version action.ppt.artifacts.preview */ 1 }, pin: { capability_id: "ppt.artifacts.pin", version: /* @version action.ppt.artifacts.pin */ 1 },
+      compare: { capability_id: "ppt.artifacts.compare", version: /* @version action.ppt.artifacts.compare */ 1 }, continue: { capability_id: "ppt.artifacts.continue", version: /* @version action.ppt.artifacts.continue */ 1 } }],
     consumes: [],
   },
   ui: {

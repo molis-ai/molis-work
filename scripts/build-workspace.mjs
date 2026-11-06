@@ -16,6 +16,7 @@
 // node_modules/.cache/molis-work-build/records.json of this checkout, never in dist/. A build that reads a file outside its package
 // without depending on that package is not seen: `pnpm build:clean` builds everything. CI starts with no records, so it builds all.
 // The build takes the machine's build slot first (scripts/machine-slot.mjs) and waits for it when another checkout is building.
+import { generateVersions } from "./generate-versions.mjs";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
@@ -206,6 +207,8 @@ function plan(options) {
 
 async function main() {
   const options = parseOptions(process.argv.slice(2));
+  const generated = generateVersions({ write: !options.dryRun });
+  if (options.dryRun && generated.length) throw new Error(`Stale version outputs: ${generated.join(", ")}`);
   const started = Date.now();
   let current = plan(options);
   console.log(`build-workspace: ${current.stale.size} of ${current.buildable} packages to build, ${current.buildable - current.stale.size} unchanged`);

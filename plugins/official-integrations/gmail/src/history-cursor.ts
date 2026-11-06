@@ -1,3 +1,4 @@
+import { V_FORMAT_GMAIL_GMAIL_LIVE_CURSOR } from "./versions.generated.js";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * Gmail live-sync cursor protocol — pure, versioned, privacy-safe.
@@ -17,7 +18,7 @@ import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { parseGmailScope, type GmailScope } from "./scope.js";
 
 /** Live cursor schema version; a cursor of any other version is refused and its Source rebuilds the cursor. */
-export const GMAIL_LIVE_CURSOR_VERSION = 1 as const;
+export const GMAIL_LIVE_CURSOR_VERSION = V_FORMAT_GMAIL_GMAIL_LIVE_CURSOR;
 
 /**
  * Max history.list pages per incremental run.

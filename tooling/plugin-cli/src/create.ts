@@ -12,7 +12,7 @@ export interface CreatePluginProjectInput {
 
 export async function createPluginProject(input: CreatePluginProjectInput): Promise<{ directory: string; plugin_id: string }> {
   const manifest = parsePluginManifest({
-    schema_version: 1, host_api_version: 1, plugin_id: input.plugin_id, version: "2.0.0",
+    schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.plugin_id, version: /* @version template.plugin.release */ "2.0.0",
     name: "Local Plugin Sample", kind: "integration",
     publisher: { publisher_id: input.publisher_id, signature: input.binding_signature },
     entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
@@ -21,7 +21,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     actions: samplePluginActions(input.plugin_id),
     capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [sampleArtifactType(input.plugin_id)],
-      consumes: [{ artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1 }] },
+      consumes: [{ artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: /* @version template.plugin.sample-artifact */ 1 }] },
     ui: { contributions: [input.plugin_id + ".main"] },
   });
   const directory = resolve(input.directory);
@@ -30,7 +30,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
   const files: Record<string, string> = {
     "manifest.json": JSON.stringify(manifest, null, 2) + "\n",
     "index.mjs": samplePluginSource,
-    "package.json": JSON.stringify({ name: input.plugin_id.replaceAll(".", "-"), version: "2.0.0", private: true,
+    "package.json": JSON.stringify({ name: input.plugin_id.replaceAll(".", "-"), version: /* @version template.plugin.release */ "2.0.0", private: true,
       type: "module", files: ["index.mjs", "manifest.json", "README.md"],
       dependencies: { "@molis-ai/molis-work-plugin-sdk": "0.0.0" } }, null, 2) + "\n",
     "README.md": "# Local Plugin Sample\n\nThis is a local development sample, not a reviewed marketplace release.\n"

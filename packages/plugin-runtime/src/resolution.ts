@@ -58,7 +58,7 @@ function parseProvided(entry: string): PluginCapabilityProvider | null {
   const trimmed = entry.trim();
   if (trimmed === "") return null;
   const at = trimmed.lastIndexOf("@");
-  if (at <= 0) return { capability_id: trimmed, version: 1 };
+  if (at <= 0) return { capability_id: trimmed, version: /* @version protocol.action-reference.default */ 1 };
   const version = Number(trimmed.slice(at + 1));
   if (!Number.isSafeInteger(version) || version < 1) return null;
   return { capability_id: trimmed.slice(0, at), version };

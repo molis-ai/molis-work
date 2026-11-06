@@ -1,5 +1,6 @@
 ---
 method_id: domain-reliability-release
+# @version method.goals.domain-reliability-release
 version: 1
 kind: domain
 name: "可靠性与发布"

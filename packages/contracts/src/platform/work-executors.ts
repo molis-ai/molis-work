@@ -133,7 +133,7 @@ export interface WorkExecutorActionOptions {
 /** One role action, scoped to the project, with the role's operation, types and schemas filled in. */
 export function defineWorkExecutorAction<R extends WorkExecutorRole>(name: R, options: WorkExecutorActionOptions): ActionDefinition<WorkExecutorCalls[R]["input"], WorkExecutorCalls[R]["output"]> {
   const { operation, ...contract } = WORK_EXECUTOR_PROTOCOL[name];
-  return { capability_id: options.capability_id, version: options.version ?? 1, operation, action: { title: options.title, description: options.description,
+  return { capability_id: options.capability_id, version: options.version ?? /* @version protocol.work-executor.default */ 1, operation, action: { title: options.title, description: options.description,
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: [...new Set<ActionAudience>(["user", ...options.audiences ?? []])],
     permissions: [...options.permissions], subject_kinds: [...options.subject_kinds ?? []], ...(options.scheduling ? { scheduling: options.scheduling } : {}),
     ...(options.execution ? { execution: options.execution } : {}), ...contract } };

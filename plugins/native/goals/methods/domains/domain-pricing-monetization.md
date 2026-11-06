@@ -1,5 +1,6 @@
 ---
 method_id: domain-pricing-monetization
+# @version method.goals.domain-pricing-monetization
 version: 1
 kind: domain
 name: "定价与商业化"

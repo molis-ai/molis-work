@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { versionInspectionSource } from "../generate-versions.mjs";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
 
 export function initialVersionProblems({ manifests, hostViews, registrations }) {
@@ -72,7 +73,7 @@ async function check() {
   });
   for (const file of files) {
     if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(file) || /(?:^|\/)(?:tests|fixtures)\//.test(file)) continue;
-    problems.push(...sourceVersionProblems(file, readFileSync(path.join(root, file), "utf8")));
+    problems.push(...sourceVersionProblems(file, versionInspectionSource(root, file, readFileSync(path.join(root, file), "utf8"))));
   }
   for (const problem of problems) console.error(problem);
   if (problems.length) process.exitCode = 1;

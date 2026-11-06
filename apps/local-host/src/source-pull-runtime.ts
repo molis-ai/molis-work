@@ -67,7 +67,7 @@ export function createSourcePullRuntime(options: {
   const rssRuntime = createSearchRuntime({
     app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: 1 },
     host: rssHost.host,
-    providers: [{ revision: 1, provider: createRssProvider({ appId: APP_ID }), transportProfileId: "molis-work-rss-allowlist-v1" }],
+    providers: [{ revision: 1, provider: createRssProvider({ appId: APP_ID }), transportProfileId: /* @version type.molis-work-rss-allowlist "molis-work-rss-allowlist-v{version}" */ "molis-work-rss-allowlist-v1" }],
   });
   const shared = createSearchEvidenceRuntime({
     db: options.db, secretStore, content, assertCurrent: options.assertCurrent, beforeDispatch: options.beforeDispatch, beforeContentWrite: options.beforeContentWrite,

@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_FEED_MANIFEST_FEEDMANIFEST } from "./versions.generated.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -24,10 +25,10 @@ export const FEED_PROJECT_PLUGIN_ID = "feed";
  * (`databases.home`). The two halves share this Manifest and each answers only its own actions; every permission is required.
  */
 export const feedManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
+  host_api_version: V_HOST_API,
   plugin_id: FEED_PLUGIN_ID,
-  version: "0.1.0",
+  version: V_PACKAGE_PLUGINS_NATIVE_FEED_MANIFEST_FEEDMANIFEST,
   name: "Feed",
   summary: "订阅来源，读消息，留下值得留的。",
   kind: "native",
@@ -38,7 +39,7 @@ export const feedManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id, ...(feedItemActions.promote.action.required_actions ?? []).map(action => action.capability_id)] },
   actions: FEED_ACTIONS,
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息",
-    preview: { capability_id: "feed.artifacts.preview", version: 1 } }], consumes: [] },
+    preview: { capability_id: "feed.artifacts.preview", version: /* @version action.feed.artifacts.preview */ 1 } }], consumes: [] },
   requires: [],
   sync: feedSync,
   runtime: { scope: "home" },
@@ -48,7 +49,7 @@ export const feedManifest: PluginManifest = {
   attention: { subjects: ["feed_item", "source_fault"], inbox: ["feed_item", "source_fault"] },
   // The person binds an account to each account source: one slot per service the platform can pull for (its own list is the only one), the record being the source.
   connections: { slots: Object.keys(CONNECTOR_REQUEST_SERVICES).map(service => ({ slot_id: service, service_id: service, reason: "读取你为这个来源选好的账号", binding: "per_record" as const })) },
-  notifications: { receive: { capability_id: "feed.notifications.receive", version: 1 } },
+  notifications: { receive: { capability_id: "feed.notifications.receive", version: /* @version action.feed.notifications.receive */ 1 } },
   action_scenes: [feedRuntimeCaptureScene],
   // The page's requests: each adapts one HTTP call to Feed's own actions (`createFeedRouteHandlers`), under /api/plugins/<plugin_id>/. The
   // project instance answers them; the page's HTML is the shell's (`/api/stage/feed`).
@@ -71,7 +72,7 @@ export const feedManifest: PluginManifest = {
     { route_id: "feed.item.action", method: "POST", path: "/items/:item_id/:action", permission: "feed:write" },
   ],
   // The Home says when a connection changed (never which account); the kept job then looks at each account source again.
-  events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1 }] },
+  events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1 }] },
   background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
   ui: {
     translations: FEED_EN,

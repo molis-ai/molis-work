@@ -1,9 +1,10 @@
+import { V_POLICY_MEMORY_GATE } from "./versions.generated.js";
 import type { MemoryBasis, MemoryEvidenceInput, MemoryKind } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors } from "./errors.js";
 
 /** New automatic changes record this rule; an existing entry keeps the version that approved it. */
 export const MEMORY_GATE_POLICY = "memory.write-gate";
-export const MEMORY_GATE_VERSION = 1;
+export const MEMORY_GATE_VERSION = V_POLICY_MEMORY_GATE;
 export const MEMORY_GATE_RULE = `自动记住 · 规则 v${MEMORY_GATE_VERSION}`;
 
 /** Read-side unknown facts cannot enter formation as asserted evidence. */

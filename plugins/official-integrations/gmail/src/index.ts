@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_GMAIL_INDEX_GMAILINTEGRATIONMANIFEST } from "./versions.generated.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -21,15 +22,15 @@ export {
 } from "./provider.js";
 
 export const gmailIntegrationManifest = {
-  schema_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
   plugin_id: "io.molis.work.integration.gmail",
   // 1.1.0: schema 2, declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.2.0: declares its OAuth flow as data (W5-11).
-  version: "1.3.0",
+  version: V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_GMAIL_INDEX_GMAILINTEGRATIONMANIFEST,
   name: "Gmail",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-  host_api_version: 1,
+  host_api_version: V_HOST_API,
   source_presentations: ["gmail-scope"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
@@ -37,8 +38,8 @@ export const gmailIntegrationManifest = {
     { permission: "secret:gmail", required: true, reason: "使用按账号隔离的 OAuth credential reference" },
   ],
   capabilities: {
-    provides: ["connector.driver.gmail.v1", "signal.adapter.gmail.v1"],
-    consumes: ["connector.host.v1", "listener.host.v1", "signals.command.v1"],
+    provides: [/* @version type.connector.driver.gmail "connector.driver.gmail.v{version}" */ "connector.driver.gmail.v1", /* @version type.signal.adapter.gmail "signal.adapter.gmail.v{version}" */ "signal.adapter.gmail.v1"],
+    consumes: [/* @version type.connector.host "connector.host.v{version}" */ "connector.host.v1", /* @version type.listener.host "listener.host.v{version}" */ "listener.host.v1", /* @version type.signals.command "signals.command.v{version}" */ "signals.command.v1"],
   },
   artifacts: { produces: [], consumes: [] },
   ui: { contributions: ["settings.integration.gmail"] },

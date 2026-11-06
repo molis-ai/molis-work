@@ -1,3 +1,4 @@
+import { V_FORMAT_JELLY_PORTABLE, V_SYNC_COLLECTION_JELLY_JELLY_WORKSPACE, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import type { JellyWorkspace } from "./contract.js";
@@ -37,7 +38,7 @@ export const jellyCollection: PluginSyncCollectionDefinition = {
       const workspace = localWorkspace();
       // The import receipt may contain a machine-specific source and is not needed to use the resulting notes.
       const { imported_sources: _localImportReceipts, ...portable } = workspace;
-      const value = { format: 1, spaceId: context.spaceId, workspace: portable };
+      const value = { format: V_FORMAT_JELLY_PORTABLE, spaceId: context.spaceId, workspace: portable };
       size(value);
       return value;
     },
@@ -47,7 +48,7 @@ export const jellyCollection: PluginSyncCollectionDefinition = {
       size(value);
       const envelope = object(value);
       exact(envelope, ["format", "spaceId", "workspace"]);
-      if (envelope.format !== 1 || envelope.spaceId !== context.spaceId) invalid("同步空间不匹配", "scope");
+      if (envelope.format !== V_FORMAT_JELLY_PORTABLE || envelope.spaceId !== context.spaceId) invalid("同步空间不匹配", "scope");
       const wire = object(envelope.workspace);
       const allowed = ["schema_version", "revision", "categories", "items", "series", "notes", "relations", "relation_overrides", "task_links", "applied_plan_ids"];
       if (Object.keys(wire).some(field => !allowed.includes(field)) || Object.hasOwn(wire, "imported_sources")) invalid();
@@ -91,6 +92,6 @@ function invalid(message = "Jelly 同步数据不合法", code: Parameters<typeo
 }
 
 export const jellySync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "jelly_workspace", title: "Jelly 日历与笔记", schema_version: 1, requires: [], tracking: jellyCollection.tracking }],
+  protocol_version: V_SYNC_PROTOCOL,
+  collections: [{ id: "jelly_workspace", title: "Jelly 日历与笔记", schema_version: V_SYNC_COLLECTION_JELLY_JELLY_WORKSPACE, requires: [], tracking: jellyCollection.tracking }],
 };

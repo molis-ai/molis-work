@@ -1,6 +1,7 @@
 ---
 method_id: domain-game-design
-version: 2
+# @version method.goals.domain-game-design
+version: 1
 kind: domain
 name: "游戏设计"
 summary: "围绕核心循环、系统内容、玩家旅程和反馈建立可玩闭环。"

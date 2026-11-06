@@ -8,15 +8,15 @@ import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
  * clipboard action, so it is its own source open to `user` only: no Agent, workflow or external client finds it.
  */
 export const shelfSearchEntriesAction = defineSearchEntriesAction("shelf.search.entries",
-  [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }], "置物架材料", ["shelf:read"], "home");
+  [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }], "置物架材料", ["shelf:read"], "home", undefined, /* @version action.shelf.search.entries */ 1);
 export const shelfClipboardSearchEntriesAction = defineSearchEntriesAction("shelf.clipboard.search.entries",
-  [{ kind: "shelf_clip", title: "剪贴板", surface: "shelf" }], "剪贴板", ["shelf:read"], "home", ["user"]);
+  [{ kind: "shelf_clip", title: "剪贴板", surface: "shelf" }], "剪贴板", ["shelf:read"], "home", ["user"], /* @version action.shelf.clipboard.search.entries */ 1);
 
 /**
  * One Shelf material by the shared subject protocol: where it is, its name and the text the shelf already shows. It
  * reaches as far as `shelf.items.read` (no plugins); a copy deleted from the shelf answers `shelf.not_found`.
  */
-const reader = defineSubjectContextAction("shelf.subject.read", "shelf_item", "置物架材料", ["shelf:read"], "home");
+const reader = defineSubjectContextAction("shelf.subject.read", "shelf_item", "置物架材料", ["shelf:read"], "home", /* @version action.shelf.subject.read */ 1);
 export const shelfSubjectAction: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...reader, action: { ...reader.action, audiences: ["user", "workflow", "agent", "mcp"] } };
 
 function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): ActionSubjectContext {
@@ -42,8 +42,8 @@ function shelfClipboardSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
 
 /** The side panel's file tab (specs/archive/side-panel): what is on the shelf, originals previewed as themselves. Folders stay on the shelf. */
 const shelfFileKinds = [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }];
-export const shelfFileEntriesAction = defineFileEntriesAction("shelf.files.entries", shelfFileKinds, "置物架", ["shelf:read"], "home");
-export const shelfFileContentAction = defineFileContentAction("shelf.files.content", shelfFileKinds, "置物架", ["shelf:read"], "home");
+export const shelfFileEntriesAction = defineFileEntriesAction("shelf.files.entries", shelfFileKinds, "置物架", ["shelf:read"], "home", undefined, /* @version action.shelf.files.entries */ 1);
+export const shelfFileContentAction = defineFileContentAction("shelf.files.content", shelfFileKinds, "置物架", ["shelf:read"], "home", undefined, /* @version action.shelf.files.content */ 1);
 
 const shelfMedia = (item: ShelfSnapshot["materials"][number]) => item.kind === "markdown" ? "text/markdown" : item.kind === "text" || item.kind === "url" || item.kind === "website" ? "text/plain"
   : /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/u.test(item.mime) ? item.mime : "application/octet-stream";

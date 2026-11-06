@@ -1,8 +1,9 @@
+import { V_DATABASE_HOME_CATALOG } from "./versions.generated.js";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
-export const CATALOG_SCHEMA_VERSION = 1;
-export const CATALOG_OWNER = "molis-work-project-catalog-v1";
+export const CATALOG_SCHEMA_VERSION = V_DATABASE_HOME_CATALOG;
+export const CATALOG_OWNER = /* @version type.molis-work-project-catalog "molis-work-project-catalog-v{version}" */ "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
   return owner === CATALOG_OWNER;

@@ -49,8 +49,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
     ...(instructions ? { instructions } : {}),
     ...(release.packaged?.agentBodies ? {
       agent_prompt_names: Object.fromEntries(release.packaged.agentBodies.filter(item => item.kind === 'role').map(item => [item.prompt_id!, { title: item.name, purpose: item.purpose }])),
-      agent_prompts: release.packaged.agentBodies.filter(item => item.kind === 'role').map(item => ({ prompt_id: item.prompt_id!, version: 1, layer: 'role' as const, body: item.body })),
-      methods: release.packaged.agentBodies.filter(item => item.kind === 'method').map(item => ({ skill_id: item.entry_id, version: 1, name: item.name, summary: item.purpose, tools: [], body: item.body })),
+      agent_prompts: release.packaged.agentBodies.filter(item => item.kind === 'role').map(item => ({ prompt_id: item.prompt_id!, version: /* @version template.sandbox.prompt */ 1, layer: 'role' as const, body: item.body })),
+      methods: release.packaged.agentBodies.filter(item => item.kind === 'method').map(item => ({ skill_id: item.entry_id, version: /* @version template.sandbox.method */ 1, name: item.name, summary: item.purpose, tools: [], body: item.body })),
     } : {}),
     // Host provenance: Plugin Runtime then requires explicit grants and rolls back code without rolling back data.
     execution: 'sandbox',

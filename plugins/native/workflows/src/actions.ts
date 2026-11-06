@@ -70,49 +70,49 @@ const instance = { type: "object", required: ["instance_id", "workflow_id", "sta
 const payload = { type: "object", required: ["title", "body"] };
 const read = ["workflows:read"], write = ["workflows:write"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
-  permissions: readonly string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
+  permissions: readonly string[], execution?: ActionDefinition["action"]["execution"], version = /* @version factory.plugins.native.workflows.define */ 1): ActionDefinition<I, O> {
   // Handoffs wait on other plugins and on a model; the store's revisions and delivery keys keep concurrent calls safe.
   return createActionDefinition<I, O>(`workflows.${name}`, operation, { title, description, ...(execution ? { execution } : {}),
-    scheduling: "concurrent", audiences: ["user", "agent", "mcp"], permissions, subject_kinds: ["workflow"], input_schema: input, output_schema: output });
+    scheduling: "concurrent", audiences: ["user", "agent", "mcp"], permissions, subject_kinds: ["workflow"], input_schema: input, output_schema: output }, version);
 }
 
 export const workflowsActions = {
   list: define<Record<string, never>, { workflows: WorkflowSummary[]; stations: readonly WorkflowStationInfo[]; ai_available: boolean }>("list", "工作流程列表",
     "列出本项目的流程、每站当前可用性，以及可以串进流程的插件", "query", object({}),
-    object({ workflows: { type: "array", items: workflow }, stations: { type: "array" }, ai_available: { type: "boolean" } }), read),
+    object({ workflows: { type: "array", items: workflow }, stations: { type: "array" }, ai_available: { type: "boolean" } }), read, undefined, /* @version action.workflows.list */ 1),
   get: define<{ id: string }, { workflow: Workflow; instances: WorkflowInstance[]; ai_available: boolean }>("get", "读取工作流程", "读取一条流程及它的每一次运行",
-    "query", object({ id }), object({ workflow, instances: { type: "array", items: instance }, ai_available: { type: "boolean" } }), read),
+    "query", object({ id }), object({ workflow, instances: { type: "array", items: instance }, ai_available: { type: "boolean" } }), read, undefined, /* @version action.workflows.get */ 1),
   create: define<{ title?: string; chain?: unknown }, { workflow: Workflow }>("create", "新建工作流程", "按站点与交接方式新建流程；站点固定到当时授权的能力版本",
-    "command", object({ title: { type: "string", maxLength: 200 }, chain }, []), object({ workflow }), write),
+    "command", object({ title: { type: "string", maxLength: 200 }, chain }, []), object({ workflow }), write, undefined, /* @version action.workflows.create */ 1),
   update: define<{ id: string; revision: number; title?: string; chain?: unknown }, { workflow: Workflow }>("update", "修改工作流程",
     "按读取时的版本保存标题或站点；过期修改被拒绝", "command", object({ id, revision: { type: "integer", minimum: 1 }, title: { type: "string", maxLength: 200 }, chain }, ["id", "revision"]),
-    object({ workflow }), write),
-  delete: define<{ id: string }, { ok: true }>("delete", "删除工作流程", "从列表移除流程；已有运行的历史保留", "command", object({ id }), object({ ok: { const: true } }), write),
+    object({ workflow }), write, undefined, /* @version action.workflows.update */ 1),
+  delete: define<{ id: string }, { ok: true }>("delete", "删除工作流程", "从列表移除流程；已有运行的历史保留", "command", object({ id }), object({ ok: { const: true } }), write, undefined, /* @version action.workflows.delete */ 1),
   stationItems: define<{ plugin: string }, { items: readonly WorkflowStartItem[]; can_start_blank: boolean }>("stations.items", "起点可选内容",
     "列出第一站可以用来开始一次运行的已有内容", "query", object({ plugin: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" } }),
-    object({ items: { type: "array" }, can_start_blank: { type: "boolean" } }), read),
+    object({ items: { type: "array" }, can_start_blank: { type: "boolean" } }), read, undefined, /* @version action.workflows.stations.items */ 1),
   start: define<{ id: string; item_id?: string; title?: string }, { instance: WorkflowInstance }>("instances.start", "开始一次运行",
     "从第一站的已有内容或空白内容开始一次运行", "command", object({ id, item_id: { type: "string", maxLength: 200 }, title: { type: "string", maxLength: 200 } }, ["id"]),
-    object({ instance }), write),
+    object({ instance }), write, undefined, /* @version action.workflows.instances.start */ 1),
   instance: define<{ id: string }, { instance: WorkflowInstance; workflow_title: string; ai_available: boolean }>("instances.get", "读取一次运行",
-    "读取运行进度、每一步的交接记录和站点可用性", "query", object({ id }), object({ instance, workflow_title: text, ai_available: { type: "boolean" } }), read),
+    "读取运行进度、每一步的交接记录和站点可用性", "query", object({ id }), object({ instance, workflow_title: text, ai_available: { type: "boolean" } }), read, undefined, /* @version action.workflows.instances.get */ 1),
   preview: define<{ id: string; from?: number }, { from: number; link: WorkflowLink; readiness: { ready: boolean; reason: string }; input: WorkflowPayload; output: WorkflowPayload | null }>(
     "instances.preview", "预览交接", "读取当前一步交出去前的内容；模板转换会给出交接后的样子，不调用模型、不写入", "query",
     object({ id, from: { type: "integer", minimum: 0 } }, ["id"]),
-    object({ from: { type: "integer" }, link: { type: "object" }, readiness: { type: "object" }, input: payload, output: { anyOf: [payload, { type: "null" }] } }), read),
+    object({ from: { type: "integer" }, link: { type: "object" }, readiness: { type: "object" }, input: payload, output: { anyOf: [payload, { type: "null" }] } }), read, undefined, /* @version action.workflows.instances.preview */ 1),
   continue: define<{ id: string; from?: number; updated_at?: string; title?: string; body?: string; retry_action?: boolean }, { instance: WorkflowInstance }>("instances.continue", "交给下一站",
     "按这一段的交接方式（判断规则、模板转换、AI 整理或人工交接）把内容交给下一站；下一站是动作时按字段映射执行。同一步重试只交付一次；动作结果未确认时需明确 retry_action 才会重新执行", "command",
     object({ id, from: { type: "integer", minimum: 0 }, updated_at: text, title: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 100_000 }, retry_action: { type: "boolean" } }, ["id"]),
-    object({ instance }), [...write, "model:invoke"], { cost: "metered" }),
+    object({ instance }), [...write, "model:invoke"], { cost: "metered" }, /* @version action.workflows.instances.continue */ 1),
   actionSteps: define<Record<string, never>, { actions: WorkflowActionChoice[]; fields: readonly string[] }>("steps.actions", "可放进流程的动作",
     "列出可以作为一步执行的已注册动作，按提供方分组，并给出每个输入字段；交过来的标题、正文、来源、链接和日期可以映射进去", "query", object({}),
-    object({ actions: { type: "array" }, fields: { type: "array", items: text } }), read),
+    object({ actions: { type: "array" }, fields: { type: "array", items: text } }), read, undefined, /* @version action.workflows.steps.actions */ 1),
   judgments: define<Record<string, never>, { judgments: WorkflowJudgmentChoice[] }>("judgments.list", "可用的判断规则",
-    "列出可以放在一段交接上的已发布 Choice 判断规则及其可选结果", "query", object({}), object({ judgments: { type: "array" } }), read),
+    "列出可以放在一段交接上的已发布 Choice 判断规则及其可选结果", "query", object({}), object({ judgments: { type: "array" } }), read, undefined, /* @version action.workflows.judgments.list */ 1),
   /** Saved references to a capability: action steps, judgment links and pinned content stations. */
-  usages: defineActionUsagesAction("workflows.usages", "流程里的使用位置", read),
+  usages: defineActionUsagesAction("workflows.usages", "流程里的使用位置", read, undefined, /* @version action.workflows.usages */ 1),
   stop: define<{ id: string }, { instance: WorkflowInstance }>("instances.stop", "结束一次运行", "取消当前尚未提交的步骤；已发生的外部结果保留，未知结果不自动重派", "command",
-    object({ id }), object({ instance }), write),
+    object({ id }), object({ instance }), write, undefined, /* @version action.workflows.instances.stop */ 1),
   searchEntries: workflowsSearchActions.entries,
   subject: workflowsSearchActions.subject,
 };

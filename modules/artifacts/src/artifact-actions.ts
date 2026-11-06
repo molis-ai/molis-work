@@ -19,7 +19,7 @@ const imported = object({ artifact_id: id, version, title: text, reused: { type:
   model_required: object({ approximate_bytes: nullable({ type: "integer", minimum: 1 }) }) }, ["artifact_id", "version", "title", "reused", "url", "warnings"]);
 const sources = { enum: ["notion", "feishu", "lark", "google-docs"] };
 const read = ["artifacts:read"], write = [...read, "artifacts:write"];
-const subjectDefinition = defineSubjectContextAction("artifacts.subject.read", ARTIFACT_SUBJECT_KIND, "固定版本成果", read);
+const subjectDefinition = defineSubjectContextAction("artifacts.subject.read", ARTIFACT_SUBJECT_KIND, "固定版本成果", read, undefined, /* @version action.artifacts.subject.read */ 1);
 const subject: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...subjectDefinition,
   // Plugins read Artifacts through their own SDK with its consumption contracts, never through the subject reader.
   action: { ...subjectDefinition.action, audiences: ["user", "agent", "workflow", "mcp"], plugin: false } };
@@ -36,11 +36,11 @@ export interface ArtifactExternalImport { source: ExternalDocumentSource; url: s
 export interface ArtifactImportResult { artifact_id: string; version: number; title: string; reused: boolean; url: string; warnings: string[];
   /** The transcription needs the local speech model first (PMAT-48): ask the person, then import again with `allow_model_download`. */
   model_required?: ModelRequired }
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = read, scheduling?: ActionDefinition['action']['scheduling']): ActionDefinition<I, O> {
+function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = read, scheduling?: ActionDefinition['action']['scheduling'], version = /* @version factory.modules.artifacts.define */ 1): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(`artifacts.${name}`, operation, {
     title, description, ...(scheduling ? { scheduling } : {}), audiences: ["user", "agent", "workflow", "mcp"],
     permissions, subject_kinds: ["artifact"], input_schema: input, output_schema: output,
-  });
+  }, version);
 }
 const onlyPeople = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, audiences: ["user"] } });
 /**
@@ -51,9 +51,9 @@ export interface ArtifactPluginInput { plugin_id: string; plugin_title: string; 
 const pluginInputsOutput = object({ inputs: array(object({ plugin_id: text, plugin_title: text, port: text,
   source: { enum: ["this", "another-version", "plugin", "none"] }, source_title: nullable(text) })) });
 /** System search: the newest available version of each Artifact, by title and the text inside its payload. */
-const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
+const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read, undefined, undefined, /* @version action.artifacts.search.entries */ 1);
 /** The side panel's file tab (specs/archive/side-panel): the newest available version of each Artifact; previews read `subject`. */
-const fileEntries = defineFileEntriesAction("artifacts.files.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
+const fileEntries = defineFileEntriesAction("artifacts.files.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read, undefined, undefined, /* @version action.artifacts.files.entries */ 1);
 /**
  * The text of a payload that a person can read under a search hit. Producers keep ids, node types, encodings and
  * references in the same payload, so only these fields count, wherever they sit in it. A `cells` object is a table row
@@ -76,37 +76,37 @@ function payloadText(value: unknown, title: string, field = "", out: string[] = 
 }
 export const artifactsActions = {
   /** An imported file as the 成果库 and side panel show it (artifact-positioning A4): its text, or its original bytes. */
-  preview: defineArtifactPreviewAction("artifacts.documents.preview", "导入的文件", read),
+  preview: defineArtifactPreviewAction("artifacts.documents.preview", "导入的文件", read, /* @version action.artifacts.documents.preview */ 1),
   subject,
   searchEntries,
   fileEntries,
   browser: define<{ reference?: ArtifactReference | null; supported_types?: ArtifactConsumerType[] }, ArtifactBrowserView>("browse", "浏览项目成果", "读取当前项目全部成果版本及指定的固定版本；保留原生产方、正文和可用状态", "query",
-    object({ reference: nullable(reference), supported_types: consumerTypes }, []), browser),
+    object({ reference: nullable(reference), supported_types: consumerTypes }, []), browser, undefined, undefined, /* @version action.artifacts.browse */ 1),
   read: define<{ reference: ArtifactReference; supported_types?: ArtifactConsumerType[] }, Omit<ArtifactBrowserView, "versions">>("read", "读取固定成果版本", "按准确身份和版本读取成果及兼容性，不自动替换成最新版本", "query",
-    object({ reference, supported_types: consumerTypes }, ["reference"]), object(selection)),
-  export: define<{ reference: ArtifactReference }, { filename: string; mime: string; content: string }>("export", "导出成果版本", "导出原成果记录为 JSON，不注册新版本或改变发布状态", "query", object({ reference }), object({ filename: text, mime: text, content: text })),
+    object({ reference, supported_types: consumerTypes }, ["reference"]), object(selection), undefined, undefined, /* @version action.artifacts.read */ 1),
+  export: define<{ reference: ArtifactReference }, { filename: string; mime: string; content: string }>("export", "导出成果版本", "导出原成果记录为 JSON，不注册新版本或改变发布状态", "query", object({ reference }), object({ filename: text, mime: text, content: text }), undefined, undefined, /* @version action.artifacts.export */ 1),
   importFile: { ...ARTIFACT_FILE_IMPORT_ACTION, ...define<ArtifactFileImport, ArtifactImportResult>("import.file", "导入本地文件", "把任何本地文件存为个人成果：Markdown、TXT、HTML 读出正文，其他文件保存原件（随请求附上最多 6 MB，交给宿主的原件不限大小）；同内容重复导入重用原版本", "command",
     object({ source: { const: "file" }, filename: { ...text, minLength: 1, maxLength: 255 }, content: { ...text, description: "文本文件的 UTF-8 正文，解码后最多 2 MB" }, title: { ...text, maxLength: 500 },
       source_id: { ...text, minLength: 1, maxLength: 512 }, original_file: object({ filename: { ...text, minLength: 1, maxLength: 255 }, mime: { ...text, maxLength: 128 },
         data_base64: { ...text, maxLength: 8_000_000, description: "原文件的 base64，最多 6 MB；不写时用宿主为这次导入收下的文件" } }, ["filename", "mime"]),
-      allow_model_download: { type: "boolean", description: "这个人同意为转写音视频下载本机语音模型；只有人亲自导入时有效" } }, ["source", "filename"]), imported, write, "concurrent") },
+      allow_model_download: { type: "boolean", description: "这个人同意为转写音视频下载本机语音模型；只有人亲自导入时有效" } }, ["source", "filename"]), imported, write, "concurrent", /* @version action.artifacts.import.file */ 1) },
   importExternal: define<ArtifactExternalImport, ArtifactImportResult>("import.external", "导入外部文档", "使用当前 Home 已连接的文档账号读取链接，保存个人快照；不写回来源，不自动同步", "command",
-    object({ source: sources, url: { ...text, minLength: 1, maxLength: 4096 }, connection_id: id }, ["source", "url"]), imported, [...write, "connectors:document:read"], "concurrent"),
-  importSources: define<Record<string, never>, { sources: Record<string, boolean>; connections: ConnectorConnectionView[] }>("import.sources", "文档来源连接状态", "查看文档导入支持来源是否已连接，不返回凭据", "query", object({}), object({ sources: { type: "object", additionalProperties: { type: "boolean" } }, connections: array({ type: "object", additionalProperties: true }) })),
+    object({ source: sources, url: { ...text, minLength: 1, maxLength: 4096 }, connection_id: id }, ["source", "url"]), imported, [...write, "connectors:document:read"], "concurrent", /* @version action.artifacts.import.external */ 1),
+  importSources: define<Record<string, never>, { sources: Record<string, boolean>; connections: ConnectorConnectionView[] }>("import.sources", "文档来源连接状态", "查看文档导入支持来源是否已连接，不返回凭据", "query", object({}), object({ sources: { type: "object", additionalProperties: { type: "boolean" } }, connections: array({ type: "object", additionalProperties: true }) }), undefined, undefined, /* @version action.artifacts.import.sources */ 1),
   goalEmbeds: define<{ goal_id: string; supported_types?: ArtifactConsumerType[] }, { embeds: GoalArtifactEmbed[] }>("goals.embeds", "读取目标成果引用", "读取原 Ledger 明确关联的输入和输出及固定版本，保留失效引用，不猜测关系", "query", object({ goal_id: id, supported_types: consumerTypes }, ["goal_id"]),
-    object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
+    object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) }), undefined, undefined, /* @version action.artifacts.goals.embeds */ 1),
   links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "按声明链接种类的插件分组，列出把这一版作为输入或产出（含提议的）的对象，以及其他引用的数量；不修改数据",
     "query", object({ reference }), object({ plugins: array(object({ plugin_id: id, plugin_title: text, objects: array(object({ id, title: text,
       role: { enum: ["input", "output"] }, proposal: { type: "boolean" }, open: object({ surface: id, id }) })) })), other: { type: "integer", minimum: 0 } }),
-    read),
+    read, undefined, /* @version action.artifacts.links */ 1),
   pluginInputs: define<{ reference: ArtifactReference }, { inputs: ArtifactPluginInput[] }>("plugin_inputs", "可以接这一版的插件输入",
-    "列出已启用插件里能接收这一版类型的输入端口，以及它们现在读的是什么；不修改数据", "query", object({ reference }), pluginInputsOutput),
+    "列出已启用插件里能接收这一版类型的输入端口，以及它们现在读的是什么；不修改数据", "query", object({ reference }), pluginInputsOutput, undefined, undefined, /* @version action.artifacts.plugin_inputs */ 1),
   // Changing what another plugin reads is the person's own choice (artifact-positioning, 2026-10-04).
   bindPluginInput: onlyPeople(define<{ reference: ArtifactReference; plugin_id: string; port: string; restore?: boolean }, { inputs: ArtifactPluginInput[] }>("plugin_inputs.bind",
     "把这一版交给插件的输入", "让一个插件的输入端口固定读这一版，直到改回原来的来源；restore 为真时改回原来的来源", "command",
-    object({ reference, plugin_id: id, port: id, restore: { type: "boolean" } }, ["reference", "plugin_id", "port"]), pluginInputsOutput, write)),
+    object({ reference, plugin_id: id, port: id, restore: { type: "boolean" } }, ["reference", "plugin_id", "port"]), pluginInputsOutput, write, undefined, /* @version action.artifacts.plugin_inputs.bind */ 1)),
   projectReference: define<{ reference: string }, { filename: string; content_base64: string }>("references.open", "打开项目结果引用", "通过受限读取器读取当前工作区里的 project:// 或相对路径引用；不接受调用者提供目录", "query",
-    object({ reference: id }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"]),
+    object({ reference: id }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"], undefined, /* @version action.artifacts.references.open */ 1),
 };
 /**
  * A version in the 成果库 as the first station of a workflow run (artifact-positioning 五.1): any version starts a run with

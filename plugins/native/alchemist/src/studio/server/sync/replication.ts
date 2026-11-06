@@ -1,3 +1,4 @@
+import { V_FORMAT_ALCHEMIST_PORTABLE, V_SYNC_COLLECTION_ALCHEMIST_STUDIO, V_SYNC_PROTOCOL } from "../../../versions.generated.js";
 import {createSqliteReplica,ensureStorageSpace,readDatabaseSpace,type StorageSpace} from '@molis-ai/molis-work-storage';
 import type {PluginSyncDeclaration} from '@molis-ai/molis-work-contracts/platform/plugin';
 import type {SqliteDatabase} from '../db/open-database.js';
@@ -10,7 +11,7 @@ import {invalidStudio,studioExact,studioGraph,studioObject} from './shape.js';
 import {validateStudioSaved} from './semantic.js';
 import {studioReplicaDatabase} from './replica-db.js';
 
-export const alchemistSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'studio',title:'探索、研究证据、决策与方法历史',schema_version:1,requires:[]}]};
+export const alchemistSync:PluginSyncDeclaration={protocol_version:V_SYNC_PROTOCOL,collections:[{id:'studio',title:'探索、研究证据、决策与方法历史',schema_version:V_SYNC_COLLECTION_ALCHEMIST_STUDIO,requires:[]}]};
 interface Context{spaceId:string;projectId:string;title:string;authorize():void;conflictState?:import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState}
 export function openAlchemistSyncStore(home:string,projectId:string){
  const space=ensureStorageSpace(home);if(space.kind!=='personal')throw studioSyncErrors.sync_scope('仅个人空间允许同步研究');
@@ -41,11 +42,11 @@ function replica(db:SqliteDatabase,path:string,space:StorageSpace,projectId:stri
  if(space.spaceId!==context.spaceId||context.projectId!==projectId||readDatabaseSpace(db)?.spaceId!==space.spaceId)throw studioSyncErrors.sync_scope('研究库的空间或项目不匹配');
  const key=studioSyncKey(projectId),check=(input:string)=>{if(input!==key)throw studioSyncErrors.sync_scope('研究资产标识不匹配');};
  return createSqliteReplica(studioReplicaDatabase(db),{authorize:context.authorize,conflictState:context.conflictState,
-  read(input){check(input);idle(db,path);try{const raw=graph(db);if(!raw.workspaces!.length)return null;const g=studioGraph(raw);validateStudioSaved(db,g);return {format:1,spaceId:space.spaceId,project:{id:projectId,title:context.title},graph:g};}catch(error){if(error&&typeof error==='object'&&'code'in error&&error.code==='alchemist.sync_limit')throw error;invalidStudio();}},
+  read(input){check(input);idle(db,path);try{const raw=graph(db);if(!raw.workspaces!.length)return null;const g=studioGraph(raw);validateStudioSaved(db,g);return {format:V_FORMAT_ALCHEMIST_PORTABLE,spaceId:space.spaceId,project:{id:projectId,title:context.title},graph:g};}catch(error){if(error&&typeof error==='object'&&'code'in error&&error.code==='alchemist.sync_limit')throw error;invalidStudio();}},
   apply(input,value){check(input);idle(db,path);try{
    if(value===null){replace(db,null);return;}
    const w=studioObject(value);studioExact(w,['format','spaceId','project','graph']);const project=studioObject(w.project);studioExact(project,['id','title']);
-   if(w.format!==1||w.spaceId!==context.spaceId||project.id!==projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)invalidStudio();
+   if(w.format!==V_FORMAT_ALCHEMIST_PORTABLE||w.spaceId!==context.spaceId||project.id!==projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)invalidStudio();
    replace(db,studioGraph(w.graph));
   }catch(error){if(error&&typeof error==='object'&&'code'in error&&error.code==='alchemist.sync_limit')throw error;invalidStudio();}},
  });

@@ -34,7 +34,7 @@ export function assertPluginPackagePath(value: string): void {
 export function parsePluginPackage(input: unknown): PluginPackageBundle {
   const bundle = object(input);
   const payload = object(bundle.payload);
-  if (payload.schema_version !== 1 || !Array.isArray(payload.files)) invalid("不支持的 Plugin package schema");
+  if (payload.schema_version !== /* @version format.plugin.package */ 1 || !Array.isArray(payload.files)) invalid("不支持的 Plugin package schema");
   const manifest = parsePluginPackageManifest(payload.manifest);
   const paths = new Set<string>();
   const files = payload.files.map(value => {
@@ -69,7 +69,7 @@ export function parsePluginPackage(input: unknown): PluginPackageBundle {
     publisherKey = parsePublisherKey(bundle.publisher_key);
     if (pluginPublisherIdentity(publicKeyFromSpki(publisherKey.spki_base64)) !== manifest.publisher.signature) throw pluginErrors.signer_mismatch("随包的公钥不是 Manifest 发布者身份对应的公钥");
   }
-  return { payload: { schema_version: 1, manifest, files }, signature, publisher_key: publisherKey };
+  return { payload: { schema_version: /* @version format.plugin.package */ 1, manifest, files }, signature, publisher_key: publisherKey };
 }
 
 export function pluginPackageSigningBytes(payload: PluginPackagePayload): Buffer {

@@ -5,7 +5,7 @@ const PAGE_ACTIONS = "/api/host/plugin-page-actions";
 
 /** One page action of the Host: the way a page asks a plugin that is not its own for something (the page names no route). */
 const action = (host: GitFactoryHost, capability: string, input: unknown, signal?: AbortSignal): Promise<unknown> =>
-  molisWorkRequest(host.route(PAGE_ACTIONS), { body: { reference: { capability_id: capability, version: 1 }, input }, signal });
+  molisWorkRequest(host.route(PAGE_ACTIONS), { body: { reference: { capability_id: capability, version: /* @version protocol.action-reference.default */ 1 }, input }, signal });
 
 /** Which of Git's page actions a route stands for, where it is not the route's own name. */
 const OPERATIONS: Readonly<Record<string, { readonly GET?: string; readonly POST?: string }>> = {

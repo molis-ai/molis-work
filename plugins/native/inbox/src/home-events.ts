@@ -1,7 +1,7 @@
 import { defineHomeEventsAction, assertHomeEventWindow, type HomeEventWindow, type ActionCallContext, type HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InboxBriefs, InboxContentPorts } from "./content-actions.js";
 
-export const inboxHomeEventsAction = defineHomeEventsAction("inbox.home.events", ["inbox_entry"], "Inbox 首页事项", ["inbox:read", "feed:read"]);
+export const inboxHomeEventsAction = defineHomeEventsAction("inbox.home.events", ["inbox_entry"], "Inbox 首页事项", ["inbox:read", "feed:read"], /* @version action.inbox.home.events */ 1);
 export function createInboxHomeEventsHandler(ports: InboxContentPorts, briefsOf: (caller: ActionCallContext, entries: readonly ReturnType<InboxContentPorts["entries"]>[number][]) => Promise<InboxBriefs>) {
   return { ...inboxHomeEventsAction, handle: async (caller: ActionCallContext, value: unknown) => {
     assertHomeEventWindow(value as HomeEventWindow);

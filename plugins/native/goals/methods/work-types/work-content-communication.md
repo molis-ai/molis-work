@@ -1,6 +1,7 @@
 ---
 method_id: work-content-communication
-version: 2
+# @version method.goals.work-content-communication
+version: 1
 kind: work_type
 name: "内容与传播"
 summary: "从受众和传播时刻出发，建立主张、证据、载体和反馈闭环。"

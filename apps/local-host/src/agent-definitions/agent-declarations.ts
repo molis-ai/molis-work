@@ -1,3 +1,4 @@
+import { V_DATABASE_AGENT_DECLARATIONS_BASELINE } from "../versions.generated.js";
 import type { AgentDefinitionRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { applySqliteBaseline, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
@@ -8,7 +9,7 @@ type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
  * Each installation's last registered Agent declaration (PG-051 Q1 b): the register shows a plugin that is not running from it, so
  * the person can see and edit its prompts before it runs again. Written whole on each registration, removed when it is uninstalled.
  */
-export const AGENT_DECLARATIONS_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const AGENT_DECLARATIONS_BASELINE: SqliteBaseline = { version: V_DATABASE_AGENT_DECLARATIONS_BASELINE, schema: `
 CREATE TABLE install_declarations (
   install_id TEXT NOT NULL, owner_id TEXT NOT NULL, registration TEXT NOT NULL, updated_at TEXT NOT NULL,
   PRIMARY KEY (install_id, owner_id)

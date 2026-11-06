@@ -12,9 +12,9 @@ const kinds = [
   { kind: JELLY_NOTE_SUBJECT_KIND, title: "笔记", surface: JELLY_PROJECT_PLUGIN_ID },
 ];
 export const jellySearchActions = {
-  entries: defineSearchEntriesAction("jelly.search.entries", kinds, "Jelly 日程与笔记", ["jelly:read"], "home"),
-  item: defineSubjectContextAction("jelly.item.subject.read", JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"], "home"),
-  note: defineSubjectContextAction("jelly.note.subject.read", JELLY_NOTE_SUBJECT_KIND, "Jelly 笔记", ["jelly:read"], "home"),
+  entries: defineSearchEntriesAction("jelly.search.entries", kinds, "Jelly 日程与笔记", ["jelly:read"], "home", undefined, /* @version action.jelly.search.entries */ 1),
+  item: defineSubjectContextAction("jelly.item.subject.read", JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"], "home", /* @version action.jelly.item.subject.read */ 1),
+  note: defineSubjectContextAction("jelly.note.subject.read", JELLY_NOTE_SUBJECT_KIND, "Jelly 笔记", ["jelly:read"], "home", /* @version action.jelly.note.subject.read */ 1),
 };
 
 const itemText = (item: JellyItem) => [item.notes, item.completion_description, item.start_date === item.end_date ? item.start_date : `${item.start_date} — ${item.end_date}`].filter(Boolean).join("\n");

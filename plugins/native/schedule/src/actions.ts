@@ -38,10 +38,10 @@ const read = ["schedule:read"], write = ["schedule:write"];
 
 // `schedule.register/list/...` are the platform wakeup capabilities other plugins consume; the plugin's own tasks live beside them.
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  output: ActionSchema, permissions: readonly string[], options: { plugin?: false } = {}): ActionDefinition<I, O> {
+  output: ActionSchema, permissions: readonly string[], options: { plugin?: false } = {}, version = /* @version factory.plugins.native.schedule.define */ 1): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(`schedule.${name}`, operation, { title, description,
     audiences: ["user", "workflow", "agent", "mcp"],
-    permissions, subject_kinds: ["schedule_task"], input_schema: input, output_schema: output, ...options });
+    permissions, subject_kinds: ["schedule_task"], input_schema: input, output_schema: output, ...options }, version);
 }
 
 export interface ScheduleTaskInput { title: string; instructions: string; time: string; notify_important?: boolean }
@@ -50,31 +50,31 @@ export interface ScheduleTaskReadiness { model: boolean; workspace: boolean }
 export const scheduleActions = {
   list: define<Record<string, never>, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[] }>("tasks.list", "定时任务列表",
     "读取当前项目的每日对话任务与其他插件登记的闹钟；已归档任务不在列表中", "query", object({}),
-    object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView } }), read),
+    object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView } }), read, undefined, /* @version action.schedule.tasks.list */ 1),
   readiness: define<Record<string, never>, ScheduleTaskReadiness>("tasks.readiness", "定时任务就绪情况",
     "读取对话任务到点执行需要的条件：已配置的文字模型、项目绑定的工作区；缺任何一项都仍可创建任务，到点时才会叫醒失败", "query", object({}),
-    object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read),
+    object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read, undefined, /* @version action.schedule.tasks.readiness */ 1),
   createTask: define<ScheduleTaskInput, { task: ScheduleConversationTaskView }>("tasks.create", "新建定时任务",
     "新建每天定时运行的对话任务并登记下一次唤醒；到点后由项目 Agent 按说明执行", "command",
-    object(fields, ["title", "instructions", "time"]), object({ task }), write),
+    object(fields, ["title", "instructions", "time"]), object({ task }), write, undefined, /* @version action.schedule.tasks.create */ 1),
   updateTask: define<ScheduleTaskInput & { task_id: string }, { task: ScheduleConversationTaskView }>("tasks.update", "修改定时任务",
     "修改任务标题、说明与时间；启用中的任务按新时间重新排期，保留原对话记录", "command",
-    object({ task_id: id, ...fields }, ["task_id", "title", "instructions", "time"]), object({ task }), write),
+    object({ task_id: id, ...fields }, ["task_id", "title", "instructions", "time"]), object({ task }), write, undefined, /* @version action.schedule.tasks.update */ 1),
   archiveTask: define<{ task_id: string }, { archived: true }>("tasks.archive", "归档定时任务",
-    "停止任务并移出列表，取消尚未到点的唤醒；保留原对话记录", "command", object({ task_id: id }), object({ archived: { const: true } }), write),
+    "停止任务并移出列表，取消尚未到点的唤醒；保留原对话记录", "command", object({ task_id: id }), object({ archived: { const: true } }), write, undefined, /* @version action.schedule.tasks.archive */ 1),
   setTaskEnabled: define<{ task_id: string; enabled: boolean }, { task: ScheduleConversationTaskView }>("tasks.enabled", "暂停或恢复定时任务",
-    "暂停时不再唤醒；恢复时从现在起计算下一次运行时间", "command", object({ task_id: id, enabled: { type: "boolean" } }), object({ task }), write),
+    "暂停时不再唤醒；恢复时从现在起计算下一次运行时间", "command", object({ task_id: id, enabled: { type: "boolean" } }), object({ task }), write, undefined, /* @version action.schedule.tasks.enabled */ 1),
   openTask: define<{ task_id: string }, { task: ScheduleConversationTaskView }>("tasks.open", "标记定时任务已读",
-    "打开任务时清除未读标记，不改变排期", "command", object({ task_id: id }), object({ task }), write),
+    "打开任务时清除未读标记，不改变排期", "command", object({ task_id: id }), object({ task }), write, undefined, /* @version action.schedule.tasks.open */ 1),
   setJobEnabled: define<{ job_id: string; enabled: boolean }, { job: ScheduleJobRecord }>("jobs.enabled", "暂停或恢复闹钟",
-    "暂停或恢复其他插件登记的闹钟；对话任务使用自己的开关", "command", object({ job_id: id, enabled: { type: "boolean" } }), object({ job }), write),
+    "暂停或恢复其他插件登记的闹钟；对话任务使用自己的开关", "command", object({ job_id: id, enabled: { type: "boolean" } }), object({ job }), write, undefined, /* @version action.schedule.jobs.enabled */ 1),
   recoverReminder: define<RecoverScheduleReminderInput, { job: ScheduleJobView }>("reminders.recover", "确认并恢复旧提醒",
     "查看提醒内容和当前安装后，明确将旧提醒交给当前安装并恢复原排期；过期时补提醒一次。预期安装 ID 和世代仅用于拒绝过期确认，不能授权任意安装", "command",
-    object({ job_id: id, expected_installation_id: id, expected_generation: id }), object({ job }), write, { plugin: false }),
+    object({ job_id: id, expected_installation_id: id, expected_generation: id }), object({ job }), write, { plugin: false }, /* @version action.schedule.reminders.recover */ 1),
   recoverOperation: define<RecoverScheduledOperationInput, { operation: ScheduledOperationView }>("operations.recover", "核对并恢复定时操作",
     "先读取原功能、输入、当前安装与执行记录，再决定恢复、重试最早的未知结果（可能重复副作用）或跳过该次。预期版本与 revision 拒绝过期确认；不会直接执行插件代码，保留原排期与历史", "command",
     object({ operation_id: id, decision: { enum: ["resume", "retry", "skip"] }, expected_revision: id, expected_installation_id: id, expected_generation: id, expected_version: id }),
-    object({ operation: operationView }), write, { plugin: false }),
+    object({ operation: operationView }), write, { plugin: false }, /* @version action.schedule.operations.recover */ 1),
   searchEntries: scheduleSearchActions.entries,
   subject: scheduleSearchActions.subject,
 };

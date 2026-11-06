@@ -1,3 +1,4 @@
+import { V_FORMAT_SCHEDULE_PORTABLE } from "./versions.generated.js";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 
@@ -80,7 +81,7 @@ export function scheduleCollection(projectId: string): PluginSyncCollectionDefin
         .map(row => Object.fromEntries(TURN_COLUMNS.map(column => [column, row[column]])));
       validateTask(task, id);
       validateTurns(turns, id);
-      const value = { format: 1, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, task, turns };
+      const value = { format: V_FORMAT_SCHEDULE_PORTABLE, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, task, turns };
       size(value);
       return value;
     },
@@ -100,7 +101,7 @@ export function scheduleCollection(projectId: string): PluginSyncCollectionDefin
       exact(wire, ["format", "spaceId", "project", "task", "turns"]);
       const project = record(wire.project);
       exact(project, ["id", "title"]);
-      if (wire.format !== 1 || wire.spaceId !== context.spaceId || project.id !== projectId
+      if (wire.format !== V_FORMAT_SCHEDULE_PORTABLE || wire.spaceId !== context.spaceId || project.id !== projectId
         || !str(project.title, 120) || !String(project.title).trim()) invalid();
       const task = validateTask(wire.task, id);
       const turns = validateTurns(wire.turns, id);

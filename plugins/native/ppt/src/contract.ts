@@ -1,9 +1,10 @@
+import { V_FORMAT_PPT_PPT_ARTIFACT_SCHEMA } from "./versions.generated.js";
 export const PPT_PLUGIN_ID = "io.molis.work.ppt";
 export const PPT_PROJECT_PLUGIN_ID = "ppt";
 /** The one kind name of a 演示稿 everywhere it is named: its actions, search, placement, the side panel and its 成果 origin. */
 export const PPT_SUBJECT_KIND = "presentation";
 export const PPT_ARTIFACT_TYPE_ID = "io.molis.work.ppt.deck";
-export const PPT_ARTIFACT_SCHEMA_VERSION = 1;
+export const PPT_ARTIFACT_SCHEMA_VERSION = V_FORMAT_PPT_PPT_ARTIFACT_SCHEMA;
 
 export interface PptSlide {
   readonly id: string;

@@ -61,7 +61,7 @@ export async function validateMolisWorkMcpLauncher(context: McpLauncherValidatio
       jsonrpc: "2.0",
       id: 1,
       method: "initialize",
-      params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "molis-work-validator", version: "1" } },
+      params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "molis-work-validator", version: /* @version identity.mcp.validator "{version}" */ "1" } },
     })}\n`);
   });
 }

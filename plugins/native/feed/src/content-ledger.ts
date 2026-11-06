@@ -1,3 +1,4 @@
+import { V_DATABASE_FEED_HOME_DATABASE } from "./versions.generated.js";
 import { feedErrors } from "./contract/feed.js";
 import type { HomePluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -22,7 +23,7 @@ const FEED_CONTENT_LEDGER_SCHEMA = `
   CREATE INDEX feed_content_holds_by_holder ON feed_content_holds (project_id, source_id);
 `;
 /** The Home library the Feed's Home half is given (`services.database`). */
-export const FEED_HOME_DATABASE: HomePluginDatabaseDeclaration = { store_name: "feed-content", version: 1,
+export const FEED_HOME_DATABASE: HomePluginDatabaseDeclaration = { store_name: "feed-content", version: V_DATABASE_FEED_HOME_DATABASE,
   read_permission: "feed:read", write_permission: "feed:write", schema: FEED_CONTENT_LEDGER_SCHEMA };
 
 /** The only bodies this ledger counts: what the Home's evidence store names. A reference to anything else (a research note) is not its. */

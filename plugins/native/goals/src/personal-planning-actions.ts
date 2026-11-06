@@ -10,10 +10,10 @@ function home<I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> 
 }
 export const personalPlanningActions = {
   list: home(goalAction<Record<string, never>, { methods: PlanningMethodPack[] }>("goals.planning.personal.list", "读取个人规划方法",
-    "读取当前 Home 的完整内置和个人规划方法，个人版本优先；无需选择项目，不包含项目覆盖", "query", object({}), object({ methods: array(planningMethodSchema) }))),
+    "读取当前 Home 的完整内置和个人规划方法，个人版本优先；无需选择项目，不包含项目覆盖", "query", object({}), object({ methods: array(planningMethodSchema) }), undefined, /* @version action.goals.planning.personal.list */ 1)),
   save: home(goalAction<{ method: PlanningMethodPackInput }, { method: PlanningMethodPack }>("goals.planning.personal.save", "保存个人规划方法",
     "用户保存个人规划模板，每次保存生成新版本；后续查询和采用立即使用新版本，既有项目副本和目标要求保持原样。响应不确定时先读取核对，不自动重试", "command",
-    object({ method: planningMethodInputSchema }), object({ method: planningMethodSchema }))),
+    object({ method: planningMethodInputSchema }), object({ method: planningMethodSchema }), undefined, /* @version action.goals.planning.personal.save */ 1)),
 } as const;
 export const PERSONAL_PLANNING_ACTIONS = Object.values(personalPlanningActions);
 export interface PersonalPlanningActionPorts {

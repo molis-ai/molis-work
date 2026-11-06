@@ -1,6 +1,7 @@
 ---
 method_id: domain-software-development
-version: 3
+# @version method.goals.domain-software-development
+version: 1
 kind: domain
 name: "软件开发"
 summary: "先用项目与模块 SSOT 固定边界，再按横纵模块、实现、集成和交付组织软件工作。"

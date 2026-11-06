@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA } from "./versions.generated.js";
 /**
  * The Manifest of a plugin that runs in the Host's sandbox. Every sandbox plugin has the same shape of Manifest: one local
  * entrypoint, one call route, the private storage grant, one `stage` view. The plugin studio builds it for what it generates and the
@@ -134,7 +135,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     ? sandboxOperationActions({ contract: input.contract, ...(input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 }),
       title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project' }) : undefined;
   return {
-    schema_version: 1, host_api_version: 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
+    schema_version: V_MANIFEST_SCHEMA, host_api_version: V_HOST_API, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
     ...(actions ? { actions } : {}),
     ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),
@@ -169,7 +170,7 @@ export interface SandboxIntegrationManifestInput {
  */
 export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest {
   return {
-    schema_version: 1, host_api_version: 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'integration',
+    schema_version: V_MANIFEST_SCHEMA, host_api_version: V_HOST_API, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'integration',
     publisher: input.publisher,
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),

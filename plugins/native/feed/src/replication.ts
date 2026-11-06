@@ -1,3 +1,4 @@
+import { V_FORMAT_FEED_PORTABLE, V_SYNC_COLLECTION_FEED_CAPTURE_RULES, V_SYNC_COLLECTION_FEED_MESSAGES, V_SYNC_COLLECTION_FEED_SOURCE_DESCRIPTIONS, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { sourceSectionsDeclaration, sourceSectionsTracking, messageSectionsDeclaration, messageSectionsTracking } from "./sync-sections.js";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -69,7 +70,7 @@ export function feedRuleCollection(projectId: string): PluginSyncCollectionDefin
       const row = db.prepare("SELECT * FROM feed_out_rules WHERE project_id=? AND rule_id=?").get(projectId, id);
       if (!row) return null;
       validateRule(row, projectId, id);
-      const value = { format: 1, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, rule: row };
+      const value = { format: V_FORMAT_FEED_PORTABLE, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, rule: row };
       size(value);
       return value;
     },
@@ -87,7 +88,7 @@ export function feedRuleCollection(projectId: string): PluginSyncCollectionDefin
       exact(wire, ["format", "spaceId", "project", "rule"]);
       const project = object(wire.project);
       exact(project, ["id", "title"]);
-      if (wire.format !== 1 || wire.spaceId !== context.spaceId || project.id !== projectId ||
+      if (wire.format !== V_FORMAT_FEED_PORTABLE || wire.spaceId !== context.spaceId || project.id !== projectId ||
         typeof project.title !== "string" || !project.title.trim() || project.title.length > 120) invalid();
       const rule = validateRule(wire.rule, projectId, id);
       // Restored rules are intentionally disabled until explicitly enabled on this device.
@@ -102,6 +103,6 @@ export function feedRuleCollection(projectId: string): PluginSyncCollectionDefin
 }
 
 export const feedSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "capture_rules", database: "project", tracking: feedRuleTracking, title: "消息捕捉规则", schema_version: 1, requires: [] },{id:'source_descriptions',database:'project',title:'来源描述与历史',schema_version:1,requires:[],sections:sourceSectionsDeclaration,tracking:sourceSectionsTracking},{id:'messages',database:'project',title:'消息、材料与固定历史',schema_version:1,requires:['source_descriptions'],sections:messageSectionsDeclaration,tracking:messageSectionsTracking}],
+  protocol_version: V_SYNC_PROTOCOL,
+  collections: [{ id: "capture_rules", database: "project", tracking: feedRuleTracking, title: "消息捕捉规则", schema_version: V_SYNC_COLLECTION_FEED_CAPTURE_RULES, requires: [] },{id:'source_descriptions',database:'project',title:'来源描述与历史',schema_version:V_SYNC_COLLECTION_FEED_SOURCE_DESCRIPTIONS,requires:[],sections:sourceSectionsDeclaration,tracking:sourceSectionsTracking},{id:'messages',database:'project',title:'消息、材料与固定历史',schema_version:V_SYNC_COLLECTION_FEED_MESSAGES,requires:['source_descriptions'],sections:messageSectionsDeclaration,tracking:messageSectionsTracking}],
 };

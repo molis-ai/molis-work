@@ -15,7 +15,7 @@ const acknowledge = action<GoalAcknowledgeActionInput, GoalEventMutationResult>(
   "外部 AI 会话读到本人写在目标上的笔记、要求或决定后，说明读到了什么、打算怎么处理；记在目标时间线上。这是 AI 自己的说法，不代表已经照做，也不改变目标的状态、要求或决定。重试须保留相同 idempotency_key", "command",
   object({ goal_id: identifier, event_id: identifier, treatment: enumeration(goalEventAcknowledgementTreatments),
     note: { ...identifier, maxLength: 300 }, read_cursor: { type: "number" }, idempotency_key: identifier }),
-  object({ event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } }));
+  object({ event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } }), undefined, /* @version action.goals.events.acknowledge */ 1);
 
 /** Only the AI sessions that read the Goal may say how they treat it: not a page, a workflow, or an installed plugin (nothing in Goals confirms a plugin's identity). */
 export const goalsAcknowledgeActions = {

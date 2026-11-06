@@ -1,3 +1,4 @@
+import { V_FORMAT_RUNTIME_CONFIG_BACKUP } from "../versions.generated.js";
 import { constants, promises as fs } from "node:fs";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -5,14 +6,14 @@ import { createLazyFileSecretStore, readExistingSecret, readSealedSecretSnapshot
 import { SUPPORTED_RUNTIME_IDS, type SupportedRuntimeId } from "./runtime-integration-contract.js";
 import { writeAtomic } from "./runtime-installation-files.js";
 
-export const RUNTIME_CONFIG_BACKUP_OWNER = "molis-work-runtime-config-backup-v1";
+export const RUNTIME_CONFIG_BACKUP_OWNER = /* @version type.molis-work-runtime-config-backup "molis-work-runtime-config-backup-v{version}" */ "molis-work-runtime-config-backup-v1";
 const errors = defineErrorCodes("installer.runtime_backup", {
   invalid: "invalid", missing: "not_found", key_unavailable: "unavailable", conflict: "conflict",
 });
 const absent = (error: unknown) => error instanceof Error && "code" in error && error.code === "ENOENT";
 
 export interface RuntimeConfigBackupReference {
-  schema_version: 1;
+  schema_version: /* @version format.runtime.config-backup */ 1;
   owner: typeof RUNTIME_CONFIG_BACKUP_OWNER;
   runtime_id: SupportedRuntimeId;
   plan_id: string;
@@ -49,7 +50,7 @@ async function directory(home: string, runtimeId: SupportedRuntimeId, create: bo
 
 function reference(runtimeId: SupportedRuntimeId, planId: string, mode: number): RuntimeConfigBackupReference {
   if (!Number.isInteger(mode) || mode < 0 || mode > 0o777) throw errors.invalid("配置备份的原权限无效");
-  return { schema_version: 1, owner: RUNTIME_CONFIG_BACKUP_OWNER, runtime_id: runtimeId, plan_id: planId,
+  return { schema_version: V_FORMAT_RUNTIME_CONFIG_BACKUP, owner: RUNTIME_CONFIG_BACKUP_OWNER, runtime_id: runtimeId, plan_id: planId,
     auth_ref: "runtime-config-backup:" + runtimeId + ":" + planId, mode };
 }
 
@@ -66,7 +67,7 @@ async function readReference(home: string, runtimeId: SupportedRuntimeId, planId
     try { parsed = JSON.parse(await handle.readFile("utf8")); } catch { throw errors.invalid("配置备份不是现行密封引用，请先在维护窗口处理原文备份"); }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw errors.invalid("配置备份的引用无效");
     const item = parsed as Record<string, unknown>;
-    if (Object.keys(item).sort().join(",") !== "auth_ref,mode,owner,plan_id,runtime_id,schema_version" || item.schema_version !== 1
+    if (Object.keys(item).sort().join(",") !== "auth_ref,mode,owner,plan_id,runtime_id,schema_version" || item.schema_version !== V_FORMAT_RUNTIME_CONFIG_BACKUP
       || item.owner !== RUNTIME_CONFIG_BACKUP_OWNER || item.runtime_id !== runtimeId || item.plan_id !== planId || typeof item.mode !== "number"
       || !Number.isInteger(item.mode) || item.mode < 0 || item.mode > 0o777 || item.auth_ref !== reference(runtimeId, planId, item.mode).auth_ref) {
       throw errors.invalid("配置备份的引用或归属不匹配");

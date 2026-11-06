@@ -1,3 +1,4 @@
+import { V_FORMAT_PLUGIN_DEVELOPMENT_MARKER } from "./versions.generated.js";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -31,7 +32,7 @@ export async function runLocalPluginDevelopment(input: {
 }): Promise<PluginDevelopmentResult> {
   const directory = resolve(input.state_directory);
   const markerName = ".molis-work-plugin-development.json";
-  const marker = { kind: "molis-work-plugin-development", schema_version: 1 };
+  const marker = { kind: "molis-work-plugin-development", schema_version: V_FORMAT_PLUGIN_DEVELOPMENT_MARKER };
   await mkdir(directory, { recursive: true });
   const names = await readdir(directory);
   if (names.includes(markerName)) {

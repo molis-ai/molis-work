@@ -1,3 +1,4 @@
+import { V_FORMAT_ASSET_BUNDLE } from "./versions.generated.js";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -12,7 +13,7 @@ type Asset = Omit<RegisterArtifactVersionInput,"project_id"|"actor_id"|"team_sha
   owner_actor_id:string;availability:"available"|"unavailable";lifecycle_state:"active"|"archived";source_supersedes_version:number|null;
 };
 interface AssetBundle {
-  format:"molis-work-assets";version:1;source_project_id:string;title:string;
+  format:"molis-work-assets";version:/* @version format.asset.bundle */ 1;source_project_id:string;title:string;
   goals:unknown[];artifacts:Asset[];
   dependencies:{plugin_id:string;plugin_version:string;credential_required:boolean}[];
   notes:string[];
@@ -20,7 +21,7 @@ interface AssetBundle {
 function bundleInput(value: unknown): AssetBundle {
   if (!value || typeof value !== "object") throw new ImError("assets.invalid","不是工作资产包");
   const b=value as AssetBundle;
-  if (b.format !== "molis-work-assets" || b.version !== 1 || typeof b.source_project_id !== "string" || !b.source_project_id || b.source_project_id.length > 200 || typeof b.title !== "string" || !Array.isArray(b.artifacts) || b.artifacts.length > 100 || !Array.isArray(b.goals) || b.goals.length > 100 || !Array.isArray(b.dependencies)) throw new ImError("assets.invalid","工作资产包格式无效");
+  if (b.format !== "molis-work-assets" || b.version !== V_FORMAT_ASSET_BUNDLE || typeof b.source_project_id !== "string" || !b.source_project_id || b.source_project_id.length > 200 || typeof b.title !== "string" || !Array.isArray(b.artifacts) || b.artifacts.length > 100 || !Array.isArray(b.goals) || b.goals.length > 100 || !Array.isArray(b.dependencies)) throw new ImError("assets.invalid","工作资产包格式无效");
   for (const a of b.artifacts) {
     if (!a || typeof a.owner_actor_id !== "string" || !a.owner_actor_id || !a.producer || !a.content || !["inline","reference"].includes(a.content.kind)) throw new ImError("assets.invalid","成果内容无效");
     if (!a.origin || typeof a.title !== "string" || !a.title.trim() || typeof a.media_type !== "string") throw new ImError("assets.invalid","成果缺少来源、标题或媒体类型");

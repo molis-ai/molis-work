@@ -1,3 +1,4 @@
+import { V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { parseSyncSections } from "./sync-sections.js";
 import { parseSyncTracking, parseSyncAggregates } from './sync-schema.js';
 import type { PluginSyncDeclaration, PluginSyncCollection } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -6,7 +7,7 @@ import { syncError } from "./sync-errors.js";
 export function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaration {
   const object = syncRecord(value);
   exactKeys(object, ["protocol_version", "collections"]);
-  if (object.protocol_version !== 1 || !Array.isArray(object.collections)
+  if (object.protocol_version !== /* @version sync.protocol */ 1 || !Array.isArray(object.collections)
     || !object.collections.length || object.collections.length > 100) fail("同步声明须包含 1–100 个集合");
   const ids = new Set<string>();
   const collections = object.collections.map((item): PluginSyncCollection => {
@@ -23,7 +24,7 @@ export function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaratio
     ids.add(row.id);
     return Object.freeze({ ...(row.database !== undefined ? {database: row.database as "home" | "project"} : {}), id: row.id, title: row.title, schema_version: Number(row.schema_version), requires: Object.freeze([...row.requires]) as readonly string[], ...(row.sections !== undefined ? {sections: parseSyncSections(row.sections)} : {}), ...(row.tracking !== undefined ? {tracking: parseSyncTracking(row.tracking)} : {}), ...(row.aggregates !== undefined ? {aggregates: parseSyncAggregates(row.aggregates)} : {}) });
   });
-  const result = Object.freeze({ protocol_version: 1 as const, collections: Object.freeze(collections) });
+  const result = Object.freeze({ protocol_version: V_SYNC_PROTOCOL, collections: Object.freeze(collections) });
   // Validate every node, including currently unselected collections.
   expand(result, [...ids]);
   return result;

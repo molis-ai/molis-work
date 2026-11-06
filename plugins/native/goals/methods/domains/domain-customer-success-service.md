@@ -1,5 +1,6 @@
 ---
 method_id: domain-customer-success-service
+# @version method.goals.domain-customer-success-service
 version: 1
 kind: domain
 name: "客户成功与服务"

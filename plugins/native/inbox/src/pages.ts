@@ -67,7 +67,7 @@ export function createInboxPagesHandlers(ports: InboxPagesPorts) {
         if (expected) matches(await currentMaterials());
         await caller.beforeEffect();
       } };
-      await guarded.validate_authority!({ capability_id: "pages.generate", version: 1, provider_id: PAGES_PROVIDER_ID });
+      await guarded.validate_authority!({ capability_id: "pages.generate", version: /* @version action.pages.generate */ 1, provider_id: PAGES_PROVIDER_ID });
       const result = await ports.generate({ request_id: input.request_id, request_hash, inputs, instructions, title }, guarded);
       return { ...result, request_id: input.request_id, entry_ids: entryIds };
     },

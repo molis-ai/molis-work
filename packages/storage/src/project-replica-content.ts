@@ -1,3 +1,4 @@
+import { V_FORMAT_PROJECT_SECTIONS } from "./versions.generated.js";
 import type {ProjectReplicaDefinition,ProjectReplicaRows} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 import {createProjectReplicaSection,validateProjectReplicaRows} from './project-replica.js';
@@ -8,7 +9,7 @@ const errors=defineErrorCodes('storage',{sync_sections_invalid:'invalid',sync_se
 /** Complete pure owner validation before project creation; target identity and execution guards remain transactional. */
 export function validateProjectContentReplication(value:unknown,definitions:readonly ProjectReplicaDefinition[],context:{spaceId:string;projectId:string;authorize():void}){
  context.authorize();size(value);const wire=object(value);exact(wire,['format','spaceId','project','facts']);const project=object(wire.project);exact(project,['id','title']);
- if(wire.format!==1||wire.spaceId!==context.spaceId||project.id!==context.projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)invalid();
+ if(wire.format!==V_FORMAT_PROJECT_SECTIONS||wire.spaceId!==context.spaceId||project.id!==context.projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)invalid();
  const facts=object(wire.facts);exact(facts,definitions.map(d=>d.id));const rows=definitions.map(d=>{const part=validateProjectReplicaRows(facts[d.id],d,context.projectId);d.validate(part,context.projectId);return part;});
  context.authorize();return rows;
 }
@@ -21,7 +22,7 @@ export function createProjectContentReplicaFactory(definitions:readonly ProjectR
   const key=JSON.stringify([context.projectId,kind,context.projectId]);
   const check=(input:string)=>{if(input!==key)throw errors.sync_sections_scope('项目同步资产不匹配');};
   return createSqliteReplica(namespacedReplicaDatabase(db,namespace),{authorize:context.authorize,conflictState:context.conflictState,
-   read(input){check(input);const facts=Object.fromEntries(definitions.map((d,i)=>[d.id,sections[i]!.validate(sections[i]!.read())]));if(!Object.values(facts).some(part=>Object.values(part).some(rows=>rows.length)))return null;const wire={format:1,spaceId:context.spaceId,project:{id:context.projectId,title:context.title},facts};size(wire);return wire;},
+   read(input){check(input);const facts=Object.fromEntries(definitions.map((d,i)=>[d.id,sections[i]!.validate(sections[i]!.read())]));if(!Object.values(facts).some(part=>Object.values(part).some(rows=>rows.length)))return null;const wire={format:V_FORMAT_PROJECT_SECTIONS,spaceId:context.spaceId,project:{id:context.projectId,title:context.title},facts};size(wire);return wire;},
    apply(input,value){check(input);db.exec('PRAGMA defer_foreign_keys=ON');
     if(value===null){[...sections].reverse().forEach(section=>section.clear(true));return;}
     const pure=validateProjectContentReplication(value,definitions,context);const rows=definitions.map((_d,i)=>sections[i]!.validate(pure[i]));

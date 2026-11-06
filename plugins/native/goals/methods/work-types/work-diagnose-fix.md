@@ -1,6 +1,7 @@
 ---
 method_id: work-diagnose-fix
-version: 2
+# @version method.goals.work-diagnose-fix
+version: 1
 kind: work_type
 name: "诊断与修复"
 summary: "先复现和定位根因，再修复、回归并恢复可信状态。"

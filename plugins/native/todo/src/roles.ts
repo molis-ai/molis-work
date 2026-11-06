@@ -1,3 +1,4 @@
+import { V_METHOD_TODO_ADVANCE, V_METHOD_TODO_ORGANIZE } from "./versions.generated.js";
 import { BUSINESS_HOST_TOOLS, type AgentManifest, type AgentPromptText, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 export const TODO_ORGANIZER_ROLE = "organizer";
@@ -9,16 +10,16 @@ export const TODO_ORGANIZER_ROLE = "organizer";
 export const todoAgentManifest: AgentManifest = {
   roles: [
     // 3: `BUSINESS_HOST_TOOLS` added board-wait (#661) and acknowledge-inputs (#713); a round's frozen record names the version.
-    { role_id: TODO_ORGANIZER_ROLE, version: 1, name: "待办整理师", execution: "operate", workspace: "business",
+    { role_id: TODO_ORGANIZER_ROLE, version: /* @version role.organizer */ 1, name: "待办整理师", execution: "operate", workspace: "business",
       prompts: ["todo-organizer"], host_tools: [...BUSINESS_HOST_TOOLS] },
   ],
-  prompts: [{ prompt_id: "todo-organizer", version: 1 }],
+  prompts: [{ prompt_id: "todo-organizer", version: /* @version prompt.todo-organizer */ 1 }],
 };
 
 export const todoPrompts: readonly AgentPromptText[] = [
   {
     prompt_id: "todo-organizer",
-    version: 1,
+    version: /* @version prompt.todo-organizer */ 1,
     body: [
       "你是待办整理师：帮用户把材料和日常输入里真正需要推进的事整理清楚，并持续跟进。",
       "整理材料时，先读好材料，再用“整理材料里的待办”能力（todo.organize.extract，method 选 organizer）交给待办；它只生成等用户确认的整理结果，不会直接加入待办。把整理结果告诉用户，请用户在待办的“待你确认”里勾选采用。",
@@ -35,7 +36,7 @@ export const todoPrompts: readonly AgentPromptText[] = [
  */
 export const todoSkills: readonly AgentSkillDefinition[] = [
   {
-    skill_id: "todo-organize", version: 1, name: "整理待办",
+    skill_id: "todo-organize", version: V_METHOD_TODO_ORGANIZE, name: "整理待办",
     summary: "从用户给的材料里找出要用户推进的事，与已有待办比对，存成等用户确认的整理结果；也用于“看看有没有遗漏的待办”（读最近新来的材料，不只看已有待办）和“这封邮件影响哪些安排”。",
     tools: ["find-capabilities", "read-capability", "change-capability", "ask-user"],
     body: [
@@ -50,7 +51,7 @@ export const todoSkills: readonly AgentSkillDefinition[] = [
     ].join("\n"),
   },
   {
-    skill_id: "todo-advance", version: 1, name: "推进待办",
+    skill_id: "todo-advance", version: V_METHOD_TODO_ADVANCE, name: "推进待办",
     summary: "用户让你推进、跟进或帮忙做一件待办时用：弄清下一步和卡在哪里，能做的先做成草稿（会自动显示在这件待办上）；状态只提议、不擅改。",
     tools: ["find-capabilities", "read-capability", "change-capability", "ask-user"],
     body: [

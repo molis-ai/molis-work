@@ -1,3 +1,4 @@
+import { V_DATABASE_IMAGES_DATABASE } from "./versions.generated.js";
 import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { IMAGES_ASSETS } from "./owner-files.js";
 
@@ -16,7 +17,7 @@ const IMAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = {
  * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const IMAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: IMAGES_PROJECT_ROWS, store_name: "images", version: 1, read_permission: "storage:private", write_permission: "storage:private", schema: `
+export const IMAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: IMAGES_PROJECT_ROWS, store_name: "images", version: V_DATABASE_IMAGES_DATABASE, read_permission: "storage:private", write_permission: "storage:private", schema: `
   CREATE TABLE connections (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
     base_url TEXT NOT NULL, model TEXT NOT NULL,

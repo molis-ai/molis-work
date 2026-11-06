@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_GITHUB_INDEX_GITHUBINTEGRATIONMANIFEST } from "./versions.generated.js";
 import type {
   IntegrationProviderPort,
   PluginDefinition,
@@ -11,27 +12,27 @@ export { createGithubProvider, githubWhoami, type GithubFetch, type GithubWhoami
 export { readResearchLibrary, type ResearchLibraryEntry } from "./research-library.js";
 
 export const githubIntegrationManifest = {
-  schema_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
   plugin_id: "io.molis.work.integration.github",
   // 1.2.0: the account check moved to the connector action `connectors.account.read`.
   // 1.3.0: declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.4.0: declares its OAuth flow as data (W5-11).
-  version: "1.5.0",
+  version: V_PACKAGE_PLUGINS_OFFICIAL_INTEGRATIONS_GITHUB_INDEX_GITHUBINTEGRATIONMANIFEST,
   name: "GitHub",
   kind: "integration",
   publisher: {
     publisher_id: "io.adeptify",
     signature: "adeptify-official-signature-v1",
   },
-  host_api_version: 1,
+  host_api_version: V_HOST_API,
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
     { permission: "network:github.com", required: true, reason: "读取 GitHub 身份与通知" },
     { permission: "secret:github", required: true, reason: "使用不可导出的 GitHub credential reference" },
   ],
   capabilities: {
-    provides: ["connector.driver.github.v1", "signal.adapter.github.v1"],
-    consumes: ["connector.host.v1", "listener.host.v1", "signals.command.v1"],
+    provides: [/* @version type.connector.driver.github "connector.driver.github.v{version}" */ "connector.driver.github.v1", /* @version type.signal.adapter.github "signal.adapter.github.v{version}" */ "signal.adapter.github.v1"],
+    consumes: [/* @version type.connector.host "connector.host.v{version}" */ "connector.host.v1", /* @version type.listener.host "listener.host.v{version}" */ "listener.host.v1", /* @version type.signals.command "signals.command.v{version}" */ "signals.command.v1"],
   },
   artifacts: { produces: [], consumes: [] },
   ui: { contributions: ["settings.integration.github"] },

@@ -1,8 +1,9 @@
+import { V_FORMAT_SHELF_CATALOG } from "./versions.generated.js";
 import type { ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobRecord } from './contract.js';
 import { defaultShelfDeviceSettings } from './settings.js';
 import { shelfErrors } from './errors.js';
 
-export const CATALOG_VERSION = 1;
+export const CATALOG_VERSION = V_FORMAT_SHELF_CATALOG;
 
 export interface StoredItem extends Omit<ShelfItemRecord, 'hidden' | 'size_bytes' | 'preview_text' | 'relative_path'> {
   hidden: boolean;

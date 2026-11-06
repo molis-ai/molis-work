@@ -23,7 +23,7 @@ export async function publishAgentBuild(store: AgentBuilderStore, ports: AgentBu
   if (latest && latest.design.contract.revision === build.design!.contract.revision && JSON.stringify(latest.nodes) === JSON.stringify(build.nodes)
     && JSON.stringify(latest.design.presentation) === JSON.stringify(build.design!.presentation)) throw new Error('v' + latest.version + ' 已经是当前这一版，没有新的改动可以发布');
   const version = (latest?.version ?? 0) + 1;
-  const manifest = { version: 1 as const, pluginId: build.design!.contract.pluginId, revision: build.design!.contract.revision, effects: effectsFromContract(build.design!.contract) };
+  const manifest = { version: /* @version format.builder.build-manifest */ 1 as const, pluginId: build.design!.contract.pluginId, revision: build.design!.contract.revision, effects: effectsFromContract(build.design!.contract) };
   const assertCurrent = () => {
     assertOpen(); signal.throwIfAborted(); authority.assert_authority_current!();
     const current = store.require(build.id);

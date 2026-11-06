@@ -63,7 +63,7 @@ test("export has a version and no secrets or absolute paths; importing twice add
   await memory.write(person(), { scope: "personal", text: "提交前先跑检查", kind: "convention", applies: { task: "改 /Users/someone/code/goalboard 里的代码时" } });
   const pack = await memory.exportScope(person(), "personal");
   assert.equal(pack.format, "molis.memory");
-  assert.equal(pack.version, 2);
+  assert.equal(pack.version, 1);
   const text = JSON.stringify(pack);
   assert.doesNotMatch(text, /\/Users\/someone/, "no absolute path");
   assert.ok(pack.redactions.some(item => item.kind === "absolute-path" && item.count >= 1), "says what was taken out");

@@ -1,3 +1,4 @@
+import { V_PACKAGE_GENERATED_INITIAL } from "../versions.generated.js";
 import { canonicalJsonValue as canonical, effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 export { canonical };
 import { constants } from 'node:fs';
@@ -11,7 +12,7 @@ import { sdkDeclarations } from './build-sdk-declarations.js';
 
 export const SDK_MODULE = '@molis/plugin-sdk';
 export function buildManifest(contract: SandboxPluginContract): BuildManifest {
-  return { version: 1, pluginId: contract.pluginId, revision: contract.revision, effects: effectsFromContract(contract) };
+  return { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: effectsFromContract(contract) };
 }
 export function operationEntry(contract: SandboxPluginContract): string {
   return contract.operations.map((_op, index) => `import operation${index} from './operations/${index}.js';`).join('\n')
@@ -81,7 +82,7 @@ await assert.rejectsCode(() => call(input), 'code'). Every test must assert some
       },
     ];
 `);
-  await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'generated-plugin', version: '0.0.0', private: true, type: 'module', dependencies: {} }, null, 2), { flag: 'wx', mode: 0o600 });
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'generated-plugin', version: V_PACKAGE_GENERATED_INITIAL, private: true, type: 'module', dependencies: {} }, null, 2), { flag: 'wx', mode: 0o600 });
   const operationFiles: Record<string, string> = {}, testFiles: Record<string, string> = {};
   for (const [index, operation] of contract.operations.entries()) {
     const operationPath = join(root, `src/operations/${index}.ts`), testPath = join(root, `tests/operations/${index}.ts`);

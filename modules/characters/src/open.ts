@@ -1,3 +1,4 @@
+import { V_DATABASE_CHARACTERS_STORE_BASELINE } from "./versions.generated.js";
 import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +18,7 @@ import { CharacterRunsRepository, type CharacterRuns } from "./runs.js";
  * The current schema includes `character_runs`, the native runs Characters records itself (Sessions cleanup SC-2, D3).
  * Clean Homes start at the current baseline; an existing file at another version is not upgraded on open.
  */
-export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: (`CREATE TABLE character_drafts (
+export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: V_DATABASE_CHARACTERS_STORE_BASELINE, schema: (`CREATE TABLE character_drafts (
   character_id TEXT PRIMARY KEY,
   owner_actor_id TEXT NOT NULL,
   revision INTEGER NOT NULL,

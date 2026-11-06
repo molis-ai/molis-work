@@ -11,11 +11,11 @@ import type { SourcePresentation } from "@molis-ai/molis-work-contracts/platform
 const empty = { type: "object", properties: {}, additionalProperties: false };
 const item = { type: "object", required: ["item_id", "revision", "materials", "title"] };
 const rows = (required: string[]) => ({ type: "array", items: { type: "object", required } });
-function define<I, O>(id: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: readonly string[] = ["feed:read"]): ActionDefinition<I, O> {
+function define<I, O>(id: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: readonly string[] = ["feed:read"], version = /* @version factory.plugins.native.feed.define */ 1): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(id, "query", { title, description,
     // This is the existing local panel projection, including source configuration and receipt metadata.
     // Shared content consumers use feed.content.list/read, which expose their narrower content contract.
-    audiences: ["user"], permissions: [...permissions], subject_kinds: ["feed_item"], input_schema: input, output_schema: output });
+    audiences: ["user"], permissions: [...permissions], subject_kinds: ["feed_item"], input_schema: input, output_schema: output }, version);
 }
 
 export type FeedDirectorySnapshot = Omit<FeedSnapshot, "inbox_entries">;
@@ -32,7 +32,7 @@ export interface FeedReaderData {
   readonly inbox_active: boolean;
   readonly promote_available: boolean;
 }
-export const FEED_STAGE_INBOX_READ = { capability_id: "inbox.list", version: 1, provider_id: "io.molis.work.inbox" } as const;
+export const FEED_STAGE_INBOX_READ = { capability_id: "inbox.list", version: /* @version action.inbox.list */ 1, provider_id: "io.molis.work.inbox" } as const;
 const snapshotSchema = { type: "object", properties: { sources: rows(["source_id"]), feed_items: { type: "array", items: item },
   runs: rows(["run_id"]), out_rules: rows(["rule_id"]) }, required: ["sources", "feed_items", "runs", "out_rules"], additionalProperties: false };
 const connectionsSchema = { type: "object", properties: {
@@ -42,31 +42,31 @@ const connectionsSchema = { type: "object", properties: {
 const linkedContext = define<{ goal_id: string; item_id?: string }, { source_context: string } | null>("feed.goals.context", "读取 Goal 关联材料",
   "只读取 Context Ledger 中仍与指定 Goal 关联的 Feed 原文；不能通过材料 ID 注入未关联内容",
   { ...empty, properties: { goal_id: { type: "string", minLength: 1 }, item_id: { type: "string", minLength: 1 } }, required: ["goal_id"] },
-  { anyOf: [{ type: "object", properties: { source_context: { type: "string" } }, required: ["source_context"], additionalProperties: false }, { type: "null" }] });
+  { anyOf: [{ type: "object", properties: { source_context: { type: "string" } }, required: ["source_context"], additionalProperties: false }, { type: "null" }] }, undefined, /* @version action.feed.goals.context */ 1);
 
 export const feedQueryActions = {
   stage: define<Record<string, never>, FeedStageData>("feed.stage.read", "读取 Feed 舞台", "读取本实例的来源目录、消息、捕捉建议、连接与 Inbox 活跃事实", empty,
     { type: "object", properties: { snapshot: snapshotSchema, source_catalog: rows(["id", "name", "feed_url", "category", "category_label", "limitations"]),
       connector_auth: connectionsSchema, inbox_entries: rows(["entry_id", "subject_type", "subject_id", "status"]), source_presentations: { type: "object" } },
       required: ["snapshot", "source_catalog", "connector_auth", "inbox_entries", "source_presentations"], additionalProperties: false },
-    ["feed:read", "inbox:read", "evidence:read", "sources:pull_feed", "sources:pull_connector"]),
+    ["feed:read", "inbox:read", "evidence:read", "sources:pull_feed", "sources:pull_connector"], /* @version action.feed.stage.read */ 1),
   reader: define<{ object_id: string }, FeedReaderData>("feed.items.reader", "读取 Feed 阅读器", "读取一条消息的正文、有效捕捉建议及当前可用的处置",
     { ...empty, properties: { object_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["object_id"] },
     { type: "object", properties: { item, inbox_active: { type: "boolean" }, promote_available: { type: "boolean" } },
-      required: ["item", "inbox_active", "promote_available"], additionalProperties: false }, ["feed:read", "inbox:read", "evidence:read"]),
+      required: ["item", "inbox_active", "promote_available"], additionalProperties: false }, ["feed:read", "inbox:read", "evidence:read"], /* @version action.feed.items.reader */ 1),
   linkedContext: { ...linkedContext, action: { ...linkedContext.action, permissions: ["feed:read", "goals:read"],
-    required_actions: [{ capability_id: "goals.contract.read", version: 1, provider_id: "io.molis.work.goals" }] } },
+    required_actions: [{ capability_id: "goals.contract.read", version: /* @version action.goals.contract.read */ 1, provider_id: "io.molis.work.goals" }] } },
   snapshot: define<{ include_contents?: boolean }, FeedDirectorySnapshot>("feed.snapshot", "读取 Feed 面板",
     "读取当前项目的来源、消息与拉取记录；默认省略正文，Inbox 事项由 Inbox 自己授权读取",
     { ...empty, properties: { include_contents: { type: "boolean" } } },
-    snapshotSchema),
+    snapshotSchema, undefined, /* @version action.feed.snapshot */ 1),
   item: define<{ item_id: string }, { item: FeedItemRecord }>("feed.items.get", "读取 Feed 消息",
     "读取一条消息的当前内容，包含仍可读取的原始材料正文",
     { ...empty, properties: { item_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["item_id"] },
-    { type: "object", properties: { item }, required: ["item"], additionalProperties: false }),
+    { type: "object", properties: { item }, required: ["item"], additionalProperties: false }, undefined, /* @version action.feed.items.get */ 1),
   connections: define<Record<string, never>, ConnectorAuthStatus>("feed.connections.status", "Feed 连接状态",
     "读取本机是否已连上 GitHub、Gmail 账号，不包含令牌", empty,
-    connectionsSchema),
+    connectionsSchema, undefined, /* @version action.feed.connections.status */ 1),
 } as const;
 
 export function createFeedQueryHandlers(feed: FeedApplication, projectId: string, ports: {

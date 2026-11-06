@@ -33,7 +33,7 @@ import {
 } from "@molis-ai/molis-work-storage";
 
 const APP_ID = "molis-work";
-const KEY_NAMESPACE = "feed-intent-v1";
+const KEY_NAMESPACE = /* @version type.feed-intent "feed-intent-v{version}" */ "feed-intent-v1";
 const TENANT_ID = "solo";
 const PRINCIPAL_REF = "molis-work:local";
 

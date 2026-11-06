@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_IMAGES_MANIFEST_IMAGESMANIFEST } from "./versions.generated.js";
 import { SHELF_ADMIT_ID, shelfAdmit } from "./shelf-admit.js";
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
 import { IMAGES_FILES_WRITE, IMAGES_OWNER_FILES } from "./owner-files.js";
@@ -9,7 +10,7 @@ import { imagesSync } from './replication.js';
 
 import { IMAGES_MESSAGES } from "./messages.js";
 import { IMAGES_EN } from "./en.js";
-export const IMAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.images.ui.v1";
+export const IMAGES_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.images.ui "io.molis.work.native.images.ui.v{version}" */ "io.molis.work.native.images.ui.v1";
 const routes: PluginRouteDeclaration[] = [
   {route_id:"images.connections.list",method:"GET",path:"/connections",permission:"images:connections:read"},
   {route_id:"images.connections.save",method:"POST",path:"/connections",permission:"images:connections:write"},
@@ -23,10 +24,10 @@ const routes: PluginRouteDeclaration[] = [
   {route_id:"images.images.shelf",method:"POST",path:"/jobs/:id/images/:image_id/shelf",permission:"images:read"},
 ];
 export const imagesManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
+  host_api_version: V_HOST_API,
   plugin_id: IMAGES_PLUGIN_ID,
-  version: "0.1.0",
+  version: V_PACKAGE_PLUGINS_NATIVE_IMAGES_MANIFEST_IMAGESMANIFEST,
   name: "图片",
   sync: imagesSync,
   name_en: "Images",

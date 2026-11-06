@@ -7,8 +7,8 @@ import { ACTION_SUBJECT_SCHEMA } from "./action-subjects.js";
  * overdue lists are not reminders. The Plugin keeps no timer: the Host asks, about once a minute, which reminders fall
  * due in a window. Read from the person's Home, so every reminder of theirs is included, each saying its project.
  */
-export const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
-export const DUE_REMINDERS_OUTPUT_TYPE = "molis.reminders.due.v1";
+export const DUE_REMINDERS_INPUT_TYPE = /* @version type.molis.reminders.window "molis.reminders.window.v{version}" */ "molis.reminders.window.v1";
+export const DUE_REMINDERS_OUTPUT_TYPE = /* @version type.molis.reminders.due "molis.reminders.due.v{version}" */ "molis.reminders.due.v1";
 export interface DueReminderWindow { from: string; to: string }
 export interface DueReminder {
   /** Stable for this occurrence: the same reminder at a new time is a new id (the Host tells each id once). */
@@ -36,8 +36,8 @@ export const DUE_REMINDER_COLLECTION_SCHEMA = { type: "object", properties: {
   source: { type: "object", properties: { surface: token, title: id }, required: ["surface", "title"], additionalProperties: false },
   reminders: { type: "array", maxItems: 100, items: DUE_REMINDER_SCHEMA } }, required: ["source", "reminders"], additionalProperties: false };
 
-export function defineDueRemindersAction(capabilityId: string, kinds: string[], title: string, permissions: string[]): ActionDefinition<DueReminderWindow, DueReminderCollection> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: "列出用户自己设的、到期时间落在窗口内的提醒；只读，不改变提醒状态。", kind: "query", scope: "home", scheduling: "concurrent",
+export function defineDueRemindersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], version = /* @version factory.packages.contracts.defineDueRemindersAction */ 1): ActionDefinition<DueReminderWindow, DueReminderCollection> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "列出用户自己设的、到期时间落在窗口内的提醒；只读，不改变提醒状态。", kind: "query", scope: "home", scheduling: "concurrent",
     audiences: ["user"], permissions, subject_kinds: kinds,
     input_type: DUE_REMINDERS_INPUT_TYPE, output_type: DUE_REMINDERS_OUTPUT_TYPE, input_schema: DUE_REMINDER_WINDOW_SCHEMA, output_schema: DUE_REMINDER_COLLECTION_SCHEMA } };
 }

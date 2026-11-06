@@ -1,3 +1,4 @@
+import { V_HOST_API, V_MANIFEST_SCHEMA, V_PACKAGE_PLUGINS_NATIVE_INBOX_MANIFEST_INBOXMANIFEST, V_SYNC_COLLECTION_INBOX_ATTENTION, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { attentionSections } from "./sync.js";
 import { inboxContentActions, inboxSearchEntriesAction, inboxSubjectAction } from "./content-actions.js";
 import { inboxHomeEventsAction } from "./home-events.js";
@@ -31,10 +32,10 @@ const PLATFORM_PERMISSIONS = [
  * Runtime (`createInboxPlugin`, one instance per project).
  */
 export const inboxManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: V_MANIFEST_SCHEMA,
+  host_api_version: V_HOST_API,
   plugin_id: INBOX_PLUGIN_ID,
-  version: "0.1.0",
+  version: V_PACKAGE_PLUGINS_NATIVE_INBOX_MANIFEST_INBOXMANIFEST,
   name: "Inbox",
   summary: "只看需要你介入的事项。",
   kind: "native",
@@ -59,7 +60,7 @@ export const inboxManifest: PluginManifest = {
   databases: { project: INBOX_PROJECT_DATABASE },
   capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content", INBOX_STAGE_GOAL_READ.capability_id] },
   artifacts: { produces: [], consumes: [] },
-  sync:{protocol_version:1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:1,requires:[],sections:attentionSections}]},
+  sync:{protocol_version:V_SYNC_PROTOCOL,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:V_SYNC_COLLECTION_INBOX_ATTENTION,requires:[],sections:attentionSections}]},
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [

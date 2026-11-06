@@ -1,3 +1,4 @@
+import { V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_ACTION_TOOLS_PACK } from "../versions.generated.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
@@ -75,7 +76,7 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
   // Every round's pack also carries its after-write check, answered only where the round provides the executor; never offered to the model.
   const check = afterWriteTool(scope);
   const pack: ScenarioPack = { id: "molis-actions-" + scope,
-    version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
+    version: V_PACKAGE_HORIZONTAL_AGENT_HOST_ADAPTERS_PROLOGUE_ACTION_TOOLS_PACK, source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
     permissions: { tools: [...names, check.registration.name], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "action-user", skills: [], writes: contributions.some(row => row.registration.effectKind !== "safe-read") }],
     planning: { plannedBy: "action-user", planFirst: false }, config: {}, tools: [...contributions, check] };
@@ -112,7 +113,7 @@ function suggestTool(actions: NonNullable<AgentFrozenRole["actions"]>, byName: R
     if (Buffer.byteLength(result) > SUGGEST_RESULT_BYTES) throw new ActionError("actions.input_too_large", `The suggestion is over ${SUGGEST_RESULT_BYTES / 1024} KiB; nothing was suggested.`);
     return result;
   };
-  return { executor: name, registration: { name, version: "1",
+  return { executor: name, registration: { name, version: /* @version protocol.prologue.action-tool "{version}" */ "1",
     description: "Offer the person one of this round's action tools as a button, with its prepared input, when you suggest something they may want done but have not asked you to do. Nothing runs until they click it.",
     parameters: { type: "object", additionalProperties: false, required: ["action", "title", "summary", "input"], properties: {
       action: { type: "string", enum: [...byName.keys()], description: "The name of the action tool to offer." },

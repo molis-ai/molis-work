@@ -1,3 +1,4 @@
+import { V_FORMAT_RUNTIME_INTEGRATION_PLAN } from "../versions.generated.js";
 import path from "node:path";
 import { INTEGRATION_OWNER } from "./runtime-integration-contract.js";
 import type { RuntimeAdapter, SupportedRuntimeId, RuntimeSnapshot, IntegrationReceipt, PreparedPlan, RuntimeIntegrationPlan, RuntimeIntegrationChange, RuntimeIntegrationAction, SkillSnapshot } from "./runtime-integration-contract.js";
@@ -182,7 +183,7 @@ export class RuntimeIntegrationPlanner {
   ): RuntimeIntegrationPlan {
     const verb = common.action === "connect" ? "接入" : "移除接入";
     return {
-      schema_version: 1,
+      schema_version: V_FORMAT_RUNTIME_INTEGRATION_PLAN,
       plan_id: common.planId,
       plan_hash: common.planHash,
       runtime_id: common.adapter.id,
@@ -209,7 +210,7 @@ function preparedWithStatus(
   const verb = common.action === "connect" ? "接入" : "移除接入";
   return {
     publicPlan: {
-      schema_version: 1,
+      schema_version: V_FORMAT_RUNTIME_INTEGRATION_PLAN,
       plan_id: common.planId,
       plan_hash: common.planHash,
       runtime_id: common.adapter.id,

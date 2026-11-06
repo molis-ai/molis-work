@@ -1,3 +1,4 @@
+import { V_FORMAT_PLUGIN_PRESENTATION } from "./versions.generated.js";
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { PLUGIN_COMPONENT_STYLES } from './plugin-components.js';
@@ -5,7 +6,7 @@ import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from './plugin-component-clien
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export const readingContract: SandboxPluginContract = {
-  version: 1, pluginId: 'test.reading', revision: 'reading-v1', entities: [], acceptance: [],
+  version: /* @version format.sandbox.contract */ 1, pluginId: 'test.reading', revision: /* @version type.reading "reading-v{version}" */ "reading-v1", entities: [], acceptance: [],
   pages: [{ id: 'home', title: '阅读摘记', regions: [{ id: 'main', title: '摘记', operationIds: ['notes.list', 'notes.add', 'notes.remove'] }] }],
   operations: [
     { id: 'notes.list', kind: 'query', input: { type: 'object', properties: { query: { type: 'string', description: '摘记' } } }, output: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, text: { type: 'string' }, source: { type: 'string' } } } }, effects: {}, examples: [], errors: [] },
@@ -20,7 +21,7 @@ export const readingNodes: PluginComponentNode[] = [
   { id: 'remove', pageId: 'home', regionId: 'main', intent: 'action', purpose: '删除摘记', props: { submitLabel: '删除这条摘记' }, kind: 'alert-dialog', submit: { operationId: 'notes.remove', input: { id: { source: 'selection', componentId: 'notes', field: 'id' } } } },
 ];
 export const readingPresentation: PluginPresentation = {
-  version: 1, pages: [{ pageId: 'home', layout: { layout: 'stack', gap: 'roomy', children: readingNodes.map(node => ({ part: node.id })) } }],
+  version: V_FORMAT_PLUGIN_PRESENTATION, pages: [{ pageId: 'home', layout: { layout: 'stack', gap: 'roomy', children: readingNodes.map(node => ({ part: node.id })) } }],
   parts: { notes: { detail: true, density: 'reading', kind: 'directory' }, editor: { kind: 'sheet', emphasis: 'primary' }, remove: { kind: 'alert-dialog' } },
 };
 export const readingSamples = [

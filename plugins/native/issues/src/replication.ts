@@ -1,3 +1,4 @@
+import { V_FORMAT_ISSUES_PORTABLE, V_SYNC_COLLECTION_ISSUES_ISSUES, V_SYNC_PROTOCOL } from "./versions.generated.js";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
@@ -31,7 +32,7 @@ export const issuesCollection: PluginSyncCollectionDefinition = {
       const id = decode(key);
       const row = db.prepare("SELECT * FROM issues WHERE id=? AND submitter_id=?").get(id, owner) as Row | undefined;
       if (!row) return null;
-      const value = { format: 1, spaceId: context.spaceId, record: row };
+      const value = { format: V_FORMAT_ISSUES_PORTABLE, spaceId: context.spaceId, record: row };
       validate(value, id, owner, context.spaceId);
       size(value);
       return value;
@@ -58,7 +59,7 @@ export const issuesCollection: PluginSyncCollectionDefinition = {
 function validate(value: unknown, id: string, owner: string, spaceId: string): Row {
   const envelope = object(value);
   exact(envelope, ["format", "spaceId", "record"]);
-  if (envelope.format !== 1 || envelope.spaceId !== spaceId) invalid("Issue 同步空间不匹配", "scope");
+  if (envelope.format !== V_FORMAT_ISSUES_PORTABLE || envelope.spaceId !== spaceId) invalid("Issue 同步空间不匹配", "scope");
   const row = object(envelope.record) as Row;
   exact(row, columns);
   if (row.id !== id || row.submitter_id !== owner || typeof row.title !== "string" ||
@@ -105,6 +106,6 @@ function invalid(message = "Issue 同步数据不合法", code: Parameters<typeo
 }
 
 export const issuesSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "issues", title: "Issue 记录", schema_version: 1, requires: [], tracking: issuesCollection.tracking }],
+  protocol_version: V_SYNC_PROTOCOL,
+  collections: [{ id: "issues", title: "Issue 记录", schema_version: V_SYNC_COLLECTION_ISSUES_ISSUES, requires: [], tracking: issuesCollection.tracking }],
 };

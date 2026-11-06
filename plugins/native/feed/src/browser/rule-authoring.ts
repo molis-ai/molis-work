@@ -18,7 +18,8 @@ export function feedRules(page: FeedPage) {
   const remember = (section: HTMLElement) => { const draft = state(section); draft.mode = section.dataset.ruleMode || "keyword"; draft.fields = Object.fromEntries(fields.map(attr => [attr, value(section, attr)])); try { sessionStorage.setItem(key(section), JSON.stringify(draft)); } catch { /* The current in-memory draft remains. */ } };
   const status = (section: HTMLElement, message: unknown) => { const node = q("[data-feed-rule-status]", section); if (!node) return; node.hidden = !message; node.dataset.error = String(Boolean(message) && typeof message !== "string"); if (typeof message === "string") node.textContent = message; else molisWorkRequest.show(node, message); };
   const mode = (section: HTMLElement, next: string) => { section.dataset.ruleMode = next; all("[data-feed-rule-mode]", section).forEach(button => button.setAttribute("aria-pressed", String(button.dataset.feedRuleMode === next))); all("[data-feed-rule-field]", section).forEach(field => field.hidden = field.dataset.feedRuleField !== next); };
-  const action = async <T>(name: "list" | "create" | "update" | "preview" | "publish", input: unknown): Promise<T> => { const check = page.guard(); const result = await host.invokeAction<T>({ capability_id: "functions.authoring." + name, version: 1, provider_id: "system.functions" }, input); check(); return result; };
+  const authoringVersions = { list: /* @version action.functions.authoring.list */ 1, create: /* @version action.functions.authoring.create */ 1, update: /* @version action.functions.authoring.update */ 1, preview: /* @version action.functions.authoring.preview */ 1, publish: /* @version action.functions.authoring.publish */ 1 };
+  const action = async <T>(name: "list" | "create" | "update" | "preview" | "publish", input: unknown): Promise<T> => { const check = page.guard(); const result = await host.invokeAction<T>({ capability_id: "functions.authoring." + name, version: authoringVersions[name], provider_id: "system.functions" }, input); check(); return result; };
   const catalog = async (section: HTMLElement) => {
     const select = q<HTMLSelectElement>("[data-feed-out-rule-function-key]", section); if (!select) return;
     const check = page.guard(), sequence = String(Number(select.dataset.catalogRequest || 0) + 1); select.dataset.catalogRequest = sequence;
@@ -71,7 +72,7 @@ export function feedRules(page: FeedPage) {
         const result = await page.api<Preview>("/out-rules/preview", "POST", { source_id: section.dataset.feedOutRules, contains: rule.contains });
         if (!result.samples.length) throw new Error(L("还没有可预览的消息。先拉取来源内容，再试一次。"));
         if (rule.mode === "natural") {
-          const available = await host.actionAvailability({ capability_id: "functions.authoring.preview", version: 1, provider_id: "system.functions" }); check();
+          const available = await host.actionAvailability({ capability_id: "functions.authoring.preview", version: /* @version action.functions.authoring.preview */ 1, provider_id: "system.functions" }); check();
           if (!available.available) throw new Error(available.reason); await ensureDraft(section, rule);
         }
         const output = q("[data-feed-rule-preview]", section), rows: Array<{ title: string; matched: boolean; review: boolean }> = [];

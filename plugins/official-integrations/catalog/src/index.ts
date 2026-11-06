@@ -73,7 +73,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     // 1.2.0: declares its connection service and what it does with it (`connection_services`, `integrations`, and for a document
     // import the ways of connecting it reads with).
     // 1.3.0: a service that connects by OAuth declares its flow as data (W5-11).
-    version: /* @version package.plugins/official-integrations/catalog/index.implementation */ "1.4.0",
+    version: /* @version plugin.integration-catalog.connectors */ "1.4.0",
     name: spec.title,
     kind: "integration",
     publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },

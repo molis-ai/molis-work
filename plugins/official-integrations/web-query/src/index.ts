@@ -8,7 +8,7 @@ import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk"
 export const webQueryIntegrationManifest = {
   schema_version: /* @version manifest.schema */ 1,
   plugin_id: "io.molis.work.integration.web-query",
-  version: /* @version package.plugins/official-integrations/web-query/index.webQueryIntegrationManifest */ "1.0.0",
+  version: /* @version plugin.integration-web-query */ "1.0.0",
   name: "Web Query",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },

@@ -10,8 +10,11 @@ const revision = { type: "integer", minimum: 1 };
 const item = { type: "object", properties: { item_id: { type: "string" }, revision: { type: "integer" }, disposition: { type: "string" } }, required: ["item_id", "revision"] };
 const itemResult: ActionSchema = { type: "object", properties: { item }, required: ["item"] };
 /** Promotion writes through these Goals actions, so it is unavailable wherever they are: a project without Goals cannot promote. */
-const GOALS_ACTIONS_FOR_PROMOTION: ActionReference[] = ["goals.directory.read", "goals.create", "goals.inputs.confirm"]
-  .map(capability_id => ({ capability_id, version: 1, provider_id: "io.molis.work.goals" }));
+const GOALS_ACTIONS_FOR_PROMOTION: ActionReference[] = [
+  { capability_id: "goals.directory.read", version: /* @version action.goals.directory.read */ 1, provider_id: "io.molis.work.goals" },
+  { capability_id: "goals.create", version: /* @version action.goals.create */ 1, provider_id: "io.molis.work.goals" },
+  { capability_id: "goals.inputs.confirm", version: /* @version action.goals.inputs.confirm */ 1, provider_id: "io.molis.work.goals" },
+];
 /** What an item action declares beyond the common shape: that it may run beside the queue, the actions it depends on, and that its records are a Session's (as Goals' own commands are). */
 interface ItemActionExtras { scheduling?: "concurrent"; required_actions?: ActionReference[]; authorship?: "session" }
 function define<Input, Output>(suffix: string, version: number, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[], extras: ItemActionExtras = {}): ActionDefinition<Input, Output> {
@@ -24,13 +27,13 @@ export interface FeedItemResult { item: FeedItemRecord }
 export interface FeedPromoteResult { item: FeedItemRecord; goal_id: string; created: boolean }
 /** Each command acts on the revision the caller read; a changed item is refused rather than overwritten. */
 export const feedItemActions = {
-  offers: { ...defineSubjectOffersAction("feed.items.offers", /* @version action.feed.items.offers */ 1, ["feed_item"], "Feed 可用动作", ["feed:read"], [
+  offers: defineSubjectOffersAction("feed.items.offers", /* @version action.feed.items.offers */ 1, ["feed_item"], "Feed 可用动作", ["feed:read"], [
     { offer_id: "feed.inbox", title: "加入 Inbox", action: { capability_id: "feed.items.inbox", version: /* @version action.feed.items.inbox */ 1 } },
     { offer_id: "feed.save", title: "保存为资料", action: { capability_id: "feed.items.disposition", version: /* @version action.feed.items.disposition */ 1 } },
     { offer_id: "feed.promote", title: "升格为 Goal", action: { capability_id: "feed.items.promote", version: /* @version action.feed.items.promote */ 1 } },
     { offer_id: "feed.archive", title: "忽略", action: { capability_id: "feed.items.disposition", version: /* @version action.feed.items.disposition */ 1 } },
     { offer_id: "feed.restore", title: "恢复到 Feed", action: { capability_id: "feed.items.restore", version: /* @version action.feed.items.restore */ 1 } },
-  ]), version: /* @version action.feed.items.offers */ 1 },
+  ]),
   read: define<{ item_id: string }, FeedItemResult>("read", /* @version action.feed.items.read */ 1, "标为已读", "把一条 Feed 消息标为已读；不改变它的去向", closed({ item_id: id }, ["item_id"]), itemResult, ["feed:read", "feed:write"]),
   inbox: define<{ item_id: string; expected_revision: number }, FeedItemResult>("inbox", /* @version action.feed.items.inbox */ 1, "加入 Inbox", "按读取到的版本把这条消息加入 Inbox，并按当前 Inbox 规则判断下一步",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]), itemResult, ["feed:read", "feed:write", "inbox:write"], { scheduling: "concurrent" }),

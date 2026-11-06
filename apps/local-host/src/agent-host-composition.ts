@@ -115,7 +115,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
         // File, owner and background-job waits each recheck the authority of their own source.
         checks: hostConditionChecks(options),
         reviewQueue: agentHost.reviews,
-        app: { appId: "io.molis.work", appVersion: /* @version package.apps/local-host/agent-host-composition.client */ "0.0.0" },
+        app: { appId: "io.molis.work", appVersion: "0.0.0" },
       });
       const adapter = await initialization;
       if (disposed) return;

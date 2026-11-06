@@ -84,7 +84,7 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
   const read = services.readFunctions ?? (<T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions));
   const published = () => read(service => service.list().filter(rule => rule.status === "published" && rule.version));
   const bindingFor = (key: string, version: number): ActionSceneBinding => ({ binding_id: homeDockBindingId(projectId), scene_id: HOME_DOCK_SCENE_ID,
-    scene_version: 1, project_id: projectId, function: { capability_id: `functions.published.${key}`, version, provider_id: "system.functions" }, enabled: true,
+    scene_version: /* @version scene.home.dock */ 1, project_id: projectId, function: { capability_id: `functions.published.${key}`, version, provider_id: "system.functions" }, enabled: true,
     title: "首页下一步", href: `/projects/${encodeURIComponent(projectId)}/` });
   const binding = (): ActionSceneBinding | null => read(service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, projectId));
   const resolve = async (subject: HomeSubject, caller: ActionCallContext): Promise<HomeSubjectContext> => {

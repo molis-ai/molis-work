@@ -4,7 +4,7 @@ import { defineArtifactPreviewAction } from "@molis-ai/molis-work-plugin-sdk";
 /** The 成果 type the sample pins, and the name and preview action every pinned type must declare (specs/artifact-positioning A1/A7). */
 export const SAMPLE_ARTIFACT_TYPE_ID = "io.molis.work.example.note";
 export function sampleArtifactType(pluginId: string): { artifact_type_id: string; schema_version: number; title: string; preview: { capability_id: string; version: number } } {
-  return { artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: /* @version template.plugin.sample-artifact */ 1, title: "Sample result", preview: { capability_id: `${pluginId}.results.preview`, version: /* @version template.plugin.action */ 1 } };
+  return { artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1, title: "Sample result", preview: { capability_id: `${pluginId}.results.preview`, version: 1 } };
 }
 
 /** Serialized once into the generated manifest; handlers read these same definitions. */
@@ -13,7 +13,7 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
     payload: { type: "object", properties: { title: { type: "string" }, sequence: { type: "integer", minimum: 1 } }, required: ["title", "sequence"], additionalProperties: false } },
     required: ["artifact_id", "version", "payload"], additionalProperties: false };
   const define = (name: string, title: string, description: string, permissions: string[], output_schema: Record<string, unknown>, command = false, external = false, result_view?: ActionDefinition["action"]["result_view"]): ActionDefinition => ({
-    capability_id: `${pluginId}.${name}`, version: /* @version template.plugin.action */ 1, operation: command ? "command" : "query", action: {
+    capability_id: `${pluginId}.${name}`, version: 1, operation: command ? "command" : "query", action: {
       title, description, kind: command ? "operation" : "query", scope: "project", audiences: external ? ["user", "workflow", "mcp"] : ["user"],
       permissions, subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema, ...(result_view ? { result_view } : {}),
     },

@@ -49,8 +49,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     preset: "local-agent",
     onQueuedWork: runScheduled,
     slots: {
-      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: /* @version package.horizontal/agent-host/adapters/prologue-node-port.implementation */ "1.0.0", impl: options.documentParsers } } : {}),
-      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: /* @version package.horizontal/agent-host/adapters/prologue-node-port.implementation */ "1.0.0", impl: memoryAccess.extractor } } : {}),
+      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: options.documentParsers } } : {}),
+      ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: memoryAccess.extractor } } : {}),
     },
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.

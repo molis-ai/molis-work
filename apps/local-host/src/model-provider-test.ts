@@ -11,7 +11,7 @@ export async function testConfiguredModel(selection: ResolvedModelSelection) {
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   try {
     adapter = await createPrologueNodeAdapter({
-      app: { appId: "io.molis.work", appVersion: /* @version package.apps/local-host/model-provider-test.client */ "0.0.0" },
+      app: { appId: "io.molis.work", appVersion: "0.0.0" },
       storageRoot: path.join(directory, "runtime"),
       modelConfiguration: async () => prologueModelConfiguration(selection),
       resolveCredential: (ref) => ref === selection.provider.credential_ref ? selection.api_key : null,

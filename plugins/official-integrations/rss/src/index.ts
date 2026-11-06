@@ -16,7 +16,7 @@ export function rssSourcePresentation({ cursor }: SourcePresentationInput): Sour
 export const rssIntegrationManifest = {
   schema_version: /* @version manifest.schema */ 1,
   plugin_id: "io.molis.work.integration.rss",
-  version: /* @version package.plugins/official-integrations/rss/index.rssIntegrationManifest */ "1.0.0",
+  version: /* @version plugin.integration-rss */ "1.0.0",
   name: "RSS",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },

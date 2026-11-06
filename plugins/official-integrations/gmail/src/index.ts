@@ -25,7 +25,7 @@ export const gmailIntegrationManifest = {
   plugin_id: "io.molis.work.integration.gmail",
   // 1.1.0: schema 2, declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.2.0: declares its OAuth flow as data (W5-11).
-  version: /* @version package.plugins/official-integrations/gmail/index.gmailIntegrationManifest */ "1.3.0",
+  version: /* @version plugin.integration-gmail */ "1.3.0",
   name: "Gmail",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },

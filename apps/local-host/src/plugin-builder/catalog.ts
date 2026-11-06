@@ -19,7 +19,7 @@ import { latestCapability, type ModelGenerateInput, type CapabilityImplementatio
 import { projectReachSubject } from '../plugin-project-reach-subject.js';
 
 /** The catalog version a design records: designs call real actions with their real schemas. */
-export const CATALOG_VERSION = /* @version type.actions "actions/{version}" */ "actions/1";
+export const CATALOG_VERSION = /* @version format.plugin-builder.action-catalog "actions/{version}" */ "actions/1";
 export const PLATFORM_PROVIDER_ID = 'plugin-platform';
 /** The Home's instance of the platform capabilities has a provider of its own: it has no project, the project's provider is the project's. */
 export const HOME_PLATFORM_PROVIDER_ID = 'plugin-platform.home';

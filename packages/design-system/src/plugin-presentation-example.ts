@@ -5,7 +5,7 @@ import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from './plugin-component-clien
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export const readingContract: SandboxPluginContract = {
-  version: /* @version format.sandbox.contract */ 1, pluginId: 'test.reading', revision: /* @version type.reading "reading-v{version}" */ "reading-v1", entities: [], acceptance: [],
+  version: /* @version format.sandbox.contract */ 1, pluginId: 'test.reading', revision: "reading-v1", entities: [], acceptance: [],
   pages: [{ id: 'home', title: '阅读摘记', regions: [{ id: 'main', title: '摘记', operationIds: ['notes.list', 'notes.add', 'notes.remove'] }] }],
   operations: [
     { id: 'notes.list', kind: 'query', input: { type: 'object', properties: { query: { type: 'string', description: '摘记' } } }, output: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, text: { type: 'string' }, source: { type: 'string' } } } }, effects: {}, examples: [], errors: [] },

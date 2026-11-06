@@ -54,7 +54,7 @@ export async function captureSnapshotStore(home: string, stage: string, inventor
     let captured: Pick<HomeSnapshotFile, "size" | "sha256" | "mode" | "sqlite">;
     let binding: string | undefined;
     if (entry.disposition.kind === "sealed") {
-      binding = JSON.stringify([/* @version type.home-snapshot-file "home-snapshot-file/v{version}" */ "home-snapshot-file/v1", inventory.store.owner, path]);
+      binding = JSON.stringify(["home-snapshot-file/v1", inventory.store.owner, path]);
       const body = { schema_version: /* @version format.home.snapshot.file-body */ 1, path, mode: entry.info.mode & 0o777, contents_base64: readSnapshotFile(entry.path, 32 * 1024 * 1024).toString("base64") };
       const payload = sealExistingHomePayload(home, binding, JSON.stringify(body));
       keys.add({ kind: "master-key", ...payload.key_reference });

@@ -11,7 +11,7 @@ export { DEMO_PROJECT_ID };
 const DEMO_ACTOR = "demo-user";
 const DELIVERY_TYPE = {
   type_id: "lifecycle",
-  version: /* @version type.lifecycle */ 1,
+  version: 1,
   name: "生命周期交付",
   purpose: "可核对的工作结果",
   semantic_family: "delivery" as const,
@@ -62,7 +62,7 @@ async function reportProgress(
     ...writeContext(goalId, `${key}-report`),
     events: [{
       type_id: "lifecycle",
-      type_version: /* @version type.lifecycle */ 1,
+      type_version: 1,
       title,
       fields: { result },
       judgments: requirementId ? [{ requirement_id: requirementId, verdict: "supports" as const }] : [],
@@ -126,7 +126,7 @@ async function withDemoGoals(databasePath: string, projectId: string, body: (act
     // The person's own decision comes through a protected entry that says where it came from; the sample's stands in for the web page.
     const person = (key: string) => ({ ...caller, permissions: [...DEMO_PERMISSIONS, "goals:decide"],
       user_action: { source: "web", conversation_ref: "demo:goals", message_ref: `demo:${key}` } });
-    await body(async (capability, input, version = /* @version protocol.action-reference.default */ 1) => await client.invoke(
+    await body(async (capability, input, version = 1) => await client.invoke(
       capability === DEMO_DECIDE ? person(String((input as { idempotency_key?: unknown }).idempotency_key)) : caller,
       { capability_id: capability, version },
       input,
@@ -561,7 +561,7 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
     ...writeContext("CORE", "demo-core-report"),
     events: [{
       type_id: "lifecycle",
-      type_version: /* @version type.lifecycle */ 1,
+      type_version: 1,
       title: "生命周期记录已接通",
       fields: { result: "从约定、报告到收尾形成完整记录" },
       judgments: [{ requirement_id: "CORE-C1", verdict: "supports" }],
@@ -589,11 +589,11 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
 
 /** The Goals still open in the sample: progress, a decision to make, a concern, an archived and a dropped one. */
 async function seedDemoOpenWork(act: DemoAct): Promise<void> {
-  await ensureConfigured(act, "V1", /* @version type.demo "demo-v{version}" */ "demo-v1");
+  await ensureConfigured(act, "V1", "demo-v1");
   await reportProgress(
     act,
     "V1",
-    /* @version type.demo "demo-v{version}" */ "demo-v1",
+    "demo-v1",
     "目标树已经能看出下一步",
     "列表、画布和看板都有真实内容可扫。",
     "先处理需要决定和受阻的 Goal",

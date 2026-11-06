@@ -75,7 +75,7 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
   // Every round's pack also carries its after-write check, answered only where the round provides the executor; never offered to the model.
   const check = afterWriteTool(scope);
   const pack: ScenarioPack = { id: "molis-actions-" + scope,
-    version: /* @version package.horizontal/agent-host/adapters/prologue-action-tools.pack */ "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
+    version: /* @version protocol.prologue.pack.action-tools */ "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
     permissions: { tools: [...names, check.registration.name], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "action-user", skills: [], writes: contributions.some(row => row.registration.effectKind !== "safe-read") }],
     planning: { plannedBy: "action-user", planFirst: false }, config: {}, tools: [...contributions, check] };

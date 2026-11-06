@@ -8,7 +8,7 @@ import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk"
 export const youtubeIntegrationManifest = {
   schema_version: /* @version manifest.schema */ 1,
   plugin_id: "io.molis.work.integration.youtube",
-  version: /* @version package.plugins/official-integrations/youtube/index.youtubeIntegrationManifest */ "1.0.0",
+  version: /* @version plugin.integration-youtube */ "1.0.0",
   name: "YouTube Channel",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },

@@ -37,8 +37,8 @@ export const feedSourceActions = {
     closed({ service: { enum: [...FEED_ACCOUNT_SERVICES] }, name: { type: "string", minLength: 1, maxLength: 80 } }, ["service", "name"]),
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
   // @2: the account is no longer a field of the source (`connection_id` went in T-121); it is the person's binding on the platform.
-  update: { ...define<{ source_id: string; name?: string; description?: string; scope?: string; feed_url?: string }, { source: FeedSourceRecord }>("update", /* @version action.feed.sources.update */ 1, "修改来源", "修改来源名称、说明、范围或订阅地址",
-    closed({ source_id: id, name: text, description: text, scope: text, feed_url: text }, ["source_id"]), sourceResult), version: /* @version action.feed.sources.update */ 1 },
+  update: define<{ source_id: string; name?: string; description?: string; scope?: string; feed_url?: string }, { source: FeedSourceRecord }>("update", /* @version action.feed.sources.update */ 1, "修改来源", "修改来源名称、说明、范围或订阅地址",
+    closed({ source_id: id, name: text, description: text, scope: text, feed_url: text }, ["source_id"]), sourceResult),
   delete: define<{ source_id: string; history_decision: SourceHistoryDecision }, { source: FeedSourceRecord; history_decision: SourceHistoryDecision }>("delete", /* @version action.feed.sources.delete */ 1, "删除来源",
     "删除来源；必须说明保留（retain_history）还是删除（delete_local_history）本地已收到的消息",
     closed({ source_id: id, history_decision: { enum: ["retain_history", "delete_local_history"] } }, ["source_id", "history_decision"]),

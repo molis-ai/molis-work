@@ -28,15 +28,10 @@ export function initialVersionProblems({ manifests, hostViews, registrations }) 
   return [...problems].sort();
 }
 
-// These are versions chosen by an upstream provider, the bundled SQLite binary, the release process, or a SemVer pattern.
-const outsideUniformOrigin = new Map([
-  ["plugins/official-integrations/catalog/src/document-import.ts", "NOTION_VERSION"],
-  ["plugins/official-integrations/github/src/provider.ts", "GITHUB_API_VERSION"],
-  ["packages/plugin-runtime/src/project-database-statements.ts", "PLUGIN_STATEMENT_SQLITE_VERSION"],
-  ["apps/local-host/src/connector-tool-runtime.ts", "UV_BOOTSTRAP_VERSION"],
-  ["apps/local-host/src/product-version.ts", "PRODUCT_VERSION"],
-  ["apps/local-host/src/plugin-builder/build-dependencies.ts", "VERSION"],
-]);
+// Versions chosen by an upstream provider or the bundled SQLite binary are listed with their reason in one place; the product
+// version carries its own marker, and a pattern (a RegExp named VERSION) is not a version at all.
+const outsideUniformOrigin = new Set(JSON.parse(readFileSync(new URL("../../tooling/gates/version-exceptions.json", import.meta.url), "utf8"))
+  .filter(entry => entry.file && entry.name).map(entry => `${entry.file}#${entry.name}`));
 
 export function sourceVersionProblems(file, source) {
   if (!/\b[A-Z_\d]*VERSION\b/.test(source)) return [];
@@ -46,9 +41,10 @@ export function sourceVersionProblems(file, source) {
     if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const)) {
       for (const declaration of node.declarations) {
         const name = declaration.name.getText(tree);
-        if (!/^[A-Z_\d]*VERSION$/.test(name) || outsideUniformOrigin.get(file) === name) continue;
+        if (!/^[A-Z_\d]*VERSION$/.test(name) || outsideUniformOrigin.has(`${file}#${name}`)) continue;
         let value = declaration.initializer;
         while (value && (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value))) value = value.expression;
+        if (value && (ts.isRegularExpressionLiteral(value) || /@version product\./.test(source.slice(value.pos, value.getStart(tree))))) continue;
         if (value && ts.isNumericLiteral(value) && Number(value.text) === 1) continue;
         if (value && ts.isStringLiteralLike(value) && /^(?:[a-z][a-z0-9._-]*\/)?1$/.test(value.text)) continue;
         problems.push(`${file}: ${name} = ${value?.getText(tree) ?? "(missing)"} (expected 1)`);

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Release version consistency (docs/releases/POLICY.md). Product and owner versions live in tooling/versions.json; everything
-// that carries it must agree, the workspace packages stay private 0.0.0, the current version has release notes and a
-// CHANGELOG section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has (every
-// SqliteBaseline constant is listed, and every baseline handed to applySqliteBaseline is such a constant).
+// Release version consistency (docs/releases/POLICY.md). Every first-party version lives in tooling/versions.json: everything
+// that carries one must agree, no declaration may bypass it (scripts/gates/version-declarations.mjs), the workspace packages
+// stay private 0.0.0, the current version has release notes and a CHANGELOG section, and the per-database version table in
+// docs/releases/CHECKLIST.md is the one the code has (every SqliteBaseline constant is listed, and every baseline handed to
+// applySqliteBaseline is such a constant).
 //
 //   node scripts/verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]
 //
@@ -12,6 +13,7 @@
 // It only reads files: no build, no git.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { generateVersions } from "./generate-versions.mjs";
+import { versionDeclarationProblems } from "./gates/version-declarations.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,17 +21,6 @@ const USAGE = "usage: verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const CHECKLIST = "docs/releases/CHECKLIST.md";
 const CHANGELOG = "docs/releases/CHANGELOG.md";
-
-// Everything besides the root package.json that must carry exactly the product version. The only place in code that spells
-// it out is PRODUCT_VERSION in the Host: Feed's User-Agent and the app version it and the search runtime hand to the Search
-// Evidence Layer, the MCP client version, and the client version the Codex session transport announces all take it from there.
-// A new place in code that announces the product version imports that constant; it is not another entry here.
-const CARRIERS = [
-  { file: "apps/desktop/src-tauri/tauri.conf.json", label: "apps/desktop/src-tauri/tauri.conf.json", pick: text => JSON.parse(text).version },
-  { file: "apps/desktop/src-tauri/Cargo.toml", label: "apps/desktop/src-tauri/Cargo.toml", pick: text => text.match(/^\[package\][^[]*?^version = "([^"]+)"$/ms)?.[1] },
-  { file: "apps/desktop/src-tauri/Cargo.lock", label: "apps/desktop/src-tauri/Cargo.lock#molis-work-desktop", pick: text => text.match(/\[\[package\]\]\nname = "molis-work-desktop"\nversion = "([^"]+)"/)?.[1] },
-  { file: "apps/local-host/src/product-version.ts", label: "apps/local-host/src/product-version.ts#PRODUCT_VERSION", pick: text => text.match(/^export const PRODUCT_VERSION = "([^"]+)";$/m)?.[1] },
-];
 
 // ---- command line ---------------------------------------------------------------------------------------------------
 const fail = message => { console.error(message); process.exit(2); };
@@ -53,6 +44,9 @@ const readOptional = file => existsSync(path.join(root, file)) ? inspectSource(f
 try {
   for (const file of generateVersions({ root })) problem(`${file}: differs from tooling/versions.json (run pnpm versions:generate)`);
 } catch (error) { problem(`tooling/versions.json: ${error.message}`); }
+try {
+  for (const finding of versionDeclarationProblems(root)) problem(finding);
+} catch (error) { problem(`tooling/gates/version-exceptions.json: ${error.message}`); }
 function readNeeded(file) {
   const text = readOptional(file);
   if (text === null) problem(`${file}: the file is missing`);
@@ -70,13 +64,6 @@ function checkProductVersion() {
   if (typeof version !== "string" || !SEMVER.test(version)) {
     problem(`package.json: version ${JSON.stringify(version)} is not MAJOR.MINOR.PATCH`);
     return null;
-  }
-  for (const carrier of CARRIERS) {
-    const text = readNeeded(carrier.file);
-    if (text === null) continue;
-    let found;
-    try { found = carrier.pick(text); } catch { found = undefined; }
-    if (found !== version) problem(`${carrier.label}: ${found ?? "no version found"}, but package.json is ${version}`);
   }
   if (options.tag !== undefined && options.tag !== `v${version}`) problem(`tag ${options.tag} is not v${version} (package.json)`);
   return version;

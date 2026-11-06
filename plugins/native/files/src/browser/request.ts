@@ -3,9 +3,19 @@ import type { FilesFactoryHost, FilesHost } from "./types.js";
 
 const PAGE_ACTIONS = "/api/host/plugin-page-actions";
 
+/** The version of each page action this page asks for, each with its own entry. */
+const ACTION_VERSIONS: Readonly<Record<string, number>> = {
+  "files.capture": /* @version action.files.capture */ 1,
+  "files.directory": /* @version action.files.directory */ 1,
+  "files.open": /* @version action.files.open */ 1,
+  "files.state": /* @version action.files.state */ 1,
+  "text-stats.state": /* @version action.text-stats.state */ 1,
+  "diff.state": /* @version action.diff.state */ 1,
+};
+
 /** One page action of the Host: the way a page asks a plugin that is not its own for something (the page names no route). */
 const action = (host: FilesFactoryHost, capability: string, input: unknown, signal?: AbortSignal): Promise<unknown> =>
-  molisWorkRequest(host.route(PAGE_ACTIONS), { body: { reference: { capability_id: capability, version: /* @version protocol.action-reference.default */ 1 }, input }, signal });
+  molisWorkRequest(host.route(PAGE_ACTIONS), { body: { reference: { capability_id: capability, version: ACTION_VERSIONS[capability] }, input }, signal });
 
 /**
  * The requests Files makes. On its own page they go to Files' routes; in Coding's panel the page is not Files', so the same

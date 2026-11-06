@@ -19,7 +19,7 @@ export class FixtureAiRuntimeAdapter implements AiRuntimePort {
   async listModels() {
     return [
       {
-        id: /* @version type.fixture-research "fixture-research-v{version}" */ "fixture-research-v1",
+        id: "fixture-research-v1",
         label: "演示研究模型",
         runtimeLabel: "演示运行时",
         costVisibility: "unobservable" as const,

@@ -19,7 +19,7 @@ function masterDependency(value: unknown): SnapshotKeyDependency {
 
 /** The snapshot-file owner alone interprets its own wrapper; the OS bookmark inside remains opaque original bytes. */
 export function preflightSnapshotFile(home: string, archive: string, owner: string, entry: HomeSnapshotFile): { readonly file: HomeRestoreIncomingFile; readonly dependency: SnapshotKeyDependency } {
-  const binding = JSON.stringify([/* @version type.home-snapshot-file "home-snapshot-file/v{version}" */ "home-snapshot-file/v1", owner, entry.path]);
+  const binding = JSON.stringify(["home-snapshot-file/v1", owner, entry.path]);
   const wrapper = restoreRecord(readRestoreJson(join(archive, entry.payload_path)));
   restoreFields(wrapper, ["schema_version", "binding", "payload"]);
   if (wrapper.schema_version !== /* @version format.home.snapshot.file-wrapper */ 1 || wrapper.binding !== binding || entry.binding !== binding) throw invalidRestore();

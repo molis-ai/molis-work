@@ -16,7 +16,7 @@ export const githubIntegrationManifest = {
   // 1.2.0: the account check moved to the connector action `connectors.account.read`.
   // 1.3.0: declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.4.0: declares its OAuth flow as data (W5-11).
-  version: /* @version package.plugins/official-integrations/github/index.githubIntegrationManifest */ "1.5.0",
+  version: /* @version plugin.integration-github */ "1.5.0",
   name: "GitHub",
   kind: "integration",
   publisher: {

@@ -65,7 +65,7 @@ const ALG = "aes-256-gcm" as const;
 const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
 const KEYCHAIN_ACCOUNT = "install-master-key";
 /** Passphrase derivation for the clean Home starting point; no earlier salt is tried. */
-const ENV_KEY_SALT = /* @version type.molis-work-secretstore "molis-work-secretstore-v{version}" */ "molis-work-secretstore-v1";
+const ENV_KEY_SALT = "molis-work-secretstore-v1";
 
 /** On-disk sealed entry. */
 interface SealedEnvelope {
@@ -491,7 +491,7 @@ function payloadMaster(home: string, backend: SecretStoreBackendKind): ResolvedM
 }
 
 function homePayloadAad(home: string, binding: string): Buffer {
-  return Buffer.from(JSON.stringify([/* @version format.secret-store.home-payload "molis-work/home-payload/v{version}" */ "molis-work/home-payload/v1", home, binding]), "utf8");
+  return Buffer.from(JSON.stringify(["molis-work/home-payload/v1", home, binding]), "utf8");
 }
 
 /** Seals owner data in memory under the existing backend; never puts temporary entries in the live vault. */

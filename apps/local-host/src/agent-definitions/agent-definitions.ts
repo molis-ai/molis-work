@@ -195,7 +195,7 @@ export class AgentDefinitions {
     if (material.default_ref.kind !== "role") return;
     const ref = material.default_ref;
     this.recordUse({ key: keyOf(ref.source.plugin_id, `prompt-${ref.entry_id.slice("role-".length)}`), source_ref: ref,
-      version: /* @version template.sandbox.prompt */ 1, user_revision: material.user_revision, caller, at: this.now().toISOString() });
+      version: /* @version format.sandbox.agent-prompt */ 1, user_revision: material.user_revision, caller, at: this.now().toISOString() });
   }
 
   roles(): AgentRoleView[] {

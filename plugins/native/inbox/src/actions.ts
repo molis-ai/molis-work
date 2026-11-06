@@ -126,7 +126,9 @@ export const inboxActions = {
   }, { type: "object", properties: { document: documentSchema, replayed: { type: "boolean" }, request_id: text, entry_ids: strings },
     required: ["document", "replayed", "request_id", "entry_ids"] }, ["inbox:read", "pages:read", "pages:write", "model:invoke"], undefined,
     // The material is Feed's, read again before the document is written: a client granted the generation must be granted Feed's material read with it.
-    [...["pages.generations.get", "pages.get", "pages.generate"].map(capability_id => ({ capability_id, version: 1, provider_id: PAGES_PROVIDER_ID })),
+    [{ capability_id: "pages.generations.get", version: /* @version action.pages.generations.get */ 1, provider_id: PAGES_PROVIDER_ID },
+      { capability_id: "pages.get", version: /* @version action.pages.get */ 1, provider_id: PAGES_PROVIDER_ID },
+      { capability_id: "pages.generate", version: /* @version action.pages.generate */ 1, provider_id: PAGES_PROVIDER_ID },
       { capability_id: "feed.items.material", version: /* @version action.feed.items.material */ 1 }], { cost: "metered" }),
   readJudgment: action<Record<string, never>, InboxJudgmentState>("inbox.judgment.read", /* @version action.inbox.judgment.read */ 1, "下一步判断规则", "读取绑定的判断规则及适用的已发布规则", "query", empty, {
     type: "object", properties: { summary: { type: "object", properties: { name: nullableText, enabled: { type: "boolean" }, available: { type: "boolean" }, reason: nullableText }, required: ["name", "enabled", "available", "reason"] }, function_key: functionKey, functions: { type: "array", items: { type: "object",

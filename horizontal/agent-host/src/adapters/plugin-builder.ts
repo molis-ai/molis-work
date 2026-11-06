@@ -296,7 +296,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
 }
 
 function checkPack(): ScenarioPack {
-  return { id: 'molis-plugin-checks', version: /* @version package.horizontal/agent-host/adapters/plugin-builder.implementation */ "1.0.0", source: { kind: 'app-embedded' },
+  return { id: 'molis-plugin-checks', version: /* @version protocol.prologue.pack.plugin-checks */ "1.0.0", source: { kind: 'app-embedded' },
     needs: { hostCapabilities: [], executors: ['plugin-checks'] }, permissions: { tools: ['plugin-checks'], paths: [], network: [] },
     memory: { scope: 'session', write: 'deny' }, roster: [{ role: 'builder-code', skills: [], writes: true }],
     planning: { plannedBy: 'builder-code', planFirst: false }, config: {}, tools: [{ executor: 'plugin-checks', registration: {

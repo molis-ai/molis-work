@@ -58,11 +58,11 @@ export const shelfActions = {
   // Defined in the Shelf contract, so another plugin invokes this very definition.
   admit: SHELF_ADMIT_ACTION,
   // Version 2 names no original folder: a folder has no 原件已变 check, and only the platform keeps a path (`original`).
-  admitFolder: { ...define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[] }, { item: ShelfItemRecord }>("items.admit-folder", /* @version action.shelf.items.admit-folder */ 1, "放进文件夹",
+  admitFolder: define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[] }, { item: ShelfItemRecord }>("items.admit-folder", /* @version action.shelf.items.admit-folder */ 1, "放进文件夹",
     "把本机界面选中的整个文件夹复制进置物架，最多 32 MB", "command",
     object({ name: { type: "string", minLength: 1, maxLength: 500 }, entries: { type: "array", minItems: 1, items: object({ relative: { type: "string", minLength: 1, maxLength: 1000 },
       bytes_base64: text, mime: { type: "string", maxLength: 200 } }, ["relative", "bytes_base64"]) } }),
-    object({ item }), write, LOCAL), version: /* @version action.shelf.items.admit-folder */ 1 },
+    object({ item }), write, LOCAL),
   capture: define<{ url: string }, { item: ShelfItemRecord }>("items.capture", /* @version action.shelf.items.capture */ 1, "抓取网页放进 Shelf",
     "抓取一个公开网页或本机网页的正文，存成置物架里的一份材料；局域网地址不抓，抓不到时只保存链接", "command",
     object({ url: { type: "string", minLength: 1, maxLength: 4096 } }), object({ item }), [...write, "materials:fetch", "materials:fetch_local"], SHARED),

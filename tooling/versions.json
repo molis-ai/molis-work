@@ -964,6 +964,7 @@
     "format.builder.portable": 1,
     "format.builder.saved-state": 1,
     "format.characters.portable": 1,
+    "format.coding.plan": 1,
     "format.cognia.portable": 1,
     "format.computer.record": 1,
     "format.computer.settings": 1,
@@ -997,6 +998,7 @@
     "format.model.preference": 1,
     "format.placement.copy-journal": 1,
     "format.placement.copy-preview": 1,
+    "format.plugin-builder.action-catalog": 1,
     "format.plugin.build-lock": 1,
     "format.plugin.development-marker": 1,
     "format.plugin.native-release": 1,
@@ -1006,14 +1008,19 @@
     "format.project.evidence-content": 1,
     "format.project.portable": 1,
     "format.project.sections": 1,
+    "format.prologue.installed-method": 1,
     "format.prologue.session-index": 1,
     "format.prologue.session-metadata": 1,
     "format.runtime.config-backup": 1,
     "format.runtime.integration.plan": 1,
     "format.runtime.integration.receipt": 1,
     "format.runtime.private-replica": 1,
+    "format.sandbox.agent-method": 1,
+    "format.sandbox.agent-prompt": 1,
+    "format.sandbox.agent-role": 1,
     "format.sandbox.contract": 1,
     "format.schedule.portable": 1,
+    "format.search-evidence.data-compatibility": 1,
     "format.search.scan-cursor": 1,
     "format.secret-store.envelope": 1,
     "format.secret-store.home-payload": 1,
@@ -1028,8 +1035,7 @@
     "format.workflows.portable": 1,
     "format.workspace.git-worktree": 1,
     "host.api": 1,
-    "identity.artifact-producer": "0.3.0",
-    "identity.mcp.validator": 1,
+    "identity.mcp.server": "1.0.0",
     "manifest.schema": 1,
     "method.coding-diagnose-fix": 1,
     "method.coding-git-delivery": 1,
@@ -1076,25 +1082,18 @@
     "method.meeting-notes": 1,
     "method.todo-advance": 1,
     "method.todo-organize": 1,
-    "package.apps/local-host/agent-host-composition.client": "0.0.0",
-    "package.apps/local-host/connector-tool-install.implementation": "1.0.0",
-    "package.apps/local-host/model-provider-test.client": "0.0.0",
-    "package.apps/mcp/tool-catalog.SERVER_INFO": "1.0.0",
-    "package.generated.initial": "0.0.0",
-    "package.horizontal/agent-host/adapters/plugin-builder.implementation": "1.0.0",
-    "package.horizontal/agent-host/adapters/prologue-action-gateway.pack": "2.4.8",
-    "package.horizontal/agent-host/adapters/prologue-action-tools.pack": "1.0.0",
-    "package.horizontal/agent-host/adapters/prologue-node-port.implementation": "1.0.0",
-    "package.integration.catalog": "1.0.0",
-    "package.plugins/official-integrations/catalog/index.implementation": "1.4.0",
-    "package.plugins/official-integrations/github/index.githubIntegrationManifest": "1.5.0",
-    "package.plugins/official-integrations/gmail/index.gmailIntegrationManifest": "1.3.0",
-    "package.plugins/official-integrations/rss/index.rssIntegrationManifest": "1.0.0",
-    "package.plugins/official-integrations/web-query/index.webQueryIntegrationManifest": "1.0.0",
-    "package.plugins/official-integrations/youtube/index.youtubeIntegrationManifest": "1.0.0",
+    "plugin.integration-catalog": "1.0.0",
+    "plugin.integration-catalog.connectors": "1.4.0",
+    "plugin.integration-github": "1.5.0",
+    "plugin.integration-gmail": "1.3.0",
+    "plugin.integration-rss": "1.0.0",
+    "plugin.integration-web-query": "1.0.0",
+    "plugin.integration-youtube": "1.0.0",
     "policy.github.direct-attention": 1,
     "policy.gmail.attention": 1,
+    "policy.memory.config": 1,
     "policy.memory.gate": 1,
+    "policy.memory.taxonomy": 1,
     "product.release": "0.1.0",
     "prompt.alchemist.copilot": 1,
     "prompt.alchemist.cross-check": 1,
@@ -1142,6 +1141,14 @@
     "prompt.onboarding.proposal": 1,
     "prompt.pages.generate-from-materials": 1,
     "prompt.pages.writing-assistant": 1,
+    "prompt.plugin-builder.acceptance": 1,
+    "prompt.plugin-builder.designer": 1,
+    "prompt.plugin-builder.experience": 1,
+    "prompt.plugin-builder.implement": 1,
+    "prompt.plugin-builder.repair": 1,
+    "prompt.plugin-builder.revise": 1,
+    "prompt.plugin-builder.ui": 1,
+    "prompt.plugin-builder.ui-review": 1,
     "prompt.ppt.draft-outline": 1,
     "prompt.schedule-base": 1,
     "prompt.schedule-reader": 1,
@@ -1171,13 +1178,15 @@
     "prompt.todo.organize.basic": 1,
     "prompt.todo.organize.organizer": 1,
     "prompt.workflows.ai-handoff": 1,
-    "protocol.action-reference.default": 1,
     "protocol.alchemist.http": 1,
     "protocol.prologue.action-tool": 1,
     "protocol.prologue.after-write-tool": 1,
     "protocol.prologue.gateway-tool": 1,
+    "protocol.prologue.implementation.node-port": "1.0.0",
+    "protocol.prologue.pack.action-gateway": "2.4.8",
+    "protocol.prologue.pack.action-tools": "1.0.0",
+    "protocol.prologue.pack.plugin-checks": "1.0.0",
     "protocol.prologue.plugin-check-tool": 1,
-    "protocol.work-executor.default": 1,
     "protocol.workflow-content": 1,
     "protocol.workflow-content.create": 1,
     "protocol.workflow-content.list": 1,
@@ -1239,15 +1248,6 @@
     "sync.collection.todo.todo_items": 1,
     "sync.collection.workflows.workflow_history": 1,
     "sync.protocol": 1,
-    "template.plugin.action": 1,
-    "template.plugin.release": "2.0.0",
-    "template.plugin.sample-artifact": 1,
-    "template.prologue.imported-method": 1,
-    "template.sandbox.method": 1,
-    "template.sandbox.prompt": 1,
-    "template.sandbox.role": 1,
-    "type.acceptance": 1,
-    "type.actions": 1,
     "type.anysearch-mcp": 1,
     "type.character.definition": 1,
     "type.coding.changeset": 1,
@@ -1262,34 +1262,23 @@
     "type.connector.driver.web-query": 1,
     "type.connector.driver.youtube": 1,
     "type.connector.host": 1,
-    "type.demo": 1,
-    "type.designer": 1,
     "type.diff.changeset": 1,
     "type.discovery.brainstorm": 1,
     "type.discovery.pulse": 1,
-    "type.experience": 1,
-    "type.feed-intent": 1,
     "type.files.collection": 1,
     "type.files.snapshot": 1,
     "type.files.text-selection": 1,
-    "type.fixture-research": 1,
     "type.git.result": 1,
-    "type.home-snapshot-file": 1,
-    "type.implement": 1,
-    "type.lifecycle": 1,
     "type.listener.host": 1,
     "type.molis-work-connector-receipt": 1,
-    "type.molis-work-feed-aead": 1,
     "type.molis-work-feed-blob-cursor": 1,
     "type.molis-work-feed-collection-receipt": 1,
     "type.molis-work-home-install": 1,
-    "type.molis-work-local-payload": 1,
     "type.molis-work-project-catalog": 1,
     "type.molis-work-rss-allowlist": 1,
     "type.molis-work-rss-http": 1,
     "type.molis-work-runtime-config-backup": 1,
     "type.molis-work-runtime-integration": 1,
-    "type.molis-work-secretstore": 1,
     "type.molis-work-uninstall": 1,
     "type.molis-work-web-service": 1,
     "type.molis.action-usages.input": 1,
@@ -1339,10 +1328,7 @@
     "type.molis.workflow.content.list.output": 1,
     "type.molis.workflow.content.read.output": 1,
     "type.molis.workflow.content.receive.output": 1,
-    "type.reading": 1,
-    "type.repair": 1,
     "type.research.lens": 1,
-    "type.revise": 1,
     "type.search-cursor": 1,
     "type.search-hit": 1,
     "type.search-intent": 1,
@@ -1353,11 +1339,7 @@
     "type.signal.adapter.web-query": 1,
     "type.signal.adapter.youtube": 1,
     "type.signals.command": 1,
-    "type.ui": 1,
-    "type.ui-review": 1,
-    "type.workspace.ref": 1,
-    "workspace.private": "0.0.0",
-    "format.coding.plan": 1
+    "type.workspace.ref": 1
   },
   "carriers": [
     {
@@ -1373,7 +1355,7 @@
     {
       "file": "apps/desktop/src-tauri/Cargo.toml",
       "key": "product.release",
-      "pattern": "(^version = \")[^\"]+(\")"
+      "pattern": "(\\[package\\]\\nname = \"molis-work-desktop\"\\nversion = \")[^\"]+(\")"
     },
     {
       "file": "apps/desktop/src-tauri/Cargo.lock",
@@ -1381,333 +1363,8 @@
       "pattern": "(name = \"molis-work-desktop\"\\nversion = \")[^\"]+(\")"
     },
     {
-      "file": "apps/cli/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "apps/desktop/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "apps/local-host/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "apps/mcp/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "apps/server/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "apps/workbench/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "examples/probe-plugin/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "horizontal/agent-host/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "horizontal/connector-host/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "horizontal/knowledge/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "horizontal/memory/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "horizontal/placement/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "horizontal/runtime-host/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "horizontal/scheduler/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "horizontal/search/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/artifacts/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/attention-resumption/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/characters/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/context-ledger/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/judgment-rules/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/private-work-context/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/projects/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/shelf/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "modules/sync-replication/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/contracts/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/design-system/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/im-ui/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/kernel/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/plugin-runtime/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/plugin-sandbox/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/plugin-sdk/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/storage/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/test-kit/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "packages/ui-host/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/alchemist/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/coding/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/cognia/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/dataset/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/diff/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/feed/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/files/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/form/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/git/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/goals/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/images/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/inbox/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/issues/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/jelly/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/lingguang/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/pages/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/plugin-builder/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/ppt/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/schedule/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/shelf/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/text-stats/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/todo/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/native/workflows/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/official-integrations/catalog/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/official-integrations/github/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/official-integrations/gmail/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/official-integrations/rss/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "server/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "tooling/plugin-cli/package.json",
-      "key": "workspace.private",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
       "file": "plugins/official-integrations/catalog/manifest.json",
-      "key": "package.integration.catalog",
+      "key": "plugin.integration-catalog",
       "pattern": "(^  \"version\": \")[^\"]+(\",?)"
     },
     {
@@ -1747,7 +1404,7 @@
     },
     {
       "file": "plugins/official-integrations/github/manifest.json",
-      "key": "package.plugins/official-integrations/github/index.githubIntegrationManifest",
+      "key": "plugin.integration-github",
       "pattern": "(^  \"version\": \")[^\"]+(\",?)"
     },
     {
@@ -1787,7 +1444,7 @@
     },
     {
       "file": "plugins/official-integrations/gmail/manifest.json",
-      "key": "package.plugins/official-integrations/gmail/index.gmailIntegrationManifest",
+      "key": "plugin.integration-gmail",
       "pattern": "(^  \"version\": \")[^\"]+(\",?)"
     },
     {
@@ -1827,7 +1484,7 @@
     },
     {
       "file": "plugins/official-integrations/rss/manifest.json",
-      "key": "package.plugins/official-integrations/rss/index.rssIntegrationManifest",
+      "key": "plugin.integration-rss",
       "pattern": "(^  \"version\": \")[^\"]+(\",?)"
     },
     {
@@ -1867,7 +1524,7 @@
     },
     {
       "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "package.plugins/official-integrations/web-query/index.webQueryIntegrationManifest",
+      "key": "plugin.integration-web-query",
       "pattern": "(^  \"version\": \")[^\"]+(\",?)"
     },
     {
@@ -1907,7 +1564,7 @@
     },
     {
       "file": "plugins/official-integrations/youtube/manifest.json",
-      "key": "package.plugins/official-integrations/youtube/index.youtubeIntegrationManifest",
+      "key": "plugin.integration-youtube",
       "pattern": "(^  \"version\": \")[^\"]+(\",?)"
     },
     {

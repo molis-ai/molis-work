@@ -11,6 +11,6 @@ export const ARTIFACTS_PROVIDER_TITLE = "成果";
 /** The identity a version imported through the 成果库 carries: what is stored on the version, whatever registers the actions. */
 export const ARTIFACT_PRODUCER = {
   plugin_id: ARTIFACTS_PLUGIN_ID,
-  plugin_version: /* @version identity.artifact-producer */ "0.3.0",
+  plugin_version: "0.3.0",
   binding_signature: "official-artifacts-binding",
 } as const;

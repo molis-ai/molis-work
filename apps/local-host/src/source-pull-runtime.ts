@@ -65,7 +65,7 @@ export function createSourcePullRuntime(options: {
     content: createSearchContentPort(content, options.assertCurrent, options.beforeContentWrite),
   });
   const rssRuntime = createSearchRuntime({
-    app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: 1 },
+    app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: /* @version format.search-evidence.data-compatibility */ 1 },
     host: rssHost.host,
     providers: [{ revision: 1, provider: createRssProvider({ appId: APP_ID }), transportProfileId: /* @version type.molis-work-rss-allowlist "molis-work-rss-allowlist-v{version}" */ "molis-work-rss-allowlist-v1" }],
   });

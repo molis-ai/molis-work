@@ -27,7 +27,7 @@ test("S-12 RAC-2915 RAC-2918 RAC-2917: recovery refuses foreign or unsafe journa
   const homeIdentity = directoryIdentity(f.home), runtimeIdentity = directoryIdentity(runtime), operation = randomUUID();
   const work = join(f.area, `.molis-home-restore-${homeIdentity.dev}-${homeIdentity.ino}-${operation}`);
   mkdirSync(work, { mode: 0o700 }); mkdirSync(join(work, "originals"), { mode: 0o700 }); mkdirSync(join(work, "failed"), { mode: 0o700 });
-  const base = { schema_version: 1, product_version: manifest.product_version, home_directory: f.home, operation_id: operation,
+  const base = { schema_version: 1, space_digest: manifest.space_digest, product_version: manifest.product_version, home_directory: f.home, operation_id: operation,
     originals_directory: work, phase: "prepared", home_identity: homeIdentity, runtime_identity: runtimeIdentity,
     work_identity: directoryIdentity(work), home_mode: homeIdentity.mode, originals: [], files: [], preserved: [], dependencies: [],
     directories: [{ path: "agent-runtime", mode: runtimeIdentity.mode, original: runtimeIdentity }] };

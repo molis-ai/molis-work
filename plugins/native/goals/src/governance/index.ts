@@ -65,3 +65,6 @@ function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi
       listGoalTreeProposals: (projectId) => repository.listGoalTreeProposals(projectId),
     };
 }
+
+
+export { governanceReplicationDefinition } from './replication.js';

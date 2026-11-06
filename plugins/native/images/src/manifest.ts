@@ -5,6 +5,7 @@ import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-wor
 import { IMAGES_PLUGIN_ID } from "./contract.js";
 import { IMAGES_DATABASE } from "./database.js";
 import { IMAGES_IMAGE_GENERATION } from "./image-generation.js";
+import { imagesSync } from './replication.js';
 
 import { IMAGES_MESSAGES } from "./messages.js";
 import { IMAGES_EN } from "./en.js";
@@ -27,6 +28,7 @@ export const imagesManifest: PluginManifest = {
   plugin_id: IMAGES_PLUGIN_ID,
   version: "0.1.0",
   name: "图片",
+  sync: imagesSync,
   name_en: "Images",
   summary: "连接生图服务，按描述生成图片。",
   kind: "native",

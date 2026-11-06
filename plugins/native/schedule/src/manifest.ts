@@ -1,3 +1,4 @@
+import { scheduleTracking } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { scheduleAgentManifest } from "./roles.js";
@@ -56,6 +57,7 @@ export const scheduleManifest: PluginManifest = {
   ],
   artifacts: { produces: [], consumes: [] },
   agent: scheduleAgentManifest,
+  sync: { protocol_version: 1, collections: [{ id: "conversation_tasks", tracking: scheduleTracking, title: "定时对话任务", schema_version: 1, requires: [] }] },
   databases: { project: SCHEDULE_PROJECT_DATABASE },
   ui: {
     messages: SCHEDULE_MESSAGES,

@@ -1,4 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { formSync } from './replication.js';
 import {
   FORM_ARTIFACT_SCHEMA_VERSION,
   FORM_ARTIFACT_TYPE_ID,
@@ -21,6 +22,7 @@ export const formManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: FORM_PLUGIN_ID,
+  sync: formSync,
   version: "0.1.0",
   name: "Forms",
   summary: "建问卷，收答卷，看逐题汇总。",

@@ -12,6 +12,7 @@ export const modulesAttentionResumptionContract = {
 /** The platform's closed list of subject kinds; ownership is a separate fact, not implied by a kind. */
 export const ATTENTION_SUBJECT_TYPES = ["feed_item", "goal_decision", "source_fault"] as const;
 export type AttentionSubjectType = typeof ATTENTION_SUBJECT_TYPES[number];
+export const ATTENTION_CONTENT_REPLICA_ID = 'attention_content';
 export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
 export type AttentionStatus = "open" | "in_progress" | "done" | "dismissed";
 

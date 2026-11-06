@@ -12,6 +12,15 @@ export interface CodingPlanDraft {
   source: { session_id: string; run_id: string; task: string; workspace_path: string };
   confirmed: ArtifactReference | null;
 }
+/** A confirmed fact can travel; the planning Runtime's directory and authority cannot. */
+export type CodingFixedPlan = Omit<CodingPlanDraft, "source"> & {
+  source: Omit<CodingPlanDraft["source"], "workspace_path">;
+};
+export const CODING_PLAN_SCHEMA_VERSION = 1;
+export function portableCodingPlan(draft: CodingPlanDraft): CodingFixedPlan {
+  return { revision: draft.revision, content: draft.content,
+    source: { session_id: draft.source.session_id, run_id: draft.source.run_id, task: draft.source.task }, confirmed: draft.confirmed };
+}
 /**
  * The task a plan serves. A plan worked out over several planning rounds belongs to the request that started them;
  * what was said in later planning rounds is kept as notes, named as such: nothing checked that the plan took each one up
@@ -36,18 +45,20 @@ export function planReference(sessionId: string, revision: number): ArtifactRefe
 }
 export function confirmedPlan(context: PluginStartContext, sessionId: string, revision: number) {
   const reference = planReference(sessionId, revision), record = codingArtifacts(context).read(reference);
-  if (!record || record.artifact_type_id !== CODING_PLAN_TYPE || record.schema_version !== 1
+  if (!record || record.artifact_type_id !== CODING_PLAN_TYPE || record.schema_version !== CODING_PLAN_SCHEMA_VERSION
     || record.producer_plugin_id !== context.plugin_id || record.producer_binding_signature !== "official-coding-binding"
     || record.project_id !== context.project_id || record.content_kind !== "inline" || record.availability !== "available"
     || record.lifecycle_state !== "active") throw new Error("确认计划不可读，请重新查看原计划");
-  const plan = record.payload as unknown as CodingPlanDraft;
-  if (plan?.revision !== revision || plan.source?.session_id !== sessionId || !plan.source?.run_id
-    || typeof plan.source.task !== "string" || typeof plan.source.workspace_path !== "string") throw new Error("计划来源与当前会话不一致");
+  const plan = record.payload as CodingFixedPlan | null;
+  if (plan?.revision !== revision || plan.source?.session_id !== sessionId || typeof plan.source?.run_id !== "string" || !plan.source.run_id
+    || typeof plan.source.task !== "string" || Object.keys(plan.source).sort().join() !== "run_id,session_id,task"
+    || Object.keys(plan).sort().join() !== "confirmed,content,revision,source"
+    || plan.confirmed?.artifact_id !== reference.artifact_id || plan.confirmed.version !== reference.version) throw new Error("计划来源与当前会话不一致");
   const content = parseCodingPlan(plan.content);
   if (content.blockers) throw new Error("计划仍有未解决阻塞");
   return { ...plan, content, confirmed: reference };
 }
-export function planMaterial(plan: CodingPlanDraft): AgentTextMaterial {
+export function planMaterial(plan: CodingPlanDraft | CodingFixedPlan): AgentTextMaterial {
   if (!plan.confirmed) throw new Error("请先确认这个计划版本");
   const ref = plan.confirmed;
   const material = { material_id: `${ref.artifact_id}@${ref.version}`, source_artifact_id: ref.artifact_id,

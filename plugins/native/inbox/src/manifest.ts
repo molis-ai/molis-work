@@ -1,3 +1,4 @@
+import { attentionSections } from "./sync.js";
 import { inboxContentActions, inboxSearchEntriesAction, inboxSubjectAction } from "./content-actions.js";
 import { inboxHomeEventsAction } from "./home-events.js";
 import { inboxNextScene } from "./scenes.js";
@@ -58,6 +59,7 @@ export const inboxManifest: PluginManifest = {
   databases: { project: INBOX_PROJECT_DATABASE },
   capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content", INBOX_STAGE_GOAL_READ.capability_id] },
   artifacts: { produces: [], consumes: [] },
+  sync:{protocol_version:1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:1,requires:[],sections:attentionSections}]},
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [

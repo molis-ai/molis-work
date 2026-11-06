@@ -58,6 +58,7 @@ export const shelfManifest: PluginManifest = {
   local_tools: SHELF_LOCAL_TOOLS,
   // Each Runtime instance redeems only the actions it owns.
   actions: [...SHELF_ACTIONS, ...SHELF_PROJECT_ACTIONS, shelfReceiveCopy, ...SHELF_RUNTIME_ACTIONS],
+  sync:{protocol_version:1,collections:[{id:'copies',title:'材料、结果与终态任务',schema_version:1,requires:[]}]},
   artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },
   // A Coding change set offered to Shelf is exchange data, not a 成果. What Shelf saves into a project is an imported document there.
   process_items: { produces: [], consumes: [{ artifact_type_id: "coding.changeset.v1", schema_version: 1 }] },

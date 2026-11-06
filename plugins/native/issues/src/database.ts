@@ -8,5 +8,5 @@ export const ISSUES_DATABASE: PluginDatabaseDeclaration = {
     context_json TEXT NOT NULL, images_json TEXT NOT NULL, submitter_id TEXT NOT NULL,
     entered_via TEXT NOT NULL CHECK(entered_via IN ('manual','assistant','mcp')),
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL, version INTEGER NOT NULL CHECK(version >= 1)
-  ); CREATE INDEX issues_by_submitter_created ON issues(submitter_id,created_at DESC,id DESC);`,
+  ); CREATE INDEX issues_by_submitter_created ON issues(submitter_id,created_at DESC,id DESC); CREATE TABLE issue_editor_versions(id TEXT PRIMARY KEY,version INTEGER NOT NULL);`,
 };

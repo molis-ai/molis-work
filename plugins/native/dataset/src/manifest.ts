@@ -1,4 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { datasetSync } from './replication.js';
 import {
   DATASET_ARTIFACT_SCHEMA_VERSION,
   DATASET_ARTIFACT_TYPE_ID,
@@ -20,6 +21,7 @@ export const datasetManifest: PluginManifest = {
   schema_version: 1,
   host_api_version: 1,
   plugin_id: DATASET_PLUGIN_ID,
+  sync: datasetSync,
   version: "0.1.0",
   name: "Dataset",
   summary: "做表格，导入 CSV，可回到旧版。",

@@ -1,4 +1,5 @@
-import { applySqliteBaseline, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, replicaSchemaSql, STORAGE_SPACE_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { STUDIO_SYNC_TRIGGERS } from "../sync/journal.js";
 import type { SqliteDatabase } from "./open-database.js";
 
 /**
@@ -6,6 +7,9 @@ import type { SqliteDatabase } from "./open-database.js";
  * to. A new database gets it with the version; one at another version is refused, never upgraded in place.
  */
 export const ALCHEMIST_STUDIO_BASELINE: SqliteBaseline = { version: 1, schema: `
+  ${STORAGE_SPACE_SCHEMA_SQL}
+  ${replicaSchemaSql()}
+  CREATE TABLE studio_sync_identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1),project_id TEXT NOT NULL);
   CREATE TABLE workspaces (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -473,7 +477,7 @@ export const ALCHEMIST_STUDIO_BASELINE: SqliteBaseline = { version: 1, schema: `
     ON research_playbook_rules(workspace_id, status, updated_at DESC);
   CREATE INDEX conversation_messages_workspace_created_idx
     ON conversation_messages(workspace_id, created_at, id);
-` };
+` + STUDIO_SYNC_TRIGGERS };
 
 /** Give a studio database its current schema, or refuse it when it is at another version. */
 export function applyStudioBaseline(database: SqliteDatabase, path: string): void {

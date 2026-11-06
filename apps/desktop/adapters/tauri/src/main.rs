@@ -11,6 +11,7 @@ mod drop_wheel;
 mod drop_wheel_macos;
 mod external_links;
 mod page_files;
+mod personal_session;
 mod runtime_env;
 mod selected_file;
 #[cfg(target_os = "macos")]
@@ -920,6 +921,7 @@ fn main() {
       context_directories::context_directory_authorize,
       context_directories::context_directory_forget,
       context_directories::context_directory_preview,
+      personal_session::personal_account_request,
       context_directories::context_directory_stage,
       shelf_surface_changed,
       files_drag_out,

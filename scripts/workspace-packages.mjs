@@ -104,6 +104,7 @@ const NATIVE_PLUGIN_ENTRIES = nativePluginEntries(REPOSITORY_ROOT);
 export const REGISTERED_PLUGINS = NATIVE_PLUGIN_ENTRIES.filter((entry) => entry.registration !== undefined);
 
 export const WORKSPACE_PACKAGES = [
+  entry("modules/sync-replication", "@molis-ai/molis-work-contracts/modules/sync-replication", { maturity: "slice", extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"] }),
   entry("apps/server", "@molis-ai/molis-work-contracts/platform/app-host", {
     maturity: "experimental",
     extraWorkspaceDependencies: [
@@ -182,6 +183,7 @@ export const WORKSPACE_PACKAGES = [
     ],
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-module-sync-replication",
       "@molis-ai/molis-work-server",
       "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-plugin-sandbox",

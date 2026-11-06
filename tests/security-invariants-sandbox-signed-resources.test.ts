@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ChildProcess, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -11,8 +11,8 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-w
 import { SANDBOX_PACKAGE_FILES, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { effectsFromContract, sandboxPluginManifest, sandboxRequestedPermissions, sandboxOperationPermissions } from "@molis-ai/molis-work-plugin-sdk";
-import { connectorPluginSlotActions, CONNECTOR_MANAGEMENT_WRITE, pluginInstallActions, readSandboxPackage, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { homeStores, connectorPluginSlotActions, CONNECTOR_MANAGEMENT_WRITE, pluginInstallActions, readSandboxPackage, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { backupSnapshotSqlite, inspectSnapshotSqlite, readStorageSpace, homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref } from "./fixtures/home-sandbox.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -96,6 +96,20 @@ async function rig(t: TestContext) {
 }
 const writeFile = (text: string, path = "notes.txt", mode = "create") => ({ op: "files.write", changes: [{ op: "write", path, data_base64: Buffer.from(text).toString("base64"), mode }] });
 
+test("offline inspection accepts the original signed Home library, preserves installed software and refuses substituted SQL", mac, async t => {
+  const host = await fixture(t), pkg = bundle();
+  await host.install(pkg);
+  const home = realpathSync(host.home), registry = homeStores(home), name = pkg.payload.manifest.databases!.home!.store_name;
+  assert.equal(registry.get("plugin-packages")!.snapshot.restore,"preserve");
+  const options = { ...registry.get(name)!.snapshot.database!(name + ".db"), space:readStorageSpace(home)! };
+  const dir = realpathSync(mkdtempSync(join(tmpdir(),"signed-library-snapshot-"))), file = join(dir,"copy.db");
+  t.after(() => rmSync(dir,{recursive:true,force:true}));
+  await backupSnapshotSqlite(homeSqlitePath(home,name),file,options);
+  assert.equal(inspectSnapshotSqlite(file,options).integrity_check,"ok");
+  const db = new DatabaseSync(file);
+  try { db.exec("ALTER TABLE notes ADD COLUMN forged TEXT"); } finally { db.close(); }
+  assert.throws(() => inspectSnapshotSqlite(file,options), {code:"plugin.project_database.shape_mismatch"});
+});
 test("RAC2865 real signed read-only resources distinguish Declared, Requested and operation grants; shape-only Host grants and a query's writes are refused", mac, async t => {
   const r = await rig(t), pkg = bundle(newPublisher(), { readonly: true });
   const { preview } = await r.install(pkg);

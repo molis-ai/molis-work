@@ -1,3 +1,4 @@
+import { todoSync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "./contract.js";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
@@ -30,7 +31,7 @@ export const todoManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: ["assistant.works.related"] },
   artifacts: { produces: [], consumes: [] },
-  actions: [...TODO_ACTIONS],
+  actions: [...TODO_ACTIONS], sync:todoSync,
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
   runtime: { scope: "home" },
   databases: { home: TODO_DATABASE },

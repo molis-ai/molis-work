@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createHomeSnapshot, homeStores, CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { backupSnapshotSqlite, copySnapshotFile, readSnapshotFile, snapshotFileDigest } from "@molis-ai/molis-work-storage";
+import { bindDatabaseSpace, ensureStorageSpace, backupSnapshotSqlite, copySnapshotFile, readSnapshotFile, snapshotFileDigest } from "@molis-ai/molis-work-storage";
 import { changeSnapshotSource, type InjectedSnapshotChange } from "./fixtures/home-snapshot-error-change.js";
 import { captureSqliteError, smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 
@@ -31,6 +31,7 @@ async function fixture(t: TestContext, kind: string, changing = false) {
   await mkdir(dirname(source), { recursive: true });
   const db = new DatabaseSync(source);
   try {
+    bindDatabaseSpace(db, ensureStorageSpace(f.home));
     if (memory) {
       db.exec(kind === "sqlite-schema" ? "CREATE TABLE wrong_shape (id TEXT)" : store.library!.baseline.schema);
       db.exec("PRAGMA user_version=" + store.library!.baseline.version);

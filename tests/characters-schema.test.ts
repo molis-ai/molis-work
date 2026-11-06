@@ -22,8 +22,7 @@ test("W1-18-CHARACTER-SCHEMA-01 an empty Character store initializes once and cu
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-// RAC-2365: any other version is refused; no historical structure or maintenance is needed.
-for (const version of [0, 2, 3]) test(`W1-18-CHARACTER-SCHEMA-01 an existing version ${version} store is refused without changing its bytes or mode`, () => {
+for (const version of [0, 1, 2, 3, 5]) test(`W1-18-CHARACTER-SCHEMA-01 an existing version ${version} store is refused without changing its bytes or mode`, () => {
   const home = mkdtempSync(join(tmpdir(), "character-refused-"));
   const directory = join(home, "characters"), filename = join(directory, "characters.sqlite");
   mkdirSync(directory);
@@ -34,7 +33,7 @@ for (const version of [0, 2, 3]) test(`W1-18-CHARACTER-SCHEMA-01 an existing ver
   try {
     // The common store baseline refuses it (C-06 moved the Characters store onto it): the path and the version found are named.
     assert.throws(() => openCharacters(home, "owner"), error => error instanceof SqliteSchemaVersionError
-      && error.code === "storage.schema_version_mismatch" && error.path === filename && error.found === version && error.message.includes(filename));
+      && error.code === "storage.schema_version_mismatch" && error.path === filename && error.found === version && error.expected === 1 && error.message.includes(filename));
     assert.deepEqual(readFileSync(filename), bytes);
     assert.equal(statSync(filename).mode, mode);
     const check = new DatabaseSync(filename);

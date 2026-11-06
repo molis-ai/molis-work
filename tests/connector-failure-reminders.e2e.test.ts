@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { raiseConnectionNotice, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
@@ -15,8 +17,16 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 test("ASC-58 a connection notice waits on the person, opens its service's connection settings, and offers nothing for a foreign address", { timeout: 120_000 }, async t => {
   const f = await serveHomeRuntime(t);
   const connection = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "Work GitHub", token: "fixture-reminder-page-token" }));
+  // The run the notice is about, on the connection's last call: a plugin's request whose refresh was refused.
+  const failingSince = new Date().toISOString();
+  const db = new DatabaseSync(homeSqlitePath(f.home, "connectors"));
+  try {
+    db.prepare("INSERT OR REPLACE INTO connector_observations (connection_id, check_json, call_json) VALUES (?, NULL, ?)").run(connection.connection_id, JSON.stringify({ at: failingSince,
+      revision: connection.updated_at, outcome: "unknown", action: { capability_id: "example.sync", version: 1, provider_id: "io.molis.work.example" }, actor_id: "person",
+      project_id: null, failures: 1, failing_since: failingSince, failure_class: "reauth" }));
+  } finally { db.close(); }
   assert.equal(raiseConnectionNotice(f.home, { connection_id: connection.connection_id, revision: connection.updated_at, failure_class: "reauth",
-    failing_since: new Date().toISOString(), name: "Work GitHub", settings_path: "/settings/connectors?connector=github" }), true);
+    failing_since: failingSince, name: "Work GitHub", settings_path: "/settings/connectors?connector=github" }), true);
   const project = await f.project("Connection notices"), path = `/projects/${project.project_id}/`;
   const directory = await mkdtemp(join(tmpdir(), "asc58-browser-"));
   let browser: Awaited<ReturnType<typeof ChromeHarness.start>> = null;
@@ -60,6 +70,11 @@ test("ASC-58 a connection notice waits on the person, opens its service's connec
     await page.evaluate("document.querySelector('[data-assistant-notices] [data-notice-action=open]').click()");
     await page.wait("(d => d && !d.hidden && d.offsetParent !== null)(document.querySelector('[data-connectors-settings] [data-connector-detail=\"github\"]'))", { timeoutMs: 20_000 });
     assert.equal(await page.evaluate<string>("location.pathname"), path, "opened in place, not by navigating the page");
+    // The connection's status there says what the notice said, not that a check passed.
+    const shownStatus = await page.evaluate<{ summary: string; last: string }>(`(s => ({ summary: s.querySelector('summary').textContent,
+      last: s.querySelector('dl dd:last-of-type').textContent }))(document.querySelector('[data-connectors-settings] [data-connector-detail="github"] [data-connection-status]'))`);
+    assert.equal(shownStatus.summary, "连接、授权与能力 · 需重新授权");
+    assert.match(shownStatus.last, /^结果未确认 · 登录已失效 · 连续 1 次 · /);
   } finally {
     try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); }
   }

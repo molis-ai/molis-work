@@ -16,6 +16,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="needs-decision"> ${L("需要我决定时仍然提醒")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="reminder" checked> ${L("我自己设的提醒到时间仍然提醒")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="connection" checked> ${L("服务连接要处理仍然提醒")}</label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("添加规则")}</button>
       </form>
       <form class="assistant-rule-form" data-assistant-rule-pause>
@@ -24,6 +25,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
           <option value="30">${L("30 分钟")}</option><option value="60" selected>${L("1 小时")}</option><option value="day">${L("到今天结束")}</option>
         </select>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="connection" checked> ${L("服务连接要处理仍然提醒")}</label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("暂停")}</button>
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>

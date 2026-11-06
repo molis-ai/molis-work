@@ -18,8 +18,9 @@ export interface ConnectorCallObservation {
   action: ActionReference; actor_id: string; project_id: string | null; call_id?: string;
   /**
    * How many uses of this connection version in a row have failed for the same `failure_class`. Absent once a use succeeds or the version
-   * changes; a failure of another class starts a new run at 1. Only failures that are the connection's or the service's count. A use that
-   * reached the service and was answered for its own reason (400, 404, 409, 422, an MCP tool's `isError`) does not count and ends the run;
+   * changes (a passing check ends only a `reauth` run); a failure of another class, or one more than a day after the run's last recorded
+   * use, starts a new run at 1. Only failures that are the connection's or the service's count. A use that reached the service and was
+   * answered for its own reason (400, 404, 409, 422, an MCP tool's `isError` or a JSON-RPC error) does not count and ends the run;
    * its `outcome` is still `failed`, which is the call's result, not part of the run. A request refused before it was sent (connection
    * disabled, disconnected, unbound, wrong origin, call cancelled) or rate limited (429) neither counts nor ends a run: when such a use writes
    * this observation it carries the run's three fields over unchanged, so they then describe the run, not this call. Counted by the Host;

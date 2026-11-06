@@ -7,12 +7,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ConnectorCallObservation } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { ASSISTANT_STORE_NAME, AssistantStore, createPluginConnectionsPort, pluginSlotScope, raiseConnectionNotice, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, AssistantStore, connectorManagementActions, connectorRecordActions, createPluginConnectionsPort, pluginSlotScope, raiseConnectionNotice,
+  withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runInPluginAction, type PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { connectorControl } from "./fixtures/connector-control.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
 // ASC-58 (specs/assistant-service-connections/spec.md §13.2 「反复失败合并提醒」): a connection's run of failures is kept on its last call,
 // and the person is told once per problem through the Assistant's notices, with the way to its settings; a short break, a rate limit, a
@@ -65,6 +67,12 @@ async function rig(t: TestContext) {
     try { const value = { ...call()!, failing_since: new Date(Date.now() - minutes * 60_000).toISOString() };
       db.prepare("UPDATE connector_observations SET call_json=? WHERE connection_id=?").run(JSON.stringify(value), connection.connection_id); } finally { db.close(); }
   };
+  /** Move the last recorded use of the run back by `hours`, as if the run had gone quiet that long. */
+  const quietFor = (hours: number) => {
+    const db = new DatabaseSync(homeSqlitePath(home, "connectors"));
+    try { const value = { ...call()!, at: new Date(Date.now() - hours * 3_600_000).toISOString() };
+      db.prepare("UPDATE connector_observations SET call_json=? WHERE connection_id=?").run(JSON.stringify(value), connection.connection_id); } finally { db.close(); }
+  };
   const notices = () => {
     const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
     try { return new AssistantStore(db).openNotices(LOCAL_PERSON_ACTOR_ID).filter(notice => notice.kind === "connection"); } finally { db.close(); }
@@ -73,7 +81,7 @@ async function rig(t: TestContext) {
     const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
     try { new AssistantStore(db).settleNotices(LOCAL_PERSON_ACTOR_ID, { notice_id }, "dismissed"); } finally { db.close(); }
   };
-  return { home, connection, send, call, startedAgo, notices, dismiss, port, dispatch };
+  return { home, connection, send, call, startedAgo, quietFor, notices, dismiss, port, dispatch };
 }
 
 test("ASC-58 a service that keeps failing is told once, after three failures at least ten minutes apart, with the way to its settings", { timeout: 60_000 }, async t => {
@@ -123,6 +131,21 @@ test("ASC-58 a refused key is told after two refusals in a row; an answer for th
   assert.deepEqual([r.call()?.failures, r.call()?.failure_class, r.notices().length], [1, "unavailable", 1]);
 });
 
+test("ASC-58 a failure more than a day after the run's last recorded use starts a new run at one", { timeout: 60_000 }, async t => {
+  const r = await rig(t);
+  await r.send("/401");
+  const first = r.call()!;
+  r.quietFor(25);
+  await r.send("/401");
+  assert.equal(r.call()?.failures, 1, "a day apart is not one problem");
+  assert.notEqual(r.call()?.failing_since, first.failing_since);
+  assert.equal(r.notices().length, 0);
+  // Within the day it goes on as before.
+  r.quietFor(23);
+  await r.send("/401");
+  assert.deepEqual([r.call()?.failures, r.notices().length], [2, 1]);
+});
+
 test("ASC-58 nothing is counted for a request outside a plugin action, refused before it was sent, or on a connection the person turned off", { timeout: 60_000 }, async t => {
   const r = await rig(t);
   // No plugin action to name: the failure is not remembered.
@@ -143,6 +166,50 @@ test("ASC-58 nothing is counted for a request outside a plugin action, refused b
   assert.equal(r.notices().length, 1);
   withConnectorConnections(r.home, store => store.remove(r.connection.connection_id));
   assert.equal(r.notices().length, 0);
+});
+
+test("ASC-58 a record read the service refuses or cannot answer is counted, and the connection's status says what the calls found", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t);
+  const row = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work GitHub", token: TOKEN }));
+  const caller: ActionCallContext = { actor_id: "status-user", audience: "agent", project_id: null,
+    permissions: ["connectors:management:read", "connectors:management:write", "connectors:records:read"] };
+  let account = 401;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    if (String(input) === "https://api.github.com/user") return Response.json(account === 200 ? { id: 42, login: "work-account" } : { message: "upstream said no" }, { status: account });
+    return Response.json([], { status: 200 });
+  });
+  const client = home.host.homeActionClient();
+  const readRecords = () => client.invoke(caller, connectorRecordActions.read, { connection_id: row.connection_id }).catch(() => undefined);
+  const status = async () => ((await client.invoke(caller, connectorManagementActions.list, {})) as { connections: Array<{ connection_id: string; status: {
+    connectivity: { state: string }; authorization: { service: { state: string } }; last_call?: { outcome: string; failures?: number; failure_class?: string } } }> })
+    .connections.find(item => item.connection_id === row.connection_id)!.status;
+  const notices = () => {
+    const db = openHomeSqliteDatabase(home.home, ASSISTANT_STORE_NAME);
+    try { return new AssistantStore(db).openNotices(LOCAL_PERSON_ACTOR_ID).filter(notice => notice.kind === "connection"); } finally { db.close(); }
+  };
+  // A key the service refuses twice in a row: told once, and the connection's status asks to authorize again rather than "connected".
+  await readRecords(); await readRecords();
+  assert.equal(notices()[0]?.text, "服务连接「{name}」的密钥或权限连续被服务拒绝，打开连接看看。");
+  const refused = await status();
+  assert.deepEqual([refused.authorization.service.state, refused.last_call?.outcome, refused.last_call?.failures, refused.last_call?.failure_class], ["required", "unknown", 2, "denied"]);
+  // The account read passes again: a check does not end a run of refusals (a narrowed permission still lets the account read pass).
+  account = 200;
+  await client.invoke(caller, connectorManagementActions.check, { connection_id: row.connection_id });
+  assert.deepEqual([(await status()).authorization.service.state, notices().length], ["required", 1]);
+  // A record read that goes through ends it.
+  await readRecords();
+  assert.deepEqual([(await status()).authorization.service.state, (await status()).last_call?.failures, notices().length], ["verified", undefined, 0]);
+  // A service that keeps failing (5xx) three times over ten minutes is told, and its connectivity is "failed", not "connected".
+  account = 503;
+  for (let i = 0; i < 3; i++) await readRecords();
+  assert.deepEqual([(await status()).connectivity.state, (await status()).last_call?.failure_class, notices().length], ["failed", "unavailable", 0]);
+  const db = new DatabaseSync(homeSqlitePath(home.home, "connectors"));
+  try {
+    const value = JSON.parse((db.prepare("SELECT call_json FROM connector_observations WHERE connection_id=?").get(row.connection_id) as { call_json: string }).call_json) as ConnectorCallObservation;
+    db.prepare("UPDATE connector_observations SET call_json=? WHERE connection_id=?").run(JSON.stringify({ ...value, failing_since: new Date(Date.now() - 11 * 60_000).toISOString() }), row.connection_id);
+  } finally { db.close(); }
+  await readRecords();
+  assert.equal(notices()[0]?.text, "服务连接「{name}」连续几次没连上服务，打开连接看看。");
 });
 
 test("ASC-58 the Host writes a notice's settings address only when it is a path of this origin under /settings/", async t => {

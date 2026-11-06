@@ -1,7 +1,7 @@
 import { ConnectorObservationStore, type ConnectorCheckObservation } from "@molis-ai/molis-work-service-connector-host";
 import { openConnectorsStore } from "./connectors-store.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { withoutRun } from "./connector-failure-runs.js";
+import { afterPassedCheck } from "./connector-failure-runs.js";
 import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
 
 export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T): T {
@@ -17,7 +17,7 @@ export const REFRESH_REFUSED = "connector.refresh_refused";
  * writes a check comes through here, so S-70 holds in this one place: while this revision's last check is a refused refresh, no other
  * check is written over it (a read that still passes on the old access token, a check that failed for another reason); only a forced
  * refresh that went through clears it (`clearsRefreshRefusal`), and reconnecting changes the revision. A check that went through also ends
- * the run of failures on the last call and settles the connection's notices (ASC-58).
+ * a run of `reauth` on the last call and settles that notice; a run of `denied` or `unavailable` only a call that goes through ends (ASC-58).
  */
 export function rememberConnectorCheck(home: string, id: string, value: ConnectorCheckObservation, options: { clearsRefreshRefusal?: boolean } = {}): boolean {
   const current = withConnectorConnections(home, store => store.get(id));
@@ -26,9 +26,9 @@ export function rememberConnectorCheck(home: string, id: string, value: Connecto
     const { check: last, call } = store.read(id);
     if (last?.code === REFRESH_REFUSED && last.revision === value.revision && value.code !== REFRESH_REFUSED && !options.clearsRefreshRefusal) return undefined;
     store.check(id, value);
-    // A check that went through ends the run of failures on the last call (ASC-58): the call stays, its run goes.
-    if (value.outcome !== "connected" || !call?.failures) return false;
-    store.call(id, withoutRun(call)); return true;
+    // A check that went through ends a run of `reauth` on the last call (ASC-58): the call stays, its run goes.
+    if (value.outcome !== "connected" || !call?.failures || afterPassedCheck(call) === call) return false;
+    store.call(id, afterPassedCheck(call)); return true;
   });
   if (ended === undefined) return false;
   if (ended) settleConnectionNotices(home, id);

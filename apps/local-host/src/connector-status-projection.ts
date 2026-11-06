@@ -19,9 +19,15 @@ export function projectConnectorStatus(input: {
   const { observations, revision, actions, caller, active } = input;
   const last = connectionCheck(observations.check);
   const check = last?.revision === revision ? last : undefined;
-  const recentCall = observations.call?.revision === revision && (!check || observations.call.at > check.at) ? observations.call : undefined;
+  // A run of failures on this version's last call (ASC-58) says what the calls found, and stands until a call goes through even when a
+  // later check passed (an account read can pass while calls are refused or keep failing): a service that could not be reached is not
+  // "connected", and a refused key or a login that ran out is an authorization to give again. One lost result alone stays "unknown"
+  // (ASC-16): the service is taken as unreachable once it answered with a failure or failed more than once.
+  const failing = observations.call?.revision === revision && observations.call.failures ? observations.call : undefined;
+  const run = failing?.failure_class === "unavailable" && failing.outcome === "unknown" && failing.failures === 1 ? undefined : failing?.failure_class;
+  const recentCall = failing ?? (observations.call?.revision === revision && (!check || observations.call.at > check.at) ? observations.call : undefined);
   const connectivity = !active ? "disconnected" : input.live === false ? check?.outcome === "failed" ? "failed" : "disconnected"
-    : recentCall ? recentCall.outcome === "unknown" ? "unknown" : "connected" : check?.outcome ?? (input.live ? "connected" : "unchecked");
+    : recentCall ? run === "unavailable" ? "failed" : recentCall.outcome === "unknown" ? "unknown" : "connected" : check?.outcome ?? (input.live ? "connected" : "unchecked");
   const authorized = (view: ActionView) => view.action.permissions.every(permission => caller.permissions.includes(permission))
     && actionReachesAudience(view.action, view.capability_id, caller.audience)
     && (!caller.allowed_actions || caller.allowed_actions.some(ref => ref.capability_id === view.capability_id && ref.version === view.version && (!ref.provider_id || ref.provider_id === view.provider.provider_id)));
@@ -39,7 +45,7 @@ export function projectConnectorStatus(input: {
       // Projected from the check, not kept apart: the service is rate limiting, and the time it gave has not passed yet.
       ...(check?.outcome === "failed" && check.retry_at && connectivity === "failed" && Date.parse(check.retry_at) > (input.now ?? Date.now()) ? { retry_at: check.retry_at } : {}) },
     authorization: {
-      service: { state: input.noAuthentication ? "not-required" : check?.authorization ?? (input.live ? "verified" : "unknown"),
+      service: { state: input.noAuthentication ? "not-required" : run === "denied" || run === "reauth" ? "required" : check?.authorization ?? (input.live ? "verified" : "unknown"),
         scopes: check?.scopes ?? null, scope_state: check?.scopes ? "reported" : "unknown" },
       work: { state: !actions.length ? "unknown" : granted === actions.length ? "allowed" : granted ? "partial" : "blocked",
         missing_permissions: [...new Set(actions.flatMap(view => view.action.permissions.filter(permission => !caller.permissions.includes(permission))))],

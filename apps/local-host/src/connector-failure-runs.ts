@@ -32,24 +32,47 @@ export function useOfStatus(status: number): ConnectionUse {
 
 /**
  * The service could not be reached or did not answer: a timeout, no connection or an unreadable answer (each after the read resends),
- * a write whose outcome is unknown, an MCP server that failed. A write or an MCP call that times out counts too: nothing is resent for it,
- * and it says the service is not answering just the same.
+ * a write whose outcome is unknown, a record read that found no service. A write or an MCP call that times out counts too: nothing is
+ * resent for it, and it says the service is not answering just the same.
  */
-const UNAVAILABLE = new Set(["connector.plugin_requests.timeout", "connector.plugin_requests.upstream", "actions.outcome_unknown", "connector.mcp.provider"]);
+const UNAVAILABLE = new Set(["connector.plugin_requests.timeout", "connector.plugin_requests.upstream", "actions.outcome_unknown", "connector.read.unreachable"]);
+
+/** JSON-RPC codes the MCP client gives a request the server never answered (the connection closed, the request timed out). */
+const MCP_UNANSWERED = new Set([-32000, -32001]);
+
+/**
+ * An MCP failure by what the server did: an HTTP status is read like any other answer; a JSON-RPC error the server sent is an answer for
+ * the request's own reason (the run ends), except the client's own codes for no answer at all; anything else (no connection, a transport
+ * that broke) is a server that could not be reached.
+ */
+function useOfMcp(details: Readonly<Record<string, unknown>> | undefined): ConnectionUse {
+  if (typeof details?.http_status === "number") return useOfStatus(details.http_status);
+  if (typeof details?.jsonrpc_code === "number") return MCP_UNANSWERED.has(details.jsonrpc_code) ? failed("unavailable") : ENDED;
+  return failed("unavailable");
+}
 
 /** A request that threw. A refused refresh (`reauth`) is found by the caller, which knows whether the mark was there before. */
 export function useOfError(error: unknown): ConnectionUse {
   if (error instanceof ActionError) {
     if (UNAVAILABLE.has(error.code)) return failed("unavailable");
-    if (error.code === "connector.mcp.authorization") return failed("denied");
+    if (error.code === "connector.mcp.provider") return useOfMcp(error.details);
+    if (error.code === "connector.mcp.authorization" || error.code === "connector.read.refused") return failed("denied");
+    if (error.code === "connector.read.answered") return ENDED;
     return SKIPPED;
   }
   return error instanceof Error && error.name === "TimeoutError" ? failed("unavailable") : SKIPPED;
 }
 
-/** The run of a use, from the last call of the same connection version: a failure of the same class adds one, another class starts at 1. */
+/** Failures this far apart are not one problem: a failure a day after the run's last recorded use starts a new run at 1. */
+const RUN_GAP_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The run of a use, from the last call of the same connection version: a failure of the same class adds one, another class starts at 1,
+ * and so does one more than a day after the run's last recorded use (`previous.at`, a failure or a use that carried the run on).
+ */
 export function nextRun(previous: ConnectorCallObservation | undefined, revision: string, use: ConnectionUse, at: string): RunFields {
   const run = previous?.revision === revision && previous.failures && previous.failing_since && previous.failure_class
+    && Date.parse(at) - Date.parse(previous.at) <= RUN_GAP_MS
     ? { failures: previous.failures, failing_since: previous.failing_since, failure_class: previous.failure_class } : undefined;
   if (use.kind === "skipped") return run ?? {};
   if (use.kind !== "failed") return {};
@@ -74,8 +97,13 @@ export function remindable(run: RunFields, at: string): boolean {
   return run.failures >= 3 && Date.parse(at) - Date.parse(run.failing_since) >= UNAVAILABLE_SPAN_MS;
 }
 
-/** The last call without its run: what a check that went through leaves (the run is over, the call stays as it was). */
-export function withoutRun(observation: ConnectorCallObservation): ConnectorCallObservation {
+/**
+ * What a check that went through leaves of the last call: it ends a run of `reauth` (the account answers again), but not one of `denied`
+ * or `unavailable` — an account read can pass while the permission a call needs is gone, or while the calls themselves keep failing; only
+ * a call that goes through ends those (ASC-58 §13.2).
+ */
+export function afterPassedCheck(observation: ConnectorCallObservation): ConnectorCallObservation {
+  if (observation.failure_class !== "reauth") return observation;
   const { failures: _failures, failing_since: _since, failure_class: _class, ...call } = observation;
   return call;
 }

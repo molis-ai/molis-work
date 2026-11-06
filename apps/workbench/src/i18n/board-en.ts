@@ -177,7 +177,7 @@ export const BOARD_EN: Record<string, string> = {
   "评审会讲稿 v3": "Review talk v3",
   "发布周": "Launch week",
   "这个 Goal 已经不在了": "This Goal is no longer here",
-  "{n} 张": "{n} tabs",
+  "{n} 张": "{n} {n|tab|tabs}",
   "1 张": "1 tab",
   "找标签": "Find a tab",
   "全部标签": "All tabs",

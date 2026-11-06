@@ -306,12 +306,17 @@ const headErrors = (measured, budget, base) => {
 // FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
 // The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
 // Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// ASC-57 (第 13 批②, 2026-11-06): after a key change or a provider removal the page points out the old key nothing uses and
+// offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
+// spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
+// the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
+// the select in place instead of reloading the page, the host names no key so the page needs no second string.
 // 07-S1 (the right side joins the tab workspace; 用户 2026-11-05 一次性放行 workbench.js，07 批评审台审过 #1853，冗余两处记入 S2):
 // workbench.js +12340 B on main's budget: the side's rules in the workspace state (withSidePane: open, select, close and reopen
 // through the shared closed stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background
 // tasks as a side view with its count, a removed plugin's side tab drawn in place with the stage that says how to add it back, the
-// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The BL-912 and FCS-01/02
-// entries before it are spent on this base (main's budget holds their ceilings), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
+// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-57 entry
+// keyed on 1077683 is spent on this base (main's budget holds its ceiling), so it is replaced. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the
 // character typed; the 208271 key is shared with the account admission, so its ceiling is S1's 208400, which also covers the
 // account PR's +54 B. Whichever lands second moves its own entry onto the new base. The sheets fall (workbench.css -997 B,
 // arrival.css -5247 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
@@ -319,10 +324,9 @@ const headErrors = (measured, budget, base) => {
 // old side-tab, side-ratio and discussion-ratio keys are dropped, not read; the rules' comments sit above the function, not in the
 // shipped body; the removed placeholder is one template (-262 B).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 693169],
-  "/assets/molis-work-settings.css": [826998, 827545],
-  "/assets/molis-work-workbench.css": [1194792, 1204497],
-  "/assets/molis-work-workbench.js": [1077683, 1090023],
+  "/assets/molis-work-settings.css": [827545, 827793],
+  "/assets/molis-work-workbench.css": [1204497, 1204745],
+  "/assets/molis-work-workbench.js": [1078718, 1091058],
   "/assets/molis-work-plugin-frame.js": [208271, 208400],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

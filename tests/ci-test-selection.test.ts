@@ -29,7 +29,7 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   const whole = (job: "security" | "product", input: Partial<Record<keyof Affected, unknown>> | null, pattern: RegExp, list: Array<string | { file: string; browser: boolean }> = LIST) => {
     const decision = decideJob({ job, list, affected: input, failure: input ? undefined : "affected-tests failed: boom" });
     assert.equal(decision.mode, "whole", `${pattern}: ${JSON.stringify(decision)}`);
-    assert.deepEqual(decision.shards, job === "security" ? [1, 2, 3] : [1, 2], "whole is every leg of the job: three for the security invariants, two for the product subset");
+    assert.deepEqual(decision.shards, job === "security" ? [1, 2, 3, 4] : [1, 2, 3], "whole is every leg of the job: four for the security invariants, three for the product subset");
     assert.deepEqual(decision.files, [], "whole names no files: an empty list is what the jobs read as the whole list");
     assert.ok(decision.reasons.some((reason: string) => pattern.test(reason)), `${pattern} in ${JSON.stringify(decision.reasons)}`);
   };
@@ -103,10 +103,11 @@ test("RAC-1761 none skips the job; some runs the touched files on as many runner
   const none = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching("tests/not-in-the-list.test.ts") }) });
   assert.equal(none.mode, "none");
   assert.deepEqual(none.files, []);
-  const one = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 4), "tests/not-in-the-list.test.ts") }) });
-  assert.deepEqual({ mode: one.mode, shards: one.shards, files: one.files }, { mode: "some", shards: [1], files: LIST.slice(0, 4) }, "four of ten fit in one of three legs (a shard of ten files is four)");
-  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 5)) }) }).shards, [1, 2], "five of ten do not");
-  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 8)) }) }).shards, [1, 2], "eight of ten fill two legs of four");
+  const one = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 3), "tests/not-in-the-list.test.ts") }) });
+  assert.deepEqual({ mode: one.mode, shards: one.shards, files: one.files }, { mode: "some", shards: [1], files: LIST.slice(0, 3) }, "three of ten fit in one of four legs (a shard of ten files is three)");
+  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 4)) }) }).shards, [1, 2], "four of ten do not");
+  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 6)) }) }).shards, [1, 2], "six of ten fill two legs of three");
+  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 8)) }) }).shards, [1, 2, 3], "eight of ten need a third");
   const smokes = PRODUCT.filter((entry) => entry.browser).map((entry) => entry.file);
   assert.deepEqual(decideJob({ job: "product", list: PRODUCT, affected: affected({ tests: touching(...smokes.slice(0, 2), LIST[0]!) }) }).shards, [1], "two of four smokes fit in one leg");
   assert.deepEqual(decideJob({ job: "product", list: PRODUCT, affected: affected({ tests: touching(...smokes.slice(0, 3), LIST[0]!) }) }).shards, [1, 2], "three of four smokes do not, however few other files");
@@ -125,7 +126,7 @@ test("RAC-1762 the outputs: files only for some, an anchored pattern that matche
   assert.ok(!only.test(`${LIST[1]}x`) && !only.test(`x${LIST[1]}`) && !only.test("tests/item-1-test-ts"), "anchored, and a dot is a dot");
   const whole = decideJob({ job: "security", list: LIST, affected: null });
   const wholeLines = outputLines({ security: whole, product: whole });
-  assert.ok(wholeLines.includes("security_files=") && wholeLines.includes("product_only=") && wholeLines.includes("security_shards=[1,2,3]"), wholeLines.join(" | "));
+  assert.ok(wholeLines.includes("security_files=") && wholeLines.includes("product_only=") && wholeLines.includes("security_shards=[1,2,3,4]"), wholeLines.join(" | "));
 });
 
 test("RAC-1762 the security list is test:security with its globs expanded over tests/", () => {
@@ -199,7 +200,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   commit("an invariant test");
   const invariant = select(root);
   assert.equal(invariant.outputs.security_mode, "whole", invariant.text);
-  assert.equal(invariant.outputs.security_shards, "[1,2,3]");
+  assert.equal(invariant.outputs.security_shards, "[1,2,3,4]");
   assert.equal(invariant.outputs.product_mode, "none", "the invariant test is not in the product list");
 
   const broken = select(root, "no-such-ref");
@@ -265,7 +266,7 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
     const job = jobBlock(name);
     assert.match(job, /^    needs: \[test-selection, queue-check\]$/m, name);
     assert.ok(job.includes(`    if: \${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.${key}_mode != 'none') }}`), `${name}: only successful none skips on a PR; all other selections run, except a trusted verified push`);
-    assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '${key === "security" ? "[1, 2, 3]" : "[1, 2]"}') }}`), `${name}: every leg unless a selection that succeeded said fewer`);
+    assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '${key === "security" ? "[1, 2, 3, 4]" : "[1, 2, 3]"}') }}`), `${name}: every leg unless a selection that succeeded said fewer`);
     assert.doesNotMatch(job, /^    continue-on-error:/m, `${name} blocks: a red run turns Verify red (decision #14, 2026-10-31)`);
     assert.ok(job.includes("${{ matrix.shard }}/${{ strategy.job-total }}"), `${name}: the shard is counted out of the legs that run`);
   }
@@ -283,7 +284,7 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
   const SECURITY_NONE = { ...SOME, security_mode: "none" };
   const PRODUCT_NONE = { ...SOME, product_mode: "none" };
   type Expected = { runs: boolean; shards?: number[]; list?: string };
-  const everything = { security: { runs: true, shards: [1, 2, 3], list: "" } as Expected, product: { runs: true, shards: [1, 2], list: "" } as Expected };
+  const everything = { security: { runs: true, shards: [1, 2, 3, 4], list: "" } as Expected, product: { runs: true, shards: [1, 2, 3], list: "" } as Expected };
   const some: Expected = { runs: true, shards: [1], list: "some" };
   const none: Expected = { runs: false };
   const both = (expected: Expected) => ({ security: expected, product: expected });

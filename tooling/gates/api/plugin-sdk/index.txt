@@ -520,6 +520,10 @@ export declare function bindPluginActionRoute<Input, Output>(context: PluginStar
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function canonicalJsonText(value: unknown, unsupported: "null"): string;
+
+export declare function canonicalJsonText(value: unknown, unsupported?: "omit" | "null" | "literal"): string | undefined;
+
 export declare function canonicalJsonValue(value: unknown): unknown;
 
 export declare function cardInputValues(values: unknown, zone: string | undefined): Record<string, string>;

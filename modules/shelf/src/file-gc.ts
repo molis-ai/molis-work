@@ -40,6 +40,6 @@ export function createShelfFileCollector(files:NonNullable<SyncDocumentStorage['
     }
    }
    authorize();return removed;
-  });}catch{authorize();throw shelfErrors.sync_unavailable('置物架暂存清理暂不可用，保留原件等待下次检查');}
+  });}catch{frames=[];authorize();throw shelfErrors.sync_unavailable('置物架暂存清理暂不可用，保留原件等待下次检查');}
  };
 }

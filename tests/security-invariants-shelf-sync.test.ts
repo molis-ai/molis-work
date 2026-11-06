@@ -2,7 +2,7 @@ import {SHELF_OWNER_FILES} from '@molis-ai/molis-work-plugin-shelf';
 import { openTestShelfFiles } from './shelf-direct-actions.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, utimesSync, mkdirSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, utimesSync, mkdirSync, symlinkSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
@@ -152,6 +152,14 @@ test('Shelf bounded collection advances beyond a large retained prefix across pa
  registration.withReplica(replica=>replica.maintain!());assert.equal(existsSync(orphan),false,'real Host calls reuse the same owner traversal cursor');
  assert.equal(readFileSync(join(unknown,'00000'),'utf8'),'unknown owner path');assert.equal(readFileSync(join(unknown,'05099'),'utf8'),'unknown owner path');assert.equal(s.readFile(item.item_id).bytes.toString(),'Keep current complete bytes');
  const reopened=f.open();reopened.replica().maintain!();assert.equal(reopened.readFile(item.item_id).bytes.toString(),'Keep current complete bytes','a new owner may safely restart traversal');
+ // A directory can become a link between bounded passes. Refuse that pass, then restart without getting stuck on the cached path.
+ writeFileSync(orphan,'old unreferenced bytes');utimesSync(orphan,aged,aged);
+ registration.withReplica(replica=>replica.maintain!());
+ const moved=join(f.home,'moved-unknown');renameSync(unknown,moved);symlinkSync(moved,unknown);
+ assert.throws(()=>registration.withReplica(replica=>replica.maintain!()),{code:'shelf.sync_unavailable'});
+ registration.withReplica(replica=>replica.maintain!());
+ assert.equal(existsSync(orphan),false,'a failed cached directory does not permanently starve later candidates');
+ assert.equal(readFileSync(join(moved,'00000'),'utf8'),'unknown owner path','the link target stays untouched');
  f.revoke();assert.throws(()=>registration.withReplica(replica=>replica.cursor()),/REVOKED/,'a cached owner cannot outlive its authorization');
 });
 

@@ -300,6 +300,12 @@
       ],
       "reason": "The search horizontal and its Host actions and HTTP edge; search.entry_duplicate is also a platform protocol code."
     },
+    "sessions": {
+      "paths": [
+        "packages/contracts/src/services/sessions.ts"
+      ],
+      "reason": "The Sessions service contract declares sessions.* once, so the shell and callers can tell the refusals apart; horizontal/sessions/ joins when the service package is created."
+    },
     "shelf": {
       "paths": [
         "modules/shelf/"

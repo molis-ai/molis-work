@@ -1806,6 +1806,16 @@
       "file": "plugins/native/goals/methods/work-types/work-operate-process.md",
       "key": "method.goals.work-operate-process",
       "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "server/src/sync/quota.rs",
+      "key": "remote.sync.d1-schema",
+      "pattern": "(row\\[\"version\"\\] == )\\d+(\\))"
+    },
+    {
+      "file": "server/src/sync/round.rs",
+      "key": "format.sync.round",
+      "pattern": "(\"format\":)\\d+(,\"policy\")"
     }
   ]
 }

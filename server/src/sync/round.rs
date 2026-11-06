@@ -18,6 +18,6 @@ pub(crate) async fn read(db: &D1Database, space: &str) -> ApiResult<Value> {
         .bind(&[space.into(),JsValue::from_f64(revision as f64)])?.all().await?.results::<Value>()?;
     require(heads.len() == selected.len(), 409, "POLICY_CONFLICT")?;
     Ok(
-        json!({"format":/* @version format.sync.round */ 1,"policy":policy,"quota":crate::quota::read(db,space).await?,"heads":heads}),
+        json!({"format":1,"policy":policy,"quota":crate::quota::read(db,space).await?,"heads":heads}),
     )
 }

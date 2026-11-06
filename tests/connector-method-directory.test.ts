@@ -6,8 +6,6 @@ import { listConnectorSettingsCards } from "../apps/local-host/src/connector-dir
 import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
 import { recommendedMethod, renderConnectorConnect, renderConnectorWays } from "../apps/workbench/src/settings-connector-guide.ts";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../apps/workbench/src/scripts/connectors-settings.ts";
-import { SERVICE_CONNECTION_PART_STYLES, SERVICE_CONNECTION_PROGRESS_STYLES } from "../apps/workbench/src/service-connection-parts.ts";
-import { CONNECTOR_EXPERIENCE_STYLES } from "../apps/workbench/src/styles/settings-connectors.ts";
 
 // A Home's registry is keyed by its path and nothing here reads the disk; the directory is what a Home with no installed package lists,
 // without the three flags a listing adds from this machine's own settings.
@@ -199,12 +197,4 @@ test("RAC-2528 a connection pinned to a package shows 建于 and its name throug
   const asked: string[] = [];
   render(value => { asked.push(value); return value; });
   assert.ok(asked.includes("建于"));
-});
-
-// The step progress's styles reach the page once, with the model settings' sheet both settings sheets carry; the connections sheet takes
-// the parts after them. That cut holds only while the parts' styles begin with the progress styles (§13.6).
-test("ASC-78: the connections sheet carries the parts' styles without a second copy of the step progress's", () => {
-  assert.ok(SERVICE_CONNECTION_PART_STYLES.startsWith(SERVICE_CONNECTION_PROGRESS_STYLES), "the parts' styles begin with the progress styles");
-  assert.ok(CONNECTOR_EXPERIENCE_STYLES.startsWith(SERVICE_CONNECTION_PART_STYLES.slice(SERVICE_CONNECTION_PROGRESS_STYLES.length)));
-  assert.equal(CONNECTOR_EXPERIENCE_STYLES.includes(SERVICE_CONNECTION_PROGRESS_STYLES), false);
 });

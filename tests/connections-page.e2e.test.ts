@@ -12,7 +12,7 @@ import test, { type TestContext } from "node:test";
 import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { ChromeHarness, locateTestChrome, type ChromePage } from "@molis-ai/molis-work-test-kit/browser";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
-import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, type MolisWorkSettingsView } from "./workbench-renderer-fixture.js";
+import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet, type MolisWorkSettingsView } from "./workbench-renderer-fixture.js";
 
 const WORK = "11111111-1111-4111-8111-111111111111", HOME = "22222222-2222-4222-8222-222222222222", KEY = "33333333-3333-4333-8333-333333333333";
 const AUTHORIZATION = "44444444-4444-4444-8444-444444444444";
@@ -263,4 +263,12 @@ test("ASC-73 ASC-79: the page in both languages, themes and three widths: rows o
   await page.wait(`${outcome}?.textContent.includes('nothing to switch')`);
   assert.equal(await page.evaluate(`${outcome}.textContent`), "Nothing was found using it, so there is nothing to switch. The original account stays and keeps working.");
   assert.deepEqual(exceptions, []);
+});
+
+// The step progress's styles reach a page once, with the model settings' sheet that both sheets carry; the connections page's own sheet
+// takes the parts after them (§13.6), so a sheet that carries both does not draw them twice.
+test("ASC-78: the step progress's styles are in each settings sheet once", () => {
+  const once = (sheet: string) => sheet.split(".connection-progress{display:flex").length - 1;
+  assert.equal(once(renderMolisWorkSettingsStylesheet()), 1);
+  assert.equal(once(renderMolisWorkWorkbenchStylesheet()), 1);
 });

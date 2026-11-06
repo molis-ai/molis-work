@@ -332,6 +332,7 @@ export { pluginErrors } from "./plugin-errors.js";
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "./plugin-agents.js";
 export type { PluginReadGroupDeclaration } from "./plugin-read-groups.js";
+export type { PluginTaskSubjectsDeclaration } from "./plugin-task-subjects.js";
 
 export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "./plugin-installations.js";
 

@@ -27,7 +27,7 @@ import {
   createGithubIntegrationPlugin,
   githubIntegrationManifest,
 } from "@molis-ai/molis-work-integration-github";
-import { MemoryPluginEventsRepository, MemoryPluginRuntimeRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository, readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginEventsRepository, MemoryPluginRuntimeRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-runtime";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -36,10 +36,11 @@ const SOURCE_ID = "source-fd3-github";
 const CONNECTION_ID = "connection-fd3-github";
 
 test("PCSYNC-20 passive installation inspection works query-only and never repairs an absent owner table", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     assert.throws(() => readPluginRuntimeRecords(db), /no such table/);
     assert.deepEqual(db.prepare("SELECT name FROM sqlite_master").all(), []);
+    db.exec(PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL);
     const repository = new SqlitePluginRuntimeRepository(db);
     const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
     const record = runtime.install({ definition: { manifest: githubIntegrationManifest, execution: "sandbox", async start() { throw new Error("not executable inspection"); }, async stop() {} },

@@ -1,15 +1,13 @@
-import { SERVICE_CONNECTION_PART_STYLES, SERVICE_CONNECTION_PROGRESS_STYLES } from "../service-connection-parts.js";
+import { SERVICE_CONNECTION_ITEM_STYLES } from "../service-connection-parts.js";
 
 /**
  * 设置 › 服务连接 (plan A of §13.1): one column of service rows that open in place, the account's four rows in a card, the folded 高级.
- * The rows and the card where a connection is missing are the component board's parts (`SERVICE_CONNECTION_PART_STYLES`); their
- * step progress comes once, with the model settings' sheet that both settings sheets carry, so it is not repeated here.
+ * The rows are the component board's part (`SERVICE_CONNECTION_ITEM_STYLES`, without the card where a connection is missing, which
+ * this page does not draw); their step progress comes once, with the model settings' sheet that both settings sheets carry.
  */
-const PARTS_WITHOUT_PROGRESS = SERVICE_CONNECTION_PART_STYLES.slice(SERVICE_CONNECTION_PROGRESS_STYLES.length);
-
 const ITEM_ROW = "[data-connectors-settings] .settings-connection-item > .settings-connection-row";
 
-export const CONNECTOR_EXPERIENCE_STYLES = `${PARTS_WITHOUT_PROGRESS}
+export const CONNECTOR_EXPERIENCE_STYLES = `${SERVICE_CONNECTION_ITEM_STYLES}
   [data-connectors-settings] [hidden] { display: none !important; }
   [data-connectors-settings] { --connector-width: 760px; }
   [data-connectors-settings] .settings-heading { padding-bottom: 24px; }
@@ -33,7 +31,7 @@ export const CONNECTOR_EXPERIENCE_STYLES = `${PARTS_WITHOUT_PROGRESS}
   .settings-connector-source small { color: var(--muted); font-size: 12px; }
   /* One account: its four rows in a card, its actions under them, what an action answered in its own box. */
   .settings-connection-account, .settings-connection-manage { display: grid; gap: 12px; min-width: 0; }
-  .mw-card.connection-facts { width: auto; max-width: 100%; }
+  .mw-card.connection-facts { width: auto; max-width: 100%; container: connection-facts / inline-size; }
   .connection-facts .mw-card__panel { padding: 0 16px; }
   .connection-facts .settings-setting-row { padding: 10px 0; gap: 16px; flex-direction: row; align-items: center; }
   .connection-facts .settings-setting-row:last-child { border-bottom: 0; }
@@ -64,7 +62,7 @@ export const CONNECTOR_EXPERIENCE_STYLES = `${PARTS_WITHOUT_PROGRESS}
   form.settings-connection-inline > .mw-btn { flex: none; }
   .settings-connection-scopes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
   .settings-connector-add.mw-collapsible { border-top: 1px solid var(--line); }
-  .settings-connector-draft .settings-connector-actions { margin-top: 8px; }
+  .settings-connector-draft { display: grid; gap: 8px; }
   [data-connectors-settings] .settings-connector-method { padding: 0; border: 0; }
   .settings-connector-flow { display: grid; gap: 16px; min-width: 0; }
   [data-connectors-settings] .settings-connector-flow p, .settings-connector-help p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; max-width: 70ch; }
@@ -118,9 +116,12 @@ export const CONNECTOR_EXPERIENCE_STYLES = `${PARTS_WITHOUT_PROGRESS}
     [data-connectors-settings] .settings-connection-row:not(.settings-connection-item > *) > .settings-state { grid-column: 2; justify-self: start; }
     ${ITEM_ROW} > :is(.settings-state, .mw-status) { max-width: 100%; }
     .connection-facts .mw-card__panel { padding: 0 12px; }
-    /* Narrow: each fact's value goes under its label, flush left with it, still one line each. */
+    .settings-connection-switch, .settings-connection-manage { padding: 12px; }
+  }
+  /* Narrow content (a phone, or a window whose content area is narrow beside the sidebar): each fact's value goes under its label,
+     flush left with it, still one line each. The card's own width decides, not the window's. */
+  @container connection-facts (max-width: 600px) {
     [data-connectors-settings] .connection-facts .settings-setting-row { flex-direction: column; align-items: stretch; gap: 4px; }
     .connection-facts .setting-value { max-width: 100%; justify-content: flex-start; text-align: start; }
-    .settings-connection-switch, .settings-connection-manage { padding: 12px; }
   }
 `;

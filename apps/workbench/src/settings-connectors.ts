@@ -1,4 +1,4 @@
-import { icon as designIcon, renderAlert, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon as designIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./judgment-rules/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, recommendedMethod, renderConnectorConnect, renderConnectorWays } from "./settings-connector-guide.js";
@@ -32,7 +32,7 @@ const DISPLAY_GROUPS: ReadonlyArray<{ id: string; title: string; directory: read
   { id: "docs", title: "文档与笔记", directory: ["files"] },
   { id: "chat", title: "消息", directory: ["chat", "social"] },
   { id: "design", title: "设计", directory: ["design"] },
-  { id: "crm", title: "客户与增长", directory: ["crm"] },
+  { id: "crm", title: "客户与销售", directory: ["crm"] },
 ];
 const MODEL_SERVICES: readonly string[] = ["model-api", "image-api"];
 
@@ -166,10 +166,9 @@ function CLIENT_TEMPLATES(p: ConnectorsSettingsPrimitives): string {
     <template data-connector-template="draft">${draftNote(p)}</template>`;
 }
 
-/** The note before 高级 when it holds changes not saved in this window: the alert, with its two answers inside it. */
+/** The note before 高级 when it holds changes not saved in this window: the alert as it is, and its two answers under it. */
 function draftNote(p: ConnectorsSettingsPrimitives): string {
-  const answer = (attr: string, label: string) => `<button class="mw-btn mw-btn--secondary" type="button" ${attr}>${p.escapeHtml(p.L(label))}</button>`;
-  const alert = renderAlert({ title: p.L("「高级」里有上次没保存的改动"), body: p.L("只留在这个窗口里；密钥不会留下，要重新填。"), className: "settings-connector-draft" });
-  return alert.replace(/<\/div>$/, `<div class="settings-connector-actions">${answer("data-draft-resume", "接着改")}${answer("data-draft-drop", "放弃改动")}</div></div>`)
-    .replace('data-slot="alert"', 'data-slot="alert" data-connector-draft');
+  const answer = (attr: string, label: string) => renderButton({ label: p.L(label), variant: "secondary", attrs: { [attr]: "" } });
+  const alert = renderAlert({ title: p.L("「高级」里有上次没保存的改动"), body: p.L("只留在这个窗口里；密钥不会留下，要重新填。") });
+  return `<div class="settings-connector-draft" data-connector-draft>${alert}<div class="settings-connector-actions">${answer("data-draft-resume", "接着改")}${answer("data-draft-drop", "放弃改动")}</div></div>`;
 }

@@ -57,6 +57,8 @@ export const SERVICE_CONNECTION_EN: Record<string, string> = {
   "{account} 留着、照常可用；用到它的地方切过去，正在跑的那件用原账号做完。": "{account} stays and keeps working; what uses it switches over, and work already running finishes with it.",
   "原来的账号留着，照常可用。": "The original account stays and keeps working.",
   "没有查到用它的地方，不用换。": "Nothing was found using it, so there is nothing to switch.",
+  "换过去 {count} 处，没能全部查到或换到：": "Moved {count}; not everything could be checked or moved:",
+  "{count} 个用它的插件没换成，那里可能还用着原来那条。": "{count} {count|plugin|plugins} using it did not switch and may still use the original.",
   "这是替「{name}」再加的账号。": "This account was added to replace “{name}”.",
   "请用原来的账号登录；要连另一个账号，用「换账号」。": "Sign in with the same account; to connect another one, use Switch account.",
   // Connecting.

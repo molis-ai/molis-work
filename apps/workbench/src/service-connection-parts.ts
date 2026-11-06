@@ -133,7 +133,8 @@ export const SERVICE_CONNECTION_PROGRESS_STYLES = ""
   + `.connection-progress[data-state=cancelled] li[aria-current] > span{background:var(--muted);transform:none}`
   + `.connection-progress[data-state=done] li > span{background:${TONE.done}}`;
 
-export const SERVICE_CONNECTION_PART_STYLES = SERVICE_CONNECTION_PROGRESS_STYLES
+/** The row that opens in place, alone: what a page of rows (the connections page) takes, without the card it does not draw. */
+export const SERVICE_CONNECTION_ITEM_STYLES = ""
   // The row opening in place: the connections page's row, a wash on hover, the toggle's chevron turning, and the part under it
   // lined up with the row's name (40px mark + 12px gap); on a phone it takes the row's full width.
   + `.settings-connection-item{border-bottom:1px solid var(--line)}`
@@ -145,6 +146,13 @@ export const SERVICE_CONNECTION_PART_STYLES = SERVICE_CONNECTION_PROGRESS_STYLES
   + `.settings-connection-item[data-open=true]>.settings-connection-item__fold{grid-template-rows:1fr;opacity:1;visibility:visible;transition:${FOLD_MOTION},visibility 0s}`
   + `.settings-connection-item__clip{min-height:0;overflow:hidden;margin-inline:-4px;padding-inline:4px}.settings-connection-item[data-open=true] .settings-connection-item__clip{${CLIP_OPEN}}`
   + `.settings-connection-item__body{padding:4px 0 24px 52px}`
+  + `@media (prefers-reduced-motion:reduce){:is(.settings-connection-item__fold,.settings-connection-item__toggle svg){transition:none}}`
+  + `@media (max-width:760px){${ROW},[data-connectors-settings] ${ROW}{grid-template-columns:40px minmax(0,1fr) auto}`
+  + `${ROW}>.settings-connection-item__toggle{grid-column:3;grid-row:1}[data-connectors-settings] ${ROW}>.settings-state,${ROW}>.mw-status{grid-column:2;grid-row:2;justify-self:start}`
+  + `.settings-connection-item__body{padding-left:0}}`;
+
+/** The card where a connection is missing (a plugin's place in its page), and the line it folds into. */
+export const SERVICE_CONNECTION_CARD_STYLES = ""
   // The card where a connection is missing, and the line it folds into. Its body is a fold too: closed while the card only
   // offers to connect, opened on the same clock when the connection starts; the action steps aside while it runs.
   + `.connection-need{display:grid;min-width:0}.connection-need [hidden]{display:none}`
@@ -165,7 +173,7 @@ export const SERVICE_CONNECTION_PART_STYLES = SERVICE_CONNECTION_PROGRESS_STYLES
   // Accounts to choose from stack one per line at the card's width; a long account line wraps instead of leaving the card.
   + `.connection-card .mw-choice-group{display:grid}.connection-card .mw-choice{min-width:0;padding-block:10px}.connection-card .mw-choice__label{white-space:normal;align-items:start}`
   + `.connection-card .mw-card__footer{padding-top:16px}.connection-need[data-state=running] .connection-card .mw-card__footer{display:none}`
-  + `@media (prefers-reduced-motion:reduce){:is(.settings-connection-item__fold,.connection-need__fold,.connection-need__done,.connection-card__fold,.settings-connection-item__toggle svg){transition:none}}`
-  + `@media (max-width:760px){${ROW},[data-connectors-settings] ${ROW}{grid-template-columns:40px minmax(0,1fr) auto}`
-  + `${ROW}>.settings-connection-item__toggle{grid-column:3;grid-row:1}[data-connectors-settings] ${ROW}>.settings-state,${ROW}>.mw-status{grid-column:2;grid-row:2;justify-self:start}`
-  + `.settings-connection-item__body{padding-left:0}}`;
+  + `@media (prefers-reduced-motion:reduce){:is(.connection-need__fold,.connection-need__done,.connection-card__fold){transition:none}}`;
+
+/** Every part: what the component board shows. */
+export const SERVICE_CONNECTION_PART_STYLES = SERVICE_CONNECTION_PROGRESS_STYLES + SERVICE_CONNECTION_ITEM_STYLES + SERVICE_CONNECTION_CARD_STYLES;

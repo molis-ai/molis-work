@@ -15,7 +15,7 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { renderMolisWorkSettings, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet, type MolisWorkSettingsView } from "./workbench-renderer-fixture.js";
 
 const WORK = "11111111-1111-4111-8111-111111111111", HOME = "22222222-2222-4222-8222-222222222222", KEY = "33333333-3333-4333-8333-333333333333";
-const AUTHORIZATION = "44444444-4444-4444-8444-444444444444";
+const AUTHORIZATION = "44444444-4444-4444-8444-444444444444", ORPHAN = "55555555-5555-4555-8555-555555555555";
 
 const gitlab = { connector_id: "gitlab", title: "GitLab", availability: "live", auth_kind: "oauth", group_id: "code", summary: "看合并请求、读流水线", capabilities: [],
   method_options: [{ kind: "oauth", support: "in_app", login_ready: true, note: "", links: [],
@@ -133,9 +133,14 @@ test("ASC-73 ASC-74 ASC-77: services are rows grouped by use; an account's four 
   assert.equal(await page.evaluate(`${chooser}.hidden`), true);
   assert.equal(await text(page, stateOf("gitlab")), "已连接 2 个账号");
   await page.click(`[data-connection-switch="${WORK}"]`);
+  assert.equal(await page.evaluate(`document.querySelector('[data-connection-switch="${WORK}"]').getAttribute('aria-expanded')`), "true");
+  assert.equal(await page.evaluate(`document.getElementById(document.querySelector('[data-connection-switch="${WORK}"]').getAttribute('aria-controls')) === ${chooser}`), true, "换账号 names the choice it opens");
   const before = reads.length;
   await page.click(`${row(WORK)} [data-connection-switch-go]`);
   const request = await next();
+  // What the service now reports: the moved uses are the other account's.
+  usages.set(WORK, { usages: [{ usage_id: "slot:1", title: "Coding 仓库", source: { provider_id: "system.connectors" } }], issues: [] });
+  usages.set(HOME, { usages: [{ usage_id: "feed:1", title: "Feed 来源 · molis", source: { provider_id: "system.connectors" } }, { usage_id: "assistant:1", title: "助理", source: { provider_id: "system.connectors" } }], issues: [] });
   assert.equal(request.url, `/api/settings/connectors/connections/${HOME}/switch`);
   assert.deepEqual(JSON.parse(request.body), { from_connection_id: WORK });
   assert.ok(reads.slice(before).includes(WORK), "the uses are read again right before the switch");
@@ -146,9 +151,15 @@ test("ASC-73 ASC-74 ASC-77: services are rows grouped by use; an account's four 
   assert.doesNotMatch(await text(page, result), /原来的账号留着/, "with uses left over, it does not claim all is well");
   assert.equal(await page.evaluate(`Boolean(document.querySelector('${row(WORK)}'))`), true, "the account switched from stays");
   assert.equal(await text(page, stateOf("gitlab")), "已连接 2 个账号");
+  // After the switch every account of the service reads who uses it again, and focus is back on this account's 换账号, not in the
+  // hidden chooser.
+  await page.wait(`document.querySelector('[data-connection-usages="${WORK}"]')?.textContent === 'Coding 仓库' && document.querySelector('[data-connection-usages="${HOME}"]')?.textContent === 'Feed 来源 · molis、助理'`);
+  assert.equal(await page.evaluate(`document.activeElement === document.querySelector('[data-connection-switch="${WORK}"]')`), true);
+  assert.equal(await page.evaluate(`document.activeElement.getAttribute('aria-expanded')`), "false");
   // N6: what an action answered is in a box of its own.
   assert.notEqual(await page.evaluate(`getComputedStyle(${result}).borderTopStyle`), "none");
   // M3: sentences put together in Chinese take no space between them (the English test below takes one).
+  usages.set(HOME, { usages: [], issues: [] });
   await page.click(`[data-connection-switch="${HOME}"]`);
   await page.click(`${row(HOME)} [data-connection-switch-go]`);
   const second = await next();
@@ -157,6 +168,72 @@ test("ASC-73 ASC-74 ASC-77: services are rows grouped by use; an account's four 
   const outcome = `document.querySelector('${row(HOME)} [data-connection-result]')`;
   await page.wait(`${outcome}?.textContent.includes('不用换')`);
   assert.equal(await page.evaluate(`${outcome}.textContent`), "没有查到用它的地方，不用换。原来的账号留着，照常可用。");
+  assert.deepEqual(exceptions, []);
+});
+
+test("ASC-74 ASC-77: a switch with places it could not check or plugins that failed says so; a failed switch reads the uses again", { timeout: 120_000 }, async t => {
+  const browser = await openPage(t); if (!browser) return;
+  const { page, open, next, answer, reads, usages, exceptions } = browser;
+  await open("gitlab");
+  await page.wait(`document.querySelector('[data-connection-usages="${WORK}"]')?.dataset.loaded && document.querySelector('[data-connection-usages="${HOME}"]')?.dataset.loaded`);
+  // The read before the switch could not check Feed; the switch moved 2 places and one plugin failed as a whole.
+  usages.set(WORK, { usages: [], issues: ["Feed 暂时没回答"] });
+  await page.click(`[data-connection-switch="${WORK}"]`);
+  await page.click(`${row(WORK)} [data-connection-switch-go]`);
+  answer(await next(), { results: [{ provider_id: "system.connectors", switched: ["slot:1", "assistant:1"], refused: [] }], failed: [{ provider_id: "plugin.feed", code: "connector.switch.target_unavailable" }] });
+  const result = `document.querySelector('${row(WORK)} [data-connection-result]')`;
+  await page.wait(`${result}?.textContent.includes('没能全部查到或换到')`);
+  const said = await text(page, result);
+  assert.match(said, /换过去 2 处，没能全部查到或换到：.*没能查：Feed 暂时没回答.*1 个用它的插件没换成/);
+  assert.doesNotMatch(said, /不用换|都换过去了|原来的账号留着/, "with places unchecked or a plugin failed, it never says all is well");
+
+  // A switch that fails (it may have timed out after the service moved some uses) reads the service's uses again.
+  usages.set(WORK, { usages: [{ usage_id: "feed:1", title: "Feed 来源 · molis", source: { provider_id: "system.connectors" } }], issues: [] });
+  await page.click(`[data-connection-switch="${WORK}"]`);
+  const before = reads.length;
+  await page.click(`${row(WORK)} [data-connection-switch-go]`);
+  answer(await next(), { error: { code: "connector.switch.timeout", message: "timed out" } }, 504);
+  await page.wait(`document.querySelector('[data-connection-usages="${WORK}"]')?.textContent === 'Feed 来源 · molis'`);
+  const after = reads.slice(before);
+  assert.ok(after.filter(id => id === WORK).length >= 2 && after.includes(HOME), `the switch's own read, then both accounts again: ${after}`);
+  assert.deepEqual(exceptions, []);
+});
+
+test("ASC-74 ASC-77: after a new login takes over the old account's uses, both accounts read who uses them again", { timeout: 120_000 }, async t => {
+  const browser = await openPage(t); if (!browser) return;
+  const { page, open, next, answer, usages, exceptions } = browser;
+  const three = [{ usage_id: "feed:1", title: "Feed 来源 · molis", source: { provider_id: "system.connectors" } }, { usage_id: "assistant:1", title: "助理", source: { provider_id: "system.connectors" } }, { usage_id: "slot:1", title: "Coding 仓库", source: { provider_id: "system.connectors" } }];
+  usages.set(WORK, { usages: three, issues: [] });
+  await open("gitlab");
+  // Back from the login of one more account, added to take over 工作 GitLab's uses.
+  await page.evaluate(`sessionStorage.setItem('molis-connectors-notice', JSON.stringify({ service: 'gitlab', id: '${HOME}', replaces: '${WORK}', message: '已连上「个人 GitLab」。' }))`);
+  await open("gitlab");
+  const move = `[...document.querySelectorAll('${row(HOME)} [data-connection-result] .mw-btn')].find(button => button.textContent.includes('换到这条'))`;
+  await page.wait(`Boolean(${move})`);
+  await page.wait(`document.querySelector('[data-connection-usages="${WORK}"]')?.textContent.includes('等 3 处')`);
+  await page.evaluate(`${move}.click()`);
+  const request = await next();
+  assert.equal(request.url, `/api/settings/connectors/connections/${HOME}/switch`);
+  usages.set(WORK, { usages: [], issues: [] });
+  usages.set(HOME, { usages: three, issues: [] });
+  answer(request, { results: [{ provider_id: "system.connectors", switched: ["feed:1", "assistant:1", "slot:1"], refused: [] }], failed: [] });
+  await page.wait(`document.querySelector('${row(HOME)} [data-connection-result]')?.textContent.includes('都换过去了')`);
+  await page.wait(`document.querySelector('[data-connection-usages="${WORK}"]')?.textContent === '还没有地方在用' && document.querySelector('[data-connection-usages="${HOME}"]')?.textContent.includes('等 3 处')`);
+  assert.deepEqual(exceptions, []);
+});
+
+test("ASC-74: a connection whose service left the catalog reads who uses it when its row opens", { timeout: 120_000 }, async t => {
+  const browser = await openPage(t); if (!browser) return;
+  const { page, open, rows, usages, reads, exceptions } = browser;
+  rows.push(account(ORPHAN, "retired-service", "旧服务", "yijun-old", "oauth"));
+  usages.set(ORPHAN, { usages: [{ usage_id: "feed:9", title: "Feed 来源 · 旧", source: { provider_id: "system.connectors" } }], issues: [] });
+  await open("gitlab");
+  const orphan = `[data-connector-orphan="${ORPHAN}"]`;
+  assert.equal(await page.evaluate(`document.querySelector('${orphan}').dataset.open`), "false");
+  assert.equal(reads.includes(ORPHAN), false, "not read while closed");
+  await page.click(`${orphan} [data-connection-toggle]`);
+  await page.wait(`document.querySelector('[data-connection-usages="${ORPHAN}"]')?.textContent === 'Feed 来源 · 旧'`);
+  assert.equal(reads.filter(id => id === ORPHAN).length, 1);
   assert.deepEqual(exceptions, []);
 });
 
@@ -211,7 +288,8 @@ test("ASC-76: 高级 is folded at the foot of the service; its unsaved settings 
   assert.equal(await page.evaluate(`Boolean(${advanced}.querySelector('.settings-connection-manage [data-connection-manage=remove]'))`), true, "an account's own settings are there");
   await page.click("[data-connector-detail=gitlab] [data-connector-advanced] > summary");
   await page.click("[data-connector-detail=gitlab] [data-connector-advanced] [data-method-choice] > summary");
-  await page.fill("[data-connector-detail=gitlab] [data-connector-advanced] [data-protocol-field='setting:base_url']", "https://gitlab.example.test");
+  // An address with a key in its query or fragment is kept only up to its path.
+  await page.fill("[data-connector-detail=gitlab] [data-connector-advanced] [data-protocol-field='setting:base_url']", "https://gitlab.example.test/group?token=fixture-only-url-token#fixture-only-fragment");
   const secret = "[data-connector-detail=gitlab] [data-connector-advanced] [data-protocol-field='client_secret']";
   assert.equal(await page.evaluate(`document.querySelector(${JSON.stringify(secret)}).type`), "password", "the own app asks for its secret");
   await page.fill(secret, "fixture-only-app-secret");
@@ -220,23 +298,26 @@ test("ASC-76: 高级 is folded at the foot of the service; its unsaved settings 
   await page.wait(draft);
   assert.match(await text(page, draft), /「高级」里有上次没保存的改动.*密钥不会留下，要重新填/);
   const stored = await page.evaluate<string>("sessionStorage.getItem('molis-connectors-draft:gitlab') || ''");
-  assert.match(stored, /gitlab\.example\.test/);
+  assert.match(stored, /https:\/\/gitlab\.example\.test\/group"/);
   assert.doesNotMatch(stored, /fixture-only-app-secret/, "a secret is never kept");
-  await page.click("[data-connector-detail=gitlab] [data-connector-draft] .mw-btn");
+  assert.doesNotMatch(stored, /token|fixture-only-url-token|fixture-only-fragment/, "nor an address's query or fragment");
+  // The two answers are buttons under the alert, not inside it.
+  assert.equal(await page.evaluate(`${draft}.querySelector('[data-slot=alert] .mw-btn')`), null);
+  await page.click("[data-connector-detail=gitlab] [data-connector-draft] [data-draft-resume]");
   assert.equal(await page.evaluate(`${advanced}.open`), true);
-  assert.equal(await page.evaluate("document.querySelector(\"[data-connector-detail=gitlab] [data-connector-advanced] [data-protocol-field='setting:base_url']\").value"), "https://gitlab.example.test");
+  assert.equal(await page.evaluate("document.querySelector(\"[data-connector-detail=gitlab] [data-connector-advanced] [data-protocol-field='setting:base_url']\").value"), "https://gitlab.example.test/group");
   assert.equal(await page.evaluate(`document.querySelector(${JSON.stringify(secret)}).value`), "");
   assert.equal(await page.evaluate(draft), null, "the note goes once taken up");
   assert.deepEqual(exceptions, []);
 });
 
-test("ASC-73 ASC-79: the page in both languages, themes and three widths: rows on one line, results boxed, nothing wider than the window", { timeout: 180_000 }, async t => {
+test("ASC-73 ASC-79: the page in both languages, themes and four widths: rows on one line, results boxed, nothing wider than the window", { timeout: 180_000 }, async t => {
   const browser = await openPage(t); if (!browser) return;
   const { page, open, next, answer, setLocale, exceptions } = browser;
   const shots = reviewEvidenceUrl("connections-page/"); await mkdir(shots, { recursive: true });
   for (const locale of ["zh", "en"] as const) {
     setLocale(locale);
-    for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
+    for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 768, 390]) {
       await page.viewport(width, 960);
       await open("gitlab");
       await page.evaluate(`localStorage.setItem('molis-work:theme', '${theme}')`);
@@ -249,6 +330,10 @@ test("ASC-73 ASC-79: the page in both languages, themes and three widths: rows o
       const wrapped = await page.evaluate<string[]>(`[...document.querySelectorAll('.settings-connection-item > .settings-connection-row .settings-connection-row__identity > :is(strong, small), .settings-connection-item > .settings-connection-row > [data-connector-state], .connection-facts .setting-copy > strong, .connection-facts .setting-value > *')]
         .filter(node => node.getClientRects().length && node.getBoundingClientRect().height > parseFloat(getComputedStyle(node).lineHeight) * 1.5 + 4).map(node => node.textContent.trim())`);
       assert.deepEqual(wrapped, [], `${locale}/${theme}/${width}: rows keep one line`);
+      // An account's values and notes are whole: where the content is narrow they go under their labels, decided by the card's width.
+      const cut = await page.evaluate<string[]>(`[...document.querySelectorAll('[data-connector-item=gitlab] .connection-facts :is(.setting-value > *, .setting-copy > span)')]
+        .filter(node => node.getClientRects().length && node.scrollWidth > node.clientWidth + 1).map(node => node.textContent.trim())`);
+      assert.deepEqual(cut, [], `${locale}/${theme}/${width}: an account's rows are not cut off`);
       // Buttons have edges.
       assert.deepEqual(await page.evaluate("[...document.querySelectorAll('[data-connector-detail=gitlab] .settings-connection-account .mw-btn')].filter(button => button.getClientRects().length && getComputedStyle(button).borderTopStyle === 'none').map(button => button.textContent)"), []);
       await page.evaluate("document.querySelector('[data-connector-item=gitlab]').scrollIntoView({ block: 'start', behavior: 'instant' })");
@@ -267,8 +352,12 @@ test("ASC-73 ASC-79: the page in both languages, themes and three widths: rows o
 
 // The step progress's styles reach a page once, with the model settings' sheet that both sheets carry; the connections page's own sheet
 // takes the parts after them (§13.6), so a sheet that carries both does not draw them twice.
-test("ASC-78: the step progress's styles are in each settings sheet once", () => {
-  const once = (sheet: string) => sheet.split(".connection-progress{display:flex").length - 1;
-  assert.equal(once(renderMolisWorkSettingsStylesheet()), 1);
-  assert.equal(once(renderMolisWorkWorkbenchStylesheet()), 1);
+test("ASC-78: the step progress's styles are in each settings sheet once, and the card this page does not draw is not", () => {
+  const count = (sheet: string, rule: string) => sheet.split(rule).length - 1;
+  for (const sheet of [renderMolisWorkSettingsStylesheet(), renderMolisWorkWorkbenchStylesheet()]) {
+    assert.equal(count(sheet, ".connection-progress{display:flex"), 1);
+    assert.equal(count(sheet, ".settings-connection-item__fold{display:grid"), 1);
+    assert.equal(count(sheet, ".connection-card__head{"), 0);
+    assert.equal(count(sheet, ".connection-need{display:grid"), 0);
+  }
 });

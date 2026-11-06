@@ -83,7 +83,7 @@ function renderSwitch(connection: ConnectorSettingsConnection, others: readonly 
     ...others.map((other, index) => ({ value: other.connection_id, label: L("{account} · 已连上", { account: accountName(other) }), checked: index === 0 })),
     { value: "add", label: L("再加一个账号 · 在浏览器登录后切过去"), checked: !others.length },
   ];
-  return `<div class="settings-connection-switch" data-connection-switch-panel hidden>
+  return `<div class="settings-connection-switch" id="connection-switch-${e(connection.connection_id)}" data-connection-switch-panel hidden>
     ${renderRadioGroup({ legend: L("用到 {account} 的地方换成哪个账号", { account: accountName(connection) }), name: `switch-${connection.connection_id}`, items })}
     <p class="mw-field__hint">${e(L("{account} 留着、照常可用；用到它的地方切过去，正在跑的那件用原账号做完。", { account: accountName(connection) }))}</p>
     <div class="settings-connection-row__actions"><button class="mw-btn mw-btn--primary" type="button" data-connection-switch-go>${e(L("切过去"))}</button><button class="mw-btn mw-btn--secondary" type="button" data-connection-switch-cancel>${e(L("先不换"))}</button></div>
@@ -118,7 +118,7 @@ export function renderConnectionAccount(connection: ConnectorSettingsConnection,
       connection.auth_method === "oauth" ? L("用 {account} 重新登录", { account: accountName(connection) }) : L("重新登录")) : "",
     checkable(connection) ? button("secondary", `data-connection-check="${id}"`, L("检查连接")) : "",
     relogin && !expired ? button("secondary", `data-connection-reauthorize="${id}" data-connection-method="${connection.auth_method}"`, L(connection.auth_method === "mcp" ? "重新登录" : "重新授权")) : "",
-    switchable ? button("secondary", `data-connection-switch="${id}"`, L("换账号")) : "",
+    switchable ? button("secondary", `data-connection-switch="${id}" aria-expanded="false" aria-controls="connection-switch-${id}"`, L("换账号")) : "",
     own && connection.auth_method === "token" ? button("secondary", `data-connection-replace-open="${id}"`, L("换密钥")) : "",
     own && connection.state !== "disconnected" ? button("danger-outline", `data-connection-disconnect="${id}"`, L("断开")) : "",
   ].join("");

@@ -162,7 +162,8 @@ test("ASC-59 logging in again to an MCP service makes a new connection, then mov
   answer(switched, { results: [{ capability_id: "models.connection.switch", version: 1, provider_id: "system.connectors", reporter: "模型", switched: ["here"], refused: [{ usage_id: "there", code: "connector.plugin_slots.usage_missing" }] }], failed: [] });
   await page.wait(`${resultOf(NEW)}.textContent.includes('换过去 1 处')`);
   // N1: the list follows the colon; what the page cannot see comes after it, a paragraph of its own.
-  assert.match(await text(page, resultOf(NEW)), /换过去 1 处，2 处没换：模型 there：这里已经不用原来那条了Images 生图：还不能一步换，请到用它的地方改选这条Coding 的 MCP 设置这里还查不到/);
+  // What the read before could not check stays said after the switch (ASC-77): it is never "all moved" while a place was unchecked.
+  assert.match(await text(page, resultOf(NEW)), /换过去 1 处，2 处没换：模型 there：这里已经不用原来那条了Images 生图：还不能一步换，请到用它的地方改选这条没能查：Notes：暂时无法读取使用位置Coding 的 MCP 设置这里还查不到/);
   assert.notEqual(await page.evaluate(`${resultOf(NEW)}.dataset.tone`), "error", "some moved: a partial result is not shown as an error");
   assert.equal(await page.evaluate(`${move}?.textContent.includes('换到这条') ?? false`), false, "the switch is not offered again once it has run");
   assert.equal(await page.evaluate(`document.activeElement === ${resultOf(NEW)}`), true, "the removed button leaves the focus on the result");

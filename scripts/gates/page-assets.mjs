@@ -306,17 +306,21 @@ const headErrors = (measured, budget, base) => {
 // FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
 // The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
 // Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// ASC-57 (第 13 批②, 2026-11-06): after a key change or a provider removal the page points out the old key nothing uses and
+// offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
+// spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
+// the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
+// the select in place instead of reloading the page, the host names no key so the page needs no second string.
 // ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
-// the Assistant's "等你处理": workbench.js +573 B, keyed on main 733e5da7's budget 1077683 (the FCS-01/02 entry keyed on 1077514 is
-// spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
+// the Assistant's "等你处理": workbench.js +573 B, keyed on main b1e0e5b6's budget 1078718 (after ASC-57; its workbench.js entry keyed on 1077683
+// is spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
 // UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
 // the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
 // settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 693169],
-  "/assets/molis-work-settings.css": [826998, 827545],
-  "/assets/molis-work-workbench.css": [1194792, 1204497],
-  "/assets/molis-work-workbench.js": [1077683, 1078256],
+  "/assets/molis-work-settings.css": [827545, 827793],
+  "/assets/molis-work-workbench.css": [1204497, 1204745],
+  "/assets/molis-work-workbench.js": [1078718, 1079291],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

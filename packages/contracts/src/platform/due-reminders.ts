@@ -36,7 +36,7 @@ export const DUE_REMINDER_COLLECTION_SCHEMA = { type: "object", properties: {
   source: { type: "object", properties: { surface: token, title: id }, required: ["surface", "title"], additionalProperties: false },
   reminders: { type: "array", maxItems: 100, items: DUE_REMINDER_SCHEMA } }, required: ["source", "reminders"], additionalProperties: false };
 
-export function defineDueRemindersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], version = /* @version factory.packages.contracts.defineDueRemindersAction */ 1): ActionDefinition<DueReminderWindow, DueReminderCollection> {
+export function defineDueRemindersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<DueReminderWindow, DueReminderCollection> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "列出用户自己设的、到期时间落在窗口内的提醒；只读，不改变提醒状态。", kind: "query", scope: "home", scheduling: "concurrent",
     audiences: ["user"], permissions, subject_kinds: kinds,
     input_type: DUE_REMINDERS_INPUT_TYPE, output_type: DUE_REMINDERS_OUTPUT_TYPE, input_schema: DUE_REMINDER_WINDOW_SCHEMA, output_schema: DUE_REMINDER_COLLECTION_SCHEMA } };

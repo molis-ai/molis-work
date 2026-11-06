@@ -44,8 +44,8 @@ const decision = object({ candidate_id: id, action: choices([["add", "加入待�
   edits: object({ title: { ...text, minLength: 1, maxLength: 200 }, due_date: nullable(date), due_time: nullable(time), planned_date: nullable(date), placement, notes: { ...text, maxLength: 10_000 } }, []),
   accept_protected: array({ enum: ["title", "due_date", "due_time", "planned_date", "notes"] }), ignore_reason: { ...text, maxLength: 100 } }, ["candidate_id", "action"]);
 
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
-  permissions: readonly string[], extra: Partial<ActionDefinition["action"]> = {}, version = /* @version factory.plugins.native.todo.define */ 1): ActionDefinition<I, O> {
+function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
+  permissions: readonly string[], extra: Partial<ActionDefinition["action"]> = {}): ActionDefinition<I, O> {
   return withProjectReach(createActionDefinition<I, O>(`todo.${name}`, operation, { title, description, scope: "home",
     audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input, output_schema: output, ...extra }, version));
 }
@@ -53,7 +53,7 @@ const READ = ["todo:read"], WRITE = ["todo:read", "todo:write"];
 
 export const todoOrganizeActions = {
   extract: define<{ materials: TodoOrganizeMaterial[]; title?: string; request?: string; request_id?: string; origin?: "onboarding"; me?: string[]; method?: "basic" | "organizer" }, { batch: TodoBatch; replayed: boolean }>(
-    "organize.extract", "整理材料里的待办", "读给定材料，找出要你处理的事、你的承诺、在等别人的事和可考虑的建议，与已有待办比对，存成一份待你确认的整理结果；不直接新建或修改待办。材料正文由调用方先读好传入", "command",
+    "organize.extract", /* @version action.todo.organize.extract */ 1, "整理材料里的待办", "读给定材料，找出要你处理的事、你的承诺、在等别人的事和可考虑的建议，与已有待办比对，存成一份待你确认的整理结果；不直接新建或修改待办。材料正文由调用方先读好传入", "command",
     object({ materials: { ...array(materialInput), minItems: 1, maxItems: 50 }, title: { ...text, maxLength: 120 }, request: { ...text, maxLength: 500, title: "用户这次的要求" }, request_id: id,
       origin: { enum: ["onboarding"], title: "由开始使用时的整理发起" },
       me: { ...array({ ...text, minLength: 1, maxLength: 40 }), maxItems: 8, title: "用户本人在材料里的称呼（名字、昵称）" },
@@ -61,18 +61,18 @@ export const todoOrganizeActions = {
     object({ batch, replayed: { type: "boolean" } }), [...WRITE, "model:invoke"],
     // Organizing only saves a result to confirm; taking it back puts that result away (nothing was added to Todo).
     { execution: { cost: "metered" }, scheduling: "concurrent", result_subject: { id: "batch.batch_id", revision: "batch.revision" }, result_view: { summary: "整理结果已保存，等你确认", title_pointer: "/batch/title" },
-      undo: { capability_id: "todo.organize.close", version: /* @version action.todo.organize.close */ 1, input: { id: "batch.batch_id" } } }, /* @version action.todo.organize.extract */ 1),
-  list: define<{ status?: "open" | "all" }, { batches: TodoBatch[] }>("organize.list", "列出整理结果", "列出等你确认的整理结果（或全部最近的）", "query",
-    object({ status: choices([["open", "等你确认的"], ["all", "全部最近的"]], "列哪些") }, []), object({ batches: array(batch) }), READ, undefined, /* @version action.todo.organize.list */ 1),
-  get: define<{ id: string }, { batch: TodoBatch }>("organize.get", "读取整理结果", "读取一份整理结果：候选、依据、与已有待办的关系、未列入的参考信息", "query",
-    object({ id }), object({ batch }), READ, undefined, /* @version action.todo.organize.get */ 1),
-  apply: define<{ id: string; expected_revision?: number; decisions: TodoCandidateDecision[] }, TodoApplyResult>("organize.apply", "采用整理结果", "按用户的选择处理候选：加入待办、合并到已有、更新已有、标为完成、重新打开或忽略；全部成功或全部不改，可凭 change_batch_id 整批撤销", "command",
+      undo: { capability_id: "todo.organize.close", version: /* @version action.todo.organize.close */ 1, input: { id: "batch.batch_id" } } }),
+  list: define<{ status?: "open" | "all" }, { batches: TodoBatch[] }>("organize.list", /* @version action.todo.organize.list */ 1, "列出整理结果", "列出等你确认的整理结果（或全部最近的）", "query",
+    object({ status: choices([["open", "等你确认的"], ["all", "全部最近的"]], "列哪些") }, []), object({ batches: array(batch) }), READ),
+  get: define<{ id: string }, { batch: TodoBatch }>("organize.get", /* @version action.todo.organize.get */ 1, "读取整理结果", "读取一份整理结果：候选、依据、与已有待办的关系、未列入的参考信息", "query",
+    object({ id }), object({ batch }), READ),
+  apply: define<{ id: string; expected_revision?: number; decisions: TodoCandidateDecision[] }, TodoApplyResult>("organize.apply", /* @version action.todo.organize.apply */ 1, "采用整理结果", "按用户的选择处理候选：加入待办、合并到已有、更新已有、标为完成、重新打开或忽略；全部成功或全部不改，可凭 change_batch_id 整批撤销", "command",
     object({ id, expected_revision: { type: "integer", minimum: 1 }, decisions: { ...array(decision), minItems: 1, maxItems: 80 } }, ["id", "decisions"]),
     object({ batch, change_batch_id: id, results: array(object({ candidate_id: id, action: text, item_id: nullable(id) })) }), WRITE,
-    { result_subject: { id: "batch.batch_id", revision: "batch.revision" }, undo: { capability_id: "todo.changes.revert", version: /* @version action.todo.changes.revert */ 1, input: { batch_id: "change_batch_id" } } }, /* @version action.todo.organize.apply */ 1),
-  close: define<{ id: string }, { batch: TodoBatch }>("organize.close", "收起整理结果", "把这份整理结果收起来；没处理的候选原样留下，之后仍可打开查看", "command",
-    object({ id }), object({ batch }), WRITE, { result_subject: { id: "batch.batch_id", revision: "batch.revision" } }, /* @version action.todo.organize.close */ 1),
-  subject: defineSubjectContextAction("todo.batch.subject.read", TODO_BATCH_SUBJECT_KIND, "整理结果", ["todo:read"], "home", /* @version action.todo.batch.subject.read */ 1),
+    { result_subject: { id: "batch.batch_id", revision: "batch.revision" }, undo: { capability_id: "todo.changes.revert", version: /* @version action.todo.changes.revert */ 1, input: { batch_id: "change_batch_id" } } }),
+  close: define<{ id: string }, { batch: TodoBatch }>("organize.close", /* @version action.todo.organize.close */ 1, "收起整理结果", "把这份整理结果收起来；没处理的候选原样留下，之后仍可打开查看", "command",
+    object({ id }), object({ batch }), WRITE, { result_subject: { id: "batch.batch_id", revision: "batch.revision" } }),
+  subject: defineSubjectContextAction("todo.batch.subject.read", /* @version action.todo.batch.subject.read */ 1, TODO_BATCH_SUBJECT_KIND, "整理结果", ["todo:read"], "home"),
 };
 
 export interface TodoOrganizePorts extends TodoStores {

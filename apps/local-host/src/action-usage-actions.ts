@@ -18,7 +18,7 @@ const readDefinition: ActionDefinition<ActionUsagesInput, ActionUsagesResult> = 
  */
 export function actionUsagesProvider(clientFor: (caller: ActionCallContext) => ActionClient, homeDirectory?: string): ActionProviderRegistration {
   const read = readDefinition;
-  const grants = defineActionUsagesAction("mcp.grants.usages", "对外接入的授权", [], "home", /* @version action.mcp.grants.usages */ 1);
+  const grants = defineActionUsagesAction("mcp.grants.usages", /* @version action.mcp.grants.usages */ 1, "对外接入的授权", [], "home");
   // Which clients may call what is the owner's own configuration; other clients never read it.
   const grantReporter: ActionDefinition<ActionUsagesInput, { usages: ActionUsage[] }> = { ...grants, action: { ...grants.action, audiences: ["user"] } };
   const handlers: ActionHandlerBinding[] = [{ ...read, handle: async (caller, value) => {

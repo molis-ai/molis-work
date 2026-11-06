@@ -3,6 +3,6 @@ import { FORM_ARTIFACT_TYPE_ID, type FormRecord } from "./contract.js";
 import { formMarkdown } from "./content-actions.js";
 
 /** A pinned version of a form as its questions in Markdown (specs/artifact-positioning A4); answers are never part of it. */
-export const formArtifactPreview = defineArtifactPreviewAction("form.artifacts.preview", "问卷", ["form:read"], /* @version action.form.artifacts.preview */ 1);
+export const formArtifactPreview = defineArtifactPreviewAction("form.artifacts.preview", /* @version action.form.artifacts.preview */ 1, "问卷", ["form:read"]);
 export const formArtifactPreviewHandler = bindArtifactPreview(formArtifactPreview, FORM_ARTIFACT_TYPE_ID, artifact => ({
   media_type: "text/markdown", text: formMarkdown({ description: "", questions: [], ...(artifact.payload as object), title: artifact.title } as unknown as FormRecord) }));

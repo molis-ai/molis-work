@@ -27,25 +27,25 @@ const endpoints = goalRelationEndpoints;
 const relation = goalRelationSchema;
 type SavePolicyInput = Omit<Parameters<GoalsCommandApi["saveProjectPolicy"]>[0], "project_id" | "actor_id">;
 export const goalsConfigurationActions = {
-  relations: goalAction<{ goal_id?: string }, { relations: GoalRelationRecord[]; observed_event_cursor: number }>("goals.relations.list", "读取目标关系",
+  relations: goalAction<{ goal_id?: string }, { relations: GoalRelationRecord[]; observed_event_cursor: number }>("goals.relations.list", /* @version action.goals.relations.list */ 1, "读取目标关系",
     "读取当前项目或指定目标的入向及出向关系，保留 proposed、active、inactive 状态和原方向；不会重新启用历史关系", "query",
-    object({ goal_id: identifier }, []), object({ relations: array(relation), observed_event_cursor: count }), undefined, /* @version action.goals.relations.list */ 1),
-  relationAdd: userOperation(goalAction<AddGoalRelationInput & { idempotency_key: string }, ReturnType<GoalsCommandApi["addRelation"]>>("goals.relations.add", "建立目标关系",
+    object({ goal_id: identifier }, []), object({ relations: array(relation), observed_event_cursor: count })),
+  relationAdd: userOperation(goalAction<AddGoalRelationInput & { idempotency_key: string }, ReturnType<GoalsCommandApi["addRelation"]>>("goals.relations.add", /* @version action.goals.relations.add */ 1, "建立目标关系",
     "按明确的起点、终点和类型建立关系，必须说明原因；默认 active，也可保存 proposed。拒绝重复、自关联、已丢弃目标及结构循环，重试保留原幂等键", "command",
     object({ ...endpoints, state: enumeration(["proposed", "active"]), reason: identifier, idempotency_key: identifier },
-      ["from_goal_id", "to_goal_id", "type", "reason", "idempotency_key"]), object({ relation_id: identifier, replayed: boolean, observed_event_cursor: count }), undefined, /* @version action.goals.relations.add */ 1)),
-  relationDeactivate: userOperation(goalAction<{ relation_id: string; reason: string; idempotency_key: string }, ReturnType<GoalsCommandApi["deactivateRelation"]>>("goals.relations.deactivate", "解除目标关系",
+      ["from_goal_id", "to_goal_id", "type", "reason", "idempotency_key"]), object({ relation_id: identifier, replayed: boolean, observed_event_cursor: count }))),
+  relationDeactivate: userOperation(goalAction<{ relation_id: string; reason: string; idempotency_key: string }, ReturnType<GoalsCommandApi["deactivateRelation"]>>("goals.relations.deactivate", /* @version action.goals.relations.deactivate */ 1, "解除目标关系",
     "解除指定的 active 关系并保留原记录和历史；必须说明原因，重试返回原回执", "command",
-    object({ relation_id: identifier, reason: identifier, idempotency_key: identifier }), object({ relation, replayed: boolean, observed_event_cursor: count }), undefined, /* @version action.goals.relations.deactivate */ 1)),
-  policyHistory: goalAction<Record<string, never>, { bindings: GoalPolicyHistoryRecord[]; observed_event_cursor: number }>("goals.policy.history", "读取项目规则历史",
+    object({ relation_id: identifier, reason: identifier, idempotency_key: identifier }), object({ relation, replayed: boolean, observed_event_cursor: count }))),
+  policyHistory: goalAction<Record<string, never>, { bindings: GoalPolicyHistoryRecord[]; observed_event_cursor: number }>("goals.policy.history", /* @version action.goals.policy.history */ 1, "读取项目规则历史",
     "读取当前项目的规则绑定历史，保留作用范围、原作者及 active、replaced、withdrawn 状态；历史绑定不代表当前最终生效规则", "query",
-    object({}), object({ bindings: array(goalPolicyBindingSchema), observed_event_cursor: count }), undefined, /* @version action.goals.policy.history */ 1),
-  policyResolve: goalAction<{ goal_id: string }, { policy: GoalPolicy; observed_event_cursor: number }>("goals.policy.resolve", "读取目标生效规则",
+    object({}), object({ bindings: array(goalPolicyBindingSchema), observed_event_cursor: count })),
+  policyResolve: goalAction<{ goal_id: string }, { policy: GoalPolicy; observed_event_cursor: number }>("goals.policy.resolve", /* @version action.goals.policy.resolve */ 1, "读取目标生效规则",
     "合并项目默认规则、上级最低要求与目标覆盖，返回指定目标当前生效的规则（是否需要人工确认）；只读，不改变规则历史", "query",
-    object({ goal_id: identifier }), object({ policy, observed_event_cursor: count }), undefined, /* @version action.goals.policy.resolve */ 1),
-  policySave: userOperation(goalAction<SavePolicyInput, ReturnType<GoalsCommandApi["saveProjectPolicy"]>>("goals.policy.save", "保存项目默认规则",
+    object({ goal_id: identifier }), object({ policy, observed_event_cursor: count })),
+  policySave: userOperation(goalAction<SavePolicyInput, ReturnType<GoalsCommandApi["saveProjectPolicy"]>>("goals.policy.save", /* @version action.goals.policy.save */ 1, "保存项目默认规则",
     "用户明确确认后替换当前项目默认规则，保留历史绑定和原幂等回执；不创建目标单独规则，也不产生目标审批决定", "command",
-    object({ policy, user_confirmed: boolean, idempotency_key: identifier }), object({ policy_binding_id: identifier, observed_event_cursor: count, replayed: boolean }), undefined, /* @version action.goals.policy.save */ 1)),
+    object({ policy, user_confirmed: boolean, idempotency_key: identifier }), object({ policy_binding_id: identifier, observed_event_cursor: count, replayed: boolean }))),
 } as const;
 export interface GoalsConfigurationActionPorts {
   commands: Pick<GoalsCommandApi, "addRelation" | "deactivateRelation" | "saveProjectPolicy">;

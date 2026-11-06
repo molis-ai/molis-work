@@ -20,37 +20,37 @@ const identity = { id, expected_version: version };
 const read = ["dataset:read"], write = ["dataset:read", "dataset:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; columns?: readonly DatasetColumnInput[]; rows?: readonly DatasetRowInput[] };
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"], version = /* @version factory.plugins.native.dataset.define */ 1): ActionDefinition<I, O> {
+function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(`dataset.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" ? { scheduling: "concurrent" as const } : {}) }, version);
 }
 export const datasetActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: datasetArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: defineArtifactPinAction("dataset.artifacts.pin", "dataset", "数据表", [...write, "artifact:write"], /* @version action.dataset.artifacts.pin */ 1),
+  artifactPin: defineArtifactPinAction("dataset.artifacts.pin", /* @version action.dataset.artifacts.pin */ 1, "dataset", "数据表", [...write, "artifact:write"]),
   /** Whether a pinned version still matches the dataset object it came from (A4b, 「原文已改」); compares content, not revisions. */
-  artifactCompare: defineArtifactCompareAction("dataset.artifacts.compare", "数据表", read, /* @version action.dataset.artifacts.compare */ 1),
+  artifactCompare: defineArtifactCompareAction("dataset.artifacts.compare", /* @version action.dataset.artifacts.compare */ 1, "数据表", read),
   /** 「从这一版继续」 (A4b): a new 数据表 with the content of a pinned version; the version itself is unchanged. */
-  artifactContinue: defineArtifactContinueAction("dataset.artifacts.continue", "数据表", write, /* @version action.dataset.artifacts.continue */ 1),
-  list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } }), undefined, undefined, /* @version action.dataset.list */ 1),
-  get: define<{ id: string }, { dataset: DatasetRecord }>("get", "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed, undefined, undefined, /* @version action.dataset.get */ 1),
-  create: define<{ title?: string }, { dataset: DatasetRecord }>("create", "新建数据表", "在当前项目新建一张草稿数据表（可带标题）并返回它；只创建草稿，不会固定成成果版本。填内容用「修改数据表」", "command", object({ title: { ...text, maxLength: 80 } }, []), changed, undefined, undefined, /* @version action.dataset.create */ 1),
-  update: define<Edit, { dataset: DatasetRecord }>("update", "修改数据表", "替换指定字段；携带读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, columns: { ...array(object(columnFields, [])), maxItems: 40 }, rows: { ...array(object(rowFields, [])), maxItems: 2000 } }, ["id"]), changed, undefined, undefined, /* @version action.dataset.update */ 1),
-  delete: define<Identity, { ok: true }>("delete", "删除数据表", "删除表及全部本机版本；未完成的发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } }), undefined, undefined, /* @version action.dataset.delete */ 1),
-  generate: define<Identity & { prompt: string }, { dataset: DatasetRecord }>("columns.add", "按列名加列", "本地追加文本列，以输入作为列名；不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 80 } }, ["id", "prompt"]), changed, undefined, undefined, /* @version action.dataset.columns.add */ 1),
-  generateAi: define<Identity & { prompt: string }, { dataset: DatasetRecord }>("columns.ai", "AI 拟列名并加列", "根据明确提示拟定一个列名并追加文本列；调用当前文字模型，失败或表已改变时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"], { cost: "metered" }, /* @version action.dataset.columns.ai */ 1),
-  import: define<Identity & { csv: string }, { dataset: DatasetRecord }>("import", "导入 CSV", "以 CSV 表头和数据替换当前列与行", "command", object({ ...identity, csv: { ...text, maxLength: 2_000_000 } }, ["id", "csv"]), changed, undefined, undefined, /* @version action.dataset.import */ 1),
-  export: define<{ id: string }, { dataset: DatasetRecord; csv: string }>("export", "导出 CSV", "导出完整当前表和正确转义的 CSV 文本", "query", object({ id }), object({ dataset: record, csv: text }), undefined, undefined, /* @version action.dataset.export */ 1),
-  versions: define<{ id: string }, { versions: DatasetVersionRecord[] }>("versions", "版本列表", "读取当前表的本机快照；保留稳定版本 ID", "query", object({ id }), object({ versions: array(snapshot) }), undefined, undefined, /* @version action.dataset.versions */ 1),
-  snapshot: define<Identity & { note?: string }, { version: DatasetVersionRecord }>("snapshot", "保存版本", "把当前表保存为可回滚的本机快照", "command", object({ ...identity, note: { ...text, maxLength: 80 } }, ["id"]), object({ version: snapshot }), undefined, undefined, /* @version action.dataset.snapshot */ 1),
-  rollback: define<Identity & { version_id: string }, { dataset: DatasetRecord }>("rollback", "回滚版本", "从当前表的指定快照恢复内容；保留发布引用与其他快照", "command", object({ ...identity, version_id: id }, ["id", "version_id"]), changed, undefined, undefined, /* @version action.dataset.rollback */ 1),
-  promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布数据表", "把固定表内容存为成果，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"], undefined, /* @version action.dataset.promote */ 1),
+  artifactContinue: defineArtifactContinueAction("dataset.artifacts.continue", /* @version action.dataset.artifacts.continue */ 1, "数据表", write),
+  list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", /* @version action.dataset.list */ 1, "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
+  get: define<{ id: string }, { dataset: DatasetRecord }>("get", /* @version action.dataset.get */ 1, "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed),
+  create: define<{ title?: string }, { dataset: DatasetRecord }>("create", /* @version action.dataset.create */ 1, "新建数据表", "在当前项目新建一张草稿数据表（可带标题）并返回它；只创建草稿，不会固定成成果版本。填内容用「修改数据表」", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
+  update: define<Edit, { dataset: DatasetRecord }>("update", /* @version action.dataset.update */ 1, "修改数据表", "替换指定字段；携带读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, columns: { ...array(object(columnFields, [])), maxItems: 40 }, rows: { ...array(object(rowFields, [])), maxItems: 2000 } }, ["id"]), changed),
+  delete: define<Identity, { ok: true }>("delete", /* @version action.dataset.delete */ 1, "删除数据表", "删除表及全部本机版本；未完成的发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
+  generate: define<Identity & { prompt: string }, { dataset: DatasetRecord }>("columns.add", /* @version action.dataset.columns.add */ 1, "按列名加列", "本地追加文本列，以输入作为列名；不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 80 } }, ["id", "prompt"]), changed),
+  generateAi: define<Identity & { prompt: string }, { dataset: DatasetRecord }>("columns.ai", /* @version action.dataset.columns.ai */ 1, "AI 拟列名并加列", "根据明确提示拟定一个列名并追加文本列；调用当前文字模型，失败或表已改变时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"], { cost: "metered" }),
+  import: define<Identity & { csv: string }, { dataset: DatasetRecord }>("import", /* @version action.dataset.import */ 1, "导入 CSV", "以 CSV 表头和数据替换当前列与行", "command", object({ ...identity, csv: { ...text, maxLength: 2_000_000 } }, ["id", "csv"]), changed),
+  export: define<{ id: string }, { dataset: DatasetRecord; csv: string }>("export", /* @version action.dataset.export */ 1, "导出 CSV", "导出完整当前表和正确转义的 CSV 文本", "query", object({ id }), object({ dataset: record, csv: text })),
+  versions: define<{ id: string }, { versions: DatasetVersionRecord[] }>("versions", /* @version action.dataset.versions */ 1, "版本列表", "读取当前表的本机快照；保留稳定版本 ID", "query", object({ id }), object({ versions: array(snapshot) })),
+  snapshot: define<Identity & { note?: string }, { version: DatasetVersionRecord }>("snapshot", /* @version action.dataset.snapshot */ 1, "保存版本", "把当前表保存为可回滚的本机快照", "command", object({ ...identity, note: { ...text, maxLength: 80 } }, ["id"]), object({ version: snapshot })),
+  rollback: define<Identity & { version_id: string }, { dataset: DatasetRecord }>("rollback", /* @version action.dataset.rollback */ 1, "回滚版本", "从当前表的指定快照恢复内容；保留发布引用与其他快照", "command", object({ ...identity, version_id: id }, ["id", "version_id"]), changed),
+  promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.dataset.promote */ 1, "发布数据表", "把固定表内容存为成果，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   searchEntries: datasetSearchActions.entries,
   subject: datasetSearchActions.subject,
   files: datasetSearchActions.files,
   fileContent: datasetSearchActions.fileContent,
-  move: defineObjectMoveAction("dataset.placement.move", ["dataset"], "数据表", write, undefined, /* @version action.dataset.placement.move */ 1),
-  copy: defineObjectCopyAction("dataset.placement.copy", ["dataset"], "数据表", write, /* @version action.dataset.placement.copy */ 1),
+  move: defineObjectMoveAction("dataset.placement.move", /* @version action.dataset.placement.move */ 1, ["dataset"], "数据表", write),
+  copy: defineObjectCopyAction("dataset.placement.copy", /* @version action.dataset.placement.copy */ 1, ["dataset"], "数据表", write),
 };
 /** A table is a workflow content station: it hands its CSV on, and makes a new table from CSV it receives (a form's responses). */
 export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: true, subject_kind: "dataset",

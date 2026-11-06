@@ -10,30 +10,30 @@ const text = { type: "string" };
 const reference = object({ artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } });
 const preview = { type: "object", properties: { title: text, text, fingerprint: text, source: { type: "object" } }, required: ["title", "text", "fingerprint", "source"] };
 const SHARED: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED, scope: "home" | "project" = "project", version = /* @version factory.plugins.native.shelf.define */ 1): ActionDefinition<I, O> {
+function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
+  permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED, scope: "home" | "project" = "project"): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
     scope, scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output }, version);
 }
 
 /** What this project's Runtime instance redeems: Coding results offered to Shelf. */
 export const shelfRuntimeActions = {
-  results: define<Record<string, never>, { results: { reference: ArtifactReference; title: string; connected: boolean }[] }>("results.list", "可接收的项目成果",
+  results: define<Record<string, never>, { results: { reference: ArtifactReference; title: string; connected: boolean }[] }>("results.list", /* @version action.shelf.results.list */ 1, "可接收的项目成果",
     "列出本项目可放进 Shelf 的 Coding 报告与变更，标出已接到输入的版本", "query", object({}),
-    object({ results: { type: "array", items: object({ reference, title: text, connected: { type: "boolean" } }) } }), ["artifact:read"], undefined, undefined, /* @version action.shelf.results.list */ 1),
-  preview: define<{ reference: ArtifactReference }, ShelfArtifactPreview>("results.preview", "预览项目成果", "读取一份固定版本成果将放进 Shelf 的正文与指纹",
-    "query", object({ reference }), preview, ["artifact:read"], undefined, undefined, /* @version action.shelf.results.preview */ 1),
+    object({ results: { type: "array", items: object({ reference, title: text, connected: { type: "boolean" } }) } }), ["artifact:read"]),
+  preview: define<{ reference: ArtifactReference }, ShelfArtifactPreview>("results.preview", /* @version action.shelf.results.preview */ 1, "预览项目成果", "读取一份固定版本成果将放进 Shelf 的正文与指纹",
+    "query", object({ reference }), preview, ["artifact:read"]),
   // The answer repaints the personal panel, clipboard history included, so only that panel receives.
-  receive: define<{ reference: ArtifactReference; expected_fingerprint: string }, { item: ShelfItemRecord; snapshot: ShelfSnapshot }>("results.receive", "把项目成果放进 Shelf",
+  receive: define<{ reference: ArtifactReference; expected_fingerprint: string }, { item: ShelfItemRecord; snapshot: ShelfSnapshot }>("results.receive", /* @version action.shelf.results.receive */ 1, "把项目成果放进 Shelf",
     "按已预览的指纹把固定版本成果复制进置物架；成果变化时拒绝", "command", object({ reference, expected_fingerprint: { type: "string", minLength: 1 } }),
-    { type: "object", required: ["item", "snapshot"] }, ["artifact:read", "storage:private", "shelf:read", "shelf:write", "actions:invoke"], ["user"], undefined, /* @version action.shelf.results.receive */ 1),
+    { type: "object", required: ["item", "snapshot"] }, ["artifact:read", "storage:private", "shelf:read", "shelf:write", "actions:invoke"], ["user"]),
 };
 export const SHELF_RUNTIME_ACTIONS: readonly ActionDefinition[] = Object.values(shelfRuntimeActions);
 
 /** Only Shelf's project instance delivers a checked fixed version to its Home store. */
 export const shelfReceiveCopy = define<ShelfArtifactPreview, { item: ShelfItemRecord; snapshot: ShelfSnapshot }>(
-  "results.copy", "保存 Shelf 成果副本", "接收同一插件项目实例校验的固定版本副本", "command", preview,
-  { type: "object", required: ["item", "snapshot"] }, ["shelf:read", "shelf:write"], ["plugin"], "home", /* @version action.shelf.results.copy */ 1);
+  "results.copy", /* @version action.shelf.results.copy */ 1, "保存 Shelf 成果副本", "接收同一插件项目实例校验的固定版本副本", "command", preview,
+  { type: "object", required: ["item", "snapshot"] }, ["shelf:read", "shelf:write"], ["plugin"], "home");
 
 /** What the artifact service refuses (a version that is not there) is the caller's mistake (400), not a failure of ours. */
 const refused = async <T>(run: () => T | Promise<T>): Promise<T> => {

@@ -26,40 +26,40 @@ export interface FeedBriefs {
 }
 export interface FeedAdmitted { entry_id: string; status: string; revision: number; created: boolean }
 
-function read<Input, Output>(capability_id: string, title: string, description: string, input: ActionSchema, output: ActionSchema, subjects: string[] = ["feed_item"], version = /* @version factory.plugins.native.feed.read */ 1): ActionDefinition<Input, Output> {
+function read<Input, Output>(capability_id: string, version: number, title: string, description: string, input: ActionSchema, output: ActionSchema, subjects: string[] = ["feed_item"]): ActionDefinition<Input, Output> {
   return createActionDefinition<Input, Output>(capability_id, "query", { title, description,
     audiences: [...READERS], permissions: ["feed:read"], subject_kinds: subjects, input_schema: input, output_schema: output }, version);
 }
 
-function command<Input, Output>(capability_id: string, title: string, description: string, input: ActionSchema, output: ActionSchema, version = /* @version factory.plugins.native.feed.command */ 1): ActionDefinition<Input, Output> {
+function command<Input, Output>(capability_id: string, version: number, title: string, description: string, input: ActionSchema, output: ActionSchema): ActionDefinition<Input, Output> {
   return createActionDefinition<Input, Output>(capability_id, "command", { title, description, scheduling: "concurrent",
     audiences: ["user", "workflow"], permissions: ["feed:read", "feed:write", "inbox:write"], subject_kinds: ["feed_item"], input_schema: input, output_schema: output }, version);
 }
 
 export const feedInboxActions = {
-  admission: read<{ item_id: string }, FeedAdmission>("feed.items.admission", "能否进入 Inbox",
+  admission: read<{ item_id: string }, FeedAdmission>("feed.items.admission", /* @version action.feed.items.admission */ 1, "能否进入 Inbox",
     "回答一条 Feed 消息现在能不能进入或重新进入 Inbox：已忽略的消息要先恢复，不能被加入或重开",
     closed({ item_id: id }, ["item_id"]),
-    closed({ item_id: { type: "string" }, admissible: { type: "boolean" }, reason: { type: ["string", "null"] } }, ["item_id", "admissible", "reason"]), undefined, /* @version action.feed.items.admission */ 1),
-  material: read<{ item_id: string }, FeedMaterial>("feed.items.material", "读取可整理的材料",
+    closed({ item_id: { type: "string" }, admissible: { type: "boolean" }, reason: { type: ["string", "null"] } }, ["item_id", "admissible", "reason"])),
+  material: read<{ item_id: string }, FeedMaterial>("feed.items.material", /* @version action.feed.items.material */ 1, "读取可整理的材料",
     "读取一条消息当前可读的原文：来源仍然有效、消息没有被忽略，检查期间消息和来源没有变化，并有正文",
     closed({ item_id: id }, ["item_id"]),
     closed({ item_id: { type: "string" }, revision: { type: "integer" }, title: { type: "string" }, body: { type: "string" }, url: { type: ["string", "null"] },
-      source_label: { type: ["string", "null"] }, provenance: { type: "array" } }, ["item_id", "revision", "title", "body", "url", "source_label", "provenance"]), undefined, /* @version action.feed.items.material */ 1),
-  content: read<{ item_id: string }, FeedContent>("feed.items.content", "读取消息的内容",
+      source_label: { type: ["string", "null"] }, provenance: { type: "array" } }, ["item_id", "revision", "title", "body", "url", "source_label", "provenance"])),
+  content: read<{ item_id: string }, FeedContent>("feed.items.content", /* @version action.feed.items.content */ 1, "读取消息的内容",
     "读取一条消息的标题、摘要、正文与留存材料的文字，供 Inbox 判断下一步；不检查来源是否仍可用，也不要求有正文",
     closed({ item_id: id }, ["item_id"]),
     closed({ item_id: { type: "string" }, revision: { type: "integer" }, title: { type: "string" }, summary: { type: ["string", "null"] }, body: { type: ["string", "null"] },
       materials: { type: "array", items: { type: "object", properties: { content: { type: ["string", "null"] }, preview: { type: ["string", "null"] } }, required: ["content", "preview"] } } },
-      ["item_id", "revision", "title", "summary", "body", "materials"]), undefined, /* @version action.feed.items.content */ 1),
-  briefs: read<{ item_ids?: string[]; source_ids?: string[] }, FeedBriefs>("feed.briefs.read", "读取消息与来源的简介",
+      ["item_id", "revision", "title", "summary", "body", "materials"])),
+  briefs: read<{ item_ids?: string[]; source_ids?: string[] }, FeedBriefs>("feed.briefs.read", /* @version action.feed.briefs.read */ 1, "读取消息与来源的简介",
     "按编号读取消息的标题、来源名与摘要，以及来源的名称，用于给 Inbox 事项命名；找不到的编号不返回，不含正文",
     closed({ item_ids: ids, source_ids: ids }, []),
-    closed({ items: { type: "array" }, sources: { type: "array" } }, ["items", "sources"]), ["feed_item", "source"], /* @version action.feed.briefs.read */ 1),
-  admit: command<{ item_id: string }, FeedAdmitted>("feed.items.admit", "加入 Inbox",
+    closed({ items: { type: "array" }, sources: { type: "array" } }, ["items", "sources"]), ["feed_item", "source"]),
+  admit: command<{ item_id: string }, FeedAdmitted>("feed.items.admit", /* @version action.feed.items.admit */ 1, "加入 Inbox",
     "把一条消息加入 Inbox（已处理过的重新打开），并按当前 Inbox 规则判断下一步；由 Inbox 替工作流交接材料时调用",
     closed({ item_id: id }, ["item_id"]),
-    closed({ entry_id: { type: "string" }, status: { type: "string" }, revision: { type: "integer" }, created: { type: "boolean" } }, ["entry_id", "status", "revision", "created"]), /* @version action.feed.items.admit */ 1),
+    closed({ entry_id: { type: "string" }, status: { type: "string" }, revision: { type: "integer" }, created: { type: "boolean" } }, ["entry_id", "status", "revision", "created"])),
 } as const;
 export const FEED_INBOX_ACTIONS: readonly ActionDefinition[] = Object.values(feedInboxActions);
 

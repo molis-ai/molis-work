@@ -7,7 +7,7 @@ export const SCHEDULE_REMINDER_WAKEUP = "schedule.reminder.wakeup";
 export const SCHEDULE_OPERATION_WAKEUP = "schedule.operation.wakeup";
 export const SCHEDULE_RECONCILE_JOB = "schedule-reconcile";
 const text = { type: "string", minLength: 1 };
-const wake = (capability_id: string, title: string, permissions: readonly string[], version = /* @version factory.plugins.native.schedule.wake */ 1): ActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply> => createActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply>(capability_id, "command", { title, description: title, audiences: ["plugin"],
+const wake = (capability_id: string, version: number, title: string, permissions: readonly string[]): ActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply> => createActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply>(capability_id, "command", { title, description: title, audiences: ["plugin"],
     scheduling: "concurrent", permissions: ["storage:private", "schedule:read", "schedule:write", ...permissions], subject_kinds: [],
     execution: { timeout_ms: 660_000 }, input_schema: { type: "object", properties: {
       job_id: text, plugin_id: text, capability_id: text, object_ref: text, due_at: text,
@@ -15,7 +15,7 @@ const wake = (capability_id: string, title: string, permissions: readonly string
     output_schema: { type: "object", properties: { status: { enum: ["ok", "failed", "plugin_unavailable"] }, detail: { type: "string" } }, additionalProperties: false },
   }, version);
 export const scheduleWakeupActions = {
-  task: wake(SCHEDULE_TASK_WAKEUP_CAPABILITY, "运行每日对话任务", ["agent:run"], /* @version action.schedule.task.wakeup */ 1),
-  reminder: wake(SCHEDULE_REMINDER_WAKEUP, "投递到期提醒", ["plugins:read", "notifications:write"], /* @version action.schedule.reminder.wakeup */ 1),
-  operation: wake(SCHEDULE_OPERATION_WAKEUP, "执行到期插件操作", ["plugins:read", "actions:invoke", "notifications:write"], /* @version action.schedule.operation.wakeup */ 1),
+  task: wake(SCHEDULE_TASK_WAKEUP_CAPABILITY, /* @version action.schedule.task.wakeup */ 1, "运行每日对话任务", ["agent:run"]),
+  reminder: wake(SCHEDULE_REMINDER_WAKEUP, /* @version action.schedule.reminder.wakeup */ 1, "投递到期提醒", ["plugins:read", "notifications:write"]),
+  operation: wake(SCHEDULE_OPERATION_WAKEUP, /* @version action.schedule.operation.wakeup */ 1, "执行到期插件操作", ["plugins:read", "actions:invoke", "notifications:write"]),
 };

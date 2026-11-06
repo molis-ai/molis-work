@@ -13,11 +13,11 @@ export interface GoalsStageData {
   selection: GoalDocumentCollection;
   selected: { goal_id: string; document: GoalEventDocumentView } | null;
 }
-const stageRead = goalAction<GoalsStageInput, GoalsStageData>("goals.stage.read", "读取目标舞台",
+const stageRead = goalAction<GoalsStageInput, GoalsStageData>("goals.stage.read", /* @version action.goals.stage.read */ 1, "读取目标舞台",
   "读取当前项目的目标集合及所选目标正文、关系和规则；不启动工作或改变目标", "query",
   object({ goal_id: identifier, collection: { type: "string", enum: ["current", "archive", "trash"] } }, []),
   object({ collection: goalsCollectionAction.action.output_schema!, selection: { type: "string", enum: ["current", "archive", "trash"] },
-    selected: nullable(object({ goal_id: identifier, document: goalDocumentAction.action.output_schema! })) }), undefined, /* @version action.goals.stage.read */ 1);
+    selected: nullable(object({ goal_id: identifier, document: goalDocumentAction.action.output_schema! })) }));
 
 /** The stage read is for the person opening the page; identity is the existing action context, never request input. */
 export const goalsStageAction = { ...stageRead, action: { ...stageRead.action, audiences: ["user" as const] } };

@@ -38,15 +38,15 @@ const metadata = (kinds: readonly string[], title: string, permissions: readonly
  * `home`: the plugin keeps its objects in the person's Home and records itself which project each belongs to (a todo list);
  * the action runs at Home and `to_project_id` is the new belonging — a project, or the personal space.
  */
-export function defineObjectMoveAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[],
-  scope: "project" | "home" = "project", version = /* @version factory.packages.contracts.defineObjectMoveAction */ 1): ActionDefinition<PlacementMoveInput, PlacementResult> {
+export function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[],
+  scope: "project" | "home" = "project"): ActionDefinition<PlacementMoveInput, PlacementResult> {
   return { capability_id: capabilityId, version: version, operation: "command", action: { ...metadata(kinds, title, permissions, scope),
     description: `把${title}移到另一个位置（个人空间或项目）；同一份内容，身份不变。`, effect: "write",
     input_type: PLACEMENT_MOVE_INPUT_TYPE, output_type: PLACEMENT_MOVE_OUTPUT_TYPE, input_schema: PLACEMENT_MOVE_INPUT_SCHEMA, output_schema: PLACEMENT_RESULT_SCHEMA } };
 }
 
 /** Copy makes an independent object in the target partition; the same request_id always returns the same copy. */
-export function defineObjectCopyAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[], version = /* @version factory.packages.contracts.defineObjectCopyAction */ 1): ActionDefinition<PlacementCopyInput, PlacementResult> {
+export function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult> {
   return { capability_id: capabilityId, version: version, operation: "command", action: { ...metadata(kinds, title, permissions),
     description: `把${title}复制一份到另一个位置；之后两份互不影响。`, effect: "write",
     input_type: PLACEMENT_COPY_INPUT_TYPE, output_type: PLACEMENT_COPY_OUTPUT_TYPE, input_schema: PLACEMENT_COPY_INPUT_SCHEMA, output_schema: PLACEMENT_RESULT_SCHEMA } };

@@ -118,7 +118,7 @@ export function connectorPluginSlotHandlers(home: string, declarations: PluginSl
  * never naming a record. A caller in a project sees that project's records only; one at the Home sees every project's. A plugin keeps no
  * connection of its own, so the platform, which holds the bindings, is the one to say where an account is used.
  */
-export const connectorPluginSlotUsages = defineConnectorUsagesAction("connectors.plugin_slot.usages", "插件连接槽使用的连接", [CONNECTOR_MANAGEMENT_READ], "home", /* @version action.connectors.plugin_slot.usages */ 1);
+export const connectorPluginSlotUsages = defineConnectorUsagesAction("connectors.plugin_slot.usages", /* @version action.connectors.plugin_slot.usages */ 1, "插件连接槽使用的连接", [CONNECTOR_MANAGEMENT_READ], "home");
 
 /** One use of a connection: an installation slot, or one plugin slot's `per_record` bindings in one project; `scopes` are its binding rows. */
 interface SlotUse { usage_id: string; install_id: string; plugin_id: string; slot_id: string; project_id?: string; scopes: string[] }
@@ -155,7 +155,7 @@ export function connectorPluginSlotUsagesHandler(home: string): ActionHandlerBin
  * `per_record` use is switched only in the caller's own project, which comes from the call, never from the input. A use that does not pass is
  * refused alone; the account the use already has stays. Nothing is written before `beforeEffect`, and a use whose binding changed meanwhile is left.
  */
-export const connectorPluginSlotSwitch = defineConnectorUsagesSwitchAction("connectors.plugin_slot.switch", "换用插件连接槽的账号", [CONNECTOR_MANAGEMENT_WRITE], "home", /* @version action.connectors.plugin_slot.switch */ 1);
+export const connectorPluginSlotSwitch = defineConnectorUsagesSwitchAction("connectors.plugin_slot.switch", /* @version action.connectors.plugin_slot.switch */ 1, "换用插件连接槽的账号", [CONNECTOR_MANAGEMENT_WRITE], "home");
 
 export function connectorPluginSlotSwitchHandler(home: string, declarations: PluginSlotDeclarations = noInstallations): ActionHandlerBinding {
   return { ...connectorPluginSlotSwitch, handle: async (caller, value) => {

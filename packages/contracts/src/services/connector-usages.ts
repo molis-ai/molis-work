@@ -17,7 +17,7 @@ export const CONNECTOR_USAGE_SCHEMA = { type: "object", properties: { usage_id: 
   required: ["usage_id", "title", "enabled", "actions"], additionalProperties: false };
 export const CONNECTOR_USAGES_OUTPUT_SCHEMA = { type: "object", properties: { usages: { type: "array", items: CONNECTOR_USAGE_SCHEMA } }, required: ["usages"], additionalProperties: false };
 
-export function defineConnectorUsagesAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project", version = /* @version factory.packages.contracts.defineConnectorUsagesAction */ 1): ActionDefinition<ConnectorUsagesInput, { usages: ConnectorUsage[] }> {
+export function defineConnectorUsagesAction(id: string, version: number, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesInput, { usages: ConnectorUsage[] }> {
   return { capability_id: id, version: version, operation: "query", action: { title, description: "读取本模块实际引用所选连接的配置与已有业务操作；不读取凭据、不调用外部服务。", kind: "query", scope,
     audiences: ["user", "agent", "mcp"], permissions, subject_kinds: ["connector"], input_type: CONNECTOR_USAGES_INPUT_TYPE, output_type: CONNECTOR_USAGES_OUTPUT_TYPE,
     input_schema: CONNECTOR_USAGES_INPUT_SCHEMA, output_schema: CONNECTOR_USAGES_OUTPUT_SCHEMA } };
@@ -47,7 +47,7 @@ export const CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA = { type: "object", propertie
   refused: { type: "array", items: { type: "object", properties: { usage_id: text, code: { type: "string", maxLength: 200, pattern: ACTION_ERROR_CODE.source } }, required: ["usage_id", "code"], additionalProperties: false } } },
   required: ["switched", "refused"], additionalProperties: false };
 
-export function defineConnectorUsagesSwitchAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project", version = /* @version factory.packages.contracts.defineConnectorUsagesSwitchAction */ 1): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult> {
+export function defineConnectorUsagesSwitchAction(id: string, version: number, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult> {
   return { capability_id: id, version: version, operation: "command", action: { title, description: "把本模块里用到一个账号的地方换成同一服务的另一个账号；换过去的与没换的分开列出，账号本身不动。", kind: "operation", effect: "write", scope,
     audiences: ["user"], permissions, subject_kinds: ["connector"], input_type: CONNECTOR_USAGES_SWITCH_INPUT_TYPE, output_type: CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE,
     input_schema: CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA, output_schema: CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA } };

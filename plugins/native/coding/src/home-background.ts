@@ -7,7 +7,7 @@ import type { CodingBackgroundSession, CodingSessionStore } from "./store.js";
  * answers; it knows nothing about Coding. The sessions come from the recorded states Coding keeps current while a round runs, so
  * nothing here opens a runtime, calls a model or writes.
  */
-export const codingHomeBackgroundTasks = defineHomeBackgroundTasksAction("coding.home.background-tasks", "Coding 后台任务", ["artifact:read"], /* @version action.coding.home.background-tasks */ 1);
+export const codingHomeBackgroundTasks = defineHomeBackgroundTasksAction("coding.home.background-tasks", /* @version action.coding.home.background-tasks */ 1, "Coding 后台任务", ["artifact:read"]);
 
 /** The standing of a session whose round is under way or waiting, in the words the page has translations for. */
 const STANDING: Readonly<Record<string, string>> = { running: "进行中", paused: "已暂停", "waiting-answer": "等你回答", "waiting-approval": "等你审查", "reconcile-required": "需要核对", queued: "挂起等待" };

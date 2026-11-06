@@ -19,7 +19,7 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
     },
   });
   const selfCalled = (definition: ActionDefinition): ActionDefinition => ({ ...definition, action: { ...definition.action, audiences: [...definition.action.audiences, "plugin"] } });
-  const preview = defineArtifactPreviewAction(`${pluginId}.results.preview`, "sample result", ["artifact:read"]);
+  const preview = defineArtifactPreviewAction(`${pluginId}.results.preview`, 1, "sample result", ["artifact:read"]);
   return [
     define("health", "Sample health", "Read the sample connector's health without accessing private results.", [], {
       type: "object", properties: { ok: { type: "boolean" }, status: { enum: ["connected"] }, message: { type: "string" } }, required: ["ok", "status", "message"], additionalProperties: false,

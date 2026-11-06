@@ -17,7 +17,7 @@ export interface ArtifactPreviewFixture {
  * fixtures that test something else about the 成果 do not care what it shows.
  */
 export function artifactPreview(pluginId: string, artifactTypeId = "example.note", title = "示例笔记"): ArtifactPreviewFixture {
-  const definition = defineArtifactPreviewAction(`${pluginId}.${artifactTypeId}.preview`, title, []);
+  const definition = defineArtifactPreviewAction(`${pluginId}.${artifactTypeId}.preview`, 1, title, []);
   return {
     type: { artifact_type_id: artifactTypeId, schema_version: 1, title, preview: { capability_id: definition.capability_id, version: definition.version } },
     definition,

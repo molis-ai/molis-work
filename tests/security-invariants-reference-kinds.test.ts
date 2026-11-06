@@ -59,8 +59,8 @@ const view = (provider: Partial<ActionView["provider"]>, action: Partial<ActionV
   provider: { provider_id: "p", title: "插件", kind: "plugin", ...provider },
   action: { title: "a", description: "a", kind: "query", scope: "project", audiences: ["user", "agent"], permissions: [], subject_kinds: [], input_schema: { type: "object" }, ...action } as ActionView["action"] });
 const offering = (provider: Partial<ActionView["provider"]>, kind: string, title: string, read = true, available = true): ActionView[] => {
-  const search = defineSearchEntriesAction(`${provider.provider_id}.search`, [{ kind, title, surface: "s" }], title, []).action;
-  const reader = defineSubjectContextAction(`${provider.provider_id}.subject.read`, kind, title, []).action;
+  const search = defineSearchEntriesAction(`${provider.provider_id}.search`, 1, [{ kind, title, surface: "s" }], title, []).action;
+  const reader = defineSubjectContextAction(`${provider.provider_id}.subject.read`, 1, kind, title, []).action;
   return [view(provider, search, available), ...(read ? [view(provider, reader, available)] : [])];
 };
 
@@ -100,8 +100,8 @@ test("S-32 another project's plugin is not in this project's round, and only the
     const b = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "B", actor_id: "user" }));
     const refA = molisWorkHostProjectReference({ projectId: a.project_id, databasePath: a.database_path });
     const refB = molisWorkHostProjectReference({ projectId: b.project_id, databasePath: b.database_path });
-    const search = defineSearchEntriesAction("example.notes.search", [{ kind: "x_note", title: "笔记", surface: "notes" }], "笔记", []);
-    const reader = defineSubjectContextAction("example.notes.subject.read", "x_note", "笔记", []);
+    const search = defineSearchEntriesAction("example.notes.search", 1, [{ kind: "x_note", title: "笔记", surface: "notes" }], "笔记", []);
+    const reader = defineSubjectContextAction("example.notes.subject.read", 1, "x_note", "笔记", []);
     await host.withProject(refA, () => {
       host.actionRegistry(refA).registerProvider({ provider: { provider_id: "example-notes", title: "Notes", kind: "plugin", project_id: refA.project_id, plugin_id: "io.example.notes" },
         definitions: [search, reader], handlers: [{ ...search, handle: () => ({ entries: [], next_cursor: null, collection_revision: "1" }) }, { ...reader, handle: () => null }] });

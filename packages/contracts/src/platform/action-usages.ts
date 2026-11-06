@@ -26,7 +26,7 @@ export const ACTION_USAGE_SCHEMA = { type: "object", properties: { usage_id: tex
 export const ACTION_USAGES_INPUT_SCHEMA = { type: "object", properties: { action: ACTION_REFERENCE_SCHEMA }, required: ["action"], additionalProperties: false };
 export const ACTION_USAGES_OUTPUT_SCHEMA = { type: "object", properties: { usages: { type: "array", maxItems: 500, items: ACTION_USAGE_SCHEMA } }, required: ["usages"], additionalProperties: false };
 
-export function defineActionUsagesAction(capabilityId: string, title: string, permissions: string[], scope: "project" | "home" = "project", version = /* @version factory.packages.contracts.defineActionUsagesAction */ 1): ActionDefinition<ActionUsagesInput, { usages: ActionUsage[] }> {
+export function defineActionUsagesAction(capabilityId: string, version: number, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<ActionUsagesInput, { usages: ActionUsage[] }> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "列出本插件保存的、引用这个能力的位置；只读，不调用该能力。", kind: "query", scope, scheduling: "concurrent",
     permissions, audiences: ["user", "agent", "mcp", "plugin"], subject_kinds: [],
     input_type: ACTION_USAGES_INPUT_TYPE, output_type: ACTION_USAGES_OUTPUT_TYPE, input_schema: ACTION_USAGES_INPUT_SCHEMA, output_schema: ACTION_USAGES_OUTPUT_SCHEMA } };

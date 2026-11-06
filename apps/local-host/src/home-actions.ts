@@ -44,7 +44,7 @@ export const homeDockScene: ActionSceneDefinition = {
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },
     suggested_behavior_ids: { type: "array", items: {} } }, required: ["status", "suggested_behavior_ids"] },
 };
-const define = <I, O>(id: string, title: string, description: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }, execution?: ActionDefinition["action"]["execution"], version = /* @version factory.apps.local-host.define */ 1): ActionDefinition<I, O> => createActionDefinition<I, O>(id, operation, {
+const define = <I, O>(id: string, version: number, title: string, description: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> => createActionDefinition<I, O>(id, operation, {
   title, description, ...(execution ? { execution } : {}), audiences: ["user", "agent", "workflow", "mcp"], permissions,
   ...(requiredScene ? { required_scene: requiredScene } : {}), subject_kinds: [], input_schema: input, output_schema: output,
   ...(id === "home.judgment.evaluate" ? { scheduling: "concurrent" as const } : {}),
@@ -52,17 +52,17 @@ const define = <I, O>(id: string, title: string, description: string, operation:
 export const homeActions = {
   ...homeEventActions,
   ...homeOfferActions,
-  readJudgment: define<Record<string, never>, HomeJudgmentState>("home.judgment.read", "首页判断规则", "读取这个项目首页判断现在用的判断规则、可以选用的已发布规则、可交给判断的能力和当前绑定；只读，不调用模型。", "query", empty, {
+  readJudgment: define<Record<string, never>, HomeJudgmentState>("home.judgment.read", /* @version action.home.judgment.read */ 1, "首页判断规则", "读取这个项目首页判断现在用的判断规则、可以选用的已发布规则、可交给判断的能力和当前绑定；只读，不调用模型。", "query", empty, {
     type: "object", properties: { function_key: { type: ["string", "null"] }, functions: { type: "array", items: { type: "object", properties: { function_key: text, name: text }, required: ["function_key", "name"] } },
       capabilities: { type: "array", items: { type: "object" } }, binding: { type: ["object", "null"] } }, required: ["function_key", "functions", "capabilities", "binding"],
-  }, ["home:read"], undefined, undefined, /* @version action.home.judgment.read */ 1),
-  writeJudgment: define<{ function_key: string | null }, { function_key: string | null }>("home.judgment.write", "设置首页判断", "为这个项目的首页选定一条已发布的判断规则；function_key 为空则停用首页判断。只改绑定，不会立刻重新判断事项。", "command", {
+  }, ["home:read"]),
+  writeJudgment: define<{ function_key: string | null }, { function_key: string | null }>("home.judgment.write", /* @version action.home.judgment.write */ 1, "设置首页判断", "为这个项目的首页选定一条已发布的判断规则；function_key 为空则停用首页判断。只改绑定，不会立刻重新判断事项。", "command", {
     type: "object", properties: { function_key: { type: ["string", "null"] } }, required: ["function_key"], additionalProperties: false,
-  }, { type: "object", properties: { function_key: { type: ["string", "null"] } }, required: ["function_key"] }, ["home:write"], undefined, undefined, /* @version action.home.judgment.write */ 1),
-  evaluate: define<{ subjects: HomeSubject[] }, HomeRecommendations>("home.judgment.evaluate", "重新判断首页事项", "对给定的 1 至 20 件首页事项逐件运行已启用的首页判断规则，记录并返回新的判断结果；会调用模型并可能产生费用，没有启用判断规则时不可用。", "command", {
+  }, { type: "object", properties: { function_key: { type: ["string", "null"] } }, required: ["function_key"] }, ["home:write"]),
+  evaluate: define<{ subjects: HomeSubject[] }, HomeRecommendations>("home.judgment.evaluate", /* @version action.home.judgment.evaluate */ 1, "重新判断首页事项", "对给定的 1 至 20 件首页事项逐件运行已启用的首页判断规则，记录并返回新的判断结果；会调用模型并可能产生费用，没有启用判断规则时不可用。", "command", {
     type: "object", properties: { subjects: { type: "array", minItems: 1, maxItems: 20, items: subjectSchema } }, required: ["subjects"], additionalProperties: false,
-  }, resultSchema, [...homeDockScene.permissions], homeDockScene, { cost: "metered" }, /* @version action.home.judgment.evaluate */ 1),
-  recommendations: define<Record<string, never>, HomeRecommendations>("home.recommendations.read", "当前首页建议", "读取首页事项现有的判断结果（建议与可用动作），只含调用者有权读取的事项；没有启用判断规则时返回空。只读，不调用模型、不重新判断。", "query", empty, resultSchema, ["home:read"], undefined, undefined, /* @version action.home.recommendations.read */ 1),
+  }, resultSchema, [...homeDockScene.permissions], homeDockScene, { cost: "metered" }),
+  recommendations: define<Record<string, never>, HomeRecommendations>("home.recommendations.read", /* @version action.home.recommendations.read */ 1, "当前首页建议", "读取首页事项现有的判断结果（建议与可用动作），只含调用者有权读取的事项；没有启用判断规则时返回空。只读，不调用模型、不重新判断。", "query", empty, resultSchema, ["home:read"]),
 };
 export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "feed:read", "inbox:read", "model:invoke", "functions:invoke"] as const;
 export const homeDockBindingId = (project: string) => `${HOME_DOCK_SCENE_ID}:${project}`;

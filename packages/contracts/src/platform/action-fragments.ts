@@ -154,8 +154,8 @@ export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
   required: ["offers"], additionalProperties: false,
 };
 
-export function defineFragmentOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[],
-  choices: readonly FragmentOfferChoice[], scope: "project" | "home" = "project", version = /* @version factory.packages.contracts.defineFragmentOffersAction */ 1): ActionDefinition<FragmentOffersInput, { offers: FragmentActionOffer[] }> {
+export function defineFragmentOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[],
+  choices: readonly FragmentOfferChoice[], scope: "project" | "home" = "project"): ActionDefinition<FragmentOffersInput, { offers: FragmentActionOffer[] }> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "按选中的片段准备本插件真实动作的完整参数；不会执行这些动作。", kind: "query", scope, scheduling: "concurrent",
     permissions, audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: kinds, fragment_offer_choices: choices,
     input_type: FRAGMENT_OFFERS_INPUT_TYPE, output_type: FRAGMENT_OFFERS_OUTPUT_TYPE, input_schema: FRAGMENT_OFFERS_INPUT_SCHEMA, output_schema: FRAGMENT_OFFERS_OUTPUT_SCHEMA } };

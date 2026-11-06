@@ -27,8 +27,8 @@ export function recordsOwnedBy(records: readonly ComputerRecord[], projectId: st
 const kinds = [{ kind: COMPUTER_RECORD_KIND, title: "电脑操作记录", surface: "computer" }];
 
 const computerRecordActions = {
-  entries: defineFileEntriesAction("computer.records.entries", kinds, "电脑操作记录", [], "home", undefined, /* @version action.computer.records.entries */ 1),
-  content: defineFileContentAction("computer.records.content", kinds, "电脑操作记录", [], "home", undefined, /* @version action.computer.records.content */ 1),
+  entries: defineFileEntriesAction("computer.records.entries", /* @version action.computer.records.entries */ 1, kinds, "电脑操作记录", [], "home"),
+  content: defineFileContentAction("computer.records.content", /* @version action.computer.records.content */ 1, kinds, "电脑操作记录", [], "home"),
 } as const;
 
 const STEP_LABEL: Record<string, string> = { look: "看", act: "做", asked: "问", allowed: "已允许", declined: "被拒绝", refused: "拒绝", failed: "失败", note: "记" };

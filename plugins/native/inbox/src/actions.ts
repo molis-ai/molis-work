@@ -80,8 +80,8 @@ export async function readInboxStageSubjects(entries: readonly InboxActionEntry[
 export type InboxPagesResult = Omit<InboxPagesGeneration, "inputs"> & { entry_ids: string[] };
 export interface InboxGeneratedPages { document: InboxPagesDocument; replayed: boolean; request_id: string; entry_ids: string[] }
 
-function action<Input, Output>(id: string, title: string, description: string, operation: "query" | "command",
-  input: ActionSchema, output: ActionSchema, permissions: string[], requiredScene?: { scene_id: string; version: number }, requiredActions?: readonly ActionReference[], execution?: ActionDefinition["action"]["execution"], version = /* @version factory.plugins.native.inbox.action */ 1): ActionDefinition<Input, Output> {
+function action<Input, Output>(id: string, version: number, title: string, description: string, operation: "query" | "command",
+  input: ActionSchema, output: ActionSchema, permissions: string[], requiredScene?: { scene_id: string; version: number }, requiredActions?: readonly ActionReference[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<Input, Output> {
   return createActionDefinition<Input, Output>(id, operation, { title, description, ...(execution ? { execution } : {}),
     audiences: ["user", "agent", "workflow", "mcp"],
     permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), ...(requiredActions ? { required_actions: requiredActions } : {}),
@@ -94,28 +94,28 @@ function action<Input, Output>(id: string, title: string, description: string, o
 export interface InboxStatusInput { entry_id: string; status: AttentionStatus; expected_revision: number }
 export interface InboxPagesMaterialRef { entry_id: string; item_id: string; revision: number; content_digest: string }
 export interface InboxPagesInput { request_id: string; entry_ids: string[]; title: string; instructions: string; expected_materials?: InboxPagesMaterialRef[] }
-const stage = action<Record<string, never>, InboxStageData>("inbox.stage.read", "读取 Inbox 舞台", "读取当前事项、主体简介和仍有效的下一步建议；缺失主体保留原事项", "query", empty,
+const stage = action<Record<string, never>, InboxStageData>("inbox.stage.read", /* @version action.inbox.stage.read */ 1, "读取 Inbox 舞台", "读取当前事项、主体简介和仍有效的下一步建议；缺失主体保留原事项", "query", empty,
   { type: "object", properties: { entries: { type: "array", items: entrySchema },
     subjects: { type: "array", items: { type: "object", properties: { entry_id: text, title: nullableText, source_label: nullableText }, required: ["entry_id", "title", "source_label"], additionalProperties: false } },
     judgment: { type: "object", required: ["name", "enabled", "available", "reason"] }, judgments: { type: "array", items: judgmentSchema } },
-    required: ["entries", "subjects", "judgments"], additionalProperties: false }, ["inbox:read", "feed:read", "goals:read", "evidence:read"], undefined, undefined, undefined, /* @version action.inbox.stage.read */ 1);
+    required: ["entries", "subjects", "judgments"], additionalProperties: false }, ["inbox:read", "feed:read", "goals:read", "evidence:read"]);
 export const inboxActions = {
   stage: { ...stage, action: { ...stage.action, audiences: ["user"] } },
-  offers: defineSubjectOffersAction("inbox.actions.prepare", ["inbox_entry"], "Inbox 可用动作", ["inbox:read"], [
+  offers: defineSubjectOffersAction("inbox.actions.prepare", /* @version action.inbox.actions.prepare */ 1, ["inbox_entry"], "Inbox 可用动作", ["inbox:read"], [
     { offer_id: "inbox.done", title: "做完了", action: { capability_id: "inbox.entry.status", version: /* @version action.inbox.entry.status */ 1 } },
     { offer_id: "inbox.dismiss", title: "忽略", action: { capability_id: "inbox.entry.status", version: /* @version action.inbox.entry.status */ 1 } },
     { offer_id: "inbox.pages", title: "整理成文稿", action: { capability_id: "inbox.pages.generate", version: /* @version action.inbox.pages.generate */ 1 } },
-  ], /* @version action.inbox.actions.prepare */ 1),
-  list: action<Record<string, never>, { entries: readonly InboxActionEntry[] }>("inbox.list", "待处理事项", "读取当前项目的 Inbox 事项与当前版本", "query",
-    empty, { type: "object", properties: { entries: { type: "array", items: entrySchema } }, required: ["entries"] }, ["inbox:read"], undefined, undefined, undefined, /* @version action.inbox.list */ 1),
-  setStatus: action<InboxStatusInput, { entry: InboxActionEntry }>("inbox.entry.status", "更新事项状态", "按读取到的版本更新事项；版本过期时拒绝覆盖", "command", {
+  ]),
+  list: action<Record<string, never>, { entries: readonly InboxActionEntry[] }>("inbox.list", /* @version action.inbox.list */ 1, "待处理事项", "读取当前项目的 Inbox 事项与当前版本", "query",
+    empty, { type: "object", properties: { entries: { type: "array", items: entrySchema } }, required: ["entries"] }, ["inbox:read"]),
+  setStatus: action<InboxStatusInput, { entry: InboxActionEntry }>("inbox.entry.status", /* @version action.inbox.entry.status */ 1, "更新事项状态", "按读取到的版本更新事项；版本过期时拒绝覆盖", "command", {
     type: "object", properties: { entry_id: { type: "string", minLength: 1 }, status: { enum: ["open", "in_progress", "done", "dismissed"] },
       expected_revision: { type: "integer", minimum: 1 } }, required: ["entry_id", "status", "expected_revision"], additionalProperties: false,
-  }, { type: "object", properties: { entry: entrySchema }, required: ["entry"] }, ["inbox:write", "attention:write"], undefined, undefined, undefined, /* @version action.inbox.entry.status */ 1),
-  pagesResults: action<Record<string, never>, { results: readonly InboxPagesResult[] }>("inbox.pages.results", "生成的文稿", "读取当前项目由 Inbox 材料生成的文稿和运行状态", "query",
+  }, { type: "object", properties: { entry: entrySchema }, required: ["entry"] }, ["inbox:write", "attention:write"]),
+  pagesResults: action<Record<string, never>, { results: readonly InboxPagesResult[] }>("inbox.pages.results", /* @version action.inbox.pages.results */ 1, "生成的文稿", "读取当前项目由 Inbox 材料生成的文稿和运行状态", "query",
     empty, { type: "object", properties: { results: { type: "array", items: generationSchema } }, required: ["results"] }, ["inbox:read", "pages:read"], undefined,
-    [{ capability_id: "pages.generations.list", version: /* @version action.pages.generations.list */ 1, provider_id: PAGES_PROVIDER_ID }], undefined, /* @version action.inbox.pages.results */ 1),
-  generatePages: action<InboxPagesInput, InboxGeneratedPages>("inbox.pages.generate", "整理成文稿", "根据所选事项生成文稿；重试同一任务时保持 request_id 不变", "command", {
+    [{ capability_id: "pages.generations.list", version: /* @version action.pages.generations.list */ 1, provider_id: PAGES_PROVIDER_ID }]),
+  generatePages: action<InboxPagesInput, InboxGeneratedPages>("inbox.pages.generate", /* @version action.inbox.pages.generate */ 1, "整理成文稿", "根据所选事项生成文稿；重试同一任务时保持 request_id 不变", "command", {
     type: "object", properties: { request_id: { type: "string", pattern: "^[a-zA-Z0-9:_-]{8,128}$" }, entry_ids: ids,
       title: { type: "string", minLength: 1, maxLength: 80 }, instructions: { type: "string", minLength: 1, maxLength: 4000 },
       expected_materials: { type: "array", minItems: 1, maxItems: 20, items: { type: "object", properties: {
@@ -127,21 +127,21 @@ export const inboxActions = {
     required: ["document", "replayed", "request_id", "entry_ids"] }, ["inbox:read", "pages:read", "pages:write", "model:invoke"], undefined,
     // The material is Feed's, read again before the document is written: a client granted the generation must be granted Feed's material read with it.
     [...["pages.generations.get", "pages.get", "pages.generate"].map(capability_id => ({ capability_id, version: 1, provider_id: PAGES_PROVIDER_ID })),
-      { capability_id: "feed.items.material", version: /* @version action.feed.items.material */ 1 }], { cost: "metered" }, /* @version action.inbox.pages.generate */ 1),
-  readJudgment: action<Record<string, never>, InboxJudgmentState>("inbox.judgment.read", "下一步判断规则", "读取绑定的判断规则及适用的已发布规则", "query", empty, {
+      { capability_id: "feed.items.material", version: /* @version action.feed.items.material */ 1 }], { cost: "metered" }),
+  readJudgment: action<Record<string, never>, InboxJudgmentState>("inbox.judgment.read", /* @version action.inbox.judgment.read */ 1, "下一步判断规则", "读取绑定的判断规则及适用的已发布规则", "query", empty, {
     type: "object", properties: { summary: { type: "object", properties: { name: nullableText, enabled: { type: "boolean" }, available: { type: "boolean" }, reason: nullableText }, required: ["name", "enabled", "available", "reason"] }, function_key: functionKey, functions: { type: "array", items: { type: "object",
       properties: { function_key: { type: "string" }, name: { type: "string" } }, required: ["function_key", "name"] } } }, required: ["function_key", "functions"],
-  }, ["inbox:read"], undefined, undefined, undefined, /* @version action.inbox.judgment.read */ 1),
-  recommendations: action<Record<string, never>, { judgments: readonly JudgmentRecord[] }>("inbox.judgment.recommendations", "当前下一步建议", "读取仍对应当前事项、绑定及授权的判断；旧记录保留在历史中", "query", empty,
-    { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read", "feed:read"], undefined, undefined, undefined, /* @version action.inbox.judgment.recommendations */ 1),
-  writeJudgment: action<{ function_key: string | null }, { function_key: string | null }>("inbox.judgment.write", "设置下一步判断", "绑定一个已发布规则；传空值解除绑定", "command", {
+  }, ["inbox:read"]),
+  recommendations: action<Record<string, never>, { judgments: readonly JudgmentRecord[] }>("inbox.judgment.recommendations", /* @version action.inbox.judgment.recommendations */ 1, "当前下一步建议", "读取仍对应当前事项、绑定及授权的判断；旧记录保留在历史中", "query", empty,
+    { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read", "feed:read"]),
+  writeJudgment: action<{ function_key: string | null }, { function_key: string | null }>("inbox.judgment.write", /* @version action.inbox.judgment.write */ 1, "设置下一步判断", "绑定一个已发布规则；传空值解除绑定", "command", {
     type: "object", properties: { function_key: functionKey }, required: ["function_key"], additionalProperties: false,
-  }, { type: "object", properties: { function_key: functionKey }, required: ["function_key"] }, ["inbox:write"], undefined, undefined, undefined, /* @version action.inbox.judgment.write */ 1),
-  evaluateJudgment: action<{ entry_ids: string[] }, { judgments: readonly JudgmentRecord[] }>("inbox.judgment.evaluate", "判断下一步", "对选择的事项执行已绑定规则并保存判断结果", "command", {
+  }, { type: "object", properties: { function_key: functionKey }, required: ["function_key"] }, ["inbox:write"]),
+  evaluateJudgment: action<{ entry_ids: string[] }, { judgments: readonly JudgmentRecord[] }>("inbox.judgment.evaluate", /* @version action.inbox.judgment.evaluate */ 1, "判断下一步", "对选择的事项执行已绑定规则并保存判断结果", "command", {
     type: "object", properties: { entry_ids: ids }, required: ["entry_ids"], additionalProperties: false,
   }, { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read", "model:invoke", "feed:read"], { scene_id: INBOX_NEXT_SCENE_ID, version: /* @version scene.inbox.next */ 1 },
     // The text the judgment reads is Feed's: a client granted the judgment must be granted Feed's content action with it.
-    [{ capability_id: "feed.items.content", version: /* @version action.feed.items.content */ 1 }], { cost: "metered" }, /* @version action.inbox.judgment.evaluate */ 1),
+    [{ capability_id: "feed.items.content", version: /* @version action.feed.items.content */ 1 }], { cost: "metered" }),
 } as const;
 
 export const INBOX_ACTIONS: readonly ActionDefinition[] = Object.values(inboxActions);

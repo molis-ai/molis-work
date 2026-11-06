@@ -24,18 +24,18 @@ const read = ["shelf:read"], write = [...read, "shelf:write"];
 const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
 
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[], resultView?: ActionResultView, version = /* @version factory.plugins.native.shelf.define */ 1): ActionDefinition<I, O> {
+function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
+  output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[], resultView?: ActionResultView): ActionDefinition<I, O> {
   // The existing HTTP surface never serialized Shelf: recipes run for minutes while the panel keeps reading and cancelling.
   return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
     scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) }, version);
 }
 
-function jobDefinition(name: string, title: string, description: string, recipes: readonly ShelfRecipeId[], cost: "none" | "metered", permissions: readonly string[], version = /* @version factory.plugins.native.shelf.jobDefinition */ 1): ActionDefinition<ShelfRunJobInput, ShelfJobOutcome> {
-  const definition = define<ShelfRunJobInput, ShelfJobOutcome>(name, title, description, "command",
+function jobDefinition(name: string, version: number, title: string, description: string, recipes: readonly ShelfRecipeId[], cost: "none" | "metered", permissions: readonly string[]): ActionDefinition<ShelfRunJobInput, ShelfJobOutcome> {
+  const definition = define<ShelfRunJobInput, ShelfJobOutcome>(name, version, title, description, "command",
     object({ recipe: { type: "string", enum: recipes }, item_id: id, item_ids: { type: "array", minItems: 1, maxItems: 50, items: id },
       option_id: nullableText, shortcut_id: nullableText }, ["recipe"]),
-    object({ job, result: { anyOf: [item, { type: "null" }] }, origin_hash: text }), permissions, SHARED, undefined, version);
+    object({ job, result: { anyOf: [item, { type: "null" }] }, origin_hash: text }), permissions, SHARED);
   return { ...definition, action: { ...definition.action, execution: { cost, timeout_ms: SHELF_JOB_TIMEOUT_MS } } };
 }
 const AI_RECIPES = [...SHELF_RECIPES, SHELF_SHORTCUT_RECIPE].filter(recipe => recipe.requires_agent).map(recipe => recipe.recipe);
@@ -43,50 +43,50 @@ const AI_RECIPES = [...SHELF_RECIPES, SHELF_SHORTCUT_RECIPE].filter(recipe => re
 export type { ShelfAdmitActionInput };
 export interface ShelfTextView { item_id: string; title: string; text: string; content_hash: string; fingerprint: string }
 export const shelfActions = {
-  terminal: define<Record<string, never>, { panelId: string }>("terminal.open", "打开置物架终端", "在置物架副本目录打开本机 Agent", "command", object({}), object({ panelId: id }), [...read, "terminal:run"], LOCAL, undefined, /* @version action.shelf.terminal.open */ 1),
-  snapshot: define<Record<string, never>, ShelfSnapshot>("snapshot", "读取置物架面板",
-    "读取置物架全部状态，含剪贴板历史、设备设置与本机目录，仅供本机界面使用", "query", object({}), { type: "object", required: ["materials", "results", "clipboard"] }, read, LOCAL, undefined, /* @version action.shelf.snapshot */ 1),
-  list: define<Record<string, never>, { materials: ShelfItemRecord[]; results: ShelfItemRecord[]; running_jobs: ShelfJobRecord[] }>("items.list", "Shelf 材料列表",
+  terminal: define<Record<string, never>, { panelId: string }>("terminal.open", /* @version action.shelf.terminal.open */ 1, "打开置物架终端", "在置物架副本目录打开本机 Agent", "command", object({}), object({ panelId: id }), [...read, "terminal:run"], LOCAL),
+  snapshot: define<Record<string, never>, ShelfSnapshot>("snapshot", /* @version action.shelf.snapshot */ 1, "读取置物架面板",
+    "读取置物架全部状态，含剪贴板历史、设备设置与本机目录，仅供本机界面使用", "query", object({}), { type: "object", required: ["materials", "results", "clipboard"] }, read, LOCAL),
+  list: define<Record<string, never>, { materials: ShelfItemRecord[]; results: ShelfItemRecord[]; running_jobs: ShelfJobRecord[] }>("items.list", /* @version action.shelf.items.list */ 1, "Shelf 材料列表",
     "列出置物架上的材料、处理结果和运行中的任务，不含剪贴板与设备设置", "query", object({}),
-    object({ materials: { type: "array", items: item }, results: { type: "array", items: item }, running_jobs: { type: "array", items: job } }), read, SHARED, undefined, /* @version action.shelf.items.list */ 1),
-  readText: define<{ item_id: string }, ShelfTextView>("items.read", "读取 Shelf 文字",
+    object({ materials: { type: "array", items: item }, results: { type: "array", items: item }, running_jobs: { type: "array", items: job } }), read, SHARED),
+  readText: define<{ item_id: string }, ShelfTextView>("items.read", /* @version action.shelf.items.read */ 1, "读取 Shelf 文字",
     "读取一份文字材料的完整当前正文；图片、PDF 等需先在 Shelf 提取为文字", "query", itemId,
-    object({ item_id: id, title: text, text, content_hash: text, fingerprint: text }), read, SHARED, undefined, /* @version action.shelf.items.read */ 1),
-  file: define<{ item_id: string; child?: string }, { name: string; mime: string; bytes_base64: string }>("items.file", "读取 Shelf 原文件",
+    object({ item_id: id, title: text, text, content_hash: text, fingerprint: text }), read, SHARED),
+  file: define<{ item_id: string; child?: string }, { name: string; mime: string; bytes_base64: string }>("items.file", /* @version action.shelf.items.file */ 1, "读取 Shelf 原文件",
     "读取置物架副本或文件夹内文件的原始字节", "query", object({ item_id: id, child: { type: "string", maxLength: 1000 } }, ["item_id"]),
-    object({ name: text, mime: text, bytes_base64: text }), read, LOCAL, undefined, /* @version action.shelf.items.file */ 1),
+    object({ name: text, mime: text, bytes_base64: text }), read, LOCAL),
   // Defined in the Shelf contract, so another plugin invokes this very definition.
   admit: SHELF_ADMIT_ACTION,
   // Version 2 names no original folder: a folder has no 原件已变 check, and only the platform keeps a path (`original`).
-  admitFolder: { ...define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[] }, { item: ShelfItemRecord }>("items.admit-folder", "放进文件夹",
+  admitFolder: { ...define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[] }, { item: ShelfItemRecord }>("items.admit-folder", /* @version action.shelf.items.admit-folder */ 1, "放进文件夹",
     "把本机界面选中的整个文件夹复制进置物架，最多 32 MB", "command",
     object({ name: { type: "string", minLength: 1, maxLength: 500 }, entries: { type: "array", minItems: 1, items: object({ relative: { type: "string", minLength: 1, maxLength: 1000 },
       bytes_base64: text, mime: { type: "string", maxLength: 200 } }, ["relative", "bytes_base64"]) } }),
-    object({ item }), write, LOCAL, undefined, /* @version action.shelf.items.admit-folder */ 1), version: /* @version action.shelf.items.admit-folder */ 1 },
-  capture: define<{ url: string }, { item: ShelfItemRecord }>("items.capture", "抓取网页放进 Shelf",
+    object({ item }), write, LOCAL), version: /* @version action.shelf.items.admit-folder */ 1 },
+  capture: define<{ url: string }, { item: ShelfItemRecord }>("items.capture", /* @version action.shelf.items.capture */ 1, "抓取网页放进 Shelf",
     "抓取一个公开网页或本机网页的正文，存成置物架里的一份材料；局域网地址不抓，抓不到时只保存链接", "command",
-    object({ url: { type: "string", minLength: 1, maxLength: 4096 } }), object({ item }), [...write, "materials:fetch", "materials:fetch_local"], SHARED, undefined, /* @version action.shelf.items.capture */ 1),
-  original: define<{ item_id: string }, { registered: true }>("items.original", "登记原件",
+    object({ url: { type: "string", minLength: 1, maxLength: 4096 } }), object({ item }), [...write, "materials:fetch", "materials:fetch_local"], SHARED),
+  original: define<{ item_id: string }, { registered: true }>("items.original", /* @version action.shelf.items.original */ 1, "登记原件",
     "把本机界面这次放进来的文件登记为这份副本的原件，处理前先核对原件没变；路径只由平台保存", "command",
-    itemId, object({ registered: { const: true } }), [...read, "materials:original"], LOCAL, undefined, /* @version action.shelf.items.original */ 1),
-  sample: define<Record<string, never>, { item: ShelfItemRecord }>("sample.seed", "放一份示例", "在置物架放入示例材料", "command", object({}), object({ item }), write, LOCAL, undefined, /* @version action.shelf.sample.seed */ 1),
-  hide: define<{ item_id: string }, { hidden: true }>("items.hide", "从 Shelf 收起", "从列表收起一份材料，保留副本以便再次接收", "command", itemId, object({ hidden: { const: true } }), write, SHARED, undefined, /* @version action.shelf.items.hide */ 1),
-  delete: define<{ item_id: string }, { deleted: true }>("items.delete", "删除 Shelf 副本", "删除置物架里的副本；运行中的材料不能删除，原件不受影响", "command", itemId, object({ deleted: { const: true } }), [...write, "materials:original"], SHARED, undefined, /* @version action.shelf.items.delete */ 1),
-  useAsMaterial: define<{ item_id: string }, { item: ShelfItemRecord }>("items.use-material", "结果转为材料", "把处理结果复制为新的材料，供下一次处理", "command", itemId, object({ item }), write, SHARED, undefined, /* @version action.shelf.items.use-material */ 1),
-  edit: define<{ item_id: string; text: string; expected_content_hash: string }, { item: ShelfItemRecord; content_hash: string }>("items.edit", "修改 Shelf 文字", "按读取时的完整内容指纹修改文字副本；内容已改变时拒绝，原件不受影响，正文最多 512 KB", "command",
-    object({ item_id: id, text: { type: "string", maxLength: 2_000_000 }, expected_content_hash: { type: "string", pattern: "^[a-f0-9]{64}$" } }), object({ item, content_hash: text }), write, SHARED, undefined, /* @version action.shelf.items.edit */ 1),
-  generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke", "materials:read", "materials:original"], /* @version action.shelf.jobs.generate */ 1),
-  extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", [...write, "materials:read", "materials:original"], /* @version action.shelf.jobs.extract */ 1),
-  cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", "取消 Shelf 任务", "中止一个运行中的处理任务并把它标为已取消；已经结束的任务原样返回，不报错", "command", object({ job_id: id }), object({ job }), write, SHARED, undefined, /* @version action.shelf.jobs.cancel */ 1),
-  settings: define<Record<string, never>, ShelfDeviceSettings>("settings.read", "读取 Shelf 设置", "读取本机快捷键、动作排序与运行时设置", "query", object({}), { type: "object" }, read, LOCAL, undefined, /* @version action.shelf.settings.read */ 1),
-  saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", "保存 Shelf 设置", "修改本机快捷键、动作排序与运行时设置", "command", { type: "object" }, { type: "object" }, write, LOCAL, undefined, /* @version action.shelf.settings.write */ 1),
-  clip: define<{ text: string; concealed?: boolean; types?: string[] }, { clip: ShelfClipboardRecord | null }>("clipboard.add", "记录剪贴板",
+    itemId, object({ registered: { const: true } }), [...read, "materials:original"], LOCAL),
+  sample: define<Record<string, never>, { item: ShelfItemRecord }>("sample.seed", /* @version action.shelf.sample.seed */ 1, "放一份示例", "在置物架放入示例材料", "command", object({}), object({ item }), write, LOCAL),
+  hide: define<{ item_id: string }, { hidden: true }>("items.hide", /* @version action.shelf.items.hide */ 1, "从 Shelf 收起", "从列表收起一份材料，保留副本以便再次接收", "command", itemId, object({ hidden: { const: true } }), write, SHARED),
+  delete: define<{ item_id: string }, { deleted: true }>("items.delete", /* @version action.shelf.items.delete */ 1, "删除 Shelf 副本", "删除置物架里的副本；运行中的材料不能删除，原件不受影响", "command", itemId, object({ deleted: { const: true } }), [...write, "materials:original"], SHARED),
+  useAsMaterial: define<{ item_id: string }, { item: ShelfItemRecord }>("items.use-material", /* @version action.shelf.items.use-material */ 1, "结果转为材料", "把处理结果复制为新的材料，供下一次处理", "command", itemId, object({ item }), write, SHARED),
+  edit: define<{ item_id: string; text: string; expected_content_hash: string }, { item: ShelfItemRecord; content_hash: string }>("items.edit", /* @version action.shelf.items.edit */ 1, "修改 Shelf 文字", "按读取时的完整内容指纹修改文字副本；内容已改变时拒绝，原件不受影响，正文最多 512 KB", "command",
+    object({ item_id: id, text: { type: "string", maxLength: 2_000_000 }, expected_content_hash: { type: "string", pattern: "^[a-f0-9]{64}$" } }), object({ item, content_hash: text }), write, SHARED),
+  generate: jobDefinition("jobs.generate", /* @version action.shelf.jobs.generate */ 1, "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke", "materials:read", "materials:original"]),
+  extract: jobDefinition("jobs.extract", /* @version action.shelf.jobs.extract */ 1, "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", [...write, "materials:read", "materials:original"]),
+  cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", /* @version action.shelf.jobs.cancel */ 1, "取消 Shelf 任务", "中止一个运行中的处理任务并把它标为已取消；已经结束的任务原样返回，不报错", "command", object({ job_id: id }), object({ job }), write, SHARED),
+  settings: define<Record<string, never>, ShelfDeviceSettings>("settings.read", /* @version action.shelf.settings.read */ 1, "读取 Shelf 设置", "读取本机快捷键、动作排序与运行时设置", "query", object({}), { type: "object" }, read, LOCAL),
+  saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", /* @version action.shelf.settings.write */ 1, "保存 Shelf 设置", "修改本机快捷键、动作排序与运行时设置", "command", { type: "object" }, { type: "object" }, write, LOCAL),
+  clip: define<{ text: string; concealed?: boolean; types?: string[] }, { clip: ShelfClipboardRecord | null }>("clipboard.add", /* @version action.shelf.clipboard.add */ 1, "记录剪贴板",
     "记录本机剪贴板；密码等标记为隐藏的内容不会保存", "command",
     object({ text: { type: "string", maxLength: 2_000_000 }, concealed: { type: "boolean" }, types: { type: "array", maxItems: 50, items: { type: "string", maxLength: 200 } } }, ["text"]),
-    object({ clip: { anyOf: [record(["clip_id", "kind", "title", "body"]), { type: "null" }] } }), write, LOCAL, undefined, /* @version action.shelf.clipboard.add */ 1),
-  deleteClip: define<{ clip_id: string }, { deleted: true }>("clipboard.delete", "删除剪贴板记录", "删除一条剪贴板历史", "command", object({ clip_id: id }), object({ deleted: { const: true } }), write, LOCAL, undefined, /* @version action.shelf.clipboard.delete */ 1),
-  clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }),
-    [...write, "materials:read", "materials:fetch", "materials:fetch_local"], LOCAL, undefined, /* @version action.shelf.clipboard.material */ 1),
+    object({ clip: { anyOf: [record(["clip_id", "kind", "title", "body"]), { type: "null" }] } }), write, LOCAL),
+  deleteClip: define<{ clip_id: string }, { deleted: true }>("clipboard.delete", /* @version action.shelf.clipboard.delete */ 1, "删除剪贴板记录", "删除一条剪贴板历史", "command", object({ clip_id: id }), object({ deleted: { const: true } }), write, LOCAL),
+  clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", /* @version action.shelf.clipboard.material */ 1, "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }),
+    [...write, "materials:read", "materials:fetch", "materials:fetch_local"], LOCAL),
   searchEntries: shelfSearchEntriesAction,
   subject: shelfSubjectAction,
   files: shelfFileEntriesAction,
@@ -189,19 +189,19 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
 
 /** Saving a personal copy into a project writes a project Artifact owned by the person who confirmed it. */
 export interface ShelfMaterialPreview { payload: import("@molis-ai/molis-work-module-shelf/contract").ShelfTextMaterial; fingerprint: string }
-function defineProject<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  output: ActionSchema, permissions: readonly string[], version = /* @version factory.plugins.native.shelf.defineProject */ 1): ActionDefinition<I, O> {
+function defineProject<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
+  output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
     scheduling: "concurrent", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output }, version);
 }
 const material = object({ title: text, text, content_hash: text, source: { type: "object", required: ["item_id"] } });
 export const shelfProjectActions = {
-  previewMaterial: defineProject<{ item_id: string }, ShelfMaterialPreview>("material.preview", "预览要存到项目资料的文字",
-    "预览将从 Shelf 存到当前项目资料的完整文字与指纹", "query", itemId, object({ payload: material, fingerprint: text }), read, /* @version action.shelf.material.preview */ 1),
-  saveMaterial: defineProject<{ item_id: string; expected_fingerprint: string }, { reference: { artifact_id: string; version: number }; title: string }>("material.save", "存到项目资料",
+  previewMaterial: defineProject<{ item_id: string }, ShelfMaterialPreview>("material.preview", /* @version action.shelf.material.preview */ 1, "预览要存到项目资料的文字",
+    "预览将从 Shelf 存到当前项目资料的完整文字与指纹", "query", itemId, object({ payload: material, fingerprint: text }), read),
+  saveMaterial: defineProject<{ item_id: string; expected_fingerprint: string }, { reference: { artifact_id: string; version: number }; title: string }>("material.save", /* @version action.shelf.material.save */ 1, "存到项目资料",
     "按已预览的指纹把 Shelf 文字存进当前项目的资料（成果库里的一份导入文档，项目里的 Agent 都能找到）；内容变化时拒绝", "command",
     object({ item_id: id, expected_fingerprint: { type: "string", minLength: 1 } }),
-    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifacts:read", "artifacts:write", "actions:invoke"], /* @version action.shelf.material.save */ 1),
+    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifacts:read", "artifacts:write", "actions:invoke"]),
 };
 export const SHELF_PROJECT_ACTIONS: readonly ActionDefinition[] = Object.values(shelfProjectActions);
 export const SHELF_PROJECT_ACTION_PERMISSIONS = [...new Set(SHELF_PROJECT_ACTIONS.flatMap(definition => definition.action.permissions))];

@@ -15,7 +15,7 @@ const GOALS_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
     action: { capability_id: "goals.progress.record", version: /* @version action.goals.progress.record */ 1 }, granularities: ["range", "block"], roles: ["task", "list"], requires: ["goal"] },
 ];
 
-export const goalsFragmentOffersAction = defineFragmentOffersAction("goals.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以推进的目标", ["goals:read"], GOALS_FRAGMENT_CHOICES, undefined, /* @version action.goals.fragment.offers */ 1);
+export const goalsFragmentOffersAction = defineFragmentOffersAction("goals.fragment.offers", /* @version action.goals.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的内容可以推进的目标", ["goals:read"], GOALS_FRAGMENT_CHOICES);
 
 const MAX_STEPS = 6;
 // Whole characters, not UTF-16 units: an emoji is one, as the action schemas count it, and a cut inside one leaves half of it.

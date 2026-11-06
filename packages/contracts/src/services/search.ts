@@ -138,7 +138,7 @@ export function prepareSearchFragmentOffers(input: FragmentOffersInput): Fragmen
 
 /** Registered once by the Host as `system.search`; every entry reaches them through the shared directory. */
 export const searchActions = {
-  fragmentOffers: defineFragmentOffersAction("search.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的词可以查找的地方", [SEARCH_READ_PERMISSION], SEARCH_FRAGMENT_CHOICES, "home", /* @version action.search.fragment.offers */ 1),
+  fragmentOffers: defineFragmentOffersAction("search.fragment.offers", /* @version action.search.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的词可以查找的地方", [SEARCH_READ_PERMISSION], SEARCH_FRAGMENT_CHOICES, "home"),
   query: { capability_id: "search.query", version: /* @version action.search.query */ 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
     title: "搜索内容", description: "在当前项目与个人范围里搜索已接入插件的真实内容，返回对象引用、所属插件、摘要与打开位置；只返回调用者当前可读取的来源。",
     input_schema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" }, scope,

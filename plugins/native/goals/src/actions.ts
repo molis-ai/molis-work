@@ -40,13 +40,13 @@ export type GoalNoteActionInput = Omit<RecordGoalNoteInput, "project_id" | "acto
 const limit = { type: "integer", minimum: 1, maximum: 100 };
 
 export const goalsActions = {
-  subject: defineSubjectContextAction("goals.subject.read", "goal", "目标上下文", ["goals:read"], undefined, /* @version action.goals.subject.read */ 1),
+  subject: defineSubjectContextAction("goals.subject.read", /* @version action.goals.subject.read */ 1, "goal", "目标上下文", ["goals:read"]),
   /** System search: every current Goal with the same revision its context reader reports. */
-  searchEntries: defineSearchEntriesAction("goals.search.entries", [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"], undefined, undefined, /* @version action.goals.search.entries */ 1),
+  searchEntries: defineSearchEntriesAction("goals.search.entries", /* @version action.goals.search.entries */ 1, [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"]),
   /** What part of anything the person has in hand can do for Goals (specs/archive/contextual-interaction). */
   fragmentOffers: goalsFragmentOffersAction,
   /** 「被谁引用」 in the 成果库 (BL-646): the current Goals behind the link kinds Goals declares, by title; others are left out. */
-  linkSubjects: defineArtifactLinkSubjectsAction("goals.artifacts.link_subjects", "目标", ["goals:read"], /* @version action.goals.artifacts.link_subjects */ 1),
+  linkSubjects: defineArtifactLinkSubjectsAction("goals.artifacts.link_subjects", /* @version action.goals.artifacts.link_subjects */ 1, "目标", ["goals:read"]),
   ...goalsBoardActions,
   ...goalsEventActions,
   ...goalsAcknowledgeActions,
@@ -79,22 +79,22 @@ export const goalsActions = {
   list: goalPluginActions.list,
   state: goalPluginActions.state,
   directoryItem: goalEntryActions.directoryItem,
-  events: { ...action<GoalReadActionInput & GoalEventListQuery, GoalEventListPage>("goals.events.list", "读取目标事件", "按记录顺序读取事件原文；after_cursor 为上次事件分页游标", "query",
-    object({ goal_id: identifier, after_cursor: count, limit }, ["goal_id"]), goalEventPageSchema, undefined, /* @version action.goals.events.list */ 1), version: /* @version action.goals.events.list */ 1 },
-  latestEvents: { ...action<GoalReadActionInput & GoalEventHistoryQuery, GoalEventHistoryPage>("goals.events.latest", "读取最近目标事件", "从新到旧读取事件原文；before_cursor 为上次倒序分页游标", "query",
-    object({ goal_id: identifier, before_cursor: count, limit }, ["goal_id"]), goalEventPageSchema, undefined, /* @version action.goals.events.latest */ 1), version: /* @version action.goals.events.latest */ 1 },
-  timeline: action<GoalReadActionInput & GoalEventHistoryQuery, GoalEventTimelinePage>("goals.timeline.list", "读取目标事件时间线", "从新到旧读取当前事件的紧凑索引；使用事件数字游标，不含 Goals 日志里的建立、更新、确认和关系记录（完整历史见 goals.history.list）", "query",
-    object({ goal_id: identifier, before_cursor: count, limit }, ["goal_id"]), goalTimelineSchema, undefined, /* @version action.goals.timeline.list */ 1),
-  event: { ...action<GoalReadActionInput & { event_id: string }, GoalWorkEventRecord>("goals.events.read", "读取目标事件正文", "读取指定目标下的原始事件，包括完整报告字段、类型版本和审计作者", "query",
-    object({ goal_id: identifier, event_id: identifier }), goalEventSchema, undefined, /* @version action.goals.events.read */ 1), version: /* @version action.goals.events.read */ 1 },
-  history: action<GoalReadActionInput & GoalDocumentHistoryQuery, GoalHistoryTimelinePage>("goals.history.list", "读取完整目标历史", "合并当前事件与 Goals 日志里的建立、更新、确认和关系记录；使用返回的字符串游标继续读取", "query",
-    object({ goal_id: identifier, before_cursor: text, limit }, ["goal_id"]), goalHistoryPageSchema, undefined, /* @version action.goals.history.list */ 1),
-  historyItem: action<GoalReadActionInput & { item_id: string }, GoalHistoryReadResult | null>("goals.history.read", "读取目标历史正文", "读取完整历史列表中的条目及可展示正文；标明来自事件还是 Goals 日志，不存在时返回 null", "query",
-    object({ goal_id: identifier, item_id: identifier }), nullable(object({ item: goalHistoryItemSchema, html: text })), undefined, /* @version action.goals.history.read */ 1),
+  events: { ...action<GoalReadActionInput & GoalEventListQuery, GoalEventListPage>("goals.events.list", /* @version action.goals.events.list */ 1, "读取目标事件", "按记录顺序读取事件原文；after_cursor 为上次事件分页游标", "query",
+    object({ goal_id: identifier, after_cursor: count, limit }, ["goal_id"]), goalEventPageSchema), version: /* @version action.goals.events.list */ 1 },
+  latestEvents: { ...action<GoalReadActionInput & GoalEventHistoryQuery, GoalEventHistoryPage>("goals.events.latest", /* @version action.goals.events.latest */ 1, "读取最近目标事件", "从新到旧读取事件原文；before_cursor 为上次倒序分页游标", "query",
+    object({ goal_id: identifier, before_cursor: count, limit }, ["goal_id"]), goalEventPageSchema), version: /* @version action.goals.events.latest */ 1 },
+  timeline: action<GoalReadActionInput & GoalEventHistoryQuery, GoalEventTimelinePage>("goals.timeline.list", /* @version action.goals.timeline.list */ 1, "读取目标事件时间线", "从新到旧读取当前事件的紧凑索引；使用事件数字游标，不含 Goals 日志里的建立、更新、确认和关系记录（完整历史见 goals.history.list）", "query",
+    object({ goal_id: identifier, before_cursor: count, limit }, ["goal_id"]), goalTimelineSchema),
+  event: { ...action<GoalReadActionInput & { event_id: string }, GoalWorkEventRecord>("goals.events.read", /* @version action.goals.events.read */ 1, "读取目标事件正文", "读取指定目标下的原始事件，包括完整报告字段、类型版本和审计作者", "query",
+    object({ goal_id: identifier, event_id: identifier }), goalEventSchema), version: /* @version action.goals.events.read */ 1 },
+  history: action<GoalReadActionInput & GoalDocumentHistoryQuery, GoalHistoryTimelinePage>("goals.history.list", /* @version action.goals.history.list */ 1, "读取完整目标历史", "合并当前事件与 Goals 日志里的建立、更新、确认和关系记录；使用返回的字符串游标继续读取", "query",
+    object({ goal_id: identifier, before_cursor: text, limit }, ["goal_id"]), goalHistoryPageSchema),
+  historyItem: action<GoalReadActionInput & { item_id: string }, GoalHistoryReadResult | null>("goals.history.read", /* @version action.goals.history.read */ 1, "读取目标历史正文", "读取完整历史列表中的条目及可展示正文；标明来自事件还是 Goals 日志，不存在时返回 null", "query",
+    object({ goal_id: identifier, item_id: identifier }), nullable(object({ item: goalHistoryItemSchema, html: text }))),
   create: goalEntryActions.create,
-  note: action<GoalNoteActionInput, GoalEventMutationResult>("goals.note", "记录目标便笺", "将正文记到指定目标的历史；便笺不会推进状态或代替用户决定。重试须保留相同 idempotency_key", "command",
+  note: action<GoalNoteActionInput, GoalEventMutationResult>("goals.note", /* @version action.goals.note */ 1, "记录目标便笺", "将正文记到指定目标的历史；便笺不会推进状态或代替用户决定。重试须保留相同 idempotency_key", "command",
     object({ goal_id: identifier, body: identifier, idempotency_key: identifier }),
-    object({ event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } }), true, /* @version action.goals.note */ 1),
+    object({ event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } }), true),
 } as const;
 
 export const GOALS_ACTIONS: readonly ActionDefinition[] = Object.values(goalsActions);

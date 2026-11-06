@@ -77,16 +77,16 @@ const metadata = (kinds: readonly FileSourceKind[], title: string, permissions: 
 });
 
 /** One declaration per source: which kinds of files it lists and where each opens. Discovery confers no authority. */
-export function defineFileEntriesAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
-  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES, version = /* @version factory.packages.contracts.defineFileEntriesAction */ 1): ActionDefinition<FileEntriesInput, FileEntriesPage> {
+export function defineFileEntriesAction(capabilityId: string, version: number, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
+  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES): ActionDefinition<FileEntriesInput, FileEntriesPage> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "entries"),
     description: `分页列出${title}里的文件，供侧栏的文件标签展示；不修改数据。`,
     input_type: FILE_ENTRIES_INPUT_TYPE, output_type: FILE_ENTRIES_OUTPUT_TYPE, input_schema: FILE_ENTRIES_INPUT_SCHEMA, output_schema: FILE_ENTRIES_OUTPUT_SCHEMA } };
 }
 
 /** Optional: the file itself for a preview, text or bytes, at most `FILE_CONTENT_MAX_BYTES`. */
-export function defineFileContentAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
-  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES, version = /* @version factory.packages.contracts.defineFileContentAction */ 1): ActionDefinition<FileContentInput, FileContent> {
+export function defineFileContentAction(capabilityId: string, version: number, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
+  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES): ActionDefinition<FileContentInput, FileContent> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "content"),
     description: `读取${title}里一个文件的内容，供侧栏预览；不修改数据。`,
     input_type: FILE_CONTENT_INPUT_TYPE, output_type: FILE_CONTENT_OUTPUT_TYPE, input_schema: FILE_CONTENT_INPUT_SCHEMA, output_schema: FILE_CONTENT_OUTPUT_SCHEMA } };
@@ -144,7 +144,7 @@ export const ARTIFACT_PREVIEW_INPUT_TYPE = /* @version type.molis.artifacts.prev
 export const ARTIFACT_PREVIEW_OUTPUT_TYPE = /* @version type.molis.artifacts.preview "molis.artifacts.preview.v{version}" */ "molis.artifacts.preview.v1";
 export interface ArtifactPreviewInput { artifact: ArtifactVersionRecord }
 
-export function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[], version = /* @version factory.packages.contracts.defineArtifactPreviewAction */ 1): ActionDefinition<ArtifactPreviewInput, FileContent> {
+export function defineArtifactPreviewAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent> {
   return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `预览${typeTitle}`, description: `把一版${typeTitle}转成可读的文件，供成果库与侧栏预览、工作流从这一版起步；不修改数据。`,
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "workflow"], plugin: false,

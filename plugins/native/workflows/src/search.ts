@@ -5,8 +5,8 @@ import { workflowsErrors } from "./error.js";
 
 /** Workflows' part in the system search: a flow's title, its steps and the rules written on each handoff. Runs are not indexed. */
 export const workflowsSearchActions = {
-  entries: defineSearchEntriesAction("workflows.search.entries", [{ kind: "workflow", title: "工作流程", surface: WORKFLOWS_PROJECT_PLUGIN_ID }], "工作流程", ["workflows:read"], undefined, undefined, /* @version action.workflows.search.entries */ 1),
-  subject: defineSubjectContextAction("workflows.subject.read", "workflow", "工作流程", ["workflows:read"], undefined, /* @version action.workflows.subject.read */ 1),
+  entries: defineSearchEntriesAction("workflows.search.entries", /* @version action.workflows.search.entries */ 1, [{ kind: "workflow", title: "工作流程", surface: WORKFLOWS_PROJECT_PLUGIN_ID }], "工作流程", ["workflows:read"]),
+  subject: defineSubjectContextAction("workflows.subject.read", /* @version action.workflows.subject.read */ 1, "workflow", "工作流程", ["workflows:read"]),
 };
 
 function workflowSearchContent(workflow: Workflow): string {

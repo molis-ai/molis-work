@@ -21,18 +21,18 @@ export interface GoalsPlanningActionPorts {
 }
 export const goalsPlanningActions = {
   planningCatalog: goalAction<Record<string, never>, { methods: Omit<PlanningMethodPack, "instructions">[]; composition: GoalPlanningComposition["composition"] }>(
-    "goals.planning.catalog", "列出项目规划方法", "只读列出当前项目可用的规划方法（不含正文）与已启用的项目组合；需要正文时按 method_ids 读取", "query",
-    object({}), object({ methods: array(planningMethodSummarySchema), composition: planningCompositionSchema }), undefined, /* @version action.goals.planning.catalog */ 1),
-  planningRead: goalAction<{ method_ids?: string[] }, GoalPlanningComposition>("goals.planning.read", "读取项目规划方法", "读取当前项目可用的完整规划方法及已启用的项目组合；项目覆盖个人，个人覆盖内置方法", "query",
-    object({ method_ids: array(identifier) }, []), object({ methods: array(planningMethodSchema), composition: planningCompositionSchema }), undefined, /* @version action.goals.planning.read */ 1),
-  planningSave: goalAction<SaveInput, Saved>("goals.planning.save", "保存项目规划方法", "用户明确确认后保存项目方法或覆盖；影响后续规划，保留完整正文、事件类型和默认要求。重复保存会生成新版本", "command",
-    object({ method: planningMethodInputSchema, user_confirmed: boolean }), planningSavedSchema, undefined, /* @version action.goals.planning.save */ 1),
-  planningApply: goalAction<ApplyInput, Saved>("goals.planning.apply", "采用已有规划方法", "用户确认后将指定内置或个人方法完整复制到当前项目并启用；包括事件类型和默认要求，Goal 仍须显式采用其要求", "command",
-    object({ method_id: identifier, user_confirmed: boolean }), planningSavedSchema, undefined, /* @version action.goals.planning.apply */ 1),
-  planningImpact: { ...goalAction<{ changed_goal_ids: string[] }, ReturnType<GoalsPlanningApi["analyzeChange"]>>("goals.planning.impact", "分析目标变更影响", "只读计算受影响的上层目标、下游消费者、相邻依赖、可复用工作和审查顺序；不会修改目标树", "query",
-    object({ changed_goal_ids: array(identifier) }), planningImpactSchema, undefined, /* @version action.goals.planning.impact */ 1), version: /* @version action.goals.planning.impact */ 1 },
-  planningGraph: { ...goalAction<Record<string, never>, ReturnType<GoalsPlanningApi["validateBoardGraph"]>>("goals.planning.graph.check", "检查目标关系图", "只读检查缺失引用、重复关系、父子循环、依赖循环和组合执行循环", "query",
-    object({}), object({ issues: array(planningGraphIssueSchema), observed_event_cursor: count }), undefined, /* @version action.goals.planning.graph.check */ 1), version: /* @version action.goals.planning.graph.check */ 1 },
+    "goals.planning.catalog", /* @version action.goals.planning.catalog */ 1, "列出项目规划方法", "只读列出当前项目可用的规划方法（不含正文）与已启用的项目组合；需要正文时按 method_ids 读取", "query",
+    object({}), object({ methods: array(planningMethodSummarySchema), composition: planningCompositionSchema })),
+  planningRead: goalAction<{ method_ids?: string[] }, GoalPlanningComposition>("goals.planning.read", /* @version action.goals.planning.read */ 1, "读取项目规划方法", "读取当前项目可用的完整规划方法及已启用的项目组合；项目覆盖个人，个人覆盖内置方法", "query",
+    object({ method_ids: array(identifier) }, []), object({ methods: array(planningMethodSchema), composition: planningCompositionSchema })),
+  planningSave: goalAction<SaveInput, Saved>("goals.planning.save", /* @version action.goals.planning.save */ 1, "保存项目规划方法", "用户明确确认后保存项目方法或覆盖；影响后续规划，保留完整正文、事件类型和默认要求。重复保存会生成新版本", "command",
+    object({ method: planningMethodInputSchema, user_confirmed: boolean }), planningSavedSchema),
+  planningApply: goalAction<ApplyInput, Saved>("goals.planning.apply", /* @version action.goals.planning.apply */ 1, "采用已有规划方法", "用户确认后将指定内置或个人方法完整复制到当前项目并启用；包括事件类型和默认要求，Goal 仍须显式采用其要求", "command",
+    object({ method_id: identifier, user_confirmed: boolean }), planningSavedSchema),
+  planningImpact: { ...goalAction<{ changed_goal_ids: string[] }, ReturnType<GoalsPlanningApi["analyzeChange"]>>("goals.planning.impact", /* @version action.goals.planning.impact */ 1, "分析目标变更影响", "只读计算受影响的上层目标、下游消费者、相邻依赖、可复用工作和审查顺序；不会修改目标树", "query",
+    object({ changed_goal_ids: array(identifier) }), planningImpactSchema), version: /* @version action.goals.planning.impact */ 1 },
+  planningGraph: { ...goalAction<Record<string, never>, ReturnType<GoalsPlanningApi["validateBoardGraph"]>>("goals.planning.graph.check", /* @version action.goals.planning.graph.check */ 1, "检查目标关系图", "只读检查缺失引用、重复关系、父子循环、依赖循环和组合执行循环", "query",
+    object({}), object({ issues: array(planningGraphIssueSchema), observed_event_cursor: count })), version: /* @version action.goals.planning.graph.check */ 1 },
 } as const;
 
 export function createGoalsPlanningActionHandlers(ports: GoalsPlanningActionPorts, projectId: string): ActionHandlerBinding[] {

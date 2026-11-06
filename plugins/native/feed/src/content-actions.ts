@@ -8,14 +8,14 @@ import type { FeedHydrate } from "./item-hydration.js";
 export const feedContentActions = defineWorkflowContentActions({ id: "feed", title: "Feed", icon: "rss", subject_kind: "feed_item",
   read_permissions: ["feed:read"], write_permissions: ["feed:write"], receive_scheduling: "concurrent" });
 
-export const feedSubjectAction = defineSubjectContextAction("feed.subject.read", "feed_item", "Feed 材料", ["feed:read"], undefined, /* @version action.feed.subject.read */ 1);
-export const feedSourceSubjectAction = defineSubjectContextAction("feed.source.subject.read", "source", "来源状态", ["feed:read"], undefined, /* @version action.feed.source.subject.read */ 1);
+export const feedSubjectAction = defineSubjectContextAction("feed.subject.read", /* @version action.feed.subject.read */ 1, "feed_item", "Feed 材料", ["feed:read"]);
+export const feedSourceSubjectAction = defineSubjectContextAction("feed.source.subject.read", /* @version action.feed.source.subject.read */ 1, "source", "来源状态", ["feed:read"]);
 /**
  * System search: materials by title, summary, source and tags, and sources by name. Retained bodies are encrypted at rest
  * and only this owner decrypts them on request, so they never enter the plain-text index.
  */
-export const feedSearchEntriesAction = defineSearchEntriesAction("feed.search.entries",
-  [{ kind: "feed_item", title: "Feed 材料", surface: "feed" }, { kind: "source", title: "来源", surface: "feed" }], "Feed 材料与来源", ["feed:read"], undefined, undefined, /* @version action.feed.search.entries */ 1);
+export const feedSearchEntriesAction = defineSearchEntriesAction("feed.search.entries", /* @version action.feed.search.entries */ 1,
+  [{ kind: "feed_item", title: "Feed 材料", surface: "feed" }, { kind: "source", title: "来源", surface: "feed" }], "Feed 材料与来源", ["feed:read"]);
 
 export function createFeedContentHandlers(feed: FeedApplication, board: string, hydrate: FeedHydrate, readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
   return [createFeedHomeEventsHandler(feed, board, hydrate, readSubject), feedArtifactPreviewHandler, ...bindWorkflowContentHandlers(feedContentActions, {

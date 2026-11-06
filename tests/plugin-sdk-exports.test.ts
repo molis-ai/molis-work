@@ -71,9 +71,9 @@ test("the SDK exports are working functions, among them the ones W2-03 added", (
   assert.equal("defineSearchQueryAction" in sdk, false, "decision 19 removed the on-demand search source");
 
   // What an author gets from the helpers is the same declaration the Host registers.
-  const reminders = sdk.defineDueRemindersAction("notes.reminders.window", ["note"], "到期提醒", ["notes:read"]);
+  const reminders = sdk.defineDueRemindersAction("notes.reminders.window", 1, ["note"], "到期提醒", ["notes:read"]);
   assert.deepEqual([reminders.operation, reminders.action.scope, reminders.action.audiences], ["query", "home", ["user"]]);
-  const effect = sdk.withActionEffect(sdk.defineArtifactCompareAction("notes.artifacts.compare", "笔记", ["notes:read"]), "irreversible", false);
+  const effect = sdk.withActionEffect(sdk.defineArtifactCompareAction("notes.artifacts.compare", 1, "笔记", ["notes:read"]), "irreversible", false);
   assert.deepEqual([effect.action.effect, effect.action.plugin], ["irreversible", false]);
 });
 

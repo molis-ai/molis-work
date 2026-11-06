@@ -2,7 +2,7 @@ import { bindArtifactPreview, defineArtifactPreviewAction } from "@molis-ai/moli
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "./identity.js";
 
 /** A captured message as Markdown (specs/artifact-positioning A4): its title, summary, source and link as captured. */
-export const feedArtifactPreview = defineArtifactPreviewAction("feed.artifacts.preview", "捕获的消息", ["feed:read"], /* @version action.feed.artifacts.preview */ 1);
+export const feedArtifactPreview = defineArtifactPreviewAction("feed.artifacts.preview", /* @version action.feed.artifacts.preview */ 1, "捕获的消息", ["feed:read"]);
 export const feedArtifactPreviewHandler = bindArtifactPreview(feedArtifactPreview, FEED_CAPTURE_ARTIFACT_TYPE_ID, artifact => {
   const payload = (artifact.payload ?? {}) as { title?: unknown; summary?: unknown; url?: unknown; source?: { source_label?: unknown } };
   const lines = [`# ${artifact.title}`];

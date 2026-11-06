@@ -6,9 +6,9 @@ import { createInboxHomeEventsHandler } from "./home-events.js";
 export const inboxContentActions = defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subject_kind: "inbox_entry",
   read_permissions: ["inbox:read", "feed:read"], write_permissions: ["inbox:write", "feed:write", "feed:read"], receive_scheduling: "concurrent" });
 
-export const inboxSubjectAction = defineSubjectContextAction("inbox.subject.read", "inbox_entry", "Inbox 事项", ["inbox:read"], undefined, /* @version action.inbox.subject.read */ 1);
+export const inboxSubjectAction = defineSubjectContextAction("inbox.subject.read", /* @version action.inbox.subject.read */ 1, "inbox_entry", "Inbox 事项", ["inbox:read"]);
 /** System search: open entries by title, reason and source. The related material's body stays with its owner (Feed keeps it encrypted). */
-export const inboxSearchEntriesAction = defineSearchEntriesAction("inbox.search.entries", [{ kind: "inbox_entry", title: "Inbox 事项", surface: "inbox" }], "Inbox 事项", ["inbox:read"], undefined, undefined, /* @version action.inbox.search.entries */ 1);
+export const inboxSearchEntriesAction = defineSearchEntriesAction("inbox.search.entries", /* @version action.inbox.search.entries */ 1, [{ kind: "inbox_entry", title: "Inbox 事项", surface: "inbox" }], "Inbox 事项", ["inbox:read"]);
 const REASON_TEXT: Readonly<Record<string, string>> = { manual: "手动加入", source_rule: "来源规则加入", goal_decision: "目标待决定", source_fault: "来源故障", artifact_out_failed: "成果发出失败" };
 
 type ContentEntry = Omit<AttentionEntryRecord, "project_id">;

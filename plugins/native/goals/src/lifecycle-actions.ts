@@ -15,13 +15,13 @@ export interface GoalsLifecycleActionPorts {
 const write = { goal_id: identifier, reason: identifier, idempotency_key: identifier };
 export const goalsLifecycleActions = {
   active: goalEntryActions.active,
-  archive: goalAction<ArchiveInput, ReturnType<GoalsLifecycleApi["setArchived"]>>("goals.archive.set", "设置目标归档状态", "已完成的目标可以归档，也可恢复归档；归档清除匹配的当前目标，保留原完成事实和全部历史", "command",
-    object({ ...write, archived: boolean }), goalArchiveResultSchema, undefined, /* @version action.goals.archive.set */ 1),
+  archive: goalAction<ArchiveInput, ReturnType<GoalsLifecycleApi["setArchived"]>>("goals.archive.set", /* @version action.goals.archive.set */ 1, "设置目标归档状态", "已完成的目标可以归档，也可恢复归档；归档清除匹配的当前目标，保留原完成事实和全部历史", "command",
+    object({ ...write, archived: boolean }), goalArchiveResultSchema),
   // Trashed Goals can be restored; it stays out of generated plugins because it needs the person's confirmation.
-  trash: withActionEffect(goalAction<TrashInput, ReturnType<GoalsLifecycleApi["setTrashed"]>>("goals.trash.set", "移入或恢复回收站", "仅在用户明确确认指定目标后执行。移入回收站会停用它的关系并清除当前目标标记，之后可恢复；恢复时只恢复两端可用的关系，保留未恢复关系和完整历史", "command",
-    object({ ...write, trashed: boolean, user_confirmed: boolean }), goalTrashResultSchema, undefined, /* @version action.goals.trash.set */ 1), "write", false),
-  trashed: goalAction<Record<string, never>, { goals: GoalRecord[]; observed_event_cursor: number }>("goals.trash.list", "读取回收站", "读取当前项目回收站中的完整目标与事件游标；不会修改状态或打开页面", "query",
-    object({}), object({ goals: array(goalRecordSchema), observed_event_cursor: count }), undefined, /* @version action.goals.trash.list */ 1),
+  trash: withActionEffect(goalAction<TrashInput, ReturnType<GoalsLifecycleApi["setTrashed"]>>("goals.trash.set", /* @version action.goals.trash.set */ 1, "移入或恢复回收站", "仅在用户明确确认指定目标后执行。移入回收站会停用它的关系并清除当前目标标记，之后可恢复；恢复时只恢复两端可用的关系，保留未恢复关系和完整历史", "command",
+    object({ ...write, trashed: boolean, user_confirmed: boolean }), goalTrashResultSchema), "write", false),
+  trashed: goalAction<Record<string, never>, { goals: GoalRecord[]; observed_event_cursor: number }>("goals.trash.list", /* @version action.goals.trash.list */ 1, "读取回收站", "读取当前项目回收站中的完整目标与事件游标；不会修改状态或打开页面", "query",
+    object({}), object({ goals: array(goalRecordSchema), observed_event_cursor: count })),
 } as const;
 
 export function createGoalsLifecycleActionHandlers(ports: GoalsLifecycleActionPorts, projectId: string): ActionHandlerBinding[] {

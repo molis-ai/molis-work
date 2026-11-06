@@ -19,7 +19,7 @@ const original: HomeEvent = { event_id: "feed:collision", subject: { kind: "unkn
 test("formal unknown plugins supply namespaced events and checked navigation through Home and MCP", async () => {
   const service = new ActionService();
   service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: caller.project_id! }, definitions: Object.values(homeEventActions), handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }) });
-  const query = defineHomeEventsAction("unknown.notes.events", ["unknown-note"], "笔记事项", ["notes:read"]);
+  const query = defineHomeEventsAction("unknown.notes.events", 1, ["unknown-note"], "笔记事项", ["notes:read"]);
   let events = [original]; let duringRead: (() => void) | undefined;
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.event-notes", version: "1.0.0", name: "Notes", kind: "app",
     publisher: { publisher_id: "example", signature: "events" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -134,7 +134,7 @@ test("Home says nothing about plugins turned off in the project, but still repor
   service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: caller.project_id! }, definitions: Object.values(homeEventActions),
     handlers: createHomeEventHandlers(service, { capability_id: "home.recommendations.missing", version: 1 }) });
   const source = (id: string, title: string, availability: { available: false; code: string; reason: string }) => {
-    const query = defineHomeEventsAction(id, ["unknown-note"], title, ["notes:read"]);
+    const query = defineHomeEventsAction(id, 1, ["unknown-note"], title, ["notes:read"]);
     service.registerProvider({ provider: { provider_id: id, title, kind: "plugin", plugin_id: id, project_id: caller.project_id! }, availability: () => availability,
       definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title, icon: "note" }, events: [original] }) }] });
   };
@@ -154,7 +154,7 @@ test("a recommendation read that fails never hides the events and leaves its cod
     handlers: createHomeEventHandlers(service, recommendations) });
   service.registerProvider({ provider: { provider_id: "test.recommender", title: "Recommender", kind: "system", project_id: caller.project_id! }, definitions: [recommendations],
     handlers: [{ ...recommendations, handle: () => { throw new ActionError("test.judgment_down", "判断服务没有回应：用户的笔记正文"); } }] });
-  const query = defineHomeEventsAction("test.notes.events", ["unknown-note"], "笔记事项", ["notes:read"]);
+  const query = defineHomeEventsAction("test.notes.events", 1, ["unknown-note"], "笔记事项", ["notes:read"]);
   service.registerProvider({ provider: { provider_id: "test.notes", title: "Notes", kind: "plugin", plugin_id: "test.notes", project_id: caller.project_id! },
     definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title: "我的笔记", icon: "note" }, events: [original] }) }] });
   const log: HostLogEntry[] = [], restore = captureHostLog(log);
@@ -175,7 +175,7 @@ test("RAC-2438 an unavailable source the project's plugin manifest lists is repo
     const service = new ActionService();
     service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: projectId }, definitions: Object.values(homeEventActions),
       handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }, lookup) });
-    const query = defineHomeEventsAction(`${projectId}.off.notes.events`, ["unknown-note"], "停用插件事项", ["notes:read"]);
+    const query = defineHomeEventsAction(`${projectId}.off.notes.events`, 1, ["unknown-note"], "停用插件事项", ["notes:read"]);
     service.registerProvider({ provider: { provider_id: `${projectId}.off.plugin`, title: "停用插件事项", kind: "plugin", plugin_id: "off.notes", project_id: projectId },
       availability: () => ({ available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" }),
       definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title: "停用插件事项", icon: "note" }, events: [original] }) }] });
@@ -215,7 +215,7 @@ test("RAC-2783/RAC-2784 real Host event reads use the project's actual plugin ca
       const reference = ref(project);
       await host.withProject(reference, async () => {});
       calls[project.project_id] = 0;
-      const query = defineHomeEventsAction(`fixture.t374.${project.project_id}.events`, ["unknown-note"], title, ["notes:read"]);
+      const query = defineHomeEventsAction(`fixture.t374.${project.project_id}.events`, 1, ["unknown-note"], title, ["notes:read"]);
       stops.push(host.actionRegistry(reference).registerProvider({
         provider: { provider_id: `t374.${project.project_id}`, title, kind: "plugin", plugin_id: "io.molis.work.feed", project_id: project.project_id },
         availability: () => ({ available: false, code: "actions.plugin_disabled", reason: "测试策略拒绝" }),

@@ -15,7 +15,7 @@ export const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
 export const CHARACTER_PUBLISHER_SIGNATURE = "official-characters-binding";
 
 /** How a published Character reads in the 成果库; Characters answers it, the 成果库 and the Host's producer table name it. */
-export const characterArtifactPreviewAction = defineArtifactPreviewAction("characters.artifacts.preview", "角色", ["artifact:read"], /* @version action.characters.artifacts.preview */ 1);
+export const characterArtifactPreviewAction = defineArtifactPreviewAction("characters.artifacts.preview", /* @version action.characters.artifacts.preview */ 1, "角色", ["artifact:read"]);
 
 /**
  * What Characters writes to the 成果库, declared the way a Manifest's `artifacts.produces` would be: Characters is part of the

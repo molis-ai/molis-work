@@ -19,7 +19,7 @@ export const ARTIFACT_PIN_OUTPUT_SCHEMA = { type: "object", properties: {
   artifact: { type: "object", properties: { artifact_id: id, version: { type: "integer", minimum: 1 } }, required: ["artifact_id", "version"], additionalProperties: false },
   recovered: { type: "boolean" } }, required: ["artifact", "recovered"], additionalProperties: false };
 
-export function defineArtifactPinAction(capabilityId: string, subjectKind: string, typeTitle: string, permissions: readonly string[], version = /* @version factory.packages.contracts.defineArtifactPinAction */ 1): ActionDefinition<ArtifactPinInput, ArtifactPinResult> {
+export function defineArtifactPinAction(capabilityId: string, version: number, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult> {
   return { capability_id: capabilityId, version: version, operation: "command", action: {
     title: `固定${typeTitle}的当前版本`, description: `把这份${typeTitle}的当前内容存为成果库里的新一版并返回它；原对象之后仍可修改，已固定的版本不变。`,
     kind: "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [subjectKind],
@@ -87,7 +87,7 @@ export type ArtifactCompareState = "same" | "changed" | "moved" | "missing";
 export interface ArtifactCompareInput { artifact: ArtifactVersionRecord }
 export interface ArtifactCompareResult { state: ArtifactCompareState }
 
-export function defineArtifactCompareAction(capabilityId: string, typeTitle: string, permissions: readonly string[], version = /* @version factory.packages.contracts.defineArtifactCompareAction */ 1): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult> {
+export function defineArtifactCompareAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult> {
   return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `比较${typeTitle}与原对象`, description: `判断固定下来的这一版${typeTitle}与原对象现在的内容是否相同；不修改数据。`,
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], plugin: false, permissions: [...permissions], subject_kinds: [],
@@ -148,7 +148,7 @@ export const ARTIFACT_CONTINUE_OUTPUT_TYPE = /* @version type.molis.artifacts.co
 export interface ArtifactContinueInput { artifact: ArtifactVersionRecord }
 export interface ArtifactContinueResult { open: { surface: string; id: string; title: string } }
 
-export function defineArtifactContinueAction(capabilityId: string, objectTitle: string, permissions: readonly string[], version = /* @version factory.packages.contracts.defineArtifactContinueAction */ 1): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult> {
+export function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult> {
   const id = { type: "string", minLength: 1 };
   return { capability_id: capabilityId, version: version, operation: "command", action: {
     title: `从这一版新建${objectTitle}`, description: `用成果库里的一版新建一份${objectTitle}继续编辑；这一版本身不变。`,
@@ -183,7 +183,7 @@ export interface ArtifactReferrersInput { reference: ArtifactReference }
 export interface ArtifactReferrer { subject: { kind: string; id: string }; title: string; open: { surface: string; id: string } }
 export interface ArtifactReferrersResult { referrers: ArtifactReferrer[] }
 
-export function defineArtifactReferrersAction(capabilityId: string, objectTitle: string, permissions: readonly string[], version = /* @version factory.packages.contracts.defineArtifactReferrersAction */ 1): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult> {
+export function defineArtifactReferrersAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult> {
   const id = { type: "string", minLength: 1 };
   const pair = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
   return { capability_id: capabilityId, version: version, operation: "query", action: {
@@ -214,7 +214,7 @@ export interface ArtifactLinkSubjectsInput { ids: string[] }
 export interface ArtifactLinkSubject { id: string; title: string; open: { surface: string; id: string } }
 export interface ArtifactLinkSubjectsResult { objects: ArtifactLinkSubject[] }
 
-export function defineArtifactLinkSubjectsAction(capabilityId: string, objectTitle: string, permissions: readonly string[], version = /* @version factory.packages.contracts.defineArtifactLinkSubjectsAction */ 1): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult> {
+export function defineArtifactLinkSubjectsAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult> {
   const id = { type: "string", minLength: 1 };
   return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `链接到成果的${objectTitle}`, description: `按 id 读出链接到成果库版本的${objectTitle}的名字和打开位置；读不到的不返回，不修改数据。`,

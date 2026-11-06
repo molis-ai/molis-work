@@ -110,13 +110,13 @@ python3 -m http.server 4419 --bind 127.0.0.1 --directory docs/design/service-con
 
 | 新增 | 用在 | 为什么组件板现有的不够 | 标本 |
 | --- | --- | --- | --- |
-| 就地展开的服务行 | ① 方案 A | 现在点服务会把整个列表换成详情；A 要留在列表里，在这一行下面展开连接过程。行本身还是 `settings-connection-row`，新的只是行尾的展开按钮和行下面缩进对齐的展开区。 | 组件板「服务连接」（`/__ui/catalog#service-connections`）第一块：未连接、连接中、取消登录、限流、密钥被拒、已连接六行，每行都能开合。部件 `renderConnectionItem`（`settings-connection-item`），在 `apps/workbench/src/service-connection-parts.ts` |
-| 步骤进度说明 | 三块的连接过程 | 组件板的 `mw-steps` 只有点；连接要说出「第几步、共几步、在做什么」，点后面跟一行字，读屏也能听到。 | 同一节第二块：六种状态一行一个，外加能点着走的「试一下」。部件 `renderConnectionProgress`（`connection-progress`），同一文件 |
+| 就地展开的服务行 | ① 方案 A | 现在点服务会把整个列表换成详情；A 要留在列表里，在这一行下面展开连接过程。行本身还是 `settings-connection-row`，新的只是行尾的展开按钮和行下面缩进对齐的展开区。 | 组件板「服务连接」（`/__ui/catalog#service-connections`）第一块：需重新授权、换账号（在已连上的账号里切或再加一个，旧账号留着，按 spec §13.2）、未连接、已连接、连接中、取消登录、还不能一键连接（Gmail，写明缘由和现在能走的路）、限流、密钥被拒九行，每行都能开合。部件 `renderConnectionItem`（`settings-connection-item`），在 `apps/workbench/src/service-connection-parts.ts` |
+| 步骤进度说明 | 三块的连接过程 | 组件板的 `mw-steps` 只有点；连接要说出「第几步、共几步、在做什么」，点后面跟一行字，读屏也能听到。 | 同一节第二块：六种状态一行一个（静态，不当读屏播报区），外加能点着走的「试一下」。部件 `renderConnectionProgress`（`connection-progress`），同一文件 |
 | 连接页的列表＋详情分栏 | ① 方案 B、③ 方案 B | 组件板有「列表＋详情」组合，但没有放进设置页正文的版式；这里定了 240px 列表、窄屏一次只显示一边。 | 不做：方案 B 没选 |
-| 原处的连接卡 | ③ 方案 A、B | 插件或助理里缺连接时出的那张卡：`mw-card` 加服务标记和一句缘由，正文就是连接过程；连好后收成一行状态。卡本身是组件板的，新的是这种用法和收起后的样子。 | 同一节第三块：还没开始、登录失效、在卡里连、密钥被拒、取消登录、连好后的一行，外加从卡收成一行的「试一下」。部件 `renderConnectionCard`（`connection-need`、`connection-card`），同一文件 |
+| 原处的连接卡 | ③ 方案 A、B | 插件或助理里缺连接时出的那张卡：`mw-card` 加服务标记和一句缘由，正文就是连接过程；连好后收成一行状态。卡本身是组件板的，新的是这种用法和收起后的样子。 | 同一节第三块：还没开始、登录失效、选账号（这件事用哪个账号、这个项目以后都用它）、在卡里连、密钥被拒、取消登录、连好后的一行，外加从卡展开连接、再收成一行的「试一下」。部件 `renderConnectionCard`（`connection-need`、`connection-card`），同一文件 |
 | 示意外框（不定样） | ③ | 「从哪里来」那一处只画到能看懂（一个标签、一张纸、几行内容、带草稿的输入），不在这次定样范围；真实样子以助理、Feed、Coding、Images 各自的界面为准。 | 不做：不定样 |
 
-三个部件的样式是 `SERVICE_CONNECTION_PART_STYLES`、开合行的程序是 `SERVICE_CONNECTION_PART_SCRIPT`，现在只有组件板页带它们；产品的连接页、插件与助理用到时把它们装进自己的样式表和页面程序，不另写一套。
+三个部件的样式是 `SERVICE_CONNECTION_PART_STYLES`；页面程序在 `apps/workbench/src/browser/service-connection-item.ts`：`mountConnectionItems`（行开合）、`updateConnectionProgress`（就地改进度，文字用服务端画进去的模板与步骤名）、`startConnectionCard`（卡里开始连，焦点到进度那一行）、`foldConnectionCard`（卡收成一行，焦点落到这一行）。现在只有组件板页带它们，组件板脚本只管计时；产品的连接页、插件与助理用到时把它们装进自己的样式表和页面程序，不另写一套。
 
 ## 样式从哪里来、怎样重新生成
 

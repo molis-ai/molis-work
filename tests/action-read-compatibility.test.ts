@@ -57,7 +57,12 @@ async function probe(t: test.TestContext, databasePath: string, projectId: strin
     const caller = { ...base, permissions: view.action.permissions };
     const client = view.action.scope === "home" ? host.homeActionClient() : host.actionClient(ref);
     try {
-      if (view.capability_id === "plugins.project_reach.list" && view.version === 1) {
+      if (["account.features.list", "account.login-methods.read", "account.tenants.list", "account.invitations.list", "account.ownership.list", "account.platform-tenants.list", "account.plans.list", "account.subscriptions.list", "account.platform-subscriptions.list", "account.platform-audit.list"].includes(view.capability_id) && view.version === 1) {
+        // WUA-16 WUA-26: a local historical-data fixture has no central account configuration. Require the exact refusal;
+        // authenticated reads and their output are exercised against real Auth by account-management.test.mjs.
+        await assert.rejects(client.invoke({ ...caller, project_id: null }, view, {}), { code: "account.invalid_configuration" });
+        continue;
+      } else if (view.capability_id === "plugins.project_reach.list" && view.version === 1) {
         // T145: even a read needs the project's actual settings door, not an invented user_action or a forbidden allowlist.
         await assert.rejects(client.invoke(caller, view, {}), { code: "actions.forbidden", message: "项目同意只接受本人在对应项目设置里的操作" });
         const response = await web.request(`/projects/${encodeURIComponent(projectId)}/api/settings/plugin-project-reach/list`, { method: "POST", body: {} });

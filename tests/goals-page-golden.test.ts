@@ -78,6 +78,10 @@ const pages: Record<string, Draw> = {
 // The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
 // each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.
 // Every other byte, JSON block and record stayed fixed; the candidate was not used to record these expectations.
+// WORK-03 / T01-ACCOUNT-ENTRY-01: 16 whole-page records derive from independently built main 9f00fd0dad.
+// Its 66 normalized draws first matched every original hash. Only the personal-account button's disabled attribute
+// and unavailable title were replaced by the enabled Sign in / 登录 entry. All other markup and JSON stayed fixed;
+// each candidate draw matched that derived expectation byte for byte, without candidate RECORD mode.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

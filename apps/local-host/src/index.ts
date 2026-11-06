@@ -1,3 +1,4 @@
+export { accountSessionForHost } from "./account-host.js";
 export { installMolisWorkHome } from "./installer/home.js";
 
 export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep } from "./installer/home-contract.js";

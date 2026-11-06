@@ -1,0 +1,12 @@
+{
+  "keywords": ["$schema", "$id", "$defs", "$ref", "type", "properties", "required", "additionalProperties", "propertyNames", "minProperties", "maxProperties", "items", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern", "format", "minimum", "maximum", "const", "enum", "oneOf", "anyOf", "allOf", "not", "description", "title", "default"],
+  "formats": ["date-time", "email", "http-url", "http-origin", "local-path"],
+  "patterns": [
+    "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+    "^[A-Za-z0-9._~-]+$",
+    "^\\+861[3-9][0-9]{9}$",
+    "^[A-Za-z0-9_-]{43}$",
+    "^data:image/png;base64,[A-Za-z0-9+/]+={0,2}$",
+    "^[0-9]{6}$"
+  ]
+}

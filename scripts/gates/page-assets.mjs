@@ -336,13 +336,14 @@ const headErrors = (measured, budget, base) => {
 // spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// T-01 reanchors the previously approved account additions on main a4bd94b12 after ASC-60 through ASC-63.
+// Its measured main growth (+3724 script, +2529 workbench CSS) is already in the base, so those admissions are spent.
+// Integrated script: 1129189 = main 1089571 + the unchanged account increment 39618 B. No new account allowance or resource.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827793, 830322],
-  "/assets/molis-work-workbench.css": [1204709, 1207238],
-  "/assets/molis-work-workbench.js": [1085847, 1089571],
+  "/assets/molis-work-arrival.css": [693131, 693814],
+  "/assets/molis-work-workbench.css": [1207238, 1207690],
+  "/assets/molis-work-workbench.js": [1089571, 1129189],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
-  "/assets/molis-work-plugins/images.js": [19896, 21103],
-  "/assets/molis-work-plugins/images.css": [7851, 7901],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

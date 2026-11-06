@@ -27,9 +27,8 @@ function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
 /** Personal entries under the project button: the future sign-in entry, then capabilities and settings. */
 export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
-  // TODO: Enable this entry when sign-in is implemented; a local Home has no account identity yet.
   return `<div class="navigator-personal" data-personal-menu>
-    <button class="personal-account" type="button" data-account-link disabled title="${L("登录功能暂未开放")}">
+    <button class="personal-account" type="button" data-account-link title="${L("登录")}">
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
       <span class="personal-account-copy"><strong>${L("未登录")}</strong><small>${L("登录")}</small></span>
     </button>

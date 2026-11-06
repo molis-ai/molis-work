@@ -5,7 +5,7 @@ import { connectorSetupAction, connectorSetupIntentAction, holdConnectorAuthoriz
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { openWork } from "./fixtures/assistant-send-journey.js";
+import { openWork, sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // A local fixture value is entered only in the protected form. No real provider, model or account is contacted.
@@ -41,7 +41,17 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   const request = { url, authorization_id: new URL(url, origin).searchParams.get("setup")! };
   assert.ok(request.authorization_id);
   await browser.reloadPage();
+  // T01-CONNECTOR-FOCUS-01: a retained link can exist before the reopened conversation is visible.
+  await waitFor(`document.querySelector(${JSON.stringify(selector + " a[href]")})`);
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/works/" + placed.work_id, requestStage: "Response" }]);
   await openWork(browser, placed.work_id);
+  const heldResponse = await barrier.next();
+  try {
+    assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), true, "the real pending read has not opened the conversation yet");
+  } finally {
+    await barrier.release(heldResponse); await barrier.close();
+  }
+  await waitFor(`(() => { const link = document.querySelector(${JSON.stringify(selector + " a[href]")}); return link?.getClientRects().length && !link.closest('[hidden], [inert]'); })()`);
   await waitFor(`document.querySelector(${JSON.stringify(selector + " a[href]")})`);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(selector + " a[href]")}).getAttribute('href')`), url, "reopened conversation keeps the same request");
   // ASC-23: the conversation's recovery entry is a keyboard-operable link.

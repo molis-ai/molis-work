@@ -13,7 +13,7 @@ export const ARRIVAL_STYLES = String.raw`
   body.arrival-page { margin: 0; caret-color: var(--ink); color: var(--ink); }
   body.arrival-page ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--ink); }
   .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
-  .arrival { height: 100dvh; display: grid; grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) var(--dock-h, 76px); background: var(--desk); color: var(--ink); }
+  .arrival { position: relative; height: 100dvh; display: grid; grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) var(--dock-h, 76px); background: var(--desk); color: var(--ink); }
   :where(.arrival) :is(h1, h2, p) { margin: 0; }
   :where(.arrival) :is(ol, ul) { margin: 0; padding: 0; list-style: none; }
   .arrival :focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, 1px); }
@@ -23,6 +23,11 @@ export const ARRIVAL_STYLES = String.raw`
   body[data-native-desktop="true"] .arrival-titlebar { padding-left: var(--desktop-window-safe-inline-start, 88px); }
   .arrival-stage { grid-row: 2; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
   .arrival .arrival-bar { grid-row: 3; }
+  /* Side surfaces use the stage's grid area, so a wrapping bar never covers their controls. */
+  body.arrival-page .arrival :is(.side-panel, .side-panel-divider) { position: absolute; grid-row: 2 / 3; top: 0; bottom: 0; }
+  @media (max-width: 760px) {
+    body.arrival-page .arrival .side-panel { top: auto; bottom: 8px; max-height: calc(100% - 8px); }
+  }
   .stage-split { height: 100%; display: grid; grid-template-columns: var(--side-w, 320px) minmax(0, 1fr); padding-right: var(--sheet-inset, 14px); }
   .stage-single { height: 100%; padding: 0 var(--sheet-inset, 14px); }
   .stage-single > .stage-sheet { height: 100%; }
@@ -63,7 +68,6 @@ export const ARRIVAL_STYLES = String.raw`
   @media (min-width: 601px) {
     html body.immersive-workbench.arrival-page .arrival-bar:not([data-bar="chooser"]) { grid-template-columns: auto minmax(0, 1fr) auto; }
   }
-  @media (max-width: 900px) { .arrival-bar .mw-steps { display: none; } }
   .arrival-bar .mw-btn--lg { min-height: 38px; padding-inline: 16px; border-radius: var(--r-control, 8px); }
   .arrival-bar .mw-btn--ghost.arrival-back { padding-inline: 12px 14px; color: var(--ink-soft); }
   .arrival-bar .mw-btn--ghost.arrival-back:hover:not(:disabled) { color: var(--ink); }
@@ -297,11 +301,10 @@ export const ARRIVAL_STYLES = String.raw`
     .chooser-dir { min-height: 104px; }
     .chooser-foot { display: none; }
   }
-  @media (max-width: 600px) {
-    /* A phone's bar is two rows (the assistant on one, the rest on the other), the workbench's own geometry. */
+  @media (max-width: 900px) {
+    /* Narrow windows, including landscape phones: keep the assistant above the actions instead of squeezing three columns. */
     html body.immersive-workbench.arrival-page .arrival { grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) auto; }
     html body.immersive-workbench.arrival-page .arrival > .arrival-bar { grid-row: 3; }
-    .arrival-titlebar { padding-left: 14px; }
     .mw-bar-context__text, .mw-btn__key { display: none; }
     /* The three blocks never share a cell: the status on its own row, the way back and the actions below it (the actions wrap rather than run under it). */
     html body.immersive-workbench.arrival-page .arrival-bar { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; gap: 4px 8px; padding-block: 8px max(8px, env(safe-area-inset-bottom)); }
@@ -314,6 +317,9 @@ export const ARRIVAL_STYLES = String.raw`
     .arrival-bar .arrival-back [data-slot="button-label"] { display: none; }
     .arrival-bar .arrival-back:not(:has(svg)) [data-slot="button-label"] { display: inline; }
     .mw-bar-status__text small { display: none; }
+  }
+  @media (max-width: 600px) {
+    .arrival-titlebar { padding-left: 14px; }
     .welcome-q, .onboard .welcome-scene { padding-inline: 28px; }
     .ob-model { grid-template-columns: 16px minmax(0, 1fr); } .ob-model > .mw-btn { grid-column: 2; justify-self: start; }
     .welcome-q h1 { font-size: 24px; }

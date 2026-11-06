@@ -498,6 +498,7 @@ export interface UiRequestFailure extends Error {
 }
 
 export interface UiRequestInit {
+    readonly control?: boolean;
     readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     readonly body?: unknown;
     readonly file?: Blob;

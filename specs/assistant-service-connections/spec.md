@@ -879,3 +879,139 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 - 连接槽的位置过不了 `plugin_slot.bind` 的核对时只拒这一个；模型提供方的地址和 B 的固定地址不合时只拒这一个。
 - 这个安装不能获准用 B 时，插件的 switch 不被调用、整份进 `refused`；就算插件自己改了记录，它用 B 发请求时仍被拒（S-95）。
 - 调用被取消或撤权后，还没换的不再换（`beforeEffect` 后才写），已换的如实报、不回滚。
+
+### 13.5 原处的连接卡：设计稿（第 13 批④c 第一步，2026-11-06，待统筹审，要用户定的几项待问）
+
+状态：只有设计与合同草案，没有产品代码，contracts 源码与快照都没动；合同按下面「五、要新增的合同」单独开小 PR，等本节的方案定下再开。
+
+用户 11-04 定的方案 A（§13.1）：从别处发现缺连接时，缺连接的地方出一张卡，在卡里连完，卡收成一行「已连上」，原来的事接着做。组件板标本已在 main（#1862：`apps/workbench/src/service-connection-parts.ts` 的 `renderConnectionCard`，`apps/workbench/src/browser/service-connection-item.ts` 的 `startConnectionCard`、`foldConnectionCard`）。统筹 11-06 定卡由平台画：插件经平台要连接，平台在这个插件的位置出卡；不进 SDK `/ui`，类名留在 `apps/workbench`。
+
+**一、现在已经有的，和缺的**
+
+| 已有 | 在哪里 | 和这张卡的关系 |
+| --- | --- | --- |
+| 插件 Manifest 的连接槽（`connections.slots`，按安装或按记录） | `packages/contracts/src/platform/plugin-connections.ts` | 卡要连的服务只从这里来：插件只说槽，服务、缘由取 Manifest |
+| 页面在原处选账号：`host.connectionSlot({ mode: "choose" })`，可信外壳画一个选账号对话框，以本人身份绑这条记录 | `packages/contracts/src/platform/ui.ts`（`UiConnectionSlotRequest`）；`apps/workbench/src/browser/plugin-frame/connection-slot.ts`；宿主 `/api/host/plugin-page-slot`（`apps/local-host/src/plugin-page-http.ts`） | 最近的先例：插件只给槽和记录键，安装、项目、本人从页面授权来，账号目录不进插件页。缺的是：没有账号时只写「请先在 Connectors 添加」，不能就地连；只认按记录的槽 |
+| 平台在插件页里「受信的空位」画东西：插件只留一个空元素并报告它的位置，外壳在 iframe 旁边、同一位置画内容，量出高度告诉插件撑开空位；插件看不到也点不到 | `UiPageReviews.show(element, …)`；`apps/workbench/src/browser/plugin-frame/review-slots.ts`（插件一侧）、`reviews.ts`（外壳一侧） | 卡就照这个画：插件页在不透明来源的沙箱 iframe 里（[UI 平台](../../docs/platform/UI-PLATFORM.md)），外壳进不去它的 DOM，只能贴着画 |
+| 平台画、插件放的交互部件（问题卡、操作卡） | `services.interaction`（`packages/contracts/src/platform/plugin-interaction.ts`，PG-062） | 不适用：那是宿主出 html、插件塞进自己页面，按钮在插件文档里；连接卡要填密钥、开登录窗口，必须在可信文档里 |
+| 接入准备与授权记录：`connectors.setup.prepare@1`、`connectors.authorization.read@1`、`connectors.authorization.cancel@1`；助理先登记 `molis.connector-setup@1` 的等待再给入口，授权完成后运行时回到同一件工作 | `apps/local-host/src/connector-setup.ts`、`connector-management-actions.ts`；助理提示在 `apps/local-host/src/assistant/assistant-agent.ts` | 卡里的「连接」「取消」就调这几个动作，以本人身份；助理那一处不需要新合同 |
+| 绑定动作：`connectors.plugin_slot.bind`、`connectors.plugin_slot.record.bind@1`（只对 `user`） | `apps/local-host/src/connector-plugin-slot-actions.ts` | 卡里选定账号后照原样调，声明核对（BL-350）、T-134 的钉都不另写 |
+| 连接可用与否的变化通知：`host.connection.changed@1` 加 `connectors.connection.availability@1` | `packages/contracts/src/platform/plugin-events.ts` | 插件的后台作业可以用它知道「连上了」；卡不靠它 |
+
+缺的只有一件：**插件页面说「这里要一个连接」、平台在那个位置画卡并把结果告诉插件**的入口。
+
+**二、方案**
+
+| 方案 | 做法 | 好处 | 代价 |
+| --- | --- | --- | --- |
+| **一（推荐）页面宿主方法加受信空位** | 插件页面调 `host.connectionNeed({ target, place, signal })`：`target` 只是 Manifest 里声明的槽（按记录的再带记录键）或图像生成的目标；`place` 是插件页里留出的空元素。外壳照 reviews 的做法在空位上画卡、量高度撑开空位；卡里的每一次写（准备授权、存密钥、绑定）都是本人在可信文档里点的，经已有动作、以本人身份做。连好后卡收成一行「已连上 · 账号」，Promise 答 `connected`；人取消答 `cancelled`；页面关了、换了视图以 `AbortError` 结束 | 真正在原处；密钥只在可信文档里输入，登录窗口由外壳打开（沙箱 iframe 开不了弹窗）；插件要卡这一步不写任何记录；不加动作、不加表；和 `connectionSlot`、reviews 同一套页面授权 | 要改 `UiPluginClientHost`（contracts 的 `platform/ui`，SDK 再导出几个类型名）；外壳与 iframe 之间要同步位置（reviews 已经这样跑着）；只对有页面的插件，后台作业缺连接仍走 #1870 的提醒 |
+| 二 服务端平台动作 | 插件在自己的动作里调 `connectors.need.request@1`（`audiences: ["plugin"]`）登记「缺连接」，工作台在这个插件所在的面上方出一条卡；插件经 `host.connection.changed@1` 得知连上 | 后台作业、Agent 运行中途也能要；不改页面宿主 | 平台不知道插件页里「原处」在哪，卡只能放在面的顶上，不是方案 A；插件一调就写一条「缺连接」记录，要新表、要撤权与卸载时清理、要防插件刷卡；新动作要进动作快照与安全表 |
+| 三 插件自己画卡 | SDK `/ui` 导出 `renderConnectionCard`，插件画在自己页面里，按钮再调平台 | 插件排版最自由 | 统筹 11-06 已否：密钥会输进插件的文档、插件读得到；沙箱 iframe 开不了登录窗口；类名进 SDK 就是改共享核心；每个插件各接一遍状态 |
+
+推荐方案一。方案二的长处（后台也能要）由 #1870 的「等你处理」提醒接住，不另开一条。方案一里还有一个细节选择：给已有的 `connectionSlot` 加第三种 `mode: "connect"`，还是另起 `connectionNeed`。推荐另起：目标多了图像生成一种，答复也不同（取消要和「没选」分开），硬塞进 `connectionSlot` 会让两种调用共用一个含糊的 `null`。`connectionSlot` 照旧管「看、换这条记录的账号」，它的对话框在没有账号时改成同一张卡（同一个外壳模块），不另写一份。
+
+**和统筹口径的差别（请统筹确认）**：派单写「插件经平台动作要连接」。方案一里插件用的是页面宿主方法，不是动作目录里的动作：卡是界面，动作没有「位置」可言；Agent、MCP 要连接已有 `connectors.setup.prepare@1` 加等待。卡里真正改东西的仍全是已注册的动作（准备授权、取消、绑定），以本人身份调，所以「能力注册一次」不受影响。
+
+**三、方案一的细节**
+
+1. **插件怎样要**
+   - 入口：`host.connectionNeed(request)`，只在插件页面里有（`UiPluginClientHost`）。生成插件的页面由平台按 UI 目录画，同一张卡要作为 UI 目录的一种部件给它们（插件同等待遇），随实现 PR 或紧接一片，统筹定（六第 6 项）。
+   - `target` 两种：`{ kind: "slot", slot_id, record_key? }`，即 Manifest `connections.slots` 里的槽，按记录的必须带记录键、按安装的不许带（与 S-71 一致）；`{ kind: "image", slot_id, base_url }`，即 `services.imageGeneration` 的目标（PG-102），只给声明了 `image_generation` 的插件。插件说不出别的服务，也不能自己写卡上的字：服务、缘由（槽的 `reason`）和插件名都由外壳从 Manifest 取。
+   - 可信身份：安装、项目、本人都从页面授权（`x-molis-context-page` 那一份）来，插件给不出；外壳每一步写之前都向宿主核这份页面授权仍是当前的（同 reviews 用的 `/api/host/plugin-page-check`）。
+   - 插件要卡这一步**不写任何记录**：卡只是画出来。授权记录要等人在卡里点「连接」才由 `connectors.setup.prepare@1` 以本人身份建，所以「被取消、撤权、停用的调用不写记录」天然成立。
+   - 限量：同一页面同一个目标只有一张卡（再要就复用，并把它滚进视野）；一个页面至多 4 张；页面不可见、视图换了、页面授权撤了就不出。
+   - 已经有可用的账号接在这个目标上：不出卡，直接答 `connected`。
+2. **平台怎样画**
+   - 卡画在外壳文档里、iframe 的旁边，位置贴着插件留的空位（`review-slots.ts` 的做法：插件一侧每帧报空位的位置，外壳裁到 iframe 可见范围里；外壳量卡的高度回告，插件一侧把空位撑到这个高度）。插件页里打开了对话框、空位滚出可见范围、页面隐藏时，卡跟着藏起来，不盖住插件的对话框。
+   - 窄屏：卡宽等于空位宽；空位窄于 360px 时按钮上下排，点按目标 44px；375 宽下不横向溢出。登录在新窗口（桌面壳交给系统浏览器），卡里留「等你在浏览器里登录」与「再打开一次登录页」。
+   - 焦点与读屏：卡出现不抢焦点（插件页可能正在打字），人按卡里的按钮才进入流程；开始连后焦点在进度那一行（`startConnectionCard`），收成一行后焦点落在这一行（`foldConnectionCard`）。卡是一个带名字的区域（「连接 GitHub · 来自 Feed」）；插件一侧的空位由平台在 iframe 里写一句读屏说明（「这里需要连接 GitHub，连接卡在页面上」），状态变化经外壳的礼貌播报区读出。Tab 从 iframe 出来先到卡（外壳把卡放在 iframe 后面的文档顺序里）。
+3. **卡里几种情况**（与 #1862 的标本一一对应）
+
+| 情况 | 卡里 | 插件拿到 |
+| --- | --- | --- |
+| 没有这个服务的账号 | 「连接 GitHub」：登录类不填字段；只要密钥的（图像服务）只问一把密钥，写清去哪里拿、加密存在这台电脑（#1881 的说法）。密钥只在外壳文档里输入 | 连好并接到这个目标后 `connected` |
+| 已有账号、没接到这里 | 选账号卡：列出已连上的账号（目录只在外壳里读），写明作用范围：按安装的槽「Feed 在所有项目都用它」，按记录的槽「只这一个来源用它」；可「再加一个账号」 | 选定并绑好后 `connected` |
+| 接着的账号登录失效 | 「用原账号重新登录」：经 `connectors.setup.prepare@1` 带原连接与修订号；回来的是另一个账号时，照 §13.2 给「把它加成另一个账号并用在这里」，只改这一个位置，不替人换别处 | 重新登录成功 `connected`；换成新账号也是 `connected` |
+| 接着的账号被人停用 | 写明「这个账号你停用了」，给「启用」（`connectors.connection.control@1`）或换一个；不自动启用 | 同上 |
+| 还不能一键连接（ASC-47） | 如实写原因和能走的路；只有这一种可以去连接页（④a），离开原处 | 人关掉卡时 `cancelled` |
+| 登录被拒、回调失败、密钥被拒 | 卡里写人话、可再试；密钥被拒写在字段下，「还没保存，填的还在」 | 一直等，不答 |
+| 服务限流 | 写明是服务那边、约多久后自动再查，可以不等；「存好了但还没验证，验证前不接到这里」 | 一直等；人选「先不等了」答 `cancelled`，存下的连接留着 |
+| 人点「取消」 | 进行中的授权经 `connectors.authorization.cancel@1` 取消；卡收成一行「没有连上，这里什么都没改」 | `cancelled`，插件的草稿与输入不动 |
+| 页面关了、视图换了、插件停用或卸载、页面授权撤了 | 卡收起；已发出的登录不算取消（§4.6.1），晚到的回调只留下连接，**不接到这个位置**；人之后的点击因页面授权失效被拒，不写绑定 | `AbortError` |
+
+4. **连完怎样告诉插件、谁接着做**：`connectionNeed` 的 Promise 答 `{ status: "connected", account: { label, state } }`，和 `describe` 一样只有显示名与状态，没有连接 id、凭据；图像目标另带 `connection_id`（这个插件经 `services.imageGeneration.connections()` 本来就看得到这些 id，Images 照原样自己 `bind`，地址钉照旧核）。接着做由插件自己：它拿到 `connected` 后照常发原来那一步，写之前照旧 `beforeEffect()` 按读取时的版本提交；平台不替插件重放任何一步。
+5. **不需要新的页面事件**：卡、空位、结果都走外壳与 iframe 之间已有的 MessagePort（不在 DOM 事件登记的范围里）。同一个文档里同一服务的几张卡由外壳同一个模块管，一张连上，其余改成选账号卡。登录在别的窗口或系统浏览器里完成，卡靠授权记录得知：只在页面可见时每 2 秒读一次 `connectors.authorization.read@1`，窗口回到前台时立刻读一次，到了终态就不再读（BroadcastChannel 到不了系统浏览器，所以不靠事件）。若 ④a 的连接页要在同一文档里随卡即时刷新，再登记一条宣告，草案：`{ name: "molis-work:connection-settled", kind: "announcement", owner: "settings-directory", on: "document", payload: { service_id: string; state: "connected" | "cancelled" } }`（只有服务与结果，没有连接 id、账号）；本片不加，等 ④a 真要用时与发它的代码同一个改动登记。
+
+**四、四个来处怎么接**
+
+| 来处 | 怎么接 | 现在能接吗 |
+| --- | --- | --- |
+| 助理（看今天的 GitHub 通知） | 助理是平台自己的界面，不经 iframe：对话里把 `connectors.setup.prepare@1` 的结果画成同一张卡（取代现在的「继续接入」链接），卡以授权号读状态；连完由已登记的 `molis.connector-setup@1` 等待回到同一件工作，只续一次（§4.7）；卡里取消即 `connectors.authorization.cancel@1`，等待按 `onFailure: "block"` 结束、不重做 | **能**，不要新合同，只要平台的卡部件 |
+| Feed（加 GitHub 通知来源） | 来源那一行留空位，调 `connectionNeed({ target: { kind: "slot", slot_id: "github", record_key: <来源号> }, place })`；连好绑到这条来源（`connectors.plugin_slot.record.bind@1`），Feed 拿到 `connected` 后照常拉第一次。`connectionSlot` 的选账号对话框在没有账号时改成同一张卡 | **能**，等本节的合同小 PR 与外壳实现 |
+| Images（生成封面要图像模型的密钥） | 生成区留空位，调 `connectionNeed({ target: { kind: "image", slot_id, base_url }, place })`；卡里只问一把密钥；拿到 `connected` 与 `connection_id` 后 Images 自己 `bind`，再生成。#1881 留下的「在 Connectors 管理图像 API Key」旧说法在缺密钥这一处由卡取代 | **能**，同上；改 Images 的文件要等 #1881 合入 |
+| Coding（推送要多一项权限） | 要的是同一个 GitHub 账号多一项权限，不是新连接。现在接不了：GitHub 的接入方式只声明了 `notifications`、`read:user`（`plugins/official-integrations/github/src/index.ts`），平台没有「按差额再要一项权限」的接入（`connectors.setup.prepare@1` 不收权限范围），Coding 也没有声明 GitHub 的连接槽。要先有：接入方式按用途声明可选的权限组、重新授权时带上差额（仍只回原账号）、Coding 声明自己的 GitHub 槽；之后卡多一种「要多一项权限」 | **不能**，等合同与用户定（六第 4 项） |
+
+和第 12 批（⑤）的关系：卡在原处，人没离开，插件自己接着做，不需要「带人回去、还原草稿」。只有卡已不在的时候（页面关了、换了窗口、桌面壳把登录交给系统浏览器后人回来时已不在原处）才需要 12 的返回能力，它的形状假设见[原型说明](../../docs/design/service-connections/README.md)「和第 12 批的假设」：谁发起的、发起时的草稿、在等的那件工作。本设计给它留了口子：卡已不在时晚到的登录只留下连接、不接到位置；下次插件再要，卡直接是选账号卡并把刚连上的排在最前。12 定下后，「接到原位置并接着做」由 12 带这份意图完成，本片不预先存它（不加记录）。[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)现在的交付项没有写返回能力的形状，本设计不依赖它的任何字段。
+
+**五、要新增的合同**（单独一个小 PR，等方案定下再开；M1 之前，不留兼容期）
+
+| # | 改什么 | 在哪里 | 影响 |
+| --- | --- | --- | --- |
+| C1 | `UiPluginClientHost` 加 `connectionNeed(request: UiConnectionNeedRequest<Element>): Promise<UiConnectionNeedOutcome>`；新类型 `UiConnectionNeedRequest`（`target`、`place`、`signal?`）、`UiConnectionNeedTarget`（`slot` 与 `image` 两种）、`UiConnectionNeedOutcome`（`connected` 带 `account: { label, state }`，图像目标另带 `connection_id`；`cancelled`）；页面关闭以 `AbortError` 拒，和 `connectionSlot` 一样 | `packages/contracts/src/platform/ui.ts` | contracts 的 `platform/ui` API 快照变；SDK 在 `packages/plugin-sdk/src/index.ts` 再导出这几个类型名，SDK 快照也变（只是类型再导出，不加运行代码）。contracts 与 SDK 都算共享核心，合同 PR 按共享核心跑全量 |
+| C2 | 宿主的页面路由加一条（或扩 `/api/host/plugin-page-slot`）：外壳凭页面授权读目标的现状、以本人身份绑定；目标只认 Manifest 里的槽与 `image_generation`，按安装的槽走 `connectors.plugin_slot.bind`，按记录的走 `connectors.plugin_slot.record.bind@1` | `apps/local-host/src/plugin-page-http.ts`、`plugin-page-authority.ts` | 不是动作，不进动作快照；是安全边界，见 C3 |
+| C3 | [安全不变量](../../docs/system/SECURITY-INVARIANTS.md)新开一行（号由统筹给，避开在途 PR 已用的号），拒绝要有测试：插件要它没声明的槽、服务或别的安装的槽，或按记录的槽不带记录键、按安装的槽带了，一律不出卡；卡里的写只认本人在外壳里的点击，页面授权撤了、插件停用或卸载后被拒、不写绑定；插件页读不到卡里的账号目录与密钥字段，答复里只有显示名与状态（图像目标多一个它本来看得到的 id）；插件要卡这一步什么都不写 | `docs/system/SECURITY-INVARIANTS.md` | 随 C1 的合同 PR 登记，测试随实现 PR |
+| C4（可选） | 页面事件 `molis-work:connection-settled`（草案见三第 5 条） | `packages/contracts/src/platform/dom-events.ts` | 本片不加；④a 要用时再加，跑 `pnpm api:update` |
+
+不新增：动作（卡里的写全用已有的 `connectors.setup.prepare@1`、`connectors.authorization.read@1`、`connectors.authorization.cancel@1`、`connectors.plugin_slot.bind`、`connectors.plugin_slot.record.bind@1`、`connectors.connection.control@1`）、Manifest 字段、表、Error 子类。新的错误码（如目标没声明、页面已不是当前的）用 `defineErrorCodes` 声明，主人表里先加一条。Coding 那一种要的「按差额再要权限」是另一份合同（接入方式的权限组与重新授权带差额），等用户定了再写，不在这一个 PR 里。
+
+**六、要拍板的**
+
+| # | 事项 | 推荐 | 谁定 | 为什么要问 |
+| --- | --- | --- | --- | --- |
+| 1 | 连完以后，插件自动接着做刚才按下的那一件（如 Images 生成，要花钱），还是收成一行后给一个「接着生成」 | 自动接着做按下的那一件，只做一次；不可撤回的照插件原有的确认再问一次 | **用户** | 方案 A 说「原来的事接着做」，没说收费的、写外部的要不要再按一次；这是产品语义 |
+| 2 | 已有可用账号、只有一个时，也出选账号卡（一次点击），还是直接接上 | 出卡，写明作用范围，一次点击 | **用户** | 直接接上少一步，但「哪个插件用哪个账号只由人定」（S-57）会变成平台替人定；按安装的槽还会影响所有项目 |
+| 3 | 卡已不在时晚到的登录，要不要自动接到原位置 | 不自动接，只留下连接；下次卡里把它排在最前；等 12 的返回能力带意图再接 | **用户** | 自动接要把「接到哪里」存进授权记录（新记录、要清理），还可能接到人已经离开的事上 |
+| 4 | Coding 推送时向 GitHub 多要写仓库的权限（`public_repo` 或 `repo`），放不放进默认登录 | 不进默认登录，只在推送时按差额要；先只要 `public_repo`，私有仓库再要 `repo` | **用户**（还牵涉第 26 批的应用审核与账号） | 权限越大，第一次登录越吓人；放进默认又违背「只申请差额」（§3.2） |
+| 5 | 「经平台动作要连接」改为「经页面宿主方法要连接」（见二） | 改 | 统筹 | 架构口径，不改产品语义 |
+| 6 | 生成插件拿到同一张卡（UI 目录部件），跟着实现还是紧接一片 | 紧接一片，在 Feed、Images 接好之后 | 统筹 | 插件同等待遇；第一片先把外壳模块做稳 |
+
+**七、和在途的几处会不会撞**
+
+- **#1870（反复失败只提醒一次，ASC-58）**：不撞。提醒管后台调用的连续失败、经助理的「等你处理」带人去连接页；卡管有人在场时的缺连接。卡里重新登录成功会让连接换版本，#1870 照它的规则把这条连接未处理的提醒标成已解决；插件因没有绑定而没发出的请求属于「发出前就被拒」，本来就不计数；人在卡里取消不算失败。同一时刻页面上的卡和助理里的提醒指向同一件事，一处修好两处都收。
+- **#1881（模型设置与 Images 对话框，ASC-60～63）**：不撞语义，撞文件。卡用 #1881 已用的「填密钥 · 验证密钥 · 能用了」进度部件与密钥说法；Images 的接法要改 `plugins/native/images/src/ui.ts`、`browser/connections.ts`，排在 #1881 合入之后。模型提供方（Cognia、工作流程等「先去设置模型」）不在四个来处里，仍走模型设置与 `molis-work:model-ready`，本片不给模型出卡。
+- **④a（连接页按 A 改，等 #1865）**：同一套「连接过程」（开登录、读授权记录、存密钥、检查、限流再查）只能有一份：④a 把它从连接页抽成外壳的浏览器模块，卡直接用；先合 ④a，再做卡的外壳实现。连接页上「谁在用它」照旧经 `connectors.usages.read@1`，卡接好的位置自然出现在那里。
+- **#1865（MCP 重新登录，ASC-59）**：卡的「登录失效」只走 OAuth 与密钥两类的「回到原账号」；远程 MCP 的重新登录按 #1865 新建连接、再一步换过去，卡里遇到 MCP 失效时给去连接页的入口，不在卡里另做一份换用。
+- 编号：#1865 用 ASC-59，#1881 用 ASC-60～63，本节从 ASC-64 起；本节只在这里列草案，不改 §10 的表，免得和三个在途 PR 撞同一处。
+
+**八、开工前检查**（[需求开发流程第 4 节](../post-anticorruption-roadmap/reference/development-workflow.md)；档位：大需求里的一片；类型：产品线（服务连接）加横向能力）
+
+| # | 项 | 答 |
+| --- | --- | --- |
+| 1 | 事实主人 | 不加事实。连接、授权记录、绑定都归连接主人（宿主的 connector 部分）；卡只是它们的界面；插件的草稿与续做归插件 |
+| 2 | 插件同等待遇 | 入口在所有插件共用的页面宿主上，按 Manifest 声明给，不按插件名；生成插件经 UI 目录拿同一张卡（六第 6 项）；不加构建期接线 |
+| 3 | 能力注册 | 不加动作；卡里的写全是已注册的动作、以本人身份调；可信身份来自页面授权 |
+| 4 | 合同 | 改 `platform/ui` 一处（C1），SDK 再导出类型名；单独先开合同 PR；M1 之前不留兼容期 |
+| 5 | 放在哪个包 | 外壳模块在 `apps/workbench`（与 `connection-slot.ts`、`reviews.ts` 同处），宿主页面路由在 `apps/local-host`；不是新的平台服务，不开 `horizontal/` 包 |
+| 6 | 表与存储 | 不加表 |
+| 7 | 兼容与迁移 | 不涉及：新加的方法与类型，没有旧数据要读 |
+| 8 | 安全边界 | 碰页面授权、S-57、S-71，密钥只在可信文档里输入；按 C3 新开一行并写拒绝测试 |
+| 9 | 调用次数 | 要卡：一次页面授权核对加一次目标现状读取；已接好就不再多发。授权进行中只在页面可见时每 2 秒读一次授权记录，到终态即停；选账号卡一次读完这个服务的账号 |
+| 10 | 升级与数据 | 不改已有连接、绑定、授权记录 |
+| 11 | 成果与过程项 | 不涉及：卡不产出内容 |
+| 12 | 页面与外壳 | 卡挂在插件已有的位置里，不出整页、不开新标签（登录窗口是授权本身要的）；不加 DOM 事件（C4 留待 ④a）；页面资源随实现 PR 量，外壳模块复用 #1862 的部件与 ④a 抽出的连接过程 |
+| 13 | 错误 | 新码用 `defineErrorCodes`，不写 Error 子类 |
+| 14 | 冲突面 | 合同 PR 只动 `packages/contracts/src/platform/ui.ts`、SDK 再导出一行、两份 API 快照、安全表一行；实现排在 ④a、#1881 之后；`connection-slot.ts` 的空状态改成卡，要和 ④a 的写手对一下 |
+
+**九、验收编号草案**（接 ASC-64 起；方案定下后移进 §10 的表，用例在测试名或注释里写编号）
+
+| 编号 | 验收 | 怎么证明 |
+| --- | --- | --- |
+| ASC-64 | 插件页面经 `connectionNeed` 在自己留的空位上要连接，只能说 Manifest 声明过的槽（按记录的带记录键）或图像生成目标；外壳贴着空位画卡，服务、缘由、插件名取自 Manifest；目标已接好可用账号时不出卡、直接答已连上 | 外壳与页面的浏览器回归 |
+| ASC-65 | 卡里分四种起点：没有账号就地连（登录类不填字段，密钥类只问一把密钥、只在可信文档里输入）；有账号出选账号卡并写明作用范围、可再加一个；接着的账号失效就用原账号重新登录，回来是别的账号时只把这一处换过去；被停用的写明并可启用或换一个。还不能一键连接的如实写原因和能走的路 | 各状态的浏览器回归，对照 #1862 标本 |
+| ASC-66 | 连好后卡收成一行「已连上 · 账号」，焦点落在这一行、读屏读出；插件拿到「已连上」只有显示名与状态（图像目标另有它本来看得到的 id），接着做原来那一件只一次，草稿与输入还在 | 浏览器回归加插件一侧的断言 |
+| ASC-67 | 取消收成「没有连上，这里什么都没改」，插件拿到「取消」、草稿不动、进行中的授权被取消；登录被拒、回调失败、密钥被拒在卡里说人话、可再试，插件一直等；限流写明是服务那边与多久后再查，验证前不接到位置 | 状态与时序回归 |
+| ASC-68 | 拒绝：没声明的槽或服务、别的安装的槽、按记录的槽不带记录键或按安装的槽带了、页面不可见或页面授权已撤，都不出卡；插件停用、卸载、页面授权撤销后人再点也不写绑定；插件页读不到卡里的账号目录和密钥字段；插件要卡这一步不写任何记录；关页面不算取消，晚到的登录只留下连接、不接到位置 | 安全不变量新行的拒绝测试 |
+| ASC-69 | 助理对话里缺连接时出同一张卡，不再只给「继续接入」链接；连好后经已登记的等待回到同一件工作、只续一次，取消让等待结束、不重做 | 助理的浏览器回归 |
+| ASC-70 | Feed 加 GitHub 通知来源缺账号时，在来源那一行出卡，连好绑到这条来源并拉第一次；Images 生成时缺图像服务的密钥，在生成区出卡，填好后接到这个目标，按六第 1 项定下的规则接着生成 | 两个插件的浏览器回归 |
+| ASC-71 | 卡在 1440、1024、375 三种宽度、浅深两套、中英两种界面都不溢出；随空位滚动与裁切，插件页打开对话框或空位滚出时藏起，不盖住插件的内容；窄于 360px 时按钮上下排，点按目标 44px | 截图与版面检查 |
+| ASC-72（待） | Coding 推送缺权限时出「要多一项权限」的卡，只按差额向原账号要，回来不是原账号就不接上 | 等六第 4 项与差额授权合同 |

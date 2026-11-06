@@ -1,11 +1,8 @@
 // The schemas of the plugin-facing artifact client. The Artifacts plugin keeps its own copy of the shared ones (`reference`, `record` and what
 // they are built from) for its action definitions, and `tests/plugin-artifact-schemas.test.ts` holds the two equal until the plugin goes (ac-artifacts A6).
-import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { arraySchema as array, nullableSchema as nullable, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 
 export const text = { type: "string" }, id = { type: "string", minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
-export const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-export const array = (items: unknown) => ({ type: "array", items });
-export const nullable = (schema: unknown) => ({ anyOf: [schema, { type: "null" }] });
 export const reference = object({ artifact_id: id, version });
 export const consumerTypes = array(object({ artifact_type_id: id, schema_version: version }));
 // Payload and metadata retain the producer's JSON contract, including unknown Artifact types.

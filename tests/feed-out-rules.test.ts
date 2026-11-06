@@ -6,10 +6,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -365,8 +365,9 @@ test("out-rule CRUD rejects an empty match and can disable a rule", () => {
 });
 
 test("Attention records an Inbox entry for a failed 成果 output", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root (project_id) VALUES ('board');");
+  db.exec(ATTENTION_SCHEMA_SQL);
   const attention = new AttentionModule(db, { exists: () => true });
   const created = attention.commands.create({
     project_id: "board",

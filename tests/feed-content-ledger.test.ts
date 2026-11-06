@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createEvidenceContentStore, createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedHomePlugin, FEED_CONTENT_LEDGER_BATCH, FEED_FORGET_BATCH, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentLedgerActions, feedManifest,
   createConnectionWatch, keepFeedReconcile, releaseHeldHistory, type FeedApplication, type FeedContentLedgerStore, type FeedEvidenceCollector, type FeedHistoryReleasePorts,
@@ -15,7 +15,7 @@ import type { PluginBackgroundClient, PluginJobControl, PluginManifest, PluginSq
 
 const noEffect = async () => {};
 function libraryAt(file: string, timeout = 5_000) {
-  const db = new Database(file, { timeout });
+  const db = openTestSqlite(file, { timeout });
   const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
   const reader = { get: (sql: string, parameters?: readonly PluginSqlValue[]) => (db.prepare(sql).get(...bind(parameters)) as Record<string, PluginSqlValue> | undefined) ?? null,
     all: (sql: string, parameters?: readonly PluginSqlValue[]) => db.prepare(sql).all(...bind(parameters)) as Record<string, PluginSqlValue>[] };

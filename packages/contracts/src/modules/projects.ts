@@ -8,6 +8,7 @@ const projectErrors = defineErrorCodes("catalog", {
   plugin_not_found: "invalid",
   project_not_found: "not_found",
   project_storage_invalid: "invalid",
+  project_name_conflict: "conflict",
 });
 const workspaceErrors = defineErrorCodes("catalog.context", {
   user_confirmation_required: "invalid",
@@ -29,6 +30,8 @@ export const modulesProjectsContract = {
 
 /** One project, one database: `project_id` names both the catalog entry and the Goals board inside it. */
 export interface ProjectRecord {
+  /** Inherited from the owning Catalog, never accepted from project creation input. */
+  spaceId?: string;
   project_id: string;
   display_name: string;
   database_path: string;
@@ -198,6 +201,7 @@ export interface ProjectDeletionResult {
 }
 
 export interface ProjectsQueryApi {
+  wasProjectPluginRemoved(projectId:string,pluginId:ProjectPluginId):boolean;
   /** Stored display facts only, without derived membership or any assertion of plugin availability. Never use for authorization. */
   storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
   /** Current derived membership and hidden marks, sharing one synchronous registry read. Later execution must read current state again. */
@@ -217,7 +221,8 @@ export interface ProjectsQueryApi {
 export interface ProjectsCommandApi {
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
   removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
-  renameProject(projectId: string, displayName: string, actorId: string): ProjectRecord;
+  /** expectedDisplayName is the name observed by the editor, not a fresh server read. */
+  renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
   addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
   repairWorkspaceProject(input: RepairWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
   setWorkspaceDefault(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[];

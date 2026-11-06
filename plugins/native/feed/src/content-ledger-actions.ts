@@ -1,4 +1,5 @@
-import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectSchema as closed } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { PLUGIN_EVIDENCE_COLLECT_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { FEED_CONTENT_LEDGER_BATCH, type FeedContentLedger, type FeedContentReclaim, type FeedContentRelease } from "./content-ledger.js";
@@ -8,7 +9,6 @@ import { FEED_CONTENT_LEDGER_BATCH, type FeedContentLedger, type FeedContentRecl
  * §3.2). They are not for a person, a workflow, an Agent or another plugin: only a Feed project instance, and only for its own project and
  * the sources it names. The project and the caller come from the call, never from the input.
  */
-const closed = (properties: Record<string, unknown>, required: string[]): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const refs = { type: "array", maxItems: FEED_CONTENT_LEDGER_BATCH, items: { type: "string", maxLength: 200 } };
 
 export const feedContentLedgerActions = {

@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer } from "./home-offer-actions.js";
 import { callerDirectory, prepareSubjectOffers } from "./contextual/contextual-service.js";
 import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.js";
@@ -43,10 +44,10 @@ export const homeDockScene: ActionSceneDefinition = {
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },
     suggested_behavior_ids: { type: "array", items: {} } }, required: ["status", "suggested_behavior_ids"] },
 };
-const define = <I, O>(id: string, title: string, description: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> => ({
-  capability_id: id, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), subject_kinds: [], input_schema: input, output_schema: output,
-    ...(id === "home.judgment.evaluate" ? { scheduling: "concurrent" as const } : {}) },
+const define = <I, O>(id: string, title: string, description: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> => createActionDefinition<I, O>(id, operation, {
+  title, description, ...(execution ? { execution } : {}), audiences: ["user", "agent", "workflow", "mcp"], permissions,
+  ...(requiredScene ? { required_scene: requiredScene } : {}), subject_kinds: [], input_schema: input, output_schema: output,
+  ...(id === "home.judgment.evaluate" ? { scheduling: "concurrent" as const } : {}),
 });
 export const homeActions = {
   ...homeEventActions,

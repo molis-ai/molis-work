@@ -610,8 +610,12 @@ export interface AssistantMethod extends AssistantMethodSelection {
 /**
  * `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work.
  * `reminder`: a reminder the person set in a Plugin came due (a time on a to-do); it belongs to no work.
- * `directory-read`: a Plugin read a local directory the person authorized (PG-049; every read is told, whoever started it); its text is a host translation template with required text_params, drawn in the current UI language. */
-export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read";
+ * `directory-read`: a Plugin read a local directory the person authorized (PG-049; every read is told, whoever started it); its text is a host translation template with required text_params, drawn in the current UI language.
+ * `connection`: one of the person's service connections needs them (ASC-53, ASC-58): it must be logged in again, its key or permission was
+ * refused more than once, or it kept failing; raised once for one problem of one connection version, never for a connection the person
+ * disconnected, disabled or removed, and settled once the problem is gone. It belongs to no work; `settings_path` opens the connection settings of its service (the settings have no
+ * address for one account of a service). Its text is a host translation template whose `{name}` is the connection's name, given as `work_title`. */
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read" | "connection";
 export interface AssistantNotice {
   notice_id: string;
   kind: AssistantNoticeKind;
@@ -621,6 +625,12 @@ export interface AssistantNotice {
   text: string;
   text_params?: { plugin: string; folder: string; origin: string };
   created_at: string;
+  /**
+   * For a `connection` notice: the settings address that opens the connection settings of its service, a same-origin path that starts with
+   * `/settings/` (such as `/settings/connectors?connector=<service_id>`), never a full URL, another origin or any other path. The Host checks it before it writes the
+   * notice and the page checks it again before it opens it; a notice whose path fails either check offers no way to open it.
+   */
+  settings_path?: string;
   /** For a reminder: where the person opens the item (its project, or null for the personal space). */
   open?: { surface: string; id: string; title: string; project_id: string | null };
   /** Held by one of the person's rules while its condition holds (shown once it no longer does). */

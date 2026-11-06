@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import {
   FILE_CONTENT_INPUT_SCHEMA, FILE_CONTENT_INPUT_TYPE, FILE_CONTENT_OUTPUT_SCHEMA, FILE_CONTENT_OUTPUT_TYPE,
   FILE_ENTRIES_INPUT_SCHEMA, FILE_ENTRIES_INPUT_TYPE, FILE_ENTRIES_OUTPUT_SCHEMA, FILE_ENTRIES_OUTPUT_TYPE,
@@ -123,18 +124,17 @@ export function placementDeclarationProblems(key: string, action: Record<string,
 const RELATION_NAME = /^[a-z][a-z0-9_]{1,30}$/;
 /** What each part of a relation does to the world: reading parts are queries, the others commands. */
 const RELATION_OPERATION: Record<PlacementRelationRole, "query" | "command"> = { list: "query", candidates: "query", bind: "command", release: "command", create: "command" };
-const isRecordValue = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const hasText = (value: unknown): boolean => typeof value === "string" && value.trim().length > 0 && value.length <= 120;
 
 export function placementRelationProblems(key: string, action: Record<string, unknown>, operation: unknown): string[] {
   const declared = action.placement_relation;
   if (declared === undefined) return [];
-  const role = isRecordValue(declared) ? declared.role : undefined;
+  const role = isRecord(declared) ? declared.role : undefined;
   const known = (PLACEMENT_RELATION_ROLES as readonly unknown[]).includes(role);
-  const target = isRecordValue(declared) ? declared.target : undefined;
-  const targetOk = role === "list" ? isRecordValue(target) && hasText(target.kind) && hasText(target.noun) && Object.keys(target).length === 2 : target === undefined;
+  const target = isRecord(declared) ? declared.target : undefined;
+  const targetOk = role === "list" ? isRecord(target) && hasText(target.kind) && hasText(target.noun) && Object.keys(target).length === 2 : target === undefined;
   const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
-  if (!isRecordValue(declared) || !RELATION_NAME.test(String(declared.relation)) || !known || !targetOk
+  if (!isRecord(declared) || !RELATION_NAME.test(String(declared.relation)) || !known || !targetOk
     || Object.keys(declared).some(field => !["relation", "role", "target"].includes(field))
     || operation !== RELATION_OPERATION[role as PlacementRelationRole] || action.scope !== "project" || !audiences.includes("user")) {
     return [`能力 ${key} 的放置关联声明无效：需要小写的关联名、角色（${PLACEMENT_RELATION_ROLES.join("、")}）、项目范围、对本机用户开放、与角色一致的查询/命令；只有 list 角色写 target（对方的对象种类和显示名词）`];
@@ -147,9 +147,9 @@ export function placementRelationListProblems(definitions: readonly unknown[]): 
   const parts = new Map<string, Set<string>>();
   const problems: string[] = [];
   for (const definition of definitions) {
-    const action = isRecordValue(definition) && isRecordValue(definition.action) ? definition.action : undefined;
+    const action = isRecord(definition) && isRecord(definition.action) ? definition.action : undefined;
     const declared = action?.placement_relation;
-    if (!isRecordValue(declared) || !RELATION_NAME.test(String(declared.relation)) || !(PLACEMENT_RELATION_ROLES as readonly unknown[]).includes(declared.role)) continue;
+    if (!isRecord(declared) || !RELATION_NAME.test(String(declared.relation)) || !(PLACEMENT_RELATION_ROLES as readonly unknown[]).includes(declared.role)) continue;
     const roles = parts.get(String(declared.relation)) ?? new Set<string>();
     if (roles.has(String(declared.role))) problems.push(`放置关联 ${String(declared.relation)} 的 ${String(declared.role)} 角色被两个能力声明`);
     roles.add(String(declared.role));

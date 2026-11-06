@@ -14,7 +14,7 @@ import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, captureHostLog, createPluginPlatform, homeStores, molisWorkHostProjectReference, seedDemoBoard,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, captureHostLog, createPluginPlatform, homeStores, pluginSyncDatabaseDeclaration, molisWorkHostProjectReference, seedDemoBoard,
   type HostLogEntry,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -305,7 +305,7 @@ test("RAC-302 every shipped plugin's Home library is registered to that plugin, 
     assert.equal(entry.home_store?.library, undefined, `${entry.project_plugin_id}: its library is the Manifest's, written once`);
     return [
       ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: undefined }] : [],
-      ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: library }] : []];
+      ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: pluginSyncDatabaseDeclaration(entry.manifest, library) }] : []];
   });
   assert.deepEqual(shipped.map(store => store.path).sort(), ["cognia", "dataset", "feed-content", "form", "goals", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
   assert.equal(homeStores().get("artifacts")?.owner, "modules/artifacts", "the platform's original files retain their Module owner");

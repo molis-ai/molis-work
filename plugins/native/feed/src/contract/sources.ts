@@ -1,4 +1,6 @@
 export type SourceStatus = "active" | "paused" | "error" | "disconnected";
+/** Identity for the Sources owner's portable project section, not a plugin or authorization. */
+export const SOURCE_CONTENT_REPLICA_ID = 'sources_content';
 export type SourceSyncKind = "public_source" | "github" | "gmail" | "connector" | "manual";
 
 export function isAccountConnectorSyncKind(

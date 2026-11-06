@@ -1,3 +1,4 @@
+import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -9,8 +10,6 @@ import { datasetArtifactPreview, datasetArtifactPreviewHandler } from "./artifac
 import { datasetErrors } from "./error.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-const array = (items: unknown) => ({ type: "array", items });
 const columnFields = { id: text, name: { ...text, maxLength: 80 }, type: { enum: ["text", "number", "date"] }, order: { type: "integer" } };
 const rowFields = { id: text, cells: { type: "object", additionalProperties: text } };
 const recordFields = { id, project_id: id, title: text, description: text, status: { enum: ["draft", "ready"] }, columns: array(object(columnFields)), rows: array(object(rowFields)), created_at: text, updated_at: text, version, artifact_id: text, artifact_version: { type: "integer", minimum: 0 } };
@@ -22,7 +21,7 @@ const read = ["dataset:read"], write = ["dataset:read", "dataset:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; columns?: readonly DatasetColumnInput[]; rows?: readonly DatasetRowInput[] };
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return { capability_id: `dataset.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" ? { scheduling: "concurrent" as const } : {}) } };
+  return createActionDefinition<I, O>(`dataset.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" ? { scheduling: "concurrent" as const } : {}) });
 }
 export const datasetActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */

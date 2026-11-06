@@ -1,3 +1,4 @@
+import { mountInputEditor } from "./input-editor.js";
 import { codingDraft } from "../draft.js";
 import { composerModels } from "../composer-model.js";
 import { cooperationClient } from "../cooperation.js";
@@ -30,6 +31,8 @@ function mountDraft(page: Page) {
   const { input, s } = page;
   page.refs.draft = codingDraft({
     ...s.ports, input, key: id => draftKey(page, id),
+    write: (id, body, premise) => page.refs.inputEditor.write(id, body, undefined, premise),
+    premise: id => page.refs.inputEditor.premise(id),
     choices: {
       action_tools: s.actionSelections, character: s.characterSelections, character_skill_ids: s.characterSkills, configuration: s.configurations, materials: s.materialSelections,
       mcp_sources: s.mcpSourceSelections, mcp_tools: s.mcpSelections, methods: s.methodSelections, question_drafts: s.questionDrafts,
@@ -95,6 +98,7 @@ function mountCooperation(page: Page) {
 /** Makes the composer's side of the page: the draft first (the others save through it), then the round's parts and the cooperation. */
 export function mountComposerParts(page: Page) {
   mountDraft(page);
+  mountInputEditor(page);
   mountRoundParts(page);
   mountCooperation(page);
 }

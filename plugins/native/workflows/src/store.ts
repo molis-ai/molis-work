@@ -69,6 +69,11 @@ export function ownWorkflowsStores(withStore: <T>(run: (store: WorkflowsStore) =
 export class WorkflowsStore {
   constructor(private readonly db: WorkflowsSql, private readonly release: () => void = () => {}) {}
 
+  assertExecutableInstance(instanceId: string): void {
+    if (this.db.get("SELECT 1 FROM workflow_imported_instances WHERE instance_id=?", [instanceId]))
+      throw workflowsErrors.invalid("这次运行由另一台设备创建，在本机仅可查看历史；请在原设备继续");
+  }
+
   close(): void {
     this.release();
   }
@@ -170,6 +175,7 @@ export class WorkflowsStore {
    * reload gives: the stop reason is read from the held step, not taken from `next.stopped`.
    */
   saveInstance(previous: WorkflowInstance, next: WorkflowInstance): WorkflowInstance {
+    this.assertExecutableInstance(previous.instance_id);
     const updatedAt = nextUpdatedAt(previous.updated_at, next.updated_at);
     const result = this.db.run("UPDATE instances SET title = ?, status = ?, current = ?, chain_json = ?, steps_json = ?, updated_at = ? WHERE instance_id = ? AND updated_at = ?",
       [next.title, next.status, next.current, JSON.stringify(next.chain), JSON.stringify(next.steps), updatedAt, next.instance_id, previous.updated_at]);
@@ -180,6 +186,7 @@ export class WorkflowsStore {
   }
 
   stopInstance(instanceId: string, projectId: string): WorkflowInstance {
+    this.assertExecutableInstance(instanceId);
     const current = this.instance(instanceId, projectId);
     if (current.status !== "active") return current;
     const at = new Date().toISOString();

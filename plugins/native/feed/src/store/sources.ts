@@ -222,6 +222,7 @@ export class SourcesModule implements SourcesApi {
 }
 
 export { sourceDeletedAt } from "../contract/sources.js";
+export {sourceContentReplicationDefinition} from './sources-replication.js';
 
 function mapSource(row: Row): SourceRecord {
   const schedule = parseJson<SourceSchedule>(row.schedule_json, { mode: "manual" });

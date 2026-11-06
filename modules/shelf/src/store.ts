@@ -1,3 +1,8 @@
+import { createShelfCatalog, type ShelfSyncOptions } from './sync-catalog.js';
+import { shelfHomeReplica } from './sync-owner.js';
+import { shelfSyncKey } from './sync-shape.js';
+import { shelfErrors } from './errors.js';
+import type { CatalogFile } from './catalog.js';
 import type { PluginOwnerFilesClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   ShelfAdmitFolderInput,
@@ -32,7 +37,8 @@ export { SHELF_FOLDER_MAX_BYTES } from "./admissions.js";
 export { CLIPBOARD_LIMIT } from "./clipboard-store.js";
 export { isEditableShelfItem } from "./item-names.js";
 export { SHELF_JOB_TIMEOUT_MS } from "./jobs.js";
-export { initializeShelfFiles } from "./shelve.js";
+import { initializeShelfFiles } from "./shelve.js";
+export { initializeShelfFiles };
 
 function recipeTable(ai: ShelfAiStatus): readonly ShelfRecipeAvailability[] {
   return SHELF_RECIPES.map((spec) => recipeAvailability(spec.recipe, {
@@ -58,9 +64,9 @@ export class ShelfStore {
    * Shelf's own data is read and written only through `files`; `root` is the real folder behind it, named in the snapshot and nowhere
    * else (a job's model reads its frozen copies through `files` too). The folders are created by the first write that needs them.
    */
-  constructor(readonly root: string, files: PluginOwnerFilesClient, lookup: ShelfRuntimeLookup = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts) {
+  constructor(readonly root: string, files: PluginOwnerFilesClient, lookup: ShelfRuntimeLookup = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts, sync?: ShelfSyncOptions) {
     this.lookup = lookup;
-    this.access = new ShelfCatalogAccess(root, files);
+    this.access = new ShelfCatalogAccess(root, files, sync, (catalog, key) => assertSyncIdle(catalog, key, root));
     this.admissions = new ShelfAdmissions(this.access, materials);
     this.copies = new ShelfCopies(this.access, materials);
     this.jobs = new ShelfJobs(this.access, materials, ai);
@@ -68,6 +74,12 @@ export class ShelfStore {
   }
 
   /** Manual terminal discovery. Automatic recipes use the independent AI port. */
+  replica() {
+    const replica = this.access.replica();
+    if (!replica) throw shelfErrors.invalid('本地空间未启用置物架同步');
+    return shelfHomeReplica(replica, this.access.collect());
+  }
+
   async runtime(settings: ShelfDeviceSettings = this.settings()): Promise<ShelfRuntimeStatus> {
     const image_text = this.materials.imageTextAvailable?.() ?? false;
     try {
@@ -117,6 +129,7 @@ export class ShelfStore {
   admitFolder(input: ShelfAdmitFolderInput): Promise<ShelfItemRecord> { return this.admissions.admitFolder(input); }
   admitText(body: string, title = "粘贴文字", capture = true, control?: ShelfExecutionControl): Promise<ShelfItemRecord> { return this.admissions.admitText(body, title, capture, control); }
   admitUrl(url: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord> { return this.admissions.admitUrl(url, control); }
+  initialize(): Promise<void> { return this.access.files.write(writer => initializeShelfFiles(writer, this.access.from(writer))); }
   seedSample(): Promise<ShelfItemRecord> { return this.admissions.seedSample(); }
   useAsMaterial(itemId: string): Promise<ShelfItemRecord> { return this.admissions.useAsMaterial(itemId); }
 
@@ -125,7 +138,7 @@ export class ShelfStore {
   hide(itemId: string): Promise<void> { return this.copies.hide(itemId); }
   claimOriginal(itemId: string): Promise<void> { return this.copies.claimOriginal(itemId); }
   deleteCopy(itemId: string): Promise<void> { return this.copies.deleteCopy(itemId); }
-  writeCopy(itemId: string, text: string): Promise<ShelfItemRecord> { return this.copies.writeCopy(itemId, text); }
+  writeCopy(itemId: string, text: string, expectedContentHash: string): Promise<ShelfItemRecord> { return this.copies.writeCopy(itemId, text, expectedContentHash); }
 
   runJob(input: ShelfRunJobInput, control?: ShelfExecutionControl): Promise<ShelfJobOutcome> { return this.jobs.runJob(input, control); }
   cancelJob(jobId: string): Promise<ShelfJobRecord> { return this.jobs.cancelJob(jobId); }
@@ -136,10 +149,20 @@ export class ShelfStore {
 }
 
 /** `root` is the real folder behind `files`; the Host that supplies both keeps them the same place. */
-export function openShelfStore(root: string, files: PluginOwnerFilesClient, lookup: ShelfRuntimeLookup = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
-  return new ShelfStore(root, files, lookup, materials, ai);
+export function openShelfStore(root: string, files: PluginOwnerFilesClient, lookup: ShelfRuntimeLookup = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts, sync?: ShelfSyncOptions): ShelfStore {
+  return new ShelfStore(root, files, lookup, materials, ai, sync);
 }
 
 export function hashBytes(bytes: Uint8Array): string {
   return sha256(Buffer.from(bytes));
+}
+
+function assertSyncIdle(catalog: CatalogFile, key: string, root: string): void {
+  const identity = shelfSyncKey(key);
+  if (catalog.jobs.some(job => job.status === 'running' && !isStaleJob(job, root) && (identity.kind === 'job' ? job.job_id === identity.id : job.item_ids.includes(identity.id) || job.item_id === identity.id || job.result_item_id === identity.id))) throw shelfErrors.conflict('材料或任务正在使用中，稍后再同步', {sync_waiting:true});
+}
+export function openShelfReplica(root: string, sync: ShelfSyncOptions) {
+  const catalog = createShelfCatalog(sync, (value, key) => assertSyncIdle(value, key, root));
+  if (!catalog.replica) throw shelfErrors.invalid('本地空间未启用置物架同步');
+  return shelfHomeReplica(catalog.replica, catalog.collect);
 }

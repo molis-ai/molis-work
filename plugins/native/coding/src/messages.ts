@@ -1,3 +1,4 @@
+import { CODING_INPUT_MESSAGES } from "./input-messages.js";
 import { CODING_CHANGE_MESSAGES } from "./change-messages.js";
 import { CODING_PANELS_MESSAGES } from "./panels-messages.js";
 import { CODING_SERVER_MESSAGES } from "./server-messages.js";
@@ -15,6 +16,7 @@ export const CODING_MESSAGES = {
   ...CODING_SETTINGS_MESSAGES,
   ...CODING_SERVER_MESSAGES,
   ...CODING_CHANGE_MESSAGES,
+  ...CODING_INPUT_MESSAGES,
   "coding.directory.search-title": { zh: "搜索标题", en: "Search titles" },
   "coding.goal-face.open-session-first": { zh: "先在「会话」里打开一个会话。", en: "Open a session under Sessions first." },
   "coding.goal-face.note": { zh: "关联只影响下一轮；执行报告可以记录进原目标，已开始的任务和历史成果保持原目标。", en: "Linking affects only the next turn. A run report can be recorded on the original goal; tasks already started and past results keep the original goal." },

@@ -44,7 +44,7 @@ const MIN_REASON_CHARACTERS = 20;
 const SQL_WORDS = /\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\b/;
 // `main.` and `temp.` (any case, quoted or not) are the schema, not the table: without it `FROM main.t` read a table "main".
 const NAME = String.raw`(?:["'\x60\[]?(?:[Mm][Aa][Ii][Nn]|[Tt][Ee][Mm][Pp])["'\x60\]]?\.)?["'\x60\[]?([A-Za-z_][A-Za-z0-9_]*)`;
-const CREATE = new RegExp(String.raw`\bCREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?${NAME}`, "g");
+const CREATE = new RegExp(String.raw`\bCREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?!IF\b)${NAME}`, "g");
 // Writes first: at one position the longer phrase (`DELETE FROM`) wins over the bare `FROM`.
 const ACCESS = new RegExp(String.raw`\b(DELETE\s+FROM|INSERT(?:\s+OR\s+[A-Z]+)?\s+INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+[A-Z]+)?|ALTER\s+TABLE|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|FROM|JOIN)\s+${NAME}`, "g");
 

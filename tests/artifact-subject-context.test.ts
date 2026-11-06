@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord, type RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, resolveActionSubject, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -17,7 +17,7 @@ const caller: ActionCallContext = { actor_id: "owner", project_id: projectId, au
 const subject = (value = reference) => ({ kind: "artifact", id: artifactSubjectId(value) });
 
 function fixture(t: test.TestContext) {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   t.after(() => db.close());
   db.pragma("foreign_keys = ON");
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('canonical-project'), ('foreign-board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);");

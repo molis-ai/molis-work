@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { chmodSync, closeSync, fsyncSync, lstatSync, openSync, readSync, realpathSync } from "node:fs";
 import Database from "better-sqlite3";
+import { isDeepStrictEqual } from "node:util";
+import { readDatabaseSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace } from "./space.js";
+import { snapshotProgramsMatch } from "./sqlite-baseline-inspection.js";
+import { openSqliteConnection } from "./sqlite-connection.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   describeSqliteBaseline,
@@ -20,6 +24,10 @@ const changed = (file: string) =>
 
 export interface SqliteSnapshotOptions {
   readonly baseline?: SqliteBaseline;
+  /** When a store carries space metadata, compare it to the trusted Home's immutable owner. */
+  readonly space?: StorageSpace;
+  /** The owner opens this library as a Home-bound store; deleting its binding cannot downgrade it to an unbound one. */
+  readonly requireSpace?: boolean;
   /** Installed libraries already have a version owner even when the declaration's SQL is not retained. */
   readonly version?: number;
   /** A project library also contains its plugins' separately owned tables. */
@@ -48,7 +56,7 @@ export function inspectSnapshotSqlite(file: string, options: SqliteSnapshotOptio
   try { if (readSync(fd, header, 0, 20, 0) !== 20 || header[18] !== 1 || header[19] !== 1) throw invalid(`归档库必须是独立 SQLite 文件: ${file}`); }
   finally { closeSync(fd); }
   options.signal?.throwIfAborted();
-  const database = new Database(file, { readonly: true, fileMustExist: true, timeout: 0 });
+  const database = openSqliteConnection(file, { readonly: true, fileMustExist: true, timeout: 0 });
   try {
     const result = inspect(database, file, options);
     const after = snapshotFileStat(file);
@@ -89,10 +97,20 @@ function inspectDatabase(
   if (expectedVersion !== undefined && userVersion !== expectedVersion)
     throw new SqliteSchemaVersionError(file, userVersion, expectedVersion);
   const shape = describeSqliteSchema(database);
+  if (shape.tables.molis_storage_space && !spaceMetadataShapeMatches(database))
+    throw invalid(`快照库的空间元数据结构不符: ${file}`);
+  const databaseSpace = readDatabaseSpace(database);
+  if ((options.requireSpace && (!options.space || !databaseSpace)) || (databaseSpace && options.space && !isDeepStrictEqual(databaseSpace, options.space)))
+    throw invalid(`快照库的空间归属与 Home 不同: ${file}`);
   const schemaHash = createHash("sha256").update(JSON.stringify(shape)).digest("hex");
   if (previous && schemaHash !== previous.schema_sha256) throw changed(file);
+  if (options.version !== undefined && !options.baseline && database.prepare("SELECT 1 FROM sqlite_schema WHERE type IN ('view','trigger') LIMIT 1").get())
+    throw invalid(`快照库含缺少可信声明的可执行对象: ${file}`);
   if (options.baseline) {
-    const expected = describeSqliteBaseline(options.baseline);
+    const scoped = databaseSpace ? { ...options.baseline, schema: STORAGE_SPACE_SCHEMA_SQL + options.baseline.schema } : options.baseline;
+    const expected = describeSqliteBaseline(scoped);
+    if (!snapshotProgramsMatch(database, scoped.schema, options.additionalTables === true))
+      throw invalid(`快照库的可执行对象与现行 owner 基线不符: ${file}`);
     const actual = options.additionalTables
       ? {
           tables: Object.fromEntries(
@@ -144,7 +162,7 @@ export async function backupSnapshotSqlite(
   const before = snapshotFileStat(source);
   let database: SqliteDatabase | undefined;
   try {
-    database = new Database(source, { readonly: true, fileMustExist: true, timeout: 0 });
+    database = openSqliteConnection(source, { readonly: true, fileMustExist: true, timeout: 0 });
     options.signal?.throwIfAborted();
     const original = inspect(database, source, options);
     await database.backup(destination, {
@@ -167,7 +185,7 @@ export async function backupSnapshotSqlite(
     )
       throw changed(source);
     chmodSync(destination, 0o600);
-    const copied = new Database(destination, { fileMustExist: true, timeout: 0 });
+    const copied = openSqliteConnection(destination, { fileMustExist: true, timeout: 0 });
     let result: SqliteSnapshotInfo;
     try {
       // Only the private backup is normalized into a standalone file.

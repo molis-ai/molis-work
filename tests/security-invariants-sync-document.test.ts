@@ -4,7 +4,7 @@ import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createSyncDocument, defineErrorCodes, type SyncDocumentStorage } from '@molis-ai/molis-work-plugin-sdk';
-import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 
 type Data = { items: { id: string; body: string }[] };
@@ -106,7 +106,7 @@ test('S-135 PCSYNC-15/16 JSON comparison rejects newer local text even when the 
 });
 
 test('S-135 PCSYNC-06/25 public document uses real private-KV CAS and rejects revoked and contended writes without replay', () => {
-  const db = new DatabaseSync(':memory:');
+  const db = new DatabaseSync(':memory:'); db.exec(PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL);
   const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: 'example.notes', name: 'Notes', version: '1.0.0', kind: 'app',
     publisher: { publisher_id: 'example', signature: 'signed-notes' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }], permissions: [{ permission: 'storage:private', required: true, reason: 'notes' }] };
   let active = true;

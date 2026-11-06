@@ -4,7 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
-import {SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
+import {PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
 import {AgentBuilderStore,builderManifest} from '@molis-ai/molis-work-plugin-builder';
 import type {PluginPrivateStorage} from '@molis-ai/molis-work-contracts/platform/plugin';
 
@@ -12,6 +12,7 @@ const KEY='plugin-builder:agent-built:v1';
 const context={install_id:'builder-state-test',plugin_id:builderManifest.plugin_id,version:builderManifest.version,deployment:'local' as const,project_id:'project',grants:['storage:private'],requireGrant(){}};
 async function fixture(t:TestContext){
  const root=await mkdtemp(join(tmpdir(),'molis-builder-state-')),path=join(root,'owner.db'),db=new DatabaseSync(path),other=new DatabaseSync(path);
+ db.exec(PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL);
  const storage=new SqlitePluginPrivateStorage(db).forPlugin(context,builderManifest),second=new SqlitePluginPrivateStorage(other).forPlugin(context,builderManifest);
  t.after(async()=>{other.close();db.close();await rm(root,{recursive:true,force:true});});
  return {storage,second,owner:new AgentBuilderStore(storage)};

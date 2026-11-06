@@ -13,7 +13,7 @@ import type { PluginPrivateStorage, PluginDefinition, PluginExecutor, PluginMani
 import type {PrivateValueReplicationOwner} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
 test('private replication refuses a false absent-row CAS instead of acknowledging newly created content',()=>{
- const db=openTestSqlite(':memory:');try{const repository=new SqlitePluginPrivateStorage(db);
+ const db=openPluginTestDatabase(':memory:');try{const repository=new SqlitePluginPrivateStorage(db);
   const definition=createGithubIntegrationPlugin({provider:{type:'fixture',async health(){return {ok:true,status:'connected',message:'ready'};},async sync(){return {ok:true,mode:'fixture',items:[],cursor:null};}}});
   const manifest={...definition.manifest,permissions:[...definition.manifest.permissions,{permission:'storage:private',required:true,reason:'fixture'}]};
   const storage=repository.forPlugin({install_id:'replica-test:project',plugin_id:manifest.plugin_id,version:manifest.version,deployment:'local',grants:['storage:private'],project_id:'project',requireGrant(){}},manifest);

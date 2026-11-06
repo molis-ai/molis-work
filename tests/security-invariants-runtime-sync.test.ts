@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
-import { bindRuntimeSyncCollection, PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage, assertContributionMatchesManifest, UNSIGNED_TRUST } from '@molis-ai/molis-work-plugin-runtime';
+import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, bindRuntimeSyncCollection, PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage, assertContributionMatchesManifest, UNSIGNED_TRUST } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginAppContribution, PluginExecutor } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { createPersonalNotesSample } from '../examples/personal-sync-plugin/plugin.js';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -15,7 +15,7 @@ import { homeProbe } from './fixtures/home-runtime.js';
 import { ISOLATED_HOST_IDS } from './fixtures/isolated-host.js';
 
 async function fixture(t: import('node:test').TestContext,maintain?:()=>void) {
-  const db = new DatabaseSync(':memory:'); t.after(() => db.close()); const storage = new SqlitePluginPrivateStorage(db);
+  const db = new DatabaseSync(':memory:'); db.exec(PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL); t.after(() => db.close()); const storage = new SqlitePluginPrivateStorage(db);
   let account = true, starts = 0;
   const sample = createPersonalNotesSample(), manifest = sample.definition.manifest;
   const executor: PluginExecutor = {

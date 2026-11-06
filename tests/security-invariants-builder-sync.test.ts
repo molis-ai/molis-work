@@ -11,7 +11,7 @@ import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,symlinkSync,exis
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
-import {SqlitePluginPrivateStorage,privateValueReplicaOwner,installPrivateValueReplicationJournal,validatePrivateValueReplication} from '@molis-ai/molis-work-plugin-runtime';
+import {PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,SqlitePluginPrivateStorage,privateValueReplicaOwner,installPrivateValueReplicationJournal,validatePrivateValueReplication} from '@molis-ai/molis-work-plugin-runtime';
 import {AgentBuilderStore,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,type AgentRelease,type AgentBuild} from '@molis-ai/molis-work-plugin-builder';
 import {pluginComponentChoices} from '@molis-ai/molis-work-design-system';
 import {createSqliteReplica,initializeReplica,namespacedReplicaDatabase,replicaMarkRowsSql,bindDatabaseSpace,personalStorageSpace,replicaSchemaSql} from '@molis-ai/molis-work-storage';
@@ -27,6 +27,7 @@ function fixture(t:TestContext){
  t.after(()=>{databases.forEach(db=>db.close());rmSync(base,{recursive:true,force:true});});let active=true,busy=false;
  const authorize=()=>{if(!active)throw new Error('REVOKED');};
  const context={install_id:'agent-studio:'+projectId,plugin_id:builderManifest.plugin_id,version:builderManifest.version,deployment:'local' as const,grants:['storage:private'],project_id:projectId,requireGrant(){authorize();}};
+ databases.forEach(db=>db.exec(PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL));
  const storage=databases.map(db=>new SqlitePluginPrivateStorage(db).forPlugin(context,builderManifest));
  const stores=storage.map(s=>new AgentBuilderStore(s));
  const definitions=homes.map((home,index)=>builderPrivateValueReplicationOwner({home,authorize,verifyDistribution:verifySyncPluginDistribution,assertIdle(){if(index===1&&busy)throw new Error('LOCAL_PREVIEW_BUSY');}}));

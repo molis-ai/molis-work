@@ -1,6 +1,6 @@
 # 定时任务按任务授权读取业务数据：第 18 批实施方案与开工前检查
 
-状态：方案已由统筹审过（2026-11-04，E 轨起草，未写产品代码）；第 8 节三项统筹已定；P1 定样已由用户定并合入（2026-11-04 定，#1789 2026-11-05 合入，F 开关即生效，见 §3.7 末）；2026-11-05 完整性复查见第 9 节（G1～G5 已定，O1 用户定 B：按读取分组）。下一步 P0 合同（等 02② 的 #1762），之后 P2、P3。原需求是[主动助理 §5.4.1](spec.md) 与验收 PWA-148～154；核账见[第 18 批「本批核账」](../post-anticorruption-roadmap/reference/batches/18.md#batch-18-audit)。
+状态：方案已由统筹审过（2026-11-04，E 轨起草）；第 8 节三项统筹已定；P1 定样已由用户定并合入（#1789，F 开关即生效，见 §3.7 末）；2026-11-05 完整性复查见第 9 节（G1～G5 已定，O1 用户定 B：按读取分组）；P0 合同已合入（#1841，2026-11-05）；P2 开工前带入的几条与用户同日两项决定见第 10 节。下一步 P2（E）、P3（D）。原需求是[主动助理 §5.4.1](spec.md) 与验收 PWA-148～154；核账见[第 18 批「本批核账」](../post-anticorruption-roadmap/reference/batches/18.md#batch-18-audit)。
 
 - **类型**：横向能力（按任务的动作授权）为主；产品线（Schedule 插件）；底层与架构（授权与安全边界）。按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)第 1.1 节属**大需求**：跨 C1、宿主和 E 三处，带一处合同改动和安全边界变化。
 - **决策标记**：要决策：勾选界面定样（第 5 节）。可信写入放在平台确认面、由 D 落，统筹 2026-11-04 已定（第 8 节）。
@@ -45,7 +45,7 @@
 agent:task:<project_id>:<plugin_install_id>:<subject_key>
 ```
 
-- `project_id`、`plugin_install_id` 由宿主从当次调用上下文取（S-17），插件给不了；`subject_key` 由插件给（Schedule 用自己的 `task_id`），宿主只接受 1～120 个 `[A-Za-z0-9_-]` 字符。
+- `project_id`、`plugin_install_id` 由宿主从当次调用上下文取（S-17），插件给不了；`subject_key` 由插件给（Schedule 用自己的 `task_id`），宿主只接受合同里 `TASK_GRANT_SUBJECT_KEY_PATTERN`（`packages/contracts/src/services/agent-task-grants.ts`）写的形状，不含 `:`，所以组成的 id 不会与别的主体混淆。
 - 前缀 `agent:` 让它沿用 Agent 受众（`apps/local-host/src/mcp-action-grants.ts:17` 的 `actionClientAudience`），所以只能用 `audiences` 里含 `agent` 的动作。
 - 同一个插件的不同任务、不同项目里同名的任务、别的插件用同样的 key，得到的都是不同的主体，互不相借。
 - 一个插件只能为**自己的安装**发起和使用任务主体：插件给的只有 `subject_key`，前面三段宿主填。
@@ -232,3 +232,17 @@ P0 开工前，对照 main（`540b7ffdb`）的代码把 §5.4.1、PWA-148～153 
 推荐 B。
 
 **用户 2026-11-05 定 B。** 已改进 §3.2；P0 加上 Manifest 的读取分组声明，P2 里 Jelly、Schedule、Todo、Inbox、Goals 各补自己的分组。G2 的网关补洞，用户同日定**现在单独小修**，不等 P2。
+
+## 10. P2 开工前带入的几条（2026-11-05）
+
+P0 合同（#1841）评审时，合同台与评审台留给 P2 的几条，加上同日用户的两项决定。P2 的开工前检查逐条答完再动手。
+
+| # | 事项 | 现状与做法 |
+| --- | --- | --- |
+| C1 | 提供方删掉一个读取分组后，已勾这一类的任务显示什么 | **用户 2026-11-05 定**：那一行写「这一类已不再提供」，给「移除」，任务从此读不到这一类。合同加第 4 个状态 `removed`（`agent.task_grants.list`，随本节同一个合同 PR）。没声明分组的提供方开始声明分组时，原来「整个提供方」那一类同样是 `removed`。这一类自己的名字已经不在，行上显示提供方的名字。宿主要知道一条授权当初是勾哪一类得来的：授权记录本身不带分组，P2 设计时定在哪里记（记在授权记录旁，或读取时按「动作已不在任何组里」判断），写进 P2 的开工前检查第 6 项 |
+| C2 | `scope: "home"` 的查询怎样归组：`todo.items.list` 带 `all_projects` 会跨项目读（第 9 节 O1） | **不用另定**：`all_projects` 要 `readable_project_ids`，宿主只把它给本人的调用（`project_reach: "person"`，PG-014）；任务主体是 `agent` 受众，Todo 按 `actions.forbidden` 拒绝（`plugins/native/todo/src/actions.ts` 的 `todoAccess`）。所以任务只读得到本项目的待办。S-108 加一条拒绝用例钉住：给任务主体授权「待办」后带 `all_projects: true` 调，被拒、不写记录。另要在 P2 核实：项目里的任务主体能否被授权 Home 级插件（Todo）的 `home` 范围查询——「对外接入」一页现在按调用的范围筛目录（`mcp-action-access.ts` 的 `catalog`），按任务授权不能照搬这一筛法 |
+| C3 | 省略 `group_id` 只对没声明分组的提供方有效 | 合同注释已写（#1841）；S-108 加一条：对声明了分组的提供方省略 `group_id`，`set` 整次被拒 |
+| C4 | GLOSSARY 加「读取分组」「任务主体」 | 随 P2 加（`docs/system/GLOSSARY.md`） |
+| C5 | SDK README 的「负责」与「改动后必跑」 | 已随 #1841 补上（`tests/plugin-read-groups.test.ts`），P2 不用再改 |
+| C6 | P2 的评审与合并 | **用户 2026-11-05 晚定**：统筹不再管第 18 批。本批主会话给每个 PR 开评审会话；评审审过当前头、CI 绿，主会话自己入合并队列；碰宿主、安全不变量或 SDK 的带全量。只有产品语义与红线问用户 |
+

@@ -7,7 +7,7 @@ import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { PluginConnectionTarget, PluginConnectorPort } from "@molis-ai/molis-work-plugin-runtime";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { targetScope } from "./connector-plugin-requests.js";
 import { shownState } from "./connector-refresh-refusals.js";
@@ -86,7 +86,7 @@ function accountOf(home: string, target: PluginConnectionTarget): ConnectorConne
   return withConnectorConnections(home, store => {
     const connection = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     return connection && connection.service_id === target.service_id && connection.enabled && !connection.disconnected_at
-      && shownState(home, connection, store.state(connection)) === "connected" ? connection : null;
+      && shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) === "connected" ? connection : null;
   });
 }
 

@@ -1,8 +1,11 @@
+import { COMPOSER_BOARD_EN } from "@molis-ai/molis-work-design-system";
+
 /**
  * English for the component board's conditions section and its frame (apps/workbench/src/condition-*.ts, specs/visual-ui-experience
  * VUX-39). The Chinese text is the key; words the board shares with the product (复制, 已复制, 再显示 {n} 项…) use the product's keys.
  */
 export const BOARD_EN: Record<string, string> = {
+  ...COMPOSER_BOARD_EN,
   "条件与状态": "Conditions and states",
   "正文语言": "Body language",
   "混排": "Mixed",

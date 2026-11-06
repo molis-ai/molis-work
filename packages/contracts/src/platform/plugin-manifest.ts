@@ -244,4 +244,6 @@ export interface PluginManifest {
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */
   action_scenes?: readonly import("./actions.js").ActionSceneDefinition[];
+  /** What a background task of another plugin may be allowed to read, one switch per group (`plugin-read-groups.ts`). */
+  read_groups?: readonly import("./plugin-read-groups.js").PluginReadGroupDeclaration[];
 }

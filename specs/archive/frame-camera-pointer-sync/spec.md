@@ -1,6 +1,8 @@
 # Frame 相机同步保留真实交互
 
-状态：代码与定向回归完成，待当前头 CI 和主线集成（2026-11-05）。需求维护与集成：02 批 Codex；本片实现：D 轨 Codex 写手。目标为现有功能修复；工程与真实浏览器路径分别核实，不代表用户本人验收。
+> 归档（2026-11-06）：判定为**已实现**。[#1859](https://github.com/molis-ai/molis-work/pull/1859) 已合入 main，合入提交 `0f7db3736c` 与已审头、通过的队列候选文件树一致。真实浏览器回归和 CI 证明本片覆盖的路径，不代表用户本人验收或 02 组合 Full 已通过。
+
+状态：本片已实现并采用。需求维护与集成：02 批 Codex；本片实现：D 轨 Codex 写手。目标为现有功能修复；工程与真实浏览器路径分别核实，不代表用户本人验收。
 
 本片属于工作台可靠性修复，来自[认领板报障](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6669495031)及[成果正文对照](https://github.com/molis-ai/molis-work/pull/1790#issuecomment-6669630185)，解锁 02 的存储分支最终回归。跨窗口只改变 camera 时，现行 storage → drawFrame → replaceChildren 会销毁按下的 Feed 节点，吞掉可信 click；还会销毁已完成的成果正文并重新读 owner。
 
@@ -47,3 +49,9 @@
 整体构建、包边界、健康门禁、导入图及推送前密钥扫描已通过。[原 CI 资源预算首败](https://github.com/molis-ai/molis-work/actions/runs/42163070661/job/127713083627)实际构建的融合提交为 `26a9594771`，与本地融合 main `2e97305223` 的提交 `4a34cf0eb1` 文件树完全相同；其真实实测为 1,077,514 → 1,077,683 B（+169）。据此精确登记单项额度和预算，未借旧账号宽额度；这次 CI 仍是失败，新头 CI 与实际 main 采用单独核回。重复本机构建尚在槽内排队，核准上述同树证据后仅取消本次排队，未打断别人的构建。
 
 [独立评审](https://github.com/molis-ai/molis-work/pull/1859#issuecomment-6677369941)认可运行逻辑和必要增长；两行注释移出曾实测无体积收益，已撤回，没有通过改名、压代码或新抽象回收字节。Full 由 02 按最终组合安排，本机未运行。
+
+## 主线采用
+
+最终头 `f6d75f980e` 的[普通 CI](https://github.com/molis-ai/molis-work/actions/runs/42178995367)与[保护队列 CI](https://github.com/molis-ai/molis-work/actions/runs/42181292922)均成功，队列运行第 1 次即成功。队列提交和实际合入均为 `0f7db3736c7902b0fba59953382fe519985b04e5`，tree 为 `b308ee1cd429e8962270be5bc9c179c19385621e`，与已审 `f6d75f980e` 完全一致；fresh fetch 后确认合入提交是当前 main 的祖先。Frame 源码与 e2e 的 blob 均与已审版本一致。
+
+本机队列观察器曾因读取 GitHub API 连接超时退出，未将其误记为 CI 失败；最终成功由 GitHub run 状态及 Verify job 核实。02 的组合 Full 另有 4 个终败文件，由原负责人收尾，不扩大本片范围，也不把该 Full 记为通过。

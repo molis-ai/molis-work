@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { computeVersions, generateVersions, isTestFile, readSourceFiles, readVersionInputs, SOURCE_ROOTS, versionSource } from "../scripts/generate-versions.mjs";
-import { applyExceptions, checkExceptions, manifestFindings, markdownFindings, registeredFactProblems, sourceDeclarationFindings, versionDeclarationProblems } from "../scripts/gates/version-declarations.mjs";
+import { applyExceptions, checkExceptions, manifestFindings, markdownFindings, registeredFactProblems, sourceDeclarationFindings, strayMarkerFindings, versionDeclarationProblems } from "../scripts/gates/version-declarations.mjs";
 
 // N34-VS-01 to 04 (specs/post-anticorruption-roadmap/reference/batches/02.md): tooling/versions.json is the one hand-edited
 // source. The real tree is checked as it is, and each way of bypassing the source is checked on the smallest input that shows it.
@@ -263,6 +263,14 @@ test("N34-VS-03 only real tests and fixtures are out of scope: src/fixtures ship
   const problems = versionDeclarationProblems(root);
   assert.ok(problems.includes("plugins/native/a/src/fixtures/b.ts:1: unmanaged current version version = 1"), problems.join("\n"));
   assert.ok(!problems.some((problem: string) => problem.includes("tests/fixtures")), problems.join("\n"));
+});
+
+test("N34-VS-03 a marker in a language the generator does not read is reported, because it would never move", () => {
+  const message = "@version marker in a file the generator does not read: add a carrier in tooling/versions.json";
+  assert.deepEqual(strayMarkerFindings("server/src/sync/quota.rs", 'row["version"] == /* @version remote.sync.d1-schema */ 6').map((finding: { text: string }) => finding.text), [message]);
+  assert.deepEqual(strayMarkerFindings("server/src/sync/quota.rs", 'row["version"] == 6'), []);
+  const root = tree({ "tooling/versions.json": source({}), "server/src/a.rs": "let v = /* @version x.y */ 1;\n", "server/migrations/a.sql": "-- nothing here\n" });
+  assert.ok(versionDeclarationProblems(root).includes(`server/src/a.rs:1: ${message}`));
 });
 
 test("N34-VS-03 a method's frontmatter version outside the carriers is reported for any plugin, not just Goals", () => {

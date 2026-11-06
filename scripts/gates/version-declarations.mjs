@@ -100,6 +100,12 @@ export function markdownFindings(file, source, carriers) {
   return [{ file, line: 1, name: "version", text: "unmanaged frontmatter version: add a carrier in tooling/versions.json" }];
 }
 
+/** The generator rewrites only JS and TS, so a marker in another language would look managed and never move. */
+export function strayMarkerFindings(file, source) {
+  return source.split("\n").flatMap((line, index) => /@version [\w./-]+/.test(line)
+    ? [{ file, line: index + 1, name: "marker", text: "@version marker in a file the generator does not read: add a carrier in tooling/versions.json" }] : []);
+}
+
 /** Manifest fields and capability strings of an official integration Manifest have to be carried. */
 export function manifestFindings(file, source, carriers) {
   const configured = carriers.filter(carrier => carrier.file === file), findings = [];
@@ -179,13 +185,13 @@ export function applyExceptions(findings, entries) {
   return { remaining, stale };
 }
 
-function markdownFiles(root) {
+function filesNamed(root, name) {
   const files = [];
   const walk = directory => {
     for (const entry of readdirSync(path.join(root, directory), { withFileTypes: true })) {
       const relative = `${directory}/${entry.name}`;
       if (entry.isDirectory()) { if (!["node_modules", "dist", "target", ".git", ".build"].includes(entry.name)) walk(relative); }
-      else if (entry.name.endsWith(".md") && !isTestFile(relative)) files.push(relative);
+      else if (name.test(entry.name) && !isTestFile(relative)) files.push(relative);
     }
   };
   for (const directory of SOURCE_ROOTS) if (existsSync(path.join(root, directory))) walk(directory);
@@ -201,7 +207,8 @@ export function versionDeclarationProblems(root) {
   const entries = text === null ? [] : JSON.parse(text);
   const problems = checkExceptions(entries), findings = [];
   for (const [file, source] of readSourceFiles(root)) findings.push(...sourceDeclarationFindings(file, source, versions));
-  for (const file of markdownFiles(root)) findings.push(...markdownFindings(file, readFileSync(path.join(root, file), "utf8"), carriers));
+  for (const file of filesNamed(root, /\.md$/)) findings.push(...markdownFindings(file, readFileSync(path.join(root, file), "utf8"), carriers));
+  for (const file of filesNamed(root, /\.(?:rs|sql|toml)$/)) findings.push(...strayMarkerFindings(file, readFileSync(path.join(root, file), "utf8")));
   if (existsSync(path.join(root, "plugins/official-integrations"))) {
     for (const entry of readdirSync(path.join(root, "plugins/official-integrations"), { withFileTypes: true })) {
       const file = `plugins/official-integrations/${entry.name}/manifest.json`, source = entry.isDirectory() ? readIfThere(root, file) : null;

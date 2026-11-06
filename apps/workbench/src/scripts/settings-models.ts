@@ -53,6 +53,13 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
         dirty = false;
       };
       const mutate = (path, body, method = 'POST') => molisWorkRequest('/api/settings/models/' + path, { method, body, fallback: L('模型设置操作失败') });
+      // A key the save or removal left with no model using it: it stays in Connectors until the person removes it.
+      const released = (key) => {
+        const box = find('[data-model-released]');
+        if (!box || !key) return;
+        box.dataset.connection = key.connection_id; box.dataset.revision = key.revision; box.hidden = false;
+        box.querySelector('p').textContent = L('原来那把密钥现在没有模型在用，还留在服务连接里。');
+      };
       root.addEventListener('click', async (event) => {
         const button = event.target.closest('button');
         if (!button || !root.contains(button) || busy) return;
@@ -115,6 +122,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
             });
             dirty = false;
             await refresh(query); status(L(saved.checked ? '连接检查通过，已保存。配置会用于下一轮执行。' : '已保存。配置会用于下一轮执行；可以测试模型是否实际响应。'));
+            released(saved.released_key);
             if (saved.first_model_ready) { options.ready?.(); otherTabs?.postMessage('ready'); }
           } else if (button.matches('[data-model-test]')) {
             if (dirty) { status(L('请先保存配置，再测试这个模型。')); return; }
@@ -125,7 +133,18 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
             status(result.model_id + '：' + L(result.message));
           } else if (button.matches('[data-model-delete]')) {
             begin();
-            await mutate(encodeURIComponent(provider), undefined, 'DELETE'); await refresh(); status(L('供应商及其密钥已移除'));
+            const result = await mutate(encodeURIComponent(provider), undefined, 'DELETE'); await refresh(); status(L('供应商已移除')); released(result.released_key);
+          } else if (button.matches('[data-model-released-keep]')) {
+            find('[data-model-released]').hidden = true; status(L('旧密钥留着，可以在服务连接里移除。'));
+          } else if (button.matches('[data-model-released-remove]')) {
+            begin();
+            const box = find('[data-model-released]');
+            await molisWorkRequest('/api/settings/connectors/connections/' + encodeURIComponent(box.dataset.connection) + '/manage', {
+              method: 'POST', body: { action: 'remove', expected_revision: box.dataset.revision }, fallback: L('没能移除旧密钥，请到服务连接里移除。'),
+            });
+            // Only the list of keys changes; what is being edited stays.
+            root.querySelectorAll('[data-model-connection] option').forEach((option) => { if (option.value === box.dataset.connection) option.remove(); });
+            box.hidden = true; status(L('旧密钥已移除'));
           } else if (button.matches('[data-model-provider], [data-model-add-provider], [data-model-template], [data-model-refresh], [data-model-discard]')) {
             if (dirty && !button.matches('[data-model-discard]')) {
               status(L('请先保存修改，或使用「撤销未保存修改」后切换。')); return;

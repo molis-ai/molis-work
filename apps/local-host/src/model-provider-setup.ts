@@ -175,8 +175,36 @@ export function commitModelProvider(catalog: MolisWorkProjectCatalog, home: stri
     if (connection) store.assertTarget(connection.connection_id, "model-api", input.base_url);
     return connection?.credential_ref ?? undefined;
   }) : undefined;
+  const previousRef = catalog.models.get(providerId)?.credential_ref;
   const provider = catalog.models.upsert({ ...input, ...(credentialRef ? { credential_ref: credentialRef } : {}) });
   const health = catalog.models.health().find((entry) => entry.provider_id === providerId);
+  const released = provider.credential_ref !== previousRef ? releasedModelKey(catalog, home, previousRef) : undefined;
   // The first provider that can actually run: the page takes the person back to what sent them here.
-  return { provider: catalog.models.get(providerId) ?? provider, health, first_model_ready: !hadReady && health?.status === "ready" };
+  return { provider: catalog.models.get(providerId) ?? provider, health, first_model_ready: !hadReady && health?.status === "ready",
+    ...(released ? { released_key: released } : {}) };
+}
+
+/** Remove a provider; its key stays in its connection, and is named back when nothing uses it any more. */
+export function removeModelProvider(catalog: MolisWorkProjectCatalog, home: string | undefined, providerId: string) {
+  const previousRef = catalog.models.get(providerId)?.credential_ref;
+  const removed = catalog.models.remove(providerId);
+  const released = removed ? releasedModelKey(catalog, home, previousRef) : undefined;
+  return { removed, ...(released ? { released_key: released } : {}) };
+}
+
+/** A key a save or a removal let go of (the model-api connection that held the provider's old key). */
+export interface ReleasedModelKey { connection_id: string; revision: string }
+
+/**
+ * The connection that held `previousRef`, when no provider and no plugin slot uses it any more. It is not removed here: like
+ * an account no longer used (spec assistant-service-connections §13.2, 11-05), it stays usable until the person removes it,
+ * and the page offers that right away. Read-only.
+ */
+export function releasedModelKey(catalog: MolisWorkProjectCatalog, home: string | undefined, previousRef: string | undefined): ReleasedModelKey | undefined {
+  if (!home || !previousRef || catalog.models.list().some((provider) => provider.credential_ref === previousRef)) return undefined;
+  return withConnectorConnections(home, (store) => {
+    const row = store.list("model-api").find((entry) => entry.credential_ref === previousRef);
+    if (!row || store.pluginBindings(row.connection_id).length > 0) return undefined;
+    return { connection_id: row.connection_id, revision: row.updated_at };
+  });
 }

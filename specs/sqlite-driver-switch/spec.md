@@ -127,7 +127,7 @@ function transaction(run) {
 | 超 2^53 的整数 | 丢精度的 double | 抛 `ERR_OUT_OF_RANGE` | 更严格，不转。`project-statement-engine.ts:139` 的 `carried` 本来就要拒绝过大的整数，结果都是拒绝，错误码按用例核（SQLD-c） |
 | `pluck` | 有 | 没有 | 只有测试用（15 行／6 个文件），从窄接口删，改写法（SQLD-a） |
 | `iterate` | 迭代中连接忙，`exec` 抛 | 可以继续 `exec`（实测） | 只有 `project-statement-engine.ts:86`，中途抛错时迭代器能关（实测）。放宽不影响 |
-| `changes`、`lastInsertRowid` | number；超过 2^53 时丢精度，不抛（实测） | 本机 24.22 同（实测）；但 #1844 碰到过 FTS 写入在连接上留下 64 位行号后，已成功的写入在取结果时抛 `ERR_OUT_OF_RANGE` | SQLD-c 在 24.15.0 上实测，用例钉住。会抛的话，适配层的 `run` 先 `setReadBigInts(true)`（`packages/storage/src/adapters/fts-statement.ts` 的办法）再转 number，已成功的写入不因取结果报错 |
+| `changes`、`lastInsertRowid` | number；超过 2^53 时丢精度，不抛（实测） | 本机 24.22 同（实测）；但 #1844 碰到过 FTS 写入在连接上留下 64 位行号后，已成功的写入在取结果时抛 `ERR_OUT_OF_RANGE` | SQLD-c 在 24.15.0 上实测，用例钉住。会抛的话，适配层的 `run` 先 `setReadBigInts(true)`（`packages/storage/src/adapters/fts-statement.ts` 的办法）再转 number，已成功的写入不因取结果报错；`run` 和 `get` 用同一个语句对象，`setReadBigInts(true)` 用完要切回，否则后面的 `get` 读出 bigint |
 | `function` | 有 | 有 | 适配返回 `this`，测试 2 处 |
 
 实测转换的成本（10 列、10 万行）：`better-sqlite3` 65 ms，`node:sqlite` 裸 71 ms，加转换 103 ms。1000 次按主键 `get`：3.2 ms 对 4.0 ms。行多的读慢 50%，单行几乎没差。项目库的查询绝大多数是小结果集；不做按查询跳过转换这种优化，免得差异重新出现。写入 `node:sqlite` 略快（52 对 64 ms）。`prepare` 多一次词法扫描的成本 SQLD-c 顺手量。
@@ -248,7 +248,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 | --- | --- | --- | --- | --- | --- |
 | SQLD-a 收口 | **还在旧驱动上**：窄接口删 `pluck`、命名参数；加 `readonly` 属性；`sqliteErrorName` 和全部调用点；`snapshot-sqlite.ts` 去掉直接 import | `packages/storage/src/{sqlite-connection,snapshot-sqlite,index}.ts`、`catalog-commit.ts`、`web-catalog-access.ts`、约 6 个测试 | 全量（共享核心） | Opus 5.5 high | U1-a、U1-b（共用 `snapshot-sqlite.ts`） |
 | SQLD-b 锁 Node | §2.1 | CI 3 个、`prepare-macos-runtime.sh`、`.nvmrc`、`tooling/gates/root-allowlist.json`、`package.json` `engines`；启动时的版本说明 | SQLD-06 | Sonnet 5.5 high | 用户 2026-11-06 已定（含改 CI）；F 轨文件由 F 落；原生模块在新 ABI 上重建要核 |
-| SQLD-c 适配层与符合性 | §3 全部，新文件；符合性用例：同一张表对两个驱动各跑一遍，差异全在表内。在官方 24.15 上让适配层跑一遍 S-46 全部用例（§2.1）。**不切换** | 新 `packages/storage/src/sqlite-node-connection.ts`、`tests/sqlite-driver-conformance.test.ts` | SQLD-01、02、03、04、11 | Opus 5.5 high | SQLD-a |
+| SQLD-c 适配层与符合性 | §3 全部，新文件；符合性用例：同一张表对两个驱动各跑一遍，差异全在表内；含同一条语句先 `run` 再 `get`，`get` 读出的整数还是 number。在官方 24.15 上让适配层跑一遍 S-46 全部用例（§2.1）。**不切换** | 新 `packages/storage/src/sqlite-node-connection.ts`、`tests/sqlite-driver-conformance.test.ts` | SQLD-01、02、03、04、11 | Opus 5.5 high | SQLD-a |
 | SQLD-d 切换 | `openSqliteConnection` 换实现；PLIB-08 与 S-46；沙箱核对；打包版本断言；全量加浏览器 | `sqlite-connection.ts`、`tests/security-invariants-plugin-*.test.ts`、`docs/system/SECURITY-INVARIANTS.md`、`plugin-project-library.ts`、`open-database.ts`、`prepare-runtime-payload.mjs`（F）、`scripts/gates/project-sqlite-driver.mjs`（门禁收紧第一步，§7；用户 2026-11-06 已定） | SQLD-05、07、08、09 | Opus 5.5 high | SQLD-b、c；**02③ 已做**（批次定的先后）；机器槽排全量 |
 | SQLD-e 清理 | 删 storage 的依赖；`ownsDriver` 只留 Alchemist（门禁收紧第二步，§7）；`sqliteErrorName` 只认一种 | `packages/storage/package.json`、`pnpm-lock.yaml`（枢纽）、`scripts/gates/project-sqlite-driver.mjs`、`tests/npm-*.{ts,mjs}`、`packages/storage/README.md` | SQLD-10 | Sonnet 5.5 high | SQLD-d 稳定一轮 |
 

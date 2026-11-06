@@ -581,7 +581,7 @@ U1 的机制代码（U1-a～c）不动任何真实基线的版本，合入时用
 核实过共用文件，不是抄「串行」：
 
 - **C-1（05②）**：只改合同与快照（`contracts/modules/projects`、新 `platform/project-materials`、`services/agent-host`、`host-actions.tsv`）和 `modules/projects`。**不碰 `packages/storage`，和 U1-a～e 没有共用文件**，合同片不等 U1。U1-f 碰 `platform/plugin.txt`、`platform/plugin-registration.txt`、`plugin-sdk/index.txt`，和 C-1 也不撞。**动表的部分不随合同片落**：重建不等 C-1（用户 2026-11-06 定），`material_recent_uses` 等挪到 05② 的实现片，走升级段，那一片排在 §14 的条件之后。
-- **08 C-1、05② C-2**：都碰 Manifest 和 `plugin-sdk/index.txt`。U1-f 排队列，建议放在 05② C-2 之后、20 P-1 之前；首次改插件表结构才真的需要它，所以不抢位。
+- **08 C-1、05② C-2**：都碰 Manifest 和 `plugin-sdk/index.txt`。U1-f 排队列，共用的快照上不固定先后，同一时间一个 PR，谁先准备好谁先：`index.txt` 和这两片、N22-01 一前一后，`platform/plugin.txt` 和 N22-01、N22-02 一前一后（统筹 11-07 定，见[动作输入类型 §8.4](../action-input-contracts/spec.md)）。它们只共用生成的快照，没有语义依赖；首次改插件表结构才真的需要 U1-f，所以它不抢位，也不让别的片等它。
 - **SQLite 第二步**：真实重叠是 `packages/storage/src/snapshot-sqlite.ts`、`sqlite-baseline.ts`。U1-a、b 先合，理由是第二步要换这两个文件里的驱动类型；反过来先换驱动，U1 要在新接口上重写错误判断。U1 新代码只用 `exec`、`prepare`（`SqliteBaselineDatabase`）和 errcode 判断，第二步几乎不用碰它。**U1-c 之后的片和第二步不共用文件，可以并行。**
 - **U2**：U2-a、b 和 U1 共用同一份 `homeStores()` 枚举，改的文件不重叠（`scripts/`、`tests/`），但都读快照那套。U1-a 之前 U2-a 就能写，见 U2 设计 §8。转储器放 `packages/storage`，要写在窄接口上。
 - **02**：U1-a 必须等 #1790。#1837 改 `home-store-snapshot.ts`、`file-secret-store.ts`，U1-d、e 排在它之后。

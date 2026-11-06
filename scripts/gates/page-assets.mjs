@@ -303,16 +303,19 @@ const headErrors = (measured, budget, base) => {
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
 // table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
 // account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
+// FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
+// The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
+// Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
 // proactive-assistant §12.1 capsule fix (user approved asking for this admission, 2026-11-06): the input capsule's current work, tabs and
 // new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +312 B, the
 // per-project key helper, one chosen-project path through setProject and the place named before the title. Tried: removed the
 // chooser's own draft map (the island owns drafts now) and its swap code, dropped a tooltip naming the project and its translation,
-// shared the view reset between switching and setProject; a first cut was +557 B. The BL-912 entry keyed on 1077477 is spent on this base.
+// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 1077683 base after FCS-01/02, whose entry is spent there.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [689886, 693169],
   "/assets/molis-work-settings.css": [826998, 827545],
   "/assets/molis-work-workbench.css": [1194792, 1204497],
-  "/assets/molis-work-workbench.js": [1077514, 1077826],
+  "/assets/molis-work-workbench.js": [1077683, 1077995],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

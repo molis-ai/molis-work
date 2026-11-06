@@ -1,10 +1,11 @@
+import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import type {
   ArtifactReference,
   ArtifactVersionRecord,
@@ -99,7 +100,7 @@ function process(file: string, options: {
   onEvent?: (event: PluginEventRecord) => void;
   onReady?: (inputs: PluginUpstreamReadyInputs) => void;
 }) {
-  const db = new Database(file);
+  const db = openPluginTestDatabase(file);
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({
@@ -270,7 +271,7 @@ test("a port's fixed version and plugin source replace each other durably and le
   const directory = mkdtempSync(join(tmpdir(), "molis-wiring-fixed-"));
   const path = join(directory, "wiring.sqlite");
   try {
-    let db = new Database(path);
+    let db = openPluginTestDatabase(path);
     let repository = new SqlitePluginWiringRepository(db);
     const fixed = { project_id: "b", target_plugin_id: "consumer", target_port: "report", artifact_id: "report", version: 3, actor_id: "web-user", created_at: "2026-10-04T00:00:00.000Z" };
     const plugin = { project_id: "b", target_plugin_id: "consumer", target_port: "report", source_plugin_id: "producer", source_port: "report",
@@ -278,7 +279,7 @@ test("a port's fixed version and plugin source replace each other durably and le
     repository.saveBinding(plugin);
     repository.saveArtifactBinding(fixed);
     assert.equal(repository.getBinding("b", "consumer", "report"), null);
-    db.close(); db = new Database(path); repository = new SqlitePluginWiringRepository(db);
+    db.close(); db = openTestSqlite(path); repository = new SqlitePluginWiringRepository(db);
     assert.deepEqual(repository.getArtifactBinding("b", "consumer", "report"), fixed);
     repository.saveBinding(plugin);
     assert.equal(repository.getArtifactBinding("b", "consumer", "report"), null);

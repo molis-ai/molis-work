@@ -323,9 +323,9 @@ const headErrors = (measured, budget, base) => {
 // new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +312 B, the
 // per-project key helper, one chosen-project path through setProject and the place named before the title. Tried: removed the
 // chooser's own draft map (the island owns drafts now) and its swap code, dropped a tooltip naming the project and its translation,
-// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 1085276 base after ASC-59, whose entry is spent there.
+// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 1085274 base after #1790 (ASC-59's entry is spent there).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1085276, 1085588],
+  "/assets/molis-work-workbench.js": [1085274, 1085586],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

@@ -29,7 +29,7 @@ node scripts/run-tests.mjs tests/functions-system-capability.test.ts
 - 负责：判断规则的草稿、不可变的已发布版本、样本与判断记录。
 - 不负责：TypeSafe HTTP、插件界面、场景执行。
 - 公开入口：`@molis-ai/molis-work-module-judgment-rules`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/functions`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store，自己的库也不出包入口（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`（共用对象判断 `isRecord`）。方向：依赖公共合同及底层共享包；不导入另一个 Module 的实现或 Store，自己的库也不出包入口（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 已发布配置与版本不可变，只能删除草稿；样本、试跑及判断记录仍独立管理。
   - TypeSafe 原生 Choice 回答在转换边界核对本次声明的 criteria；非空的非法选项拒绝，不保存试跑或成功判断，不取得发布资格。null 保持 needs_review。

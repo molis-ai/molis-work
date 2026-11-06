@@ -1,4 +1,5 @@
-import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectSchema as closed } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, type PluginNotificationDelivery, type PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedApplication } from "./application.js";
 
@@ -8,7 +9,6 @@ import type { FeedApplication } from "./application.js";
  * This action is that receiver. It is not a person's or a workflow's action: only the platform's notification service calls it (the
  * workflow audience with `PLUGIN_NOTIFICATION_DELIVERY_ACTOR`), and any other caller is refused.
  */
-const closed = (properties: Record<string, unknown>, required: string[]): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const text = (maxLength: number) => ({ type: "string", maxLength });
 
 export const feedNotificationActions = {

@@ -1,5 +1,5 @@
 import { bindingErrors } from "./binding-errors.js";
-import type Database from "better-sqlite3";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
 const scope = { kind: "personal", id: "private-work-context" } as const;
@@ -39,4 +39,4 @@ const BINDING_METADATA_SCHEMA = `CREATE TABLE runtime_context_bindings (
   UNIQUE(runtime_id, stable_work_context_id)
 );`;
 
-export function createRuntimeContextBindingMetadata(db: Database.Database): void { db.exec(BINDING_METADATA_SCHEMA); }
+export function createRuntimeContextBindingMetadata(db: SqliteDatabase): void { db.exec(BINDING_METADATA_SCHEMA); }

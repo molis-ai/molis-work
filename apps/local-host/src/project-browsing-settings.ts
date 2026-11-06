@@ -11,9 +11,7 @@ export const PROJECT_BROWSING_SETTINGS_SCHEMA_SQL = `
 
 /** Host-owned preference only. Directory membership remains exclusively in the catalog. */
 export class ProjectBrowsingSettings {
-  constructor(private readonly db: PluginPrivateStorageDatabase) {
-    db.exec(PROJECT_BROWSING_SETTINGS_SCHEMA_SQL);
-  }
+  constructor(private readonly db: PluginPrivateStorageDatabase) {}
 
   read(projectId: string, workspaces: readonly ProjectWorkspaceRef[]): ProjectWorkspaceRef | null {
     const row = this.db.prepare("SELECT workspace_id FROM project_browsing_settings WHERE project_id = ?").get(projectId) as { workspace_id: string | null } | undefined;

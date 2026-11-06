@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, HomeConsentLedger, L, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -143,7 +143,7 @@ test("RAC-2648 a ledger cleanup failure remains pending across catalog reopen, a
     const ledger = new HomeConsentLedger(home), entry = { plugin_id: "io.molis.work.example.cleanup", publisher_signature: "publisher", manifest_digest: "digest", install_id: "same-install",
       approved_capability_ids: ["goals.state"], at: "then" };
     const old = ledger.grantProjectReach({ ...entry, project_id: DEMO_PROJECT_ID }), b = ledger.grantProjectReach({ ...entry, project_id: kept });
-    const file = homeSqlitePath(home, "plugin-runtime"), db = new Database(file);
+    const file = homeSqlitePath(home, "plugin-runtime"), db = openTestSqlite(file);
     try {
       db.exec("CREATE TRIGGER refuse_reach_cleanup BEFORE UPDATE OF revoked_at ON plugin_consents WHEN OLD.kind = 'project_reach' BEGIN SELECT RAISE(ABORT, 'injected consent cleanup failure'); END");
       const removed = await catalog.removeDemoProject({ ...deletion(DEMO_PROJECT_ID), idempotency_key: "reach-demo-remove" });
@@ -242,7 +242,7 @@ test("RAC-2457 deleting a project through the catalog removes the directory reco
     bind(gone, shared, "thread-shared-1");
     bind(kept, shared, "thread-shared-2");
     const directories = () => {
-      const db = new Database(catalog.databasePath, { readonly: true });
+      const db = openTestSqlite(catalog.databasePath, { readonly: true });
       try { return (db.prepare("SELECT canonical_path FROM workspaces ORDER BY canonical_path").all() as Array<{ canonical_path: string }>).map(row => row.canonical_path); } finally { db.close(); }
     };
     assert.equal(directories().length, 2);

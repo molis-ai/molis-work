@@ -1,3 +1,4 @@
+import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { Issue, IssueCreate, IssueDelete, IssueList, IssueListResult, IssueUpdate, IssueStore } from "./store.js";
@@ -5,7 +6,6 @@ import { IssueCaptures, type IssueDraft, type IssueCapture, type IssueNamed } fr
 import { ISSUE_IMAGE_BYTES, ISSUE_IMAGE_LIMIT, validateIssueImages } from "./images.js";
 import { nameIssue, type IssueNaming, type IssueNamingInput } from "./naming.js";
 
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const text = { type: "string" }, id = { type: "string", minLength: 1, maxLength: 100 }, version = { type: "integer", minimum: 1 };
 const title = { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" }, type = { enum: ["bug", "experience", "feature"] };
 const description = { type: "string", maxLength: 100000 };
@@ -21,9 +21,8 @@ const issue = object({ ...properties, images });
 const rules = "个人 Home 的问题记录，切换项目不改变数据。保留用户原话与追问答复，不润色、分析或给解决办法；按描述和截图起简洁标题，类型为 Bug、体验问题或功能需求。新记录可撤销，之后可在详情里修改。只在用户明确要求时修改或删除；先读取当前版本。取消、冲突或提交结果未知时不自动重复写入。";
 function action<Input, Output>(name: string, label: string, effect: "read" | "write" | "irreversible", input_schema: ActionSchema, output_schema: ActionSchema, contractVersion = 1,
   audiences: ActionDefinition<Input, Output>["action"]["audiences"] = ["user", "agent", "mcp"], extra: Partial<ActionDefinition<Input, Output>["action"]> = {}): ActionDefinition<Input, Output> {
-  return { capability_id: `issues.${name}`, version: contractVersion, operation: effect === "read" ? "query" : "command",
-    action: { effect, kind: effect === "read" ? "query" : "operation", scope: "home", audiences, subject_kinds: ["issue"], title: label, description: rules,
-      permissions: [effect === "read" ? "issues:read" : "issues:write"], input_schema, output_schema, ...extra } };
+  return createActionDefinition<Input, Output>(`issues.${name}`, effect === "read" ? "query" : "command", { effect, kind: effect === "read" ? "query" : "operation", scope: "home", audiences, subject_kinds: ["issue"], title: label, description: rules,
+      permissions: [effect === "read" ? "issues:read" : "issues:write"], input_schema, output_schema, ...extra }, contractVersion);
 }
 // A new record can be taken back while nobody has changed it, so an Assistant asked to record one may save it directly.
 const undo = { capability_id: "issues.discard", version: 1, input: { id: "id", expected_version: "version" } };

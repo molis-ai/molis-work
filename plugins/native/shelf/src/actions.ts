@@ -1,3 +1,4 @@
+import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
@@ -11,7 +12,6 @@ import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfFile
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const nullableText = { type: ["string", "null"] };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 // Records are owned by the Shelf store; the contract names what callers rely on without freezing every display field.
 const record = (required: readonly string[]) => ({ type: "object", required });
 const item = record(["item_id", "group", "kind", "name", "mime", "size_bytes", "hidden", "status", "created_at"]);
@@ -27,8 +27,8 @@ const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[], resultView?: ActionResultView): ActionDefinition<I, O> {
   // The existing HTTP surface never serialized Shelf: recipes run for minutes while the panel keeps reading and cancelling.
-  return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) } };
+  return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
+    scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) });
 }
 
 function jobDefinition(name: string, title: string, description: string, recipes: readonly ShelfRecipeId[], cost: "none" | "metered", permissions: readonly string[]): ActionDefinition<ShelfRunJobInput, ShelfJobOutcome> {
@@ -191,8 +191,8 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
 export interface ShelfMaterialPreview { payload: import("@molis-ai/molis-work-module-shelf/contract").ShelfTextMaterial; fingerprint: string }
 function defineProject<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
-  return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "project", scheduling: "concurrent", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output } };
+  return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
+    scheduling: "concurrent", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output });
 }
 const material = object({ title: text, text, content_hash: text, source: { type: "object", required: ["item_id"] } });
 export const shelfProjectActions = {

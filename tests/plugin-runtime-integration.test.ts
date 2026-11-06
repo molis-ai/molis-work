@@ -1,3 +1,4 @@
+import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -6,7 +7,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 
 import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
@@ -294,8 +295,8 @@ function probeContribution(pluginId: string, extra: Partial<PluginAppContributio
   return { kind: "app", views: [probeView(pluginId)], ...extra };
 }
 
-function openRuntimeDatabase(directory: string, name: string): Database.Database {
-  return new Database(join(directory, name));
+function openRuntimeDatabase(directory: string, name: string): SqliteDatabase {
+  return openPluginTestDatabase(join(directory, name));
 }
 
 test("J1A-01/02: a current owner crash code persists, revokes the live instance and recovers; driver codes use the fallback", async () => {
@@ -391,7 +392,7 @@ test("a rebuilt runtime activates a persisted running plugin and does not revive
     dbA.close();
 
     failRecovery = false;
-    const dbB = new Database(databasePath);
+    const dbB = openTestSqlite(databasePath);
     try {
       const runtimeB = new PluginRuntime(new SqlitePluginRuntimeRepository(dbB), undefined, { hostIds: ISOLATED_HOST_IDS,
         maxRecoveryAttempts: 1,
@@ -497,7 +498,7 @@ test("a failed reactivation revokes grants, and a cold stop does not activate or
     dbA.close();
 
     allow = false;
-    const dbB = new Database(join(directory, "runtime.sqlite"));
+    const dbB = openTestSqlite(join(directory, "runtime.sqlite"));
     try {
       const runtimeB = new PluginRuntime(new SqlitePluginRuntimeRepository(dbB), undefined, { hostIds: ISOLATED_HOST_IDS });
       const supervisorB = new PluginSupervisor(runtimeB);
@@ -524,7 +525,7 @@ test("a failed reactivation revokes grants, and a cold stop does not activate or
       dbB.close();
     }
 
-    const dbC = new Database(join(directory, "runtime.sqlite"));
+    const dbC = openTestSqlite(join(directory, "runtime.sqlite"));
     try {
       const runtimeC = new PluginRuntime(new SqlitePluginRuntimeRepository(dbC), undefined, { hostIds: ISOLATED_HOST_IDS });
       runtimeC.install({ trust: { level: "unsigned" }, definition: parked, deployment: "local", grants: [PROBE_PERMISSION] });

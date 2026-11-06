@@ -1,3 +1,5 @@
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+export { escapeHtml };
 import type { StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export type TerminalTranslate = (zh: string, vars?: Record<string, string | number>) => string;
@@ -76,11 +78,3 @@ export const errorText = (error: unknown) => {
   if (error && typeof error === "object" && "message" in error) return String((error as { message: unknown }).message);
   return String(error);
 };
-
-export function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}

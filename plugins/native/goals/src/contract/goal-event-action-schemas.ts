@@ -1,3 +1,5 @@
+import { nullableSchema as nullable, arraySchema as array, objectSchema } from "@molis-ai/molis-work-plugin-sdk";
+export { nullable, array };
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEventAcknowledgementCategories, goalEventAcknowledgementTreatments, goalEventClosureKinds, goalEventConcernStatuses, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
   goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
@@ -8,12 +10,8 @@ export const text = { type: "string" };
 export const identifier = { type: "string", minLength: 1 };
 export const count = { type: "integer", minimum: 0 };
 export const boolean = { type: "boolean" };
-export const nullable = (schema: ActionSchema): ActionSchema => ({ anyOf: [schema, { type: "null" }] });
-export const array = (items: ActionSchema): ActionSchema => ({ type: "array", items });
+export const object: (properties: Record<string, unknown>, required?: string[]) => ActionSchema = objectSchema;
 export const enumeration = (values: readonly unknown[]): ActionSchema => ({ enum: [...values] });
-export const object = (properties: Record<string, ActionSchema>, required = Object.keys(properties)): ActionSchema => ({
-  type: "object", properties, required, additionalProperties: false,
-});
 /** A criterion's decision method and a decomposition review's status: written and read as one of their values. */
 export const recordedDecisionMethod: ActionSchema = enumeration(goalDecisionMethods);
 export const recordedReviewStatus: ActionSchema = enumeration(goalDecompositionReviewStatuses);

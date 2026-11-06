@@ -29,9 +29,7 @@ export function readPluginRuntimeRecords(db: Pick<PluginRuntimeDatabase, "prepar
 export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
   /** Every action's availability reads its installation's record: the statement is prepared once, the row read each time. */
   private byId?: ReturnType<PluginRuntimeDatabase["prepare"]>;
-  constructor(private readonly db: PluginRuntimeDatabase) {
-    db.exec(PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL);
-  }
+  constructor(private readonly db: PluginRuntimeDatabase) {}
   get(installId: string): PluginInstanceRecord | null {
     const row = (this.byId ??= this.db.prepare("SELECT record_json FROM plugin_runtime_installs WHERE install_id = ?")).get(installId) as { record_json: string } | undefined;
     return row ? JSON.parse(row.record_json) as PluginInstanceRecord : null;

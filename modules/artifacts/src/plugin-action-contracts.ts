@@ -1,6 +1,7 @@
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactPublishInput, PluginProcessItemInput } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { id, version, text, object, nullable, record, processRecord, reference, origin, array } from "./plugin-action-schemas.js";
+import { arraySchema as array, nullableSchema as nullable, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
+import { id, version, text, record, processRecord, reference, origin } from "./plugin-action-schemas.js";
 
 const versionInput = object({ artifact_id: id, version, artifact_type_id: id, schema_version: version,
   content: { oneOf: [object({ kind: { const: "inline" }, payload: {} }), object({ kind: { const: "reference" }, content_ref: id,

@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ArtifactsModule, createArtifactsSchema, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -11,7 +11,7 @@ import { importLocalArtifactDocument } from "../apps/local-host/dist/artifact-do
 
 test("document import reads only the selected account, preserves provenance and blocks revoked reads", async t => {
   const home = mkdtempSync(join(tmpdir(), "molis-document-account-"));
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.exec("CREATE TABLE project_root(project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES('board');");
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
   const artifacts = new ArtifactsModule({ db: db as unknown as ArtifactsSqliteDatabase, appendEvent: () => 1, eventCursor: () => 1 });

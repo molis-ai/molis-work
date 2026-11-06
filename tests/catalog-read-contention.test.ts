@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { performance } from "node:perf_hooks";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
@@ -21,8 +21,8 @@ test("current catalog reads under another writer without changing facts or waiti
   const database = initial.databasePath;
   initial.close();
   const writer = spawn(process.execPath, ["--input-type=module", "-e", `
-    import Database from 'better-sqlite3';
-    const db = new Database(process.argv[1]); db.exec('BEGIN IMMEDIATE');
+    import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+    const db = openTestSqlite(process.argv[1]); db.exec('BEGIN IMMEDIATE');
     db.prepare('UPDATE projects SET display_name = ? WHERE project_id = ?').run('未提交的名称', process.argv[2]);
     console.log('locked');process.stdin.once('data',()=>{db.exec('ROLLBACK');db.close();});
   `, database, project.project_id], { stdio: ["pipe", "pipe", "pipe"] });
@@ -56,7 +56,7 @@ test("a real catalog mutation waits asynchronously, commits once and keeps healt
   const origin = `http://127.0.0.1:${address.port}`;
   await fetch(origin + "/projects");
   const writer = spawn(process.execPath, ["--input-type=module", "-e", `
-    import Database from 'better-sqlite3';const db=new Database(process.argv[1]);db.exec('BEGIN IMMEDIATE');
+    import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";const db=openTestSqlite(process.argv[1]);db.exec('BEGIN IMMEDIATE');
     console.log('locked');setTimeout(()=>{db.exec('ROLLBACK');db.close();},1250);
   `, database], { stdio: ["ignore", "pipe", "pipe"] });
   t.after(() => { if (writer.exitCode === null) writer.kill(); });
@@ -94,7 +94,7 @@ test("catalog commit rechecks authority after real lock waits and keeps queued c
   t.after(() => catalog.close());
   const project = await catalog.createProject({ display_name: "不能被迟到写入覆盖", actor_id: "user" });
   const writer = spawn(process.execPath, ["--input-type=module", "-e", `
-    import Database from 'better-sqlite3';const db=new Database(process.argv[1]);db.exec('BEGIN IMMEDIATE');
+    import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";const db=openTestSqlite(process.argv[1]);db.exec('BEGIN IMMEDIATE');
     console.log('locked');process.stdin.once('data',()=>{db.exec('ROLLBACK');db.close();});
   `, catalog.databasePath], { stdio: ["pipe", "pipe", "pipe"] });
   t.after(() => { if (writer.exitCode === null) writer.kill(); });
@@ -134,7 +134,7 @@ test("Web catalog owner reuses one connection, observes commits, and closes afte
   const project = await external.createProject({ display_name: "外部提交", actor_id: "user" });
   external.close();
   assert.deepEqual(await access.withCatalog({ homeDirectory: home }, c => c.getProject(project.project_id)), project);
-  const metadata = new Database(join(home, "projects", "catalog.db"));
+  const metadata = openTestSqlite(join(home, "projects", "catalog.db"));
   const version = metadata.prepare("SELECT value FROM catalog_meta WHERE key='schema_version'").pluck().get();
   metadata.prepare("UPDATE catalog_meta SET value=? WHERE key='schema_version'").run(String(Number(version) + 1));
   await assert.rejects(access.warm(), error => (error as { code?: string }).code === "catalog.reader_too_old");

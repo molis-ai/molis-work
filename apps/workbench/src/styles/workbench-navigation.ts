@@ -75,7 +75,7 @@ ${REMOVED}>*{--group-color:var(--faint);--group-fill:var(--faint)}
 ${SWITCH}{display:none;flex:none;margin-right:4px}
 /* A pinned tab widens in place like the right side's glyphs (glyph-tabs.ts). */
 ${PINNED_GROWN}{width:max-content;max-width:208px;padding:0 10px 0 8px;background:var(--nav-hover);color:var(--ink)}
-${PINNED_GROWN} .tab-item-name{display:block;animation:tab-name-in ${EASE} both}
+${PINNED_GROWN} .tab-item-name{display:block;animation:craft-fade-in ${EASE} both}
 /* The window's one layout button (a ghost icon .mw-btn) at the titlebar's end, after a hairline; with the right side hidden, its glyphs sit before it. */
 .titlebar-layout{position:relative;display:flex;align-items:center;flex:none;gap:4px;padding-left:9px}
 .titlebar-layout::before{content:"";position:absolute;left:0;top:50%;width:1px;height:16px;margin-top:-8px;background:var(--line-strong)}

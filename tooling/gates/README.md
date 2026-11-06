@@ -68,7 +68,7 @@
 | 没有标记的当前版本 | 属性 `version`、`*_version`、`*Version`、`format`、`schema`、`v`、`protocol` 取数字或像版本的字符串（含 `as const`、接口里的字面量类型）；这些名字与数字的相等比较；`*VERSION` 变量的字面量；名为 version 的参数的默认值；带 `.vN`、`/N` 的公开标识字符串。0 表示「还没有」，不算 |
 | 用错条目 | `capability_id`、`prompt_id`、`role_id`、`scene_id` 或工厂的 id 字面量旁边，标记的 key 不是这个 id 的条目 |
 | 按位置引用的动作 | 表里有的动作 id 后面直接跟裸数字 |
-| 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取 |
+| 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取；`.rs`、`.sql`、`.toml` 里写了 `@version` 标记（生成器不读这些文件，标记不会生效，要改走 `carriers`） |
 | 动作与场景的对账 | `tooling/gates/actions/` 的每一行与 `action.*`、`scene.*`、`action-family.*`、`protocol.workflow-content.*` 条目双向一致 |
 
 **扫描范围。** `scripts/generate-versions.mjs` 的 `SOURCE_ROOTS` 下的代码文件，跳过真正的测试与夹具（`isTestFile`）；`src/fixtures/` 随产品发出，照样扫。

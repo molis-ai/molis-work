@@ -171,12 +171,12 @@ test("the ordinary write gate preserves its formal expiry when an unverified sta
   assert.equal(entry.meta.basis, "inferred", "acceptance does not rewrite an inference into explicit evidence");
 });
 
-test("v2 rejects missing classification and older envelopes before any import writes", async t => {
+test("missing classification and a non-current envelope are refused before any import writes", async t => {
   const f = await fixture(t);
   await f.service.write(caller("seed"), { scope: "personal", text: "Keep reports concise" });
   const pack = await f.service.exportScope(caller("export"), "personal");
   const { classification: _classification, ...legacy } = pack.entries[0]!;
-  for (const invalid of [{ ...pack, version: 1 }, { ...pack, entries: [pack.entries[0]!, legacy] }]) {
+  for (const invalid of [{ ...pack, version: 2 }, { ...pack, entries: [pack.entries[0]!, legacy] }]) {
     await assert.rejects(f.service.importScope(caller("invalid"), "project", invalid), { code: "memory.invalid" });
     assert.deepEqual(await f.raw().list("project", "project-a"), []);
   }

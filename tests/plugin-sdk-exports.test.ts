@@ -100,7 +100,7 @@ test("R2-01/02/03: an author builds a closed action input and keeps its scope an
   const input = objectSchema(properties, ["title"]);
   const meta = { title: "Read", description: "Read notes", audiences: ["user"] as const, permissions: ["notes:read"],
     subject_kinds: ["note"], input_schema: input };
-  const action = createActionDefinition("notes.read", "query", meta);
+  const action = createActionDefinition("notes.read", "query", meta, 1);
   assert.deepEqual(action, { capability_id: "notes.read", version: 1, operation: "query", action: { ...meta, kind: "query", scope: "project" } });
   assertActionInput(input, { title: "a" });
   assertActionInput(input, { title: "a", tags: ["x", null] });
@@ -108,7 +108,7 @@ test("R2-01/02/03: an author builds a closed action input and keeps its scope an
     assert.throws(() => assertActionInput(input, value), { code: "actions.input_invalid" });
   }
   assert.throws(() => assertActionInput(objectSchema(properties), { title: "a" }), { code: "actions.input_invalid" });
-  const command = createActionDefinition("notes.home", "command", { ...meta, scope: "home", scheduling: "concurrent" });
+  const command = createActionDefinition("notes.home", "command", { ...meta, scope: "home", scheduling: "concurrent" }, 1);
   assert.equal(command.action.scope, "home");
   assert.equal(command.action.kind, "operation");
   assert.equal(command.action.scheduling, "concurrent");

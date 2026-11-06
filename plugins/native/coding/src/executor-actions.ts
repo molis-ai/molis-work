@@ -1,7 +1,7 @@
 import { defineWorkExecutorActions } from "@molis-ai/molis-work-plugin-sdk";
 import type { WorkExecutorActionOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 
-const role = (name: string, title: string, description: string, permissions: readonly string[], more: Partial<WorkExecutorActionOptions> = {}): WorkExecutorActionOptions =>
+const role = (name: string, title: string, description: string, permissions: readonly string[], more: Pick<WorkExecutorActionOptions, "version"> & Partial<WorkExecutorActionOptions>): WorkExecutorActionOptions =>
   ({ capability_id: `coding.executor.${name}`, title, description, permissions, subject_kinds: ["coding_session"], ...more });
 
 /**

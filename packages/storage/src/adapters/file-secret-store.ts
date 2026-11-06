@@ -406,7 +406,7 @@ function openSnapshot(homeDirectory: string, contents: string) {
   snapshotHome(homeDirectory);
   let file: SecretsFile;
   try { file = parseSecretsFile(contents); }
-  catch { throw snapshotErrors.invalid("凭据快照不是现行的 v2 密文格式或后端"); }
+  catch { throw snapshotErrors.invalid("凭据快照不是现行的密文格式或后端"); }
   return openSnapshotFile(homeDirectory, file);
 }
 
@@ -547,7 +547,7 @@ function saveFile(file: SecretsFile): void {
   atomicWriteFileSync(p, JSON.stringify(payload, null, 2), { mode: 0o600 });
 }
 
-/** A new seal must be an current AES-GCM envelope, never reversible encoding. */
+/** A new seal must be a current AES-GCM envelope, never reversible encoding. */
 function assertSealedEnvelope(sealed: string): void {
   try {
     const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedEnvelope;
@@ -558,7 +558,7 @@ function assertSealedEnvelope(sealed: string): void {
 }
 
 /**
- * Every entry already in the file must still be a sealEnvelope envelope before the file is written back. `exceptRef` is the entry being
+ * Every entry already in the file must still be a current envelope before the file is written back. `exceptRef` is the entry being
  * deleted: deleting the bad entry itself is how a vault with one gets clean again, so that one is not checked.
  */
 function assertSealedEntries(file: SecretsFile, exceptRef?: string): void {

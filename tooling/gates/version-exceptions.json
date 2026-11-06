@@ -149,11 +149,6 @@
     "reason": "解析规则：字符串引用没写 @ 时指第 1 版。这是读法的约定，换数字会改变存量引用的含义。"
   },
   {
-    "file": "packages/plugin-sdk/src/actions.ts",
-    "name": "version",
-    "reason": "createActionDefinition 在 main 上就有的末位默认值，公开写法保持原样，不随本批改形状。"
-  },
-  {
     "file": "plugins/native/alchemist/src/studio/domain/discovery/idea-card.ts",
     "name": "currentVersion",
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"

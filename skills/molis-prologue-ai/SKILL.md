@@ -134,4 +134,4 @@ Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插�
 
 普通文字材料只带 `material_id/title/text`；只有实际固定引用才带完整 `source_artifact_id/source_version`。前者 data 头用 `{title, material_id}`，后者保留 `{title, artifact_id, version}`；正文逐字保留，头与正文合计至多 20,000 UTF-16 units，非法或半份来源派发前拒绝。冻结记录只保留实际提供的来源，不用 Work、Session、Question 或实时 Page 标识占位。
 
-初始原件与接续通过正式 `agent.run.start@1` 输入；`agent.session.read@1`、`agent.run.read@1`、`agent.run.wait@1` 保留 canonical 原件，读取三口旧 @1/@2、启动口旧 @1 引用已失效。字段只表达草稿与来源引用，不能带 project/plugin/install/actor 或冻结角色。Host 校验原件证明，`readRun`、`readSession.latest_run` 与 `waitRun.view` 保留 canonical 原件；新增字段必须同步严格 Action schema 并升动作 version。助理通用执行方的补充经所选插件精确 `run.control` Action 与当前安装转交证明，不把协议角色本身当作本人授权。
+初始原件与接续通过正式 `agent.run.start@1` 输入；`agent.session.read@1`、`agent.run.read@1`、`agent.run.wait@1` 保留 canonical 原件，固定了其他版本的引用被拒绝。字段只表达草稿与来源引用，不能带 project/plugin/install/actor 或冻结角色。Host 校验原件证明，`readRun`、`readSession.latest_run` 与 `waitRun.view` 保留 canonical 原件；新增字段必须同步严格 Action schema 并升动作 version。助理通用执行方的补充经所选插件精确 `run.control` Action 与当前安装转交证明，不把协议角色本身当作本人授权。

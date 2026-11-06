@@ -13,7 +13,7 @@
    defineSubjectContextAction("<plugin>.subject.read", 1, "<kind>", "<对象名>", ["<plugin>:read"], "home"); // 个人范围的对象
    ```
 
-   读取动作是版本 2：`goal_ids` 不是必填，对象不属于任何 Goal 就不写（不要补 `[]`）。固定了版本 1 读取器的引用会遇到另一份合同，要改成 2。
+   读取动作的 `goal_ids` 不是必填，对象不属于任何 Goal 就不写（不要补 `[]`）。
 
    handler 用 `subjectContext({ subject, revision, title, content, goal_ids, open }, input)` 返回：当前正文（一次最多 32000 字；把读取器收到的 `input` 作第二个参数传进去，就能从 `input.offset` 起一页页读长文，项目资料按页读到全文；不传只给第一页并标 `truncated`）、`revision`（你自己的版本号或令牌，内容一变它就变）、关联的 Goal、所在会话，以及 `open: { surface, id }`——工作台打开它的位置（与 `host.openItem(surface, id)` 一致）。对象不存在时抛 `<plugin>.not_found`：助理据此显示“已不存在”，而不是“暂时读不到”。一种对象只能有一个提供方。
 
@@ -60,7 +60,7 @@
 
 ## 样例与验证
 
-Shelf 文字副本用 `shelf.items.read@1` 的完整 `content_hash` 作为 `shelf.items.edit@1` 必需的 `expected_content_hash`；网页从同一次原文件响应的 ETag 取得同一指纹。导入时的 `origin_hash` 不代表当前编辑内容。成功保存才更新下一次前提，失败保留原前提与草稿；MCP 修改工具升为 shelf.items.edit__v2，旧名不自动切换。
+Shelf 文字副本用 `shelf.items.read@1` 的完整 `content_hash` 作为 `shelf.items.edit@1` 必需的 `expected_content_hash`；网页从同一次原文件响应的 ETag 取得同一指纹。导入时的 `origin_hash` 不代表当前编辑内容。成功保存才更新下一次前提，失败保留原前提与草稿。
 
 个人同步会产生“修订数字相同、内容不同”的并发分支。版本前提必须标识所读内容，不能只比较本机递增数字。Cognia 的 `cognia.material.get@1` 返回完整资料的 `etag`，`cognia.material.update@1` 强制携带它，owner 在同一事务核对并保存；网页与 MCP 共用处理器，旧编辑被拒绝而不覆盖新内容。对应 MCP 名为 cognia.material.get__v1、cognia.material.update__v1。
 

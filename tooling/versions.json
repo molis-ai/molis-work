@@ -1093,6 +1093,7 @@
     "policy.gmail.attention": 1,
     "policy.memory.config": 1,
     "policy.memory.gate": 1,
+    "policy.memory.plugin-write": 1,
     "policy.memory.taxonomy": 1,
     "product.release": "0.1.0",
     "prompt.alchemist.copilot": 1,

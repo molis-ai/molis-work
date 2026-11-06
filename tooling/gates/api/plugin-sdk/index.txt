@@ -549,7 +549,7 @@ export declare function compareTexts(before: string, after: string): TextDiff;
 
 export declare function controlledConnectorFetch<Input>(fetchImpl: (input: Input, init?: RequestInit) => Promise<Response>, control: ConnectorCallControl): (this: unknown, input: Input, init?: RequestInit) => Promise<Response>;
 
-export declare function createActionDefinition<Input = unknown, Output = unknown>(capability_id: string, operation: ActionDefinition["operation"], metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>, version?: number): ActionDefinition<Input, Output>;
+export declare function createActionDefinition<Input = unknown, Output = unknown>(capability_id: string, operation: ActionDefinition["operation"], metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>, version: number): ActionDefinition<Input, Output>;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 

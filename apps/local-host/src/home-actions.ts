@@ -1,4 +1,4 @@
-import { canonicalJsonText, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, compareCodeUnits, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer } from "./home-offer-actions.js";
 import { callerDirectory, prepareSubjectOffers } from "./contextual/contextual-service.js";
 import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.js";
@@ -113,7 +113,7 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
   };
   const offerRevision = (offers: HomeActionOffer[]) => createHash("sha256").update(canonicalJsonText(offers
     .map(({ recommendation_key, source, action, input, title }) => ({ recommendation_key, source, action, input, title }))
-    .sort((a, b) => a.recommendation_key! < b.recommendation_key! ? -1 : a.recommendation_key! > b.recommendation_key! ? 1 : 0))!).digest("hex");
+    .sort((a, b) => compareCodeUnits(a.recommendation_key!, b.recommendation_key!)))!).digest("hex");
   const referenceAvailable = (directory: readonly ActionView[], reference: ActionReference) => directory.some(action =>
     action.capability_id === reference.capability_id && action.version === reference.version
     && action.provider.provider_id === reference.provider_id && action.availability.available);

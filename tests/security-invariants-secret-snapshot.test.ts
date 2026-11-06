@@ -77,7 +77,7 @@ test("S-12 RAC-104: a missing or wrong key and invalid snapshots fail before any
     if (fault === "symlink-feed") { renameSync(join(f.home, "feed"), join(f.home, "feed-original")); symlinkSync(join(f.home, "feed-original"), join(f.home, "feed")); }
     if (fault === "version") parsed.version = 3;
     if (fault === "backend") parsed.backend = "unregistered";
-    if (fault === "ciphertext") parsed.entries["snapshot-test"] = Buffer.from('{"v":2,"alg":"aes-256-gcm","ct":"altered"}').toString("base64");
+    if (fault === "ciphertext") parsed.entries["snapshot-test"] = Buffer.from('{"v":1,"alg":"aes-256-gcm","ct":"altered"}').toString("base64");
     const before = unchanged(f.home);
     assert.throws(() => inspect(f.home, JSON.stringify(parsed)));
     assert.deepEqual(unchanged(f.home), before);

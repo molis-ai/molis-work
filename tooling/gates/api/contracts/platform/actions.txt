@@ -2973,7 +2973,7 @@ export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "se
 
 export interface WorkExecutorActionOptions {
     readonly capability_id: string;
-    readonly version?: number;
+    readonly version: number;
     readonly title: string;
     readonly description: string;
     readonly permissions: readonly string[];

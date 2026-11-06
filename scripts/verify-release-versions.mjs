@@ -46,7 +46,7 @@ try {
 } catch (error) { problem(`tooling/versions.json: ${error.message}`); }
 try {
   for (const finding of versionDeclarationProblems(root)) problem(finding);
-} catch (error) { problem(`tooling/gates/version-exceptions.json: ${error.message}`); }
+} catch (error) { problem(`version declarations: ${error.message}`); }
 function readNeeded(file) {
   const text = readOptional(file);
   if (text === null) problem(`${file}: the file is missing`);

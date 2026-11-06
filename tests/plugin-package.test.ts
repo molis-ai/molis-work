@@ -48,7 +48,7 @@ test("N4 signed packages verify across fresh locales with numeric and Unicode sc
   bundle.payload.manifest.actions = [createActionDefinition("io.molis.work.example.package-trust.inspect", "query", {
     title: "Read Unicode fields", description: "Keep original fields", audiences: ["user"], permissions: [], subject_kinds: [],
     input_schema: { type: "object", properties, additionalProperties: false }, output_schema: { type: "null" },
-  })];
+  }, 1)];
   bundle.payload.files.find(file => file.path === "manifest.json")!.content_base64 = Buffer.from(JSON.stringify(bundle.payload.manifest)).toString("base64");
   const signed = signPluginPackage(bundle, signer);
   const bytes = pluginPackageSigningBytes(signed.payload);

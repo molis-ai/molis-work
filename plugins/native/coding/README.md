@@ -70,7 +70,7 @@ Directory candidates and browsing preferences come from the [current-project set
 
 ## 开发要求
 
-Coding 通过原项目内容目录声明“编码会话与草稿”集合，元数据、完整计划、未发送文本与待答内容作为同一项目一致性单元；不读取 Runtime 的私有存储。源端目录、执行 Session、状态、命令/步骤缓存和确认权限不传输。新设备仅得到可编辑的未确认草稿；已有设备保留自己的 Runtime 绑定。活动执行、待核对状态或未结束后台命令期间拒绝替换及删除，稍后重试，不运行云端任务。计划与输入的编辑高水位由 Coding 的授权事务维护，删除后保留；恢复只提高目标版本，旧编辑不能覆盖。项目库当前基线 v16（Coding 声明版本 2），旧版拒绝，不就地补表。真实 Host/Rust/WASM/临时 D1/R2 的大正文往返与 owner 负例已有验证；正常输入路由和浏览器防覆盖已接入并有定向验证，SDK 会话正文沿唯一 Agent Host 的公开导出接口保存为派生只读历史，保持每个原 SDK Session 的独立来源；SDK 仍拥有原执行账本，接收不导入执行授权。新的会话可以保留之前设备的历史段。归档校验、展示和双 Home 往返正在定向验证，不能称真实设备或公网验收完成。
+Coding 通过原项目内容目录声明“编码会话与草稿”集合，元数据、完整计划、未发送文本与待答内容作为同一项目一致性单元；不读取 Runtime 的私有存储。源端目录、执行 Session、状态、命令/步骤缓存和确认权限不传输。新设备仅得到可编辑的未确认草稿；已有设备保留自己的 Runtime 绑定。活动执行、待核对状态或未结束后台命令期间拒绝替换及删除，稍后重试，不运行云端任务。计划与输入的编辑高水位由 Coding 的授权事务维护，删除后保留；恢复只提高目标版本，旧编辑不能覆盖。项目库和 Coding 声明都从第 1 版起，错版拒绝，不就地补表。真实 Host/Rust/WASM/临时 D1/R2 的大正文往返与 owner 负例已有验证；正常输入路由和浏览器防覆盖已接入并有定向验证，SDK 会话正文沿唯一 Agent Host 的公开导出接口保存为派生只读历史，保持每个原 SDK Session 的独立来源；SDK 仍拥有原执行账本，接收不导入执行授权。新的会话可以保留之前设备的历史段。归档校验、展示和双 Home 往返正在定向验证，不能称真实设备或公网验收完成。
 
 `CodingSessionStore.inputs` 是未发送输入的唯一业务 owner。读取会话返回 `input_revision`；写入文本或待答字段使用 `coding.sessions.update@1`，必须携带原 `expected_input_revision`。其他字段仍可独立编辑；动作仍仅 LOCAL，不新增 MCP 工具。窗口缓存保存原基线，后台刷新不能为旧编辑补上新版本。冲突在可见的提示中打开标准对比对话框，明确采用已保存内容或按所见版本保存当前输入；服务器在对比后又变化则再次拒绝。请求未返回时输入的新文本继续保留；已接受 Run 仅清除启动时捕获的同版本、同正文，不清除后来的输入与待答内容。验证：`tests/security-invariants-coding-inputs.test.ts`（真实 SDK、本机 HTTP 模型替身），`tests/coding-inputs.e2e.test.ts`（真实浏览器请求/ACK barrier、刷新和浅深色三宽度）。
 
@@ -110,7 +110,7 @@ Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏
 
 后台 Run follower 是激活的 `follow` 作业，用安装自己的授权和作业的取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
 
-`coding.runs.control` 的现行合同是 version 8：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉），撤回补充与补充的 `about`（version 6，回执 3b-2a），以及补充的 `source`（version 7，BL-144：`host` 是宿主转交页面代写的话，这一轮记成说明，不记成本人的话）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
+`coding.runs.control` 的现行合同包含中途 `switch-model`、补充要求的 `key` 与 `mode`，文字、数字、日期、日期时间题的回答 `value`（T1），对象引用题的回答（`value` 是选中的对象，T2；标题由宿主按对象主人现在的写法换掉），撤回补充与补充的 `about`（回执 3b-2a），以及补充的 `source`（BL-144：`host` 是宿主转交页面代写的话，这一轮记成说明，不记成本人的话）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
 
 Coding 的目标目录、当前约定/状态、进展保存和回执按 id 和版本调用 Goals 注册的五个动作（`src/goals-actions.ts` 的 `GOALS_ACTIONS`：list、contract、state、progress、receipt，只带 id、版本、读写类别和 `goals:read`/`goals:write`，以及 Coding 读用到的字段）；检查输入、受众和权限的仍是 Goals 注册的那份动作，`tests/goals-contract-ownership.test.ts`（RAC-1773）把这里的每一项对到 Goals 的实际动作。Coding 不 import Goals 的合同或实现、不再消费四个旧 typed 协议。Manifest 声明 Goals 读写权限，实例资格取 Host 启动名单的真实 definition；每次路由调用传原取消、提交前复查与同步尾检。目录页仍取100项；固定报告的进展确认只读当前事实，创建给模型的目标材料才执行20k长度约束。
 

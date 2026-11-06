@@ -159,7 +159,7 @@ Home 从同一个能力目录发现查询，无需修改首页按钮名单。它
 
 准备查询不得写业务数据。原执行能力继续负责版本冲突、事务、幂等和恢复，可将 `request_id` 纳入自身幂等合同；Home 不会自动为任意业务操作实现去重。响应未知时首页保留原请求并禁止直接重发，重新读取只核对当前事项。对象变化或原动作消失并不证明上次执行成功；调用者仍须查看原业务结果。此协议不自动创建首页事件，也不替代对象上下文合同。
 
-为规则声明候选动作时，给 `defineSubjectOffersAction` 的第五个参数传入 `[{ offer_id, title, action: { capability_id, version }, subject_kinds? }]`。选项 ID 在该查询内唯一；目标属于本提供方，不能声明别人的 `provider_id`。可省略 `subject_kinds` 以继承查询的对象类型，填写时必须是非空子集。实际返回同一个 offer_id 时必须兑现声明的目标版本和对象类型，不能临时换成另一项操作。
+为规则声明候选动作时，给 `defineSubjectOffersAction` 的第六个参数传入 `[{ offer_id, title, action: { capability_id, version }, subject_kinds? }]`。选项 ID 在该查询内唯一；目标属于本提供方，不能声明别人的 `provider_id`。可省略 `subject_kinds` 以继承查询的对象类型，填写时必须是非空子集。实际返回同一个 offer_id 时必须兑现声明的目标版本和对象类型，不能临时换成另一项操作。
 
 `home.actions.choices` 从当前授权目录派生这些声明，不调用对象查询、不执行操作；返回名称、来源、适用对象、固定 `key` 与能力可用状态。`home.actions.prepare` 在真实事项上准备输入，已声明选项附带相同的 `recommendation_key`。身份包括提供方、原查询与版本、offer_id、目标与版本；显示名称和当前输入不属于身份。更换提供方会产生新 key，同名不能继承。目录可用仅说明能力当前可访问，具体对象参数仍须通过 prepare 和执行前检查。该 key 可作为规则映射中的稳定值，不能把裸 offer_id 当成跨插件身份。
 
@@ -186,7 +186,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
-动作声明可用公开入口的 `createActionDefinition`。调用方给出 id、操作、输入输出、权限与受众。默认是项目范围，查询的种类为 query，命令为 operation；需要 Home 范围、判断、导航或并发调度时显式声明。`objectSchema` 默认所有字段必填，第二个参数可指定必填字段；`arraySchema` 和 `nullableSchema` 分别声明数组和可空值。`isRecord` 排除 null 与数组，接受非数组对象。`/browser` 的 `messageOf` 保留 Error 的消息，其余抛出值按字符串呈现。
+动作声明可用公开入口的 `createActionDefinition`。调用方给出 id、操作、输入输出、权限、受众和版本。默认是项目范围，查询的种类为 query，命令为 operation；需要 Home 范围、判断、导航或并发调度时显式声明。`objectSchema` 默认所有字段必填，第二个参数可指定必填字段；`arraySchema` 和 `nullableSchema` 分别声明数组和可空值。`isRecord` 排除 null 与数组，接受非数组对象。`/browser` 的 `messageOf` 保留 Error 的消息，其余抛出值按字符串呈现。
 
 ## 开发要求
 

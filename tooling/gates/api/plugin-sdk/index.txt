@@ -437,6 +437,11 @@ export declare function actionHttpStatus(error: unknown): number;
 
 export declare function alignSplitRows(rows: readonly TextDiffRow[]): SplitPair[];
 
+export declare function arraySchema(items: unknown): {
+    type: "array";
+    items: unknown;
+};
+
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -477,6 +482,8 @@ export declare function comparePluginVersions(left: string, right: string): numb
 export declare function compareTexts(before: string, after: string): TextDiff;
 
 export declare function controlledConnectorFetch<Input>(fetchImpl: (input: Input, init?: RequestInit) => Promise<Response>, control: ConnectorCallControl): (this: unknown, input: Input, init?: RequestInit) => Promise<Response>;
+
+export declare function createActionDefinition<Input = unknown, Output = unknown>(capability_id: string, operation: ActionDefinition["operation"], metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>, version?: number): ActionDefinition<Input, Output>;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 
@@ -548,6 +555,8 @@ export declare function isHomeAggregateQuery(definition: {
     readonly action: object;
 }): boolean;
 
+export declare function isRecord(value: unknown): value is Record<string, unknown>;
+
 export declare function joinLines(lines: readonly DiffLine[]): string;
 
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -564,7 +573,19 @@ export declare function matchPageRoute(routes: readonly UiPageRouteDeclaration[]
 export declare function messageDeclarationProblems(parsed: Pick<PluginManifest, "plugin_id" | "ui">): string[];
 
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function nullableSchema(schema: unknown): {
+    anyOf: unknown[];
+};
+
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function objectSchema(properties: Record<string, unknown>, required?: readonly string[]): {
+    type: "object";
+    properties: Record<string, unknown>;
+    required: readonly string[];
+    additionalProperties: false;
+};
 
 export declare function pageRouteProblems(manifest: PluginManifest): string[];
 

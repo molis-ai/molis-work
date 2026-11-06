@@ -33,6 +33,28 @@ async function fixture(t: import("node:test").TestContext, options: { quota?: { 
 }
 const card = (f: { cards: ReturnType<typeof openKnowledgeCards> }, id: string, kind = id.startsWith("p") ? "page" : "goal") => f.cards.get("a", { kind, id })!;
 
+// K01-01: an FTS commit must not turn a successful quota write into an exception and a repeated charge.
+test("K01-01 indexed cards organize and update with exact usage across successive revisions", async t => {
+  const f = await fixture(t);
+  await f.indexAll();
+  await f.organizer.kick("a");
+  const initial = f.organizer.quota("a");
+  assert.equal(initial.used_pieces, 3);
+  assert.equal(f.written.length, 3);
+  assert.equal(card(f, "p1").state, "ready");
+  f.pages.set("p1", { id: "p1", title: "更新的资料", body: LONG, version: 2 });
+  await f.search.rebuild(f.access(owner), { scope: "project" });
+  await f.organizer.kick("a");
+  assert.equal(card(f, "p1").state, "ready");
+  assert.equal(card(f, "p1").organized_revision, "2");
+  assert.equal(f.organizer.quota("a").used_pieces, initial.used_pieces + 1);
+  assert.equal(f.written.length, 4, "one model call per organized revision");
+  await f.organizer.kick("a");
+  assert.equal(f.organizer.quota("a").used_pieces, 4, "an unchanged catalog consumes no more quota");
+  f.cards.remove("a", { kind: "page", id: "p1" });
+  assert.equal(f.cards.get("a", { kind: "page", id: "p1" }), null, "deletion after FTS writes succeeds too");
+});
+
 test("PMAT-05 a piece in the catalog gets a card waiting for organizing, and waits again when its revision changes", async t => {
   const f = await fixture(t);
   f.noModel();

@@ -9,6 +9,7 @@ import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
 import { attentionDeclarationProblems } from "./attention-declarations.js";
+import { readGroupDeclarationProblems } from "./read-group-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { integrationDeclarationProblems } from "./integration-declarations.js";
@@ -226,6 +227,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
   problems.push(...integrationDeclarationProblems(parsed));
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
+  problems.push(...readGroupDeclarationProblems(parsed.read_groups, parsed.actions));
   assertNoDeclarationProblems(problems);
 }
 

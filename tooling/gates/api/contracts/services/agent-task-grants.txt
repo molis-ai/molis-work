@@ -16,7 +16,7 @@ export interface TaskGrantCategoryReference {
 }
 
 export interface TaskGrantCategoryState extends TaskGrantCategory {
-    status: "granted" | "needs_confirmation" | "unavailable";
+    status: "granted" | "needs_confirmation" | "unavailable" | "removed";
 }
 
 export interface TaskGrantClearRequest {

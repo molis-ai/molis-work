@@ -479,6 +479,10 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (embedded) {
       if (!panes.fromParent(event)) return;
       if (event.data.type === "workbench-view-invalidate") { const surface = topLevelSurface(ops.shownPlugin(ops.focused(state))); if (surface) invalidateView(surface, false); return; }
+      // The parent's ask for one record of a plugin here (its jump to a record), after this page's own start; its shape is
+      // checked with its source (S-30), and one that fails is dropped below.
+      const ask = panes.recordAsk(event);
+      if (ask) { document.querySelector('[data-work-surface="' + CSS.escape(ask.plugin) + '"]')?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: ask.itemId, quiet: ask.quiet } })); return; }
       if (event.data.type !== "workbench-view") return;
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
       if (event.data.intent === "open" || event.data.intent === "select") { const tab = ops.activeTab(state); if (tab) projectOwnSurface(ops.focused(state), tab.plugin, { id: event.data.view, surface: event.data.surface, panel: event.data.panel, intent: event.data.intent }, tab); }

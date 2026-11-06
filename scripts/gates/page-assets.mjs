@@ -349,10 +349,17 @@ const headErrors = (measured, budget, base) => {
 // container query, the switch choice and the draft note. workbench.js +7536 B: the parts' row program (625 B) and the page's
 // switch, usages, steps and draft. Tried: the draft note is a server template, the progress is ④b's, repeated DOM idioms are
 // small helpers (about 990 B).
+// 07-fix record jump (#1887, 07 批评审台审过, 2026-11-06): a record opened from search into a split pane is asked for once the
+// pane page has loaded, by a message to that page that queues behind the view hand-off its load starts (which used to put the
+// plugin back on its list over an earlier ask), and the pane passes it on only from the page around it and in its exact shape
+// (S-30, `recordAsk` in the pane-message script): workbench.js +727 B, keyed on main's budget 892831 (after #1886; 13④a's
+// workbench.js entry keyed on 885295 is spent there, so it is replaced). Tried: the pane dispatches through the surface lookup
+// and event it already uses; the shape check sits in the one pane-message script beside fromParent, not in the listener; no new
+// helper, retry timer or registry entry.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [760704, 761321],
   "/assets/molis-work-workbench.css": [1107725, 1108342],
-  "/assets/molis-work-workbench.js": [885295, 892831],
+  "/assets/molis-work-workbench.js": [892831, 893558],
   "/assets/molis-work-plugin-frame.js": [188354, 188418],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],

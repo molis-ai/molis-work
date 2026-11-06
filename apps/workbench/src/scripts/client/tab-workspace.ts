@@ -270,7 +270,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (view !== undefined) url.searchParams.set("paneView", view);
     return url.href;
   };
-  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, removed: removedPlugin, L,
+  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin, L,
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });

@@ -137,7 +137,9 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * Opens, sizes and switches the right side; `ops` are the side's rules (`withSidePane`) and `getState()` the state that holds
  * `side` — the tab workspace's own on a project page, so `save` is its persist, and the page's alone where there is no tab
  * workspace (the way in). `remember(record, reopen)` hands a closed tab's way back to the workspace's list of closed things
- * (⌘⇧T / Ctrl+Shift+T reopens whichever closed last); without it the side keeps the shortcut itself.
+ * (⌘⇧T / Ctrl+Shift+T reopens whichever closed last), `undoChip("side")` draws that way back while the last thing closed is
+ * the side's, and `menu(tab, entries)` opens a tab's menu ({ key, icon, label, run } rows): the workspace's own, one for both
+ * columns (07-S2). The way in, with no workspace, lends the side small ones of its own (SIDE_PANEL_SCRIPT).
  * Public, same-document interface (spec 3.1), as before the side joined the workspace:
  * A Home tool (`data-side-plugin-open`, a tab with `data-side-keys`) is a switch: its button or chord, here or handed up
  * by a frame as `{ type: "molis:side-key", keys }`, opens it with the keyboard inside its document; pressed again from
@@ -156,7 +158,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
  * and focus from a click leaves the widths as they are).
  */
-export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,removed=()=>false,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
+export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!strip||!stage)return null;
   stage.setAttribute('data-plugin-stage','');
@@ -208,17 +210,13 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const reveal=()=>{const item=strip.querySelector('[data-side-tab][aria-selected="true"]')?.parentElement;if(!item||strip.scrollWidth<=strip.clientWidth)return;
     const box=strip.getBoundingClientRect(),at=item.getBoundingClientRect();if(at.left<box.left)strip.scrollLeft-=box.left-at.left;else if(at.right>box.right)strip.scrollLeft+=at.right-box.right;};
   const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
-  let undo=null,undoTimer=0;
+  let undoTimer=0;
   const live=document.createElement('div');live.setAttribute('role','status');live.className='mw-sr-only';document.body.append(live);
   const undoLabel=record=>L('撤销关闭 {plugin}',{plugin:record.title});
   const drawUndo=()=>{
     document.querySelector('[data-side-undo]')?.remove();
-    if(!undo||undo.until<Date.now()||tabOf(undo.record.tab.itemId)){undo=null;return;}
-    const chip=document.createElement('button');chip.type='button';chip.className='mw-btn mw-btn--ghost mw-btn--sm side-undo-chip';chip.dataset.sideUndo='';
-    chip.innerHTML='<svg aria-hidden="true"><use href="#icon-undo"></use></svg><span></span>';chip.querySelector('span').textContent=undoLabel(undo.record);
-    chip.title=undoLabel(undo.record)+(MAC?' (⌘⇧T)':' (Ctrl+Shift+T)');
-    const record=undo.record;chip.addEventListener('click',()=>reopen(record));
-    strip.before(chip);
+    const chip=undoChip('side');if(!chip)return;
+    chip.dataset.sideUndo='';chip.classList.add('side-undo-chip');strip.before(chip);
   };
   // A tab of a plugin taken out of the project stays where it was, marked removed; its view says how to bring the plugin back.
   let removedIds=0;
@@ -279,7 +277,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const toggle=()=>{setOpen(!open,{focus:true});save();};
   const reopen=record=>{
     if(!ops.reopenSideTab(getState(),record))return false;
-    if(undo?.record===record)undo=null;
     if(side().open&&!open)setOpen(true,{tab:record.tab.itemId});else if(record.active&&open)select(record.tab.itemId);else draw();
     if(strip.contains(document.activeElement))buttons().find(button=>button.dataset.sideTab===record.tab.itemId)?.focus({preventScroll:true});
     save();return true;
@@ -287,7 +284,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const close=button=>{
     const tab=tabOf(button?.dataset.sideTab);if(!tab)return;
     const record=ops.closeSideTab(getState(),tab.id);if(!record)return;
-    undo={record,until:Date.now()+6000};clearTimeout(undoTimer);undoTimer=setTimeout(drawUndo,6020);
+    clearTimeout(undoTimer);undoTimer=setTimeout(drawUndo,6020);
     live.textContent=L('已关闭 {plugin}',{plugin:record.title})+' · '+undoLabel(record);
     remember?.(record,()=>reopen(record));
     if(open&&!side().open)setOpen(false);else if(record.active&&open)select(current());else draw();
@@ -306,7 +303,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   });
   addEventListener('keydown',e=>{
     if(e.repeat||e.isComposing)return;
-    if(!remember&&e.key?.toLowerCase()==='t'&&e.shiftKey&&!e.altKey&&(e.metaKey||e.ctrlKey)&&undo){e.preventDefault();reopen(undo.record);return;}
     if(keyed((e.metaKey||e.ctrlKey?'Mod+':'')+(e.shiftKey?'Shift+':'')+(e.altKey?'Alt+':'')+String(e.code).replace(/^Key/,'')))e.preventDefault();
   },true);
   if(!MAC)document.querySelectorAll('[data-side-plugin-open][title]').forEach(button=>{button.title=button.title.replace('⌘⇧','Ctrl+Shift+');});
@@ -339,25 +335,12 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   strip.addEventListener('pointerdown',()=>clearTimeout(growTimer));
   strip.addEventListener('focusin',event=>{const button=event.target.closest('[data-side-tab]');if(button?.matches(':focus-visible'))grow(button);});
   strip.addEventListener('focusout',event=>{if(!strip.contains(event.relatedTarget))grow(null);});
-  const menu=document.createElement('div');menu.className='mw-menu mw-menu--context side-tab-menu';menu.setAttribute('popover','manual');menu.setAttribute('role','menu');document.body.append(menu);
-  let menuAnchor=null;
-  const menuFor=button=>{
-    menuAnchor=button;menu.replaceChildren();
-    const heading=document.createElement('strong');heading.textContent=button.querySelector('.tab-item-name')?.textContent||'';menu.append(heading);
-    const add=(key,icon,label,run)=>{const item=document.createElement('button');item.type='button';item.className='mw-menu__item';item.setAttribute('role','menuitem');item.dataset.sideMenu=key;
-      item.innerHTML='<svg aria-hidden="true"><use href="#icon-'+icon+'"></use></svg><span></span>';item.querySelector('span').textContent=L(label);
-      item.addEventListener('click',()=>{menu.hidePopover();run();});menu.append(item);};
+  const menuFor=button=>menu?.(button,[
     // A tab moved here from the main area goes back the same way it came (07-S2).
-    if(toMain&&button.hasAttribute('data-side-pane'))add('to-main','arrow','移到主区',()=>toMain(tabOf(button.dataset.sideTab)?.id));
-    add('close','x','关闭标签',()=>close(button));
-    menu.showPopover();
-    const box=button.getBoundingClientRect();
-    menu.style.left=Math.max(8,Math.min(box.right-menu.offsetWidth,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.round(box.bottom+6)+'px';
-    menu.querySelector('button')?.focus();
-  };
-  strip.addEventListener('contextmenu',event=>{const button=event.target.closest?.('[data-side-tab]');if(!button)return;event.preventDefault();menuFor(button);});
-  menu.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();menu.hidePopover();menuAnchor?.focus({preventScroll:true});}});
-  document.addEventListener('pointerdown',event=>{if(menu.matches(':popover-open')&&!menu.contains(event.target))menu.hidePopover();});
+    toMain&&button.hasAttribute('data-side-pane')&&{key:'to-main',icon:'arrow',label:L('移到主区'),run:()=>toMain(tabOf(button.dataset.sideTab)?.id)},
+    {key:'close',icon:'x',label:L('关闭标签'),run:()=>close(button)},
+  ].filter(Boolean));
+  strip.addEventListener('contextmenu',event=>{const button=event.target.closest?.('[data-side-tab]');if(!button||!menu)return;event.preventDefault();menuFor(button);});
   // A dialog opened from the panel (the import dialog) closes on its own Escape; the panel stays.
   panel.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&open&&!event.target.closest?.('dialog')){event.preventDefault();setOpen(false);save();}});
   frame?.addEventListener('load',imVisible);
@@ -414,8 +397,28 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
 /** The side on a page without a tab workspace (the way in): the same rules and the same pane, held by the page alone. */
 export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded')||document.querySelector('[data-tab-workspace]'))return;
-  const ops=(${withSidePane.toString()})({create:()=>({})}),state=ops.create();
-  (${SIDE_PANE_FACTORY})({ops,getState:()=>state});
+  const ops=(${withSidePane.toString()})({create:()=>({})}),state=ops.create(),L=globalThis.L;
+  // No tab workspace here to lend the side its tab menu and its way back (the workbench's are tab-workspace-menus.ts and
+  // plugin-tab-groups.ts), so the side has small ones of its own: one closed tab to bring back, by its chip or ⌘⇧T.
+  let last=null;
+  const menu=document.createElement('div');menu.className='mw-menu mw-menu--context side-tab-menu';menu.setAttribute('popover','auto');menu.setAttribute('role','menu');document.body.append(menu);
+  menu.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();menu.hidePopover();menu.anchor?.focus({preventScroll:true});}});
+  const openMenu=(button,entries)=>{
+    menu.anchor=button;
+    menu.replaceChildren(...entries.map(({key,icon,label,run})=>{const item=document.createElement('button');item.type='button';item.className='mw-menu__item';item.setAttribute('role','menuitem');item.dataset.sideMenu=key;
+      item.innerHTML='<svg aria-hidden="true"><use href="#icon-'+icon+'"></use></svg><span></span>';item.lastChild.textContent=label;item.addEventListener('click',()=>{menu.hidePopover();run();});return item;}));
+    menu.showPopover();const box=button.getBoundingClientRect();
+    menu.style.left=Math.max(8,Math.min(box.right-menu.offsetWidth,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.round(box.bottom+6)+'px';menu.querySelector('button')?.focus();
+  };
+  const back=()=>{const entry=last;last=null;return entry?.reopen();};
+  const undoChip=()=>{
+    if(!last||last.until<Date.now())return null;
+    const chip=document.createElement('button');chip.type='button';chip.className='mw-btn mw-btn--ghost mw-btn--sm';
+    chip.innerHTML='<svg aria-hidden="true"><use href="#icon-undo"></use></svg><span></span>';chip.lastChild.textContent=chip.title=L('撤销关闭 {plugin}',{plugin:last.record.title});
+    chip.addEventListener('click',back);return chip;
+  };
+  addEventListener('keydown',e=>{if(last&&!e.repeat&&e.key?.toLowerCase()==='t'&&e.shiftKey&&!e.altKey&&(e.metaKey||e.ctrlKey)){e.preventDefault();back();}},true);
+  (${SIDE_PANE_FACTORY})({ops,getState:()=>state,remember:(record,reopen)=>{last={record,reopen,until:Date.now()+6000};},undoChip,menu:openMenu});
 })();`;
 
 /**

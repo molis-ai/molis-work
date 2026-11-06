@@ -98,6 +98,15 @@ export const TAB_WORKSPACE_MENUS_PART = `  const svg = (name) => '<svg aria-hidd
     onlyMenu(tabMenu); placeMenu(tabMenu, anchor, true);
     tabMenu.querySelector("button")?.focus();
   };
+  // The right side's tabs open this same menu (07-S2); the side gives the rows (side-panel.ts), each named data-side-menu.
+  const openSideTabMenu = (anchor, entries) => {
+    tabMenuAnchor = anchor; tabMenu.replaceChildren();
+    tabMenu.setAttribute("aria-label", L("标签操作"));
+    const heading = document.createElement("strong"); heading.textContent = heading.title = anchor.querySelector(".tab-item-name")?.textContent || ""; tabMenu.append(heading);
+    entries.forEach(({ key, icon, label, run }) => tabMenu.append(menuRow(label, icon, () => { tabMenu.hidePopover(); run(); }, { data: { sideMenu: key } })));
+    onlyMenu(tabMenu); placeMenu(tabMenu, anchor, false);
+    tabMenu.querySelector("button")?.focus();
+  };
   const openGroupMenu = (paneId, groupId, anchor) => {
     const pane = paneById(paneId); if (!pane) return;
     const group = pane.groups.find((candidate) => candidate.id === groupId); if (!group) return;

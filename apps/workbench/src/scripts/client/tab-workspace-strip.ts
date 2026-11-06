@@ -239,7 +239,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     pad.dataset.tabScrollPad = "";
     pad.setAttribute("aria-hidden", "true");
     scrollArea.append(pad);
-    const undo = pluginGroups.undoChip(pane);
+    const undo = pluginGroups.undoChip(pane.id);
     if (undo) fragment.append(undo);
     // A pane of its own with nothing in it says how to fill it; the titlebar's strip over the project home says nothing.
     if (!pane.tabs.length && !strip.hasAttribute("data-titlebar-tabs")) {

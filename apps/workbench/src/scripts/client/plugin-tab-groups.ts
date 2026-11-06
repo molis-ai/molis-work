@@ -61,7 +61,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     wrap.append(pages); parent.append(wrap);
     return end;
   };
-  const undoLabel = (record) => L("撤销关闭 {plugin}", { plugin: L(ops.pluginTitle(record.plugin)) });
+  const undoLabel = (record) => L("撤销关闭 {plugin}", { plugin: record.side ? record.title : L(ops.pluginTitle(record.plugin)) });
   // Screen readers hear that a group closed and how to get it back; the chip itself appears with the next render.
   const live = document.createElement("div");
   live.setAttribute("role", "status"); live.className = "mw-sr-only";
@@ -93,10 +93,10 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     return true;
   };
   const recent = () => closed.slice(-5).reverse();
-  /** The way back after closing a group, at the end of the strip it was closed in. */
-  const undoChip = (pane) => {
+  /** The way back after closing a group, at the end of the strip it was closed in: a pane's, or the right side's ("side"). */
+  const undoChip = (paneId) => {
     const last = closed.at(-1);
-    if (!last || last.until < Date.now() || last.record.paneId !== pane.id) return null;
+    if (!last || last.until < Date.now() || last.record.paneId !== paneId) return null;
     const chip = document.createElement("button");
     chip.type = "button"; chip.className = "tab-undo-chip"; chip.dataset.tabUndo = "";
     chip.style.setProperty("--group-color", "var(--hue-" + hueOf(last.record.plugin) + ")");

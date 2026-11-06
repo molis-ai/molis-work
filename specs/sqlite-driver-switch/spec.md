@@ -177,7 +177,7 @@ Home 库今天就在 `node:sqlite` 上走同一个 `pluginDatabaseClient`（`hom
 
 FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）。SQLD-c 记一份官方 24.15 的 `PRAGMA compile_options` 进用例，将来 Node 升级看差异。
 
-**`setAuthorizer`。** Home 插件库已经在用（`nativeSqliteOwnerBoundary`，S-112，要 Node 24.10 以上）。项目库还不能用：`better-sqlite3` 没有把授权回调接出来，`project-database-statements.ts:6` 那句「宿主的 SQLite 没有 authorizer」现在只对项目库成立，SQLD-d 时改掉这句注释。项目库换到 `node:sqlite` 之后条件相同，插件语句检查和升级段的第 2 层可以一起改用它，结论和理由在 [U1 设计](../upgrade-continuity/upgrade-chain-design.md) §2.4。改用不在本批，SQLD-d 不做，U1-f 不等它。
+**`setAuthorizer`。** Home 插件库已经在用（`nativeSqliteOwnerBoundary`，S-112，要 Node 24.10 以上）。项目库还不能用：`better-sqlite3` 没有把授权回调接出来，`project-database-statements.ts:6` 那句「宿主的 SQLite 没有 authorizer」现在只对项目库成立，SQLD-d 时改掉这句注释。项目库换到 `node:sqlite` 之后条件相同，插件语句检查和升级段的第 2 层可以一起改用它，结论和理由在 [U1 设计](../upgrade-continuity/upgrade-chain-design.md) §2.4。改用不在本批，SQLD-d 不做，U1-f 不等它。**去处：** SQLD-d 之后单独一片，一次换所有插件，U4 打开开关之前必须换完（统筹 11-07 定）。那一片先在锁定版本 24.15.0（SQLite 3.51.3）上重跑 S-147 的 4212 种写法和 UPG1-14：现在只在 Node 24.22.2（SQLite 3.54.1）上量过，`ALTER_TABLE` 第三个参数、`sqlite_rename_*` 这些内部回调在 3.51.3 上没看过。这一步不归 SQLD-c，SQLD-c 只核插件语句检查（§2.1）。
 
 ## 4. 文件锁用例 PLIB-08／S-46
 

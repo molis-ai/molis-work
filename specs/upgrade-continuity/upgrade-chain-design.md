@@ -29,7 +29,7 @@
 | `snapshot-sqlite.ts:94-96`：给了基线或版本就核，要求等于它；`:107`：只给版本、不给基线时，库里有视图或触发器就拒绝 | #1790、#1877 | 不放开，升级快照也不调它（§5.3） |
 | 账号的数据是一个独立的 Home（`spaces/<spaceId>/`），有自己的锁、`storage-space.json` 和全部库；`homeStores()` 把 `spaces` 登记成不进快照，不枚举里面的库 | `space-web-server.ts:105,120-124`、`home-stores.ts:44` | 只升根 Home，账号 Home 永远是旧的。每个账号 Home 单独升（§4.1、§4.2） |
 | 每个 Home 库打开时都带空间表：`openHomeSqliteDatabase` 每次调 `bindDatabaseSpace`，缺表就补 | `home-sqlite.ts:21-27`、`space.ts:81-92` | 升级连接不能走这个函数，否则快照之前就写了库（§2.1）；比结构要把空间表算进去（§2.2） |
-| 插件库的建库语句现在是「声明的 `schema`」加平台生成的技术表和触发器；账本 `tables_json` 记的是合起来的全部对象，只有 `pluginSyncBusinessRecord` 这个读法才只给业务表 | `plugin-sync-database.ts:30-45,57-60`、`plugin-runtime/src/project-database.ts:220-232` | 段的范围不能从账本直接取，触发器要由平台重建（§2.4） |
+| 插件库的建库语句现在是「声明的 `schema`」加平台生成的技术表和触发器；账本 `tables_json` 记的是合起来的全部对象，只有 `pluginSyncBusinessRecord` 这个读法才只给业务表 | `plugin-sync-database.ts:30-45,57-60`、`plugin-runtime/src/project-database.ts:220-232` | 段的范围从账本取时要减去技术表，触发器要由平台重建（§2.4） |
 | `home restore` 的 journal 一存在，所有入口都被 `assertNoPendingHomeRestore` 挡住 | `home-restore-guard.ts` | 升级记录不能复用这个 marker，否则违反「不挡启动」；只复用写法（原子写、严格解析、绑身份）（§6） |
 | `preflightMemoryHome` 把非空但没有记忆库的 Home 当坏 Home | `memory-initialization.ts` | 空 Home 不能写升级戳记，否则第二次启动被它拦下（§3.3） |
 | 核账的 8 处手写版本检查要勘误 | `project-statement-sql-worker.ts:26` 只是把错误映射成 `preparationError`，不是检查；漏了 `installed-plugin-libraries.ts:65`、`project-catalog.ts:231`、`home-store-snapshot.ts:53` | 按 §2.5 的 10 处收 |
@@ -45,10 +45,13 @@
 export interface SqliteUpgradeStep {
   readonly from: number;                       // 到 from + 1，机械校验连续，不写 to
   readonly sql?: string;                       // 只有 SQL 的段（插件只能用这种，§2.4）
-  readonly run?: (db: SqliteBaselineDatabase) => void; // 平台与 Module 的回填，只用 exec/prepare
+  readonly run?: (db: SqliteBaselineDatabase, context: SqliteUpgradeContext) => void; // 平台与 Module 的回填，库只用 exec/prepare
   readonly reduces_rows?: readonly string[];   // 明确会减行的表，其余表行数不许变少
   readonly rebuilds_tables?: boolean;          // 要 foreign_keys=OFF；只能在事务外设，见下
   readonly verify?: (db: SqliteBaselineDatabase) => void; // 主人的业务检查，事务内、提交前
+}
+export interface SqliteUpgradeContext {
+  readonly home: string;                       // 这一个 Home 的绝对路径：根 Home 和每个账号 Home 各是各的
 }
 export interface SqliteBaseline {
   readonly version: number;
@@ -56,6 +59,12 @@ export interface SqliteBaseline {
   readonly upgrades?: readonly SqliteUpgradeStep[]; // from = 1..version-1，各一次；到时候可以裁掉太旧的段（§14）
 }
 ```
+
+**`run` 为什么带 `home`（合同台定）。** 有些列存的是这个 Home 下的路径，段要先建好文件夹、核实 realpath 才写得出来：05② 的默认输出目录要写 `workspaces.canonical_path`，它是 `NOT NULL UNIQUE` 的绝对路径（`modules/projects/src/repository.ts:65-68`），根 Home 和每个账号 Home 都不同。规矩：
+
+- 只许在这个 Home 里建文件夹，路径由 `home` 和库里的 id 推导（S-143）。不写文件，不碰 Home 外。
+- 放回不删这些文件夹：留下一个空文件夹没有害处，重跑时建文件夹是幂等的。
+- `verify` 不带 `home`。插件的段没有函数，碰不到它（§2.4）。
 
 `checkSqliteBaselineVersion` 只负责分类，**永远不升级**：
 
@@ -128,30 +137,43 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
      - 名字带库名的，形状就过不了：`main . other`、`main/*x*/.other` 里，`main` 后面是点。
 
      只读第一个词不够，下面两段三层都能过（实测）：插件有张表叫 `main` 时，`ALTER TABLE main . other DROP COLUMN note` 再加回，`other.note` 全变 NULL；插件有张表叫 `if` 时，`DROP TABLE IF EXISTS other` 后同样文字重建，`other` 整张换掉。现有的 `CREATE_TABLE`、`CREATE_INDEX` 正则（`project-database.ts:69-70`）都允许 `IF NOT EXISTS`，不能照抄。Manifest 读入时就查，内置的不合规由 U1-f 的用例在 CI 拦下，装上的在安装时先过这一层，再到开关。
-  2. **执行时，每句先按当前范围核目标。** 范围从这个插件的业务表开始（`pluginSyncBusinessTables`，不是账本：账本里还记着技术表），随段变化。增删改过 `pluginStatementGuard` 同一份，范围传当前的；SQLite 版本不符同样全部拒绝，失败是关闭的。结构语句在执行前核：
+  2. **执行时，每句先按当前范围核目标。** 第 2 层只收一个表名集合，由调用方算好传进来，随段变化。起点是这个库现在有的、属于这个插件的表，不是升级的目标：
+     - **项目库：** 账本（`tables_json`）里这个插件的 `objects`，取 `sqlite_schema` 里 `type='table'` 的，减去平台的技术表。账本记的正好是这个库上一次的声明。
+     - **Home 库：** 没有账本，库文件只归这个插件，取全部表，减去技术表、`molis_storage_space` 和 `sqlite_` 开头的内部表。
+     - **不用 `pluginSyncBusinessTables`：** 它读现行声明（`plugin-sync-database.ts:48`），也就是升级之后的样子。v1 的表 `a` 在 v2 改名 `b`，起点是 `{b}`，`ALTER TABLE a RENAME TO b` 被拒；新版本声明里写一张别的插件的表名 `x`，`x` 就进了范围，`DROP TABLE x` 能过。它还在 `apps/local-host`，这三层不依赖宿主。现行声明只用在第 3 层比终点。
+
+     增删改过 `pluginStatementGuard` 同一份，范围传当前的；SQLite 版本不符同样全部拒绝，失败是关闭的。结构语句在执行前核：
      - `ALTER TABLE n`、`DROP TABLE n`、`CREATE [UNIQUE] INDEX i ON n`：`n` 必须在范围里。
      - `DROP INDEX i`：查 `sqlite_schema`，`i` 的 `tbl_name` 必须在范围里。
      - `CREATE TABLE n`：`n` 进范围。别人的表删不掉，所以没有「删了再建」；同名的表还在时 SQLite 自己报错。
      - `ALTER TABLE n RENAME TO m`：范围里 `n` 换成 `m`。`DROP TABLE n`：`n` 移出范围。
      - **名字要按词读，不能对原文跑正则。** `statements()` 现在把带引号的名字遮成 `Q`，要让它顺带交出每句的词：跳过注释，还原四种引号（`"`、`` ` ``、`[]`、转义的 `""`），按 `fold` 比，读不出来就拒绝。**词从扫描里直接取，不从压过空白的文字里取；词的边界按 SQLite，不按 JS 的 `\s`：** 空白只有空格、`\t`、`\n`、`\f`、`\r`；不带引号的名字只许 ASCII 字母、数字、`_`、`$`，碰到别的字符就拒绝，要用就写引号。这比 SQLite 严，是有意的，不用照抄它的规则：U+00A0 是名字的一部分，所以 `ALTER TABLE a1<U+00A0> ADD COLUMN c TEXT` 改的是另一张表。用这个读法对 13 种分隔、27 种名字、12 种语句的 4212 种写法跑对照：过了第 1、2 层的 392 种只动自己的表，没有一种逃出去；被拒的里有 464 种，不拦 SQLite 就会动别人的表。实测（`better-sqlite3@12.8.0`）：对原文跑正则时，`ALTER /*x*/ TABLE other`、`ALTER TABLE /*x*/ other`、`ALTER TABLE [other]`、`` ALTER TABLE `other` `` 都读不到目标，段照样改了别人的表；按词读全部拒绝，合法的段照常通过。
-  3. **事务提交前，比结构，这一层是兜底。** 段开始前记下 `sqlite_schema` 里不属于这个插件的行（`type、name、tbl_name、sql`），提交前逐字比，有差别就回滚；这个插件的对象集合必须正好等于声明的目标集合，结构逐表比。「属于」按 `tbl_name` 算，和 `scopeOf` 同一个口径，否则 `CREATE UNIQUE INDEX 声明里有的名字 ON other(…)` 比不出来。目标集合用平台合起来的那份声明（`platformDeclaration`：业务对象加技术对象和触发器），技术表的 `sql` 段前段后还要逐字相同。这一层只比文字，比不出数据：`ALTER TABLE other DROP COLUMN note` 再 `ADD COLUMN note` 之后文字可以一字不差，数据已经没了，所以不能靠它。比全库内容摘要太贵，也只能事后发现。
+  3. **事务提交前，比结构，这一层是兜底。** 这个插件事务里第一段之前，记下 `sqlite_schema` 里不属于这个插件的行（`type、name、tbl_name、sql`），提交前逐字比，有差别就回滚；这个插件的对象集合必须正好等于声明的目标集合，结构逐表比。「属于」按 `tbl_name` 在不在范围里算（开始时用起点，提交前用最后的范围），和 `scopeOf` 同一个口径，否则 `CREATE UNIQUE INDEX 声明里有的名字 ON other(…)` 比不出来。声明里写了别的插件的表名 `x`、段又没碰它时，`x` 不在范围里，对象集合少一个，同样回滚。目标集合用平台合起来的那份声明（`platformDeclaration`：业务对象加技术对象和触发器），技术表的 `sql` 段前段后还要逐字相同。这一层只比文字，比不出数据：`ALTER TABLE other DROP COLUMN note` 再 `ADD COLUMN note` 之后文字可以一字不差，数据已经没了，所以不能靠它。比全库内容摘要太贵，也只能事后发现。
 - **同步技术表和触发器由平台管，段碰不到。** 插件库里有带命名空间的技术表和追踪触发器（`plugin-sync-database.ts:30-45`），Home 库的声明里还能写业务触发器（`plugins/native/todo/src/database.ts:50`；项目库的声明只能建表和索引）。第 1 层拒绝 `CREATE TRIGGER`，所以平台在这个插件的事务里这样做：
-  1. 段开始前，删掉所有挂在范围内的表上的触发器。不删不行：`ALTER TABLE t DROP COLUMN a` 碰到引用 `a` 的触发器直接报错；`RENAME COLUMN` 把触发器文字里的 `new.a` 改成 `new.a2`，`RENAME TO` 把表名改写成带引号的 `"mine2"`（都实测）。这些文字一变，`nativeSqliteOwnerBoundary` 和 `triggersMatch` 从此全部拒绝。
+  1. 第一段之前，删掉所有挂在范围内的表上的触发器。不删不行：`ALTER TABLE t DROP COLUMN a` 碰到引用 `a` 的触发器直接报错；`RENAME COLUMN` 把触发器文字里的 `new.a` 改成 `new.a2`，`RENAME TO` 把表名改写成带引号的 `"mine2"`（都实测）。这些文字一变，`nativeSqliteOwnerBoundary` 和 `triggersMatch` 从此全部拒绝。
   2. 跑段。技术表不在范围里，段碰到就报范围错误。
-  3. 段跑完，按现行声明把全部触发器建回去，第 3 层逐字比。这是平台的语句，不过第 1、2 层。这样改带同步追踪的业务表不用插件写一个字。
-  4. **所以段里的增删改不进同步日志。** 每台设备各跑一遍同一段，记进日志就是每台都发一份改动，还互相冲突。
+  3. 最后一段跑完，按现行声明把全部触发器建回去，第 3 层逐字比。这是平台的语句，不过第 1、2 层。不在每段之后建：现行触发器的文字可能引用中间版本还没有的列，建回去会报错。这样改带同步追踪的业务表不用插件写一个字（升 `schema_version` 除外，见下）。
+  4. **所以段里的增删改不进同步日志，业务触发器也不跑。** 每台设备各跑一遍同一段，记进日志就是每台都发一份改动，还互相冲突。段里 `DELETE FROM todo_items` 也不会记进 `todo_deleted_projects`（`plugins/native/todo/src/database.ts:50`）：触发器该做的事，段自己写。
+  5. **段要确定。** 改动不进日志，就靠每台设备跑出同样的结果。`pluginStatementGuard` 放行 `Function` 步骤（`project-database-statements.ts:30`），`random()`、`randomblob()`、`datetime('now')`、`CURRENT_TIMESTAMP` 都能过，回填时间戳又是最自然的写法，两台设备会悄悄不一样。所以段里的增删改多查一步：`EXPLAIN` 里 `Function` 步骤的函数名在下面的名单上就拒绝，报 `plugin.project_database.upgrade_nondeterministic`：`random`、`randomblob`、`current_timestamp`、`current_date`、`current_time`、`date`、`time`、`datetime`、`julianday`、`unixepoch`、`strftime`、`timediff`、`last_insert_rowid`、`changes`、`total_changes`。步骤里的名字读得到（实测，`better-sqlite3`、SQLite 3.51.3：`Function datetime(-1)`，列的 `DEFAULT CURRENT_TIMESTAMP` 也显出 `current_timestamp(0)`）。日期函数不分参数一律拒绝，`datetime(b)` 本来确定也拒，因为 `'now'` 可以来自列；要时间戳就从已有的列取。
 
-  这里有两件事现在不做，失败都是关闭的：段新加了同步追踪的表时，已有行不会补进日志（`syncTrackingSeedSql` 只在日志第一次建时跑）；平台改 `REPLICA_SCHEMA_SQL` 这类技术表结构没有版本位，插件的 `version` 是插件的，改了就是同号结构不符，全部拒绝，U2-d 的结构哈希也拦。两者都等第一次真要这样做时再定。
+  这里有三件事现在不做，失败都是关闭的：
+  - 段新加了同步追踪的表时，已有行不会补进日志（`syncTrackingSeedSql` 只在日志第一次建时跑）。
+  - 平台改 `REPLICA_SCHEMA_SQL` 这类技术表结构没有版本位，插件的 `version` 是插件的，改了就是同号结构不符，全部拒绝，U2-d 的结构哈希也拦。
+  - 插件升 `collection.schema_version`：`pluginSyncNamespace` 的哈希含它和发布者签名（`plugin-sync-database.ts:8-13`），一升技术表和触发器全部换名，第 3 层比不过，这个插件回滚并停用。
+
+  三者都等第一次真要这样做时再定。
 - **第 2 层以后改用原生授权（结论）。** `nativeSqliteOwnerBoundary`（`node:sqlite` 的 `setAuthorizer`，S-112）现在只用在 Home 插件库；项目库在 `better-sqlite3` 上，它没有把 SQLite 的授权回调接出来（`src/` 里没有 `sqlite3_set_authorizer`）。跑法和范围检查对所有插件同一份（用户 2026-11-06 定），所以**不能 Home 库先用授权、项目库继续按词读**。逐层的结论：
   - **第 1 层留。** 声明时、安装时没有连接；第 2 层也靠它分清这句是结构语句还是增删改。
   - **第 3 层留。** 授权只管一句碰了什么，不知道段跑完之后对象集合和结构对不对。这是 UPG-03 判断放不放回的依据，和防越权无关也要有。
-  - **第 2 层该换，等 SQLD-d 把项目库换到 `node:sqlite` 之后一次换所有插件。** 换掉的是「按词读目标」和结构语句的核对，增删改接 `nativeSqliteOwnerBoundary`，替掉 `pluginStatementGuard`。名字由解析器给，NBSP、注释夹层、`main . other` 这类问题不再存在；也不用再按 SQLite 版本钉步骤清单：没见过的回调一律拒绝，新版本多了内部函数只会误拒合法的段，UPG1-14 在 CI 里看得到。
-  - **实测**（Node 24.22.2、SQLite 3.54.1，同上面的 4212 种写法，不读词、只靠回调）：没有一种动到别人的表；加列、回填、改列名、删列、新表拷贝、删旧表、改名、建索引、删索引这一串合法的段全部走通。`nativeSqliteOwnerBoundary` 拒绝全部结构语句，不能直接用，要加一个结构模式，有三个坑：
+  - **第 2 层该换，等 SQLD-d 把项目库换到 `node:sqlite` 之后一次换所有插件，U4 打开开关之前必须换完（统筹 11-07 定）。** 可以等的理由正好决定了期限：U4 之前只有内置的段，按词读即使有漏洞也没有对手。换掉的是「按词读目标」和结构语句的核对，增删改接 `nativeSqliteOwnerBoundary`，替掉 `pluginStatementGuard`。名字由解析器给，NBSP、注释夹层、`main . other` 这类问题不再存在；也不用再按 SQLite 版本钉步骤清单：没见过的回调一律拒绝，新版本多了内部函数只会误拒合法的段，UPG1-14 在 CI 里看得到。
+  - **实测只在这一个版本上做过**（Node 24.22.2、SQLite 3.54.1，同上面的 4212 种写法，不读词、只靠回调）：没有一种动到别人的表；加列、回填、改列名、删列、新表拷贝、删旧表、改名、建索引、删索引这一串合法的段全部走通。`nativeSqliteOwnerBoundary` 拒绝全部结构语句，不能直接用，要加一个结构模式，有三个坑：
     - 内部改写要读写 `sqlite_master`、`sqlite_temp_master`，要调 `sqlite_rename_*`、`sqlite_drop_column`，这些回调的 `origin` 都是 null，和用户写的分不开。结构模式下 `INSERT INTO mine SELECT sql FROM sqlite_master` 也能过（实测），所以只有第 1 层认定是结构语句的才进结构模式，增删改走普通模式。
     - `ALTER_TABLE` 回调第三个参数在 `DROP COLUMN` 时是列名，不是库名。
-    - `RENAME TO` 不给新名字。范围改成每句之后重算：当前所有表，减去段开始时记下的别人的表。
-  - **对 U1-f 的影响。** 开工时 SQLD-d 没合，就按上面的按词读写；已合，直接写授权版，不写按词读。两种都对所有插件同一份。S-147 的拒绝测试只断言结果，换实现时不动。换实现单独跟踪，不算 U1 的范围。
-- **插件的段一律 `foreign_keys=OFF`。** 段不写 PRAGMA，平台在事务外设。**恢复也在事务外：** `COMMIT` 或 `ROLLBACK` 之后再设 `ON`，读回来确认是 1，不是 1 就关掉这条连接、记 failed，成功和失败两条路都走这一步。事务里设 `ON` 是空操作（实测：设完读到 0，回滚后还是 0）；项目库的插件表是在长连接上打开的（`apps/local-host/src/project-database.ts:23`），写反了这个项目之后的外键都不再生效，而且什么都不报。段结束时**范围里**的每张表跑 `PRAGMA foreign_key_check(t)`，有违反就回滚。按范围不按账本：段删过的表会报 `no such table`，新建的表账本里还没有。不用给插件的段加 `rebuilds_tables`。不能用 `defer_foreign_keys=ON`：外键还开着，`DROP TABLE` 的隐式删除照样触发外键动作。实测重建 `ON DELETE SET NULL` 子表的父表，子表的列全变 NULL，行数不变，`foreign_key_check` 还是空，什么都比不出。真实的表就有这种：Goals 的 `goal_tree_proposals.root_goal_id`（`plugins/native/goals/src/project-database-governance.ts:10`）。关掉之后 `CASCADE` 和 `SET NULL` 都不跑，子表原值都在。真要依赖级联删除的段，留下的孤儿行由 `foreign_key_check` 挡下回滚，失败是安全的。
+    - `RENAME TO` 不给新名字。范围改成每句之后重算：当前所有表，减去段开始时记下的别人的表（开始时所有表减去第 2 层的起点）。
+    - 确定性那一步（第 5 条）改看 `SQLITE_FUNCTION` 回调的函数名，名单不变。
+  - **换实现那一片先在锁定版本 24.15.0（SQLite 3.51.3）上重跑。** `setAuthorizer` 这个接口 CI 的 24.14.0 已经由 S-112 用着，但 `ALTER_TABLE` 第三个参数、`sqlite_rename_*` 这些内部回调没有在 3.51.3 上看过。失败方向是误拒合法的段，UPG1-14 看得到，所以不挡现在。那 4212 种写法进 S-147 的测试，换实现时拿它对照。
+  - **对 U1-f 的影响。** 开工时 SQLD-d 没合，就按上面的按词读写；已合，直接写授权版，不写按词读。两种都对所有插件同一份。S-147 的拒绝测试只断言结果，换实现时不动。换实现是单独一片，不算 U1 的范围，去处见 [SQLite 第二步](../sqlite-driver-switch/spec.md) §3.7。
+- **插件的段一律 `foreign_keys=OFF`。** 段不写 PRAGMA，平台在事务外设。**恢复也在事务外：** `COMMIT` 或 `ROLLBACK` 之后再设 `ON`，读回来确认是 1，不是 1 就关掉这条连接、记 failed，成功和失败两条路都走这一步。事务里设 `ON` 是空操作（实测：设完读到 0，回滚后还是 0）；项目库的插件表是在长连接上打开的（`apps/local-host/src/project-database.ts:23`），写反了这个项目之后的外键都不再生效，而且什么都不报。最后一段之后，**范围里**的每张表跑 `PRAGMA foreign_key_check(t)`，有违反就回滚。按范围不按账本：段删过的表会报 `no such table`，新建的表账本里还没有。不用给插件的段加 `rebuilds_tables`。不能用 `defer_foreign_keys=ON`：外键还开着，`DROP TABLE` 的隐式删除照样触发外键动作。实测重建 `ON DELETE SET NULL` 子表的父表，子表的列全变 NULL，行数不变，`foreign_key_check` 还是空，什么都比不出。真实的表就有这种：Goals 的 `goal_tree_proposals.root_goal_id`（`plugins/native/goals/src/project-database-governance.ts:10`）。关掉之后 `CASCADE` 和 `SET NULL` 都不跑，子表原值都在。真要依赖级联删除的段，留下的孤儿行由 `foreign_key_check` 挡下回滚，失败是安全的。
 - **Home 库走同一份。** 库文件只归这个插件，第 3 层没有别人的行可比，第 1、2 层照旧，`ATTACH` 这类一样拒绝。
 - **U4 要做的不只是打开开关。** 装上的插件的 SQL 要放进专属子进程的 Worker（S-59）才有超时和内存上限，内置的在升级过程里直接跑。所以这三层写成只收一个连接的函数，U4 把它放进 Worker，并和 `upgrade_compatibility` 合流。**U4 还要另定升级用的限额：** S-59 的限额是给日常语句定的（写句 2 秒，`BEGIN` 到 `COMMIT` 共 3 秒，超了整个进程结束），重建或回填一张大表一定超。
 - 所以「首次改任何插件表的结构」要等 U1-f，不只是等机制。
@@ -220,6 +242,8 @@ export function readVersionedFile<T>(file, home): { status: "absent" } | { statu
 
 实测：真实 27 表项目库（`tests/fixtures/project-database-schema.sql`），Node 24.22.2，本机。只读开库读 `user_version` 再关 **0.153 ms**；再加结构比较共 **0.956 ms**。有数据的库：`integrity_check` 占大头，随索引多少变化。评审台量的 414 MB（两表三索引）是 3.5 s/GB，这边量的 568 MB（一表三列索引、随机文本）是 6.9 s/GB；`quick_check` 约 0.35～0.5 s/GB，`foreign_key_check`、每表 `COUNT(*)` 可以不计。拷贝加 sha256 约 0.6～0.8 s/GB。合起来**每 GB 约 4.3～7.7 s**。
 
+下表按一个 Home 算。账号 Home 各算一份（§4.2），这次启动的时长是所有 Home 相加；没有账号 Home 的人只有这一份。
+
 | 情形 | 开库次数 | 耗时 |
 | --- | --- | --- |
 | 平时启动（戳记相符，§3.3） | **0** | 读一个小文件，算一个摘要 |
@@ -266,10 +290,11 @@ export function readVersionedFile<T>(file, home): { status: "absent" } | { statu
 **规则：取锁之后要按现行版本开业务库的，取锁时升级；不开业务库的不升；没有锁的只读、只拒绝。** 不存在「所有入口都过」的一点，所以用一个函数，让四个取锁点都调它，每个入口的去向在 §4.3 逐行写。
 
 ```text
-acquireUpgradedHomeOwner(home, beforeAcquire?)      // 放 home-storage-lifetime.ts，U1-c 核循环依赖
+acquireUpgradedHomeOwner(home, beforeAcquire?, expected?)  // 放 home-storage-lifetime.ts，U1-c 核循环依赖
   assertNoPendingHomeRestore
   beforeAcquire?.(home)                    // preflightMemoryHome：只读、锁前，不查版本，互不影响
   owner = acquireStorageOwner
+  有 expected 时只读比 storage-space.json：不符抛 SPACE_OWNERSHIP_MISMATCH，放锁，不升
   注册戳记自愈的监听（§3.3）
   ensureHomeUpgraded(home)                 // 戳记相符零成本；不符就同步跑完
   出错：注销监听，放锁，往上抛
@@ -278,7 +303,7 @@ acquireUpgradedHomeOwner(home, beforeAcquire?)      // 放 home-storage-lifetime
 
 调它的四处：`ensureHomeStorageOwner` 的首次取锁分支（`home-storage-lifetime.ts:52`）、`project-catalog.ts:250`、`installer/uninstall-owner.ts:12` 的非 purge 分支、`bootstrapSpace` 没有 host 的分支（`space-web-server.ts:58`）。之后才有 `prepareMemoryHome`、业务库打开。
 
-`bootstrapSpace` 是 #1877 新加的启动点，根 Home 和账号 Home 都走它，顺序是：只读的 `preflightMemoryHome`、取锁、再查一次、`ensureStorageSpace`、`prepareMemoryHome`（这里才开记忆库）、打开调用方要的东西。升级要排在 `prepareMemoryHome` 之前，否则低版本的记忆库在这里就被拒了；`acquireUpgradedHomeOwner(directory, preflightMemoryHome)` 正好接在取锁这一步。单库失败不算这里出错（§5.2），只有取不到锁、记录坏了这类整体问题才抛。
+`bootstrapSpace` 是 #1877 新加的启动点，根 Home 和账号 Home 都走它，顺序是：只读的 `preflightMemoryHome`、取锁、再查一次、`ensureStorageSpace`、`prepareMemoryHome`（这里才开记忆库）、打开调用方要的东西。升级要排在 `prepareMemoryHome` 之前，否则低版本的记忆库在这里就被拒了；`acquireUpgradedHomeOwner(directory, preflightMemoryHome, expected)` 正好接在取锁这一步，先比身份再升，否则别人的目录放在这个名字下时是先升后拒。单库失败不算这里出错（§5.2），只有取不到锁、记录坏了这类整体问题才抛。
 
 全部操作是同步的（`node:sqlite`、`better-sqlite3`、`copyFileSync`、`snapshotFileDigest`），放得进同步的 `createMolisWorkWebServer`。`copySnapshotFile`（异步）和 SQLite `backup` 进不来，也用不着（§5）。
 
@@ -303,12 +328,18 @@ apps/desktop/launchers/web/server.ts：
   - U3 要显示开场那一行时，由这个监听提供页面，形式 U3 定。
 - 用 Worker 线程跑 `runHomeUpgrade`（取锁、跑完、放锁），主线程不被同步 SQLite 卡住，能答 `/health`。Worker 里能否正常开关存储主人锁，U1-g 第一步先写用例证实；不行就换子进程，接口不变。
 - 跑完关监听，接着 `createMolisWorkWebServer`、`listen`。中间有几毫秒端口空着，客户端都是重试的。
-- 单库失败不算维护失败（§5.2）。取锁 `busy` 表示另一个宿主在用：直接走现状的报错。
+- 单库失败不算维护失败（§5.2）。取锁 `busy` 表示另一个宿主在用：根 Home 直接走现状的报错；账号 Home 跳过，留给打开时。
 - `/health` 的证明要控制令牌，现在它在 `bootstrapSpace` 持锁的回调里才解析，可能当场生成文件（`resolveWebControlToken`）。维护态只读已有的令牌，不写；读不到就答没有证明的 503，桌面按现状超时报错。需要升级的 Home 都启动过，正常都有这个文件。
 
-**账号 Home（`spaces/<spaceId>/`）一起升，不等登录。** 推荐启动时一次做：`planHomeUpgrade` 枚举根 Home 和 `spaces/` 下每个目录（名字合 `personalStorageSpace` 的 id 形状、不是符号链接），`runHomeUpgrade` 每个 Home 取自己的锁、写自己的 `upgrade/`，`/health` 的 `done`、`total` 合在一起算。理由和 §3.1 相同：账号 Home 第一次打开在 `tokenFor`、`openSurface` 里，是同步的，放在那里升就卡住整个事件循环，连根 Home 的请求一起等，还没有进度可显示；放到登录时升，长期不登录的账号也一直是旧库，裁段（§14）就要看每个账号。升级段只动结构，不读云端，也不需要账号登录。没有账号 Home 的人没有任何额外开销。
+**账号 Home（`spaces/<spaceId>/`）一起升，不等登录。** 推荐启动时一次做：`planHomeUpgrade` 枚举根 Home 和 `spaces/` 下的账号 Home，根 Home 排第一；`runHomeUpgrade` 每个 Home 取自己的锁、写自己的 `upgrade/`，`/health` 的 `done`、`total` 合在一起算。理由和 §3.1 相同：账号 Home 第一次打开在 `tokenFor`、`openSurface` 里，是同步的，放在那里升就卡住整个事件循环，连根 Home 的请求一起等，还没有进度可显示；放到登录时升，长期不登录的账号也一直是旧库，裁段（§14）就要看每个账号。升级段只动结构，不读云端，也不需要账号登录。没有账号 Home 的人没有任何额外开销。
 
-`bootstrapSpace` 里那一道保留，是兜底：启动之后才出现的账号 Home（比如手工放回）在打开时同步升完。这种情况少，卡一下可以接受。新登录的账号目录是空的，升级零动作。
+维护态没有登录，也就没有 `expected`，平时打开前那两道检查（`space-web-server.ts:121,123` 的 realpath，`ensureStorageSpace` 的身份）要换成只读的做法，否则会跟着符号链接在 Home 外取锁、写 `upgrade/`、改库，或者把放错名字的目录照升（S-143）：
+
+- `spaces` 按 `:121` 核 realpath（等于 `realpath(home)/spaces`），对不上就整段跳过。枚举不建目录。
+- 每个目录核 realpath（等于 `realpath(spaces)/<名字>`），用 `readStorageSpace` 只读身份：`kind === 'personal'` 且 `spaceId === 目录名` 才升。
+- 文件不在就跳过（空目录、没开完的账号，留给打开时）；读不了或对不上就跳过并记一行，不算单库失败。
+
+`bootstrapSpace` 里那一道保留，是兜底：启动之后才出现的账号 Home（比如手工放回）在打开时同步升完。那条路有 `expected`，先比对再升（§4.1）。这种情况少，卡一下可以接受。新登录的账号目录是空的，升级零动作。
 
 **2 秒阈值**（UPG-19）：`/health` 的 `upgrade.started_at` 给出起点，显示方自己按 2 秒判断，不在服务端做两套。
 
@@ -321,7 +352,7 @@ apps/desktop/launchers/web/server.ts：
 | `ensureHomeStorageOwner` 首次分支（`home-storage-lifetime.ts:52`；调用 `project-host.ts:293,430,482`、`cli-project.ts:51`、`installer/uninstall-owner.ts:23`、`space-web-server.ts:58` 有 host 的分支） | 取锁，不看版本 | 调 `acquireUpgradedHomeOwner`。维护态走完之后到这里戳记已相符，零成本 |
 | 已持锁的再次调用（同一函数的 `held` 分支） | 只核身份 | 不动，这把锁取到时已经升过 |
 | 维护态的 `runHomeUpgrade`（§4.2，U1-g 新增） | 没有 | 自己取锁，跑完放锁；之后 `createMolisWorkWebServer` 走第一行，戳记相符 |
-| `bootstrapSpace` 没有 host 的分支（`space-web-server.ts:58`，根 Home 和账号 Home） | 自己取锁，开记忆库和控制令牌，用完放锁；之后 `createCore` 再走第一行 | 调 `acquireUpgradedHomeOwner(directory, preflightMemoryHome)`，用完放锁不变。维护态走过之后戳记相符，零成本（§4.2） |
+| `bootstrapSpace` 没有 host 的分支（`space-web-server.ts:58`，根 Home 和账号 Home） | 自己取锁，开记忆库和控制令牌，用完放锁；之后 `createCore` 再走第一行 | 调 `acquireUpgradedHomeOwner(directory, preflightMemoryHome, expected)`，用完放锁不变。维护态走过之后戳记相符，零成本（§4.2） |
 | `project-catalog.ts:250`（没给 `storageOwner`，如 `cli-project-maintenance.ts:87`） | 自己取锁，目录库低就拒，别的库低继续往下开 | 调 `acquireUpgradedHomeOwner(home, preflightMemoryHome)`，前面两步正好和它重合。给了 `storageOwner` 的不动：那把锁是上面几处取到的 |
 | `installer/uninstall-owner.ts:12`，非 purge、没有宿主 | 自己取锁；随后 `removeDemos` 按现行版本开目录库（`local-uninstall.ts:29`） | 调 `acquireUpgradedHomeOwner(home)`。比现状多一个拒绝：有未完成的 `home restore` 时被拒，和有宿主的分支一致。U1-c 写用例 |
 | `installer/uninstall-owner.ts:12`，purge | 自己取锁，要把数据全删 | **不升。** 永久清除不该被升级失败或磁盘不够挡住。现状有一个坑：有演示项目时先走 `removeDemos`（`uninstall.ts:197`），它按现行版本开目录库，低版本会在删到一半时失败。purge 时跳过这一步，后面 `purgeDataPaths` 会整个删掉（U1-c 核它含 `projects/`，不含就回来问）。U1-c 用低版本目录库加演示项目写一条用例 |
@@ -385,7 +416,7 @@ apps/desktop/launchers/web/server.ts：
 
 每一步都可以重来：中断后从 `restoring` 接着做。失败的库打开时报 `storage.upgrade_failed`。同一 fingerprint 下不自动重试，免得每次启动都花时间；换版本或 U3 的操作才重试。
 
-**磁盘空间**：开始前用 `statfsSync` 查：可用空间不足「要动的文件总大小 × 2」时，这一轮不动任何东西，全部记 `storage.upgrade_no_space`，下次启动再看。
+**磁盘空间**：按 Home 算，每个 Home 开始前用 `statfsSync` 现查：可用空间不足「这个 Home 要动的文件总大小 × 2」时，这个 Home 这一轮不动任何东西，全部记 `storage.upgrade_no_space`，下次启动再看，别的 Home 照常。根 Home 排第一，否则一个长期不登录的大账号会让根 Home 这一轮也不升。
 
 ### 5.3 `snapshot-sqlite.ts:94-96` 不放开
 
@@ -436,7 +467,7 @@ apps/desktop/launchers/web/server.ts：
 - **先扩后收**：这一版加新列或新表，读写都转到新的，同时回填；下一版再删旧的。验收看第一步之后的旧程序还能不能读（U6 回退靠它）。这条靠评审和金样，门禁查不了。
 - 基线的 `schema` 永远是当前版本完整的样子。`ADD COLUMN` 的新列写在建表语句**末尾**；要插在中间、加约束、改类型，就按 SQLite 的 12 步重建表，段上写 `rebuilds_tables`。结构比较会拦下不一致的（§1）。**漏写 `rebuilds_tables` 比不出来：** 外键开着重建父表，`ON DELETE SET NULL` 子表的列会被清空，行数和 `foreign_key_check` 都没有变化（§2.4），靠评审和金样。
 - 段放在表主人的包里（`table-owners.mjs` 也数 `ALTER TABLE`）。
-- 回填要是确定的、可重复的结果：不调模型，不访问网络，不读别的库（要读的走 `after` 和主人导出的函数）。
+- 回填要是确定的、可重复的结果：不调模型，不访问网络，不读别的库（要读的走 `after` 和主人导出的函数）。例外只有 §2.1 的 `home`：列本身存本机路径，这一列本来就不同步（S-120）。
 - 段里不写业务错误恢复。失败就抛，由跑法统一放回。
 
 ### 8.2 密钥段（UPG-08）
@@ -462,7 +493,7 @@ apps/desktop/launchers/web/server.ts：
 | `storage.upgrade_no_space` | unavailable | 磁盘不够，没动 |
 | `storage.store_too_new` | unavailable | 比程序新 |
 
-插件的段另有两个码，声明在 `packages/plugin-runtime`：`plugin.project_database.upgrade_out_of_scope`（段碰了不该碰的，§2.4）；`plugin.upgrade_steps_unsupported`（装上的插件写了段，U4 移除）。
+插件的段另有三个码，声明在 `packages/plugin-runtime`：`plugin.project_database.upgrade_out_of_scope`（段碰了不该碰的，§2.4）；`plugin.project_database.upgrade_nondeterministic`（段用了不确定的函数，§2.4）；`plugin.upgrade_steps_unsupported`（装上的插件写了段，U4 移除）。
 
 ### 9.2 `SqliteSchemaVersionError`
 
@@ -484,11 +515,13 @@ apps/desktop/launchers/web/server.ts：
 | --- | --- | --- |
 | S-141 | 升级只在持存储主人锁时跑；没有锁的入口只读、只拒绝，不写库 | 另一个进程持锁时，`runHomeUpgrade` 报 `busy`，所有库文件 sha256 不变，没有 `upgrade/` 目录新增。逐入口：低版本目录库上，`catalogManagementProject`、`configured-models`、`plugin-holders`、`local-uninstall` 的读者不改任何文件、不删戳记；CLI、`project-catalog.ts:250` 和 `bootstrapSpace` 在锁被占时报 `storage.upgrade_in_progress`，文件不变 |
 | S-142 | 比程序新的库和文件不读业务内容、不写 | 版本 +1 的库经全部打开路径和升级过程，主文件 sha256 不变；`browser/sites.json` 版本 +1，保存被拒，文件 sha256 不变 |
-| S-143 | 升级快照目录 0700、文件 0600，不含密钥；路径从可信 Home 和描述符推导 | 记录里写 `../../x`、绝对路径或符号链接，放回不发生、目标外文件不变；快照目录里搜不到测试密钥的值；mode 检查 |
+| S-143 | 升级快照目录 0700、文件 0600，不含密钥；路径从可信 Home 和描述符推导 | 记录里写 `../../x`、绝对路径或符号链接，放回不发生、目标外文件不变；`spaces` 本身是符号链接时，Home 外的文件不变，也不取那边的锁；快照目录里搜不到测试密钥的值；mode 检查 |
 | S-144 | 记录被改、外来（Home 身份不符）或指向不存在的单元时拒绝，不照着做 | 改 `home_identity`、改 `relative_path`、改 `to`：不放回，报 `upgrade_failed`，文件不变 |
 | S-145 | 放回前核 sha256，放回时先删旁路文件 | 快照被改一个字节：不放回；目标留旧 `-wal`：放回后 `user_version` 是旧的（这条就是 §1 实测的那个坑） |
 | S-146 | 维护态监听只绑回环，守 Host/Origin；只答 `/health`，其余 503，不泄露库名 | 非回环 Host、跨源 Origin 被拒；未带挑战的 `/health` 不给证明；业务路径在维护态一律 503 |
-| S-147 | 插件的升级段只能碰这个插件自己的表，内置和装上的同一份检查（S-46 的延伸） | 内置插件的段写 `DROP TABLE` 平台表和别的插件的表、`ALTER TABLE "OTHER"`、`DELETE FROM` 别人的表、`CREATE INDEX` 建在别人的表上、`CREATE TABLE x AS SELECT`、`ATTACH`、`PRAGMA writable_schema`、`CREATE TRIGGER`；**文字不变、数据变了的四种：** `ALTER TABLE other DROP COLUMN note` 再 `ADD COLUMN note`，用改名把别人的表换成自己的名字再换回，`DROP TABLE other` 后同样文字重建再补行，删掉账本表 `plugin_project_databases` 后重建改写；**平台管的对象：** `ALTER TABLE` 或 `DROP TABLE` 这个插件自己的技术表、`CREATE TRIGGER` 在自己的表上；**读名字的绕法：** 注释夹在中间、`[other]`、`` `other` ``、大小写不同、带 U+00A0 的名字；**只读第一个词会漏的两种：** `ALTER TABLE main . other DROP COLUMN note` 再加回（插件有张表叫 `main`），`DROP TABLE IF EXISTS other` 后同样文字重建（插件有张表叫 `if`）。全部报 `plugin.project_database.upgrade_out_of_scope`，平台和别的插件每张表的内容摘要、`sqlite_schema` 都不变，这个插件回滚并停用。装上的插件写了段：安装被拒（`plugin.upgrade_steps_unsupported`）；写了不合规的段，先报范围错误 |
+| S-147 | 插件的升级段只能碰这个插件自己的表，内置和装上的同一份检查（S-46 的延伸） | 内置插件的段写 `DROP TABLE` 平台表和别的插件的表、`ALTER TABLE "OTHER"`、`DELETE FROM` 别人的表、`CREATE INDEX` 建在别人的表上、`CREATE TABLE x AS SELECT`、`ATTACH`、`PRAGMA writable_schema`、`CREATE TRIGGER`；**文字不变、数据变了的四种：** `ALTER TABLE other DROP COLUMN note` 再 `ADD COLUMN note`，用改名把别人的表换成自己的名字再换回，`DROP TABLE other` 后同样文字重建再补行，删掉账本表 `plugin_project_databases` 后重建改写；**平台管的对象：** `ALTER TABLE` 或 `DROP TABLE` 这个插件自己的技术表、`CREATE TRIGGER` 在自己的表上；**读名字的绕法：** 注释夹在中间、`[other]`、`` `other` ``、大小写不同、带 U+00A0 的名字；**只读第一个词会漏的两种：** `ALTER TABLE main . other DROP COLUMN note` 再加回（插件有张表叫 `main`），`DROP TABLE IF EXISTS other` 后同样文字重建（插件有张表叫 `if`）；**范围的起点：** 新版本声明里写别的插件的表名，段删它。上面的读名字绕法按 §2.4 那 4212 种写法整表进用例，换实现时对照。全部报 `plugin.project_database.upgrade_out_of_scope`，平台和别的插件每张表的内容摘要、`sqlite_schema` 都不变，这个插件回滚并停用。装上的插件写了段：安装被拒（`plugin.upgrade_steps_unsupported`）；写了不合规的段，先报范围错误 |
+
+**S-128、S-129、S-130 到时要改。** 它们写着「旧库不自动升级」「旧库保留并拒绝」，S-130 的「旧库」也在拒绝之列。没有段时仍然成立；Images、Cognia、Alchemist 这三个库第一次加段就不成立了，加段的 PR 同时改表和测试。
 
 ## 11. 门禁改动方案（用户 2026-11-06 同意）
 
@@ -565,7 +598,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 
 | 编号 | 证明 |
 | --- | --- |
-| UPG1-01 | v1→v2→v3：SQL 段、函数段各一；结构与新基线逐表一致；`user_version`、数据都对（UPG-02） |
+| UPG1-01 | v1→v2→v3：SQL 段、函数段各一；结构与新基线逐表一致；`user_version`、数据都对（UPG-02）；函数段拿到的 `home` 是这个 Home，账号 Home 上是账号 Home 的路径；函数段建了文件夹之后失败：放回，文件夹留着，重跑通过（§2.1） |
 | UPG1-02 | 段失败、`verify` 失败、结构不符、外键不符、行数变少：都放回，主文件 sha256 等于基准（UPG-03） |
 | UPG1-03 | 三个库，第二个失败：第一、三个是新版，第二个报 `upgrade_failed`，其余打开正常（UPG-04 机制半） |
 | UPG1-04 | 版本 +1 的库和文件：sha256 不变，只有它报 `store_too_new`（UPG-05 不读不写半） |
@@ -578,8 +611,8 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 | UPG1-11 | 维护态：`/health` 503 带 `upgrading`，证明可验；业务路径 503；升级完 `/health` 变 `ok`（§4.2） |
 | UPG1-12 | 真实基线的登记里 `from` 连续（现在全是空，测试仍然跑，第一次升版本时自动有内容） |
 | UPG1-13 | 低版本目录库、宿主没起：`bootstrapSpace` 升完才开记忆库；CLI 就地升完并完成命令；`cli-project-maintenance` 升完并完成；MCP 生产路径拉起宿主、等到升完，20 秒没等到报「正在升级」；MCP `:65` 路径升完；purge 照常清除；`home snapshot` 被拒；Home 外的项目库报 `upgrade_pending`。`store_too_new` 的目录库：以上都不取锁升级、不拉宿主、文件不变（§4.3） |
-| UPG1-14 | 插件的段：`ADD COLUMN`、回填、新表加索引、重建表（新表、拷贝、删旧表、改名）、改列名都走通，结构与声明一致；带同步追踪的表上同样走通（含删掉触发器引用的列、改列名、改表名）：触发器逐字等于现行声明，技术表的行不变，这一轮没有进同步日志；Todo 这种带业务触发器的 Home 库，重建表之后触发器还在；S-147 的每一种写法都在执行前被拒，含文字不变、数据变了的四种；重建 `ON DELETE SET NULL` 和 `CASCADE` 子表的父表，子表原值都在；段真的删了父表的行，`foreign_key_check` 回滚；段真的删一张表，`foreign_key_check` 不报 `no such table`，段新建的表也查得到；段成功和失败之后，这条连接的 `foreign_keys` 都回到 1；Home 库的段走同一个函数；只有一处判断区分内置和装上的（用例数这个判断的调用点） |
-| UPG1-15 | 账号 Home：根 Home 和两个账号 Home 都是低版本，维护态把三个都升完，各有各的 `upgrade/` 和戳记，`/health` 的数字合在一起；其中一个账号 Home 的库失败，另外两个照常；启动之后才放进去的低版本账号 Home，第一次打开时升完；`spaces/` 下的符号链接不跟（§4.2） |
+| UPG1-14 | 插件的段：`ADD COLUMN`、回填、新表加索引、重建表（新表、拷贝、删旧表、改名）、改列名都走通，结构与声明一致；v1 的表 `a` 在 v2 声明里改名 `b`，`ALTER TABLE a RENAME TO b` 走通；跨两版的链上，现行触发器引用中间版本还没有的列，走通（触发器只在最后一段之后建回）；`random()`、`randomblob()`、`datetime('now')`、`CURRENT_TIMESTAMP`（含列默认值）的回填报 `upgrade_nondeterministic`；Todo 的段 `DELETE FROM todo_items` 之后 `todo_deleted_projects` 没有新行；同时升 `schema_version`：这个插件回滚并停用；带同步追踪的表上同样走通（含删掉触发器引用的列、改列名、改表名）：触发器逐字等于现行声明，技术表的行不变，这一轮没有进同步日志；Todo 这种带业务触发器的 Home 库，重建表之后触发器还在；S-147 的每一种写法都在执行前被拒，含文字不变、数据变了的四种；重建 `ON DELETE SET NULL` 和 `CASCADE` 子表的父表，子表原值都在；段真的删了父表的行，`foreign_key_check` 回滚；段真的删一张表，`foreign_key_check` 不报 `no such table`，段新建的表也查得到；段成功和失败之后，这条连接的 `foreign_keys` 都回到 1；Home 库的段走同一个函数；只有一处判断区分内置和装上的（用例数这个判断的调用点） |
+| UPG1-15 | 账号 Home：根 Home 和两个账号 Home 都是低版本，维护态把三个都升完，各有各的 `upgrade/` 和戳记，`/health` 的数字合在一起；其中一个账号 Home 的库失败，另外两个照常；启动之后才放进去的低版本账号 Home，第一次打开时升完；`spaces/` 下的符号链接不跟；`spaces` 本身是符号链接：整段跳过，Home 外文件不变；身份文件对不上：跳过并记一行，文件不变，打开时报 `SPACE_OWNERSHIP_MISMATCH` 且没有先升；没有身份文件：跳过，打开时升完；一个账号 Home 取锁 `busy`：跳过，根 Home 和其余照常；账号 Home 磁盘不够：只有它记 `upgrade_no_space`，根 Home 照升（§4.2、§5.2） |
 | UPG1-16 | 回收站里的项目：低版本项目库在回收站里，升级后恢复，能打开（§2.3） |
 | UPG1-17 | Home 库带空间表和同步触发器时走通第 3、5 步；空间归属不符的库记 failed，文件不变；升级连接在快照前没有写任何东西（§2.1、§5.3） |
 
@@ -603,7 +636,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 | --- | --- | --- | --- | --- | --- |
 | U1-a 分类与段 | `SqliteUpgradeStep`、`checkSqliteBaselineVersion` 分类、错误码、拆 `SqliteSchemaVersionError`、单库跑法（无快照） | `packages/storage/src/{sqlite-baseline,sqlite-upgrade,index}.ts`、`README`；消费者约 10 个文件；`docs/system/CONTRACT-CHANGES.md` 一行 | UPG1-01 | Opus | **#1837 合入**（共用 `packages/storage/README.md`、`docs/system/CONTRACT-CHANGES.md` 和 7 个用到 `SqliteSchemaVersionError` 的文件） |
 | U1-b 快照与放回 | 升级快照、放回、磁盘检查 | 新 `packages/storage/src/upgrade-snapshot.ts`；`snapshot-sqlite.ts` 不改语义 | UPG1-02、09；S-143、S-145 | Opus | U1-a |
-| U1-c 过程、记录、戳记、入口 | `runHomeUpgrade`、`ensureHomeUpgraded`、`acquireUpgradedHomeOwner`、记录、戳记及自愈（§3.3）、`upgrade/` 登记；§4.3 三个取锁点和 CLI、MCP `:65` 的包装 | 新 `apps/local-host/src/home-upgrade*.ts`、`home-storage-lifetime.ts`、`project-catalog.ts`、`space-web-server.ts`、`installer/{uninstall-owner,uninstall}.ts`、`cli-project.ts`、`mcp-v1-tool.ts`、`management-action-client.ts`、`home-stores.ts`、`docs/system/HOME-DATA.md`；`packages/storage` 的 `onUpgradePending` | UPG1-03、04、05、08、13（CLI、maintenance、purge、snapshot 部分）、15（`bootstrapSpace` 那一半）、17；S-141、S-142、S-144 | Opus | U1-b；**宿主启动是规则 4 枢纽，认领板预警** |
+| U1-c 过程、记录、戳记、入口 | `runHomeUpgrade`、`ensureHomeUpgraded`、`acquireUpgradedHomeOwner`、记录、戳记及自愈（§3.3）、`upgrade/` 登记；§4.3 四个取锁点和 CLI、MCP `:65` 的包装 | 新 `apps/local-host/src/home-upgrade*.ts`、`home-storage-lifetime.ts`、`project-catalog.ts`、`space-web-server.ts`、`installer/{uninstall-owner,uninstall}.ts`、`cli-project.ts`、`mcp-v1-tool.ts`、`management-action-client.ts`、`home-stores.ts`、`docs/system/HOME-DATA.md`；`packages/storage` 的 `onUpgradePending` | UPG1-03、04、05、08、13（CLI、maintenance、purge、snapshot 部分）、15（`bootstrapSpace` 那一半）、17；S-141、S-142、S-144 | Opus | U1-b；**宿主启动是规则 4 枢纽，认领板预警** |
 | U1-d 平台库接入 | 全部描述符；目录库适配；项目库；Alchemist；两个可重建库；收 §2.5 的手写检查；约 55 行测试改断言 | `apps/local-host/src/{project-database,catalog-schema,project-catalog,project-catalog-replication,installed-plugin-libraries,home-plugin-store,alchemist-search}.ts`、`plugins/native/alchemist/src/{index.ts,studio/server/sync/open.ts}`（E 轨预警）、`packages/storage/src/aggregate-copy-store.ts`、`server/src/database.ts`、`memory-ledger.ts`、`tests/` | UPG1-12、16；§13.2 末段；§2.3 的两份 SQLite 不变量 | Opus 5.5 high | U1-c；**02 收尾**（#1837 还在改 `home-store-snapshot.ts`） |
 | U1-e 带版本文件 | `VersionedFile`、§2.6 的文件；修四个吞错的读路径；密钥段规则与测试 | `packages/storage/src/versioned-file.ts`、`adapters/file-secret-store.ts`、`modules/shelf/src/catalog.ts`、`apps/local-host/src/{mcp-settings-store,model-configuration,browser/browser-surfaces,computer/computer-settings,computer/computer-records}.ts`、`installer/home-files.ts` | UPG1-06、07 | Opus 5.5 high | U1-c；Shelf 属 E 轨，Jelly 文件在宿主；预警 |
 | U1-f 插件表合同与范围检查 | `PluginDatabaseDeclaration.upgrades`、`HomeStoreDeclaration` 的段；§2.4 的三层检查和跑法，对所有插件同一份；装上的插件写了就拒绝（唯一的开关）；记进「2026-10-18 改」清单 | `packages/contracts/src/platform/plugin-database.ts`；`tooling/gates/api/contracts/platform/{plugin,plugin-registration}.txt`、`plugin-sdk/index.txt`；`packages/plugin-runtime/src/project-database.ts`、新 `plugin-upgrade-steps.ts`、`apps/local-host/src/{project-plugin-databases,plugin-sync-database,home-stores}.ts`；`docs/system/SECURITY-INVARIANTS.md`（S-46、S-147）；`specs/archive/repository-anti-corruption/spec.md` §1 | UPG1-10、14；S-147 | Opus 5.5 high | U1-c；**公共合同队列**（§15.1）；用户 2026-11-06 已定 |

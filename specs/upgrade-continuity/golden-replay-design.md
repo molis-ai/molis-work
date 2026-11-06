@@ -59,6 +59,8 @@ tests/fixtures/golden-homes/<版本>/
 | 空间号（`storage-space.json`、`molis_storage_space`） | `ensureStorageSpace` 没有文件才生成（`space.ts:42`），库里的跟着文件走 | 生成前先写好固定内容的 `storage-space.json`（`ensureStorageSpace(home, expected)` 本来就收这个参数）。不用改产品代码 |
 | 设备号（`<命名空间>_replica_state.device`、`replica_state.device`） | 写在建库 SQL 的 `randomblob(16)` 里（`plugin-sync-database.ts:42`），另一处是 `randomUUID()`（`replica.ts:44`）。不该为了测试开注入口 | 转储器把这一列换成 `sha256("golden-device:" + 库的相对路径 + ":" + 表名)` 的前 32 位。值还是合法的十六进制，每个库各不相同，还原后 `initializeReplica` 照常认 |
 
+`workspaces.canonical_path` 存本机绝对路径，每次生成、回放的临时 Home 都不同，转储时把 Home 前缀换成固定的占位，同样进这张表（U1 §2.1 的段按 `home` 写它）。
+
 要归一的列写成转储器里的一张短表（表名模式、列、规则），不做通配。新出现的随机列会让 `UPG2-02` 失败，要么注入，要么进这张表，看得见。同一个提交生成两次，`manifest.json` 与所有转储逐字节相同（`UPG2-02`），比的是归一之后的转储。
 
 ## 3. 怎样生成

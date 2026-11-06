@@ -131,6 +131,7 @@ interface ProjectDirectories {
 - **默认输出目录是真实的一行**：没有本机输入的项目也有输出目录（WMD-03）。它是 `workspaces` 里真实的一行，`modules/projects` 在建项目时按 Home 的存储约定建好文件夹、核实 realpath 后写入，和别的目录同一套规矩；已有项目由升级段补上（第 8 节），回收站里的项目也补，否则恢复后没有输出目录。所以「恰好一项带 output」和 `RunDirectories.output` 永远有东西可指。
 - **同步来的项目也走这一步，不用首次读取时再建。** 同步的内容里确实没有目录（`portable-project.ts` 只投影 id、标题、时间和插件清单，本机路径不同步，这条不变），但本机这一行项目记录不是同步写的：`personal-catalog-sync.ts:23` 的 `prepare` 先经 `ensureSyncedProject` → `ManagedProjectFiles.createProject(input, true)` → `lifecycle.register(record, "project.sync_prepared")` 建好，`apply` 只更新已有的行（没有就拒绝）。个人空间、演示项目、绑定运行上下文时建的项目也都经 `register`（`modules/projects/src/project-service.ts:68`）。所以默认输出目录写在 `register` 这一处的事务里，已有 output 就不动，建项目的路都覆盖到。不在读取时建：`projects.directories.get@1` 是查询，查询不写。跨空间复制目前只有回执和内容接口（`project-copy-journal.ts`、`runtime-project-copy.ts`），没有建目标项目的入口；将来有了也要经 `register`。
 - 结果是**每台设备各有各的输出目录**：在 A 设备上改的输出位置不跟到 B 设备，B 设备上是默认位置。这和 #1877 已有的「本机路径不同步」一致，用户不用多做什么，建项目时也没有多一步。
+- **已知后果（用户待定）：** 输出目录里的文件不跟过去。同一个项目两台设备上的目录 id 也不同（下面「`add` 时发一个新 id」），所以进了同步内容的 `workspace_file` 引用（`<workspace_id>:<相对路径>`）到另一台设备上显示「找不到位置」（SSC-02），`repair` 修不了：那台设备上根本没有这一行。现在能带这种引用的同步字段有 2 个，都在 Goals：`goal_tree_proposal_items.source_refs_json`（选中文字拆步骤时记下出处，`plugins/native/goals/src/fragment-offers.ts:44`）和 `input_bindings.source_ref`（`goals.inputs.bind` 不限资料种类，`plugins/native/goals/src/input-actions.ts:79`）。同步的表里没有指向这种目录的列（Alchemist 的 `workspace_id` 指它自己的 `workspaces` 表）。自由文本和 JSON（比如工作流程的 `steps_json`）没有逐条算。要不要接受、要不要给下一步，等用户定。
 - 改配置只影响以后的轮次；正在跑的轮次照它开始时的位置继续（第 4 节）。
 - 各插件读同一份配置，不存自己的覆盖值（WMD-07）。
 
@@ -375,6 +376,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 **真实 Home 重建不等这份合同（用户 2026-11-06 定）：#1837 合入就按检查单重建。** 分界仍是 02③（统筹 2026-11-04 定），但顺序定了，这份稿子动表的部分都落在重建之后，不再进第 1 版：
 
 - `workspaces` 的 `is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses`：都走 U1 升级段，并过金样回放（U2）。这几段用户已同意，写的时候不用再问。
+- 默认输出目录那一段是函数段，用 `run(db, { home })`（[U1 设计](../upgrade-continuity/upgrade-chain-design.md) §2.1）：按这个 Home 的存储约定建好文件夹、核实 realpath，再写那一行。根 Home 和每个账号 Home 各跑一遍，回收站里的项目也补。放回不删文件夹，留下空文件夹没有害处。
 - 组合服务纠正表属第 15 批，到时同样走升级段。
 
 这些段写在 05② 的实现片里，那一片要等 U1 和四份门禁就位（U1 设计第 14 节）。**合同片不动表，也就不等 U1。** 不加读取兼容。`modules/projects` 现在没有升级段（#1805 第 6 条），实现片先给它登记第一段。

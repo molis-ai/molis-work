@@ -1,6 +1,6 @@
 # 动作的版本字段与输入类型（路线书 05 第 4 项）
 
-状态：设计稿（2026-11-06），没有实现。N14 的界面用户 2026-11-06 选了「就地接住」（设计台实物 `docs/design/rule-stale-reload/`，定样 PR 另开）；N22 的范围用户同日定为一次迁完（§9）。排进[第 05 批第 4 项](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-item-4)，来源是[对抗式审查台账](../../docs/reviews/adversarial-review-2026-11-01.md) N14、N22。依据是 main `242d75d03`；#1790 合入（`a942bd9c3`）后复核过路径和行号。
+状态：设计稿（2026-11-06），没有实现。N14 的界面用户 2026-11-06 选了「就地接住」（设计台实物 `docs/design/rule-stale-reload/`，定样 PR 另开）；N22 的范围用户同日定为一次迁完（§9）。排进[第 05 批第 4 项](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-item-4)，来源是[对抗式审查台账](../../docs/reviews/adversarial-review-2026-11-01.md) N14、N22。依据是 main `242d75d03`；#1790 合入（`a942bd9c3`）后复核过路径和行号，2026-11-07 按 #1877 勘误一轮。
 
 验收编号前缀 `AIC`，见 §12。
 
@@ -339,7 +339,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 | 公开合同，接口是判别联合，schema 是一个扁平对象（`agent.session.create`、`agent.run.start`；`git.inspect` S0 之后） | 留手写接口，`inputSchemaFor` 里写 `FlatUnion<I>` | 现在是扁平写法，改写法要动 schema 形状和动作快照，N22 不做。键和字段类型由编译器钉住，组合由处理器查 |
 | 公开合同，`inputSchemaFor` 过不了，S0 也修不了或不该修（现在是定义 `memory.prefs.write`、`projects.directories.set_output`，帮手 `artifact-pins` 的比较和继续、`file-sources` 的预览） | **留手写接口，不包**，写在这里，每条带理由 | `memory.prefs.write`、`set_output`：都是 `properties` 加顶层 `oneOf` 的写法，推成 `unknown`，改写法要动 schema 形状和动作快照，N22 不做。3 个 `artifact` 帮手：`ArtifactVersionRecord` 是平台自己产出的记录，`payload`、`metadata` 是递归的 JSON，schema 推不出来；硬写全再封口，记录以后多一个字段，这些动作就全部运行时报错，它们有 10 个文件在用。**已知风险**：这几个没有编译器钉住，接口和 schema 漂了没人报，靠现有用例。N22-03、S0 碰到新的同类就加进来 |
 | 输入形状运行时才知道（`connector-mcp-actions.ts`、`external-mcp-actions.ts`、`plugin-builder/exposed-actions.ts`、`functions.published.*`） | `input: unknown`，不断言形状，原样转发 | 没有东西可推。名单写进收口片的记录 |
-| Alchemist | **不迁**，核一遍就结束 | 它已经是一份事实：`operation.input.safeParse(input)`，处理函数拿到 `parsed.data`（`action-operations.ts:183-190`），没有手写检查可删。它是用户批过的例外，由 BL-377 重做。这是对「全部处理器」的解读，不是缩范围。**只有项目级操作是这样；** Home 级的两个操作是 `run(input)` 直接调（`:237`），靠 `:230` 一处 `as` 和 kernel 的校验，类型来自同一份 zod（`studio/shared/contracts/actions.ts:118`）。N22-Z 核的时候把这两个写进名单 |
+| Alchemist | **不迁**，核一遍就结束 | 它已经是一份事实：`operation.input.safeParse(input)`，处理函数拿到 `parsed.data`（`action-operations.ts:183-190`），没有手写检查可删。它是用户批过的例外，由 BL-377 重做。这是对「全部处理器」的解读，不是缩范围。**只有项目级操作是这样；** Home 级的两个操作是 `run(input)` 直接调（`:244`），靠 `:237` 一处 `as` 和 kernel 的校验，类型来自同一份 zod（`studio/shared/contracts/actions.ts:118`）。N22-Z 核的时候把这两个写进名单 |
 
 ### 4.5 字面量怎样保住（迁移写法）
 

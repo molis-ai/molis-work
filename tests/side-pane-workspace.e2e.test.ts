@@ -267,6 +267,45 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   }
 });
 
+// PFG-22, 定样第 9 条 (760 and under shows only the focused pane): a window that wide or narrower loads with the side collapsed,
+// its tabs, current tab and width as kept, and opening it shows that current tab again; a wide window keeps an open side open.
+// The saved layout keeps the side open, so going back to a wide window does not lose it.
+test("PFG-22 定样第 9 条 a narrow window loads with the side collapsed and its tabs kept; a wide one reloads it open", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const shown = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.sideTab)`;
+  const load = async (width: number, height: number, mobile: boolean) => {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+    await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.body.dataset.sideOpen`, 15_000);
+  };
+  await load(1440, 900, false);
+  await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+  await waitFor(`${stored}?.side?.open === true && ${current} === 'tasks'`, 5_000);
+  const tabs = await evaluate<string[]>(shown);
+
+  await load(1440, 900, false);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks'`, 5_000);
+
+  await load(390, 844, true);
+  // Give a late restore the chance to open it before reading that it stayed collapsed.
+  await evaluate("new Promise(resolve => setTimeout(resolve, 600))");
+  assert.equal(await evaluate("document.body.dataset.sideOpen"), "false", "a phone loads with the side collapsed");
+  assert.deepEqual(await evaluate<string[]>(shown), tabs, "every side tab is still there");
+  assert.equal(await evaluate(current), "tasks", "the current tab is kept");
+  assert.equal(await evaluate(`${stored}?.side?.open`), true, "the saved layout keeps the side open for a wide window");
+  await click(`${strip} [data-side-tab="tasks"]`);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks' && !document.querySelector('[data-side-body="tasks"]').hidden`, 5_000);
+
+  // 601 to 760 counts as narrow too.
+  await load(700, 900, false);
+  await evaluate("new Promise(resolve => setTimeout(resolve, 600))");
+  assert.equal(await evaluate("document.body.dataset.sideOpen"), "false", "700 wide loads with the side collapsed");
+  await load(1440, 900, false);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks'`, 5_000);
+});
+
 // 07-S1 review, small fix 2: a plugin taken out of the project keeps its side tab where it was, marked removed, as the main
 // area's tabs are; its view says how to bring the plugin back, and once it is added back the tab works again.
 test("PFG-22 a plugin taken out of the project keeps its side tab in place, marked removed, and it works again once added back", { timeout: 150_000 }, async t => {

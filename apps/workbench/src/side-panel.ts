@@ -270,9 +270,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   };
   const toggle=()=>{setOpen(!open,{focus:true});save();};
   const reopen=record=>{
+    const before=side().open;
     if(!ops.reopenSideTab(getState(),record))return false;
     if(undo?.record===record)undo=null;
-    if(side().open&&!open)setOpen(true,{tab:record.tab.itemId});else if(record.active&&open)select(record.tab.itemId);else draw();
+    if(side().open&&!before&&!open)setOpen(true,{tab:record.tab.itemId});else if(record.active&&open)select(record.tab.itemId);else draw();
     if(strip.contains(document.activeElement))buttons().find(button=>button.dataset.sideTab===record.tab.itemId)?.focus({preventScroll:true});
     save();return true;
   };
@@ -394,8 +395,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   new MutationObserver(()=>draw()).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});
   paint();select(current());
   (window.requestIdleCallback||setTimeout)(()=>strip.querySelectorAll('[data-side-keys]').forEach(tab=>load(panel.querySelector('[data-side-body="'+tab.dataset.sideTab+'"]'))),{timeout:4000});
-  // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again.
-  const restore=()=>{settle();paint();if(side().open!==open)setOpen(side().open);else draw();};
+  // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again. A
+  // narrow window (760 and under, where only the focused pane shows: the side is a sheet over half the work) loads with the
+  // side collapsed, its tabs, current tab and width as kept; the saved open stays, so a wide window opens it again.
+  const restore=()=>{settle();paint();const show=side().open&&!matchMedia('(max-width:760px)').matches;if(show!==open)setOpen(show);else draw();};
   return {open:(key,target)=>request({tab:key,target}),restore};
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");
 

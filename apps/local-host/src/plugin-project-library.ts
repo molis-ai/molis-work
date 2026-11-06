@@ -1,6 +1,11 @@
+import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
+import { projectReplicationTriggers } from './project-replication-triggers.js';
+import { pluginSyncLibraryManifest, pluginSyncDatabaseDeclaration, pluginSyncTriggers, bindPluginSyncProject } from './plugin-sync-database.js';
+import { pluginSyncForVerifiedLibrary } from './plugin-sync-verified-library.js';
+import type { ReplicaDatabase } from '@molis-ai/molis-work-storage';
 import type { PluginManifest, PluginProjectDatabase, PluginProjectStatements } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginStatementGuard, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-import { LocalSqliteStorage, type LocalSqliteJournal } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, replicaTriggerDefinitions, type LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { pluginDatabaseClient, type PluginDatabaseConnection } from "./plugin-database-client.js";
 import { projectJournalBinding, type ProjectJournalBinding } from "./plugin-project-journal.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -38,8 +43,8 @@ export interface ProjectLibrary {
  * lets it and the Host's connections share the file) and starts on its first statement.
  */
 export function openPluginProjectLibrary(library: ProjectLibrary, manifest: PluginManifest, authorize: (permission: string) => void, instance: PluginInstance,
-  statementLimits: Partial<StatementLimits> = {}): {
-  client: PluginProjectDatabase; statements: PluginProjectStatements; reader: PluginDatabaseConnection; close(): void;
+  statementLimits: Partial<StatementLimits> = {}, home?: string): {
+  client: PluginProjectDatabase; sync?: ReturnType<typeof pluginSyncForVerifiedLibrary>; statements: PluginProjectStatements; reader: PluginDatabaseConnection; close(): void;
 } {
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 没有声明项目库`);
@@ -50,14 +55,20 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
   let closed = false;
   try {
     const reader: PluginDatabaseConnection = storage.db;
-    const reads = pluginStatementGuard(reader, record), writes = pluginStatementGuard(library.db, record);
+    const triggers = new Map([...projectReplicationTriggers(library.db), ...replicaTriggerDefinitions(library.db), ...pluginSyncTriggers(library.db as ReplicaDatabase, pluginSyncDatabaseDeclaration(manifest, declaration), manifest, declaration.schema)]);
+    const projectId = library.journal?.project_id ?? listProjectRoots(library.db)[0]?.project_id;
+    bindPluginSyncProject(library.db as ReplicaDatabase, pluginSyncLibraryManifest(manifest, declaration), projectId);
+    const reads = pluginStatementGuard(reader, record, triggers), writes = pluginStatementGuard(library.db, record, triggers);
     const journal = library.journal
       ? projectJournalBinding({ ...library.journal, reader: storage }, authorize, instance, manifest.plugin_id) : noJournal;
     const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true,
       check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed, journal);
     const processes = new ProjectStatementProcess(library.path, record, statementLimits);
     const statements = isolatedProjectStatements(processes, declaration, authorize, instance, () => closed);
-    return { client, statements, reader, close() { if (!closed) { closed = true; processes.dispose(); storage.close(); } } };
+    const assertActive = () => { if (closed) throw new ActionError('actions.plugin_unavailable', '插件数据库已关闭'); authorize('storage:private'); };
+    const sync = home ? pluginSyncForVerifiedLibrary({home, manifest, declaration, db: library.db, projectId, client,
+      inTransaction: () => library.db.inTransaction === true, assertActive, authorize, guard: writes}) : undefined;
+    return { client, ...(sync ? {sync} : {}), statements, reader, close() { if (!closed) { closed = true; processes.dispose(); storage.close(); } } };
   } catch (error) { storage.close(); throw error; }
 }
 

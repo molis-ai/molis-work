@@ -1,3 +1,4 @@
+import { syncBindings } from './sync-binding.js';
 import { bindPluginActionRoute, decodeMaterialUpload } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -34,7 +35,7 @@ export function createLingguangPlugin(): PluginDefinition {
         allowModelDownload: input.allow_model_download, signal: caller.signal,
       }) } : {}),
     };
-    return { kind: "app", views: [lingguangUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [lingguangUiContribution],
       actions: [...createLingguangActionHandlers(ports), ...createLingguangContentHandlers(actions)], routes: lingguangRoutes(context) };
   } };
 }

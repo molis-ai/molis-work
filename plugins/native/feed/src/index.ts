@@ -52,6 +52,7 @@ export { createFeedRouteHandlers } from "./route-handlers.js";
 export { feedSourceCatalog } from "./source-catalog.js";
 export type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
 export { FEED_PLUGIN_ID, FEED_PROJECT_PLUGIN_ID, feedManifest } from "./manifest.js";
+export { feedSync, feedRuleCollection, feedRuleTracking } from "./replication.js";
 export { FEED_ACTION_PERMISSIONS } from "./runtime-actions.js";
 
 export { FEED_STYLES } from "./styles.js";
@@ -81,3 +82,5 @@ export { feedOwnedAttention } from "./attention-owner.js";
 export { createFeedPlugin } from "./plugin.js";
 export { createFeedWriter, type FeedWriter } from "./runtime-writes.js";
 export type { FeedHydrate } from "./item-hydration.js";
+
+export { syncBindings as createFeedSyncBindings } from "./sync-binding.js";

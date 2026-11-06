@@ -36,6 +36,7 @@ test("a serial action a concurrent action calls waits behind the operation that 
     const editing = client.invoke(caller, edit, {});
     const drafting = client.invoke(caller, draft, {});
     await editEntered.promise;
+    assert.equal(host.isProjectBusy(reference.storage_key), true, "queued and concurrent work prevents lifecycle changes");
     await settle();
     assert.ok(log.includes("draft returned from the model"));
     assert.ok(!log.some(line => line.startsWith("save")), `the nested save must wait for the held line, saw ${JSON.stringify(log)}`);
@@ -43,6 +44,7 @@ test("a serial action a concurrent action calls waits behind the operation that 
     await Promise.all([editing, drafting]);
     assert.deepEqual(log, ["edit read 0", "draft returned from the model", "edit wrote 1", "save read 1", "save wrote 11", "draft saved"]);
     assert.equal(value, 11, "both writes survive");
+    assert.equal(host.isProjectBusy(reference.storage_key), false, "settled queue releases lifecycle protection");
   } finally { gate.resolve(); await host.close(); }
 });
 

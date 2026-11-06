@@ -40,6 +40,8 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 
 `server/`（身份、设备、接续回执与群聊领域）按 Module 规则检查，不算平台包：它有自己的业务事实（2026-10-08 决定第 4 项）。分类以 `scripts/workspace-packages.mjs` 的 `kind` 为准。
 
+这里的工作区登记指 `server/package.json` 的 Node 包，TypeScript 只编译 `server/src/**/*.ts`。Rust 同步业务也在统一源码目录下的 `server/src/sync`，由根部 `server/Cargo.toml` 指定库入口并由 native-checks 检查，不新增 pnpm 包；`apps/sync-worker` 通过该库的公开入口装配，不持有同步 SQL 或业务实现。
+
 ## 2. 强制禁止
 
 - Module implementation 或 Store 导入另一个 Module implementation 或 Store。
@@ -123,7 +125,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 
 `.github/workflows/ci.yml` 在 pull request 和 `main` push 上把挡合并的检查分成四组并行的作业（`ci.yml` 里 T-128 统计的各作业最长一次成功运行：`gates` 6.8 分钟、`health-gate-rules` 5.2、`architecture-boundaries` 5.8；`action-contracts` 的 15.4 是合并队列里一台慢 runner 上的那次），都在 `Verify` 的 `needs` 里：`gates`（不要构建）跑健康门禁（`health:check`，对照合并基点）、版本一致，以及文档门禁、翻译、包清单、vendored 记录、密钥扫描、探针与产品子集运行器、测试运行器自己的变异用例；`health-gate-rules`（只构建 contracts 包给一个门禁用例用）跑 `tests/health-gates-*.test.ts`，即健康门禁各条规则的变异用例，分在两个 runner 上（矩阵 `shard: [1, 2]`，每份取同一列表里隔一个的文件，`node scripts/run-tests.mjs --shard <k>/<n>`）；`architecture-boundaries` 跑同一条 `workspace:verify`，再在这次构建上跑页面资源预算（`page-assets:check`，宿主发出的样式表、脚本、插件客户端包与字体只许变小）、Goal 查询/存储边界、存储基线、发布资产、启动器类型检查、单一工作台外壳与成果门禁、炼金术士与创作台回放；`action-contracts` 自己构建，跑动作与插件合同（`pnpm test:contracts`），分在两个 runner 上：其中几个用例起真实宿主和 MCP 服务、自带时限，一个 4 核 runner 上同时跑 4 个时会超时。`gates`、`health-gate-rules`、`architecture-boundaries` 三个作业里一次点名多个文件的 `node scripts/run-tests.mjs` 都是几份同时跑、每份一个 `MOLIS_WORK_HOME`（`MOLIS_WORK_TEST_JOBS: 4`，见 [并行开发](PARALLEL-DEVELOPMENT.md) 第 5 节）；`action-contracts` 每个 runner 同时只跑 2 个文件（`MOLIS_WORK_TEST_JOBS: 2`）。上次用时长的先跑：各作业用 `actions/cache` 把运行器记下的用时带到下一次运行。安全不变量（`pnpm test:security`）是单独的 `security-invariants` 作业，和下面的 `product-subset` 一样在 `Verify` 的 `needs` 里（决定 #14，本次按只许变严合同落实）：合并队列里跑整张清单；PR 的 some 跑选中项，whole 或选择故障仍跑整套，只有成功且明确 none 才跳过（见「产品子集作业」的 PR 选择规则）。两者是挡合并的作业里最长的（T-128 统计窗口里最长一次成功运行 21.9 和 15.7 分钟，原来最长的 `action-contracts` 是 15.4），合并队列里一组要多等一些。全量产品测试仍在本地跑（见 PR 模板），但这些定向行为回归和 package 边界检查持续执行；用户动线上的一部分产品用例由下面的 `product-subset` 作业在 Linux 上跑。
 
-健康门禁里还有静态检查（Biome：空 `catch`、`as unknown as`、没处理的 promise、显式 `any`、`console`、`debugger`，按文件计数、只许减少，口径与按包开新规则见 `tooling/gates/README.md`「静态检查」）。非 TypeScript 的代码由两个作业查，都在 `Verify` 的 `needs` 里，不看数字、有告警就失败：`native-checks`（macOS：`apps/desktop` 的 `rustfmt --check`、`cargo clippy -D warnings` 与 `cargo test`，Rust 版本固定；Swift 的 `swiftc -typecheck`，`jelly-whisper` 包的 `swift build` 暂不挡合并，见 BL-122）和 `shell-checks`（Linux：被跟踪的 `.sh` 的 `shellcheck`，被跟踪的 `.py` 能解析）。脚本是 `scripts/gates/native-checks.mjs`，规则的测试是 `tests/native-checks.test.mjs`。
+健康门禁里还有静态检查（Biome：空 `catch`、`as unknown as`、没处理的 promise、显式 `any`、`console`、`debugger`，按文件计数、只许减少，口径与按包开新规则见 `tooling/gates/README.md`「静态检查」）。非 TypeScript 的代码由两个作业查，都在 `Verify` 的 `needs` 里，不看数字、有告警就失败：`native-checks`（macOS：`apps/desktop`、`apps/sync-worker` 与 `server/src/sync` 的 `rustfmt --check` 与 `cargo clippy -D warnings`，Rust 版本固定，同步 Worker 用 `wasm32-unknown-unknown` 目标；Swift 的 `swiftc -typecheck`，`jelly-whisper` 包的 `swift build` 暂不挡合并，见 BL-122）和 `shell-checks`（Linux：被跟踪的 `.sh` 的 `shellcheck`，被跟踪的 `.py` 能解析）。脚本是 `scripts/gates/native-checks.mjs`，规则的测试是 `tests/native-checks.test.mjs`。
 
 `ci.yml` 里另有一个不挡合并的 `linux-probe` 作业（依据 `specs/archive/repository-anti-corruption` 决定 #14）：`continue-on-error: true`，不在 `Verify` 的 `needs` 里，分支保护不动。它只在每晚的定时运行（main，`schedule`，有自己的并发组，夜里的合并取消不到它）和手动触发（`workflow_dispatch`）时跑，PR 和推送上不跑（用户 2026-10-14 定：每次推送占一小时 runner 却不决定任何事，main 上又常被下一次合并取消）。它在 ubuntu 上是六片矩阵（R-58，用户 2026-10-26）：每片 `--shard k/6`（k 为 1 到 6），按排序后的可跑文件列表每隔六个取一个，六片合起来每个文件恰好一次；每片各自装 uv、`pnpm build`，再用 `scripts/ci-linux-probe.mjs` 跑自己那份，记下哪些在 Linux 上通过：
 
@@ -256,6 +258,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `modules/judgment-rules` | 模块 | 17 | 1,958 | `store.ts` 290 | 1 | 3 | 1 | 在用 | 中 | 已审 |
 | `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/sync-replication` | 模块 | 21 | 873 | `index.ts` 272 | 1 | 2 | 1 | 在用 | 深 | 待审 |
 | `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |
 | `packages/contracts` | 基础 | 139 | 21,034 | `modules/goals.ts` 776 | 63 | 0 | 67 | 在用 | 深 | 待审 |
 | `packages/design-system` | 基础 | 97 | 15,500 | `styles/primitives.ts` 1,258 | 1 | 2 | 5 | 在用 | 深 | 已审 |

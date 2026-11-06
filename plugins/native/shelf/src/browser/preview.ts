@@ -3,6 +3,7 @@ import { renderBar } from "./bar.js";
 import { focusEditor } from "./edit.js";
 import { cap, childUrl, comparisonSources, fileUrl, hasFile, isEditable, itemById, stageBusy } from "./model.js";
 import { docHtml, editorHtml, idle, previewPane, welcome } from "./panes.js";
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { readText } from "./request.js";
 import type { Item, ShelfPage } from "./types.js";
 
@@ -12,13 +13,19 @@ export const download = (page: ShelfPage, item: Item): void => {
 };
 
 /** The whole copy as text. A copy that cannot be read is said in Shelf's own words, whatever the Host answered. */
-export async function readFullText(page: ShelfPage, item: Item): Promise<string> {
+export async function readFullText(page: ShelfPage, item: Item, beginEdit = false): Promise<string> {
   const version = page.textVersion;
   const fallback = page.L("shelf.preview.could-not-read-this-copy");
-  const text = await readText(page, fileUrl(page, item.item_id), fallback).catch((error: Error) => {
-    throw error.name === "AbortError" ? error : new Error(fallback);
-  });
+  const response = await molisWorkRequest<Response>(fileUrl(page, item.item_id), { as: "response", scope: page.lifetime, fallback });
+  if (!response.ok) throw new Error(fallback);
+  const text = await response.text();
+  page.lifetime.assertCurrent();
   if (version !== page.textVersion) throw new DOMException("Content changed", "AbortError");
+  if (beginEdit) {
+    const hash = (response.headers.get("etag") ?? "").replace(/^"|"$/g, "");
+    if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error(fallback);
+    page.editBase = { id: item.item_id, hash };
+  }
   page.textCache.set(item.item_id, text);
   return text;
 }

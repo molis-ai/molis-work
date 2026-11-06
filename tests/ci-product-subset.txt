@@ -47,6 +47,8 @@ tests/home-plugin-stage-pages.test.ts
 tests/local-web-actions.test.ts
 tests/mcp.test.ts
 tests/pages-actions.test.ts
+tests/pages-ai-actions.test.ts
+tests/pages-unicode-actions.test.ts
 tests/plugin-platform-composition.test.ts
 tests/project-plugins.test.ts
 tests/runtime-integration.test.ts
@@ -299,6 +301,7 @@ tests/project-deletion-memory.test.ts
 tests/project-deletion-owners.test.ts
 tests/project-plugin-registry.test.ts
 tests/project-policy-save.test.ts
+tests/project-recycle.test.ts
 tests/project-settings-accordion.test.ts
 tests/project-settings-stage.test.ts
 
@@ -418,6 +421,16 @@ tests/scheduler.test.ts
 tests/search-evidence-runtime.test.ts
 tests/search-references.test.ts
 tests/secret-store-format.test.ts
+tests/personal-goals-sync.test.ts
+tests/personal-goals-sync-refusal.test.ts
+tests/personal-goals-sync-lifecycle.test.ts
+tests/personal-goals-sync-offline.test.ts
+tests/sync-device.test.ts
+tests/sync-json-content.test.ts
+tests/sync-item-isolation.test.ts
+tests/sync-selection-dependencies.test.ts
+tests/workbench-client-compression.test.ts
+tests/builtin-sync-bindings.test.ts
 tests/server-cli.test.ts
 tests/server-database-baseline.test.ts
 tests/shelf-job-runner.test.ts
@@ -459,6 +472,7 @@ tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
+tests/replica-dependencies.test.ts
 tests/workspace-production-events.test.ts
 
 tests/connector-status.test.ts
@@ -468,7 +482,8 @@ tests/connector-consumer-usages.test.ts
 tests/knowledge-cards.test.ts
 tests/knowledge-reads.test.ts
 tests/canonical-json-value.test.ts
-
+tests/feed-rule-replication.test.ts
+tests/issues-replication.test.ts
 
 tests/memory-unknown-facts.test.ts
 # W5-06 PRR-12: every shown plugin's stage page is drawn once, from the Manifest view that opens it.

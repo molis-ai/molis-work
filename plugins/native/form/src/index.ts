@@ -17,3 +17,5 @@ export { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers } from "
 export type { FormActionPorts } from "./actions.js";
 export { formContentActions, formMarkdown, questionsFromText, createFormContentHandlers } from "./content-actions.js";
 export { formFillPageHtml, formResultsCsv, FORM_ANSWER_FORMAT } from "./fillpage.js";
+
+export { syncBindings as createFormSyncBindings } from "./sync-binding.js";

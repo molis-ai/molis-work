@@ -7,7 +7,9 @@ import { shelfBoardSpecimens } from "./board-specimens.js";
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
+import { shelfSyncDocument } from "./index.js";
 export const registration: PluginRegistration = {
+  sync:{copies:shelfSyncDocument},
   project_plugin_id: SHELF_PROJECT_PLUGIN_ID, catalog_order: 11,
   manifest: shelfManifest,
   project_runtime: { create: createShelfPlugin, package_name: "@molis-ai/molis-work-plugin-shelf", factory_export: "createShelfPlugin" },

@@ -180,6 +180,8 @@ export class ShelfJobs {
       mime: resultMime(name),
       size_bytes: bytes?.byteLength ?? 0,
       origin_hash: bytes ? sha256(bytes) : "",
+      copy_hash: bytes ? sha256(bytes) : "",
+      origin_realpath: null,
       hidden: false,
       created_at: now(),
       source_item_id: options.sourceItemIds[0] ?? null,

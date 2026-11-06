@@ -29,6 +29,9 @@ export const imagesErrors = defineErrorCodes("images", {
   runtime_unavailable: "unavailable",
   save_failed: "internal",
   timeout: "timeout",
+  sync_limit: "too_large",
+  sync_busy: "unavailable",
+  copy_conflict: "conflict",
 });
 
 /** Whether a failure is Images' own (read by its code, not its class: another copy of the contracts makes another class). */

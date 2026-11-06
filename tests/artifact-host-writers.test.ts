@@ -25,9 +25,25 @@ function sources(directory: string): string[] {
   });
 }
 
+/** Colocated executable tests are fixtures, not Host writers. A production name or a name alone is never exempt. */
+function isColocatedTest(file: string, source: string): boolean {
+  return /(?:^|\/)(?:test|[^/]+\.test)\.(?:ts|mts|mjs)$/.test(file) && /from\s*["']node:test["']/.test(source);
+}
+
+test("Host writer scan distinguishes explicit colocated tests from production sources", () => {
+  const source = "import test from 'node:test'; owner.commands.registerVersion({});";
+  assert.equal(isColocatedTest("apps/sync-worker/attachments.test.mjs", source), true);
+  assert.equal(isColocatedTest("apps/sync-worker/test.mjs", source), true);
+  assert.equal(isColocatedTest("apps/local-host/src/writer.ts", source), false);
+  assert.equal(isColocatedTest("apps/local-host/src/writer.test.ts", "owner.commands.registerVersion({});"), false);
+});
+
 test("RAC-860 PG-080 only the Host's own files register a version on a plugin's behalf, and Pages is not among them", () => {
   const files = ["apps", "server"].flatMap(sources).filter(file => !file.includes("/tests/"));
-  const callers = files.filter(file => /\bregisterVersion\(|\bregisterVersion:/.test(readFileSync(join(root, file), "utf8"))).sort();
+  const callers = files.filter(file => {
+    const source = readFileSync(join(root, file), "utf8");
+    return !isColocatedTest(file, source) && /\bregisterVersion\(|\bregisterVersion:/.test(source);
+  }).sort();
   assert.deepEqual(callers, Object.keys(HOST_WRITERS).sort(), "a file that registers a version for a plugin is a plugin's own write: use services.artifacts");
   // The demo seed and the demo script put sample content in a project; the rest write only what is the Host's.
   for (const file of Object.keys(HOST_WRITERS).filter(name => !/demo/.test(name))) {

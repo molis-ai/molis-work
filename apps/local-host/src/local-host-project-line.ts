@@ -14,6 +14,7 @@ export interface RuntimeEntry<Runtime> {
   state: "opening" | "ready" | "closing";
   operationTail: Promise<void>;
   activeUses: number;
+  queuedUses: number;
   idleWaiters: Array<() => void>;
   /** Aborted when the project starts closing: a wait only observes, so it ends then instead of holding close until it times out. */
   observing: AbortController;
@@ -28,6 +29,7 @@ export interface ProjectLineHost {
   /** Throws once the Host no longer takes work. */
   assertRunning(): void;
   running(): boolean;
+  assertProjectAvailable?(projectId: string): void;
   /** Whether the registered action runs beside the line (scheduling "concurrent"): read from the registry, never from the caller. */
   concurrent(capability: Pick<HostCapabilityDescriptor, "capability_id" | "version" | "action_provider">): boolean;
 }
@@ -82,6 +84,11 @@ export class ProjectLine<Runtime> {
     return this.scope.getStore()?.entry.state === "closing";
   }
 
+  isBusy(storageKey: string): boolean {
+    const entry = this.entries.get(storageKey.trim());
+    return !!entry && (entry.state !== 'ready' || entry.activeUses > 0 || entry.queuedUses > 0);
+  }
+
   isClosing(storageKey: string): boolean {
     return this.closingKeys.has(storageKey);
   }
@@ -99,6 +106,7 @@ export class ProjectLine<Runtime> {
   ensureEntry(reference: LocalHostProjectReference): RuntimeEntry<Runtime> {
     this.host.assertRunning();
     const normalized = normalizeReference(reference);
+    this.host.assertProjectAvailable?.(normalized.project_id);
     this.assertCompatibleReference(normalized);
     if (this.closingKeys.has(normalized.storage_key)) {
       throw hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭");
@@ -113,7 +121,7 @@ export class ProjectLine<Runtime> {
       runtime: Promise.resolve().then(() => this.runtimeFactory.open(normalized)),
       state: "opening",
       operationTail: Promise.resolve(),
-      activeUses: 0,
+      activeUses: 0, queuedUses: 0,
       idleWaiters: [], observing: new AbortController(),
       actionDisposers: new Set(),
     };
@@ -171,9 +179,10 @@ export class ProjectLine<Runtime> {
     // waiting; callSignal cancels these executions as closing starts, before waiting for their cleanup.
     // Concurrency is read from the registered descriptor, never from the caller.
     if (this.host.concurrent(capability)) return this.withRuntime(reference, () => run(false));
+    entry.queuedUses += 1;
     const operation = entry.operationTail.then(heldInLine);
     entry.operationTail = operation.then(() => undefined, () => undefined);
-    return await operation;
+    try { return await operation; } finally { entry.queuedUses -= 1; }
   }
 
   /** Direct composition port for Host code that works inside one project's runtime. */
@@ -190,6 +199,26 @@ export class ProjectLine<Runtime> {
       if (entry.activeUses === 0) {
         for (const resolve of entry.idleWaiters.splice(0)) resolve();
       }
+    }
+  }
+
+  /** Observe an already running project without constructing or activating one. */
+  async withExistingRuntime<Result>(reference: LocalHostProjectReference, operation: (runtime: Runtime) => Result | Promise<Result>): Promise<Result | null> {
+    this.host.assertRunning();
+    const normalized = normalizeReference(reference);
+    this.host.assertProjectAvailable?.(normalized.project_id);
+    const entry = this.entries.get(normalized.storage_key);
+    if (!entry || entry.state !== "ready" || entry.reference.project_id !== normalized.project_id) return null;
+    entry.activeUses += 1;
+    try {
+      const runtime = await entry.runtime;
+      this.host.assertRunning();
+      this.host.assertProjectAvailable?.(normalized.project_id);
+      if (!this.isReady(entry)) return null;
+      return await operation(runtime);
+    } finally {
+      entry.activeUses -= 1;
+      if (entry.activeUses === 0) for (const resolve of entry.idleWaiters.splice(0)) resolve();
     }
   }
 

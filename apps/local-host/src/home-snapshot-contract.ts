@@ -30,7 +30,8 @@ export interface HomeSnapshotStoreManifest {
 
 /** Restore input for the original Home and original keys. Existence in the published directory means capture completed. */
 export interface HomeSnapshotManifest {
-  readonly schema_version: 1;
+  readonly schema_version: 2;
+  readonly space_digest: string | null;
   readonly product_version: string;
   readonly created_at: string;
   readonly home_directory: string;

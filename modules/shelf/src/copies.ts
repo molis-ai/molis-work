@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { ShelfItemRecord, ShelfMaterialPorts } from "./contract.js";
-import { publicItem, requireItem, saveCatalog, type ShelfCatalogAccess } from "./catalog.js";
+import { publicItem, requireItem, saveCatalog, sha256, type ShelfCatalogAccess } from "./catalog.js";
 import { safeInside, thawTree, within } from "./copy-tree.js";
 import { readShelfCopy, shelfErrors } from "./errors.js";
 import { MAX_EDIT_BYTES, isEditableShelfItem, mimeFor, previewFor } from "./item-names.js";
@@ -67,7 +67,7 @@ export class ShelfCopies {
     });
   }
 
-  async writeCopy(itemId: string, text: string): Promise<ShelfItemRecord> {
+  async writeCopy(itemId: string, text: string, expectedContentHash: string): Promise<ShelfItemRecord> {
     return this.files.write((writer) => {
       const catalog = this.access.from(writer);
       const item = requireItem(catalog, itemId);
@@ -77,11 +77,11 @@ export class ShelfCopies {
       const bytes = Buffer.from(text, "utf8");
       if (bytes.byteLength > MAX_EDIT_BYTES) throw shelfErrors.too_large("文件超过 512 KB");
       if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
-      writer.replaceFileAtomic(item.relative_path, bytes);
-      if (item.job_id) {
-        const output = `jobs/${item.job_id}/output/${item.name}`;
-        if (writer.stat(output)) writer.replaceFileAtomic(output, bytes);
-      }
+      if (!/^[a-f0-9]{64}$/.test(expectedContentHash) || sha256(readShelfCopy(writer,item.relative_path))!==expectedContentHash)throw shelfErrors.conflict('副本已变化，请保留输入并重新读取后编辑');
+      const digest=sha256(bytes),relative=`files/${item.item_id}/versions/${digest}/${item.name}`;
+      if(writer.stat(relative)){if(sha256(readShelfCopy(writer,relative))!==digest)throw shelfErrors.invalid_file('已有副本字节不符');}
+      else {writer.mkdir(path.posix.dirname(relative));writer.writeFile(relative,bytes,'create');}
+      item.relative_path=relative;item.copy_hash=digest;
       item.size_bytes = bytes.byteLength;
       item.preview_text = previewFor(item.kind, bytes);
       saveCatalog(writer, catalog);

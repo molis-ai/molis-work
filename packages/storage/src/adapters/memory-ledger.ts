@@ -16,11 +16,13 @@ import { DatabaseSync } from "node:sqlite";
 import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
 import { readSnapshotFile, snapshotFileStat } from "../snapshot-files.js";
 import { describeSqliteBaseline, describeSqliteSchema } from "../sqlite-baseline.js";
-import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import { snapshotProgramsMatch } from "../sqlite-baseline-inspection.js";
+import { readDatabaseSpace, readStorageSpace, STORAGE_SPACE_SCHEMA_SQL } from "../space.js";
+import { homeSqlitePath } from "../home-sqlite.js";
 import { isDeepStrictEqual } from "node:util";
 import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
-import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
  * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
@@ -106,7 +108,10 @@ export function inspectMemoryLedger(options: { homeDirectory: string; actorId: s
     if (!unchanged()) throw inspectionErrors.changed("只读检查期间记忆账本已变化");
     db = new DatabaseSync(join(stage, "memory.db"), { readOnly: true });
     const version = db.prepare("PRAGMA user_version").get()?.user_version;
-    if (version !== MEMORY_LEDGER_BASELINE.version || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(MEMORY_LEDGER_BASELINE))
+    const databaseSpace = readDatabaseSpace(db), homeSpace = readStorageSpace(options.homeDirectory);
+    if (homeSpace && !isDeepStrictEqual(databaseSpace, homeSpace)) throw inspectionErrors.invalid("记忆账本的空间归属与 Home 不同");
+    const expected = databaseSpace ? { ...MEMORY_LEDGER_BASELINE, schema: STORAGE_SPACE_SCHEMA_SQL + MEMORY_LEDGER_BASELINE.schema } : MEMORY_LEDGER_BASELINE;
+    if (version !== MEMORY_LEDGER_BASELINE.version || !snapshotProgramsMatch(db,expected.schema,false) || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(expected))
       || db.prepare("PRAGMA integrity_check").all().some(row => Object.values(row).some(value => value !== "ok"))
       || db.prepare("PRAGMA foreign_key_check").all().length) throw inspectionErrors.invalid("记忆账本不是完整的现行结构");
     const prefs = (key: string) => {
@@ -125,11 +130,9 @@ export function inspectMemoryLedger(options: { homeDirectory: string; actorId: s
 
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
   assertNoPendingHomeRestore(join(options.homeDirectory, "agent-runtime"));
-  const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
-  try {
-    applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE);
-    db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-  } catch (error) { db.close(); throw error; }
+  const db = openBaselineHomeSqlite(options.homeDirectory, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE);
+  try { db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"); }
+  catch (error) { db.close(); throw error; }
   let depth = 0;
   const retention = createMemoryLedgerRetention(db, work => ledger.transaction(work));
   const ledger: MemoryLedgerPort = {

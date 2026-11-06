@@ -1,5 +1,7 @@
 # Dataset 数据表入口
 
+个人空间同步：`replica(context)` 同步表结构、单元格、保存版本与固定成果引用。以一份表及其历史为冲突单元；目标设备编辑版本独立递增，不采用源设备 CAS。待恢复发布不会被覆盖；超出当前 512 KiB 聚合上限会报错并保留原数据。当前仅显式启用的本机联调。回归：`tests/plugin-aggregate-replication.test.ts`。
+
 本机表格：改列改行、粘贴与导出 CSV、保存快照及回滚、发布 Artifact。业务数据仍在 `{home}/dataset/dataset.db`，按 Host 注入的 canonical project_id 分区，保留原表、快照和 Artifact 身份。
 
 包名：`@molis-ai/molis-work-plugin-dataset`。
@@ -39,3 +41,7 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 - Owner 列名与跨 Form 转表改动加跑：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/work-placement-plugins.e2e.test.ts`（后一份需要本机 Chrome）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/dataset-actions.e2e.test.ts tests/dataset-file-import.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+公开 `openDatasetStore(home).copy(context)` 兑现完整保存图的 owner 复制端口，与 `replica()` 的个人同步准入分开。方向、账号/项目范围和最终授权由可信调用上下文固定；源本地读取不记录同步变化，目标新标识稳定重试，不覆盖已编辑副本。跨 owner 只声明具体依赖，只有已选择图中的内部引用由 owner 重映射；不执行源任务或沿正文猜 ID。整项目多选编排尚未完成。
+
+同一集合目录也提供 `openDatasetCopyOwner`：源读取使用现有库的只读连接，缺文件返回未发现且不创建；错版、错误空间和链接拒绝。目标只向当前个人空间导入；关闭接口后旧句柄拒绝。项目复制预览不得用会初始化库的普通写连接代替它。

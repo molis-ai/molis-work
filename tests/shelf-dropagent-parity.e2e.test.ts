@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -230,6 +230,7 @@ fi
     await select(first.item_id);
     await click("[data-shelf-edit]");
     await waitFor("document.querySelector('[data-shelf-editor]')");
+    const beforeCopy = shelf.readFile(first.item_id);
     const suffix = "\n复制前立即保存的尾行。";
     // Editing is followed immediately by a genuine copy gesture; the native callback reads the saved copy.
     await evaluate(`(() => { const editor=document.querySelector('[data-shelf-editor]'); editor.value += ${JSON.stringify(suffix)};
@@ -237,8 +238,13 @@ fi
     await click(`${row(first.item_id)} [data-shelf-row-action="copy"]`);
     await browser.waitFor("window.parityNativeCalls.length === 1");
     const single = await browser.evaluate<{ payload: { paths: string[] }; saved: string }>("window.parityNativeCalls[0]");
-    assert.deepEqual(single.payload.paths, [first.relative_path]);
+    const persisted = shelf.readFile(first.item_id);
+    assert.deepEqual(single.payload.paths, [persisted.item.relative_path], 'native copy uses the owner\'s current immutable version after saving');
+    assert.notEqual(persisted.item.relative_path, beforeCopy.item.relative_path, "a pending edit creates a new immutable version before native copy");
+    assert.deepEqual(await readFile(join(shelf.root,beforeCopy.item.relative_path)),beforeCopy.bytes,"the previous version keeps its original bytes");
+    assert.notEqual(persisted.item.relative_path, first.relative_path, 'saving never mutates the admission snapshot in place');
     assert.equal(single.saved, markdown + "\n已修改且保留全文。" + suffix);
+    assert.equal(await readFile(join(shelf.root,single.payload.paths[0]!), 'utf8'), single.saved, 'the native path really exists and contains the complete saved bytes');
     assert.equal(shelf.readFile(first.item_id).bytes.toString("utf8"), single.saved);
     await click("[data-shelf-edit]");
     await waitFor("!document.querySelector('[data-shelf-editor]')");
@@ -249,7 +255,7 @@ fi
     await command("Input.dispatchKeyEvent", { type: "keyUp", code: "KeyC", key: "c", modifiers: 4 }, sessionId);
     await browser.waitFor("window.parityNativeCalls.length === 2");
     const multi = await browser.evaluate<string[]>("window.parityNativeCalls[1].payload.paths");
-    assert.deepEqual([...multi].sort(), [first.relative_path, second.relative_path].sort());
+    assert.deepEqual([...multi].sort(), [first, second].map(item => shelf.readFile(item.item_id).item.relative_path).sort());
   });
 
   await t.test("wheel send reopens a dead terminal while its pane remains open (client contract)", async () => {

@@ -6,6 +6,7 @@ import type { ModelProviderInput } from "./model-provider-store.js";
 import type { ModelSettingsModel } from "@molis-ai/molis-work-app-workbench";
 import { modelProviderTemplate, modelTemplateChoices } from "./model-provider-templates.js";
 import { testConfiguredModel } from "./model-provider-test.js";
+import { modelCheckReason, modelProviderCheckErrors } from "./model-provider-checks.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { L } from "./web-locale.js";
 
@@ -149,10 +150,16 @@ function httpReason(status: number): string {
   return L("服务拒绝了这次请求（{status}）。", { status });
 }
 
-/** Run the check through the same Prologue path a Run takes. Throws the message above; nothing was written by then. */
+/**
+ * Run the check through the same Prologue path a Run takes. Throws the message above, coded with the check's reason, so the page
+ * can put a refused key under its field and a rate limit with when it checks again; nothing was written by then.
+ */
 export async function verifyModelConnection(selection: ResolvedModelSelection): Promise<void> {
   try { await testConfiguredModel(selection); }
-  catch (error) { throw new Error(modelCheckFailure(error instanceof Error ? error.message : "")); }
+  catch (error) {
+    const raw = error instanceof Error ? error.message : "";
+    throw modelProviderCheckErrors[modelCheckReason(raw)](modelCheckFailure(raw));
+  }
 }
 
 /** Write the provider (and, for a typed key, the connection that holds it). The key is stored, not echoed. */

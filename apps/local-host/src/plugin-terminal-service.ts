@@ -1,3 +1,4 @@
+import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
 import { createHash } from "node:crypto";
 import { realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
@@ -73,6 +74,7 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
       const started = await catalog({ homeDirectory: home }, projects => projects.commit(() => {
         // Everything below is one transaction: a call stopped here (revoked, cancelled, stopped) leaves no record and starts nothing.
         check();
+        if (owner.project_id) { projects.getProject(owner.project_id); assertPassiveProjectAvailable(home, owner.project_id); }
         const existing = projects.terminalPanels.get(panelId);
         // A key stays with what it was opened for, running or not: another subject neither starts nor attaches it.
         if (existing && existing.subject !== request.subject) throw new ActionError("actions.conflict", "这个终端属于另一个对象，请换一个 key");
@@ -85,6 +87,7 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
           launch_args: [...launch.storedArgs], title: request.title ?? launch.title, host_session_id: launch.session,
         }, cwd);
         check();
+        if (owner.project_id) { projects.getProject(owner.project_id); assertPassiveProjectAvailable(home, owner.project_id); }
         host.spawn({ panelId, command: launch.path, args: [...launch.args], cwd, env: terminalEnvironment({ home, record, webUrl: webUrl() }) });
         return true;
       }));

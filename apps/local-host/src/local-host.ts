@@ -50,6 +50,7 @@ export class LocalHost<Runtime> {
     this.instanceId = options.instanceId?.trim() || `local-host-${randomUUID()}`;
     this.line = new ProjectLine(options.runtimeFactory, {
       assertRunning: () => this.assertRunning(),
+      assertProjectAvailable: projectId => options.assertProjectAvailable?.(projectId),
       running: () => this.state === "running",
       concurrent: capability => this.capabilities.descriptor(capability, capability.action_provider?.project_id)?.action?.scheduling === "concurrent",
     });
@@ -246,6 +247,14 @@ export class LocalHost<Runtime> {
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
     return this.line.closeProject(referenceOrStorageKey);
+  }
+
+  withExistingRuntime<Result>(reference: LocalHostProjectReference, operation: (runtime: Runtime) => Result | Promise<Result>): Promise<Result | null> {
+    return this.line.withExistingRuntime(reference, operation);
+  }
+
+  isProjectBusy(storageKey: string): boolean {
+    return this.line.isBusy(storageKey);
   }
 
   async close(): Promise<void> {

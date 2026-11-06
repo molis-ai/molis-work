@@ -5,6 +5,8 @@ import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from
  * ones must already be at its version.
  */
 const WORKFLOWS_SCHEMA = `
+CREATE TABLE workflow_editor_versions(workflow_id TEXT NOT NULL, project_id TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(workflow_id,project_id));
+CREATE TABLE workflow_imported_instances(instance_id TEXT PRIMARY KEY, project_id TEXT NOT NULL);
   CREATE TABLE workflows (
     workflow_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
@@ -36,9 +38,11 @@ const WORKFLOWS_SCHEMA = `
  * ones too, with every instance that ran them.
  */
 const WORKFLOWS_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "工作流程及其运行记录", order: 50, tables: [
+  { table: "workflow_imported_instances", column: "project_id" },
+  { table: "workflow_editor_versions", column: "project_id" },
   { table: "instances", column: "project_id" },
   { table: "workflows", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const WORKFLOWS_DATABASE: HomePluginDatabaseDeclaration = { project_rows: WORKFLOWS_PROJECT_ROWS, store_name: "workflows", version: 1,
+export const WORKFLOWS_DATABASE: HomePluginDatabaseDeclaration = { project_rows: WORKFLOWS_PROJECT_ROWS, store_name: "workflows", version: 3,
   read_permission: "workflows:read", write_permission: "workflows:write", schema: WORKFLOWS_SCHEMA };

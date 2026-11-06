@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync-binding.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createImagesActionHandlers } from "./actions.js";
@@ -13,7 +14,7 @@ export function createImagesPlugin(): PluginDefinition {
     context.requireGrant("storage:private");
     const { database, ownerFiles, imageGeneration, background } = context.services ?? {};
     if (!database || !ownerFiles || !imageGeneration || !background) throw new ActionError("actions.unredeemed", "宿主未提供图片运行服务");
-    const current = new ImagesService({ database, files: ownerFiles, imageGeneration, background });
+    const current = new ImagesService({ database, files: ownerFiles, imageGeneration, background, sync:context.sync, syncClient:context.services?.sync });
     service = current;
     let recovering = true;
     const control = (...needed: string[]) => {
@@ -31,7 +32,7 @@ export function createImagesPlugin(): PluginDefinition {
     }
     catch (error) { current.close(); throw error; }
     finally { recovering = false; }
-    return { kind: "app", views: [imagesUiContribution], actions: createImagesActionHandlers({ service: () => current }),
+    return { kind: "app", sync: syncBindings(context), views: [imagesUiContribution], actions: createImagesActionHandlers({ service: () => current }),
       routes: imagesRoutes(context) };
   }, async stop() { service?.close(); service = undefined; } };
 }

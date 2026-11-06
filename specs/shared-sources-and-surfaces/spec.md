@@ -1,6 +1,6 @@
 # 公共来源与呈现合同（路线书 05 ②）
 
-状态：设计稿，2026-11-04 写，没有实现。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。实现等 02 交接，以及 03、04 定样全部落定；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。
+状态：设计稿，2026-11-04 写，没有实现。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。实现等 02 交接，以及 03、04 定样全部落定；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。
 
 ## 0. 这份稿子做什么
 
@@ -121,7 +121,7 @@ interface ProjectDirectories {
 | `projects.directories.set_output@1` | 设或改输出目录，也可以把一个输入设为输出。不搬移、不删除、不覆盖旧文件（WMD-09） | user |
 | `projects.directories.repair@1` | 文件夹换了位置以后，重新找到它 | user |
 
-- 现有的 `projects.workspaces.add@1`、`projects.workspaces.repair@2` 并进上表的 `add_input`、`repair`，`projects.workspaces.unlink@2` 并进 `remove_input`，旧名不留（N35）；`is_default` 删掉（第 8 节）。C-1 的 PR 写明对调用方的影响。
+- 现有的 `projects.workspaces.add@1`、`projects.workspaces.repair@1` 并进上表的 `add_input`、`repair`，`projects.workspaces.unlink@1` 并进 `remove_input`，旧名不留（N35）；`is_default` 删掉（第 8 节）。C-1 的 PR 写明对调用方的影响。
 - **默认输出目录是真实的一行**：没有本机输入的项目也有输出目录（WMD-03）。它是 `workspaces` 里真实的一行，`modules/projects` 在建项目时按 Home 的存储约定建好文件夹、核实 realpath 后写入，和别的目录同一套规矩；已有项目由 02③ 的重建（或之后的升级步）补上。所以「恰好一项带 output」和 `RunDirectories.output` 永远有东西可指。
 - 改配置只影响以后的轮次；正在跑的轮次照它开始时的位置继续（第 4 节）。
 - 各插件读同一份配置，不存自己的覆盖值（WMD-07）。
@@ -154,7 +154,7 @@ interface ProjectDirectories {
 
 **现在的「浏览目录」设置删掉**（#1805 第 1 条）。main 上有一份持久的浏览选择：动作 `projects.settings.browsing-workspace.read`、`.select`，宿主表 `project_browsing_settings`（`apps/local-host/src/project-browsing-settings.ts`），Files、Git、Coding 和助理的环境都在读。按上表它是页面状态，所以：
 
-- 这两个动作和这张表一起删，同一次切换里改完所有读它的地方，不留别名（N35）。页面事件 `host.workspace.changed@1`（S-54 管着）**保留**，只改「项目打开」那一路（`announceProjectOpened`）的载荷，不再带浏览设置；同一个 PR 改 `packages/contracts/src/platform/dom-events.ts` 里的登记、跑 `pnpm api:update`，并核 S-54 那一行。同一次切换里要改的还有：`projectWorkspacesRoute`、`plugin-page-workspaces.ts`、Coding Manifest 的 `consumes`、`skills/molis-plugin-dev/elements.md`、`docs/platform/PROJECT-SETTINGS.md`。
+- 这两个动作和这张表一起删，同一次切换里改完所有读它的地方，不留别名（N35）。页面事件 `host.workspace.changed@1`（S-54 管着）**保留**，只改「项目打开」那一路（`announceProjectOpened`）的载荷，不再带浏览设置；同一个 PR 改 `packages/contracts/src/platform/plugin-events.ts:29` 这个插件事件的载荷（它不在 `dom-events.ts` 里；快照是 `platform/plugin-events.txt` 和 `platform/plugin.txt`）、跑 `pnpm api:update`，并核 S-54 那一行。同一次切换里要改的还有：`projectWorkspacesRoute`、`plugin-page-workspaces.ts`、Coding Manifest 的 `consumes`、`skills/molis-plugin-dev/elements.md`、`docs/platform/PROJECT-SETTINGS.md`。
 - **Git**：动作的输入显式带 `workspace_id`，不传就是输出目录（第 3 节）；页面把正在看的目录作为输入传过去，服务按当前角色核对。
 - **Coding**：浏览的目录只在页面里；执行位置只从 `RunDirectories.execution` 来（下一段）。Coding 现在把两者混在一起（`routes-sessions.ts`、`executor.ts`），浏览器代码要整块改：归 B 轨；借助理执行器（`assistant-executor.ts`）的那部分归 A 轨（轨道规则 7）。
 - **助理的环境**：「你正在看什么」由页面经现有的情境通道交给助理，只当提示，不带授权；不再读持久设置。
@@ -183,7 +183,7 @@ interface RunDirectories {
 写在 Manifest 的新字段 `presentation` 里，和 `actions`、搜索来源、`artifacts.produces` 并列。
 
 ```ts
-// packages/contracts/src/platform/presentation.ts（新子路径；Manifest 类型在 plugin-manifest.ts 里引用）
+// packages/contracts/src/platform/presentation.ts（新子路径；Manifest 类型在 plugin-manifest.ts 里引用，它的快照落在 tooling/gates/api/contracts/platform/plugin.txt，经 platform/plugin 子路径导出）
 type FieldRole = "title" | "status" | "summary" | "excerpt" | "media" | "number" | "progress"
   | "due_at" | "happened_at" | "updated_at" | "actor" | "activity" | "origin" | "version" | "relation" | "children"
   | "judgment" | "held_in";
@@ -363,9 +363,9 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 `is_default` 改成 `roles`，属于改库结构。第 02 批已经定下真实 Home 清空重建，各库从统一起点的第 1 版开始。所以这一步：
 
-分界是 **02③ 真实 Home 重建**，不看 U1 合没合入（统筹 2026-11-04 定）：
+分界是 **02③ 真实 Home 重建**（统筹 2026-11-04 定）。U1 只在重建之后才是前置；重建之前落的不等 U1：
 
-- **重建之前落**：直接改第 1 版的建表，不写迁移。
+- **重建之前落**：直接改第 1 版的建表，不写迁移。涉及的都是项目库里的表或字段：`workspaces` 的 `is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses`、组合服务纠正表。
 - **重建之后落**：真实 Home 已经按第 1 版建了表，不能再原地改第 1 版，只能走 U1 的升级链写一步升级，并过金样回放（U2）。写这一步算「新增迁移逻辑」，是红线：开 PR 之前由统筹先问用户。
 
 不加读取兼容。开 PR 时先核 02③ 做完没有。`modules/projects` 现在没有升级步（#1805 第 6 条）：如果落在重建之后，这一步要先在 U1 的升级链上给它登记一步。
@@ -381,7 +381,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 | 片 | 内容 | 前置 |
 | --- | --- | --- |
-| C-1 资料与目录合同 | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`、`RunDirectories`，第 3 节的五个动作与 `materials.recent@1`、`materials.recent.record@1` 的声明；`material_recent_uses` 表；删掉 `projects.settings.browsing-workspace.*`；三个错误码；`assertMaterialRef`；api、actions 快照 | 02 交接；与 U1 共用 storage 的部分排在 U1 之后 |
+| C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；唯一动表的是 `material_recent_uses`，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`、`RunDirectories`，第 3 节的五个动作与 `materials.recent@1`、`materials.recent.record@1` 的声明；`material_recent_uses` 表；删掉 `projects.settings.browsing-workspace.*`；三个错误码；`assertMaterialRef`；api、actions 快照 | 02 交接。`material_recent_uses` 随 C-1 落的条件是 02③ 还没做，这样直接写进第 1 版；02③ 已做就把这张表挪到实现片，走 U1 升级段，合同片不受影响 |
 | C-2 呈现声明合同 | `platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind；`validatePresentationDeclaration`、`presentationText`、`presentationFormFields`、`renderPresentationForm` 的签名；api 快照 | 02 交接；D 轨把状态环取值下沉到 contracts 的 `platform/ui.ts` 之后 |
 | C-3 组合服务合同 | `services/surface-composition.ts`、`SurfaceGroup`、`surfaces.compose@1`、`surfaces.correct@1` 的声明；context-ledger 的关系类型表；`assertSurfaceDescription`；actions 快照 | C-2；第 14 批 A 段的 `TextRef` 合入 |
 | 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、删浏览设置表；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨 | C-1～C-3 合入 |
@@ -402,7 +402,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | 1 事实主人 | 目录配置与「最近用过」归 `modules/projects`；本机文件读写归宿主工作区服务；跨来源查找读取归 `horizontal/knowledge`；对象与正文归各自插件或 Module；操作面组合与纠正归组合服务（第 15 批）；过程项归 `modules/artifacts`。本合同不新建资料库、不复制正文 |
 | 2 插件同等待遇 | 资料引用、「最近用过」的写读、呈现声明、挂载位，内置、生成、第三方插件都走同一个动作和同一个 `validatePresentationDeclaration`；宿主不按插件名分支 |
 | 3 能力注册 | 第 3 节五个目录动作、`materials.recent@1`、`materials.recent.record@1`（`system.project-workspaces`）；`surfaces.compose@1`、`surfaces.correct@1`（组合服务）；values 动作由各插件在自己的声明里注册。都注册一次，页面、工作流、Agent、MCP 共用 |
-| 4 合同 | 改。新子路径 `platform/project-materials`、`platform/presentation`、`services/surface-composition`；改 `modules/projects`、`modules/context-ledger`、`services/agent-host`、Manifest、`platform/dom-events`。按 N35 原地改形状，旧名不留；按第 9 节拆三片，按快照一次一个 PR |
+| 4 合同 | 改。新子路径 `platform/project-materials`、`platform/presentation`、`services/surface-composition`；改 `modules/projects`、`modules/context-ledger`、`services/agent-host`、Manifest、`platform/plugin-events`。按 N35 原地改形状，旧名不留；按第 9 节拆三片，按快照一次一个 PR |
 | 5 放在哪个包 | 合同在 contracts；共用校验在 SDK（只依赖 contracts）；状态环取值下沉到 contracts 的 `platform/ui.ts`（D 轨）；组合服务进 `horizontal/`，宿主只装配 |
 | 6 表与存储 | `workspaces` 去掉 `is_default`、改 `roles`；删 `project_browsing_settings`；新增 `material_recent_uses`（项目库，`modules/projects`）和组合服务的纠正表（项目库与它自己的 Home 库）。都登记进 `table-owners.json`，按 02③ 分界（第 8 节） |
 | 7 兼容与迁移 | 不加读取兼容。哈希 id 照旧当不透明字符串用，不从路径推，不算兼容路径。重建之后才落的，走 U1 升级链，是红线，先问用户 |
@@ -412,7 +412,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | 11 成果与过程项 | `pin` 分 current、fixed（成果库）、snapshot（过程项），不把过程项放进成果库 |
 | 12 页面与外壳 | 浏览位置只是页面状态；形态只用组件板已有的控件拼，缺的由 D 轨先补标本；页面事件按登记改，不新增未登记事件 |
 | 13 错误 | `projects.directory_missing`、`projects.directory_revoked`、`projects.directory_duplicate`，在 `defineErrorCodes("projects", …)` 里声明，不新写 Error 子类 |
-| 14 冲突面 | contracts 的 `modules/projects`、`platform/plugin-manifest`（排序见 #1806 第 10 节）、`platform/dom-events`；宿主的 `project-browsing-settings.ts`、`workspace-settings-events.ts`、`agent-host-composition.ts`；Git、Coding（B 轨）、`assistant-executor.ts`（A 轨）；`tooling/gates/actions/`、`tooling/gates/api/` |
+| 14 冲突面 | contracts 的 `modules/projects`、`platform/plugin-manifest`（快照在 `platform/plugin.txt`；排序见 #1806 第 10 节）、`platform/plugin-events`（快照 `platform/plugin-events.txt`，同名常量也进 `platform/plugin.txt`）；宿主的 `project-browsing-settings.ts`、`workspace-settings-events.ts`、`agent-host-composition.ts`；Git、Coding（B 轨）、`assistant-executor.ts`（A 轨）；`tooling/gates/actions/`、`tooling/gates/api/` |
 
 ## 12. 验收编号（候选）
 

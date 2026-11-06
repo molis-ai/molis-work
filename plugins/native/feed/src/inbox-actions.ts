@@ -1,3 +1,4 @@
+import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { retainActionAuthority, ActionError, type ActionAudience, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { admitToInbox, isIgnored } from "./inbox-admission.js";
@@ -12,7 +13,6 @@ import type { FeedHydrate } from "./item-hydration.js";
  */
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const ids = { type: "array", items: id, maxItems: 200 };
-const closed = (properties: Record<string, unknown>, required: string[]): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 /** Reads reach whoever Inbox's own actions reach (a plugin calling reaches an agent action); the admitting command is the person's own add-to-Inbox and the workflow's hand-in, as delegated: a plugin run for the person reaches only what the person's own catalog lists, so a workflow-only audience would never be reachable from Inbox. */
 const READERS: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 
@@ -27,13 +27,13 @@ export interface FeedBriefs {
 export interface FeedAdmitted { entry_id: string; status: string; revision: number; created: boolean }
 
 function read<Input, Output>(capability_id: string, title: string, description: string, input: ActionSchema, output: ActionSchema, subjects: string[] = ["feed_item"]): ActionDefinition<Input, Output> {
-  return { capability_id, version: 1, operation: "query", action: { title, description, kind: "query", scope: "project",
-    audiences: [...READERS], permissions: ["feed:read"], subject_kinds: subjects, input_schema: input, output_schema: output } };
+  return createActionDefinition<Input, Output>(capability_id, "query", { title, description,
+    audiences: [...READERS], permissions: ["feed:read"], subject_kinds: subjects, input_schema: input, output_schema: output });
 }
 
 function command<Input, Output>(capability_id: string, title: string, description: string, input: ActionSchema, output: ActionSchema): ActionDefinition<Input, Output> {
-  return { capability_id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", scheduling: "concurrent",
-    audiences: ["user", "workflow"], permissions: ["feed:read", "feed:write", "inbox:write"], subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
+  return createActionDefinition<Input, Output>(capability_id, "command", { title, description, scheduling: "concurrent",
+    audiences: ["user", "workflow"], permissions: ["feed:read", "feed:write", "inbox:write"], subject_kinds: ["feed_item"], input_schema: input, output_schema: output });
 }
 
 export const feedInboxActions = {

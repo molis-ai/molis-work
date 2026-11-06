@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import {
   OAUTH_CLIENT_AUTHS,
   OAUTH_GRANTS,
@@ -348,10 +349,6 @@ function pointer(value: unknown): value is string {
 
 function text(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 /** Every string in a JSON value, keys included. */

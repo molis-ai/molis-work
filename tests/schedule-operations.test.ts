@@ -15,7 +15,7 @@ import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import type { ScheduleWakeupControl } from '@molis-ai/molis-work-contracts/services/scheduler';
 import { wakeupInstallation } from './fixtures/scheduler-owner.js';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
 const identity = { projectId: 'p', pluginId: 'io.molis.work.test.operations', installationId: 'installed' };
@@ -263,7 +263,7 @@ test('skipping an unknown interval keeps its original anchor and advances beyond
 
 /** Schedule's real reminder and timed-operation services over one in-memory library, each offering its wakeup; returns what each registers its job as. */
 function jobTitles(t: TestContext) {
-  const db = new Database(':memory:'), now = Date.parse(at);
+  const db = openTestSqlite(':memory:'), now = Date.parse(at);
   db.exec(SCHEDULE_PROJECT_DATABASE.schema);
   const wake = wakeupInstallation(SCHEDULE_PLUGIN_ID);
   wake.action(SCHEDULE_REMINDER_WAKEUP, async () => {});

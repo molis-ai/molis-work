@@ -1,12 +1,11 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workspaceReadActions, type GitOperation, type GitOperationRecord, type GitReviewedResult, type WorkspaceGitResult, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { object, id, text, integer, path, workspace, reference, nullable, boolean, fileMode, gitOperation as operation, gitOperationRecord as operationRecord, gitReviewedResult as result } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import type { GitView } from "./projection.js";
-const define = <Input, Output>(capability_id: string, title: string, description: string, kind: "query" | "operation", permissions: string[], input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => ({
-  capability_id, version: 1, operation: kind === "query" ? "query" : "command", action: { title, description, kind, scope: "project",
-    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: ["workspace", "git"], input_schema, output_schema },
-});
+const define = <Input, Output>(capability_id: string, title: string, description: string, kind: "query" | "operation", permissions: string[], input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => createActionDefinition<Input, Output>(capability_id, kind === "query" ? "query" : "command", { title, description, kind,
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: ["workspace", "git"], input_schema, output_schema });
 const read = ["artifact:read", "storage:private"], write = [...read, "artifact:write"];
 /**
  * An action that cannot work without reading the repository says so: it needs the one workspace Git read action, and the

@@ -1,3 +1,5 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
+export { isRecord };
 import {
   AGENT_MCP_DESTINATION_ID,
   isJudgmentRuleDestinationId,
@@ -239,10 +241,6 @@ function normalizeScore(value: JudgmentRuleCriteria, requireComplete: boolean): 
   }
   if (levels.length > 32) throw functionsErrors.invalid("Score 最多 32 个档位");
   return levels;
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** A function key not yet taken: `key`, or `key_2`, `key_3`… when it is. */

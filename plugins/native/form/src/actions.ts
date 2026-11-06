@@ -1,3 +1,4 @@
+import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createFormDrafting, FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema, type FormDraftRequest, type FormDraftResult } from "./drafting.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -10,8 +11,6 @@ import { FORM_ANSWER_LIMIT, formFillPageFilename, formFillPageHtml, formResultsC
 import { formArtifactPreview, formArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-const array = (items: unknown) => ({ type: "array", items });
 const optionFields = { id: text, label: text };
 const questionFields = { id: text, type: { enum: ["text", "singleChoice", "multiChoice", "dropdown", "rating", "date"] }, title: { ...text, maxLength: 200 }, required: { type: "boolean" }, order: { type: "integer" } };
 const question = object({ ...questionFields, options: array(object(optionFields)) }, Object.keys(questionFields));
@@ -26,7 +25,7 @@ const read = ["form:read"], write = ["form:read", "form:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; questions?: readonly FormQuestionInput[] };
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return { capability_id: `form.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["form"], input_schema: input, output_schema: output, permissions, ...(name === "questions.draft" ? { scheduling: "concurrent" as const } : {}) } };
+  return createActionDefinition<I, O>(`form.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["form"], input_schema: input, output_schema: output, permissions, ...(name === "questions.draft" ? { scheduling: "concurrent" as const } : {}) });
 }
 export const formActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */

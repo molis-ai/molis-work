@@ -194,15 +194,16 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;
         if (selected) applySelection(selected, false);
-        applyUiState(ui);
-        updateAllRelationFormPreviews();
-        bindGoalEventDocument();
-        goalData.boardCursor = cursor;
+        // Invalidate before restoring visible workspace state, so its graph consumer can reload.
         const refreshedGraph = graphElement();
         if (refreshedGraph?.dataset.loaded === "true") {
           if (workspace.dataset.workspaceMode === "graph") void loadGoalGraph(true);
           else refreshedGraph.dataset.loaded = "false";
         }
+        applyUiState(ui);
+        updateAllRelationFormPreviews();
+        bindGoalEventDocument();
+        goalData.boardCursor = cursor;
         requestAnimationFrame(() => documentPane.classList.remove("is-syncing"));
       } catch (error) {
         // A background refresh stays quiet for the person, but not for whoever has to find out why it stopped.

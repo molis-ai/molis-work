@@ -11,6 +11,7 @@ import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host"
 import { ActionError, actionReachesAudience, type ActionAudience, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONNECTOR_USAGES_SWITCH_INPUT_TYPE, CONNECTOR_USAGES_SWITCH_OUTPUT_TYPE, defineConnectorUsagesSwitchAction } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { compileActionSchema } from "@molis-ai/molis-work-kernel";
+import { LocalHostHttpClient, isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const switchAction = defineConnectorUsagesSwitchAction("example.connection.switch", "换用账号", ["connectors:management:write"], "home");
@@ -170,4 +171,44 @@ test("S-108 RAC-2947 a switch a plugin declares is never called: it goes into fa
   const aggregate = connectorAccountActionProvider(home, () => {}, undefined, undefined, () => client as never).handlers.find(entry => entry.capability_id === connectorUsagesSwitchAction.capability_id)!;
   const report = await aggregate.handle({ ...user, beforeEffect: async () => {} } as never, { from_connection_id: a.connection_id, to_connection_id: b.connection_id });
   assert.deepEqual(report, { results: [], failed: [{ capability_id: "example.connection.switch", version: 1, provider_id: "io.molis.work.example.switch", code: "connector.switch.consumer_unsupported" }] });
+});
+
+// ASC-59: the settings page reaches where a connection is used, and the switch, only through the routes that call the same two actions as
+// the person (the page's control token, its origin); nothing in the request decides who asks, and the action checks both connections itself.
+const refusal = (expected: { status?: number; code?: string | RegExp }) => (error: unknown) => {
+  assert.ok(isLocalHostHttpError(error), String(error));
+  if (expected.status !== undefined) assert.equal(error.status, expected.status);
+  if (typeof expected.code === "string") assert.equal(error.code, expected.code);
+  else if (expected.code) assert.match(error.code ?? "", expected.code);
+  return true;
+};
+
+test("S-108 ASC-59 the settings page's switch moves nothing for another service's connection, a body that names who asks, or a request without the Home's control token", { timeout: 60_000 }, async t => {
+  const { home, a, b, image, keyOf } = await modelHome(t);
+  const switchPath = (to: string) => `/api/settings/connectors/connections/${to}/switch`;
+  await assert.rejects(home.web.post(switchPath(image.connection_id), { from_connection_id: a.connection_id }), refusal({ code: "connector.switch.service_mismatch" }));
+  await assert.rejects(home.web.post(switchPath(a.connection_id), { from_connection_id: a.connection_id }), refusal({ code: "connector.switch.same_connection" }));
+  for (const trusted of ["actor_id", "project_id", "audience", "install_id"]) {
+    await assert.rejects(home.web.post(switchPath(b.connection_id), { from_connection_id: a.connection_id, [trusted]: "someone-else" }), refusal({ status: 400, code: "actions.input_invalid" }), trusted);
+  }
+  const forged = new LocalHostHttpClient({ origin: home.origin, controlToken: "not-this-homes-control-token" });
+  await assert.rejects(forged.post(switchPath(b.connection_id), { from_connection_id: a.connection_id }), refusal({ status: 403 }));
+  const unsigned = await fetch(home.origin + switchPath(b.connection_id), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ from_connection_id: a.connection_id }) });
+  assert.ok(unsigned.status >= 400 && unsigned.status < 500, `a request without the page's token is refused (${unsigned.status})`);
+  assert.deepEqual([await keyOf("here"), await keyOf("there")], [a.credential_ref, a.credential_ref], "every provider keeps the key it had");
+});
+
+test("ASC-59 the settings page reads where the old connection is used and switches it through connectors.usages.read@1 and connectors.usages.switch@1", { timeout: 60_000 }, async t => {
+  const { home, a, b, keyOf } = await modelHome(t);
+  const read = await home.web.get<{ usages: Array<{ usage_id: string; source: { capability_id: string } }>; issues: string[] }>(`/api/settings/connectors/connections/${a.connection_id}/usages`);
+  assert.deepEqual(read.usages.map(usage => usage.usage_id).sort(), ["here", "there"]);
+  const report = await home.web.post<Report>(`/api/settings/connectors/connections/${b.connection_id}/switch`, { from_connection_id: a.connection_id });
+  const models = report.results.find(result => result.capability_id === modelProviderSwitch.capability_id)!;
+  assert.deepEqual(models.switched, ["here"]);
+  assert.deepEqual(models.refused, [{ usage_id: "there", code: "model_provider.origin_mismatch" }]);
+  assert.deepEqual([await keyOf("here"), await keyOf("there")], [b.credential_ref, a.credential_ref]);
+  // Asking again moves nothing more: what is already on the new connection is no longer a use of the old one.
+  const again = await home.web.post<Report>(`/api/settings/connectors/connections/${b.connection_id}/switch`, { from_connection_id: a.connection_id });
+  assert.deepEqual(again.results.flatMap(result => result.switched), []);
+  assert.deepEqual([await keyOf("here"), await keyOf("there")], [b.credential_ref, a.credential_ref]);
 });

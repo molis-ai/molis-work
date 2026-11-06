@@ -293,14 +293,19 @@
       "kind": "cohesive-unit",
       "reason": "Memory 既有门面与原受控用例装配：52方法保持不变，当前Session身份筛选与fixed清除装配增加10行；分类重试核验由原MemoryEdits拥有，管理变化记录的canonical查询由原MemoryManagementPages拥有，SDK/存储不进入门面。保留T-061既有后继收束责任，不为本轮再加纯转发架构。召回最终同步检查复用同条设置增加3行；本次已接受撤销恢复增加14行，仅在原undo编排核对原决定、操作、范围和版本后继续原purge及事务收尾，不新增方法、写主人或恢复机制。",
       "size": {
-        "lines": 1058,
+        "lines": 1063,
         "methods": 52
       }
     },
     "file horizontal/memory/src/service.ts": {
       "kind": "cohesive-unit",
       "reason": "现Memory公共caller/ports类型、受控Service门面和原用例装配保持同一出口；当前Session可序列化身份、绑定筛选及exact清除只接原主人。分类恢复和管理查询已移至其原协作者，未新增存储或第二执行链；原门面后继收束责任保留。召回最终同步检查复用同条设置增加3行；历史安全投影只增加原门面的返回类型接线。本次已接受撤销恢复增加14行，原身份守卫和purge事务收尾仍属同一undo编排，不为行数拆散操作身份或新增抽象。",
-      "size": 1216
+      "size": 1221
+    },
+    "function packages/storage/src/adapters/memory-ledger.ts#openMemoryLedger": {
+      "kind": "cohesive-unit",
+      "reason": "现 Memory SQLite ledger 的单一写主人与事务装配：有界回执集合查询、原序折叠和批量写入共同服从当前遗忘事实、marker、Run/版本冲突及状态单调性；事务内重叠回执阶段使预取失效，原首错保留和外层 COMMIT 前检查保证整批回滚。沿同一事务生命周期收束，不新增写主人、Port、跨事务结果缓存或事务框架，不为行数拆成零碎转发。",
+      "size": 205
     },
     "function apps/local-host/src/plugin-actions-client.ts#pluginHostActions": {
       "kind": "cohesive-unit",

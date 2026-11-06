@@ -186,6 +186,228 @@ test("Ledger marker statement reuse still reads each identity and current forget
   assert.equal(compilations, 2, "reopened ledger owns its own statement");
 });
 
+test("receipt batches read current facts at their boundaries and preserve all 752 identity checks and rows", t => {
+  const f = storage(t); initializeMemoryForgetting(f.input());
+  const ledger = openMemoryLedger(f.input()); t.after(() => ledger.close());
+  const original = DatabaseSync.prototype.prepare, read = ledger.forgetting.read;
+  let factReads = 0;
+  const markerIdentities = new Set<string>();
+  t.mock.method(ledger.forgetting, "read", () => { factReads++; return read(); });
+  t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    const statement = original.call(this, sql);
+    if (sql.startsWith("SELECT key FROM memory_markers WHERE actor_id='' AND key IN")) {
+      const all = statement.all;
+      t.mock.method(statement, "all", function(this: typeof statement, ...args: Parameters<typeof all>) {
+        assert.ok(args.length > 0 && args.length <= 128, "the marker set query stays bounded");
+        for (const identity of args) markerIdentities.add(String(identity).slice("memory-forgotten:".length));
+        return all.apply(this, args);
+      });
+    }
+    return statement;
+  });
+  const uses = Array.from({ length: 752 }, (_, index) => ({ memory_id: `identity-${index}`, memory_version: 1,
+    receipt_id: "complete-batch", at: "2026-11-06T00:00:00Z", consumer: "ui" as const, title: "Current recall", work_id: null,
+    source: "recall" as const, state: index < 8 ? "returned" as const : "omitted" as const }));
+  ledger.recordUses(uses);
+  assert.equal(factReads, 2, "one fresh fact set plus the original owner check immediately before COMMIT");
+  assert.deepEqual(markerIdentities, new Set(uses.map(use => use.memory_id)), "set queries still check every input identity's current marker");
+  const persisted = new DatabaseSync(join(f.home, "memory", "memory.db"), { readOnly: true });
+  try {
+    const rows = persisted.prepare("SELECT body FROM memory_uses WHERE receipt_id=? ORDER BY memory_id").all("complete-batch")
+      .map(row => JSON.parse(String(row.body)));
+    assert.deepEqual(rows, uses.toSorted((a, b) => a.memory_id.localeCompare(b.memory_id)), "all versions, states and identities actually persist");
+    assert.equal(rows.filter(row => row.state === "returned").length, 8);
+    assert.equal(rows.filter(row => row.state === "omitted").length, 744);
+  } finally { persisted.close(); }
+  ledger.recordUses([{ ...uses[0]!, receipt_id: "next-call" }]);
+  assert.equal(factReads, 4, "a later batch obtains its own current facts");
+  // Exercise markers for every identity across set-query and write boundaries, including returned and omitted rows.
+  for (let parity = 0; parity < 2; parity++) {
+    for (let index = parity; index < uses.length; index += 2)
+      ledger.setMarker("", `memory-forgotten:${uses[index]!.memory_id}`, {}, uses[index]!.at);
+    const receipt = `late-${parity}`;
+    ledger.recordUses(uses.map(use => ({ ...use, receipt_id: receipt })));
+    const persisted = new DatabaseSync(join(f.home, "memory", "memory.db"), { readOnly: true });
+    try {
+      const rows = persisted.prepare("SELECT body FROM memory_uses WHERE receipt_id=? ORDER BY memory_id").all(receipt)
+        .map(row => JSON.parse(String(row.body)));
+      const survivors = parity === 0 ? uses.filter((_, index) => index % 2 === 1).map(use => ({ ...use, receipt_id: receipt })) : [];
+      assert.deepEqual(rows, survivors.toSorted((a, b) => a.memory_id.localeCompare(b.memory_id)), "late batches never write a marked identity or suppress an unmarked peer");
+    } finally { persisted.close(); }
+  }
+  ledger.forgetting.accept(selection());
+  ledger.recordUses([{ ...uses[0]!, memory_id: "canonical", receipt_id: "accepted-before-batch" }]);
+  const persistedAccepted = new DatabaseSync(join(f.home, "memory", "memory.db"), { readOnly: true });
+  try { assert.equal(persistedAccepted.prepare("SELECT COUNT(*) AS count FROM memory_uses WHERE receipt_id=?").get("accepted-before-batch")!.count, 0); }
+  finally { persistedAccepted.close(); }
+});
+
+for (const fault of ["accepted", "released", "replaced", "linked", "damaged", "restore-pending"] as const)
+test(`receipt batch rolls back every staged row when ${fault} changes during synchronous SQLite execution`, t => {
+  const f = storage(t); initializeMemoryForgetting(f.input());
+  const ledger = openMemoryLedger(f.input()); t.after(() => ledger.close());
+  const prepare = DatabaseSync.prototype.prepare;
+  let injected = false;
+  const observe = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    const statement = prepare.call(this, sql);
+    if (sql.startsWith("INSERT INTO memory_uses")) {
+      const run = statement.run;
+      t.mock.method(statement, "run", function(this: typeof statement, ...args: Parameters<typeof run>) {
+        const result = run.apply(this, args);
+        if (!injected) {
+          injected = true;
+          const target = join(f.home, "memory-forgetting-v2.json");
+          if (fault === "accepted") ledger.forgetting.accept(selection());
+          if (fault === "released") f.close();
+          if (fault === "replaced") {
+            const replacement = target + ".replacement";
+            fs.writeFileSync(replacement, fs.readFileSync(target), { mode: 0o600 }); fs.renameSync(replacement, target);
+          }
+          if (fault === "linked") { fs.renameSync(target, target + ".original"); fs.symlinkSync(target + ".original", target); }
+          if (fault === "damaged") fs.writeFileSync(target, "invalid current facts");
+          if (fault === "restore-pending") fs.writeFileSync(join(f.home, "agent-runtime", ".molis-home-restore.json"), "{}");
+        }
+        return result;
+      });
+    }
+    return statement;
+  });
+  const use = { memory_id: "canonical", memory_version: 4, receipt_id: "rollback-whole-batch", at: "2026-11-06T00:00:00Z",
+    consumer: "ui" as const, title: "No stale receipt", work_id: null, source: "recall" as const, state: "returned" as const };
+  assert.throws(() => ledger.recordUses([use, { ...use, memory_id: "unrelated", state: "omitted" }]), {
+    code: fault === "accepted" ? "memory.conflict" : fault === "released" ? "storage.owner.closed"
+      : fault === "restore-pending" ? "storage.owner.recovery_required" : "memory.forgetting_invalid",
+  });
+  observe.mock.restore(); assert.equal(injected, true);
+  const persisted = new DatabaseSync(join(f.home, "memory", "memory.db"), { readOnly: true });
+  try { assert.equal(persisted.prepare("SELECT COUNT(*) AS count FROM memory_uses").get()!.count, 0); }
+  finally { persisted.close(); }
+  if (fault === "accepted") {
+    assert.equal(ledger.forgetting.read().decisions.length, 1, "rollback cannot undo the independent accepted decision");
+    ledger.recordUses([{ ...use, receipt_id: "late" }]);
+    assert.deepEqual(ledger.uses({ memory_id: "canonical" }), [], "subsequent late receipts remain fenced");
+  }
+});
+
+test("nested receipt phase rechecks facts again at its outer COMMIT and refuses a new accepted decision", t => {
+  const f = storage(t); initializeMemoryForgetting(f.input());
+  const ledger = openMemoryLedger(f.input()); t.after(() => ledger.close());
+  assert.throws(() => ledger.transaction(() => {
+    ledger.recordUses([{ memory_id: "canonical", receipt_id: "nested", at: "2026-11-06T00:00:00Z", consumer: "ui",
+      title: "Nested receipt", work_id: null, state: "returned" }]);
+    ledger.setMarker("person-a", "also-rollback", {}, "2026-11-06T00:00:00Z");
+    ledger.forgetting.accept(selection());
+  }), { code: "memory.conflict" });
+  assert.equal(ledger.marker("person-a", "also-rollback"), null);
+  const persisted = new DatabaseSync(join(f.home, "memory", "memory.db"), { readOnly: true });
+  try { assert.equal(persisted.prepare("SELECT COUNT(*) AS count FROM memory_uses").get()!.count, 0); }
+  finally { persisted.close(); }
+  assert.equal(ledger.forgetting.read().decisions.length, 1);
+});
+
+test("catching an inner receipt phase refusal cannot commit rows checked before a reentrant forgetting decision", t => {
+  const f = storage(t); initializeMemoryForgetting(f.input());
+  const ledger = openMemoryLedger(f.input()); t.after(() => ledger.close());
+  let changed = false;
+  const use = { get memory_id() {
+    if (!changed) { changed = true; ledger.forgetting.accept(selection()); }
+    return "canonical";
+  }, receipt_id: "caught-inner", at: "2026-11-06T00:00:00Z", consumer: "ui" as const,
+  title: "Outer caller catches refusal", work_id: null, state: "returned" as const };
+  assert.throws(() => ledger.transaction(() => {
+    assert.throws(() => ledger.recordUses([use]), { code: "memory.conflict" });
+    ledger.setMarker("person-a", "caught-inner-marker", {}, use.at);
+  }), { code: "memory.conflict" });
+  assert.equal(changed, true);
+  assert.equal(ledger.marker("person-a", "caught-inner-marker"), null);
+  const persisted = new DatabaseSync(join(f.home, "memory", "memory.db"), { readOnly: true });
+  try { assert.equal(persisted.prepare("SELECT COUNT(*) AS count FROM memory_uses").get()!.count, 0); }
+  finally { persisted.close(); }
+  assert.equal(ledger.forgetting.read().decisions.length, 1);
+});
+
+for (const phase of ["serialization", "sql"] as const)
+test(`receipt set queries cannot revive a marker forgotten reentrantly during ${phase}`, t => {
+  const f = storage(t); initializeMemoryForgetting(f.input());
+  const ledger = openMemoryLedger(f.input()); t.after(() => ledger.close());
+  ledger.addRevision("target-200", { version: 1, text: "Original history", kind: "fact", applies: {}, change: "created", by: "person", at: "2026-11-07T00:00:00Z" });
+  let injected = false;
+  const forget = () => { if (!injected) { injected = true; ledger.forget("target-200", "related"); } };
+  const prepare = DatabaseSync.prototype.prepare;
+  const observe = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    const statement = prepare.call(this, sql);
+    if (phase === "sql" && sql.startsWith("INSERT INTO memory_uses")) {
+      const run = statement.run;
+      t.mock.method(statement, "run", function(this: typeof statement, ...args: Parameters<typeof run>) {
+        const result = run.apply(this, args); forget(); return result;
+      });
+    }
+    return statement;
+  });
+  const uses = Array.from({ length: 260 }, (_, index) => ({ memory_id: `target-${index}`, receipt_id: "reentrant-set",
+    at: "2026-11-07T00:00:00Z", consumer: "ui" as const, title: "Current selection", work_id: null, state: "omitted" as const }));
+  const first = phase === "serialization" ? { ...uses[0]!, toJSON() { forget(); return uses[0]!; } } : uses[0]!;
+  assert.throws(() => ledger.transaction(() => {
+    assert.throws(() => ledger.recordUses([first, ...uses.slice(1)]), { code: "memory.conflict" });
+    ledger.setMarker("person-a", "caught-marker-refusal", {}, uses[0]!.at);
+  }), { code: "memory.conflict" });
+  observe.mock.restore(); assert.equal(injected, true);
+  const persisted = new DatabaseSync(join(f.home, "memory", "memory.db"), { readOnly: true });
+  try {
+    assert.equal(persisted.prepare("SELECT COUNT(*) AS count FROM memory_uses WHERE receipt_id='reentrant-set'").get()!.count, 0,
+      "neither the already-written chunk nor the later chunk survives the changed marker gate");
+    assert.equal(ledger.marker("person-a", "caught-marker-refusal"), null);
+    assert.equal(ledger.revisions("target-200")[0]?.text, "Original history", "the enclosing SQL transaction also rolls back its reentrant cleanup");
+    ledger.forget("target-200", "related");
+    ledger.recordUses(uses.map(use => ({ ...use, receipt_id: "after-forgetting" })));
+    const rows = persisted.prepare("SELECT memory_id FROM memory_uses WHERE receipt_id='after-forgetting'").all();
+    assert.deepEqual(new Set(rows.map(row => String(row.memory_id))), new Set(uses.filter(use => use.memory_id !== "target-200").map(use => use.memory_id)));
+    assert.deepEqual(ledger.revisions("target-200"), []);
+  } finally { persisted.close(); }
+});
+
+test("receipt batches hold off a second SQLite marker writer and check its committed marker on the next batch", t => {
+  const f = storage(t); initializeMemoryForgetting(f.input());
+  const ledger = openMemoryLedger(f.input()), writer = new DatabaseSync(join(f.home, "memory", "memory.db"));
+  t.after(() => { writer.close(); ledger.close(); });
+  writer.exec("PRAGMA busy_timeout=0");
+  const mark = writer.prepare("INSERT INTO memory_markers(actor_id,key,at,body) VALUES ('',?,?,?)");
+  const use = { memory_id: "concurrent-marker", receipt_id: "before-marker", at: "2026-11-07T00:00:00Z", consumer: "ui" as const,
+    title: "Concurrent marker", work_id: null, state: "returned" as const };
+  const prepare = DatabaseSync.prototype.prepare;
+  let attempted = false;
+  const observe = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    const statement = prepare.call(this, sql);
+    if (sql.startsWith("INSERT INTO memory_uses")) {
+      const run = statement.run;
+      t.mock.method(statement, "run", function(this: typeof statement, ...args: Parameters<typeof run>) {
+        if (!attempted) {
+          attempted = true;
+          assert.throws(() => mark.run(`memory-forgotten:${use.memory_id}`, use.at, "{}"), /database is locked/,
+            "BEGIN IMMEDIATE prevents another SQLite owner changing a marker between set reads and writes");
+        }
+        return run.apply(this, args);
+      });
+    }
+    return statement;
+  });
+  ledger.recordUses([use]); observe.mock.restore();
+  assert.equal(attempted, true);
+  assert.equal(writer.prepare("SELECT COUNT(*) AS count FROM memory_uses WHERE receipt_id='before-marker'").get()!.count, 1);
+  mark.run(`memory-forgotten:${use.memory_id}`, use.at, "{}");
+  ledger.recordUses([{ ...use, receipt_id: "after-marker" }]);
+  assert.equal(writer.prepare("SELECT COUNT(*) AS count FROM memory_uses WHERE receipt_id='after-marker'").get()!.count, 0);
+  assert.deepEqual(ledger.uses({ memory_id: use.memory_id }), [], "the committed marker also hides the previous historical receipt");
+});
+
+test("receipt facts compare by content for the existing inspection reader without an owner", t => {
+  const f = storage(t); initializeMemoryForgetting(f.input());
+  const ledger = openMemoryLedger({ homeDirectory: f.home }); t.after(() => ledger.close());
+  ledger.recordUses([{ memory_id: "unchanged", receipt_id: "inspection", at: "2026-11-06T00:00:00Z", consumer: "ui",
+    title: "Structurally unchanged facts", work_id: null, state: "returned" }]);
+  assert.equal(ledger.uses({ receipt_id: "inspection" })[0]?.memory_id, "unchanged");
+});
+
 for (const fault of ["directory-sync", "cancel-after-sync"] as const)
 test(`Independent acceptance keeps visible facts for original-operation confirmation after ${fault}`, t => {
   const f = storage(t); initializeMemoryForgetting(f.input());

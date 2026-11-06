@@ -1,9 +1,11 @@
 import { callerClassAllowed } from "./class-restrictions.js";
+import { isDeepStrictEqual } from "node:util";
 import type { AgentMemoryScopePreview } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryClearResult, MemoryExportPackage, MemoryLedgerPort, MemoryMetaRecord, MemoryItem, MemoryPrefs, MemoryScope, MemoryWriteResult } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendEntry, MemoryBackendPort } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
 import type { MemoryOperations } from "./operations.js";
+import type { MemoryForgetting } from "./forgetting.js";
 import { MemoryPreferences } from "./preferences.js";
 import { memoryErrors } from "./errors.js";
 import { belongsToMemorySession } from "./classification.js";
@@ -52,6 +54,7 @@ interface ScopePorts {
   acceptForget(caller: MemoryCaller, scope: MemoryScope, owner: string, memories: readonly { memory_id: string; version: number }[]): Promise<void>;
   forgetFailed(caller: MemoryCaller, error: unknown): never;
   hidden(scope: MemoryScope, owner: string, id: string): boolean;
+  forgettingPhase(): ReturnType<MemoryForgetting["readPhase"]>;
   recordClear(caller: MemoryCaller, scope: MemoryScope, owner: string, removed: number, complete: boolean): void;
 }
 
@@ -61,6 +64,26 @@ export class MemoryScopeCommands {
   /** A scope's switches: the person's own, or the project's (a Character's memories follow its project's). */
   prefsAt(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): MemoryPrefs {
     return where.scope === "personal" ? this.ports.preferences.prefsFor(actorId, "personal", null) : this.ports.preferences.prefsFor(actorId, "project", where.scope === "project" ? where.owner : where.project ?? null);
+  }
+
+  /** Share data, never permission results, only until this synchronous phase's final check. */
+  prefsPhase() {
+    const profiles = new Map<string, { actorId: string; scope: MemoryScope; owner: string; project: string | null; prefs: MemoryPrefs }>();
+    return {
+      at: (actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): MemoryPrefs => {
+        const project = where.project ?? null, key = JSON.stringify([actorId, where.scope, where.owner, project]);
+        let profile = profiles.get(key);
+        if (!profile) {
+          profile = { actorId, scope: where.scope, owner: where.owner, project, prefs: this.prefsAt(actorId, where) };
+          profiles.set(key, profile);
+        }
+        return profile.prefs;
+      },
+      assertCurrent: (): void => {
+        for (const profile of profiles.values()) if (!isDeepStrictEqual(profile.prefs, this.prefsAt(profile.actorId, profile)))
+          throw memoryErrors.off("同步读取期间记忆设置已变化，请按当前设置重试");
+      },
+    };
   }
 
   /** Personal always; the caller's project when it has one. A person's scopes for listings include the project too. */
@@ -83,16 +106,18 @@ export class MemoryScopeCommands {
   async located(caller: MemoryCaller, scope: MemoryScope, owner: string, allowNonSession = false): Promise<Located[]> {
     const entries = await this.ports.backend.withCaller(caller).list(scope, owner);
     const project = scope === "project" ? owner : scope === "character" ? caller.project_id : null;
-    let prefs: MemoryPrefs | undefined;
+    const forgetting = this.ports.forgettingPhase(), prefs = this.prefsPhase();
     // Every entry this service writes carries its facts; one without them is not the platform's and stays out of sight.
-    return entries.flatMap(entry => {
-      if (this.ports.hidden(scope, owner, entry.memory_id)) return [];
+    const located = entries.flatMap(entry => {
+      if (forgetting.hidden({ scope, owner }, "memory", entry.memory_id)) return [];
       if (!belongsToMemorySession(caller, entry.meta) && !(allowNonSession && !entry.meta.session_ref && entry.meta.classification?.lifecycle !== "session")) return [];
       const meta = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}), ...(entry.disabled ? { disabled: entry.disabled } : {}),
         created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms });
-      return meta && callerClassAllowed(prefs ??= this.prefsAt(caller.actor_id, { scope, owner, project }), caller, scope, entry.meta,
+      return meta && callerClassAllowed(prefs.at(caller.actor_id, { scope, owner, project }), caller, scope, entry.meta,
         caller.context_selection ? "explicit" : caller.purpose === "task" ? "task" : "explicit") ? [{ scope, owner, entry, project, meta }] : [];
     });
+    prefs.assertCurrent(); forgetting.assertCurrent();
+    return located;
   }
 
   async find(caller: MemoryCaller, memoryId: string, allowNonSession = false): Promise<Located> {

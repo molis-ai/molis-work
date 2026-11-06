@@ -74,6 +74,8 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 ## 开发要求
 
+同步读取批次复用现 `forgetting.read`，不新增公开 Port、全局缓存或第二个写主人。Memory 的范围过滤与最后等待后的交付复核各自取得事实，并在同步阶段尾由原读门重新核验。`recordUses` 在现 SQLite 事务内取得一份当前事实，逐条检查已接受身份及当前 forgotten marker，保留原回执强度、版本/Run 冲突和全部 returned/omitted 行；COMMIT 紧前重新经原 owner 的 read 比较完整事实，变化、关闭、文件替换/链接/损坏、恢复屏障或未知结果均拒绝并回滚。本事务嵌套到既有事务时，返回前先核本阶段，外层 COMMIT 前再次核验；回执批次任意失败都会阻止外层提交，即使外层捕获该错误也回滚，事务结束清除失败状态。不把内部事务成功当成持久提交。可替换性沿原 Storage Port；这些检查不可配置，App/用户没有新增开关。定向回归沿 `tests/memory-forgetting-facts.test.ts` 与 `tests/memory-ledger-transaction.test.ts`，不改变 schema 或遗忘文件格式。
+
 Home 顶层 `memory-forgetting-v2.json` 是同一 Storage owner 的无正文遗忘事实，登记为普通文件 store；文件名 v2 标识当前 Home 物理代，JSON 仍严格 `format_version: 1`。只读写这一现行路径，不双读、自动改名或转换旧名 Home/归档；旧名 only 因当前文件缺失拒绝，双名在原离线 snapshot/restore inventory 拒绝，正常启动不新增全 Home 扫描。仅 fresh-only 初始化可建立空文件，非空 Home 缺失或损坏时拒绝。固定 operation 的 actor、scope/owner、正式/候选身份版本和来源事件必须完整一致；同操作确认不会改选，合并只增不减。决定写入用原原子文件 helper 的 durable 选项：只清理本次独占创建的临时文件，文件 fsync、rename、目录 fsync 全部完成才返回接受。rename 后失败保留实际可见文件，正常读门立即阻止使用，原操作重新确认持久化；不得谎称回滚。活入口共享原 owner 实例的不可变事实，不逐条重读 JSON；文件身份意外变化、生命周期退出与无法核验状态均拒绝，真实重开严格重读。
 
 恢复只从可核验的独立文件取得较新决定，目标 `memory.db` 保持 opaque。`readMemoryLedgerRestoreFacts` 只解码发布材料中与固定决定关联的现行投影；`retainMemoryLedgerAfterRestore` 在原 storage owner 与 journal 下合并终止屏障，清除正式账本副本及明确选中的候选投影。SDK 已清除而 ledger 补清失败时，必须以持久投影本身验证，不能因 SDK 列表为空就留下正文。独立文件自身缺失/损坏不当空；不迁移库、不复制 key、不另起发布日志。回归：`tests/storage-atomic-write-durable.test.ts`、`tests/memory-forgetting-facts.test.ts`、`tests/home-restore-memory-forgetting.test.ts`。
@@ -115,3 +117,5 @@ Home 顶层 `memory-forgetting-v2.json` 是同一 Storage owner 的无正文遗�
 ### B4 原操作发现与固定选中批量（本地实施合同）
 
 按原 Memory V0 spec 末尾已批准合同：本人有界发现无正文原操作，原 change/clear 继续；选中 disable/remove 经 SDK 固定 preview/mutateBatch，原 marker 保存原 ID/version/operation 和真实完成投影。scope clear 与 remove batch 全部固定组接受后才物理清理，接受部分失败不伪称原子。页面不持久正文或命令，不追删新目标；缺原请求/结果标需对账。路径白名单与红绿验收沿统筹批准的 B4 提案，保留本包原开发要求；不改 SDK/vendor、Storage schema 或独立 forgetting v1。
+
+Memory recordUses 的批量 SQL 仍属于原同步 BEGIN IMMEDIATE 事务：有界读取全体身份的当前 marker 与旧回执，逐项按输入顺序保留执行/版本冲突、状态单调性和首次插入列值，批量持久全部回执。写后核 marker，原独立遗忘事实在嵌套边界及最终 COMMIT 前重核；任一变化或冲突 poison 整个外层事务。批内回执重入使预取失效并拒绝整个事务，顺序批次仍可执行。没有异步/摘要回执或跨事务缓存；物理查询合并不减少逻辑身份检查。见现 Memory spec 的 WARM-APP-02/03。

@@ -40,7 +40,7 @@ test("read-off/form-on pending candidates do not contribute task list counts or 
 });
 
 // The controlled list returns real persisted SDK entries; only App reads of the actual SQLite ledger are counted.
-test("one synchronous scope filter reads settings once, skips empty and hidden input, and rereads next invocation", async t => {
+test("one synchronous scope filter reads settings at its boundaries, skips empty and hidden input, and rereads next invocation", async t => {
   const f = await memoryServiceHome(t, { projects: [] }), original = await f.open();
   for (const text of ["每次发布先验证清单", "日志检查保留错误码", "文档标题使用完整名称"])
     await original.write(person, { scope: "personal", text, kind: "convention" });
@@ -55,12 +55,12 @@ test("one synchronous scope filter reads settings once, skips empty and hidden i
     const result = await service.history(worker, selected[0]!.memory_id);
     assert.equal(result.memory_id, selected[0]!.memory_id);
     assert.equal(result.revisions[0]?.text, selected[0]!.text);
-    assert.equal(prefs.mock.callCount(), 1, "one current profile serves every classified entry in this synchronous filter");
+    assert.equal(prefs.mock.callCount(), 2, "one current profile serves every classified entry, then the phase rechecks it");
     t.diagnostic(`scope filter: ${selected.length} persisted entries, ${prefs.mock.callCount()} ledger.prefs read`);
   }
   original.savePrefs(person, "personal", { class_restrictions: closed }); prefs.mock.resetCalls();
   await assert.rejects(service.history(worker, persisted[0]!.memory_id), { code: "memory.not_found" });
-  assert.equal(prefs.mock.callCount(), 1, "the next call uses the newly closed class");
+  assert.equal(prefs.mock.callCount(), 2, "the next call uses and rechecks the newly closed class");
   rows = []; prefs.mock.resetCalls();
   await assert.rejects(service.history(person, persisted[0]!.memory_id), { code: "memory.not_found" });
   assert.equal(prefs.mock.callCount(), 0, "empty input does not read settings");
@@ -79,7 +79,7 @@ test("one synchronous scope filter reads settings once, skips empty and hidden i
   assert.equal(prefs.mock.callCount(), 0, "accepted hidden entries do not read settings");
 });
 
-test("recall rereads one current profile per entry after its final wait", async t => {
+test("recall rereads the current profile at each synchronous phase boundary after its final wait", async t => {
   const f = await memoryServiceHome(t, { projects: [] }), original = await f.open();
   for (const text of ["每次发布先验证清单", "日志检查保留错误码", "文档标题使用完整名称"])
     await original.write(person, { scope: "personal", text, kind: "convention" });
@@ -91,8 +91,8 @@ test("recall rereads one current profile per entry after its final wait", async 
     preparationReads = prefs.mock.callCount(); prefs.mock.resetCalls();
   } });
   assert.deepEqual(result.items.map(item => item.memory_id).sort(), rows.map(entry => entry.memory_id).sort());
-  assert.equal(prefs.mock.callCount(), rows.length, "consumer and class checks share only this entry's final current profile");
-  assert.equal(preparationReads, 2, "scope access and the synchronous entry filter each read their own current profile");
+  assert.equal(prefs.mock.callCount(), 2, "all final consumer and per-entry class checks share this phase's profile, followed by its currentness check");
+  assert.equal(preparationReads, 3, "scope access reads before the wait; the entry filter reads and rechecks after it");
   t.diagnostic(`recall: ${rows.length} persisted entries, ${preparationReads} preparation + ${prefs.mock.callCount()} final ledger.prefs reads`);
   assert.equal(service.uses({ receipt_id: result.receipt_id }).length, rows.length);
 });
@@ -121,3 +121,51 @@ for (const boundary of ["backend", "beforeEffect"] as const) {
     assert.equal((await original.page(person, { scope: "personal" })).items[0]?.memory_id, saved.memory.memory_id);
   });
 }
+
+for (const phase of ["filter", "delivery"] as const) for (const mutation of ["forgetting", "preferences"] as const)
+test(`synchronous ${phase} reentry changing ${mutation} refuses every collected body and writes no receipt`, async t => {
+  const f = await memoryServiceHome(t, { projects: [] }), original = await f.open();
+  for (const text of ["发布前验证完整清单", "发布后核查错误日志"])
+    await original.write(person, { scope: "personal", text, kind: "convention" });
+  const persisted = await f.raw().list("personal", person.actor_id);
+  assert.equal(persisted.length, 2);
+  let armed = phase === "filter", changed = false;
+  const rows = persisted.map((entry, index) => index !== 1 ? entry : { ...entry, get meta() {
+    if (armed && !changed) {
+      changed = true;
+      if (mutation === "preferences") original.savePrefs(person, "personal", { class_restrictions: closed });
+      else f.ledger().forgetting.accept({ scope: "personal", owner: person.actor_id, actor_id: person.actor_id,
+        operation_id: `reentrant-${phase}`, selection_mode: "exact-identities",
+        memories: [{ memory_id: persisted[0]!.memory_id, version: persisted[0]!.version }], candidates: [], source_event_ids: [] });
+    }
+    return entry.meta;
+  } });
+  const backend = observeMemoryBackend(prologueMemoryBackend(async () => f.memory()), bound => ({ ...bound, list: async () => rows }));
+  const service = new MemoryService({ backend, ledger: f.ledger() });
+  await assert.rejects(service.recall(worker, { scopes: ["personal"] }, { beforeEffect: async () => { armed = true; } }), {
+    code: mutation === "preferences" ? "memory.off" : "memory.conflict",
+  });
+  assert.equal(changed, true, "the mutation occurred inside the actual synchronous filter or delivery checks");
+  for (const entry of persisted) assert.deepEqual(f.ledger().uses({ memory_id: entry.memory_id }), []);
+  assert.equal((await f.raw().list("personal", person.actor_id)).length, 2, "the refusal did not modify canonical entries");
+  if (mutation === "preferences") assert.deepEqual((await original.recall(worker, { scopes: ["personal"] })).items, []);
+  else assert.equal((await original.recall(worker, { scopes: ["personal"] })).items.some(item => item.memory_id === persisted[0]!.memory_id), false);
+});
+
+test("scope filtering shares forgetting data but keeps each scope and owner identity check", async t => {
+  const f = await memoryServiceHome(t, { projects: ["project-a"] }), original = await f.open();
+  await original.write(person, { scope: "personal", text: "本人范围的发布约定", kind: "convention" });
+  const persisted = await f.raw().list("personal", person.actor_id);
+  f.ledger().forgetting.accept({ scope: "project", owner: "project-a", actor_id: person.actor_id, operation_id: "other-scope-same-id",
+    selection_mode: "exact-identities", memories: [{ memory_id: persisted[0]!.memory_id, version: persisted[0]!.version }], candidates: [], source_event_ids: [] });
+  const read = f.ledger().forgetting.read;
+  let reads = 0;
+  const counted = t.mock.method(f.ledger().forgetting, "read", () => { reads++; return read(); });
+  const backend = observeMemoryBackend(prologueMemoryBackend(async () => f.memory()), bound => ({ ...bound, list: async () => persisted }));
+  const service = new MemoryService({ backend, ledger: f.ledger() });
+  const result = await service.recall({ ...worker, context_selection: true }, { scopes: ["personal"] });
+  assert.equal(result.items[0]?.memory_id, persisted[0]!.memory_id, "an accepted identity in another scope cannot hide this scope's body");
+  assert.equal(result.items[0]?.text, persisted[0]!.text);
+  assert.equal(reads, 4, "scope filtering and delivery each obtain and recheck their own current facts");
+  counted.mock.restore();
+});

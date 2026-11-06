@@ -1,6 +1,7 @@
 import type {
   MemoryCandidateRecord,
   MemoryChangeRecord,
+  MemoryForgettingFacts,
   MemoryLedgerPort,
   MemoryPrefs,
   MemoryRevision,
@@ -135,6 +136,13 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
   assertNoPendingHomeRestore(join(options.homeDirectory, "agent-runtime"));
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
   let depth = 0, closed = false;
+  // Only receipt batches in the current transaction; cleared on either commit or rollback.
+  let receiptFacts: MemoryForgettingFacts[] = [];
+  let receiptFailure: { error: unknown } | undefined;
+  let receiptPhase = 0;
+  const assertReceiptFacts = (before: MemoryForgettingFacts, current: MemoryForgettingFacts) => {
+    if (!isDeepStrictEqual(before, current)) throw Object.assign(new Error("记忆回执提交前遗忘事实已变化"), { code: "memory.conflict" });
+  };
   let forgetting: ReturnType<typeof openMemoryForgetting> | undefined;
   try {
     applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE);
@@ -201,25 +209,70 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
       const counts = db.prepare("SELECT COUNT(*) AS count, COUNT(DISTINCT occurrence) AS distinct_count FROM memory_signal_events WHERE actor_id=? AND key=?").get(input.actor_id, input.key)!;
       return { state: Number(inserted.changes) > 0 ? "counted" as const : "duplicate" as const, count: Number(counts.count), distinct: Number(counts.distinct_count) };
     }),
-    recordUses: uses => ledger.transaction(() => {
-      // Compile repeated receipt SQL once per batch; each identity still checks its current forgetting facts.
-      let previous: ReturnType<typeof db.prepare> | undefined, save: ReturnType<typeof db.prepare> | undefined;
-      for (const use of uses) {
-        // A late multi-reference receipt must not resurrect a forgotten entry or hide the other entries' facts.
-        if (retention.isForgotten(use.memory_id)) continue;
-        const before = parse<MemoryUseRecord>((previous ??= db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?")).get(use.memory_id, use.receipt_id));
-        if (before?.source === "run-context") {
-          if (use.source !== "run-context" || !isDeepStrictEqual([before.run, before.memory_version, before.at, before.consumer, before.work_id],
-            [use.run, use.memory_version, use.at, use.consumer, use.work_id])) {
-            throw Object.assign(new Error("同一记忆回执的执行与版本不能被替换"), { code: "memory.conflict" });
+    recordUses: uses => {
+      const nested = depth > 0;
+      return ledger.transaction(() => {
+        try {
+          const phase = ++receiptPhase;
+          const facts = ledger.forgetting.read();
+          receiptFacts.push(facts);
+          // Freeze getter-backed inputs before querying identity sets. All caches die with this synchronous batch.
+          const inputs = uses.map(use => ({ ...use })), memoryIds = inputs.map(use => use.memory_id);
+          const forgotten = retention.forgottenIds(memoryIds, facts);
+          const key = (use: Pick<MemoryUseRecord, "memory_id" | "receipt_id">) => JSON.stringify([use.memory_id, use.receipt_id]);
+          const identities = [...new Map(inputs.filter(use => !forgotten.has(use.memory_id)).map(use => [key(use), use])).values()];
+          const previous = new Map<string, MemoryUseRecord>();
+          // Six write bindings per row remain below SQLite's binding limit; reads use the same bounded sets.
+          const batchSize = 128;
+          for (let offset = 0; offset < identities.length; offset += batchSize) {
+            const batch = identities.slice(offset, offset + batchSize);
+            for (const row of db.prepare(`WITH requested(memory_id,receipt_id) AS (VALUES ${batch.map(() => "(?,?)").join(",")})
+              SELECT stored.memory_id,stored.receipt_id,stored.body FROM memory_uses AS stored JOIN requested
+                ON stored.memory_id=requested.memory_id AND stored.receipt_id=requested.receipt_id`)
+              .all(...batch.flatMap(use => [use.memory_id, use.receipt_id]))) {
+              previous.set(key({ memory_id: String(row.memory_id), receipt_id: String(row.receipt_id) }), JSON.parse(String(row.body)) as MemoryUseRecord);
+            }
           }
-          const rank = (state: MemoryUseRecord["state"]) => state === "response-observed" ? 3 : state === "dispatched-or-unknown" ? 2 : 1;
-          if (rank(before.state) >= rank(use.state)) continue;
+          const pending = new Map<string, { record: MemoryUseRecord; body: string; workId: string | null }>();
+          for (const use of inputs) {
+            // A late multi-reference receipt must not resurrect a forgotten entry or hide the other entries' facts.
+            if (forgotten.has(use.memory_id)) continue;
+            const identity = key(use), before = previous.get(identity);
+            if (before?.source === "run-context") {
+              if (use.source !== "run-context" || !isDeepStrictEqual([before.run, before.memory_version, before.at, before.consumer, before.work_id],
+                [use.run, use.memory_version, use.at, use.consumer, use.work_id])) {
+                throw Object.assign(new Error("同一记忆回执的执行与版本不能被替换"), { code: "memory.conflict" });
+              }
+              const rank = (state: MemoryUseRecord["state"]) => state === "response-observed" ? 3 : state === "dispatched-or-unknown" ? 2 : 1;
+              if (rank(before.state) >= rank(use.state)) continue;
+            }
+            const body = JSON.stringify(use);
+            // The next duplicate observes the same JSON record a per-row SQL read used to return.
+            previous.set(identity, JSON.parse(body) as MemoryUseRecord);
+            const staged = pending.get(identity);
+            pending.set(identity, { record: use, body, workId: staged ? staged.workId : use.work_id });
+          }
+          const writes = [...pending.values()];
+          for (let offset = 0; offset < writes.length; offset += batchSize) {
+            const batch = writes.slice(offset, offset + batchSize);
+            db.prepare(`INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES ${batch.map(() => "(?,?,?,?,?,?)").join(",")}
+              ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body`)
+              .run(...batch.flatMap(({ record, body, workId }) => [record.memory_id, record.receipt_id, record.at, workId, record.state, body]));
+          }
+          // Serialization or SQL hooks can reenter forgetting after the initial set query.
+          if ([...retention.forgottenIds(memoryIds, facts)].some(memoryId => !forgotten.has(memoryId)))
+            throw Object.assign(new Error("记忆回执提交前遗忘标记已变化"), { code: "memory.conflict" });
+          // An outer caller may do more work after this phase; also recheck immediately before its COMMIT.
+          if (nested) assertReceiptFacts(facts, ledger.forgetting.read());
+          // A reentrant receipt writer invalidates prefetched rows, even if it touched no forgetting markers.
+          if (phase !== receiptPhase)
+            throw Object.assign(new Error("记忆回执批次期间有重入写入，原回执状态需要重新核验"), { code: "memory.conflict" });
+        } catch (error) {
+          receiptFailure ??= { error };
+          throw error;
         }
-        (save ??= db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body"))
-          .run(use.memory_id, use.receipt_id, use.at, use.work_id, use.state, JSON.stringify(use));
-      }
-    }),
+      });
+    },
     lastUse: memoryId => retention.isForgotten(memoryId) ? null : parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND state='response-observed' ORDER BY at DESC, rowid DESC LIMIT 1").get(memoryId)),
     uses: filter => {
       const where: string[] = [], values: string[] = [];
@@ -268,9 +321,17 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
       if (depth > 0) return work();
       db.exec("BEGIN IMMEDIATE");
       depth += 1;
-      try { const result = work(); db.exec("COMMIT"); return result; }
+      try {
+        const result = work();
+        if (receiptFailure) throw receiptFailure.error;
+        if (receiptFacts.length) {
+          const current = ledger.forgetting.read();
+          for (const facts of receiptFacts) assertReceiptFacts(facts, current);
+        }
+        db.exec("COMMIT"); return result;
+      }
       catch (error) { db.exec("ROLLBACK"); throw error; }
-      finally { depth -= 1; }
+      finally { depth -= 1; receiptFacts = []; receiptFailure = undefined; receiptPhase = 0; }
     },
     close: () => { db.close(); closed = true; },
   };

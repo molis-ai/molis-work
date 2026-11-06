@@ -5,16 +5,17 @@ import type { openHomeSqliteDatabase } from "../home-sqlite.js";
 /** Purge ledger copies and fence late receipts in the ledger's existing transaction. */
 export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqliteDatabase>, transaction: MemoryLedgerPort["transaction"],
   accepted?: () => MemoryForgettingFacts):
-  Pick<MemoryLedgerPort, "forget" | "forgetScopes"> & { assertNotForgotten(memoryId: string): void; isForgotten(memoryId: string): boolean;
+  Pick<MemoryLedgerPort, "forget" | "forgetScopes"> & { assertNotForgotten(memoryId: string): void; isForgotten(memoryId: string, facts?: MemoryForgettingFacts): boolean;
+    forgottenIds(memoryIds: readonly string[], facts: MemoryForgettingFacts): Set<string>;
     assertCandidateWritable(record: MemoryCandidateRecord): void } {
-  const mode = (memoryId: string) => {
-    const decisions = accepted?.().decisions.filter(one => one.memories.some(item => item.memory_id === memoryId)) ?? [];
+  const mode = (memoryId: string, facts?: MemoryForgettingFacts) => {
+    const decisions = (facts ?? accepted?.())?.decisions.filter(one => one.memories.some(item => item.memory_id === memoryId)) ?? [];
     return decisions.some(one => one.selection_mode === "related") ? "related" : decisions[0]?.selection_mode;
   };
   // A purged SDK identity is never reused. This existing marker carries no body and survives scope cleanup.
   const forgottenKey = (memoryId: string) => `memory-forgotten:${memoryId}`;
   let forgottenMarker: ReturnType<typeof db.prepare> | undefined;
-  const isForgotten = (memoryId: string) => mode(memoryId) !== undefined
+  const isForgotten = (memoryId: string, facts?: MemoryForgettingFacts) => mode(memoryId, facts) !== undefined
     || !!(forgottenMarker ??= db.prepare("SELECT 1 FROM memory_markers WHERE actor_id='' AND key=?")).get(forgottenKey(memoryId));
   const assertNotForgotten = (memoryId: string) => {
     if (isForgotten(memoryId)) throw Object.assign(new Error("这条记忆已经删除，不能补回旧正文或使用记录"), { code: "memory.conflict" });
@@ -22,6 +23,19 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
   return {
     assertNotForgotten,
     isForgotten,
+    forgottenIds: (memoryIds, facts) => {
+      const requested = new Set(memoryIds), forgotten = new Set<string>();
+      for (const decision of facts.decisions) for (const memory of decision.memories)
+        if (requested.has(memory.memory_id)) forgotten.add(memory.memory_id);
+      const identities = [...requested];
+      // Stay below SQLite's binding limit; every identity participates, including accepted ones.
+      for (let offset = 0; offset < identities.length; offset += 128) {
+        const batch = identities.slice(offset, offset + 128);
+        for (const row of db.prepare(`SELECT key FROM memory_markers WHERE actor_id='' AND key IN (${batch.map(() => "?").join(",")})`)
+          .all(...batch.map(forgottenKey))) forgotten.add(String(row.key).slice("memory-forgotten:".length));
+      }
+      return forgotten;
+    },
     assertCandidateWritable: record => {
       const row = db.prepare("SELECT body FROM memory_candidates WHERE candidate_id=?").get(record.candidate_id);
       const previous = row ? JSON.parse(String(row.body)) as MemoryCandidateRecord : undefined;

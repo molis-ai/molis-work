@@ -226,7 +226,9 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-initialization.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-范围读取在 Backend 返回后，仅第一条通过遗忘、Session 和元数据筛选的记录读取当前设置，同次无等待的分类过滤复用这份设置，每条分类仍独立判断；空列表或全被前置筛选排除时不读设置。显式召回在最后 `beforeEffect` 后逐条重新读取当前设置，供同条消费者与分类检查共用，不跨条目、范围、等待或后续调用缓存。开关、分类和遗忘复核不能关闭，没有新增插件或配置；终端用户仍在现设置页改开关。直接回归为 `tests/memory-class-list-authority.test.ts`；此处只减少重复设置读取，不声明规模耗时或 MEM-38 已达标。
+范围读取在 Backend 返回后开启无等待、无外部 callback 的同步过滤阶段，从 Storage 原 `forgetting.read` 取得当前事实，每条仍按 scope/owner/身份检查；阶段尾重走原 owner 读门并比较完整事实，变化或无法核验即拒绝。仅第一条通过遗忘、Session 和元数据筛选的记录读取设置，按完整 actor/scope/project 键在本阶段共享，每条分类独立判断，尾部重读已用设置并比较；空列表或全被前置筛选排除时不读设置。
+
+显式召回在最后 `beforeEffect` 后新开同步阶段，重新取得遗忘事实和当前设置，逐条完成消费者、分类与遗忘检查，尾部重新核验，不跨等待或调用共享。回执事务另取 Storage 自己的当前事实，逐条 marker、身份、强度和 CAS 不变，COMMIT 前原 owner 再核完整事实；变化回滚整批，不省略 returned/omitted。开关、分类和遗忘检查不可配置，Backend/Storage 仍沿原 Port，没有新插件或设置；终端用户仍在原设置页改开关。直接回归为 `tests/memory-class-list-authority.test.ts`、`tests/memory-forgetting-facts.test.ts`、`tests/memory-ledger-transaction.test.ts`；本片不声明 MEM-38 性能达标。
 
 ## 进一步阅读
 

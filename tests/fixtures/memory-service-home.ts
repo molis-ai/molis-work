@@ -112,14 +112,18 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
     const requireSdk = createRequire(new URL("../../horizontal/agent-host/package.json", import.meta.url));
     const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
     const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
-    const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(home, "agent-runtime") }) });
-    const storageOwner = `${scope}-${encodeURIComponent(ownerId).replaceAll("%", "_")}`;
+    const seedOwner = acquireStorageOwner(join(home, "agent-runtime"));
+    let host: ReturnType<typeof createNodeHost> | undefined;
+    let runtime: Awaited<ReturnType<typeof createRuntime>> | undefined;
+    const memoryOwner = `${scope}-${encodeURIComponent(ownerId).replaceAll("%", "_")}`;
     try {
-      await runtime.store.commit({ kind: "memories", id: `owner.${storageOwner}.${id}.v1`, expectedVersion: 0,
-        metadata: { scope: `owner.${storageOwner}`, rowId: id, version: 1, state: "active", shape: 8 },
+      host = createNodeHost({ storageRoot: join(home, "agent-runtime"), exclusiveOwner: true, memoryStorageFormat: "indexed-v1" });
+      runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host });
+      await runtime.store.commit({ kind: "memories", id: `owner.${memoryOwner}.${id}.v1`, expectedVersion: 0,
+        metadata: { scope: `owner.${memoryOwner}`, rowId: id, version: 1, state: "active", shape: 8 },
         secureBody: new TextEncoder().encode(JSON.stringify({ id, scope, owner: ownerId, version: 1, text, origin: "别处写入", tags: [],
           tombstoned: false, meta: {}, createdAtMs: 100, updatedAtMs: 100 })) });
-    } finally { await runtime.shutdown(); }
+    } finally { await runtime?.shutdown(); await host?.closeStorage(); seedOwner.release(); }
     return open();
   };
   return { home, open, close, seedUnclassified, ledger: () => ledger!, adapter: () => adapter!, memory: () => adapter!.memory!, raw: (caller = person) => backend().withCaller(caller) };

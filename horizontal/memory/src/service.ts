@@ -191,6 +191,7 @@ export class MemoryService {
       acceptForget: async (caller, scope, owner, memories) => { await this.forgetting.accept(caller, { scope, owner }, memories); },
       forgetFailed: (caller, error) => this.forgetting.failed(caller, error),
       hidden: (scope, owner, id) => this.forgetting.hidden({ scope, owner }, "memory", id),
+      forgettingPhase: () => this.forgetting.readPhase(),
       recordClear: (caller, scope, owner, removed, complete) => { this.recordChange(caller, { kind: "cleared", scope, owner, memory_id: null,
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
@@ -269,12 +270,14 @@ export class MemoryService {
       && owners.has(`${change.scope}:${change.owner}`) && Date.parse(change.at) >= weekAgo).length;
     const pending = (await this.candidates(caller, { scope: request.scope ?? "all" })).length;
     caller.signal?.throwIfAborted();
-    if (!caller.person && readScopes.some(where => !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, caller.context_selection ? "explicit" : undefined).allowed))
+    const finalForgetting = this.forgetting.readPhase(), finalPrefs = this.scopeCommands.prefsPhase();
+    if (!caller.person && readScopes.some(where => !consumerAccess(finalPrefs.at(caller.actor_id, where), caller.consumer, caller.plugin_id, caller.context_selection ? "explicit" : undefined).allowed))
       throw memoryErrors.forbidden("记忆读取权限已变化，请重新查看");
-    if (!caller.person && readEntries.some(row => !callerClassAllowed(this.scopeCommands.prefsAt(caller.actor_id, row), caller, row.scope,
+    if (!caller.person && readEntries.some(row => !callerClassAllowed(finalPrefs.at(caller.actor_id, row), caller, row.scope,
       row.entry.meta, caller.context_selection ? "explicit" : caller.purpose === "task" ? "task" : "explicit"))) throw memoryErrors.forbidden("记忆分类权限已变化，请重新查看");
-    if (items.some(item => scopes.some(where => where.scope === item.scope && this.isForgotten(where.scope, where.owner, "memory", item.memory_id))))
+    if (items.some(item => scopes.some(where => where.scope === item.scope && finalForgetting.hidden(where, "memory", item.memory_id))))
       throw memoryErrors.conflict("读取期间记忆已被遗忘，请按当前状态重新查看");
+    finalPrefs.assertCurrent(); finalForgetting.assertCurrent();
     return { items, counts: { personal, project, auto_this_week, pending } };
   }
 
@@ -341,14 +344,16 @@ export class MemoryService {
     const at = now.toISOString(), work_id = caller.work?.work_id ?? null;
     // The receipts are this call's only effect, and it waited for the store: a call stopped or revoked meanwhile records none.
     await options.beforeEffect?.();
+    const finalForgetting = this.forgetting.readPhase(), finalPrefs = this.scopeCommands.prefsPhase();
     if (ranked.some(({ located }) => {
-      const prefs = this.scopeCommands.prefsAt(caller.actor_id, located);
+      const prefs = finalPrefs.at(caller.actor_id, located);
       return !consumerAccess(prefs, caller.consumer, caller.plugin_id, options.readMode).allowed
         || !callerClassAllowed(prefs, caller, located.scope, located.entry.meta, options.readMode ?? "task");
     }))
       throw memoryErrors.off("读取期间记忆开关已改变，请按当前设置重试");
-    if (ranked.some(({ located }) => this.isForgotten(located.scope, located.owner, "memory", located.entry.memory_id)))
+    if (ranked.some(({ located }) => finalForgetting.hidden(located, "memory", located.entry.memory_id)))
       throw memoryErrors.conflict("召回期间记忆已被遗忘，没有交付旧正文");
+    finalPrefs.assertCurrent(); finalForgetting.assertCurrent();
     if (!caller.context_selection) this.ports.ledger.recordUses([
       ...items.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, memory_version: item.version, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "returned" })),
       ...omitted.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "omitted" })),

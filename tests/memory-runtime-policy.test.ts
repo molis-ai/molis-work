@@ -15,8 +15,9 @@ import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 const person: AgentMemoryCaller & { consumer: "ui"; current_scene: string } = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "ui", person: true, current_scene: "common", purpose: "management" };
 const task: AgentMemoryCaller & { consumer: "agent"; current_scene: string } = { ...person, consumer: "agent", person: false, purpose: "task" };
 const meta: AgentMemoryMeta = { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } };
+type MemoryOptions = NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>;
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, onAuthorize?: MemoryOptions["authorize"]) {
   const home = mkdtempSync(join(tmpdir(), "molis-memory-runtime-policy-"));
   const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
   initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
@@ -36,6 +37,10 @@ async function fixture(t: TestContext) {
     undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
       record: (caller, request) => service.promotion.undo.record(caller, request) },
   } } satisfies NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>;
+  if (onAuthorize) {
+    const authorize = options.authorize;
+    options.authorize = async (caller, requests) => await onAuthorize(caller, requests) && authorize(caller, requests);
+  }
   let network = 0;
   t.mock.method(globalThis, "fetch", async () => { network++; throw new Error("Memory policy must not send model requests"); });
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, memory: options,
@@ -49,6 +54,62 @@ async function fixture(t: TestContext) {
     reopen: async () => { await adapter.close(); adapter = await open(); }, closeOwner: () => { alive = false; }, unregister: () => { registered = false; },
     projectCheck: (check: (id: string) => Promise<boolean>) => { projectCheck = check; } };
 }
+
+test("WARM-APP-01 production policy explicitly accepts frozen list input with ordinary Session and facts prototypes", async t => {
+  let reading = false, batches = 0;
+  const deepFrozen = (value: unknown): void => {
+    if (value === null || typeof value !== "object") return;
+    assert.equal(Object.isFrozen(value), true);
+    for (const child of Object.values(value)) deepFrozen(child);
+  };
+  const f = await fixture(t, async (_caller, requests) => {
+    if (!reading) return true;
+    batches++; deepFrozen(requests);
+    for (const request of requests) {
+      assert.equal(Object.getPrototypeOf(request), Object.prototype);
+      assert.equal(Object.getPrototypeOf(request.context), Object.prototype);
+      assert.equal(Object.getPrototypeOf(request.target.classification), Object.prototype);
+      if (request.context.sessionRef) assert.equal(Object.getPrototypeOf(request.context.sessionRef), Object.prototype);
+      if (request.context.facts) assert.equal(Object.getPrototypeOf(request.context.facts), Object.prototype);
+      assert.equal(Reflect.set(request.target, "owner", "different-project"), false);
+    }
+    await Promise.resolve(); return true;
+  });
+  assert.equal(f.options.readInput, "frozen");
+  const plain = await f.save("plain");
+  const session = await f.adapter.createSession({ actor_id: person.actor_id, project_id: "a", plugin_id: "io.molis.work.coding",
+    install_id: "coding", workspace: "none", role_id: "coding", title: "Frozen read context" });
+  const caller: AgentMemoryCaller = { ...person, session_id: session.session_id, facts: { plugins: ["io.molis.work.coding"] } };
+  const manager = f.bound(caller);
+  const entry = await manager.write({ scope: "project", owner: "a", text: "Session convention", origin: "person", operation_id: "session-frozen",
+    meta: { ...meta, classification: { scenes: ["common"], lifecycle: "session" } } });
+  reading = true;
+  assert.deepEqual((await manager.list("project", "a")).map(one => one.memory_id).sort(),
+    [entry.memory_id, plain.memory_id].sort());
+  assert.deepEqual((await f.bound(task).list("project", "a")).map(one => one.text), ["Convention plain"]);
+  const checked = batches; assert.ok(checked > 0);
+  await manager.list("project", "a"); assert.ok(batches > checked, "later calls must authorize independently");
+});
+
+test("WARM-APP-01 frozen input retains current preference revocation after the awaited App authority", async t => {
+  let revoke = false, change: () => void = () => undefined;
+  const f = await fixture(t, async (_caller, requests) => {
+    if (revoke && requests.some(request => request.action === "read")) {
+      assert.equal(Object.isFrozen(requests), true);
+      await Promise.resolve();
+      change();
+    }
+    return true;
+  });
+  change = () => { f.service.savePrefs({ ...person, consumer: "ui" }, "project", "off"); };
+  await f.save("read-revoked");
+  assert.equal((await f.bound(task).list("project", "a")).length, 1);
+  revoke = true;
+  assert.deepEqual(await f.bound(task).list("project", "a"), []);
+  assert.equal((await f.bound().list("project", "a")).length, 1, "personal management remains independently authorized");
+  revoke = false; f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed");
+  assert.equal((await f.bound(task).list("project", "a")).length, 1);
+});
 
 test("off keeps personal management and deletion but refuses new saves, candidate acceptance and restore", async t => {
   const f = await fixture(t), caller = { ...person, project_id: null }, memory = f.bound(caller);

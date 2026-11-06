@@ -1,8 +1,16 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：2026-11-06，Memory V0 本地收束中；性能、效果与最终验收尚未完成。
+状态：2026-11-07，按用户要求先提交现有本地成果并停止继续实现；V0 未完成，剩余事项转入统一 backlog。
 
-**当前状态（2026-11-06，获批采用后的提交前记录）。Memory V0 尚未完成。** 唯一隔离App树为 `/private/tmp/molis-memory-v0-main-integration-20261106`，基点为本轮拉取的Molis main `c7b6584287cd8d7eca30f2760d1a0cbf5662af58`，完整候选326路径。获批SDK8文件已在独立Git检出提交为 `6785a84b9cb168966f654e193b818c672cb459d1`，从干净来源打包并实际采用；新包824文件与安装逐字一致。采用后整体构建、四文件47项读取/授权/遗忘/恢复回归、boundary、准确c7的health及51资源门通过，资源与采用前完全相同。本次App一次本地提交与原预检后的唯一180读已获批、尚待执行，性能收益仍未测；旧159.404ms对10.660ms失败不变。此前仿真Linux两条指定路径通过不等于覆盖后续增量或关闭原生CI根因。真实质量/成本、最终App及本人验收继续保留。除本次具体本地提交/采用/测量窗口外，推送、合并、发布、CI/Full、付费和真实Home保持暂停；不恢复旧实验、不改变冻结验收或布局。
+## 当前交接与 backlog（2026-11-07）
+
+用户要求先提交已验证成果，未做到位的部分交由后续会话接续。当前组合已完成本地实现、定向工程验证和独立源码审查；SDK 247 项、App 149 项最新定向通过，证据和原失败见文末。最新 SDK 尚未正式换入 App，临时公开入口解析验证不能冒充正式采用；性能与完整 V0 不标完成。
+
+本轮 SDK 本地提交为 `6664b9ca87aaff1994e8804b2d78e6bf6be245fa`（父 `6785a84b9cb168966f654e193b818c672cb459d1`，分支 `codex/memory-v0-closeout-delivery-20261106`）；App 本轮提交基于 `9a12bc8e75eb4d3ff54888d6a6c518dab70a37b3`，分支 `codex/memory-v0-closeout-application-20261106`。两个本地仓库分别位于 `/private/tmp/prologue-memory-v0-closeout-delivery-20261106` 与 `/private/tmp/molis-memory-v0-main-integration-20261106`；App vendor 仍为此前采用的 6785 来源。本轮只提交，不换包或运行新验证。
+
+未完成交付的唯一清单为 [BACKLOG](../BACKLOG.md) BL-1054～BL-1060，分别覆盖正式 SDK 采用、原性能门、真实质量与全成本、原生 Linux 失败、后续跨主人动线、最终 App/本人验收及历史执行事故。BL-1058 沿 §10.3 的后续范围，不新增为 V0 门。本次本地提交不恢复换包、推送、CI/Full、180读或其他测量、付费及真实 Home 操作；不降低原验收，不把记录入 backlog 当作完成。以下按日期保留历史结果和授权，当前交接覆盖其中“仍未提交”的旧状态。
+
+**前次正式测量状态（2026-11-06，保留历史）。** SDK 6785a84b 与 App 9a12bc8e 的获批180读已完成；1000条暖读中位数107.193ms，上限10.660ms，性能验收失败。后续批次、按范围查询/解码和暖读优化尚无新的正式成绩。旧 B1 原始答卷/同口径规模原件缺失仍保留，不能用历史摘要补造。
 
 **前轮正式测量来源（保留历史）。** 2026-11-06的隔离树以 Molis main `c595ee97ffff5e4d5bade984f1e6dd226736b329` 为基线，承接原本地提交 `2de38b17` 及后续已审成果；318路径按当次明确批准作本地提交 `abdb74a9d647f545f187ab5903be77a2e3599017`，未推送。正式180读在该提交上完成；其后测量文档及本轮收束记录另行保留。已批准采用干净SDK `2a49a9826ef442c743eab8fb44a7594a7bbf52aa`（7918之上准确32路径组合），安装包与824个实际安装文件对应已核；没有整体采用Draft #108。以下原证据按其原来源和日期理解，不自动变成c7新整合树的最终证据。
 
@@ -2495,3 +2503,85 @@ SDK仅沿现memory/registry/Node reader内部落点：保留stableStringify原�
 **本次获批SDK提交与App采用结果（提交前）。** SDK新独立检出的准确HEAD为6785a84b、父2a49、tree b1c3a9e1；8路径完整diff与获批补丁逐字相等，提交后与构建打包后均clean，原工作树/index/branch未改变。新包1,418,384B、SHA256 `a1a3433d52b62fe05519b8348a47d643b39739f670e5ba26cbad646f01f5cc2c`；824文件无增删，仅6个dist文件变化，manifest逐字不变，构建文件与包逐字一致，公开入口齐备。相同本地提交的增量git bundle已verify并保留2a49基点依赖，不推送也不把本地提交记成上游main。
 
 App真正采用增量仅lock、同名tgz及sha/provenance、vendor README五路径；原包及完整来源链保留。offline/frozen安装和整体原构建通过；统筹另从实际tgz与实际依赖目录独立逐字核824文件及SHA。原runner使用canonical TMPDIR、每文件新合成Home、jobs1/browser1/retries0，management-page-authority、prologue-memory-current-authority、memory-forgetting-service、home-restore-indexed-memory共47项全部通过；原边界/准确c7健康/51资源门均通过，7,453,650B与采用前每项相同，不新增额度。默认offline store缺包及sandbox写store失败原日志保留，随后原冻结安装成功，未改依赖策略/断言/时限。交接与原件位于 `/private/tmp/memory-v0-approved-delivery-20261106/`；本段只记录采用工程结果，不把未执行的180读、真实质量或本人验收算作通过。
+
+### 6785 SDK／9a12 App 的唯一实际180读结果（2026-11-06）
+
+**本地交付已经执行，性能仍失败。** 按用户本次明确授权，SDK仅8文件一次本地提交6785；App仅326路径一次本地提交9a12，tree `56dec03688c2dd6767beaf05f6a72d95cc93ac42`，父准确c7，新本地分支 `codex/memory-v0-closeout-application-20261106`。两次提交均核完整diff等于冻结对象、显式清单、无活动hook及提交后clean，没有amend/第二次提交/推送。两个增量git bundle均verify，以保留各自2a49/c7基点的可恢复来源。
+
+**预检与启动失败没有隐藏。** 提交后原构建核验发现仅test-kit的dist与record不匹配。直接核查证明boundary末尾tsc更新了mtime而未刷新workspace record；正常原 `pnpm workspace:build` 只重建1/63包，44个产物字节与之前完全相同，随后63包匹配，未手写record或再跑47例。第一次只读环境快照遇到进程名的非UTF-8字节，保留失败文件，仅对观察文本作替换解码，不采argv/env或更改数值。
+
+原preflight随后真实通过，但第一次启动器误将合成TMPDIR放进长持久目录，tsx创建113字节IPC路径时listen EINVAL，在派出用户脚本前退出。完整日志、原nonce/started标记、前后预检及0业务Home现场保留；不能把它算作180例失败或一次已完成测量。统筹核调用顺序后，仅把采样子进程TMPDIR改为新建短canonical `/private/tmp/mv0-s180-u4ujk7w0`（IPC上界54B）；同一nonce下新增独占续办标记、完整日志和前后预检，原目录/标记/失败不覆盖、不删除。原driver、双机器槽、源码、样本和统计均不变；这才是本批首次且唯一实际采样，不额外重测业务。
+
+**实采与独核。** 原scale入口在Node24.14.0/pnpm11.9.0、Darwin arm64执行，9个新合成Home、实际3330条seed、18个交替B0/B2 arm、每臂1首读＋9暖读，共180读及180唯一回执。replica、arm、sample、底层list错误均0，B0零list、B2每读返回8条且2次list；原工具按既有生命周期清理合成Home。未提供模型端口，不进入形成回放，0模型/0付费。App在采集前后clean，前/后/内嵌原preflight与最初通过对象逐字段相同，SDK和App提交准确一致。统筹从180条原样本独立重算6组首读/暖读中位数与经验P95、核3330造数及唯一回执；与报告完全相符，没有追加调用。
+
+| 条数 | B2首读中位数ms / 原记录上限 | B2暖读中位数ms / 原记录上限 | B2暖读经验P95 ms / 原记录上限 | 原门数值比较 |
+| --- | ---: | ---: | ---: | --- |
+| 10 | 3.252 / 6.264 | 3.155 / 5.227 | 3.775 / 5.303 | 三项低于记录上限 |
+| 100 | 12.396 / 15.304 | 11.272 / 5.794 | 12.263 / 6.168 | 首读低于上限；两项暖读失败 |
+| 1000 | 109.717 / 79.721 | 107.193 / 10.660 | 112.527 / 14.330 | 三项失败 |
+
+上限仍取Git83421中同Node24.14的原spec记录，没有重设；缺失的B1原始答卷/同口径原件仍缺，10条数值达线不能关闭完整MEM-38。1000暖读从上批abdb＋2a49的159.404降至本批9a12＋6785的107.193ms，约32.75%；两组合还包含主干及App SQL变化，不能归因成单一SDK收益。CPU/进程和MySQL只作启动前后观察，负载约2.315/3.286/3.619至2.050/2.962/3.461、MySQL均healthy，不证明期间始终空闲。没有profiler或新分段数据，不能把旧104ms backend占比直接套到本批；2256次逐项遗忘检查未被此次实现削减是代码事实，不是本批阶段计时。
+
+正式原件与完整交接已直接保存在 `/Users/oreal/Documents/Molis-Evaluations/memory-v0/2026-11-06-combined-read/`，包括首次启动失败、同nonce续办、实际报告、全部原预检与前后环境。当前只证明这个新组合的显式MemoryService读取成本；不是最终任务Context、真实质量/token成本、原生Linux CI或本人体验。停止追加采集，MEM-38及完整V0保持未通过。下一步只按现有数据收窄剩余读取/当前性成本；若改变Port、当前性、布局或冻结方法，另按真实合同提出，不删除授权、遗忘或遗漏回执来过门。本节是测后文档同步，保持未提交，不消耗第二次本地提交。
+
+
+### 同步读取批次安全合同（2026-11-06，用户批准本地实现）
+
+用户结果：只修App遗忘/偏好重复读取、SDK授权快照重建、Host逐条正文核验三项热点；基点App9a12、SDK6785。1000条仍交相同8条返回、744条遗漏及752条持久回执，原性能门、权限、版本、取消、遗忘与恢复保证不变。不承诺本片性能达标。复杂度审查：沿现Memory/Storage/Registry/Host主人，不新建库、全局缓存或后台任务，不改布局、scope查询、页尺寸或策略，不做跨调用正文缓存和长驻SQLite连接。
+
+- App：初次范围过滤、最后一次等待后的交付复核、回执事务各自从Storage原read取得当前不可变事实；同一无await、无外部callback同步阶段内共享事实，逐条身份仍检查。阶段末、COMMIT前再次由原owner检查事实未变化；关闭、替换/链接/损坏、恢复屏障或未知结果仍拒绝/回滚。原marker、回执强度和CAS不省略。偏好按完整actor/scope/project键仅在同阶段共享，逐条分类/适用性不省略。优先复用原read；不能让Memory直接碰文件/SQL，不可把开头快照跨await沿用。
+- SDK：仅本次list内按真实canonical对象/版本共享只读target；对象或版本改变必须重建。不缓存授权结果、拒绝、Session或时间。三轮动态许可、初次许可后持久重读、最多两轮变化恢复、最终全集许可仍保持原次序。已独占快照避免重复排序序列化；真实协议指纹/分类键/持久格式的stableStringify不变。外部authority副本不得改写SDK内部或最终检查快照，深层隔离必须验证；写和候选路径不顺带优化。
+- Host：扩展现StorageObservation的可选窄口，同步、有界地读取已签发身份集合；未实现的Host仍走原严格单条路径。Node Host批首/批末检查root/owner/DB/sidecar，逐项地址、完整当前封套字节关系、AEAD、缺失/损坏拒绝不变。批次无await、无调用方callback；新观察/外部回调/等待后重新验证。任一条或尾检失败不交部分正文，已解出的临时字节清零；成功字节由Registry原finally清零。单条readSecure语义不变，不用全局开关或mtime/version代替完整字节；不宣称跨进程全时原子性。
+
+写主人不变：App Memory管筛选/排序，Storage管遗忘接受和回执事务；SDK Memory管canonical/授权，Host管真实文件/加密。跨域经现公开入口/窄Port。硬检查不可配置；Host可替换并可选批读，App和用户不新增开关。
+
+允许App路径：horizontal/memory现役读取/遗忘/范围，packages/storage的ledger/retention及对应README、原测试。允许SDK路径：memory/core/access、memory-read及必要record快照辅助，host/core/storage-contract、host/plugin/node-storage-reader、runtime/core/registry-store和实际Port包装层，相关模块README/短合同/API快照及原测试。先同步模块合同再改行为，其它必要路径须说明直接调用关系，不做无关重构。App与SDK快照可独立实现，Host与Registry配套集成；同树构建/测试由统筹串行安排。
+
+验收保留既有断言，补真实风险：await期间遗忘/撤权/分类改变/归档/过期/取消，批中owner释放或文件/sidecar变化，同版本完整正文篡改、跨scope、authority副本突变、末次许可拒绝、回执冲突与事务回滚。真实Node/SQLite、新合成Home、canonical TMPDIR、原机器槽和单worker；检查持久化和后续行为，不只看调用计数。
+
+用户本次授权合同、本地实现、定向验证和少量诊断；不恢复提交、推送、CI/Full、付费、真实Home或正式180读。原App vendor固定6785。联合诊断可在一次性隔离测试副本临时装配本地SDK构建，明确dirty候选来源，不改主候选vendor/lock/provenance，不冒充干净正式换包。正确性通过后最多6次1000条局部召回，同原分布、零模型；先确认重复工作消除及阶段成本。不达线停止追加采样；局部达线也不能替代原正式性能、真实质量/token和用户验收。
+
+#### 本次本地结果（2026-11-06）
+
+三项修复已在上述隔离树落地；未提交。SDK在原6785上增加可选同步正文批读、list内canonical授权数据复用；App在原9a12上按同步阶段共享事实/偏好并做尾检，回执事务失败阻止外层提交。没有改变格式、策略、选择、权限或性能门。App测试进程仅通过临时公开exports解析装配本地SDK dist；裸导入、createRequire所得公开入口和对应绝对入口已核实指向同一Runtime。原vendor、lock和provenance不变，不是正式换包或干净安装验收。
+
+原样保留失败与诊断依据：首版SDK将context的null-prototype子对象直接交给同步authority，导致实际会话读取被App严格比较拒绝；同用例旧SDK通过。现按原形状一次归一并深冻结，保留App严格比较，新增真实Session/facts与异步外部副本突变回归。原两处历史数据夹具未声明indexed格式，现沿公共store和真实owner补齐格式、Host关闭；unknown事实仍未知。整理删除测试冻结同一时间却假定先创建者保留，旧SDK也复现；现明确一秒先后并增加survivor身份断言，原遗忘/历史/重启断言不变。Swift缓存写权限与loopback环境失败均保留日志，用同一原命令完成，不放宽超时或断言。
+
+工程证据：Memory/Storage README要求与本片直接故障回归共37文件，按各文件最新有效结果379/379；首批35/37的失败日志保留，只重跑修正的两文件。SDK真实Host/Registry/Access/Indexed storage/Recall五文件按最新相关结果123/123；构建、类型、公共API快照、质量ratchet、文档链接与App依赖边界通过。App结构门沿现AGENTS更新两项既有MemoryService实测size，并由独审确认openMemoryLedger的171行单写主人事务装配适用现cohesive-unit登记；没有改门脚本或阈值。51项页面资源共7,453,650字节，原资源门通过，无新增额度。独立Astra Ultra最终源码审查未发现剩余阻塞，不代替上述实测。
+
+固定执行3次1000条局部召回，使用原合成种子的全新副本、原固定逻辑时钟，未追加采样。两次暖读均带与前次相同的分段计时和100μs CPU采样，因此只比较诊断效果，不计算正式p50/p95：
+
+| 同一诊断口径 | 修复前 | 修复后 |
+|---|---:|---:|
+| 两次暖读总时间 | 138.468 / 130.564 ms | 48.128 / 45.636 ms |
+| 每次遗忘事实read | 2256 | 8 |
+| 每次偏好读取 | 756 | 10 |
+| 每次Host fence | 834 | 92 |
+| 每次被计时的文件系统调用 | 22,563 | 891 |
+| SDK Backend两scope读取 | 83.950 / 81.954 ms | 42.090 / 39.935 ms |
+| 全部回执事务 | 16.883 / 16.538 ms | 3.290 / 3.303 ms |
+
+三次均与前次逐项比较返回身份、版本、分数及遗漏身份/理由；仍为8 returned、744 omitted。关闭owner后只读核实际SQLite，每次752条回执的身份、版本、状态完全一致。诊断模型调用0、付费0。第一次诊断启动缺少原tsx解析器，在导入阶段失败、实际召回0次；保留日志和未打开副本，补原解析器后才执行上述3次，不隐去启动失败。
+
+结论：重复检查明显减少；**原10.660ms门未获通过，V0性能仍未验收**，不把带探针的46–48ms当正式成绩，也不再自动跑180次。剩余成本主要在SDK Backend（本次约40–42ms）：两scope仍分别扫描全部1000条元数据，仍恢复752条完整canonical正文，并执行15次读取事务和12批动态许可。已有采样中外部authority独立副本、索引封套解码、canonical恢复为主要剩余CPU项；应针对这条链路另定最小后继方案，不能继续削弱授权、字节校验或回执，也不扩大本片。真实质量/token、正式性能、最终App路径及用户验收仍待完成。
+
+最终公开面检查另发现基点6785已导出、名称快照尚未登记的4个既有类型（MemoryReadFallback、MemoryRecallAttempt、NodeHost、NodeRecoveryCloseFailure）；核对HEAD公开入口未被本片修改后只同步原快照，没有增加生产导出或改断言。真实Context召回15项与现役结构14项通过；公开面4项同步后通过，原失败日志保留。
+
+本轮原件保存在`/private/tmp/memory-v0-batch-20261106/`；局部结果为`diagnostic-run/result.json`、`receipt-verification.json`、`warm.cpuprofile`。这些是临时工程原件，不是新增状态台账；本节为当前结果记录。
+### 暖读组合收束合同（2026-11-07，用户批准本地实现）
+
+用户在完整只读成本审查后以“好的，冲”批准：SDK 将成功校验结果从一次观察链延长到同一活 Host 密钥保管期内的完整字节一致复用；App 仅解除授权装配和账本批处理两处冻结。仍不提交、推送、跑 Full/CI/180或任何追加性能测量，不正式换 SDK、不付费、不操作真实 Home。其余 App 实现冻结，原性能/质量/token/用户验收全部保留未完成。
+
+复杂度审查：沿原 Memory/Storage 单一主人及 SDK 公开入口，不引入新库、schema、异步回执、摘要回执或跨事务缓存。交付合成一个本地补丁；工程正确性不代表性能达标。SDK 安全合同由其现 memory-strategy 短合同拥有；本节只记录 App 接入与事务责任。
+
+- **WARM-APP-01 授权输入。** 现生产 memoryRuntimePolicy 显式声明接受 SDK MemoryAuthority 的 readInput: "frozen"；agent-host 只转发这一公开选项。仅普通 owned read/manage-read 省输入复制，默认调用方和其他动作保持原独立副本。授权、最终 current、普通 prototype、版本、Session、遗忘及角色/项目隔离保持；策略异常不重试或降级。
+- **WARM-APP-02 完整记账。** recordUses 仍在原 BEGIN IMMEDIATE/COMMIT 主人内，改为有界集合读取与多行写入。逐项判断全部输入身份的当前遗忘决定/marker，逐项按原输入顺序处理同一(memory_id,receipt_id)的重复项、执行身份/版本冲突和状态单调性。不得因预取漏掉同步阶段内重入的遗忘：写后及提交边界核当前事实/marker，变化拒绝并整批回滚。批内回执重入使预取失效，整事务拒绝；只在当前事务记录重叠阶段，不跨事务缓存结果。原嵌套 receiptFailure 保持，外层不能吞错提交。每条实际回执正文、身份、版本、返回/遗漏状态均不缩减。
+- **WARM-APP-03 验收。** 真实新合成 SQLite 验全 752 身份及 8 returned/744 omitted、跨块/重复身份/冲突/原操作重试、事实和 marker 在同步 SQL 阶段改变、嵌套吞错后的原子回滚；物理查询次数可由集合覆盖替代，但逐身份安全与持久结果不可减少。授权测试覆盖默认 mutable 与显式 frozen、深层突变、撤权和会话严格比较。测试不读取真实 Home，统一 canonical TMPDIR/原 runner，单构建、单 worker，无额外计时。
+
+允许路径：horizontal/agent-host 的 Memory authority 桥、apps/local-host/src/memory/memory-runtime-policy.ts、packages/storage 的 memory-ledger/retention、对应 README/spec 和原相关测试。页面资源、业务筛选/排序/预算、界面、vendor/lock/provenance及其他源码不改。SDK 联合验证仅在临时解析装配本地构建，标明 dirty 候选，不冒充正式采用。库与权限硬规则不可配；现 App 明确选择只读输入，SQL 分块仅适配引擎绑定上限，没有终端用户新选项。
+
+本轮本地结果（2026-11-07）：App 构建、边界检查和相对 c7b6584287cd8d7eca30f2760d1a0cbf5662af58 的原 health 门通过；51 项页面资源仍为 7,453,650 B，没有新增资源额度。原 openMemoryLedger 同一事务职责增加到 205 行，逐项更新既有 cohesive-unit 登记并经独立审查；无全局阈值或脚本放宽。账本/遗忘事实 2 文件 34/34 通过，含真实 752 身份与 8 returned/744 omitted、后块失败回滚、同步重入与双连接交错。
+
+最终 SDK 通过 12 文件 247/247、构建/类型/公开面/现役结构/质量门与干净离线消费者验证。App 联合回归最初发现同字节并发读取重建 Held 引发误冲突，原 upkeep 屏障超时；SDK 现保留完全等价的 canonical，并固定每次查询实际送出的 Held/proof，避免另一读者重新认证后的证明替换干扰当前读。原 App upkeep 测试本轮一字未改，最终 26/26；8 个其余受影响文件在最终 SDK 构建上重验 89/89。连同账本，11 个 App 文件最新定向结果 149/149，没有跳过、提高超时或新增重试。初次构建的 Swift 缓存沙箱失败、SDK 本机回环 EPERM 和离线安装空缓存失败均保留；按原构建/测试/安装修正执行环境后通过，不计作产品缺陷已被测试工具修复。
+
+实现和独立审查已收束为一个本地组合补丁。每次仍读取完整存储字节、重新核权限/遗忘/当前性，回执逐项完整；SDK 页数/授权轮次与跨 await 连接限制未改。App 本轮仅解除的授权装配与账本范围有增量，vendor/lock/provenance 未改。联合测试用临时公开入口解析指向本地 SDK 构建，尚未正式换包；本轮没有性能采集，原 10.660ms 门槛、质量/token、完整 App 与用户验收仍未完成。原件在 `/private/tmp/memory-v0-warm-read-20261107/`，本节是结果记录，临时文件不另建任务队列。仍未提交、推送、触发 CI/Full/180、付费或操作真实 Home。

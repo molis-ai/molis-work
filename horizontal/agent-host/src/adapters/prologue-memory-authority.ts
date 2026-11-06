@@ -16,6 +16,8 @@ import type { PrologueEffects } from "./prologue-effects.js";
 /** App policy and live grants; SDK types occur only at this SDK adapter boundary. */
 export interface PrologueMemoryOptions {
   policy: MemoryPolicyConfig;
+  /** Explicitly accept the SDK's deeply frozen canonical list read inputs. */
+  readInput?: "frozen";
   promotion?: AgentMemoryPromotion;
   extractor?: AgentMemoryExtractor;
   sources?: {
@@ -201,6 +203,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
       },
     } } : {}),
     authority: {
+      ...(options?.readInput === "frozen" ? { readInput: "frozen" as const } : {}),
       async authorize(requests) {
         if (!options) return false;
         // Empty projections carry no entries; query scope authority has its separate gate.

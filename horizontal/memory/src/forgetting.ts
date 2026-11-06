@@ -22,6 +22,19 @@ export class MemoryForgetting {
       && (kind === "memory" ? one.memories.some(item => item.memory_id === id) : one.candidates.some(item => item.candidate_id === id)));
   }
 
+  /** Internal synchronous phase only: never retain this across a wait or an external callback. */
+  readPhase() {
+    const facts = this.ports.ledger.forgetting.read();
+    return {
+      hidden: (where: Place, kind: "memory" | "memory-candidate", id: string): boolean => facts.decisions.some(one => one.scope === where.scope && one.owner === where.owner
+        && (kind === "memory" ? one.memories.some(item => item.memory_id === id) : one.candidates.some(item => item.candidate_id === id))),
+      assertCurrent: (): void => {
+        if (!isDeepStrictEqual(facts, this.ports.ledger.forgetting.read()))
+          throw memoryErrors.conflict("同步读取期间遗忘事实已变化，没有交付旧正文");
+      },
+    };
+  }
+
   private accepted(caller: MemoryCaller): MemoryForgettingDecision | undefined {
     return this.ports.ledger.forgetting.read().decisions.find(one => one.actor_id === caller.actor_id && one.operation_id === caller.operation_id);
   }

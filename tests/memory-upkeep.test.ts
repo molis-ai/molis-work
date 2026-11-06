@@ -298,10 +298,12 @@ test("a deleted memory does not come back through upkeep, a merge record or a re
   const env = await memoryHome(t, clock);
   let memory = await env.open();
   const keep = await env.automatic(memory, "work-1", "project", "发布前先跑全量回归", "convention");
+  clock.now = new Date(clock.now.getTime() + 1000);
   await env.automatic(memory, "work-2", "project", "发布之前先跑全量回归", "convention");
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async entries => ({ duplicates: [[entries[0]!.memory_id, entries[1]!.memory_id]], conflicts: [] }) });
   const merged = (await memory.changes(person())).find(change => change.kind === "merged")!;
   assert.equal(merged.undoable, true);
+  assert.equal(merged.memory_id, keep.memory_id, "the first item has the earlier creation time and survives the merge");
   await memory.change(person(), { memory_id: keep.memory_id, action: "remove" });
   assert.equal((await memory.changes(person())).find(change => change.change_id === merged.change_id)!.undoable, false, "the merge record no longer carries the deleted text");
   assert.ok(!JSON.stringify(env.ledger().changes("web-user", 100)).includes("全量回归"), "recent changes keep none of its words");

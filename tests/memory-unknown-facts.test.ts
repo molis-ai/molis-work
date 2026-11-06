@@ -5,6 +5,7 @@ import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryEvidenceInput } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { memoryServiceHome } from "./fixtures/memory-service-home.js";
 
 const caller = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a",
@@ -19,14 +20,18 @@ async function historical(f: Awaited<ReturnType<typeof memoryServiceHome>>) {
   const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
   const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
   const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
-  const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(f.home, "agent-runtime") }) });
+  const storageOwner = acquireStorageOwner(join(f.home, "agent-runtime"));
+  let host: ReturnType<typeof createNodeHost> | undefined;
+  let runtime: Awaited<ReturnType<typeof createRuntime>> | undefined;
   try {
+    host = createNodeHost({ storageRoot: join(f.home, "agent-runtime"), exclusiveOwner: true, memoryStorageFormat: "indexed-v1" });
+    runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host });
     await runtime.store.commit({ kind: "memories", id: "owner.project-project-a.historical.v1", expectedVersion: 0,
       metadata: { scope: "owner.project-project-a", rowId: "historical", version: 1, state: "active", shape: 8 },
       secureBody: new TextEncoder().encode(JSON.stringify({ id: "historical", scope: "project", owner: "project-a", version: 1,
         text: "Historical publication convention", origin: "Imported record", tags: [], tombstoned: false,
         meta: { kind: "convention", source: "auto", classification, evidence }, createdAtMs: 0, updatedAtMs: 0 })) });
-  } finally { await runtime.shutdown(); }
+  } finally { await runtime?.shutdown(); await host?.closeStorage(); storageOwner.release(); }
   return f.open();
 }
 

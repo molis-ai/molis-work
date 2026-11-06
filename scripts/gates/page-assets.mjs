@@ -303,16 +303,20 @@ const headErrors = (measured, budget, base) => {
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
 // table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
 // account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
+// FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
+// The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
+// Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
 // K0c (batch 10, #1872; admitted by the coordinator for the main session on 2026-11-06): the D-track review of #1850, item 5,
 // folds the open ▾'s pressed fill into the primary button's own rule, `.mw-btn--primary:is(:active, [aria-expanded="true"])`,
 // instead of the board copying its color-mix; it is in the page sheets because K2 draws that split button in product pages.
 // +29 B on each of arrival.css, settings.css and workbench.css. Tried: no comment in the sheet, one selector list instead of a
-// second rule. On main's 7f960b38 base the arrival, settings and workbench.css entries are spent (the merge-base budget holds
-// their ceilings), so K0c replaces them; the workbench.js entry is spent too (budget 1077514) and is deleted.
+// second rule. On main's base the arrival, settings and workbench.css entries above were spent (the merge-base budget holds
+// their ceilings), so K0c replaces them; the workbench.js entry is #1859's and stays.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [693169, 693198],
   "/assets/molis-work-settings.css": [827545, 827574],
   "/assets/molis-work-workbench.css": [1204497, 1204526],
+  "/assets/molis-work-workbench.js": [1077514, 1077683],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

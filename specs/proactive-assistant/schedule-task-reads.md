@@ -125,6 +125,8 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 - 这是新的平台能力：区域怎样挂进插件页面（DOM 事件或声明的挂点）、怎样防止插件在上面盖一层假的、点按怎样核实，P3 由 D 轨定，作为一条新的安全不变量过评审，测试先在没有保护的代码上红过。
 - 「授权与放行」一页照旧按任务列出、可撤回（D 轨）。
 
+P3 的挂法与防遮盖（插件只给位置与 key、工作台画在插件框外、只认真实点按的几条检查、新的安全不变量、合同改动与待用户定的三点）见[插件页面里的平台区域](task-grants-platform-area.md)。
+
 ## 4. 安全不变量的变化
 
 按 [SECURITY-INVARIANTS](../../docs/system/SECURITY-INVARIANTS.md)第 3 节加一行、改两行。测试都要先在没有保护的代码上红过。

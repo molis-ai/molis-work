@@ -1,6 +1,6 @@
 # Sessions 来源与历史的合同设计（路线书 22）
 
-状态：设计稿，2026-11-05 写，2026-11-06 按用户定的八项改完（第 13 节，决策记录在[需求 §8](spec.md#8-决策记录)）；没有实现，等公共合同台合审。第 02 批交完（#1762 已合入，#1775、#1786、#1790 在途）、C 轨交接之前不开合同代码。按 `origin/main` `1e8110a5e` 核对，形状按 #1762 合入后写（2026-11-06 已合入 `d82329833`）：动作 id 不带 `.v1`，版本写在 `version`，所以这里写 `projects.workspaces.list@1`。2026-11-07 合同片 C-2 按写出的代码回写了第 5.1、6.1、6.2、7.1、7.2、7.4、9.1、9.4 节，答了合同台合审留的「命令接入的云端入口」，见第 5.1 节和第 12 节第 26 行。
+状态：设计稿，2026-11-05 写，2026-11-06 按用户定的八项改完（第 13 节，决策记录在[需求 §8](spec.md#8-决策记录)）；没有实现，等公共合同台合审。第 02 批交完（#1762 已合入，#1775、#1786、#1790 在途）、C 轨交接之前不开合同代码。按 `origin/main` `1e8110a5e` 核对，形状按 #1762 合入后写（2026-11-06 已合入 `d82329833`）：动作 id 不带 `.v1`，版本写在 `version`，所以这里写 `projects.workspaces.list@1`。2026-11-07 合同片 C-2 按写出的代码回写了第 5.1、6.1、6.2、7.1、7.2、7.4、9.1、9.3、9.4 节，答了合同台合审留的「命令接入的云端入口」，见第 5.1 节和第 12 节第 26 行。
 
 ## 0. 这份稿子做什么
 
@@ -945,7 +945,7 @@ export interface SessionsPorts {
 
 ### 9.3 错误码
 
-`horizontal/sessions/src/errors.ts`，一处声明，不写 Error 子类。这些码由动作抛出；合同里要点名的放合同，写法同 `projectCatalogErrors`。
+`packages/contracts/src/services/sessions.ts`，一处声明，不写 Error 子类，写法同 `projectCatalogErrors`。这些码由动作抛出，外壳和第 20 批要分得清，所以放合同，服务包直接用，不另写 `horizontal/sessions/src/errors.ts`。C-2 声明读取这一半的码；`project_unavailable`、`attribution_conflict`、`suggestion_unavailable`、`too_many_groups` 只有 C-3 的动作用，随 C-3 加。云端来源的连接缺了或不对，用平台码（第 7.2 节），不另声明。
 
 ```ts
 export const sessionsErrors = defineErrorCodes("sessions", {

@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ActionDefinition } from "../platform/actions.js";
 import type { ExternalSessionCapability, ExternalToolEntry, ExternalToolId, ExternalToolRegion, ExternalToolSurface } from "../platform/external-tools.js";
 import type { ContractDescriptor } from "../platform/package.js";
@@ -305,6 +306,25 @@ export interface ExternalSessionDiscoveryRunOutput { queued: ExternalToolId[] }
 
 /** `details` of `sessions.project_ai_read_off`: the shell opens the read scope on the project's AI page. Never an empty list. */
 export interface ExternalSessionProjectAiReadOffDetails { next_step: "open_project_ai_read" }
+
+/**
+ * The refusals of the read side, declared here so the service and the callers that must tell them apart name one table. `not_found`
+ * does not say whether a session exists: a key not in the index, out of scope or not in the caller's project are one answer. A cloud
+ * source without a usable connection is the platform's `actions.connection_required` or `actions.connection_unavailable`.
+ */
+export const sessionsErrors = /* @__PURE__ */ defineErrorCodes("sessions", {
+  not_found: "not_found",
+  not_allowed: "forbidden",
+  scope_changed: "forbidden",
+  project_ai_read_off: "forbidden",
+  scope_conflict: "conflict",
+  needs_login: "unavailable",
+  version_unreadable: "unavailable",
+  read_failed: "upstream",
+  source_unsupported: "unavailable",
+  project_required: "invalid",
+  cursor_invalid: "invalid",
+});
 
 const text = { type: "string" };
 const nullableText = { type: ["string", "null"] };

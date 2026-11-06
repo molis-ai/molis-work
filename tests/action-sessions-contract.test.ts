@@ -15,6 +15,7 @@ import {
   externalSessionConnectionLocation,
   externalSessionConnectionRoute,
   sessionsActions,
+  sessionsErrors,
   type ExternalSessionAttribution,
   type ExternalSessionHistoryOutput,
   type ExternalSessionListOutput,
@@ -210,4 +211,16 @@ test("SRB-06: a cloud source with no connection chosen has no location, and the 
   assert.equal(cloud.location_key, null);
   assert.equal(accepts(schema, { ...scope, sources: [first, { ...cloud, connections: [{ connection_id: "Not An Id", display_name: "x", account_label: null }] }] }), false);
   assertActionInput(sessionsActions.scopeSet.action.input_schema, { sources: [{ entry_id: "copilot-coding-agent", connection_id: "external-0a1b", allowed: true, directories: { mode: "all" } }], expected_revision: 3 });
+});
+
+test("SRB-13: the refusals are distinct codes of the sessions owner, none of them an empty list", () => {
+  const raised = Object.entries(sessionsErrors).map(([reason, raise]) => { const error = raise("x"); return [reason, error.code, error.kind]; });
+  assert.deepEqual(raised, [
+    ["not_found", "sessions.not_found", "not_found"], ["not_allowed", "sessions.not_allowed", "forbidden"], ["scope_changed", "sessions.scope_changed", "forbidden"],
+    ["project_ai_read_off", "sessions.project_ai_read_off", "forbidden"], ["scope_conflict", "sessions.scope_conflict", "conflict"], ["needs_login", "sessions.needs_login", "unavailable"],
+    ["version_unreadable", "sessions.version_unreadable", "unavailable"], ["read_failed", "sessions.read_failed", "upstream"], ["source_unsupported", "sessions.source_unsupported", "unavailable"],
+    ["project_required", "sessions.project_required", "invalid"], ["cursor_invalid", "sessions.cursor_invalid", "invalid"],
+  ]);
+  const { details } = sessionsErrors.project_ai_read_off("这个项目的 AI 读取许可关着", { next_step: "open_project_ai_read" });
+  assert.deepEqual(details, { next_step: "open_project_ai_read" });
 });

@@ -307,11 +307,11 @@ const headErrors = (measured, budget, base) => {
 // T-01 carries the previously approved account increments onto main 7fcec863c; no new account allowance or resource.
 // Main includes the same K-20 stylesheet reductions. K-22/K-26 and the shared SDK integration saved 13 B in the script.
 // ASC-58 (#1870), separately admitted on main, adds 573 B for one-time connection failure reminders.
-// Remeasure the integrated build before freezing the exact account ceiling on this new base.
+// Integrated build measures 1125465 B: main 1085847 + the unchanged account increment 39618; no added account allowance.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [693131, 693814],
   "/assets/molis-work-workbench.css": [1204709, 1205161],
-  "/assets/molis-work-workbench.js": [1085847, 1124892],
+  "/assets/molis-work-workbench.js": [1085847, 1125465],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

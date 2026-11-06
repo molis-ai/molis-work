@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import Database from 'better-sqlite3';
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { assertActionInput } from '@molis-ai/molis-work-kernel';
 import { createScheduleReminders, getScheduleReminder, reminderActions, SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE,
   SCHEDULE_REMINDER_WAKEUP } from '@molis-ai/molis-work-plugin-schedule';
@@ -16,7 +16,7 @@ const FAMILY = '\u{1F468}‍\u{1F469}‍\u{1F467}‍\u{1F466}';
 
 /** Schedule's real reminder service over one in-memory library with its wakeup offered, as tests/schedule-operations.test.ts builds it. */
 function reminderService(t: TestContext) {
-  const db = new Database(':memory:'), now = Date.parse(at);
+  const db = openTestSqlite(':memory:'), now = Date.parse(at);
   db.exec(SCHEDULE_PROJECT_DATABASE.schema);
   const wake = wakeupInstallation(SCHEDULE_PLUGIN_ID);
   wake.action(SCHEDULE_REMINDER_WAKEUP, async () => {});

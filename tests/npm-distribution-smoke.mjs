@@ -6,6 +6,7 @@ import { mkdtemp, readFile, rm, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { isolatedMcpResident } from "./fixtures/isolated-mcp-resident.ts";
 
 const exec = promisify(execFile);
 const consumer = path.resolve(process.argv[2]);
@@ -28,14 +29,14 @@ try {
   }
   const probe = `
     import assert from 'node:assert/strict';
-    import Database from 'better-sqlite3';
+    import { openSqliteConnection } from '@molis-ai/molis-work-storage';
     import { MolisWorkPtyHost } from '@molis-ai/molis-work-service-runtime-host';
     import { loadBuiltinPlanningMethodPacks } from '@molis-ai/molis-work-plugin-goals/module';
     const file = process.env.MOLIS_WORK_HOME + '-native.db';
-    let db = new Database(file);
+    let db = openSqliteConnection(file);
     db.exec('CREATE TABLE probe(value TEXT)');
     db.prepare('INSERT INTO probe VALUES (?)').run('persisted'); db.close();
-    db = new Database(file); assert.equal(db.prepare('SELECT value FROM probe').get().value, 'persisted'); db.close();
+    db = openSqliteConnection(file); assert.equal(db.prepare('SELECT value FROM probe').get().value, 'persisted'); db.close();
     const output = await new Promise((resolve, reject) => {
       let text = '';
       const host = new MolisWorkPtyHost({ onData: (_id, value) => { text += value; },
@@ -77,14 +78,21 @@ try {
   await rename(product, moved);
   try {
     assert.match((await run(installed.launchers.cli, ["--help"])).stdout, /molis-work plugin/);
-    await run(process.execPath, ["--input-type=module", "-e", `
-      import assert from 'node:assert/strict';
-      import { validateMolisWorkMcpLauncher } from '@molis-ai/molis-work-app-mcp';
-      assert.equal(await validateMolisWorkMcpLauncher({
-        runtime_id: 'codex', launcher_path: ${JSON.stringify(installed.launchers.mcp)},
-        home_directory: ${JSON.stringify(home)}, plan_id: 'npm-release-smoke'
-      }), true);
-    `], installed.release_directory);
+    const resident = await isolatedMcpResident(home);
+    environment.MOLIS_WORK_WEB_URL = resident.origin;
+    try {
+      await run(process.execPath, ["--input-type=module", "-e", `
+        import assert from 'node:assert/strict';
+        import { validateMolisWorkMcpLauncher } from '@molis-ai/molis-work-app-mcp';
+        assert.equal(await validateMolisWorkMcpLauncher({
+          runtime_id: 'codex', launcher_path: ${JSON.stringify(installed.launchers.mcp)},
+          home_directory: ${JSON.stringify(home)}, plan_id: 'npm-release-smoke'
+        }), true);
+      `], installed.release_directory);
+      await resident.health();
+    } finally {
+      await resident.stopHost();
+    }
     assert.deepEqual(await readFile(path.join(installed.release_directory, "vendor/intelligence-client/sbom.cdx.json")),
       await readFile(path.join(moved, "vendor/intelligence-client/sbom.cdx.json")));
   } finally { await rename(moved, product); }

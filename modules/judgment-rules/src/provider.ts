@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type {
   ChoiceCriterion,
   JudgmentRuleRecord,
@@ -121,10 +122,6 @@ function questionBody(record: JudgmentRuleRecord): Record<string, unknown> {
     instructions: record.instructions,
     criteria: Object.fromEntries((record.criteria as readonly ChoiceCriterion[]).map((item) => [item.key, item.description])),
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isAbortError(error: unknown): boolean {

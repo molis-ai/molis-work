@@ -364,7 +364,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   installProducers(store.db, { plugin_id: "example.writer", artifact_types: ["example.note"] });
   for (const version of [1, 2]) openProjectVersionStores(store).artifacts.commands.registerVersion({ ...pinnedArtifact("Frame artifact", undefined, String(version)),
     project_id: DEMO_PROJECT_ID, actor_id: "frame-container", artifact_id: "frame-note", version,
-    artifact_type_id: "example.note", schema_version: version,
+    artifact_type_id: "example.note", schema_version: 1,
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
     content: { kind: "inline", payload: { text: "Frame artifact" } }, metadata: {},
   });
@@ -476,7 +476,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]').textContent"),/正在打开/);
   } finally { await nextArtifact.close(); }
   await waitFor("document.querySelector('[data-frame-block].is-expanded [data-frame-reading=artifact]')?.dataset.artifactVersion==='2'&&document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]')?.dataset.loaded==='artifact:frame-note#2'");
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded .artifact-facts').textContent"),/Schema 2/);
+  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded .artifact-facts').textContent"),/Schema 1/);
   assert.deepEqual(await evaluate("t403Artifact.reads.map(read=>({version:new URL(read.url,location.href).pathname.split('/').pop(),method:read.method}))"),[{version:"1",method:"GET"},{version:"2",method:"GET"}]);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=inbox]').click()");
   await waitFor("document.querySelector('[data-frame-block].is-expanded [data-frame-reading=inbox]')");

@@ -2,6 +2,8 @@ import type { ContractDescriptor } from "./package.js";
 import type { ActionAvailability, ActionReference } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
+import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
+export * from "./ui-connections.js";
 
 /** A renderer contract requirement, not a callable business capability. */
 export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;
@@ -51,20 +53,6 @@ export interface UiViewSelection {
   readonly panel?: string;
   readonly intent?: "open" | "select";
 }
-
-/** Only the current or explicitly chosen account; the account directory stays in the trusted Host. */
-export interface UiConnectionSlotChoice {
-  readonly connection_id: string;
-  readonly label: string;
-  readonly auth_method: string;
-  readonly state: string;
-}
-
-export type UiConnectionSlotRequest<Element = unknown> = {
-  readonly slot_id: string;
-  readonly record_key: string;
-  readonly signal?: AbortSignal;
-} & ({ readonly mode: "read" } | { readonly mode: "choose"; readonly anchor: Element });
 
 /** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
 export interface UiPageWorkspaces {
@@ -646,6 +634,14 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   openView(selection: UiViewSelection): void;
   invalidateView(): void;
   connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
+  /**
+   * The platform's connection card at `place`, an empty element the page leaves where the account is missing. The shell draws it
+   * outside the page and keeps the account list, the key field and every write, each one the person's own click in the trusted
+   * card; asking writes nothing. Resolves `connected` (at once when the target already has a usable account) or `cancelled`; while
+   * the person is still connecting it waits, and `signal` is the page's only way out. Rejects with an `AbortError` when `signal`
+   * aborts, the view changes or the page closes, and with one fixed message when unavailable, whatever the reason.
+   */
+  connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: { signal?: AbortSignal }): Promise<UiConnectionNeedOutcome>;
   openItem(surface: string, itemId: string, title?: string): void;
   openBeside(surface: string, itemId: string, title?: string): void;
   openPlugin(surface: string, view?: string, panel?: string): void;

@@ -349,11 +349,20 @@ const headErrors = (measured, budget, base) => {
 // container query, the switch choice and the draft note. workbench.js +7536 B: the parts' row program (625 B) and the page's
 // switch, usages, steps and draft. Tried: the draft note is a server template, the progress is ④b's, repeated DOM idioms are
 // small helpers (about 990 B).
+// 13④a 自然高度折叠（#1886 的跟随 PR）: the catalog's connection row and the connection card in place open and close to their
+// natural height on the chevron's clock (行展开收起 · 250ms) instead of at once: `block-size` 0 → `auto` under
+// `@supports (interpolate-size:allow-keywords)`, rows kept one `1fr` row there. settings.css and workbench.css +315 B each, keyed
+// on merge-base 6a154c8d (after #1886), so the ④a entries are spent and replaced; workbench.js is unchanged, so its ④a entry
+// is spent and removed. Tried: one `naturalFold` helper for the four folds instead of four written-out blocks.
+// ASC-64 C1 (第 13 批④c, #1885; admitted by the batch 13 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin
+// host contract gains `connectionNeed`, refused by the frame like P3-0a's `taskGrants.place` until the shell slice draws the card
+// (specs/assistant-service-connections/spec.md §13.5 C1). Keyed on main's budget 188418 (after #1884, whose P3-0a entry is spent
+// there and replaced; still the budget after #1886 and #1892): plugin-frame.js +14 B. Tried: the two placeholders share one `unavailable` function instead of
+// a second inline copy, one fixed Error, no frame message.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [760704, 761321],
-  "/assets/molis-work-workbench.css": [1107725, 1108342],
-  "/assets/molis-work-workbench.js": [885295, 892831],
-  "/assets/molis-work-plugin-frame.js": [188354, 188418],
+  "/assets/molis-work-settings.css": [761321, 761636],
+  "/assets/molis-work-workbench.css": [1108342, 1108657],
+  "/assets/molis-work-plugin-frame.js": [188418, 188432],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],

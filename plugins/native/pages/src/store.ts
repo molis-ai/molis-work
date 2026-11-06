@@ -70,19 +70,17 @@ export class PagesStore extends PagesGenerationStore {
   }
 
   list(projectId: string): PagesRecord[] {
-    const project_id = normalizeProjectId(projectId);
-    return this.db.all("SELECT * FROM pages WHERE project_id = ? ORDER BY starred DESC, datetime(updated_at) DESC, title COLLATE NOCASE", [project_id]).map(fromPageRow);
+    return this.db.all("SELECT * FROM pages WHERE project_id = ? ORDER BY starred DESC, datetime(updated_at) DESC, title COLLATE NOCASE", [projectId]).map(fromPageRow);
   }
 
   listFolders(projectId: string): PagesFolder[] {
-    const project_id = normalizeProjectId(projectId);
-    return this.db.all("SELECT * FROM folders WHERE project_id = ? ORDER BY title COLLATE NOCASE", [project_id]).map(fromFolderRow);
+    return this.db.all("SELECT * FROM folders WHERE project_id = ? ORDER BY title COLLATE NOCASE", [projectId]).map(fromFolderRow);
   }
 
   get(id: string, projectId?: string): PagesRecord {
     const row = this.db.get("SELECT * FROM pages WHERE id = ?", [id]);
     if (!row) throw pagesErrors.not_found("找不到这篇文档");
-    if (projectId && row.project_id !== normalizeProjectId(projectId)) {
+    if (projectId && row.project_id !== projectId) {
       throw pagesErrors.not_found("找不到这篇文档");
     }
     return fromPageRow(row);
@@ -100,12 +98,11 @@ export class PagesStore extends PagesGenerationStore {
     const now = new Date().toISOString();
     const template = input.template_id ? pagesTemplateById(input.template_id) : undefined;
     if (input.template_id && !template) throw pagesErrors.invalid("找不到这份模板");
-    const project_id = normalizeProjectId(input.project_id);
-    const folder_id = normalizeFolderId(input.folder_id, this, project_id);
+    const folder_id = normalizeFolderId(input.folder_id, this, input.project_id);
     const rawBody = input.body ?? template?.body ?? { type: "doc", content: [...(EMPTY_PAGES_BODY.content ?? [])] };
     const record: PagesRecord = {
       id: crypto.randomUUID(),
-      project_id,
+      project_id: input.project_id,
       title: normalizeTitle(input.title ?? template?.title ?? "未命名文档"),
       body: parsePagesBody(JSON.parse(JSON.stringify(rawBody))),
       folder_id,
@@ -128,16 +125,15 @@ export class PagesStore extends PagesGenerationStore {
 
   /** Create a selected batch once; a retry returns current records without overwriting edits. */
   importDocuments(input: PagesImportDocumentsInput): PagesRecord[] {
-    const project_id = normalizeProjectId(input.project_id);
     if (!input.documents.length || input.documents.length > 100) throw pagesErrors.invalid("请选择 1 到 100 篇文档");
     return this.atomically(() => {
-      const prior = this.db.get("SELECT request_hash, document_ids_json FROM page_imports WHERE project_id = ? AND request_id = ?", [project_id, input.request_id]);
+      const prior = this.db.get("SELECT request_hash, document_ids_json FROM page_imports WHERE project_id = ? AND request_id = ?", [input.project_id, input.request_id]);
       if (prior) {
         const replay = input.replay ?? IMPORT_REPLAY;
         if (prior.request_hash !== input.request_hash) throw pagesErrors.unavailable(replay.changed);
         const ids = JSON.parse(String(prior.document_ids_json)) as string[];
         const documents = ids.map((id) => {
-          try { return this.get(id, project_id); }
+          try { return this.get(id, input.project_id); }
           catch (error) {
             if (error instanceof ActionError && error.code === "pages.not_found") {
               throw pagesErrors.unavailable(replay.removed);
@@ -148,14 +144,14 @@ export class PagesStore extends PagesGenerationStore {
         replay.onReplay?.();
         return documents;
       }
-      const folder_id = normalizeFolderId(input.folder_id, this, project_id);
+      const folder_id = normalizeFolderId(input.folder_id, this, input.project_id);
       const documents = input.documents.map((document) => this.create({
-        project_id,
+        project_id: input.project_id,
         folder_id,
         ...document,
       }));
       this.db.run("INSERT INTO page_imports (project_id, request_id, request_hash, document_ids_json, created_at) VALUES (?, ?, ?, ?, ?)",
-        [project_id, input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString()]);
+        [input.project_id, input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString()]);
       return documents;
     });
   }
@@ -238,15 +234,14 @@ export class PagesStore extends PagesGenerationStore {
    * belong to one project) and the numbering of fixed versions (those versions stay in the old project's results).
    */
   relocate(id: string, from: string, to: string): PagesRecord {
-    const target = normalizeProjectId(to);
     return this.atomically(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw pagesErrors.publication_pending("上次成果保存还没完成，请先在原位置继续保存，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
       const result = this.db.run("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?",
-        [target, id, current.version]);
+        [to, id, current.version]);
       if (result.changes !== 1) throw pagesErrors.conflict("文档刚被修改，请重新读取后再移动");
-      return this.get(id, target);
+      return this.get(id, to);
     });
   }
 
@@ -302,7 +297,7 @@ export class PagesStore extends PagesGenerationStore {
     const now = new Date().toISOString();
     const folder: PagesFolder = {
       id: crypto.randomUUID(),
-      project_id: normalizeProjectId(input.project_id),
+      project_id: input.project_id,
       title: normalizeFolderTitle(input.title ?? "未命名文件夹"),
       created_at: now,
       updated_at: now,
@@ -315,7 +310,7 @@ export class PagesStore extends PagesGenerationStore {
   getFolder(id: string, projectId?: string): PagesFolder {
     const row = this.db.get("SELECT * FROM folders WHERE id = ?", [id]);
     if (!row) throw pagesErrors.not_found("找不到这个文件夹");
-    if (projectId && row.project_id !== normalizeProjectId(projectId)) {
+    if (projectId && row.project_id !== projectId) {
       throw pagesErrors.not_found("找不到这个文件夹");
     }
     return fromFolderRow(row);
@@ -377,13 +372,6 @@ function fromFolderRow(row: SqlRow): PagesFolder {
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
-}
-
-function normalizeProjectId(value: string): string {
-  const id = value.trim();
-  if (!id) throw pagesErrors.invalid("缺少项目");
-  if (id.length > 80) throw pagesErrors.invalid("项目标识过长");
-  return id;
 }
 
 function normalizeTitle(value: string): string {

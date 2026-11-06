@@ -178,7 +178,7 @@
 **宿主那一半从不碰真实 Home。** `withIsolatedHome` 在运行期间把 `HOME`、`MOLIS_WORK_HOME` 指向新建的临时目录、`MOLIS_WORK_SECRET_BACKEND` 设成 `file`、清空 `MOLIS_WORK_ENCRYPTION_KEY`；`collectHost` 第一步调 `assertThrowawayHome`，找不到恰好这个环境就拒绝启动：Home 在（解开符号链接后的）临时目录里、`MOLIS_WORK_HOME` 与 `HOME` 解开后都指向它、后端是 `file`、没有加密密钥，缺哪一项都拒绝（后端没设时，非测试环境的 macOS 会选全机共用的钥匙串）。`tests/action-contract-snapshot.test.ts` 逐项试过：另一个存在的临时目录、变量没设、后端 `env`/`keychain`/没设、设了密钥、临时目录之外、指向临时目录之外的符号链接。在别处直接启动一个宿主列目录，没有设 `MOLIS_WORK_HOME` 时有的代码路径会解析到默认的 `~/.molis-work`（`resolveMolisWorkHome`），所以要列动作目录就走这两个函数，或者用 `scripts/run-tests.mjs`。
 
 **看不到的。**
-- 函数体与行为，以及动作的 `title`、`description`、`result_view` 的文字。
+- 函数体与行为，以及动作的 `title`、`description`、`result_view` 的文字。`result_view` 整个不入哈希，连同决定助理画不画连接卡的 `pending_connection`：它的形状由注册时的声明检查（`validActionResultView`）核，`connectors.setup.prepare@1` 声明了它、指针落在输出的必填字符串上，由 `tests/security-invariants-connector-scope.test.ts` 的 ASC-69 用例钉住。
 - 每类受众此刻能不能在目录里看到它：那取决于授权、生命周期和连接，是宿主动态给出的；快照只记声明的 `audiences`。步骤一的快照记过这个矩阵。
 - MCP 默认工具（`apps/mcp` 的 `MCP_TOOLS`、`RUNTIME_MCP_TOOLS`，步骤一记了 12 个）的名字与参数；运行时才有的动作（用户发布的判断函数，即 `functions.published.*` 里除下面三个以外的；外部 MCP 与服务连接的工具、创作台生成的插件、有配置的 Coding 外部 MCP）：空 Home 里没有它们。系统自己发布的三个判断函数（`functions.published.system_admit_inbox`、`system_pick_home_dock`、`system_pick_inbox_next`）空 Home 里就有，已在 `host-actions.tsv` 里。
 - 场景目录只列给持有场景所要权限的调用者（内核 `sceneVisible`：场景的 `permissions` 全持有，或持有它的 `configuration_permissions` 且有可配置的目标）。列场景用的调用者持有三处权限的并集：本机用户持有的（`LOCAL_OWNER_PERMISSIONS`）、宿主列出的每个动作所要的、每个 Manifest 场景所要的。只取 Manifest 场景所要的不够：首页的 `home.dock@1` 要 `home:read`，没有一个 Manifest 场景要它。没盖到的：某个场景若要这三处都没有的权限，没有人能在目录里看到它，快照也就看不到。`tests/action-contract-snapshot.test.ts` 把 `home.dock@1` 的权限和代码里的 `homeDockScene` 对着核，宿主场景目录不再列它时会红。

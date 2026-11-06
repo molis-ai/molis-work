@@ -21,7 +21,8 @@ export const connectorSetupAction: ActionDefinition = {
     output_schema: { type: "object", properties: { authorization_id: { type: "string", format: "uuid" }, status: { type: "string" },
       setup: { type: "object" }, url: { type: "string" }, possible_duplicates: { type: "array", items: { type: "object" } } },
       required: ["authorization_id", "status", "setup", "url", "possible_duplicates"], additionalProperties: false },
-    result_view: { summary: "接入方案已准备", title_pointer: "/setup/display_name", link: { label: "继续接入", href_template: "/capabilities/connections?setup={/authorization_id}" } },
+    result_view: { summary: "接入方案已准备", title_pointer: "/setup/display_name", link: { label: "继续接入", href_template: "/capabilities/connections?setup={/authorization_id}" },
+      pending_connection: { authorization_pointer: "/authorization_id" } },
   },
 };
 

@@ -311,11 +311,24 @@ const headErrors = (measured, budget, base) => {
 // spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
 // the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
 // the select in place instead of reloading the page, the host names no key so the page needs no second string.
+// ASC-60～63 (第 13 批④b, #1881, admitted by the batch 13 coordinator after the review desk on 2026-11-06): the model settings page
+// and Images' image-service dialog as plan A. settings.css +2478 B and workbench.css +2478 B: the catalog's step progress as it is
+// (about 1.25 KB, split out of SERVICE_CONNECTION_PART_STYLES and referenced, not copied), the four rows, 高级, the save bar, the
+// rate-limit box and the model row's two lines (container queries). workbench.js +3724 B: the progress function shared with the
+// catalog (819 B, bundled from service-connection-item.ts), the coded check's split (a refused key under its field, saying whether
+// it was the new key or the one in use; the 429 recheck) and ↵ to save. images.js +1207 B: the presets' models and sizes, the
+// service choice and 高级, the compose form's size list; images.css +50 B: 高级's field spacing (the old preset rules removed).
+// Keyed on merge-base c7b65842; the ASC-57 entries for the three page assets are spent there (the budget holds their ceilings), so
+// they are replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
+// alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
+// what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827545, 827793],
-  "/assets/molis-work-workbench.css": [1204497, 1204745],
-  "/assets/molis-work-workbench.js": [1077683, 1078718],
+  "/assets/molis-work-settings.css": [827793, 830271],
+  "/assets/molis-work-workbench.css": [1204745, 1207223],
+  "/assets/molis-work-workbench.js": [1078718, 1082442],
   "/assets/molis-work-plugin-frame.js": [208271, 208325],
+  "/assets/molis-work-plugins/images.js": [19897, 21104],
+  "/assets/molis-work-plugins/images.css": [7851, 7901],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

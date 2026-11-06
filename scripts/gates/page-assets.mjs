@@ -344,15 +344,19 @@ const headErrors = (measured, budget, base) => {
 // one short fixed message; no cast.
 // 13④a 连接页 ASC-73～79，#1886，统筹审过放行 (2026-11-06): the settings' 服务连接 page as plan A — rows grouped by use that open in
 // place, an account's four rows, 换账号 among accounts, the steps, 高级 and its draft. Keyed on merge-base 875fb6be (after #1877's
-// compiled client and minified sheets), so the ④b entries above are spent and replaced. settings.css and workbench.css +932 B
+// compiled client and minified sheets), so the ④b entries above are spent and replaced. settings.css and workbench.css +617 B
 // each: the catalog's row part only (the card it does not draw is split out of the parts' styles), the four rows' card with a
-// container query, the switch choice and the draft note, and the row's natural-height fold (`interpolate-size`, +315 B). workbench.js +7536 B: the parts' row program (625 B) and the page's
+// container query, the switch choice and the draft note. workbench.js +7536 B: the parts' row program (625 B) and the page's
 // switch, usages, steps and draft. Tried: the draft note is a server template, the progress is ④b's, repeated DOM idioms are
 // small helpers (about 990 B).
+// 13④a 自然高度折叠（#1886 的跟随 PR）: the catalog's connection row and the connection card in place open and close to their
+// natural height on the chevron's clock (行展开收起 · 250ms) instead of at once: `block-size` 0 → `auto` under
+// `@supports (interpolate-size:allow-keywords)`, rows kept one `1fr` row there. settings.css and workbench.css +315 B each, keyed
+// on merge-base 6a154c8d (after #1886), so the ④a entries are spent and replaced; workbench.js is unchanged, so its ④a entry
+// is spent and removed. Tried: one `naturalFold` helper for the four folds instead of four written-out blocks.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [760704, 761636],
-  "/assets/molis-work-workbench.css": [1107725, 1108657],
-  "/assets/molis-work-workbench.js": [885295, 892831],
+  "/assets/molis-work-settings.css": [761321, 761636],
+  "/assets/molis-work-workbench.css": [1108342, 1108657],
   "/assets/molis-work-plugin-frame.js": [188354, 188418],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],

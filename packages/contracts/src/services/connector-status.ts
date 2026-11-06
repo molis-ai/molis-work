@@ -16,6 +16,21 @@ export interface ConnectorCheckObservation {
 export interface ConnectorCallObservation {
   at: string; revision: string; outcome: "succeeded" | "failed" | "unknown";
   action: ActionReference; actor_id: string; project_id: string | null; call_id?: string;
+  /**
+   * How many uses of this connection version in a row have failed for the same `failure_class`, this one included; absent once a use
+   * succeeds, the version changes or the class changes (a new run starts at 1). Only failures that are the connection's or the service's
+   * count: a request refused before it was sent (connection disabled, disconnected, unbound, wrong origin, call cancelled) and a rate
+   * limit (429) neither count nor end a run. Counted by the Host; it decides when the person is told (ASC-58), not this field.
+   */
+  failures?: number;
+  /** When the first failure of the current run happened; unchanged while the run lasts, so one run is one problem. Set with `failures`. */
+  failing_since?: string;
+  /**
+   * What the run is: `reauth` the account must be logged in again (its refresh was refused), `denied` the service refused the key or the
+   * permission (401 after any refresh, or 403), `unavailable` the service could not be reached or kept failing (timeout, no connection, 5xx,
+   * each after the read resends). Set with `failures`.
+   */
+  failure_class?: "reauth" | "denied" | "unavailable";
 }
 export interface ConnectorObservations { check?: ConnectorCheckObservation; call?: ConnectorCallObservation }
 

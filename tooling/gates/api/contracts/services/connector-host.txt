@@ -233,6 +233,9 @@ export interface ConnectorCallObservation {
     actor_id: string;
     project_id: string | null;
     call_id?: string;
+    failures?: number;
+    failing_since?: string;
+    failure_class?: "reauth" | "denied" | "unavailable";
 }
 
 export interface ConnectorCapability {

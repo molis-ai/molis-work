@@ -72,15 +72,14 @@ export class LingguangStore {
   }
 
   list(projectId: string): LingguangSpark[] {
-    const project_id = normalizeProjectId(projectId);
-    const rows = this.db.all("SELECT * FROM sparks WHERE project_id = ? AND status = 'inbox' ORDER BY created_at DESC, rowid DESC", [project_id]) as unknown as SparkRow[];
+    const rows = this.db.all("SELECT * FROM sparks WHERE project_id = ? AND status = 'inbox' ORDER BY created_at DESC, rowid DESC", [projectId]) as unknown as SparkRow[];
     return rows.map(fromSparkRow);
   }
 
   get(id: string, projectId?: string): LingguangSpark {
     const row = this.db.get("SELECT * FROM sparks WHERE id = ?", [id]) as unknown as SparkRow | undefined;
     if (!row) throw lingguangErrors.not_found("找不到这条灵光");
-    if (projectId && row.project_id !== normalizeProjectId(projectId)) {
+    if (projectId && row.project_id !== projectId) {
       throw lingguangErrors.not_found("找不到这条灵光");
     }
     return fromSparkRow(row);
@@ -92,11 +91,10 @@ export class LingguangStore {
    * never silently dropped in favour of someone else's spark.
    */
   create(input: { title?: string; body?: string; project_id: string; request_id?: string }): LingguangSpark {
-    const project_id = normalizeProjectId(input.project_id);
     const body = normalizeBody(input.body ?? "");
     const title = normalizeTitle(input.title ?? "", body) || "未命名灵光";
-    if (!input.request_id) return this.insertSpark(project_id, title, body);
-    return this.once(project_id, input.request_id, fingerprint("create", title, body), () => this.insertSpark(project_id, title, body));
+    if (!input.request_id) return this.insertSpark(input.project_id, title, body);
+    return this.once(input.project_id, input.request_id, fingerprint("create", title, body), () => this.insertSpark(input.project_id, title, body));
   }
 
   private insertSpark(project_id: string, title: string, body: string): LingguangSpark {
@@ -159,28 +157,26 @@ export class LingguangStore {
    * One shared with other sparks would lose part of its context, so that spark is copied instead.
    */
   relocate(id: string, from: string, to: string): LingguangSpark {
-    const target = normalizeProjectId(to);
     return this.transaction(() => {
       const current = this.get(id, from);
-      const talks = (this.db.all("SELECT id, spark_ids_json FROM conversations WHERE project_id = ?", [normalizeProjectId(from)]) as { id: string; spark_ids_json: string }[])
+      const talks = (this.db.all("SELECT id, spark_ids_json FROM conversations WHERE project_id = ?", [from]) as { id: string; spark_ids_json: string }[])
         .filter(row => (JSON.parse(row.spark_ids_json) as string[]).includes(id));
       if (talks.some(row => (JSON.parse(row.spark_ids_json) as string[]).length > 1)) {
         throw lingguangErrors.invalid("这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
       }
       // A move is not an edit: the spark keeps its time and revision, so work that recorded it still matches.
-      this.db.run("UPDATE sparks SET project_id = ? WHERE id = ? AND updated_at = ?", [target, id, current.updated_at]);
-      for (const talk of talks) this.db.run("UPDATE conversations SET project_id = ? WHERE id = ?", [target, talk.id]);
-      return this.get(id, target);
+      this.db.run("UPDATE sparks SET project_id = ? WHERE id = ? AND updated_at = ?", [to, id, current.updated_at]);
+      for (const talk of talks) this.db.run("UPDATE conversations SET project_id = ? WHERE id = ?", [to, talk.id]);
+      return this.get(id, to);
     });
   }
 
   /** An independent copy in another partition (without its brainstorms); the same request returns the same copy. */
   duplicate(id: string, from: string, to: string, requestId: string): LingguangSpark {
-    const target = normalizeProjectId(to), origin = normalizeProjectId(from);
     // The request is the copy of this spark from this partition: what the spark says at retry time does not change it.
-    return this.once(target, "copy:" + requestId, fingerprint("copy", id, origin), () => {
-      const source = this.get(id, origin);
-      return this.insertSpark(target, source.title, source.body);
+    return this.once(to, "copy:" + requestId, fingerprint("copy", id, from), () => {
+      const source = this.get(id, from);
+      return this.insertSpark(to, source.title, source.body);
     });
   }
 
@@ -210,18 +206,17 @@ export class LingguangStore {
     messages: LingguangMessage[];
   } {
     return this.transaction(() => {
-      const project_id = normalizeProjectId(projectId);
-      const sparks = uniqueSparkIds(sparkIds).map((id) => this.get(id, project_id));
+      const sparks = uniqueSparkIds(sparkIds).map((id) => this.get(id, projectId));
       if (!sparks.length) throw lingguangErrors.invalid("先选至少一条");
       if (sparks.some((spark) => spark.status !== "inbox")) {
         throw lingguangErrors.invalid("丢掉的灵光不能再拿去聊");
       }
       const spark_ids = sparks.map((spark) => spark.id).sort();
       const spark_key = spark_ids.join(",");
-      const existing = this.db.get("SELECT * FROM conversations WHERE project_id = ? AND spark_key = ?", [project_id, spark_key]) as unknown as ConversationRow | undefined;
+      const existing = this.db.get("SELECT * FROM conversations WHERE project_id = ? AND spark_key = ?", [projectId, spark_key]) as unknown as ConversationRow | undefined;
       const conversation = existing
         ? fromConversationRow(existing)
-        : insertConversation(this.db, project_id, spark_key, spark_ids);
+        : insertConversation(this.db, projectId, spark_key, spark_ids);
       return {
         conversation,
         sparks,
@@ -231,11 +226,10 @@ export class LingguangStore {
   }
 
   conversation(conversationId: string, projectId: string): LingguangConversationState {
-    const project_id = normalizeProjectId(projectId);
-    const row = this.db.get("SELECT * FROM conversations WHERE id = ? AND project_id = ?", [conversationId, project_id]) as unknown as ConversationRow | undefined;
+    const row = this.db.get("SELECT * FROM conversations WHERE id = ? AND project_id = ?", [conversationId, projectId]) as unknown as ConversationRow | undefined;
     if (!row) throw lingguangErrors.not_found("找不到这场对话");
     const conversation = fromConversationRow(row);
-    return { conversation, sparks: conversation.spark_ids.map(id => this.get(id, project_id)), messages: this.listMessages(conversationId) };
+    return { conversation, sparks: conversation.spark_ids.map(id => this.get(id, projectId)), messages: this.listMessages(conversationId) };
   }
 
   /** Commit a completed turn atomically, against exactly the material the model saw. */
@@ -328,13 +322,6 @@ function uniqueSparkIds(value: readonly string[]): string[] {
 const FINGERPRINT_LENGTH = 64;
 function fingerprint(...parts: string[]): string {
   return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
-}
-
-function normalizeProjectId(value: string): string {
-  const id = value.trim();
-  if (!id) throw lingguangErrors.invalid("缺少项目");
-  if (id.length > 80) throw lingguangErrors.invalid("项目标识过长");
-  return id;
 }
 
 function normalizeTitle(value: string, body: string): string {

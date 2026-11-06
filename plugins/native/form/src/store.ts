@@ -83,15 +83,14 @@ export class FormStore {
   }
 
   list(projectId: string): FormRecord[] {
-    const project_id = normalizeProjectId(projectId);
-    const rows = this.db.all("SELECT * FROM forms WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [project_id]) as unknown as FormRow[];
+    const rows = this.db.all("SELECT * FROM forms WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [projectId]) as unknown as FormRow[];
     return rows.map(fromRow);
   }
 
   get(id: string, projectId?: string): FormRecord {
     const row = this.db.get("SELECT * FROM forms WHERE id = ?", [id]) as FormRow | undefined;
     if (!row) throw formErrors.not_found("找不到这份问卷");
-    if (projectId && row.project_id !== normalizeProjectId(projectId)) {
+    if (projectId && row.project_id !== projectId) {
       throw formErrors.not_found("找不到这份问卷");
     }
     return fromRow(row);
@@ -101,7 +100,7 @@ export class FormStore {
     const now = new Date().toISOString();
     const record: FormRecord = {
       id: crypto.randomUUID(),
-      project_id: normalizeProjectId(input.project_id),
+      project_id: input.project_id,
       title: normalizeTitle(input.title ?? "未命名问卷"),
       description: "",
       status: "draft",
@@ -157,13 +156,12 @@ export class FormStore {
 
   /** A form made from a list of questions another plugin hands over; one delivery makes one form. */
   receive(projectId: string, requestId: string, title: string, questions: readonly FormQuestionInput[]): FormRecord {
-    const target = normalizeProjectId(projectId);
     return this.atomically(() => {
-      const prior = this.db.get("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?", [target, "receive:" + requestId]) as { target_id: string } | undefined;
-      if (prior) return this.get(prior.target_id, target);
-      const created = this.create({ title, project_id: target });
-      const filled = this.update(created.id, { questions, expected_version: created.version }, target);
-      this.db.run("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [target, "receive:" + requestId, "", filled.id, filled.updated_at]);
+      const prior = this.db.get("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?", [projectId, "receive:" + requestId]) as { target_id: string } | undefined;
+      if (prior) return this.get(prior.target_id, projectId);
+      const created = this.create({ title, project_id: projectId });
+      const filled = this.update(created.id, { questions, expected_version: created.version }, projectId);
+      this.db.run("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [projectId, "receive:" + requestId, "", filled.id, filled.updated_at]);
       return filled;
     });
   }
@@ -224,29 +222,27 @@ export class FormStore {
 
   /** Move to another partition; the id stays and its answers go with it. Fixed versions stay with the old place. */
   relocate(id: string, from: string, to: string): FormRecord {
-    const target = normalizeProjectId(to);
     return this.atomically(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw formErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.run("UPDATE forms SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [target, id, current.version]);
+      const result = this.db.run("UPDATE forms SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [to, id, current.version]);
       if (result.changes !== 1) throw formErrors.conflict("问卷刚被修改，请重新读取后再移动");
-      return this.get(id, target);
+      return this.get(id, to);
     });
   }
 
   /** A copy of the questions in another partition, without answers and not collecting; the same request returns the same copy. */
   duplicate(id: string, from: string, to: string, requestId: string): FormRecord {
-    const target = normalizeProjectId(to);
     return this.atomically(() => {
-      const prior = this.db.get("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?", [target, requestId]) as { target_id: string } | undefined;
-      if (prior) return this.get(prior.target_id, target);
+      const prior = this.db.get("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?", [to, requestId]) as { target_id: string } | undefined;
+      if (prior) return this.get(prior.target_id, to);
       const source = this.get(id, from);
       const now = new Date().toISOString();
-      const copy: FormRecord = { id: crypto.randomUUID(), project_id: target, title: source.title, description: source.description, status: "draft", share_id: null,
+      const copy: FormRecord = { id: crypto.randomUUID(), project_id: to, title: source.title, description: source.description, status: "draft", share_id: null,
         questions: source.questions, created_at: now, updated_at: now, version: 1, artifact_id: "", artifact_version: 0 };
       this.db.run("INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [copy.id, copy.project_id, copy.title, copy.description, copy.status, null, JSON.stringify(copy.questions), now, now, 1]);
-      this.db.run("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [target, requestId, id, copy.id, now]);
+      this.db.run("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [to, requestId, id, copy.id, now]);
       return copy;
     });
   }
@@ -385,13 +381,6 @@ function assertTakesAnswers(form: FormRecord, source: Exclude<FormSubmissionSour
   throw formErrors.closed(reason + (stopped
     ? `，助理、外部工具、工作流和插件不能再${what}；需要继续收集时，请本人在问卷里重新开始收集`
     : `，助理、外部工具、工作流和插件暂时不能${what}；请本人先在问卷里开始收集`));
-}
-
-function normalizeProjectId(value: string): string {
-  const id = value.trim();
-  if (!id) throw formErrors.invalid("缺少项目");
-  if (id.length > 80) throw formErrors.invalid("项目标识过长");
-  return id;
 }
 
 function normalizeTitle(value: string): string {

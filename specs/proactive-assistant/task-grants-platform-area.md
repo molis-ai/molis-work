@@ -6,7 +6,7 @@
 - **结论（推荐）**：插件只经 SDK 说「在这个空元素的位置，为我这个任务放一块」；工作台把区域画在**插件框外**，作为插件框的兄弟节点叠在它上面，跟着插件报的位置走。这和现有的审查卡（`host.reviews.show`，`UiPageReviews`，`apps/workbench/src/browser/plugin-frame/reviews.ts`）、嵌入（`view.embed`，`embed.ts`）是同一种做法，新增的是防遮盖的几条检查（第 3 节）和一条安全不变量（第 4 节）。
 - **不碰的**：P2 的宿主任务主体与三个平台动作的实现（E）、Schedule 的页面（E，叠在 P3 后面接入）、`packages/contracts/src/platform/dom-events.ts`（推荐方案不需要新的 DOM 事件）。
 
-验收编号：本稿新增 `TGA-01`～`TGA-19`（第 4 节），测试名里写编号；需求侧仍是 PWA-148、PWA-151、PWA-154。
+验收编号：本稿新增 `TGA-01`～`TGA-19`（第 4 节）与 `TGA-20`（5.1，不属于安全不变量），测试名里写编号；需求侧仍是 PWA-148、PWA-151、PWA-154。
 
 ## 1. 现状：插件页面怎样跑、平台已有的「框外区域」
 
@@ -256,6 +256,8 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 - **读 Manifest 时的检查**（`packages/plugin-sdk/src/task-subject-declarations.ts`，新文件，由 `parsePluginManifest` 在 `readGroupDeclarationProblems` 旁调用）：是对象、只有 `kind` 一个键；`kind` 是本 Manifest 某个动作的 `action.search_source.kinds[].kind`，并且那个动作对 `user` 开放（取标题以本人身份调）。不符就拒绝这份 Manifest，同读取分组。
 - **不声明**：插件照样能用任务主体与平台区域，只是「授权与放行」里那一行写「插件名 · 一个任务」。插件同等待遇：第三方声明同一项就得到同样的标题。
 - **Schedule 的声明**：`task_subjects: { kind: "schedule_task" }`；它已有 `schedule.search.entries`（`plugins/native/schedule/src/search.ts`，列出未归档的 `schedule_task`，带标题与打开位置），不用新增动作。这一行属 E 的文件，按规则 7 由 E 随 P3-2 落。
+- **一种对象**：现在一个插件的任务主体只对应一种对象，所以 `task_subjects` 是单个对象。将来一个插件有多种任务对象时改成数组（合同改动）。
+- **验收**：`TGA-20`「`task_subjects` 声明检查」：上面三条读 Manifest 时的检查（只有 `kind`；`kind` 是本 Manifest 搜索来源列出的；那个搜索来源对 `user` 开放）各有一个通过用例和只破这一条的拒绝用例，畸形输入以 `plugin.declaration_invalid` 拒绝而不是抛 TypeError（`tests/plugin-task-subjects.test.ts`）。它是 Manifest 合同的检查，**不属于**第 4 节的安全不变量：标题只用于显示，不作授权依据。
 
 ### 5.2 取标题的通路
 

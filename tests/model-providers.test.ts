@@ -83,7 +83,7 @@ test("模型设置只选择连接，不渲染密钥，并保留失效引用", ()
   assert.match(withKey, /data-model-key-field hidden/);
   assert.match(withKey, /data-model-connection/);
   assert.match(withKey, /value="saved-model-account" selected>已保存账号/);
-  assert.match(withKey, /在 Connectors 管理 API Key/);
+  assert.match(withKey, /在服务连接里管理密钥/);
 
   const withoutKey = renderModelSettingsDocument({
     templates: [],

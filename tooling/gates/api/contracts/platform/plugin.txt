@@ -3458,6 +3458,7 @@ export interface PluginManifest {
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
     read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
+    task_subjects?: import("platform/plugin-task-subjects").PluginTaskSubjectsDeclaration;
 }
 
 export interface PluginManifestDatabases {
@@ -4074,6 +4075,10 @@ export interface PluginStartContext {
     input_group?: string;
     readonly services?: PluginHostServices;
     requireGrant(permission: string): void;
+}
+
+export interface PluginTaskSubjectsDeclaration {
+    readonly kind: string;
 }
 
 export interface PluginTerminalClient {

@@ -1,5 +1,5 @@
 import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderChoice, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { IMAGES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export interface ImagesUiModel {
@@ -65,8 +65,9 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
             </div>
             <label class="images-field"><span>${p.text("images.compose.prompt")}</span><textarea class="mw-textarea images-prompt" data-images-prompt rows="7" maxlength="32000" required placeholder="${p.text("images.compose.example")}"></textarea></label>
             <div class="images-parameters">
-              <label class="images-field" data-images-size-field><span>${p.text("images.compose.size")}</span><input class="mw-input" data-images-size autocomplete="off" maxlength="100" placeholder="${p.text("images.compose.size-placeholder")}"><small>${p.text("images.compose.size-help")}</small></label>
-              <label class="images-field" data-images-ratio-field hidden><span>${p.text("images.compose.ratio")}</span><input class="mw-input" data-images-ratio autocomplete="off" maxlength="100" placeholder="${p.text("images.compose.ratio-placeholder")}"></label>
+              <label class="images-field" data-images-size-field><span>${p.text("images.compose.size")}</span><input class="mw-input" data-images-size list="images-size-options" autocomplete="off" maxlength="100" placeholder="${p.text("images.compose.size-placeholder")}"><small data-images-size-help>${p.text("images.compose.size-help")}</small></label>
+              <label class="images-field" data-images-ratio-field hidden><span>${p.text("images.compose.ratio")}</span><input class="mw-input" data-images-ratio list="images-ratio-options" autocomplete="off" maxlength="100" placeholder="${p.text("images.compose.ratio-placeholder")}"><small data-images-ratio-help></small></label>
+              <datalist id="images-size-options" data-images-size-options></datalist><datalist id="images-ratio-options" data-images-ratio-options></datalist>
             </div>
             <div class="images-submit-row"><p>${p.text("images.compose.cost")}</p><button class="mw-btn mw-btn--primary" type="submit" data-images-generate disabled>${p.text("images.compose.generate")}</button></div>
             <p class="images-note" data-images-project-note hidden>${p.text("images.compose.project")}</p>
@@ -83,16 +84,17 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
             <div class="images-saved-connections" role="group" aria-label="${p.text("images.service.saved-list")}" data-images-saved-connections></div>
             <fieldset class="images-connection-fields" data-images-connection-fields>
               <legend data-images-connection-heading>${p.text("images.service.add")}</legend>
-              <div class="images-presets" role="group" aria-label="${p.text("images.service.preset")}">
-                <button type="button" class="mw-btn mw-btn--secondary" data-images-preset="openai">OpenAI</button>
-                <button type="button" class="mw-btn mw-btn--secondary" data-images-preset="gemini">Gemini</button>
-                <button type="button" class="mw-btn mw-btn--secondary" data-images-preset="custom">${p.text("images.service.custom")}</button>
-              </div>
-              <label class="images-field"><span>${p.text("images.service.name")}</span><input class="mw-input" name="connection_name" data-images-connection-name required maxlength="100" autocomplete="off"></label>
-              <div class="images-field"><span>${p.text("images.service.format")}</span><div class="images-protocols" role="group" aria-label="${p.text("images.service.format")}"><button class="mw-btn mw-btn--secondary" type="button" data-images-format="openai-images" aria-pressed="true">OpenAI Images</button><button class="mw-btn mw-btn--secondary" type="button" data-images-format="gemini" aria-pressed="false">Gemini generateContent</button></div></div>
-              <label class="images-field"><span>${p.text("images.service.url")}</span><input class="mw-input" name="base_url" data-images-connection-url type="url" required autocomplete="off" placeholder="https://api.openai.com/v1"></label>
-              <label class="images-field"><span>${p.text("images.service.model-name")}</span><input class="mw-input" name="model" data-images-connection-model required maxlength="200" autocomplete="off"></label>
+              <div class="images-field"><span id="images-preset-label">${p.text("images.service.pick")}</span>
+                <div class="mw-choice-group" role="group" aria-labelledby="images-preset-label">${[["openai", "OpenAI"], ["gemini", "Gemini"], ["custom", p.text("images.service.custom")]]
+                  .map(([preset, label]) => renderChoice({ label, attrs: { "data-images-preset": preset } })).join("")}</div>
+                <small class="images-offer" data-images-offer></small></div>
               <label class="images-field"><span>${p.text("images.account.label")}</span><select class="mw-select" data-images-connection-auth><option value="">${p.text("images.account.anonymous")}</option></select><small data-images-key-help>${p.text("images.account.key-management")}</small></label><a href="/settings/connectors?connector=image-api">${p.text("images.account.open-connectors")}</a>
+              <details class="mw-collapsible images-advanced" data-images-advanced><summary>${p.text("images.service.advanced")}</summary><div class="mw-collapsible__body">
+                <label class="images-field"><span>${p.text("images.service.name")}</span><input class="mw-input" name="connection_name" data-images-connection-name required maxlength="100" autocomplete="off"></label>
+                <div class="images-field"><span>${p.text("images.service.format")}</span><div class="images-protocols" role="group" aria-label="${p.text("images.service.format")}"><button class="mw-btn mw-btn--secondary" type="button" data-images-format="openai-images" aria-pressed="true">OpenAI Images</button><button class="mw-btn mw-btn--secondary" type="button" data-images-format="gemini" aria-pressed="false">Gemini generateContent</button></div></div>
+                <label class="images-field"><span>${p.text("images.service.url")}</span><input class="mw-input" name="base_url" data-images-connection-url type="url" required autocomplete="off" placeholder="https://api.openai.com/v1"></label>
+                <label class="images-field"><span>${p.text("images.service.model-name")}</span><input class="mw-input" name="model" data-images-connection-model required maxlength="200" autocomplete="off"></label>
+              </div></details>
             </fieldset>
           </div>
           <footer class="images-dialog-footer"><p class="images-note" role="status" data-images-connection-note hidden></p><div class="images-actions"><button class="mw-btn mw-btn--ghost" type="button" data-images-add-connection>${p.text("images.service.add-another")}</button><button class="mw-btn mw-btn--primary" type="submit" data-images-save-connection>${p.text("images.service.save")}</button></div></footer>

@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {cogniaManifest} from '@molis-ai/molis-work-plugin-cognia';
+import {openCogniaStore} from '../../tests/fixtures/plugin-sync-stores.ts';
+import {runtimePersonalSync,prepareSyncTestHome} from '../../tests/fixtures/runtime-personal-sync.ts';
+import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
+import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
+import { cloudFixture } from './testing.mjs';
+
+test('PCSYNC-11/15/22/23 Cognia knowledge graph retains bytes, historical citations, source descriptions and explicit conflicts',async t=>{
+ const f=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-cognia-sync-'));
+ const previous=process.env.MOLIS_WORK_SYNC_ORIGIN;process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_ORIGIN;else process.env.MOLIS_WORK_SYNC_ORIGIN=previous;});t.mock.method(globalThis,'fetch',f.transport);
+ const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b'].map(n=>join(root,n));homes.forEach(h=>{ensureStorageSpace(h,space);prepareSyncTestHome(h);});
+ for(const home of homes)await withMolisWorkProjectCatalog({homeDirectory:home},()=>{});
+ const runtimes=await Promise.all(homes.map(home=>runtimePersonalSync(home,space,()=>{},{accessToken:async()=>'alice',authOrigin:'https://auth.example.test'})));
+ t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
+ const stores=homes.map(openCogniaStore);t.after(()=>stores.forEach(s=>s.close()));
+ const domain=stores[0].createDomain('Notes'),original=stores[0].createMaterial({title:'Original',body:'Original evidence🙂',domain_id:domain.id});
+ stores[0].updateMaterial(original.id,{title:'Current',body:'Current evidence🙂',domain_id:domain.id});
+ const binary=Buffer.alloc(600000,43),preview=stores[0].preview({kind:'markdown',name:'Vault',locator:'local:/never-upload-this-machine-directory',files:[{path:'files/saved.pdf',data:binary.toString('base64')}]});
+ const imported=stores[0].commit(preview.id),file=imported.material_ids[0];
+ stores[0].addDraft({id:'draft',title:'Synthesis',body:'Fixed evidence [S1]',domain_id:domain.id,mode:'synthesize',saved_id:null,created_at:'2026-10-18T00:00:00Z',references:[{label:'S1',material_id:original.id,revision:1,title:original.title,path:original.path,body:original.body}]});
+ const selection={plugin_id:cogniaManifest.plugin_id,publisher_id:cogniaManifest.publisher.publisher_id,publisher_signature:cogniaManifest.publisher.signature,collection_id:cogniaManifest.sync.collections[0].id,schema_version:cogniaManifest.sync.collections[0].schema_version};
+ const ns=JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,selection.schema_version]);
+ const clients=runtimes.map(runtime=>runtime.sync);await clients[0].run();await clients[1].run();
+ await clients[0].save({spaceId:space.spaceId,revision:0,selections:[selection]});await clients[0].run();await clients[1].run();clients.forEach(c=>assert.equal(c.status().error,null));
+ assert.equal(stores[1].read(original.id).body,'Current evidence🙂');assert.equal(stores[1].read(original.id,1).body,'Original evidence🙂');assert.deepEqual(stores[1].download(file).bytes,binary);assert.equal(stores[1].drafts()[0].references[0].revision,1);assert.equal(stores[1].sources().find(s=>s.id===preview.source.id).locator,'upload');assert.equal(stores[0].sources().find(s=>s.id===preview.source.id).locator,'local:/never-upload-this-machine-directory');
+ const objects=await f.bucket.list();for(const object of objects.objects){const bytes=Buffer.from(await (await f.bucket.get(object.key)).arrayBuffer());assert.doesNotMatch(bytes.toString('utf8'),/never-upload-this-machine-directory/);}assert.ok(objects.objects.length>1);
+ stores[0].updateMaterial(original.id,{title:'Source edit',body:'Source edit',domain_id:domain.id});stores[1].updateMaterial(original.id,{title:'Target edit',body:'Target edit',domain_id:domain.id});const staleEdit=stores[1].detail(original.id);await clients[0].run();await clients[1].run();
+ const key=clients[1].status().collections.find(c=>c.selection.plugin_id===selection.plugin_id&&c.selection.collection_id===selection.collection_id).conflicts[0].key,comparison=clients[1].inspectConflict(ns,key);assert.equal(comparison.local.value.graph.materials.find(m=>m.id===original.id).body,'Target edit');await clients[1].resolve(ns,key,'remote',comparison.revision,comparison.state);assert.equal(stores[1].read(original.id).body,'Source edit');assert.equal(clients[1].recoveries(ns).length,1);
+ assert.equal(staleEdit.material.revision,stores[1].read(original.id).revision,'concurrent branches can have the same numeric revision');assert.throws(()=>stores[1].updateMaterial(original.id,{title:'Stale editor',body:'Must not overwrite synchronized content'},staleEdit.etag),{code:'cognia.conflict'});assert.equal(stores[1].read(original.id).body,'Source edit');
+ stores[0].deleteMaterial(original.id);await clients[0].run();await clients[1].run();assert.ok(!stores[1].materials().some(m=>m.id===original.id));assert.equal(stores[1].read(original.id,1).body,'Original evidence🙂','fixed citations survive removal from current materials');
+ stores[0].archiveDraft('draft');await clients[0].run();await clients[1].run();assert.equal(stores[1].drafts().length,0);assert.deepEqual(stores[1].download(file).bytes,binary);
+ const count=(await f.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n;await clients[0].run();await clients[1].run();assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n,count);
+});

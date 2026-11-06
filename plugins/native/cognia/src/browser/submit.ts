@@ -54,7 +54,7 @@ async function commitImport(page: CogniaPage): Promise<void> {
 
 /** Writes a material (new, or a new version of the open one), then shows it. */
 async function saveMaterial(page: CogniaPage, data: FormData, path: string): Promise<void> {
-  const result = await page.api<{ material: Material }>(path, { title: text(data, "title"), body: text(data, "body"), domain_id: text(data, "domain_id") || null });
+  const result = await page.api<{ material: Material }>(path, { ...(page.flow === "edit" ? { etag: page.etag } : {}), title: text(data, "title"), body: text(data, "body"), domain_id: text(data, "domain_id") || null });
   page.dialog.close();
   await reload(page);
   await openMaterial(page, result.material.id);

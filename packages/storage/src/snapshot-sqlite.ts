@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { chmodSync, closeSync, fsyncSync, lstatSync, openSync, readSync, realpathSync } from "node:fs";
 import Database from "better-sqlite3";
+import { isDeepStrictEqual } from "node:util";
+import { readDatabaseSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace } from "./space.js";
+import { snapshotProgramsMatch } from "./sqlite-baseline-inspection.js";
 import { openSqliteConnection } from "./sqlite-connection.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
@@ -21,6 +24,10 @@ const changed = (file: string) =>
 
 export interface SqliteSnapshotOptions {
   readonly baseline?: SqliteBaseline;
+  /** When a store carries space metadata, compare it to the trusted Home's immutable owner. */
+  readonly space?: StorageSpace;
+  /** The owner opens this library as a Home-bound store; deleting its binding cannot downgrade it to an unbound one. */
+  readonly requireSpace?: boolean;
   /** Installed libraries already have a version owner even when the declaration's SQL is not retained. */
   readonly version?: number;
   /** A project library also contains its plugins' separately owned tables. */
@@ -90,10 +97,20 @@ function inspectDatabase(
   if (expectedVersion !== undefined && userVersion !== expectedVersion)
     throw new SqliteSchemaVersionError(file, userVersion, expectedVersion);
   const shape = describeSqliteSchema(database);
+  if (shape.tables.molis_storage_space && !spaceMetadataShapeMatches(database))
+    throw invalid(`快照库的空间元数据结构不符: ${file}`);
+  const databaseSpace = readDatabaseSpace(database);
+  if ((options.requireSpace && (!options.space || !databaseSpace)) || (databaseSpace && options.space && !isDeepStrictEqual(databaseSpace, options.space)))
+    throw invalid(`快照库的空间归属与 Home 不同: ${file}`);
   const schemaHash = createHash("sha256").update(JSON.stringify(shape)).digest("hex");
   if (previous && schemaHash !== previous.schema_sha256) throw changed(file);
+  if (options.version !== undefined && !options.baseline && database.prepare("SELECT 1 FROM sqlite_schema WHERE type IN ('view','trigger') LIMIT 1").get())
+    throw invalid(`快照库含缺少可信声明的可执行对象: ${file}`);
   if (options.baseline) {
-    const expected = describeSqliteBaseline(options.baseline);
+    const scoped = databaseSpace ? { ...options.baseline, schema: STORAGE_SPACE_SCHEMA_SQL + options.baseline.schema } : options.baseline;
+    const expected = describeSqliteBaseline(scoped);
+    if (!snapshotProgramsMatch(database, scoped.schema, options.additionalTables === true))
+      throw invalid(`快照库的可执行对象与现行 owner 基线不符: ${file}`);
     const actual = options.additionalTables
       ? {
           tables: Object.fromEntries(

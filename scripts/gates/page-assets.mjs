@@ -336,18 +336,26 @@ const headErrors = (measured, budget, base) => {
 // spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
 // alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
 // what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
-// plugin-frame.js, one entry on the 208271 budget for three PRs that each add a few bytes to the frame's host object (as the
-// batch 18 coordinator set it, 2026-11-06): the account PR's +54 (WORK-03 above, #1846), batch 18 P3-0a's +64 (#1884:
-// `host.taskGrants`, a refusing placeholder until P3-1) and batch 13 ④c's +21 (`host.connectionNeed`, the same refusal until the
-// shell slice; specs/assistant-service-connections/spec.md §13.5 C1). 208271 + 54 + 64 + 21 = 208410. Tried: the two
-// placeholders share one `unavailable` function instead of a second inline copy, one fixed Error, no frame message.
-// #1884's own entry (7a1596d315: [208271, 208389], its +64 B on #1846's +54 B) is folded into this one when the two branches merge.
-// Whichever lands moves the base; the others keep their own increments.
+// P3-0a (第 18 批, #1884; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin host
+// contract gains `taskGrants`, and until P3-1 draws the area the frame answers it with a refusing placeholder:
+// plugin-frame.js +64 B, keyed on main's budget 188354 (after #1880). The plugin-frame.js entry keyed on 208271 (the +54 B #1843
+// reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
+// Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
+// one short fixed message; no cast.
+// ASC-64 C1 (第 13 批④c, #1885; admitted by the batch 13 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin
+// host contract gains `connectionNeed`, refused by the frame like P3-0a's `taskGrants.place` until the shell slice draws the card
+// (specs/assistant-service-connections/spec.md §13.5 C1). Keyed on main's budget 188418 (after #1884, whose P3-0a entry above is
+// spent there and replaced): plugin-frame.js +21 B. Tried: the two placeholders share one `unavailable` function instead of
+// a second inline copy, one fixed Error, no frame message.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [827793, 830322],
   "/assets/molis-work-workbench.css": [1204709, 1207238],
   "/assets/molis-work-workbench.js": [1085847, 1089571],
-  "/assets/molis-work-plugin-frame.js": [208271, 208410],
+  "/assets/molis-work-plugin-frame.js": [188418, 188439],
+  // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
+  "/assets/molis-work-plugins/coding.js": [290006, 297761],
+  "/assets/molis-work-plugins/cognia.js": [22157, 22189],
+  "/assets/molis-work-plugins/shelf.js": [64967, 65319],
   "/assets/molis-work-plugins/images.js": [19896, 21103],
   "/assets/molis-work-plugins/images.css": [7851, 7901],
 };

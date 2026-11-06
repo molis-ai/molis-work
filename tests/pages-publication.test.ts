@@ -24,10 +24,16 @@ for (const failure of ["before-artifact", "after-artifact", "after-association"]
     const original = (await f.bound.invoke(pagesActions.create, { title: "Original title", body: body("Original approved body"), goal_id: "original-goal" })).document;
     const db = openHomeSqliteDatabase(f.home, "pages");
     t.after(() => db.close());
-    if (failure === "after-artifact") db.exec("CREATE TRIGGER fail_publication BEFORE UPDATE OF artifact_version ON pages WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture page write interrupted'); END");
-    else if (failure === "after-association") db.exec("CREATE TRIGGER fail_publication BEFORE UPDATE OF publication_pending_json ON pages WHEN NEW.publication_pending_json IS NULL AND OLD.publication_pending_json IS NOT NULL BEGIN SELECT RAISE(ABORT, 'fixture snapshot clear interrupted'); END");
-    else await f.host.withProject(f.ref, runtime => runtime.store.db.exec("CREATE TRIGGER fail_publication BEFORE INSERT ON library_artifact_versions BEGIN SELECT RAISE(ABORT, 'fixture artifact write interrupted'); END"));
-    await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: original.version }), /fixture .* interrupted/);
+    if (failure !== "before-artifact") {
+      const sentinel = (await f.bound.invoke(pagesActions.create, { title: "Published constraint fixture" })).document;
+      await f.bound.invoke(pagesActions.promote, { id: sentinel.id, expected_version: sentinel.version });
+      // In the second phase association succeeds, but clearing its pending snapshot violates the index.
+      // completePublication must roll both writes back while keeping the already-published Artifact.
+      const predicate = failure === "after-association" ? "artifact_version > 0 AND publication_pending_json IS NULL" : "artifact_version > 0";
+      db.exec(`CREATE UNIQUE INDEX fail_publication ON pages ((1)) WHERE ${predicate}`);
+    } else await f.host.withProject(f.ref, runtime => runtime.store.db.exec("CREATE TRIGGER fail_publication BEFORE INSERT ON library_artifact_versions BEGIN SELECT RAISE(ABORT, 'fixture artifact write interrupted'); END"));
+    await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: original.version }),
+      failure === "before-artifact" ? /fixture artifact write interrupted/ : /UNIQUE constraint failed/);
     const failed = (await f.bound.invoke(pagesActions.get, { id: original.id })).document;
     assert.equal(failed.artifact_version, 0); assert.equal(failed.publication_pending!.version, 1);
     assert.equal(failed.publication_pending!.source_version, original.version);
@@ -36,7 +42,7 @@ for (const failure of ["before-artifact", "after-artifact", "after-association"]
     await assert.rejects(f.client.invoke({ ...f.caller, actor_id: "different-owner" }, pagesActions.promote, { id: original.id }), { code: "pages.publication_owner" });
     await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, goal_id: "other-goal" }), { code: "pages.publication_pending" });
     const edited = (await f.bound.invoke(pagesActions.update, { id: original.id, title: "New draft title", body: body("Later draft edits"), goal_id: "later-goal" })).document;
-    if (failure !== "before-artifact") db.exec("DROP TRIGGER fail_publication");
+    if (failure !== "before-artifact") db.exec("DROP INDEX fail_publication");
     else await f.host.withProject(f.ref, runtime => runtime.store.db.exec("DROP TRIGGER fail_publication"));
     await f.host.closeProject(f.ref);
     const result = await f.bound.invoke(pagesActions.promote, { id: original.id, goal_id: "original-goal", expected_version: edited.version });

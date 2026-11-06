@@ -33,6 +33,7 @@ test("standard Cognia MCP clients share real imports and fixed bytes, isolate Ho
     const tools = (await a.listTools()).tools.map(row => row.name);
     for (const name of ["material.create", "workspace.get", "material.search", "material.download", "import.preview", "import.commit", "draft.save"]) assert.ok(tools.includes(tool(name)));
     assert.ok(!(await reader.listTools()).tools.some(row => row.name === tool("directory.scan")));
+    for (const name of ["material.get", "material.update"]) assert.ok(tools.includes(tool(name)));
     const preview = (await call(a, "import.preview", { kind: "markdown", name: "External", files: [{ path: "original.md", data: Buffer.from("# Evidence\nOriginal bytes").toString("base64") }] })).preview;
     await a.close(); const restarted = await connect(homes[0]!);
     const receipt = (await call(restarted, "import.commit", { preview_id: preview.id })).receipt;
@@ -44,6 +45,12 @@ test("standard Cognia MCP clients share real imports and fixed bytes, isolate Ho
     assert.equal((await reader.callTool({ name: tool("material.create"), arguments: { title: "denied", body: "x" } })).isError, true);
     assert.equal((await reader.callTool({ name: tool("directory.scan"), arguments: { path: homes[0]!.home } })).isError, true);
     assert.equal((await restarted.callTool({ name: tool("material.get"), arguments: { id, project_id: "other" } })).isError, true);
+    const manual = (await call(restarted, "material.create", { title: "Editable", body: "Original" })).material;
+    const before = await call(reader, "material.get", { id: manual.id });
+    await call(restarted, "material.update", { id: manual.id, etag: before.etag, title: "Updated", body: "Newest" });
+    assert.equal((await restarted.callTool({ name: tool("material.update"), arguments: { id: manual.id, etag: before.etag, title: "Stale", body: "Overwrite" } })).isError, true);
+    assert.equal((await call(reader, "material.get", { id: manual.id })).material.body, "Newest");
+    await call(restarted, "material.delete", { id: manual.id });
     await call(restarted, "source.delete", { id: receipt.source_id });
     assert.equal((await call(reader, "workspace.get")).materials.length, 0);
     assert.equal((await call(reader, "material.get", { id, revision: 1 })).material.body, "# Evidence\nOriginal bytes");

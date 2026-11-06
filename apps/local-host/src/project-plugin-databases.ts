@@ -1,3 +1,5 @@
+import { sectionsPlatformPrelude } from './plugin-sync-sections.js';
+import { pluginSyncDatabaseDeclaration, pluginSyncBusinessRecord } from './plugin-sync-database.js';
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -30,11 +32,20 @@ function projectDatabasePlugins(): PluginManifest[] {
   return PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !runsOnlyInHome(entry) && entry.manifest.databases?.project).map(entry => entry.manifest);
 }
 
+/** Identical platform journal and trigger baseline for activation and offline restore inspection. */
+export function projectPluginPlatformExtension(manifest: PluginManifest) {
+  const declaration = manifest.databases?.project;
+  if (!declaration) return {};
+  const composed = pluginSyncDatabaseDeclaration(manifest, declaration);
+  return {platformSchema: composed.schema.slice(declaration.schema.length), platformPrelude: sectionsPlatformPrelude(manifest)};
+}
+
 /** Open one plugin's tables in the library at `path` (made and recorded the first time), or throw its refusal. */
 export function openPluginTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest): PluginProjectDatabaseRecord {
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明项目库`);
-  return openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector, { path }).record;
+  openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector, { path, ...projectPluginPlatformExtension(manifest) });
+  return pluginSyncBusinessRecord(manifest, declaration);
 }
 
 /** Open each plugin's tables in the library at `path`; what happened to each is kept with the connection. */

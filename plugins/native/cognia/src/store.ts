@@ -35,7 +35,7 @@ export class CogniaStore {
       this.put({ ...material, domain_id: null, revision: material.revision + 1, updated_at: new Date().toISOString() }, previous.data);
     }
     for (const source of this.sources().filter(s => s.domain_id === id)) this.db.run("UPDATE cognia_sources SET body=? WHERE id=?", [JSON.stringify({ ...source, domain_id: null }), source.id]);
-    for (const draft of this.allDrafts().filter(d => d.domain_id === id)) this.db.run("UPDATE cognia_drafts SET body=? WHERE id=?", [JSON.stringify({ ...draft, domain_id: null }), draft.id]);
+    for (const draft of allDrafts(this.db).filter(d => d.domain_id === id)) this.db.run("UPDATE cognia_drafts SET body=? WHERE id=?", [JSON.stringify({ ...draft, domain_id: null }), draft.id]);
     this.removePreviewsFor(preview => preview.source.domain_id === id);
     this.db.run("DELETE FROM cognia_domains WHERE id=?", [id]);
   }); }
@@ -53,9 +53,9 @@ export class CogniaStore {
     return this.db.all("SELECT body FROM cognia_materials ORDER BY updated_at DESC").map(r => parse<Material>(r)!).filter(m => (!domainId || m.domain_id === domainId || domainId === "unclassified" && !m.domain_id) && (!sourceId || m.source_id === sourceId) && terms.every(q => [m.title, m.path, m.body, ...m.tags, ...m.aliases].join("\n").toLocaleLowerCase().includes(q)));
   }
   read(id: string, revision?: number): Material { const row = revision === undefined ? this.db.get("SELECT body FROM cognia_materials WHERE id=?", [id]) : this.db.get("SELECT body FROM cognia_versions WHERE material_id=? AND revision=?", [id, revision]); const value = parse<Material>(row); requireCognia(value, "资料或版本不存在", cogniaErrors.not_found); return value; }
-  detail(id: string, revision?: number): { material: Material; outgoing: ReturnType<typeof linksFor>; incoming: Material[]; references: Draft["references"] } {
-    const material = this.read(id, revision), all = this.materials(); const draft = this.allDrafts().find(d => adoptedFrom(d, id));
-    return { material, outgoing: linksFor(material, all), incoming: all.filter(m => m.id !== id && linksFor(m, all).some(l => l.material_id === id)), references: draft?.references ?? [] };
+  detail(id: string, revision?: number): { material: Material; etag:string; outgoing: ReturnType<typeof linksFor>; incoming: Material[]; references: Draft["references"] } {
+    const material = this.read(id, revision), all = this.materials(); const draft = allDrafts(this.db).find(d => adoptedFrom(d, id));
+    return { material,etag:contentHash(JSON.stringify(material)), outgoing: linksFor(material, all), incoming: all.filter(m => m.id !== id && linksFor(m, all).some(l => l.material_id === id)), references: draft?.references ?? [] };
   }
   download(id: string, revision?: number): { material: Material; bytes: Buffer } { const material = this.read(id, revision); const row = this.db.get("SELECT data FROM cognia_versions WHERE material_id=? AND revision=?", [id, material.revision]) as { data: string }; return { material, bytes: Buffer.from(row.data, "base64") }; }
   preview(input: { kind: unknown; name: unknown; locator: string; source_id?: unknown; domain_id?: unknown; files: ImportFile[] }): Preview {
@@ -116,16 +116,16 @@ export class CogniaStore {
       this.put(material, Buffer.from(body).toString("base64")); return material;
     });
   }
-  updateMaterial(id: string, input: { title: unknown; body: unknown; domain_id?: unknown }): Material {
+  updateMaterial(id: string, input: { title: unknown; body: unknown; domain_id?: unknown },expectedEtag?:string): Material { return this.transaction(()=>{
     const current = this.read(id); requireCognia(["manual", "knowledge"].includes(current.source_id), "导入资料请在来源中修改后重新导入", cogniaErrors.conflict);
+    requireCognia(expectedEtag===undefined||expectedEtag===contentHash(JSON.stringify(current)),"资料已更新，请重新打开后编辑",cogniaErrors.conflict);
     const title = stringField(input.title, "请输入标题", 500);
     requireCognia(typeof input.body === "string" && Buffer.byteLength(input.body) <= COGNIA_LIMITS.text_bytes, "正文无效或超过 2 MB");
     const domain_id = this.domain(input.domain_id), body = input.body as string;
     const material: Material = { ...current, ...metadata(body, title), title, body, domain_id, revision: current.revision + 1, hash: contentHash(body), bytes: Buffer.byteLength(body), updated_at: new Date().toISOString() };
-    return this.transaction(() => { this.put(material, Buffer.from(body).toString("base64")); return material; });
-  }
+    this.put(material, Buffer.from(body).toString("base64")); return material;
+  }); }
   deleteMaterial(id: string): void { const result = this.db.run("DELETE FROM cognia_materials WHERE id=?", [id]); requireCognia(Number(result.changes) === 1, "资料不存在", cogniaErrors.not_found); } // a draft adopted as it keeps its link: the fixed versions keep their sources
-  private allDrafts(): StoredDraft[] { return this.db.all("SELECT body FROM cognia_drafts ORDER BY rowid DESC").map(r => parse<StoredDraft>(r)!); }
   drafts(): Draft[] { return viewDrafts(this.db); }
   addDraft(draft: Draft): Draft { return this.transaction(() => {
     // Domain deletion during generation must not reintroduce a dangling classification.
@@ -142,3 +142,4 @@ export class CogniaStore {
     });
   }
 }
+function allDrafts(db: CogniaSql): StoredDraft[] { return db.all("SELECT body FROM cognia_drafts ORDER BY rowid DESC").map(r => parse<StoredDraft>(r)!); }

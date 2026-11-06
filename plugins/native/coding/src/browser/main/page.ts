@@ -9,6 +9,7 @@ import type { ChangesetClient } from "../changeset.js";
 import type { CommandsClient } from "../commands.js";
 import type { ComposerModels } from "../composer-model.js";
 import type { CooperationClient } from "../cooperation.js";
+import type { InputEditor } from "../inputs.js";
 import type { CodingDraft } from "../draft.js";
 import type { InputReceipts } from "../input-receipts.js";
 import type { PlanProgress } from "../plan-progress.js";
@@ -139,6 +140,7 @@ export interface Refs {
   composerModels: ComposerModels;
   cooperationUi: CooperationClient;
   draft: CodingDraft;
+  inputEditor: InputEditor;
   growCode: ReturnType<typeof createCodingCodePaint>["growCode"];
   inputReceipts: InputReceipts;
   integrations: WriterIntegration;

@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync-binding.js";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { issueActionHandlers, issuesActions } from "./actions.js";
@@ -13,7 +14,7 @@ export function createIssuesPlugin(): PluginDefinition {
   return { manifest: issuesManifest, instructions: ISSUES_INSTRUCTIONS, methods: issuesSkills, async start(context) {
     if (!context.actor_id || !context.services?.database) throw new Error("Issue 需要个人 Home 与插件数据库服务");
     const store = new IssueStore(context.services.database, context.actor_id);
-    return { kind: "app", actions: issueActionHandlers(store, context.services.model), views: [issuesUiContribution], routes: [
+    return { kind: "app", sync: syncBindings(context), actions: issueActionHandlers(store, context.services.model), views: [issuesUiContribution], routes: [
       bindPluginActionRoute(context, issuesActions.prepare, request => request.body as IssueDraft),
       bindPluginActionRoute(context, issuesActions.cancel, request => request.body as { draft_id: string }),
       bindPluginActionRoute(context, issuesActions.nameDraft, request => request.body as { draft_id: string }),

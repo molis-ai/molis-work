@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { isProjectPluginDatabaseRefusal, LocalProjectDatabase, PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
-import { FEED_PLUGIN_ID, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-feed";
+import { isProjectPluginDatabaseRefusal, LocalProjectDatabase, PROJECT_DATABASE_BASELINE, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
+import { FEED_PLUGIN_ID, FEED_PROJECT_DATABASE, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { FeedModule, ListenerHost, SignalsModule, SourcesModule, type FeedSql } from "@molis-ai/molis-work-plugin-feed/store";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
@@ -99,7 +99,7 @@ test("RAC-2360 RAC-2362 RAC-496 Feed's first declaration owns the complete curre
     assert.deepEqual(Object.keys(is).sort(), [...MOVED_TABLES, ...MOVED_INDEXES, "feed_out_rules", "feed_out_rules_project_enabled_idx"].sort(), "and the declaration holds the out rules and nothing else");
     const shapeBefore = describeSqliteSchema(before as never), shapeDeclared = describeSqliteSchema(declared as never);
     assert.deepEqual(shapeDeclared, { tables: Object.fromEntries([...MOVED_TABLES, "feed_out_rules"].map(table => [table, shapeBefore.tables[table]])) }, "complete independent Feed schema: columns, checks, keys and indexes");
-    assert.equal(FEED_PROJECT_DATABASE.version, 1);
+    assert.equal(FEED_PROJECT_DATABASE.version, 2);
     assert.equal(FEED_PROJECT_DATABASE.store_name, "feed");
   } finally { before.close(); declared.close(); baseline.close(); }
 });
@@ -114,9 +114,9 @@ const ledger = (file: string) => {
   try { return db.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json FROM plugin_project_databases ORDER BY plugin_id").all().map(row => ({ ...row })) as Array<{ plugin_id: string; version: number; tables_json: string }>; } finally { db.close(); }
 };
 
-test("RAC-2360 RAC-496 a new library starts at 1, creates Feed's twelve declared tables and records declaration 1", t => {
+test("RAC-2360 RAC-496 a new library uses the current baseline, creates Feed's twelve declared tables and records declaration 2", t => {
   const file = scratch(t);
-  const bare = new DatabaseSync(file); bare.exec(PROJECT_DATABASE_BASELINE.schema); bare.exec("PRAGMA user_version = 1");
+  const bare = new DatabaseSync(file); bare.exec(PROJECT_DATABASE_BASELINE.schema); bare.exec(`PRAGMA user_version = ${PROJECT_DATABASE_BASELINE.version}`);
   assert.deepEqual(MOVED_TABLES.filter(name => name in statementsOf(bare)), [], "the baseline alone has none");
   bare.close();
 
@@ -126,8 +126,12 @@ test("RAC-2360 RAC-496 a new library starts at 1, creates Feed's twelve declared
     assert.ok(feed && "record" in feed, "Feed's tables are opened with the library");
   } finally { opened.close(); }
   const row = ledger(file).find(entry => entry.plugin_id === FEED_PLUGIN_ID)!;
-  assert.equal(row.version, 1);
-  assert.deepEqual((JSON.parse(row.tables_json) as string[]).filter(name => !name.endsWith("_idx")).sort(), [...MOVED_TABLES, "feed_out_rules"].sort());
+  assert.equal(row.version, 2);
+  const expected = new DatabaseSync(":memory:");
+  try {
+    expected.exec(pluginSyncDatabaseDeclaration(feedManifest, FEED_PROJECT_DATABASE).schema);
+    assert.deepEqual((JSON.parse(row.tables_json) as string[]).sort(), Object.keys(statementsOf(expected)).filter(name => name !== "sqlite_sequence").sort(), "the ledger owns exactly the compiled business and synchronization objects");
+  } finally { expected.close(); }
   const db = new DatabaseSync(file, { readOnly: true });
   try { assert.deepEqual(MOVED_TABLES.filter(name => !(name in statementsOf(db))), [], "all eleven are there"); } finally { db.close(); }
 });
@@ -135,7 +139,7 @@ test("RAC-2360 RAC-496 a new library starts at 1, creates Feed's twelve declared
 test("RAC-2361 RAC-496 a noncurrent library is refused by the Host without rewriting it", t => {
   const file = scratch(t);
   const old = new DatabaseSync(file); old.exec(PROJECT_DATABASE_BASELINE.schema); old.exec("PRAGMA user_version = 2"); old.close();
-  assert.throws(() => new LocalProjectDatabase(file), (error: { found?: number; expected?: number }) => error.found === 2 && error.expected === 1);
+  assert.throws(() => new LocalProjectDatabase(file), (error: { found?: number; expected?: number }) => error.found === 2 && error.expected === PROJECT_DATABASE_BASELINE.version);
   const after = new DatabaseSync(file, { readOnly: true });
   try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 2, "and left as it was"); } finally { after.close(); }
 });

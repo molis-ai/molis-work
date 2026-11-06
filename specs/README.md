@@ -39,6 +39,12 @@
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
 - [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
+- [personal-cloud-sync](personal-cloud-sync/spec.md)：联网个人版同步总规格，记录每账号 100 MB、删除保留 30 天的约定，以及各集合的接入与验证进度。
+- [personal-goals-sync](personal-goals-sync/spec.md)：Goal、关系、工作记录与可信决定的项目一致性同步。
+- [personal-linked-assets-sync](personal-linked-assets-sync/spec.md)：关联成果的个人空间同步。
+- [personal-pages-sync](personal-pages-sync/spec.md)：Pages 增量同步与冲突处理。
+- [personal-plugin-replication](personal-plugin-replication/spec.md)：个人插件 owner 同步适配。
+- [plugin-sync-foundation](plugin-sync-foundation/spec.md)：插件集合声明与空间同步配置。
 - [coding-quality-assurance](coding-quality-assurance/spec.md)：Coding 质量保证（已定方向，防腐收尾后做）。2026-10-18 补充多代理 PR 评审、置信分、安全评审、真人批准门、有界迭代与对抗验证。
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。
 - [plugin-tab-groups](plugin-tab-groups/spec.md)：既有插件组已合入，PTG-10 待本人看实物；现行标签合同保留，统一分屏、右栏与底栏按产品治理在 03／07 接续。

@@ -1,5 +1,6 @@
 import { PROJECT_ROOT_REFERENCE, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord } from "./project-database.js";
 import type { PluginRuntimeDatabase } from "./repository.js";
+import { trustedSequenceSteps, type PluginSqlStep as Step } from "./project-database-sequences.js";
 
 // Every statement a plugin runs in a project's library, checked against what the ledger says is its own (PLIB-06,
 // specs/archive/plugin-project-database §2.4). The Host's SQLite library has no authorizer, so the check reads the statement's program:
@@ -53,7 +54,6 @@ const FUNCTIONS = ["json_each", "json_tree"] as const;
 /** What `EXPLAIN QUERY PLAN` calls the part of a recursive query that feeds on its own rows. */
 const RECURSIVE_PLAN = "RECURSIVE STEP";
 
-interface Step { readonly addr: number; readonly opcode: string; readonly p1: number; readonly p2: number; readonly p3: number; readonly p4: unknown; readonly p5: number }
 interface Scope {
   /** Root pages of the plugin's tables and of every index on them, SQLite's own included. */
   readonly own: ReadonlySet<number>;
@@ -90,15 +90,19 @@ function recurses(connection: PluginRuntimeDatabase, sql: string, parameters: re
   return (connection.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as Array<{ detail: string }>).some(row => row.detail === RECURSIVE_PLAN);
 }
 
-function refusal(steps: readonly Step[], mode: PluginStatementMode, scope: Scope, functions: ReadonlySet<string>): string | null {
+function refusal(steps: readonly Step[], mode: PluginStatementMode, scope: Scope, functions: ReadonlySet<string>, trusted: ReadonlySet<string>): string | null {
+  let ownerProgram = false;
+  const sequencePage = [...scope.names].find(([, name]) => name === "sqlite_sequence")?.[0];
+  const sequenceSteps = mode === "write" ? trustedSequenceSteps(steps, trusted, sequencePage) : new Set<Step>();
   for (const step of steps) {
+    if (step.addr === 0) ownerProgram = step.opcode === "Init" && typeof step.p4 === "string" && trusted.has(step.p4.replace(/^-- TRIGGER /u, "")) && step.p4.startsWith("-- TRIGGER ");
     const rooted = ROOTED[step.opcode];
     if (rooted) {
       if (step.opcode !== "Clear" && (Number(step.p5) & PAGE_IN_REGISTER)) return `第 ${step.addr} 步 ${step.opcode} 要建表`;
       if (Number(step[rooted.database]) !== 0) return "只能用项目库本身，不能用 temp 或附加的库";
       if (rooted.writes && mode === "read") return "读取里不能写";
       const page = Number(step[rooted.page]);
-      if (scope.own.has(page) || (!rooted.writes && scope.root.has(page))) continue;
+      if (ownerProgram || sequenceSteps.has(step) || scope.own.has(page) || (!rooted.writes && scope.root.has(page))) continue;
       const name = scope.names.get(page) ?? `第 ${page} 页`;
       return rooted.writes ? `只能写本插件自己的表，${name} 不是` : `只能读本插件自己的表和 ${PROJECT_ROOT_REFERENCE.table}，${name} 不是`;
     }
@@ -107,6 +111,8 @@ function refusal(steps: readonly Step[], mode: PluginStatementMode, scope: Scope
       if (mode === "read" && Number(step.p2) !== 0) return "读取里不能写";
     } else if (step.opcode === "VOpen") {
       if (!functions.has(String(step.p4))) return `虚表只能读 ${FUNCTIONS.join("、")}`;
+    } else if (ownerProgram && step.opcode === "Trace") {
+      // Diagnostic text in a host-validated trigger; not another SQL execution.
     } else if (!STEPS.has(step.opcode)) return `第 ${step.addr} 步 ${step.opcode} 不是插件语句能有的步骤`;
   }
   return null;
@@ -118,7 +124,7 @@ function refusal(steps: readonly Step[], mode: PluginStatementMode, scope: Scope
  * run. What a statement can reach depends only on its text and the library's schema, so a statement that passed is not read
  * again until the schema changes.
  */
-export function pluginStatementGuard(connection: PluginRuntimeDatabase, record: PluginProjectDatabaseRecord):
+export function pluginStatementGuard(connection: PluginRuntimeDatabase, record: PluginProjectDatabaseRecord, trustedTriggers: ReadonlyMap<string, string> = new Map()):
   (sql: string, parameters: readonly unknown[], mode: PluginStatementMode) => void {
   const { version } = connection.prepare("SELECT sqlite_version() AS version").get() as { version: string };
   if (version !== PLUGIN_STATEMENT_SQLITE_VERSION) {
@@ -129,13 +135,22 @@ export function pluginStatementGuard(connection: PluginRuntimeDatabase, record: 
   // Compiled once: the pragma reads the schema's current version each time it runs.
   const schemaVersion = connection.prepare("PRAGMA schema_version");
   let schema: number | undefined, scope: Scope | undefined;
+  let trusted = new Set<string>();
   return (sql, parameters, mode) => {
     const current = Number((schemaVersion.get() as { schema_version: number }).schema_version);
-    if (current !== schema) { schema = current; scope = undefined; passed.clear(); }
+    if (current !== schema) {
+      schema = undefined; scope = undefined; passed.clear(); trusted = new Set();
+      for (const [name, expected] of trustedTriggers) {
+        const actual = connection.prepare("SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?").get(name) as { sql: string } | undefined;
+        if (actual?.sql !== expected) throw pluginProjectDatabaseErrors.statement_refused("宿主同步日志定义已变化，已拒绝插件语句");
+        trusted.add(name);
+      }
+      schema = current;
+    }
     const key = `${mode}\0${sql}`;
     if (passed.has(key)) return;
     scope ??= scopeOf(connection, record);
-    const reason = refusal(connection.prepare(`EXPLAIN ${sql}`).all(...parameters) as Step[], mode, scope, functions);
+    const reason = refusal(connection.prepare(`EXPLAIN ${sql}`).all(...parameters) as Step[], mode, scope, functions, trusted);
     if (reason) throw pluginProjectDatabaseErrors.statement_refused(`插件 ${record.plugin_id} 在项目库里的语句被拒：${reason}`);
     if (recurses(connection, sql, parameters)) {
       throw pluginProjectDatabaseErrors.statement_refused(`插件 ${record.plugin_id} 在项目库里的语句被拒：递归查询没有时间上限，请分层查询`);

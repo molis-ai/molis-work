@@ -15,7 +15,7 @@ import { CONDITIONS_SECTION_STYLES, renderConditionsSection } from "./condition-
 import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assistant-board-specimens.js";
 import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
 import { COLLAB_SECTION_SCRIPT, COLLAB_SECTION_STYLES, renderCollabSection } from "./collab-specimens.js";
-import { NAVIGATION_SECTION_SCRIPT, NAVIGATION_SECTION_STYLES, renderNavigationSection } from "./navigation-specimens.js";
+import { NAVIGATION_SECTION_STYLES, renderNavigationSection } from "./navigation-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
@@ -240,7 +240,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
-  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${SPECIMEN_SCRIPT}${COLLAB_SECTION_SCRIPT}${NAVIGATION_SECTION_SCRIPT}</script>
+  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${SPECIMEN_SCRIPT}${COLLAB_SECTION_SCRIPT}</script>
 </body>
 </html>`;
 }

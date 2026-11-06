@@ -576,14 +576,17 @@ export function withPluginGroups(base, settlePane, loose) {
  * and which offered views the person closed (`closed`) are kept with the rest, so a reload, a project switch and a collapse
  * keep them (PFG-22, PFG-24). A view is a document that stays where it is: these rules only say which one shows.
  * (The function ships as its own text, so what each rule does is said here, not inside it.)
- * - syncSide(state, views, key): settle the tabs on the views the page offers now (`views`, in their declared order): a view's
- *   tab whose view is gone leaves, an offered view gets its tab where its order puts it unless the person closed it; `key`
- *   names a view asked for now, which comes back even if it was closed. A moved tab is not a view: it stays until closed.
+ * - syncSide(state, views, only, keep): settle the tabs on the views the page offers now (`views`, in their declared order): a
+ *   view's tab whose view is gone leaves, unless `keep(tab)` says to hold it (a plugin taken out of the project keeps its tabs
+ *   where they were, marked removed, as the main area's do: 口径 4); a moved tab is not a view and stays until closed. An
+ *   offered view without a tab gets one where its order puts it, unless the person closed it (`closed`, kept across a reload).
+ *   `only` limits the views that may join and names views asked for now, which come back even if they were closed.
  * - openSide(state, key, views): bring a view forward: the tab it has is chosen (never a second one); one without gets it back.
  * - selectSide(state, key): choose a tab without opening or closing the side (a collapsed side remembers it for the next open).
  * - closeSideTab(state, tabId): close a tab; an offered view is remembered as closed, so a reload does not bring it back. The
  *   answer is what puts it back (`reopenSideTab`), the record a closed plugin group has too. reopenSideTab puts it back where it
- *   was; a view that got its tab again meanwhile is not doubled.
+ *   was; a view that got its tab again meanwhile is not doubled. A close that collapsed the side (its last tab) says so
+ *   (`collapsed`), and putting that tab back opens the side again, as it was.
  */
 export function withSidePane(base) {
   const uid = () => "t" + Math.random().toString(36).slice(2, 10);
@@ -592,15 +595,15 @@ export function withSidePane(base) {
   const tabOf = (side, key) => side.tabs.find((tab) => tab.itemId === key) || null;
   const viewTab = (view) => ({ id: uid(), kind: "side", plugin: view.plugin || "", itemId: view.key, title: view.title || view.key });
   const forget = (side, key) => { side.closed = side.closed.filter((closed) => closed !== key); };
-  const syncSide = (state, views, key) => {
+  const syncSide = (state, views, only, keep = () => false) => {
     const side = state.side, offered = new Set(views.map((view) => view.key));
-    if (key) forget(side, key);
+    only?.forEach((key) => forget(side, key));
     side.closed = side.closed.filter((closed) => offered.has(closed));
-    side.tabs = side.tabs.filter((tab) => tab.kind === "pane" || offered.has(tab.itemId));
+    side.tabs = side.tabs.filter((tab) => tab.kind === "pane" || offered.has(tab.itemId) || keep(tab));
     views.forEach((view, index) => {
       const tab = tabOf(side, view.key);
       if (tab) { tab.title = view.title || tab.title; tab.plugin = view.plugin || ""; return; }
-      if (side.closed.includes(view.key)) return;
+      if (only && !only.has(view.key) || side.closed.includes(view.key)) return;
       const after = views.slice(index + 1).map((next) => side.tabs.findIndex((candidate) => candidate.itemId === next.key)).find((at) => at >= 0);
       side.tabs.splice(after ?? side.tabs.length, 0, viewTab(view));
     });
@@ -609,7 +612,7 @@ export function withSidePane(base) {
   };
   const openSide = (state, key, views = []) => {
     const side = state.side;
-    if (!tabOf(side, key) && views.some((view) => view.key === key)) syncSide(state, views, key);
+    if (!tabOf(side, key) && views.some((view) => view.key === key)) syncSide(state, views, new Set([key]));
     const tab = tabOf(side, key);
     if (!tab) return null;
     side.activeTabId = tab.id;
@@ -624,11 +627,11 @@ export function withSidePane(base) {
   const closeSideTab = (state, tabId) => {
     const side = state.side, index = side.tabs.findIndex((tab) => tab.id === tabId);
     if (index < 0) return null;
-    const [tab] = side.tabs.splice(index, 1), active = side.activeTabId === tabId;
+    const [tab] = side.tabs.splice(index, 1), active = side.activeTabId === tabId, collapsed = side.open && !side.tabs.length;
     if (tab.kind === "side" && !side.closed.includes(tab.itemId)) side.closed.push(tab.itemId);
     if (active) side.activeTabId = (side.tabs[index] || side.tabs[index - 1])?.id || null;
     if (!side.tabs.length) side.open = false;
-    return { paneId: side.id, side: true, plugin: tab.plugin, title: tab.title, tab, index, active };
+    return { paneId: side.id, side: true, plugin: tab.plugin, title: tab.title, tab, index, active, collapsed };
   };
   const reopenSideTab = (state, record) => {
     const side = state.side;
@@ -637,6 +640,7 @@ export function withSidePane(base) {
     forget(side, record.tab.itemId);
     if (!tab) { tab = record.tab; side.tabs.splice(Math.min(record.index, side.tabs.length), 0, tab); }
     if (record.active || !side.tabs.some((candidate) => candidate.id === side.activeTabId)) side.activeTabId = tab.id;
+    if (record.collapsed) side.open = true;
     return tab;
   };
   const setSideOpen = (state, open) => { state.side.open = Boolean(open) && state.side.tabs.length > 0; return state.side.open; };
@@ -733,8 +737,10 @@ export function withLayout(base) {
   return { ...base, create: () => ({ ...base.create(), solo: null }), locate, movable, moveToSide, moveToMain, toggleSolo, settleSolo, mergePanes };
 }
 
-/** Saved tabs use only the fields written by this workspace; a plugin's page is its plugin tab, shown through pane.viewPlugin. */
-export function isCurrentTabWorkspace(value, plugins) {
+/** Saved tabs use only the fields written by this workspace; a plugin's page is its plugin tab, shown through pane.viewPlugin.
+ * Only the shape is checked (口径 4): a plugin id is a value, so a tab of a plugin this build and Home no longer know (one
+ * uninstalled from Home) is read as it is and drawn removed, never a reason to start the whole layout again. */
+export function isCurrentTabWorkspace(value) {
   if (!value || !Array.isArray(value.panes) || !value.panes.length || typeof value.focusedPaneId !== "string") return false;
   if (!Object.keys(value).every(key => ["panes", "layout", "focusedPaneId", "exclusive", "side", "solo"].includes(key))) return false;
   if (value.exclusive !== null && typeof value.exclusive !== "string") return false;
@@ -761,9 +767,9 @@ export function isCurrentTabWorkspace(value, plugins) {
     if (new Set(heads).size !== heads.length) return false;
     if (!Object.keys(pane).every(key => ["id", "tabs", "activeTabId", "groups", "viewPlugin"].includes(key))) return false;
     if (pane.activeTabId !== null && typeof pane.activeTabId !== "string") return false;
-    if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || plugins && !Object.hasOwn(plugins, pane.viewPlugin))) return false;
+    if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || pane.viewPlugin === "")) return false;
     return pane.tabs.every(tab => tab && typeof tab.id === "string" && typeof tab.title === "string"
-      && typeof tab.plugin === "string" && (!plugins || Object.hasOwn(plugins, tab.plugin))
+      && typeof tab.plugin === "string" && tab.plugin !== ""
       && (tab.kind === "item" && typeof tab.itemId === "string" || tab.kind === "plugin" && tab.plugin !== "home")
       && (tab.collapsed === undefined || tab.kind === "plugin" && tab.collapsed === true)
       && (tab.pinned === undefined || typeof tab.pinned === "boolean") && (tab.groupId === undefined || typeof tab.groupId === "string")

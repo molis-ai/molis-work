@@ -63,10 +63,11 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,strip,select,current})=>{
     const next=event.detail?.next;if(!next)return;
     const all=[...next.querySelectorAll('[data-side-tab]')],theirs=all.filter(tab=>tab.hasAttribute('data-side-context-owner'));
     const body=(root,id)=>[...root.querySelectorAll('[data-side-body]')].find(node=>node.dataset.sideBody===id);
-    for(const entry of entries)if(!theirs.some(tab=>tab.dataset.sideTab===entry.dataset.sideTab)){body(panel,entry.dataset.sideTab)?.remove();entry.remove();}
+    const item=tab=>tab.closest('.tab-item')??tab;
+    for(const entry of entries)if(!theirs.some(tab=>tab.dataset.sideTab===entry.dataset.sideTab)){body(panel,entry.dataset.sideTab)?.remove();item(entry).remove();}
     for(const tab of theirs)if(!entries.some(entry=>entry.isConnected&&entry.dataset.sideTab===tab.dataset.sideTab)){
       const following=all.slice(all.indexOf(tab)+1).map(node=>[...strip.querySelectorAll('[data-side-tab]')].find(live=>live.dataset.sideTab===node.dataset.sideTab)).find(Boolean);
-      strip.insertBefore(document.importNode(tab,true),following||null);
+      strip.insertBefore(document.importNode(item(tab),true),following?item(following):null);
       const view=body(next,tab.dataset.sideTab);if(view)panel.append(document.importNode(view,true));
     }
     entries=[...strip.querySelectorAll('[data-side-context-owner]')];signature='';

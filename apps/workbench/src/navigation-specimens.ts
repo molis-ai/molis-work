@@ -91,14 +91,14 @@ const find = (placeholder: string) => `<label class="mw-input-group tab-menu-fin
 
 function allTabsMenu(L: Say, id: string, hidden = false): string {
   const r = sample(L);
-  const section = (pid: PluginId, rows: readonly [string, boolean?][]) => renderMenuGroup({ label: `${L(P[pid].name)} · ${L("{n} 张", { n: rows.length })}`, items: rows.map(([label, current]) => renderMenuItem({ label, iconName: P[pid].glyph, attrs: current ? { "aria-current": "true" } : {} })).join("") })
+  const section = (pid: PluginId, rows: readonly [string, boolean?][]) => renderMenuGroup({ label: `${L(P[pid].name)} · ${rows.length === 1 ? L("1 张") : L("{n} 张", { n: rows.length })}`, items: rows.map(([label, current]) => renderMenuItem({ label, iconName: P[pid].glyph, attrs: current ? { "aria-current": "true" } : {} })).join("") })
     .replace('class="mw-menu__label" aria-hidden="true">', `class="mw-menu__label" aria-hidden="true"><span class="tab-menu-dot" style="${hueVars(P[pid].hue)}"></span>`).replace('class="mw-menu__group"', `class="mw-menu__group" style="${hueVars(P[pid].hue)}"`);
   return `<div class="mw-menu tab-menu" id="${id}" data-nav-popover${hidden ? " hidden" : ""}>${find(L("找标签"))}<div role="menu" aria-label="${escapeHtml(L("全部标签"))}">`
     + section("goals", [[L("Goals")], [r.goal1, true], [r.goal2]]) + section("pages", [[L("Pages")], [r.doc1], [r.doc2]]) + section("coding", [[L("Coding")], [r.code1]]) + `</div></div>`;
 }
 
-function allTabsButton(L: Say, controls: string, open: boolean): string {
-  return `<button type="button" class="tab-text-button tab-all-button" data-nav-menu-for="${controls}" aria-haspopup="menu" aria-expanded="${open}" aria-controls="${controls}" aria-label="${escapeHtml(L("全部标签"))} · ${escapeHtml(L("{n} 张", { n: 12 }))}">${icon("rows")}<span>${escapeHtml(L("全部标签"))}</span><span class="tab-all-count">12</span></button>`;
+function allTabsButton(L: Say, controls: string, open: boolean, phoneOnly = false): string {
+  return `<button type="button" class="tab-text-button tab-all-button"${phoneOnly ? " data-nav-when-full" : ""} data-nav-menu-for="${controls}" aria-haspopup="menu" aria-expanded="${open}" aria-controls="${controls}" aria-label="${escapeHtml(L("全部标签"))} · ${escapeHtml(L("{n} 张", { n: 12 }))}">${icon("rows")}<span>${escapeHtml(L("全部标签"))}</span><span class="tab-all-count">12</span></button>`;
 }
 
 function plusRow(L: Say, pid: PluginId, where = "", warn = false): string {
@@ -131,7 +131,8 @@ function plusButton(L: Say, controls: string, open: boolean): string {
 }
 
 function layoutButton(L: Say, controls: string, open: boolean): string {
-  return `<span class="titlebar-layout"><button type="button" class="titlebar-layout-button" data-nav-menu-for="${controls}" aria-haspopup="menu" aria-expanded="${open}" aria-controls="${controls}" aria-label="${escapeHtml(L("布局"))}" title="${escapeHtml(L("布局"))}">${icon("columns")}</button></span>`;
+  const attrs = { title: L("布局"), "data-nav-menu-for": controls, "aria-haspopup": "menu", "aria-expanded": String(open), "aria-controls": controls };
+  return `<span class="titlebar-layout">${renderButton({ label: L("布局"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs })}</span>`;
 }
 
 /** The right side's glyphs: its tabs against the right edge, background tasks with what is unfinished. */
@@ -161,10 +162,11 @@ function titlebar(L: Say, state: "ok" | "wrong"): string {
   const pinned = tab(L, { label: r.doc1, glyph: "note", pinned: true, glyphOnly: true });
   const tabs = pinned + mainTabs(L, state) + (wrong ? tab(L, { label: L("收据整理"), glyph: "package", head: true, warn: true, readerLabel: `${L("收据整理")} · ${L("没能启动")}` }) : "");
   const undo = wrong ? undoChip(L) : "";
-  const end = `${undo}${wrong ? allTabsButton(L, `nav-all-${suffix}`, false) : ""}`;
+  // A phone always shows 全部标签; on a desk only the strip that cannot hold its tabs does, so the normal row keeps it for the phone.
+  const end = `${undo}${allTabsButton(L, `nav-all-${suffix}`, false, !wrong)}`;
   const plus = `<span class="mw-navs__anchor">${plusButton(L, `nav-plus-${suffix}`, false)}${plusMenu(L, `nav-plus-${suffix}`, true, wrong)}</span>`;
   const mainStrip = strip(L("主区的标签"), tabs, { end, titlebar: true, lead: paneSwitch(L) });
-  const allMenu = wrong ? `<span class="mw-navs__anchor mw-navs__anchor--all">${allTabsMenu(L, `nav-all-${suffix}`, true)}</span>` : "";
+  const allMenu = `<span class="mw-navs__anchor mw-navs__anchor--all">${allTabsMenu(L, `nav-all-${suffix}`, true)}</span>`;
   return `<header class="mw-navs__titlebar" data-nav-titlebar="${state}">${history}<div class="mw-navs__main">${mainStrip}${allMenu}${plus}</div>${sideGlyphs(L, { current: "talk" })}`
     + `<span class="mw-navs__anchor mw-navs__anchor--end">${layoutButton(L, `nav-layout-${suffix}`, false)}${layoutMenu(L, `nav-layout-${suffix}`, true)}</span></header>`;
 }
@@ -280,24 +282,24 @@ body.mw-navs-page .mw-navs__phone .tab-pane-switch>.mw-toggle{min-height:44px}
 .mw-navs__anchor--end>[data-nav-popover],.mw-navs__anchor--all>[data-nav-popover]{left:auto;right:0}
 .mw-navs__anchor--all{position:absolute;right:0;top:100%}
 .mw-navs__live:empty{display:none}
+@media (min-width:761px){[data-nav-when-full][data-nav-fits]{display:none}}
 .mw-navs__live{margin:0;font-size:12px;color:var(--ink-soft)}
 .mw-navs__bar{min-width:0}
 .mw-navs .workbench-bar{height:var(--dock-h);padding:0;background:transparent}
 .mw-navs .bar-composer textarea{resize:none}
 html body.mw-navs-page .workbench-bar .mw-navs__fold{display:none}
-@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{height:auto;min-height:52px;padding:0}.mw-navs__main{flex-basis:0}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
+@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-rows:44px 44px;gap:4px;height:auto;padding:0}.mw-navs__main{display:contents}.mw-navs__main>.tab-strip{grid-area:1/1/3/4}.mw-navs__main>.mw-navs__anchor:not(.mw-navs__anchor--all){grid-area:1/2;z-index:1}.mw-navs__titlebar>.mw-navs__anchor--end{grid-area:1/3;z-index:1}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}.mw-navs .bar-composer .mw-btn{min-width:44px;min-height:44px}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
 
-/** The board's section: the frame above, in the board's language, as tall as what it draws. */
+/** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside, like the board's other specimen frames. */
 export function renderNavigationSection(L: Say, lang: "zh" | "en"): string {
   return `<section class="mw-catalog__section" id="navigation" data-primitive="navigation"><h2>${escapeHtml(L("工作台导航"))}</h2>`
     + `<p class="mw-nav-section__note">${escapeHtml(L("07-1 定样的组件板新增：标签条、标题栏与三段底栏的零件，以及它们组合成的整条样张。"))}</p>`
     + `<iframe class="mw-nav-frame" data-nav-frame src="/__ui/catalog/navigation?lang=${lang}" title="${escapeHtml(L("工作台导航样例"))}" loading="lazy"></iframe>`
     + `<p class="mw-nav-section__note">${escapeHtml(L("同一排图标，打开页的样式表画的："))}</p>`
-    + `<iframe class="mw-nav-frame" data-nav-frame src="/__ui/catalog/navigation?lang=${lang}&amp;sheet=arrival" title="${escapeHtml(L("打开页样式表里的图标标签"))}" loading="lazy"></iframe></section>`;
+    + `<iframe class="mw-nav-frame mw-nav-frame--sheet" data-nav-frame src="/__ui/catalog/navigation?lang=${lang}&amp;sheet=arrival" title="${escapeHtml(L("打开页样式表里的图标标签"))}" loading="lazy"></iframe></section>`;
 }
 
-export const NAVIGATION_SECTION_STYLES = ".mw-nav-section__note{margin:0 0 12px;color:var(--muted);font-size:12px}.mw-nav-frame{display:block;width:100%;height:2600px;border:0;border-radius:12px;background:var(--desk)}.mw-nav-section__note+.mw-nav-frame{height:180px}";
+export const NAVIGATION_SECTION_STYLES = ".mw-nav-section__note{margin:0 0 12px;color:var(--muted);font-size:12px}.mw-nav-frame{display:block;width:100%;height:min(1400px,85vh);border:0;border-radius:var(--r-card,12px);background:var(--desk)}.mw-nav-frame--sheet{height:200px}";
 
-/** The section's program and the frame's, written in `src/browser/board/navigation-*.ts` and bundled into `dist/` when the package builds. */
-export const NAVIGATION_SECTION_SCRIPT = readFileSync(new URL("./board-navigation-section.js", import.meta.url), "utf8").trim();
+/** The frame's program, written in `src/browser/board/navigation-frame.ts` and bundled into `dist/` when the package builds. */
 const NAVIGATION_FRAME_SCRIPT = readFileSync(new URL("./board-navigation-frame.js", import.meta.url), "utf8").trim();

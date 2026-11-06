@@ -271,7 +271,7 @@ test("W1-18-TAB-FORMAT-01: current grouped items and nested panes remain valid a
   ops.openItem(state, "pages", "DOC", "Document");
   ops.splitPane(state, state.focusedPaneId, "bottom", "copy");
   const restored = JSON.parse(JSON.stringify(state));
-  assert.equal(isCurrentTabWorkspace(restored, { home: true, goals: true, pages: true }), true);
+  assert.equal(isCurrentTabWorkspace(restored), true);
   ops.ensureHome(restored);
   assert.equal(restored.panes.length, 3);
   assert.equal(restored.panes[0].groups[0].collapsed, true);
@@ -365,11 +365,25 @@ test("W1-18-TAB-FORMAT-01: unsupported saved shapes are rejected instead of beco
     state => { state.panes[0].tabs[0].preview = true; },
     state => { state.panes[0].collapsed = { goals: true }; },
     state => { state.panes[0].tabs[0] = { id: "saved", plugin: "task", kind: "item", goalId: "CORE", title: "Core" }; },
-    state => { state.panes[0].tabs[0] = { id: "saved", plugin: "task", kind: "item", itemId: "CORE", title: "Core" }; },
+    state => { state.panes[0].tabs[0] = { id: "saved", plugin: "", kind: "item", itemId: "CORE", title: "Core" }; },
   ]) {
+    // 07-S2: the workspace starts with no tab (the project home is the Dock's), so each shape is altered on a Goal's tab.
     const state = ops.create(); ops.openItem(state, "goals", "CORE", "Core"); alter(state);
-    assert.equal(isCurrentTabWorkspace(state, { home: true, goals: true }), false);
+    assert.equal(isCurrentTabWorkspace(state), false);
   }
+});
+
+// 口径 4 (07-S1 review B1): a plugin id is a value in a tab, not the layout's shape. A layout naming a plugin this build and
+// Home no longer know (one uninstalled from Home) is read as it is; the page draws that plugin's tabs removed.
+test("PFG-22 a saved layout naming a plugin nobody knows any more is still current, tabs, split and side as they were", () => {
+  const state = ops.create();
+  ops.openItem(state, "gone-plugin", "entry-1", "Entry");
+  ops.openBeside(state, "goals", "CORE", "Core");
+  state.panes[0].viewPlugin = "gone-plugin";
+  state.side.tabs.push({ id: "side-gone", kind: "side", plugin: "gone-plugin", itemId: "plugin:gone-plugin/side", title: "Gone" });
+  const saved = JSON.parse(JSON.stringify(state));
+  assert.equal(isCurrentTabWorkspace(saved), true);
+  assert.deepEqual(saved, JSON.parse(JSON.stringify(state)), "nothing in it is changed by reading it");
 });
 
 test("fresh project-root navigation lands leftover plugin views on home", () => {
@@ -710,6 +724,25 @@ test("PFG-22 closing a side tab is undone in place, and an open of the same view
   ops.openSide(state, "browser", sideViews);
   ops.reopenSideTab(state, twice);
   assert.deepEqual(sideKeys(state), ["files", "browser", "plugin:shelf/main", "tasks"]);
+});
+
+// 07-S1 review, small fix 3: closing the last tab collapses the side; putting it back is the side as it was, open on it.
+test("PFG-22 putting back the tab whose close collapsed the side opens the side again; one closed while collapsed does not", () => {
+  const state = ops.create();
+  ops.syncSide(state, [sideViews[0]]);
+  ops.openSide(state, "files", sideViews);
+  const record = ops.closeSideTab(state, ops.sideActive(state).id);
+  assert.equal(state.side.open, false, "no tab left, the side collapses");
+  assert.equal(record.collapsed, true);
+  ops.reopenSideTab(state, record);
+  assert.equal(state.side.open, true);
+  assert.equal(ops.sideActive(state).itemId, "files");
+  ops.syncSide(state, sideViews);
+  ops.setSideOpen(state, false);
+  const quiet = ops.closeSideTab(state, state.side.tabs.find((tab) => tab.itemId === "browser").id);
+  assert.equal(quiet.collapsed, false);
+  ops.reopenSideTab(state, quiet);
+  assert.equal(state.side.open, false, "a tab closed with the side collapsed comes back with the side still collapsed");
 });
 
 test("PFG-22 closing the last side tab collapses the side", () => {

@@ -111,13 +111,9 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
-      // Only a layout of another shape starts fresh (口径 4); a plugin id neither this build nor Home knows (one from before a
-      // rename) is part of the shape. One naming a plugin this project no longer offers (Goals like any other) is read as it is:
-      // that plugin's tabs stay, marked removed (removedPlugin), until it is added back or closed.
-      const plugins = { ...PLUGIN_TAB_ICON };
-      document.querySelectorAll("[data-settings-page]").forEach(node => { plugins[node.dataset.settingsPage] = true; });
-      document.querySelectorAll("[data-plugin-tile]").forEach(node => { plugins[node.dataset.pluginTile] = true; }); // Home's plugins, added here or not
-      if (!resetLayout && isCurrent(stored, plugins)) {
+      // Only a layout of another shape starts fresh (口径 4). One naming a plugin this project no longer offers, or one Home no
+      // longer has at all, is read as it is: that plugin's tabs stay, marked removed (removedPlugin), until added back or closed.
+      if (!resetLayout && isCurrent(stored)) {
         state = ops.ensureHome(stored);
       } else if (stored || resetLayout) {
         state = ops.create();
@@ -274,7 +270,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (view !== undefined) url.searchParams.set("paneView", view);
     return url.href;
   };
-  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, L,
+  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, removed: removedPlugin, L,
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });

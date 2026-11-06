@@ -60,7 +60,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
   for (const change of [
     "tab.kind='mother'", "tab.preview=true", "pane.collapsed=true",
     "tab.plugin='task';tab.kind='task';tab.goalId='CORE';delete tab.itemId",
-    "tab.plugin='task';tab.kind='item'", "tab.goalView='canvas'",
+    "tab.goalView='canvas'",
   ]) {
     await browser.evaluate(`(() => { const stored=${saved},pane=stored.panes[0],tab=pane.tabs.find(row=>row.kind==='item');${change};
       localStorage.setItem(${JSON.stringify(key)},JSON.stringify(stored)); })()`);
@@ -72,6 +72,19 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     assert.ok(current.panes.every(pane => pane.tabs.length === 0 && pane.viewPlugin === null), change + " starts from current Home rather than converting the old item");
     assert.equal(await browser.evaluate("document.querySelector('.tab-item[data-tab-kind=mother], .tab-item[data-preview]')"), null);
   }
+
+  // 口径 4 (07-S1 review B1): a plugin id is a value, not the shape. A tab of a plugin neither this build nor Home knows (one
+  // uninstalled from Home, or named before a rename) is read as it is: the three panes and the nested split stay, the other
+  // tabs are where they were, and that tab is drawn removed.
+  await browser.evaluate(`(() => { const stored=${saved},tab=stored.panes[0].tabs.find(row=>row.kind==='item');tab.plugin='uninstalled-plugin';
+    localStorage.setItem(${JSON.stringify(key)},JSON.stringify(stored)); })()`);
+  await browser.reloadPage();
+  await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3 && document.querySelector('.tab-item[data-plugin=uninstalled-plugin][data-tab-removed]')", 15_000);
+  const kept = JSON.parse(await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)) as typeof before & { layout: unknown };
+  const ids = (state: typeof before) => state.panes.map(pane => pane.tabs.filter(tab => tab.kind !== "plugin").map(tab => tab.itemId ?? tab.kind));
+  assert.deepEqual(ids(kept), ids(before), "every pane keeps its tabs in their places");
+  assert.deepEqual(kept.layout, (JSON.parse(saved) as { layout: unknown }).layout, "the split is the same");
+  assert.ok(kept.panes[0].tabs.some(tab => (tab as { plugin?: string }).plugin === "uninstalled-plugin"), "the unknown plugin's tab is still saved");
 });
 
 test("personal Home uses the bottom navigation while Goals retains its current plugin group", { timeout: 90_000 }, async t => {

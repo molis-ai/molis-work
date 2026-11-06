@@ -123,10 +123,12 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + var(--side-gap) + var(--sheet-inset,14px))}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
  body[data-side-open=true] .side-strip{min-width:0}
- .side-strip{flex:0 1 auto;max-width:100%;padding-block:2px;overflow-x:auto;scrollbar-width:none;justify-content:safe flex-end}
+ .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;scrollbar-width:none;justify-content:safe flex-end}
+ .immersive-titlebar>.side-strip{flex:1 0 100%}
+ .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }
-@media(min-width:601px) and (max-width:760px){.immersive-titlebar>.side-strip{max-width:40%}}
+@media(min-width:601px) and (max-width:760px){html body.immersive-workbench .immersive-workspace{grid-template-rows:auto minmax(0,1fr)}html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
 `.replace(/\n\s*/g, "");
 
@@ -154,7 +156,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
  * and focus from a click leaves the widths as they are).
  */
-export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
+export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,removed=()=>false,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!strip||!stage)return null;
   stage.setAttribute('data-plugin-stage','');
@@ -164,7 +166,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const MAC=/Mac|iP/.test(navigator.platform);
   const side=()=>getState().side;
   const buttons=()=>[...strip.querySelectorAll('[data-side-tab]')];
-  const views=()=>buttons().filter(button=>!button.hasAttribute('data-side-pane')).map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
+  const views=()=>buttons().filter(button=>!button.hasAttribute('data-side-pane')&&!button.hasAttribute('data-side-removed')).map(button=>({key:button.dataset.sideTab,plugin:(button.dataset.sidePlugin||'').split('/')[0],title:button.querySelector('.tab-item-name')?.textContent||button.dataset.sideTab}));
   const tabOf=key=>side().tabs.find(tab=>tab.itemId===key);
   const offered=id=>!!id&&buttons().some(button=>button.dataset.sideTab===id&&!button.hidden);
   const tabs=()=>buttons().filter(button=>!button.hidden&&tabOf(button.dataset.sideTab));
@@ -202,6 +204,9 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     for(const button of buttons()){const item=button.parentElement;if(open&&button.getAttribute('aria-selected')==='true')item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');}
     document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(b=>b.setAttribute('aria-expanded',String(open&&(!b.dataset.sidePluginOpen||current()==='plugin:'+b.dataset.sidePluginOpen))));
   };
+  // A strip narrower than its tabs (a phone) scrolls by itself; the current tab is kept in view.
+  const reveal=()=>{const item=strip.querySelector('[data-side-tab][aria-selected="true"]')?.parentElement;if(!item||strip.scrollWidth<=strip.clientWidth)return;
+    const box=strip.getBoundingClientRect(),at=item.getBoundingClientRect();if(at.left<box.left)strip.scrollLeft-=box.left-at.left;else if(at.right>box.right)strip.scrollLeft+=at.right-box.right;};
   const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
   let undo=null,undoTimer=0;
   const live=document.createElement('div');live.setAttribute('role','status');live.className='mw-sr-only';document.body.append(live);
@@ -215,11 +220,31 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     const record=undo.record;chip.addEventListener('click',()=>reopen(record));
     strip.before(chip);
   };
+  // A tab of a plugin taken out of the project stays where it was, marked removed; its view says how to bring the plugin back.
+  let removedIds=0;
+  const marks=()=>{
+    const live=new Set(views().map(view=>view.key));
+    for(const button of strip.querySelectorAll('[data-side-removed]'))if(live.has(button.dataset.sideTab)||!tabOf(button.dataset.sideTab)){button.parentElement.remove();document.getElementById(button.getAttribute('aria-controls'))?.remove();}
+    side().tabs.forEach((tab,index)=>{
+      if(buttons().some(button=>button.dataset.sideTab===tab.itemId))return;
+      const item=document.createElement('div'),body=document.createElement('div'),id='removed-'+ ++removedIds;
+      item.className='tab-item';item.dataset.glyphOnly='';item.title=tab.title+' · '+L('已移除');
+      item.innerHTML='<button type="button" class="tab-item-trigger" role="tab" aria-selected="false" tabindex="-1" data-side-removed><svg class="tab-item-icon" aria-hidden="true"><use href="#icon-package"></use></svg><span class="tab-item-name" aria-hidden="true"></span></button>';
+      const button=item.firstChild;button.id='side-tab-'+id;button.setAttribute('aria-controls','side-body-'+id);button.setAttribute('aria-label',item.title);
+      Object.assign(button.dataset,{sideTab:tab.itemId,sidePlugin:tab.plugin+'/'});button.lastChild.textContent=tab.title;
+      body.className='side-panel-body';body.id='side-body-'+id;body.hidden=true;body.setAttribute('role','tabpanel');Object.assign(body.dataset,{sideBody:tab.itemId,sideRemovedBody:''});
+      body.innerHTML='<div class="mw-empty tab-removed-stage" role="status"><h2></h2><p></p></div>';
+      body.querySelector('h2').textContent=L('{plugin} 已从这个项目移除',{plugin:tab.title});body.querySelector('p').textContent=L('标签和内容都还在；把它加回这个项目，就能接着用。');
+      const next=side().tabs.slice(index+1).map(other=>buttons().find(node=>node.dataset.sideTab===other.itemId)).find(Boolean);
+      strip.insertBefore(item,next?next.parentElement:null);panel.append(body);
+    });
+  };
   const draw=(target)=>{
-    drawPanes();const id=current();
+    drawPanes();marks();
+    const id=current();
     for(const button of buttons()){const on=button.dataset.sideTab===id;button.toggleAttribute('data-side-closed',!tabOf(button.dataset.sideTab));button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
     for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin));}}
-    expanded();imVisible();drawUndo();
+    expanded();imVisible();drawUndo();reveal();
   };
   const choose=id=>{if(!offered(id))return;const state=getState();if(tabOf(id))ops.selectSide(state,id);else{ops.openSide(state,id,views());ops.setSideOpen(state,open);}};
   const select=(id,target)=>{
@@ -255,7 +280,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const reopen=record=>{
     if(!ops.reopenSideTab(getState(),record))return false;
     if(undo?.record===record)undo=null;
-    if(record.active&&open)select(record.tab.itemId);else draw();
+    if(side().open&&!open)setOpen(true,{tab:record.tab.itemId});else if(record.active&&open)select(record.tab.itemId);else draw();
     if(strip.contains(document.activeElement))buttons().find(button=>button.dataset.sideTab===record.tab.itemId)?.focus({preventScroll:true});
     save();return true;
   };
@@ -272,9 +297,15 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const summon=(id,toggle)=>offered(id)&&(open&&current()===id&&toggle?setOpen(false):setOpen(true,{tab:id,focus:'content'}),save(),1);
   document.addEventListener('click',event=>{const button=event.target.closest?.('[data-side-plugin-open]');if(button)summon('plugin:'+button.dataset.sidePluginOpen,1);});
   const keyed=keys=>{const tab=[...strip.querySelectorAll('[data-side-keys]')].find(button=>button.dataset.sideKeys===keys);return tab&&summon(tab.dataset.sideTab,panel.contains(document.activeElement));};
+  // ⌘\ / Ctrl+\ by the character typed (on a German or JIS layout that key types something else), heard last: a key an editor
+  // took (Pages clears formatting with it) is the editor's, and a terminal keeps Ctrl+\ for itself.
+  addEventListener('keydown',e=>{
+    if(e.repeat||e.isComposing||e.defaultPrevented||e.key!=='\\'||!(MAC?e.metaKey:e.ctrlKey)||e.shiftKey||e.altKey)return;
+    if(e.target?.closest?.('[data-tui-pane],.xterm'))return;
+    e.preventDefault();toggle();
+  });
   addEventListener('keydown',e=>{
     if(e.repeat||e.isComposing)return;
-    if(e.code==='Backslash'&&(MAC?e.metaKey:e.ctrlKey)&&!e.shiftKey&&!e.altKey){e.preventDefault();toggle();return;}
     if(!remember&&e.key?.toLowerCase()==='t'&&e.shiftKey&&!e.altKey&&(e.metaKey||e.ctrlKey)&&undo){e.preventDefault();reopen(undo.record);return;}
     if(keyed((e.metaKey||e.ctrlKey?'Mod+':'')+(e.shiftKey?'Shift+':'')+(e.altKey?'Alt+':'')+String(e.code).replace(/^Key/,'')))e.preventDefault();
   },true);
@@ -364,11 +395,11 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   divider.addEventListener('pointerup',end);divider.addEventListener('lostpointercapture',end);divider.addEventListener('pointercancel',end);
   divider.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const [min,max]=ops.SIDE_RATIO;ops.setSideRatio(getState(),event.key==='Home'?min:event.key==='End'?max:side().ratio+(event.key==='ArrowLeft'?24:-24)/innerWidth);paint();save();});
   divider.addEventListener('dblclick',()=>{ops.setSideRatio(getState(),.35);paint();save();});
-  addEventListener('resize',paint);
+  addEventListener('resize',()=>{paint();reveal();});
   document.body.dataset.sideOpen='false';
   // The views the page offers settle the side's tabs; a view it offers later (a plugin added) joins, and one the person closed stays
-  // closed, across a reload too: the state remembers it (side.closed).
-  const settle=()=>{ops.syncSide(getState(),views());drawPanes();};
+  // closed, across a reload too: the state remembers it (side.closed). A plugin taken out keeps its tabs, marked removed.
+  const settle=()=>{ops.syncSide(getState(),views(),null,tab=>tab.kind==='side'&&Boolean(tab.plugin)&&removed(tab.plugin));drawPanes();};
   settle();
   (${SIDE_CONTEXT_FACTORY})({panel,strip,select,current});
   document.addEventListener('molis-work:plugins-changed',()=>{settle();draw();save();});

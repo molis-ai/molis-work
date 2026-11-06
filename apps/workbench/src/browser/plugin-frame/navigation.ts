@@ -59,8 +59,10 @@ export function childNavigation(port: MessagePort, scope: FrameScope, config: Fr
   scope.listen(window, "keydown", event => {
     const key = event as KeyboardEvent;
     if (key.repeat || key.isComposing || key.defaultPrevented) return;
+    // Backslash is named by the character typed: on a German or JIS layout the key in that place types something else.
+    const named = key.key === "\\" ? "Backslash" : key.code === "Backslash" ? "" : key.code.replace(/^Key/, "");
     const chord = (key.metaKey || key.ctrlKey ? "Mod+" : "") + (key.shiftKey ? "Shift+" : "")
-      + (key.altKey ? "Alt+" : "") + key.code.replace(/^Key/, "");
+      + (key.altKey ? "Alt+" : "") + named;
     if ((chord === "Mod+K" || chord === "Mod+F") && key.target instanceof Element && key.target.closest("[data-tui-pane],.xterm")) return;
     if (config.shortcuts.includes(chord)) { key.preventDefault(); port.postMessage({ type: "shortcut", keys: chord } satisfies FrameUp); }
     else if (config.side && key.key === "Escape" && !document.querySelector("dialog[open],:popover-open")) {

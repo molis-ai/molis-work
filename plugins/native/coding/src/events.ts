@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginEventType } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 
 import { CODING_ROLE_IDS } from "./roles.js";
@@ -37,10 +38,6 @@ export interface CodingFileChanged {
 
 const MAX_SEGMENTS = 64;
 const MAX_SEGMENT_LENGTH = 255;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 
 function requireText(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${field} 无效`);

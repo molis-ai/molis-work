@@ -1,8 +1,9 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+export { messageOf, esc };
 import type { Translate } from "./types.js";
 import type { WorkflowLinkKind } from "../model.js";
 
-const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-export const esc = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ESCAPES[char]!);
 export const ico = (name: string) => `<svg aria-hidden="true"><use href="#icon-${esc(name)}"></use></svg>`;
 
 /** Words the Host or another plugin wrote (a plugin's name, a reason, what an action returned), or one of our own keys carried in a reason: the Host's dictionary translates them. */
@@ -24,16 +25,15 @@ export const when = (iso: string | null | undefined) => {
     : date.toLocaleDateString(lang, { month: "short", day: "numeric" });
 };
 
-export function required<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
+export const required = <T extends Element = HTMLElement>(root: ParentNode, selector: string): T => {
   const node = root.querySelector<T>(selector);
   if (!node) throw new Error(`Workflows page: ${selector} is missing`);
   return node;
-}
+};
 
 /** A copy that shares nothing with the original (the page edits plain data only). */
 export const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-export const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
 export const statusOf = (error: unknown) => (error as { status?: unknown }).status;
 
 /** Motion: nothing moves for a person who asked for less of it. */

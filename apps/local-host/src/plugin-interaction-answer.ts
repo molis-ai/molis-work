@@ -1,8 +1,8 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { AgentQuestion, AgentQuestionProblem, InteractionRequestResult } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
 import { L } from "./web-locale.js";
 
-const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const isQuestion = (value: unknown): value is AgentQuestion => isRecord(value) && Number.isInteger(value.index) && typeof value.prompt === "string" && Array.isArray(value.options);
 const isProblem = (value: unknown): value is AgentQuestionProblem => isRecord(value) && Number.isInteger(value.question) && typeof value.reason === "string";
 

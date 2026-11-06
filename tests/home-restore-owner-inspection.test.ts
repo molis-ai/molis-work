@@ -3,14 +3,14 @@ import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirS
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createHomeSnapshot, restoreHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
 import { assertExistingHomeKeyReference, createEvidenceContentStore, createLazyFileSecretStore, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, inspectMemoryLedger, openMemoryLedger, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { restoreFixture } from "./fixtures/home-restore.js";
 import { homeStorageTree, homeBusinessTree } from "./fixtures/home-storage-files.js";
-import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
+import { captureSqliteError, smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
 
 test("RAC-2915: the actual current Catalog, including its context ledger, passes zero-write archive inspection", { timeout: 30_000 }, async t => {
   const f = await restoreFixture(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
@@ -28,7 +28,7 @@ test("RAC-2915: the actual current Catalog, including its context ledger, passes
     ["unexpected-table", "CREATE TABLE unrelated_owner (id TEXT)"],
   ] as const) {
     const malformed = join(f.directory, name + ".db"); copyFileSync(source, malformed);
-    const storage = new Database(malformed);
+    const storage = openTestSqlite(malformed);
     try { storage.exec(sql); } finally { storage.close(); }
     const original = readFileSync(malformed);
     assert.throws(() => inspectSnapshotSqlite(malformed, { inspect: inspectMolisWorkProjectCatalogSnapshot }), { code: "catalog.database_invalid" }, name);
@@ -69,7 +69,7 @@ function standaloneArchive(t: TestContext) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), "molis-restore-sqlite-reader-")));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, "archive.db");
-  const database = new Database(file);
+  const database = openTestSqlite(file);
   try {
     database.pragma("user_version = 3");
     database.exec("CREATE TABLE saved (id TEXT PRIMARY KEY, body TEXT); INSERT INTO saved VALUES ('original', 'saved owner content')");
@@ -82,7 +82,7 @@ test("RAC-2915: the restore SQLite reader classifies actual invalid archives wit
     const f = standaloneArchive(t);
     if (kind === "not-a-database") writeFileSync(f.file, "this is not a SQLite archive");
     else {
-      const database = new Database(f.file);
+      const database = openTestSqlite(f.file);
       try { database.exec("CREATE TABLE parent (id TEXT); CREATE TABLE child (parent_id TEXT REFERENCES parent(id))"); }
       finally { database.close(); }
     }
@@ -117,6 +117,12 @@ test("RAC-2915: the restore SQLite reader detects an actual source-path replacem
 });
 
 test("RAC-2915: the restore SQLite reader preserves original version, I/O, busy and cancellation errors", async t => {
+  const damaged = standaloneArchive(t);
+  writeFileSync(damaged.file, "not a SQLite archive");
+  const source = openTestSqlite(damaged.file);
+  let nativeError: Error;
+  try { nativeError = captureSqliteError(() => source.pragma("user_version"), "SQLITE_NOTADB"); }
+  finally { source.close(); }
   for (const kind of ["version", "missing-file", "busy", "cancelled"] as const) await t.test(kind, t => {
     const f = standaloneArchive(t);
     if (kind === "missing-file") rmSync(f.file);
@@ -124,11 +130,12 @@ test("RAC-2915: the restore SQLite reader preserves original version, I/O, busy 
     if (kind === "version") assert.throws(() => inspectSnapshotSqlite(f.file, { version: 2 }), { code: "storage.schema_version_mismatch" });
     if (kind === "missing-file") assert.throws(() => inspectSnapshotSqlite(f.file), { code: "ENOENT" });
     if (kind === "busy") {
-      const locker = new Database(f.file);
+      const locker = openTestSqlite(f.file);
       try {
         locker.exec("BEGIN EXCLUSIVE");
         assert.throws(() => inspectSnapshotSqlite(f.file), error => {
-          assert.ok(error instanceof Database.SqliteError);
+          assert.ok(error instanceof Error && "code" in error);
+          assert.equal(Object.getPrototypeOf(error), Object.getPrototypeOf(nativeError));
           assert.equal(error.code, "SQLITE_BUSY");
           assert.equal(error instanceof ActionError, false);
           return true;
@@ -137,7 +144,7 @@ test("RAC-2915: the restore SQLite reader preserves original version, I/O, busy 
     }
     if (kind === "cancelled") {
       const abort = new AbortController();
-      const reason = new Database.SqliteError("original owner cancellation", "SQLITE_NOTADB");
+      const reason = nativeError;
       assert.throws(() => inspectSnapshotSqlite(f.file, { signal: abort.signal, inspect() {
         abort.abort(reason);
         throw reason;
@@ -173,7 +180,7 @@ test("RAC-2912: missing Memory is only absent, while wrong version, structure, c
     const f = await restoreFixture(t), file = join(f.home, "memory", "memory.db");
     if (kind === "corruption") writeFileSync(file, "damaged existing owner data");
     else {
-      const db = new Database(file);
+      const db = openTestSqlite(file);
       try {
         if (kind === "version") db.pragma("user_version = 9");
         else if (kind === "shape") db.exec("DROP TABLE memory_candidates");

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { isPlatformMcpTool } from "@molis-ai/molis-work-app-mcp";
@@ -83,7 +83,7 @@ test("catalog rejects GoalBoard owner", async () => {
     const home = join(directory, "home");
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     catalog.close();
-    const db = new Database(join(home, "projects", "catalog.db"));
+    const db = openTestSqlite(join(home, "projects", "catalog.db"));
     try {
       db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'owner'").run("goalboard-project-catalog-v1");
     } finally {

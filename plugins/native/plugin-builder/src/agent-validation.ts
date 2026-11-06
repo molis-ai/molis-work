@@ -1,8 +1,8 @@
+import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 import { validateExperience } from './agent-experience.js';
 import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 export function parseBuilderJson(text: string): unknown { const clean = text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, ''); return JSON.parse(clean); }
 /** A schema error in words the designer can act on: which operation, which field, what to write. */
 function explainContract(error: unknown, contract: unknown): string {

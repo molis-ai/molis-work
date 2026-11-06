@@ -1,3 +1,4 @@
+import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, retainActionAuthority, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -12,8 +13,6 @@ import { pptArtifactPreview, pptArtifactPreviewHandler } from "./artifact-previe
 import { pptErrors } from "./error.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-const array = (items: unknown) => ({ type: "array", items });
 const color = { ...text, pattern: "^#[0-9a-fA-F]{6}$" };
 const slideFields = { id: text, title: text, bullets: { ...array(text), maxItems: 12 }, notes: text, order: { type: "integer" } };
 const recordFields = { id, project_id: id, title: text, description: text, color_primary: color, color_background: color, color_text: color,
@@ -28,7 +27,7 @@ type OutlineInput = Identity & { text?: string; page_id?: string; replace?: bool
 type Edit = Identity & { title?: string; description?: string; color_primary?: string; color_background?: string; color_text?: string; slides?: readonly PptSlideInput[] };
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   // An action that waits on a model discloses the cost and runs beside the serial queue, like Forms' AI drafting.
-  return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: [PPT_SUBJECT_KIND], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) } };
+  return createActionDefinition<I, O>(`ppt.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: [PPT_SUBJECT_KIND], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) });
 }
 export const pptActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */

@@ -165,9 +165,7 @@ export const PLUGIN_WIRING_SCHEMA_SQL = `
  * group the user picked, and each output port's current version.
  */
 export class SqlitePluginWiringRepository implements PluginWiringRepository {
-  constructor(private readonly db: PluginWiringDatabase) {
-    db.exec(PLUGIN_WIRING_SCHEMA_SQL);
-  }
+  constructor(private readonly db: PluginWiringDatabase) {}
 
   listBindings(projectId: string, targetPluginId?: string): PluginPortBindingRecord[] {
     const rows = targetPluginId === undefined

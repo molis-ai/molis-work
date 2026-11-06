@@ -1,3 +1,4 @@
+import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { scheduleFailure } from "./error.js";
 import type { ReminderIdentity, ReminderInput } from "./reminders.js";
@@ -6,11 +7,8 @@ import type { ScheduleActionWrite } from "./actions.js";
 /** Schedule owns the declared reminder action provider. */
 export const SCHEDULE_REMINDER_PROVIDER_ID = "schedule.reminders";
 
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
-const define = <I, O>(capability_id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>): ActionDefinition<I, O> => ({
-  capability_id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", effect: "write", audiences: ["plugin"],
-    permissions: [], subject_kinds: [], execution: { timeout_ms: 10_000, cost: "none" }, input_schema: input, output_schema: output },
-});
+const define = <I, O>(capability_id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>): ActionDefinition<I, O> => createActionDefinition<I, O>(capability_id, "command", { title, description, effect: "write", audiences: ["plugin"],
+    permissions: [], subject_kinds: [], execution: { timeout_ms: 10_000, cost: "none" }, input_schema: input, output_schema: output });
 /** Stable ids preserve already-published contracts; Schedule now owns their implementation and declaration. */
 export const reminderActions = {
   add: define<ReminderInput, { reminderId: string }>("reminders.add", "到点提醒", "由 Schedule 在设定时间把提醒放入收件箱，不运行插件代码；每日和每周为固定间隔，每个安装最多 200 条",

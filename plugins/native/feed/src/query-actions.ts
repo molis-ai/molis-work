@@ -1,3 +1,4 @@
+import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
@@ -11,10 +12,10 @@ const empty = { type: "object", properties: {}, additionalProperties: false };
 const item = { type: "object", required: ["item_id", "revision", "materials", "title"] };
 const rows = (required: string[]) => ({ type: "array", items: { type: "object", required } });
 function define<I, O>(id: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: readonly string[] = ["feed:read"]): ActionDefinition<I, O> {
-  return { capability_id: id, version: 1, operation: "query", action: { title, description, kind: "query", scope: "project",
+  return createActionDefinition<I, O>(id, "query", { title, description,
     // This is the existing local panel projection, including source configuration and receipt metadata.
     // Shared content consumers use feed.content.list/read, which expose their narrower content contract.
-    audiences: ["user"], permissions: [...permissions], subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
+    audiences: ["user"], permissions: [...permissions], subject_kinds: ["feed_item"], input_schema: input, output_schema: output });
 }
 
 export type FeedDirectorySnapshot = Omit<FeedSnapshot, "inbox_entries">;

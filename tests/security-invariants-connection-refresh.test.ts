@@ -9,7 +9,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { checkConnectorConnection, completeApiOAuth, connectorAccountActionProvider, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { checkConnectorConnection, completeApiOAuth, connectorAccountActionProvider, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, resolveApiConnection, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { createFileSecretStore, homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { DatabaseSync } from "node:sqlite";
@@ -246,6 +246,23 @@ test("S-70 RAC-349 a refresh the token endpoint refuses marks the account for re
   assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");
   assert.equal((await port.request(target, dispatch())).status, 200);
   assert.deepEqual(seen.at(-1), "Bearer renewed-access");
+});
+
+test("S-70 RAC-349 a forced refresh that goes through clears the mark: the account is shown connected and the plugin's next request is sent", { timeout: 30_000 }, async t => {
+  const home = await connected(t);
+  let accepts = false;
+  const refreshes = tokenEndpoint(t, () => accepts ? json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }) : json({ error: "invalid_grant" }, 400));
+  const { seen, options } = await asana(t, ["stale-access"]);
+  const port = createPluginConnectionsPort(home, options), [account] = listConnectorConnectionViews(home, "asana");
+  await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "reauth_required");
+  // A Host reader of the account forces a refresh (a document import does after a 401); this time the token endpoint answers.
+  accepts = true;
+  assert.equal((await resolveApiConnection(home, account!.connection_id, connectorControl(), "asana", true, options)).token, "fresh-access");
+  assert.equal(refreshes.length, 2);
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected", "the refresh that went through cleared the mark");
+  assert.equal((await port.request(target, dispatch())).status, 200);
+  assert.equal(seen.at(-1), "Bearer fresh-access");
 });
 
 test("S-70 RAC-349 a network failure while refreshing refuses only this request: nothing is marked and the next request tries again", { timeout: 30_000 }, async t => {

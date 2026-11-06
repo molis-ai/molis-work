@@ -184,6 +184,8 @@ export function createGithubProvider(opts?: {
           status: "error",
           message: failure.message,
           action: failure.action,
+          failure: failure.failure,
+          ...(failure.retryAfterAt ? { retryAfterAt: failure.retryAfterAt } : {}),
         };
       }
     },

@@ -261,20 +261,34 @@ const headErrors = (measured, budget, base) => {
 // N53/N54 D half (#1811, admitted by the coordinator on 2026-11-05): pages stop sending reads that can only fail. plugin-frame.js
 // +238 B: the frames a page mounts at once share one in-flight surfaces read per address, and a page with no project asks none;
 // workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
-// address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings; the workbench.js
-// ceiling is spent too and the BL-912 entry below takes its place.) Tried: the shared read is one Map with no expiry timer, the
-// project check reads the body's existing data-project-id, no new helper or asset.
+// address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
+// read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
+// BL-952 (2026-11-04): the selection reader skips headings inside a closed dialog or a hidden element, +56 B on workbench.js and on
+// plugin-frame.js (the same reader). Tried: one `closest` test with a short selector, no feature check, no second path.
+// WORK-03 (2026-11-05, explicitly approved by the user): product-local account forms and protected GET.
+// Reuses existing controls and request helper, minifies the typed browser program, and adds no served asset.
+// Exact growth: workbench.js +6876 B, plugin-frame.js +54 B, each stylesheet +452 B; see specs/unified-account/spec.md.
+// WORK-04 (2026-11-05, explicitly approved by the user): provider window/native opener, cancellation and result polling.
+// Reuses the same dialog, request helper and existing native bridge; minified into workbench.js, +1562 B more (8438 B total).
+// WORK-05 (2026-11-05, explicitly approved by the user): profile and security forms share verification helpers, minified in the existing bundle. +8,994 bytes over 1,083,008; no other asset changes.
+// WORK-06 (2026-11-05, explicitly approved by the user): tenant/member/platform forms reuse the account UI and pagination; +8,918 bytes over 1,092,002, minified in the same bundle with no new assets.
+// WORK-07 (2026-11-05, explicitly approved by the user): subscription, seat and platform forms share cards, fields and error states; +10,408 bytes over 1,100,920, minified into the existing bundle. No other assets grow.
+// WORK-08 (2026-11-05, explicitly approved by the user up to +2,374 bytes): entitlement sources reuse subscription UI and the request helper; final +2,340 bytes over 1,111,328 after removing invalid cross-batch revision comparison. Other assets unchanged.
+// T-01 integration: rebase the already approved account deltas onto main a00f5ba1.
+// The integrated measurement adds exactly the same account bytes: +410 / +452 / +39629 / +54.
+// Upstream growth is already in main; this rebases the admission and grants no additional growth.
+// K-07 (2026-11-06, explicitly approved): arrival side panels follow the stage grid above the wrapping bar.
+// Scoped selectors were shortened; arrival.css adds exactly 273 B over 690296, with no new asset.
+// Main #1747 reduced workbench.css by 4 B; preserve its approved +452 B on the new 1194521 B base.
 // BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
 // one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
-// table, the attribute is read in the statement that already chose the default; the N53/N54 workbench.js entry is spent (the
-// merge-base budget holds its ceiling) and is replaced by this one.
+// table, the attribute is read in the statement that already chose the default. It lands inside the workbench.js ceiling above
+// (keyed on the same 1075120 base), so it adds no entry; if the account PR lands after this, its key moves to 1075157.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689755, 689887],
-  "/assets/molis-work-plugins/coding.css": [74624, 75514],
-  "/assets/molis-work-settings.css": [826705, 826748],
-  "/assets/molis-work-workbench.css": [1194394, 1194526],
-  "/assets/molis-work-workbench.js": [1075120, 1075157],
-  "/assets/molis-work-plugin-frame.js": [208033, 208271],
+  "/assets/molis-work-arrival.css": [689886, 690569],
+  "/assets/molis-work-workbench.css": [1194521, 1194973],
+  "/assets/molis-work-workbench.js": [1075120, 1114749],
+  "/assets/molis-work-plugin-frame.js": [208271, 208325],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

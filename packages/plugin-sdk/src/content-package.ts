@@ -38,7 +38,7 @@ type Expected =
  * whoever packs a folder from disk refuses a symbolic link there.
  */
 export function parseContentPackage(payload: unknown): ContentPackage {
-  if (!plain(payload) || payload.schema_version !== 1 || !Array.isArray(payload.files)) refuse([{ reason: "内容包的 payload 要有 schema_version 1 和 files 列表" }]);
+  if (!plain(payload) || payload.schema_version !== /* @version format.plugin.package */ 1 || !Array.isArray(payload.files)) refuse([{ reason: "内容包的 payload 要有现行的 schema_version 和 files 列表" }]);
   const manifest = parsePluginManifest((payload as Record<string, unknown>).manifest);
   if (manifest.kind !== "content") refuse([{ reason: "内容包只装只有声明的插件（kind: \"content\"）" }]);
   const { files, problems } = decodedFiles((payload as { files: unknown[] }).files);

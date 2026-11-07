@@ -23,7 +23,7 @@ export function connectorReadyChecker(read: ReadConnections): Checker {
     if (row && "project_id" in row && row.project_id !== scope.project_id) throw new ActionError("actions.forbidden", "连接不属于当前工作项目");
     return row;
   };
-  return { id: "molis.connection-ready", version: "1", params,
+  return { id: "molis.connection-ready", version: /* @version checker.molis.connection-ready "{version}" */ "1", params,
     checkParams: input => validParams(input) ? undefined : "需要所选连接、真实账号或空值，以及任务所需的精确能力引用",
     authorize: async (scope, input) => { connection(scope, (await read(scope)).connections, input as ReadyParams); },
     read: async (scope, input, signal) => {

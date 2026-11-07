@@ -2,7 +2,7 @@ import { ActionError, type ActionCallContext, type ActionReference } from "@moli
 import type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** The Home's own action that runs its dock judgment (the platform's, not Feed's): one or more items, each judged by the rule bound to the project's dock. */
-export const HOME_JUDGMENT_EVALUATE = { capability_id: "home.judgment.evaluate", version: 1 } as const satisfies ActionReference;
+export const HOME_JUDGMENT_EVALUATE = { capability_id: "home.judgment.evaluate", version: /* @version action.home.judgment.evaluate */ 1 } as const satisfies ActionReference;
 
 /** What says the item, the rule or the choices moved while the judgment ran: nothing to record, and nothing to fail on. */
 const TOLERATED_CODES: readonly string[] = ["actions.binding_changed", "actions.binding_missing", "actions.provider_changed", "actions.subject_changed", "actions.subject_unavailable", "actions.subject_incompatible"];

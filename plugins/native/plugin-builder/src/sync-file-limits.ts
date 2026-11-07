@@ -6,7 +6,7 @@ const members = Object.values(SANDBOX_PACKAGE_FILES);
 const base64Bytes = (size:number) => 4 * Math.ceil(size / 3);
 // A compact Studio distribution contains one 8 MiB entrypoint, four 4 MiB JSON members,
 // the manifest as an object as well as a member, an Ed25519 signature and a DER SPKI key.
-const emptyEnvelope = JSON.stringify({payload:{schema_version:1,manifest:{},files:members.map(path=>({path,content_base64:''}))},
+const emptyEnvelope = JSON.stringify({payload:{schema_version:/* @version format.builder.files-envelope */ 1,manifest:{},files:members.map(path=>({path,content_base64:''}))},
   signature:{algorithm:'ed25519',value_base64:''},publisher_key:{algorithm:'ed25519',spki_base64:''}});
 const signedLimit = Buffer.byteLength(emptyEnvelope) - 2 + JSON_LIMIT + base64Bytes(64) + base64Bytes(44)
   + members.reduce((total,path)=>total+base64Bytes(path===SANDBOX_PACKAGE_FILES.entrypoint?SOURCE_LIMIT:JSON_LIMIT),0);

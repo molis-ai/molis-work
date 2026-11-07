@@ -101,7 +101,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
     const host = new AgentHost({ reviews: queue }); host.register(adapter);
     const manifest = structuredClone(codingAgentManifest), role = manifest.roles.find(role => role.role_id === "coordinator")!;
     role.subagent_workspaces = "required"; role.execution = "read-only"; role.host_tools = ["read-file", "dispatch-subagent", "await-subagents"];
-    manifest.subagents!.roles = [{ role_id: "coding-writer", version: 3, name: "独立写入", execution: decision === "command" ? "workspace-write" : "text-edit", host_tools: ["read-file", "write", ...(decision === "command" ? ["run-command"] : [])] }];
+    manifest.subagents!.roles = [{ role_id: "coding-writer", version: 1, name: "独立写入", execution: decision === "command" ? "workspace-write" : "text-edit", host_tools: ["read-file", "write", ...(decision === "command" ? ["run-command"] : [])] }];
     const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Parent" });
     const request = { ...owner, session, directory, role_id: "coordinator", task: "Delegate an isolated write.",
@@ -224,7 +224,7 @@ test("production writers role runs two isolated children concurrently with indep
     assert.ok(!body.tools.some((tool: any) => ["write", "edit", "run-command"].includes(tool.name)), "production parent is read-only");
     parentCalls++;
     if (parentCalls <= 2) {
-      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@5/)?.[0]; assert.ok(character);
+      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@1/)?.[0]; assert.ok(character);
       const index = parentCalls - 1;
       return toolResponse("dispatch-subagent", { instruction: `PRODUCTION_CHILD_${index}: read and then replace sample.txt in your own root; report the actual receipt.`, tools: ["read", "search", "context-remaining", "write", "edit", "run-command"], character, workspace: `writer-${index}`, idempotencyKey: `writer-${index}`, background: true, maxTurns: 3 }, String(index));
     }

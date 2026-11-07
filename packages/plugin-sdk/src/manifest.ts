@@ -35,7 +35,7 @@ const SEMVER = new RegExp(`^${NUMERIC}\\.${NUMERIC}\\.${NUMERIC}(?:-${PRERELEASE
 export function parsePluginManifest(input: unknown): PluginManifest {
   const manifest = record(input, "Manifest");
   const publisher = record(manifest.publisher, "publisher");
-  if (manifest.schema_version !== 1 || manifest.host_api_version !== 1) {
+  if (manifest.schema_version !== /* @version manifest.schema */ 1 || manifest.host_api_version !== /* @version host.api */ 1) {
     throw pluginErrors.manifest_invalid("Plugin Manifest schema_version 与 host_api_version 必须都是 1");
   }
   if (!text(manifest.plugin_id) || !PLUGIN_ID.test(manifest.plugin_id)
@@ -103,7 +103,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
       for (const value of types) {
         const type = record(value, `${field}.${key}`);
         if (!text(type.artifact_type_id) || typeof type.schema_version !== "number"
-          || !Number.isSafeInteger(type.schema_version) || type.schema_version < 1) {
+          || !Number.isSafeInteger(type.schema_version) || type.schema_version < /* @version manifest.schema */ 1) {
           invalid("类型必须声明 type ID 与正整数 schema_version");
         }
       }

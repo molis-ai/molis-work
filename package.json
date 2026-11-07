@@ -1,6 +1,6 @@
 {
   "name": "@molis-ai/molis-work",
-  "version": "0.3.0",
+  "version": "0.1.0",
   "description": "Molis Work V1：面向人和 AI Runtime 的本地 SQLite 目标真相源",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
@@ -33,6 +33,8 @@
     "LICENSE"
   ],
   "scripts": {
+    "versions:generate": "node scripts/generate-versions.mjs --write",
+    "versions:check": "node scripts/generate-versions.mjs --check",
     "web:personal": "node --env-file=.env.personal.local --import tsx apps/desktop/launchers/web/server.ts",
     "test:personal": "node scripts/run-tests.mjs tests/personal-auth.test.ts tests/personal-http.test.ts tests/desktop-shell-bootstrap.test.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",

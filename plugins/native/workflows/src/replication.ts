@@ -43,7 +43,7 @@ export const workflowsCollection: PluginSyncCollectionDefinition = {
       const columns = kind === "workflow" ? workflowColumns : instanceColumns;
       const record = Object.fromEntries(columns.map(column => [column, row[column]]));
       validate(kind, record);
-      const value = { format: 1, spaceId: context.spaceId, project: { id: projectId, title: project.title }, record };
+      const value = { format: /* @version format.workflows.portable */ 1, spaceId: context.spaceId, project: { id: projectId, title: project.title }, record };
       checkSize(value);
       return value;
     },
@@ -63,7 +63,7 @@ export const workflowsCollection: PluginSyncCollectionDefinition = {
       checkSize(value);
       const envelope = recordOf(value, ["format", "spaceId", "project", "record"]);
       const project = recordOf(envelope.project, ["id", "title"]);
-      if (envelope.format !== 1 || envelope.spaceId !== context.spaceId || project.id !== projectId ||
+      if (envelope.format !== /* @version format.workflows.portable */ 1 || envelope.spaceId !== context.spaceId || project.id !== projectId ||
         typeof project.title !== "string" || project.title.length > 120) invalid();
       const columns = kind === "workflow" ? workflowColumns : instanceColumns;
       const record = recordOf(envelope.record, [...columns]);
@@ -128,6 +128,6 @@ function checkSize(value: unknown): void {
 function invalid(): never { throw syncError("invalid", "工作流程同步数据不合法"); }
 
 export const workflowsSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "workflow_history", title: "工作流程与运行记录", schema_version: 2, requires: [], tracking: workflowsCollection.tracking }],
+  protocol_version: /* @version sync.protocol */ 1,
+  collections: [{ id: "workflow_history", title: "工作流程与运行记录", schema_version: /* @version sync.collection.workflows.workflow_history */ 1, requires: [], tracking: workflowsCollection.tracking }],
 };

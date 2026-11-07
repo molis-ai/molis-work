@@ -11,15 +11,15 @@ const recommendationKey = { type: "string", pattern: "^offer\\.[a-f0-9]{58}$" };
 const preparedOffer = { ...SUBJECT_OFFER_SCHEMA, properties: { ...SUBJECT_OFFER_SCHEMA.properties, source: ACTION_REFERENCE_SCHEMA, recommendation_key: recommendationKey }, required: [...SUBJECT_OFFER_SCHEMA.required, "source"] };
 const metadata = { scope: "project" as const, scheduling: "concurrent" as const, audiences: ["user", "agent", "workflow", "mcp"] as const, permissions: ["home:read"], subject_kinds: [] };
 export const homeOfferActions = {
-  choices: { capability_id: "home.actions.choices", version: 1, operation: "query", action: { ...metadata, title: "事项动作的规则选项", description: "从原插件声明发现可供规则选择的动作身份；实际事项输入仍须准备和检查。", kind: "query",
+  choices: { capability_id: "home.actions.choices", version: /* @version action.home.actions.choices */ 1, operation: "query", action: { ...metadata, title: "事项动作的规则选项", description: "从原插件声明发现可供规则选择的动作身份；实际事项输入仍须准备和检查。", kind: "query",
     input_schema: { type: "object", properties: { subject_kind: { type: "string", minLength: 1 } }, additionalProperties: false },
     output_schema: { type: "object", properties: { choices: { type: "array", items: { type: "object", properties: {
       key: recommendationKey, offer_id: { type: "string" }, title: { type: "string" }, source: ACTION_REFERENCE_SCHEMA, action: ACTION_REFERENCE_SCHEMA,
       provider_title: { type: "string" }, subject_kinds: { type: "array", items: { type: "string" } }, availability,
     }, required: ["key", "offer_id", "title", "source", "action", "provider_title", "subject_kinds", "availability"], additionalProperties: false } } }, required: ["choices"], additionalProperties: false } } } as ActionDefinition<{ subject_kind?: string }, { choices: SubjectOfferChoiceView[] }>,
-  offers: { capability_id: "home.actions.prepare", version: 1, operation: "query", action: { ...metadata, title: "事项可用动作", description: "发现插件提供的当前事项动作，核对权限与完整输入；不会执行。", kind: "query",
+  offers: { capability_id: "home.actions.prepare", version: /* @version action.home.actions.prepare */ 1, operation: "query", action: { ...metadata, title: "事项可用动作", description: "发现插件提供的当前事项动作，核对权限与完整输入；不会执行。", kind: "query",
     input_schema: SUBJECT_OFFERS_INPUT_SCHEMA, output_schema: { type: "object", properties: { offers: { type: "array", items: { ...preparedOffer, properties: { ...preparedOffer.properties, availability }, required: [...preparedOffer.required, "availability"] } }, issues: { type: "array", items: { type: "string" } }, sources: { type: "array", items: ACTION_REFERENCE_SCHEMA } }, required: ["offers", "issues", "sources"], additionalProperties: false } } } as ActionDefinition<SubjectOffersInput, HomeActionOffers>,
-  execute: { capability_id: "home.actions.execute", version: 1, operation: "command", action: { ...metadata, title: "执行事项动作", description: "重新核对原提供方、动作和输入，再通过共同执行服务调用；业务幂等与恢复由原动作负责。", kind: "operation",
+  execute: { capability_id: "home.actions.execute", version: /* @version action.home.actions.execute */ 1, operation: "command", action: { ...metadata, title: "执行事项动作", description: "重新核对原提供方、动作和输入，再通过共同执行服务调用；业务幂等与恢复由原动作负责。", kind: "operation",
     input_schema: { ...SUBJECT_OFFERS_INPUT_SCHEMA, properties: { ...SUBJECT_OFFERS_INPUT_SCHEMA.properties, offer: preparedOffer }, required: [...SUBJECT_OFFERS_INPUT_SCHEMA.required, "offer"] },
     output_schema: { type: "object", properties: { title: { type: "string" }, result: {} }, required: ["title", "result"], additionalProperties: false } } } as ActionDefinition<HomeOfferExecutionInput, { title: string; result: unknown }>,
 };

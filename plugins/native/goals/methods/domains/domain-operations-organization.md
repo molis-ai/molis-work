@@ -1,6 +1,6 @@
 ---
 method_id: domain-operations-organization
-version: 3
+version: 1
 kind: domain
 name: "运营与组织流程"
 summary: "把角色、权限、工具、例外和度量连成可持续运行闭环。"

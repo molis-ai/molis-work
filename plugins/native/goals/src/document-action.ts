@@ -9,7 +9,7 @@ import type { GoalsPlanningActionPorts } from "./planning-actions.js";
 import type { GoalHistoryQueryPorts } from "./history-query.js";
 
 const strings = array(text);
-export const goalDocumentAction = goalAction<{ goal_id: string }, GoalEventDocumentView>("goals.document.read", "读取目标正文",
+export const goalDocumentAction = goalAction<{ goal_id: string }, GoalEventDocumentView>("goals.document.read", /* @version action.goals.document.read */ 1, "读取目标正文",
   "读取指定目标的当前状态、完整历史首屏及游标、原始说明、关系和可选规划方法；保留归档及回收站历史，不启动工作或变更已采用要求", "query",
   object({ goal_id: identifier }), object({ state: goalStateSchema, timeline: goalHistoryPageSchema,
     description: object({ title: text, outcome: text, why: text, business_logic: text, in_scope: strings, out_of_scope: strings,

@@ -14,7 +14,7 @@ export interface McpActionGrant {
   readonly enabled: boolean;
 }
 
-const MCP_TOOL_PREFERENCE_VERSION = 1;
+const MCP_TOOL_PREFERENCE_VERSION = /* @version format.mcp.tool-preference */ 1;
 const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
 
 /** Which actions each MCP client may use; nothing else switches an MCP tool on or off. */

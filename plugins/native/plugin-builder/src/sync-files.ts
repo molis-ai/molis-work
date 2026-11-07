@@ -1,4 +1,5 @@
 import {builderSyncFileLimit, BUILDER_SYNC_TOTAL_BYTES} from './sync-file-limits.js';
+import {compareCodeUnits} from '@molis-ai/molis-work-plugin-sdk';
 import {SANDBOX_SDK_CONTRACT_DECLARATIONS} from '@molis-ai/molis-work-plugin-sandbox';
 import {constants,existsSync,lstatSync,mkdirSync,openSync,closeSync,readFileSync,writeFileSync,readdirSync,realpathSync,fstatSync} from 'node:fs';
 import {createHash,randomUUID} from 'node:crypto';
@@ -46,7 +47,7 @@ export function captureBuilderDirectory(root:string,path:string,slot:string,rele
  if(!existsSync(path))return missing();const local=beneath(resolve(root),resolve(path));if(lstatSync(root).isSymbolicLink())invalid();root=realpathSync(root);path=join(root,local);safeChain(root,path);
  const base=realpathSync(path);beneath(root,base);const files:BuilderPortableFile[]=[];
  const walk=(directory:string)=>{
-  for(const entry of readdirSync(directory,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){
+  for(const entry of readdirSync(directory,{withFileTypes:true}).sort((a,b)=>compareCodeUnits(a.name,b.name))){
    const full=join(directory,entry.name),name=relative(base,full).split('\\').join('/');
    if(entry.isSymbolicLink())invalid();
    if(entry.isDirectory()){if(!release&&(name==='src'||name==='tests'||sdkFiles.some(file=>file.startsWith(name+'/'))||/^(?:src|tests)\//.test(name)))walk(full);continue;}

@@ -57,7 +57,7 @@ test("MEM-09 two independent originals promote once; repeating an original under
   const [entry] = (await env.memory().list(person, { scope: "project" })).items;
   assert.ok(entry);
   assert.equal(entry.basis, "repeated");
-  assert.deepEqual(entry.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
+  assert.deepEqual(entry.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
   const changes = env.memory().changes(person).filter(item => item.kind === "auto_kept");
   assert.equal(changes.length, 1);
   assert.equal(changes[0]!.undoable, true);

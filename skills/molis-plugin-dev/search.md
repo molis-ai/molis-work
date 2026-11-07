@@ -13,9 +13,9 @@
    ```ts
    import { bindSearchEntriesHandler, defineSearchEntriesAction } from "@molis-ai/molis-work-plugin-sdk";
 
-   export const notesSearchEntries = defineSearchEntriesAction("notes.search.entries",
+   export const notesSearchEntries = defineSearchEntriesAction("notes.search.entries", 1,
      [{ kind: "note", title: "笔记", surface: "notes" }],   // 对象种类、给人看的名字、工作台打开它的插件标识
-     "笔记", ["notes:read"]);                               // 不传第五个参数就是项目范围，处理器按 caller.project_id 列；个人范围见下
+     "笔记", ["notes:read"]);                               // 不传第六个参数就是项目范围，处理器按 caller.project_id 列；个人范围见下
 
    bindSearchEntriesHandler(notesSearchEntries, caller => store.list(caller.project_id!).map(note => ({
      subject: { kind: "note", id: note.id },
@@ -30,7 +30,7 @@
 
    `bindSearchEntriesHandler` 负责排序、分页和集合版本；你只返回当前完整列表。列表里不要放已删除、已丢弃、已归档的对象——不在列表里，就会从索引里删掉。
 
-   个人范围的来源（第五个参数传 `"home"`，不属于任何项目）处理器里没有项目：`defineSearchEntriesAction("x.search.entries", kinds, "名字", ["x:read"], "home")`，处理器列个人的条目，不读 `caller.project_id`。
+   个人范围的来源（第六个参数传 `"home"`，不属于任何项目）处理器里没有项目：`defineSearchEntriesAction("x.search.entries", 1, kinds, "名字", ["x:read"], "home")`，处理器列个人的条目，不读 `caller.project_id`。
 
    **Home 级实例、数据按项目放**的插件（库按项目分区）声明两个来源，读同一份存储：个人范围的（`"home"`，列个人与未放置的条目，索引一次）和项目范围的（列这个项目的条目，随该项目索引）。项目里的搜索只找到该项目的条目，个人索引里没有它们。写法见 `plugins/native/todo/src/search.ts`（`entries` 与 `projectEntries`）。
 

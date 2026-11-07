@@ -550,11 +550,11 @@ export declare const connectorErrors: {
     "connector.mcp.provider": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
 };
 
-export declare function defineConnectorUsagesAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesInput, {
+export declare function defineConnectorUsagesAction(id: string, version: number, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesInput, {
     usages: ConnectorUsage[];
 }>;
 
-export declare function defineConnectorUsagesSwitchAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult>;
+export declare function defineConnectorUsagesSwitchAction(id: string, version: number, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult>;
 
 export declare const servicesConnectorHostContract: {
     readonly contractId: "io.molis.work.service.connector-host.v1";

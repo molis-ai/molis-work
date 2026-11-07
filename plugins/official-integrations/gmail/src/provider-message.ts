@@ -83,7 +83,7 @@ export function mapMessageDetailToItem(
       ? {
           reason: "source_rule",
           detail: {
-            rule: "gmail_attention_v1",
+            rule: /* @version policy.gmail.attention "gmail_attention_v{version}" */ "gmail_attention_v1",
             matched_by: attentionMatches,
             system_labels: normalizedLabels.filter((label) => ["STARRED", "IMPORTANT"].includes(label)),
           },

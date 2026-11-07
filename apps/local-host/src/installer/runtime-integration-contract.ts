@@ -1,8 +1,8 @@
 import type { McpLauncherValidationContext } from "@molis-ai/molis-work-app-mcp";
 
-export const INTEGRATION_OWNER = "molis-work-runtime-integration-v1";
+export const INTEGRATION_OWNER = /* @version type.molis-work-runtime-integration "molis-work-runtime-integration-v{version}" */ "molis-work-runtime-integration-v1";
 
-const INSTALLER_OWNER = "molis-work-home-install-v1";
+const INSTALLER_OWNER = /* @version type.molis-work-home-install "molis-work-home-install-v{version}" */ "molis-work-home-install-v1";
 
 export function isOwnedInstallerOwner(installer: unknown): boolean {
   return installer === INSTALLER_OWNER;
@@ -30,7 +30,7 @@ export interface RuntimeIntegrationChange {
 }
 
 export interface RuntimeIntegrationPlan {
-  schema_version: 1;
+  schema_version: /* @version format.runtime.integration.plan */ 1;
   plan_id: string;
   plan_hash: string;
   runtime_id: SupportedRuntimeId;
@@ -146,7 +146,7 @@ export interface RuntimeAdapter {
 }
 
 export interface IntegrationReceipt {
-  schema_version: 1;
+  schema_version: /* @version format.runtime.integration.receipt */ 1;
   owner: string;
   runtime_id: SupportedRuntimeId;
   config_path: string;

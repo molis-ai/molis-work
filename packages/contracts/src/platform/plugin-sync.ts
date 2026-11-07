@@ -13,7 +13,7 @@ export interface PluginSyncCollection {
 }
 
 export interface PluginSyncDeclaration {
-  readonly protocol_version: 1;
+  readonly protocol_version: /* @version sync.protocol */ 1;
   readonly collections: readonly PluginSyncCollection[];
 }
 
@@ -46,7 +46,7 @@ export interface PluginSyncContext {
 
 /** A replica-local revision is a CAS token, never a globally ordered version. */
 export interface PluginSyncSnapshot extends PluginSyncIdentity {
-  readonly protocol_version: 1;
+  readonly protocol_version: /* @version sync.protocol */ 1;
   readonly spaceId: string;
   readonly projectId: string;
   readonly collection_id: string;

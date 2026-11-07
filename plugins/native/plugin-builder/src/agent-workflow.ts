@@ -354,7 +354,7 @@ export class AgentBuilderWorkflow {
   /** Freezes a design: a new build directory keeps unchanged operations' code; unchanged parts and wiring stay. */
   private async adopt(id: string, token: string, result: { design: AgentDesign; dropped: string[]; source: string; rework?: Record<string, string> }, stepId: string, summary: string) {
     const before = this.store.require(id), design = result.design;
-    const manifest: BuildManifest = { version: 1, pluginId: design.contract.pluginId, revision: design.contract.revision, effects: effectsFromContract(design.contract) };
+    const manifest: BuildManifest = { version: /* @version format.builder.build-manifest */ 1, pluginId: design.contract.pluginId, revision: design.contract.revision, effects: effectsFromContract(design.contract) };
     const directory = await this.ports.prepareBuild(before, design, manifest); this.current(id, token);
     const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
     const kept = before.design ? before.nodes.filter(node => { const { kind: _kind, ...plan } = node; const next = design.parts.find(part => part.id === node.id); return !!next && same(plan, next); }) : [];

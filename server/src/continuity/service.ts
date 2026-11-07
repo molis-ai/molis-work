@@ -162,7 +162,7 @@ export class ContinuityService {
       const scope = this.scope(projectId), role = this.identity.access(session,projectId);
       const artifacts = await this.artifacts(bound,scope,role !== "owner");
       const goals = await Promise.all(scope.goal_ids.map(id => this.goal(bound,id))); validate();
-      return {format:"molis-work-assets",version:1,source_project_id:projectId,title:scope.title,goals,
+      return {format:"molis-work-assets",version:/* @version format.continuity.assets */1,source_project_id:projectId,title:scope.title,goals,
         artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,artifact_type_id:a.artifact_type_id,schema_version:a.schema_version,
           owner_actor_id:a.owner_actor_id,producer:{plugin_id:a.producer_plugin_id,plugin_version:a.producer_plugin_version,binding_signature:a.producer_binding_signature},
           content:a.content_kind === "inline" ? {kind:"inline",payload:a.payload} : {kind:"reference",content_ref:`unavailable://${encodeURIComponent(a.artifact_id)}/${a.version}`,digest:a.content_digest,size_bytes:a.size_bytes,available:false},

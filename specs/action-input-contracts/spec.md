@@ -245,7 +245,7 @@ type RepeatTuple<T, N extends number, Acc extends unknown[] = []> =
 | `items` 是数组 | `agent.run.control`；`minItems` 短于 `items` 时，后面的元素可选 | `[a, b]`、`[a, b?]` |
 | `items` 是一个 schema，`minItems` 等于 `maxItems` | `projects.settings.runtime.select` | `[a]`。超过 8 个退回数组 |
 
-推不出来的情形（`$ref`，没写 `type` 和 `properties` 的 `allOf`、`if/then`，以及同时有 `properties` 和顶层 `anyOf`、`oneOf` 的写法）退回 `unknown`，读字段编译报错，安全。`allOf`、`if/then` 和 `type`、`properties` 写在一起时不退回：只看 `properties`，条件里的必填不参与，推出来的字段比运行时宽，处理器读的时候还要自己判断。现在有 1 处：Jelly 的 `aiInput`（`plugins/native/jelly/src/actions.ts:18-21`），N22-04 碰到，条件里的必填照旧由 schema 查。同时有 `properties` 和顶层 `anyOf`、`oneOf` 的写法有 8 个动作：`todo.changes.revert`、`todo.items.link`、`cognia.knowledge.synthesize`、`memory.prefs.write`（`contracts/services/memory.ts:546`）、05② C-1 的 `projects.directories.set_output`、`map_source`，还有嵌套的 `goals.tree.submit`、`goals.tree.decide`（`goal-tree-action-schemas.ts:18` 的 `payload`）。**统筹 2026-11-07 定：不改写法，N22-02 改工具**（下面第 1 条），和 §5.1「T 片不动 schema」不再矛盾。这几处的分支都不带 `type`，N22-01 上本来就是 `unknown`，没有哪个推导被削弱。只写 `{ type: "object" }` 的推成 `Record<string, unknown>`：读字段不报错，但读到的是 `unknown`，当字符串用才报错，同样不会悄悄变 `any`。`required` 不是字面量（`string[]`）时一个都不算必填，所以 §4.5 的帮手漏写 `const`，接口有必填字段的定义会被 §4.3 报出来，不会悄悄放行。
+推不出来的情形（`$ref`，没写 `type` 和 `properties` 的 `allOf`、`if/then`，以及同时有 `properties` 和顶层 `anyOf`、`oneOf` 的写法）退回 `unknown`，读字段编译报错，安全。字面量丢了不一定走到这里，有三种能编译，见 §4.5。`allOf`、`if/then` 和 `type`、`properties` 写在一起时不退回：只看 `properties`，条件里的必填不参与，推出来的字段比运行时宽，处理器读的时候还要自己判断。现在有 1 处：Jelly 的 `aiInput`（`plugins/native/jelly/src/actions.ts:18-21`），N22-04 碰到，条件里的必填照旧由 schema 查。同时有 `properties` 和顶层 `anyOf`、`oneOf` 的写法有 8 个动作：`todo.changes.revert`、`todo.items.link`、`cognia.knowledge.synthesize`、`memory.prefs.write`（`contracts/services/memory.ts:546`）、05② C-1 的 `projects.directories.set_output`、`map_source`，还有嵌套的 `goals.tree.submit`、`goals.tree.decide`（`goal-tree-action-schemas.ts:18` 的 `payload`）。**统筹 2026-11-07 定：不改写法，N22-02 改工具**（下面第 1 条），和 §5.1「T 片不动 schema」不再矛盾。这几处的分支都不带 `type`，N22-01 上本来就是 `unknown`，没有哪个推导被削弱。只写 `{ type: "object" }` 的推成 `Record<string, unknown>`：读字段不报错，但读到的是 `unknown`，当字符串用才报错，同样不会悄悄变 `any`。`required` 不是字面量（`string[]`）时一个都不算必填，所以 §4.5 的帮手漏写 `const`，接口有必填字段的定义会被 §4.3 报出来，不会悄悄放行。
 
 **N22-02 带的两处工具改动**（[#1909 合审](https://github.com/molis-ai/molis-work/pull/1909#issuecomment-6705563344) 2.1、3.2，`actions.txt`、`plugin.txt` 它本来就占）：
 
@@ -355,6 +355,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 - 各包的 `define<I, O>` 用 `const` 泛型接 schema。TS 不支持只推一部分泛型，要写成柯里化：`define<O>()("suffix", …, input_schema, …)`。
 - 共享片段（`const text = { type: "string" }`）加 `as const`。`object()`、`array()`、`nullable()`、`choices()` 这类帮手改成 `const` 泛型。**这些都只改类型，值不变，动作快照哈希不变。**原型里 Todo 那套帮手（`object` 默认全部必填、`choices` 用 `map` 生成 `oneOf`）都推得出来，`choices` 要在返回处写一次类型。
 - 合同包里导出的常量和帮手不一样，它们的类型在公开 API 快照里，加 `as const` 或改 `const` 泛型会改快照（§8.2 N22-02、N22-03）；插件和宿主里的不进快照。
+- **字面量丢了不一定报错（N22-04 实跑）。** 没有 `as const` 的 `{ type: "string" }` 推成 `unknown`，处理器读的时候编译报错；但 `{ enum: [...] }` 和 `{ const: "a" }` 推成 `string`，`required` 不是字面量（`Object.keys(fields)`，类型是 `string[]`）时所有字段都可选，这三种都能编译。运行时校验不受影响，只是类型比运行时宽，精度丢了也没人知道。门禁不查这个，靠 §5.4 第 4 步看一眼推出来的类型。
 - 数组推出来是可变数组：现有存储函数签名多是可变数组，这样少改很多。
 - 推出来的类型和存储函数的入参对不上，就是真发现：要么 schema 太松（记进 S 清单），要么存储函数的类型太窄（当场改）。
 
@@ -367,6 +368,8 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 **#1909 合审实跑（TS 5.9.3）：** 22 个插件 manifest 里 582 个动作的真实输入 schema，按 T 片写法各写成一张导出的表：`.d.ts` 共 156,573 字节，最大的 Goals 41,454 字节，TS7056 的上限是 100 万字符，一个都没碰到；`inputSchemaFor` 24 层嵌套还过，32 层报 TS2589，真实输入最深 7 层；全部放一个程序 225,776 次实例化，464 ms。schema 取自 11-03 的构建，内联字面量，不含宿主注册的动作，也没量共享片段，所以 N22-04、T01、T05、T13 开工时还要量。
 
 **还有一个风险原型量不出来**：各包导出的动作表（`export const goalsActions = { … }`）现在 `.d.ts` 里只写接口名，推导之后要展开整段类型，Goals（76 个动作）、Jelly（53 个）可能碰到 TS7056（推出来的类型太长，序列化不了）。所以试点选 Jelly，N22-04 必须量；超过估计三倍或碰到 TS7056，就停下回到这里，办法是给动作表写一个具名类型，或者只导出定义、不导出表。**试点通过之前不扇出。**
+
+**N22-04 实跑（[#1923](https://github.com/molis-ai/molis-work/pull/1923)，TS 5.9.3，基点和头交替各 7 次取中位数）：** Jelly 53 个动作，实例化 7,935 → 20,442，增量是按本节估计的 1.47 倍；检查时间 0.17 s → 0.21 s；全部 `.d.ts` 210,832 B → 232,943 B；最大的单个声明 58,597 字符，没有 TS7056、TS2589，没有超线。
 
 ## 5. 怎样迁一个包：先换类型，再收约束
 
@@ -384,15 +387,16 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
    - **公开合同过不了 `inputSchemaFor`**（N22-02、N22-03）：T 片不改 schema，也不改公开接口，这一处先不包，记进 S0 的清单，S0 改完再包上。接口是判别联合、schema 是扁平对象的，包 `FlatUnion`；还过不了的才进 §4.4 名单。不许放宽工具或加关掉的参数。
 4. 不删任何运行时检查，不改错误码和文字。行为零变化。
 5. PR 描述列出 S 清单和处理器里的重复检查。**两样都空，这个包的 S 片才取消。** 比如 T09 的 `as` 只有 3 处，手写检查有 28 处。
+6. 看一眼推出来的类型（§5.4 第 4 步）：漏 `as const` 不一定报错。
 
 ### 5.2 S 片：收约束
 
 **规则：先补 schema 约束，再删重复检查，不能反过来**，否则中间有一段没人查。S 片要占快照队列。
 
-1. 把 S 清单和处理器里的检查分成三类：schema 能表达的（必填、类型、`minItems`、`pattern`、长度、enum）、schema 不能表达的（跨字段、要读库）、已被别处保证的。
-2. 第一类**且已被处理器执行**的，补进 schema。只搬已有的检查，不新增拒绝。新的收紧单独一个 PR，写明。
+1. 把 S 清单和处理器里的检查分成四类（§5.4 的表）：① schema 已经管了的；② schema 能表达（必填、类型、`minItems`、`pattern`、长度、enum）但还没写的；③ schema 管不了的（跨字段、要读库）；④ 类型上只能是 `unknown` 的。已被别处保证的，看它属于哪一类。
+2. ② 类**且已被处理器执行**的，补进 schema。只搬已有的检查，不新增拒绝。**不要把约束加到共享片段上：** 输出也过校验（`checkedActionResult`），加在用到它的动作或分支上。新的收紧单独一个 PR，写明。
 3. 确认这个处理器只经 kernel 调用（§5.3）。
-4. 删掉第一类的检查和读值小函数；T 片留下的 `as` 也删掉。
+4. 删掉 ① 类和搬完的 ② 类的检查和读值小函数；T 片留下的 `as` 也删掉。表驱动的处理器例外：值在类型上只能是 `unknown`，读值函数在收窄，留着（④ 类，现在只有 Jelly，见 `BL-jelly-command-readers`）。
 5. `pnpm build`、`pnpm actions:update`，每个搬进去的约束配一个断言拒绝的用例（AIC-12）。
 
 **一条检查能不能删，读 schema，不读类型**（[#1909 合审](https://github.com/molis-ai/molis-work/pull/1909#issuecomment-6705563344) 3.1）。这些情况类型会让检查看起来多余，其实不多余：
@@ -403,13 +407,157 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 - `text.length` 搬成 `maxLength`。Ajv 按码点数，`maxLength: 1` 放行一个 emoji（`.length` 是 2），第 2 步的「只搬」在这里有差别，要写明。
 - 注册的定义和绑定的定义不是一份时。kernel 校验注册的那份，只按 id、version 和处理器配对。
 
-Jelly 的例子：`action-schema.ts:9` 的 `ids` 加 `minItems: 1`（`uniqueItems` 已有），`:40` 的 `text` 加 `pattern: "\\S"`，再删 `jelly/src/ai.ts:26` 的那一行。`:27` 起按选区核对块的部分要读库，留下。
+Jelly 的例子（#1923）：笔记选区的约束写在 `actions.ts` 里 `aiInput` 的笔记分支，`block_ids` 加 `minItems: 1`，`text` 加 `pattern: "\\S"`，再删 `jelly/src/ai.ts` 里对应的检查。按选区核对块的部分要读库，留下。**不能加在 `action-schema.ts` 的 `ids`、`text` 这两个共享片段上：** `applied_plan_ids: ids` 在工作区的输出里，实跑后 `workspace.get` 报 `actions.output_invalid`，写命令报 `actions.output_invalid_after_effect` 而且已经写入；文字来源本来也不读选区，加到共享片段就是新增拒绝。
 
 ### 5.3 S 片要逐条判断的三件事
+
+后两件只对 ② 类成立。① 类 schema 本来就拒，Kernel 先拒，处理器那条走不到，删掉不改哈希也不改错误码；第一件两类都要查：不经 Kernel 就没有 schema 拦。
 
 - **绕过 kernel 的调用。** `apps/local-host/src/plugin-builder/exposed-actions.ts:137,140`、`computer/computer-record-source.ts:110,116` 直接 `handler.handle`。前者是转发，后者是内部调用，都没过 `validateActionInput`。迁到这些处理器前先核：这条路要么也校验，要么这个处理器的检查不能删。
 - **错误码和文字会变。** 检查搬进 schema 后，错误从插件自己的码变成 `actions.input_invalid`，文字变成通用的。**用户在界面上能走到的检查不能这样搬**，要么页面先拦，要么留着：只有程序调用方才会碰到的检查才搬。逐条判断，PR 里列出来。所以「删重复检查」不会删到一个不剩，留下的每条在 PR 里写理由。
 - **改哈希。** 补约束改输入 schema 的哈希。按 N35 在原版本改，不升版本。只搬已有检查，所以过去被处理器拒的输入现在被 schema 拒，已存的调用（工作流程步骤、固定引用）结果还是失败，只是错误码变了。每片 PR 写明对调用方的影响。
+
+### 5.4 写法样板（N22-04 试点，[#1923](https://github.com/molis-ai/molis-work/pull/1923)）
+
+后面的 T 片、S 片照这份写。行号是 #1923 那个头上的。
+
+#### T 片：一个最小改动长什么样
+
+只有四样改动，schema 的值一个字不动。
+
+**1. 共享片段加 `as const`。** 只给输入用到的加，只进输出的片段不用。包内的小片段也算。
+
+```ts
+export const text = { type: "string" } as const;
+export const priority = { enum: ["P0", "P1", "P2", "none"] } as const;
+const occurrence = { id: s.id, scope: { enum: ["onlyThis", "thisAndFuture"] } } as const;
+```
+
+漏了不一定报错（§4.5），所以片段写完要看一眼推出来的类型（第 4 步）。
+
+**2. `define` 改成柯里化。** 第一个类型参数只能是 `InferActionInput<S>`，定义处不标 `ActionDefinition<X, …>`。只给 `input_schema` 用 `const` 泛型，输出还是 `ActionSchema`。
+
+```ts
+export const defineJellyAction = <O>() => <const S extends ActionSchema>(name: string, version: number, /* … */ input: S, output: ActionSchema) =>
+  createActionDefinition<InferActionInput<S>, O>(`jelly.${name}`, /* … */ { /* … */ input_schema: input, output_schema: output }, version);
+
+// 之前：define<{ id: string }, { preview: JellyPreview }>("note.delete_preview", …)
+define<{ preview: JellyPreview }>()("note.delete_preview", …)
+```
+
+帮手也要留住字面量。`required` 有默认值时写法固定如下，`as R` 只写这一次，它说的是真话：不传就是全部键。不要写成 `required = Object.keys(fields)`（是 `string[]`，一个都不算必填，能编译，也不报错）。`R extends Keys<F>` 同时拦下写错的键。
+
+```ts
+type Keys<F> = readonly (keyof F & string)[];
+const commandInput = <const F extends Fields, const R extends Keys<F> = Keys<F>>(fields: F, required?: R) =>
+  s.object({ ...fields, expected_revision: s.revision }, [...(required ?? Object.keys(fields)) as R, "expected_revision"]);
+```
+
+**3. 处理器改调 `bindActionHandler`。** 注意参数顺序：`run` 是 `(input, caller)`，`defineAction` 的处理器才是 `(context, input)`。第三参只有 `{ availability }`、`{ execution }`。
+
+```ts
+bindActionHandler(jellyActions.calendar, input => read(state => ({ /* input.start 是 string */ }))),
+bindActionHandler(jellyActions.modelPlan, (input, caller) => ai(input, false, caller), { availability: () => ports.modelAvailability() }),
+```
+
+包自己的 `bind` 小包装删掉；要多包一层的（写入检查、取权限）留包装，里面调 `bindActionHandler`，不再写 `as`。`{ ...definition, handle: (caller, input) => … input as X }` 这种写法也改掉。
+
+**几个定义共用一个处理器时**（Jelly 的 33 个命令），在共用处写「它真正读什么」，把定义表向上转成这个类型，不写 `as`。这是编译器查的：哪个命令不符合，就在这一行报错。
+
+- `Object.entries<ActionDefinition<JellyCommandInput>>` 的类型参数不能省。省了也能编译，只是这一层检查没有了（`undo` 多一个字符串的 `item`：带类型参数 1 个错误，去掉 0 个）。
+- 它只查写了名字的键（`item`、`series`、`expected_revision`）。其余的键走索引签名，处理器读到的是 `unknown`。
+- N22-G 只查定义处，这种向上转型不算手写 `I`（AIC-19）。
+
+```ts
+export type JellyCommandInput = CommandFields & { readonly expected_revision: number };
+Object.entries<ActionDefinition<JellyCommandInput>>(jellyCommandActions).map(([type, definition]) => bindActionHandler(definition, ({ expected_revision, ...input }, caller) => { /* … */ }))
+```
+
+**4. 看一眼推出来的类型。** 先 `pnpm build`（整机一次一个）：类型来自 `packages/*/dist`，新工作树没有 `dist`，或者工具合入后没重建，看到的类型就是错的。然后在要看的包里建一个临时文件（不提交），错误信息里就是类型：
+
+```ts
+// <包>/src/__probe.ts，这里以 Jelly 为例
+import { jellyCommandActions as c } from "./command-actions.js";
+type I<D extends { __types__?: unknown }> = NonNullable<D["__types__"]> extends { input: infer X } ? X : never;
+export const a: { [K in keyof I<typeof c["series.update"]>]: I<typeof c["series.update"]>[K] } = 1;
+```
+
+在仓库根目录跑，哪个包都能用：
+
+```sh
+node_modules/.bin/tsc -p <包>/tsconfig.json --noEmit --noErrorTruncation
+```
+
+看 `string` 该不该是枚举、`unknown` 该不该是具体类型。
+
+**编译报错了怎么判断（§5.1 第 3 步）：**
+
+| 报错 | 判断 | 做法 |
+| --- | --- | --- |
+| 存储函数的参数比推出来的窄 | 存储函数的类型太窄 | 当场改 |
+| 处理器要的字段，schema 写成可选或只有 `{ type: "object" }` | schema 太松 | T 片不改 schema：`as` 留着，记进 S 清单 |
+| 推出来是 `unknown` | 先查片段漏没漏 `as const`，是不是经过了标注 `ActionSchema` 的变量；都不是，就是 schema 松（② 类） | 修写法；schema 松的记 S 清单 |
+| 公开合同的接口和 schema 对不上 | §4.4 | 不是这几个 T 片的事，回来问 |
+
+**做完要交：** `pnpm build`，`pnpm actions:update`、`pnpm api:update` 都无差异；运行时检查和错误码没动；PR 带 S 清单和处理器里的重复检查（两样都空，S 片取消）。声明大小和类型检查时间按本节末尾的办法量（T01、T05、T13 必须量）。
+
+#### S 片：怎么判断和删
+
+打开这个动作的 schema，逐条找到管这条检查的那个关键字；找不到就不算有。先分四类：
+
+| 类 | 怎么认 | 做法 | 哈希 | 错误码 |
+| --- | --- | --- | --- | --- |
+| **① schema 已经管了** | 关键字已经在这个动作的 schema 里 | 直接删，配一个拒绝用例证明 schema 真的拒 | 不变 | 不变：Kernel 本来就先拒，这条检查本来就走不到 |
+| **② schema 能管、还没写** | 处理器在查，schema 没写；或者值是 `unknown`，因为 schema 松（比如 `{ type: "object" }` 没写字段） | 记进 S 清单。只有程序调用方碰得到才搬；**加在用到它的动作上** | 变 | 变成 `actions.input_invalid` |
+| **③ schema 管不了** | 跨字段、要读库、日历上不存在的日期 | 留 | - | - |
+| **④ 类型上只能是 `unknown`** | 一个处理器服务很多定义，值在类型上本来就只能是 `unknown`，检查同时在收窄 | 留。删了就要写 `as`，方向反了 | - | - |
+
+**④ 是 Jelly 的特例。** 全仓现在只有 `JellyCommand` 是这种形状。`Object.entries` 式的表驱动处理器另外只有 `plugins/native/pages/src/landing-actions.ts:39` 和 `apps/local-host/src/installed-plugin-consent-actions.ts:109`，它们不是这种形状。值是 `unknown` 不等于 ④：别的包碰到，先按 ② 算，真觉得是 ④ 就回来问。
+
+**搬之前的三问：**
+
+1. **页面走得到吗？** 走得到就不搬（错误话会变成通用的），要么页面先拦。Jelly 的选区：`note-actions.ts:69` 空选区根本不发。
+2. **这个片段还有谁在用？** 输出也过校验（`checkedActionResult`）。不要把约束加到共享片段上，新建一个或写在分支里。
+3. **是只搬，还是多拒了？** 原来的检查只在某个分支生效，就只加在那个分支。`text.length` 搬成 `maxLength` 要写明：Ajv 按码点数。
+
+**再查一条路：** 这个检查的上层还有谁不经 Kernel 调？不经 Kernel 就没有 schema 拦，检查不能删。全仓的两条见 §5.3；包自己的路也要查，Jelly 的 `store.execute` 还有 `content-actions` 的 `receive` 和几十处测试直调，有测试钉住的（`tests/jelly-content.test.ts:47` 的 `/预览/`）留着，不改测试。
+
+**拒绝用例的写法：** 同一个输入改一个值，好的那一半证明它能过 schema，所以拒的就是这一个值。搬进去的约束还要证明没有多拒：Jelly 的用例断言文字来源带空选区仍然通过。
+
+```ts
+for (const [type, good, bad] of cases) {
+  await assert.rejects(f.command(type, good), (error: { code?: string }) => error.code !== "actions.input_invalid");
+  await assert.rejects(f.command(type, { ...good, ...bad }), { code: "actions.input_invalid" });
+}
+```
+
+#### 什么算动了 `actions.tsv`
+
+- **算：** `input_schema`、`output_schema` 的值变了（加关键字、改枚举、挪 `required` 的顺序也算），谁能调、权限、声明的动作增减。
+- **不算：** `as const`、`const` 泛型、柯里化、删处理器里的检查、说明文字。
+
+所以 **T 片 `pnpm actions:update` 有差异就是写错了，停下来查**，不提交。S 片只有 ② 类才变，① 类一行都不变。S 片先 `pnpm build` 再 `pnpm actions:update`，PR 写清变了哪几行、对调用方的影响。
+
+#### 哪些情况回来问，不要自己绕
+
+- 过 T 片要改 schema 的值；或者要放宽工具、加关掉检查的参数。
+- 公开合同过不了 `inputSchemaFor`（S0 的事）。
+- 想把 `{ type: "object" }` 写全，但它是用户选的文件或平台产出的记录（§4.3 表下的例外）。
+- 声明大小、类型检查超过 §4.6 说的线，或者碰到 TS7056、TS2589。
+- 想把门禁、工具、spec 的写法改了才写得下去。
+- 表驱动的处理器，`as` 去不掉、要拆很多行的。
+
+#### 怎么量声明大小和类型检查时间
+
+先 `pnpm build`（整机一次一个），然后在仓库根目录跑：
+
+```sh
+node_modules/.bin/tsc -p <包>/tsconfig.json --noEmit --extendedDiagnostics   # 实例化、时间
+node_modules/.bin/tsc -p <包>/tsconfig.json --outDir <暂存目录>               # 声明；TS7056 只在这时才报
+find <暂存目录> -name '*.d.ts' -print0 | xargs -0 cat | wc -c                 # 全部声明的字节数
+```
+
+基点的 `src` 用 `git archive` 放到暂存目录，配 `package.json`（`"type": "module"`）、指向真实包的 `tsconfig` 和 `node_modules` 软链，和头交替跑，负载一样才比得了。结果写成 #1923「量到的声明大小和类型检查时间」那张表。
 
 ## 6. `normalizeProjectId`（N12 第 4 块）
 
@@ -465,7 +613,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | N22-01 工具合同 | §4.2、§4.3，类型测试；除了正反用例，再跑一次 §4.3 加键的量法，零误报查不出放行 | contracts `platform/actions.ts`、SDK `actions.ts`（2） | C1 | `api/contracts/platform/actions.txt`、`api/contracts/platform/plugin.txt`（`platform/plugin.ts:18` 转出 `actions.js`）、`api/plugin-sdk/index.txt` | Opus 5.5 high，全量 | #1837（共用 `index.txt`）。**不等 05② C-1**，文件和快照都不重叠；和 05② C-2、U1-f、08 C-1 共用 `index.txt`，谁先准备好谁先，一前一后；`platform/plugin.txt` 按 §8.4 |
 | N22-06 `normalizeProjectId` | §6 | Dataset、Form、Lingguang、Pages、PPT 的 `store.ts`（5） | E | 无 | Sonnet 5.5 high | **不依赖工具，也不等 #1837**：02 的 PR 没碰这五个 store（已查）。统筹可以最先开它 |
 | N14 | §2、§3 | §3 | 无归属（kernel 按 C1），Feed 一个文件 E | `host-actions.tsv` 6 行 | Opus 5.5 high，全量 | **#1837**；定样（#1873，已合入）；E 轨预警 |
-| N22-04 试点 Jelly | T＋S 同一个 PR，把两种片都走通，**定下写法样板**，量 §4.6 | Jelly（5） | E | `actions.tsv` | Opus 5.5 high | N22-01。**它通过之前，下面的 T 片不开** |
+| N22-04 试点 Jelly | T＋S 同一个 PR，把两种片都走通，**定下写法样板**，量 §4.6 | Jelly（原估 5 个，实际 12 个：S 片还动 `ai.ts`、`calendar.ts`、`content.ts`、`store.ts`，另有 `contract.ts`、`plugin-routes.ts`、`search.ts`、`service-actions.ts`） | E | `actions.tsv` | Opus 5.5 high | N22-01。**它通过之前，下面的 T 片不开** |
 | N22-02 共享帮手 | **先带 §4.2 末尾的两处工具改动（合审实跑的 `set_output`、`map_source` 都是 `oneOf`，Goals 那两个是 `anyOf`，用例要带一个 `anyOf`），重量 130 个定义**；共享定义 `bind*` 改调工具，schema 包 `inputSchemaFor`。T 片 | contracts `platform/{artifact-pins,file-sources,placement,search-sources,workflow-content}.ts`、SDK `routes.ts`（6）；另有 10 个只有 `define*`、没有 `bind*` 的帮手，只包 schema：`platform/{action-fragments,action-offers,action-usages,action-subjects,home-events,home-background-tasks,due-reminders,work-executors,action-scene-configuration}.ts`、`services/connector-usages.ts`（共 16）。14 个导出的输入 schema 常量（`FILE_ENTRIES_INPUT_SCHEMA` 这些）加 `as const`，不包在常量定义处：包了导出类型变成 `ActionSchema`，同样改快照，还把字面量丢了。要加 `as const` 的比这 14 个多：它们嵌着的 `ACTION_REFERENCE_SCHEMA`（`platform/action-offers.ts`）、`ACTION_SUBJECT_SCHEMA`（`platform/actions.ts`）也要加，都在下面这几份快照里，不多占队列 | C1 | **改 3 份 API 快照**：`api/contracts/platform/actions.txt`、`platform/plugin.txt`、`services/connector-host.txt`。排 api 队列，过公共合同合审。差异只是字面量变窄，对调用方兼容：现有消费者都是展开读（`apps/local-host/src/{action-usage,home-event,home-offer}-actions.ts`）。动作快照不变 | Opus 5.5 high，全量 | N22-01；`platform/plugin.txt` 和 U1-f 不固定先后（§8.4） |
 | N22-05 判断规则 | T＋S 同一个 PR：包小，N14 刚改过 | `modules/judgment-rules/src/{authoring-actions,actions}.ts`、宿主 `judgment-rules-actions.ts`（3） | 无归属 | `host-actions.tsv` | Opus 5.5 medium，全量 | **N14**（同一个文件）、N22-01、N22-02（`authoring-actions.ts:21` 展开 `ACTION_REFERENCE_SCHEMA`，常量还不是字面量时推出来是 `unknown`，容易误记成 schema 太松） |
 
@@ -705,6 +853,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | 2026-11-06 | Alchemist 不迁，核一遍；动态 schema 留 `unknown` | 硬迁 | Alchemist 的类型已来自同一份 zod（项目级拿解析后的值，Home 级两个操作靠一处 `as` 和 kernel 校验），且是用户批过的例外（BL-377）；动态的没有东西可推 |
 | 2026-11-06 | `input as` 只许减少的门禁不做 | 留作过渡 | 那是工具加试点方案的配套；一次迁完没有存量要容忍 |
 | 2026-11-06 | **防回潮用一条绝对门禁**（用户定）：N22-Z 之后单独一个小 PR，处理器的输入参数上不许有 `as`，基线为 0，例外写明理由，测试不查 | 不加门禁；品牌类型封死 | §9.2。不加门禁成果会被慢慢磨掉；品牌类型要改 189 个测试文件 |
+| 2026-11-07 | **N22-04 的结论**（统筹定，评审台同意）：§5.2 的 Jelly 例子改到 `aiInput` 的笔记分支；检查分四类，① 类不改哈希和错误码；Jelly 的读值函数留下，登 `BL-jelly-command-readers`；样板收进 §5.4 | 照原例子加在共享片段上；删读值函数 | 共享片段实跑弄坏所有读取和写命令。删读值函数要么一处 `as`，要么 33 个处理器分开写。代价：`store` 那层的 `as` 留着，N22-G 查不到 |
 
 ## 12. 验收
 

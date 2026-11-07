@@ -5,10 +5,10 @@ import { reload } from "./list.js";
 import { notice, q, type CogniaPage } from "./page.js";
 
 /**
- * The model the asks need (specs/draft-and-return §4): 打开模型设置 asks the settings for a model with the step `query`, the ask
+ * The model the asks need (specs/draft-and-return §4): the model-settings button asks the settings for a model with the step `query`, the ask
  * the missing model held back. Back with a model, the list reads again and, once a read shows the model can run (the read right
  * after going back may not yet: the settings tell the pages a first model is ready after that, and the list reads again then), the
- * platform's 接着做 prompt offers that ask once; it opens the ask's dialog and nothing more, so what is asked is still the person's.
+ * platform's resume prompt offers that ask once; it opens the ask's dialog and nothing more, so what is asked is still the person's.
  * A trip that ended after the page was rebuilt comes back through `arrived()` the same way.
  */
 export function installReturns(page: CogniaPage, ask: () => void): void {
@@ -24,12 +24,13 @@ async function back(page: CogniaPage, outcome: UiReturnOutcome, ask: () => void)
   page.modelRead = outcome.status === "ready" && outcome.carry.step === "query" ? () => {
     if (!page.state.ai_available) return;
     page.modelRead = undefined;
-    prompt(page, ask);
+    offer(page, ask);
   } : undefined;
   await reload(page);
 }
 
-function prompt(page: CogniaPage, ask: () => void): void {
+/** Draws the resume prompt above the model line; only a press on its resume button opens the ask. */
+function offer(page: CogniaPage, ask: () => void): void {
   page.root.querySelector("[data-cognia-resume]")?.remove();
   const holder = document.createElement("div");
   holder.dataset.cogniaResume = "";

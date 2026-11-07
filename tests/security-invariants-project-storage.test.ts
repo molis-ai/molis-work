@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 
 // S-102: a project's storage directory is <projects directory>/<project_id>; a project id is one plain directory name, so a catalog row
 // (an edited or restored catalog) can never point a file operation (delete, rename, source-state scan) outside that directory.
@@ -138,6 +139,55 @@ test("S-102 a deletion receipt whose recorded staged directory is not this proje
     assert.equal(existsSync(join(home, "projects", linkedStage)), false);
     assert.equal(readFileSync(join(outside, "keep.txt"), "utf8"), "keep", "a stage that is a link does not lead the clean-up out of the Home");
   } finally { process.chdir(workingDirectory); catalog.close(); }
+});
+
+test("S-102 a refused deletion receipt runs nothing: no owner is called and every step stays as it was, whichever column was edited", async t => {
+  const root = mkdtempSync(join(tmpdir(), "security-project-storage-")), home = join(root, "home");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const calls: string[] = [];
+  let broken = true;
+  const dispose = projectDeletedHooksFor(home).register({ id: "test-owner", label: null, clear(projectId) { calls.push(projectId); if (broken) throw new Error("暂时清不掉"); } });
+  try {
+    const outside = join(root, "outside");
+    mkdirSync(outside); writeFileSync(join(outside, "keep.txt"), "keep");
+    const live = await catalog.createProject({ display_name: "还在用的项目", actor_id: "tester" });
+    const { projectId, deletionId, key } = await interruptedDeletion(t, catalog, "所有者还没清完的项目");
+    const [stage] = stagesIn(home);
+    const staged = join(home, "projects", stage);
+    const stepsBefore = receiptOf(catalog, deletionId).owner_steps;
+    assert.deepEqual(stepsBefore.filter(step => step.owner_id === "test-owner").map(step => [step.state, step.error]), [["pending", "暂时清不掉"]]);
+    // From here the owner would succeed, so a call would also turn its step complete.
+    broken = false;
+    calls.length = 0;
+
+    for (const [edited, recordedDirectory, recordedProject] of [
+      ["only the staged directory", outside, projectId],
+      ["only the project id, to a project still in use", staged, live.project_id],
+      ["only the project id, to a value that is no plain directory name", staged, "../outside"],
+    ]) {
+      recordStaged(home, deletionId, recordedDirectory, recordedProject);
+      assert.equal(await catalog.projectDeletion.finishAll(), 1, `the sweep: ${edited}`);
+      const replay = await catalog.deleteProject({ project_id: projectId, actor_id: "tester", delete_confirmed: true, idempotency_key: key });
+      assert.equal(replay.deletion.cleanup_state, "pending", `a person's retry: ${edited}`);
+      await assert.rejects(catalog.projectDeletion.settleProject(recordedProject), guarded, `re-creating the project: ${edited}`);
+      assert.deepEqual(calls, [], `no owner is called: ${edited}`);
+      const receipt = receiptOf(catalog, deletionId);
+      assert.equal(receipt.cleanup_state, "pending", edited);
+      assert.match(receipt.cleanup_error ?? "", /不是这个项目删除时留下的/, edited);
+      assert.deepEqual(receipt.owner_steps, stepsBefore, `every step stays as it was: ${edited}`);
+      assert.equal(existsSync(staged), true, `the stage waits: ${edited}`);
+      assert.equal(readFileSync(join(outside, "keep.txt"), "utf8"), "keep", `outside the Home: ${edited}`);
+      assert.equal(existsSync(live.database_path), true, `the live project: ${edited}`);
+    }
+
+    // The same receipt with its own values goes through, so what refused it above was the edit and nothing else.
+    recordStaged(home, deletionId, staged, projectId);
+    assert.equal(await catalog.projectDeletion.finishAll(), 0);
+    assert.deepEqual(calls, [projectId]);
+    assert.equal(receiptOf(catalog, deletionId).cleanup_state, "complete");
+    assert.equal(existsSync(staged), false);
+  } finally { dispose(); catalog.close(); }
 });
 
 test("S-102 a Home copied while a deletion is under way clears its own staged directory and leaves the original Home's alone", async t => {

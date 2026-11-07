@@ -6,6 +6,9 @@ import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotC
 export * from "./ui-connections.js";
 import type { UiPageReturns } from "./ui-returns.js";
 export * from "./ui-returns.js";
+export * from "./ui-environment.js";
+export * from "./ui-files.js";
+export * from "./ui-text.js";
 
 /** A renderer contract requirement, not a callable business capability. */
 export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;

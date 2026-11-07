@@ -7,6 +7,8 @@ import { chmodSync, copyFileSync, lstatSync, mkdirSync, mkdtempSync, readdirSync
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { goldenFailure } from "./failure.mjs";
+import { expandedModuleSource, MODULE_SOURCES_DIRECTORY, moduleSourceReader, withModuleSources, withoutModuleSources, writeModuleSources } from "./module-sources.mjs";
 
 export const GOLDEN_MANIFEST_VERSION = 1;
 /** Used only by golden Homes; recorded in each manifest and marked as a test key there. */
@@ -16,9 +18,13 @@ const SQLITE_HEADER = "SQLite format 3\0";
 /** The account bridge's credential. The web surface creates one when it starts, so the generating Home has it, and it stays out of the golden (UPG2-06). */
 const NATIVE_SESSION_TOKEN = "config/native-session-token";
 
-export function goldenFailure(code, where) {
-  return Object.assign(new Error(code), { code, where });
-}
+/**
+ * The one row whose bytes the fixed clock cannot reach: the third-party sample runs in its sandbox, on the real clock, and names its record by the time
+ * and chance. The sample is signed and a golden has no way into that process, so its fields are fixed here, in this row only and nowhere else.
+ */
+const SANDBOX_ENTRIES_ROW = /^INSERT INTO "plugin_private_values"\("install_id","item_key","item_value"\) VALUES\('[^']+','sandbox:entries',/u;
+const SANDBOX_ENTRY_FIELDS = [[/\bi\d{17}-[a-z0-9]+\b/gu, "i20260115090000000-golden"], [/"created_at":"[^"]+"/gu, '"created_at":"2026-01-15T09:00:00.000Z"']];
+export const withFixedSandboxEntries = sql => sql.split("\n").map(line => SANDBOX_ENTRIES_ROW.test(line) ? SANDBOX_ENTRY_FIELDS.reduce((row, [field, fixed]) => row.replace(field, fixed), line) : line).join("\n");
 
 export function assertGoldenVersionName(version) {
   if (typeof version !== "string" || !VERSION_NAME.test(version)) throw goldenFailure("golden.version_name_invalid", "arguments");
@@ -51,14 +57,15 @@ function isSqliteFile(file) {
   return handle.length >= SQLITE_HEADER.length && handle.subarray(0, SQLITE_HEADER.length).toString("latin1") === SQLITE_HEADER;
 }
 
-function dumpInto(storage, source, relative, out, owner, mode) {
+function dumpInto(storage, source, relative, out, owner, mode, tree) {
   const db = new DatabaseSync(source, { readOnly: true });
   let dump;
   try { dump = storage.dumpSqliteText(db, relative); } finally { db.close(); }
-  const payload = `stores/${relative}.sql`, file = path.join(out, payload);
+  const full = withFixedSandboxEntries(dump.sql), sql = withoutModuleSources(full, tree.sources), payload = `stores/${relative}.sql`, file = path.join(out, payload);
+  if (withModuleSources(sql, digest => tree.sources.get(digest)) !== full) throw goldenFailure("golden.module_source_not_reversible", relative);
   mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, dump.sql);
-  return { path: relative, owner, mode, payload, schema_version: dump.version, tables: dump.tables, sha256: sha256(dump.sql) };
+  writeFileSync(file, sql);
+  return { path: relative, owner, mode, payload, schema_version: dump.version, tables: dump.tables, sha256: sha256(sql), ...(sql === full ? {} : { expanded_sha256: sha256(full) }) };
 }
 
 function copyInto(source, relative, out, owner, mode) {
@@ -81,7 +88,7 @@ function collectOmitted(storage, home, prefix, relative, owner, out, tree) {
     return;
   }
   if (/-(?:journal|wal|shm)$/u.test(relative)) { tree.excluded.push({ path: inTree, reason: "SQLite sidecar; the dump holds committed rows" }); return; }
-  if (isSqliteFile(source)) tree.stores.push(dumpInto(storage, source, inTree, out, owner, mode));
+  if (isSqliteFile(source)) tree.stores.push(dumpInto(storage, source, inTree, out, owner, mode, tree));
   else tree.files.push(copyInto(source, inTree, out, owner, mode));
 }
 
@@ -102,7 +109,7 @@ export async function captureHome(host, storage, home, prefix, out, tree) {
       tree.excluded.push(...store.exclusions.map(item => ({ path: inTree(item.path), reason: item.reason })));
       for (const entry of store.entries) {
         if (entry.kind === "directory") tree.directories.push({ path: inTree(entry.path), mode: entry.mode });
-        else if (entry.sqlite) tree.stores.push(dumpInto(storage, path.join(snapshot, entry.payload_path), inTree(entry.path), out, store.owner, entry.mode));
+        else if (entry.sqlite) tree.stores.push(dumpInto(storage, path.join(snapshot, entry.payload_path), inTree(entry.path), out, store.owner, entry.mode, tree));
         else tree.files.push(copyInto(path.join(home, entry.path), inTree(entry.path), out, store.owner, entry.mode));
       }
       for (const dependency of store.dependencies) if (dependency.kind === "file-key") {
@@ -123,10 +130,11 @@ export function assertNoHomePath(out, tree, home) {
     if (entry.path.endsWith(NATIVE_SESSION_TOKEN)) throw goldenFailure("golden.account_credential_present", entry.path);
     if (readFileSync(path.join(out, entry.payload)).includes(home)) throw goldenFailure("golden.home_path_recorded", entry.path);
   }
+  for (const [digest, source] of tree.sources) if (source.includes(home)) throw goldenFailure("golden.home_path_recorded", digest);
 }
 
-export function writeManifest(out, manifest) {
-  const sorted = { ...manifest };
+export function writeManifest(out, { sources, ...manifest }) {
+  const sorted = { ...manifest, module_sources: writeModuleSources(out, sources) };
   for (const key of ["directories", "stores", "files", "excluded"]) {
     const seen = new Set();
     sorted[key] = manifest[key].filter(item => !seen.has(item.path) && seen.add(item.path)).sort(byPath);
@@ -143,15 +151,18 @@ export function readManifest(directory) {
 
 /** Restore every library and file into an empty Home, at its own path, with its own mode. The checksum comes first: a damaged golden is not a finding about the code. */
 export function restoreGolden(directory, manifest, home) {
+  const moduleSource = moduleSourceReader(directory);
   for (const item of [...manifest.directories].sort(byPath)) mkdirSync(path.join(home, item.path), { recursive: true, mode: 0o700 });
   for (const entry of manifest.stores) {
-    const text = readFileSync(path.join(directory, entry.payload));
-    if (sha256(text) !== entry.sha256) throw goldenFailure("golden.payload_digest_mismatch", entry.path);
+    const stored = readFileSync(path.join(directory, entry.payload));
+    if (sha256(stored) !== entry.sha256) throw goldenFailure("golden.payload_digest_mismatch", entry.path);
+    const text = entry.expanded_sha256 ? withModuleSources(stored.toString("utf8"), moduleSource) : stored.toString("utf8");
+    if (entry.expanded_sha256 && sha256(text) !== entry.expanded_sha256) throw goldenFailure("golden.payload_digest_mismatch", entry.path);
     const file = path.join(home, entry.path);
     mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
     // A virtual table's shadow tables are rows of the dump too; defensive mode, the driver's default, refuses to write them.
     const db = new DatabaseSync(file, { defensive: false });
-    try { db.exec(text.toString("utf8")); } finally { db.close(); }
+    try { db.exec(text); } finally { db.close(); }
     chmodSync(file, entry.mode);
   }
   for (const entry of manifest.files) {
@@ -182,13 +193,22 @@ function firstDifference(left, right) {
   return {};
 }
 
+/**
+ * The content a file is compared by. The commit says where a golden came from and is not part of it: a golden goes in with the commit after the one
+ * it records, and a squash merge leaves that commit off main. A compressed copy is compared as its code: the compressor belongs to the Node that ran it.
+ */
+function comparable(file, bytes) {
+  if (file === "manifest.json") return Buffer.from(JSON.stringify({ ...JSON.parse(bytes), commit: null }, null, 2));
+  return file.startsWith(`${MODULE_SOURCES_DIRECTORY}/`) ? expandedModuleSource(bytes) : bytes;
+}
+
 /** UPG2-02: every difference between two golden directories, by path, line and table, and never by content. */
 export function compareGoldens(left, right) {
   const leftFiles = new Set(listFiles(left)), rightFiles = new Set(listFiles(right)), differences = [];
   for (const file of [...new Set([...leftFiles, ...rightFiles])].sort()) {
     if (!rightFiles.has(file)) { differences.push({ path: file, reason: "missing_on_right" }); continue; }
     if (!leftFiles.has(file)) { differences.push({ path: file, reason: "missing_on_left" }); continue; }
-    const a = readFileSync(path.join(left, file)), b = readFileSync(path.join(right, file));
+    const a = comparable(file, readFileSync(path.join(left, file))), b = comparable(file, readFileSync(path.join(right, file)));
     if (!a.equals(b)) differences.push({ path: file, reason: "differs", ...(file.endsWith(".sql") || file === "manifest.json" ? firstDifference(a, b) : {}) });
   }
   return differences;

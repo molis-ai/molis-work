@@ -19,7 +19,7 @@
 - 主检出常被真实 Home 的服务（4207）使用，也常带着别的会话留下的未提交改动：不在里面改，不重置，不覆盖，只提交自己的（`AGENTS.md`「协作」）。
 - stash 栈在主检出和所有工作树之间共享（它存在仓库级的 `refs/stash`）。不用裸 `git stash` / `git stash pop`；要放一放就做一个临时提交。
 - 推送、开 PR、发布先问用户；推送前先跑 `pnpm secrets:check`（`AGENTS.md`「协作」）。用户另外授权的范围以他当次的话为准，不在这里推广。
-- 一个 PR 一个主题。分支一推上去就开 draft PR：别人用 `gh pr list --json files` 才看得到你动了哪些文件（见下一节）。
+- 一个 PR 一个主题；路线书批次里合成一组的小任务算一个主题（[开发流程第 8.4 节](../../specs/post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)）。分支一推上去就开 draft PR：别人用 `gh pr list --json files` 才看得到你动了哪些文件（见下一节）。路线书批次不开草稿 PR 占位（用户 2026-10-25 定），测完才开 PR，所以要在认领板 #1743 写明这组碰的枢纽文件和合同快照，查在途时两处都看。
 
 ## 2. 枢纽文件
 
@@ -56,7 +56,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 
 2. 只加自己的几行，写在自己的位置上。不顺手重排、重命名、换格式；那类改动单独一个 PR，不夹逻辑改动。
 3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。健康快查只在工作树的 Git 元数据里，不提交；需要刷新时运行 `node scripts/check-health-gates.mjs --update --base origin/main`。页面资源许可、安全不变量、待办和巨大单元例外按任务或源文件分别登记，改独立事项无需碰共享总表。`tooling/gates/api/` 下的快照冲突时同样不手工合并：合入 main 后重跑 `pnpm api:update`，再看 diff 里是否只剩自己的 API 变化。`tooling/gates/actions/` 下的动作合同快照同理：先 `pnpm build`，再 `pnpm actions:update`（行按名字排序，两个 PR 加不同的动作一般不冲突）。
-4. 两个 PR 动同一个枢纽：先准备好的先合；后一个合入 main 再重跑相关用例。
+4. 两个 PR 动同一个枢纽：先准备好的先合；后一个合入 main 再重跑相关用例。文字上没有冲突也一样，合并队列的 `Verify` 替代不了这一步。
 5. 门禁脚本、`tooling/gates/`、`limits.json`、CI 工作流的改动单独一个 PR：它们是唯一能放宽数字的地方（`AGENTS.md` 的健康门禁一条）。这几处在 `.github/CODEOWNERS` 里只请求 @yijunw0212 评审；这是请求，不是强制（必需批准数是 0，见第 3 节）。放宽数字的 PR 在描述里写清放宽哪一项、为什么。
 
 枢纽名单会随结构变短：翻译改用稳定键、词典按主人分（用户 2026-10-08 定，spec §1「界面翻译」），内置插件名单与路由改成声明式登记（路线图 W5-02、W5-03）落地后，对应文件不再逐个点名插件，就从上表删掉。
@@ -64,7 +64,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 ## 3. 合并
 
 - **合并前的硬条件（2026-10-20 复审后补）**：PR 只能在最后一轮评审的「要改」全部落实或被评审明确豁免后入队；共享核心（`packages/contracts`、`packages/kernel`、`packages/plugin-sdk`、`packages/plugin-runtime`、`horizontal/agent-host`、`modules/`、`apps/local-host` 的装配、`apps/workbench` 外壳）必须在最终 head 上跑完 full-suite，贴运行链接，不能拿合并后的补跑替代；入队前在最终 head 上跑 `pnpm health:check`、`pnpm boundary:check`、页面资源和 `pnpm secrets:check`；stacked PR 写明父 PR，MERGEED 不等于在 main，父 PR 合入并确认目标分支后才算完成。
-- 合同与扩展点先合，实现后合；体量大的需求按包与层拆开（`docs/prompts/repository-anti-corruption.md` §4.7）。
+- 合同与扩展点先合，实现后合；体量大的需求按包与层拆开（`docs/prompts/repository-anti-corruption.md` §4.7）。例外：路线书批次里只有这一组用、也没人排队改同一份快照的合同，设计稿审过后可以和实现同一个 PR（[开发流程第 8.4 节](../../specs/post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)）；全量和第一条的硬条件照旧在最终 head 上。
 - **合并队列**（spec §1，2026-10-15，取代 2026-10-02「不开合并队列」和 2026-10-03「合并前把分支同步到最新 main」）：CI 通过后用 `gh pr merge <号> --squash`（或网页上的 Merge when ready）把 PR 放进队列，不用再手动同步分支、等 CI 重跑。队列把 PR 建在 main 和排在它前面的 PR 之上，`Verify` 在这个提交上通过就合入；没通过的出队，前面的 PR 不受影响。队列里的 CI 是 `ci.yml` 的 `merge_group` 事件：健康门禁、资源预算与 Studio 回放以 `merge_group.base_sha` 为比较点（`scripts/ci-health-base.mjs`），密钥扫描从那里扫；`security-invariants`、`product-subset` 同样进入队列并运行完整清单。PR 只有在 `test-selection` 成功且对应作业 mode 为 `none` 时才跳过该项；成功的 `some` 按选中文件和分片运行，`whole`、空或未知 mode、选择失败/取消/跳过均回退完整清单和两片。`Verify` 只豁免上述合法 `none` 的 skipped，两个作业分别核自己的 mode（T-130，`scripts/ci-test-selection.mjs`，做法见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md) 的「产品子集作业」）。走队列合入后的 push main 不重跑挡合并的作业（T-129，`queue-check` 作业、`scripts/ci-queue-verified.mjs`）：同一个提交在队列里的 `ci.yml` 运行结论 success、`Verify` 也 success，并且那次运行的比较起点就是这次推送前的 main 末端（`Verify` 里名为 `Merge queue base <sha>` 的一步记下 `merge_group.base_sha`，要等于推送的 `before`；健康门禁、资源预算、Studio 回放和密钥扫描都以起点比较，叠在别的组上的组起点可能不同），九个挡合并的 job 才跳过，`Verify` 凭那次运行通过并给出链接。跳过要同时满足三条：事件是 push、`queue-check` 成功、它说 `true`；`Verify` 的放行用同一个条件。不是走队列进来的推送（管理员直推、绕过队列）、起点不同或没记、查不到、API 出错、`queue-check` 失败，照旧全跑，`queue-check` 自己失败不算一项检查。几个前后相叠的组在一次推送里一起落地时（队列一次把几个提交推上 main），推送的 `after` 是最后一个组的头，它的起点是前一个组的头，不等于推送前的 main 末端（`before`），目前这样的推送一律全跑，只有一次只落一个组的推送才省；这是有意的保守做法，不是故障。队列重建或 PR 出队后，GitHub 会删掉旧条目的 `gh-readonly-queue/…` 分支，但不会取消那次运行；所以每个挡合并作业在 merge_group 上 checkout 之后、安装之前，先用 `git ls-remote --exit-code` 查自己的分支还在不在，只有「连上了但分支不在」（退出码 2）才退出，网络出错等照常往下跑；这只看领到 runner 那一刻，已经在跑的不会被中断。默认分支上的「Test durations」种子因此改由每晚的运行和不走队列的推送刷新（PR 先找自己的缓存，再找默认分支的）；种子缺了只是用例排序变差。要回退，把 `queue-check` 的 `if` 改成 false 即可；删掉这个作业的话，要同时删掉各作业 `needs` 里的它、条件和 `verify` 里的引用。和别的 PR 冲突的 PR 仍要自己解冲突再进队列。
 - main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到；2026-10-15 去掉了「必须与 main 同步」，加了带合并队列的规则集）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `gates`、`health-gate-rules`（两份）、`architecture-boundaries`、`action-contracts`、`secret-scan`、`native-checks`、`shell-checks`、`security-invariants`、`product-subset` 九项实际检查均成功，仅 PR 成功选择的对应 `none` 允许该项 skipped；needs 里另有 `queue-check`（只在 push main 上运行，T-129）和 `test-selection`（PR 选择），两者是辅助依赖，不是额外必须成功的检查；`queue-check` 只让队列已验过的提交在 main 上不重跑；改这个作业的名字就等于改保护规则）；必需的批准数是 0，没有开「必须由代码所有者批准」。
 - 不强制评审（spec §1，2026-10-02）。`.github/CODEOWNERS` 只自动请求评审，不改分支保护；谁评审、评审哪些包见 `docs/SSOT-MATRIX.md` 的「归属」列。
@@ -79,7 +79,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 2026-09-28 至 10-07 合入的 PR：改动文件数 p90 约 50，最大 728（路线图 §4.7）。下面的数字是建议，不是门禁：
 
 - 目标：一个 PR 不超过约 50 个文件、一个主题。超过的，在描述里说明为什么拆不开。能整块说明的例外：机械改名、删除整块旧代码、生成文件。
-- 拆法：合同与扩展点 → 宿主与内核 → 插件 → 界面 → 文档。删旧代码和加新代码分开。机械改动（改名、格式）独立成 PR。
+- 拆法：合同与扩展点 → 宿主与内核 → 插件 → 界面 → 文档。删旧代码和加新代码分开。机械改动（改名、格式）独立成 PR。路线书批次内的小任务先看能不能合成一组（[开发流程第 8.4 节](../../specs/post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)），约 50 个文件的目标不变，全量条件不变。
 - 大需求先在 `specs/<task>/spec.md` 里列出 PR 序列和每片的验收，再逐片开。
 - 门禁、脚本、CI 的改动不和功能混在一个 PR（见上节第 5 条）。
 

@@ -56,7 +56,6 @@ export class JellyStore {
     return { confirmation_token: token, revision, counts, warnings };
   }
   execute(command: JellyCommand, expectedRevision?: number): JellyWorkspace {
-    jellyAssert(command && typeof command.type === "string", "缺少命令类型");
     return this.atomically(() => {
     try {
       this.initialize();

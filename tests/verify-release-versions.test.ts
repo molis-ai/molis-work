@@ -289,6 +289,55 @@ test("a baseline declared with satisfies or as, or handed over inline, cannot hi
   assert.equal(run().code, 0, run().out);
 });
 
+// specs/upgrade-continuity/upgrade-chain-design.md §1, §11.3: the steps sit inside the literal and do not disturb the version reader.
+test("UPG1-i-verify-01: a baseline's upgrades do not change the version read from its literal", () => {
+  const table = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
+  ownVersion("apps/alpha/src/plugin.ts", "database.plugin", 3, '(version: )\\d+()');
+  scratchLiterals("apps/alpha/src/plugin.ts");
+  put("docs/releases/CHECKLIST.md", table.replace(TABLE, TABLE + "\n| Plugin | `plugin/plugin.db` | 3 | `user_version` | `apps/alpha/src/plugin.ts#PLUGIN_DB` | 低版本升级，高版本拒绝 |"));
+  const steps = '[{ from: 1, version:9, sql: "ALTER TABLE t ADD COLUMN version TEXT" }, { from: 2, run: (db) => { db.exec(`UPDATE t SET version = \'9\'`); } }]';
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { upgrades: ${steps}, version: 3, schema: \`\` };`);
+  assert.equal(run().code, 0, run().out);
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { version: 4, schema: \`\`, upgrades: ${steps} };`);
+  failsWith(run(), "the table says 3", "says 4");
+  put("apps/alpha/src/plugin.ts", `const PLUGIN_DB: SqliteBaseline = { schema: \`\`, upgrades: ${steps} };`);
+  failsWith(run(), "has no PLUGIN_DB with a version");
+});
+
+test("UPG1-i-verify-02: the upgrade entry takes what a descriptor carries, not a baseline written at the call", () => {
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, store.baseline);\nrunSqliteUpgrade(db, path, store.library.baseline, home);\n");
+  assert.equal(run().code, 0, run().out);
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, nobody);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with nobody, which no package declares as a SqliteBaseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { version: 2, schema: `CREATE TABLE t (a TEXT);`, upgrades: [] });\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { ...BASE, version: 2 } as SqliteBaseline);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called without a baseline");
+});
+
+test("UPG1-i-verify-03: the two aggregate copy openers take a declared baseline like the other entries, their own file aside", () => {
+  for (const opener of ["openOwnerCopyStore", "openAggregateCopyOwner"]) {
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", nobody, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with nobody, which no package declares as a SqliteBaseline`);
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", { version: 1, schema: "" }, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", store.baseline, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+  }
+  rmSync(path.join(root, "apps/alpha/src/copy.ts"));
+  put("packages/storage/src/aggregate-copy-store.ts", "export function openAggregateCopyOwner(home: string, name: string, baseline: SqliteBaseline) { return openOwnerCopyStore(home, name, baseline); }\n");
+  assert.equal(run().code, 0, run().out);
+  rmSync(path.join(root, "packages/storage/src/aggregate-copy-store.ts"));
+});
+
+test("UPG1-i-verify-04: a typed baseline inside a function is still a baseline the table has to list", () => {
+  put("apps/alpha/src/local.ts", "export function open() { const LOCAL_DB: SqliteBaseline = { version: 1, schema: ``, upgrades: [{ from: 1, sql: `ALTER TABLE t ADD COLUMN c TEXT` }] }; return LOCAL_DB; }\n");
+  failsWith(run(), "LOCAL_DB");
+  rmSync(path.join(root, "apps/alpha/src/local.ts"));
+});
+
 // The detection and the version reader agree on every spelling: a baseline that has to be listed can be listed and checked.
 test("a baseline written with satisfies or as is listed and read like an annotated one", () => {
   ownVersion("apps/alpha/src/more.ts", "database.more", 4, '(MORE_BASELINE[\\s\\S]*?\\}, version: )\\d+()');

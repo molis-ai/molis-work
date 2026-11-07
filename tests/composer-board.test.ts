@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { COMPOSER_BOARD_EN, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
+import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 
 // The unified input's new board parts (specs/unified-input-voice/implementation-plan.md §3.6, UIC-04): the multi-row composer
 // shell and the menu item's description line (the microphone glyph comes with K0c). K0c's renderComposer() and K2's client use
@@ -22,10 +22,12 @@ test("UIC-04: the board has a composer section with every state on one attribute
   assert.match(composer, /<textarea class="mw-composer__input" data-fit rows="1"/, "the text area grows with data-fit");
   assert.match(composer, /class="mw-btn-group" role="group"[^>]*>.*data-compose-menu-toggle/s, "running sends from a split button with a ▾ menu");
   assert.match(composer, /mw-btn--danger-outline/, "stop is the danger-outline button");
-  // Seen through the board's English: no specimen text is left without a translation.
+  // Seen through the board's English: no specimen text is left without a translation (the board's dictionary also carries the
+  // keep-edits sections' words, which go through the same translator).
+  const board: Record<string, string> = { ...COMPOSER_BOARD_EN, ...KEEP_EDITS_BOARD_EN };
   const english = renderPrimitiveCatalog({ say: (text, values = {}) => {
-    assert.ok(text in COMPOSER_BOARD_EN || /^(助理|发送|补充|停止|重试|失败|运行中|待确认|不可用|聚焦|让助理做点什么…)$/.test(text), `English for ${text}`);
-    return (COMPOSER_BOARD_EN[text] ?? text).replace(/\{(\w+)\}/g, (whole, name: string) => String(values[name] ?? whole));
+    assert.ok(text in board || /^(助理|发送|补充|停止|重试|失败|运行中|待确认|不可用|聚焦|让助理做点什么…)$/.test(text), `English for ${text}`);
+    return (board[text] ?? text).replace(/\{(\w+)\}/g, (whole, name: string) => String(values[name] ?? whole));
   } });
   assert.match(sectionOf(english, "composer"), /<h2>Composer<\/h2>/);
 });

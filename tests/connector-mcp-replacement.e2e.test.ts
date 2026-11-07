@@ -86,11 +86,14 @@ async function openConnections(t: TestContext, oldName = "旧 Notion") {
   const page = await harness.page(), exceptions: unknown[] = [];
   harness.on("Runtime.exceptionThrown", event => exceptions.push(event));
   await page.command("Runtime.enable");
+  await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   const open = async () => {
     await page.command("Page.navigate", { url: origin + "/settings/connectors?connector=notion" });
     await page.wait("document.querySelector('[data-connectors-settings]')?.dataset.connectorsBound === '1' && document.querySelector('[data-connector-item=\"notion\"]')?.dataset.open === 'true'");
   };
   await open();
+  // Opening by address scrolls and focuses the title on the next frame; let it settle before measuring a real click.
+  await page.wait("document.activeElement === document.querySelector('[data-connector-item=\"notion\"] [data-connection-toggle]')");
   const next = () => new Promise<Held>((resolve, reject) => {
     const ready = held.shift(); if (ready) { resolve(ready); return; }
     const timer = setTimeout(() => { receive = undefined; reject(new Error("No connections request arrived")); }, 10_000);

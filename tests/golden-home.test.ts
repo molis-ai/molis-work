@@ -292,15 +292,18 @@ describe("a generated golden Home", { concurrency: false }, () => {
     assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 rows-after-upgrade knowledge\/knowledge\.db#knowledge_cards golden\.rows_decreased$/mu);
   }, { timeout: 600_000 });
 
-  test("UPG2-06: the account Home's sync library at another version fails the structure check, though nothing else opens it", () => {
-    const parent = tampered("sync", sql => {
-      assert.match(sql, /PRAGMA user_version=\d+;/u);
-      return sql.replace(/PRAGMA user_version=\d+;/u, "PRAGMA user_version=999;");
-    }, entry => entry.path.endsWith("/sync/sync.db"));
-    const result = run(REPLAY_SCRIPT, "--dir", parent);
-    assert.equal(result.status, 1);
-    assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 structure \S+ storage\.store_too_new$/mu, result.output);
-  }, { timeout: 600_000 });
+  // The sync library's baseline is version 1, so there is no older version with steps to test: 0 is the only version below it.
+  for (const [found, code] of [[999, "store_too_new"], [0, "schema_version_mismatch"]] as const) {
+    test(`UPG2-06: the account Home's sync library at version ${found} fails the structure check with ${code}, though nothing else opens it`, () => {
+      const parent = tampered(`sync-${found}`, sql => {
+        assert.match(sql, /PRAGMA user_version=\d+;/u);
+        return sql.replace(/PRAGMA user_version=\d+;/u, `PRAGMA user_version=${found};`);
+      }, entry => entry.path.endsWith("/sync/sync.db"));
+      const result = run(REPLAY_SCRIPT, "--dir", parent);
+      assert.equal(result.status, 1);
+      assert.match(result.output, new RegExp(`^FAIL 9\\.9\\.9-dev\\.1 structure \\S+ storage\\.${code}$`, "mu"), result.output);
+    }, { timeout: 600_000 });
+  }
 
   test("a payload that does not match the manifest is reported as a damaged golden, not as a finding about the code", () => {
     const parent = path.join(directory, "digest"), copy = path.join(parent, VERSION);

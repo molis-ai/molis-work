@@ -1,5 +1,6 @@
 import { icon, type PluginIconName } from "./icon.js";
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
+import { type MwButtonOptions, renderButton } from "./button.js";
 import { renderStateRing } from "./state-ring.js";
 import type { StateRingState } from "./state-ring-states.js";
 
@@ -27,15 +28,71 @@ export function renderBadge(options: { label: string; tone?: MwTone; className?:
   return `<span class="${cx("mw-badge", `mw-badge--${options.tone ?? "neutral"}`, options.className)}" data-slot="badge">${escapeHtml(options.label)}</span>`;
 }
 
+/**
+ * A notice. With `actions` it carries the buttons that answer it, in a row under its words (`mw-alert__actions`); they default to
+ * ghost, so the caller names the one primary. `state` puts a state mark before the title. `rise` is for the moment it first
+ * appears: it rises in and its mark settles; a repaint of the same notice leaves it off so nothing moves again. To send someone
+ * back to it, the page adds `is-nudged` (one small hop).
+ */
 export function renderAlert(options: {
   title: string;
   body?: string;
   tone?: MwTone;
   className?: string;
+  state?: StateRingState;
+  actions?: readonly MwButtonOptions[];
+  rise?: boolean;
+  attrs?: Record<string, AttrValue>;
 }): string {
-  return `<div class="${cx("mw-alert", `mw-alert--${options.tone ?? "info"}`, options.className)}" data-slot="alert" role="status"><strong>${escapeHtml(options.title)}</strong>${
+  const title = options.state
+    ? `<strong class="mw-alert__title"><span class="mw-alert__mark" aria-hidden="true">${renderStateRing({ state: options.state })}</span><span>${escapeHtml(options.title)}</span></strong>`
+    : `<strong>${escapeHtml(options.title)}</strong>`;
+  const actions = options.actions?.length
+    ? `<div class="mw-alert__actions">${options.actions.map((action) => renderButton({ variant: "ghost", ...action })).join("")}</div>`
+    : "";
+  return `<div class="${cx("mw-alert", `mw-alert--${options.tone ?? "info"}`, options.rise && "mw-alert--rise", options.className)}" data-slot="alert" role="status"${renderAttrs(options.attrs)}>${title}${
     options.body ? `<p>${escapeHtml(options.body)}</p>` : ""
-  }</div>`;
+  }${actions}</div>`;
+}
+
+/**
+ * What someone wrote, kept right under the field it came from when the field took another version (`mw-kept`): `who` says whose
+ * words these are, `action` puts them back. Once put back the same slot holds the other version, `swapped`, with the way back as
+ * its `action`. A long text shows three lines; `more` is the way to the rest, shown only when the text is really cut (the page
+ * measures, because how much fits depends on the width). `rise` is for its first appearance, and `index` staggers a group.
+ */
+export function renderKept(options: {
+  who: string;
+  text: string;
+  /** Said instead of the text when it is empty ("you cleared this field"). */
+  blankText?: string;
+  action: MwButtonOptions;
+  swapped?: boolean;
+  more?: { label: string; open?: boolean; attrs?: Record<string, AttrValue> };
+  rise?: boolean;
+  index?: number;
+  className?: string;
+  attrs?: Record<string, AttrValue>;
+}): string {
+  const more = options.more
+    ? renderButton({ variant: "link", className: "mw-kept__more", label: options.more.label, attrs: { "aria-expanded": options.more.open ? "true" : "false", ...options.more.attrs } })
+    : "";
+  return `<div class="${cx("mw-kept", options.swapped && "is-swapped", options.rise && "mw-kept--rise", options.className)}" data-slot="kept"${
+    options.index ? ` style="--i:${Math.max(0, Math.trunc(options.index))}"` : ""
+  }${renderAttrs(options.attrs)}><div class="mw-kept__head"><span class="mw-kept__who">${escapeHtml(options.who)}</span>${renderButton({ variant: "ghost", ...options.action })}</div><p class="${cx(
+    "mw-kept__text",
+    !options.text && "is-blank",
+    options.more?.open && "is-open",
+  )}">${escapeHtml(options.text || options.blankText || "")}</p>${more}</div>`;
+}
+
+/**
+ * The dot on a step that holds something to look at (`mw-step-dot`), so a change on another step can be found: it goes inside
+ * the step's number, and its name joins the step button's. It is not shown on the current step, where the thing is in view.
+ */
+export function renderStepDot(options: { label: string; className?: string }): string {
+  const label = escapeHtml(options.label);
+  return `<i class="${cx("mw-step-dot", options.className)}" data-slot="step-dot" role="img" aria-label="${label}" title="${label}"></i>`;
 }
 
 export function renderEmpty(options: {

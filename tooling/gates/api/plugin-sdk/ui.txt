@@ -84,6 +84,8 @@ export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "stat
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
+export type ReturnBarState = "waiting" | "ready" | "gone";
+
 export declare const STATE_RING_CORES: Record<string, string>;
 
 export declare const STATE_RING_FAMILIES: readonly [{
@@ -429,6 +431,23 @@ export declare function renderRadioGroup(options: {
         label: string;
         checked?: boolean;
     }>;
+    className?: string;
+}): string;
+
+export declare function renderResumePrompt(options: {
+    title: string;
+    body?: string;
+    resume: string;
+    dismiss: string;
+    className?: string;
+}): string;
+
+export declare function renderReturnBar(options: {
+    title: string;
+    body: string;
+    back: string;
+    label: string;
+    state?: ReturnBarState;
     className?: string;
 }): string;
 

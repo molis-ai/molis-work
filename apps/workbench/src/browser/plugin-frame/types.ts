@@ -83,6 +83,12 @@ export type ConnectionNeedDown = { type: "connection-need-size"; id: number; hei
   | { type: "connection-need-shown"; id: number; service: string }
   | { type: "connection-need-reveal"; id: number }
   | { type: "connection-need-done"; id: number; outcome?: import("@molis-ai/molis-work-contracts/platform/ui").UiConnectionNeedOutcome; error?: string };
+/**
+ * A page's return trip (returns.ts, specs/draft-and-return §2.4). Up: the need and the carry only, an abort, and the one claim of a
+ * later mount; nothing that names where the page is. Down: the outcome (or none), or the one fixed refusal.
+ */
+export type ReturnUp = { type: "return-go"; id: number; need: unknown; carry?: unknown } | { type: "return-arrived"; id: number } | { type: "return-abort"; id: number };
+export type ReturnDown = { type: "return-result"; id: number; outcome?: import("@molis-ai/molis-work-contracts/platform/ui").UiReturnOutcome | null; error?: string };
 export type FrameUp =
   | { type: "frame-asset-layout"; handle: string; slots: Array<{ reference: UiFrameAssetReference; box: { x: number; y: number; width: number; height: number } | null }> }
   | { type: "connection-slot-cancel"; id: number }
@@ -100,7 +106,7 @@ export type FrameUp =
   | { type: "embed-open"; id: number; target: { surface: string; itemId: string; title?: string } }
   | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "embed-close"; id: number }
-  | TaskGrantsUp | ConnectionNeedUp
+  | TaskGrantsUp | ConnectionNeedUp | ReturnUp
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
   | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string } }
   | { type: "document-cancel"; id: number } | { type: "refresh-shell" }
@@ -125,7 +131,7 @@ export type FrameDown =
   | { type: "review-decided"; id: number; outcome: UiPageReviewOutcome }
   | { type: "workspace-result"; id: number; workspace?: { workspace_id: string }; error?: string; status?: number }
   | { type: "embedded"; id: number; error?: string }
-  | TaskGrantsDown | ConnectionNeedDown
+  | TaskGrantsDown | ConnectionNeedDown | ReturnDown
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "document"; id: number; html?: string; error?: string }
   | { type: "copied"; id: number; error?: string }

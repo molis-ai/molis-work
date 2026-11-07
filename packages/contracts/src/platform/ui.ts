@@ -4,6 +4,8 @@ import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-h
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
+import type { UiPageReturns } from "./ui-returns.js";
+export * from "./ui-returns.js";
 
 /** A renderer contract requirement, not a callable business capability. */
 export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;
@@ -664,6 +666,8 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   confirmBox(dialog: Dialog, ok: Element, run?: () => Promise<unknown>): Promise<boolean>;
   interaction(card: Element, options: { onSubmit?: () => void }): UiPageInteraction;
   readonly drafts: UiPageDrafts;
+  /** Settings for what a step needs, and the way back to this page with the step named (specs/draft-and-return §2.4). */
+  readonly returns: UiPageReturns;
   /** The platform's reads area on this installation's own tasks; the page gives a place and a key, never categories. */
   readonly taskGrants: UiPageTaskGrants<Element>;
 }

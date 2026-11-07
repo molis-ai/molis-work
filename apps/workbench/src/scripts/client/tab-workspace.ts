@@ -486,7 +486,16 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     const frame = panes.from(event);
     if (frame && event.data.type === "workbench-open-settings") {
-      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: event.data.href || "" } }));
+      // A return trip's source is the pane this frame is (specs/draft-and-return §2.3): the pane is the frame's own, never the one it names.
+      const paneId = frame.dataset.paneOwner || "", owned = paneById(paneId), from = event.data.from;
+      const surface = owned?.tabs.find(tab => tab.id === frame.dataset.paneTab)?.plugin || (frame.dataset.paneKey?.startsWith("plugin:") ? frame.dataset.paneKey.slice(7) : "");
+      const place = (pane) => pane && from?.place && typeof from.place === "object" ? { ...from.place, pane } : pane && surface ? { pane, surface } : null;
+      const detail = { href: typeof event.data.href === "string" ? event.data.href : "",
+        ...(from && typeof from === "object" && from.kind === "page" ? { from: { ...from, place: place(paneId) } } : { from: { kind: "under-cover", place: place(paneId) } }),
+        ...(typeof event.data.return_id === "string" ? { return_id: event.data.return_id } : {}),
+        ...(event.data.need && typeof event.data.need === "object" && event.data.need.kind === "model" ? { need: event.data.need } : {}),
+        ...(event.data.carry && typeof event.data.carry === "object" ? { carry: event.data.carry } : {}) };
+      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail }));
       return;
     }
     if (!["workbench-pane-invalidate", "workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history"].includes(event.data?.type)) return;

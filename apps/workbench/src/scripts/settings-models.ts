@@ -171,7 +171,8 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/mod
             dirty = false;
             await refresh(query); status(L(saved.checked ? '连接检查通过，已保存。配置会用于下一轮执行。' : '已保存。配置会用于下一轮执行；可以测试模型是否实际响应。'));
             released(saved.released_key);
-            if (saved.first_model_ready) { options.ready?.(); otherTabs?.postMessage('ready'); }
+            if (saved.first_model_ready) otherTabs?.postMessage('ready');
+            await options.saved?.({ first: Boolean(saved.first_model_ready) });
           } else if (button.matches('[data-model-test]')) {
             if (dirty) { status(L('请先保存配置，再测试这个模型。')); return; }
             begin(); status(L('正在等待模型响应…'));

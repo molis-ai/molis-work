@@ -148,6 +148,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       hideDirectory: () => immersiveNavigation?.hideDirectory(),
       showToast,
       projectId: state.project?.project_id || "",
+      returns: settingsReturn,
+      coverKind: () => tabWorkspace?.exclusive?.() || null,
     });
     if (goalData) bindGoalCreateEvents();
     addEventListener("popstate", (event) => {

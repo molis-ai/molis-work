@@ -4,6 +4,7 @@ import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
 import { childTaskGrants } from "./task-grants-area.js";
 import { childConnectionNeed } from "./connection-need.js";
+import { childReturns } from "./returns.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -80,7 +81,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
-    taskGrants: childTaskGrants(port, scope),
+    taskGrants: childTaskGrants(port, scope), returns: childReturns(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,

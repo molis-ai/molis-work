@@ -237,6 +237,13 @@ export declare const UI_CONNECTION_NEED_REASON_MAX = 80;
 
 export declare const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
 
+export declare const UI_RETURN_CARRY_LIMITS: {
+    readonly draft_key: 256;
+    readonly step: 128;
+    readonly object_id: 256;
+    readonly object_kind: 64;
+};
+
 export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
 
 export declare const UI_VIEW_HUES: readonly ["gray", "brown", "orange", "yellow", "green", "mint", "cyan", "blue", "indigo", "purple", "pink", "red", "steel", "slate"];
@@ -405,6 +412,13 @@ export interface UiPageMessages {
     listen(receive: (message: UiPageMessage) => void): () => void;
 }
 
+export interface UiPageReturns {
+    go(need: UiReturnNeed, carry?: UiReturnCarry, options?: {
+        signal?: AbortSignal;
+    }): Promise<UiReturnOutcome>;
+    arrived(): Promise<UiReturnOutcome | null>;
+}
+
 export type UiPageReviewOutcome = "unavailable" | "uncertain" | "rejected" | "reconciled" | "failed" | "settled" | "pending";
 
 export interface UiPageReviewQuery {
@@ -502,6 +516,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
         onSubmit?: () => void;
     }): UiPageInteraction;
     readonly drafts: UiPageDrafts;
+    readonly returns: UiPageReturns;
     readonly taskGrants: UiPageTaskGrants<Element>;
 }
 
@@ -544,6 +559,24 @@ export interface UiRequestInit {
 export interface UiRequestScope {
     readonly fetch: (input: string, init: object) => Promise<Response>;
     assertCurrent(signal?: AbortSignal): void;
+}
+
+export interface UiReturnCarry {
+    readonly draft_key?: string;
+    readonly step?: string;
+    readonly object?: {
+        readonly kind: string;
+        readonly id: string;
+    };
+}
+
+export type UiReturnNeed = {
+    readonly kind: "model";
+};
+
+export interface UiReturnOutcome {
+    readonly status: "ready" | "not_ready";
+    readonly carry: UiReturnCarry;
 }
 
 export interface UiSettingsAddressParamsDeclaration {

@@ -626,4 +626,17 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   // The start-up page words a todo candidate (it read them from Todo's dictionary before Todo had its own keys).
   "（原文“{phrase}”）": " (as written: “{phrase}”)",
   "在等 {who}": "Waiting on {who}",
+  // The settings' return bar and the toast after going back (specs/draft-and-return §9).
+  "从哪里来": "Where you came from",
+  "从「{name}」来": "From “{name}”",
+  "现在回去": "Go back now",
+  "回去": "Go back",
+  "原来的页面": "the page you came from",
+  "配好模型后自动回去，你写的都还在。": "Goes back once a model is set up; what you wrote is kept.",
+  "连好后自动回去，你写的都还在。": "Goes back once connected; what you wrote is kept.",
+  "已经好了，可以回去了。": "It’s set up. You can go back now.",
+  "看完点「回去」，回到原来的地方。": "When you’re done, press “Go back” to return where you were.",
+  "原来的页面已经关了，配好的设置都在。": "The page you came from is closed; what you set up is kept.",
+  "模型已连接，回到「{name}」接着做。": "Model connected. Back to “{name}” to carry on.",
+  "已经连上，回到「{name}」。": "Connected. Back to “{name}”.",
 };

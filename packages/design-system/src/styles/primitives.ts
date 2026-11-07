@@ -337,6 +337,15 @@ export const PRIMITIVE_STYLES = `
   .mw-alert--danger { background: var(--red-soft); border-color: color-mix(in srgb, var(--red) 16%, transparent); }
   .mw-alert--success { background: color-mix(in srgb, var(--green) 12%, var(--paper)); }
   .mw-alert--warning { background: color-mix(in srgb, var(--amber) 14%, var(--paper)); }
+  /* The settings' return bar and a page's resume prompt (specs/draft-and-return §9): an alert with its answers beside or under it. */
+  .mw-return-bar { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 16px; }
+  .mw-return-bar__text { display: grid; gap: 2px; min-width: 0; }
+  .mw-return-bar__text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-return-bar__back { justify-self: end; }
+  @media (max-width: 480px) { .mw-return-bar { grid-template-columns: minmax(0, 1fr); row-gap: 8px; } .mw-return-bar__back { justify-self: start; } }
+  .mw-resume-prompt { display: grid; gap: 8px; animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
+  .mw-resume-prompt__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  @media (prefers-reduced-motion: reduce) { .mw-resume-prompt { animation: none; } }
 
   .mw-empty {
     display: grid; justify-items: start; align-content: start; gap: 8px; padding: 16px 12px; color: var(--ink-soft);

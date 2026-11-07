@@ -5,11 +5,11 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createDesktopUninstallService, inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  acquireUpgradedHomeOwner, createHomeSnapshot, createMolisWorkLocalHost, homeStores, LocalMcpServer, MolisWorkWebServiceManager, restoreHomeSnapshot, runHomeUpgrade, runLocalCli, runV1Cli, RuntimeIntegrationService,
+  acquireUpgradedHomeOwner, createHomeSnapshot, createMolisWorkLocalHost, homeStores, LocalMcpServer, MolisWorkWebServiceManager, restoreHomeSnapshot, runHomeUpgrade, WEB_CONTROL_TOKEN_RELATIVE_PATH, runLocalCli, runV1Cli, RuntimeIntegrationService,
 } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, ensureStorageSpace, HOME_RESTORE_JOURNAL, homeSqlitePath, MEMORY_LEDGER_STORE, personalStorageSpace } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -162,10 +162,19 @@ test("UPG1-13: `demo` from cli-project-maintenance upgrades and finishes", async
 const mcpCall = (database_path: string, project_id: string) => ({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
   arguments: { database_path, project_id, idempotency_key: `project-catalog-create-${project_id}` } } });
 
-/** The Host starts unbound, as this path's does, so nothing but the entry under test can take the lock. */
+/**
+ * The Host starts unbound, as this path's does, so nothing but the entry under test can take the lock. The Home is an installed one whose
+ * resident is not running: it has its control token (since #1932 a management MCP with an action service connects only with it), and
+ * nothing answers at the closed port, so the call takes the path with nothing to start.
+ */
 async function withMcp<T>(home: string, use: (mcp: LocalMcpServer) => Promise<T>): Promise<T> {
+  mkdirSync(dirname(join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH)), { recursive: true, mode: 0o700 });
+  writeFileSync(join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH), "upgrade-entries-control-token-0123456789\n", { mode: 0o600 });
+  // Not port 9: `fetch` refuses that port before connecting, which reads as a delivery that may have happened. A port just closed is refused.
+  const probe = createServer(), port = await new Promise<number>(resolve => { probe.listen(0, "127.0.0.1", () => resolve((probe.address() as AddressInfo).port)); });
+  await new Promise<void>(resolve => { probe.close(() => resolve()); });
   const host = createMolisWorkLocalHost({ completeText: null });
-  const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "management", null, { homeDirectory: home, runtimeContext: { runtime_id: "upgrade-test", stable_work_context_id: "upgrade-test", host_declares_stable: true } }, host, CLOSED_PORT);
+  const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "management", null, { homeDirectory: home, runtimeContext: { runtime_id: "upgrade-test", stable_work_context_id: "upgrade-test", host_declares_stable: true } }, host, `http://127.0.0.1:${port}`);
   try { return await use(mcp); }
   finally { await mcp.close(); await host.close(); }
 }
@@ -322,10 +331,11 @@ test("UPG1-15: signing in to an account whose Home is older opens it upgraded", 
   assert.equal((await post("/api/personal/login")).status, 200);
   assert.equal((await request(`/account/callback?code=synthetic&state=${transaction.state}`, { redirect: "manual" })).status, 303);
   viewToken = (await (await request("/api/personal/status")).json() as { viewToken: string }).viewToken;
-  assert.equal(versionOf(notes), 1, "signing in alone does not open the account's Home");
+  // Since #1932 signing in prepares the account's Home at once; whatever opens it, it is opened upgraded, before any business store.
+  assert.equal(versionOf(notes), 2, "the account's Home was opened by signing in, so it is already upgraded");
+  assert.equal(present(stampFile(directory)), true);
   assert.equal((await post("/api/personal/space?kind=personal&userId=alice")).status, 200);
   assert.equal(versionOf(notes), 2);
-  assert.equal(present(stampFile(directory)), true);
   await request("/api/spaces");
 });
 

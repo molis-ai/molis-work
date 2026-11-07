@@ -80,8 +80,6 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
     case "note.create": createNote(state, command, now); return true;
     case "note.import": {
       const note = noteById(state, command.id);
-      jellyAssert(command.format === "markdown" || command.format === "html", "笔记导入格式无效");
-      jellyAssert(command.mode === "append" || command.mode === "replace", "笔记导入方式无效");
       jellyAssert(command.expected_note_revision === undefined || command.expected_note_revision === note.revision, "笔记已在其他窗口修改，请重新载入", jellyErrors.conflict);
       const previous = command.mode === "replace" ? note.blocks : [];
       const imported = command.format === "markdown" ? jellyMarkdownToBlocks(string(command.source), previous, now) : jellyHtmlToBlocks(string(command.source), previous);
@@ -116,7 +114,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
     case "item.notes_to_note": {
       const ownerId = string(command.owner_id), date = command.original_date == null ? null : string(command.original_date);
       const item = state.items.find(item => item.id === ownerId), series = state.series.find(series => series.id === ownerId), owner = item ?? series;
-      jellyAssert(owner, "日历事项不存在"); jellyAssert(command.mode === "new" || command.mode === "append", "迁移方式无效");
+      jellyAssert(owner, "日历事项不存在");
       if (date) jellyAssert(series && !series.exceptions[date]?.deleted, "重复实例不存在");
       const text = date && series ? series.exceptions[date]?.patch?.notes ?? series.notes : owner.notes;
       jellyAssert(typeof text === "string" && text.trim(), "该事项没有待迁移的随记");
@@ -128,20 +126,18 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
       owner.updated_at = now; return true;
     }
     case "task.schedule": scheduleTask(state, command, now); return true;
-    case "task.complete": { const { note, block } = taskBlock(state, command); jellyAssert(typeof command.completed === "boolean", "完成状态无效"); block.completed_at = command.completed ? now : null; block.completion_description = command.completed ? string(command.completion_description, block.completion_description) : ""; synchronizeNoteTasks(state, note, now); touch(note, now); return true; }
+    case "task.complete": { const { note, block } = taskBlock(state, command); block.completed_at = command.completed ? now : null; block.completion_description = command.completed ? string(command.completion_description, block.completion_description) : ""; synchronizeNoteTasks(state, note, now); touch(note, now); return true; }
     case "task.unlink": { const { note, block } = taskBlock(state, command); state.task_links = state.task_links.filter(l => !(l.note_id === note.id && l.block_id === block.id)); return true; }
     case "plan.apply": {
-      const plan = record(command.plan) as unknown as JellyPlan; jellyAssert(typeof plan.id === "string" && plan.id.length > 0 && Array.isArray(plan.actions), "拆解提案无效");
+      const plan = record(command.plan) as unknown as JellyPlan;
       if (state.applied_plan_ids.includes(plan.id)) return true;
-      jellyAssert(["note", "text"].includes(plan.source_type), "提案来源无效");
       jellyAssert(plan.source_hash === jellySourceHash(state, plan.source_type, plan.source_id, plan.source_text), "原文已变更，请重新生成提案", jellyErrors.source_changed);
       const selected = command.selected_action_ids === undefined ? plan.actions.map(a => a.id) : command.selected_action_ids; jellyAssert(Array.isArray(selected) && selected.every(id => typeof id === "string"), "选择的任务无效"); jellyAssert(selected.length > 0 && new Set(selected).size === selected.length, "至少选择一项任务，不能重复");
       jellyAssert(selected.every(id => plan.actions.some(a => a.id === id)) && new Set(plan.actions.map(a => a.id)).size === plan.actions.length, "提案任务 ID 无效");
       const actions = plan.actions.filter(a => selected.includes(a.id));
       const proposed: import("./contract.js").JellySchedule[] = [];
       for (const action of actions) {
-        jellyAssert(typeof action.title === "string" && action.title.trim() && typeof action.notes === "string" && ["none", "P0", "P1", "P2"].includes(action.priority), "提案任务内容无效"); category(state, action.category_id);
-        jellyAssert(action.duration_minutes === undefined || [15, 30, 45, 60, 90].includes(action.duration_minutes), "任务预计时长无效");
+        jellyAssert(action.title.trim(), "提案任务内容无效"); category(state, action.category_id);
         if (action.schedule) {
           validateJellySchedule(action.schedule);
           const conflict = jellyOccurrences(state, action.schedule.start_date, action.schedule.end_date).find(item => jellySchedulesOverlap(item, action.schedule!));
@@ -162,7 +158,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
       const target = command.note_id ?? (plan.source_type === "note" ? plan.source_id : null);
       const n = target ? noteById(state, target) : createNote(state, { title: plan.title || "行动计划", markdown: plan.source_text }, now); jellyAssert(!n.archived_at, "请先恢复目标笔记");
       for (const action of actions) {
-        jellyAssert(typeof action.title === "string" && action.title.trim(), "任务标题不能为空"); category(state, action.category_id);
+        category(state, action.category_id);
         const block: JellyBlock = { id: randomUUID(), kind: "task", text: action.title.trim(), indent: 0, completed_at: null, completion_description: "" };
         const added = [block]; if (action.notes) added.push({ id: randomUUID(), kind: "paragraph", text: string(action.notes), indent: 0, completed_at: null, completion_description: "" });
         if (insertionAfter) { const index = n.blocks.findIndex(existing => existing.id === insertionAfter); n.blocks.splice(index + 1, 0, ...added); insertionAfter = added.at(-1)!.id; } else n.blocks.push(...added);

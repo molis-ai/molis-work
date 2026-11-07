@@ -35,6 +35,7 @@ export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts, exposedO
 export { createStudioPublisher, readStudioDistribution } from "./plugin-builder/studio-release.js";
 export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";
+export { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
@@ -332,6 +333,7 @@ export { handleAttentionHttp, type AttentionSources } from "./attention-http.js"
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
+export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";
 export { hostLog, captureHostLog, eachListener, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
 
 

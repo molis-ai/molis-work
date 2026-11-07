@@ -1,0 +1,230 @@
+{
+  "about": "scripts/gates/golden-homes.mjs reads this (specs/upgrade-continuity/golden-replay-design.md §4 step 6, §5). uncovered: paths that must be backed up and that no golden holds today, with why. writes: each library of HOME-DATA.md §3 that must be backed up, with the cases of tests/golden-writes/ that write it, or why there is none. other_writes: the cases that write no library of that list.",
+  "uncovered": [
+    {
+      "path": "agent-runtime/checkpoints/",
+      "reason": "只有带检查点的长任务才写；脚本化模型那一轮对话没有产生，目录不在"
+    },
+    {
+      "path": "alchemist/projects/<id>/search-content/",
+      "reason": "正文来自联网搜索，金样不联网（UPG2-06）"
+    },
+    {
+      "path": "artifacts/projects/<编码后的 project_id>/originals/<sha256>",
+      "reason": "只有超过 6 MB 的原件才落文件（ARTIFACT_ORIGINAL_INLINE_MAX_BYTES）；放进金样就要入库一份 6 MB 以上的文件，artifacts.ts 写的小文件在项目库里"
+    },
+    {
+      "path": "computer/records/<id>/<序号>.png",
+      "reason": "助理真的操作这台 Mac 才有，要系统权限，生成时没有"
+    },
+    {
+      "path": "computer/records/<id>/record.json",
+      "reason": "助理真的操作这台 Mac 才有，要系统权限，生成时没有"
+    },
+    {
+      "path": "computer/settings.json",
+      "reason": "设置入口只在 macOS 注册，Linux 回放既写不了也读不了它（§4 第 3 步的读者会失败）；要进金样得先让这一步按平台分开"
+    },
+    {
+      "path": "config/connector-mcp-actions.json",
+      "reason": "要先连上一个真实的连接器 MCP，金样不联网"
+    },
+    {
+      "path": "config/external-mcp-actions.json",
+      "reason": "要先配置一个真实的外部 MCP，金样不联网"
+    },
+    {
+      "path": "config/installation.json",
+      "reason": "安装器写的收据，生成在构建好的工作区上跑，没有运行安装器；快照也排除它"
+    },
+    {
+      "path": "feed/evidence/blobs/**",
+      "reason": "Feed 抓到外部内容才写，金样不联网（UPG2-06）"
+    },
+    {
+      "path": "git-operation-details.json",
+      "reason": "Git 操作审查才写，金样的项目没有 Git 仓库和工作区"
+    },
+    {
+      "path": "images/assets/",
+      "reason": "生成图片才写，要真实模型；images.ts 只建连接，不发任务"
+    },
+    {
+      "path": "plugin-builder/<project_id>/{design,builds,releases,runs}/",
+      "reason": "插件创作台要真实模型才有产物，金样不调模型；创作台也不在这批的回放范围"
+    },
+    {
+      "path": "runtime-config-backups/<runtime>/<plan>.bak",
+      "reason": "接入本机的 Runtime 配置才写，要真实的 Runtime，生成时不碰本机配置"
+    },
+    {
+      "path": "runtime-integrations/<runtime>.json",
+      "reason": "接入本机的 Runtime 配置才写，要真实的 Runtime，生成时不碰本机配置"
+    },
+    {
+      "path": "shelf/catalog.json.lock.sqlite",
+      "reason": "只是互斥用的锁库，和目录文件写在同一行，用完就没有数据要回放"
+    },
+    {
+      "path": "shelf/jobs/<job>/",
+      "reason": "导入进行中的暂存，生成结束时任务都已结束"
+    },
+    {
+      "path": "spaces/<spaceId>/sync/device.json",
+      "reason": "登录后才写，金样不登录（UPG2-06）"
+    }
+  ],
+  "writes": {
+    "projects/catalog.db": {
+      "none": "目录只有新建项目一个写入口，生成时经它写；回放的 Home 里已有项目，再建一个不证明升级后的旧行还能改"
+    },
+    "projects/<project_id>/molis-work.db": {
+      "cases": [
+        "goals.ts",
+        "artifacts.ts",
+        "coding.ts",
+        "feed.ts",
+        "schedule.ts"
+      ]
+    },
+    "assistant/assistant.db": {
+      "cases": [
+        "assistant.ts"
+      ]
+    },
+    "memory/memory.db": {
+      "cases": [
+        "memory.ts"
+      ]
+    },
+    "knowledge/knowledge.db": {
+      "cases": [
+        "knowledge.ts"
+      ]
+    },
+    "placement/placement.db": {
+      "cases": [
+        "placement.ts"
+      ]
+    },
+    "agent-definitions/agent-definitions.db": {
+      "cases": [
+        "agent-definitions.ts"
+      ]
+    },
+    "connectors/connectors.db": {
+      "cases": [
+        "connectors.ts"
+      ]
+    },
+    "context-onboarding/context-onboarding.db": {
+      "cases": [
+        "context-onboarding.ts"
+      ]
+    },
+    "plugin-originals/plugin-originals.db": {
+      "none": "行记本机的真实路径，只有桌面入口带来的路径能写，金样里是空库（清单 imports）"
+    },
+    "plugin-directories/plugin-directories.db": {
+      "none": "行记本机的真实路径、设备号和 inode，只有桌面选择器能写，金样里是空库（清单 imports）"
+    },
+    "functions/functions.db": {
+      "cases": [
+        "functions.ts"
+      ]
+    },
+    "characters/characters.sqlite": {
+      "cases": [
+        "characters.ts"
+      ]
+    },
+    "issues/issues.db": {
+      "cases": [
+        "issues.ts"
+      ]
+    },
+    "images/images.db": {
+      "cases": [
+        "images.ts"
+      ]
+    },
+    "pages/pages.db": {
+      "cases": [
+        "pages.ts"
+      ]
+    },
+    "form/form.db": {
+      "cases": [
+        "form.ts"
+      ]
+    },
+    "dataset/dataset.db": {
+      "cases": [
+        "dataset.ts"
+      ]
+    },
+    "ppt/ppt.db": {
+      "cases": [
+        "ppt.ts"
+      ]
+    },
+    "lingguang/lingguang.db": {
+      "cases": [
+        "lingguang.ts"
+      ]
+    },
+    "goals/goals.db": {
+      "cases": [
+        "goals-home.ts"
+      ]
+    },
+    "feed-content/feed-content.db": {
+      "none": "正文只在 Feed 真的拉到内容时写，要联网；金样不联网，这个库只有结构和空间行，没有业务行（feed.ts 写的是项目那一半）"
+    },
+    "todo/todo.db": {
+      "cases": [
+        "todo.ts"
+      ]
+    },
+    "jelly/jelly.db": {
+      "cases": [
+        "jelly.ts"
+      ]
+    },
+    "cognia/cognia.db": {
+      "cases": [
+        "cognia.ts"
+      ]
+    },
+    "workflows/workflows.db": {
+      "cases": [
+        "workflows.ts"
+      ]
+    },
+    "plugin-runtime/plugin-runtime.db": {
+      "none": "没有最小写入用例：回放的第三方样本那一步装、写、升级，这个库就写过了（§4 第 7 步）"
+    },
+    "plugin-libraries/plugin-libraries.db": {
+      "none": "台账只在装带 Home 库的包时写，回放的 Home 库样本走它（§4 第 7 步）"
+    },
+    "server/server.sqlite": {
+      "cases": [
+        "discussion.ts"
+      ]
+    },
+    "alchemist/projects/<编码后的 project_id>/studio.sqlite": {
+      "cases": [
+        "alchemist.ts"
+      ]
+    },
+    "alchemist/projects/<编码后的 project_id>/search.sqlite": {
+      "none": "行来自联网搜索，金样不联网，是空库（清单 imports）"
+    }
+  },
+  "other_writes": {
+    "host-settings.ts": "写宿主的设置文件，不是 §3 里的库",
+    "model-settings.ts": "写模型设置和密文，都在 feed/ 的文件里",
+    "model-turn.ts": "走一轮真实对话，写 Prologue 的会话记录文件",
+    "shelf.ts": "写 Shelf 的目录文件和文件夹，不是 §3 里的库"
+  }
+}

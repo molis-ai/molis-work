@@ -15,6 +15,7 @@
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
 | `table-owners.json` | `shared`：几个包有意共用的表（今天没有；`events`、`idempotency_records` 原先在里面，PG-094 S9-1 后已删）的 owner、用到它的包、理由；`same_name`：两个包各建一张的同名表（今天是 `workspaces`、`jobs`，不同库）的包与理由；`areas`：包里自己当 owner 的目录（今天是 Feed 的 `src/store`，BL-802）与理由；其余的表只许 owner 包读写（`scripts/gates/table-owners.mjs`，说明在 `scripts/gates/README.md`） | 人，过评审；门禁两头核对，登记的包不再用就要删 |
 | `error-owners.json` | 错误码的主人表：`platform.prefixes`（平台自己的前缀，今天是 `actions`、`placement`、`search`、`files`）和 `owners.<名字>`（主人名、它名下的目录、glob 或文件、理由）。每个错误码以所在文件的主人名开头，平台码（`ACTION_ERROR_KINDS` 里有行的）除外；`plugins/native/<目录>/` 下的文件不用登记，主人就是目录名（连字符变下划线）。表自己的规则没有基线，表只许变严（`scripts/gates/error-owners.mjs`，口径见下面「错误模型」） | 人，过评审；新增一个包或区域要先加一条 |
+| `golden-coverage.json` | 金样覆盖面：`uncovered`（必须备份、今天金样里没有的路径和理由）、`writes`（每个必备份的库由 `tests/golden-writes/` 哪几个用例写，或为什么没有）、`other_writes`（不对应某个库的用例和它写什么）。见下「金样」 | 人，过评审；每条都双向核对，过期就失败 |
 
 ## 按文件计数、只许减少的项
 
@@ -56,6 +57,17 @@
 | 绝对零 | 任一进程混用都失败，旧基线、相等merge-base或数字下降均不授权。`--update`同样拒绝；本地快查不再写`testImportSplits`及Total。报告仍显示进程数与两边链路，沿用同一图口径 |
 
 验证：`node scripts/run-tests.mjs tests/health-gates-test-imports-tool.test.ts`——在临时仓库里：每种拆成两份的写法（源码加包名、帮手、别的包的构建、动态 import、`dist` 换成 `src`、新测试、没人导入的夹具一开始就拆开或多拆一个包）在 `--base main` 下必须失败，`--update` 藏不住；类型导入、`dist` 孪生、只用源码、没人导入而只有一份的夹具必须不变红；删掉拆分（含夹具里的）会降低、改名保留记录。同一个文件也验证重写工具（公开名字走入口、别名、非公开走 `dist`、动态导入的解构、`apps/*` 的名字规则、没有构建孪生时不动、自检失败时不写）。
+
+## 金样（`scripts/gates/golden-homes.mjs`，UPG2-04、UPG2-07、UPG2-08）
+
+不比数字，出现一个就失败。设计见 [golden-replay-design.md](../../specs/upgrade-continuity/golden-replay-design.md) §5、§6。
+
+- **覆盖面：** `docs/system/HOME-DATA.md` §3、§5、§6 里备份一栏以「必备份」开头的路径（§3.3 整节都是），加上设计额外要的（`storage-space.json`、`plugin-packages/`、`spaces/`、`feed/secrets.json`、`config/installation.json`、`agent-runtime/storage.key`），都要在最新一份金样的清单里，根 Home 或账号 Home 都算。路径里的 `<x>` 是一段，`**` 是任意，`{a,b}` 是其一，以 `/` 结尾是下面的任何东西。今天放不进金样的写进 `golden-coverage.json` 的 `uncovered`，带理由；已经进了金样、或不再是必备份的条目会失败，所以这张表过不了期。
+- **最小写入：** §3 里每个必备份的库，`writes` 要说由哪几个 `tests/golden-writes/` 用例写，或者为什么没有；`tests/golden-writes/` 下每个文件要么被某个库用，要么在 `other_writes` 里。文件名和 `HOME-DATA.md` 的 owner 对不上（owner 常常是「宿主」），所以要这张对应表。
+- **怎样生成的：** 最新一份的清单要有 `third_party`、`home_library`、`node`：没有样本、或不说用哪个 Node 生成的，不入库。Node 是否等于 `.nvmrc` 由 `scripts/golden-home.mjs create` 在写默认目录时拒绝，门禁不比，否则升 Node 就要重生成旧金样。
+- **50 MB：** `tests/fixtures/golden-homes/` 下被跟踪文件的工作树字节不超过 50 MB。超了失败并点名最老的一份，不看年龄（用户 2026-11-08 定）。
+
+读不到的：库里有没有行、文件里的内容读不读得回来。那是回放的事（`scripts/replay-golden-homes.mjs`）。
 
 ## 包清单（`scripts/gates/package-inventory.mjs`，W1-18）
 

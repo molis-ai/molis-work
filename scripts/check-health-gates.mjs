@@ -35,7 +35,7 @@ import { measureGiantUnits, isSource } from "./gates/giant-units.mjs";
 // what is measured is admitted, new or grown; an unregistered giant unit may not appear or grow.
 // Exit codes: 0 passed, 1 a gate failed, 2 the command or the environment is unusable (there is no silent fallback).
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import ts from "typescript";
@@ -54,6 +54,7 @@ import { productSubsetProblems } from "./gates/product-subset.mjs";
 import { splitsWantText, testImportSplits } from "./gates/test-import-splits.mjs";
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
+import { goldenHomeProblems } from "./gates/golden-homes.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
 import { versionOriginProblems } from "./gates/initial-versions.mjs";
@@ -487,7 +488,7 @@ const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry])
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions/, or key it by the new name after a rename`]
   : problemsOfException(entry, head.giant[unit]).map((problem) => `giant exception for ${unit}: ${problem}`)));
 const retiredRecordErrors = () => workingTree().files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`);
-const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...dualInstanceProblems(workingTree()), ...productSubsetProblems(root)];
+const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...goldenHomeProblems({ ...workingTree(), size: file => statSync(path.join(root, file)).size }), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...dualInstanceProblems(workingTree()), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });

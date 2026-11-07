@@ -32,8 +32,9 @@ const { SYNC_STORE_BASELINE } = await import("@molis-ai/molis-work-module-sync-r
 const { readEveryParameterlessAction, unavailableInFixture } = await import(new URL("../tests/fixtures/parameterless-reads.ts", import.meta.url).href);
 const { expectAnswer, installedPluginSession } = await import("./replay-plugins/signed-session.mjs");
 const { thirdPartySample } = await import("./golden/populate.mjs");
-const { assertStoredReleasesRun } = await import("./golden/stored-releases.mjs");
+const { replayHomeLibrarySample } = await import("./golden/home-library-sample.mjs");
 const { assertVersionedFilesRead } = await import("./golden/versioned-files.mjs");
+const { versionsNewestLast } = await import("./golden/versions.mjs");
 
 /** A golden Home has neither a managed workspace nor a model a read could reach. The table of the shared read, and nothing wider. */
 const UNAVAILABLE = unavailableInFixture;
@@ -43,11 +44,6 @@ const KNOWLEDGE_CATCH_UP_MILLISECONDS = 30_000;
  * its stride. This is not a pass: `ok` says only that what ran passed, and a run that left this out says so in its result, for the job that adds it.
  */
 const THIRD_PARTY_NOT_RUN = "not-run";
-
-function versionsNewestLast(names) {
-  const parts = name => { const [main, dev] = name.split("-dev."); return [...main.split(".").map(Number), dev === undefined ? Infinity : Number(dev)]; };
-  return [...names].sort((a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; });
-}
 
 function selectedGoldens() {
   let names;
@@ -189,6 +185,18 @@ async function replayThirdParty(manifest, homes) {
   } finally { await session.close(); }
 }
 
+/** The signed sample that holds a library of its own. Only the root Home has it, and only macOS can run it at all. */
+async function replayHomeLibrary(manifest, [item]) {
+  if (!manifest.home_library) return "absent";
+  if (process.platform !== "darwin") return THIRD_PARTY_NOT_RUN;
+  const session = await openGoldenHost(item.at);
+  try {
+    // The install entry takes a project this Host has open, though the package is the Home's.
+    await goldenActions(session, item.projects[0], "replay").call("goals.list");
+    return await replayHomeLibrarySample(session, item.projects[0], manifest.home_library);
+  } finally { await session.close(); }
+}
+
 async function replayGolden(name) {
   const source = path.join(directory, name), restored = createTemporaryHome("golden-replay-");
   const steps = {};
@@ -207,11 +215,11 @@ async function replayGolden(name) {
     step = "rows"; assertRowsKept(manifest, restored.home);
     step = "write"; steps.writes = await writeEverything(homes);
     step = "third-party"; steps.third_party = await replayThirdParty(manifest, homes);
-    step = "stored-releases"; steps.stored_releases = await assertStoredReleasesRun(manifest, homes, restored.home);
+    step = "home-library"; steps.home_library = await replayHomeLibrary(manifest, homes);
     step = "restart-structure"; await assertStructure(homes);
     step = "restart-read"; await readEverything(manifest, homes);
     if (refusedNetwork().length) { step = "network"; throw goldenFailure("golden.network_refused", refusedNetwork()[0]); }
-    return { golden: name, ok: true, steps, not_run: steps.third_party === THIRD_PARTY_NOT_RUN ? ["third-party"] : [] };
+    return { golden: name, ok: true, steps, not_run: [["third-party", steps.third_party], ["home-library", steps.home_library]].filter(([, result]) => result === THIRD_PARTY_NOT_RUN).map(([what]) => what) };
   } catch (error) {
     if (debug) process.stderr.write(`${error?.stack ?? error}\n`);
     return { golden: name, ok: false, step, where: error?.where ?? "-", code: typeof error?.code === "string" ? error.code : "golden.unexpected_error" };
@@ -221,9 +229,10 @@ async function replayGolden(name) {
 refuseNetwork();
 scriptModel();
 const results = [];
+const said = result => result === THIRD_PARTY_NOT_RUN ? `not run on ${process.platform}, not a pass` : result;
 for (const name of selectedGoldens()) results.push(await replayGolden(name));
 if (json) writeFileSync(1, `${JSON.stringify({ results })}\n`);
 else if (!results.length) writeFileSync(1, "no golden Homes to replay\n");
-else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, third-party: ${item.not_run.length ? `not run on ${process.platform}, not a pass` : item.steps.third_party})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
+else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
 // The Host's background work has no reason to outlive a finished replay.
 process.exit(results.every(item => item.ok) ? 0 : 1);

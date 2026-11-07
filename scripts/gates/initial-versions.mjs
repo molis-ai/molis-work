@@ -136,7 +136,10 @@ export function sourceVersionProblems(file, source, chains = new Map(), exceptio
   return problems;
 }
 
-const isCheckedSource = (file) => isUnderSourceRoots(file) && CODE_FILE.test(file) && !isTestFile(file);
+// A test file is skipped only where both boundaries skip it: the shared one (scripts/version-source.mjs) and this gate's own before it,
+// a `tests/` or `fixtures/` directory at any depth. Either alone would leave out files the other checks (VG-29, VG-39).
+const OWN_TEST_DIRECTORY = /(?:^|\/)(?:tests|fixtures)\//;
+export const isCheckedSource = (file) => isUnderSourceRoots(file) && CODE_FILE.test(file) && !(isTestFile(file) && OWN_TEST_DIRECTORY.test(file));
 
 /**
  * The half with no build, over a snapshot (`files`, `read`): the version constants in source and the persistent formats of tooling/versions.json.

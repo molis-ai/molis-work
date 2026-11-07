@@ -432,13 +432,39 @@ test("VG-24 a JSON file's row points at the field the code writes, and every spe
   put("apps/alpha/src/settings.ts", "export interface Saved { schema_version: 1; }\nexport const write = () => ({ schema_version: 2 });\n");
   failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
   put("apps/alpha/src/settings.ts", "export const write = (current: number) => ({ schema_version: current });\n");
-  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts writes schema_version: current; write the number itself at every schema_version (定义处写字面量)");
   put("apps/alpha/src/settings.ts", "export const write = () => ({ name: 'a' });\n");
   failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
   // Only the two field names read this way: a constant's row still needs the constant.
   put("apps/alpha/src/settings.ts", "export const write = () => ({ SETTINGS_VERSION: 1 });\n");
   row(1, "SETTINGS_VERSION");
   failsWith(run(), "Settings: apps/alpha/src/settings.ts has no SETTINGS_VERSION with a version");
+});
+
+test("VG-41 a JSON file's field is read with its key quoted too, and a field written from a name is refused", () => {
+  scratchLiterals("apps/alpha/src/settings.ts");
+  withRow("| Settings | `settings.json` | 1 | `version` | `apps/alpha/src/settings.ts#version` | 当没有 |");
+  const passes = (source: string) => { put("apps/alpha/src/settings.ts", source); const result = run(); assert.equal(result.code, 0, `${source}\n${result.out}`); };
+  passes("export const write = () => ({ version: 1 });\n// an older file said version: 2\n");
+  passes("export const write = () => ({ \"version\": 1, version_note: 3 });\nexport type Read = { version: number };\n");
+  passes("export const write = () => ({ version: 1 as const });\nexport const text = '{\"version\": 1}';\n");
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1 });\nexport const other = () => ({ \"version\": 2 });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1 });\nexport const text = `{\"version\": 2}`;\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
+  put("apps/alpha/src/settings.ts", "export interface Saved { version: 1 }\nexport const write = () => ({ version: 2 });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no version with a version");
+  const FORMAT = "const FORMAT = 1;\n";
+  for (const [source, written] of [
+    [`${FORMAT}export const write = () => ({ version: 1 });\nexport const again = () => ({ version: FORMAT });\n`, "FORMAT"],
+    [`${FORMAT}export const write = () => ({ "version": FORMAT });\n`, "FORMAT"],
+    [`${FORMAT}export const write = () => ({ version: FORMAT as 1 });\n`, "FORMAT"],
+    ["const version = 1;\nexport const write = () => ({ version });\n", "version"],
+    ["export const write = (old: { version: number }) => ({ version: 1, ...old, \"version\": old.version });\n", "old.version"],
+  ]) {
+    put("apps/alpha/src/settings.ts", source);
+    failsWith(run(), `Settings: apps/alpha/src/settings.ts writes version: ${written}; write the number itself at every version (定义处写字面量)`);
+  }
 });
 
 test("the table itself must exist, have the columns, and carry a whole number", () => {

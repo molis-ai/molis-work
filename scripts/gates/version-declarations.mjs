@@ -24,7 +24,8 @@ const VERSION_IN_NAME = /[._-]v[1-9]\d*(?:[._-]|$)|\/v[1-9]\d*$|@[1-9]\d*$/;
 const SLASH_VERSION = /\/[1-9]\d*$/;
 const TOKEN_SEPARATOR = /[\s"'`,;()[\]{}<>=|\\]+/;
 // The namespace of the MCP tools: this one literal prefix, not a rule about a field or a shape of name. It is part of every tool's name
-// and does not move, so it would be the same exception 25 times. Only the prefix is forgiven: the rest of the name is still read.
+// and does not move, so it would be the same exception 25 times. Only the prefix is forgiven: the rest of the name is still read, and
+// it keeps the `_` in front of it, so `molis_work_v1_v2_tool` still shows its `_v2_` (VG-40).
 const MCP_NAMESPACE = /^molis_work_v1_/;
 const USER_VERSION = /(?:\bPRAGMA\s+(?:\w+\.)?|^\s*)user_version\s*[=(]\s*([1-9]\d*)/i;
 const IDENTITY_FIELDS = { capability_id: ["action", "action-family"], scene_id: ["scene"], prompt_id: ["prompt"], role_id: ["role"] };
@@ -114,7 +115,7 @@ export function sourceDeclarationFindings(file, source, versions = {}, carriers 
     if (pragma) report(node, "PRAGMA user_version", pragma[1], `unmanaged current version PRAGMA user_version = ${pragma[1]}`);
     const tokens = text.split(TOKEN_SEPARATOR).filter(Boolean), whole = tokens.length === 1 && tokens[0] === text;
     for (const token of tokens) {
-      if (!NAME_LIKE.test(token) || !(VERSION_IN_NAME.test(token.replace(MCP_NAMESPACE, "")) || (whole && SLASH_VERSION.test(token)))) continue;
+      if (!NAME_LIKE.test(token) || !(VERSION_IN_NAME.test(token.replace(MCP_NAMESPACE, "_")) || (whole && SLASH_VERSION.test(token)))) continue;
       if (!whole && carried.some(match => match.includes(token) || token.includes(match))) continue;
       if (whole) report(node, token, token, `unmanaged current version ${token} = ${node.getText(tree)}${holderHint(node)}`);
       else report(node, token, token, `unmanaged current version ${token} inside a string`);

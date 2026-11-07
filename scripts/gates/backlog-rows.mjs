@@ -36,8 +36,11 @@ export function backlogProblems(snapshot) {
     if (seen.has(id)) problems.push(`${where}: ${id} is on two rows (first at line ${seen.get(id)}); ids are not reused`);
     else seen.set(id, index + 1);
     const cells = line.split(/(?<!\\)\|/).slice(1, -1).map((cell) => cell.trim());
-    if (cells.some((cell) => /~~[^~]+~~/.test(cell))) problems.push(`${where}: ${id} is struck through; a finished item is deleted, with its id in the commit message`);
-    else if (cells.some((cell) => DONE_CELL.test(cell))) problems.push(`${where}: ${id} says it is done; delete the row, with its id in the commit message`);
+    // A cell may hold an escaped "\|". The columns are counted without splitting there; "done" is read both ways, because before the
+    // columns were counted the row was split at every "|", and "说明 \| 已完成" said it was done then too (VG-38).
+    const pieces = [...cells, ...line.split("|").slice(1, -1).map((cell) => cell.trim())];
+    if (pieces.some((cell) => /~~[^~]+~~/.test(cell))) problems.push(`${where}: ${id} is struck through; a finished item is deleted, with its id in the commit message`);
+    else if (pieces.some((cell) => DONE_CELL.test(cell))) problems.push(`${where}: ${id} says it is done; delete the row, with its id in the commit message`);
     if (cells.length !== COLUMNS) problems.push(`${where}: ${id} has ${cells.length} columns; a row has ${COLUMNS}`);
     else {
       const [, , source, , , , priority, owner] = cells;

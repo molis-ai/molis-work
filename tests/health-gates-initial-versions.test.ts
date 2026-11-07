@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { PERSISTENT_DEFINITIONS, PERSISTENT_ENTRY_KEYS, checkRepository, initialVersionProblems, sourceVersionProblems, upgradeStepProblems, versionOriginProblems } from "../scripts/gates/initial-versions.mjs";
+import { PERSISTENT_DEFINITIONS, PERSISTENT_ENTRY_KEYS, checkRepository, initialVersionProblems, isCheckedSource, sourceVersionProblems, upgradeStepProblems, versionOriginProblems } from "../scripts/gates/initial-versions.mjs";
 
 test("U0-03: an active registration cannot hide a later action, manifest, role, prompt, instruction or method version", () => {
   const agent = {
@@ -235,7 +235,7 @@ test("VG-29 the test boundary is the package: `src/fixtures` and `src/tests` shi
     "packages/a/test/frozen.ts": raised("B"),
     "packages/a/fixtures/frozen.ts": raised("C"),
     "plugins/native/x/tests/frozen.ts": raised("D"),
-    "packages/a/src/frozen.test.ts": raised("E"),
+    "packages/a/tests/frozen.test.ts": raised("E"),
     "tooling/other/src/not-a-root.ts": raised("F"),
   }));
   assert.deepEqual(problems, [
@@ -243,7 +243,28 @@ test("VG-29 the test boundary is the package: `src/fixtures` and `src/tests` shi
     "packages/a/src/tests/shipped.ts: TESTS_VERSION = 2 (expected 1)",
     "plugins/native/x/src/fixtures/shipped.ts: PLUGIN_VERSION = 2 (expected 1)",
     "tooling/plugin-cli/src/cli.ts: CLI_VERSION = 2 (expected 1)",
+    "packages/a/test/frozen.ts: B_VERSION = 2 (expected 1)",
   ]);
+});
+
+test("VG-39 a test file outside a `tests/` or `fixtures/` directory is checked as before the shared boundary", () => {
+  const raised = (name: string) => `const ${name}_VERSION = 2;`;
+  const problems = versionOriginProblems(snapshotOf({
+    "apps/sync-worker/feed.test.mjs": raised("WORKER"),
+    "apps/sync-worker/test.mjs": raised("RUNNER"),
+    "apps/workbench/tooling/client-literals.test.mjs": raised("TOOLING"),
+    "packages/a/src/frozen.test.ts": raised("SPEC"),
+  }));
+  assert.deepEqual(problems, [
+    "apps/sync-worker/feed.test.mjs: WORKER_VERSION = 2 (expected 1)",
+    "apps/sync-worker/test.mjs: RUNNER_VERSION = 2 (expected 1)",
+    "apps/workbench/tooling/client-literals.test.mjs: TOOLING_VERSION = 2 (expected 1)",
+    "packages/a/src/frozen.test.ts: SPEC_VERSION = 2 (expected 1)",
+  ]);
+  // Over this repository: every file the gate checked at #1934 (its rule copied here) it still checks.
+  const before = (file: string) => /^(?:apps|packages|plugins|modules|server|horizontal)\//.test(file) && /\.(?:[cm]?[jt]s|[jt]sx)$/.test(file) && !/(?:^|\/)(?:tests|fixtures)\//.test(file);
+  const files = execFileSync("git", ["ls-files", "-z"], { cwd: new URL("../", import.meta.url), encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);
+  assert.deepEqual(files.filter(before).filter(file => !isCheckedSource(file)), []);
 });
 
 // The whole check over a tracked repository, with the running Host's half handed in: this job has no build, and

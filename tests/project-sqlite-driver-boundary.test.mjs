@@ -68,9 +68,11 @@ test("VG-17 the scan reaches every place code lives, sync-worker included, and o
   try {
     // No directory here has a package.json: the scan goes by where code lives, not by the workspace list. apps/sync-worker really has none.
     const reached = ["apps/sync-worker/test.mjs", "apps/sync-worker/worker/attachments.test.mjs", "apps/a/src/a.ts", "apps/a/tests/a.test.ts", "packages/a/tooling/a.mjs", "plugins/native/a/tests/a.test.tsx",
-      "plugins/official-integrations/a/src/a.cjs", "modules/a/src/a.mts", "horizontal/a/bin/a.js", "server/src/a.cts", "tooling/plugin-cli/src/a.ts", "tooling/gates/a.mjs", "tests/a.test.ts", "scripts/a.mjs", "examples/a/src/a.jsx"];
+      "plugins/official-integrations/a/src/a.cjs", "modules/a/src/a.mts", "horizontal/a/bin/a.js", "server/src/a.cts", "tooling/plugin-cli/src/a.ts", "tooling/gates/a.mjs", "tests/a.test.ts", "scripts/a.mjs", "examples/a/src/a.jsx",
+      // Rust and Swift output directories are walked, as the boundary check walked them before it shared this walk.
+      "apps/a/target/a.js", "apps/a/.build/a.js"];
     for (const file of reached) put(file);
-    for (const file of ["packages/storage/src/a.ts", "plugins/native/alchemist/src/a.ts", "apps/a/dist/a.js", "apps/a/node_modules/b/a.js", "apps/a/target/a.js", "apps/a/.build/a.js", "docs/a.ts", "apps/a/README.md"]) put(file);
+    for (const file of ["packages/storage/src/a.ts", "plugins/native/alchemist/src/a.ts", "apps/a/dist/a.js", "apps/a/node_modules/b/a.js", "docs/a.ts", "apps/a/README.md"]) put(file);
     assert.deepEqual(sqliteDriverFindings(root).map(finding => finding.file).sort(), [...reached].sort());
     const [product, testing] = ["apps/a/src/a.ts", "tests/a.test.ts"].map(file => sqliteDriverFindings(root).find(finding => finding.file === file));
     assert.equal(product.text, "[project-sqlite-driver] open project connections through storage");

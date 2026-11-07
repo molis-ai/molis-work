@@ -251,6 +251,8 @@ const violations: Scenario[] = [
     expect: [/BACKLOG: specs\/backlog\/BL-003\.md:\d+: BL-003 is struck through; a finished item is deleted/] },
   { kind: "absolute", name: "a BACKLOG row that says it is done", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 做过的事 | spec | 已完成（#281） | next | none | 中 | Codex |\n"),
     expect: [/BACKLOG: specs\/backlog\/BL-003\.md:\d+: BL-003 says it is done; delete the row/] },
+  { kind: "absolute", name: "VG-38 a BACKLOG cell that says it is done after an escaped pipe", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 说明 \\| 已完成 | spec | 未实现 | next | none | 中 | Codex |\n"),
+    expect: [/BACKLOG: specs\/backlog\/BL-003\.md:1: BL-003 says it is done; delete the row/] },
   { kind: "absolute", name: "a BACKLOG id used twice", mutate: () => put("specs/backlog/BL-duplicate.md", "| BL-002 | 又一件事 | spec | 未实现 | next | none | 中 | Codex |\n"),
     expect: [/BL-002 is on two rows \(first at line \d+\); ids are not reused/] },
   { kind: "absolute", name: "VG-18 a BACKLOG row with a column too few", mutate: () => put("specs/backlog/BL-003.md", "| BL-003 | 少一列 | spec | 未实现 | next | none | 中 |\n"),

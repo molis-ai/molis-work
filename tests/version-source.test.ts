@@ -678,13 +678,13 @@ test("VG-13 what each script scans is pinned, so sharing the walk did not narrow
     "apps/a/src/a.css": "", "apps/a/src/a.test.ts": "", "apps/a/tests/a.ts": "", "apps/a/fixtures/a.ts": "",
     "apps/a/tooling/a.mjs": "", "packages/a/src/a.ts": "", "plugins/native/a/src/a.ts": "", "plugins/official-integrations/a/src/a.ts": "", "modules/a/src/a.ts": "", "horizontal/a/src/a.ts": "",
     "server/src/a.ts": "", "server/public/a.js": "", "tooling/plugin-cli/src/a.ts": "", "tooling/gates/a.ts": "", "scripts/a.mjs": "", "tests/a.ts": "", "examples/a/src/a.ts": "",
-    // dist and dependencies are never read; target and .build (Rust and Swift output) only outside src/, where that name is source.
+    // dist and dependencies are never read; target and .build (Rust and Swift output) are, inside src/ or not.
     "apps/a/dist/a.js": "", "apps/a/target/a.js": "", "apps/a/.build/a.js": "", "apps/a/node_modules/b/a.js": "",
     "apps/a/src/dist/a.ts": "", "apps/a/src/target/a.ts": "", "apps/a/src/.build/a.ts": "", "apps/a/src/node_modules/a.ts": "",
   });
   assert.deepEqual([...readSourceFiles(root).keys()].sort(), [
-    "apps/a/src/.build/a.ts", "apps/a/src/a.cjs", "apps/a/src/a.cts", "apps/a/src/a.js", "apps/a/src/a.jsx", "apps/a/src/a.mjs", "apps/a/src/a.mts", "apps/a/src/a.ts", "apps/a/src/a.tsx",
-    "apps/a/src/target/a.ts", "apps/a/tooling/a.mjs", "horizontal/a/src/a.ts", "modules/a/src/a.ts", "packages/a/src/a.ts", "plugins/native/a/src/a.ts",
+    "apps/a/.build/a.js", "apps/a/src/.build/a.ts", "apps/a/src/a.cjs", "apps/a/src/a.cts", "apps/a/src/a.js", "apps/a/src/a.jsx", "apps/a/src/a.mjs", "apps/a/src/a.mts", "apps/a/src/a.ts", "apps/a/src/a.tsx",
+    "apps/a/src/target/a.ts", "apps/a/target/a.js", "apps/a/tooling/a.mjs", "horizontal/a/src/a.ts", "modules/a/src/a.ts", "packages/a/src/a.ts", "plugins/native/a/src/a.ts",
     "plugins/official-integrations/a/src/a.ts", "server/public/a.js", "server/src/a.ts", "tooling/plugin-cli/src/a.ts",
   ]);
   // The declaration gate reads Markdown and the three languages the generator does not, under the same roots and the same test boundary.
@@ -743,6 +743,12 @@ test("VG-16 a version in a UI contribution id gets told to drop it", () => {
 test("VG-19 the MCP tool namespace is one literal prefix, and the rest of the name is still read", () => {
   for (const text of ['export const a = "molis_work_v1_context_bind";', 'export const a = "molis_work_v1_";', "export const a = `molis_work_v1_action_${name}`;"]) assert.deepEqual(findings(FILE, text), [], text);
   for (const name of ["molis_work_v2_context_bind", "other_molis_work_v1_context_bind", "molis_work_v1_context_bind_v2", "molis_work_v1_context_bind__v2"]) {
+    assert.deepEqual(findings(FILE, `export const a = "${name}";`), [`unmanaged current version ${name} = "${name}"`], name);
+  }
+});
+
+test("VG-40 a version right after the MCP tool namespace is still read", () => {
+  for (const name of ["molis_work_v1_v2_tool", "molis_work_v1_v3", "molis_work_v1_tool.v2"]) {
     assert.deepEqual(findings(FILE, `export const a = "${name}";`), [`unmanaged current version ${name} = "${name}"`], name);
   }
 });

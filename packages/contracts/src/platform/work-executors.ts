@@ -87,7 +87,11 @@ export interface WorkExecutorRoleContract {
   readonly input_schema: ActionSchema;
   readonly output_schema: ActionSchema;
 }
-/** The version each role's two types are at. The Assistant compares the whole type: a new shape raises its number here, and the Assistant follows in the same change (CONTRACT-CHANGES §3). */
+/**
+ * The version each role's two types are at. The Assistant compares the whole type. Now, in stage one (CONTRACT-CHANGES §3), a shape changes
+ * at the version it has, as session.read's `mcp_tools` did; from the first install outside the development machines a new shape raises its
+ * number here (§4), and the Assistant follows in the same change.
+ */
 const ROLE_TYPE_VERSIONS: Readonly<Record<WorkExecutorRole, { readonly input: number; readonly output: number }>> = {
   state: { input: /* @version type.molis.work-executor.state.input */ 1, output: /* @version type.molis.work-executor.state.output */ 1 },
   "session.open": { input: /* @version type.molis.work-executor.session.open.input */ 1, output: /* @version type.molis.work-executor.session.open.output */ 1 },

@@ -16,8 +16,9 @@ import { generateVersions } from "./generate-versions.mjs";
 import { versionDeclarationProblems } from "./gates/version-declarations.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { walkFiles } from "./script-paths.mjs";
-import { VERSION_FIELD, withoutMarkers } from "./version-source.mjs";
+import { VERSION_FIELD, scriptKind, withoutMarkers } from "./version-source.mjs";
 
 const USAGE = "usage: verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -219,16 +220,41 @@ function baselineVersion(text, name) {
   return close < 0 ? null : objectVersion(text.slice(open, close + 1));
 }
 
-// A JSON file's version is the number at every `name:` in the code that writes it; two different numbers read as none.
-function fieldVersion(source, name) {
-  const numbers = new Set([...source.matchAll(new RegExp(`\\b${name}\\s*:\\s*(\\d+)\\b`, "g"))].map(match => match[1]));
+// A JSON file's version is what the code that writes it puts at `name`, read from the syntax tree: every property of that name, quoted
+// or not, in an object (`name: 1`, `"name": 1`) or a type (`name: 1;`), and `name: N` written inside a string or template. They must all
+// be the same number; two different ones read as none. A property whose value is not a number, such as a constant (`name: FORMAT`) or
+// `{ name }`, is refused (`named`): the 定义处 of a JSON file is the literal it writes. Not read: comments, a type that is not one number
+// (`name: number` describes what is read), and a version put together elsewhere (a spread object, a computed key). (VG-24, VG-41)
+function fieldVersion(file, source, name) {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const inText = new RegExp(`\\b${name}["']?\\s*:\\s*(\\d+)\\b`, "g");
+  const numbers = new Set(), named = [];
+  const visit = node => {
+    const typed = ts.isPropertySignature(node) || ts.isPropertyDeclaration(node);
+    const key = (typed || ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node))
+      && (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) ? node.name.text : undefined;
+    if (key === name && typed) {
+      if (node.type && ts.isLiteralTypeNode(node.type) && ts.isNumericLiteral(node.type.literal)) numbers.add(node.type.literal.text);
+    } else if (key === name) {
+      let value = ts.isPropertyAssignment(node) ? node.initializer : node.name;
+      while (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value)) value = value.expression;
+      if (ts.isNumericLiteral(value)) numbers.add(value.text);
+      else named.push(value.getText(tree));
+    } else if (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+      for (const match of node.text.matchAll(inText)) numbers.add(match[1]);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  if (named.length) return { named: named[0] };
   return numbers.size === 1 ? [...numbers][0] : null;
 }
 
-// What the code says about one table row: its version, or null when the declared definition cannot be found.
-function codeVersion(source, name) {
+// What the code says about one table row: its version; null when the declared definition cannot be found; `{ named }` for a JSON
+// file's field written from a name instead of a number.
+function codeVersion(file, source, name) {
   if (name === "PRAGMA user_version") return source.match(/PRAGMA user_version = (\d+)/)?.[1] ?? null;
-  if (VERSION_FIELD.test(name)) return fieldVersion(source, name);
+  if (VERSION_FIELD.test(name)) return fieldVersion(file, source, name);
   return baselineVersion(source, name) ?? source.match(new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*=\\s*"?(\\d+)"?\\s*;`))?.[1] ?? null;
 }
 
@@ -304,8 +330,9 @@ function checkDatabaseTable(directories) {
     const source = readOptional(row.file);
     if (source === null) { problem(`${where}: ${row.file} does not exist`); continue; }
     listed.add(`${row.file}#${row.name}`);
-    const actual = codeVersion(source, row.name);
-    if (actual === null) problem(`${where}: ${row.file} has no ${row.name} with a version`);
+    const actual = codeVersion(row.file, source, row.name);
+    if (actual?.named) problem(`${where}: ${row.file} writes ${row.name}: ${actual.named}; write the number itself at every ${row.name} (定义处写字面量)`);
+    else if (actual === null) problem(`${where}: ${row.file} has no ${row.name} with a version`);
     else if (actual !== row.version) problem(`${where}: the table says ${row.version}, the code (${row.file}#${row.name}) says ${actual}`);
   }
   const baselines = declaredBaselines(directories);

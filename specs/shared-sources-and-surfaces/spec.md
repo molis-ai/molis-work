@@ -1,6 +1,6 @@
 # 公共来源与呈现合同（路线书 05 ②）
 
-状态：实现中，2026-11-04 设计，只有 C-1 已合入。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-07 统筹定 C-1 只加不删（第 9 节），用户定默认输出目录的快照和永久删除，以及另一台设备上的引用加「指定文件夹」、接受脱钩之前目录行还剩的静默读（第 3 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。C-1 已合入（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，`91f820f55`），合审留下的事见第 9 节；C-2 等 D 轨下沉状态环，C-3 等 14 批 `TextRef`，目录实现片等升级链和统一起点；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。
+状态：实现中，2026-11-04 设计，只有 C-1 已合入。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-07 统筹定 C-1 只加不删（第 9 节），用户定默认输出目录的快照和永久删除，以及另一台设备上的引用加「指定文件夹」、接受脱钩之前目录行还剩的静默读（第 3 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。C-1 已合入（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，`91f820f55`），合审留下的事见第 9 节；03、04 定样已全部合入，统一起点已登记（#1914）。C-2 等 D 轨下沉状态环，C-3 等 14 批 `TextRef`，目录实现片等 C-2、C-3 合入，它的升级段另等 U1 和四份门禁（第 9 节）；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。
 
 ## 0. 这份稿子做什么
 
@@ -59,7 +59,7 @@ interface MaterialRef {
 interface MaterialOrigin {
   source: "directory" | "import" | "object";
   owner: { kind: "plugin" | "system"; id: string; title: string };
-  directory?: { workspace_id: string; display_name: string; roles: DirectoryRole[] };  // source 为 directory 且 state 不是 unmapped、missing 时有（目录实现片改 schema，第 9 节）
+  directory?: { workspace_id: string; display_name: string; roles: DirectoryRole[] };  // source 为 directory 时有；unmapped 没有；missing 在这个项目已经没有这一行时没有（目录实现片改 schema，第 9 节）
   /** unmapped：id 不是这个项目的目录，也没有指定对应的文件夹。可能来自另一台设备，也可能是这台设备上被换掉的目录（第 3 节）。只用于 source 为 directory。 */
   state: "ok" | "changed" | "missing" | "forbidden" | "truncated" | "unreadable" | "unmapped";
   note?: string;  // 例如「只读了前 20 页」「.key 读不了正文，原件还在」
@@ -575,12 +575,13 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 | 事 | 谁 | 什么时候 |
 | --- | --- | --- |
-| `MaterialOrigin` 的 schema 改一个条件，让 `state: "missing"` 可以不带 `directory`，`project-materials.ts` 的注释跟着改，加用例。不改的话这种引用让 `materials.recent` 整个响应报 `actions.output_invalid`。API 快照不变 | 目录实现片 | 开工时 |
+| `MaterialOrigin` 的 schema 改一个条件，让 `state: "missing"` 可以不带 `directory`，`project-materials.ts` 的注释跟着改，加用例：这个项目还有这一行时带 `directory`（名字和角色都在，页面拿 `workspace_id` 去 `repair`），已经没有这一行时不带，两种都测。不改的话这种引用让 `materials.recent` 整个响应报 `actions.output_invalid`。API 快照不变 | 目录实现片 | 开工时 |
 | 主人插件卸载后 `owner` 是必填的，却查不到。定一种「读不了的项」的形状，和 `materials.origins@1` 一起定；如果 `owner` 改成可选，`platform/project-materials.txt` 改一行，和 N22-03 排先后 | 合同台 | 实现片加这个动作之前 |
 | `materials.recent` 要向各主人现读，声明 `scheduling: "concurrent"`，否则占项目队列。`record` 如果也改并发，要走 `beforeEffect()` | 目录实现片 | 开工检查 |
 | 把 `projects.workspace.read` 并进 `get` 时，前者有 `workflow` 受众，后者没有。要么加上，要么在 PR 写明工作流程步骤读不到目录 | 目录实现片 | 开工检查 |
 | `MaterialRange.length` 没写单位，第一个写 `range` 的片定下来，在 `project-materials.ts` 写一句注释 | 第一个写 `range` 的片 | 那时 |
 | `expected_revision` 过期不用新码，用平台的 `actions.conflict` | 目录实现片 | 照写 |
+| `assertMaterialRef` 不查 `workspace_file` id 里目录 id 的部分：201 字符或带控制字符的目录 id 能过，而 `map_source` 的 `folderId` 上限是 200，这种引用接不回来。`tests/action-project-materials.test.ts` 两处：输出校验的 18 处 `assert.rejects` 没断言错误码（实跑是 `actions.output_invalid`）；另外五个命令和 `materials.recent`，agent、mcp 只查了发现列表，没真调 | 目录实现片 | 碰这些文件时；后一处写安全不变量时补 |
 
 ## 10. D 轨的答复（2026-11-04 共审）
 

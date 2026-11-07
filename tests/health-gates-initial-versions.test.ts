@@ -183,13 +183,14 @@ test("UPG1-i-initial-13: the half with no build passes on this repository as it 
   assert.deepEqual(versionOriginProblems({ files, read }), []);
 });
 
-test("UPG1-i-initial-14: the half with no build finds a constant, an entry, a persistent format and an exception, and passes a chain", () => {
+test("UPG1-i-initial-14: the half with no build finds a constant and a persistent format, leaves prompts and methods, keeps an exception, and passes a chain", () => {
   const versions = (entries: Record<string, number>) => JSON.stringify({ versions: entries });
   const inspect = (texts: Record<string, string>, options?: Parameters<typeof versionOriginProblems>[1]) => versionOriginProblems(snapshotOf(texts), options);
   assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 1;" }), [], "a repository with no tables");
   assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 2;" }), ["packages/a/src/a.ts: A_VERSION = 2 (expected 1)"]);
   assert.deepEqual(inspect({ "packages/a/tests/a.ts": "const A_VERSION = 2;", "docs/a.ts": "const A_VERSION = 2;" }), [], "outside the checked source");
-  assert.equal(inspect({ "tooling/versions.json": versions({ "prompt.a.b": 2 }) }).length, 1);
+  // A prompt or method goes up when its text changes (tests/prompt-registration.test.ts); only the hand-run half holds them at 1 (U0-03).
+  assert.deepEqual(inspect({ "tooling/versions.json": versions({ "prompt.a.b": 2, "method.a": 2, "role.a": 2 }) }), [], "not data files, so not this half");
   const onboarding = "apps/local-host/src/onboarding.ts#schema_version";
   const raised = { "tooling/versions.json": versions({ "format.home.onboarding": 2 }) };
   assert.match(inspect(raised)[0]!, /onboarding\.ts#schema_version = 2 .*registered upgrade chain/);

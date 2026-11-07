@@ -1,7 +1,8 @@
 // N41: inspect the live first-party declarations used by this build. The unified origin is not a date inferred from this check.
-// Two halves. The source constants and the tooling/versions.json entries need no build and are an absolute rule of `pnpm health:check`
-// (versionOriginProblems, user 2026-11-07). The registered actions, Manifests, prompts and roles need a build, so only this script checks
-// them, and only when someone runs it: the rebuild window does (docs/releases/CHECKLIST.md §4.1). tooling/gates/README.md has the rules.
+// Two halves. The source constants and the entries of the persistent formats need no build and are an absolute rule of `pnpm health:check`
+// (versionOriginProblems, user 2026-11-07). The registered actions, Manifests, prompts and roles, and the prompt and method entries, only
+// this script checks, and only when someone runs it: the rebuild window does (docs/releases/CHECKLIST.md §4.1). A prompt or method goes up
+// when its text changes (tests/prompt-registration.test.ts), so those stay out of the rule. tooling/gates/README.md has the rules.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -26,9 +27,10 @@ const PERSISTENT_CONSTANTS = new Set([
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
-// format.jelly.workspace is the JSON in jelly_workspace.body, a row, not jelly/preferences.json: it is here because that row changes, a step
-// can rewrite it and nothing rebuilds it. The last six are the files §2.6 of the design puts in the chain and §11.1 did not name, the
-// last of them jelly/preferences.json: the user agreed to them on 2026-11-07.
+// format.jelly.workspace is the JSON in jelly_workspace.body, a row, not jelly/preferences.json: it is here because that row changes and
+// nothing rebuilds it. A step cannot rewrite it today: the row carries a sha256 checksum checked on read, a built-in plugin's steps are only
+// SQL, and SQLite cannot compute a sha256. The first raise decides how. The last six are the files §2.6 of the design puts in the chain and
+// §11.1 did not name, the last of them jelly/preferences.json: the user agreed to them on 2026-11-07.
 const PERSISTENT_ENTRIES = new Map([
   ["database.ledger_baseline", "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE"],
   ["database.memory_ledger_baseline", "packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE"],
@@ -133,7 +135,7 @@ const SOURCE_AREAS = /^(?:apps|packages|plugins|modules|server|horizontal)\//;
 const isCheckedSource = (file) => SOURCE_AREAS.test(file) && /\.(?:[cm]?[jt]s|[jt]sx)$/.test(file) && !/(?:^|\/)(?:tests|fixtures)\//.test(file);
 
 /**
- * The half with no build, over a snapshot (`files`, `read`): the version constants in source and the entries of tooling/versions.json.
+ * The half with no build, over a snapshot (`files`, `read`): the version constants in source and the persistent formats of tooling/versions.json.
  * A repository with neither table is not this one (the gates' scratch repositories); losing a table this one had, or one that cannot be
  * read, is a problem and not a pass. `chains` arrives with U1-d, here and in check() below: until then nothing above 1 can pass.
  */
@@ -147,7 +149,8 @@ export function versionOriginProblems({ files, read }, { readBase, chains = new 
     }
     try { return parse(text); } catch (error) { problems.push(`${file} cannot be read: ${error.message}`); return empty; }
   };
-  const versionEntries = table("tooling/versions.json", text => JSON.parse(text).versions ?? {}, {});
+  const listed = table("tooling/versions.json", text => JSON.parse(text).versions ?? {}, {});
+  const versionEntries = Object.fromEntries(Object.entries(listed).filter(([key]) => PERSISTENT_ENTRIES.has(key)));
   const exceptions = table("tooling/gates/version-exceptions.json", exceptionNames, new Set());
   problems.push(...initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, chains }));
   for (const file of files.filter(isCheckedSource)) problems.push(...sourceVersionProblems(file, read(file) ?? "", chains, exceptions));
@@ -168,10 +171,7 @@ async function check() {
     const versionEntries = JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8")).versions;
     return initialVersionProblems({ manifests, hostViews, registrations: builtinRegistrations(), versionEntries, chains });
   });
-  for (const file of files) {
-    if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(file) || /(?:^|\/)(?:tests|fixtures)\//.test(file)) continue;
-    problems.push(...sourceVersionProblems(file, readFileSync(path.join(root, file), "utf8"), chains));
-  }
+  for (const file of files.filter(isCheckedSource)) problems.push(...sourceVersionProblems(file, readFileSync(path.join(root, file), "utf8"), chains));
   for (const problem of problems) console.error(problem);
   if (problems.length) process.exitCode = 1;
   else console.log("The registered actions, manifests, prompts, instructions, roles, methods and first-party version constants are at the unified origin; a persistent format above it has its upgrade chain and a passed replay.");

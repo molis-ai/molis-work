@@ -224,6 +224,7 @@ bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { 
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
   - 新写的处理器用 `bindActionHandler`，不写 `input as X`。现有的还没有迁完（N22 分片，到 N22-Z），不要假设全仓只有这一处；防回潮的门禁（N22-G）现在还没有。
   - `objectSchema`、`arraySchema`、`nullableSchema` 的泛型只为保留字面量，返回的值不变，动作快照因此不变。
+  - Manifest 的 `ui.locales` 在 `src/locale-declarations.ts` 检查：语言标记的形状只认合同里的 `LOCALE_TAG`（它也是文件名 `locales/<语言>.json`，所以形状就是路径的边界），`default` 在 `available` 里，语言不重复，最多 `PLUGIN_LOCALE_LIMITS.available` 种，只有这两个键，和 `ui.messages`、`ui.translations` 不同写，`plugin_id` 最后一段能当键的第一段（规则取 `message-declarations.ts` 的同一份）；`plugin_id` 最长 `TEXT_REF_LIMITS.owner`（200），否则这个插件的文字引用过不了页面的检查。改动后跑 `node scripts/run-tests.mjs tests/ui-text-manifest-locales.test.ts`。
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 操作卡给人读的样子只有一份：`actionCardView`（`src/action-cards.ts`），助理和保管卡的插件都用它，插件再交给 `services.interaction.cardHtml` 画（PG-062）。
   - `/diff-view` 只加载 SDK 自己的文件与合同包，不带词；`renderDiff` 不自己转义、翻译或画图标，三样都由调用方的 `primitives` 给，每个标签用调用方自己的键（`labels`），仓库里只有它一份比较画法（PG062-08、PG062-10）。

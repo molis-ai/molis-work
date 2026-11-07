@@ -7,6 +7,7 @@ export interface PluginDevelopmentInput {
     project_id: string;
     grants: string[];
     allow_unsigned_development: true;
+    locale?: string;
 }
 
 export interface PluginDevelopmentResult {

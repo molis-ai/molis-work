@@ -1,4 +1,5 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "./actions.js";
+import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 
 /**
@@ -19,11 +20,11 @@ export interface PlacementCopyInput { subject: ActionSubject; to_project_id: str
 /** The object after the move (same identity) or the new copy, in its new partition, with the owner's revision. */
 export interface PlacementResult { subject: ActionSubject; project_id: string; revision: string }
 
-const projectId = { type: "string", minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$" };
+const projectId = { type: "string", minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$" } as const;
 export const PLACEMENT_MOVE_INPUT_SCHEMA = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, to_project_id: projectId },
-  required: ["subject", "to_project_id"], additionalProperties: false };
+  required: ["subject", "to_project_id"], additionalProperties: false } as const;
 export const PLACEMENT_COPY_INPUT_SCHEMA = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, to_project_id: projectId,
-  request_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["subject", "to_project_id", "request_id"], additionalProperties: false };
+  request_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["subject", "to_project_id", "request_id"], additionalProperties: false } as const;
 export const PLACEMENT_RESULT_SCHEMA = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, project_id: projectId,
   revision: { type: "string", minLength: 1, maxLength: 200 } }, required: ["subject", "project_id", "revision"], additionalProperties: false };
 
@@ -42,14 +43,14 @@ export function defineObjectMoveAction(capabilityId: string, version: number, ki
   scope: "project" | "home" = "project"): ActionDefinition<PlacementMoveInput, PlacementResult> {
   return { capability_id: capabilityId, version: version, operation: "command", action: { ...metadata(kinds, title, permissions, scope),
     description: `把${title}移到另一个位置（个人空间或项目）；同一份内容，身份不变。`, effect: "write",
-    input_type: PLACEMENT_MOVE_INPUT_TYPE, output_type: PLACEMENT_MOVE_OUTPUT_TYPE, input_schema: PLACEMENT_MOVE_INPUT_SCHEMA, output_schema: PLACEMENT_RESULT_SCHEMA } };
+    input_type: PLACEMENT_MOVE_INPUT_TYPE, output_type: PLACEMENT_MOVE_OUTPUT_TYPE, input_schema: inputSchemaFor<PlacementMoveInput>()(PLACEMENT_MOVE_INPUT_SCHEMA), output_schema: PLACEMENT_RESULT_SCHEMA } };
 }
 
 /** Copy makes an independent object in the target partition; the same request_id always returns the same copy. */
 export function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult> {
   return { capability_id: capabilityId, version: version, operation: "command", action: { ...metadata(kinds, title, permissions),
     description: `把${title}复制一份到另一个位置；之后两份互不影响。`, effect: "write",
-    input_type: PLACEMENT_COPY_INPUT_TYPE, output_type: PLACEMENT_COPY_OUTPUT_TYPE, input_schema: PLACEMENT_COPY_INPUT_SCHEMA, output_schema: PLACEMENT_RESULT_SCHEMA } };
+    input_type: PLACEMENT_COPY_INPUT_TYPE, output_type: PLACEMENT_COPY_OUTPUT_TYPE, input_schema: inputSchemaFor<PlacementCopyInput>()(PLACEMENT_COPY_INPUT_SCHEMA), output_schema: PLACEMENT_RESULT_SCHEMA } };
 }
 
 export function isObjectMover(action: { input_type?: string; output_type?: string }): boolean {
@@ -85,23 +86,20 @@ export function placementSourceProject(caller: ActionCallContext, to: string): s
 
 export function bindObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>,
   move: (input: PlacementMoveInput & { from_project_id: string }, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
-  return { capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, input) => { const value = input as PlacementMoveInput; return move({ ...value, from_project_id: placementSourceProject(caller, value.to_project_id) }, caller); } };
+  return bindActionHandler(definition, (input, caller) => move({ ...input, from_project_id: placementSourceProject(caller, input.to_project_id) }, caller));
 }
 
 /** A Home-scoped mover (see defineObjectMoveAction): the plugin knows where the object belongs now; `to_project_id` is where it goes. */
 export function bindHomeObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>,
   move: (input: PlacementMoveInput, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
   if (definition.action.scope !== "home") throw new ActionError("actions.definition_invalid", "Home 作用域的移动处理只能绑定 Home 作用域的放置动作");
-  return { capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => move(input as PlacementMoveInput, caller) };
+  return bindActionHandler(definition, move);
 }
 
 export function bindObjectCopyHandler(definition: ActionDefinition<PlacementCopyInput, PlacementResult>,
   copy: (input: PlacementCopyInput & { from_project_id: string }, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
-  return { capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, input) => {
-      const value = input as PlacementCopyInput;
-      if (!caller.project_id) throw new ActionError("actions.project_required", "请在对象所在的位置里复制");
-      return copy({ ...value, from_project_id: caller.project_id }, caller);
-    } };
+  return bindActionHandler(definition, (input, caller) => {
+    if (!caller.project_id) throw new ActionError("actions.project_required", "请在对象所在的位置里复制");
+    return copy({ ...input, from_project_id: caller.project_id }, caller);
+  });
 }

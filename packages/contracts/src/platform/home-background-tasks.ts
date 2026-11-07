@@ -1,3 +1,4 @@
+import { inputSchemaFor } from "./action-input.js";
 import type { ActionDefinition } from "./actions.js";
 
 /**
@@ -37,7 +38,6 @@ export interface HomeBackgroundTaskCollection {
 const text = { type: "string" };
 const id = { ...text, minLength: 1, maxLength: 200 };
 const token = { ...id, pattern: "^[a-zA-Z0-9_-]+$" };
-const HOME_BACKGROUND_TASKS_INPUT_SCHEMA = { type: "object", properties: {}, additionalProperties: false };
 const HOME_BACKGROUND_TASK_SCHEMA = { type: "object", properties: {
   id, title: { ...text, maxLength: 500 }, state: token, updated_at: { ...id, format: "date-time" }, waiting: { type: "boolean" },
   standing: { type: "array", maxItems: 8, items: { type: "object", properties: { text: { ...id, maxLength: 200 }, count: { type: "integer", minimum: 0 } }, required: ["text"], additionalProperties: false } },
@@ -50,5 +50,5 @@ export function defineHomeBackgroundTasksAction(capabilityId: string, version: n
   return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "读取本项目里还在跑、或等着你处理的后台任务，给首页标题栏的后台任务列表；只读，不会执行任务上的动作。",
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions, subject_kinds: [], home_aggregate: true,
     input_type: HOME_BACKGROUND_TASKS_INPUT_TYPE, output_type: HOME_BACKGROUND_TASKS_OUTPUT_TYPE,
-    input_schema: HOME_BACKGROUND_TASKS_INPUT_SCHEMA, output_schema: HOME_BACKGROUND_TASKS_SCHEMA } };
+    input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }), output_schema: HOME_BACKGROUND_TASKS_SCHEMA } };
 }

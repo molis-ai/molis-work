@@ -27,6 +27,7 @@ export {
   pruneUpgradeSnapshots,
   restoreUpgradeSnapshot,
   verifyUpgradeSnapshot,
+  type UpgradeHomeLock,
   type UpgradeSnapshotEntry,
   type UpgradeSnapshotKeyDependency,
   type UpgradeSnapshotUnit,

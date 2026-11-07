@@ -6,7 +6,9 @@
 
 | 路径 | 是什么 | 谁改 |
 | --- | --- | --- |
-| `baseline.json` | 各项数字的本地快查基线；CI 不读它，只对照 merge-base 比 | `node scripts/check-health-gates.mjs --update --base origin/main`（数字变小时） |
+| 工作树 Git 元数据中的本地快查 | CI 不读，不入库；没有时默认对照 origin/main | `node scripts/check-health-gates.mjs --update --base origin/main` |
+| `page-asset-allowances/*.json` | 每项任务必要增长的独立一次性许可；不写绝对预算 | 经审阅后记录 reason、review、assets；大额或新资源加用户批准出处，见开发手册 |
+| `giant-exceptions/**/*.json` | 按源码文件分开的巨大单元登记；重复 key 拒绝 | 保留 kind、reason、精确 size，仍须评审 |
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
@@ -16,7 +18,7 @@
 
 ## 按文件计数、只许减少的项
 
-每一项是 `{ 文件: 个数 }`；没有记录的文件从 0 开始，所以新文件不许带。CI 用同一份脚本量当前树和 merge-base 再比，改 `baseline.json` 放不过变大的。文件改名后记录跟着走。
+每一项是 `{ 文件: 个数 }`；没有记录的文件从 0 开始，所以新文件不许带。CI 用同一份脚本量当前树和 merge-base 再比，改 本地快查 放不过变大的。文件改名后记录跟着走。
 
 `rawFetchInScripts`（W3-10-5）也使用这一份比较，另要求 Workbench 始终为零：即使与 base 相等，或执行 `--update`，仍拒绝写基线。实现分为 [模块与绑定图](../../scripts/gates/browser-graph.mjs)、[浏览器程序展开](../../scripts/gates/browser-programs.mjs)、[fetch 调用检查](../../scripts/gates/browser-fetch.mjs)，接在 `SOURCE_COUNT_RULES` 中。按实际程序 AST 数裸、成员、静态计算属性、局部别名、赋值/解构/bind、call/apply；普通字符串、注释、HTML 文本及 JSON 数据脚本不算。计数仍归原文件，同一片段多次装配不重复计；插件现存计数随 W5-04 只降。打包生成的程序（W4-04）：常量写成 `readFileSync(new URL("./<名>.js", import.meta.url), "utf8")`，所在包 `package.json` 的 build 里有 `esbuild <入口>.ts … --outfile=dist/<名>.js` 时，入口和它 import 的文件按类型源码数（计数记在各自文件上）；对不上任何构建步骤的读取不能展开，直接失败。
 
@@ -24,7 +26,7 @@
 
 这是静态检查的边界：动态属性/反射、任意运行期程序生成、新的非 terminal-client/browser-client TypeScript 构建入口不是已证明的识别能力；同名端口字段按声明候选保守展开，别名赋值按可能取值保守检查，不做通用跨过程运行分析。增加新的浏览器装配方式时须同步扩识别与对抗用例。验证 [health-gates-browser-fetch.test.ts](../../tests/health-gates-browser-fetch.test.ts) 通过真实临时 Git 与 CLI 制造增长、新文件、跨片段、toString、精确例外、typed subpath 和基线篡改；不只验证计数函数。
 
-| 项（baseline.json 的键） | 口径 |
+| 项（本地快查的键） | 口径 |
 | --- | --- |
 | `emptyCatches` | TypeScript 代码里的空 `catch`：块里既没有语句也没有注释，如 `catch {}`、`catch (error) { }`。块里写了注释的不算（那是写明了的取舍），有任何语句的也不算。不算 promise 的 `.catch(() => {})`（那是回调，不是 catch 子句）和 `finally`。**由静态检查数**（Biome 插件 `tooling/gates/lint/no-empty-catch.grit`，见下面「静态检查」），键和逐文件数字与 W1-04 的语法树计数一致 |
 | `emptyCatchesInScripts` | 同一个形状（`catch`、可选的 `( … )`、`{`、只有空白、`}`），在**源码**文件的**字符串和模板字符串**文本里找（测试里的字符串是夹具，不数）。宿主把浏览器程序（工作台、插件的 client 脚本）写成模板字符串，TypeScript 和 lint 都不看里面，普查找到的 141 处空 catch 里有 137 处在这里。**这类算在内**，单独一个计数：把脚本从模板字符串搬进真正的 TypeScript 时，数字从这一项挪到上一项 |
@@ -32,7 +34,7 @@
 | `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOALS_BOARDS_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在保留的例外：派生密钥的盐 `goalboard-feed-secretstore-v1`（`packages/storage/src/adapters/file-secret-store.ts`，那里的注释写明改了字符串会让已有密文失效）、`plugins/native/goals/src` 里两处没用到的 `_boardId`（`document-collection.ts` 的解构改名、`goal-tree-materialization-order.ts` 的参数）。它们和别的计数一样，只能减少 |
 | `scriptConstants` | 只数源码。名字以 `_SCRIPT` 结尾、值是字符串或模板字符串（含括号、`as const`、用 `+` 连起来的几段）的变量：写成文本、没有类型检查读它的浏览器程序（规格 §3 R-07，路线图 W4-04；普查时 130 个，散在 100 个文件）。把程序改成 TypeScript 再由打包生成（样例是 Forms：`plugins/native/form/src/browser/`，`package.json` 的 build 里 esbuild 带 banner/footer 直接生成 `(host) => {…}` 工厂，常量只是 `readFileSync(new URL("./form-client.js", import.meta.url), "utf8")`），这一项就少一个。**看不到的**：不叫 `*_SCRIPT` 的程序文本（`CLIENT`、`*_CLIENT`、`*_SCRIPT_FACTORY` 一类名字 `rawFetchInScripts` 会展开、这里不数），以及用函数调用拼出来的文本；它们只能在改到时顺手迁 |
 | `floatingPromises`、`explicitAny`、`consoleCalls`、`debuggerStatements`、`lintParseErrors`、`lintSuppressions`、`lintPolicy` | 静态检查新增的几项，见下面「静态检查」 |
-| `errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner` | 错误模型的四项，见下面「错误模型」；`errorOwnerTable` 是错误码主人表本身（不进 `baseline.json`） |
+| `errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner` | 错误模型的四项，见下面「错误模型」；`errorOwnerTable` 是错误码主人表本身（不进 本地快查） |
 | `compatMarkers`、`testImports`、`giant` | 见 `AGENTS.md` 与 `scripts/check-health-gates.mjs` |
 | `testImportSplits` | 每个测试文件（一个测试进程），以及每个没有测试读它、由测试起成子进程的 `tests/` 文件（夹具）里，既从源码（`../P/src/…`，tsx 直接跑）又从构建（包名、`../P/dist/…`）加载的包的个数。绝对零规则（W2-10-E），口径与办法见下面「测试进程里的两份包」 |
 
@@ -97,7 +99,7 @@
 | --- | --- |
 | 缺英文（翻译调用里的中文字面量，在所有词典里都没有） | 失败；头上必须为零 |
 | 词典没接上（某本 `*_EN` 没被 `src/i18n/en.ts` 的 `EN` 引用） | 失败；头上必须为零 |
-| 冲突（同一句中文有两条译文不同的条目） | 冻结在 `tooling/gates/baseline.json` 的 `translationConflicts`，只许减少 |
+| 冲突（同一句中文有两条译文不同的条目） | CI 对照 merge-base 实测，`translationConflicts` 只许减少；本地快查仅作加速 |
 | 无用键（词典里的键，源码里没有字面量出现） | 只报告，不挡 |
 
 **看不到的（已知盲区，#958 → #990）**：服务端固定 prompt 里的中文常量。它经模型往返后是运行时的动态字符串（页面用 `L(动态值)` 显示），门禁只按字面量认翻译调用，所以删掉它的英文条目时「缺英文」仍是零。#958 删掉 Issue 的固定追问句（`plugins/native/issues/src/prompts.ts` 的 `ISSUE_ASK`）的英文后门禁放行，由 `tests/issue-naming.test.ts` 的 `PRR-08` 断言拦下，#990 恢复。补偿是给每一条这类固定句子钉一条测试：断言英文词典含该确切字符串（`PRR-08` 的写法）。要自动扫这类常量，得先定「哪些服务端常量算用户可见文案、从哪些文件读」，那属于改门禁本身，先问用户。
@@ -174,11 +176,11 @@
 
 ## 静态检查（Biome）
 
-W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 devDependency）；门禁是 `scripts/gates/lint.mjs`，随 `pnpm health:check` 跑，对照 merge-base，口径与上面的「按文件计数」完全一样：每个文件每条规则一个数，新文件从 0 开始，只许减少，PR 里改 `baseline.json`、`--update` 都放不过变大的。只做检查：不开格式化，也不整理 import，所以不会有整仓重排。
+W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 devDependency）；门禁是 `scripts/gates/lint.mjs`，随 `pnpm health:check` 跑，对照 merge-base，口径与上面的「按文件计数」完全一样：每个文件每条规则一个数，新文件从 0 开始，只许减少，PR 里改 本地快查、`--update` 都放不过变大的。只做检查：不开格式化，也不整理 import，所以不会有整仓重排。
 
 **为什么是 Biome，不是 ESLint**：一个二进制，锁文件只多一个包（ESLint 要 eslint、typescript-eslint、解析器一整棵树）；整仓约 2 秒（ESLint 要类型信息的规则得先给七十多个 tsconfig 建程序，还要先 build）；merge-base 没有检出目录可以跑，Biome 能在一个只放被跟踪文件的临时目录里跑，两边用同一份配置量，ESLint 的类型感知规则做不到；仓库自己的两条规则用 GritQL 插件写（`tooling/gates/lint/`），不需要写 JS 插件。代价：没有浮动 promise 的类型检查器级别精度，见「看不到的」。
 
-| 键（baseline.json） | 规则 | 口径 | 关掉的地方 |
+| 键（本地快查） | 规则 | 口径 | 关掉的地方 |
 | --- | --- | --- | --- |
 | `emptyCatches` | 插件 `molis/no-empty-catch` | 块里既没有语句也没有注释的 `catch` 子句。Biome 自带的 `noEmptyBlockStatements` 不用：它还报每个空函数（481 处对 4 处），是另一件事 | 无 |
 | `unknownCasts` | 插件 `molis/no-double-cast` | `x as unknown as T`、`(x as unknown) as T`（括号层数不限）、`<T><unknown>x`，也包括混合写法 `<T>(x as unknown)`、`(<unknown>x) as T`（W1-04 的语法树计数不数这两种，现有文件里一处也没有，所以那些文件的逐文件数字不变）；单独的 `as unknown`、`as any as T` 不算 | 无 |

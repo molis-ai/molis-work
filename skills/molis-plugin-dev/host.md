@@ -107,7 +107,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
 12. **动作定义**：用 SDK 的 `defineAction` 写一份定义，同一份既进 Manifest 的 `actions`，也绑定运行实例的 `actions` 处理器（`packages/plugin-sdk/README.md`）；注册后自动进共同目录，UI、编排、Agent、MCP 共用它，没有另外的适配。
-13. **快照与预算**：改了动作或场景，`pnpm build` 后跑 `pnpm actions:update`（`tooling/gates/actions/`）；改了 contracts 子路径或 SDK 的公开 API，跑 `pnpm api:update`；插件的客户端包是 `/assets/` 下的新文件，要进 `tooling/gates/page-assets.json` 的预算，新增资源先问用户（`scripts/gates/page-assets.mjs`）。
+13. **快照与预算**：改了动作或场景，`pnpm build` 后跑 `pnpm actions:update`（`tooling/gates/actions/`）；改了 contracts 子路径或 SDK 的公开 API，跑 `pnpm api:update`；插件的客户端包是 `/assets/` 下的新文件，在 `tooling/gates/page-asset-allowances/` 写本任务的独立增长许可，新增资源先问用户（`scripts/gates/page-assets.mjs`）。
 
 导航、设置位置、项目启用由 catalog 和 Manifest 推导；客户端与 i18n 仍需接线。公共动作注册后自动进入 MCP 目录，没有另外的 MCP 适配。
 

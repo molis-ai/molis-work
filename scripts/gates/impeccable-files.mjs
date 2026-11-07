@@ -13,7 +13,7 @@
 // needs no text.
 //
 // This module is plugged into the METRICS list of scripts/check-health-gates.mjs, which hands it the `perFile` helper (the
-// comparison with the reference and the old-shape check of tooling/gates/baseline.json are the ones the other per-file
+// comparison with the reference and the old-shape check of the checkout-local health baseline are the ones the other per-file
 // counts use).
 
 /**

@@ -67,17 +67,20 @@
 
 | 查什么 | 口径 |
 | --- | --- |
-| 没有标记的当前版本 | 属性 `version`、`*_version`、`*Version`、`format`、`schema`、`v`、`protocol` 取数字或像版本的字符串（含 `as const`、接口里的字面量类型）；这些名字与数字的相等比较；`*VERSION` 变量的字面量；名为 version 的参数的默认值；带 `.vN`、`/N` 的公开标识字符串。0 表示「还没有」，不算 |
+| 没有标记的当前版本 | 属性、变量、类字段、解构默认值、枚举成员里名字像版本的（`version`、`*_version`、`*Version`、`*VERSION`、`format`、`schema`、`v`、`protocol`，引号键也算）取数字或像版本的字符串；赋值、相等比较、`switch/case`、`{enum:[…]}`、`{const:…}`、`z.literal(…)`、三元与 `??` 的值；名为 version 的参数的默认值。0 表示「还没有」，不算 |
+| 字符串里的版本 | 任何字符串和模板字符串按形状认：`.vN`、`-vN`、`_vN`、`/vN`、`@N`、整串的 `/N`；没有前缀名单；模板拼出来再看；字符串里的 `PRAGMA user_version = N` 和脚本文本也看。MCP 工具命名空间 `molis_work_v1_` 这一个字面量前缀不算版本：只放过前缀本身，名字其余部分照样读（`molis_work_v1_x_v2` 会报），不是按字段放行 |
+| 借用别人的条目 | 只有 `action`、`event`、`format`、`type`、`artifact`、`manifest`、`host`、`protocol`、`product` 种类和 `sync.protocol` 可跨包共用，其他种类被第二个包用就失败。共用种类里的裸数字要放在叫得出自己是版本的名字上；`format.<插件>.*` 别的插件不许用 |
+| 第一版规则 | `action.*`、`action-family.*`、`scene.*`、`prompt.*`、`role.*`、`manifest.schema`、`host.api` 在表里必须是 1 |
 | 用错条目 | `capability_id`、`prompt_id`、`role_id`、`scene_id` 或工厂的 id 字面量旁边，标记的 key 不是这个 id 的条目 |
 | 按位置引用的动作 | 表里有的动作 id 后面直接跟裸数字 |
 | 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取；`.rs`、`.sql`、`.toml` 里写了 `@version` 标记（生成器不读这些文件，标记不会生效，要改走 `carriers`） |
-| 动作与场景的对账 | `tooling/gates/actions/` 的每一行与 `action.*`、`scene.*`、`action-family.*`、`protocol.workflow-content.*` 条目双向一致 |
+| 动作与场景的对账 | `tooling/gates/actions/` 的每一行与 `action.*`、`scene.*`、`action-family.*`、`protocol.workflow-content.*` 条目双向一致；四个快照文件读不到就失败 |
 
-**扫描范围。** `scripts/generate-versions.mjs` 的 `SOURCE_ROOTS` 下的代码文件，跳过真正的测试与夹具（`isTestFile`）；`src/fixtures/` 随产品发出，照样扫。
+**扫描范围。** `scripts/version-source.mjs` 的 `SOURCE_ROOTS` 下的代码文件。测试边界按包算：包顶层的 `tests/`、`test/`、`fixtures/`、`test.*` 和 `*.test.*`、`*.spec.*` 才算；`src/tests/`、`src/fixtures/` 随产品发出，照样扫。
 
-**例外。** 只有 `tooling/gates/version-exceptions.json` 一处，按文件（可再写名字）、条目或快照行登记，每条理由至少 20 字；不再需要的例外本身也失败。依赖与上游协议的版本、运行时递增的修订号、盐和固定身份写在这里，不进版本表。
+**例外。** 只有 `tooling/gates/version-exceptions.json` 一处，按文件、名字、字面量和个数（`values`）登记，或按条目、快照行；不写 `values` 的整文件例外被拒；同名多一处、字面量变了都失败。每条理由至少 20 字；不再需要的例外本身也失败。依赖与上游协议的版本、运行时递增的修订号、盐和固定身份写在这里，不进版本表。
 
-**读不到的（已知限制）。** 这是字面量的形状检查，版本放进变量再用、计算出来的值、不叫上面这些名字的属性都看不到；是否该进表由评审判断。
+**读不到的（已知限制）。** 这是字面量的形状检查，版本放进变量再用、计算出来的值、不叫上面这些名字的属性都看不到；`src/dist/`、`get version(){return 2}`、`return 2`、`[1,2].includes(x.version)`、`new Map([["version",2]])`、JSX 的 `version={2}` 也看不到；是否该进表由评审判断。
 
 验证：`node scripts/run-tests.mjs tests/version-source.test.ts tests/verify-release-versions.test.ts`。
 
@@ -89,22 +92,22 @@
 | --- | --- |
 | 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `docs/system/CONTRACT-CHANGES.md`「存储版本变更登记」内的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑） |
 | 条目的写法 | 只认「存储版本变更登记」里（从固定标题「### 存储版本变更登记」到下一个一至三级标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，该节之外的同样一张表也不算 |
-| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，以及 head 上没有「统一起点登记：」那一行、有两行、写法不对，都以退出码 2 结束，不会当作通过（merge-base 上没有这一行算未登记，它是这道规则之前的提交）。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
-| 统一起点之后 | 检查清单第 4 节有一行固定以「统一起点登记：」开头，值是「未登记」或形如「2026-11-08，main 提交 `abc1234`」。2026-11-07 已登记（#1914）。还没登记时只有上面几条，版本可以复位，「维护」一格是自由文字（两种状态都有用例）。head 或 merge-base 任一边登记了就生效：版本不许降（清单写了也不行）；升版本的那一行，「维护」一格要写成 `` `定义处#旧→新` ``，定义处和检查清单同一行的「定义处」完全相同，两个数字和「版本」一格相同（清单留历史，同样数字的旧行写着文字不碍事；写成指针的每一行都要站得住）；该文件的升级段字面量里要有从旧到新减一的每个 `from: n`。定义处是基线常量时只看那个对象的 `upgrades`；是普通版本常量（JSON 文件、目录库）时看文件里每个 `upgrades` 数组。`upgrades` 写成展开、常量引用，`from` 不是数字字面量，都算读不懂，失败。已登记的不能改回「未登记」 |
+| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数（`无` 也不行，`verify-release-versions.mjs` 读同一列，同样不接受）、同一个位置写了两行、清单里的行不合写法，以及 head 上没有「统一起点登记：」那一行、有两行、写法不对，都以退出码 2 结束，不会当作通过（merge-base 上没有这一行算未登记，它是这道规则之前的提交）。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
+| 统一起点之后 | 检查清单第 4 节有一行固定以「统一起点登记：」开头，值是「未登记」或形如「2026-11-08，main 提交 `abc1234`」。2026-11-07 已登记（#1914）。还没登记时只有上面几条，版本可以复位，「维护」一格是自由文字（两种状态都有用例）。head 或 merge-base 任一边登记了就生效：版本不许降（清单写了也不行）；升版本的那一行，「维护」一格要写成 `` `定义处#旧→新` ``，定义处和检查清单同一行的「定义处」完全相同，两个数字和「版本」一格相同（清单留历史，同样数字的旧行写着文字不碍事；写成指针的每一行都要站得住）；该文件的升级段字面量里要有从旧到新减一的每个 `from: n`。定义处是基线常量时只看那个对象的 `upgrades`；是普通版本常量（JSON 文件、目录库）或 JSON 文件的字段（`路径#schema_version`、`路径#version`，这些文件没有常量可指）时看文件里每个 `upgrades` 数组。`upgrades` 写成展开、常量引用，`from` 不是数字字面量，都算读不懂，失败。已登记的不能改回「未登记」 |
 | 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过；统一起点之后也一样，所以改名顺带升版本过得去，靠评审。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。段有没有它查，段写得对不对它不查（用例和金样管），不查从 1 起的整条链连续（`tests/upgrade-chain-registry.test.ts` 在真实登记上查，那个文件由 U1-d 带来） |
 | 可重建的库 | `search/search.db` 不进链（设计 §2.3），U1-d 之后 Alchemist 的 `search.sqlite` 也一样，但这道规则同样管它们：升到 2 不写指针、写文字、写指针没有段都失败，统一起点的版本检查也过不了。**第一次要升时不要写假的 `upgrades` 来过门禁，先问用户。** 重建型的库怎么升，第一次要升时再定，现在不加例外 |
 
-验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。真实数据的用例：这个仓库现在的表和清单直接通过；表里每一个版本是 1 的库，升到 2 带段、带指针就过，缺指针、缺段、版本降都失败；这条用的是合成的段，只证明规则读得懂每一行，不是说这些库都该这样升（上面「可重建的库」）。统一起点的用例：未登记时版本照旧能升能降；登记后版本降、「维护」一格还是文字、指向别的定义处、箭头数字对不上、基线字面量里没有 `from: 旧`、别的基线有但这个没有、跨两版缺中间一段、`upgrades` 写成常量引用或展开、登记后改回未登记都失败；写对就通过；普通版本常量看文件里的 `upgrades`。
+验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字或写 `无`、同一个位置两行、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。真实数据的用例：这个仓库现在的表和清单直接通过；表里每一个版本是 1 的库，升到 2 带段、带指针就过，缺指针、缺段、版本降都失败；这条用的是合成的段，只证明规则读得懂每一行，不是说这些库都该这样升（上面「可重建的库」）。统一起点的用例：未登记时版本照旧能升能降；登记后版本降、「维护」一格还是文字、指向别的定义处、箭头数字对不上、基线字面量里没有 `from: 旧`、别的基线有但这个没有、跨两版缺中间一段、`upgrades` 写成常量引用或展开、登记后改回未登记都失败；写对就通过；普通版本常量和 JSON 文件的字段看文件里的 `upgrades`，别的名字还是要有那一个常量。
 
 ## 统一起点的版本检查（`scripts/gates/initial-versions.mjs`，N41）
 
-分两半，每一项都要是 1，差一个就失败。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
+分两半，每一项都要是 1，差一个就失败。扫描范围和测试边界与上面「自有版本的声明」是同一份（`scripts/version-source.mjs`）。产品版本 `apps/local-host/src/product-version.ts#PRODUCT_VERSION` 是唯一不按 1 算的常量：要是这个文件这个名字，带 `product.release` 标记，字面量是字符串，值由生成器对表；别的常量带同样的标记也只能是 1。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
 
 持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，按 `文件#名字` 认，别处的同名常量不算；还有九项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`），以及设计稿 §2.6 说进链、用户 2026-11-07 单独同意加上的六个文件：`format.home.onboarding`、`format.project.arrival`、`format.browser.site-decisions`、`format.computer.settings`、`format.computer.record`、`format.model.preference`（`jelly/preferences.json`）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记和回放现在都没有（`chains` 由 U1-d 接进这两半），所以它们也只能是 1；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
 
 不在名单上的常量给了链也只能是 1。Coding 计划、Feed 捕获、Dataset、Form、Pages、PPT 的 `schema_version` 是固定版本，写下之后不该再变：靠合同和 `content_digest`，库本身不拦，所以也不该让升级段改写。Gmail 的 `GMAIL_LIVE_CURSOR_VERSION` 是同步进度，版本不符时同步失败，跑一次全量就重建，用不着段。`workspace-artifacts.ts` 的六个 `*_SCHEMA_VERSION` 也不在名单上，它们的读取方没有查过。`format.jelly.workspace` 同样是行里的内容（`jelly_workspace.body`），留在名单上是因为那一行会变，丢了也重建不回来。现在的段改写不了它：这一行带 `checksum`（sha256），读的时候校验，内置插件的段只有 SQL，SQLite 算不出 sha256。第一次要升时再定。它和 `jelly/preferences.json` 的 `format.model.preference` 是两个版本。这道检查只看 `*VERSION` 常量和上面九个条目（手跑那半多看提示词、方法的条目），其余写成行内字面量的 `format.*` 它看不到；`format.web.service.receipt` 是机器收据，§2.6 说不做，也不在内。
 
-验证：`node scripts/run-tests.mjs tests/health-gates-initial-versions.test.ts`。没有链、缺段、重复段、段超出范围、链的版本不同、回放没过或没有结果都失败；别的文件里的同名常量和普通常量，给了链也失败。不用构建的那一半直接读这个仓库，还测了读不了版本表、丢了版本表都算问题。
+验证：`node scripts/run-tests.mjs tests/health-gates-initial-versions.test.ts tests/initial-versions-check.test.ts`。后一个文件跑脚本本身，要先构建（CI 在 `test:contracts` 里跑）：经符号链接跑这个仓库要报告通过，用 `--root` 跑一个有问题的仓库要逐条列出并以退出码 1 结束。前一个文件不用构建：产品版本标记只放过上面那一个常量；`src/fixtures`、`src/tests` 照样扫；`checkRepository` 把运行中 Host 那一半换成给定的声明，走完两半和两张表，读不了表就报错。没有链、缺段、重复段、段超出范围、链的版本不同、回放没过或没有结果都失败；别的文件里的同名常量和普通常量，给了链也失败。不用构建的那一半直接读这个仓库，还测了读不了版本表、丢了版本表都算问题。
 
 ## 就地补表（`scripts/gates/schema-patches.mjs`，本地快查的键 `schemaPatches`）
 
@@ -116,7 +119,9 @@
 | 比旧口径多数的 | 旧口径只有正则。现在拼出来的也算（`"ALTER " + "TABLE"`、模板、数组 `join`、字符串以大写 `ALTER` 结尾），源码目录里入库的 `.sql` 也算，`server/migrations/` 除外（D1 迁移不是 Home 的库，也没有 `upgrades` 字面量可写）。同一棵树上这两项今天都是 0，所以新旧口径的数字相同 |
 | 看不到的 | 只看文字在哪，不看谁执行它：读路径上写 `db.exec(X.upgrades[0].sql)` 看不出来（基线写在函数里时 `verify-release-versions.mjs` 会要求列进检查单，写在顶层不会）。另外这些写法也数不到：常量拼接跨了变量又不以大写 `ALTER` 结尾（`"ALTER " + noun + " t"`）；小写动词结尾（`"alter " + noun`）；两个词都被切开（`"ALT" + "ER TA" + "BLE"`）；SQL 注释夹在两词中间（`"ALTER/**/TABLE"`）；`replace`、`String.fromCharCode` 拼的；本地 `type SqliteBaseline = any`；不读的后缀（`.SQL`、`.ddl`、`.txt`、`.json`、`.js`、`.mjs`、`.cjs`、`.tsx`、`.cts`）和目录（`fixtures/`、`scripts/`、`examples/`、`vendor/`）。这些都得存心绕才写得出来，靠评审 |
 
-验证：`node scripts/run-tests.mjs tests/health-gates-schema-patches.test.ts`，以及 `tests/health-gates-merge-base.test.ts` 里的「an in-place schema patch」。
+**手跑的建表文字（本地快查的键 `schemaExecs`）。** 按文件计数，对照 merge-base 只许减少，新文件从 0 开始。数的是 `exec` 调用的参数里出现名字带 `SCHEMA` 这个词的常量（`db.exec(X_SCHEMA_SQL)`、`db.exec(BINDING_METADATA_SCHEMA)`，模板和拼接里也算）：它绕开基线建表，没有版本，也不用写 `ALTER TABLE`，上面那个数看不到。范围是 `SOURCE_ROOTS` 下所有代码文件，包自己的测试也算（`plugins/native/schedule/tests/replication.test.ts`）；顶层 `tests/` 不算，那里是用 owner 导出的文字建内存夹具。现在 7 个文件 8 处。看不到的：常量先赋给别的变量再传；小写名字（`db.exec(baseline.schema)`，`applySqliteBaseline` 自己就这样写）；`db.prepare(...)` 和别的执行方法。
+
+验证：`node scripts/run-tests.mjs tests/health-gates-schema-patches.test.ts`，以及 `tests/health-gates-merge-base.test.ts` 里的「an in-place schema patch」和「VG-34」。
 
 ## 错误模型（`scripts/gates/error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
 
@@ -264,7 +269,7 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 
 - **只有选择明确说 `none` 才放行**：事件是 `pull_request` 或 `merge_group`，`test-selection` 成功，`native_mode` 是 `none`，`native-checks` 被跳过，`Verify` 才算通过。选择作业失败、取消、被跳过，或 mode 为空、未知，`native-checks` 照旧要跑，跳过也不通过。直推 main、每晚和手动运行不看选择，照旧跑；合并队列已验过的 push main 照旧由 `queue-check` 放行（现行逻辑没动）。
 - **合并队列里也按同样的规则跳过**：`test-selection` 因此也在 `merge_group` 上跑（队列里的 `security-invariants`、`product-subset` 不读它，照旧整套）。它对队列条目用 `--base HEAD^1`，比的是这一条自己的改动。
-- **照旧要跑的改动**（`scripts/ci-test-selection.mjs` 的 `NATIVE_RUN_WHEN`；名单宁可宽，不可漏；改名按新旧两个路径都看；删除也算）：`apps/desktop/` 和 `apps/local-host/native/` 下任何文件；任何 `.rs`、`.swift`、`.sh`、`.py`；`.github/workflows/`；`scripts/gates/native-checks.mjs`、`tests/native-checks.test.mjs`、`scripts/ci-test-selection.mjs`；`Cargo.toml`、`Cargo.lock`、`rust-toolchain(.toml)`、`clippy.toml`、`rustfmt.toml`（任何目录）和 `.cargo/`；仓库根目录下不是 Markdown 的文件。其余（文档、spec、原型、产品的 TypeScript、测试、技能）跳过。
+- **照旧要跑的改动**（`scripts/ci-test-selection.mjs` 的 `NATIVE_RUN_WHEN`；名单宁可宽，不可漏；改名按新旧两个路径都看；删除也算）：`apps/desktop/` 和 `apps/local-host/native/` 下任何文件；任何 `.rs`、`.swift`、`.sh`、`.py`；`.github/workflows/`；`scripts/gates/native-checks.mjs`、`tests/native-checks.test.mjs`、`scripts/ci-test-selection.mjs`、`scripts/script-paths.mjs`；`Cargo.toml`、`Cargo.lock`、`rust-toolchain(.toml)`、`clippy.toml`、`rustfmt.toml`（任何目录）和 `.cargo/`；仓库根目录下不是 Markdown 的文件。其余（文档、spec、原型、产品的 TypeScript、测试、技能）跳过。
 - **要加新的触发路径**：改 `NATIVE_RUN_WHEN`，并在 `tests/ci-test-selection.test.ts`（RAC-1766）的清单里写出这个文件；工作流这一半钉在 `tests/ci-queue-verified.test.ts`（RAC-1907）。
 
 | 检查 | 命令 | 范围与说明 |

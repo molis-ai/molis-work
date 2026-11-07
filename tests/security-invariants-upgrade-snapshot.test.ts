@@ -151,7 +151,7 @@ test("S-upgrade-snapshot-confinement S-143: without this Home's live lock nothin
     assert.throws(() => captureUpgradeSnapshot(unit, neverOpened), closed);
     assert.throws(() => restoreUpgradeSnapshot(unit), closed);
     assert.throws(() => verifyUpgradeSnapshot(unit), closed);
-    assert.throws(() => pruneUpgradeSnapshots(owner, home, "other"), closed);
+    assert.throws(() => pruneUpgradeSnapshots({ owner, lockDirectory: home, home }, "other"), closed);
     assert.equal(sha256(file), changed);
     assert.ok(present(run));
   });

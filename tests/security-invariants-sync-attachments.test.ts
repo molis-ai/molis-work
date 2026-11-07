@@ -30,7 +30,7 @@ for(const version of [1,2,3,4])test(`S-126 PCSYNC-12 the current sync store refu
   const schema=readFileSync(new URL(version===1?'./fixtures/home-store-schemas/sync-v2.sql':`./fixtures/home-store-schemas/sync-v${version}.sql`,import.meta.url),'utf8'),old=openBaselineHomeSqlite(home,'sync',{version,schema});
   old.prepare('INSERT INTO sync_policy VALUES(1,?)').run('{"preserved":true}');old.close();
   const path=join(home,'sync','sync.db'),before=readFileSync(path);
-  assert.throws(()=>openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE),{code:version===1?'storage.schema_structure_mismatch':'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+  assert.throws(()=>openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE),{code:version===1?'storage.schema_structure_mismatch':'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 test('S-126 PCSYNC-06/12 revocation during a file download prevents late cache and owner writes',async t=>{

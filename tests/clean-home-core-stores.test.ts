@@ -42,8 +42,8 @@ for (const item of cases) {
       mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
       const seeded = new DatabaseSync(file); seeded.exec(sql); seeded.exec(item.seed); seeded.exec(`PRAGMA user_version = ${version}`); seeded.close(); chmodSync(file, 0o600);
       const before = readFileSync(file);
-      assert.throws(() => item.open(home), (error: { code?: string; found?: number; expected?: number }) =>
-        error.code === "storage.schema_version_mismatch" && error.found === version && error.expected === item.version);
+      assert.throws(() => item.open(home), (error: { code?: string; details?: { found?: number; expected?: number } }) =>
+        error.code === (version === 0 ? "storage.schema_version_mismatch" : "storage.store_too_new") && error.details?.found === version && error.details?.expected === item.version);
       assert.deepEqual(readFileSync(file), before);
       const kept = new DatabaseSync(file, { readOnly: true });
       try {

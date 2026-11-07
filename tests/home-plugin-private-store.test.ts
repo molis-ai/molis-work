@@ -48,7 +48,7 @@ for (const version of [2, 1] as const) {
       actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home) });
     const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
     const first = host.homePlugins!.ready();
-    const refusal = version === 2 ? { code: "storage.schema_version_mismatch" } : { code: "actions.execution_failed" };
+    const refusal = version === 2 ? { code: "storage.store_too_new" } : { code: "actions.execution_failed" };
     await assert.rejects(first, refusal);
     assert.equal(host.homePlugins!.ready(), first, "ordinary preparation keeps the failure and never retries");
     const one = await project("A broken Home has a recovery page");

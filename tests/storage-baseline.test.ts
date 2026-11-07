@@ -5,7 +5,8 @@ import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { applySqliteBaseline, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { applySqliteBaseline, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
 
 test('binding a new Home store before first use does not masquerade as an old business schema', t => {
   const home = mkdtempSync(join(tmpdir(), 'molis-bound-baseline-'));
@@ -64,9 +65,9 @@ test("a baseline store is created at its version, reopened as is, and refused at
   db.close();
 
   const path = homeSqlitePath(home, "notes");
-  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && error.code === "storage.schema_version_mismatch" && error.path === path;
+  const refused = (error: unknown) => isSqliteVersionRefusal(error) && error.code === "storage.upgrade_pending" && error.details?.path === "notes/notes.db" && !error.message.includes(home);
   assert.throws(() => openBaselineHomeSqlite(home, "notes", { version: 2, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT);" }),
-    (error: unknown) => refused(error) && (error as SqliteSchemaVersionError).found === 1 && (error as SqliteSchemaVersionError).expected === 2);
+    (error: unknown) => refused(error) && (error as ActionError).details?.found === 1 && (error as ActionError).details?.expected === 2);
   const raw = new DatabaseSync(path);
   assert.deepEqual((raw.prepare("PRAGMA table_info(notes)").all() as Array<{ name: string }>).map(column => column.name), ["id", "body"], "nothing was added in place");
   raw.close();
@@ -76,7 +77,7 @@ test("a baseline store is created at its version, reopened as is, and refused at
   const legacy = new DatabaseSync(homeSqlitePath(home, "legacy"));
   legacy.exec("CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);");
   legacy.close();
-  assert.throws(() => openBaselineHomeSqlite(home, "legacy", v1), (error: unknown) => error instanceof SqliteSchemaVersionError && (error as SqliteSchemaVersionError).found === 0);
+  assert.throws(() => openBaselineHomeSqlite(home, "legacy", v1), (error: unknown) => isSqliteVersionRefusal(error) && error.code === "storage.schema_version_mismatch" && error.details?.found === 0);
 
   // A failing baseline leaves an empty, unversioned file behind, so the next open can create it again.
   assert.throws(() => openBaselineHomeSqlite(home, "broken", { version: 1, schema: "CREATE TABLE ok (id TEXT); CREATE TABL nope;" }));
@@ -118,7 +119,7 @@ for (const journal of ["DELETE", "WAL"] as const) test(`RAC-2719 ${journal} stor
   const path = homeSqlitePath(home, "notes"), directory = dirname(path);
   chmodSync(path, 0o644);
   const before = readFileSync(path), mode = statSync(path).mode & 0o777;
-  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && (error as SqliteSchemaVersionError).found === 1 && (error as SqliteSchemaVersionError).expected === 2;
+  const refused = (error: unknown) => isSqliteVersionRefusal(error) && error.code === "storage.upgrade_pending" && error.details?.found === 1 && error.details?.expected === 2;
   assert.throws(() => openBaselineHomeSqlite(home, "notes", { version: 2, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT);" }), refused);
   assert.deepEqual(readFileSync(path), before, "the database bytes are not written");
   assert.equal(statSync(path).mode & 0o777, mode, "a writable connection did not tighten the mode");
@@ -192,7 +193,7 @@ test("RAC-2720 a store at the current version missing its baseline tables is ref
 // file holding pages only that journal can roll back. A native read-only connection cannot recover it (SQLITE_READONLY_ROLLBACK,
 // errcode 776), which is the branch `inspectSqliteBaseline` hands to the writable open: SQLite's crash recovery (not a business write)
 // runs there, and the baseline check then runs on the recovered database. A wrong version is still refused with
-// storage.schema_version_mismatch.
+// storage.upgrade_pending.
 test("RAC-2719 a store with a hot journal still opens, and a wrong version is still refused", t => {
   const home = mkdtempSync(join(tmpdir(), "molis-baseline-hot-journal-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
@@ -231,8 +232,8 @@ test("RAC-2719 a store with a hot journal still opens, and a wrong version is st
   } finally { recovered.close(); }
   assert.equal(existsSync(`${path}-journal`), false, "the writable open rolled the hot journal back");
   const wrongPath = create("wrong");
-  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && error.code === "storage.schema_version_mismatch"
-    && error.found === 1 && error.expected === 2;
+  const refused = (error: unknown) => isSqliteVersionRefusal(error) && error.code === "storage.upgrade_pending"
+    && error.details?.found === 1 && error.details?.expected === 2;
   assert.throws(() => openBaselineHomeSqlite(home, "wrong", { version: 2, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT);" }), refused,
     "the version check still refuses a hot-journal store at another version");
   assert.equal(wrongPath, homeSqlitePath(home, "wrong"));
@@ -258,7 +259,7 @@ test("RAC-2717 a WAL store at another version is refused with the database and i
     assert.ok(existsSync(`${path}-wal`), "the WAL file holds pages that never reached the database");
   } finally { writer.close(); }
   const path = homeSqlitePath(home, "notes"), before = readFileSync(path), beforeWal = readFileSync(`${path}-wal`);
-  const refused = (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 1 && error.expected === 2;
+  const refused = (error: unknown) => isSqliteVersionRefusal(error) && error.code === "storage.upgrade_pending" && error.details?.found === 1 && error.details?.expected === 2;
   assert.throws(() => openBaselineHomeSqlite(home, "notes", { version: 2, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT);" }), refused);
   assert.deepEqual(readFileSync(path), before, "the database bytes are not written");
   assert.deepEqual(readFileSync(`${path}-wal`), beforeWal, "and the WAL's pages are not written either");

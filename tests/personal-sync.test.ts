@@ -324,7 +324,7 @@ test('PCSYNC-20 frozen Todo v2 is refused without changing original rows or byte
  const f=fixture(t),home=f.homes[0],old=openBaselineHomeSqlite(home,'todo',{version:2,schema:readFileSync(new URL('./fixtures/home-store-schemas/todo-v2.sql',import.meta.url),'utf8')});
  old.prepare("INSERT INTO todo_source_memory VALUES('source','original','keep',NULL,'preserve original','2026-10-19T00:00:00Z')").run();old.close();
  const file=join(home,'todo','todo.db'),before=readFileSync(file);
- assert.throws(()=>openTodoSyncStore(home),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(file),before);
+ assert.throws(()=>openTodoSyncStore(home),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),before);
 });
 
 // PCSYNC-14/23: source-only derived exports do not block incoming records or another healthy project/key.

@@ -168,6 +168,7 @@ test("the Characters store refuses tables without a version and a newer version,
     finally { db.close(); }
   };
   const mismatch = (error: unknown) => (error as { code?: string }).code === "storage.schema_version_mismatch";
+  const tooNew = (error: unknown) => (error as { code?: string }).code === "storage.store_too_new";
   const unversioned = store("unversioned", "CREATE TABLE character_drafts (id TEXT PRIMARY KEY, body TEXT); INSERT INTO character_drafts VALUES ('old', '旧草稿');");
   assert.throws(() => openCharacters(unversioned, "actor"), mismatch);
   assert.deepEqual(state(unversioned), { version: 0, rows: 1 }, "the unversioned store keeps its row and is not stamped");
@@ -176,7 +177,7 @@ test("the Characters store refuses tables without a version and a newer version,
   const refused = new DatabaseSync(join(missingTrigger,"characters","characters.sqlite"),{ readOnly:true });
   try { assert.equal(refused.prepare("SELECT 1 FROM sqlite_schema WHERE name='characters_sync_delete'").get(),undefined); } finally { refused.close(); }
   const newer = store("newer", `${CHARACTERS_STORE_BASELINE.schema} PRAGMA user_version = ${CHARACTERS_STORE_BASELINE.version+1};`);
-  assert.throws(() => openCharacters(newer, "actor"), mismatch);
+  assert.throws(() => openCharacters(newer, "actor"), tooNew);
   assert.deepEqual(state(newer), { version: CHARACTERS_STORE_BASELINE.version+1, rows: 0 });
   const fresh = openCharacters(join(home, "fresh"), "actor");
   try { assert.deepEqual(fresh.service.list(), []); } finally { fresh.close(); }

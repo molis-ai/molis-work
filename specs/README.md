@@ -6,7 +6,6 @@
 
 ## 在做的
 
-- [account-switch-refresh](account-switch-refresh/spec.md)：账号切换与平台刷新；用户 2026-11-07 授权按 ASR-01～16 实施单活动账号、旧授权撤销、区域释放、草稿与缓存隔离及请求内性能修复，工程与本人验收分别记录，尚未整体通过。
 - [ci-acceleration](ci-acceleration/spec.md)：CI P0/P1 提速，普通文档从 PR 到合并队列走轻量路径，增加单个 PR 分片并按耗时和浏览器容量平衡；2026-11-06 已获实施授权，负责人 Codex；本地实现与验证完成，待云端实测。
 
 - [team-memory](team-memory/spec.md)：独立团队记忆需求（BL-022）；像持续在线的 PMO 观察获准项目、沟通和工作，积累决策、风险、知识、偏好及协作模式，减少人与人／人与 AI／AI 与 AI 的上下文交接，支持主动协作、工作习惯与交付质量改善。成员个人发布仍需最终确认并告知不可撤回，管理员维护团队认知；形成、融合及使用策略待细化，尚未实现或验收。需求维护 Codex，实现待分配；不改变现有记忆 P0 边界。
@@ -74,6 +73,7 @@
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。
 
+- [account-switch-refresh](account-switch-refresh/spec.md)：单活动账号与平台刷新规范；工程、本机与用户桌面候选操作的证据分开记录，当前更新见第 12 节，最终 CI、合并队列及 main 核对以 [PR #1932](https://github.com/molis-ai/molis-work/pull/1932) 实际记录为准。
 - [action-architecture](action-architecture/spec.md)：能力怎样注册、发现、调用、授权（§3「基本合同」）。
 - [plugin-platform-v2](plugin-platform-v2/spec.md)：插件能声明什么、宿主怎么装配、插件之间怎么交换。2026-10-18 补充 Skill Pack、目录元数据、hooks 与 LSP 声明。
 - [molis-work-architecture-reorganization](molis-work-architecture-reorganization/spec.md)：架构与包重组基线。

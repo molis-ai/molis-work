@@ -8,8 +8,7 @@ The change-set process-item type (`diff.changeset.v1`) is defined around this
 consumer rather than by any producer. Producers conform to what a comparison needs, which is what keeps one
 surface able to render all of them instead of growing a branch per upstream.
 
-Coding change sets that carry only hunks, without both original sides, remain
-marked `partial`. Coding's fixed text-review records preserve both original sides and
+Coding's fixed text-review records preserve both original sides and
 use the same bounded text comparison as file snapshots. Repeated edits to one
 path are addressed by their original change index. These are saved proposals
 with execution receipts, not a claim about the current working tree; command
@@ -41,6 +40,6 @@ embedded reader keeps its own selector rather than rendering duplicate buttons.
   - 三类输入都可读取过程项或成果库里明确选定的固定版本；读取仍遵守 Manifest 消费类型与当前授权，固定输入失效时不改读最新版本。回归见 [plugin-fixed-input-sdk.test.ts](../../../tests/plugin-fixed-input-sdk.test.ts)。
   - 比较的是固定版本（带执行回执），不是对当前工作树的断言；反馈锚点只在保存固定版本后添加。
   - `diff.state` 被页面调用时，自己按页面的语言用 `DIFF_MESSAGES` 画好 `html` 一起返回；模型、工作流、MCP 只得 `{ view }`。宿主不替 Diff 画（PG-062，[companion-state-html.test.ts](../../../tests/companion-state-html.test.ts)）。
-  - 三类输入各自变成通用的改动（两份全文或一段 unified diff）交给 SDK 比较，Diff 只管输入组、固定版本与文案；比较视图的每个标签用 `DIFF_MESSAGES` 里的哪个键列在 `DIFF_LABELS`（`src/ui.ts`），带值的句子（含 `parseUnifiedDiff` 拒绝时的三句）列在 `DIFF_TEMPLATES`（PG062-08..10，[plugin-sdk-subpaths.test.ts](../../../tests/plugin-sdk-subpaths.test.ts)）。
+  - 三类输入各自变成通用的改动（两份全文）交给 SDK 比较，Diff 只管输入组、固定版本与文案；比较视图的每个标签用 `DIFF_MESSAGES` 里的哪个键列在 `DIFF_LABELS`（`src/ui.ts`），带值的句子列在 `DIFF_TEMPLATES`（PG062-08..10，[plugin-sdk-subpaths.test.ts](../../../tests/plugin-sdk-subpaths.test.ts)）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/diff-plugin.test.ts tests/workspace-plugin-graph.test.ts tests/companion-actions.test.ts tests/companion-state-html.test.ts tests/git-product-http.test.ts tests/coding-changeset-http.test.ts tests/coding-companion-inputs.test.ts tests/diff-patch.test.ts tests/diff-git-english-sentences.test.ts tests/plugin-sdk-subpaths.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

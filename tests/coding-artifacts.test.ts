@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseCodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import test from "node:test";
 
 import {
@@ -88,13 +89,23 @@ test("变更集默认没有落盘：批准与写入是两件事", () => {
     scope: "run-frozen",
     run_id: "run-4",
     applied: false,
-    files: [{ path: "apps/local-host/src/connect.ts", kind: "modified", added_lines: 12, removed_lines: 3, diff: "@@ -41,3 +41,12 @@\n" }],
+    coverage: "text-reviews",
+    origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" },
+    files: [{ path: "apps/local-host/src/connect.ts", kind: "modified", added_lines: 12, removed_lines: 3, diff: "",
+      review: { review_id: "v", before_text: "a\n", after_text: "b\n", decision: "approved", execution: "applied" } }],
   };
   assert.equal(changeset.applied, false);
   assert.equal(changeset.scope, "run-frozen");
   // 路径是工作区相对的，不暴露授权根以外的事实
   assert.equal(changeset.files[0]!.path.startsWith("/"), false);
   assert.equal(CODING_CHANGESET_TYPE, "coding.changeset.v1");
+  assert.deepEqual(parseCodingChangeSet(changeset), changeset);
+  const { review: _review, ...withoutReview } = changeset.files[0]!;
+  assert.throws(() => parseCodingChangeSet({ ...changeset, files: [withoutReview] }), /原审查内容无效/, "每个文件都带原审查，缺了就拒绝");
+  const { origin: _origin, ...withoutOrigin } = changeset;
+  assert.throws(() => parseCodingChangeSet(withoutOrigin), /固定变更来源无效/);
+  const { coverage: _coverage, ...withoutCoverage } = changeset;
+  assert.throws(() => parseCodingChangeSet(withoutCoverage), /变更覆盖范围无效/);
 });
 
 test("只读角色拿不到改写者的 Prompt——角色各自声明自己的", async () => {

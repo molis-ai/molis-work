@@ -112,7 +112,7 @@ export interface FrozenSetup {
   readonly subagent_workspaces?: readonly { readonly workspace_id: string; readonly directory: { readonly canonical_path: string } }[];
   readonly skills: readonly { readonly name: string; readonly version: number }[];
   readonly action_tools?: readonly { readonly capability_id: string; readonly version: number; readonly provider_id: string }[];
-  readonly mcp_tools?: readonly { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version?: number }[];
+  readonly mcp_tools?: readonly { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version: number }[];
   readonly mcp_sources?: readonly { readonly server: string; readonly server_label?: string; readonly configuration_version: number }[];
   readonly character?: { readonly title: string; readonly reference: { readonly version: number } };
   readonly host_tools?: readonly string[];
@@ -246,7 +246,7 @@ export interface WorkspaceRecord {
 }
 
 export interface McpSourceRef { readonly server: string; readonly server_label?: string; readonly configuration_version: number }
-export interface McpToolRef { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version?: number }
+export interface McpToolRef { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version: number }
 export interface MethodRef { readonly skill_id: string; readonly version: number }
 
 /** A method of the catalog (`GET /state`). */
@@ -259,7 +259,7 @@ export interface McpServer {
   readonly enabled: boolean;
   readonly health?: unknown;
   readonly resources?: readonly unknown[];
-  readonly tools: readonly { readonly server: string; readonly tool: string; readonly label?: string; readonly description?: string; readonly version: string; readonly available: boolean; readonly configuration_version?: number }[];
+  readonly tools: readonly { readonly server: string; readonly tool: string; readonly label?: string; readonly description?: string; readonly version: string; readonly available: boolean; readonly configuration_version: number }[];
 }
 
 

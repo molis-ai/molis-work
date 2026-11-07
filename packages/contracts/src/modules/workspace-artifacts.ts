@@ -670,10 +670,10 @@ export interface CodingFileChange {
   kind: CodingFileChangeKind;
   added_lines: number;
   removed_lines: number;
-  /** Unified diff for this file alone. */
+  /** Always empty: `review` carries both ends of the file. */
   diff: string;
   /** Original immutable review text. Multiple edits to one path stay separate. */
-  review?: {
+  review: {
     review_id: string;
     before_text: string | null;
     after_text: string;
@@ -694,9 +694,9 @@ export interface CodingChangeSet {
    * approval is not the same event as the write.
    */
   applied: boolean;
-  origin?: { session_id: string; runtime_session_id: string; workspace_id: string; workspace_name: string };
+  origin: { session_id: string; runtime_session_id: string; workspace_id: string; workspace_name: string };
   /** This set covers original text reviews; command/external effects are separate receipts. */
-  coverage?: "text-reviews";
+  coverage: "text-reviews";
 }
 
 export type { DiffLine, DiffOp, TextDiff, TextDiffRow, SplitPair } from "./workspace-text-diff.js";
@@ -710,18 +710,16 @@ export function parseCodingChangeSet(value: unknown): CodingChangeSet {
       || !Number.isSafeInteger(file.added_lines) || Number(file.added_lines) < 0
       || !Number.isSafeInteger(file.removed_lines) || Number(file.removed_lines) < 0 || typeof file.diff !== "string") throw new Error("固定文件变更格式无效");
     parseFilePath(file.path.split("/"));
-    if (file.review !== undefined) {
-      const review = file.review;
-      if (!isRecord(review) || typeof review.review_id !== "string" || !review.review_id
-        || !(review.before_text === null || typeof review.before_text === "string") || typeof review.after_text !== "string"
-        || !["pending", "approved", "rejected", "cancelled", "expired"].includes(String(review.decision))
-        || !["applied", "failed", "unknown", "not-applied"].includes(String(review.execution))) throw new Error("原审查内容无效");
-    }
+    const review = file.review;
+    if (!isRecord(review) || typeof review.review_id !== "string" || !review.review_id
+      || !(review.before_text === null || typeof review.before_text === "string") || typeof review.after_text !== "string"
+      || !["pending", "approved", "rejected", "cancelled", "expired"].includes(String(review.decision))
+      || !["applied", "failed", "unknown", "not-applied"].includes(String(review.execution))) throw new Error("原审查内容无效");
     return structuredClone(file) as unknown as CodingFileChange;
   });
   const origin = value.origin;
-  if (origin !== undefined && (!isRecord(origin) || !["session_id", "runtime_session_id", "workspace_id", "workspace_name"].every(key => typeof origin[key] === "string" && origin[key]))) throw new Error("固定变更来源无效");
-  if (value.coverage !== undefined && value.coverage !== "text-reviews") throw new Error("变更覆盖范围无效");
+  if (!isRecord(origin) || !["session_id", "runtime_session_id", "workspace_id", "workspace_name"].every(key => typeof origin[key] === "string" && origin[key])) throw new Error("固定变更来源无效");
+  if (value.coverage !== "text-reviews") throw new Error("变更覆盖范围无效");
   return { ...structuredClone(value), files } as unknown as CodingChangeSet;
 }
 

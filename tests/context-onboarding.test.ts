@@ -540,16 +540,6 @@ test('blank start after a prior summary never adopts old sources, including a fa
   const pages=openPagesStore(dir);try{assert.equal(pages.list(result.project_id).length,1);assert.doesNotMatch(JSON.stringify(pages.get(result.document_id!).body),/Old facts|Alpha/);}finally{pages.close();}
 });
 
-test('old unfinished Cognia identities remain intact and cannot become undefined Artifact identities',async t=>{
-  const dir=await home(t),id=randomUUID();
-  withContextJourneys(dir,s=>{const j=s.create(id);j.phase='review';j.summary={title:'Historical',body:'Fact [S1]',references:[{label:'S1',material_id:'old-1',revision:1,title:'Old',body:'Historical body',path:'old.md'} as any]};s.save(j);});
-  const result=readContextJourney(dir,id);assert.equal(result.requires_reselection,true);assert.match(result.error!,/旧版存储/);
-  assert.throws(()=>startContextJourney(dir,id,pagesPorts(dir)),/重新选择/);
-  await assert.rejects(adoptContextJourney(dir,id,{title:'Unsafe adoption'},pagesPorts(dir)),/重新选择/);
-  assert.equal((withContextJourneys(dir,s=>s.get(id)).summary!.references[0] as any).material_id,'old-1');
-});
-
-
 // No limits on a round (user 2026-10-22, replaces slice 90's 200 files / 50 MB / 20 MB): the selection names staged files by digest,
 // however many; a file's bytes never travel in the selection, and reading queues the files one at a time.
 test('ONB-LIM-02 a round has no file count or size limit, and its selection carries only staged digests',()=>{

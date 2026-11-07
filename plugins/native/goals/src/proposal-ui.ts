@@ -129,9 +129,7 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
           <div><dt>${L("本次不改变")}</dt><dd>${narrative.non_goals.length ? `<ul>${narrative.non_goals.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : L("没有额外非目标")}</dd></div>
         </dl>
       </section>`
-    : proposal.items.length >= 5
-      ? `<section class="goal-tree-proposal-narrative is-missing" role="note"><h4>${L("这份历史方案缺少整体验证说明")}</h4><p>${L("它创建于语义摘要成为大型提案必填项之前。请先让 Runtime 补充原问题、变更后的主链路、预期效果和非目标，再决定是否采用。")}</p></section>`
-      : "";
+    : "";
   const renderItemRow = (item: GoalTreeProposalRecord["items"][number]): string => {
     const copy = goalTreeProposalItemCopy(item, view, proposal);
     const explanation = item.explanation;

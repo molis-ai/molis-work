@@ -4,13 +4,9 @@ import { originalTask } from "./continuation.js";
 import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 
-/**
- * A file change as unified-diff text: the stored diff when there is one, otherwise derived from the original review's
- * before and after text, with three lines of context around each change.
- */
-function fileDiff(file: { diff: string; review?: { before_text: string | null; after_text: string } }): string {
-  if (file.diff.trim() || !file.review) return file.diff;
-  const ops = compareTexts(file.review.before_text ?? "", file.review.after_text).ops, keep = new Set<number>();
+/** A file change as unified-diff text, from the original review's before and after text, with three lines of context around each change. */
+function fileDiff(review: { before_text: string | null; after_text: string }): string {
+  const ops = compareTexts(review.before_text ?? "", review.after_text).ops, keep = new Set<number>();
   ops.forEach((op, index) => { if (op.kind !== "equal") for (let near = Math.max(0, index - 3); near <= Math.min(ops.length - 1, index + 3); near++) keep.add(near); });
   const lines: string[] = [];
   ops.forEach((op, index) => {
@@ -41,8 +37,8 @@ export function commitDraftMaterial(input: { planTitle?: string; locale?: Action
   const clip = (text: string, max: number) => text.length > max ? text.slice(0, max) + words.rest : text;
   const round = ({ number, run, change }: { number: number; run: AgentRunView; change: CodingChangeSet }) => {
     const answer = run.turns.filter(turn => turn.kind === "assistant").at(-1)?.text.trim() ?? "";
-    const files = change.files.filter(file => file.review?.execution === "applied").map(file =>
-      `#### ${words.file(file.path, file.kind === "added" ? words.added : words.modified, `+${file.added_lines} −${file.removed_lines}`)}\n${clip(fileDiff(file), PER_FILE)}`);
+    const files = change.files.filter(file => file.review.execution === "applied").map(file =>
+      `#### ${words.file(file.path, file.kind === "added" ? words.added : words.modified, `+${file.added_lines} −${file.removed_lines}`)}\n${clip(fileDiff(file.review), PER_FILE)}`);
     return [`### ${words.round(number)}`, `${words.request}${clip(originalTask(run).trim(), 600)}`, `${words.answer}${clip(answer, 500)}`, words.changes, ...files].join("\n");
   };
   const head = [words.language, input.planTitle ? `${words.plan}${input.planTitle}` : ""].filter(Boolean).join("\n");

@@ -80,7 +80,7 @@ export interface AgentMcpToolRef {
   version: string;
   server_label?: string;
   /** Pins the endpoint, credentials and launch configuration, independently of tool schema. */
-  configuration_version?: number;
+  configuration_version: number;
 }
 
 /** Explicit access to the documents of a configured MCP service, without its external tools. */

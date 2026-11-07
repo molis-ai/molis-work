@@ -216,7 +216,7 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 
 这样比现在更严。同步要改：`docs/system/SECURITY-INVARIANTS.md` S-46 的表述；`apps/local-host/src/plugin-project-library.ts:28-30` 的注释；`tests/security-invariants-plugin-terminal-launch.test.ts:596`（注释和它直接开的驱动）；`docs/platform/PLUGIN-DEVELOPMENT.md`（一次一句的说明不变，来源改成适配层）。
 
-**这条不变量和 U1 无关。** 用户 2026-11-08 定 `studio.sqlite` 不接升级链（U1 设计 §3 的表），升级过程不开它，这里不产生第二份。重做 Alchemist 时再定（BL-377）。
+**这条不变量和 U1 无关。** 用户 2026-11-08 定 `studio.sqlite` 不接升级链（U1 设计 §2.3 的表），升级过程不开它，这里不产生第二份。升级过程新增的只读连接（`readUpgradeStore`，#1958）直接用 `DatabaseSync` 读目录库，切换后和项目连接是同一份 SQLite，不再有这条顾虑。重做 Alchemist 时再定（BL-377）。
 
 Home 插件库：U1-f 的段用 `openSqliteConnection` 开 Home 库（U1 设计 §2.4），而 `home-sqlite.ts` 平时用 `node:sqlite` 开同一个文件。切换之后这两个是同一份 SQLite，这条顾虑随 SQLD-d 消失。
 

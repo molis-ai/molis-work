@@ -227,11 +227,11 @@ test('PCSYNC-20 SQLD-04 a busy catalog is a retry, not an unavailable one, by th
   try{waiter.exec('BEGIN IMMEDIATE');}catch(error){failure=error;}
   assert.equal(sqliteErrorName(failure),'SQLITE_BUSY');
   holder.exec('ROLLBACK');
-  const failing=(async()=>{throw failure;}) as unknown as typeof withMolisWorkProjectCatalog;
+  const failing=async():Promise<never>=>{throw failure;};
   const busy=createPersonalCatalogRegistration(home,f.space.spaceId,'alice',()=>{},failing,'molis');
   await assert.rejects(busy.refresh(),(error:unknown)=>error===failure);
   assert.equal(busy.available(),true);
-  const unreadable=(async()=>{throw Object.assign(new Error('file is not a database'),{code:'ERR_SQLITE_ERROR',errcode:26});}) as unknown as typeof withMolisWorkProjectCatalog;
+  const unreadable=async():Promise<never>=>{throw Object.assign(new Error('file is not a database'),{code:'ERR_SQLITE_ERROR',errcode:26});};
   const gone=createPersonalCatalogRegistration(home,f.space.spaceId,'alice',()=>{},unreadable,'molis');
   await gone.refresh();
   assert.equal(gone.available(),false);

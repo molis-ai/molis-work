@@ -58,7 +58,7 @@ export const SKILL_PACK_BOARD_STYLES = `
   /* 3 · List and detail: the list on the left keeps each entry a list item (a screen reader says "3 of 5") and a real button fills
      it; the detail on the right is everything about one entry. Where the room is narrow it is one side at a time. */
   .mw-split { container: mw-split / inline-size; min-width: 0; }
-  .mw-split__body { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 20px; align-items: start; min-width: 0; }
+  .mw-split__body { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; min-width: 0; }
   .mw-split__list { min-width: 0; }
   .mw-split__list > .mw-items { width: 100%; }
   .mw-item.mw-item--pick { min-height: 0; padding: 0; }
@@ -71,7 +71,7 @@ export const SKILL_PACK_BOARD_STYLES = `
   /* The name wraps as it is; the pack it lives in takes one line, cut where room runs out, its whole name on hover. */
   .mw-item .mw-pick__text strong { overflow: visible; white-space: normal; overflow-wrap: break-word; line-height: 1.4; }
   .mw-item .mw-pick__text small { flex: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .mw-pick__end { display: flex; flex: none; max-width: 45%; }
+  .mw-pick__end { display: flex; flex: none; }
   .mw-split__detail { display: grid; gap: 14px; align-content: start; min-width: 0; padding: 4px 4px 4px 20px; border-left: 1px solid var(--line); }
   .mw-split__detail[hidden] { display: none; }
   /* Only when another entry is chosen; the first view and a reload show the detail at once. */
@@ -92,7 +92,11 @@ export const SKILL_PACK_BOARD_STYLES = `
     .mw-split__detail > .mw-split__back { display: inline-flex; }
   }
   /* A phone's list keeps its room for the names: the glyph, the same for every entry, gives way. */
-  @container mw-split (max-width: 480px) { .mw-pick > .mw-mark { display: none; } }
+  @container mw-split (max-width: 480px) {
+    .mw-pick > .mw-mark { display: none; }
+    /* Only here may the status word be cut (its whole word on hover, and in the detail one tap away). */
+    .mw-pick__end { min-width: 0; max-width: 45%; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .mw-split__detail.is-entering { animation: none; }
     .mw-pick { transition: none; }

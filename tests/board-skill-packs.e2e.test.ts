@@ -136,6 +136,16 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
   await evaluate("new Promise((resolve) => setTimeout(resolve, 400))");
   assert.equal(await evaluate<number>(`(() => { const split = ${wide}; split.querySelectorAll('[data-split-pick]')[1].click(); return split.querySelector('[data-split-detail]:not([hidden])').getAnimations().length; })()`), 0,
     "choosing the same entry again plays nothing");
+  // Wide, with two columns, the list cuts no status word (cutting is only for a narrow list).
+  for (const width of [1440, 1024]) for (const lang of ["zh", "en"]) {
+    await open(lang, width);
+    const cut = await evaluate<{ columns: number; cut: string[] }>(`(() => { const split = ${wide};
+      return { columns: getComputedStyle(split.querySelector('.mw-split__body')).gridTemplateColumns.split(' ').length,
+        cut: [...split.querySelectorAll('.mw-pick__end .mw-status > span')].filter((s) => s.scrollWidth > s.clientWidth).map((s) => s.textContent) }; })()`);
+    assert.equal(cut.columns, 2, `${lang} ${width}px: list and detail side by side`);
+    assert.deepEqual(cut.cut, [], `${lang} ${width}px: no status word is cut in the wide list`);
+  }
+  await open("zh", 1440);
   // A long pack name is cut on one line, its whole name on hover.
   assert.ok(await evaluate<boolean>(`(() => { const small = ${wide}.querySelectorAll('.mw-pick__text small')[1]; return small.scrollWidth > small.clientWidth && small.title.length > 10; })()`));
   // Reduced motion: the detail changes at once.

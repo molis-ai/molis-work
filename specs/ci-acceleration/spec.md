@@ -1,6 +1,6 @@
 # CI 轻量路径与分片提速
 
-状态：执行中——本地实现与验证完成，待云端实测（2026-11-06）。负责人：Codex。用户已批准 P0、P1：先写本 spec，直接实施并验证；补充要求增加单个 PR 的分片，并按耗时平均分配，避免少数分片拖尾。当前目标为功能可用，云端耗时改进另以相同类型运行的实测证明。
+状态：执行中——本地实现与核心 CI 已通过；Full 及云端实测的后续结果在 [PR #1897 验证段](https://github.com/molis-ai/molis-work/pull/1897)维护，纯文档 PR / 合并队列仍待采用后采样（2026-11-06）。负责人：Codex。用户已批准 P0、P1 的实施、推送、开 PR、CI / Full 实测及问题修复；补充要求增加单个 PR 的分片，并按耗时平均分配，避免少数分片拖尾。当前目标为功能可用，云端耗时改进另以相同类型运行的实测证明。
 
 ## 目标与现状
 
@@ -80,6 +80,13 @@ P2（共享构建产物、夜间 probe 合并、发布优化）、产品源码/�
 | CIP-01–05 | `tests/ci-check-selection.test.ts`、`tests/ci-test-selection.test.ts`、`tests/ci-queue-verified.test.ts`；真实工作流表达式及 Bash 汇总，纯文档/混合/改名/未知输入、非法跳过、失败/取消、整个合并组与 macOS/shell 分流 | 23 个测试通过 |
 | CIP-06–08 | 上述选测用例及 `tests/run-tests-shard.test.ts`、`tests/ci-shard-weights.test.ts`、`tests/run-tests-pool.test.ts`；覆盖扩大分片、确定性和完整集合、缺权重、重试排除、冷缓存顺序与倾斜负载 | 通过；构造负载中最长浏览器队列下界从 900 秒降至不超过 600 秒 |
 | CIP-09 | `tests/ci-install.test.ts`、`tests/ci-timeouts.test.ts`、`tests/ci-product-subset.test.ts`、`tests/ci-product-subset-plan.test.ts`、`tests/health-gates-merge-base.test.ts`，连同上述 runner 用例；整体构建、健康门禁、工作流语法 | 全部通过；两批定向回归分别为 5 文件/32 测试、6 文件/149 测试 |
-| CIP-10 | 真实 GitHub Actions 代码/文档/队列/Full 的墙钟、排队和实际片间偏差 | 未运行，不宣称已达到云端提速目标 |
+| CIP-10 | 真实 GitHub Actions 代码/文档/队列/Full 的墙钟、排队和实际片间偏差 | 核心 CI 已通过并取得实测；Full 逐轮结果见 PR 验证段；文档 PR / 队列待工作流采用后采样 |
 
-CIP-10 尚未运行：代码路径与 Full 可在授权推送后验证；真正的纯文档 PR / 合并队列耗时还需工作流采用后采样。
+2026-11-06 云端候选 head `49c9d798a9d9a6e6cc41ce8631c65ee888cedd74`，CI 实际检出合并候选 `c8c7bf0350c82950a341e58e3479f48b3b9efd57`（base `c3c42913f6da62039ed641d3475d32c6dc3c3083`）：
+
+- [核心 CI 42320775290](https://github.com/molis-ai/molis-work/actions/runs/42320775290) 首轮通过，墙钟 570 秒（9 分 30 秒）。安全 8 片测试步骤 265–387 秒，最长 / 平均 1.17；产品 6 片 160–298 秒，最长 / 平均 1.25，424 文件全部通过、无 flaky。主要任务在启动后 20–21 秒开始，没有额外 runner 排队拖延。
+- 与此前完整核心样本 1055 秒相比，本轮墙钟减少约 46%，runner 时间由 115.9 增至 127.6 分钟（约增加 10%）。这是不同提交的单次样本对照，不能代替长期分布。较慢测试分片也往往构建更慢，提示机器性能差异贡献了部分实际偏差；不能把预测完全均衡写成实测完全均衡。
+- [Full 42320788813 第一轮](https://github.com/molis-ai/molis-work/actions/runs/42320788813/attempts/1) 在 425 秒失败：第 14 片的 `workbench-current-tabs.e2e.test.ts` 连续两次 CDP 等待超时，其他 31 片由 fail-fast 取消。首败保留，不拿这轮时长证明 Full 提速。相同提交的后续重跑、实际各片耗时、重试和最终结论在 PR 验证段维护。
+- 本机按 `--jobs 1` 隔离复核该文件：专用测试 Chrome 引擎、独立资料目录下 3/3 通过，60.3 秒。默认 `molis-test-browser` 的 clean 包装另使重启恢复项失败；改用同一个专用测试浏览器的保留目录入口后通过。未修改产品代码、测试断言或超时。
+
+CIP-10 的纯文档 PR / 合并队列耗时仍需工作流采用后采样；这次基础设施 PR 走完整核心路径，不能作为文档路径耗时证据。

@@ -38,7 +38,7 @@ export type ChangeSetSource = {
     operation_id: string;
 };
 
-export type CodingChangeScope = "run-frozen" | "workspace-current";
+export type CodingChangeScope = "run-frozen";
 
 export interface CodingChangeSet {
     scope: CodingChangeScope;

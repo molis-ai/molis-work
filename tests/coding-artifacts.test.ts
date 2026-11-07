@@ -100,6 +100,7 @@ test("变更集默认没有落盘：批准与写入是两件事", () => {
   assert.equal(changeset.files[0]!.path.startsWith("/"), false);
   assert.equal(CODING_CHANGESET_TYPE, "coding.changeset.v1");
   assert.deepEqual(parseCodingChangeSet(changeset), changeset);
+  assert.throws(() => parseCodingChangeSet({ ...changeset, scope: "workspace-current" }), /固定变更格式无效/, "没有写入方的取值被拒绝");
   const { review: _review, ...withoutReview } = changeset.files[0]!;
   assert.throws(() => parseCodingChangeSet({ ...changeset, files: [withoutReview] }), /原审查内容无效/, "每个文件都带原审查，缺了就拒绝");
   const { origin: _origin, ...withoutOrigin } = changeset;

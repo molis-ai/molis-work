@@ -14,7 +14,6 @@ export function codingChangeSetPreview(artifact: FixedVersionRecord | null) {
     || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding") return null;
   try {
     const change = parseCodingChangeSet(artifact.payload);
-    if (change.scope !== "run-frozen") return null;
     const reference = codingChangeSetReference(change.origin.session_id, change.run_id);
     if (artifact.artifact_id !== reference.artifact_id || artifact.version !== reference.version) return null;
     return { change, reference, title: typeof artifact.metadata.title === "string" ? artifact.metadata.title : "本轮固定变更",

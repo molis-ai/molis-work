@@ -654,13 +654,10 @@ export const CODING_PREFERENCE_EVENT = "io.molis.work.coding.preference";
 export const CODING_CHANGESET_TYPE = /* @version type.coding.changeset "coding.changeset.v{version}" */ "coding.changeset.v1";
 
 /**
- * Which facts a Run's change set describes.
- *
- * These are different things and a surface must never merge them: one is what
- * this run proposed and is frozen, the other is what the working tree looks
- * like now and moves under your feet.
+ * Which facts a Run's change set describes: what this run proposed, frozen.
+ * What the working tree looks like now moves under your feet and is not one of these.
  */
-export type CodingChangeScope = "run-frozen" | "workspace-current";
+export type CodingChangeScope = "run-frozen";
 
 export type CodingFileChangeKind = "added" | "modified" | "deleted";
 
@@ -702,7 +699,7 @@ export interface CodingChangeSet {
 export type { DiffLine, DiffOp, TextDiff, TextDiffRow, SplitPair } from "./workspace-text-diff.js";
 
 export function parseCodingChangeSet(value: unknown): CodingChangeSet {
-  if (!isRecord(value) || !["run-frozen", "workspace-current"].includes(String(value.scope))
+  if (!isRecord(value) || value.scope !== "run-frozen"
     || typeof value.run_id !== "string" || !value.run_id || typeof value.applied !== "boolean"
     || !Array.isArray(value.files) || value.files.length > 1000) throw new Error("固定变更格式无效");
   const files = value.files.map((file): CodingFileChange => {

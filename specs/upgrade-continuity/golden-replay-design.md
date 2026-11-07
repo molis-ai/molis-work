@@ -124,13 +124,17 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 
 | 方案 | 好处 | 代价 |
 | --- | --- | --- |
-| **A. 文本转储入库（推荐）** | CI 不用联网；改动能在 PR 里看 diff；与 `goal-event-history/*.sql` 的先例一致 | 仓库会慢慢变大。按每份 2～5 MB 估，一年十几份在可接受范围；超过 50 MB 时，把一年以前的金样移到发布附件，仓库里只留它们的 SHA-256 和下载地址 |
+| **A. 文本转储入库（推荐）** | CI 不用联网；改动能在 PR 里看 diff；与 `goal-event-history/*.sql` 的先例一致 | 仓库会慢慢变大。按每份 2～5 MB 估，一年十几份在可接受范围；`tests/fixtures/golden-homes/` 的工作树字节超过 50 MB 时，从最老的一份起移到发布附件，不看年龄（用户 2026-11-08 定），仓库里只留它们的 SHA-256 和下载地址 |
 | B. 只放发布附件 | 仓库不长 | CI 要联网下载；开发中的中间金样没有发布可挂；看不到 diff |
 | C. 另开一个仓库 | 主仓库不长，也能看 diff | 多一个仓库要维护权限和同步；PR 要跨仓库提交 |
 
 按 A 写进本设计，统筹 2026-11-04 审阅同意。真实大小在第一份生成后量，超出估计时回到这张表重新定。
 
-**量过了（用户 2026-11-07 定）：** 第一次生成 54.2 MB，其中 50.8 MB 是 `plugin_runtime_release_artifacts`：每个项目各存一份全部内置插件的代码，其余约 3.4 MB。方案 A 不变，这一列单独处理：`artifact_json` 里的 `module_source` 按内容摘要在金样里只存一份并压缩，放在 `files/` 下，转储里留摘要，还原时写回，`artifact_json` 这一列逐字节还原（库是从文本转储重建的，§2 的归一列本来就和原来不同，所以这里说的是这一列，不是整个库）。预计每份约 7 MB（估算），U2-c 量真实数字写回这里。不能只留校验值：新版和已安装版本不兼容时，宿主要用存着的旧代码继续跑（`packages/plugin-runtime/src/supervisor.ts:500-532`），这条路回放要测。超过 50 MB 把旧金样移到发布附件的规则不变。
+**量过了（用户 2026-11-07 定）：** 第一次生成 54.2 MB，其中 50.8 MB 是 `plugin_runtime_release_artifacts`：每个项目各存一份全部内置插件的代码，其余约 3.4 MB。方案 A 不变，这一列单独处理：`artifact_json` 里的 `module_source` 按内容摘要在金样里只存一份并压缩，放在 `files/` 下，转储里留摘要，还原时写回，`artifact_json` 这一列逐字节还原（库是从文本转储重建的，§2 的归一列本来就和原来不同，所以这里说的是这一列，不是整个库）。当时预计每份约 7 MB（估算）。
+
+**实测与改正（用户 2026-11-08 定）：** 代码只存一份并压缩后整份 15.3 MB，其中 `stores/` 13.5 MB，`plugin_runtime_release_artifacts` 占 11.18 MB，大头是每行都带的 `manifest`，代码压缩后只有 1.58 MB。重复的 Manifest 也只存一份（统筹定，做法同 `module_source`），整份约 4.47 MB（评审台实做量的，以第一份入库时的数字为准）。
+
+这里原来还写了一条理由，写错了：当时说不能只留校验值，因为「新版和已安装版本不兼容时，宿主要用存着的旧代码继续跑（`packages/plugin-runtime/src/supervisor.ts:500-532`），这条路回放要测」。用户 2026-10-08 已定内置插件一律跟当前构建（`packages/plugin-runtime/README.md:104`），这条路今天用不上。用户重新定：**回放不测这条路，代码照存**，这样金样才和真实 Home 的库一样。代价：这条路没人测，真要启用时再补。产品是否继续存这些代码登在 [`BL-plugin-release-module-source`](../backlog/BL-plugin-release-module-source.md)。
 
 ## 7. 本设计新增的检查
 

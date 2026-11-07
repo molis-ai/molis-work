@@ -2,14 +2,14 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { SKILL_LIMITS, type AgentSkillDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { CONTENT_PACKAGE_FILES, pluginErrors, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { refuseDeclarations } from "./declaration-problems.js";
+import { isRecord } from "./json-value.js";
 import { parsePluginManifest } from "./manifest.js";
 import { packagePathProblem } from "./skill-declarations.js";
 
 // The package a plugin with only declarations is installed from (`CONTENT_PACKAGE_FILES`, specs/skill-packs/contract-design.md §3).
 // The Host picks this reading or the sandbox package's by the Manifest's `kind`, after the same signature check.
-
-const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 
 /** One Skill's body as the package ships it, read and checked against its declaration. */
 export interface ContentPackageSkill {
@@ -38,10 +38,13 @@ type Expected =
  * whoever packs a folder from disk refuses a symbolic link there.
  */
 export function parseContentPackage(payload: unknown): ContentPackage {
-  if (!plain(payload) || payload.schema_version !== /* @version format.plugin.package */ 1 || !Array.isArray(payload.files)) refuse([{ reason: "内容包的 payload 要有现行的 schema_version 和 files 列表" }]);
-  const manifest = parsePluginManifest((payload as Record<string, unknown>).manifest);
-  if (manifest.kind !== "content") refuse([{ reason: "内容包只装只有声明的插件（kind: \"content\"）" }]);
-  const { files, problems } = decodedFiles((payload as { files: unknown[] }).files);
+  if (!isRecord(payload) || payload.schema_version !== /* @version format.plugin.package */ 1 || !Array.isArray(payload.files)) refuseDeclarations([{ reason: "内容包的 payload 要有现行的 schema_version 和 files 列表" }]);
+  // manifest.json is compared with the Manifest as the payload carries it, not with what parsing returns, so a default the parser
+  // fills in later cannot turn a well-formed package into one that differs.
+  const written = payload.manifest;
+  const manifest = parsePluginManifest(written);
+  if (manifest.kind !== "content") refuseDeclarations([{ reason: "内容包只装只有声明的插件（kind: \"content\"）" }]);
+  const { files, problems } = decodedFiles(payload.files as unknown[]);
   const expected = expectedFiles(manifest);
   for (const [path, entry] of expected) if (!files.has(path)) problems.push({ ...skillOf(entry), path, reason: "包里找不到" });
   for (const path of files.keys()) if (!expected.has(path)) problems.push({ path, reason: "声明里没有这个文件" });
@@ -50,7 +53,7 @@ export function parseContentPackage(payload: unknown): ContentPackage {
     const bytes = files.get(path);
     if (!bytes) continue;
     if (entry.kind === "manifest") {
-      if (!isDeepStrictEqual(jsonOf(bytes), JSON.parse(JSON.stringify(manifest)))) problems.push({ path, reason: "与包的 Manifest 不一致" });
+      if (!isDeepStrictEqual(jsonOf(bytes), JSON.parse(JSON.stringify(written)))) problems.push({ path, reason: "与包的 Manifest 不一致" });
     } else if (entry.kind === "resource") {
       if (bytes.length !== entry.bytes) problems.push({ ...skillOf(entry), path, reason: "大小与声明不符" });
       else if (createHash("sha256").update(bytes).digest("hex") !== entry.sha256) problems.push({ ...skillOf(entry), path, reason: "摘要与声明不符" });
@@ -60,12 +63,8 @@ export function parseContentPackage(payload: unknown): ContentPackage {
       else problems.push({ ...skillOf(entry), path, reason: body.reason });
     }
   }
-  if (problems.length) refuse(problems);
+  if (problems.length) refuseDeclarations(problems);
   return { manifest, skills };
-}
-
-function refuse(problems: PluginDeclarationProblem[]): never {
-  throw pluginErrors.declaration_invalid(problems.map(problem => problem.path ? `${problem.path}：${problem.reason}` : problem.reason).join("；"), { problems });
 }
 
 function skillOf(entry: Expected): { skill_id?: string } {
@@ -74,22 +73,25 @@ function skillOf(entry: Expected): { skill_id?: string } {
 
 /** The package's files by path, within the package limits; a file that cannot be one is a problem, not a stop. */
 function decodedFiles(rows: readonly unknown[]): { files: Map<string, Buffer>; problems: PluginDeclarationProblem[] } {
-  const files = new Map<string, Buffer>(), problems: PluginDeclarationProblem[] = [];
-  if (rows.length > SKILL_LIMITS.filesPerPackage) refuse([{ reason: `内容包至多 ${SKILL_LIMITS.filesPerPackage} 个文件` }]);
+  const files = new Map<string, Buffer>(), seen = new Set<string>(), problems: PluginDeclarationProblem[] = [];
+  if (rows.length > SKILL_LIMITS.filesPerPackage) refuseDeclarations([{ reason: `内容包至多 ${SKILL_LIMITS.filesPerPackage} 个文件` }]);
   let total = 0;
   for (const row of rows) {
-    const path = plain(row) && typeof row.path === "string" ? row.path : undefined;
+    const path = isRecord(row) && typeof row.path === "string" ? row.path : undefined;
     const escape = packagePathProblem(path);
     if (escape) { problems.push({ ...(path === undefined ? {} : { path }), reason: escape }); continue; }
-    if (files.has(path!)) { problems.push({ path, reason: "文件重复" }); continue; }
+    if (seen.has(path!)) { problems.push({ path, reason: "文件重复" }); continue; }
+    seen.add(path!);
     const encoded = (row as Record<string, unknown>).content_base64;
-    if (typeof encoded !== "string" || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded)) { problems.push({ path, reason: "内容不是有效的 base64" }); continue; }
-    const bytes = Buffer.from(encoded, "base64");
-    if (bytes.length > SKILL_LIMITS.fileBytes) { problems.push({ path, reason: `超过 ${SKILL_LIMITS.fileBytes} 字节` }); continue; }
-    total += bytes.length;
-    files.set(path!, bytes);
+    if (typeof encoded !== "string" || encoded.length % 4 !== 0) { problems.push({ path, reason: "内容不是有效的 base64" }); continue; }
+    // The size is read off the encoding, so an oversized file, or a package past its total, is refused before any of it is decoded.
+    const size = encoded.length / 4 * 3 - (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0);
+    if (size > SKILL_LIMITS.fileBytes) { problems.push({ path, reason: `超过 ${SKILL_LIMITS.fileBytes} 字节` }); continue; }
+    if (!/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded)) { problems.push({ path, reason: "内容不是有效的 base64" }); continue; }
+    total += size;
+    if (total > SKILL_LIMITS.packageBytes) refuseDeclarations([...problems, { reason: `内容包合计超过 ${SKILL_LIMITS.packageBytes} 字节` }]);
+    files.set(path!, Buffer.from(encoded, "base64"));
   }
-  if (total > SKILL_LIMITS.packageBytes) problems.push({ reason: `内容包合计超过 ${SKILL_LIMITS.packageBytes} 字节` });
   return { files, problems };
 }
 

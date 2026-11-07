@@ -7,6 +7,7 @@ import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
 import { inspectAgentDeclaration } from "./agent-declarations.js";
 import { inspectContentPlugin } from "./content-plugin.js";
+import { refuseDeclarations } from "./declaration-problems.js";
 import { inspectSkillDeclarations } from "./skill-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
@@ -50,7 +51,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   // A text reference names its owner by this id and refuses a longer one, so a longer id would fail every page that draws the plugin's words.
   if (manifest.plugin_id.length > TEXT_REF_LIMITS.owner) invalid(`plugin_id 最长 ${TEXT_REF_LIMITS.owner} 个字符`);
   // A plugin with only declarations is held to its own list of keys first, so a key it may not write is refused by name.
-  if (manifest.kind === "content") assertNoDeclarationProblems(inspectContentPlugin(manifest));
+  if (manifest.kind === "content") { const problems = inspectContentPlugin(manifest); if (problems.length) refuseDeclarations(problems); }
   inspectOptionalDeclarations(manifest);
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
@@ -203,16 +204,6 @@ export function comparePluginVersions(left: string, right: string): number {
   return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length < b.prerelease.length ? -1 : 1;
 }
 
-/**
- * The one place a list of declaration problems becomes the refusal (the error-code gates count each literal of a code). The message
- * joins the reasons; `details.problems` keeps each with the Skill and package file it points at.
- */
-function assertNoDeclarationProblems(problems: ReadonlyArray<string | PluginDeclarationProblem>): void {
-  if (problems.length === 0) return;
-  const listed = problems.map(problem => typeof problem === "string" ? { reason: problem } : problem);
-  throw pluginErrors.declaration_invalid(listed.map(problem => problem.reason).join("；"), { problems: listed });
-}
-
 function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>): void {
   const problems: Array<string | PluginDeclarationProblem> = [];
   problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes), ...inspectActionCrossReferences(parsed.actions));
@@ -251,7 +242,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
   problems.push(...readGroupDeclarationProblems(parsed.read_groups, parsed.actions));
   problems.push(...taskSubjectDeclarationProblems(parsed.task_subjects, parsed.actions));
-  assertNoDeclarationProblems(problems);
+  if (problems.length) refuseDeclarations(problems);
 }
 
 function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unknown>): string[] {

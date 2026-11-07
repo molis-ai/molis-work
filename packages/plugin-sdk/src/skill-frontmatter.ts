@@ -1,5 +1,5 @@
 import type { AgentSkillDeclaration, SkillResourceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { pluginErrors, type PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { refuseDeclarations } from "./declaration-problems.js";
 import { inspectSkillDeclarations, skillBodyPath } from "./skill-declarations.js";
 import { cutHead } from "./whole-units.js";
 
@@ -32,7 +32,7 @@ export interface SkillFrontmatterOptions {
 export function skillDeclarationFromFrontmatter(markdown: string, options: SkillFrontmatterOptions = {}): AgentSkillDeclaration {
   const fields = frontmatterFields(markdown);
   const skill_id = fields.get("name");
-  if (typeof skill_id !== "string") refuse([{ reason: "SKILL.md 的 frontmatter 要有 name（Skill 的标识）" }]);
+  if (typeof skill_id !== "string") refuseDeclarations([{ reason: "SKILL.md 的 frontmatter 要有 name（Skill 的标识）" }]);
   const text = (key: string) => { const value = fields.get(key); return value === undefined ? undefined : typeof value === "string" ? value : String(value); };
   const description = text("description"), summary = text("summary") ?? (description === undefined ? undefined : cutHead(description, SUMMARY_UNITS));
   const declaration: AgentSkillDeclaration = {
@@ -46,7 +46,7 @@ export function skillDeclarationFromFrontmatter(markdown: string, options: Skill
     ...optional("connector_categories", listOf(fields.get("connector_categories"))),
   };
   const problems = inspectSkillDeclarations([declaration]);
-  if (problems.length) refuse(problems.map(problem => ({ ...problem, path: problem.path ?? skillBodyPath(skill_id) })));
+  if (problems.length) refuseDeclarations(problems.map(problem => ({ ...problem, path: problem.path ?? skillBodyPath(skill_id) })));
   return declaration;
 }
 
@@ -58,19 +58,15 @@ function listOf(value: Value | undefined): string[] | undefined {
   return value === undefined ? undefined : (Array.isArray(value) ? value : [value]).map(String);
 }
 
-function refuse(problems: PluginDeclarationProblem[]): never {
-  throw pluginErrors.declaration_invalid(problems.map(problem => problem.reason).join("；"), { problems });
-}
-
 /** The frontmatter's keys and values; a line that is not one `key: value` is refused with its line number. */
 function frontmatterFields(markdown: string): Map<string, Value> {
   const block = FRONTMATTER.exec(markdown)?.[1];
-  if (block === undefined) refuse([{ reason: "SKILL.md 要以 --- 包起的 frontmatter 开头" }]);
+  if (block === undefined) refuseDeclarations([{ reason: "SKILL.md 要以 --- 包起的 frontmatter 开头" }]);
   const fields = new Map<string, Value>();
   for (const [index, line] of block.split(/\r?\n/u).entries()) {
     if (!line.trim() || line.trimStart().startsWith("#")) continue;
     const match = FIELD.exec(line), value = match?.[2] === undefined ? undefined : valueOf(match[2]);
-    if (!match || value === undefined) refuse([{ reason: `SKILL.md 的 frontmatter 第 ${index + 2} 行要写成一行的 key: value（不支持嵌套和多行值）` }]);
+    if (!match || value === undefined) refuseDeclarations([{ reason: `SKILL.md 的 frontmatter 第 ${index + 2} 行要写成一行的 key: value（不支持嵌套和多行值）` }]);
     fields.set(match[1]!, value);
   }
   return fields;

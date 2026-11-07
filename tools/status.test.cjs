@@ -97,6 +97,17 @@ test('RAR-04 early contract work does not unlock consumers that need the complet
   assert.equal(D.state['16'], 'wait');
 });
 
+test('RAR-04 batch 12 remains unfinished until its added return capability is delivered', () => {
+  const D = apply(snapshot, { '12-1': '已合入', '12-2': '已合入' });
+  const batch12 = D.batches.find(b => b.id === '12');
+  const returning = batch12.items.find(i => i.t === '草稿与返回能力');
+  assert.ok(returning);
+  assert.equal(returning.s, '待认领');
+  assert.equal(batch12.merged, 2);
+  assert.notEqual(D.state['12'], 'done');
+  assert.ok(D.batches.find(b => b.id === '13').remainingParts.includes('12'));
+});
+
 test('RAR-05 generated page uses the tested template algorithm', () => {
   assert.equal(generated.slice(generated.indexOf('const STAGES='), generated.indexOf('// 上次读到的进展')), algorithm);
 });

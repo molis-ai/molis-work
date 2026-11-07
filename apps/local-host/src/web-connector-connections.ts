@@ -1,4 +1,6 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { normalizeConnectorTokenInput } from "@molis-ai/molis-work-service-connector-host";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorManagementActions } from "./connector-management-actions.js";
@@ -12,12 +14,26 @@ import { controlConnectorConnection } from "./connector-management-service.js";
 import { connectorDirectory } from "./connector-directory.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
-import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
+import { checkConnectorSetupSubmission, startConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { activateConnectorConnection, type ConnectorActivation } from "./connector-activation.js";
-import { checkSavedConnection, verifyEnabledConnection } from "./connector-check-service.js";
+import { verifyEnabledConnection } from "./connector-check-service.js";
+import { checkCandidateKey, rememberCandidateCheck, type CandidateCheck } from "./connector-candidate-check.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
+
+/** Why a key checked before saving was not saved, by the read's code (`connector-access.ts`); the page words each its own way. */
+const CANDIDATE_FAILURES: Record<string, string> = {
+  "connector.read.refused": "服务拒绝了这把密钥，没有保存",
+  "connector.read.unreachable": "暂时连不上服务，密钥没有保存",
+  "connector.read.answered": "服务没有确认这把密钥，没有保存",
+  "connector.check.rate_limited": "服务那边请求太多，密钥没有保存",
+};
+
+/** A key the service accepted before it was saved: that check is the first one of the version just written (§13.2). */
+function passedCheck(home: string, connectionId: string, checked: CandidateCheck | null) {
+  return checked ? rememberCandidateCheck(home, connectionId, checked) : undefined;
+}
 
 
 export async function handleConnectorConnectionsHttp(
@@ -62,16 +78,21 @@ export async function handleConnectorConnectionsHttp(
       if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw connectorErrors["connector.connection.invalid"]("此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
       // A signed package's service: the new connection is pinned to the package that declares it now, read from the Home's registry, never from the body (T-134).
       const declarer = registry.connectionDeclarer(service.connector_id);
-      const setup = startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined, { service_id: body.service_id as string, method: "token" });
+      const setupId = typeof body.setup_id === "string" ? body.setup_id : undefined, plan = { service_id: body.service_id as string, method: "token" as const };
+      // The key is checked before anything is written (§13.6 ④d): a key the service refuses leaves no connection, and a prepared request
+      // stays open for another try. The request is begun only after the check, so a refusal does not end it.
+      checkConnectorSetupSubmission(homeDirectory, setupId, plan);
+      const completion: ConnectorActivation = { kind: "token", input: normalizeConnectorTokenInput({
+        serviceId: body.service_id as string, displayName: body.display_name as string,
+        token: body.token as string, accountLabel: typeof body.account_label === "string" ? body.account_label : null,
+      }), ...(declarer ? { declarer } : {}) };
+      const checked = remember ? await checkCandidateKey(homeDirectory, { serviceId: completion.input.serviceId, token: completion.input.token }) : null;
+      const setup = startConnectorSetupSubmission(homeDirectory, setupId, plan);
       try {
         setup?.assertCurrent();
-        const completion: ConnectorActivation = { kind: "token", input: {
-          serviceId: body.service_id as string, displayName: body.display_name as string,
-          token: body.token as string, accountLabel: typeof body.account_label === "string" ? body.account_label : null,
-        }, ...(declarer ? { declarer } : {}) };
         const result = setup ? setup.submit(completion) : { connection: activateConnectorConnection(homeDirectory, completion) };
         const saved = "connection" in result && result.connection ? result.connection.connection_id : undefined;
-        const verification = saved && remember ? await checkSavedConnection(homeDirectory, saved, remember) : undefined;
+        const verification = saved ? passedCheck(homeDirectory, saved, checked) : undefined;
         sendJson(response, "status" in result && result.status === "pending" ? 202 : 201, { ...result, ...(verification ? { verification } : {}) });
       } catch (error) { setup?.fail(); throw error; }
       return true;
@@ -80,15 +101,22 @@ export async function handleConnectorConnectionsHttp(
       const body = await readLocalWebBody(request);
       const completion: ConnectorActivation | undefined = typeof body.token === "string" ? withConnectorConnections(homeDirectory, store => {
         const current = store.require(item[1]!);
-        return { kind: "token", input: { serviceId: current.service_id, displayName: typeof body.display_name === "string" ? body.display_name : current.display_name, token: body.token as string },
+        return { kind: "token", input: normalizeConnectorTokenInput({ serviceId: current.service_id, displayName: typeof body.display_name === "string" ? body.display_name : current.display_name, token: body.token as string }),
           target: { connectionId: current.connection_id, expectedRevision: current.updated_at } };
       }) : undefined;
-      const setup = completion ? startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
-        { service_id: completion.input.serviceId, method: "token", connection_id: item[1]! }) : undefined;
+      const setupId = typeof body.setup_id === "string" ? body.setup_id : undefined;
+      const plan = completion ? { service_id: completion.input.serviceId, method: "token" as const, connection_id: item[1]! } : undefined;
+      // A new key replaces the old one only once the service accepts it (§13.6 ④d): until then, and when it is refused, the old key stays.
+      // The check is held to the version of the connection read above, and the save compares that version again.
+      if (plan) checkConnectorSetupSubmission(homeDirectory, setupId, plan);
+      const checked = completion?.target?.expectedRevision && remember ? await checkCandidateKey(homeDirectory, { serviceId: completion.input.serviceId,
+        token: completion.input.token, target: { connectionId: completion.target.connectionId, expectedRevision: completion.target.expectedRevision } }) : null;
+      const setup = plan ? startConnectorSetupSubmission(homeDirectory, setupId, plan) : undefined;
       if (setup && completion) {
         try {
           const result = setup.submit(completion);
-          sendJson(response, result.status === "pending" ? 202 : 200, result); return true;
+          const verification = result.status === "connected" ? passedCheck(homeDirectory, item[1]!, checked) : undefined;
+          sendJson(response, result.status === "pending" ? 202 : 200, { ...result, ...(verification ? { verification } : {}) }); return true;
         } catch (error) { setup.fail(); throw error; }
       }
       const connection = completion ? activateConnectorConnection(homeDirectory, completion) : withConnectorConnections(homeDirectory, (store) => {
@@ -103,8 +131,8 @@ export async function handleConnectorConnectionsHttp(
         const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;
         sendJson(response, 200, { ...result, ...(verification ? { verification } : {}) }); return true;
       }
-      // A replaced key is checked like a new one; a rename is not a change to check.
-      const verification = completion && remember ? await checkSavedConnection(homeDirectory, item[1]!, remember) : undefined;
+      // A replaced key was checked before it went in; a rename is not a change to check.
+      const verification = completion ? passedCheck(homeDirectory, item[1]!, checked) : undefined;
       sendJson(response, 200, { connection, ...(verification ? { verification } : {}) });
       return true;
     }
@@ -114,6 +142,14 @@ export async function handleConnectorConnectionsHttp(
     }
     sendJson(response, 405, { error: "不支持的连接操作" });
   } catch (error) {
+    // A key the check before saving did not pass (§13.6 ④d): nothing was written, and the answer says why by the read's code, in the Host's
+    // words. The service's own words stay out of it, since a service can echo back the key it was given.
+    const unchecked = error instanceof ActionError && Object.hasOwn(CANDIDATE_FAILURES, error.code) ? error : undefined;
+    if (unchecked) {
+      const retry_at = typeof unchecked.details?.retry_at === "string" ? unchecked.details.retry_at : undefined;
+      sendJson(response, actionHttpStatus(unchecked), { error: CANDIDATE_FAILURES[unchecked.code], code: unchecked.code, saved: false, ...(retry_at ? { details: { retry_at } } : {}) });
+      return true;
+    }
     const known = (error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code));
     sendJson(response, known && error.code === "connector.connection.not_found" ? 404 : 400, {
       error: known ? error.message : "连接操作失败，请检查本机凭据存储和输入",

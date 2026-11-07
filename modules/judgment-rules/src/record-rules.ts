@@ -21,6 +21,25 @@ const DEFAULT_CHOICE: readonly ChoiceCriterion[] = [
 const DEFAULT_NOUL: NoulCriteria = { true_description: "", false_description: "" };
 const DEFAULT_SCORE: readonly string[] = ["低", "高"];
 
+/** Details carry the id alone; the latest content comes from a read, never from the error. */
+export const staleRule = (id: string) => functionsErrors.draft_stale("这条规则在别处改过，先读取最新内容再提交", { id });
+
+/** Every write names the `updated_at` it read. */
+export function assertRuleVersion(record: JudgmentRuleRecord, expectedUpdatedAt: string): void {
+  if (record.updated_at !== expectedUpdatedAt) throw staleRule(record.id);
+}
+
+/**
+ * Whether publishing has nothing left to do. Publishing does not move `updated_at`, so a published record's `updated_at` is the definition
+ * that went out: the caller who read that one sees success (a retry, or someone else publishing it), the caller who read an earlier one has
+ * not seen what was published and is refused. A draft has to be the version the caller read.
+ */
+export function alreadyPublished(record: JudgmentRuleRecord, expectedUpdatedAt: string): boolean {
+  if (record.status !== "published") { assertRuleVersion(record, expectedUpdatedAt); return false; }
+  if (record.updated_at === expectedUpdatedAt) return true;
+  throw functionsErrors.published_immutable("这条规则已在别处发布，发布的内容和你读到的不同", { id: record.id });
+}
+
 export function assertReadyToPublish(record: JudgmentRuleRecord): void {
   normalizeInstructions(record.instructions);
   normalizeCriteria(record.primitive, record.criteria, true);

@@ -17,9 +17,9 @@ test("Choice returns only the selected precise recommendation and original histo
   let service = open();
   try {
     const draft = service.create({ primitive: "choice" });
-    service.updateDraft(draft.id, { scene_id: "agent.mcp", instructions: "Choose", criteria, action_map: { save: reference } });
-    await service.preview(draft.id, "Example");
-    const published = service.publish(draft.id);
+    service.updateDraft(draft.id, { scene_id: "agent.mcp", instructions: "Choose", criteria, action_map: { save: reference } }, service.get(draft.id).updated_at);
+    await service.preview(draft.id, "Example", service.get(draft.id).updated_at);
+    const published = service.publish(draft.id, service.get(draft.id).updated_at);
     assert.deepEqual((await service.invokePublished(published.function_key, "Save")).recommended_actions, [reference]);
     choice = "skip";
     assert.deepEqual((await service.invokePublished(published.function_key, "Skip")).recommended_actions, []);
@@ -38,15 +38,15 @@ test("Agent maps retain unavailable identities, reject incomplete references, an
   const service = createFunctionsService({ home, credential: () => null });
   try {
     const draft = service.create({ primitive: "choice" });
-    service.updateDraft(draft.id, { scene_id: "agent.mcp", criteria, action_map: { save: reference } });
-    assert.deepEqual(service.updateDraft(draft.id, { name: "Changed title" }).action_map, { save: reference });
+    service.updateDraft(draft.id, { scene_id: "agent.mcp", criteria, action_map: { save: reference } }, service.get(draft.id).updated_at);
+    assert.deepEqual(service.updateDraft(draft.id, { name: "Changed title" }, service.get(draft.id).updated_at).action_map, { save: reference });
     for (const bad of [{ capability_id: reference.capability_id, version: 1 }, { ...reference, version: 0 }, { ...reference, provider_id: "bad provider" }]) {
-      assert.throws(() => service.updateDraft(draft.id, { action_map: { save: bad } as never }), { code: "functions.invalid" });
+      assert.throws(() => service.updateDraft(draft.id, { action_map: { save: bad } as never }, service.get(draft.id).updated_at), { code: "functions.invalid" });
     }
     assert.deepEqual(service.get(draft.id).action_map, { save: reference });
-    const replaced = service.updateDraft(draft.id, { criteria: [{ key: "read", description: "Read" }, criteria[1]!] });
+    const replaced = service.updateDraft(draft.id, { criteria: [{ key: "read", description: "Read" }, criteria[1]!] }, service.get(draft.id).updated_at);
     assert.deepEqual(replaced.action_map, {});
-    service.updateDraft(draft.id, { criteria, action_map: { save: reference } });
-    assert.deepEqual(service.updateDraft(draft.id, { scene_id: null }).action_map, {});
+    service.updateDraft(draft.id, { criteria, action_map: { save: reference } }, service.get(draft.id).updated_at);
+    assert.deepEqual(service.updateDraft(draft.id, { scene_id: null }, service.get(draft.id).updated_at).action_map, {});
   } finally { service.close(); await rm(home, { recursive: true, force: true }); }
 });

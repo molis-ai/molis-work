@@ -18,15 +18,15 @@ test("W2-18-FUNCTION-CHOICE-01 raw out-of-enum answers cannot save a preview, pu
   const refused = (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "functions.provider_failed";
   try {
     const draft = service.createChoice({ name: "Choice" });
-    service.updateDraft(draft.id, { instructions: "Choose", criteria: [{ key: "yes", description: "Yes" }, { key: "no", description: "No" }] });
+    service.updateDraft(draft.id, { instructions: "Choose", criteria: [{ key: "yes", description: "Yes" }, { key: "no", description: "No" }] }, service.get(draft.id).updated_at);
     const before = service.get(draft.id);
-    await assert.rejects(service.preview(draft.id, "input"), refused);
+    await assert.rejects(service.preview(draft.id, "input", service.get(draft.id).updated_at), refused);
     assert.deepEqual(service.get(draft.id), before);
-    assert.throws(() => service.publish(draft.id), { code: "functions.preview_required" });
+    assert.throws(() => service.publish(draft.id, service.get(draft.id).updated_at), { code: "functions.preview_required" });
     assert.deepEqual(service.listJudgments(), []);
     assert.equal(calls, 1, "a refused raw answer is not retried");
-    choice = "yes"; await service.preview(draft.id, "valid");
-    const record = service.publish(draft.id), exact = publishedFunctionProvider(record, {
+    choice = "yes"; await service.preview(draft.id, "valid", service.get(draft.id).updated_at);
+    const record = service.publish(draft.id, service.get(draft.id).updated_at), exact = publishedFunctionProvider(record, {
       credentialAvailable: () => true, read: op => op(service), run: op => op(service),
     });
     const general = functionsActionProvider({ credentialAvailable: () => true, read: op => op(service), run: op => op(service) });

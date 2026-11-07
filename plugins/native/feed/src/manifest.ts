@@ -35,7 +35,7 @@ export const feedManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: FEED_PERMISSIONS,
   // A Goal's material is read after the Goal itself has been read, as the caller (`feed.goals.context`).
-  capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id, ...(feedItemActions.promote.action.required_actions ?? []).map(action => action.capability_id)] },
+  capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.get", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id, ...(feedItemActions.promote.action.required_actions ?? []).map(action => action.capability_id)] },
   actions: FEED_ACTIONS,
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息",
     preview: { capability_id: "feed.artifacts.preview", version: /* @version action.feed.artifacts.preview */ 1 } }], consumes: [] },

@@ -137,6 +137,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     }
     else closeEditor();
   };
+  const revisionOf = (rec) => ({ expected_updated_at: rec.updated_at });
   const draftBody = () => ({
     name: nameInput.value,
     function_key: keyInput.value,
@@ -146,7 +147,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     subject_kinds: readKinds(),
     scene_map: sceneMap(),
     action_map: actionMap(),
-    updated_at: sel.updated_at,
+    ...revisionOf(sel),
   });
   let saving = null;
   const saveDraft = async () => {
@@ -154,7 +155,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     const rec = sel, revision = editRevision;
     if (!rec || rec.status === "published") return rec;
     const body = draftBody();
-    if (saving) { const prior = await saving; if (prior?.id === rec.id) body.updated_at = prior.updated_at; }
+    if (saving) { const prior = await saving; if (prior?.id === rec.id) Object.assign(body, revisionOf(prior)); }
     const operation = persistDraft(rec.id, body, revision);
     saving = operation;
     try { return await operation; } finally { if (saving === operation) saving = null; }

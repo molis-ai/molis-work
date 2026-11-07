@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { bindActionClient, type ActionCallContext, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionCallContext, type ActionSceneDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRuleRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -14,6 +14,8 @@ import { functionsActionProvider } from "@molis-ai/molis-work-module-judgment-ru
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/judgment-rules-host.js";
 
 const owner: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] };
+/** What a caller holds after reading the rule: the version its next edit names. */
+const readVersion = async (actions: Pick<BoundActionClient, "invoke">, id: string) => (await actions.invoke(authoring.get, { id })).function.updated_at;
 
 test("a draft changed during asynchronous publication validation cannot publish unchecked edits", async () => {
   const home = await mkdtemp(join(tmpdir(), "rule-publication-race-"));
@@ -31,13 +33,13 @@ test("a draft changed during asynchronous publication validation cannot publish 
   const actions = bindActionClient(service, () => owner);
   try {
     const { function: draft } = await actions.invoke(authoring.create, { primitive: "noul" });
-    await actions.invoke(authoring.update, { id: draft.id, patch: { instructions: "Original", criteria: { true_description: "Yes", false_description: "No" } } });
-    await actions.invoke(authoring.preview, { id: draft.id, input: "Sample" });
-    const publication = actions.invoke(authoring.publish, { id: draft.id });
-    const rejected = assert.rejects(publication, { code: "functions.conflict" });
+    await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), patch: { instructions: "Original", criteria: { true_description: "Yes", false_description: "No" } } });
+    await actions.invoke(authoring.preview, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), input: "Sample" });
+    const publication = actions.invoke(authoring.publish, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) });
+    const rejected = assert.rejects(publication, { code: "functions.draft_stale" });
     await entered;
     // Object restrictions do not change the model preview, but do change scene compatibility.
-    await actions.invoke(authoring.update, { id: draft.id, patch: { subject_kinds: ["unchecked-new-kind"] } });
+    await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), patch: { subject_kinds: ["unchecked-new-kind"] } });
     release(); await rejected;
     const retained = (await actions.invoke(authoring.get, { id: draft.id })).function;
     assert.equal(retained.status, "draft"); assert.deepEqual(retained.subject_kinds, ["unchecked-new-kind"]);
@@ -61,19 +63,19 @@ test("publication checks live scene contracts and retains drafts after missing, 
   });
   try {
     const { function: draft } = await actions.invoke(authoring.create, { primitive: "noul", name: "Review" });
-    await actions.invoke(authoring.update, { id: draft.id, patch: { instructions: "Review", scene_id: scene.scene_id, subject_kinds: ["wrong"],
+    await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), patch: { instructions: "Review", scene_id: scene.scene_id, subject_kinds: ["wrong"],
       criteria: { true_description: "Accept", false_description: "Later" }, scene_map: { true: "ack", false: "later" } } });
-    await actions.invoke(authoring.preview, { id: draft.id, input: "Original note" });
-    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id }), { code: "actions.scene_missing" });
+    await actions.invoke(authoring.preview, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), input: "Original note" });
+    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) }), { code: "actions.scene_missing" });
     const remove = register(scene);
-    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id }), { code: "actions.scene_incompatible" });
-    await actions.invoke(authoring.update, { id: draft.id, patch: { subject_kinds: ["note"] } });
-    await actions.invoke(authoring.preview, { id: draft.id, input: "Original note" });
+    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) }), { code: "actions.scene_incompatible" });
+    await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), patch: { subject_kinds: ["note"] } });
+    await actions.invoke(authoring.preview, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), input: "Original note" });
     available = false;
-    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id }), { code: "example.offline" });
+    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) }), { code: "example.offline" });
     available = true;
     const removeSecond = register({ ...scene, version: 2, recommendation_labels: { ack: "Version two approval", later: "Version two deferral" } });
-    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id }), { code: "actions.scene_ambiguous" });
+    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) }), { code: "actions.scene_ambiguous" });
     const catalog = (await actions.invoke(functionContextActions.catalog, {})).catalog;
     // Both versions are listed under one scene id, so a selection by id alone matches two destinations and the page (see
     // tests/functions-plugin.test.ts) suggests nothing; a pinned version and provider match one, whose first suggestion is its own label.
@@ -84,13 +86,13 @@ test("publication checks live scene contracts and retains drafts after missing, 
     assert.equal(labelled(2).find(row => row.option_id === "ack")?.title, "Version two approval");
     assert.equal(labelled(1).find(row => row.option_id === "ack")?.title, "ack", "version one declares no label");
     const { function: pinned } = await actions.invoke(authoring.create, { primitive: "noul", name: "Pinned version" });
-    await assert.rejects(actions.invoke(authoring.update, { id: pinned.id, patch: { scene_id: scene.scene_id, scene_version: 2 } }), { code: "functions.invalid" });
-    await actions.invoke(authoring.update, { id: pinned.id, patch: { instructions: "Review", scene_id: scene.scene_id, scene_version: 2, scene_provider_id: "wrong-provider",
+    await assert.rejects(actions.invoke(authoring.update, { id: pinned.id, expected_updated_at: await readVersion(actions, pinned.id), patch: { scene_id: scene.scene_id, scene_version: 2 } }), { code: "functions.invalid" });
+    await actions.invoke(authoring.update, { id: pinned.id, expected_updated_at: await readVersion(actions, pinned.id), patch: { instructions: "Review", scene_id: scene.scene_id, scene_version: 2, scene_provider_id: "wrong-provider",
       subject_kinds: ["note"], criteria: { true_description: "Accept", false_description: "Later" }, scene_map: { true: "ack", false: "later" } } });
-    await actions.invoke(authoring.preview, { id: pinned.id, input: "Original note" });
-    await assert.rejects(actions.invoke(authoring.publish, { id: pinned.id }), { code: "actions.scene_missing" });
-    await actions.invoke(authoring.update, { id: pinned.id, patch: { scene_provider_id: "example.review" } });
-    const exact = (await actions.invoke(authoring.publish, { id: pinned.id })).function;
+    await actions.invoke(authoring.preview, { id: pinned.id, expected_updated_at: await readVersion(actions, pinned.id), input: "Original note" });
+    await assert.rejects(actions.invoke(authoring.publish, { id: pinned.id, expected_updated_at: await readVersion(actions, pinned.id) }), { code: "actions.scene_missing" });
+    await actions.invoke(authoring.update, { id: pinned.id, expected_updated_at: await readVersion(actions, pinned.id), patch: { scene_provider_id: "example.review" } });
+    const exact = (await actions.invoke(authoring.publish, { id: pinned.id, expected_updated_at: await readVersion(actions, pinned.id) })).function;
     assert.equal(exact.scene_version, 2); assert.equal(exact.scene_provider_id, "example.review");
     assert.deepEqual(publishedFunctionAction(exact).action.result_scene, { scene_id: scene.scene_id, version: 2, provider_id: "example.review" });
     let compatible = await host.sceneClient().discoverScenes(owner, publishedFunctionAction(exact));
@@ -105,17 +107,17 @@ test("publication checks live scene contracts and retains drafts after missing, 
     const standalone = await actions.invoke(publishedFunctionAction(exact), { content: "Still callable without its consumer" });
     assert.equal(standalone.status, "ok");
     removeReplacement();
-    await actions.invoke(authoring.update, { id: draft.id, patch: { scene_map: { true: "not-accepted", false: "later" } } });
-    await actions.invoke(authoring.preview, { id: draft.id, input: "Original note" });
-    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id }), { code: "actions.scene_incompatible" });
+    await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), patch: { scene_map: { true: "not-accepted", false: "later" } } });
+    await actions.invoke(authoring.preview, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), input: "Original note" });
+    await assert.rejects(actions.invoke(authoring.publish, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) }), { code: "actions.scene_incompatible" });
     const retained = (await actions.invoke(authoring.get, { id: draft.id })).function;
     assert.equal(retained.status, "draft"); assert.equal(retained.scene_map.true, "not-accepted");
-    await actions.invoke(authoring.update, { id: draft.id, patch: { scene_map: { true: "ack", false: "later" } } });
-    const published = (await actions.invoke(authoring.publish, { id: draft.id })).function;
+    await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), patch: { scene_map: { true: "ack", false: "later" } } });
+    const published = (await actions.invoke(authoring.publish, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) })).function;
     assert.equal(published.status, "published");
     assert.equal(published.scene_version, 1); assert.equal(published.scene_provider_id, "example.review", "legacy draft pins the sole validated scene during publication");
     remove();
-    assert.equal((await actions.invoke(authoring.publish, { id: draft.id })).function.id, published.id, "repeated publication does not mutate the immutable version");
+    assert.equal((await actions.invoke(authoring.publish, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) })).function.id, published.id, "repeated publication does not mutate the immutable version");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -148,24 +150,24 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
       assert.equal((await actions.invoke(authoring.get, { id: draft.id })).function.function_key, draft.function_key);
       const criteria = primitive === "choice" ? [{ key: "yes", description: "yes" }, { key: "no", description: "no" }]
         : primitive === "score" ? ["low", "high"] : { true_description: "yes", false_description: "no" };
-      const updated = (await actions.invoke(authoring.update, { id: draft.id, updated_at: draft.updated_at, patch: { instructions: "Check the input", criteria } })).function;
-      await http(`/api/functions/${draft.id}`, { updated_at: draft.updated_at, name: "stale" }, 409);
-      await assert.rejects(client.invoke({ ...owner, permissions: ["functions:manage"] }, authoring.preview, { id: draft.id, input: "denied" }), { code: "actions.forbidden" });
-      const preview = (await http(`/api/functions/${draft.id}/preview`, { input: `preview-${primitive}`, updated_at: updated.updated_at })).function;
+      const updated = (await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: draft.updated_at, patch: { instructions: "Check the input", criteria } })).function;
+      await http(`/api/functions/${draft.id}`, { expected_updated_at: draft.updated_at, name: "stale" }, 409);
+      await assert.rejects(client.invoke({ ...owner, permissions: ["functions:manage"] }, authoring.preview, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), input: "denied" }), { code: "actions.forbidden" });
+      const preview = (await http(`/api/functions/${draft.id}/preview`, { input: `preview-${primitive}`, expected_updated_at: updated.updated_at })).function;
       assert.equal(preview.last_preview?.primitive, primitive, "HTTP preview must use the Host-injected provider");
-      const live = (await http(`/api/functions/${draft.id}/publish`, { updated_at: preview.updated_at })).function;
+      const live = (await http(`/api/functions/${draft.id}/publish`, { expected_updated_at: preview.updated_at })).function;
       published.push(live);
       assert.equal(live.status, "published");
       assert.ok((await client.discover(owner)).some(row => row.capability_id === publishedFunctionAction(live).capability_id && row.version === live.version));
       await actions.invoke(publishedFunctionAction(live), { content: `invoke-${primitive}` });
-      await http(`/api/functions/${live.id}/delete`, {}, 400);
+      assert.equal((await http(`/api/functions/${live.id}/delete`, { expected_updated_at: live.updated_at }, 400)).code, "functions.published_immutable");
     }
     assert.deepEqual(calls, ["preview-choice", "invoke-choice", "preview-noul", "invoke-noul", "preview-score", "invoke-score"]);
     const draft = (await actions.invoke(authoring.create, { name: "Samples" })).function;
-    const sampled = (await actions.invoke(authoring.addSample, { id: draft.id, input: "example" })).function;
+    const sampled = (await actions.invoke(authoring.addSample, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), input: "example" })).function;
     assert.equal(sampled.samples[0]?.input, "example");
-    assert.equal((await actions.invoke(authoring.removeSample, { id: draft.id, sample_id: sampled.samples[0]!.id })).function.samples.length, 0);
-    await actions.invoke(authoring.delete, { id: draft.id });
+    assert.equal((await actions.invoke(authoring.removeSample, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), sample_id: sampled.samples[0]!.id })).function.samples.length, 0);
+    await actions.invoke(authoring.delete, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id) });
     await assert.rejects(actions.invoke(authoring.get, { id: draft.id }), { code: "functions.not_found" });
     assert.deepEqual(host.status().projects, [], "authoring does not create an artificial project");
     await first.close();
@@ -209,9 +211,9 @@ test("cancelling a registered trial forwards cancellation and does not persist a
   try {
     const actions = bindActionClient(host.homeActionClient(), () => owner);
     const draft = (await actions.invoke(authoring.create, { primitive: "noul" })).function;
-    await actions.invoke(authoring.update, { id: draft.id, patch: { instructions: "Decide", criteria: { true_description: "yes", false_description: "no" } } });
+    await actions.invoke(authoring.update, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), patch: { instructions: "Decide", criteria: { true_description: "yes", false_description: "no" } } });
     const controller = new AbortController();
-    const pending = host.homeActionClient().invoke({ ...owner, signal: controller.signal }, authoring.preview, { id: draft.id, input: "cancel" });
+    const pending = host.homeActionClient().invoke({ ...owner, signal: controller.signal }, authoring.preview, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), input: "cancel" });
     const rejected = assert.rejects(pending, { name: "AbortError" });
     await started; controller.abort(); await rejected;
     assert.equal((await actions.invoke(authoring.get, { id: draft.id })).function.last_preview, null);
@@ -222,7 +224,7 @@ test("cancelling a registered trial forwards cancellation and does not persist a
       return { primitive: "noul", choice: null, noul: .8, score: null, legend: null, probabilities: {}, confidence: null, model: "jev-1.13.0" };
     };
     const lateController = new AbortController();
-    const late = host.homeActionClient().invoke({ ...owner, signal: lateController.signal }, authoring.preview, { id: draft.id, input: "late result" });
+    const late = host.homeActionClient().invoke({ ...owner, signal: lateController.signal }, authoring.preview, { id: draft.id, expected_updated_at: await readVersion(actions, draft.id), input: "late result" });
     const lateRejected = assert.rejects(late, { name: "AbortError" });
     await lateStarted; lateController.abort(); finish(); await lateRejected;
     assert.equal((await actions.invoke(authoring.get, { id: draft.id })).function.last_preview, null, "a provider ignoring cancellation cannot persist a late result");

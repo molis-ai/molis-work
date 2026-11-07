@@ -88,7 +88,7 @@ async function twoInstalls(t: test.TestContext) {
   assert.equal(installA.install_id, installB.install_id, "one plugin, one installation id, in both projects");
   tools.declare(probe.id, key);
   tools.bind(key, a.project_id);
-  const sample = withFunctionsService(home, service => service.addSample(service.getByKey(key)!.id, { input: "B 的人留下的示例" }), OPTIONS);
+  const sample = withFunctionsService(home, service => service.addSample(service.getByKey(key)!.id, { input: "B 的人留下的示例" }, service.get(service.getByKey(key)!.id).updated_at), OPTIONS);
   assert.equal(tools.bound(key, b.project_id), false, "B has no binding");
   const declared = tools.rule(key);
   assert.deepEqual(declared, sample);

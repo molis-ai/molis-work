@@ -67,7 +67,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     const rec = sel;
     if (!window.confirm(L("确定删除这个草稿？"))) return;
     try {
-      await req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/delete", { updated_at: rec.updated_at });
+      await req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/delete", revisionOf(rec));
       if (sel?.id === rec.id) closeEditor();
       await loadList({ preserveForm: true });
     } catch (error) { if (sel?.id === rec.id) showNote(error, true); }
@@ -190,7 +190,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       const rec = sel, origin = { id: rec.id, revision: editRevision };
       try {
         const payload = await req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/samples/delete", {
-          sample_id: row.dataset.sampleId, updated_at: rec.updated_at,
+          sample_id: row.dataset.sampleId, ...revisionOf(rec),
         });
         remember(payload.function, origin);
       } catch (error) { if (sel?.id === rec.id) showNote(error, true); }
@@ -201,7 +201,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     const origin = { id: sel.id, revision: editRevision }, input = sampleText.value;
     try {
       const saved = await saveDraft();
-      const payload = await req("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, updated_at: saved.updated_at });
+      const payload = await req("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, ...revisionOf(saved) });
       remember(payload.function, origin);
     } catch (error) { if (sel?.id === origin.id) showNote(error, true); }
   });
@@ -233,7 +233,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       if (sel?.id !== previewId) return;
       const payload = await req("POST", "/api/functions/" + encodeURIComponent(previewId) + "/preview", {
         input: sampleText.value,
-        updated_at: sel.updated_at,
+        ...revisionOf(sel),
       });
       if (sel?.id !== previewId) return;
       remember(payload.function);
@@ -274,7 +274,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       await saveDraft();
       if (sel?.id !== publishId) return;
       const path = "/api/functions/" + encodeURIComponent(publishId) + "/publish";
-      const body = { updated_at: sel.updated_at };
+      const body = revisionOf(sel);
       const payload = api ? await api(path, "POST", body) : await req("POST", path, body);
       if (sel?.id !== publishId) return;
       remember(payload.function);

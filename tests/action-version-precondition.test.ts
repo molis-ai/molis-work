@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
@@ -20,10 +21,10 @@ function fixture(action: ActionDefinition, handle?: (context: ActionExecutionCon
 }
 const refuses = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code && actionErrorKind(error) === "invalid";
 
-for (const audience of ["agent", "mcp"] as const) for (const field of ["expected_version", "expected_revision", "expected_revisions", "expected_updated_at", "updated_at"])
+for (const audience of ["agent", "mcp"] as const) for (const field of ["expected_version", "expected_revision", "expected_revisions", "expected_updated_at"])
   test(`W3-09-3-01: ${audience} must supply ${field} before any production handler runs`, async () => {
     const map = field === "expected_revisions", shape: ActionSchema = map ? { type: "object", additionalProperties: { type: "integer", minimum: 0 } } : field.includes("at") ? { type: ["string", "null"], minLength: 1 } : { type: "integer", minimum: 0 };
-    const action = definition(field, shape, { ...(field === "updated_at" ? { capability: "functions.authoring.update" } : {}) });
+    const action = definition(field, shape);
     const { service, facts } = fixture(action);
     await assert.rejects(service.invoke(caller(audience), action, { value: "原稿" }), refuses("actions.version_required"));
     await assert.rejects(service.invoke(caller(audience), action, { value: "进程内缺前提", [field]: undefined }), refuses("actions.version_required"));
@@ -56,12 +57,25 @@ for (const field of ["expected_revisions", "expected_updated_at"]) test(`W3-09-3
   await service.invoke(caller("agent"), action, { value: "新稿", ids: ["a", "b"], [field]: { a: revision, b: revision } }); assert.equal(facts.length, 1);
 });
 
-test("W3-09-3-02: the actual create-if-absent null contract is preserved while Functions updated_at null refuses AI writes", async () => {
+test("W3-09-3-02: the actual create-if-absent null contract is preserved while a required expected_updated_at refuses null from everyone", async () => {
   const create = definition("expected_revision", { type: ["string", "null"] }, { required: true }), a = fixture(create);
   await a.service.invoke(caller("agent"), create, { value: "首次绑定", expected_revision: null }); assert.equal(a.facts.length, 1);
-  const update = definition("updated_at", { type: ["string", "null"] }, { capability: "functions.authoring.update" }), b = fixture(update);
-  await assert.rejects(b.service.invoke(caller("agent"), update, { value: "覆盖草稿", updated_at: null }), refuses("actions.version_required")); assert.deepEqual(b.facts, []);
-  await b.service.invoke(caller("user"), update, { value: "本人保存", updated_at: null }); assert.equal(b.facts.length, 1);
+  const update = definition("expected_updated_at", { type: "string", minLength: 1 }, { required: true }), b = fixture(update);
+  for (const audience of ["agent", "mcp", "user"] as const) for (const value of [null, ""])
+    await assert.rejects(b.service.invoke(caller(audience), update, { value: "覆盖草稿", expected_updated_at: value }), refuses("actions.input_invalid"), audience);
+  assert.deepEqual(b.facts, []);
+  await b.service.invoke(caller("agent"), update, { value: "带版本保存", expected_updated_at: "2026-10-13T10:00:00Z" }); assert.equal(b.facts.length, 1);
+});
+
+test("AIC-06: the kernel knows version fields by name alone: no capability id makes another field a version", async () => {
+  for (const capability of ["functions.authoring.update", "fixture.version.updated_at"]) {
+    const action = definition("updated_at", { type: ["string", "null"] }, { capability }), { service, facts } = fixture(action);
+    await service.invoke(caller("agent"), action, { value: "没有版本字段的命令" });
+    await service.invoke(caller("agent"), action, { value: "也不是前提", updated_at: null });
+    assert.equal(facts.length, 2, capability);
+  }
+  const source = await readFile(new URL("../packages/kernel/src/version-precondition.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /capability_id|functions\.|authoring/);
 });
 
 test("W3-09-3-03: only the dispatcher's active execution context exempts nested AI calls; a new top-level caller inside it still needs a version", async () => {

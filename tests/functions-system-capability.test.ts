@@ -96,9 +96,9 @@ async function publishChoice(
   service.updateDraft(created.id, {
     instructions: "挑一个已登记行为",
     criteria,
-  });
-  await service.preview(created.id, "样例");
-  const published = service.publish(created.id);
+  }, service.get(created.id).updated_at);
+  await service.preview(created.id, "样例", service.get(created.id).updated_at);
+  const published = service.publish(created.id, service.get(created.id).updated_at);
   return { service, published };
 }
 
@@ -183,9 +183,9 @@ test("system module can publish using the existing rule store", async () => {
           { key: "yes", description: "账单" },
           { key: "no", description: "其他" },
         ],
-      });
-      await service.preview(created.id, "请退款");
-      const published = service.publish(created.id);
+      }, service.get(created.id).updated_at);
+      await service.preview(created.id, "请退款", service.get(created.id).updated_at);
+      const published = service.publish(created.id, service.get(created.id).updated_at);
       assert.equal(published.status, "published");
       assert.equal(published.version, 1);
     } finally {
@@ -340,9 +340,9 @@ test("agent.mcp functions are plain judgments, never a site scene's recommendati
         ],
         scene_id: "agent.mcp",
         subject_kinds: ["mcp_invoke"],
-      });
-      await service.preview(created.id, "样例");
-      const published = service.publish(created.id);
+      }, service.get(created.id).updated_at);
+      await service.preview(created.id, "样例", service.get(created.id).updated_at);
+      const published = service.publish(created.id, service.get(created.id).updated_at);
       assert.equal(publishedFunctionAction(published).action.output_type, "molis.judgment.v1");
     } finally {
       service.close();

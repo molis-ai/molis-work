@@ -59,7 +59,7 @@ window.__handle = async (method, path, body) => {
     if (window.__delay) await window.__delay;
     const current = records[id];
     if (!String(body.name || "").trim()) return { status: 400, body: { error: "名称须为 1 到 80 个字", code: "functions.invalid" } };
-    if (body.updated_at !== current.updated_at) return { status: 409, body: { error: "草稿已被更新，请刷新后再试", code: "functions.conflict" } };
+    if (body.expected_updated_at !== current.updated_at) return { status: 409, body: { error: "这条规则在别处改过，先读取最新内容再提交", code: "functions.draft_stale" } };
     current.name = body.name;
     current.function_key = body.function_key;
     current.instructions = body.instructions;
@@ -229,21 +229,21 @@ test("failed function saves keep the typed fields and shortcut submit uses the f
   const conflicted = await read();
   assert.equal(conflicted.name, "我的新名称");
   assert.equal(conflicted.instructions, "旧说明");
-  assert.match(conflicted.note, /草稿已被更新/);
-  assert.equal(conflicted.posts.at(-1).updated_at, revision);
+  assert.match(conflicted.note, /这条规则在别处改过/);
+  assert.equal(conflicted.posts.at(-1).expected_updated_at, revision);
   await evaluate("window.__type('instructions', '我还留着的说明')");
   await sleep(700);
   const stillLocal = await read();
   assert.equal(stillLocal.name, "我的新名称");
   assert.equal(stillLocal.instructions, "我还留着的说明");
-  assert.equal(stillLocal.posts.at(-1).updated_at, revision);
+  assert.equal(stillLocal.posts.at(-1).expected_updated_at, revision);
   assert.equal(stillLocal.posts.at(-1).instructions, "我还留着的说明");
 
   // Navigation must retain a conflicting draft until the user resolves it.
   await evaluate("window.__clickRow('fn-2')");
   await sleep(400);
   assert.equal((await read()).name, "我的新名称");
-  assert.match((await read()).note, /草稿已被更新/);
+  assert.match((await read()).note, /这条规则在别处改过/);
 
   // Start the independent in-flight-save scenario with fresh fixture data.
   await command("Page.reload", {}, sessionId);

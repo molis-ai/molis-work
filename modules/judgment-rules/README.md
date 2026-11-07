@@ -32,12 +32,13 @@ node scripts/run-tests.mjs tests/functions-system-capability.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`（共用对象判断 `isRecord`）。方向：依赖公共合同及底层共享包；不导入另一个 Module 的实现或 Store，自己的库也不出包入口（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 已发布配置与版本不可变，只能删除草稿；样本、试跑及判断记录仍独立管理。
+  - `updated_at` 只代表定义内容（`update` 能写的那些字段）：定义真的变了才往前走；试跑、样例、发布和规整后无变化的保存都不推它，发布时间在 `published_at`。6 个编辑动作必须带读到的版本 `expected_updated_at`，过期得 `functions.draft_stale`，不改记录；检查顺序是记录在不在、已发布吗、版本对不对、其余校验。预览先比版本再调模型，保存结果时再比一次。合同见 [specs/action-input-contracts/spec.md](../../specs/action-input-contracts/spec.md) §2。
   - TypeSafe 原生 Choice 回答在转换边界核对本次声明的 criteria；非空的非法选项拒绝，不保存试跑或成功判断，不取得发布资格。null 保持 needs_review。
   - 执行要在“能力 → 对外接入”授予该客户端 `functions.invoke`。
   - 模型返回后经 `before_result` 复查权限；取消或撤权后不保存判断历史、不返回成功。
   - 编辑器在 Workbench 的 `src/judgment-rules`，没有独立的 Functions 插件包。
   - 项目被删除时由宿主按 `functionsProjectData`（`src/project-data.ts`：确认框里的标签与 `purgeFunctionsProject`；Functions 不是插件，宿主自己列它）调用清掉这个项目的场景绑定与判断记录；规则本身是本人的，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts tests/project-deletion-owners.test.ts tests/functions-plugin.test.ts tests/functions-choice-validation.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-version-contract.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts tests/project-deletion-owners.test.ts tests/functions-plugin.test.ts tests/functions-choice-validation.test.ts`
 - 相关手册：[specs/archive/functions-independent-authoring/spec.md](../../specs/archive/functions-independent-authoring/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 `functions.connection.usages` 通过 Host 端口读取当前 TypeSafe 连接 id，列出已发布规则及其原动作；不用环境变量或测试凭据覆盖时才归到该账号。未发布草稿不返回，读取不会执行判断或暴露凭据。连接状态由原 credential availability 与派出检查决定。

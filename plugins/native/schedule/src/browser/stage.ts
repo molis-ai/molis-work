@@ -2,6 +2,7 @@ import { detailOf } from "./dom.js";
 import type { SchedulePage } from "./page.js";
 import type { RowKind } from "./types.js";
 import { post } from "./request.js";
+import { readTaskReads, showCreated } from "./reads.js";
 
 const expand = (expanded: boolean) => {
   const shell = document.querySelector<HTMLElement>("[data-schedule-stage-shell]"), workspace = document.querySelector<HTMLElement>("[data-schedule-stage-workspace]");
@@ -18,17 +19,36 @@ function publishContext(page: SchedulePage, taskId: string | null): void {
   workbench.setAttribute("data-assistant-context", JSON.stringify(context));
 }
 
-/** Nothing is open: the list is shown without a selected row. */
-export function collapse(page: SchedulePage): void {
+/** No row is selected and no detail shown; the new/edit form is put away too. */
+function clearSelection(page: SchedulePage): void {
   const { workbench, list } = page;
-  publishContext(page, null);
-  expand(false);
   list.querySelectorAll<HTMLElement>("[data-schedule-row]").forEach(row => {
     row.classList.remove("is-selected"); row.setAttribute("aria-selected", "false"); row.tabIndex = -1;
   });
   workbench.querySelectorAll<HTMLElement>("[data-schedule-detail]").forEach(detail => { detail.hidden = true; });
   const empty = workbench.querySelector<HTMLElement>("[data-schedule-detail-empty]");
   if (empty) empty.hidden = true;
+  page.pane.hidden = true;
+}
+
+/** Nothing is open: the list is shown without a selected row. */
+export function collapse(page: SchedulePage): void {
+  publishContext(page, null);
+  expand(false);
+  clearSelection(page);
+}
+
+/** The new/edit form takes the detail pane: no row is selected while it is on show. */
+export function showForm(page: SchedulePage): void {
+  publishContext(page, null);
+  clearSelection(page);
+  page.pane.hidden = false;
+  expand(true);
+}
+
+/** Puts the form away and shows what it replaced: the task it edited, or nothing. */
+export function closeForm(page: SchedulePage, taskId: string | null): void {
+  if (taskId) select(page, taskId, "task"); else collapse(page);
 }
 
 /** Opens one row's detail; opening a task also marks it read (best effort). */
@@ -42,6 +62,8 @@ export function select(page: SchedulePage, id: string | null | undefined, kind: 
   workbench.querySelectorAll<HTMLElement>("[data-schedule-detail]").forEach(detail => { detail.hidden = detail.dataset.scheduleDetail !== id; });
   const empty = workbench.querySelector<HTMLElement>("[data-schedule-detail-empty]");
   if (empty) empty.hidden = true;
+  page.pane.hidden = true;
+  if (kind === "task") showCreated(page, id);
   expand(true);
   publishContext(page, kind === "task" ? id : null);
   // Marking a task read is a courtesy: when it does not go through, nothing the person did is lost.
@@ -69,6 +91,8 @@ export async function refreshStage(page: SchedulePage, openId?: string, kind: Ro
     nextWorkspace.querySelectorAll("[data-schedule-detail]").forEach(detail => { if (empty) workspace.insertBefore(detail, empty); else workspace.append(detail); });
     list.scrollTop = scrollTop;
     if (openId) select(page, openId, kind); else collapse(page);
+    // The rows and details are new: what each task reads is said on them again (one read for the whole list).
+    void readTaskReads(page);
     return true;
   } catch {
     if (preserveConfirmation) throw new Error(L("schedule.error.refresh"));

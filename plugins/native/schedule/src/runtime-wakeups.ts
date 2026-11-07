@@ -1,12 +1,12 @@
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginAgentClient, PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ScheduleWakeupControl, ScheduleWakeupInput } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { scheduleInstallations } from "./runtime-installations.js";
 import type { ScheduleRuntime } from "./runtime-actions.js";
 import { SCHEDULE_OPERATION_WAKEUP, SCHEDULE_REMINDER_WAKEUP, SCHEDULE_TASK_WAKEUP_CAPABILITY } from "./background-actions.js";
 import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
-import { SCHEDULE_READER_ROLE } from "./roles.js";
-import { handleScheduleTaskWakeup } from "./wakeup.js";
+import { roundRole, type ScheduleTaskGrants } from "./task-grants.js";
+import { handleScheduleTaskWakeup, type ScheduledTaskRunner } from "./wakeup.js";
 import { composeScheduledTaskPrompt, parseScheduledAgentReply } from "./reply.js";
 import { deliverScheduleReminder } from "./reminders.js";
 import { prepareScheduledOperation, runScheduledOperation } from "./operations.js";
@@ -22,7 +22,21 @@ function notificationTitle(title: string): string {
   return cut + "…";
 }
 
-export async function scheduleRuntimeWakeup(services: PluginHostServices, runtime: ScheduleRuntime, installId: string,
+/**
+ * A due conversation task's round. One read of the platform's grants per round decides what it reads: the person's categories under
+ * the task's own subject (`brief`), or project files (`reader`). A failed read fails the round, and the task says so: guessing either
+ * way would read what the person did not choose.
+ */
+export function scheduledTaskRunner(agents: PluginAgentClient | undefined, grants: Pick<ScheduleTaskGrants, "list">): ScheduledTaskRunner {
+  return { run: async task => {
+    if (!agents) throw new ActionError("actions.connection_required", "当前 Home 的后台 Agent 尚未接通");
+    const role = roundRole((await grants.list()).subjects.find(subject => subject.key === task.task_id));
+    const result = await agents.run({ ...role, title: task.title, task: composeScheduledTaskPrompt(task) });
+    return parseScheduledAgentReply(result.text);
+  } };
+}
+
+export async function scheduleRuntimeWakeup(services: PluginHostServices, runtime: ScheduleRuntime, grants: ScheduleTaskGrants, installId: string,
   caller: ActionExecutionContext, input: ScheduleWakeupInput) {
   if (caller.audience !== "plugin" || caller.plugin_install_id !== installId || input.plugin_id !== SCHEDULE_PLUGIN_ID) {
     throw new ActionError("actions.forbidden", "唤醒只接受本安装的调度调用");
@@ -34,11 +48,7 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
   const control: ScheduleWakeupControl = { signal: caller.signal!, beforeEffect: () => { caller.signal!.throwIfAborted(); caller.assert_authority_current?.(); } };
   const write = (operation: () => void) => runtime.write(caller.beforeEffect, operation);
   if (input.capability_id === SCHEDULE_TASK_WAKEUP_CAPABILITY) {
-    return handleScheduleTaskWakeup(runtime.db, input.object_ref, { run: async task => {
-      if (!services.agents) throw new ActionError("actions.connection_required", "当前 Home 的后台 Agent 尚未接通");
-      const result = await services.agents.run({ role_id: SCHEDULE_READER_ROLE, title: task.title, task: composeScheduledTaskPrompt(task) });
-      return parseScheduledAgentReply(result.text);
-    } }, undefined, control, write);
+    return handleScheduleTaskWakeup(runtime.db, input.object_ref, scheduledTaskRunner(services.agents, grants), undefined, control, write);
   }
   const observed = services.installations!.list();
   const views = input.capability_id === SCHEDULE_OPERATION_WAKEUP ? await services.actions!.dependencies!.discover() : [];

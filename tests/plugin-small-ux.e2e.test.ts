@@ -20,7 +20,7 @@ const CLIENTS_READY = `!document.querySelector('[data-ui-client-state="loading"]
 const WATCH_TOASTS = `window.toasts = []; new MutationObserver(() => window.toasts.push(document.querySelector('[data-toast]').textContent))
   .observe(document.querySelector('[data-toast]'), { childList: true, characterData: true, subtree: true })`;
 
-test("Schedule's new-task dialog says what a due task still needs, and creating is still possible", { timeout: 90_000 }, async t => {
+test("Schedule's new-task form (in the detail pane) says what a due task still needs, and creating is still possible", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const schedule = await pluginFrameBrowser(t,b,"schedule");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
@@ -39,9 +39,9 @@ test("Schedule's new-task dialog says what a due task still needs, and creating 
   await schedule.evaluate(`{ const form = document.querySelector('[data-schedule-create-form]');
     form.elements.title.value = '提示不拦创建'; form.elements.instructions.value = '只读汇总'; form.elements.time.value = '07:45'; }`);
   await schedule.click("[data-schedule-create-form] [type=submit]");
-  await schedule.waitFor("!document.querySelector('[data-schedule-create-dialog]').open && document.querySelector('[data-schedule-detail]:not([hidden]) h1')?.textContent === '提示不拦创建'", 20_000);
+  await schedule.waitFor("document.querySelector('[data-schedule-create-pane]').hidden && document.querySelector('[data-schedule-detail]:not([hidden]) h1')?.textContent === '提示不拦创建'", 20_000);
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-detail]:not([hidden]) [data-schedule-detail-status]').textContent"), "已启用", "created and enabled, as before");
-  // Editing is not creating: the same dialog opens without the hint.
+  // Editing is not creating: the same form opens without the hint.
   await schedule.click("[data-schedule-task-edit]");
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true);
   await schedule.click("[data-schedule-create-form] footer [data-schedule-create-close]");
@@ -55,12 +55,12 @@ test("Schedule's new-task dialog says what a due task still needs, and creating 
   await schedule.waitFor(shown("workspace"), 20_000);
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden"), true, "the model is there now");
   await schedule.click("[data-schedule-create-form] footer [data-schedule-create-close]");
-  // A readiness read that fails says nothing, and the dialog still works.
+  // A readiness read that fails says nothing, and the form still works.
   await evaluate("window.readinessAnswer = null");
   await schedule.click("[data-schedule-new]");
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true);
-  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-create-dialog]').open && !document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), true);
+  assert.equal(await schedule.evaluate("!document.querySelector('[data-schedule-create-pane]').hidden && !document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), true);
 });
 
 test("Pages: 「新建文档」 left empty is gone when the person goes back, and one that was written in stays", { timeout: 90_000 }, async t => {

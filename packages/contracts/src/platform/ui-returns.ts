@@ -2,6 +2,12 @@
 // the `platform/ui` subpath. Where the person came from, where they go back to and what the settings had to make true are written
 // and read by the trusted shell alone; the page gives only the need and names of its own.
 
+/** Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8. */
+export interface UiPageDrafts {
+  read(key: string): Promise<string | null>;
+  write(key: string, value: string | null): Promise<void>;
+}
+
 /** What the settings have to make true. The first version has a text model only; a connection is asked in place (`connectionNeed`). */
 export type UiReturnNeed = { readonly kind: "model" };
 

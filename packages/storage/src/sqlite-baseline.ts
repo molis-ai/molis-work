@@ -191,6 +191,17 @@ function emptyForBaseline(db:SqliteBaselineDatabase, path:string, home?:string):
 }
 
 /**
+ * What the last full comparison of a file with a baseline saw (upgrade-chain-design §3.2): each structure is compared once per process, not at every
+ * open. `schema_version` is what makes this safe: in a WAL store a change of structure leaves the main file's identity as it was, and only that number moves.
+ */
+const comparedShapes = new WeakMap<SqliteBaseline, Map<string, string>>();
+function shapeIdentity(path: string, db: SqliteBaselineDatabase, version: number): string {
+  const { dev, ino, size, mtimeMs } = statSync(path);
+  const { schema_version: cookie } = db.prepare("PRAGMA schema_version").get() as { schema_version: number };
+  return [dev, ino, size, mtimeMs, cookie, version].join(":");
+}
+
+/**
  * Refuse an existing store before a writable connection can change it: another version (or tables without one) is refused by what it is,
  * and a same-version store whose structure is not the baseline's is refused too. A missing or empty file is left for the
  * writable open to create. Everything here runs read-only: bytes, mode and journal files are exactly as they were when it returns.
@@ -211,7 +222,12 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:str
       if (!checkSqliteBaselineVersion(inspection, path, baseline, home)) return false;
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
+      const identity = shapeIdentity(path, inspection, baseline.version);
+      let compared = comparedShapes.get(baseline);
+      if (compared?.get(path) === identity) return true;
       if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path, home);
+      if (!compared) comparedShapes.set(baseline, compared = new Map());
+      compared.set(path, identity);
       return true;
     } finally {
       inspection.close();

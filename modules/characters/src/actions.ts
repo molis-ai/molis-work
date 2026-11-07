@@ -41,7 +41,7 @@ export const charactersActions = {
   publish: define<{ id: string; expected_revision: number }, { reference: ArtifactReference; publication: unknown; replayed: boolean }>("publish", /* @version action.characters.publish */ 1, "发布角色",
     "把当前草稿发布为本项目的固定版本；内容未变时返回原版本", "command", object({ id, expected_revision: revision }),
     object({ reference, publication: { type: "object" }, replayed: { type: "boolean" } }), ["artifact:read", "artifact:write"]),
-  /** v2 (Sessions cleanup SC-2): Characters' own records, without the terminal output v1 returned. */
+  /** Sessions cleanup SC-2: Characters' own records, without the terminal output. */
   runs: define<{ id: string }, { runs: CharacterNativeRun[] }>("runs", /* @version action.characters.runs */ 1, "角色运行记录", "读取用本机 Agent 运行此角色的记录：何时、哪个版本、在哪个目录、是否派发成功；不含终端输出",
     "query", object({ id }), object({ runs: { type: "array", items: run } }), [], LOCAL),
   discover: define<Record<string, unknown>, { candidates: unknown[] }>("imports.discover", /* @version action.characters.imports.discover */ 1, "查找可导入的 Agent", "在本机 Agent 配置目录中查找可导入为角色的设定",
@@ -59,7 +59,7 @@ export const charactersActions = {
   runnable: characterPluginActions.runnable,
   /** Where a capability sits in this person's Character scopes; the capability library reads it next to other owners' references. */
   usages: defineActionUsagesAction("characters.usages", /* @version action.characters.usages */ 1, "角色里的使用位置", []),
-  /** v2 (Sessions cleanup SC-2): the run is Characters' own record and the terminal is reached by its panel alone, without a Session. */
+  /** Sessions cleanup SC-2: the run is Characters' own record and the terminal is reached by its panel alone, without a Session. */
   launch: define<CharacterLaunchInput, { run: CharacterNativeRun; spawn: { panelId: string; attachOnly: boolean } }>("launch", /* @version action.characters.launch */ 1, "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
     { type: "object", properties: { reference, workspace_id: { type: "string" }, task: { type: "string" }, request_id: { type: "string" } },
       required: ["reference", "workspace_id", "task", "request_id"] }, object({ run, spawn: object({ panelId: id, attachOnly: { type: "boolean" } }) }), ["artifact:read"], LOCAL),

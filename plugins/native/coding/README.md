@@ -116,6 +116,6 @@ Coding 的目标目录、当前约定/状态、进展保存和回执按 id 和�
 
 ## 补充原件边界
 
-`coding.runs.control` v8 的本人补充由受保护 HTTP 的 `original_input: {input_id,text,use:"supplement"}` 信封证明；Host 剥离信封并绑定当前安装/动作，`key` 必须为 `send.<input_id>`。业务 `source` 不授予作者身份，无证明按 Host 输入。原话与拼接模型正文分别沿现 SDK 输入主人保存，重试复用同一键，不另建正文记录；初始输入仍用原有无 use 信封。验收见 `specs/ai-input-receipts/spec.md` MIX-IN-01–03。
+`coding.runs.control` 的本人补充由受保护 HTTP 的 `original_input: {input_id,text,use:"supplement"}` 信封证明；Host 剥离信封并绑定当前安装/动作，`key` 必须为 `send.<input_id>`。业务 `source` 不授予作者身份，无证明按 Host 输入。原话与拼接模型正文分别沿现 SDK 输入主人保存，重试复用同一键，不另建正文记录；初始输入仍用原有无 use 信封。验收见 `specs/ai-input-receipts/spec.md` MIX-IN-01–03。
 
 保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@1` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。

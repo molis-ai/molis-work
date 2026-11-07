@@ -36,7 +36,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     "README.md": "# Local Plugin Sample\n\nThis is a local development sample, not a reviewed marketplace release.\n"
       + "The supplied publisher signature is a binding identity, not proof of cryptographic signing.\n\n"
       + "Install the matching local Molis Work SDK distribution, then run through the Molis Work application Host.\n"
-      + "The v2 manifest registers health, results.read, results.publish and results.preview with the common action service.\n"
+      + "The manifest registers health, results.read, results.publish and results.preview with the common action service.\n"
       + "The saved result type has a display name and a preview action of its own, which every Artifact type a plugin pins must declare.\n"
       + "Each poll invokes the same registered publish action; the UI displays the original private counter.\n"
       + "Health can be explicitly authorized for MCP. Personal results use the local startup owner's identity and are not exposed to other clients.\n"

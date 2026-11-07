@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test, { type TestContext } from "node:test";
 import { openWork, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 // specs/visual-ui-experience VUX-12 「来源、产出……进入已有对象/预览……保留返回会话路径与状态；……失效、读取失败反馈准确可恢复」:
 // a result the Assistant made opens in the side panel's preview beside the conversation. When its owner no longer has it,
@@ -53,7 +54,7 @@ test("VUX-12: a result whose object is gone opens to say so by its name, keeps t
     .filter((node) => node.checkVisibility()).map((node) => node.textContent).filter((text) => /正在看|doc-gone/.test(text))`), [], "before: 「正在看：doc-gone」 in the bar and under 待发送");
 
   // The conversation it was opened from stays where it was: the same work, its panel open, its result still there to open again.
-  assert.deepEqual(await evaluate(`[localStorage.getItem('molis.assistant.current'), !document.querySelector('[data-assistant-panel]').hidden, !!${opener}]`), [id, true, true]);
+  assert.deepEqual(await evaluate(`[${CURRENT_WORK}, !document.querySelector('[data-assistant-panel]').hidden, !!${opener}]`), [id, true, true]);
 });
 
 // The preview's 在插件中打开 takes the same result to its owner. Pages wrote why it could not open it in the editor's own
@@ -73,5 +74,5 @@ test("VUX-12: opened in its plugin, a result whose object is gone says so in the
   await pages.click(`[data-work-surface="pages"] [data-pages-back]`);
   await pages.waitFor(`!${stage}.checkVisibility() && document.querySelector('[data-work-surface="pages"] [data-pages="directory"]').checkVisibility()`, 10_000);
   assert.equal(await pages.evaluate<boolean>(`${stage}.hasAttribute('data-missing')`), false, "the list leaves nothing of the missing document behind");
-  assert.deepEqual(await evaluate(`[localStorage.getItem('molis.assistant.current'), !!${opener}]`), [id, true], "the conversation it came from is as it was");
+  assert.deepEqual(await evaluate(`[${CURRENT_WORK}, !!${opener}]`), [id, true], "the conversation it came from is as it was");
 });

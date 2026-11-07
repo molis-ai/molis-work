@@ -615,6 +615,9 @@ export interface ActionResultPresentation {
         readonly label: string;
         readonly href: string;
     };
+    readonly pending_connection?: {
+        readonly authorization_id: string;
+    };
 }
 
 export interface ActionResultView {
@@ -624,6 +627,9 @@ export interface ActionResultView {
     readonly link?: {
         readonly label: string;
         readonly href_template: string;
+    };
+    readonly pending_connection?: {
+        readonly authorization_pointer: string;
     };
 }
 

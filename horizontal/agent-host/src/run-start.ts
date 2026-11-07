@@ -93,7 +93,8 @@ export function composeRolePrompts(
   }));
   const characterPrompt: AgentPromptText[] = character ? [{ prompt_id: `character-${character.character_id}`, version: character.reference.version,
     layer: "role", body: characterInstructions ?? character.instructions }] : [];
-  return orderPromptsByLayer([...own, ...characterPrompt, ...project]);
+  // Last, after the layers: whatever language the texts before it are written in, this is what the reply follows.
+  return [...orderPromptsByLayer([...own, ...characterPrompt, ...project]), ...(authority.reply_language ? [{ ...authority.reply_language }] : [])];
 }
 
 /** Omitting `execution` means read-only. Callers must not reimplement this default. */

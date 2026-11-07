@@ -1,6 +1,7 @@
 import { readStorageSpace } from "@molis-ai/molis-work-storage";
 import { installedSnapshotOptions } from "./installed-library-snapshot.js";
 import { NATIVE_SESSION_FILE } from "./personal-native-session.js";
+import { UI_LOCALE_RELATIVE_PATH } from "./ui-locale-memory.js";
 import { pluginSyncDatabaseDeclaration } from './plugin-sync-database.js';
 import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -75,7 +76,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("apps/local-host/src/installer", { path: "runtime-config-backups", snapshot: runtimeBackupSnapshot }, ...at("runtime-integrations", "runtime-integration-attempts")),
     ...owned("apps/local-host", { path: "browser", snapshot: browserSnapshot }, { path: "plugin-builder", snapshot: builderSnapshot },
       { path: "cache", snapshot: omittedSnapshot("Rebuildable cache", "reset") }, ...at("computer", "plugin-files", "git-operation-details.json", "config/onboarding.json",
-      "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "config/plugin-publisher.json")),
+      "config/project-arrival.json", UI_LOCALE_RELATIVE_PATH, "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "config/plugin-publisher.json")),
     ...owned("apps/desktop", { path: "directory-access", snapshot: directoryAccessSnapshot }),
   ]), { snapshotExclusions: [
     { path: "bin", reason: "Reinstallable launchers" }, { path: "releases", reason: "Reinstallable application releases" },

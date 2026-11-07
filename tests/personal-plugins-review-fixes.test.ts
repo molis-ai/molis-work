@@ -101,7 +101,7 @@ test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "search", "knowledge", "feed", "feed-content", "server",
     "issues", "goals", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json", "config/plugin-publisher.json",
-    "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access"].sort());
+    "config/project-arrival.json", "config/ui-locale.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access"].sort());
 });
 
 test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正删掉", async () => {

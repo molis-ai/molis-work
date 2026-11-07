@@ -332,6 +332,8 @@ export {createPersonalNativeSession,NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER} f
 export {artifactSyncSelection,createPersonalArtifactRegistration} from './personal-artifact-sync.js';
 export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
+export { lastUsedLocale, readUiLocale, rememberUiLocale, UI_LOCALE_RELATIVE_PATH } from "./ui-locale-memory.js";
+export { replyLanguagePrompt } from "./reply-language.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";

@@ -221,6 +221,7 @@ export declare function renderAlert(options: {
     state?: StateRingState;
     actions?: readonly MwButtonOptions[];
     rise?: boolean;
+    role?: "status" | "alert" | null;
     attrs?: Record<string, AttrValue>;
 }): string;
 

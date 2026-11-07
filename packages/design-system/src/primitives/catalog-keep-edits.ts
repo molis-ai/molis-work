@@ -59,7 +59,7 @@ export const KEEP_EDITS_BOARD_STYLES = `
 
   /* The board's own arrangement of the specimens; not part of any part. The held wash shows its brightest frame, to judge it in both themes. */
   .mw-keep-stack { display: grid; gap: 8px; width: min(100%, 560px); min-width: 0; }
-  .mw-keep-stack .functions-steps { min-width: 0; padding: 8px 0; border-bottom: 0; }
+  .mw-keep-stack .functions-steps { flex-wrap: wrap; min-width: 0; padding: 8px 0; border-bottom: 0; }
   .mw-keep-stack .functions-steps button > span { flex: none; }
   [data-keep-wash-hold]::after { animation: none; opacity: 1; }
 `;

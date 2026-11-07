@@ -11,13 +11,15 @@ import { jellyServiceActions } from "./service-actions.js";
 import { createJellySearchHandlers, jellySearchActions } from "./search.js";
 import { createJellyContentHandlers, jellyContentActions } from "./content-actions.js";
 
-type AiInput = Omit<JellyAiInput, "kind" | "manual">;
+type AiInput = Omit<JellyAiInput, "manual">;
 type AiResult = Awaited<ReturnType<typeof runJellyAi>> & { state?: JellyWorkspace };
 const range = s.object({ start: s.date, end: s.date });
+// A selection is read only from a note, so only there must it hold something; a text source carries one along unread.
+const noteSelection = s.object({ block_ids: { ...s.ids, minItems: 1 }, text: { ...s.text, pattern: "\\S" } });
 const aiInput = { ...s.object({ source_type: { enum: ["note", "text"] }, source_id: s.nullable(s.id), text: s.text, instructions: s.text, today: s.date, start_time: { type: "integer", minimum: 0, maximum: 1439 }, selection: s.selection }, ["source_type"]),
   allOf: [{ if: { properties: { source_type: { const: "text" } }, required: ["source_type"] },
     then: { properties: { text: { ...s.id, pattern: "\\S" } }, required: ["text"] },
-    else: { properties: { source_id: s.id }, required: ["source_id"] } }],
+    else: { properties: { source_id: s.id, selection: noteSelection }, required: ["source_id"] } }],
 };
 const planOutput = s.object({ plan: s.plan, method: { enum: ["manual", "model"] } });
 const progress = s.object({ start: s.date, end: s.date, today: s.date, total: s.revision, completed_count: s.revision, open_count: s.revision, overdue_count: s.revision, high_priority_open: s.revision, completed: s.array(s.occurrence), open: s.array(s.occurrence), overdue: s.array(s.occurrence), categories: s.array(s.object({ ...s.categoryFields, total: s.revision, completed: s.revision })), factual_summary: s.text });
@@ -47,10 +49,10 @@ export interface JellyActionPorts extends JellyStores {
 }
 export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandlerBinding[] {
   const read = <T>(run: (state: JellyWorkspace) => T) => ports.read(store => run(store.read()));
-  const ai = async (input: AiInput, kind: JellyAiInput["kind"], manual: boolean, caller: ActionExecutionContext): Promise<AiResult> => {
+  const ai = async (input: AiInput, manual: boolean, caller: ActionExecutionContext): Promise<AiResult> => {
     caller.signal?.throwIfAborted();
     const before = read(state => state);
-    const result = await runJellyAi(before, { ...input, kind, manual }, { ...(manual ? {} : ports.ai(caller)), signal: caller.signal });
+    const result = await runJellyAi(before, { ...input, manual }, { ...(manual ? {} : ports.ai(caller)), signal: caller.signal });
     await caller.beforeEffect();
     return result;
   };
@@ -73,8 +75,8 @@ export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandle
     })),
     bindActionHandler(jellyActions.previewImport, (input, caller) => ports.write(caller, store => ({ preview: store.previewImport(input.source) }))),
     bindActionHandler(jellyActions.previewNoteDelete, (input, caller) => ports.write(caller, store => ({ preview: store.previewDelete(input.id) }))),
-    bindActionHandler(jellyActions.manualPlan, (input, caller) => ai(input, "decompose", true, caller)),
-    bindActionHandler(jellyActions.modelPlan, (input, caller) => ai(input, "decompose", false, caller), { availability: () => ports.modelAvailability() }),
+    bindActionHandler(jellyActions.manualPlan, (input, caller) => ai(input, true, caller)),
+    bindActionHandler(jellyActions.modelPlan, (input, caller) => ai(input, false, caller), { availability: () => ports.modelAvailability() }),
     ...createJellySearchHandlers(ports.read),
     ...createJellyContentHandlers(ports),
   ];

@@ -19,9 +19,10 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
   "security-invariants": { limit: 40, longest: 1315, blocking: true },
   // Measured on the same window when it joined the table (2026-10-31): 939 s at the longest of 422 successful jobs.
   "product-subset": { limit: 35, longest: 939, blocking: true },
-  // No run yet when they joined the table: the replay's own time on a development machine, about 8 minutes, so the first real runs are what to read next (design §5 wants 5 on Linux).
-  "golden-replay": { limit: 30, longest: 480, blocking: true },
-  "golden-replay-third-party": { limit: 30, longest: 480, blocking: true },
+  // Measured on the one run there was when they joined the table (run 42410763603, 2026-11-07): 203 s on Linux, 334 s on macOS. One run each, so later runs are what to
+  // read next; the limit is the blocking floor either way.
+  "golden-replay": { limit: 30, longest: 203, blocking: true },
+  "golden-replay-third-party": { limit: 30, longest: 334, blocking: true },
 };
 /** The `Install pnpm` step took 66 seconds at the longest of 2547 in the sample. */
 const INSTALL_PNPM = { limit: 3, longest: 66 };

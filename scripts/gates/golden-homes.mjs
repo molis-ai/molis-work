@@ -99,8 +99,6 @@ function writeProblems(rows, files, writes, otherWrites) {
 
 /** `tree`: { files (tracked), read(file) gives its text or null, size(file) gives its bytes }. */
 export function goldenHomeProblems({ files, read, size }) {
-  const data = read(DATA);
-  if (data === null) return [];
   const prefix = `${GOLDEN_HOMES_DIRECTORY}/`, held = new Map();
   for (const file of files) {
     if (!file.startsWith(prefix)) continue;
@@ -109,6 +107,10 @@ export function goldenHomeProblems({ files, read, size }) {
     if (!held.has(name)) held.set(name, []);
     held.get(name).push(file);
   }
+  const data = read(DATA);
+  // A scratch repository has neither the document nor a golden, so nothing to check. A golden without the document is a renamed or deleted document, and the gate
+  // says so instead of passing by checking nothing.
+  if (data === null) return held.size ? [`golden coverage (UPG2-04): ${DATA} cannot be found, so the goldens in ${GOLDEN_HOMES_DIRECTORY} cannot be checked against it`] : [];
   if (!held.size) return [`golden coverage (UPG2-04): ${GOLDEN_HOMES_DIRECTORY} holds no golden Home`];
   const ordered = versionsNewestLast([...held.keys()]), latest = ordered.at(-1), problems = [];
   const bytes = [...held.values()].flat().reduce((total, file) => total + size(file), 0);

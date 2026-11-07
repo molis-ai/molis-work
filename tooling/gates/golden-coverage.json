@@ -23,7 +23,7 @@
     },
     {
       "path": "computer/settings.json",
-      "reason": "设置入口只在 macOS 注册，Linux 回放既写不了也读不了它（§4 第 3 步的读者会失败）；要进金样得先让这一步按平台分开"
+      "reason": "设置入口只在 macOS 注册，Linux 回放既写不了也读不了它（§4 第 3 步的读者会失败）；要进金样得先让这一步按平台分开（BL-golden-computer-settings）"
     },
     {
       "path": "config/connector-mcp-actions.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "config/external-mcp-actions.json",
-      "reason": "要先配置一个真实的外部 MCP，金样不联网"
+      "reason": "外部 MCP 能离线配（tests/external-mcp-actions.test.ts 用本地 stdio 夹具），但放不进金样：stdio 服务器必须挂在项目已授权的工作区里（horizontal/agent-host/src/adapters/prologue-mcp.ts:129），保存的配置记下工作区的真实路径和可执行文件的绝对路径。工作区放在临时 Home 里，金样拒绝记下生成 Home 的路径（golden.home_path_recorded）；放在别处是每次不同的临时目录，同一提交两次生成不再相同（UPG2-02）；可执行文件是生成机器上 Node 的路径，带用户目录。金样的项目也没有工作区"
     },
     {
       "path": "config/installation.json",

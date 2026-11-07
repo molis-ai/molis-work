@@ -67,7 +67,8 @@ test("UPG2-04 the document's rows that must be backed up are read, and no others
 test("UPG2-04 a tree that holds everything passes, and a document that no longer has rows it can read does not pass by saying nothing", () => {
   assert.deepEqual(goldenHomeProblems(tree()), []);
   assert.match(goldenHomeProblems(tree({ data: "# 没有表\n" })).join("\n"), /no longer has rows this gate can read/u);
-  assert.deepEqual(goldenHomeProblems(tree({ data: null })), [], "a scratch repository without the document has nothing to check");
+  assert.deepEqual(goldenHomeProblems(tree({ data: null, goldens: [] })), [], "a scratch repository, without the document and without a golden, has nothing to check");
+  assert.match(goldenHomeProblems(tree({ data: null })).join("\n"), /docs\/system\/HOME-DATA\.md cannot be found/u, "a golden without the document is a gate that checks nothing, so it fails");
 });
 
 test("UPG2-04 a row that must be backed up and is not in the latest golden fails, naming it", () => {

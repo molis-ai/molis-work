@@ -68,16 +68,18 @@ export const NATIVE_RUN_WHEN = {
 /**
  * What makes the macOS half of the golden replay run (`golden-replay-third-party`; design specs/upgrade-continuity/golden-replay-design.md §5, 用户 2026-11-07): the only
  * replay of the signed samples before a merge, since the sandbox exists only there. The plugin runtime and its SDK, the sandbox, the storage, the contracts they speak, the
- * Host's installed-plugin and Home-library code, the goldens and samples themselves, the scripts that replay them, the Prologue package, the workflows, and any file at the
- * root that is not a Markdown document (the Node pin, the lockfile). The list errs wide; what it leaves out is caught by the daily run on macOS.
+ * Host's installed-plugin and Home-library code and the statement process their libraries run in, the CLI the replay installs and upgrades the samples with (its launcher,
+ * the plugin CLI, the client that reaches the resident Host, the web host it is served by), the goldens and samples themselves, the scripts that replay them, the Prologue
+ * package, the workflows, and any file at the root that is not a Markdown document (the Node pin, the lockfile). The list errs wide; what it leaves out is caught by the daily run on macOS.
  */
 export const GOLDEN_THIRD_PARTY_RUN_WHEN = {
   prefixes: [
     "packages/plugin-runtime/", "packages/plugin-sandbox/", "packages/plugin-sdk/", "packages/storage/", "packages/contracts/",
-    "apps/local-host/src/plugin-", "apps/local-host/src/sandbox-", "apps/local-host/src/installed-plugin-", "apps/local-host/src/home-plugin", "apps/local-host/src/home-installed-plugins", "apps/local-host/src/home-stor", "apps/local-host/src/project-plugin", "apps/local-host/src/project-database",
+    "apps/local-host/src/plugin-", "apps/local-host/src/sandbox-", "apps/local-host/src/installed-plugin-", "apps/local-host/src/home-plugin", "apps/local-host/src/home-installed-plugins", "apps/local-host/src/home-stor", "apps/local-host/src/project-plugin", "apps/local-host/src/project-database", "apps/local-host/src/project-statement-",
+    "apps/desktop/launchers/cli/", "tooling/plugin-cli/",
     "tests/fixtures/golden-homes/", "tests/fixtures/golden-home-library/", "tests/fixtures/replay-plugins/", "tests/golden-writes/", "scripts/golden/", "scripts/replay-plugins/", "vendor/", ".github/workflows/",
   ],
-  files: ["scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts"],
+  files: ["apps/local-host/src/resident-host-request.ts", "apps/desktop/src/web-host.ts", "scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts"],
 };
 /** A new Prologue package replays every golden, not the latest three (UPG-11). */
 const GOLDEN_HISTORY_WHEN = "vendor/prologue-sdk/";

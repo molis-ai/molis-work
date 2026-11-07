@@ -404,7 +404,8 @@ test("UPG2-07 the golden replay of the signed samples runs when a changed file i
   const LISTED = [
     "packages/plugin-runtime/src/supervisor.ts", "packages/plugin-sandbox/src/x.ts", "packages/plugin-sdk/src/x.ts", "packages/storage/src/x.ts", "packages/contracts/src/x.ts",
     "apps/local-host/src/plugin-executor.ts", "apps/local-host/src/sandbox-package.ts", "apps/local-host/src/installed-plugin-libraries.ts", "apps/local-host/src/home-plugins.ts", "apps/local-host/src/home-installed-plugins.ts",
-    "apps/local-host/src/home-stores.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/project-database.ts",
+    "apps/local-host/src/home-stores.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/project-database.ts", "apps/local-host/src/project-statement-process.ts",
+    "apps/desktop/launchers/cli/main.ts", "tooling/plugin-cli/src/install.ts", "apps/local-host/src/resident-host-request.ts", "apps/desktop/src/web-host.ts",
     "tests/fixtures/golden-homes/0.1.0/manifest.json", "tests/fixtures/golden-home-library/v1.json", "tests/fixtures/replay-plugins/corpus.json", "tests/golden-writes/todo.ts", "scripts/golden/layout.mjs", "scripts/replay-plugins/signed-session.mjs",
     "vendor/prologue-sdk/README.md", ".github/workflows/ci.yml", "scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts",
     ".nvmrc", "package.json", "pnpm-lock.yaml",

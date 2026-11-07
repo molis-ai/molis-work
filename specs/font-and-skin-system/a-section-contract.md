@@ -740,7 +740,7 @@ export interface PluginLocalesDeclaration {
 locales?: PluginLocalesDeclaration;
 ```
 
-`parsePluginManifest` 检查：语言标记形状；`default` 在 `available` 里；语言不重复。
+`parsePluginManifest` 检查：语言标记形状；`default` 在 `available` 里；语言不重复；`available` 最多 32 种（`PLUGIN_LOCALE_LIMITS`，合同常量）；`ui.locales` 只有 `default`、`available` 两个键，别的键拒绝，不静默忽略；`plugin_id` 最后一段要能当键的第一段（以字母开头，不是 `common`），否则这个插件写不出一个键（第 2.3 节），这条只对写了 `ui.locales` 的 Manifest。
 
 **同一个 Manifest 不能既写 `ui.locales` 又写 `ui.messages` 或 `ui.translations`，写了就拒绝。** 这是 A 段「不双认」的落法：没有一个翻译器同时读两种格式，也没有一个插件走两条路。现有写法里只有样例写 `ui.locales`（第 08 批的内容包是新东西，也写它，第 12 节第 4 条）；第 16 批 C 段一次改完并删掉旧字段。**测试断言 C 段之前没有内置 Manifest 写 `ui.locales`**（FSS-53）：新内置插件一写，就成了决定 20 不许的逐插件切换。用户 2026-11-07 同意这样并存到第 16 批（第 12 节第 4 条）。
 
@@ -774,7 +774,7 @@ export function pluginLocaleReader(manifest: PluginManifest, read: (path: string
 
 **20 要改（归第 20 批）：** `blueprints.packs.save@1` 把草稿组成包时，`literal` 转成键，加单语言 `locales/<语言>.json`；草稿记 `locale`（第 15.4 节）。
 
-A 段写了 `ui.locales` 的沙箱包被拒绝，这是现成的明确错误，不用加代码：不带语言文件时，`readSandboxPackage` 的形状比较报「清单不是沙箱插件的形状」；带了语言文件时报「包里有格式之外的文件」。
+A 段写了 `ui.locales` 的沙箱包被拒绝，**要有专门的拒绝，由 T7 加**（`apps/local-host/src/sandbox-package.ts`）：`readSandboxPackage` 在比较形状之前，看到 `manifest.ui.locales` 就拒绝，消息说清沙箱包第 16 批才支持，现在先用 `ui.messages`，或走 `molis-work plugin dev`。不能靠现成的错误：不带语言文件时形状比较报「清单不是沙箱插件的形状」，带了语言文件时报「包里有格式之外的文件」，作者都看不出原因，FSS-53 要的是被拒并说明。
 
 **A 段不加 `locale_packs`，也不碰发行物。** `createPluginRuntimeReleaseArtifact` 只有内置插件在用，内置插件 `directlyUsable` 恒真，走当前构建，从不恢复存档；已有行还 `ON CONFLICT DO NOTHING`。外部包不进这张表。所以这个字段没有写入者也没有读取者。
 
@@ -980,7 +980,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 | T4 SDK 文字工具 | `text`、`text-ref`、`message-format`、`locale-pack`、`text-reader`；`message-declarations.ts` 改模块内 `export`；`error-owners.json` 加 `ui`，只写这片的文件（门禁对匹配不到文件的路径直接失败） | `packages/plugin-sdk/src/ui/*`、`ui.ts`、`message-declarations.ts`；`tooling/gates/error-owners.json`；`api/plugin-sdk/ui.txt` | T1、T2（文字工具类型）；排队表 | FSS-43、44、47、48、50、51、69、70 | Opus 5.5 high（SDK 共享核心，统筹加全量） |
 | T5 SDK 文件工具 | `strict-json`、`appearance-*`、`environment`；新文件有错误码才改 `error-owners.json` | 同上快照 | T2、T4 | FSS-46、48、49、57 | Opus 5.5 high |
 | T6 基线与字体路径 | 第 7 节全部、第 8.1、8.5 节；同一 PR 改 `docs/SSOT-MATRIX.md` 的「`palette.ts` 唯一来源」、design-system README 的「开发要求」和 `page-clients.ts` 头部，否则文档到 T9 之前都是错的 | `packages/design-system/{resources,src/baseline.ts,src/palette.ts,src/typeface.ts,src/styles/foundation.ts,src/styles/craft-finish-bar.ts,package.json,README.md}`；`tooling/gates/error-owners.json`（`baseline.ts` 抛 `ui.baseline_invalid`，这个包今天没有主人）；`apps/local-host/src/web-assets.ts`；`docs/SSOT-MATRIX.md`；测试与夹具 | T5；排队表 | FSS-54、55、56、58、59（design-system 那些行） | Opus 5.5 medium；占 build 槽位 |
-| T7 语言文件读取 | 第 6.2 节 A 段那两行；CLI `validate`、`pack` | `packages/plugin-runtime/src/{locale-packs,package-verification,development-loader}.ts`；`tooling/plugin-cli` | T3、T4 | FSS-53 | Opus 5.5 high |
+| T7 语言文件读取 | 第 6.2 节 A 段那两行和沙箱包的专门拒绝；CLI `validate`、`pack` | `packages/plugin-runtime/src/{locale-packs,package-verification,development-loader}.ts`；`apps/local-host/src/sandbox-package.ts`；`tooling/plugin-cli` | T3、T4 | FSS-53 | Opus 5.5 high |
 | T8 消费者 | 第 8.2、8.3、8.4 节，第 5.2 节第 1 层（语言随范围结束作废），第 5.4 节的合并代码 | `apps/local-host/src/{ui-text-provider,web-locale,web-server,plugin-executor,plugin-host-services,home-plugin-executor,plugin-development,local-plugin-development}.ts`；`tooling/plugin-cli/src/{cli,create}.ts`；`apps/workbench/{src/plugin-text.ts,src/browser/locale-switch.ts,src/browser/board/environment-section.ts,src/primitive-catalog.ts,resources,package.json}`（`files`，`dist/board-environment-section.js` 的构建脚本）；`packages/design-system/resources/registry.json` 工作台那行（D 文件，D 评）；`examples/plugin-sample`；`tests/plugin-sample.e2e.test.ts`。现有插件、`render` 和画页的地方不动；若 `tsc` 或测试显示要动，**停下交回主会话**（第 12 节第 4 条） | T6、T7 | FSS-58、59（工作台那行）、60、61、62、63、64，69 的副本和定时器那两条 | Opus 5.5 medium；占 browser 槽位 |
 | T8b 组件板三样 | 外观卡、样张卡、换外观的淡入，依据 `docs/design/appearance-selection/README.md`「组件板新增」：定样记录写明要先有标本才写产品代码。样式只进组件板，算不上页面资源增长（照 #1913）；部件的渲染函数不进 SDK，第 16 批做设置页时再提升，所以不占 `api/plugin-sdk/ui.txt`。样张卡用真实基线解析出来的令牌画，不写假值。#1795 共审留给第 16 批的三条小修（样张主按钮的键位提示、390 宽代码行截断、原型角标）不进这片 | `packages/design-system/src/primitives/catalog.ts`、`packages/design-system/src/browser/catalog.ts` 与组件板样式。和 T8 的文件不重合（T8 在 `apps/workbench`），可以各写各的；只是 browser 槽位要错开 | T6；排队表 | FSS-66、67、68 | Sonnet 5.5 xhigh；占 browser 槽位；D 轨合审，没回音由没碰过这片的子代理代看 |
 | T9a 账本与术语 | 报告；`docs/platform/UI-PLATFORM.md`；SDK README「开发要求」；`docs/system/GLOSSARY.md`、`EXTENSION-POINTS.md`（第 16.2 节） | 文档；`scripts/first-screen-report.mjs` | T8；`resource-budget.md` 合入 | FSS-65 | Sonnet 5.5 high |
@@ -1168,7 +1168,7 @@ T10 不依赖其余各片，也不碰文字工具。
 
 | 卡点 | 位置 | 规则 |
 | --- | --- | --- |
-| 正文路径 | §4.2 `body` | 仍是 `skills/<id>/SKILL.md`。声明加可选 `locales?: string[]`，列这个 Skill 有哪些译文，是 `ui.locales.available` 的子集；不写就只有默认语言 |
+| 正文路径 | §4.2 `body` | 仍是 `skills/<id>/SKILL.md`。声明加可选 `locales?: string[]`，列这个 Skill 有哪些译文，是 `ui.locales.available` 的子集；不写就只有默认语言。**`locales` 只列译文，写了默认语言就拒绝；没有 `ui.locales` 却写 `locales` 也拒绝**，否则「不多不少」的清单会算出 `SKILL.zh.md` |
 | 文件清单 | §3「不多不少」 | 由声明算出每种语言的路径。默认语言必须有；声明了的译文缺文件算坏包 |
 | 版本 | §4.3 | **所有语言共用一个 `version`**，摘要算全部语言。修一个英文错字也要升版本。理由：`SkillRef` 要精确，一份规则。代价：升级差异会多，加字段 `changed_locales` 写明改了哪种语言（`change` 是枚举，不动） |
 | 读正文 | §8 `skills.body.read@1` | 语言不进输入。user、plugin 用调用上下文的 `locale`；agent 用这一轮冻结的 `reply_locale`，第 16 批之前到不了 `ActionCallContext.locale` 时读默认语言。输出加 `locale`（实际用的，单文件包是 `null`）和 `fell_back: boolean`，默认语言未知时 `fell_back` 是 `false`。回退不算「悄悄换版本」，版本没变，结果也写明了 |
@@ -1187,7 +1187,7 @@ T10 不依赖其余各片，也不碰文字工具。
 
 | 卡点 | 位置 | 规则 |
 | --- | --- | --- |
-| 正文写在声明里 | §3 `content.body`、§5 `RoleTemplate.instructions` | **整份场景包一个文件。** 内容包里是 `blueprint.json`（默认语言）和 `blueprint.<语言>.json`，形状都是 `Blueprint`。Manifest 的 `blueprint` 键写 `{ locales: string[] }`，是 `ui.locales.available` 的子集，「不多不少」和「至少一项」由它判；有场景包时 `ui.locales` 必填（标题要键）。草稿仍是一行 JSON、一种语言 |
+| 正文写在声明里 | §3 `content.body`、§5 `RoleTemplate.instructions` | **整份场景包一个文件。** 内容包里是 `blueprint.json`（默认语言）和 `blueprint.<语言>.json`，形状都是 `Blueprint`。Manifest 的 `blueprint` 键写 `{ locales: string[] }`，是 `ui.locales.available` 的子集，「不多不少」和「至少一项」由它判；有场景包时 `ui.locales` 必填（标题要键）。`locales` 只列译文，写了默认语言就拒绝；没有 `ui.locales` 却写 `locales` 也拒绝，否则清单会算出 `blueprint.zh.json`。草稿仍是一行 JSON、一种语言 |
 | 静态检查 | §3 `inspectBlueprint(blueprint)` | 加 `{ source: "package" \| "draft" }`：包拒 `literal`，草稿拒 `key`。新函数 `inspectBlueprintLocales(default, others)`：除 `body`、`instructions` 和 `TextRef` 外全等。`schema` 按每种语言核放到 `adoption.preview` 的主人检查里，静态检查不看目录 |
 | 采用 | §5、§7 | `instructions`、`body`、`title`、`materials`、`outputs` 都按采用当时的语言取。`adoptions` 加 `locale`。撤销和升级差异按这个语言比 |
 | 另存 | §7 `packs.save@1` | 草稿记 `locale`。存包时 `literal` 转成键，加单语言 `locales/<语言>.json`，`blueprint.json` 就是草稿的语言 |

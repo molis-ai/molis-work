@@ -116,6 +116,9 @@ export interface PluginLocalesDeclaration {
   readonly available: readonly string[];
 }
 
+/** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
+export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
+
 export interface PluginManifest {
   /** Portable collections; requires an authorized owner adapter. */
   sync?: import("./plugin-sync.js").PluginSyncDeclaration;

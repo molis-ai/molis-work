@@ -36,6 +36,7 @@ export type { AgentBuild, AgentBuilderPorts, AgentRelease, AgentPublicationContr
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
 export interface AgentStudioOptions {
+  accountRegistration?:boolean;
   store: LocalProjectDatabase;
   projectId: string;
   homeDirectory?: string;
@@ -138,7 +139,7 @@ function page(title: string, body: string, configuration: Record<string, unknown
     requestAllowed: (method, path) => method === 'GET' && path === buildPath || method === 'POST' && path === buildPath + '/call',
   });
   return renderPluginDocumentShell({ id: installed ? pluginId : 'plugin-builder-preview', plugin_id: pluginId, bundle: 'plugin-builder',
-    title, html: body, project_id: options.projectId, route_prefix: options.routePrefix ?? '', page: configuration, control_token: controlToken, authorization });
+    title, html: body, accountRegistration:options.accountRegistration, project_id: options.projectId, route_prefix: options.routePrefix ?? '', page: configuration, control_token: controlToken, authorization });
 }
 function html(response: ServerResponse, body: string) {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); response.end(body);
@@ -168,12 +169,12 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
  * renderer a project's installed plugin uses, with every call going to the package's own sandboxed process through the Home's
  * route. The page keeps the Home activation; a verified project entrance additionally binds its triggering project (S-15, S-107).
  */
-export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string; projectId?: string | null; assertProject?(): Promise<void> }): string {
+export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string; accountRegistration?:boolean; projectId?: string | null; assertProject?(): Promise<void> }): string {
   const { release } = input, pluginId = release.pluginId;
   const projectId = input.projectId ?? null, prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
   const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation,
     connected: release.design.contract.operations.map(item => item.id) };
-  return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', title: release.design.title,
+  return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', title: release.design.title, accountRegistration:input.accountRegistration,
     html: '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>', project_id: projectId ?? '', route_prefix: prefix, control_token: input.controlToken,
     page: { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view },
     authorization: pluginPagesFor(input.home).open(pluginId, projectId, input.actorId, input.assertProject) });

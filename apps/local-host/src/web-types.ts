@@ -5,6 +5,8 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 export interface WebServerOptions {
+  /** Installation-owned presentation: keep business inert until its account page joins the refresh barrier. */
+  accountRegistration?: boolean;
   /** Trusted embedding/test port. Production uses the shared system directory chooser. */
   chooseDirectory?: import("./plugin-directory-service.js").DirectorySelection;
   /**

@@ -39,7 +39,7 @@ import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-l
 import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectHomeEvents } from "../apps/workbench/dist/home-flow.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 

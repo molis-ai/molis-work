@@ -25,7 +25,7 @@ export interface LocalWebPlatform {
   ptyClientFilePath(): string;
 }
 
-export function createLocalWebComposition(platform: LocalWebPlatform, home: string) {
+export function createLocalWebComposition(platform: LocalWebPlatform, home: string, accountRegistration=false) {
   // Shared controls draw select chevrons as inline data: SVG; images cannot run script.
   // frame-ancestors: only this origin may put a page of the host in a frame (the plugin side panels and the Studio are same-origin frames; the
   // desktop shell loads the page as the window's own document). Another site cannot overlay the page that already holds the control token
@@ -34,7 +34,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   // frame inherits the policy, and WebKit will not load the frame's scripts while the only source is 'self'.
   const PAGE_CSP = "default-src 'self'; img-src 'self' data: blob:; frame-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'";
   const { withCatalog, isDesktopShellRequest } = platform;
-  const workbenchRenderer: WorkbenchRenderer = createLocalHostWorkbenchRenderer(platform.desktopRenderer);
+  const workbenchRenderer: WorkbenchRenderer = createLocalHostWorkbenchRenderer(platform.desktopRenderer,accountRegistration);
   const projectSettings = createLocalProjectSettingsHttp(withCatalog);
   const { servePtyClient, serveWorkbenchAsset } = createLocalWebAssets({ ptyClientFilePath: platform.ptyClientFilePath, renderer: workbenchRenderer });
   const handleArtifactNativePluginHttp = createLocalArtifactHttp();
@@ -50,7 +50,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   registerConnectorDevicePolling(home, periodicTasks);
   registerOnboardingStagingCleanup(home, periodicTasks);
   return {
-    PAGE_CSP, withCatalog, workbenchRenderer, isDesktopShellRequest, desktopRenderer: platform.desktopRenderer,
+    PAGE_CSP, accountRegistration, withCatalog, workbenchRenderer, isDesktopShellRequest, desktopRenderer: platform.desktopRenderer,
     desktopRuntimeAvailability: platform.cliAvailability,
     projectSettings,
     servePtyClient, serveWorkbenchAsset, handleArtifactNativePluginHttp,

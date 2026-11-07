@@ -1,3 +1,6 @@
+import { renderPersonalAccountEntry } from "@molis-ai/molis-work-app-workbench";
+import { createLocalWebAssets } from "./web-assets.js";
+import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.js";
 import { runtimeSyncSurface } from "./runtime-sync-discovery.js";
 import { ProjectDeletionService } from "./project-deletion-service.js";
@@ -27,7 +30,7 @@ import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
-import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
+import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions } from "./web-types.js";
@@ -72,7 +75,7 @@ function webWorkspaceFor(projectId: string, options: WebServerOptions, fixture: 
   return withCatalog({homeDirectory: home}, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
 }
 
-export function createLocalWebServerFactory(platform: LocalWebPlatform) {
+export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
   function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
     const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
@@ -115,7 +118,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
     const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({ homeDirectory: storageHome });
     const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
-    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome);
+    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome,serverOptions.accountRegistration??false);
     const { serveWorkbenchAsset } = composition;
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
@@ -212,13 +215,23 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
     attachWebAssistant(server, storageHome, assistant, agents, periodic);
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
-    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { attachPublicListener: (close:()=>Promise<void>)=>{resources.unshift(["space_listener",close]);}, projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
+    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
     } catch (error) {
       if (!ownsLocalHost && !releaseTransport) throw error;
       throw retainInitializationCleanup(error, () => ownsLocalHost ? localHost.close() : (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport?.(); })(), "web_initialization_cleanup_failed");
     }
   }
 
-  return (options: WebServerOptions = {}) => createSpaceWebServer(options, createMolisWorkWebServer, platform.withCatalog);
+  return createMolisWorkWebServer;
+}
+
+/** Installation entry: the account owner chooses the only active business Home. */
+export function createLocalWebServerFactory(platform: LocalWebPlatform) {
+  const createMolisWorkWebServer=createLocalWebCoreFactory(platform);
+  const entryAssets=createLocalWebAssets({ptyClientFilePath:platform.ptyClientFilePath,renderer:createLocalHostWorkbenchRenderer(platform.desktopRenderer)});
+  return (options: WebServerOptions = {}) => createSpaceWebServer(options, createMolisWorkWebServer, platform.withCatalog,{
+    render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{L,htmlLang,clientI18nScript},platform.nativeDesktopBootstrapScript)),
+    asset:(request,response,url)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>entryAssets.serveWorkbenchAsset(request,response,url.pathname)),
+  });
 
 }

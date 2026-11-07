@@ -1,3 +1,4 @@
+import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
@@ -174,7 +175,7 @@ export function createLocalGoalsReadHttp(ports: {
       },
       async view => {
         const desktopShell = isDesktopShellRequest(request, url);
-        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id)) : null;
+        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id, homeDirectory ? () => readOnlyAlwaysOnProjectPlugins(homeDirectory) : undefined)) : null;
         // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.
         if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden, project: view.project && store ? { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } : view.project };
         if (store) {

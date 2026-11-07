@@ -24,7 +24,7 @@ import { WORKSPACE_BYTES_LIMIT, workspaceReadActions } from "@molis-ai/molis-wor
 import {
   bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, definePlugin, fileContentOf, fileEntriesPage, FILE_CONTENT_MAX_BYTES,
 } from "@molis-ai/molis-work-plugin-sdk";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { browserAddress, safeFilename } from "../apps/local-host/dist/browser/browser-host.js";
 import { renderSidePanel } from "../apps/workbench/dist/side-panel.js";
 

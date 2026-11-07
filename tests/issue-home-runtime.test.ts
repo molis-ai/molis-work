@@ -10,7 +10,7 @@ import { crc32 } from "node:zlib";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, LocalActionGatewayClient, captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { actionMcpToolName } from "@molis-ai/molis-work-app-mcp";
 import { issuesActions, ISSUES_PLUGIN_ID, type Issue } from "@molis-ai/molis-work-plugin-issues";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -38,7 +38,7 @@ test("ISSUE-01 failed Home initialization preserves its database and only explic
   const broken = new DatabaseSync(path); broken.exec("PRAGMA user_version=9"); broken.close();
   const original = await readFile(path);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), token = resolveWebControlToken({ homeDirectory: home });
-  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
@@ -79,7 +79,7 @@ test("ISSUE-01 failed Home initialization preserves its database and only explic
 
 test("ISSUE-01 ISSUE-05 owned web server close persists Home plugin shutdown before its callback", async () => {
   const home = await mkdtemp(join(tmpdir(), "issue-owned-close-"));
-  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home });
   try {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
@@ -172,7 +172,7 @@ test("ISSUE-02 ISSUE-04 revoked installation cannot commit a queued write or kee
 test("ISSUE-03 ISSUE-06 ISSUE-07 ISSUE-09 real HTTP and authorized MCP process share Home records without a project", { timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "issue-entry-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const token = resolveWebControlToken({ homeDirectory: home });
-  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`, clientId = "runtime:issue-check";

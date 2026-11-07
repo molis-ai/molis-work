@@ -37,3 +37,39 @@ test("SYS-15-D1 opaque page drafts persist through reload, reject invalid writes
   await open("todo"); await todo.waitFor("window.testPageDrafts");
   assert.equal(await todo.evaluate("testPageDrafts.read('private-draft')"), "content saved by Todo", "another plugin's overwrite and deletion have no effect");
 });
+
+test("ASR-04 existing draft writes finish before account preparation and a failed save keeps the page usable", {timeout:60_000}, async t => {
+  const browser=await openGoalBrowser(t,true);if(!browser)return;
+  const child=await pluginFrameBrowser(t,browser,"cognia");
+  await pluginFrameInitScript(t,browser,`
+    window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){
+      target[key]=host=>{window.testPageDrafts=host.drafts;return factory(host)};return true;
+    }});
+  `);
+  await browser.navigate(()=>browser.command("Page.navigate",{url:browser.origin+"/projects/"+browser.projectId+"/?openPlugin=cognia"},browser.sessionId));
+  await browser.surfaceReady("cognia");await child.waitFor("window.testPageDrafts");
+  await browser.evaluate(`{
+    window.originalDraftCacheOpen=caches.open.bind(caches);
+    caches.open=async name=>{if(name.endsWith(':drafts')){window.draftGateReady=true;await new Promise(resolve=>window.releaseDraftGate=resolve);}return window.originalDraftCacheOpen(name);};
+  }`);
+  await child.evaluate("void testPageDrafts.write('prepared-draft','saved before revocation').then(()=>window.preparedDraftSaved=true)");
+  await browser.waitFor("window.draftGateReady");
+  await browser.evaluate("void molisWorkAccountTransition.prepare().then(()=>window.accountPrepared=true)");
+  assert.equal(await browser.evaluate("molisWorkAccountTransition.preparing && !window.accountPrepared"),true);
+  await browser.evaluate("caches.open=window.originalDraftCacheOpen;window.releaseDraftGate()");
+  await browser.waitFor("window.accountPrepared");await child.waitFor("window.preparedDraftSaved");
+  assert.equal(await child.evaluate("testPageDrafts.write('prepared-draft','too late').then(()=>false,()=>true)"),true);
+  await browser.evaluate("molisWorkAccountTransition.resume()");
+  assert.equal(await child.evaluate("testPageDrafts.read('prepared-draft')"),"saved before revocation");
+  await browser.evaluate("caches.open=async()=>{throw new Error('synthetic draft save failure')}");
+  assert.equal(await child.evaluate("testPageDrafts.write('prepared-draft','failed overwrite').then(()=>false,()=>true)"),true);
+  assert.equal(await browser.evaluate("molisWorkAccountTransition.prepare().then(()=>false,()=>true)"),true,"a failed save cannot acknowledge preparation");
+  await browser.evaluate("caches.open=window.originalDraftCacheOpen;molisWorkAccountTransition.resume()");
+  await child.waitFor("!document.body.inert");
+  assert.equal(await child.evaluate("testPageDrafts.read('prepared-draft')"),"saved before revocation","failed preparation preserves the last successful draft and permits reading again");
+  await child.evaluate("testPageDrafts.write('prepared-draft','saved after retry')");
+  await browser.evaluate("molisWorkAccountTransition.prepare()");
+  await browser.evaluate("molisWorkAccountTransition.resume()");
+  await child.waitFor("!document.body.inert");
+  assert.equal(await child.evaluate("testPageDrafts.read('prepared-draft')"),"saved after retry");
+});

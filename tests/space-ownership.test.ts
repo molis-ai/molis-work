@@ -93,7 +93,7 @@ async function listen(server:Server):Promise<string> {
 }
 async function close(server:Server) {await new Promise<void>(resolve=>server.close(()=>resolve()));}
 
-test('real Web routing isolates local/A/B, keeps login local, rejects stale pages and restores the same account', async () => {
+test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, rejects stale clients and restores the same account', async () => {
   const home=mkdtempSync(join(tmpdir(),'space-web-'));
   let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean},remote='', user='alice';
   const upstream=createServer(async(req,res)=>{
@@ -111,6 +111,7 @@ test('real Web routing isolates local/A/B, keeps login local, rejects stale page
   const rootToken='synthetic-space-web-root-control-0123456789';
   const localCatalog=await openMolisWorkProjectCatalog({homeDirectory:home});
   const localProject=await localCatalog.createProject({display_name:'Local retained project',actor_id:'local'});localCatalog.close();
+  const localOriginal=readFileSync(localProject.database_path);
   const server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken});
   const origin=await listen(server);let cookie='',token=rootToken,sequence=0;
   const request=async(path:string,init:RequestInit={})=>{
@@ -121,14 +122,20 @@ test('real Web routing isolates local/A/B, keeps login local, rejects stale page
   const post=(path:string,body:unknown={})=>request(path,{method:'POST',headers:{Origin:origin,'content-type':'application/json',
     'x-molis-work-control-token':token,'x-molis-work-idempotency-key':'space-test-'+(++sequence)},body:JSON.stringify(body)});
   const scopes=async()=>{const response=await request('/api/spaces');assert.equal(response.status,200);return response.json();};
+  const prepare=async(intent:'switch'|'logout')=>{
+    const state=await(await request('/api/personal/status?page=space-main')).json();if(!state.identity)return '';
+    const start=await post('/api/personal/prepare?action=start&page=space-main&intent='+intent);assert.equal(start.status,200);const {id}=await start.json();
+    const ack=await post('/api/personal/prepare?action=ack&page=space-main&id='+id);assert.equal((await ack.json()).ready,true);return '&page=space-main&preparation='+id;
+  };
   const login=async(name:string)=>{
-    user=name;assert.equal((await post('/api/personal/login')).status,200);
+    const prepared=await prepare('switch');user=name;assert.equal((await post('/api/personal/'+(prepared?'switch':'login')+'?returnTo=%2F'+prepared)).status,200);
     assert.equal((await request('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'})).status,303);
     const state=await(await request('/api/personal/status')).json();token=state.viewToken;
   };
   try {
-    await login('alice');assert.equal((await scopes()).current.kind,'local');
-    assert.equal((await request('/projects/'+localProject.project_id)).status,200);
+    assert.equal((await request('/api/settings/projects')).status,401,'an installation without an account never opens root business data');
+    assert.doesNotMatch(await(await request('/')).text(),/Local retained project/);
+    await login('alice');assert.equal((await scopes()).current.kind,'personal');
     assert.equal((await post('/api/personal/space?kind=team')).status,400);
     assert.equal((await post('/api/personal/space?kind=personal&userId=bob')).status,200);
     const a=(await scopes()).current;assert.equal(a.ownerUserId,'alice');assert.equal(a.kind,'personal');
@@ -154,13 +161,17 @@ test('real Web routing isolates local/A/B, keeps login local, rejects stale page
     assert.doesNotMatch(await(await request('/')).text(),/Alice private project/);
     const bToken=token;
     await login('alice');assert.equal((await scopes()).current.spaceId,a.spaceId);
+    await assert.rejects(gateway.discover(caller),{code:'host.request_refused'},'ASR-03 the original A client cannot adopt the new A credential');
+    const reconnected=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,clientId:'runtime:space-test',projectId:aProject.project_id});
+    assert.ok(Array.isArray(await reconnected.discover(caller)),'an explicit new A connection reads the current personal credential');
     assert.equal((await request('/projects/'+aProject.project_id)).status,200);
     assert.equal((await request('/',{headers:{'x-molis-work-control-token':bToken}})).status,409);
-    assert.equal((await post('/api/personal/logout')).status,200);token=rootToken;
-    assert.equal((await scopes()).current.kind,'local');
-    assert.equal((await request('/projects/'+localProject.project_id)).status,200);
-    assert.notEqual((await request('/projects/'+aProject.project_id)).status,200);
-    assert.equal((await scopes()).syncEnabled,false);
+    const prepared=await prepare('logout');assert.equal((await post('/api/personal/logout?'+prepared.slice(1))).status,200);token=rootToken;
+    assert.equal((await request('/api/spaces')).status,401);
+    assert.equal((await request('/api/settings/projects')).status,401);
+    assert.match(await(await request('/projects/'+localProject.project_id)).text(),/data-account-entry/);
+    assert.match(await(await request('/projects/'+aProject.project_id)).text(),/data-account-entry/);
+    assert.deepEqual(readFileSync(localProject.database_path),localOriginal,'root data is retained without moving, opening or relabelling it');
     assert.doesNotMatch(readFileSync(join(aHome,'storage-space.json'),'utf8'),/synthetic-access|synthetic-refresh/);
   } finally {
     await close(server);await close(upstream);

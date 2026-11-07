@@ -13,7 +13,7 @@ import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-c
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const controlToken = "home-isolation-test-control-token-0123456789";
 /** A secret in the default Home's store; no other Home may read or replace it. */

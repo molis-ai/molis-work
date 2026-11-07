@@ -28,7 +28,7 @@ import {
   renderMolisWorkWorkbenchClientScript,
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
-import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createBaseMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { GOALS_PLUGIN_ID, goalAdvancePrompt } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { goalTerminalsPath } from "./fixtures/goal-terminal.js";

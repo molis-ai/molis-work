@@ -2,13 +2,14 @@ import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderWordmark } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs, renderHomePluginNavigation, type HomePluginNavigationEntry } from "../home-plugin-navigation.js";
 import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
-import { NO_FAVICON_LINK } from "../document-shell.js";
+import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "../document-shell.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
  * what goes inside the stage and the bar's three blocks; the frame itself never moves (specs/archive/project-arrival-flow).
  */
 export interface ArrivalShellPrimitives {
+  accountRegistration?: boolean;
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
@@ -101,7 +102,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   <link rel="stylesheet" href="/assets/molis-work-arrival.css">
   ${side ? `<style>${SIDE_PANEL_STYLES}body.immersive-workbench.arrival-page{--desktop-titlebar-height:var(--arrival-titlebar-h)}</style>` : ""}
 </head>
-<body class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
+<body${p.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
   ${p.renderIconSprite()}
   <div class="arrival" data-workspace data-screen="${options.screen}">
     ${options.titlebar}

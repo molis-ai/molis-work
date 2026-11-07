@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createMolisWorkWebServer } from '../apps/desktop/launchers/web/server.js';
 import { createServer } from 'node:http';
-import { personalReturnPath } from '@molis-ai/molis-work-app-local-host';
+import { PersonalAuth, personalReturnPath } from '@molis-ai/molis-work-app-local-host';
 import { PERSONAL_ACCOUNT_CLIENT_SCRIPT } from '@molis-ai/molis-work-app-workbench';
 import { PersonalWebSessions } from '@molis-ai/molis-work-app-local-host';
 import { createPersonalNativeSession, NATIVE_SESSION_FILE, NATIVE_SESSION_HEADER } from '@molis-ai/molis-work-app-local-host';
@@ -28,15 +28,15 @@ test('native identity requires an owner-only header capability, never a cookie o
   } finally { rmSync(home,{recursive:true,force:true}); }
 });
 
-test('native login and restart remain isolated from ordinary browser sessions and UI hints',async()=>{
+test('S-141 native login and restart remain isolated from ordinary browser sessions and UI hints',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-native-login-'));
-  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean}, remote='';
+  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean}, remote='', user='native-alice';
   const upstream=createServer(async(req,res)=>{
     let raw='';for await(const chunk of req)raw+=chunk;
     res.setHeader('content-type','application/json');
     if(req.url==='/api/v1/auth/transactions') {transaction=JSON.parse(raw);res.end(JSON.stringify({data:{loginUrl:remote+'/login'}}));}
     else if(req.url==='/oauth2/token')res.end(JSON.stringify({access_token:'synthetic-native',refresh_token:'synthetic-refresh',expires_in:3600}));
-    else if(req.url==='/api/v1/users/me')res.end(JSON.stringify({data:{userId:'native-alice',displayName:'Alice',emails:[],applicationId:'work',clientId:'desktop-test'}}));
+    else if(req.url==='/api/v1/users/me')res.end(JSON.stringify({data:{userId:user,displayName:'Alice',emails:[],applicationId:'work',clientId:'desktop-test'}}));
     else res.end('{}');
   });
   const listen=async(server:ReturnType<typeof createServer>)=>{
@@ -63,7 +63,7 @@ test('native login and restart remain isolated from ordinary browser sessions an
     assert.doesNotMatch(callback.headers.get('set-cookie')??'',new RegExp(proof));
     const status=await (await native('/api/personal/status?attempt='+attempt)).json();
     assert.equal(status.identity.userId,'native-alice');assert.equal(status.loginCompleted,true);
-    assert.equal(status.space,'local','native account Home is not opened before PTY/Shelf isolation');
+    assert.equal(status.space,'account','ASR-02 login selects the installation account Home');
     for(const path of ['/api/personal/status','/api/personal/status?desktop=1']) {
       const response=await fetch(origin+path,{headers:{'x-molis-work-desktop':'1',cookie:'molis-work-native-session='+proof}});
       assert.equal((await response.json()).identity,null);
@@ -82,9 +82,27 @@ test('native login and restart remain isolated from ordinary browser sessions an
     assert.equal(scopes.current.kind,'personal');assert.equal(scopes.current.ownerUserId,'native-alice');
     await close(server);server=createMolisWorkWebServer({homeDirectory:home,controlToken});origin=await listen(server);
     assert.equal((await(await native('/api/personal/status')).json()).identity.userId,'native-alice','host shutdown must preserve native login');
-    const logout=await native('/api/personal/logout',true);assert.equal(logout.status,200);
+    const prepareNative=async(intent:'switch'|'logout')=>{
+      const page='native-main';await native('/api/personal/status?page='+page);
+      const start=await native('/api/personal/prepare?action=start&page='+page+'&intent='+intent,true);assert.equal(start.status,200);
+      const {id}=await start.json();const ack=await native('/api/personal/prepare?action=ack&page='+page+'&id='+id,true);assert.equal((await ack.json()).ready,true);
+      return '&page='+page+'&preparation='+id;
+    };
+    const staleTicket=(await(await native('/api/personal/status')).json()).browserSessionTicket;
+    const prepared=await prepareNative('switch');
+    user='native-bob';assert.equal((await native('/api/personal/switch?returnTo=%2F'+prepared,true)).status,200);
+    assert.equal((await fetch(origin+'/account/callback?code=synthetic-bob&state='+transaction.state,{redirect:'manual'})).status,303);
+    const bob=await(await native('/api/personal/status')).json();assert.equal(bob.identity.userId,'native-bob');
+    const attachTicket=(ticket:string,id:string)=>fetch(origin+'/api/personal/native-attach?ticket='+ticket,{method:'POST',headers:{Origin:origin,
+      'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':id},body:'{}'});
+    const stale=await attachTicket(staleTicket,'stale-alice-ticket');
+    assert.equal(stale.status,401,'S-141 an old login generation ticket is refused');
+    assert.equal(stale.headers.get('set-cookie'),null,'refusal issues no browser session');
+    const fresh=await attachTicket(bob.browserSessionTicket,'fresh-bob-ticket');assert.equal(fresh.status,200);
+    assert.equal((await attachTicket(bob.browserSessionTicket,'replayed-bob-ticket')).status,401,'tickets remain single use');
+    const logoutPrepared=await prepareNative('logout');assert.equal((await native('/api/personal/logout?'+logoutPrepared.slice(1),true)).status,200);
     assert.equal((await(await native('/api/personal/status')).json()).identity,null);
-    assert.equal(existsSync(join(home,'personal')),false,'native login never claims existing local assets');
+    assert.equal(existsSync(join(home,'personal')),false,'login never claims existing local assets');
   } finally {
     await close(server);await close(upstream);
     names.forEach((name,i)=>{if(before[i]===undefined)delete process.env[name];else process.env[name]=before[i];});
@@ -92,7 +110,7 @@ test('native login and restart remain isolated from ordinary browser sessions an
   }
 });
 
-test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accounts and stops on local switch/logout',async t=>{
+test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves opted-in sync across explicit logout/login',async t=>{
   t.mock.timers.enable({apis:['setInterval']});
   const home=mkdtempSync(join(tmpdir(),'sync-host-device-'));
   let state='',remote='',syncRequests=0;
@@ -133,6 +151,10 @@ test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accou
     if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
     assert.ok(response.status<400,'unexpected HTTP '+response.status+' for '+path+': '+(response.status>=400?await response.clone().text():''));return response;
   };
+  const prepareLogout=async()=>{
+    await request('/api/personal/status?page=device');const start=await request('/api/personal/prepare?action=start&page=device&intent=logout','POST');const {id}=await start.json();
+    const ack=await request('/api/personal/prepare?action=ack&page=device&id='+id,'POST');assert.equal((await ack.json()).ready,true);return '?page=device&preparation='+id;
+  };
   let historyProject: {project_id:string} | undefined;
   const login=async()=>{
     await request('/api/personal/login','POST');await request('/account/callback?code=synthetic&state='+state);
@@ -171,15 +193,14 @@ test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accou
     assert.deepEqual(historyWrites,[{...source,operationId:'inspect-then-restore',policyRevision:1}],'Host forwards the inspected source/head while the coordinator injects current policy');
     await request('/api/sync/device','PUT',{automatic:true});
     await request('/api/sync/run','POST');const enabled=syncRequests;assert.ok(enabled>=2);
-    await request('/api/personal/space?kind=local','POST');
-    t.mock.timers.tick(60000);assert.equal(syncRequests,enabled,'switching local cancels the old timer');
-    token=rootToken;await request('/api/personal/space?kind=personal','POST');
-    token=(await(await request('/api/personal/status')).json()).viewToken;
+    await request('/api/personal/logout'+await prepareLogout(),'POST');
+    t.mock.timers.tick(60000);assert.equal(syncRequests,enabled,'ASR-10 explicit logout cancels the old timer');
+    token=rootToken;await login();
     await request('/api/sync/run','POST');assert.ok(syncRequests>enabled,'re-entering restores the opted-in loop');
     await close(server);server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken});origin=await listen(server);cookie='';token=rootToken;
     const before=syncRequests;await login();await request('/api/sync/run','POST');assert.ok(syncRequests>before);
     assert.deepEqual((await(await request('/api/sync')).json()).device,{automatic:true});
-    await request('/api/personal/logout','POST');const signedOut=syncRequests;t.mock.timers.tick(60000);assert.equal(syncRequests,signedOut);
+    await request('/api/personal/logout'+await prepareLogout(),'POST');const signedOut=syncRequests;t.mock.timers.tick(60000);assert.equal(syncRequests,signedOut);
   }finally{
     await close(server);await close(upstream);
     names.forEach((name,index)=>{if(previous[index]===undefined)delete process.env[name];else process.env[name]=previous[index];});rmSync(home,{recursive:true,force:true});
@@ -189,7 +210,8 @@ test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accou
 test('web sessions expire, rotate identifiers, reject duplicate cookies and do not survive restart',()=>{
   let now=1000;const sessions=new PersonalWebSessions(()=>now);
   const config={authOrigin:'https://auth.example',clientId:'web',cloudOrigin:'https://cloud.example'};
-  const a=sessions.create(config),b=sessions.create(config);
+  const auth=new PersonalAuth(config,{get:()=>null,put:()=>{},delete:()=>{}});
+  const a=sessions.adopt(auth),b=sessions.adopt(auth);
   const before=sessions.cookie(a,true).split(';')[0];
   assert.equal(sessions.get(before),a);assert.match(sessions.cookie(a,true),/HttpOnly; SameSite=Lax; Max-Age=28800; Secure/);
   assert.equal(sessions.get(before+'; '+before),null);
@@ -207,7 +229,7 @@ test('account scripts parse and return destinations reject external and auth rou
   for(const input of ['https://evil.test','//evil.test','/\\evil.test','/account/callback','/api/personal/logout','/projects/../account','/projects/x\n'])assert.equal(personalReturnPath(input),'/');
 });
 
-test('web login is cookie-bound, isolated and never opens the local credential store',async()=>{
+test('ASR-02/03 web login binds the installation account and stale browser cookies never select another account',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-personal-flow-'));
   let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean}, user='alice';
   const upstream=createServer(async(req,res)=>{
@@ -249,24 +271,29 @@ test('web login is cookie-bound, isolated and never opens the local credential s
     assert.match(failure,/登录未完成或请求已失效/);assert.deepEqual([...failure.matchAll(/href="([^"]*)"/g)].map(match=>match[1]),['/']);
     assert.doesNotMatch(failure,/<(?:script|form|iframe|nav|main)\b|data-plugin|synthetic|wrong|access_token|refresh_token|code=|state=/i);
     const callback=await browser('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});
-    assert.equal(callback.status,303);assert.equal(callback.headers.get('location'),'/projects/demo?view=work#task');assert.equal(await callback.text(),'');
+    assert.equal(callback.status,303);assert.equal(callback.headers.get('location'),'/','login enters the authenticated account workspace');assert.equal(await callback.text(),'');
     assert.match(callback.headers.get('set-cookie')!,/HttpOnly; SameSite=Lax/);assert.notEqual(cookie,preLoginCookie);
     const another=await fetch(origin+'/api/personal/status',{headers:{Cookie:preLoginCookie}});assert.equal((await another.json()).identity,null);
     assert.equal((await(await fetch(origin+'/api/personal/status')).json()).identity,null);
-    assert.equal(existsSync(join(home,'feed','secrets.json')),false);assert.equal(existsSync(join(home,'feed','secrets.key')),false);
+    assert.doesNotMatch(JSON.stringify(await status()),/access_token|refresh_token|synthetic-access|synthetic-refresh/,'account controls never return installation credentials');
     const legacy=await fetch(origin+'/account',{redirect:'manual'});assert.equal(legacy.status,303);assert.equal(legacy.headers.get('location'),'/');
-    const switchResponse=await post('/api/personal/switch?returnTo=%2Fprojects%2Fdemo');
+    const prepare=async(intent:'switch'|'logout')=>{
+      await status('?page=flow');const start=await post('/api/personal/prepare?action=start&page=flow&intent='+intent);assert.equal(start.status,200);
+      const {id}=await start.json();const ack=await post('/api/personal/prepare?action=ack&page=flow&id='+id);assert.equal((await ack.json()).ready,true);return '&page=flow&preparation='+id;
+    };
+    const switchPrepared=await prepare('switch');
+    const switchResponse=await post('/api/personal/switch?returnTo=%2Fprojects%2Fdemo'+switchPrepared);
     const switching=await switchResponse.json();assert.equal(transaction.forceLogin,true);
     const waiting=await status('?pending=1&attempt='+switching.loginAttempt);assert.equal(waiting.identity.userId,'alice');assert.equal(waiting.loginCompleted,undefined);
     user='bob';
     const switched=await browser('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});
-    assert.equal(switched.status,303);assert.equal(switched.headers.get('location'),'/projects/demo');
+    assert.equal(switched.status,303);assert.equal(switched.headers.get('location'),'/');
     assert.equal((await status('?pending=1&attempt='+login.loginAttempt)).loginCompleted,undefined);
     const done=await status('?pending=1&attempt='+switching.loginAttempt);assert.equal(done.loginCompleted,true);assert.equal(done.identity.userId,'bob');
-    const logout=await post('/api/personal/logout?returnTo=%2Fprojects%2Fdemo');
+    const logoutPrepared=await prepare('logout');const logout=await post('/api/personal/logout?returnTo=%2Fprojects%2Fdemo'+logoutPrepared);
     assert.deepEqual(await logout.json(),{signedOut:true,remoteRevoked:true,redirectTo:'/projects/demo'});
     assert.equal((await status()).identity,null);assert.match(logout.headers.get('set-cookie')!,/molis-work-session=;.*Max-Age=0/);
-    const unsafe=await post('/api/personal/local?returnTo=https%3A%2F%2Fevil.test');assert.deepEqual(await unsafe.json(),{redirectTo:'/'});
+    const unsafe=await post('/api/personal/local?returnTo=https%3A%2F%2Fevil.test');assert.equal(unsafe.status,400,'ASR-02 an anonymous business workspace is not available');assert.equal(unsafe.headers.get('location'),null);
   }finally{
     await new Promise<void>(resolve=>server.close(()=>resolve()));await new Promise<void>(resolve=>upstream.close(()=>resolve()));
     names.forEach((name,i)=>{if(old[i]===undefined)delete process.env[name];else process.env[name]=old[i];});rmSync(home,{recursive:true,force:true});
@@ -284,7 +311,7 @@ test('account page works without cloud, never exposes credentials, and rejects c
     const account=await fetch(`${origin}/account`,{redirect:'manual'});assert.equal(account.status,303);
     const html=await(await fetch(origin)).text();assert.match(html,/data-account-link/);
     assert.doesNotMatch(html,/refresh_token|access_token/);
-    const status=await fetch(`${origin}/api/personal/status`);assert.deepEqual(await status.json(),{configured:false,identity:null,syncEnabled:false});
+    const status=await fetch(`${origin}/api/personal/status`);assert.deepEqual(await status.json(),{configured:false,identity:null,syncEnabled:false,accountChanged:false,ready:false,switching:false});
     const rejected=await fetch(`${origin}/api/personal/login`,{method:'POST',headers:{Origin:'https://attacker.example','content-type':'application/json'},body:'{}'});
     assert.equal(rejected.status,403);
   }finally{
@@ -294,7 +321,7 @@ test('account page works without cloud, never exposes credentials, and rejects c
   }
 });
 
-test('first launch skips account onboarding and never opens credentials in local mode',async()=>{
+test('ASR-02 first launch shows the login entry and refuses an anonymous business workspace',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-personal-local-'));
   const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN'];
   const old=names.map(name=>process.env[name]);
@@ -312,11 +339,12 @@ test('first launch skips account onboarding and never opens credentials in local
     const bad=await fetch(origin+'/api/personal/local',{method:'POST',headers:{Origin:'https://attacker.example'},body:'{}'});
     assert.equal(bad.status,403);
     const choice=await fetch(origin+'/api/personal/local?desktop=1',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'test-local-choice-001'},body:'{}'});
-    assert.equal(choice.status,200);assert.deepEqual(await choice.json(),{redirectTo:'/?desktop=1'});
-    const cookie=choice.headers.get('set-cookie')!;assert.match(cookie,/HttpOnly/);assert.match(cookie,/SameSite=Strict/);
-    const headers={Cookie:cookie.split(';')[0]};
+    assert.equal(choice.status,400);assert.equal(choice.headers.get('set-cookie'),null);
+    assert.match((await choice.json()).error,/不能切换匿名工作区/);
+    const headers={};
     const status=await fetch(origin+'/api/personal/status',{headers});
-    assert.deepEqual(await status.json(),{configured:true,identity:null,syncEnabled:false});
+    assert.deepEqual(await status.json(),{configured:true,identity:null,syncEnabled:false,accountChanged:false,ready:false,switching:false});
+    const denied=await fetch(origin+'/api/settings/projects',{headers});assert.equal(denied.status,401,'anonymous installation control never reaches business data');
     const account=await fetch(origin+'/account',{headers,redirect:'manual'});assert.equal(account.headers.get('location'),'/');
     assert.equal(existsSync(join(home,'feed','secrets.key')),false,'onboarding and local account must not open credentials');
     const next=await fetch(origin+'/',{headers,redirect:'manual'});assert.notEqual(next.headers.get('location'),'/welcome');

@@ -10,7 +10,7 @@ import { LocalHostHttpClient, createProject } from "@molis-ai/molis-work-test-ki
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { captureHostLog, type HostLogEntry, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 test("health becomes ready after a transient catalog lock without a business request", { timeout: 20_000 }, async t => {

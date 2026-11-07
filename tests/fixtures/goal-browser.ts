@@ -10,7 +10,7 @@ import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/b
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer } from "./local-web-core.js";
 import { boardSnapshot } from "./goal-application.js";
 
 /** The control token every Goals browser fixture serves with; e2e files that call the server by hand use this one (`controlToken` in the return). */
@@ -27,7 +27,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   let store: LocalProjectDatabase | undefined;
   let localHost: MolisWorkLocalHost | undefined;
   let harness: ChromeHarness | undefined;
-  let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  let server: ReturnType<typeof createSingleHomeTestWebServer> | undefined;
   const connections = new Set<Socket>();
   t.after(async () => {
     const failures: unknown[] = [];
@@ -99,7 +99,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     const withCatalog = localHost.configurePersonalPlanning(directory,
       localHost.ensureWebCatalog(directory, openMolisWorkProjectCatalog).withCatalog);
   }
-  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
+  server = createSingleHomeTestWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN, ...serverOptions });
   const setFrameInitScript = observePluginFrames(server);
   server.on("connection", connection => {

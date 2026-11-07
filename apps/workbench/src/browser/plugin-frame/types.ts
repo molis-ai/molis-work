@@ -81,6 +81,7 @@ export type FrameUp =
   | { type: "context-intake"; intake_id: string; id: string; title: string; text: string }
   | { type: "copy"; id: number; text: string }
   | { type: "draft"; id: number; key: string; value?: string | null }
+  | { type: "draft-flushed"; id: number; error?: string }
   | { type: "shortcut"; keys: string } | { type: "close-side" }
   | { type: "native-files"; id: number; operation: "copy" | "drag" | "open"; paths: readonly string[]; itemIds?: readonly string[] }
   | { type: "native-file-pick"; id: number; query: string }
@@ -103,6 +104,8 @@ export type FrameDown =
   | { type: "document"; id: number; html?: string; error?: string }
   | { type: "copied"; id: number; error?: string }
   | { type: "draft-result"; id: number; value?: string | null; error?: string }
+  | { type: "draft-flush"; id: number }
+  | { type: "draft-resume" }
   | { type: "native-files-done"; id: number; error?: string }
   | { type: "native-file-picked"; id: number; file?: { name: string; bytes_base64: string }; error?: string }
   | { type: "model-ready" }

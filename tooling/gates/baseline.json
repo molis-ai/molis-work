@@ -1,13 +1,13 @@
 {
-  "giantUnits": 47,
+  "giantUnits": 48,
   "giant": {
     "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
       "lines": 257,
       "methods": 26
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
-      "lines": 267,
-      "methods": 39
+      "lines": 277,
+      "methods": 40
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
       "lines": 443,
@@ -23,15 +23,16 @@
     },
     "function apps/local-host/src/plugin-platform.ts#createPluginPlatform": 155,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 237,
-      "methods": 34
+      "lines": 245,
+      "methods": 35
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 303,
-      "methods": 23
+      "lines": 315,
+      "methods": 26
     },
-    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 188,
-    "file apps/workbench/src/i18n/en.ts": 3212,
+    "function apps/local-host/src/space-web-server.ts#createSpaceContext": 181,
+    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 222,
+    "file apps/workbench/src/i18n/en.ts": 3214,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "file horizontal/memory/src/service.ts": 1151,
     "class horizontal/memory/src/service.ts#MemoryService": {
@@ -42,8 +43,8 @@
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1268,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 442,
-      "methods": 16
+      "lines": 452,
+      "methods": 18
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,
@@ -351,7 +352,7 @@
   "oldNames": {
     "packages/storage/src/adapters/file-secret-store.ts": 1
   },
-  "scriptConstantsTotal": 95,
+  "scriptConstantsTotal": 94,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -390,7 +391,6 @@
     "apps/workbench/src/scripts/home-model-settings.ts": 1,
     "apps/workbench/src/scripts/mcp-access.ts": 1,
     "apps/workbench/src/scripts/project-settings.ts": 1,
-    "apps/workbench/src/scripts/settings-models.ts": 1,
     "apps/workbench/src/scripts/settings-web-service.ts": 1,
     "apps/workbench/src/scripts/settings.ts": 2,
     "packages/design-system/src/file-preview.ts": 1,
@@ -510,7 +510,7 @@
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
-  "translationConflictTotal": 136,
+  "translationConflictTotal": 135,
   "translationConflicts": {
     "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": 2,
     "版本": 2,
@@ -586,7 +586,6 @@
     "清空": 2,
     "请选择判断能力": 2,
     "全局": 2,
-    "缺少项目": 2,
     "确定": 2,
     "仍需拆分": 2,
     "删列": 2,

@@ -27,6 +27,8 @@ export function renderWorkbenchRefreshDocument(request: Pick<WorkbenchDocumentRe
  * N53); an empty `data:` icon (the page CSP allows `img-src data:`) answers it in the page, so nothing is requested.
  */
 export const NO_FAVICON_LINK = '<link rel="icon" href="data:,">';
+/** Interactions start only after this document joins the current account's page cohort. */
+export const ACCOUNT_REGISTRATION_BODY = ' inert data-account-registering';
 
 /** Stable document shell, shared by native and installed app surfaces. */
 export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string {

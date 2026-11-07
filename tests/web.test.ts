@@ -37,7 +37,7 @@ import {
   unsatisfiedOutgoingDependencies,
   WEB_GOAL_STATUSES,
 } from "./workbench-renderer-fixture.js";
-import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createBaseMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { GoalProjectApplication, boardSnapshot as snapshotOfStore } from "./fixtures/goal-application.js";
 
 const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";

@@ -181,14 +181,17 @@ export function registerFeedCaptureVersion(
       feed_item_id: item.item_id,
       rule_id: rule.rule_id,
     },
-    // The message as captured (artifact-positioning A1): its revision is the captured content, so the same envelope
-    // re-ingested replays the same version and an edited item is captured as a new one.
+    // The message as captured (artifact-positioning A1): its revision is the captured content, so unchanged content
+    // replays the newest version and an edited item is captured as a new one.
     origin: { kind: "pinned", subject: { kind: "feed_item", id: item.item_id }, revision: createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 16) },
     title: item.title.trim() || "Feed 捕获", media_type: "application/json",
     ...(supersedes != null ? { supersedes_version: supersedes } : {}),
   });
   try {
-    return artifacts.publish(input(latest?.version ?? 1, null));
+    // A replay has to name what the newest version names, `supersedes` included, or the 成果库 takes it for other content.
+    // Feed only ever writes the next version over the newest, so that is always the one before it. A conflict is left for
+    // content that did change, or a version an earlier Feed wrote: the 成果库 compares the producer's version too.
+    return artifacts.publish(input(latest?.version ?? 1, latest && latest.version > 1 ? latest.version - 1 : null));
   } catch (error) {
     if (!isVersionConflict(error) || latest == null) throw error;
     return artifacts.publish(input(latest.version + 1, latest.version));

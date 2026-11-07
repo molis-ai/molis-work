@@ -14,6 +14,8 @@ export function bindActionHandler<I, O>(definition: ActionDefinition<I, O>, run:
 // Action input types, read from a schema written as a literal (specs/action-input-contracts §4.2). Types only: an author installs
 // contracts and the SDK and nothing else (§4.1). What cannot be read ($ref, conditions without `type`) stays `unknown`, never `any`.
 // A tuple without `minItems` is accepted short at run time, so its elements are optional: handlers will drop their own checks on these types.
+// `properties` is read before `oneOf` and `anyOf`: keywords at one level must all hold, so the fields alone never claim more than the run-time check (§4.2).
+// A length is fixed only when both bounds are literals: `maxItems: LIMITS.x` with a plain number says nothing about how many there are.
 type Simple<T> = T extends "string" ? string : T extends "integer" | "number" ? number : T extends "boolean" ? boolean
   : T extends "null" ? null : T extends "object" ? Record<string, unknown> : T extends "array" ? unknown[] : unknown;
 type Expand<T> = T extends object ? { [K in keyof T]: T[K] } & {} : T;
@@ -22,14 +24,14 @@ type Prop<P, R extends readonly string[]> = Expand<{ readonly [K in keyof P & R[
 export type InferActionInput<S> =
   S extends { readonly const: infer C } ? C
   : S extends { readonly enum: readonly (infer E)[] } ? E
+  : S extends { readonly type: "object"; readonly properties: infer P } ? Prop<P, S extends { readonly required: infer R extends readonly string[] } ? (string extends R[number] ? readonly [] : R) : readonly []>
   : S extends { readonly oneOf: readonly (infer U)[] } ? (U extends unknown ? InferActionInput<U> : never)
   : S extends { readonly anyOf: readonly (infer U)[] } ? (U extends unknown ? InferActionInput<U> : never)
   : S extends { readonly type: readonly (infer T)[] } ? (T extends unknown ? InferActionInput<Omit<S, "type"> & { readonly type: T }> : never)
   : S extends { readonly type: "array"; readonly maxItems: 0 } ? []
   : S extends { readonly type: "array"; readonly items: infer I extends readonly unknown[] } ? OptionalFrom<{ -readonly [K in keyof I]: InferActionInput<I[K]> }, S extends { readonly minItems: infer N extends number } ? N : 0>
-  : S extends { readonly type: "array"; readonly minItems: infer N extends number; readonly maxItems: infer M extends number; readonly items: infer I } ? (number extends N ? InferActionInput<I>[] : N extends M ? RepeatTuple<InferActionInput<I>, N> : InferActionInput<I>[])
+  : S extends { readonly type: "array"; readonly minItems: infer N extends number; readonly maxItems: infer M extends number; readonly items: infer I } ? (number extends N ? InferActionInput<I>[] : number extends M ? InferActionInput<I>[] : N extends M ? RepeatTuple<InferActionInput<I>, N> : InferActionInput<I>[])
   : S extends { readonly type: "array"; readonly items: infer I } ? InferActionInput<I>[]
-  : S extends { readonly type: "object"; readonly properties: infer P } ? Prop<P, S extends { readonly required: infer R extends readonly string[] } ? (string extends R[number] ? readonly [] : R) : readonly []>
   : S extends { readonly type: "object"; readonly additionalProperties: infer A } ? (A extends object ? Readonly<Record<string, InferActionInput<A>>> : Readonly<Record<string, unknown>>)
   : S extends { readonly type: infer T } ? (string extends T ? unknown : Simple<T>)
   : unknown;

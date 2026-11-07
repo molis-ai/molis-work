@@ -52,6 +52,18 @@ same<Equal<Infer<{ readonly $ref: "#/x" }>, unknown>>();
 same<Equal<Infer<{ readonly allOf: readonly [{ readonly type: "string" }] }>, unknown>>();
 same<Equal<Infer<ActionSchema>, unknown>>();
 same<Equal<Infer<{ readonly properties: { readonly a: { readonly type: "string" } }; readonly oneOf: readonly [{ readonly required: readonly ["a"] }] }>, unknown>>();
+// With `type` written, `properties` beside a top-level oneOf or anyOf are read: every keyword at one level must hold, so the fields alone never claim more than the run-time check.
+same<Equal<Infer<{ readonly type: "object"; readonly properties: { readonly a: { readonly type: "string" }; readonly b: { readonly type: "string" } }; readonly oneOf: readonly [{ readonly required: readonly ["a"] }, { readonly required: readonly ["b"] }] }>, { readonly a?: string; readonly b?: string }>>();
+same<Equal<Infer<{ readonly type: "object"; readonly properties: { readonly a: { readonly type: "string" }; readonly b: { readonly type: "string" } }; readonly anyOf: readonly [{ readonly required: readonly ["a"] }, { readonly required: readonly ["b"] }] }>, { readonly a?: string; readonly b?: string }>>();
+// `required` beside them still counts, and what a branch requires does not.
+same<Equal<Infer<{ readonly type: "object"; readonly properties: { readonly a: { readonly type: "string" }; readonly r: { readonly type: "integer" } }; readonly required: readonly ["r"]; readonly oneOf: readonly [{ readonly required: readonly ["a"] }] }>, { readonly a?: string; readonly r: number }>>();
+// Nested, the way `goals.tree.submit` writes its `payload`.
+same<Equal<Infer<{ readonly type: "object"; readonly properties: { readonly payload: { readonly type: "object"; readonly properties: { readonly a: { readonly type: "string" } }; readonly anyOf: readonly [{ readonly required: readonly ["a"] }] } }; readonly required: readonly ["payload"] }>, { readonly payload: { readonly a?: string } }>>();
+// A oneOf of whole branches, with no `properties` beside it, is still their union.
+same<Equal<Infer<{ readonly oneOf: readonly [{ readonly type: "object"; readonly properties: { readonly a: { readonly type: "string" } }; readonly required: readonly ["a"] }, { readonly type: "null" }] }>, { readonly a: string } | null>>();
+// A length is fixed only when both bounds are literals: `maxItems: LIMITS.x` with a plain number says nothing about how many there are.
+same<Equal<Infer<{ readonly type: "array"; readonly minItems: 1; readonly maxItems: number; readonly items: { readonly type: "string" } }>, string[]>>();
+same<Equal<Infer<{ readonly type: "array"; readonly minItems: number; readonly maxItems: 1; readonly items: { readonly type: "string" } }>, string[]>>();
 // The comparison itself can say no: without this, the lines above would prove nothing.
 same<Equal<Infer<{ readonly type: "string" }>, number>>(); // rejects: 'false' does not satisfy the constraint 'true'
 
@@ -141,6 +153,37 @@ inputSchemaFor<FlatUnion<Started>>()({ type: "object", properties: { ...flatSche
 inputSchemaFor<FlatUnion<Started>>()({ type: "object", properties: flatSchemaFields, required: ["kind", "title"] }); // rejects: 接口比 schema 宽
 // Flattening is written at the definition: a bare union over a flat schema is refused.
 inputSchemaFor<Started>()({ type: "object", properties: flatSchemaFields, required: ["kind"] }); // rejects: schema 比接口松
+
+/* ---------- `properties` beside a top-level oneOf or anyOf (§4.2) ---------- */
+
+// `projects.directories.set_output` is `oneOf` and `goals.tree.submit`'s `payload` is `anyOf`. The union is flattened at the definition, like any flat schema.
+const stringField = { type: "string" } as const;
+type Target = { expected_revision: number } & ({ workspace_id: string } | { workspace_path: string });
+const targetFields = { expected_revision: { type: "integer" }, workspace_id: stringField, workspace_path: stringField } as const;
+const onePerTarget = [{ required: ["workspace_id"] }, { required: ["workspace_path"] }] as const;
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: targetFields, required: ["expected_revision"], oneOf: onePerTarget, additionalProperties: false });
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: targetFields, required: ["expected_revision"], anyOf: onePerTarget, additionalProperties: false });
+// The checks do not loosen beside either keyword: too many keys either way round, a field of the wrong type, a key missing from `required`, a key required that a branch does not have.
+inputSchemaFor<FlatUnion<Target> & { extra?: string }>()({ type: "object", properties: targetFields, required: ["expected_revision"], oneOf: onePerTarget }); // rejects: 接口有 schema 不认识的键
+inputSchemaFor<FlatUnion<Target> & { extra?: string }>()({ type: "object", properties: targetFields, required: ["expected_revision"], anyOf: onePerTarget }); // rejects: 接口有 schema 不认识的键
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: { ...targetFields, extra: stringField }, required: ["expected_revision"], oneOf: onePerTarget }); // rejects: schema 有接口没写的键
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: { ...targetFields, extra: stringField }, required: ["expected_revision"], anyOf: onePerTarget }); // rejects: schema 有接口没写的键
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: { ...targetFields, workspace_id: { type: "integer" } }, required: ["expected_revision"], oneOf: onePerTarget }); // rejects: schema 比接口松
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: { ...targetFields, workspace_id: { type: "integer" } }, required: ["expected_revision"], anyOf: onePerTarget }); // rejects: schema 比接口松
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: targetFields, oneOf: onePerTarget }); // rejects: schema 比接口松
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: targetFields, anyOf: onePerTarget }); // rejects: schema 比接口松
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: targetFields, required: ["expected_revision", "workspace_id"], oneOf: onePerTarget }); // rejects: 接口比 schema 宽
+inputSchemaFor<FlatUnion<Target>>()({ type: "object", properties: targetFields, required: ["expected_revision", "workspace_id"], anyOf: onePerTarget }); // rejects: 接口比 schema 宽
+// A branch's `required` makes nothing required in the type: an interface that promises the field, or a bare union, is refused rather than trusted.
+inputSchemaFor<{ expected_revision: number; workspace_id: string; workspace_path?: string }>()({ type: "object", properties: targetFields, required: ["expected_revision"], oneOf: onePerTarget }); // rejects: schema 比接口松
+inputSchemaFor<Target>()({ type: "object", properties: targetFields, required: ["expected_revision"], oneOf: onePerTarget }); // rejects: schema 比接口松
+inputSchemaFor<Target>()({ type: "object", properties: targetFields, required: ["expected_revision"], anyOf: onePerTarget }); // rejects: schema 比接口松
+
+/* ---------- A limit that is not a literal (§4.2) ---------- */
+
+declare const limit: number;
+inputSchemaFor<string[]>()({ type: "array", minItems: 1, maxItems: limit, items: { type: "string" } });
+inputSchemaFor<[only: string]>()({ type: "array", minItems: 1, maxItems: limit, items: { type: "string" } }); // rejects: schema 比接口松
 
 /* ---------- bindActionHandler ---------- */
 

@@ -224,6 +224,10 @@ bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { 
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
   - 新写的处理器用 `bindActionHandler`，不写 `input as X`。现有的还没有迁完（N22 分片，到 N22-Z），不要假设全仓只有这一处；防回潮的门禁（N22-G）现在还没有。
   - `objectSchema`、`arraySchema`、`nullableSchema` 的泛型只为保留字面量，返回的值不变，动作快照因此不变。
+  - 推出来的输入类型不能比运行时说得多。下面四种写法工具会说多，不要用：元组都写 `maxItems`（没写时运行时放行多余元素）；`required` 写字面量，不写条件表达式或字面量联合的数组；可空用 `nullableSchema`，不写 `nullable: true`；`objectSchema` 的属性不写条件展开（`objectSchema({ a, ...(flag ? { b } : {}) })`：类型说 `b` 必有，运行时可能没有）。
+  - `{ enum: string[] }` 只推成 `string`：比运行时宽，精度丢了也没有人报，读字段不会编译失败。所以 `enum` 和它所在的片段都要 `as const`，包内的小片段也一样。
+  - `inputSchemaFor` 的键检查走每一层，不含 `Record` 的值：`additionalProperties` 的值不往里走，两边多键都放行。
+  - `type: "object"` 和 `properties` 旁边有顶层 `oneOf`、`anyOf` 时只读 `properties`，分支里的 `required` 不算必填，接口是判别联合就包 `FlatUnion`；哪些字段能一起出现仍归 schema 和处理器。
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 操作卡给人读的样子只有一份：`actionCardView`（`src/action-cards.ts`），助理和保管卡的插件都用它，插件再交给 `services.interaction.cardHtml` 画（PG-062）。
   - `/diff-view` 只加载 SDK 自己的文件与合同包，不带词；`renderDiff` 不自己转义、翻译或画图标，三样都由调用方的 `primitives` 给，每个标签用调用方自己的键（`labels`），仓库里只有它一份比较画法（PG062-08、PG062-10）。

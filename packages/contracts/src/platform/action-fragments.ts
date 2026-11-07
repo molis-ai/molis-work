@@ -1,3 +1,4 @@
+import { inputSchemaFor } from "./action-input.js";
 import type { ActionDefinition, ActionReference } from "./actions.js";
 import type { SurfacePlace } from "../services/contextual.js";
 
@@ -106,14 +107,14 @@ export interface FragmentOfferChoice {
   readonly places?: readonly SurfacePlace[];
 }
 
-const id = { type: "string", minLength: 1 };
-const text = { type: "string", maxLength: 4000 };
+const id = { type: "string", minLength: 1 } as const;
+const text = { type: "string", maxLength: 4000 } as const;
 const TARGET_SCHEMA = {
   type: "object",
   properties: { kind: { enum: ["text_range", "block", "object"] }, role: { enum: [...FRAGMENT_ROLES] }, text, truncated: { type: "boolean" },
     ref: { type: "object", properties: { kind: id, id, version: { type: ["string", "integer"] }, title: { type: "string", maxLength: 200 } }, required: ["kind", "id"], additionalProperties: false } },
   required: ["kind", "text"], additionalProperties: false,
-};
+} as const;
 export const FRAGMENT_OFFERS_INPUT_SCHEMA = {
   type: "object",
   properties: {
@@ -131,7 +132,7 @@ export const FRAGMENT_OFFERS_INPUT_SCHEMA = {
     request_id: { ...id, maxLength: 200 },
   },
   required: ["fragment", "request_id"], additionalProperties: false,
-};
+} as const;
 export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
@@ -158,5 +159,5 @@ export function defineFragmentOffersAction(capabilityId: string, version: number
   choices: readonly FragmentOfferChoice[], scope: "project" | "home" = "project"): ActionDefinition<FragmentOffersInput, { offers: FragmentActionOffer[] }> {
   return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "按选中的片段准备本插件真实动作的完整参数；不会执行这些动作。", kind: "query", scope, scheduling: "concurrent",
     permissions, audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: kinds, fragment_offer_choices: choices,
-    input_type: FRAGMENT_OFFERS_INPUT_TYPE, output_type: FRAGMENT_OFFERS_OUTPUT_TYPE, input_schema: FRAGMENT_OFFERS_INPUT_SCHEMA, output_schema: FRAGMENT_OFFERS_OUTPUT_SCHEMA } };
+    input_type: FRAGMENT_OFFERS_INPUT_TYPE, output_type: FRAGMENT_OFFERS_OUTPUT_TYPE, input_schema: inputSchemaFor<FragmentOffersInput>()(FRAGMENT_OFFERS_INPUT_SCHEMA), output_schema: FRAGMENT_OFFERS_OUTPUT_SCHEMA } };
 }

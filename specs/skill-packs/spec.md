@@ -140,10 +140,14 @@ argument_hint: "<周期，可选>"
     - C 装完不启用、要另去目录：装完还要再走一趟。
   - **代价**：目录里改状态要先点进详情。
   - **组件板新增**（定下后先补标本再进产品，交 D 轨）：条目行下面的三档分段、条目行里的折叠详情、列表＋详情的整页、提示里的按钮、状态旁的链接按钮。
+- **2026-11-06 用户定（第 08 批开工时一次问的三项）**：
+  - **两张新表的建表步骤**：同意。`skill_settings`、`skill_uses` 按本批前置等 05 的 U1／U2 与 SQLite 切换，在 U1 升级链里加一步只建这两张空表，不动已有数据。08-7 那一片在同一个 PR 里把这一步写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」。否掉的：到时再问（多停一次）；赶在重建前写进第 1 版（要推翻本批「动表等 05」的前置）。
+  - **Coding 旧路的存量**：删 `agent.skills.discover.v1`／`install.v1` 与 Prologue 存储里的 `molis-coding-method` 时不认也不迁，不写迁移、不留读取兜底；真实 Home 里万一有旧数据，用「从本机导入」重新导一次。否掉的：写迁移搬进新目录（新增迁移逻辑，要长期维护）。
+  - **GitHub**：本机 `gh` 由用户登录，认领板与 PR 走它。
 
 ## 10. 开工前检查（第 08 批主会话，2026-11-06）
 
-按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)第 4 节逐项答。依据：本 spec、[合同稿](contract-design.md)、main `cf21c8d67`。档位：大需求；类型：横向能力（主），兼产品线（助理、Coding）。决策标记：直接做；要决策的只有第 6、7 项的存储时机（见下）。
+按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)第 4 节逐项答。依据：本 spec、[合同稿](contract-design.md)、main `cf21c8d67`。档位：大需求；类型：横向能力（主），兼产品线（助理、Coding）。决策标记：直接做；第 6、7 项的存储与存量用户 2026-11-06 已定（§9）。
 
 | # | 项 | 结论 |
 | --- | --- | --- |
@@ -152,8 +156,8 @@ argument_hint: "<周期，可选>"
 | 3 | 能力注册 | `system.skills` 提供方登记四个动作一次；`skills.import.*`、`plugins.bundled.list@1` 只给本人；页面、Agent、插件都从动作目录取。范围、操作者、安装从调用上下文来；「本轮点名」从这一轮冻结的 `SkillRef` 名单来，不从模型输入读。没有等模型或外部服务的动作，不声明 `concurrent` |
 | 4 | 合同 | 改。分三份只改合同的小 PR：C-1 声明、C-2 动作与安装预览、C-3 沙箱方法写法合一（合同稿 §12）。M1 之前，按 N35 一个 PR 改完所有消费者，不留兼容期；动作快照与 api 快照随各片刷新 |
 | 5 | 放在哪个包 | 合同与校验在 `packages/contracts`、`packages/plugin-sdk`；「已声明、不启动」在 `packages/plugin-runtime`；目录、设置、用量扩展宿主已有的 Agent 定义登记，不是新的平台服务，所以不新开 `horizontal/` 包；消费方改在原处（助理 `assistant-work-reads.ts`、Coding 插件、`horizontal/agent-host`）。依赖方向不变 |
-| 6 | 表与存储 | 新表两张，`skill_settings`、`skill_uses`，只由 `apps/local-host/src/agent-definitions/` 读写，别的包调它导出的函数，不进 `tooling/gates/table-owners.json` 的共写名单。动表的实现按本批前置等 05 的 U1／U2 与 SQLite 切换；那时真实 Home 已经重建，所以要在 U1 升级链里加一步，这是新增迁移逻辑，开工前问用户（下第 7 项） |
-| 7 | 兼容与迁移 | 不加读取兼容。唯一的迁移是上一项的建表一步，属红线，等用户定；删 `molis-coding-method` 不留读取兜底，重建后真实 Home 里若已有这种数据，同样先问用户 |
+| 6 | 表与存储 | 新表两张，`skill_settings`、`skill_uses`，只由 `apps/local-host/src/agent-definitions/` 读写，别的包调它导出的函数，不进 `tooling/gates/table-owners.json` 的共写名单。动表的实现按本批前置等 05 的 U1／U2 与 SQLite 切换；那时真实 Home 已经重建，所以要在 U1 升级链里加一步只建这两张空表；这是新增迁移逻辑，用户 2026-11-06 已同意（§9） |
+| 7 | 兼容与迁移 | 不加读取兼容。唯一的迁移是上一项的建表一步，用户 2026-11-06 已同意，08-7 同一 PR 写进 `CONTRACT-CHANGES.md`「当前保留机制」；删 `molis-coding-method` 不认也不迁、不留读取兜底（用户同日定，§9） |
 | 8 | 安全边界 | 碰：包内路径校验（`..`、绝对路径、符号链接）、签名验证（复用）、资源按声明路径与 `sha256` 读、导入只读来源目录之内、`manual` 的 Skill 只认冻结名单（提示注入）、Skill 不授予权限（`tools` 只是说明，Coding 不借它扩大 `host_tools`，SKC-13）。实现片各自在 `docs/system/SECURITY-INVARIANTS.md` 加行，并配断言「拒绝」本身的测试 |
 | 9 | 调用次数 | 打开目录一次请求，返回含 `excerpt`、`availability`，详情不再为开头另读正文；正文、资源按需各读一次；改状态一次点击一次请求（启用步骤与目录都是「选好就生效」，不在「完成」时按条目逐个发）；`skills.catalog.list@1` 每次请求做一遍目录发现与授权核对、开一次库。页面不轮询 |
 | 10 | 升级与数据 | 包升级与插件停用再启用不改设置；被移除的 Skill 删设置，新增的是 `off`；正在跑的一轮固定原 `SkillRef`；卸载后用量历史保留当时的引用与名称；再导入同一来源就是升级 |
@@ -174,7 +178,7 @@ argument_hint: "<周期，可选>"
 | 08-4 C-2 动作合同 | 合同稿 §12 C-2 行 | 08-1；`host-actions.tsv` 无别片在途 | SKC-05～09 的合同部分 |
 | 08-5 Runtime 与安装 | 「已声明、不启动」装配；内容包解析接进安装服务；启用时从已验证包登记方法；安装预览的 `skills`、`requires`、按 Skill 的升级差异 | 08-1、08-4 | SKC-02、SKC-03、SKC-04，SKP-01、SKP-08 |
 | 08-6 C-3 方法写法合一 | 合同稿 §12 C-3 行，`description`、`applies_to` 改必填；跑 `pnpm studio:replay` | 08-1、08-3 | SKP-08 |
-| 08-7 目录、设置与用量 | `system.skills` 的四个动作、两张新表、冻结点名 | 08-4、08-5；05 的 U1／U2 与 SQLite 切换；用户定建表那一步 | SKC-05～09、SKC-12 |
+| 08-7 目录、设置与用量 | `system.skills` 的四个动作、两张新表（U1 里加一步建表）、冻结点名 | 08-4、08-5；05 的 U1／U2 与 SQLite 切换 | SKC-05～09、SKC-12 |
 | 08-8 外部 Skills 导入 | `skills.import.*`、CLI `pack-content`、本机发布身份签名 | 08-4、08-5（不动表） | SKC-10 |
 | 08-9 助理与 Coding 两个消费方 | 助理 `methods()` 改读目录（A 轨文件）；Coding 冻结 `SkillRef`、删旧路（B、C2 轨文件） | 08-7 | SKC-07、SKC-11、SKC-13，SKP-02～07、SKP-10 |
 | 08-10 界面 | 安装预览一节、启用步骤、「技能」目录、导入（按 §9 定样） | 08-2、08-5、08-7、08-8 | SKP-01、SKP-08、SKP-10 的界面部分；本人验收 |

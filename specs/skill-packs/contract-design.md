@@ -82,7 +82,7 @@
 | --- | --- |
 | 身份与展示：`schema_version`、`plugin_id`、`version`、`name`、`name_en`、`summary`、`publisher`、`host_api_version`、`developer` | 与其他插件一样 |
 | `methods` | 技能，见第 4 节；只有声明的插件至少要有一项（第 20 批加入套组的键以后，改成「`methods` 或套组至少一项」） |
-| `requires` | 依赖的动作：必要的不满足就不能启用，可选的不满足只降级，安装预览列出现在满不满足（第 5 节） |
+| `requires` | 依赖的动作：必要的不满足就不能启用，可选的不满足只降级，安装预览列出现在满不满足（第 5 节）；只有声明的插件不要求列进 `capabilities.consumes`（第 08 批主会话 2026-11-06 定） |
 | `upgrade_compatibility` | 与其他插件一样 |
 | `ui.messages`、`ui.translations` | 名称与说明的双语 |
 | `runtime: { scope: "home" }` | 这里只表示范围：装给个人空间，所有项目和个人助理都能用。没有进程可起，所以不受 PG-011 对 Home 代码来源的限制；没写就装进项目 |
@@ -180,7 +180,7 @@ interface SkillResourceDeclaration {
 - 资源缺失或摘要不符；
 - `applies_to` 非法；
 - `tools` 越界：指取值不在 `SKILL_TOOLS` 里，不是指超出某个角色的 `host_tools`；
-- `connector_categories` 不认识。
+- `connector_categories` 不认识。类别表的常量由助理统一接入服务的主人给出；给出之前 C-1 只查格式。
 
 ### 4.3 版本
 

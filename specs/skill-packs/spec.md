@@ -74,7 +74,7 @@ argument_hint: "<周期，可选>"
 
 **安装**：和任何插件一样。签名决定首次要不要确认和跑不跑沙箱（安装信任按发布者签名区分，插件之间不再分官方、个人、第三方）；固定版本；安装前展示它声明的技能、需要的工具和连接器类别；卸载只删插件内容，不删业务数据。可以随宿主发布，也可以从本地目录或受控市场安装，入口就是现有的插件安装与市场。
 
-**目录**：不新建注册表。平台已有的方法目录（宿主按插件 Manifest 的 `methods` 登记，助理经 `assistant.methods.read` 读取）就是共同目录，技能包的技能进的是这一份：
+**目录**：不新建注册表。平台已有的方法目录（宿主按插件 Manifest 的 `methods` 登记，助理经 `assistant.methods.read` 读取）就是 Skill 目录，技能包的技能进的是这一份：
 
 - **个人助理**：技能是 `methods`，owner 是插件 id；助理列 `name` + `summary`/`description`，需要时用 `assistant.methods.read` 读正文。今天 `methods()`（`apps/local-host/src/assistant/assistant-work-reads.ts`）只保留「所属插件在这个范围里有可用动作」的方法，所以没有动作的技能包助理看不见；这个过滤要改成「插件已安装且在本项目启用」。助理的 `/` 选择仍可把正文作为这一轮材料。
 - **Coding**：`applies_to` 包含 `coding` 时，从同一份方法目录里取，注册为可安装方法（复用 `agent.installSkill` 的目录/候选机制），或按项目设置在起跑时注入 `agent.skills`；角色只看到自己工具范围内的技能。Coding 自己的 `codingSkills` 与 `coding.discover-methods` 路径并到这份目录上，不并存两条。

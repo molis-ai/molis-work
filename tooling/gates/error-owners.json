@@ -312,6 +312,12 @@
       ],
       "reason": "The signals module (inside Feed's store since FI-5): its signal_* codes become signals.*."
     },
+    "skills": {
+      "paths": [
+        "packages/contracts/src/services/skills.ts"
+      ],
+      "reason": "The Skill catalog, settings and import contract (specs/skill-packs/contract-design.md §6–§8), whose refusals are skills.* like its action ids. A new file only; the Host's Agent definition register that will serve the catalog keeps its agent_definitions owner."
+    },
     "sources": {
       "paths": [
         "plugins/native/feed/src/store/sources.ts"

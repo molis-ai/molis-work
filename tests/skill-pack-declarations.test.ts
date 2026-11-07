@@ -103,6 +103,18 @@ test("SKC-01: what a content plugin must leave empty is refused when it is not",
   assert.deepEqual(problems, [{ skill_id: SKILL, reason: `方法 ${SKILL} 要写 body：只有声明的插件的正文随包发布` }]);
 });
 
+test("SKC-01: a content plugin's requires need not be in capabilities.consumes; every other plugin's still must", () => {
+  const requires = [{ capability_id: "todo.items.list", version: 1, reason: "列出会后待办", optional: true }];
+  const manifest = parsePluginManifest(contentManifest({ requires }));
+  assert.deepEqual(manifest.requires, requires);
+  assert.deepEqual(manifest.capabilities.consumes, []);
+  // The other checks of requires still hold for it.
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ requires: [{ capability_id: "todo.items.list", version: 0, reason: "x" }] })))),
+    ["依赖 todo.items.list 的版本无效"]);
+  // Any other kind keeps the rule: a requirement outside consumes is refused.
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ requires })))), ["依赖 todo.items.list@1 未列入 capabilities.consumes"]);
+});
+
 test("SKC-01: every other kind still needs an entrypoint", () => {
   assert.throws(() => parsePluginManifest(declarationManifest({ entrypoints: [] })), (error: unknown) => error instanceof ActionError && error.code === "plugin.entrypoint_missing");
 });

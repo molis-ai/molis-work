@@ -98,6 +98,62 @@ test("RAC-2645 the prior Runtime consent shape falsely labeled as current is ref
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
+test("RAR-01 repeated Home consent reads and revocations do not rebuild the expected schema", t => {
+  const home = mkdtempSync(join(tmpdir(), "home-shape-cost-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const ledger = new HomeConsentLedger(home);
+  ledger.publishers();
+  ledger.revokeProjectReach({ project_id: "missing" }, "now");
+  const execute = DatabaseSync.prototype.exec, ddl: string[] = [];
+  t.mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) {
+    if (/CREATE\s+TABLE/iu.test(sql)) ddl.push(sql);
+    return execute.call(this, sql);
+  });
+  const started = performance.now();
+  for (let i = 0; i < 10; i += 1) {
+    assert.deepEqual(ledger.publishers(), []);
+    assert.equal(ledger.revokeProjectReach({ project_id: "missing" }, "now"), 0);
+  }
+  t.diagnostic(`20 public ledger operations: ${(performance.now() - started).toFixed(1)} ms; ${ddl.length} schema executions`);
+  assert.equal(ddl.length, 0, "warm reads must inspect the actual store without executing the immutable reference DDL again");
+});
+
+test("RAR-02 cached expectations keep both space shapes and still refuse changed stores intact", t => {
+  const root = mkdtempSync(join(tmpdir(), "home-shape-refusal-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const schema = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8");
+  // Exercise a bound store first, then a complete unbound store. The latter's read-only check must use its own shape;
+  // its subsequent writable open binds the space, and later reads must select the bound shape again.
+  const bound = new HomeConsentLedger(join(root, "bound"));
+  assert.deepEqual(bound.publishers(), []);
+  for (const damage of ["extra", "missing", "version", "owner"] as const) {
+    const home = join(root, damage), directory = join(home, "plugin-runtime"), file = join(directory, "plugin-runtime.db");
+    mkdirSync(directory, { recursive: true });
+    const fixture = new DatabaseSync(file);
+    try { fixture.exec(schema + " PRAGMA user_version=4;"); } finally { fixture.close(); }
+    const ledger = new HomeConsentLedger(home);
+    assert.equal(ledger.revokeProjectReach({ project_id: "missing" }, "now"), 0);
+    assert.deepEqual(ledger.publishers(), []);
+    const db = new DatabaseSync(file);
+    try {
+      assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
+      if (damage === "extra") db.exec("CREATE TABLE unexpected (kept TEXT);");
+      if (damage === "missing") db.exec("DROP TABLE plugin_private_values;");
+      if (damage === "version") db.exec("PRAGMA user_version=99;");
+      if (damage === "owner") {
+        const other = ensureStorageSpace(join(root, "other-owner"));
+        db.prepare("UPDATE molis_storage_space SET space_id=?, descriptor=?").run(other.spaceId, JSON.stringify(other));
+      }
+    } finally { db.close(); }
+    const bytes = readFileSync(file), files = readdirSync(directory);
+    const operation = damage === "owner" ? () => ledger.publishers() : () => ledger.revokeProjectReach({ project_id: "missing" }, "now");
+    assert.throws(operation, damage === "owner" ? /SPACE_OWNERSHIP_MISMATCH/u
+      : damage === "version" ? /结构版本是 99/u : /结构与当前 v4 基线不一致/u);
+    assert.deepEqual(readFileSync(file), bytes, `${damage}: refusal must leave the store unchanged`);
+    assert.deepEqual(readdirSync(directory), files, `${damage}: refusal must leave no new sidecar`);
+  }
+});
+
 // C-06 (anti-corruption code audit 2026-10-15): the Characters store had its own opening that stamped version 1 over any
 // table it found. It now opens through the common baseline: a store without a version, or from a newer build, is refused untouched.
 test("the Characters store refuses tables without a version and a newer version, and leaves the file as it was", t => {

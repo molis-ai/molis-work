@@ -120,7 +120,6 @@ function abortExecutionAfterCommit(execution: { controller: AbortController } | 
 }
 
 export function createScheduleService(db: ScheduleSqliteDatabase, options: ScheduleServiceOptions = {}) {
-  db.exec(SCHEDULER_SCHEMA_SQL);
   const now = options.now ?? (() => new Date());
   const leaseMs = options.leaseMs ?? SCHEDULE_LEASE_MS;
   // Tokens this process is still executing. A replacement service does not see

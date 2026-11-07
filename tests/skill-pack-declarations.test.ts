@@ -312,8 +312,26 @@ test("a plugin's own Agent may not write applies_to, user_invocable or argument_
     { skill_id: "draft", reason: "Agent 方法重复：draft" },
     { skill_id: "draft", reason: "Agent 方法 draft 必须声明可用工具" },
   ]);
-  // The new fields stay optional in C-1: a method with none of them parses as before.
-  parsePluginManifest(declarationManifest({ methods: [{ skill_id: "plain", version: 1, name: "Plain", summary: "Plain method", tools: [] }] }));
+  // SKC-03 with C-3: in `agent.skills` the new fields stay optional; a plugin's own Agent writes none of them and parses.
+  parsePluginManifest(declarationManifest({ agent: { ...agent, skills: [{ skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: ["read"] }] } }));
+});
+
+test("SKP-08 SKC-03: a method in Manifest methods must say when to pick it and which built-in Agent may", () => {
+  const plain = { skill_id: "plain", version: 1, name: "Plain", summary: "Plain method", tools: [] };
+  const problems = refused(() => parsePluginManifest(declarationManifest({ methods: [plain] })));
+  assert.deepEqual(problems, [
+    { skill_id: "plain", reason: "方法 plain 要写 description：什么时候用它" },
+    { skill_id: "plain", reason: "方法 plain 要写 applies_to：assistant、coding、both" },
+  ]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, applies_to: "assistant" }] })))), ["方法 plain 要写 description：什么时候用它"]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。" }] })))), ["方法 plain 要写 applies_to：assistant、coding、both"]);
+  // A key outside the declaration is named, and an id too long to be a folder name is refused.
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。", applies_to: "both", purpose: "旧写法" }] })))), ["方法 plain 不能写 \"purpose\""]);
+  // The key is the author's text: quoted, and cut to 200 units, as every outside key in a refusal (C-1 `quoted`).
+  const long = "k".repeat(300);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, description: "要整理时用。", applies_to: "both", [long]: 1 }] })))), [`方法 plain 不能写 ${JSON.stringify(`${"k".repeat(200)}…`)}`]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(declarationManifest({ methods: [{ ...plain, skill_id: "a".repeat(SKILL_LIMITS.skillIdChars + 1), description: "d", applies_to: "both" }] })))), ["方法声明不合法"]);
+  parsePluginManifest(declarationManifest({ methods: [{ ...plain, skill_id: "a".repeat(SKILL_LIMITS.skillIdChars), description: "要整理时用。", applies_to: "both" }] }));
 });
 
 // ---- SKILL.md frontmatter -------------------------------------------------------------------------------------------------------

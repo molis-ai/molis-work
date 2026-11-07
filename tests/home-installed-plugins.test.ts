@@ -198,7 +198,7 @@ test("RAC-2857 Home upgrade retains complete signed registration and current rol
   const entries = () => homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === PACKAGE_PLUGIN_ID);
   const previous = entries();
   assert.deepEqual(previous.map(item => item.kind).sort(), ["method", "role"]);
-  const bodies = { "agent/role.md": "升级后完整的角色正文。", "agent/method.md": "升级后完整的方法正文。" };
+  const bodies = { "agent/role.md": "升级后完整的角色正文。", "skills/proofread/SKILL.md": "升级后完整的方法正文。" };
   await h.install(signedAgentPackage(publisher, { scope: "home", version: "1.1.0", compatibleFrom: ["1.0.0"], bodies }));
   const check = () => {
     const installed = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!, registry = homeAgentDefinitions(h.home);
@@ -213,7 +213,7 @@ test("RAC-2857 Home upgrade retains complete signed registration and current rol
       assert.equal(item.install_id, before.install_id);
       assert.deepEqual(item.tools, []);
       assert.deepEqual(item.default_ref!.source, { kind: "plugin", plugin_id: PACKAGE_PLUGIN_ID, plugin_version: "1.1.0", publisher_signature: publisher.identity });
-      assert.equal(registry.signedMaterial(installed.install_id, item.default_ref!).body, bodies[item.kind === "role" ? "agent/role.md" : "agent/method.md"]);
+      assert.equal(registry.signedMaterial(installed.install_id, item.default_ref!).body, bodies[item.kind === "role" ? "agent/role.md" : "skills/proofread/SKILL.md"]);
     }
     for (const item of previous) assert.throws(() => registry.signedMaterial(installed.install_id, item.default_ref!), /来源已变化/);
   };

@@ -1,4 +1,5 @@
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
+import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
@@ -134,6 +135,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   homePluginsRoute,
   pluginPageRoute, directoryGrantRoute,
   { id: "project-plugin-consents", handle: context => handlePluginConsentSettingsHttp(context, context.hostReference) },
+  { id: "project-task-grants", handle: context => handleTaskGrantsSettingsHttp(context, context.hostReference) },
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {

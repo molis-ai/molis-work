@@ -74,8 +74,8 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),
     ...owned("apps/local-host/src/installer", { path: "runtime-config-backups", snapshot: runtimeBackupSnapshot }, ...at("runtime-integrations", "runtime-integration-attempts")),
     ...owned("apps/local-host", { path: "browser", snapshot: browserSnapshot }, { path: "plugin-builder", snapshot: builderSnapshot },
-      { path: "cache", snapshot: omittedSnapshot("Rebuildable cache", "reset") }, ...at("plugin-files", "git-operation-details.json", "config/onboarding.json",
-      "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/plugin-publisher.json")),
+      { path: "cache", snapshot: omittedSnapshot("Rebuildable cache", "reset") }, ...at("computer", "plugin-files", "git-operation-details.json", "config/onboarding.json",
+      "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "config/plugin-publisher.json")),
     ...owned("apps/desktop", { path: "directory-access", snapshot: directoryAccessSnapshot }),
   ]), { snapshotExclusions: [
     { path: "bin", reason: "Reinstallable launchers" }, { path: "releases", reason: "Reinstallable application releases" },

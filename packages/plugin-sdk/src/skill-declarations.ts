@@ -3,12 +3,12 @@ import {
   type AgentSkillDeclaration, type SkillResourceDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { validToken, validVersion } from "./declaration-problems.js";
 
 // The checks a Skill declaration gets (specs/skill-packs/contract-design.md §4.2), in Manifest `methods` and in `agent.skills`.
 // `parsePluginManifest` is the caller; every problem names the Skill and, when there is one, the package file, so an author and
 // the install preview see the whole list at once.
 
-const TOKEN = /^[a-z0-9][a-z0-9-]*$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/iu;
 const RESOURCE_ROLES = Object.keys(SKILL_RESOURCE_FOLDERS) as Array<keyof typeof SKILL_RESOURCE_FOLDERS>;
@@ -16,14 +16,6 @@ const RESOURCE_ROLES = Object.keys(SKILL_RESOURCE_FOLDERS) as Array<keyof typeof
 const METHODS_ONLY = ["applies_to", "user_invocable", "argument_hint"] as const;
 
 type Where = "methods" | "agent";
-
-function validToken(value: unknown): value is string {
-  return typeof value === "string" && TOKEN.test(value);
-}
-
-function validVersion(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
-}
 
 /** Non-empty once trimmed and at most `limit` characters (code points, as a person counts them). */
 function boundedText(value: unknown, limit: number): boolean {

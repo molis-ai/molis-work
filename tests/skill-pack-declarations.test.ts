@@ -83,10 +83,21 @@ test("SKC-01: a plugin with only declarations parses, without entrypoints, and t
 test("SKC-01: a key outside the content plugin's list is refused by name, whatever else is right", () => {
   for (const [key, value] of [["actions", []], ["routes", []], ["agent", { roles: [], prompts: [] }], ["databases", {}], ["always_on", true], ["sync", {}], ["read_groups", []]] as const) {
     const problems = refused(() => parsePluginManifest(contentManifest({ [key]: value })));
-    assert.deepEqual(reasons(problems), [`只有声明的插件不能写 ${key}`], key);
+    assert.deepEqual(reasons(problems), [`只有声明的插件不能写 "${key}"`], key);
   }
-  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ ui: { contributions: [], views: [] } })))), ["只有声明的插件不能写 ui.views"]);
-  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ artifacts: { produces: [], consumes: [], links: [] } })))), ["只有声明的插件不能写 artifacts.links"]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ ui: { contributions: [], views: [] } })))), ["只有声明的插件不能写 ui 下的 \"views\""]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ artifacts: { produces: [], consumes: [], links: [] } })))), ["只有声明的插件不能写 artifacts 下的 \"links\""]);
+});
+
+test("SKC-01: a key the author wrote is quoted and cut short in the reason, and a long list ends with how many more there are", () => {
+  // A control character reads as written, and a key past 200 units is cut, so the preview never shows unbounded outside text.
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ "a\nb": 1 })))), ["只有声明的插件不能写 \"a\\nb\""]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ ["k".repeat(300)]: 1 })))), [`只有声明的插件不能写 "${"k".repeat(200)}…"`]);
+  const many = Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`extra_${index}`, 1]));
+  const problems = refused(() => parsePluginManifest(contentManifest(many)));
+  assert.equal(problems.length, 31);
+  assert.deepEqual(problems[0], { reason: "只有声明的插件不能写 \"extra_0\"" });
+  assert.deepEqual(problems[30], { reason: "另有 10 项" });
 });
 
 test("SKC-01: what a content plugin must leave empty is refused when it is not", () => {
@@ -150,6 +161,90 @@ test("SKC-03: a body or resource path that escapes the package, or a body outsid
   assert.ok(package_.some(problem => problem.path === "../outside.md" && /逃出包根/u.test(problem.reason)), JSON.stringify(package_));
 });
 
+/** Every other way a path can leave the package, with the reason `packagePathProblem` gives. */
+const BAD_PATHS: ReadonlyArray<readonly [string, string]> = [
+  [`skills/${SKILL}/references/a\\b.md`, "路径不能含反斜杠或空字符"],
+  [`skills/${SKILL}/references/a\0b.md`, "路径不能含反斜杠或空字符"],
+  ["C:/x.md", "路径必须相对包根，不能是绝对路径"],
+  [`skills/${SKILL}/references//x.md`, "路径不能含 ..、. 或空段，不能逃出包根"],
+  ["./x.md", "路径不能含 ..、. 或空段，不能逃出包根"],
+  [`skills/${SKILL}/references/./x.md`, "路径不能含 ..、. 或空段，不能逃出包根"],
+];
+
+test("SKC-03: a backslash, NUL, drive, `.` or empty segment in a resource path or a package file path is refused", () => {
+  for (const [path, reason] of BAD_PATHS) {
+    const resource = { path, role: "reference", media_type: "text/plain", bytes: 1, sha256: "0".repeat(64) };
+    assert.deepEqual(refused(() => parsePluginManifest(contentManifest({ methods: [skill({ resources: [resource] })] }))),
+      [{ skill_id: SKILL, path, reason: `方法 ${SKILL} 的资源${reason}` }], JSON.stringify(path));
+    const files = [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(contentManifest())), file(BODY_PATH, BODY), file(TEMPLATE_PATH, TEMPLATE), file(path, "x")];
+    assert.deepEqual(refused(() => parseContentPackage(contentPackage(contentManifest(), files))), [{ path, reason }], JSON.stringify(path));
+  }
+});
+
+test("SKC-03: a package file listed twice, or content that is not base64, is refused", () => {
+  const twice = refused(() => parseContentPackage(contentPackage(contentManifest(), [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(contentManifest())),
+    file(BODY_PATH, BODY), file(TEMPLATE_PATH, TEMPLATE), file(TEMPLATE_PATH, TEMPLATE)])));
+  assert.deepEqual(twice, [{ path: TEMPLATE_PATH, reason: "文件重复" }]);
+  // Both checks: a length that cannot be base64, and characters outside its alphabet.
+  for (const content_base64 of ["abc", "@@@@"]) {
+    const problems = refused(() => parseContentPackage(contentPackage(contentManifest(), [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(contentManifest())),
+      file(BODY_PATH, BODY), file(TEMPLATE_PATH, TEMPLATE), { path: "notes.md", content_base64 }])));
+    assert.deepEqual(problems, [{ path: "notes.md", reason: "内容不是有效的 base64" }], content_base64);
+  }
+});
+
+test("SKC-03: a package path is quoted in the message and cut short in details.problems", () => {
+  const long = `${"d".repeat(300)}/../x.md`;
+  try {
+    parseContentPackage(contentPackage(contentManifest(), [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(contentManifest())),
+      file(BODY_PATH, BODY), file(TEMPLATE_PATH, TEMPLATE), file(long, "x")]));
+    assert.fail("expected plugin.declaration_invalid");
+  } catch (error) {
+    assert.ok(error instanceof ActionError && error.code === "plugin.declaration_invalid", String(error));
+    const cut = `${"d".repeat(200)}…`;
+    assert.deepEqual(error.details?.problems, [{ path: cut, reason: "路径不能含 ..、. 或空段，不能逃出包根" }]);
+    assert.equal(error.message, `${JSON.stringify(cut)}：路径不能含 ..、. 或空段，不能逃出包根`);
+  }
+});
+
+// ---- SKC-03: the package and declaration limits ----------------------------------------------------------------------------------
+
+test("SKC-03: a package with more files than filesPerPackage is refused before any file is read", () => {
+  const rows = Array.from({ length: SKILL_LIMITS.filesPerPackage + 1 }, (_, index) => file(`extra/${index}.md`, "x"));
+  assert.deepEqual(refused(() => parseContentPackage(contentPackage(contentManifest(), rows))), [{ reason: `内容包至多 ${SKILL_LIMITS.filesPerPackage} 个文件` }]);
+});
+
+test("SKC-03: a file over fileBytes is refused by its encoded size; one at the limit is read", () => {
+  const base = [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(contentManifest())), file(BODY_PATH, BODY), file(TEMPLATE_PATH, TEMPLATE)];
+  const over = refused(() => parseContentPackage(contentPackage(contentManifest(), [...base, file("big.bin", Buffer.alloc(SKILL_LIMITS.fileBytes + 1))])));
+  assert.deepEqual(over, [{ path: "big.bin", reason: `超过 ${SKILL_LIMITS.fileBytes} 字节` }]);
+  // At the limit the size passes, and the file is refused only for not being declared.
+  const at = refused(() => parseContentPackage(contentPackage(contentManifest(), [...base, file("big.bin", Buffer.alloc(SKILL_LIMITS.fileBytes))])));
+  assert.deepEqual(at, [{ path: "big.bin", reason: "声明里没有这个文件" }]);
+});
+
+test("SKC-03: a package past packageBytes in total is refused as soon as the total is past it", () => {
+  const big = Buffer.alloc(SKILL_LIMITS.fileBytes).toString("base64");
+  const count = SKILL_LIMITS.packageBytes / SKILL_LIMITS.fileBytes;
+  const rows = [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(contentManifest())), file(BODY_PATH, BODY), file(TEMPLATE_PATH, TEMPLATE),
+    ...Array.from({ length: count }, (_, index) => ({ path: `extra/${index}.bin`, content_base64: big }))];
+  assert.deepEqual(refused(() => parseContentPackage(contentPackage(contentManifest(), rows))), [{ reason: `内容包合计超过 ${SKILL_LIMITS.packageBytes} 字节` }]);
+});
+
+test("SKC-03: a Skill with more than resourcesPerSkill resources, or a plugin with more than skillsPerPackage methods, is refused", () => {
+  const resources = Array.from({ length: SKILL_LIMITS.resourcesPerSkill + 1 }, (_, index) => ({
+    path: `skills/${SKILL}/references/${index}.md`, role: "reference", media_type: "text/markdown", bytes: 1, sha256: "0".repeat(64),
+  }));
+  assert.deepEqual(refused(() => parsePluginManifest(contentManifest({ methods: [skill({ resources })] }))),
+    [{ skill_id: SKILL, reason: `方法 ${SKILL} 至多带 ${SKILL_LIMITS.resourcesPerSkill} 个资源` }]);
+  const methods = Array.from({ length: SKILL_LIMITS.skillsPerPackage + 1 }, (_, index) =>
+    skill({ skill_id: `skill-${index}`, body: `skills/skill-${index}/SKILL.md`, resources: undefined }));
+  assert.deepEqual(refused(() => parsePluginManifest(contentManifest({ methods }))), [{ reason: `一个插件至多声明 ${SKILL_LIMITS.skillsPerPackage} 个方法` }]);
+  // At the limits both parse.
+  parsePluginManifest(contentManifest({ methods: [skill({ resources: resources.slice(0, SKILL_LIMITS.resourcesPerSkill) })] }));
+  parsePluginManifest(contentManifest({ methods: methods.slice(0, SKILL_LIMITS.skillsPerPackage) }));
+});
+
 test("SKC-03: a body missing from the package is refused, pointing at the Skill and the file", () => {
   const problems = refused(() => parseContentPackage(contentPackage(contentManifest(), [file(CONTENT_PACKAGE_FILES.manifest, JSON.stringify(contentManifest())), file(TEMPLATE_PATH, TEMPLATE)])));
   assert.deepEqual(problems, [{ skill_id: SKILL, path: BODY_PATH, reason: "包里找不到" }]);
@@ -208,7 +303,15 @@ test("a plugin's own Agent may not write applies_to, user_invocable or argument_
   const agent = { roles: [{ role_id: "writer", version: 1, name: "Writer", workspace: "none" }], prompts: [{ prompt_id: "writer", version: 1 }],
     skills: [{ skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: ["read"], applies_to: "coding", user_invocable: false, argument_hint: "x" }] };
   const problems = refused(() => parsePluginManifest(declarationManifest({ agent })));
-  assert.deepEqual(reasons(problems), ["applies_to", "user_invocable", "argument_hint"].map(key => `Agent 方法 draft 不能写 ${key}：只有给别的 Agent 的方法（methods）才写`));
+  // Each problem points at the Skill, as a method's does (contract-design §4.2), not only its words.
+  assert.deepEqual(problems, ["applies_to", "user_invocable", "argument_hint"].map(key => ({ skill_id: "draft", reason: `Agent 方法 draft 不能写 ${key}：只有给别的 Agent 的方法（methods）才写` })));
+  const bare = { skill_id: "draft", version: 1, name: "Draft", summary: "Draft it", tools: [] };
+  const twice = refused(() => parsePluginManifest(declarationManifest({ agent: { ...agent, skills: [bare, bare] } })));
+  assert.deepEqual(twice, [
+    { skill_id: "draft", reason: "Agent 方法 draft 必须声明可用工具" },
+    { skill_id: "draft", reason: "Agent 方法重复：draft" },
+    { skill_id: "draft", reason: "Agent 方法 draft 必须声明可用工具" },
+  ]);
   // The new fields stay optional in C-1: a method with none of them parses as before.
   parsePluginManifest(declarationManifest({ methods: [{ skill_id: "plain", version: 1, name: "Plain", summary: "Plain method", tools: [] }] }));
 });

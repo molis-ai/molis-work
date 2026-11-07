@@ -7,11 +7,11 @@ import { ITEM_ROW_STYLES } from "@molis-ai/molis-work-design-system";
  * step (under 480px, a container query on the area itself) lets the lead and the change line take two lines. The area's own parts
  * are generic (`mw-platform-area__*`); what the reads area adds is `task-grants-area__*`. Controls not ready yet (§3.3, carrying
  * `aria-disabled` from the shell) are faded. The change line stays put (D2), so it is a quiet line in the area's own ground, not the
- * graphite toast that comes and goes; only a failure takes colour.
+ * graphite toast that comes and goes; only a failure takes colour. It arrives with the shared `craft-rise` (DESIGN「Motion」:
+ * a surface's first reveal), not a rise of its own.
  */
 export const PLATFORM_AREA_STYLES = `${ITEM_ROW_STYLES}
-@keyframes mw-platform-area-in{from{opacity:0;transform:translateY(4px)}}
-.mw-platform-area{container-type:inline-size;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:10px;padding:12px 14px 12px;border-radius:var(--r-card);background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--line),var(--lift-1);color:var(--ink);font-size:13px;overflow:hidden;animation:mw-platform-area-in var(--dur-move) var(--ease-quint) both}
+.mw-platform-area{container-type:inline-size;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:10px;padding:12px 14px 12px;border-radius:var(--r-card);background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--line),var(--lift-1);color:var(--ink);font-size:13px;overflow:hidden;animation:craft-rise var(--dur-move) var(--ease-quint) both}
 .mw-platform-area__head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;min-width:0}
 .mw-platform-area__kicker{display:inline-flex;align-items:center;gap:6px;flex:none;height:22px;padding:0 8px 0 6px;border-radius:var(--r-tag);background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:var(--weight-control,560);white-space:nowrap}
 .mw-platform-area__kicker svg{width:13px;height:13px;flex:none}

@@ -132,7 +132,7 @@ Development builds that are not signed with Developer ID and notarized by Apple 
 
 ### Run from source
 
-You need Node.js 24+, pnpm, and macOS (the persistent Web service currently uses LaunchAgent; other platforms can run Web in the foreground).
+You need Node.js 24.15.x (the exact version is pinned in `.nvmrc`), pnpm, and macOS (the persistent Web service currently uses LaunchAgent; other platforms can run Web in the foreground).
 
 ```bash
 git clone https://github.com/molis-ai/molis-work.git

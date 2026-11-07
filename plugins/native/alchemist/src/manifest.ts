@@ -2,15 +2,16 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/alchemist";
 import { ALCHEMIST_UI_CONTRIBUTION_ID } from "./ui.js";
 import { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_MODEL_PERMISSION } from "./studio/shared/contracts/actions.js";
+import { alchemistSync } from "./studio/server/sync/replication.js";
 
 import { ALCHEMIST_EN } from "./en.js";
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID };
 
 export const alchemistManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: ALCHEMIST_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "炼金术士",
   name_en: "Alchemist",
   summary: "写下方向，炼成可比较的卡再决定。",
@@ -18,6 +19,7 @@ export const alchemistManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-alchemist-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: Object.values(alchemistActions),
+  sync:alchemistSync,
   permissions: [
     ...ALCHEMIST_ACTION_PERMISSIONS.map(permission => permission === ALCHEMIST_MODEL_PERMISSION
       ? { permission, required: false, reason: "讨论、复用判断、炼化和研究使用系统文字模型" }

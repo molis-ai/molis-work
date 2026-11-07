@@ -2,7 +2,6 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
-import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { createTempDatabase, type TempDatabase } from "./helpers/temp-database.js";
 
@@ -48,18 +47,26 @@ describe("SQLite baseline", () => {
       "lens_reports",
       "lens_runs",
       "memory_rule_applications",
+      "molis_storage_space",
       "mvp_scope_versions",
       "opportunities",
       "opportunity_signals",
       "pulse_report_signals",
       "pulse_reports",
       "pulse_runs",
+      "replica_changes",
+      "replica_conflicts",
+      "replica_heads",
+      "replica_outbox",
+      "replica_resolutions",
+      "replica_state",
       "research_plans",
       "research_playbook_revisions",
       "research_playbook_rules",
       "runtime_settings",
       "source_fetches",
       "source_settings",
+      "studio_sync_identity",
       "supply_signals",
       "taste_rules",
       "ui_context",
@@ -80,8 +87,10 @@ describe("SQLite baseline", () => {
     applyStudioBaseline(database, temporary.path);
     expect(database.pragma("user_version", { simple: true })).toBe(1);
 
-    database.pragma("user_version = 2");
-    expect(() => applyStudioBaseline(database!, temporary!.path)).toThrow(SqliteSchemaVersionError);
-    expect(database.pragma("user_version", { simple: true })).toBe(2);
+    for (const version of [2, 3, 4]) {
+      database.pragma(`user_version = ${version}`);
+      expect(() => applyStudioBaseline(database!, temporary!.path)).toThrow(expect.objectContaining({ code: "storage.store_too_new", details: expect.objectContaining({ found: version, expected: 1 }) }));
+      expect(database.pragma("user_version", { simple: true })).toBe(version);
+    }
   });
 });

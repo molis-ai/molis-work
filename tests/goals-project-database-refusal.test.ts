@@ -15,7 +15,7 @@ import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-a
 import { GOALS_PLUGIN_ID, goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import type { PluginProjectDatabaseRecord, PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
-import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
+import { ensureStorageSpace, personalStorageSpace, describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { codingView } from "./fixtures/coding-view.js";
 
 /**
@@ -50,11 +50,14 @@ const library = (path: string) => withDatabase(path, db => ({
 }));
 
 /** A Home with one project, made by this build: its library has the four plugins' tables and ledger rows. */
-async function project(directory: string) {
+async function project(directory: string, personal = false) {
   const home = join(directory, "home");
+  if(personal)ensureStorageSpace(home,personalStorageSpace("https://auth.example.test","work","tester"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try {
     const made = await catalog.createProject({ display_name: "拒绝只停 Goals", actor_id: "test-user" });
+    // Finish the first normal managed open before corrupting the ledger: staging paths do not install project-keyed journals.
+    if(personal)new LocalProjectDatabase(made.database_path).close();
     return { home, projectId: made.project_id, databasePath: made.database_path };
   } finally { catalog.close(); }
 }
@@ -129,9 +132,9 @@ const cases = [
   { change: "one of its tables is gone", sql: "PRAGMA foreign_keys = OFF; DROP TABLE goal_tree_proposals", code: "plugin.project_database.shape_mismatch" },
 ];
 
-for (const { change, sql, code } of cases) {
-  test(`PLIB-14: when ${change}, only Goals is refused with ${code}, the library opens and the other plugins work`, async t => {
-    const { home, projectId, databasePath } = await project(await scratch(t));
+for(const personal of [false,true]) for (const { change, sql, code } of cases) {
+  test(`PLIB-14 (personal: ${personal}): when ${change}, only Goals is refused with ${code}, the library opens and the other plugins work`, async t => {
+    const { home, projectId, databasePath } = await project(await scratch(t), personal);
     withDatabase(databasePath, db => { db.exec(sql); });
     const before = library(databasePath);
 

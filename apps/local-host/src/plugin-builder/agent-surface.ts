@@ -1,3 +1,6 @@
+import { withPassiveSyncExecution } from '../passive-sync-execution.js';
+import { prepareStudioAction } from "./storage.js";
+import { publicBuild, publicRelease } from './authoring-view.js';
 import { renderPluginDocumentShell, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
 import { pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -75,7 +78,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 
 /**
  * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
- * (`designer/3.2.0+user.2` for their second edit), so every run's record says so.
+ * (`designer/1+user.2` for their second edit), so every run's record says so.
  */
 export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
   return (name, shipped) => {
@@ -115,25 +118,16 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
     return capabilityCatalog(options.homeActions, options.actorId ?? 'web-user');
   };
   const models = studioModels(home, storage);
-  const preview = createStudioPreview(options, studio, installed);
+  const execute = <T>(buildId: string, run: () => Promise<T>) => withPassiveSyncExecution(home, options.projectId, BUILDER_PLUGIN_ID, buildId, run);
+  const preview = createStudioPreview(options, studio, installed, execute);
   const { mockups, mockupImage } = studioImages(options, installed.actions);
   studio.mockupImage = mockupImage;
   const choice = options.choice ?? selectionPorts(home);
-  studio.workflow = new AgentBuilderWorkflow(storage, builderPorts({ options, home, studio, installed, models, preview, mockups, choice, prompt: builderPrompts(home), instruction: builderInstructions(home) }));
+  studio.workflow = new AgentBuilderWorkflow(storage, builderPorts({ execute, options, home, studio, installed, models, preview, mockups, choice, prompt: builderPrompts(home), instruction: builderInstructions(home) }));
   await studio.workflow.initialize();
   return studio;
 }
 
-/** What the browser sees of a build: no host paths (build directory, bundles, release folders). */
-function publicBuild(build: AgentBuild) {
-  const { directory: _directory, history, checks, ...rest } = build;
-  const publicChecks = (values: AgentBuild['checks']) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { passed: value.passed, gates: value.gates }]));
-  return { ...rest, history: history.map(({ directory: _path, checks: previous, ...item }) => ({ ...item, ...(previous ? { checks: publicChecks(previous) } : {}) })), checks: publicChecks(checks) };
-}
-function publicRelease<T extends { directory?: string; bundlePath?: string; packagePath?: string }>(release: T) {
-  const { directory: _directory, bundlePath: _bundle, packagePath: _package, ...rest } = release;
-  return rest;
-}
 function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string) {
   if (!options.homeDirectory) throw new Error('插件页面需要 Home');
   const installed = configuration.mode === 'installed', pluginId = installed ? String(configuration.plugin_id) : BUILDER_PLUGIN_ID;
@@ -299,7 +293,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       return true;
     }
     if (build && build[2] === '/action' && method === 'POST') {
-      const body = await readLocalWebBody(request); pageAuthority?.assertCurrent(); const result = await workflow.action(build[1]!, body, execution);
+      const body = await readLocalWebBody(request); pageAuthority?.assertCurrent(); const result = await workflow.action(build[1]!, prepareStudioAction(workflow, options.homeDirectory!, options.projectId, build[1]!, body), execution);
       sendLocalWebJson(response, 200, result === null ? { deleted: true } : 'buildId' in (result as object) ? { release: publicRelease(result as { directory?: string }) } : { build: publicBuild(result as AgentBuild) }); return true;
     }
     if (build && build[2] === '/call' && method === 'POST') {

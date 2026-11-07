@@ -2,12 +2,13 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { ISSUES_ACTIONS } from "./actions.js";
 import { issuesSkills } from "./skills.js";
 import { ISSUES_DATABASE } from "./database.js";
+import { issuesSync } from './replication.js';
 
 import { ISSUES_MESSAGES } from "./messages.js";
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
-export const ISSUES_UI_CONTRIBUTION_ID = "io.molis.work.native.issues.ui.v1";
+export const ISSUES_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.issues.ui "io.molis.work.native.issues.ui.v{version}" */ "io.molis.work.native.issues.ui.v1";
 export const issuesManifest: PluginManifest = {
-  schema_version: 1, host_api_version: 1, plugin_id: ISSUES_PLUGIN_ID, version: "0.3.0", name: "Issue", summary: "记录、查看和整理自己的问题。", kind: "app",
+  schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: ISSUES_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Issue", summary: "记录、查看和整理自己的问题。", kind: "app",
   publisher: { publisher_id: "molis", signature: "official-issues-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "issues:read", required: true, reason: "查看个人问题记录" },
@@ -19,6 +20,7 @@ export const issuesManifest: PluginManifest = {
   methods: issuesSkills.map(({ body: _body, ...method }) => ({ ...method, tools: [...method.tools] })),
   runtime: { scope: "home" },
   databases: { home: ISSUES_DATABASE },
+  sync: issuesSync,
   routes: [
     { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },
     { route_id: "issues.cancel_capture", method: "POST", path: "/cancel-capture", permission: "issues:write" },

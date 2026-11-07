@@ -1,4 +1,5 @@
 import type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
+import { childPlaces, overFrame } from "./over-frame.js";
 import type { FrameDown, FrameScope, FrameUp } from "./types.js";
 
 type EmbedMessage = Extract<FrameUp, { type: "embed-open" | "embed-layout" | "embed-close" }>;
@@ -35,11 +36,7 @@ export function pageEmbeds(port: MessagePort, scope: FrameScope, root: HTMLEleme
       const entry = entries.get(message.id); if (!entry) return;
       const box = message.box;
       if (!scope.visible || !box || ![box.x, box.y, box.width, box.height].every(Number.isFinite) || box.width <= 0 || box.height <= 0) { entry.box.hidden = true; return; }
-      const parent = owner.getBoundingClientRect(), bounds = root.getBoundingClientRect();
-      const left = Math.max(0, box.x), top = Math.max(0, box.y), right = Math.min(parent.width, box.x + box.width), bottom = Math.min(parent.height, box.y + box.height);
-      entry.box.hidden = right <= left || bottom <= top;
-      Object.assign(entry.box.style, { left: parent.left - bounds.left + left + "px", top: parent.top - bounds.top + top + "px", width: Math.max(0, right - left) + "px", height: Math.max(0, bottom - top) + "px" });
-      Object.assign(entry.frame.style, { left: box.x - left + "px", top: box.y - top + "px", width: box.width + "px", height: box.height + "px" });
+      entry.box.hidden = !overFrame(root, owner.getBoundingClientRect(), entry.box, entry.frame, box);
       return;
     }
     if (entries.has(message.id) || entries.size >= 4) return;
@@ -65,37 +62,27 @@ export function pageEmbeds(port: MessagePort, scope: FrameScope, root: HTMLEleme
 
 /** Slots report geometry only. The content remains inaccessible to the plugin and moves with the visible slot. */
 export function childEmbeds(port: MessagePort, scope: FrameScope): UiPageView<HTMLElement>["embed"] {
-  let sequence = 0, scheduled = 0;
-  const entries = new Map<number, { element: HTMLElement; last: string; resolve(): void; reject(error: Error): void }>();
+  let sequence = 0;
+  const entries = new Map<number, { element: HTMLElement; resolve(): void; reject(error: Error): void }>();
   const send = (message: FrameUp) => port.postMessage(message);
   const close = (id: number) => {
     const entry = entries.get(id); if (!entry) return;
-    entry.reject(new Error("View closed")); entries.delete(id); send({ type: "embed-close", id });
+    entry.reject(new Error("View closed")); entries.delete(id); places.untrack(id); send({ type: "embed-close", id });
   };
-  scope.own(() => { cancelAnimationFrame(scheduled); for (const id of entries.keys()) close(id); });
+  const places = childPlaces(scope, (id, box) => send({ type: "embed-layout", id, box }), id => close(id));
+  scope.own(() => { for (const id of entries.keys()) close(id); });
   port.addEventListener("message", (event: MessageEvent<FrameDown>) => {
     if (event.data.type !== "embedded") return;
     const entry = entries.get(event.data.id); if (!entry) return;
-    entry.last = "";
+    places.resend(event.data.id);
     if (event.data.error) { entry.reject(new Error(event.data.error)); close(event.data.id); } else entry.resolve();
   });
-  const layout = () => {
-    scheduled = 0;
-    for (const [id, entry] of entries) {
-      if (!entry.element.isConnected) { close(id); continue; }
-      const rect = document.body.hidden ? null : entry.element.getBoundingClientRect();
-      const box = !rect || document.querySelector("dialog[open]") || !rect.width || !rect.height ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-      const current = JSON.stringify(box);
-      if (current !== entry.last) { entry.last = current; send({ type: "embed-layout", id, box }); }
-    }
-    if (entries.size) scheduled = requestAnimationFrame(layout);
-  };
   return (element, target) => {
     scope.assertCurrent();
     const id = ++sequence;
-    const ready = new Promise<void>((resolve, reject) => entries.set(id, { element, last: "", resolve, reject }));
+    const ready = new Promise<void>((resolve, reject) => entries.set(id, { element, resolve, reject }));
     send({ type: "embed-open", id, target });
-    if (!scheduled) scheduled = requestAnimationFrame(layout);
+    places.track(id, element);
     return { ready, dispose: () => close(id) };
   };
 }

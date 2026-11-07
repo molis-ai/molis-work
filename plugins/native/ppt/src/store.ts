@@ -54,14 +54,13 @@ export class PptStore {
   }
 
   list(projectId: string): PptRecord[] {
-    const project_id = normalizeProjectId(projectId);
-    return this.rows("SELECT * FROM presentations WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [project_id]).map(fromRow);
+    return this.rows("SELECT * FROM presentations WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [projectId]).map(fromRow);
   }
 
   get(id: string, projectId?: string): PptRecord {
     const row = this.rows("SELECT * FROM presentations WHERE id = ?", [id])[0];
     if (!row) throw pptErrors.not_found("找不到这份演示稿");
-    if (projectId && row.project_id !== normalizeProjectId(projectId)) {
+    if (projectId && row.project_id !== projectId) {
       throw pptErrors.not_found("找不到这份演示稿");
     }
     return fromRow(row);
@@ -71,7 +70,7 @@ export class PptStore {
     const now = new Date().toISOString();
     const record: PptRecord = {
       id: crypto.randomUUID(),
-      project_id: normalizeProjectId(input.project_id),
+      project_id: input.project_id,
       title: normalizeTitle(input.title ?? "未命名演示稿"),
       description: "",
       color_primary: DEFAULT_PRIMARY,
@@ -127,43 +126,40 @@ export class PptStore {
    * Fixed versions already saved stay with the old place's results, so the numbering starts again here.
    */
   relocate(id: string, from: string, to: string): PptRecord {
-    const target = normalizeProjectId(to);
     return this.atomically(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw pptErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.run("UPDATE presentations SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [target, id, current.version]);
+      const result = this.db.run("UPDATE presentations SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [to, id, current.version]);
       if (result.changes !== 1) throw pptErrors.conflict("演示稿刚被修改，请重新读取后再移动");
-      return this.get(id, target);
+      return this.get(id, to);
     });
   }
 
   /** An independent copy in another partition; the same request always returns the same copy. */
   duplicate(id: string, from: string, to: string, requestId: string): PptRecord {
-    const target = normalizeProjectId(to);
     return this.atomically(() => {
-      const prior = this.db.get("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?", [target, requestId]);
-      if (prior) return this.get(String(prior.target_id), target);
+      const prior = this.db.get("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?", [to, requestId]);
+      if (prior) return this.get(String(prior.target_id), to);
       const source = this.get(id, from);
       const now = new Date().toISOString();
-      const copy: PptRecord = { ...source, id: crypto.randomUUID(), project_id: target, created_at: now, updated_at: now, version: 1, artifact_id: "", artifact_version: 0,
+      const copy: PptRecord = { ...source, id: crypto.randomUUID(), project_id: to, created_at: now, updated_at: now, version: 1, artifact_id: "", artifact_version: 0,
         slides: source.slides.map(slide => ({ ...slide, id: crypto.randomUUID() })) };
       delete (copy as { publication_pending?: unknown }).publication_pending;
       this.write(copy, true);
-      this.db.run("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [target, requestId, id, copy.id, now]);
+      this.db.run("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [to, requestId, id, copy.id, now]);
       return copy;
     });
   }
 
   /** A deck made from an outline another plugin hands over; one delivery makes one deck. */
   receive(projectId: string, requestId: string, title: string, slides: readonly PptSlideInput[]): PptRecord {
-    const target = normalizeProjectId(projectId);
     return this.atomically(() => {
-      const prior = this.db.get("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?", [target, "receive:" + requestId]);
-      if (prior) return this.get(String(prior.target_id), target);
-      const created = this.create({ title, project_id: target });
-      const filled = this.update(created.id, { slides, expected_version: created.version }, target);
-      this.db.run("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [target, "receive:" + requestId, "", filled.id, filled.updated_at]);
+      const prior = this.db.get("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?", [projectId, "receive:" + requestId]);
+      if (prior) return this.get(String(prior.target_id), projectId);
+      const created = this.create({ title, project_id: projectId });
+      const filled = this.update(created.id, { slides, expected_version: created.version }, projectId);
+      this.db.run("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [projectId, "receive:" + requestId, "", filled.id, filled.updated_at]);
       return filled;
     });
   }
@@ -243,13 +239,6 @@ function fromRow(row: PptRow): PptRecord {
 
 function blankSlide(order: number): PptSlide {
   return { id: crypto.randomUUID(), title: "", bullets: [], notes: "", order };
-}
-
-function normalizeProjectId(value: string): string {
-  const id = value.trim();
-  if (!id) throw pptErrors.invalid("缺少项目");
-  if (id.length > 80) throw pptErrors.invalid("项目标识过长");
-  return id;
 }
 
 function normalizeTitle(value: string): string {

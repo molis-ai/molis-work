@@ -28,7 +28,7 @@ function block(value: any, now: string): JellyBlock {
 export interface JellyImportResult { workspace: JellyWorkspace; warnings: string[]; source_hash: string }
 export function decodeJellyImport(source: unknown, now = new Date().toISOString()): JellyImportResult {
   const parsed = typeof source === "string" ? JSON.parse(source) : structuredClone(source), doc = object(parsed), source_hash = jellyHash(typeof source === "string" ? source : JSON.stringify(source));
-  if (doc.schema_version === 1) { const workspace = structuredClone(doc) as JellyWorkspace; validateJellyWorkspace(workspace); validateJellyContent(workspace); return { workspace, warnings: [], source_hash }; }
+  if (doc.schema_version === /* @version format.jelly.workspace */ 1) { const workspace = structuredClone(doc) as JellyWorkspace; validateJellyWorkspace(workspace); validateJellyContent(workspace); return { workspace, warnings: [], source_hash }; }
   jellyAssert(doc.schemaVersion === 5, "支持 Molis Work Jelly 备份或原 Jelly schema 5 工作区");
   const sourceState = object(doc.state), cal = object(sourceState.calendar), recurrence = object(cal.recurrence), nowStamp = now, workspace = emptyJellyWorkspace(), warnings: string[] = [];
   const uncategorizedId = id(cal.uncategorizedID), catId = (v: any) => id(v) === uncategorizedId ? "uncategorized" : id(v);

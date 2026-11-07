@@ -56,6 +56,7 @@
     "@molis-ai/molis-work-module-private-work-context": "workspace:*",
     "@molis-ai/molis-work-module-projects": "workspace:*",
     "@molis-ai/molis-work-module-shelf": "workspace:*",
+    "@molis-ai/molis-work-module-sync-replication": "workspace:*",
     "@molis-ai/molis-work-plugin-alchemist": "workspace:*",
     "@molis-ai/molis-work-plugin-builder": "workspace:*",
     "@molis-ai/molis-work-plugin-coding": "workspace:*",

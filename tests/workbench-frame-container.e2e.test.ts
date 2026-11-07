@@ -344,7 +344,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId } = browser;
-  // T01-FRAME-01: a Frame redraw can replace the ready preview between two CDP calls.
+  // RAR-09 / T01-FRAME-01: a Frame redraw can replace the ready preview between two CDP calls.
   // Capture readiness, content and forbidden controls together, with the original 10 s deadline.
   const readPreview = (ready: string, forbidden: string) => evaluate<{ text: string; hasForbidden: boolean; surface: string; expanded: number }>(`new Promise((resolve, reject) => {
     const deadline = Date.now() + 10000;

@@ -1,7 +1,7 @@
 import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference } from "./actions.js";
 
-export const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
-export const SUBJECT_CONTEXT_TYPE = "molis.subject-context.v1";
+export const SUBJECT_REFERENCE_TYPE = /* @version type.molis.subject-reference "molis.subject-reference.v{version}" */ "molis.subject-reference.v1";
+export const SUBJECT_CONTEXT_TYPE = /* @version type.molis.subject-context "molis.subject-context.v{version}" */ "molis.subject-context.v1";
 export interface ActionSubject { kind: string; id: string }
 export interface ActionSubjectContext {
   subject: ActionSubject;
@@ -47,8 +47,8 @@ export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", prop
  * A reader of one object kind's context. `scope` is where its objects live: a project's (the default), or the
  * person's own Home (a calendar, personal notes), so personal work can read them back too. An object that belongs to no Goal can omit `goal_ids`.
  */
-export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<SubjectContextRequest, ActionSubjectContext> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
+export function defineSubjectContextAction(capabilityId: string, version: number, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<SubjectContextRequest, ActionSubjectContext> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
     kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
     input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }

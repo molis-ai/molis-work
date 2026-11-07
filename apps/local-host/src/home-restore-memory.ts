@@ -2,7 +2,7 @@ import { lstatSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { backupSnapshotSqlite, inspectMemoryLedger, MEMORY_LEDGER_BASELINE, readSnapshotFile } from "@molis-ai/molis-work-storage";
+import { ensureStorageSpace, readStorageSpace, backupSnapshotSqlite, inspectMemoryLedger, MEMORY_LEDGER_BASELINE, readSnapshotFile } from "@molis-ai/molis-work-storage";
 import type { HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
 import { invalidRestore } from "./home-restore-input.js";
 import { memoryRestoreFile } from "./home-restore-owner-payload.js";
@@ -14,18 +14,21 @@ function assertFreshSource(inputs: HomeRestoreInputs): void {
   if (!facts || new Set(facts.map(node => node.path)).size !== facts.length) throw invalidRestore();
   const nodes = new Map(facts.map(node => [node.path, node]));
   const root = nodes.get(""), runtime = nodes.get("agent-runtime");
-  if (root?.kind !== "directory" || root.children?.join() !== "agent-runtime" || runtime?.kind !== "directory") throw invalidRestore();
+  if (root?.kind !== "directory" || root.children?.join() !== (inputs.manifest.space_digest ? "agent-runtime,storage-space.json" : "agent-runtime") || runtime?.kind !== "directory") throw invalidRestore();
   for (const child of runtime.children ?? []) {
     if (!/^\.molis-runtime-owner\.db(?:-(?:wal|shm|journal))?$/u.test(child)) throw invalidRestore();
     const node = nodes.get("agent-runtime/" + child);
     if (node?.kind !== "file" || node.links !== 1) throw invalidRestore();
   }
+  const marker = nodes.get("storage-space.json");
+  if (inputs.manifest.space_digest && (marker?.kind !== "file" || marker.links !== 1)) throw invalidRestore();
+  const isMarker = (path: string) => path === "storage-space.json" && inputs.manifest.space_digest !== null;
   for (const path of [...inputs.registry.stores.map(store => store.path), ...inputs.registry.snapshotExclusions.map(item => item.path)])
-    if (path !== "agent-runtime" && nodes.get(path)?.kind !== "absent") throw invalidRestore();
+    if (!isMarker(path) && path !== "agent-runtime" && nodes.get(path)?.kind !== "absent") throw invalidRestore();
   for (const node of facts)
-    if (node.path && node.path !== "agent-runtime" && !node.path.startsWith("agent-runtime/") && node.kind !== "absent") throw invalidRestore();
+    if (node.path && !isMarker(node.path) && node.path !== "agent-runtime" && !node.path.startsWith("agent-runtime/") && node.kind !== "absent") throw invalidRestore();
   if (inputs.files.size || inputs.manifest.stores.some(store => store.path === "agent-runtime"
-    ? store.entries.some(entry => entry.path !== "agent-runtime" || entry.kind !== "directory") : store.state !== "absent")) throw invalidRestore();
+    ? store.entries.some(entry => entry.path !== "agent-runtime" || entry.kind !== "directory") : isMarker(store.path) ? store.state !== "omitted" : store.state !== "absent")) throw invalidRestore();
 }
 
 function restoreMemoryTemporaryParent(protectedDirectories: readonly string[]): string {
@@ -53,13 +56,15 @@ export async function prepareRestoreMemory(dataHome: string, inputs: HomeRestore
   await preflightTarget(); control.assertCurrent();
   const stage = mkdtempSync(join(restoreMemoryTemporaryParent(protectedDirectories), "molis-restore-memory-"));
   try {
+    const currentSpace = readStorageSpace(inputs.manifest.home_directory);
+    const space = ensureStorageSpace(stage, currentSpace ?? undefined);
     prepareMemoryHome(stage);
     assertCompleteRestoreMemory(stage, protectedDirectories); control.assertCurrent();
     const backup = join(stage, "memory-backup.db");
-    const captured = await backupSnapshotSqlite(join(stage, "memory", "memory.db"), backup, { baseline: MEMORY_LEDGER_BASELINE, signal: control.signal });
+    const captured = await backupSnapshotSqlite(join(stage, "memory", "memory.db"), backup, { baseline: MEMORY_LEDGER_BASELINE, requireSpace: true, space, signal: control.signal });
     const file = { ...memoryRestoreFile("memory/memory.db", captured.mode, readSnapshotFile(backup, captured.size)), sqlite: captured.sqlite };
     const files = new Map(inputs.files), directories = new Map(inputs.directories);
     files.set(file.path, file); directories.set("memory", { path: "memory", mode: 0o700 });
-    control.assertCurrent(); return { ...inputs, files, directories };
+    control.assertCurrent(); return { ...inputs, files, directories, ...(!currentSpace ? { initializeLocalSpace: space.spaceId } : {}) };
   } finally { rmSync(stage, { recursive: true, force: true }); }
 }

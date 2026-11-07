@@ -62,7 +62,8 @@ function previewServices(storage: PluginPrivateStorage): SandboxServices {
 export const buildEffects = (build: AgentBuild) => buildManifest(build.design!.contract).effects;
 
 /** The studio's trial: the generated plugin run in a sandbox over preview storage, for the person's hands and for the acceptance gates. */
-export function createStudioPreview(options: AgentStudioOptions, studio: Studio, installed: Awaited<ReturnType<typeof ensureInstalledPlugins>>) {
+export type BuildExecution = <T>(buildId: string, run: () => Promise<T>) => Promise<T>;
+export function createStudioPreview(options: AgentStudioOptions, studio: Studio, installed: Awaited<ReturnType<typeof ensureInstalledPlugins>>, execute: BuildExecution) {
   const storage = installed.storage;
   const accepting = new Set<string>();
   const currentBuild = (identity: Readonly<SandboxIdentity>) => {
@@ -72,7 +73,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   const live = (identity: Readonly<SandboxIdentity>) => !!currentBuild(identity) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
   const projectCapability = installed.capabilityFor(live);
   const homeCapability = options.homeActions && catalogCapabilities({ actions: options.homeActions, catalog: () => studio.catalog('home'), live,
-    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: sandboxPluginManifest({ pluginId: identity.pluginId, name: build.title, version: '0.0.0',
+    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: sandboxPluginManifest({ pluginId: identity.pluginId, name: build.title, version: "0.0.0",
       publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects: buildEffects(build), contract: build.design!.contract, runtime: { scope: 'home' } }) } : undefined; },
     granted: identity => { const build = currentBuild(identity); return build ? buildEffects(build).capabilities ?? [] : []; } });
   const standIns: NonNullable<SandboxServices['capability']> = { async call(context, id, input) {
@@ -114,7 +115,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   };
   type Trial = { original: string; build: AgentBuild; signal: AbortSignal; case: AbortController; submits: Map<string, number>; fault?: { componentId: string; operationId: string; consumed: boolean } };
   const trials = new Map<string, Trial>();
-  studio.callAcceptance = async (buildId, key, componentId, binding, payload, control) => {
+  studio.callAcceptance = async (buildId, key, componentId, binding, payload, control) => execute(buildId, async () => {
     const trial = trials.get(key);
     if (!trial || trial.original !== buildId) throw new Error('这轮界面验收已结束');
     const node = trial.build.nodes.find(node => node.id === componentId);
@@ -137,7 +138,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
     const runner = await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities, assertCurrent);
     assertCurrent();
     return runner.call(call.operationId, call.input, { ...control, signal, beforeEffect, assert_authority_current: assertCurrent });
-  };
+  });
   const inTrial = async <T,>(build: AgentBuild, signal: AbortSignal, run: (options: Parameters<typeof runBuilderBrowserAcceptance>[1]) => Promise<T>) => {
     if (!studio.origin) throw new Error('界面验收需要从创作台页面发起');
     const key = randomUUID(), trial = { ...build, id: build.id + ':acceptance:' + key };

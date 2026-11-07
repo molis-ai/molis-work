@@ -56,7 +56,7 @@ init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-上述每条 v1 命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`；`goals.board.initialize`、`goals.snapshot.read` 因此各升到版本 2），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
+上述每条 v1 命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
 
 `molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址取环境变量 `MOLIS_WORK_WEB_URL`，没有就是 `http://127.0.0.1:4173`。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
 
@@ -222,11 +222,25 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 ### 页面资源体积
 
-改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）。宿主在 `/assets/` 下发的文件按实测字节数记在 `tooling/gates/page-assets.json`；`--report` 打印逐文件的字节、gzip 与预算。
+改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`。`pnpm page-assets:check` 默认同样对照 `origin/main`；CI 在 `workspace:verify` 后以事件的实际基点比较。比较的是基点与候选的真实 Host 下发字节，不再提交绝对大小的共享预算。缩小直接通过；下一次从缩小后的实际大小比较，没有可以重新长回去的余量。`--report [--json]` 只测量当前构建，显示逐文件字节和 gzip，不代表比较通过。
 
-这是体积控制，不是硬上限（用户 2026-10-18 定）：默认只许变小，能省先省。功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法；评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条一次性放行，只认 merge-base 的准确数字，上限等于实测，下次添加放行时删掉用完的条目，合入后继续冻结。一个资源一次涨超过 10 KB 或新增资源，先问用户。
+默认只许变小，能省先省。必要增长在 `tooling/gates/page-asset-allowances/` 新建本任务独立 JSON，例如 `font-picker.json`：
 
-除这条放行外，CI 与 `--base <ref>` 对照 merge-base 的预算：调大数字、新增条目或删掉仍在下发的条目都不能过关，`--update` 也不会写入变大的数字。预算必须等于实测；变小就在同一个 PR 里跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 降下来。合并前 main 若又改了资源，在合并结果上重新 `pnpm workspace:build` 后再检查。路由识别与未覆盖范围见 [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) 头部和[防腐 spec](../specs/archive/repository-anti-corruption/spec.md) §5a。
+```json
+{
+  "reason": "复用现有控件后，新增字体筛选仍需 320 字节；已去掉重复提示文案",
+  "review": "PR 评审或需求书中的具体审阅出处",
+  "assets": { "/assets/molis-work-workbench.js": 320 }
+}
+```
+
+`assets` 写允许增加的最大字节数，不写基点的绝对大小。一个资源净增超过 10 KB（10,000 字节）或新增资源，先取得用户批准，并用 `userApproval` 字段记录具体出处；同一资源多份许可合计造成大额增长也要求用户批准。许可须经评审，不能自行填写虚构的批准。只消费比较基点尚未包含的新文件；已合入文件不改、不删、不重复使用。合并组累加组内新许可，再与整个组的实际净增比较。改名或复制许可也属于新批准，评审须核对来源。
+
+主线上的独立变化不会让增量许可因绝对基数变化失效；无需再为缩小或 main 的其他增长更新门禁代码。真正改变资源的合并仍要构建并检查，超额增长必须减小或重新取得对应批准。切换时旧许可已经体现在 main 的构建中，不转换成新额度；在途 PR 只把其未采用且已经获批的增量写成任务文件，旧预算和门禁内放行表的冲突删除，不替它改产品代码。
+
+基线先找同一提交、测量器、Node/pnpm 版本与平台的可信 CI 产物，仅接受成功 main push 或合并队列；任意 PR 产物不能当基线。缺失、过期、损坏或读取失败时，在临时检出中安装、构建并用同一测量器测量；失败不放行，成功、失败和取消都清理。冷基线多一次构建；后续复用是加速，不能改变判定。当前的工作树构建仍由开发者先完成。
+
+路由从 Host 的 `web-assets.ts` 和插件登记中发现，基点所有已测路径还会再次向候选 Host 探测；仍下发但已藏在不可读路由后的资源会失败。具体读取范围和局限见 [`scripts/gates/page-assets-measure.mjs`](../scripts/gates/page-assets-measure.mjs)。新增资产路径、测量范围或批准边界的改动仍要评审。
 
 ### 推送前扫描密钥
 
@@ -240,6 +254,6 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 当前 Desktop payload 包含根 dist、正式 workspace 运行依赖、Runtime Skill、Node 和 vendor 来源/许可资产，不包含第二套业务实现。npm 使用 `pnpm package:npm`：先完整构建，再由 Local Host tooling 在临时目录生成 `release/npm/*.tgz`。需要其他输出目录时用 `pnpm package:npm /absolute/output`。不要直接在源码根执行 npm/pnpm pack；它会提示正确命令，避免生成含 workspace:* 的不可安装包。
 
-npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，SQLite/PTY 不带入构建机二进制，也不附 Node。消费环境需要 Node 24+。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
+npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，SQLite/PTY 不带入构建机二进制，也不附 Node。消费环境需要 Node 24.15.x。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
 
 上句描述当前发布物；DV4 的干净环境完整发布验收仍未完成。

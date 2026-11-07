@@ -1,8 +1,8 @@
 name: Full suite
 
 # The full product suite (every file `node scripts/run-tests.mjs` takes without arguments, browser files included) spread over
-# sixteen ubuntu runners, so a change that needs the full suite (docs/system/PARALLEL-DEVELOPMENT.md §6) does not wait for the one
-# full-suite slot of a development machine. About an hour on one machine; about a quarter of that here.
+# 32 shards on ubuntu runners, so a change that needs the full suite (docs/system/PARALLEL-DEVELOPMENT.md §6) does not wait for the one
+# full-suite slot of a development machine. Wall time and queue time are measured on the actual run.
 # Left out: the files the Linux probe marks macOS-only (`--skip-macos-only`, scripts/ci-linux-probe/select.mjs: Seatbelt,
 # Keychain, launchctl, Swift helpers); those still run locally. Live tests skip themselves, since no key is set here.
 # It informs and decides nothing: branch protection and the merge queue wait only for `Verify` (ci.yml).
@@ -41,7 +41,7 @@ concurrency:
 
 jobs:
   shard:
-    name: Full suite (${{ matrix.shard }}/16)
+    name: Full suite (${{ matrix.shard }}/32)
     if: ${{ github.event_name != 'pull_request' || github.event.label.name == 'full-suite' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -52,16 +52,14 @@ jobs:
       # failures can be fixed at once, not one run each (user 2026-10-20; batch-1020-2 went red nine times in a row, a different
       # single file each time). The same condition drops `--bail` in "Run this shard"; change both together.
       fail-fast: ${{ !startsWith(github.ref, 'refs/heads/integration/') }}
-      # At most six runners per run elsewhere, so several runs at once still leave most of the repository's 20 runners to `Verify`
-      # and the merge queue (user 2026-10-15): the sixteen shards run in about three waves, some 30 to 35 minutes a run. An
-      # integration branch takes ten (user 2026-10-20): two waves, some 20 to 25 minutes; two batches at once take all 20 runners,
-      # so `Verify` waits while they run.
-      max-parallel: ${{ startsWith(github.ref, 'refs/heads/integration/') && 10 || 6 }}
+      # CIP-06: Team capacity is shared across runs. Keep at most 16 runners for these 32 shards;
+      # each runner still has only two workers, one browser worker. Queue settings are unchanged.
+      max-parallel: 16
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
     env:
       # Four cores per runner: two files at once, one of them a browser file. With three at once, browser files timed out on CDP and
-      # DOM waits under load, a different handful each run (#519, five runs); sixteen shards keep the wall time about the same.
+      # DOM waits under load, a different handful each run (#519, five runs); add runners instead of workers.
       MOLIS_WORK_TEST_JOBS: 2
       MOLIS_WORK_TEST_BROWSER_JOBS: 1
     steps:
@@ -72,7 +70,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # The version is the root package.json "packageManager", the pin the other workflows use.
       - name: Install pnpm
@@ -139,7 +137,7 @@ jobs:
         shell: bash
         env:
           BAIL: ${{ !startsWith(github.ref, 'refs/heads/integration/') && '--bail' || '' }}
-        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/16 --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/32 --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
       - name: Summary
@@ -147,8 +145,9 @@ jobs:
         shell: bash
         run: |
           {
-            echo "### Shard ${{ matrix.shard }}/16"
+            echo "### Shard ${{ matrix.shard }}/32"
             echo '```'
+            grep '^run-tests: predicted shard seconds:' "$RUNNER_TEMP/full-suite.log" || true
             sed -n '/^run-tests: [0-9]* of [0-9]* files passed/,$p' "$RUNNER_TEMP/full-suite.log" 2>/dev/null || echo "no summary (the run did not finish)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

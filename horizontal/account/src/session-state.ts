@@ -27,7 +27,7 @@ export function sessionTokens(config: AccountEnvironmentConfig, value: unknown):
 }
 function isSaved(config: AccountEnvironmentConfig, binding: string, raw: unknown): raw is SavedAccount {
   const base = ["version", "binding", "epoch", "state"];
-  if (!isRecord(raw) || raw.version !== 1 || raw.binding !== binding || !Number.isSafeInteger(raw.epoch) || Number(raw.epoch) < 0)
+  if (!isRecord(raw) || raw.version !== /* @version format.account.session */ 1 || raw.binding !== binding || !Number.isSafeInteger(raw.epoch) || Number(raw.epoch) < 0)
     throw accountErrors.unavailable("Account session storage is invalid");
   let valid = false;
   if (raw.state === "EMPTY") valid = exact(raw, [...base, "receipt"]) && (raw.receipt === undefined || (isRecord(raw.receipt)
@@ -64,7 +64,7 @@ export class AccountSessionState {
     if (!this.loaded) {
       let raw: unknown;
       try { raw = this.storage.read(); } catch { throw accountErrors.unavailable("Account session storage is unavailable"); }
-      this.saved = raw === null ? { version: 1, binding: this.binding, epoch: 0, state: "EMPTY" } : parseSaved(this.config, this.binding, raw);
+      this.saved = raw === null ? { version: /* @version format.account.session */ 1, binding: this.binding, epoch: 0, state: "EMPTY" } : parseSaved(this.config, this.binding, raw);
       this.epoch = this.saved.epoch; this.loaded = true;
       if (this.saved.state === "REFRESHING") this.write({ state: "OFFLINE", user: this.saved.user });
     }
@@ -72,7 +72,7 @@ export class AccountSessionState {
   }
   write(contents: SavedContents): SavedAccount {
     this.assertOpen();
-    const record = { version: 1 as const, binding: this.binding, epoch: this.epoch, ...contents } as SavedAccount;
+    const record = { version: /* @version format.account.session */ 1 as const, binding: this.binding, epoch: this.epoch, ...contents } as SavedAccount;
     try { this.storage.write(structuredClone(record)); } catch { throw accountErrors.unavailable("Account session storage could not be saved"); }
     this.saved = record; this.loaded = true;
     return record;

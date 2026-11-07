@@ -17,6 +17,8 @@ Cognia declares 25 capabilities in `src/actions.ts` (22 knowledge-base actions p
 
 Authorized MCP clients use individual registered capabilities, including writes, through the same handlers. Download actions return original bytes as Base64, filename and MIME; HTTP preserves inert attachment delivery. Existing HTTP mutations retain the Host same-origin/control-token gate. Production client grant management and general workflow mapping remain part of the system migration.
 
+`cognia.material.get@1` returns an `etag` of the complete selected material; `cognia.material.update@1` requires that token and checks the current content inside the write transaction. A stale editor is refused even when two devices produced the same numeric revision. Web editing carries the token automatically. MCP tools are `cognia.material.get__v1` and `cognia.material.update__v1`.
+
 Synthesis accepts either `material_refs` (each containing `id` and positive `revision`) or legacy `material_ids` (current version when invoked), never both. The UI sends the displayed revisions, including historical citations. AI reads immutable version snapshots in a short store operation, releases the store while awaiting Prologue, and persists a validated draft in another short transaction. Edits during generation do not change its evidence; deleting the target domain rejects draft persistence and leaves the materials available for retry. Discovery inspects model/connection metadata without decrypting credentials. Execution resolves the selected credential and revalidates the model/connection before and after the run. Cancellation, model failure and invalid citations do not save drafts.
 
 The bundled Prologue SDK accepts HTTPS and explicitly authorized loopback HTTP model endpoints through the same Run/Host path. Discovery never starts a request or decrypts credentials. A disabled model or missing connection makes generation unavailable while local reading/import remain usable. Tests exercise the packed SDK against controlled HTTP and HTTPS providers for generation/cancellation, and the actual desktop/narrow UI for review, explicit save and disablement. These controlled responses do not establish external commercial model quality.
@@ -29,7 +31,7 @@ node scripts/run-tests.mjs tests/cognia-*.test.ts tests/context-onboarding.test.
 pnpm boundary:check
 ```
 
-No cloud sync, background watching, bidirectional sync, proprietary database migration, graph view, Dataview execution, block-reference reconstruction, or PDF/OCR extraction is included.
+Personal synchronization declares `knowledge`: one owner-consistent graph for domains, source descriptions, current materials, every fixed version and draft/adoption references. Concurrent graph edits retain both sides; partial knowledge graphs are never applied. Cognia exports its pure `cogniaSyncProjection`; the existing composition root connects it to the common SDK codec for private R2 bytes, without adding an SDK dependency to Cognia. Local scanner paths, unfinished import previews and receipts stay device-local; a receiving device sees an upload source, while its existing local source association remains local. Receiving never scans, synthesizes, adopts drafts or executes attachments. The current baseline contains its technical journal; older libraries are refused intact and need separately approved maintenance. No background watching, proprietary database migration, graph view, Dataview execution, block-reference reconstruction, or PDF/OCR extraction is included.
 
 ## Directory preview route repair (2026-10-23)
 
@@ -62,3 +64,5 @@ Acceptance uses the actual desktop and narrow-screen UI for preview, explicit co
 目录导入：可以上传目录文件；未上传时，「预览导入」打开宿主系统目录选择器。界面不能提交绝对路径来取得授权。系统选择后得到的 grant 只供当前插件激活实例、当前项目及调用者使用，取消、撤权、重启和项目删除使其失效（SYS-15）。
 
 页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/cognia-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `cognia.<区域>.<名称>`（Manifest 的 `ui.messages`），请求只经共同的 `molisWorkRequest`，插件路径取自 `host.pluginRoute`，不直接 `fetch`、不写插件 id。`src/en.ts` 只留 33 个宿主还按中文原文翻译的词（Cognia 服务端抛出的错误与模型提示、导入预览里文件被跳过的原因，页面把收到的原文交给 `translate`），BL-457；页面自己的词不在这里。
+
+项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。

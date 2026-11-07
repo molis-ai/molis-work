@@ -40,7 +40,7 @@ const update: ActionDefinition = { capability_id: "fixture.notes.update", versio
   result_subject: { id: "note.id", revision: "note.version" },
   input_schema: { type: "object", properties: { id: { type: "string" }, text: { type: "string", title: "内容" }, expected_version: { type: "integer", minimum: 1 } }, required: ["id", "text"], additionalProperties: false },
   output_schema: { type: "object", properties: { note } } } };
-const subject = defineSubjectContextAction("fixture.notes.subject.read", "note", "笔记", ["notes:read"]);
+const subject = defineSubjectContextAction("fixture.notes.subject.read", 1, "note", "笔记", ["notes:read"]);
 
 async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>) {
   const home = await mkdtemp(join(tmpdir(), "molis-continuity-"));
@@ -235,7 +235,7 @@ test("an object the person moved to another project is named where it went, not 
     } }] });
   // A Home-kept to-do says which project it belongs to; the reader alone would still hand it over.
   let todoProject = "project";
-  const todoReader = defineSubjectContextAction("fixture.todo.subject.read", "todo", "待办", ["notes:read"], "home");
+  const todoReader = defineSubjectContextAction("fixture.todo.subject.read", 1, "todo", "待办", ["notes:read"], "home");
   f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.todo", kind: "plugin", title: "Todo" }, definitions: [todoReader],
     handlers: [{ ...todoReader, handle: () => subjectContext({ subject: { kind: "todo", id: "t1" }, revision: "1", title: "Ship it", content: todoProject === "project" ? "ship" : "secret plan of the other project",
       goal_ids: [], project_id: todoProject }) }] });
@@ -270,7 +270,7 @@ test("an object the person moved to another project is named where it went, not 
 test("a subject reader may live in the Home, and one declared with the schema before `open` is still accepted", async () => {
   const { SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } = await import("@molis-ai/molis-work-contracts/platform/actions");
   const { inspectActionDeclarations } = await import("@molis-ai/molis-work-plugin-sdk");
-  const home = defineSubjectContextAction("fixture.calendar.subject.read", "calendar_item", "日历事项", ["calendar:read"], "home");
+  const home = defineSubjectContextAction("fixture.calendar.subject.read", 1, "calendar_item", "日历事项", ["calendar:read"], "home");
   assert.equal(home.action.scope, "home");
   assert.deepEqual(inspectActionDeclarations([home], undefined), []);
   const older = { ...subject, action: { ...subject.action, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } };

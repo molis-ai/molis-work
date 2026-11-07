@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync.js";
 import { randomUUID } from "node:crypto";
 import { ActionError, WORKFLOW_CONTENT_VERSIONS, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxErrors, type AttentionEntryRecord, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
@@ -19,14 +20,14 @@ import { inboxUiContribution } from "./ui.js";
  * the action it is running, so each one is judged by that caller's own authority, never by Inbox's.
  */
 const FEED = {
-  admission: { capability_id: "feed.items.admission", version: 1 }, material: { capability_id: "feed.items.material", version: 1 },
-  content: { capability_id: "feed.items.content", version: 1 }, briefs: { capability_id: "feed.briefs.read", version: 1 },
-  admit: { capability_id: "feed.items.admit", version: 1 },
+  admission: { capability_id: "feed.items.admission", version: /* @version action.feed.items.admission */ 1 }, material: { capability_id: "feed.items.material", version: /* @version action.feed.items.material */ 1 },
+  content: { capability_id: "feed.items.content", version: /* @version action.feed.items.content */ 1 }, briefs: { capability_id: "feed.briefs.read", version: /* @version action.feed.briefs.read */ 1 },
+  admit: { capability_id: "feed.items.admit", version: /* @version action.feed.items.admit */ 1 },
   read: { capability_id: "feed.content.read", version: WORKFLOW_CONTENT_VERSIONS.read }, receive: { capability_id: "feed.content.receive", version: WORKFLOW_CONTENT_VERSIONS.receive },
 } as const satisfies Record<string, ActionReference>;
 const PAGES = {
-  generation: { capability_id: "pages.generations.get", version: 1 }, generations: { capability_id: "pages.generations.list", version: 1 },
-  get: { capability_id: "pages.get", version: 1 }, generate: { capability_id: "pages.generate", version: 1 },
+  generation: { capability_id: "pages.generations.get", version: /* @version action.pages.generations.get */ 1 }, generations: { capability_id: "pages.generations.list", version: /* @version action.pages.generations.list */ 1 },
+  get: { capability_id: "pages.get", version: /* @version action.pages.get */ 1 }, generate: { capability_id: "pages.generate", version: /* @version action.pages.generate */ 1 },
 } as const satisfies Record<string, ActionReference>;
 
 /** Feed answers at most this many ids at once. */
@@ -139,6 +140,6 @@ export function createInboxPlugin(): PluginDefinition {
       return handlers[route_id]!({ params: request.params, request: { method: request.method as "GET" | "POST", pathname: request.pathname,
         query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } }));
-    return { kind: "app", views: [inboxUiContribution], actions, routes, action_scenes: [sceneRuntime.handler] };
+    return { kind: "app", sync: syncBindings(context), views: [inboxUiContribution], actions, routes, action_scenes: [sceneRuntime.handler] };
   } };
 }

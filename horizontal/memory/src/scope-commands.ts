@@ -178,7 +178,7 @@ export class MemoryScopeCommands {
       if (await clean(encoded) !== encoded) throw memoryErrors.unavailable("分类或会话约束包含不能导出的内容，没有生成记忆包");
       entries.push({ text: await clean(located.entry.text), kind: located.meta.kind, source: located.meta.source, basis: located.meta.basis, applies: { ...applies, ...task }, origin: await clean(located.entry.origin), expires_at: located.meta.expires_at, ...constraints });
     }
-    return { format: "molis.memory", version: 2, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
+    return { format: "molis.memory", version: /* @version format.memory.export */ 1, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
   }
 
   /**

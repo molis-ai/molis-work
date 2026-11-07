@@ -65,7 +65,7 @@ export const leaveOnFold = (page: PagesPage) => queueMicrotask(() => { if (page.
 /** Registers (or cancels) the Host's cleanup for a page that goes away while a blank document is open. */
 export function closingBlank(page: PagesPage) {
   const left = blankLeaving(page);
-  page.host.view.onClosing(left ? { reference: { capability_id: "pages.discard", version: 1 }, input: { id: left.id, expected_version: left.version } } : null);
+  page.host.view.onClosing(left ? { reference: { capability_id: "pages.discard", version: /* @version action.pages.discard */ 1 }, input: { id: left.id, expected_version: left.version } } : null);
 }
 
 /** Leaving by the workbench hiding this page: the blank document goes like any other. */

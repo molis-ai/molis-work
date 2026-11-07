@@ -27,7 +27,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
   store.db.exec("CREATE TABLE fixture_home_tags (id TEXT PRIMARY KEY, tag TEXT NOT NULL, revision INTEGER NOT NULL)");
   store.db.prepare("INSERT INTO fixture_home_tags VALUES (?, '', 1)").run(item.item_id);
   const read = () => store.db.prepare("SELECT tag, revision FROM fixture_home_tags WHERE id = ?").get(item.item_id) as { tag: string; revision: number };
-  const offers = defineSubjectOffersAction("unknown.browser.offers", ["feed_item"], "材料标记", ["fixture:read"], [
+  const offers = defineSubjectOffersAction("unknown.browser.offers", 1, ["feed_item"], "材料标记", ["fixture:read"], [
     { offer_id: "unknown.mark-review", title: "标记待核查", action: { capability_id: "unknown.browser.tag", version: 1 } },
   ]);
   const write: ActionDefinition = { capability_id: "unknown.browser.tag", version: 1, operation: "command", action: {

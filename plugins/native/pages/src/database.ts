@@ -5,6 +5,7 @@ import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from
  * must already be at its version. Columns keep the order existing stores have them in.
  */
 const PAGES_SCHEMA = `
+ CREATE TABLE pages_editor_versions(id TEXT PRIMARY KEY,version INTEGER NOT NULL);
   CREATE TABLE pages (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL DEFAULT '',
@@ -39,11 +40,12 @@ const PAGES_SCHEMA = `
  */
 const PAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Pages 文稿与文件夹", order: 10, tables: [
   { table: "page_changes", column: "page_id", parent: "pages" },
+  { table: "pages_editor_versions", column: "id", parent: "pages" },
   { table: "pages", column: "project_id" },
   { table: "folders", column: "project_id" },
   { table: "page_generations", column: "project_id" },
   { table: "page_imports", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PAGES_PROJECT_ROWS, store_name: "pages", version: 1,
+export const PAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PAGES_PROJECT_ROWS, store_name: "pages", version: /* @version database.pages_database */ 1,
   read_permission: "pages:read", write_permission: "pages:write", schema: PAGES_SCHEMA };

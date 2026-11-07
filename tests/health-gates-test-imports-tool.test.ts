@@ -395,10 +395,10 @@ test("gate: --update does not hide a new split, neither with the merge-base nor 
   assert.match(refused.out, /Baseline not written/);
   assert.equal(git(dir, "status", "--porcelain"), "", "a refused --update leaves baseline.json alone");
   assert.equal(gate(dir, "--update").code, 1, "W2-10-E-01 even a local update cannot record a split");
-  const baseline = JSON.parse(read(dir, "tooling/gates/baseline.json"));
+  const baseline = JSON.parse(read(dir, ".git/molis-health-baseline.json"));
   baseline.testImportSplits = { "tests/source-only.test.ts": 100, "tests/split.test.ts": 100, "tests/fixtures/spawned.ts": 100 };
   baseline.testImportSplitsTotal = 300;
-  put(dir, "tooling/gates/baseline.json", json(baseline));
+  put(dir, ".git/molis-health-baseline.json", json(baseline));
   commit(dir, "forged baseline");
   assert.equal(gate(dir).code, 1, "W2-10-E-01 forged historical counts grant no exception");
   const still = gate(dir, "--base", "main");
@@ -467,7 +467,7 @@ test("gate: a repository with no tests has nothing to measure", () => {
   const dir = scratch({ "tooling/gates/limits.json": json({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }), ...alpha({}, []) });
   git(dir, "add", "-A");
   assert.equal(gate(dir, "--update").code, 0);
-  assert.equal(Object.hasOwn(JSON.parse(read(dir, "tooling/gates/baseline.json")), "testImportSplits"), false);
+  assert.equal(Object.hasOwn(JSON.parse(read(dir, ".git/molis-health-baseline.json")), "testImportSplits"), false);
 });
 
 test("W2-10-E-01 a fully unified graph passes and drops obsolete baseline keys", () => {
@@ -478,7 +478,7 @@ test("W2-10-E-01 a fully unified graph passes and drops obsolete baseline keys",
   });
   assert.equal(gate(dir, "--base", "main").code, 0);
   assert.equal(gate(dir, "--update", "--base", "main").code, 0);
-  const baseline = JSON.parse(read(dir, "tooling/gates/baseline.json"));
+  const baseline = JSON.parse(read(dir, ".git/molis-health-baseline.json"));
   assert.equal(Object.hasOwn(baseline, "testImportSplits"), false);
   assert.equal(Object.hasOwn(baseline, "testImportSplitsTotal"), false);
 });

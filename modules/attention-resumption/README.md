@@ -26,11 +26,13 @@ AttentionModule 通过 subject resolver 检查对象；commands 创建或更新�
 
 对象归属由 entry 与 event 的 `owner_plugin_id` 明确保存；null 表示未指定，不按 kind 或 ID 猜。去重、按对象查询及删除以 owner、kind、裸对象 ID 为边界，同 owner 的同对象与原因仍幂等，未指定 owner 的直接调用以 null 为边界。`entry_id` 保持全局身份，状态操作照旧按它定位。
 
-插件服务只展示已明确归属的记录，读取授权允许跨插件读；写入 owner 取自当前安装的 Manifest，异主 create/delete 带码拒绝。旧 Feed/Inbox 的共用读入口暂只接 null，避免按 kind 和裸 ID 误读其他 owner 的内容。项目 schema 为本分支 v10，旧版本仍严格拒绝，真实库维护留统一窗口；这里没有自动迁移或旧 owner 推断。
+插件服务只展示已明确归属的记录，读取授权允许跨插件读；写入 owner 取自当前安装的 Manifest，异主 create/delete 带码拒绝。旧 Feed/Inbox 的共用读入口暂只接 null，避免按 kind 和裸 ID 误读其他 owner 的内容。错版的项目库严格拒绝，真实库维护留统一窗口；这里没有自动迁移或旧 owner 推断。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
 ## 本地开发
+
+`attentionContentReplicationDefinition` 声明注意事项和固定事件的项目一致单元，只携带引用、原因、处置和历史；恢复不调用对象解析、判断或执行。引用对象暂不可用时保留定位，不复制正文。恢复既有记录时抬高目标端编辑版本，旧数字修订也不能覆盖已选择的另一内容分支。Inbox 集合通过唯一目录的 owner 描述符接入。
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 

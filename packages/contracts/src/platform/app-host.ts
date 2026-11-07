@@ -9,9 +9,9 @@ export type AsyncApplicationMethods<Application> = {
 };
 
 export const platformAppHostContract = {
-  contractId: "io.molis.work.platform.app-host.v1",
+  contractId: /* @version contract.io.molis.work.platform.app-host "io.molis.work.platform.app-host.v{version}" */ "io.molis.work.platform.app-host.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.app-host */ 1,
   maturity: "partial",
   ssot: "docs/system/ARCHITECTURE.md",
 } as const satisfies ContractDescriptor;

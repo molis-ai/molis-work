@@ -1,51 +1,33 @@
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { createStudioPublisher } from './studio-release.js';
-import { lstat, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
 import { builderSkill } from './skill.js';
-import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
+import { buildManifest, createBuildProject, copyBuildRevision } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
 import { slowOperations } from './capabilities.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, designerCatalog } from './catalog.js';
-import { buildEffects, type StudioPreview } from './studio-preview.js';
+import { buildEffects, type BuildExecution, type StudioPreview } from './studio-preview.js';
 import type { StudioModels } from './studio-models.js';
 import type { AgentBuilderPorts, AgentStudioOptions, Studio } from './agent-surface.js';
 
 /** Each operation's last passing source for one build revision, beside (not inside) what the code agent can write. */
 const settledFor = (directory: string) => directory + '.settled';
 
-/** Shared TypeScript keeps its relative imports; host and operation entries have their own authority below. */
-async function copySharedSources(from: string, directory: string, relative = 'src'): Promise<void> {
-  const sourceDirectory = join(from, relative);
-  if ((await lstat(sourceDirectory)).isSymbolicLink()) throw new Error('Symbolic links are not allowed: ' + relative);
-  for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
-    const path = relative + '/' + entry.name;
-    if (path === 'src/index.ts' || /^src\/operations\/\d+\.ts$/.test(path)) continue;
-    if (entry.isSymbolicLink()) throw new Error('Symbolic links are not allowed: ' + path);
-    if (entry.isDirectory()) { await copySharedSources(from, directory, path); continue; }
-    if (!entry.name.endsWith('.ts')) continue;
-    if (!entry.isFile()) throw new Error('Build source must be a regular file: ' + path);
-    const source = await readBuildFile(from, path), target = join(directory, path);
-    await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, source, { flag: 'wx', mode: 0o600 });
-  }
-}
-
 /** What the workflow asks of the Host: the catalog, the agents, the build directory, the checks, the trial, and the release folders. */
 export function builderPorts(inputs: {
-  options: AgentStudioOptions; home: string; studio: Studio; installed: Awaited<ReturnType<typeof ensureInstalledPlugins>>;
+  execute: BuildExecution; options: AgentStudioOptions; home: string; studio: Studio; installed: Awaited<ReturnType<typeof ensureInstalledPlugins>>;
   models: StudioModels; preview: StudioPreview; mockups: NonNullable<AgentBuilderPorts['mockups']>;
   choice: NonNullable<AgentStudioOptions['choice']>;
   prompt: NonNullable<AgentBuilderPorts['prompt']>; instruction: NonNullable<AgentBuilderPorts['instruction']>;
 }): AgentBuilderPorts {
-  const { options, home, studio, installed, models: { selected, models: withModels, access }, preview: { previewFor, standIns, networkFor, runnerFor, stopRunner, clearPreview, inTrial }, mockups: images, choice } = inputs;
+  const { execute, options, home, studio, installed, models: { selected, models: withModels, access }, preview: { previewFor, standIns, networkFor, runnerFor, stopRunner, clearPreview, inTrial }, mockups: images, choice } = inputs;
   return {
     projectId: options.projectId,
     // What a design may use: the project's unified action directory, as offered to generated plugins.
@@ -88,21 +70,8 @@ export function builderPorts(inputs: {
       // A revision keeps the implementation and tests of every operation whose contract did not change,
       // so only the parts that actually changed go back to the code agent.
       const before = previous.design, from = previous.directory;
-      const reusable = before ? design.contract.operations.flatMap((operation, index) => {
-        const old = before.contract.operations.findIndex(item => item.id === operation.id);
-        return old < 0 || !isDeepStrictEqual(canonical(before.contract.operations[old]), canonical(operation)) ? [] : [{ index, old, operation }];
-      }) : [];
-      if (from && reusable.length) await copySharedSources(from, directory);
-      if (from) for (const { index, old, operation } of reusable) {
-        for (const kind of ['src', 'tests']) {
-          try {
-            const source = await readBuildFile(from, `${kind}/operations/${old}.ts`);
-            await writeFile(join(directory, kind, 'operations', index + '.ts'), source, { mode: 0o600 });
-            // It stays connected without another check, so it is settled as it was.
-            if (kind === 'src' && previous.connected.includes(operation.id)) { const settled = join(settledFor(directory), 'src/operations'); await mkdir(settled, { recursive: true, mode: 0o700 }); await writeFile(join(settled, index + '.ts'), source, { mode: 0o600 }); }
-          }
-          catch { /* a missing or unsafe previous file is simply written again by the code agent */ }
-        }
+      if (before && from) {
+        await copyBuildRevision(from, directory, before.contract, design.contract, previous.connected, settledFor(directory));
       }
       return directory;
     },
@@ -110,16 +79,16 @@ export function builderPorts(inputs: {
       const scope = build.runtimeScope, catalog = await studio.catalog(scope), effects = buildEffects(build);
       signal.throwIfAborted();
       for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw new Error('目标范围没有开放给插件的能力：' + capability);
-      if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: '0.0.0',
+      if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: "0.0.0",
         publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects, contract: build.design!.contract, runtime: { scope: 'home' } }));
       return runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
       operationIds, services: previewFor(build), mockServices: { capability: standIns, network: networkFor(build) }, grants: buildEffects(build), signal, settled: settledFor(build.directory!),
       identity: { projectId: scope === 'home' ? null : options.projectId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } });
     },
-    call: async (build, operationId, input, control) => {
+    call: async (build, operationId, input, control) => execute(build.id, async () => {
       const capabilities = await studio.catalog(build.runtimeScope);
       return (await runnerFor(build, slowOperations(build.design!.contract, capabilities).has(operationId) ? 'slow' : 'quick', capabilities)).call(operationId, input, control);
-    },
+    }),
     async sources(build) {
       if (!build.directory) return [];
       const entries = await readdir(join(build.directory, 'src'), { withFileTypes: true }).catch(() => []);

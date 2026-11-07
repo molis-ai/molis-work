@@ -15,7 +15,7 @@ import { GOALS_GOVERNANCE_SQL } from "./project-database-governance.js";
  */
 export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "goals",
-  version: 1,
+  version: /* @version database.goals_project_database */ 1,
   schema: [GOALS_BOARDS_SQL, GOALS_TABLES_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, GOALS_EVENT_STATE_SQL, GOALS_GOVERNANCE_SQL].join("\n"),
   // A plugin's own tables in the project's library are its private storage (D23), not Goals' action permissions.
   read_permission: "storage:private",

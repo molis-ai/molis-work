@@ -89,6 +89,9 @@ agent.skills.list	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a
 agent.skills.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	17cfc98dafec	a63d8363c888	-
 agent.subagents.cancel	1	platform	command	operation	project	write	-	plugin	-	-	-	-	a6e720313ceb	-	-
 agent.subagents.list	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	231a17b2e911	-
+agent.task_grants.clear	1	system.task-grants	command	operation	project	write	-	plugin,user	-	-	-	-	2f8424427527	939c976f491f	-
+agent.task_grants.list	1	system.task-grants	query	query	project	read	-	plugin,user	-	-	-	-	90f264064219	e5f995eece15	-
+agent.task_grants.set	1	system.task-grants	command	operation	project	write	-	user	projects:settings	project	-	-	65c4dcc42cc6	84610c1025f6	-
 agent.write_checkers.list	1	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-
 agent.write_checkers.save	1	platform	command	operation	project	write	-	user	projects:settings	project	-	-	498e1a9ea182	20465c4fd1d3	-
 artifacts.browse	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read	artifact	-	-	0800de271471	424b2c25470d	-

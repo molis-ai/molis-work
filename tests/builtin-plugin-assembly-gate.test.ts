@@ -62,13 +62,14 @@ test("RAC-2650 every built-in catalog entry is started by a supervisor or is one
     .filter(id => !RUNTIME_ASSEMBLED.has(id) && !HOME_RUNTIME_IDS.has(id)).sort();
   assert.deepEqual(buildTime, [...APPROVED_BUILD_TIME_EXCEPTIONS.keys()].sort(),
     `New built-in plugins must be started by the Plugin Runtime (declare runtime or project_runtime in the plugin's registration); only the approved exceptions are assembled at build time. Assembled at build time: ${buildTime.join(", ")}`);
-  const backlog = await readFile(join(repoRoot, "specs/BACKLOG.md"), "utf8");
   for (const [id, why] of APPROVED_BUILD_TIME_EXCEPTIONS) {
     assert.match(why, /\buser 20\d\d-\d\d-\d\d\b/, `${id}: the exception names the user's decision and its date`);
-    const row = /\bBL-\d+\b/.exec(why)?.[0];
+    const row = /\bBL-(?:\d+|[a-z][a-z0-9-]*)\b/.exec(why)?.[0];
     assert.ok(row, `${id}: the exception names the BACKLOG row that redoes it`);
+    // CCR-08: the open item lives in its independent record, and a deleted record still fails.
+    const backlog = await readFile(join(repoRoot, "specs/backlog", `${row}.md`), "utf8");
     assert.match(backlog, new RegExp(`^\\| ${row} \\|`, "m"),
-      `${id}: ${row} has to be open in specs/BACKLOG.md; once it is done the plugin runs on the Runtime and leaves APPROVED_BUILD_TIME_EXCEPTIONS`);
+      `${id}: ${row} has to be open in specs/backlog/; once it is done the plugin runs on the Runtime and leaves APPROVED_BUILD_TIME_EXCEPTIONS`);
   }
 });
 
@@ -98,7 +99,6 @@ test("no new <plugin>-native-plugin-http.ts route file appears in the Host", asy
 
 test("RAC-2651 a Host route file named for a built-in plugin belongs to an approved build-time exception", async () => {
   const catalogIds = new Set(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string));
-  const backlog = await readFile(join(repoRoot, "specs/BACKLOG.md"), "utf8");
   const files = await readdir(join(repoRoot, "apps/local-host/src"));
   for (const name of files.filter(file => file.endsWith("-native-plugin-http.ts")).map(file => file.slice(0, -"-native-plugin-http.ts".length))) {
     // A plural plugin directory may have had a singular Host file (artifact-… for artifacts), so both spellings are checked.
@@ -109,10 +109,12 @@ test("RAC-2651 a Host route file named for a built-in plugin belongs to an appro
   for (const [name, why] of NATIVE_PLUGIN_HTTP_FILES) {
     assert.ok(why.length >= 20, `${name}-native-plugin-http.ts: say why it is there`);
     if ([name, `${name}s`].some(id => catalogIds.has(id))) continue;
-    const row = /\bBL-\d+\b/.exec(why)?.[0];
+    const row = /\bBL-(?:\d+|[a-z][a-z0-9-]*)\b/.exec(why)?.[0];
     assert.ok(row, `${name}-native-plugin-http.ts: the platform route exception must name its BACKLOG row`);
+    // CCR-08: the open item lives in its independent record, and a deleted record still fails.
+    const backlog = await readFile(join(repoRoot, "specs/backlog", `${row}.md`), "utf8");
     assert.match(backlog, new RegExp(`^\\| ${row} \\|`, "m"),
-      `${name}-native-plugin-http.ts: ${row} must still be open in specs/BACKLOG.md; once done, rename the platform route file and remove it from NATIVE_PLUGIN_HTTP_FILES`);
+      `${name}-native-plugin-http.ts: ${row} must still be open in specs/backlog/; once done, rename the platform route file and remove it from NATIVE_PLUGIN_HTTP_FILES`);
   }
 });
 

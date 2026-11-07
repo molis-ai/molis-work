@@ -4,7 +4,7 @@ import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/p
 // import the manifest, so declaring from them would load the manifest half-made.
 
 /** Conversation tasks and their turns. */
-const SCHEDULE_TASKS_SCHEMA_SQL = `
+export const SCHEDULE_TASKS_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS schedule_conversation_tasks (
       task_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -65,7 +65,7 @@ const SCHEDULED_OPERATIONS_SCHEMA_SQL = `
  */
 export const SCHEDULE_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "schedule",
-  version: 1,
+  version: /* @version database.schedule_project_database */ 1,
   schema: [SCHEDULE_TASKS_SCHEMA_SQL, SCHEDULE_REMINDERS_SCHEMA_SQL, SCHEDULED_OPERATIONS_SCHEMA_SQL].join("\n"),
   read_permission: "storage:private",
   write_permission: "storage:private",

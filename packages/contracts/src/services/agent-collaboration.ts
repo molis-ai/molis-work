@@ -14,9 +14,9 @@ import type { AgentStepAmendment, AgentStepBoard } from "./agent-host-session.js
  * continuation's request key, takes it up.
  */
 export const servicesAgentCollaborationContract = {
-  contractId: "io.molis.work.service.agent-collaboration.v1",
+  contractId: /* @version contract.io.molis.work.service.agent-collaboration "io.molis.work.service.agent-collaboration.v{version}" */ "io.molis.work.service.agent-collaboration.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.agent-collaboration */ 1,
   maturity: "partial",
   ssot: "specs/prologue-adoption/spec.md",
 } as const satisfies ContractDescriptor;
@@ -221,14 +221,14 @@ const AMENDMENT = { oneOf: [
 /** Read and control the project's waits; waiting for a continuation to be ready is the `agentHostCapabilities.awaitContinuations` action. */
 export const agentCollaborationActions = {
   read: {
-    capability_id: "agent.collaboration.read", version: 1, operation: "query",
+    capability_id: "agent.collaboration.read", version: /* @version action.agent.collaboration.read */ 1, operation: "query",
     action: { title: "读取会话的等待与接续", description: "读取调用插件自己在这个项目里的会话在等什么、等到哪了，以及等完之后怎样接着做；只读，别的插件的会话不在回答里。", kind: "query", scope: "project", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id"], additionalProperties: false, properties: { runtime_id: { type: "string", minLength: 1 }, session_id: { type: "string", minLength: 1 } } },
       output_schema: SESSION_VIEWS_OUTPUT },
   } as ActionDefinition<AgentCollaborationReadInput, { sessions: AgentCollaborationSessionView[] }>,
   control: {
-    capability_id: "agent.collaboration.control", version: 1, operation: "command",
+    capability_id: "agent.collaboration.control", version: /* @version action.agent.collaboration.control */ 1, operation: "command",
     action: { title: "取消等待或提前接着做", description: "用户放弃调用插件自己一个会话的等待，或不等了直接接着做；只改等待与接续，不碰它在等的那件事。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "kind", "wait_id"], additionalProperties: false, properties: {
@@ -238,7 +238,7 @@ export const agentCollaborationActions = {
   } as ActionDefinition<AgentCollaborationControlInput, { session: AgentCollaborationSessionView }>,
   /** The person changes a round's plan: the change is a report on the graph itself; the confirmed plan is never rewritten. */
   revise: {
-    capability_id: "agent.collaboration.revise", version: 1, operation: "command",
+    capability_id: "agent.collaboration.revise", version: /* @version action.agent.collaboration.revise */ 1, operation: "command",
     action: { title: "调整一轮的计划", description: "用户在任务图上调整这一轮的计划：跳过、插入、调顺序、改派、给受阻的步骤做决定、报自己负责的步骤的结果；按看到的版本提交，别人先改了就拒绝。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "amendment", "expected_version"], additionalProperties: false, properties: {

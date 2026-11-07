@@ -12,7 +12,7 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { openProjectVersionStores } from './project-version-stores.js';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
-export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-builder';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
@@ -35,6 +35,7 @@ import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
 import { APPROVED_KEY, installedLifecycle } from './installed-plugin-lifecycle.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
+import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
@@ -56,6 +57,11 @@ interface InstalledPluginHostOptions {
 type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
 const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost> }>>();
 
+/** Passive projection of the unique installed execution owner; never installs or starts a second platform. */
+export async function runningInstalledPluginPlatform(store: LocalProjectDatabase, projectId: string) {
+  const entry = hosts.get(store)?.get(projectId);
+  return entry ? (await entry.ready).platform : null;
+}
 /** The refusal a sandbox's Host call gets once the installation it belongs to is no longer the running one (a project's or the Home's). */
 export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
 
@@ -175,12 +181,14 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
-    forget(pluginId, installId) {
+    async forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);
       forgetDefinitions(pluginId);
       // The account it used for each of its records here goes with it; its installation slot's account is every project's, and goes with the last one (BL-596).
       forgetInstallationConnections(homeDirectory, installId, { kind: "project", project_id: projectId });
+      // What the person let its tasks here read goes with it too (task grant subjects of this installation in this project).
+      await forgetTaskGrantSubjects(homeDirectory, subject => subject.plugin_install_id === installId && subject.project_id === projectId);
     } });
   const close = async () => {
     if (closed) return;

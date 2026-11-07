@@ -31,7 +31,7 @@ interface ComputerStep {
 }
 
 export interface ComputerRecord {
-  readonly version: 1;
+  readonly version: /* @version format.computer.record */ 1;
   readonly id: string;
   readonly session_id: string;
   readonly run_id: string | null;
@@ -73,7 +73,7 @@ export class ComputerRecords {
   }
 
   start(input: { readonly session_id: string; readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): ComputerRecord {
-    return this.save({ version: 1, id: randomUUID(), session_id: input.session_id, run_id: input.run_id, project_id: input.project_id,
+    return this.save({ version: /* @version format.computer.record */ 1, id: randomUUID(), session_id: input.session_id, run_id: input.run_id, project_id: input.project_id,
       goal: input.goal.slice(0, 4_000), started_at: new Date().toISOString(), ended_at: null, outcome: null, conclusion: "", unfinished: [],
       steps: [], shots_removed_at: null });
   }

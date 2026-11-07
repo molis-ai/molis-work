@@ -128,6 +128,7 @@
 |  | [连续两期场景](reference/batches/54.md#batch-54-item-8) |
 | [55](reference/batches/55.md) | [Attention 唤醒、角标与系统通知](reference/batches/55.md#batch-55-item-1) |
 |  | [切换后新入口文字与翻译复核](reference/batches/55.md#batch-55-item-2) |
+|  | [N22 全量迁移与收口](reference/batches/55.md#batch-55-item-3) |
 | [56](reference/batches/56.md) | [个人工作完整路径与 M1 交付](reference/batches/56.md#batch-56-item-1) |
 | [57](reference/batches/57.md) | [子代理公共交互组件](reference/batches/57.md#batch-57-item-1) |
 | [58](reference/batches/58.md) | [子代理双入口接入](reference/batches/58.md#batch-58-item-1) |

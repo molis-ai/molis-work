@@ -9,7 +9,7 @@ import { todoFlags } from "./views.js";
  * What Todo puts on the project's home page: reminders that are due, what is overdue, due or planned today, and follow-ups due.
  * All of it is still to do today, so it sits on today; the time shown is the reminder's, or when the todo was written down.
  */
-export const todoHomeEventsAction = defineHomeEventsAction("todo.home.events", [TODO_SUBJECT_KIND], "待办首页事项", ["todo:read"]);
+export const todoHomeEventsAction = defineHomeEventsAction("todo.home.events", /* @version action.todo.home.events */ 1, [TODO_SUBJECT_KIND], "待办首页事项", ["todo:read"]);
 
 const MAX_EVENTS = 20;
 const open = (item: TodoItem) => ({ kind: "item" as const, surface: TODO_PROJECT_PLUGIN_ID, id: item.id, title: item.title, label: "打开待办" });

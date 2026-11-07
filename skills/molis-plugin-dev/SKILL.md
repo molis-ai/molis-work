@@ -26,6 +26,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 画面、槽、客户端 | [ui.md](ui.md) |
 | 接到本仓库产品 | [host.md](host.md) |
 | SDK / CLI / 存储 / 测试 | [authoring.md](authoring.md) |
+| 个人空间同步集合、快照试点与后续增量边界 | [sync.md](sync.md) |
 | 调模型、跑 Agent、改提示词或模型设置 | [molis-prologue-ai](../molis-prologue-ai/SKILL.md)（纯非 AI 功能不用读） |
 | AI 要人补信息、确认一步或挑一个对象：问卷卡、操作卡、对象引用，动作先问再做（`needs_input`）；让自己的对象能被 AI 的问题引用 | [molis-prologue-ai](../molis-prologue-ai/SKILL.md) 的「交互」一节、[search.md](search.md)。生成插件按 [generated-ai.md](generated-ai.md) 的边界：`model.generate` 只承诺一次文字生成，没有 Agent 的 `ask-user` 与 `suggest-action`，也不能 `needs_input`，要先问的做成提交部件的字段 |
 | 外部世界、OAuth、secret | [integrations.md](integrations.md) |
@@ -168,4 +169,4 @@ ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/ski
 `<release>` 来自 `~/.molis-work/config/installation.json` 的 `release_path`。npm 包在 `node_modules/@molis-ai/molis-work/skills/molis-plugin-dev`。
 
 
-签名 app 的包内角色资料/方法采用三字段 wire 与资源文件，参见 [authoring.md](authoring.md#签名-app-包的文字资料)。安装预览 @5、助理读取 @2 和精确签名来源是一条链；纯文字声明不授予执行、目录或工具权限。
+签名 app 的包内角色资料/方法采用三字段 wire 与资源文件，参见 [authoring.md](authoring.md#签名-app-包的文字资料)。安装预览、助理读取和精确签名来源是一条链；纯文字声明不授予执行、目录或工具权限。

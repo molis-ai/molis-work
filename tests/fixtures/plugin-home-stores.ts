@@ -1,3 +1,4 @@
+import { PLATFORM_PLUGIN_REGISTRATIONS, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import { realpathSync } from "node:fs";
 import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -26,7 +27,12 @@ const atomically = (db: DatabaseSync) => <T>(run: () => T): T => {
   try { const result = run(); db.exec("COMMIT"); return result; }
   catch (error) { db.exec("ROLLBACK"); throw error; }
 };
-const open = (home: string, declaration: { store_name: string; version: number; schema: string }) => openBaselineHomeSqlite(home, declaration.store_name, declaration);
+// Seed the same complete library the Runtime opens, including platform-owned sync tables.
+function completeDeclaration(declaration: { store_name: string; version: number; schema: string }) {
+  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.map(row => row.manifest).find(row => row.databases?.home?.store_name === declaration.store_name);
+  return manifest?.databases?.home ? pluginSyncDatabaseDeclaration(manifest, manifest.databases.home) : declaration;
+}
+const open = (home: string, declaration: { store_name: string; version: number; schema: string }) => openBaselineHomeSqlite(home, declaration.store_name, completeDeclaration(declaration));
 
 export function openTodoStore(home: string, now?: () => Date): TodoStore {
   const db = open(home, TODO_DATABASE);
@@ -53,7 +59,7 @@ export function openPptStore(home: string): PptStore {
 /** A library opened and given its baseline the way these three stores always were: the database first, then the baseline on it. */
 function openWithBaseline(home: string, declaration: { store_name: string; version: number; schema: string }, pragmas: string): DatabaseSync {
   const db = openHomeSqliteDatabase(home, declaration.store_name);
-  try { db.exec(pragmas); applySqliteBaseline(db, homeSqlitePath(home, declaration.store_name), declaration); return db; }
+  try { db.exec(pragmas); applySqliteBaseline(db, homeSqlitePath(home, declaration.store_name), completeDeclaration(declaration)); return db; }
   catch (error) { db.close(); throw error; }
 }
 export function openJellyStore(home: string): JellyStore {

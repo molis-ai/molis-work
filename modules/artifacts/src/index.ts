@@ -17,6 +17,9 @@ import {
   type ArtifactsServiceOptions,
 } from "./service.js";
 
+export { createArtifactReplication, createProcessItemReplication, validateArtifactReplication, validateProcessItemReplication, type ArtifactReplicationContext, type PortableArtifact, type PortableProcessItem } from './replication.js';
+export { installArtifactReplicationJournal, installProcessItemReplicationJournal, artifactReplicationJournalSql, processItemReplicationJournalSql } from './replication-journal.js';
+
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;
   /**
@@ -133,6 +136,7 @@ export {
   type ArtifactsServiceOptions,
   type VersionStoreKind,
 } from "./service.js";
+export {createArtifactSyncContent} from './sync-content.js';
 
 export { ARTIFACTS_HOST_PRODUCER } from "./artifact-host-producer.js";
 export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_PRODUCER } from "./artifact-provider.js";

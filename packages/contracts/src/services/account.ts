@@ -7,7 +7,9 @@ export type { Subscription, PlanVersion, SeatPool, Assignment, AuditEvent } from
 export type { TenantView, PlatformTenantView, Membership, Invitation, OwnershipTransfer } from "./account-dto.js";
 
 export const servicesAccountContract = {
-  contractId: "io.molis.work.service.account.v1", kind: "service", schemaVersion: 1,
+  contractId: /* @version contract.io.molis.work.service.account "io.molis.work.service.account.v{version}" */ "io.molis.work.service.account.v1",
+  kind: "service",
+  schemaVersion: /* @version contract.io.molis.work.service.account */ 1,
   maturity: "partial", ssot: "docs/horizontal/account.md",
 } as const satisfies ContractDescriptor;
 

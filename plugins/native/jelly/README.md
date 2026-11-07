@@ -26,6 +26,7 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
   - `delete_preview` 只保存确认凭证（显式声明为写），真正删除是另一个动作。
   - 模型对话框里的「打开模型设置」链接先关掉对话框（它是模态的，留着会压在设置上）。`molis-work:model-ready` 上只有「去过设置」的标记还在、且 Jelly 此刻真在屏幕上才重开模型对话框，标记在第一次事件上就用掉；写法与原因见 `skills/molis-prologue-ai/SKILL.md` 步骤 6。守住它的是 `tests/model-ready-surfaces.e2e.test.ts`（「界面改动加跑」里）。
   - 改一个对象的命令声明结果对象（`result_subject`），输出附带改后的这一个，可由该种类的 `subject.read` 读回：日程（事项，或重复系列整体）是 `jelly_item`（`item` 或 `series`），笔记是 `jelly_note`（`note`）。恢复让对象重新可读，结果就是这个对象。作用于多条或整个工作区的命令，以及归档与删除，仍是 `jelly_workspace`：读取动作把归档的对象当作不存在，结果刚记下就会显示为已不在。
+  - 动作的输入类型由 schema 推导（`defineJellyAction<Output>()(…)`，输入用到的片段写 `as const`），处理器不写 `input as`。全部命令共用一个处理器（`createJellyCommandHandlers`），所以 store 收到的 `JellyCommand` 的值是 `unknown`：形状由 schema 在 Kernel 里查，store 只查要读工作区的；`calendar.ts`、`content.ts` 的读值函数（`identifier`、`record`、`string` 等）留着，是为了把 `unknown` 收窄，不靠 `as`。约束加在用到它的动作上，不加到共享片段：`s.ids`、`s.selection` 同时是工作区和计划的输出，输出也过校验，一个空的 `applied_plan_ids` 就会让读取失败。笔记选区不能为空写在 `aiInput` 的笔记分支。
   - 失败使用 `jellyErrors` 的 `jelly.<原因>` 声明，状态只由 kind 推出；Runtime、模型与授权错误保留其 owner 码，不包装成另一份状态表。Host 里读公开来源的失败是 `material.source.<原因>`（`materialSourceErrors`，`apps/local-host/src/material-source-reader.ts`），读上传文件的是 `material.<原因>`（`materialErrors`，`apps/local-host/src/material-text.ts`；上传入口在 `apps/local-host/src/material-upload.ts`）：这两组归 Host 的素材服务，不带 `jelly.` 前缀。灵光靠 `material.model_required` 按名字问「要不要下载语音模型」，大小在 `details.approximate_bytes`（`plugins/native/lingguang/src/client.ts`）。
   - `services.model.configuration` 独占原 preferences.json v1 的模型选择；设置 read/save 只在声明的动作里使用，保存不调用模型，无效选择不回退。SQL 仍经插件的 database 事务，模型等待前后复查授权。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-jelly run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
@@ -36,3 +37,5 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
 页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/jelly-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `jelly.<区域>.<名称>`（Manifest 的 `ui.messages`），请求只经共同的 `molisWorkRequest`，不直接 `fetch`。`src/en.ts` 只留 3 个宿主还按中文原文翻译的词（搜索结果种类名 `笔记`、`日程` 和动作标题 `新建笔记`，BL-456）；别的主人查的词在各自的词典里。
 
 读取文件与网页（文字提取、图片识别、音视频转写）现在归灵光，经 Host 的 `materials` 契约执行。
+
+项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。

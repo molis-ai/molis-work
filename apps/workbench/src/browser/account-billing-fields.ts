@@ -1,7 +1,7 @@
 import type { PlanVersion, Subscription } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
 export const subscriptionLabels = { ACTIVE: '生效中', SCHEDULED: '尚未生效', EXPIRED: '已到期', DISABLED: '已停用' };
-export const assignmentLabels = { RELEASED: '已回收', REASSIGNED: '已换绑', MEMBER_LEFT: '成员退出', MEMBER_REMOVED: '成员移除' };
+export const assignmentLabels = { RELEASED: '席位已回收', REASSIGNED: '已换绑', MEMBER_LEFT: '成员退出', MEMBER_REMOVED: '成员移除' };
 export const subscriptionPath = (id: string) => '/platform/subscriptions/' + encodeURIComponent(id);
 export const planName = (s: Subscription, plans: readonly PlanVersion[]) => plans.find(p => p.planId === s.planId && p.planVersion === s.planVersion)?.name ?? s.planId;
 export const seatName = (id: string, type: string, subscriptions: readonly Subscription[], plans: readonly PlanVersion[]) => { const s = subscriptions.find(s => s.subscriptionId === id), p = plans.find(p => p.planId === s?.planId && p.planVersion === s?.planVersion); return (p?.name ?? id) + ' · ' + (p?.seatTypes.find(t => t.seatTypeId === type)?.name ?? type); };

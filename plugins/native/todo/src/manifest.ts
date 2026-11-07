@@ -1,3 +1,4 @@
+import { todoSync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "./contract.js";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
@@ -13,10 +14,10 @@ export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID };
 const TODO_BODY_BYTES = 1_000_000;
 
 export const todoManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: TODO_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "待办",
   name_en: "Todo",
   summary: "记下要做的事，分清今天、在等谁。",
@@ -30,7 +31,10 @@ export const todoManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: ["assistant.works.related"] },
   artifacts: { produces: [], consumes: [] },
-  actions: [...TODO_ACTIONS],
+  actions: [...TODO_ACTIONS], sync:todoSync,
+  // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
+  read_groups: [{ group_id: "todo", title: "待办", description: "待办事项、它们的日期与到期提醒",
+    actions: ["todo.items.list", "todo.items.get", "todo.item.subject.read", "todo.search.project_entries", "todo.reminders.due", "todo.home.events"] }],
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
   runtime: { scope: "home" },
   databases: { home: TODO_DATABASE },

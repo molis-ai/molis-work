@@ -71,10 +71,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
   };
-  const CURRENT_KEY = "molis.assistant.current";
-  const NEW_DRAFT_KEY = "molis.assistant.new-draft";
+  // What this viewer has in front of them is remembered per project (proactive-assistant §12.1): another project starts from its own.
+  const scoped = (name) => "molis.assistant." + name + (project ? ":" + project.id : "");
   let works = [];
-  let curId = store.get(CURRENT_KEY);
+  let curId = store.get(scoped("current"));
   let view = null;
   let busy = false;
   let problem = null;
@@ -106,7 +106,9 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const paintAim = () => {
     const work = getWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
     if (work) {
-      targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
+      // A work opened from the list or a notice keeps where it belongs; the chip names it, before the title, when that is not this page.
+      const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
+      targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : (isLive(work.state) ? L("补充到") : L("继续")) + "：" + (where ? where + " · " : "") + work.title;
       target.title = work.reply_target ? L("请回到原评论继续回复") : L("下一次发送进入这项工作；点 × 改为开始新工作");
       if (targetClear) targetClear.hidden = false;
       if (targetWrap) { targetWrap.dataset.mode = "work"; targetWrap.hidden = false; }
@@ -153,14 +155,14 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
     }
   };
   execBtn?.addEventListener("click", () => setExecs(execsPop.hidden));
-  const remember = () => store.set(CURRENT_KEY, curId);
+  const remember = () => store.set(scoped("current"), curId);
 
   /* ─── Tabs: one per open work; which are open is this viewer's own convenience ─ */
-  const TABS_KEY = "molis.assistant.tabs";
   const MAX_TABS = 6;
-  let tabs = (() => { try { const saved = JSON.parse(store.get(TABS_KEY) || "[]"); return Array.isArray(saved) ? saved.filter((id) => typeof id === "string" && id).slice(0, MAX_TABS) : []; } catch { return []; } })();
+  const savedTabs = () => { try { const saved = JSON.parse(store.get(scoped("tabs")) || "[]"); return Array.isArray(saved) ? saved.filter((id) => typeof id === "string" && id).slice(0, MAX_TABS) : []; } catch { return []; } };
+  let tabs = savedTabs();
   const seenAt = new Map();
-  const saveTabs = () => store.set(TABS_KEY, tabs.length ? JSON.stringify(tabs) : null);
+  const saveTabs = () => store.set(scoped("tabs"), tabs.length ? JSON.stringify(tabs) : null);
   // A tab keeps its place; when there are too many, the one looked at longest ago (never the current one) closes.
   const openTab = (id) => {
     if (!id) return;
@@ -195,7 +197,7 @@ ${ASSISTANT_LAYOUT_PART}
       return;
     }
     const write = () => {
-      if (!id) { store.set(NEW_DRAFT_KEY, text || null); return; }
+      if (!id) { store.set(scoped("new-draft"), text || null); return; }
       const work = works.find((row) => row.work_id === id);
       if (work && work.draft === text) return;
       if (work) work.draft = text;
@@ -205,12 +207,15 @@ ${ASSISTANT_LAYOUT_PART}
   };
   const loadDraft = () => {
     const work = getWork();
-    input.value = work ? (work.draft || "") : (store.get(NEW_DRAFT_KEY) || "");
+    input.value = work ? (work.draft || "") : (store.get(scoped("new-draft")) || "");
     syncSend();
   };
   const switchTo = async (id) => {
     if (id === curId) return;
     saveDraft(true);
+    await showWork(id);
+  };
+  const showWork = async (id) => {
     curId = id; remember(); problem = null; view = null; pendingChar = undefined;
     openTab(id); if (!spacious()) drawerOpen = false;
     thread.querySelectorAll(":scope > [data-round], :scope > [data-review], :scope > .assistant-problem").forEach((node) => node.remove());
@@ -748,6 +753,11 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   loadWorks().then(() => { restIfStale(); if (!typed) loadDraft(); if (curId) return reload().then(poll); }).finally(() => { announcing = true; });
   return { isOpen: () => Boolean(panel && !panel.hidden),
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
-    setProject: (next) => { project = next && next.id ? next : null; if (!getWork()) nextScope = project ? "project" : "personal"; paintAim(); paintSum(); },
+    setProject: (next) => {
+      const chosen = next?.id ? next : null;
+      if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
+      saveDraft(true); project = chosen; tabs = savedTabs(); nextScope = project ? "project" : "personal";
+      void showWork(store.get(scoped("current")));
+    },
     dispose: () => { follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

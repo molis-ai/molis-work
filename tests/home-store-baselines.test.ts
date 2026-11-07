@@ -4,14 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
 import { ALCHEMIST_SEARCH_BASELINE, HomeConsentLedger, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
 
 /** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
  * Characters with its own native runs (Sessions cleanup SC-2). */
-const STORE_VERSIONS: Record<string, number> = { pages: 1, memory: 1, assistant: 1, functions: 1, form: 1, characters: 1 };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 
 /**
@@ -51,8 +50,8 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 // Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a
 // new version and a new fixture, never a silent drift.
 for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
-  test(`the ${name} store's baseline is version ${STORE_VERSIONS[name] ?? 1} and its complete frozen schema`, () => {
-    assert.equal(baseline.version, STORE_VERSIONS[name] ?? 1);
+  test(`N41-PERSONAL-01 the ${name} store's baseline is version 1 and its complete frozen schema`, () => {
+    assert.equal(baseline.version, 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
     // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
     assert.deepEqual(want, existing, `${name}: complete frozen schema`);
@@ -76,11 +75,12 @@ test("W3-06-F-04 Home Runtime created by the public Host is the complete indepen
     await host.homePlugins!.ready();
     db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
     assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
-    assert.deepEqual(describeSqliteSchema(db), shape(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8")));
+    assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
+    assert.deepEqual(describeSqliteSchema(db), shape(STORAGE_SPACE_SCHEMA_SQL + readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8")));
   } finally { db?.close(); try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
 });
 
-test("RAC-2645 the prior Runtime v1 consent shape is refused intact, with no implicit schema conversion", () => {
+test("RAC-2645 the prior Runtime consent shape falsely labeled as current is refused intact, with no implicit schema conversion", () => {
   const home = mkdtempSync(join(tmpdir(), "project-reach-old-baseline-")), directory = join(home, "plugin-runtime"), file = join(directory, "plugin-runtime.db");
   try {
     mkdirSync(directory);
@@ -95,6 +95,62 @@ test("RAC-2645 the prior Runtime v1 consent shape is refused intact, with no imp
     assert.throws(() => new HomeConsentLedger(home).revokeProjectReach({ project_id: "A" }, "now"), /结构与当前 v1 基线不一致/u);
     assert.deepEqual(readFileSync(file), bytes); assert.deepEqual(readdirSync(directory), files);
   } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("RAR-01 repeated Home consent reads and revocations do not rebuild the expected schema", t => {
+  const home = mkdtempSync(join(tmpdir(), "home-shape-cost-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const ledger = new HomeConsentLedger(home);
+  ledger.publishers();
+  ledger.revokeProjectReach({ project_id: "missing" }, "now");
+  const execute = DatabaseSync.prototype.exec, ddl: string[] = [];
+  t.mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) {
+    if (/CREATE\s+TABLE/iu.test(sql)) ddl.push(sql);
+    return execute.call(this, sql);
+  });
+  const started = performance.now();
+  for (let i = 0; i < 10; i += 1) {
+    assert.deepEqual(ledger.publishers(), []);
+    assert.equal(ledger.revokeProjectReach({ project_id: "missing" }, "now"), 0);
+  }
+  t.diagnostic(`20 public ledger operations: ${(performance.now() - started).toFixed(1)} ms; ${ddl.length} schema executions`);
+  assert.equal(ddl.length, 0, "warm reads must inspect the actual store without executing the immutable reference DDL again");
+});
+
+test("RAR-02 cached expectations keep both space shapes and still refuse changed stores intact", t => {
+  const root = mkdtempSync(join(tmpdir(), "home-shape-refusal-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const schema = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8");
+  // Exercise a bound store first, then a complete unbound store. The latter's read-only check must use its own shape;
+  // its subsequent writable open binds the space, and later reads must select the bound shape again.
+  const bound = new HomeConsentLedger(join(root, "bound"));
+  assert.deepEqual(bound.publishers(), []);
+  for (const damage of ["extra", "missing", "version", "owner"] as const) {
+    const home = join(root, damage), directory = join(home, "plugin-runtime"), file = join(directory, "plugin-runtime.db");
+    mkdirSync(directory, { recursive: true });
+    const fixture = new DatabaseSync(file);
+    try { fixture.exec(schema); } finally { fixture.close(); }
+    const ledger = new HomeConsentLedger(home);
+    assert.equal(ledger.revokeProjectReach({ project_id: "missing" }, "now"), 0);
+    assert.deepEqual(ledger.publishers(), []);
+    const db = new DatabaseSync(file);
+    try {
+      assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
+      if (damage === "extra") db.exec("CREATE TABLE unexpected (kept TEXT);");
+      if (damage === "missing") db.exec("DROP TABLE plugin_private_values;");
+      if (damage === "version") db.exec("PRAGMA user_version=99;");
+      if (damage === "owner") {
+        const other = ensureStorageSpace(join(root, "other-owner"));
+        db.prepare("UPDATE molis_storage_space SET space_id=?, descriptor=?").run(other.spaceId, JSON.stringify(other));
+      }
+    } finally { db.close(); }
+    const bytes = readFileSync(file), files = readdirSync(directory);
+    const operation = damage === "owner" ? () => ledger.publishers() : () => ledger.revokeProjectReach({ project_id: "missing" }, "now");
+    assert.throws(operation, damage === "owner" ? /SPACE_OWNERSHIP_MISMATCH/u
+      : damage === "version" ? /结构版本是 99/u : /结构与当前 v1 基线不一致/u);
+    assert.deepEqual(readFileSync(file), bytes, `${damage}: refusal must leave the store unchanged`);
+    assert.deepEqual(readdirSync(directory), files, `${damage}: refusal must leave no new sidecar`);
+  }
 });
 
 // C-06 (anti-corruption code audit 2026-10-15): the Characters store had its own opening that stamped version 1 over any
@@ -112,14 +168,19 @@ test("the Characters store refuses tables without a version and a newer version,
     finally { db.close(); }
   };
   const mismatch = (error: unknown) => (error as { code?: string }).code === "storage.schema_version_mismatch";
+  const tooNew = (error: unknown) => (error as { code?: string }).code === "storage.store_too_new";
   const unversioned = store("unversioned", "CREATE TABLE character_drafts (id TEXT PRIMARY KEY, body TEXT); INSERT INTO character_drafts VALUES ('old', '旧草稿');");
   assert.throws(() => openCharacters(unversioned, "actor"), mismatch);
   assert.deepEqual(state(unversioned), { version: 0, rows: 1 }, "the unversioned store keeps its row and is not stamped");
-  const newer = store("newer", `${CHARACTERS_STORE_BASELINE.schema} PRAGMA user_version = 3;`);
-  assert.throws(() => openCharacters(newer, "actor"), mismatch);
-  assert.deepEqual(state(newer), { version: 3, rows: 0 });
+  const missingTrigger = store("missing-trigger", CHARACTERS_STORE_BASELINE.schema + "DROP TRIGGER characters_sync_delete; PRAGMA user_version=1;");
+  assert.throws(() => openCharacters(missingTrigger,"actor"), {code:"storage.schema_structure_mismatch"});
+  const refused = new DatabaseSync(join(missingTrigger,"characters","characters.sqlite"),{ readOnly:true });
+  try { assert.equal(refused.prepare("SELECT 1 FROM sqlite_schema WHERE name='characters_sync_delete'").get(),undefined); } finally { refused.close(); }
+  const newer = store("newer", `${CHARACTERS_STORE_BASELINE.schema} PRAGMA user_version = ${CHARACTERS_STORE_BASELINE.version+1};`);
+  assert.throws(() => openCharacters(newer, "actor"), tooNew);
+  assert.deepEqual(state(newer), { version: CHARACTERS_STORE_BASELINE.version+1, rows: 0 });
   const fresh = openCharacters(join(home, "fresh"), "actor");
   try { assert.deepEqual(fresh.service.list(), []); } finally { fresh.close(); }
-  assert.deepEqual(state(join(home, "fresh")), { version: 1, rows: 0 });
+  assert.deepEqual(state(join(home, "fresh")), { version: CHARACTERS_STORE_BASELINE.version, rows: 0 });
   openCharacters(join(home, "fresh"), "actor").close();
 });

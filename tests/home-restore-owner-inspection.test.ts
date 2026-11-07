@@ -7,7 +7,7 @@ import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createHomeSnapshot, restoreHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
-import { assertExistingHomeKeyReference, createEvidenceContentStore, createLazyFileSecretStore, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, inspectMemoryLedger, openMemoryLedger, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { personalStorageSpace, assertExistingHomeKeyReference, createEvidenceContentStore, createLazyFileSecretStore, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, inspectMemoryLedger, openMemoryLedger, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { restoreFixture } from "./fixtures/home-restore.js";
 import { homeStorageTree, homeBusinessTree } from "./fixtures/home-storage-files.js";
 import { captureSqliteError, smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
@@ -21,11 +21,18 @@ test("RAC-2915: the actual current Catalog, including its context ledger, passes
   const inspected = inspectSnapshotSqlite(source, { inspect: inspectMolisWorkProjectCatalogSnapshot });
   assert.equal(inspected.owner_versions.owner, "molis-work-project-catalog-v1");
   assert.equal(inspected.integrity_check, "ok");
+  assert.throws(() => inspectSnapshotSqlite(source, {
+    inspect: inspectMolisWorkProjectCatalogSnapshot, requireSpace: true,
+    space: personalStorageSpace("https://auth.example.test", "work", "different-account"),
+  }), /空间归属与 Home 不同/u, "a complete, authentic catalog of a different space must still be refused");
   assert.deepEqual(readFileSync(source), bytes); assert.deepEqual(readdirSync(join(f.snapshot, "data", "projects")), siblings);
   for (const [name, sql] of [
     ["missing-ledger", "DROP TABLE context_edges"],
     ["changed-ledger", "ALTER TABLE context_edges ADD COLUMN unrelated TEXT"],
     ["unexpected-table", "CREATE TABLE unrelated_owner (id TEXT)"],
+    ["missing-sync-trigger", "DROP TRIGGER projects_sync_events"],
+    ["changed-sync-trigger", "DROP TRIGGER projects_sync_events; CREATE TRIGGER projects_sync_events AFTER INSERT ON project_events BEGIN SELECT 1; END"],
+    ["unsolicited-trigger", "CREATE TRIGGER unowned_trigger AFTER DELETE ON projects BEGIN SELECT 1; END"],
   ] as const) {
     const malformed = join(f.directory, name + ".db"); copyFileSync(source, malformed);
     const storage = openTestSqlite(malformed);
@@ -36,11 +43,10 @@ test("RAC-2915: the actual current Catalog, including its context ledger, passes
   }
 });
 
-test("RAC-2915: archived evidence authenticates through the owner's recovery overlay and original master without the live vault", { timeout: 30_000 }, async t => {
+test("RAC-2915 N36: archived evidence authenticates through its single directory and original master without the live vault", { timeout: 30_000 }, async t => {
   const f = await restoreFixture(t), root = join(f.home, "feed", "evidence");
   const content = createEvidenceContentStore({ rootDirectory: root, secretStore: createLazyFileSecretStore(f.home) });
-  const text = "Original evidence recovered by the actual owner", ref = content.write(text).contentRef, digest = ref.split("/").at(-1)!;
-  writeFileSync(join(root, "blobs", digest.slice(0, 2), digest + ".blob"), "damaged historical body");
+  const text = "Original evidence kept by its actual owner", ref = content.write(text).contentRef, digest = ref.split("/").at(-1)!;
   assert.equal(content.write(text).contentRef, ref); assert.equal(content.read(ref), text);
   await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
   const feed = join(f.snapshot, "data", "feed"), vault = readFileSync(join(feed, "secrets.json"), "utf8");
@@ -53,7 +59,7 @@ test("RAC-2915: archived evidence authenticates through the owner's recovery ove
   assertExistingHomeKeyReference(f.home, reference);
   assert.throws(() => assertExistingHomeKeyReference(f.home, { ...reference, location: "home:outside-owner.key" }));
   assert.throws(() => assertExistingHomeKeyReference(f.home, { ...reference, sha256: "0".repeat(64) }));
-  const current = join(feed, "evidence-recovered-v2", "blobs", digest.slice(0, 2), digest + ".blob"), bytes = readFileSync(current);
+  const current = join(feed, "evidence", "blobs", digest.slice(0, 2), digest + ".blob"), bytes = readFileSync(current);
   writeFileSync(current, "damaged current body");
   assert.throws(() => inspectEvidenceContentSnapshot(f.home, feed, vault), { code: "storage.evidence_snapshot.invalid" });
   writeFileSync(current, bytes);

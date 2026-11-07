@@ -1,4 +1,4 @@
-// S-109/S-110 / WUA-02/03/04/06: the owning Host protects cloud identity, persisted credentials and session writes.
+// S-unified-account-host/S-unified-account-session / WUA-02/03/04/06: the owning Host protects cloud identity, persisted credentials and session writes.
 import assert from "node:assert/strict";
 import { randomBytes, createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, stat, mkdir, writeFile } from "node:fs/promises";
@@ -116,25 +116,29 @@ async function fixture(t: TestContext, configure: (origin: string) => WebServerO
   return { home, get host() { return host; }, origin, server, open, restart, control, headers, account: () => request(origin, "/api/account/session", headers) };
 }
 
-test("S-109 WUA-02: unconfigured account stays anonymous; exact local token and source are required", { timeout: 60_000 }, async t => {
+test("S-unified-account-host WUA-02: unconfigured account stays anonymous; exact local token and source are required", { timeout: 60_000 }, async t => {
   const f = await fixture(t);
   const anonymous = await f.account();
   assert.equal(anonymous.status, 200); assert.deepEqual(anonymous.body.data, { state: "ANONYMOUS" });
   assert.equal(typeof anonymous.body.requestId, "string");
   assert.match(String(anonymous.headers["cache-control"]), /no-store/u);
   const refusedHeaders: Record<string, string>[] = [
-    { origin: f.origin }, { ...f.headers, "x-molis-work-control-token": randomBytes(32).toString("hex") },
+    { origin: f.origin },
     { ...f.headers, origin: "https://evil.example.test" }, { ...f.headers, origin: "null", referer: f.origin + "/" },
     { ...f.headers, origin: f.origin + "/path" }, { ...f.headers, origin: f.origin + "/" },
     { "x-molis-work-control-token": f.control }, { ...f.headers, "sec-fetch-site": "cross-site" },
     { ...f.headers, host: "evil.example.test" },
   ];
-  for (const headers of refusedHeaders) assert.equal((await request(f.origin, "/api/account/session", headers)).status, 403, JSON.stringify(headers));
+  for (const headers of refusedHeaders) assert.equal((await request(f.origin, "/api/account/session", headers)).status, 403);
+  const wrongToken = await request(f.origin, "/api/account/session", { ...f.headers, "x-molis-work-control-token": randomBytes(32).toString("hex") });
+  assert.equal(wrongToken.status, 409);
+  assert.equal(wrongToken.body.code, "space.changed");
+  assert.equal(wrongToken.body.data, undefined);
   assert.equal((await request(f.origin, "/api/account/session", { "x-molis-work-control-token": f.control, referer: f.origin + "/settings" })).status, 200);
   assert.equal((await request(f.origin, "/api/account/session", { "x-molis-work-control-token": f.control, referer: "https://evil.example.test/settings" })).status, 403);
 });
 
-test("S-109 WUA-02/03: fixed session mount rejects proxy routes, query overrides and request bodies", { timeout: 60_000 }, async t => {
+test("S-unified-account-host WUA-02/03: fixed session mount rejects proxy routes, query overrides and request bodies", { timeout: 60_000 }, async t => {
   const f = await fixture(t);
   assert.equal((await request(f.origin, "/api/account/proxy", f.headers)).status, 404);
   assert.equal((await request(f.origin, "/api/account/session?subjectUserId=someone", f.headers)).status, 400);
@@ -142,7 +146,7 @@ test("S-109 WUA-02/03: fixed session mount rejects proxy routes, query overrides
   assert.equal((await f.account()).status, 200);
 });
 
-test("S-109 WUA-03/04: current credentials and safe view are isolated by Home; borrowed listener close preserves its Host", { timeout: 60_000 }, async t => {
+test("S-unified-account-host WUA-03/04: current credentials and safe view are isolated by Home; borrowed listener close preserves its Host", { timeout: 60_000 }, async t => {
   const first = identity("first"), second = identity("second");
   const calls: string[] = [];
   const start = async (account: Identity) => {
@@ -160,13 +164,16 @@ test("S-109 WUA-03/04: current credentials and safe view are isolated by Home; b
     for (const hidden of [first.tokens.accessToken, first.tokens.refreshToken, second.tokens.accessToken, second.tokens.refreshToken]) assert.ok(!reply.text.includes(hidden));
   };
   await read(a, first); await read(b, second);
-  assert.equal((await request(a.origin, "/api/account/session", { ...a.headers, "x-molis-work-control-token": b.control })).status, 403);
+  const otherHome = await request(a.origin, "/api/account/session", { ...a.headers, "x-molis-work-control-token": b.control });
+  assert.equal(otherHome.status, 409);
+  assert.equal(otherHome.body.code, "space.changed");
+  assert.equal(otherHome.body.data, undefined);
   await closeWeb(a.server); assert.equal(a.host.lifecycle(), "running");
   await a.open(); await read(a, first); await read(b, second);
   assert.deepEqual(calls, [first.user.userId, first.user.userId, second.user.userId, second.user.userId, first.user.userId, first.user.userId, second.user.userId, second.user.userId]);
 });
 
-test("S-109 WUA-03: bad central configuration affects account only, not the local health endpoint", { timeout: 60_000 }, async t => {
+test("S-unified-account-host WUA-03: bad central configuration affects account only, not the local health endpoint", { timeout: 60_000 }, async t => {
   const cyclic: Record<string, unknown> = {}; cyclic.self = cyclic;
   const configurations: ((origin: string) => unknown)[] = [
     origin => ({ ...environment(origin), authOrigin: "https://evil.example.test" }),
@@ -182,7 +189,7 @@ test("S-109 WUA-03: bad central configuration affects account only, not the loca
   }
 });
 
-test("S-109 WUA-04: owning Host close cancels an in-flight account fetch and refuses its late successful response", { timeout: 60_000 }, async t => {
+test("S-unified-account-host WUA-04: owning Host close cancels an in-flight account fetch and refuses its late successful response", { timeout: 60_000 }, async t => {
   const entered = deferred<AbortSignal>(), finish = deferred<void>(), account = identity();
   let delay = false;
   t.after(() => finish.resolve());
@@ -207,7 +214,7 @@ test("S-109 WUA-04: owning Host close cancels an in-flight account fetch and ref
   assert.equal(f.host.lifecycle(), "closed"); assert.equal(f.server.listening, false);
 });
 
-test("S-110 WUA-06: default encrypted Home storage restores the same login after Host restart without recording activity", { timeout: 60_000 }, async t => {
+test("S-unified-account-session WUA-06: default encrypted Home storage restores the same login after Host restart without recording activity", { timeout: 60_000 }, async t => {
   const account = identity("persistent"), calls: string[] = [];
   let offline = false;
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (url, init) => {
@@ -236,7 +243,7 @@ test("S-110 WUA-06: default encrypted Home storage restores the same login after
   assertAuthenticated(await f.account(), account);
 });
 
-test("S-110 WUA-06: account writes require Host source, local token and one-time key; browser Tokens are refused", { timeout: 60_000 }, async t => {
+test("S-unified-account-session WUA-06: account writes require Host source, local token and one-time key; browser Tokens are refused", { timeout: 60_000 }, async t => {
   const account = identity("writes"), calls: string[] = [];
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (url, init) => {
     assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${account.tokens.accessToken}`);
@@ -278,7 +285,7 @@ test("S-110 WUA-06: account writes require Host source, local token and one-time
   assertAuthenticated(await f.account(), account);
 });
 
-test("S-110 WUA-06: ordinary and global logout use distinct central operations, clear persisted login and keep an idempotent receipt", { timeout: 60_000 }, async t => {
+test("S-unified-account-session WUA-06: ordinary and global logout use distinct central operations, clear persisted login and keep an idempotent receipt", { timeout: 60_000 }, async t => {
   for (const scope of ["CURRENT_LOGIN", "ALL_MOLIS_PRODUCTS"] as const) {
     const account = identity(scope), writes: { path: string; key: string | null; body: unknown }[] = [];
     const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (url, init) => {
@@ -304,7 +311,7 @@ test("S-110 WUA-06: ordinary and global logout use distinct central operations, 
   }
 });
 
-test("S-110 WUA-06: unavailable remote revocation returns UNCONFIRMED while local logout survives restart", { timeout: 60_000 }, async t => {
+test("S-unified-account-session WUA-06: unavailable remote revocation returns UNCONFIRMED while local logout survives restart", { timeout: 60_000 }, async t => {
   const account = identity("offline-logout"), calls: string[] = [];
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (url, init) => {
     const path = new URL(String(url)).pathname;
@@ -328,7 +335,7 @@ test("S-110 WUA-06: unavailable remote revocation returns UNCONFIRMED while loca
 });
 
 // WORK-03 / WUA-10/12: credentials never enter actions, plugins, or an arbitrary proxy.
-test("S-111: credential routes enforce local authority, transaction ownership, cancellation and restart expiry", { timeout: 60_000 }, async t => {
+test("S-unified-account-credentials: credential routes enforce local authority, transaction ownership, cancellation and restart expiry", { timeout: 60_000 }, async t => {
   let calls = 0;
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (_url, init) => {
     calls++;
@@ -358,7 +365,7 @@ test("S-111: credential routes enforce local authority, transaction ownership, c
   assert.equal((await request(f.origin,path,f.headers)).status,404,"pending credential proofs are never restored from disk");
 });
 
-test("S-112 WUA-14: callback refuses unknown attempts, foreign origins and non-navigation inputs before contacting Auth", { timeout: 60_000 }, async t => {
+test("S-unified-account-provider-callback WUA-14: callback refuses unknown attempts, foreign origins and non-navigation inputs before contacting Auth", { timeout: 60_000 }, async t => {
   let contacted = 0;
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async () => { contacted++; throw new Error("Unexpected upstream call"); } }));
   const path = "/account/callback?transactionId=unknown&state=" + randomBytes(32).toString("base64url") + "&result=VERIFIED";
@@ -371,7 +378,7 @@ test("S-112 WUA-14: callback refuses unknown attempts, foreign origins and non-n
 });
 
 // WORK-05 / WUA-17: a sensitive handle is bound to the original login epoch, not just to this Home.
-test("S-113: sensitive account routes reject injected proofs, foreign entry and handles from an ended login", { timeout: 60_000 }, async t => {
+test("S-unified-account-sensitive-operations: sensitive account routes reject injected proofs, foreign entry and handles from an ended login", { timeout: 60_000 }, async t => {
   const account = identity("sensitive"); let created = 0;
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (url, init) => {
     if (String(url).endsWith("/reauthentications")) {
@@ -399,7 +406,7 @@ test("S-113: sensitive account routes reject injected proofs, foreign entry and 
 });
 
 
-test("S-114 WUA-20/22: tenant action routes refuse caller identity, arbitrary query, body and untrusted source", { timeout: 60_000 }, async t => {
+test("S-unified-account-tenants WUA-20/22: tenant action routes refuse caller identity, arbitrary query, body and untrusted source", { timeout: 60_000 }, async t => {
   const account = identity(), calls: string[] = [];
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async url => {
     const path = new URL(String(url)).pathname;
@@ -421,7 +428,7 @@ test("S-114 WUA-20/22: tenant action routes refuse caller identity, arbitrary qu
   assert.equal(calls.length, count, "refused requests never reach the tenant owner");
 });
 
-test("S-115 WUA-25: billing actions reject injected ownership, malformed quantities and untrusted requests before the central owner", { timeout: 60_000 }, async t => {
+test("S-unified-account-billing WUA-25: billing actions reject injected ownership, malformed quantities and untrusted requests before the central owner", { timeout: 60_000 }, async t => {
   const account = identity(), calls: string[] = [];
   const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async url => {
     const path = new URL(String(url)).pathname;
@@ -444,7 +451,7 @@ test("S-115 WUA-25: billing actions reject injected ownership, malformed quantit
   assert.equal(calls.length, count, "refused inputs never reach billing routes");
 });
 
-// WORK09-01 / S-109/S-110: prior personal-branch credentials are retained but never promoted.
+// WORK09-01 / S-unified-account-host/S-unified-account-session: prior personal-branch credentials are retained but never promoted.
 test("WORK09-01: personal SecretStore, native capability and browser cookie cannot bootstrap or revive a central login", { timeout: 60_000 }, async t => {
   const account = identity("cutover");
   let calls = 0;

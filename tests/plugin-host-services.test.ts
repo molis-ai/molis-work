@@ -598,3 +598,17 @@ test("W5-01-D1-04 W5-01-D1-06: Host services retain the current action author an
     assert.equal(services.artifacts!.listConsumable().some(row => row.artifact_id === process.artifact_id), false);
   } finally { rig.close(); }
 });
+
+
+test("saved history refuses a foreign Runtime before selecting its session storage", async () => {
+  const rig = harness(() => []);
+  try {
+    const manifest = manifestFor({ id: PRODUCER });
+    manifest.permissions.push({ permission: "storage:private", required: true, reason: "Read owned history" });
+    const agent = { roles: [{ role_id: "reader", version: 1, name: "Reader", workspace: "none" as const, prompts: ["reader"] }], prompts: [{ prompt_id: "reader", version: 1 }] };
+    await rig.supervisor.start([{ definition: definitionFor(rig, { ...manifest, agent }) }]);
+    const history = rig.services[PRODUCER]?.savedHistory;
+    assert.ok(history);
+    await assert.rejects(history.read("unregistered-runtime", "same-session-id"), { code: "actions.unavailable", message: "当前 Runtime 不支持可携带历史" });
+  } finally { rig.close(); }
+});

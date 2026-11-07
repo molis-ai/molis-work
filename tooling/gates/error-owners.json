@@ -11,8 +11,33 @@
   },
   "owners": {
     "account": {
-      "paths": ["horizontal/account/", "apps/local-host/src/account-*"],
+      "paths": [
+        "horizontal/account/",
+        "apps/local-host/src/account-*"
+      ],
       "reason": "The central account client and its trusted Host protocol map Auth failures to the account owner without exposing credentials."
+    },
+    "sample_notes": {
+      "paths": [
+        "examples/personal-sync-plugin/"
+      ],
+      "reason": "The independent author-only personal sync example owns its note validation and unavailable-storage failures."
+    },
+    "storage": {
+      "paths": [
+        "packages/storage/src/project-replica*.ts",
+        "packages/storage/src/catalog-metadata.ts",
+        "packages/storage/src/adapters/file-document.ts",
+        "packages/storage/src/adapters/local-aead.ts",
+        "packages/storage/src/adapters/local-payload-protection.ts",
+        "packages/storage/src/adapters/file-secret-store.ts",
+        "packages/storage/src/adapters/storage-owner.ts",
+        "packages/storage/src/adapters/home-restore-guard.ts",
+        "packages/storage/src/adapters/memory-ledger.ts",
+        "packages/storage/src/evidence-snapshot.ts",
+        "packages/storage/src/sqlite-baseline.ts"
+      ],
+      "reason": "Project replication validates portable rows and journal sequence references; atomic file documents validate opaque UTF-8 and file shape; local payload protection owns AEAD validation and pinned local-key refusal. Catalog metadata owns read-only SQLite observation and refusal of partial or changing journals, while the Host decides business owner/version acceptance. These remain within Storage's technical persistence boundary. Platform storage owns sealed-vault integrity, the shared filesystem storage owner's exclusive lease and capability refusals, and a store's baseline refusals (version and structure)."
     },
     "agent": {
       "paths": [
@@ -78,6 +103,12 @@
         "apps/local-host/src/project-file-paths.ts"
       ],
       "reason": "The project catalog: creating, binding, recovering and deleting projects (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
+    },
+    "projects": {
+      "paths": [
+        "packages/contracts/src/modules/projects-errors.ts"
+      ],
+      "reason": "The refusals of a project's input and output directories (specs/shared-sources-and-surfaces §3, §4), whose codes are projects.directory_*. Kept apart from the Catalog's error declaration in modules/projects.ts, which stays catalog's."
     },
     "catalog_integration": {
       "paths": [
@@ -300,17 +331,6 @@
       ],
       "reason": "The sources module (SourcesError; inside Feed's store since FI-5): its source_* codes become sources.*."
     },
-    "storage": {
-      "paths": [
-        "packages/storage/src/adapters/file-secret-store.ts",
-        "packages/storage/src/adapters/storage-owner.ts",
-        "packages/storage/src/adapters/home-restore-guard.ts",
-        "packages/storage/src/adapters/memory-ledger.ts",
-        "packages/storage/src/evidence-snapshot.ts",
-        "packages/storage/src/sqlite-baseline.ts"
-      ],
-      "reason": "Platform storage owns sealed-vault integrity, the shared filesystem storage owner's exclusive lease and capability refusals, and a store's baseline refusals (version and structure)."
-    },
     "ui_host": {
       "paths": [
         "packages/ui-host/"
@@ -340,6 +360,12 @@
         "plugins/official-integrations/youtube/"
       ],
       "reason": "The YouTube official integration (the public channel rules the platform's source vocabulary uses); its refusal was raised in Feed's name until PG-111 Feed (T-110)."
+    },
+    "sync_replication": {
+      "paths": [
+        "modules/sync-replication/"
+      ],
+      "reason": "Personal synchronization policy and transport errors; business validation remains with each owner."
     }
   }
 }

@@ -4,6 +4,7 @@ import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-wo
 import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+export type {PluginRegistration as BuiltinPluginEntry} from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";

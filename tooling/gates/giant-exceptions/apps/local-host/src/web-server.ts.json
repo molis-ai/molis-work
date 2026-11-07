@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
+      "kind": "cohesive-unit",
+      "reason": "网页服务的装配根在同一生命周期管理宿主、HTTP、周期任务与关停。统一账号绑定和受保护入口复用这份 Host 装配，业务逻辑仍由各服务负责。",
+      "size": 152
+    }
+  }
+}

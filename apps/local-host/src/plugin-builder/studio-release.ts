@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, realpathSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -53,7 +53,7 @@ function reclaim(directory: string, build: AgentBuild, version: number, signer: 
     || bundle.payload.manifest.publisher.signature !== signer) throw new Error('未登记发行物不属于这个草稿版本，保留待检查');
   for (const file of bundle.payload.files) if (file.path !== SANDBOX_PACKAGE_FILES.manifest && !readFileSync(join(directory, file.path)).equals(Buffer.from(file.content_base64, 'base64'))) throw new Error('发布目录与签名内容不符，保留待检查');
   const original: unknown = JSON.parse(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.manifest), 'utf8'));
-  if (!isDeepStrictEqual(original, { version: 1, pluginId: kept.contract.pluginId, revision: kept.contract.revision, effects: effectsFromContract(kept.contract) })) throw new Error('发布构建清单不符，保留待检查');
+  if (!isDeepStrictEqual(original, { version: /* @version format.builder.build-manifest */ 1, pluginId: kept.contract.pluginId, revision: kept.contract.revision, effects: effectsFromContract(kept.contract) })) throw new Error('发布构建清单不符，保留待检查');
   control.assertCurrent();
   if (control.referenced(directory)) throw new Error('发布目录已被另一发布引用');
   rmSync(directory, { recursive: true });
@@ -85,7 +85,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
           publisher: { publisher_id: 'molis-studio', signature: identity }, presentation: design.presentation !== undefined,
           effects: manifest.effects, contract: design.contract, upgradesFrom: compatible, ...(scope === 'home' ? { runtime: { scope: 'home' } } : {}) });
         const files = Object.entries({ ...originalFiles, 'manifest.json': JSON.stringify(distributed) }).map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString('base64') }));
-        return parsePluginPackage({ payload: { schema_version: 1, manifest: distributed, files }, signature: null, publisher_key: null });
+        return parsePluginPackage({ payload: { schema_version: /* @version format.plugin.package */ 1, manifest: distributed, files }, signature: null, publisher_key: null });
       };
       const admitted = readKeptSandboxPackage(candidate('agent-built:' + build.id).payload);
       if (scope === 'home') assertHomePackageAllowed(admitted.manifest);
@@ -133,10 +133,16 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
 /** Owner-derived published bytes only; downloads do not initialize an identity or accept a caller-supplied path. */
 export async function readStudioDistribution(root: string, release: AgentRelease): Promise<PluginPackageBundle> {
   if (!release.distribution) throw new Error('这个版本没有签名分发包');
-  const directory = versionDirectory(root, release.buildId, release.version); releaseParent(root, release.buildId);
+  if (lstatSync(root).isSymbolicLink()) throw new Error('签名分发物不可读取');
+  const local = versionDirectory(root, release.buildId, release.version);
+  // Locally published releases have a version directory. Received bytes live only in immutable, hash-named staging.
+  const staged = relative(realpathSync(root), release.directory);
+  const received = /^sync\/[0-9a-f]{64}\/release-[1-9][0-9]*$/u.test(staged) && staged.endsWith('/release-' + release.version);
+  const directory = received ? join(realpathSync(root), staged) : local;
+  if (!received) releaseParent(root, release.buildId);
   const stat = lstatSync(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('签名分发物不可读取');
-  const { bundle } = verifyPluginPackageSignature(JSON.parse((await readBuildFile(directory, SIGNED, 64 * 1024 * 1024)).toString('utf8')));
+  const { bundle } = verifyPluginPackageSignature(JSON.parse((await readBuildFile(received ? realpathSync(root) : directory, received ? staged + '/' + SIGNED : SIGNED, 64 * 1024 * 1024)).toString('utf8')));
   if (bundle.payload.manifest.plugin_id !== release.pluginId || bundle.payload.manifest.version !== releaseVersion(release.version)
     || bundle.payload.manifest.publisher.signature !== release.distribution.publisher_key_id
     || (bundle.payload.manifest.runtime?.scope ?? 'project') !== release.distribution.runtime_scope) throw new Error('签名分发物与发布记录不符');

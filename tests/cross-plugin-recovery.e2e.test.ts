@@ -129,11 +129,11 @@ test('Schedule keeps the submitting draft stable, retries failures, and opens th
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await child.evaluate("document.querySelector('[data-schedule-create-form]').requestSubmit()");
   assert.equal(await evaluate('window.scheduleRequests'), 2);
-  assert.equal(await child.evaluate("document.querySelector('[data-schedule-create-dialog]').open"), true);
+  assert.equal(await child.evaluate("!document.querySelector('[data-schedule-create-pane]').hidden"), true);
   assert.equal(await child.evaluate("document.querySelector('[data-schedule-create-form] .mw-form__body').inert"), true);
   await evaluate('window.releaseScheduleResponse()');
   const created=await evaluate<string>('window.createdScheduleId');
-  await child.waitFor(`!document.querySelector('[data-schedule-create-dialog]').open && document.querySelector('[data-schedule-detail="${created}"]:not([hidden])')`);
+  await child.waitFor(`document.querySelector('[data-schedule-create-pane]').hidden && document.querySelector('[data-schedule-detail="${created}"]:not([hidden])')`);
   await child.click('[data-schedule-collapse]');
   await child.click('[data-schedule-new]');
   assert.equal(await child.evaluate("document.querySelector('[data-schedule-create-form]').elements.title.value"), '');

@@ -44,10 +44,10 @@ export const GIT_RESULT_OUTPUT_PORT = "result";
  * `result` so whoever asked for an operation learns how it went.
  */
 export const gitManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: GIT_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "Git",
   summary: "查看工作区的版本与变更。",
   kind: "app",
@@ -77,11 +77,11 @@ export const gitManifest: PluginManifest = {
     ],
     consumes: [
       { artifact_type_id: GIT_RESULT_TYPE, schema_version: GIT_RESULT_SCHEMA_VERSION },
-      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
+      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1 },
     ],
   },
   ports: {
-    inputs: [{ port: GIT_RUN_CHANGESET_INPUT_PORT, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1, optional: true }],
+    inputs: [{ port: GIT_RUN_CHANGESET_INPUT_PORT, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1, optional: true }],
     outputs: [
       {
         port: GIT_CHANGESET_OUTPUT_PORT,
@@ -96,24 +96,24 @@ export const gitManifest: PluginManifest = {
     ],
   },
   events: {
-    publishes: [{ event_type_id: GIT_FILE_CHANGED_EVENT, type_version: 1 }, { event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1 }],
+    publishes: [{ event_type_id: GIT_FILE_CHANGED_EVENT, type_version: /* @version event.io.molis.work.git.file-changed */ 1 }, { event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: /* @version event.io.molis.work.git.operation-updated */ 1 }],
     subscribes: [
-      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1, from_plugin_ids: [CODING_PLUGIN_ID] },
+      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: /* @version event.io.molis.work.coding.run-updated */ 1, from_plugin_ids: [CODING_PLUGIN_ID] },
       {
         event_type_id: CODING_FILE_CHANGED_EVENT,
-        type_version: 1,
+        type_version: /* @version event.io.molis.work.coding.file-changed */ 1,
         from_plugin_ids: [CODING_PLUGIN_ID],
       },
       {
         event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT,
-        type_version: 1,
+        type_version: /* @version event.io.molis.work.coding.workspace-invalidated */ 1,
         from_plugin_ids: [CODING_PLUGIN_ID],
       },
       // Operations Git asked for, once a person approved and the Host ran them. Only the Host sends it, so no source is named.
-      { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1 },
+      { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: /* @version event.host.review.settled */ 1 },
       // Every person-approved workspace operation of this project, whoever asked: a Coding worktree or integration too (BL-379).
       // The Host broadcasts it to each installation that subscribes and holds `workspace:read`.
-      { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1 },
+      { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1 },
     ],
   },
   routes: [

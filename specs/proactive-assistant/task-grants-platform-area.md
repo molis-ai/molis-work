@@ -1,12 +1,12 @@
 # 插件页面里的平台区域：挂法与防遮盖（第 18 批 P3 设计稿）
 
-状态：设计稿（2026-11-05，第 18 批合同台起草）；第 8 节 D1～D3 用户 2026-11-06 已定（都按推荐），正文已按选定写死；评审台首轮意见（[#1860 评论](https://github.com/molis-ai/molis-work/pull/1860#issuecomment-6677227067)，挡合并 3 条、小修 11 条）已按统筹裁定改完；复审（[#1860 评论](https://github.com/molis-ai/molis-work/pull/1860#issuecomment-6677556604)）剩的 2 挡 2 小也已改（R1 不再校验原有类、R3 两种边界、不给撤销的几种经用户 2026-11-06 定）。上游是[按任务授权读取的实施方案](schedule-task-reads.md) §3.7（用户定样 F）与 §9 G4（点击劫持）；定样见[原型说明](../../docs/design/schedule-task-grants/README.md)。
+状态：已完成（2026-11-07）。设计稿经 #1860 合入，第 8 节 D1～D3 用户 2026-11-06 定；合同 #1869、#1884，实现 #1929（P3-1～3，TGA-01～28）都已合入 main；用户 2026-11-07 表示按验收通过处理。
 
 - **要解决的**：Schedule 的任务详情里要有一块「能读的数据」，一类一个开关，拨一下就是本人的一次 `agent.task_grants.set`。这一块必须由平台画、平台写：插件页面的代码读不到、改不了、也不能骗本人去点。
 - **结论（推荐）**：插件只经 SDK 说「在这个空元素的位置，为我这个任务放一块」；工作台把区域画在**插件框外**，作为插件框的兄弟节点叠在它上面，跟着插件报的位置走。这和现有的审查卡（`host.reviews.show`，`UiPageReviews`，`apps/workbench/src/browser/plugin-frame/reviews.ts`）、嵌入（`view.embed`，`embed.ts`）是同一种做法，新增的是防遮盖的几条检查（第 3 节）和一条安全不变量（第 4 节）。
 - **不碰的**：P2 的宿主任务主体与三个平台动作的实现（E）、Schedule 的页面（E，叠在 P3 后面接入）、`packages/contracts/src/platform/dom-events.ts`（推荐方案不需要新的 DOM 事件）。
 
-验收编号：本稿新增 `TGA-01`～`TGA-19`（第 4 节）与 `TGA-20`（5.1，不属于安全不变量），测试名里写编号；需求侧仍是 PWA-148、PWA-151、PWA-154。
+验收编号：本稿新增 `TGA-01`～`TGA-19`（第 4 节）、`TGA-20`（5.1，不属于安全不变量）、`TGA-21`～`TGA-23`（第 10 节 P3-2，Schedule 接入）与 `TGA-24`～`TGA-28`（5.3，「授权与放行」一页；`TGA-28` 是安全不变量 `S-task-grants-page`），测试名里写编号；需求侧仍是 PWA-148、PWA-151、PWA-154。
 
 ## 1. 现状：插件页面怎样跑、平台已有的「框外区域」
 
@@ -62,13 +62,14 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 - 一个页面同时最多 4 块（外层拒绝更多，同审查卡的 8、嵌入的 4）；同一个元素再调一次是换 key，旧的那块关掉。
 - `signal` 中止、元素离开文档、页面关闭都关掉这一块。
+- 页面不可见时（比如在后台打开的标签）放的区域不拒绝：外层等页面可见了再读、再画，`place` 到那时才结束，插件不用重试；等的时候 `signal` 中止或元素离开文档就不再等（P3-1 评审小修 3，2026-11-07）。
 - `onChange` 只在本人拨动、撤销、允许、移除成功之后来一次，带的是新的摘要；插件要更多就自己调 `agent.task_grants.list`（插件受众，只看到自己安装的）。
 
 ### 2.2 框通道的消息（工作台内部，`types.ts`，不是公开合同）
 
 | 方向 | 类型 | 内容 | 外层怎样核对 |
 | --- | --- | --- | --- |
-| 上 | `task-grants-open` | `id`、`key` | `id` 是正的安全整数；`key` 合 `TASK_GRANT_SUBJECT_KEY_PATTERN`；本页不超过 4 块；页面可见 |
+| 上 | `task-grants-open` | `id`、`key` | `id` 是正的安全整数；`key` 合 `TASK_GRANT_SUBJECT_KEY_PATTERN`；本页不超过 4 块；页面不可见时等到可见再开（2.1） |
 | 上 | `task-grants-layout` | `id`、`box`（`x/y/width/height` 或 `null`） | 四个数都是有限数；`null`、宽为 0、页面不可见时区域藏起并且不响应 |
 | 上 | `task-grants-close` | `id` | — |
 | 下 | `task-grants-size` | `id`、`height` | 只给高度，框把空元素撑高；高度只取按宽度定的两档（3.1），与类别多少无关 |
@@ -100,7 +101,7 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 - **缩放**：浏览器缩放与桌面壳缩放对框里框外同比例生效，坐标都是 CSS 像素，不用另算。
 - **宽**：取插件报的宽，但**不小于 280 px、不大于框宽**。
 - **高与内容脱钩**（评审挡合并 3，统筹裁定）：高度**只按宽度取两档**——宽不足 480 px 一档、480 px 及以上一档，具体像素由 D 在组件板标本里定，定下后写成常量；不随类别多少、说明折行、状态行（`needs_confirmation`、`unavailable`、`removed`）、变化行的文字变化。区域分三段：上面的平台标头与说明固定、中间的类别列表在区域**内部滚动**、下面的变化行固定（D2）。两档的高度要让常见的项目（不超过 5 类）不用滚动；类别少时列表下面留空，没有可读来源时空状态画在同一高度里。插件只知道自己报的宽，所以从高度推不出本项目提供几类、装了哪些提供方。外层仍用 `ResizeObserver` 量内容，只用来决定列表要不要出滚动条，不回给框。插件不给高或给小了，区域照样按档画出，盖住的是插件自己的内容。
-- **窄屏 390**：区域宽约 358 px（框宽减边距），落在窄的一档；一类一行，说明折行，多出来的在列表里滚动。变化行在窄的一档固定两行高（「撤销」按组件板 `mw-toast` 的规则折到字下面），宽的一档一行高；放不下的字截断，全文放在 `title` 与读屏文字里。框宽不足 280 px 时（极窄的侧栏）区域藏起，不响应，空元素高度回 0。
+- **窄屏 390**：区域宽约 358 px（框宽减边距），落在窄的一档；一类一行，说明折行，多出来的在列表里滚动。变化行在窄的一档固定两行高（「撤销」折到字下面），宽的一档一行高；放不下的字截断，全文放在 `title` 与读屏文字里。框宽不足 280 px 时（极窄的侧栏）区域藏起，不响应，空元素高度回 0。
 - **层级**：区域的容器 `z-index` 高于审查卡与嵌入（它们是 1，区域用 2），插件无法用自己请来的嵌入或审查卡盖住它。
 - **几块之间**：一页最多 4 块。任意两块在视口里的矩形相交，相交的**两块都藏起、不响应**，直到分开（防止拿 A 的标头配 B 的开关）。
 
@@ -140,7 +141,7 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 ### 3.5 区域里画什么
 
-照定样 F：平台标头「Molis Work · 只有你能改」（加上这个安装的显示名，由外层从目录取，不由插件给）；一句「只能读，不能改；只给这个任务；随时可以撤回」；一类一行（提供方的显示名与「包含什么」，英文取该提供方的 `ui.translations`，同 `TaskGrantCategory` 的注释），末尾一个开关；状态行按 `TaskGrantCategoryState.status`：`needs_confirmation` 多一个「允许」，`unavailable` 写「暂时读不到，授权还在」，`removed` 写「这一类已不再提供」和「移除」。控件全部用组件板已有的（`mw-item`、`mw-switch`、`mw-toast` 带 `action`），新增的平台区域外框与标头按原型说明的「组件板新增」交 D 轨补标本。
+照定样 F：平台标头「Molis Work · 只有你能改」（加上这个安装的显示名，由外层从目录取，不由插件给）；一句「只能读，不能改；只给这个任务；随时可以撤回」；一类一行（提供方的显示名与「包含什么」，英文取该提供方的 `ui.translations`，同 `TaskGrantCategory` 的注释），末尾一个开关；状态行按 `TaskGrantCategoryState.status`：`needs_confirmation` 多一个「允许」，`unavailable` 写「暂时读不到，授权还在」，`removed` 写「这一类已不再提供」和「移除」。控件全部用组件板已有的（`mw-item`、`mw-switch`；变化行是 `mw-alert`，失败时 `mw-alert--danger`，它的「撤销」「重试」是 `mw-btn mw-btn--sm mw-btn--ghost`）。变化行用 `mw-alert` 而不是 `mw-toast`，因为它常驻在区域底部，是一行状态，不是来了又走的提示（DESIGN「Toasts」：提示只用 `.mw-toast` 一种，宿主只定它放在哪；常驻的状态与重试用 `mw-alert`）；底栏只定它的排法（一行截断、窄档两行），刚换了说法的一行用共用的 `craft-fade-in` 进来（走查修复）。新增的平台区域外框与标头按原型说明的「组件板新增」交 D 轨补标本。
 
 ### 3.6 读与写的时机，与 `set` 的类别怎样组
 
@@ -150,7 +151,7 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 | # | 规则 |
 | --- | --- |
-| R1 | 请求里列出、而这个主体**原本就有记录**的类，原记录**原样保留**，不按此刻的目录重新展开，不论它现在是 `granted`、`needs_confirmation`、`unavailable` 还是 `removed`。这样的类按原记录认，**不再校验**：「组不存在」、以及对声明了分组的提供方省略 `group_id` 就拒（实施方案 §10 C3）这两类校验只对 R2 里新加入的类生效——`removed` 的类可能带一个已不再声明的 `group_id`，也可能是提供方原来不分组、后来开始分组而不带 `group_id`，两种都照收。「原本就有记录」以**宿主执行 `set` 时**这个主体的记录为准，不看请求里写的状态；区域读到的底与宿主的记录靠 `expected_revision` 对齐，对不上就是 `actions.conflict` |
+| R1 | 请求里列出、而这个主体**原本就有记录**的类，原记录**原样保留**，不按此刻的目录重新展开，不论它现在是 `granted`、`needs_confirmation`、`unavailable` 还是 `removed`。这样的类按 `list` 此刻的写法点名、按原记录认：`removed` 的那一行是不带 `group_id` 的提供方（记录里的动作此刻不在任何组里）。「原本就有记录」以**宿主执行 `set` 时**这个主体的记录、以及每条记录此刻所属的类为准，不看请求里写的状态；区域读到的底与宿主的记录靠 `expected_revision` 对齐，revision 把两者一起算进去，所以提供方在区域读过之后改了分组，`set` 就是 `actions.conflict`，区域重读再拨。既不是原有的类、也不是此刻提供的类，而主体有这个提供方的记录的引用，是分组改动之前的旧引用，同样整次 `actions.conflict`（#1879 评审，2026-11-06）。「组不存在」、对声明了分组的提供方省略 `group_id` 就拒（实施方案 §10 C3）对新加入的类照旧 |
 | R2 | 请求里**新加入**的类（原来没有记录），按此刻的目录展开记下 |
 | R3 | 本人点「允许」时要能重新展开一个已有的类：请求里这一类带 `confirm: true`，就按此刻的目录重新记下这一类（只用于 `needs_confirmation`）。统筹 2026-11-06 裁定两种边界：`confirm: true` 的类此刻展开为空（提供方停用或不再声明）时**整次拒绝**，原记录不动；`confirm` 用在原本没有记录的类上**整次拒绝**（`actions.input_invalid`），不当作 R2。这一项改 `set` 的输入形状（`TaskGrantCategoryReference` 加可选的 `confirm`），会变 `tooling/gates/actions/` 的快照，随 P2a 的合同改动一起落 |
 | R4 | 原本有记录、请求里没列的类，记录删掉 |
@@ -175,7 +176,8 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 - 带 `confirm: true` 的类此刻展开为空：整次拒绝，这个主体的全部记录不变。
 - `confirm` 用在原本没有记录的类上：`actions.input_invalid`，不写任何记录。
-- 底里有 `removed` 的类（带已不再声明的 `group_id`，或提供方开始分组后不带 `group_id`），同时新加入一类 Y：被接受，`removed` 那一类的记录原样保留。
+- 底里有 `removed` 的类（按 `list` 的写法，不带 `group_id` 的提供方），同时新加入一类 Y：被接受，`removed` 那一类的记录原样保留。
+- 区域读过之后提供方改了分组（开始分组、或删掉一组），拿读到的 revision 发的 `set`：`actions.conflict`，记录不变；带已不再声明的 `group_id`、而主体有这个提供方记录的引用，用此刻的 revision 也是 `actions.conflict`。
 - 新加入的类对声明了分组的提供方省略 `group_id`、或指向不存在的组：整次拒绝（C3 对新加入的类照旧）。
 - 请求里写的状态与宿主记录不符、`expected_revision` 过期：`actions.conflict`，不写。
 - 每个请求都带读到的 `revision`；回来的主体就是新状态，不再读。
@@ -185,11 +187,11 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 - **打开**：`place` 之后外层发一次 `read`。
 - **冲突**（`actions.conflict`，比如同一个任务同时开在主区和右侧、或「授权与放行」一页刚改过）：开关回到原位，重读一次，变化行写「已在别处改动，已刷新」，撤销作废。
 - **失败**：开关回到原位，变化行写「没能保存，原来的授权没变」加「重试」（PWA-154）。撤销失败（如上表 R5 的情形）也走这一条，并且这次撤销作废、不再给撤销。
-- **框重新可见**：重读一次。不轮询。
+- **框重新可见**：重读一次。不轮询。那时若有读取或写入还在路上，它可能是在隐藏期间的变化之前得到的回答，就等它结束后再读这一次（走查 O1）；隐藏时什么都不读。
 
 ## 4. 新的安全不变量（问题 3）
 
-编号：**S-1xx（暂编，落地时按表顺延）**。S-108 已被第 13 批「换用账号」占用；P2 的「按任务的授权主体」那条（实施方案 §4 原暂编 S-108）先落就先取号，本条排在它后面。
+名称：**`S-task-grants-area`**（记录在 [`docs/system/security-invariants/S-task-grants-area.md`](../../docs/system/security-invariants/S-task-grants-area.md)；起草时暂编 S-1xx、P3-1 写手暂编 S-142，main 改成每条一个文件、按语义命名之后用名字，不再取号）。P2 的「按任务的授权主体」那条是 [`S-task-grant-subjects`](../../docs/system/security-invariants/S-task-grant-subjects.md)。
 
 **一句话**：插件页面里那块「能读的数据」只由工作台画在插件框外、只由本人对它的真实点按改动：插件只给位置与自己任务的 key，读不到其中的类别与开关（高度也只按宽度取档），不能让它透明、移位、被盖住，也不能替本人点；不满足时开关不响应、不写任何记录。
 
@@ -218,6 +220,8 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 | TGA-17 | 区域的 key 换了之后点旧开关；页面撤销（`DELETE` 页面授权）后点；页面关闭或插件停用后调路由 | 都不写；路由拒绝（页面授权的拒绝答复） | 先去掉 3.3 第 6 条，红；路由那半先不核页面是否当前，红 |
 | TGA-18 | 框宽小于 280 px（极窄的侧栏） | 区域藏起、不响应，空元素高度回 0 | 先不判框宽，红 |
 | TGA-19 | 一页放两块区域，报成相交的位置（A 的标头压着 B 的开关） | 两块都藏起、不响应，分开后恢复 | 先不判相交，红 |
+
+**按下时现量位置**（P3-1 评审小修 1，2026-11-07）：`gate()` 不用上一帧记下的矩形，按下那一刻重新量区域，用它判整块可见、与 `pointerdown` 时的位置比较；量到的和上一帧不同就从这一刻重新计稳定期（键盘按下也一样）。这一条没有先红的用例：`pointerdown` 的捕获处理器本来就会重新量并更新位置，只剩「同一帧里、按下与松开之间挪动」这一种，靠 CDP 的普通输入排不出这个时序。
 
 **代码位置**（表的第三列，落地时写实）：`apps/workbench/src/browser/plugin-frame/task-grants-area.ts`（外层的画与六条检查、框里的报位置）；`parent.ts`、`child.ts`、`types.ts` 的接线；`apps/local-host/src/plugin-page-authority.ts` 的新一项与 `plugin-page-http.ts` 的路由。
 
@@ -262,11 +266,29 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 ### 5.2 取标题的通路
 
 1. 页面先调一次 `agent.task_grants.list`（同上）。
-2. 对**有任务主体的每个安装**（通常只有 Schedule 一个），从目录找出它的 Manifest 声明的 `task_subjects.kind`，以本人身份调这个安装自己的、列出该 kind 的搜索条目动作（`SEARCH_ENTRIES` 合同，`{ cursor: null, limit: 500 }`），用 `subject.id === key` 配上标题与 `open`。一个安装一次；超过 500 条才按 `next_cursor` 再取，直到配齐或取完。
+2. 对**有任务主体的每个安装**（通常只有 Schedule 一个），从目录找出它的 Manifest 声明的 `task_subjects.kind`，以本人身份调这个安装自己的、列出该 kind 的搜索条目动作（`SEARCH_ENTRIES` 合同，`{ cursor: null, limit: 500 }`），用 `subject.id === key` 配上标题与 `open`。一个安装一次；超过 500 条才按 `next_cursor` 再取，直到配齐或取完；同一个 `next_cursor` 不取第二次，一个安装最多取 20 页（10,000 条，评审小修），之后还没配上的写「插件名 · 一个任务」，免得一个一直给新游标的提供方让这一页一直读下去。
 3. 配上的：一行写任务标题，加「打开」（`open` 给的面与对象）。配不上的（任务已归档或删掉、提供方没声明、搜索动作暂时不可用）：写「插件名 · 一个任务」；已归档或删掉的任务本该由 Schedule 清授权（实施方案 §3.4），这一页照样给「全部撤回」。
 4. 标题是提供方说的，只用于显示，不作任何授权依据；页面不缓存，每次打开现取。
 
 不新增动作，不改 `agent.task_grants.list` 的输出：宿主不为取标题耦合到搜索，`actions:update` 不因取标题而变。
+
+### 5.3 落地与验收（P3-3）
+
+**落在哪里**（已定，第 18 批统筹 2026-11-07）：项目设置里新的一节「授权与放行」（`/projects/<id>/settings/grants`，在「插件」之后；工作台里的设置封面是同一节）。任务主体按项目记，`agent.task_grants.*` 是项目范围的动作，所以放在项目设置，不放全局设置；产品建议 H1 按调用方、范围、到期列出全部授权的全局整页归第 39 批，不在这一页。
+
+**宿主路由**：页面只经 `POST /projects/<id>/api/settings/task-grants`（`apps/local-host/src/task-grants-settings-http.ts`）。`mode` 为 `list`、`titles`、`set`、`clear`，每种只收自己的键，都以本人在这个项目里调用。`list` 原样转出 `agent.task_grants.list` 的回答，另附每个安装的显示名、插件 id 与它是否声明了 `task_subjects`（取自安装记录与它的 Manifest，不改动作的输出）。`titles` 由宿主找出这个安装 Manifest 的 `task_subjects.kind`，再找它自己对 `user` 开放、列出该 kind 的搜索条目动作，以 `{ cursor, limit: 500 }` 调一次，只回 `key`、`title` 与 `open`（条目没给 `open` 时按搜索来源声明的面补上）。
+
+**画法**：每个任务一个容器，标题与「打开」「全部撤回」在一行；下面每个已授权的类一行（组件板的条目行 `mw-item`，类别名与说明取自区域共用的 `taskGrantRows`），状态是一个颜色对应的标签，末尾是「撤回」，`needs_confirmation` 另有「允许」，`removed` 只有「移除」。全部撤回先用组件板的确认对话框问一次。一行放不下时先截说明；手机宽度上带「允许」的行不显示标签（按钮本身说明了它），让类别名留得住。浏览器代码在 `apps/workbench/src/browser/task-grants-page.ts`，请求的组法用区域共用的 `taskGrantChange`。
+
+**改完说什么**（评审小修）：这一页没有开关，所以不照搬区域里指向开关的三句。「允许」之后写「已允许 X 的新读取能力；不想要可以撤回这一类」；撤回一个 `needs_confirmation` 或 `unavailable` 的类写「已撤回 X；要再读它，到任务的「能读的数据」里重新打开」；撤回已授权的类与「移除」和区域同一句（「已撤回 X，下一次运行起读不到」「已移除 X，这一类已不再提供」）。区域的说法不变。区域与这一页的句子里，类别名两边都留一个空格（照仓库里带名字的句子的写法，如「交给 {name} 继续」），英文插件名不会和中文挤在一起（走查 O2）；名字后面紧跟全角标点时不加。
+
+| 编号 | 做了什么 | 断言 | 测试 |
+| --- | --- | --- | --- |
+| TGA-24 | 打开「授权与放行」 | 只发一次 `list`（不带安装）；按安装分组、每个任务一行，只列这个任务有记录的类及其状态；没有任何任务时是空状态 | `tests/task-grants-page.e2e.test.ts` |
+| TGA-25 | 撤回一类、允许、移除、全部撤回 | 各发一次请求：撤回与移除是带读到的 `revision` 的 `set`，类别是「底 − 这一类」，底里需确认、读不到、已不再提供的类原样带上、不带 `confirm`；允许是「底，这一类带 `confirm: true`」；全部撤回是一次 `clear`，写明 `plugin_install_id`；回答直接显示，不再读 | `tests/task-grants-page.e2e.test.ts` |
+| TGA-26 | 取任务标题 | 有任务主体、声明了 `task_subjects` 的安装各一次搜索条目请求（`cursor` 为 `null`），只有还没配齐且有 `next_cursor` 时才再取，同一个 `next_cursor` 不取第二次，一个安装最多 20 页；配上的写标题与「打开」，配不上、没声明或搜索动作失败的写「插件名 · 一个任务」，照样给「全部撤回」 | `tests/security-invariants-task-grants-page.test.ts`、`tests/task-grants-page.e2e.test.ts` |
+| TGA-27 | 读过之后别处改了这个任务的授权 | `set` 得到 `actions.conflict`：提示「已在别处改动，已刷新」并重读一次，记录不变 | `tests/task-grants-page.e2e.test.ts` |
+| TGA-28 | 插件页面（框的取数桥头或外壳的页面头）调这条路由；请求里多出键 | 一律拒绝（403）、不写；多出任何键 `actions.input_invalid`；写入只落在路由所在项目、请求点名的安装与 key 下（安全不变量 `S-task-grants-page`） | `tests/security-invariants-task-grants-page.test.ts` |
 
 ## 6. 调用次数（问题 6）
 
@@ -362,6 +384,12 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 | --- | --- | --- | --- |
 | P3-0a 页面接口合同 | 第 7 节 P3-0a | D 写、C1 评 | 本稿审过；#1836 让出 SDK 快照 |
 | P3-0b Manifest `task_subjects` 合同 | 第 7 节 P3-0b | C1 | 本稿审过（可与 P3-0a 并行，先合） |
-| P3-1 区域与路由 | 外层画区域与六条检查（含 D1 的原因提示与 `task-grants-reveal`、D2 的常驻变化行）、框里的报位置、宿主路由、不变量行与 TGA-01～19、高度两档的常量、组件板标本（平台区域外框与标头）、中英文词条 | D | P3-0a、P2 的三个平台动作已在宿主可调且 `set` 按 3.6 R1～R5 |
+| P3-1 区域与路由 | 外层画区域与六条检查（含 D1 的原因提示与 `task-grants-reveal`、D2 的常驻变化行）、框里的报位置、宿主路由、不变量记录 `S-task-grants-area` 与 TGA-01～19、高度两档的常量、组件板标本（平台区域外框与标头）、中英文词条 | D | P3-0a、P2 的三个平台动作已在宿主可调且 `set` 按 3.6 R1～R5 |
 | P3-2 Schedule 接入 | 任务详情里放空元素、`place`、用 `onChange` 更新列表标记；Manifest 加 `task_subjects: { kind: "schedule_task" }` | E（规则 7） | P3-1、P3-0b |
-| P3-3 「授权与放行」按任务列出 | 第 5 节（含 5.2 取标题） | D | P2、P3-0b |
+| P3-3 「授权与放行」按任务列出 | 第 5 节（含 5.2 取标题）；验收 TGA-24～28 见 5.3 | D | P2、P3-0b |
+
+**P3-2 的验收**（不属于第 4 节的安全不变量，测试名里写编号）：
+
+- `TGA-21` Schedule 只经 `host.taskGrants.place` 放区域：打开一个任务的详情，就在详情「能读的数据」一段里留好的空元素上放一块，key 是这个任务的 `task_id`；换到另一个任务、点返回、新建表单占了这一栏，都中止上一块（区域消失、空元素的高度还回去）；区域显示后，Schedule 自己按类别计的那一行让位，说明仍留着。页面在后台时打开的详情不被拒，页面显示后画出（`tests/schedule-task-grants-area.e2e.test.ts`）。
+- `TGA-22` 本人在区域里改动之后，列表里这个任务的标记（读数据／读文件、需要重新确认）按框收到的两个布尔改，不再读一次授权（同上）。两个布尔分不出的一种（没有已授权的、也没有要本人看的，但还留着一类插件已停用的）先显示成读文件，下一次读列表时更正。
+- `TGA-23` Schedule 的 Manifest 声明 `task_subjects: { kind: "schedule_task" }`，经 SDK 的检查照原样读出；列出这个 kind 的只有它已有的 `schedule.search.entries`，对 `user` 开放（`tests/schedule-task-grants.test.ts`）。

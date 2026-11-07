@@ -23,7 +23,7 @@ interface Dependencies<Reach> {
 /** One continuation owns its fixed handoff and attempt; the store's CAS, rather than a process queue, settles concurrent calls. */
 export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
   return async (input: Input, content: WorkflowContentPorts, caller: ActionExecutionContext, reach: Reach, original: ActionExecutionContext) => {
-    let current = d.read(store => d.live(store, input.id));
+    let current = d.read(store => { store.assertExecutableInstance(input.id); return d.live(store, input.id); });
     if (input.updated_at !== undefined && input.updated_at !== current.updated_at) throw workflowsErrors.conflict("这一次刚被推进过，已载入最新进度");
     const from = handoffIndex(current, input.from);
     let pending = current.steps[from]!.pending;

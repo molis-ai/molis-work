@@ -25,7 +25,7 @@ export interface AccountSessionManager {
 /** Private protocol material: never exported through contracts or a browser response. */
 export interface SessionTokens { readonly accessToken: string; readonly refreshToken: string; readonly tokenType: "Bearer"; readonly accessExpiresAt: string; readonly session: SessionView }
 export interface LogoutReceipt { readonly scope: AccountLogoutScope; readonly keyDigest: string; readonly remoteRevocation: AccountLogoutResult["remoteRevocation"] }
-interface SavedBase { readonly version: 1; readonly binding: string; readonly epoch: number }
+interface SavedBase { readonly version: /* @version format.account.session */ 1; readonly binding: string; readonly epoch: number }
 export type ActiveAccount = SavedBase & { readonly state: "ACTIVE"; readonly tokens: SessionTokens; readonly user: UserView };
 export type SavedAccount = ActiveAccount
   | (SavedBase & { readonly state: "REFRESHING"; readonly user: UserView; readonly session: SessionView })

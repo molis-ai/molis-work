@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync-binding.js";
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
@@ -18,7 +19,7 @@ import { createGoalsApplication } from "./goals-application.js";
 import { PluginSqlite } from "./plugin-sqlite.js";
 import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
 
-const READ_ARTIFACT = { capability_id: "artifacts.read", version: 1 } as const;
+const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1 } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
   "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin",
@@ -153,7 +154,7 @@ export function createGoalsPlugin(): PluginDefinition {
       }
     }).done.then(() => undefined, () => undefined);
 
-    return { kind: "app", views: [goalsTreeUiContribution, goalsSettingsUiContribution, goalsStageUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [goalsTreeUiContribution, goalsSettingsUiContribution, goalsStageUiContribution],
       actions: handlers.map(windowed),
       routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
   }, async health() { return problem ? { ok: false, message: problem } : { ok: true, message: "Goals 已接通" }; } };

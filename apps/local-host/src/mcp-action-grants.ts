@@ -1,5 +1,6 @@
-import { ActionError, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpErrors } from "./mcp-errors.js";
+import { isTaskGrantSubject, parseTaskGrantSubject } from "./task-grant-subjects.js";
 import { KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js";
 import { actionGrantKey } from "./mcp-settings-store.js";
@@ -48,6 +49,8 @@ function matches(grant: McpActionGrant, view: ActionView, caller: ActionCallCont
  * always decides instead, so the person turns any of these off in 对外接入.
  */
 export function openByDefault(view: ActionView, caller: Pick<ActionCallContext, "actor_id" | "project_id">): boolean {
+  // A task's grant subject holds nothing it was not given, project knowledge and permission-free system actions included (§3.3, G1).
+  if (isTaskGrantSubject(caller.actor_id)) return false;
   if (view.provider.kind === "system" && view.action.permissions.length === 0) return true;
   if (actionClientAudience(caller.actor_id) !== "agent" || !caller.project_id) return false;
   if (view.operation !== "query" || view.action.kind !== "query") return false;
@@ -55,10 +58,24 @@ export function openByDefault(view: ActionView, caller: Pick<ActionCallContext, 
   return view.provider.project_id === caller.project_id && (isSubjectReader(view.action) || isSearchEntriesSource(view.action));
 }
 
+/**
+ * What a task's grant subject is held to whatever its records say (§3.5): it acts only in the project its id names, as an agent, and
+ * only reads (a query whose effect is `read`, G3). Which of those it may call is still its records'; the categories they belong to
+ * are checked where its catalog is read (`taskReadableCatalog`). Undefined for any other client.
+ */
+function taskGrantBounds(clientId: string): ((view: ActionView, caller: ActionCallContext) => boolean) | undefined {
+  if (!isTaskGrantSubject(clientId)) return undefined;
+  const subject = parseTaskGrantSubject(clientId);
+  return (view, caller) => subject !== null && subject.project_id === caller.project_id && caller.audience === "agent"
+    && view.operation === "query" && actionEffect(view.action, view.capability_id) === "read";
+}
+
 /** Declarations are not authority. Only explicit, unchanged grants produce permissions. */
 export function resolveMcpActionContext(caller: ActionCallContext, catalog: readonly ActionView[], preference: GrantFacts): ActionCallContext {
+  const task = taskGrantBounds(caller.actor_id);
   const accepted = catalog.filter(view => {
     if (!view.action.audiences.includes(caller.audience === "agent" ? "agent" : "mcp") || (view.provider.project_id && view.provider.project_id !== caller.project_id)) return false;
+    if (task && !task(view, caller)) return false;
     const records = preference.action_grants.filter(grant => grant.client_id === caller.actor_id
       && grant.project_id === (view.action.scope === "home" ? null : caller.project_id)
       && grant.capability_id === view.capability_id && grant.version === view.version && grant.provider_id === view.provider.provider_id);

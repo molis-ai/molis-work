@@ -1,4 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { datasetSync } from './replication.js';
 import {
   DATASET_ARTIFACT_SCHEMA_VERSION,
   DATASET_ARTIFACT_TYPE_ID,
@@ -17,10 +18,11 @@ export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
 const DATASET_BODY_BYTES = 1_000_000;
 
 export const datasetManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: DATASET_PLUGIN_ID,
-  version: "0.3.0",
+  sync: datasetSync,
+  version: /* @version product.release */ "0.1.0",
   name: "Dataset",
   summary: "做表格，导入 CSV，可回到旧版。",
   kind: "native",
@@ -53,8 +55,8 @@ export const datasetManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   artifacts: {
     produces: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION, title: "数据表",
-      preview: { capability_id: "dataset.artifacts.preview", version: 1 }, pin: { capability_id: "dataset.artifacts.pin", version: 1 },
-      compare: { capability_id: "dataset.artifacts.compare", version: 1 }, continue: { capability_id: "dataset.artifacts.continue", version: 1 } }],
+      preview: { capability_id: "dataset.artifacts.preview", version: /* @version action.dataset.artifacts.preview */ 1 }, pin: { capability_id: "dataset.artifacts.pin", version: /* @version action.dataset.artifacts.pin */ 1 },
+      compare: { capability_id: "dataset.artifacts.compare", version: /* @version action.dataset.artifacts.compare */ 1 }, continue: { capability_id: "dataset.artifacts.continue", version: /* @version action.dataset.artifacts.continue */ 1 } }],
     consumes: [],
   },
   ui: {

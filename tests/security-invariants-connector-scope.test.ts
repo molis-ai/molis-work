@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { connectorCliActions, connectorLocalActions, connectorManagementActions, connectorSetupAction, connectorSetupExecuteAction, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, presentActionResult, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createCliPackageFixture } from "./fixtures/connector-cli-package.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
@@ -107,6 +107,35 @@ test("S-37 a prepared request is cancelled only for the person, project and sess
   assert.equal((await actions.invoke(preparer, connectorManagementActions.cancel, fromHome) as { status: string }).status, "cancelled",
     "the preparer still cancels its own request");
   assert.deepEqual(readdirSync(installations), [], "its own cancel removed the managed install directory");
+});
+
+// ASC-69: the action snapshot leaves `result_view` out of its hash, so this pins the declaration that makes the Assistant draw a
+// connection card for `connectors.setup.prepare@1`: its pointer names a required string of the output.
+test("ASC-69 connectors.setup.prepare declares its pending connection at a required string of its output", () => {
+  const { result_view, output_schema } = connectorSetupAction.action;
+  assert.equal(result_view?.pending_connection?.authorization_pointer, "/authorization_id");
+  const schema = output_schema as { required?: string[]; properties?: Record<string, { type?: unknown }> };
+  assert.ok(schema.required?.includes("authorization_id"), "the pointer names a required output field");
+  assert.equal(schema.properties?.authorization_id?.type, "string", "the pointer names a string");
+});
+
+// ASC-69, S-37: the card reads and cancels the authorization a pending-connection result presents only as whoever prepared it, so an
+// id from another runtime session draws no card and cancels nothing.
+test("ASC-69 S-37 a presented pending connection is read and cancelled only by the session that prepared it", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), actions = home.host.homeActionClient();
+  const output = await actions.invoke(preparer, connectorSetupAction, { service_id: "mcp-bearer", method: "mcp", display_name: "Prepared MCP",
+    expected_revision: null, endpoint: "http://127.0.0.1:9/mcp", authentication: "none", transport: "http" }) as Request;
+  const presented = presentActionResult(connectorSetupAction.action.result_view, output)?.pending_connection;
+  assert.deepEqual(presented, { authorization_id: output.authorization_id }, "the result presents the prepared authorization");
+  const request = { authorization_id: presented?.authorization_id ?? "" }, elsewhere = { ...preparer, runtime_session_id: "another-session" };
+  await assert.rejects(actions.invoke(elsewhere, connectorManagementActions.authorization, request), { code: "connector.setup.foreign_request" },
+    "another session cannot read it, so it draws no card");
+  await assert.rejects(actions.invoke(elsewhere, connectorManagementActions.cancel, request), { code: "connector.setup.foreign_request" },
+    "another session cannot cancel it");
+  assert.equal((await actions.invoke(preparer, connectorManagementActions.authorization, request) as { status: string }).status, "prepared",
+    "the refusals left the request to its own session");
+  assert.equal((await actions.invoke(preparer, connectorManagementActions.cancel, request) as { status: string }).status, "cancelled",
+    "its own session still cancels it");
 });
 
 // RAC-1479 order proof: the initiator check must come before beforeEffect, so a refused cancel adds no effect boundary of its own to

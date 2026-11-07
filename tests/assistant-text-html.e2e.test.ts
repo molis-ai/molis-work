@@ -4,6 +4,7 @@ import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js"
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 test("PAS-15: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
   const pageTitle = "代码验证文档";
@@ -90,7 +91,7 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
     }
     await evaluate(`document.querySelector('[data-assistant-decision=${decision}]').click()`);
     await waitFor("!document.querySelector('[data-review]')", 30_000);
-    await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works.find(w=>w.work_id===localStorage.getItem('molis.assistant.current'))?.state==='completed')`, 30_000);
+    await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works.find(w=>w.work_id===${CURRENT_WORK})?.state==='completed')`, 30_000);
     const todos = openTodoStore(homeDirectory);
     try {
       assert.equal(todos.list({ projectId, projectIds: [], actor: "user", actorId: "web-user" }).filter(item => item.title === `投影测试-${decision}`).length, decision === "approve" ? 1 : 0,

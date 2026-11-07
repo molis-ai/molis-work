@@ -1,8 +1,8 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
-export const CATALOG_SCHEMA_VERSION = 1;
-export const CATALOG_OWNER = "molis-work-project-catalog-v1";
+export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 1;
+export const CATALOG_OWNER = /* @version type.molis-work-project-catalog "molis-work-project-catalog-v{version}" */ "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
   return owner === CATALOG_OWNER;
@@ -22,11 +22,13 @@ const hostCatalogErrors = defineErrorCodes("catalog", {
   database_invalid: "invalid",
   delete_confirmation_required: "invalid",
   project_terminal_live: "conflict",
+  project_task_live: "conflict",
   deletion_idempotency_conflict: "invalid",
   demo_confirmation_required: "invalid",
   demo_not_found: "invalid",
   not_demo: "invalid",
   personal_space: "invalid",
+  personal_deletion_unavailable: "unavailable",
 });
 export const catalogErrors = {
   ...hostCatalogErrors,

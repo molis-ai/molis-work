@@ -1,3 +1,4 @@
+import { jellySync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { JELLY_PLUGIN_ID } from "./contract.js";
 import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -8,7 +9,7 @@ import { JELLY_MESSAGES } from "./messages.js";
 import { JELLY_EN } from "./en.js";
 export const jellyManifest: PluginManifest = {
   summary: "日历与笔记，按天安排。",
-  schema_version: 1, host_api_version: 1, plugin_id: JELLY_PLUGIN_ID, version: "0.3.0", name: "Jelly", kind: "native",
+  schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: JELLY_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Jelly", kind: "native",
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -17,9 +18,17 @@ export const jellyManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
   actions: [...JELLY_ACTIONS],
+  // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
+  // 日历 is the person's 日程 without the notes; 笔记 (full text, search, whole-workspace exports) is a switch of its own.
+  read_groups: [
+    { group_id: "calendar", title: "日历", description: "日历事项与进展", actions: ["jelly.calendar.list", "jelly.calendar.progress", "jelly.item.get"] },
+    { group_id: "notes", title: "笔记", description: "笔记全文、搜索，以及整个 Jelly 工作区的读取与导出",
+      actions: ["jelly.search", "jelly.note.export", "jelly.note.subject.read", "jelly.content.list", "jelly.content.read", "jelly.workspace.get", "jelly.workspace.export"] },
+  ],
   runtime: { scope: "home" },
   databases: { home: JELLY_DATABASE },
   model_configuration: JELLY_MODEL_CONFIGURATION,
+  sync: jellySync,
   routes: [
     { route_id: "jelly.workspace", method: "GET", path: "/" },
     { route_id: "jelly.calendar", method: "GET", path: "/calendar" },

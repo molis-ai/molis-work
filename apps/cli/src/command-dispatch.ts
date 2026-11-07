@@ -3,13 +3,13 @@ import { printCliJson as print } from "./protocol.js";
 
 /** The Goals actions a command calls, by the id and version the action directory lists them under; the Host finds each one. */
 const GOALS = {
-  initialize: { capability_id: "goals.board.initialize", version: 1 },
-  treeSubmit: { capability_id: "goals.tree.submit", version: 1 },
-  treeRead: { capability_id: "goals.tree.read", version: 1 },
-  treeCheck: { capability_id: "goals.tree.check", version: 1 },
-  treeDecide: { capability_id: "goals.tree.decide", version: 1 },
-  active: { capability_id: "goals.active.set", version: 1 },
-  snapshot: { capability_id: "goals.snapshot.read", version: 1 },
+  initialize: { capability_id: "goals.board.initialize", version: /* @version action.goals.board.initialize */ 1 },
+  treeSubmit: { capability_id: "goals.tree.submit", version: /* @version action.goals.tree.submit */ 1 },
+  treeRead: { capability_id: "goals.tree.read", version: /* @version action.goals.tree.read */ 1 },
+  treeCheck: { capability_id: "goals.tree.check", version: /* @version action.goals.tree.check */ 1 },
+  treeDecide: { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 },
+  active: { capability_id: "goals.active.set", version: /* @version action.goals.active.set */ 1 },
+  snapshot: { capability_id: "goals.snapshot.read", version: /* @version action.goals.snapshot.read */ 1 },
 } as const;
 
 /**

@@ -6,7 +6,7 @@
 
 文档右侧的「评论与备注」跟随当前主区文档。评论保存在 Pages 自己的 `page_comments` 表，正文的原批注与块备注不变。普通评论只保存文字；选中 `@助理` 后发送，宿主把当前正文、引用及本线程作为快照交给同一个 Prologue 运行时，答复只回到原评论，不修改正文。移除引用原文后保留摘录并显示失去定位。回复生成后投递失败可单独重试，避免重复调用模型。
 
-Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也未操作真实 Home。已有基线 1 的 Home 须先经过明确授权的维护升级，才能试用此构建。
+Pages 不读旧库，也不自动迁移：错版的库被拒绝，旧 Home 按发布检查单第 4 节搬开重建。
 
 包名：`@molis-ai/molis-work-plugin-pages`。装配：每个项目一个 Plugin Runtime 实例（`src/plugin.ts` 的 `createPagesPlugin`，`apps/local-host/src/project-plugins.ts` 的 Home 库条目，`trust: HOST_BUILD_TRUST`）；库仍是 Home 级的 `{home}/pages/pages.db`（`PAGES_DATABASE`），按 `project_id` 分区，经 Runtime 的 `services.database` 读写；成果经 `services.artifacts`、模型经 `services.model`、Goals 与其他插件经 `services.actions`。宿主里不再有 Pages 专用的动作、HTTP 或成果适配文件。
 
@@ -36,6 +36,10 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 标准 MCP 的查询、写入、AI、生成、历史及发布中断恢复有独立 stdio 客户端验证；生产客户端授权管理和系统生命周期仍属于系统服务未完成范围，测试启动授权不能替代它。
 
 ## 开发要求
+
+项目变更观察由 owner 解码稳定日志键，覆盖已删除记录、冻结上传与保留冲突，未启用上传也不能冒充无本机修改；`hasProjectChanges` 不读取或导出正文，不跨其他 owner 查询。
+
+同步试点：`store.syncAdapter(trustedContext)` 提供项目快照验证，`store.replica(trustedContext)` 提供逐文档/文件夹增量，复用 storage 队列。未发布草稿保留，缺关联依赖、待完成发布、撤权时不覆盖；并发编辑进入冲突处理。正文内嵌图片可携带，HTTP 图片仅保留引用，本机/相对链接拒绝。Host 已接个人空间同步配置页与 Rust/D1 本机联调，默认关闭，未部署公网。生成历史、Goal/Artifact、附件对象不在本轮集合里。说明见[规范](../../../skills/molis-plugin-dev/sync.md)。
 
 - 负责：文档目录、ProseMirror 编辑器、导入、按材料生成与发布。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管文档服务、ZIP/DOCX 系统解析。
@@ -79,6 +83,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 工具定义/选区投影改动加跑：`node scripts/run-tests.mjs tests/pages-tools.e2e.test.ts tests/pages-keyboard.e2e.test.ts tests/context-toolbar-panes.e2e.test.ts tests/contextual-interaction.e2e.test.ts`（正式编辑器与样式，工具字段/译文顺序/动态 pressed、命令/撤销/弹层路由、DOM Range 矩形、滚动、setDoc 与重挂；后两项覆盖真实工作台接线和窄屏）。
 - 链接/评论预览改动加跑：`node scripts/run-tests.mjs tests/pages-previews.e2e.test.ts tests/content-editing-regressions.e2e.test.ts tests/pages-tools.e2e.test.ts tests/context-toolbar-panes.e2e.test.ts tests/contextual-interaction.e2e.test.ts`（正式编辑器与样式，当前目标、编辑与取消、焦点、滚动/resize、setDoc 原刷新时点、释放重入和带待处理 blur 的销毁重挂）。
 - 上述内容与编辑状态的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts tests/content-portable-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；受控模型与下载/打印拦截不代替真实模型、文件应用或读屏体验验收）。
+- 同步回归：`node scripts/run-tests.mjs tests/plugin-sync-foundation.test.ts`。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 评论回归：`node scripts/run-tests.mjs tests/pages-comments.test.ts tests/assistant-thread-reply.test.ts tests/pages-assistant-surfaces.e2e.test.ts tests/pages-comment-draft-length.e2e.test.ts`。第二项经过真实 Host/Prologue（本机流式模型夹具），第三、四项经过真实浏览器；第四项用浏览器自己的文字输入，量评论输入框的字数口径。

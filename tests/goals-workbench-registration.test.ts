@@ -1,7 +1,10 @@
+import { transformSync } from "esbuild";
+import { poolClientLiterals } from "../apps/workbench/tooling/client-literals.mjs";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registration } from "@molis-ai/molis-work-plugin-goals/registration";
-import { pluginPageClients, pluginSettingsClients, pluginSettingsStyles, pluginWorkbenchPacks, pluginWorkbenchStyles } from "@molis-ai/molis-work-app-workbench";
+import { workbenchClientSource, pluginPageClients, pluginSettingsClients, pluginSettingsStyles, pluginWorkbenchPacks, pluginWorkbenchStyles } from "@molis-ai/molis-work-app-workbench";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 // PG-060 (T-115): the workbench takes Goals' styles and browser scripts from the plugin's registration, through the channels
@@ -33,7 +36,7 @@ test("RAC-2091 the rules of Goals' settings pages reach both sheets that draw se
 });
 
 test("RAC-2092 the Goals page script takes each factory from the registration, by name", () => {
-  const script = renderMolisWorkWorkbenchClientScript(), clients = goals.pageClients!;
+  const script = workbenchClientSource(), clients = goals.pageClients!;
   assert.equal(Object.keys(clients).length, 12);
   assert.equal(pluginPageClients("goals"), clients);
   for (const [name, factory] of Object.entries(clients)) assert.equal(count(script, factory), 1, `${name} is in the page script once`);
@@ -45,5 +48,18 @@ test("RAC-2093 Goals' settings scripts run from the registration's settings clie
   const settings = goals.settingsClient!;
   for (const binder of ["molisWorkBindProjectRules", "molisWorkBindPlanningSettings", "molisWorkBindPlanningAdoption"]) assert.match(settings, new RegExp(binder, "u"));
   assert.ok(pluginSettingsClients().includes(settings));
-  assert.equal(count(renderMolisWorkWorkbenchClientScript(), settings), 1);
+  assert.equal(count(workbenchClientSource(), settings), 1);
+});
+
+
+test("the shipped page preserves the assembled registration program after literal pooling and compaction", () => {
+  const source = workbenchClientSource();
+  assert.ok(source.startsWith(UI_REQUEST_CLIENT_SCRIPT));
+  const expected = UI_REQUEST_CLIENT_SCRIPT + transformSync(poolClientLiterals(source.slice(UI_REQUEST_CLIENT_SCRIPT.length)), {
+    loader: "js", target: "es2022", charset: "utf8", minifyWhitespace: true, minifyIdentifiers: true, minifySyntax: true, legalComments: "none",
+  }).code;
+  const shipped = renderMolisWorkWorkbenchClientScript();
+  assert.equal(shipped.slice(0, expected.length), expected);
+  assert.match(shipped.slice(expected.length), /data-unified-account-link/);
+  assert.equal(count(shipped, "data-unified-account-link"), 1);
 });

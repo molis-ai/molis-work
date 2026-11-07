@@ -8,12 +8,14 @@ export interface WebProjectNavigation {
   data_class?: "user" | "regenerable_demo";
   database_path?: string;
   source?: "created";
+  /** Host observation only; never an installation or activation request. */
+  plugin_requirements?: readonly { plugin_id: string; installed: boolean }[];
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories" | "sync";
 type SettingsNavigationActive = string;
-type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "rules" | "planning";
+type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "grants" | "rules" | "planning";
 
 
 export interface SettingsNavigationPrimitives {
@@ -116,6 +118,7 @@ function renderProjectSettingsNavigation(
       <a href="${href(`${routePrefix}/settings/memory`)}"${current("memory")}>${icon("bookmark")}${L("项目记忆")}</a>
       <a href="${href(`${routePrefix}/settings/knowledge`)}"${current("knowledge")}>${icon("file")}${L("项目资料")}</a>
       <a href="${href(`${routePrefix}/settings/plugins`)}"${current("plugins")}>${icon("package")}${L("插件")}</a>
+      <a href="${href(`${routePrefix}/settings/grants`)}"${current("grants")}>${icon("shield")}${L("授权与放行")}</a>
     </div>
   </nav>`;
 }

@@ -127,6 +127,7 @@ export interface ShelfPage {
   editing: boolean;
   editLoading: boolean;
   editDraft: string;
+  editBase?: { id: string; hash: string };
   textCache: Map<string, string>;
   textVersion: number;
   editTimer: number;

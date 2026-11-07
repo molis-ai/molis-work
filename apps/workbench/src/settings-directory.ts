@@ -11,6 +11,7 @@ export interface SettingsDirectoryPrimitives {
   withDesktopQuery?(path: string): string;
 }
 
+
 const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
   { id: "workspaces", label: "工作目录", icon: "folder" },
@@ -18,20 +19,22 @@ const PROJECT_SETTINGS_SECTIONS = [
   { id: "memory", label: "记忆", icon: "bookmark" },
   { id: "knowledge", label: "项目资料", icon: "file" },
   { id: "plugins", label: "插件", icon: "package" },
+  { id: "grants", label: "授权与放行", icon: "shield" },
 ] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 
 function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`;
 }
 
-/** Personal entries under the project button: the future sign-in entry, then capabilities and settings. */
+/** Personal identity and login entry stay inside main's project menu, followed by capabilities and settings. */
 export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
   return `<div class="navigator-personal" data-personal-menu>
-    <button class="personal-account" type="button" data-account-link title="${L("登录")}">
+    <button class="personal-account" type="button" data-account-link aria-label="${L("账号管理")}">
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
-      <span class="personal-account-copy"><strong>${L("未登录")}</strong><small>${L("登录")}</small></span>
+      <span class="personal-account-copy"><strong data-personal-name>${L("未登录")}</strong><small data-personal-status>${L("本地空间")}</small></span>
     </button>
+    <button class="immersive-plugin-link account-global-item" type="button" data-unified-account-link aria-label="${L("Molis 账号")}" title="${L("Molis 账号")}">${icon("user")}<span data-unified-account-name>${L("Molis 账号")}</span></button>
     <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
   </div>`;

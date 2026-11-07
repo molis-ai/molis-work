@@ -31,9 +31,13 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 
 本包处理页面结构和交互装配，不打开数据库。宿主通过 `unavailable_plugin_stages` 提供不可用舞台的结构化显示数据，工作台转义后绘制静态占位；该分支不申请插件页面授权，正常 `plugin_stages` HTML 始终进入原 sandbox frame。目标状态解释、关系/规划等专属界面由 Goals Plugin 提供；通用主题和图标由 Design System 提供。
 
+项目常规设置保留最初名称观察值，保存冲突时留住输入草稿，不以后台新读值替旧编辑授权。缺失插件区仅显示 Host 核对后尚未安装的依赖；已安装但停用的插件不报缺失，原始标识可换行，提示不触发下载、安装、启用或授予权限。真实 Chrome 动线在 `tests/project-settings-standalone.e2e.test.ts`。
+
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
 ## 本地开发
+
+内置同步集合只在 `BUILTIN_PLUGIN_CATALOG` 登记。Module 项目内容用 `project-sections` 描述符列出公开 owner 身份、资产种类和技术日志命名，不在工作台导入 Module 实现；Host 在既有项目库组合根解析 owner 定义，调用公共 Storage 的事务组装。声明与发现本身不打开库、不授予同步权限。
 
 改共享控件或列表交互时，建议对照 `/__ui/catalog`（见 [CLI 与开发 · 前端与控件板](../../docs/cli-and-development.md#前端与控件板)），达标标本补进 Design System Catalog。
 
@@ -64,7 +68,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 | --- | --- | --- |
 | 缺英文 | 翻译调用里的中文字面量，在所有词典里都没有 | 失败；头上必须为零 |
 | 词典没接上 | 某本 `*_EN` 词典，[`src/i18n/en.ts`](src/i18n/en.ts) 建的 `EN` 从来没有引用它（直接，或经它引用的另一本词典：`GOALS_EN` 里的 `...GOALS_DIALOGS_EN`、`Object.assign(EN, X_EN)`）。只写了 import、只在别处 `export … from` 转发、只给它 `Object.assign` 填内容，都不算引用——英文照样显示不出来 | 失败；头上必须为零 |
-| 冲突 | 同一句中文有两条译文不同的条目（跨词典，或同一词典的前后两块） | 冻结在 `tooling/gates/baseline.json` 的 `translationConflicts`（键 → 有几种译法）。新键、或老键多一种译法就失败；`--base` 时对照 merge-base 自己的扫描，改基线放不过。冲突少了，用 `--update --base origin/main` 降基线 |
+| 冲突 | 同一句中文有两条译文不同的条目（跨词典，或同一词典的前后两块） | 冻结在 工作树 Git 元数据里的本地快查 的 `translationConflicts`（键 → 有几种译法）。新键、或老键多一种译法就失败；`--base` 时对照 merge-base 自己的扫描，改基线放不过。冲突少了，用 `--update --base origin/main` 降基线 |
 | 无用键 | 词典里的键，源码里没有任何地方以字面量出现 | 只报告。动态拼出的键先改成常量或稳定键，再删（[路线图](../../specs/archive/repository-anti-corruption/roadmap-2026-10-07.md) W5-03） |
 | 稳定键 | 见下 | 一出现就检查 |
 
@@ -120,6 +124,9 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 - 浏览器交互回归先等待生产界面的可操作状态，再取点：按 [VUX-22 自然高度折叠合同](../../specs/visual-ui-experience/spec.md#disclosure-segmented)，展开到容纳目标按钮后，才由现有点击助手滚动并验证命中（`tests/goals-planning.e2e.test.ts`、`tests/feed-capture.e2e.test.ts`）。保留原等待上限、严格点击与业务结果断言；超时或遮挡仍失败，不增加固定睡眠、不关闭动效、不改产品布局。Feed 的预览零入箱、规则保存与真实消费、停用提供方后保留绑定仍由原用例验收。
 - 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器、Goal 终端（`src/terminal/`），以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
 - 不负责：业务 Store、Node 专用实现、Tauri 命令。
+- 公共工作台脚本由 `tooling/build-client.mjs` 在构建时生成：请求助手 bootstrap 保持原样在最前，其余程序在已有函数作用域内复用重复的表达式字符串，再经 esbuild 压缩空白、局部绑定名及等价语法；字面量值、指令序言、属性名、事件名和公开全局不变。字符串池的语义测试为 `node --test apps/workbench/tooling/client-literals.test.mjs`。运行时只读取生成的 dist 资源；修改后先构建再跑浏览器回归，页面资源预算只能下调。
+- 账号与空间菜单的浏览器入口在 `src/browser/personal-account.ts`，由 `tsconfig.browser.json` 独立做 DOM 类型检查；包的构建命令用 esbuild 先打包，再参与公共工作台脚本组合。服务器端 `src/scripts/personal-account.ts` 只读取构建资源，不再保存程序字符串。
+- 账号入口可用 Tab 到达、Enter/空格打开，未登录时焦点进入登录按钮；Esc 关闭后返回可见入口，若账号行所在的项目菜单已收起则返回其 summary。浏览器测试先等菜单真正可见，不把尚在 `content-visibility` 过渡中的节点当作能接收焦点；账号菜单改动后必跑：`node scripts/run-tests.mjs tests/personal-menu.e2e.test.ts`（PCSYNC-KBD-01）。
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
@@ -176,6 +183,10 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 
 引导、项目选择、Functions与MCP授权/连接页面共用`globalThis.molisWorkRequest`：Host请求保留code/status/callId/body，错误位置用同一failure view提供可查询的诊断编号。Functions的项目feed adapter仍以有没有project决定是否提供；未保存字段、选择序号、取消与旧DOM检查保留。原已授权但刷新失败的连接恢复入口继续只重载信息，不重新授权。定向验证：`tests/workbench-request-pages.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/functions-draft-retention.test.ts`、`tests/context-onboarding-blank.e2e.test.ts`、`tests/request-failure-call-id.e2e.test.ts`。
+
+同步设置的冲突比较按变化字段展示，较长内容可展开或导出完整版本；位置由同步绑定声明，前端拒绝跨源定位。常驻底栏入口区分同步中、上次检查完成、等待、冲突、失败及离线，并链接到同一设置详情。个人项目回收入口沿原请求保护，绑定观察版本及操作标识；失败重试不生成新操作，恢复不启动执行。
+
+个人版首用试用界面保留云端回收与历史恢复；永久清理暂不开放，保留内容仍计入容量。
 
 ### 记忆管理的版本与部分清空
 

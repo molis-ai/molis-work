@@ -6,6 +6,7 @@ import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pagesSkills } from "./skills.js";
 import { PAGES_DATABASE } from "./database.js";
+import { pagesSyncDeclaration } from './sync-declaration.js';
 
 import { PAGES_MESSAGES } from "./messages.js";
 import { PAGES_EN } from "./en.js";
@@ -16,10 +17,11 @@ const PAGES_BODY_BYTES = 1_000_000;
 const PAGES_IMPORT_BYTES = 15_000_000;
 
 export const pagesManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: PAGES_PLUGIN_ID,
-  version: "0.3.0",
+  sync: pagesSyncDeclaration,
+  version: /* @version product.release */ "0.1.0",
   name: "Pages",
   summary: "写文档，可导出 Markdown / PDF。",
   // Offered to other Agents for business work; bodies in ./skills.ts.
@@ -59,10 +61,10 @@ export const pagesManifest: PluginManifest = {
   actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],
   artifacts: {
     produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION, title: "文档",
-      preview: { capability_id: "pages.artifacts.preview", version: 1 }, pin: { capability_id: "pages.artifacts.pin", version: 1 },
-      compare: { capability_id: "pages.artifacts.compare", version: 1 }, continue: { capability_id: "pages.artifacts.continue", version: 1 } }],
+      preview: { capability_id: "pages.artifacts.preview", version: /* @version action.pages.artifacts.preview */ 1 }, pin: { capability_id: "pages.artifacts.pin", version: /* @version action.pages.artifacts.pin */ 1 },
+      compare: { capability_id: "pages.artifacts.compare", version: /* @version action.pages.artifacts.compare */ 1 }, continue: { capability_id: "pages.artifacts.continue", version: /* @version action.pages.artifacts.continue */ 1 } }],
     // Pages also continues from imported files it can read (artifact-positioning A3, A4b).
-    consumes: [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: 1, continue: { capability_id: "pages.artifacts.continue", version: 1 },
+    consumes: [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1, continue: { capability_id: "pages.artifacts.continue", version: /* @version action.pages.artifacts.continue */ 1 },
       file: { extensions: PAGES_READABLE_EXTENSIONS, stored_text: true } }],
   },
   ui: {

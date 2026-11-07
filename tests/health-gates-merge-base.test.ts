@@ -8,10 +8,10 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 
 // specs/archive/repository-anti-corruption §4.5/§4.7 (W1-03): the health gates compare the head with the merge-base, so a PR
-// that grows a number cannot hide it by rewriting tooling/gates/baseline.json. Each rule is mutation-verified here on a
+// that grows a number cannot hide it by rewriting .git/molis-health-baseline.json. Each rule is mutation-verified here on a
 // small scratch repository: one violation added on a branch makes `--base main` fail, and running `--update` on that
 // branch (the laundering move) neither makes it pass nor is accepted when it is given the merge-base.
-// specs/archive/repository-anti-corruption §4.5 (W1-19, user 2026-10-25): tooling/gates/giant-exceptions.json marks the giant units
+// specs/archive/repository-anti-corruption §4.5 (W1-19, user 2026-10-25): tooling/gates/giant-exceptions/fixture.json marks the giant units
 // that are reasonable as one unit and are not force-split, each with a kind, a reason and its measured size. A unit with a
 // valid entry whose size equals the measurement is admitted, new or grown; an entry whose size is not the measured one admits
 // nothing; an unregistered giant unit may not appear or grow; and an entry has to describe a giant unit that exists now.
@@ -49,14 +49,14 @@ const filler = (count: number) => fillerLines(count).map(line => `${line}\n`).jo
 const klass = (name: string, methods: number, pad: number) =>
   `export class ${name} {\n${Array.from({ length: methods }, (_, index) => `  m${index}() { return ${index}; }\n`).join("")}${fillerLines(pad).map(line => `  ${line}\n`).join("")}}\n`;
 const fn = (name: string, pad: number) => `export function ${name}() {\n${fillerLines(pad).map(line => `  ${line}\n`).join("")}  return 1;\n}\n`;
-// tooling/gates/giant-exceptions.json: one registered unit is a translation table that is reasonable as one unit. A file of
+// tooling/gates/giant-exceptions/fixture.json: one registered unit is a translation table that is reasonable as one unit. A file of
 // filler(n) measures n + 1 lines, a klass(name, m, pad) m + pad + 2 lines and m methods, an fn(name, pad) pad + 3 lines.
 const exceptionEntry = { kind: "translation-table", reason: "the English dictionary: string pairs only, no logic to split" };
 const entry = (size: unknown) => ({ ...exceptionEntry, size });
 const TABLE = "file packages/alpha/src/table.ts";
 const tableEntry = entry(25);
 const exceptionsFile = (entries: Record<string, unknown>) => JSON.stringify({ note: "fixture", exceptions: entries }, null, 2) + "\n";
-const EXCEPTIONS = "tooling/gates/giant-exceptions.json";
+const EXCEPTIONS = "tooling/gates/giant-exceptions/fixture.json";
 // The registry of the base (table.ts) plus whatever else a branch registers, each with a complete entry of the given size.
 const registry = (...units: Array<[string, unknown]>) => exceptionsFile({ [TABLE]: tableEntry, ...Object.fromEntries(units.map(([unit, size]) => [unit, entry(size)])) });
 
@@ -67,7 +67,7 @@ before(() => {
   put("packages/alpha/src/index.ts", "export const alpha = 1;\n");
   put("packages/alpha/src/long.ts", filler(22)); // a giant file (22 lines)
   put("packages/alpha/src/table.ts", filler(24)); // a giant file that is registered as an exception
-  put("tooling/gates/giant-exceptions.json", registry());
+  put("tooling/gates/giant-exceptions/fixture.json", registry());
   put("packages/alpha/src/longclass.ts", klass("LongClass", 1, 10)); // giant by lines only
   put("packages/alpha/src/methods.ts", klass("Methods", 4, 0)); // giant by methods only
   put("packages/alpha/src/bigfn.ts", fn("bigFunction", 9)); // a giant function
@@ -87,6 +87,7 @@ after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 // Start a branch from the base, add one violation, commit it.
 const branch = (name: string, mutate: () => void) => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", name);
   mutate();
@@ -125,10 +126,17 @@ const violations: Scenario[] = [
   }, expect: [/tests reach into package internals in tests\/clean\.test\.ts 0 → 1/] },
   { name: "a third vendored SDK package", mutate: () => { vendored("vendor/prologue-sdk/b.tgz", "b"); vendored("vendor/prologue-sdk/c.tgz", "c"); }, expect: [/vendor\/prologue-sdk holds 3 packages/], kind: "absolute" },
   { name: "an in-place schema patch", mutate: () => put("packages/alpha/src/patch.ts", 'export const sql = "ALTER TABLE t ADD COLUMN c TEXT";\n'), expect: [/in-place schema patches 0 → 1/] },
+  { name: "an ALTER TABLE moved out of a baseline's upgrades", mutate: () => put("packages/alpha/src/patch.ts", 'const STEP = { from: 1, sql: "ALTER TABLE t ADD COLUMN c TEXT" };\nexport const TABLES: SqliteBaseline = { version: 2, schema: "", upgrades: [STEP] };\n'), expect: [/in-place schema patches 0 → 1/] },
+  { name: "an in-place patch spelled by joining strings", mutate: () => put("packages/alpha/src/patch.ts", 'export const sql = "ALTER " + "TABLE t ADD COLUMN c TEXT";\n'), expect: [/in-place schema patches 0 → 1/] },
+  { name: "an in-place patch moved to a .sql file", mutate: () => put("packages/alpha/src/patch.sql", "ALTER TABLE t ADD COLUMN c TEXT;\n"), expect: [/in-place schema patches 0 → 1/] },
+  // UPG1-i-initial-16: the half of the unified-origin check with no build is an absolute rule of the gate (user 2026-11-07).
+  { name: "a first-party version constant above 1", mutate: () => put("packages/alpha/src/stored.ts", "export const STORED_VERSION = 2;\n"), expect: [/packages\/alpha\/src\/stored\.ts: STORED_VERSION = 2 \(expected 1\)/], kind: "absolute" },
+  { name: "a persistent format entry above 1", mutate: () => put("tooling/versions.json", JSON.stringify({ versions: { "format.home.onboarding": 2 } })), expect: [/onboarding\.ts#schema_version = 2 \(expected 1; above 1 it needs a registered upgrade chain/], kind: "absolute" },
+  { name: "a version table that cannot be read", mutate: () => put("tooling/versions.json", "{"), expect: [/tooling\/versions\.json cannot be read/], kind: "absolute" },
   { name: "another compatibility marker in a file", mutate: () => put("packages/alpha/src/marked.ts", read("packages/alpha/src/marked.ts") + "// legacy again\n"), expect: [/compatibility markers in packages\/alpha\/src\/marked\.ts 1 → 2/] },
   { name: "a new file with a compatibility marker", mutate: () => put("packages/alpha/src/shim.ts", "// @deprecated\nexport const shim = 1;\n"), expect: [/compatibility markers in packages\/alpha\/src\/shim\.ts 0 → 1/] },
   { name: "a spec without a status line", mutate: () => put("specs/other/spec.md", "# Other\n\nno status here\n"), expect: [/specs\/other: no status line near the top/], kind: "absolute" },
-  // ---- tooling/gates/giant-exceptions.json (W1-19, user 2026-10-25) ----
+  // ---- tooling/gates/giant-exceptions/fixture.json (W1-19, user 2026-10-25) ----
   // An entry records the measured size; a registered unit that grows without its entry following is refused twice over. The
   // size error holds whatever the baseline says, so these run as absolute rules.
   { name: "a registered exception grows and its entry keeps the old size", mutate: () => put("packages/alpha/src/table.ts", filler(25)),
@@ -427,15 +435,16 @@ for (const [state, text] of unreadableRegistries) {
     branch(`registry-${state.replace(/\W+/g, "-")}`, () => put(EXCEPTIONS, text));
     const run = gate("--base", "main");
     assert.equal(run.code, 2, run.out);
-    assert.match(run.out, /giant-exceptions\.json (is not valid JSON|needs an "exceptions" object)/);
+    assert.match(run.out, /giant-exceptions\/fixture\.json (is not valid JSON|needs an "exceptions" object)/);
   });
 }
 
 test("the report prints per-unit and per-file numbers, class lines and methods apart", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   const text = gate("--report").out;
   assert.match(text, /Giant units: 5 \(1 class lines, 1 class methods, 2 file, 1 function\)/);
-  assert.match(text, /marked as reasonable \(tooling\/gates\/giant-exceptions\.json\): 1; the other 4 are to be split or marked/);
+  assert.match(text, /marked as reasonable \(tooling\/gates\/giant-exceptions\/\): 1; the other 4 are to be split or marked/);
   assert.match(text, /file\s+25\s+packages\/alpha\/src\/table\.ts  \[exception: translation-table\]/);
   assert.doesNotMatch(text, /long\.ts  \[exception/, "an unregistered unit carries no marker");
   assert.match(text, /class methods\s+\d+\s+4\s+packages\/alpha\/src\/methods\.ts#Methods/);
@@ -452,6 +461,7 @@ test("the report prints per-unit and per-file numbers, class lines and methods a
 
 test("an unusable --base is an error, never a silent pass", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   const missing = gate("--base", "no-such-ref");
   assert.equal(missing.code, 2);
   assert.match(missing.out, /--base no-such-ref is not a commit/);
@@ -462,9 +472,9 @@ test("an unusable --base is an error, never a silent pass", () => {
 // --base measures both sides itself: the committed baseline.json is not read, so a missing, old-shaped or unparsable one
 // changes nothing, also when some number went down (the only case in which it used to be looked at).
 const spoiledBaselines: Array<[string, () => void]> = [
-  ["missing", () => rmSync(path.join(repo, "tooling/gates/baseline.json"))],
-  ["an old shape", () => put("tooling/gates/baseline.json", '{"giant":{}}\n')],
-  ["not JSON", () => put("tooling/gates/baseline.json", "<<<<<<< ours\n")],
+  ["missing", () => rmSync(path.join(repo, ".git/molis-health-baseline.json"))],
+  ["an old shape", () => put(".git/molis-health-baseline.json", '{"giant":{}}\n')],
+  ["not JSON", () => put(".git/molis-health-baseline.json", "<<<<<<< ours\n")],
 ];
 for (const [state, spoil] of spoiledBaselines) {
   test(`--base never reads baseline.json (${state}), whether or not a number went down`, () => {
@@ -504,7 +514,7 @@ test("without giant-exceptions.json nothing is registered, and a new giant unit 
     const run = gate("--base", "main");
     assert.equal(run.code, 1, run.out);
     assert.match(run.out, /new giant unit: file packages\/alpha\/src\/other\.ts/);
-    assert.match(gate("--report").out, /marked as reasonable \(tooling\/gates\/giant-exceptions\.json\): 0; the other 2 are/);
+    assert.match(gate("--report").out, /marked as reasonable \(tooling\/gates\/giant-exceptions\/\): 0; the other 2 are/);
   });
 });
 
@@ -700,4 +710,22 @@ test("ci base: a previous tip that cannot be fetched, or a bad argument, is exit
   assert.equal(gone.base, "");
   assert.match(gone.log, /git fetch .* failed/);
   assert.equal(ciBase(dir, {}, "--bogus").code, 2);
+});
+
+// CCR-08: a fresh checkout cannot pass merely because its private quick baseline is absent.
+test("CCR-08 no local quick baseline falls back to a real origin/main comparison", () => {
+  branch("without-local-cache", () => put("packages/alpha/src/unregistered.ts", filler(30)));
+  git("update-ref", "refs/remotes/origin/main", "main");
+  rmSync(path.join(repo, ".git/molis-health-baseline.json"));
+  const result = gate();
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /new giant unit: file packages\/alpha\/src\/unregistered.ts/);
+  assert.equal(git("ls-files", ".git/molis-health-baseline.json").trim(), "");
+});
+
+test("CCR-08 retired shared records cannot be reintroduced", () => {
+  branch("retired-shared-file", () => put("tooling/gates/baseline.json", "{}\n"));
+  const result = gate("--base", "main");
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /retired shared record/);
 });

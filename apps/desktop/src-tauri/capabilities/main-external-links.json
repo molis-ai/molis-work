@@ -5,5 +5,5 @@
   "remote": {
     "urls": ["http://127.0.0.1:4173/*", "http://localhost:4173/*"]
   },
-  "permissions": ["allow-open-external-url"]
+  "permissions": ["allow-open-external-url", "allow-personal-account-request"]
 }

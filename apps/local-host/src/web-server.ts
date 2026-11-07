@@ -1,3 +1,6 @@
+import { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.js";
+import { runtimeSyncSurface } from "./runtime-sync-discovery.js";
+import { ProjectDeletionService } from "./project-deletion-service.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { bindAccountHost, handleAccountHttp } from "./account-host.js";
 import { projectOrNull } from "./catalog-lookup.js";
@@ -60,8 +63,18 @@ function nativeTerminal() {
   return terminal;
 }
 
+function webWorkspaceFor(projectId: string, options: WebServerOptions, fixture: ReturnType<typeof fixtureWebBoardOptions>, home: string, withCatalog: LocalWebCatalogRunner) {
+  const configuredRoot = () => {
+    if (!options.projectRoot) return null;
+    const canonical_path = fs.realpathSync(options.projectRoot);
+    return {workspace_id: `configured:${projectId}`, canonical_path, realpath_verified: true, display_name: path.basename(canonical_path)};
+  };
+  if (fixture && projectId === fixture.projectId) return configuredRoot();
+  return withCatalog({homeDirectory: home}, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
+}
+
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
-  return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
+  function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
     const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
     const baseCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
@@ -88,15 +101,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       sceneAvailability: actionAvailability,
       projectRoutePrefix: projectId => fixture && projectId === fixture.projectId ? "" : `/projects/${encodeURIComponent(projectId)}`,
       workspacesFor: (projectId) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
-      workspaceFor: (projectId) => {
-        const configuredRoot = () => {
-          if (!serverOptions.projectRoot) return null;
-          const canonical_path = fs.realpathSync(serverOptions.projectRoot);
-          return { workspace_id: `configured:${projectId}`, canonical_path, realpath_verified: true, display_name: path.basename(canonical_path) };
-        };
-        if (fixture && projectId === fixture.projectId) return configuredRoot();
-        return withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
-      },
+      workspaceFor: projectId => webWorkspaceFor(projectId, serverOptions, fixture, storageHome, withCatalog),
     });
     const ownsLocalHost = !serverOptions.localHost;
     const completed = new Set<string>(), resources: Array<readonly [string, () => unknown]> = [];
@@ -156,7 +161,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           await pluginPagesFor(storageHome).bind(request, url, response);
           if (await handleAccountHttp(request, response, url, account)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
-            const ready = server.listening && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
+            const ready = server.address() !== null && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
             sendWebHealth(response, ready ? 200 : 503, {
               status: ready ? "ok" : "starting", process_id: process.pid,
               service_process_id: serviceProcessId(), desktop_tui: Boolean(pty.host),
@@ -210,11 +215,13 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
     attachWebAssistant(server, storageHome, assistant, agents, periodic);
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
-    return server;
+    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { attachPublicListener: (close:()=>Promise<void>)=>{resources.unshift(["space_listener",close]);}, projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
     } catch (error) {
       if (!ownsLocalHost && !releaseTransport) throw error;
       throw retainInitializationCleanup(error, () => ownsLocalHost ? localHost.close() : (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport?.(); })(), "web_initialization_cleanup_failed");
     }
   }
+
+  return (options: WebServerOptions = {}) => createSpaceWebServer(options, createMolisWorkWebServer, platform.withCatalog);
 
 }

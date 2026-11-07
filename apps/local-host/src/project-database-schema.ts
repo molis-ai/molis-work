@@ -1,3 +1,5 @@
+import { PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
+import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
@@ -28,8 +30,9 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * Listener Host tables along with its out rules.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 1,
-  schema: [
+  version: /* @version database.project_database_baseline */ 1,
+  schema: ([
+    STORAGE_SPACE_SCHEMA_SQL,
     PROJECT_ROOT_SCHEMA_SQL,
     ARTIFACTS_SCHEMA_SQL,
     PROCESS_ITEMS_SCHEMA_SQL,
@@ -46,5 +49,6 @@ export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
     PLUGIN_PROJECT_DATABASES_SCHEMA_SQL,
     SCHEDULER_SCHEMA_SQL,
     PROJECT_BROWSING_SETTINGS_SCHEMA_SQL,
-  ].join("\n"),
+    PROJECT_REPLICATION_SCHEMA_SQL,
+  ].join("\n")),
 };

@@ -30,13 +30,15 @@ export {
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
   scheduleManifest,
 } from "./manifest.js";
-export { SCHEDULE_READER_ROLE, scheduleAgentManifest, schedulePrompts } from "./roles.js";
+export { SCHEDULE_BRIEF_ROLE, SCHEDULE_READER_ROLE, scheduleAgentManifest, schedulePrompts } from "./roles.js";
+export { SCHEDULE_TASK_GRANT_ACTIONS, createScheduleTaskGrants, roundRole, scheduleTaskReads, type ScheduleTaskGrants, type ScheduleTaskReads } from "./task-grants.js";
 export {
   nextDailyLocalDue,
   parseClockTime,
   formatClockTime,
 } from "./calendar.js";
 export { scheduleErrors } from "./error.js";
+export { scheduleCollection } from "./replication.js";
 export {
   parseScheduledAgentReply,
   composeScheduledTaskPrompt,
@@ -63,5 +65,6 @@ export {
   ownedScheduleJobs,
 } from "./wakeup.js";
 export type { ScheduledTaskRunner, ScheduleJobPort } from "./wakeup.js";
+export { scheduledTaskRunner } from "./runtime-wakeups.js";
 
-export { SCHEDULE_PROJECT_DATABASE } from "./database.js";
+export { SCHEDULE_PROJECT_DATABASE, SCHEDULE_TASKS_SCHEMA_SQL } from "./database.js";

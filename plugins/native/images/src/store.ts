@@ -1,4 +1,5 @@
-import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { HomeStoreDeclaration, PluginSyncClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PortableImage } from "./sync-files.js";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "./contract.js";
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesErrors } from "./error.js";
@@ -11,7 +12,7 @@ type Row = Record<string, unknown>;
 
 /** Queries are side-effect free; the Runtime owns transaction and authority checks. */
 export class ImagesStore {
-  constructor(private readonly db: PluginDatabaseTransaction) {}
+  constructor(private readonly db: PluginDatabaseTransaction, private readonly sync?: PluginSyncClient) {}
 
   recoverInterrupted(): void {
     this.db.run("UPDATE jobs SET status = 'interrupted', error = ?, finished_at = ? WHERE status = 'running'",
@@ -54,9 +55,15 @@ export class ImagesStore {
     return jobFromRow(row);
   }
 
-  deleteJob(projectId: string, id: string): ImageJob {
+  deleteJob(projectId: string, id: string, retained?:{spaceId:string;job:ImageJob;images:PortableImage[];authorize():void}): ImageJob {
     const job = this.getJob(projectId, id);
     if (job.status === "running") throw imagesErrors.running("请先停止生成，再删除记录。");
+    if(retained){
+      if(JSON.stringify(job)!==JSON.stringify(retained.job))throw imagesErrors.request_conflict("图片记录已更新，原件已保留。");
+      const columns=['id','project_id','connection_name','api_format','model','prompt','size','aspect_ratio','status','error','created_at','finished_at'] as const;
+      if (!this.sync) throw imagesErrors.invalid("个人空间同步服务未提供");
+      this.sync.retain("saved_images",this.db,JSON.stringify([job.project_id,'image',job.id]),{format:/* @version format.images.portable */ 1,spaceId:retained.spaceId,project:{id:job.project_id,title:job.project_id},record:Object.fromEntries(columns.map(key=>[key,job[key]])),images:retained.images});
+    }
     const result = this.db.run("DELETE FROM jobs WHERE project_id = ? AND id = ? AND status != 'running'", [projectId, id]);
     if (Number(result.changes) !== 1) throw imagesErrors.running("请先停止生成，再删除记录。");
     return job;

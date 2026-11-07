@@ -31,6 +31,10 @@ export interface UiRequestPorts {
   readonly origin: string;
   /** The page's control token, read from the page. */
   readonly token: () => string;
+  /** Bind reads to a page scope without changing the caller's global fetch. */
+  readonly readHeaders?: () => Record<string,string>;
+  /** Optional native transport; null delegates to the ordinary scoped browser port. */
+  readonly intercept?: (input:string,init:UiFetchInit)=>Promise<Response>|null|undefined;
   /** A new one-time key. */
   readonly newKey: () => string;
   readonly translate: UiTranslate;
@@ -65,7 +69,8 @@ export interface UiFailureViewPorts {
  * may not have been done, and the helper does not guess. (Notes live here, not in the body: the body is sent to the page.)
  */
 export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
-  const controlHeaders = ["content-type", "x-molis-work-control-token", "x-molis-work-idempotency-key"];
+  const controlTokenHeader = "x-molis-work-control-token";
+  const controlHeaders = ["content-type", controlTokenHeader, "x-molis-work-idempotency-key"];
   const failure = (message: string, code: string, status: number, callId: string | null, body: unknown): UiRequestFailure =>
     Object.assign(new Error(message), { code, status, callId, body });
   const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
@@ -75,7 +80,7 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
   };
   const writeHeaders = (key?: string): Record<string, string> => ({
     "content-type": "application/json",
-    "x-molis-work-control-token": ports.token(),
+    [controlTokenHeader]: ports.token(),
     "x-molis-work-idempotency-key": key ?? ports.newKey(),
   });
 
@@ -90,7 +95,10 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     const headers: Record<string, string> = {};
     for (const [name, value] of Object.entries(init.headers ?? {})) if (!controlHeaders.includes(name.toLowerCase())) headers[name] = value;
     if (!read) Object.assign(headers, writeHeaders(init.key));
-    else if (init.control) headers["x-molis-work-control-token"] = ports.token();
+    else {
+      Object.assign(headers, ports.readHeaders?.());
+      if (init.control) headers[controlTokenHeader] = ports.token();
+    }
     const options: UiFetchInit = { method, headers, cache: "no-store" };
     if (init.signal) options.signal = init.signal;
     if (init.keepalive) options.keepalive = true;
@@ -100,7 +108,8 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     let response: Response;
     let answer = "";
     try {
-      response = await (init.scope ? init.scope.fetch(target.href, options) : ports.fetch(target.href, options));
+      const intercepted=ports.intercept?.(target.href,options);
+      response = await (intercepted ?? (init.scope ? init.scope.fetch(target.href, options) : ports.fetch(target.href, options)));
       if (as !== "response") answer = await response.text();
     } catch (error) {
       if ((error as { name?: string } | null)?.name === "AbortError") throw error;
@@ -283,7 +292,9 @@ export const UI_REQUEST_CLIENT_SCRIPT = `
   const translate = (text, values) => (typeof globalThis.L === "function" ? globalThis.L(text, values) : text);
   const call = (${compact(createUiRequest.toString())})({
     fetch: (input, init) => fetch(input, init), origin: location.origin,
+    intercept: (input, init) => globalThis.molisWorkUiTransport?.(input, init),
     token: () => document.querySelector('meta[name="molis-work-control-token"]')?.content || "",
+    readHeaders: () => ({"x-molis-work-control-token": document.querySelector('meta[name="molis-work-control-token"]')?.content || ""}),
     newKey: () => crypto.randomUUID(), translate,
   });
   const view = (${compact(createUiFailureView.toString())})({

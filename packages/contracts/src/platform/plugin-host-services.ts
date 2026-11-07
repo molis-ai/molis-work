@@ -61,6 +61,14 @@ export interface PluginActionClient extends BoundActionClient {
 }
 
 export interface PluginHostServices {
+  readonly sync?: import("./plugin-sync.js").PluginSyncClient;
+  /** Pure archive projection; never imports or starts a runtime. */
+  readonly savedHistory?: {
+    view(json: string): import("../services/agent-host.js").AgentSavedHistoryView;
+    validate(json: string): {sessionId:string};
+    /** Only canonical saved sessions owned by this project and plugin; never executes or imports. */
+    read(runtimeId:string,sessionId:string):Promise<string>;
+  };
   /** Public metadata of installations in this activation's scope. */
   readonly notifications?: import("./plugin-notifications.js").PluginNotificationClient;
   readonly installations?: import("./plugin-installations.js").PluginInstallationClient;

@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesContextLedgerContract = {
-  contractId: "io.molis.work.module.context-ledger.v1",
+  contractId: /* @version contract.io.molis.work.module.context-ledger "io.molis.work.module.context-ledger.v{version}" */ "io.molis.work.module.context-ledger.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.context-ledger */ 1,
   maturity: "partial",
   ssot: "docs/modules/context-ledger.md",
 } as const satisfies ContractDescriptor;
@@ -78,6 +78,13 @@ export interface ContextLedgerApi {
     put(access: ContextAccess, input: ContextEdgeInput): ContextEdge;
     remove(access: ContextAccess, key: string, cause: string, recordedAt?: string): ContextEdge | null;
   };
+}
+
+/** Trusted same-connection replica port. Replacing reference history never grants access or executes referenced objects. */
+export interface ContextHistoryReplication {
+  read(source:ObjectRef):ContextEdge[];
+  validate(source:ObjectRef,input:unknown):ContextEdge[];
+  replace(source:ObjectRef,history:readonly ContextEdge[]):void;
 }
 
 export type ContextObjectRead<T> =

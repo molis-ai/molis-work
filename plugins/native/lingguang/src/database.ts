@@ -14,7 +14,7 @@ const LINGGUANG_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "灵光里
  * The 灵光 store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const LINGGUANG_DATABASE: HomePluginDatabaseDeclaration = { project_rows: LINGGUANG_PROJECT_ROWS, store_name: "lingguang", version: 1, read_permission: "lingguang:read", write_permission: "lingguang:write", schema: `
+export const LINGGUANG_DATABASE: HomePluginDatabaseDeclaration = { project_rows: LINGGUANG_PROJECT_ROWS, store_name: "lingguang", version: /* @version database.lingguang_database */ 1, read_permission: "lingguang:read", write_permission: "lingguang:write", schema: `
   CREATE TABLE sparks (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,

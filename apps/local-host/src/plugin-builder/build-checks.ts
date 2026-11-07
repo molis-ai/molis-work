@@ -1,7 +1,7 @@
 import { builtinModules } from 'node:module';
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, mkdir, writeFile, readdir, readFile, lstat, realpath, rm, rename } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, lstat, realpath, rm, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -13,9 +13,10 @@ import { assertContract, createSandboxRunner } from '@molis-ai/molis-work-plugin
 import type { SandboxRunner, SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import type { SandboxJson, SandboxOperationContract, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildCheckOptions, BuildCheckResult, BuildDependencyLock, BuildGateId } from './build-types.js';
-import { buildManifest, canonical, operationEntry, operationStub, pathInside, readBuildFile, SDK_MODULE } from './build-project.js';
+import { buildManifest, operationEntry, operationStub, pathInside, readBuildFile, copyBuildCheckSources, SDK_MODULE } from './build-project.js';
 import { sdkDeclarations } from './build-sdk-declarations.js';
 import { installBuildDependencies } from './build-dependencies.js';
+import { canonicalJsonValue as canonical } from '@molis-ai/molis-work-plugin-sdk';
 
 export type { BuildCheckOptions, BuildCheckResult, BuildGate } from './build-types.js';
 const GATES: BuildGateId[] = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'];
@@ -68,24 +69,8 @@ export async function runPluginChecks(options: BuildCheckOptions): Promise<Build
       const target = join(temporary!, name); await mkdir(dirname(target), { recursive: true }); await writeFile(target, bytes, { mode: 0o400 });
       files.set(target, bytes.toString('utf8'));
     };
-    const copySources = async (directory: string) => {
-      const path = join(root, directory);
-      for (const entry of await readdir(path, { withFileTypes: true })) {
-        if (entry.isSymbolicLink()) throw new Error(`Source symlinks are prohibited: ${directory}/${entry.name}`);
-        const name = `${directory}/${entry.name}`;
-        if (entry.isDirectory()) await copySources(name);
-        else if (entry.isFile()) {
-          if (!name.endsWith('.ts') || files.size > 512) throw new Error('Only bounded TypeScript source files are accepted');
-          const other = options.settled ? /^src\/operations\/(\d+)\.ts$/.exec(name) : null, index = other ? Number(other[1]) : -1, operation = options.contract.operations[index];
-          await put(name, operation && !selected.includes(operation) ? await settledSource(options.settled!, index, operation.id) : await readBuildFile(root, name));
-        }
-      }
-    };
-    await copySources('src');
-    for (const operation of selected) {
-      const index = options.contract.operations.indexOf(operation), path = `tests/operations/${index}.ts`;
-      await put(path, await readBuildFile(root, path));
-    }
+    await copyBuildCheckSources(root, options.contract, options.operationIds,
+      options.settled ? (index, id) => settledSource(options.settled!, index, id) : undefined, put);
     for (const [path, declaration] of declarations) await put(path, Buffer.from(declaration));
     for (const pkg of dependencies.packages) for (const file of pkg.files) {
       const name = `${pkg.path}/${file.path}`, bytes = await readBuildFile(root, name, 16 * 1024 * 1024);
@@ -167,7 +152,8 @@ export async function runPluginChecks(options: BuildCheckOptions): Promise<Build
     else { const candidate = join(output, `bundle-${randomUUID()}.mjs`); await writeFile(candidate, bundle, { mode: 0o400 }); await rename(candidate, target); }
     result.bundlePath = target; result.passed = true;
   } catch (error) {
-    if (!result.gates.some(gate => gate.id === current)) result.gates.push({ id: current, passed: false, detail: error instanceof Error ? error.message : String(error) });
+    const failed={id:current,passed:false,detail:error instanceof Error?error.message:String(error)},existing=result.gates.find(gate=>gate.id===current);
+    if(existing)Object.assign(existing,failed);else result.gates.push(failed);
     for (const id of GATES) if (!result.gates.some(gate => gate.id === id)) result.gates.push({ id, passed: false, detail: `Not run because ${current} failed` });
   } finally { if (temporary) await rm(temporary, { recursive: true, force: true }); }
   result.gates.sort((a, b) => GATES.indexOf(a.id) - GATES.indexOf(b.id));
@@ -281,5 +267,5 @@ async function runExample(runner: SandboxRunner, operation: SandboxOperationCont
     throw new Error(`${operation.id} contract example for input ${show(example.input)} expected ${exact ? '' : 'a result containing '}${show(exact ? example.output : example.outputIncludes)} but got ${show(actual)}`);
 }
 function testEntry(index: number, operationId: string): string {
-  return `import {operations as production} from './src/index.ts';\nimport {tests} from './tests/operations/${index}.ts';\nconst canonical=${canonical.toString()};\nconst equal=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));\nconst show=v=>{try{const t=JSON.stringify(v);return t===undefined?String(v):t.length>300?t.slice(0,300)+'…':t}catch{return String(v)}};\nconst subset=(a,b)=>b&&typeof b==='object'&&!Array.isArray(b)?Boolean(a&&typeof a==='object'&&!Array.isArray(a)&&Object.entries(b).every(([k,v])=>Object.hasOwn(a,k)&&subset(a[k],v))):equal(a,b);\nexport const operations={${JSON.stringify(operationId)}:async(_,sdk)=>{if(!Array.isArray(tests)||!tests.length||tests.length>100)throw Error('Each operation requires 1-100 Agent tests');let completed=0;for(const test of tests){if(typeof test!=='function')throw Error('Test must be async function');let assertions=0;const where='test '+(completed+1)+' of '+tests.length;const assert={same:(a,b)=>{assertions++;if(!equal(a,b))throw Error('same assertion failed in '+where+': got '+show(a)+', expected '+show(b))},includes:(a,b)=>{assertions++;if(!subset(a,b))throw Error('includes assertion failed in '+where+': got '+show(a)+', expected to include '+show(b))},rejectsCode:async(call,code)=>{assertions++;try{await call()}catch(e){if(e?.code===code)return;throw Error('Wrong rejection code in '+where+': got '+show(e?.code)+' ('+String(e?.message??e).slice(0,200)+'), expected '+show(code))}throw Error('Expected rejection with code '+show(code)+' in '+where+', but the call succeeded')}};await test(sdk,input=>production[${JSON.stringify(operationId)}](input,sdk),assert);if(!assertions)throw Error('Test made no assertions');completed++}return completed}};`;
+  return `import {operations as production} from './src/index.ts';\nimport {tests} from './tests/operations/${index}.ts';\nconst canonical=v=>Array.isArray(v)?v.map(canonical):v!==null&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,i])=>[k,canonical(i)])):v;\nconst equal=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));\nconst show=v=>{try{const t=JSON.stringify(v);return t===undefined?String(v):t.length>300?t.slice(0,300)+'…':t}catch{return String(v)}};\nconst subset=(a,b)=>b&&typeof b==='object'&&!Array.isArray(b)?Boolean(a&&typeof a==='object'&&!Array.isArray(a)&&Object.entries(b).every(([k,v])=>Object.hasOwn(a,k)&&subset(a[k],v))):equal(a,b);\nexport const operations={${JSON.stringify(operationId)}:async(_,sdk)=>{if(!Array.isArray(tests)||!tests.length||tests.length>100)throw Error('Each operation requires 1-100 Agent tests');let completed=0;for(const test of tests){if(typeof test!=='function')throw Error('Test must be async function');let assertions=0;const where='test '+(completed+1)+' of '+tests.length;const assert={same:(a,b)=>{assertions++;if(!equal(a,b))throw Error('same assertion failed in '+where+': got '+show(a)+', expected '+show(b))},includes:(a,b)=>{assertions++;if(!subset(a,b))throw Error('includes assertion failed in '+where+': got '+show(a)+', expected to include '+show(b))},rejectsCode:async(call,code)=>{assertions++;try{await call()}catch(e){if(e?.code===code)return;throw Error('Wrong rejection code in '+where+': got '+show(e?.code)+' ('+String(e?.message??e).slice(0,200)+'), expected '+show(code))}throw Error('Expected rejection with code '+show(code)+' in '+where+', but the call succeeded')}};await test(sdk,input=>production[${JSON.stringify(operationId)}](input,sdk),assert);if(!assertions)throw Error('Test made no assertions');completed++}return completed}};`;
 }

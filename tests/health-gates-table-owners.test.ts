@@ -148,7 +148,7 @@ expectFailure("a package in a folder with its own package.json is its own owner"
 }, [/modules\/alpha\/tools\/src\/peek\.ts:\d+ reads table "alpha_items", which modules\/alpha creates/]);
 expectFailure("the rule needs no baseline: rewriting baseline.json does not help", () => {
   reads("SELECT id FROM alpha_items");
-  put("tooling/gates/baseline.json", "{}\n");
+  put(".git/molis-health-baseline.json", "{}\n");
 }, [/reads table "alpha_items"/]);
 
 // ---- what is not a finding ----------------------------------------------------------------------------------------------
@@ -384,4 +384,19 @@ test("the real repository's allowance names no journal table (PG-094 S9-1), no G
     { jobs: ["plugins/native/alchemist", "plugins/native/images"], workspaces: ["modules/projects", "plugins/native/alchemist"] });
   // BL-802: Feed's store owns the Feed store's tables; the rest of the Feed package goes through its functions. One area today.
   assert.deepEqual(Object.keys(file.areas), ["plugins/native/feed/src/store"]);
+});
+
+
+test("dynamic table names do not turn IF NOT EXISTS into a table owner", () => {
+  const sources = {
+    "modules/alpha/package.json": "{}",
+    "modules/alpha/src/schema.ts": 'export const sql = `CREATE TABLE IF NOT EXISTS ${table} (id TEXT);`;',
+    "modules/beta/package.json": "{}",
+    "modules/beta/src/schema.ts": 'export const sql = `CREATE TABLE IF NOT EXISTS actual_table (id TEXT); CREATE TABLE "IF" (id TEXT);`;',
+  };
+  const snapshot = { files: Object.keys(sources), read: (file: string) => sources[file as keyof typeof sources] ?? null };
+  const { owners } = scanTables(snapshot, (file: string) => file.endsWith(".ts"));
+  assert.deepEqual([...owners.keys()].sort(), ["actual_table", "if"]);
+  assert.deepEqual([...owners.get("actual_table")!], ["modules/beta"]);
+  assert.deepEqual([...owners.get("if")!], ["modules/beta"], "a quoted actual table named IF is still checked");
 });

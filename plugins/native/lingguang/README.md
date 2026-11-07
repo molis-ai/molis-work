@@ -1,5 +1,7 @@
 # 灵光
 
+个人空间同步：`replica(context)` 按灵光/对话记录增量同步，保留灵光丢弃状态、已完成轮次的消息 ID 与顺序、工作流交接幂等 ID。不运行模型、不传输半轮生成；对话先等关联灵光到达。相同灵光在两台设备分别新建了不同 ID 的对话时保留冲突，不自行拼接。当前仅显式启用的本机联调，单聚合上限 512 KiB。回归：`tests/plugin-aggregate-replication.test.ts`。
+
 本机临时灵感池：先记下还没想清楚的想法，再决定留下或丢掉。数据在 `{home}/lingguang/lingguang.db`。
 
 包名：`@molis-ai/molis-work-plugin-lingguang`。
@@ -16,7 +18,7 @@
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/lingguang-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `LINGGUANG_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `LingguangPage` 对象里（`page.ts`），编辑与空白灵光的丢弃（`editor.ts`，空白灵光怎样离开的完整说明在它的开头注释）、列表与它的读取（`list.ts`、`load.ts`）、读取文件与链接（`material.ts`）、头脑风暴与交给助理（`chat.ts`）、按钮命令表（`commands.ts`）各是一个部件，在启动时把自己的操作装到这个对象上；请求只经工作台的 `molisWorkRequest`（`request.ts`，带 `scope`，离开页面即取消），不直接 `fetch`；插件路径来自 `host.pluginRoute`，插件 id 来自 `host.pluginId`，浏览器代码里不写 id。esbuild 是包的直接开发依赖，版本与根相同；升级后的资源增长仍须按资源规则评审。
 
-页面上的字是稳定键（`lingguang.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `LINGGUANG_EN` 只留 7 条宿主还按中文原文翻译的词（灵光自己的服务端标签与错误，BL-459），新页面文字一律加稳定键。
+页面上的字是稳定键（`lingguang.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `LINGGUANG_EN` 只留 6 条宿主还按中文原文翻译的词（灵光自己的服务端标签与错误，BL-459），新页面文字一律加稳定键。
 
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
@@ -43,3 +45,7 @@
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts`
 - 编辑基准定向回归（需要本机 Chrome）：`node scripts/run-tests.mjs tests/content-editing-regressions.e2e.test.ts`。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+公开 `openLingguangStore(home).copy(context)` 兑现完整保存图的 owner 复制端口，与 `replica()` 的个人同步准入分开。方向、账号/项目范围和最终授权由可信调用上下文固定；源本地读取不记录同步变化，目标新标识稳定重试，不覆盖已编辑副本。跨 owner 只声明具体依赖，只有已选择图中的内部引用由 owner 重映射；不执行源任务或沿正文猜 ID。整项目多选编排尚未完成。
+
+同一集合目录也提供 `openLingguangCopyOwner`：源读取使用现有库的只读连接，缺文件返回未发现且不创建；错版、错误空间和链接拒绝。目标只向当前个人空间导入；关闭接口后旧句柄拒绝。项目复制预览不得用会初始化库的普通写连接代替它。

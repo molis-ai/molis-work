@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -160,12 +161,14 @@ export async function dispatchRuntimePluginRoute(
   await hooks.afterDispatch?.(result);
   controls.execution?.assert_authority_current?.();
   if (result.bytes !== undefined) {
+    const bytes = Buffer.from(result.bytes);
+    const etag = `"${createHash("sha256").update(bytes).digest("hex")}"`;
     const raster = ["image/png", "image/jpeg", "image/webp"].includes(result.mime ?? "");
     const disposition = raster && result.disposition === "inline" ? "inline" : "attachment";
-    response.writeHead(result.status, { "content-type": raster ? result.mime! : "application/octet-stream",
+    response.writeHead(result.status, { etag, "content-type": raster ? result.mime! : "application/octet-stream",
       "content-disposition": disposition + "; filename*=UTF-8''" + encodeURIComponent(result.filename ?? "material"),
       "x-content-type-options": "nosniff", "content-security-policy": "sandbox", "cache-control": "no-store" });
-    response.end(result.bytes);
+    response.end(bytes);
   } else sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
   return true;
 }

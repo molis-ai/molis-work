@@ -14,7 +14,7 @@ import { SOURCES_SCHEMA_SQL } from "./store/sources.js";
  */
 export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "feed",
-  version: 1,
+  version: /* @version database.feed_project_database */ 1,
   schema: [FEED_OUT_RULES_SCHEMA_SQL, FEED_ITEMS_SCHEMA_SQL, SOURCES_SCHEMA_SQL, SIGNALS_SCHEMA_SQL, LISTENER_SCHEMA_SQL].join("\n"),
   read_permission: "storage:private",
   write_permission: "storage:private",

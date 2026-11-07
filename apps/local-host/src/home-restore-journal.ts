@@ -1,8 +1,9 @@
+import { journalStorageSpace, retireRestoreSpaceLink } from "./home-restore-space.js";
 import { randomUUID } from "node:crypto";
 import { lstatSync, mkdirSync, renameSync, rmSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { backupSnapshotSqlite, copySnapshotFile, HOME_RESTORE_JOURNAL } from "@molis-ai/molis-work-storage";
+import { readStorageSpace, backupSnapshotSqlite, copySnapshotFile, HOME_RESTORE_JOURNAL } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { readRestoreJson } from "./home-restore-archive.js";
 import type { HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
@@ -39,8 +40,9 @@ export function readHomeRestoreJournal(home: string) {
   if (!info) return undefined;
   if (info.kind !== "file" || info.mode !== 0o600) throw invalidRestore();
   const journal = parseHomeRestoreJournal(readRestoreJson(marker), home);
-  assertBinding(journal);
+  assertBinding(journal); journalStorageSpace(journal);
   const registry = restoreJournalRegistry(journal); assertRestoreJournalPaths(journal, registry);
+  retireRestoreSpaceLink(journal);
   return { journal, registry };
 }
 
@@ -85,13 +87,13 @@ async function retainRegistryInputs(home: string, work: string, inputs: HomeRest
     if (incoming.source.kind !== "archive") throw invalidRestore();
     input = await copySnapshotFile(incoming.source.path, join(work, "registry-input.db"), control.signal);
     if (input.size !== incoming.size || input.sha256 !== incoming.sha256) throw invalidRestore();
-    homeStoresFromLibraryLedger(join(work, "registry-input.db"));
+    homeStoresFromLibraryLedger(join(work, "registry-input.db"), home);
   }
   if (target.currentRegistryLedgerNeeded) {
     const declaration = homeStores().get("plugin-libraries")?.library;
     if (!declaration) throw invalidRestore();
-    original = await backupSnapshotSqlite(join(home, "plugin-libraries", "plugin-libraries.db"), join(work, "registry-original.db"), { baseline: declaration.baseline, signal: control.signal });
-    homeStoresFromLibraryLedger(join(work, "registry-original.db"));
+    original = await backupSnapshotSqlite(join(home, "plugin-libraries", "plugin-libraries.db"), join(work, "registry-original.db"), { baseline: declaration.baseline, requireSpace: true, space: readStorageSpace(home) ?? undefined, signal: control.signal });
+    homeStoresFromLibraryLedger(join(work, "registry-original.db"), home);
   }
   control.assertCurrent();
   return { ...(input ? { registry_input: { size: input.size, sha256: input.sha256 } } : {}),
@@ -107,7 +109,8 @@ export async function prepareHomeRestoreJournal(home: string, inputs: HomeRestor
   try {
     mkdirSync(join(work, "originals"), { mode: 0o700 }); mkdirSync(join(work, "failed"), { mode: 0o700 });
     const registry = await retainRegistryInputs(home, work, inputs, target, control);
-    const journal: HomeRestoreJournal = { schema_version: 1, product_version: PRODUCT_VERSION, home_directory: home, operation_id: operation,
+    const journal: HomeRestoreJournal = { schema_version: /* @version format.home.restore.journal */ 1, space_digest: inputs.manifest.space_digest,
+      ...(inputs.initializeLocalSpace ? { initialize_local_space: inputs.initializeLocalSpace } : {}), product_version: PRODUCT_VERSION, home_directory: home, operation_id: operation,
       originals_directory: work, phase: "prepared", home_identity: target.home, runtime_identity: target.runtime, work_identity: identity,
       home_mode: inputs.manifest.home_mode, originals: target.originals, directories: target.directories,
       files: [...inputs.files.values()].map(({ path, mode, size, sha256, sqlite }) => ({ path, mode, size, sha256, ...(sqlite ? { sqlite } : {}) })), preserved: target.preserved,

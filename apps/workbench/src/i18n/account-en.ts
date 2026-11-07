@@ -32,7 +32,7 @@ export const ACCOUNT_EN: Record<string, string> = {
   "套餐版本": "Plan version",
   "尚未生效": "Scheduled",
   "已分配": "Assigned",
-  "已回收": "Released",
+  "席位已回收": "Seat released",
   "已换绑": "Reassigned",
   "席位已更新。": "Seat updated.",
   "席位管理": "Seat management",

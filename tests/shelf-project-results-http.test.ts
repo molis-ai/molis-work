@@ -1,7 +1,7 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -52,10 +52,17 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const item=received.body.item; assert.deepEqual(item.artifact_source.reference,reference);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),preview.body.text);
   assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id); assert.equal((await shelf.snapshot()).materials.length,before+1);
-  await shelf.writeCopy(item.item_id,'只改 Shelf 副本，来源保持。');
+  const itemPath=base+'/items/'+encodeURIComponent(item.item_id);
+  const originalCopy=await fetch(origin+prefix+itemPath+'/file');assert.equal(originalCopy.status,200);
+  const originalBytes=Buffer.from(await originalCopy.arrayBuffer());assert.equal(originalBytes.toString('utf8'),preview.body.text);
+  const etag=originalCopy.headers.get('etag');assert.equal(etag,'"'+createHash('sha256').update(originalBytes).digest('hex')+'"');
+  const contentHash=etag.slice(1,-1);
+  const edit=await request(itemPath+'/edit',{text:'只改 Shelf 副本，来源保持。',expected_content_hash:contentHash});assert.equal(edit.status,200,JSON.stringify(edit.body));
+  const staleEdit=await request(itemPath+'/edit',{text:'过时修改',expected_content_hash:contentHash});
+  assert.deepEqual([staleEdit.status,staleEdit.body.code],[409,'shelf.conflict']);
   assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。');
-  const materialPath='/api/plugins/io.molis.work.shelf/items/'+item.item_id+'/project-material';
+  const materialPath=itemPath+'/project-material';
   const material=await request(materialPath); assert.equal(material.status,200);
   assert.deepEqual(material.body.payload.source.artifact.reference,reference);
   // Saved into the project's knowledge as an imported document with the edited copy's text (specs/project-knowledge §9).
@@ -68,7 +75,8 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   server=createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const nextAddress=server.address();assert.ok(nextAddress && typeof nextAddress!=='string');origin=`http://127.0.0.1:${nextAddress.port}`;
-  assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id,'host restart does not duplicate the import');
+  const retried=await request(path,confirmation);assert.equal(retried.status,200,JSON.stringify(retried.body));
+  assert.equal(retried.body.item.item_id,item.item_id,'host restart does not duplicate the import');
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。');
   assert.deepEqual(library.artifacts.query.getArtifactVersion(projectId,reference),original);
   library.artifacts.commands.registerVersion({...input,artifact_id:'coding-report:forged:run-original'});

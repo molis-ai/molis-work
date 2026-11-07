@@ -1,3 +1,4 @@
+import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { SCHEDULE_NATIVE_PLUGIN_ROUTES } from "./schedule-direct-actions.js";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import assert from "node:assert/strict";
@@ -111,8 +112,10 @@ test("Feed / Inbox 成功路径由当前 owner 刷新，宿主只投递失效通
   const feed = feedSource("factory.ts"), inbox = inboxSource();
   // T403 moved the two shell refresh helpers and mutation callers into the registered owners.
   assert.doesNotMatch(script, /refreshFeedStage|refreshInboxStage/);
-  assert.match(script, /const invalidateView =/);
-  assert.match(script, /molis-work:select-item[\s\S]{0,100}invalidate: true/);
+  assert.doesNotThrow(() => new Function(script));
+  assert.match(script, /workbench-view-invalidate/);
+  assert.match(CLIENT_SCRIPT, /const invalidateView =/);
+  assert.match(CLIENT_SCRIPT, /molis-work:select-item[\s\S]{0,100}invalidate: true/);
   const feedRefresh = sliceFn(feed, "page.refresh =", "\n  page.select =");
   assert.match(feedRefresh, /const refresh = async \(\) => \{[\s\S]*?await host\.view\.readDocument\(/);
   assert.match(feedRefresh, /if \(sequence !== refreshSequence\) \{ await activeRefresh; check\(\); return; \}/);

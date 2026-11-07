@@ -1,6 +1,6 @@
 import { createAccountSessionManager, createAccountAuthentication } from "@molis-ai/molis-work-service-account";
 
-// WUA-23 WUA-24 WUA-25 and S-115: real Host/Auth, mock providers, subscription and seat actions and browser paths.
+// WUA-23 WUA-24 WUA-25 and S-unified-account-billing: real Host/Auth, mock providers, subscription and seat actions and browser paths.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -79,7 +79,7 @@ try {
   const confirmed=async text=>{const opened=browser.event('Page.javascriptDialogOpening');const clicked=click(text);await opened;await page.command('Page.handleJavaScriptDialog',{accept:true});await clicked;};
   const open=async()=>{await Promise.all([browser.event('Page.domContentEventFired'),page.command('Page.navigate',{url:origin})]);await page.wait("document.readyState==='complete'");
   // T01-ACCOUNT-READY-01: wait for the initial client paint before selecting its exit button.
-  await page.wait("!document.querySelector('#cx-app') || document.querySelector('#cx-app').getAttribute('aria-busy')==='false'");if(await page.evaluate("Boolean(document.querySelector('#cx-exit'))")){await Promise.all([browser.event('Page.domContentEventFired'),page.click('#cx-exit')]);await page.wait("!document.querySelector('#cx-exit')");}await page.click('[data-account-link]');await page.wait("document.querySelector('.account-form')?.textContent.includes('个人与租户')");await click('个人与租户');await page.wait("Boolean(document.querySelector('select[name=accountScope]'))");await ready();};
+  await page.wait("!document.querySelector('#cx-app') || document.querySelector('#cx-app').getAttribute('aria-busy')==='false'");if(await page.evaluate("Boolean(document.querySelector('#cx-exit'))")){await Promise.all([browser.event('Page.domContentEventFired'),page.click('#cx-exit')]);await page.wait("!document.querySelector('#cx-exit')");}await page.click('[data-unified-account-link]');await page.wait("document.querySelector('.account-form')?.textContent.includes('个人与租户')");await click('个人与租户');await page.wait("Boolean(document.querySelector('select[name=accountScope]'))");await ready();};
   const select=async id=>{await ready();await page.evaluate(`{const s=document.querySelector('select[name=accountScope]');s.value=${JSON.stringify(id)};s.dispatchEvent(new Event('change',{bubbles:true}));}`);await page.wait("!document.querySelector('select[name=accountScope]')");await ready();};
   const reason='WUA-23/24/25 isolated fixture';
   await db.prepare("INSERT INTO auth_platform_permission(user_id,permission,status,granted_by,granted_at) VALUES (?,'AUDIT_READ','ACTIVE',?,?)").bind(owner.user.userId,owner.user.userId,Date.now()).run();

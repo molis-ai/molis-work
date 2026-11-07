@@ -12,7 +12,8 @@ export interface DraftPorts {
   readonly lifetime: DraftLifetime;
   readonly q: (selector: string) => Element;
   /** One request to the Coding routes; a failure is an Error. */
-  readonly api: (path: string, method: "PATCH", body: Record<string, unknown>) => Promise<unknown>;
+  readonly write: (id: string, body: Record<string, unknown>, premise: number) => Promise<unknown>;
+  readonly premise: (id: string) => number;
   readonly input: HTMLTextAreaElement;
   /** The session on show. */
   readonly current: () => string;
@@ -31,7 +32,7 @@ export interface DraftPorts {
  * typed, added or saved from the box goes to it, so the words still showing from the session before never land there.
  * Part of the Coding page bundle (mounted by browser/main/mount-composer.ts); type-checked by tsconfig.browser.json.
  */
-export function codingDraft({ lifetime, q, api, input, current, key, choices, status, translate: L }: DraftPorts) {
+export function codingDraft({ lifetime, q, write, premise, input, current, key, choices, status, translate: L }: DraftPorts) {
   const drafts = new Map<string, string>(), writes = new Map<string, Promise<unknown>>(), done = Promise.resolve();
   let owner = "", timer: number | undefined;
   const note = (text: string) => { q("[data-coding-draft-status]").textContent = text; };
@@ -56,7 +57,8 @@ export function codingDraft({ lifetime, q, api, input, current, key, choices, st
     const held = Object.entries(choices).flatMap(([name, map]) => map.has(id) ? [[name, map.get(id)]] : []);
     const body: Record<string, unknown> = structuredClone({ ...(own ? { draft: value } : {}), ...Object.fromEntries(held), ...picked });
     if (!body.configuration) delete body.configuration;
-    const next = (writes.get(id) ?? done).catch(() => undefined).then(() => api(`/sessions/${encodeURIComponent(id)}`, "PATCH", body));
+    const observed = premise(id);
+    const next = (writes.get(id) ?? done).catch(() => undefined).then(() => write(id, body, observed));
     writes.set(id, next);
     return next.then(() => { if (own && current() === id && input.value === value) note(L("coding.composer.draft-saved")); });
   };
@@ -67,9 +69,11 @@ export function codingDraft({ lifetime, q, api, input, current, key, choices, st
     later(() => void save(id, value).catch((error: Error) => status(L("coding.composer.draft-unsaved", { error: error.message }), true)));
   });
   return {
-    owns, local, later, save,
+    owns, local, remember, later, save,
+    /** An adopted snapshot supersedes the unsent timer's captured body; queued writes retain their original premise. */
+    adopt(id: string, value: string) { if(id===current())lifetime.clearTimeout(timer); remember(id,value); },
     // This window's copy wins while it holds something; an empty copy never hides a draft the service kept.
-    claim(id: string, saved?: string) { input.value = local(id) || saved || ""; window.molisFit?.(input); remember(id, input.value); owner = id; note(L("coding.composer.draft-restored")); },
+    claim(id: string, saved?: string) { input.value = local(id) ?? saved ?? ""; window.molisFit?.(input); remember(id, input.value); owner = id; note(L("coding.composer.draft-restored")); },
     // Another session is on show: until its first read claims the box, the box is no session's.
     release() { owner = ""; note(L("coding.composer.session-reading")); },
     flush() { const id = current(); return owns(id) ? save(id, input.value) : done; },

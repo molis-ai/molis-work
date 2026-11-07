@@ -7,45 +7,45 @@ import schemas from "./upstream/schemas.json" with { type: "json" };
 
 /** Each management operation has one action and one frozen product route. No credential operations. */
 const declarations = [
-  ["listFeatures", "account.features.list", "读取功能目录"],
-  ["checkEntitlements", "account.entitlements.check", "查询当前权益"],
-  ["listMyTenants", "account.tenants.list", "读取所属租户"],
-  ["getTenant", "account.tenant.read", "读取租户资料"],
-  ["updateTenant", "account.tenant.update", "修改租户资料"],
-  ["listMembers", "account.members.list", "读取租户成员"],
-  ["updateMemberRole", "account.member.role", "修改成员角色"],
-  ["removeMember", "account.member.remove", "移除租户成员"],
-  ["leaveTenant", "account.tenant.leave", "退出租户"],
-  ["createInvitation", "account.invitation.create", "邀请租户成员"],
-  ["listTenantInvitations", "account.tenant-invitations.list", "读取租户邀请"],
-  ["revokeInvitation", "account.invitation.revoke", "撤销租户邀请"],
-  ["listMyInvitations", "account.invitations.list", "读取收到的邀请"],
-  ["acceptInvitation", "account.invitation.accept", "接受租户邀请"],
-  ["declineInvitation", "account.invitation.decline", "拒绝租户邀请"],
-  ["createOwnershipTransfer", "account.ownership.create", "发起所有权交接"],
-  ["listOwnershipTransfers", "account.ownership.list", "读取所有权交接"],
-  ["acceptOwnershipTransfer", "account.ownership.accept", "接受所有权交接"],
-  ["cancelOwnershipTransfer", "account.ownership.cancel", "取消所有权交接"],
-  ["createTenant", "account.platform-tenant.create", "平台创建租户"],
-  ["listPlatformTenants", "account.platform-tenants.list", "平台读取租户列表"],
-  ["getPlatformTenant", "account.platform-tenant.read", "平台读取租户资料"],
-  ["disableTenant", "account.platform-tenant.disable", "平台停用租户"],
-  ["enableTenant", "account.platform-tenant.enable", "平台恢复租户"],
-  ["listPlans", "account.plans.list", "读取套餐目录"],
-  ["listPersonalSubscriptions", "account.subscriptions.list", "读取个人订阅"],
-  ["listTenantSubscriptions", "account.tenant-subscriptions.list", "读取租户订阅"],
-  ["listSeatPools", "account.seat-pools.list", "读取租户席位库存"],
-  ["listSeatAssignments", "account.seat-assignments.list", "读取席位分配"],
-  ["assignSeat", "account.seat.assign", "分配席位"],
-  ["releaseSeat", "account.seat.release", "回收席位"],
-  ["reassignSeat", "account.seat.reassign", "换绑席位"],
-  ["createSubscription", "account.platform-subscription.create", "平台开通订阅"],
-  ["listPlatformSubscriptions", "account.platform-subscriptions.list", "平台读取订阅列表"],
-  ["getPlatformSubscription", "account.platform-subscription.read", "平台读取订阅资料"],
-  ["listPlatformSeatPools", "account.platform-seat-pools.list", "平台读取订阅席位库存"],
-  ["updateSubscription", "account.platform-subscription.update", "平台变更订阅"],
-  ["renewSubscription", "account.platform-subscription.renew", "平台续期订阅"],
-  ["listPlatformAudit", "account.platform-audit.list", "平台读取商业审计"],
+  ["listFeatures", "account.features.list", /* @version action.account.features.list */ 1, "读取功能目录"],
+  ["checkEntitlements", "account.entitlements.check", /* @version action.account.entitlements.check */ 1, "查询当前权益"],
+  ["listMyTenants", "account.tenants.list", /* @version action.account.tenants.list */ 1, "读取所属租户"],
+  ["getTenant", "account.tenant.read", /* @version action.account.tenant.read */ 1, "读取租户资料"],
+  ["updateTenant", "account.tenant.update", /* @version action.account.tenant.update */ 1, "修改租户资料"],
+  ["listMembers", "account.members.list", /* @version action.account.members.list */ 1, "读取租户成员"],
+  ["updateMemberRole", "account.member.role", /* @version action.account.member.role */ 1, "修改成员角色"],
+  ["removeMember", "account.member.remove", /* @version action.account.member.remove */ 1, "移除租户成员"],
+  ["leaveTenant", "account.tenant.leave", /* @version action.account.tenant.leave */ 1, "退出租户"],
+  ["createInvitation", "account.invitation.create", /* @version action.account.invitation.create */ 1, "邀请租户成员"],
+  ["listTenantInvitations", "account.tenant-invitations.list", /* @version action.account.tenant-invitations.list */ 1, "读取租户邀请"],
+  ["revokeInvitation", "account.invitation.revoke", /* @version action.account.invitation.revoke */ 1, "撤销租户邀请"],
+  ["listMyInvitations", "account.invitations.list", /* @version action.account.invitations.list */ 1, "读取收到的邀请"],
+  ["acceptInvitation", "account.invitation.accept", /* @version action.account.invitation.accept */ 1, "接受租户邀请"],
+  ["declineInvitation", "account.invitation.decline", /* @version action.account.invitation.decline */ 1, "拒绝租户邀请"],
+  ["createOwnershipTransfer", "account.ownership.create", /* @version action.account.ownership.create */ 1, "发起所有权交接"],
+  ["listOwnershipTransfers", "account.ownership.list", /* @version action.account.ownership.list */ 1, "读取所有权交接"],
+  ["acceptOwnershipTransfer", "account.ownership.accept", /* @version action.account.ownership.accept */ 1, "接受所有权交接"],
+  ["cancelOwnershipTransfer", "account.ownership.cancel", /* @version action.account.ownership.cancel */ 1, "取消所有权交接"],
+  ["createTenant", "account.platform-tenant.create", /* @version action.account.platform-tenant.create */ 1, "平台创建租户"],
+  ["listPlatformTenants", "account.platform-tenants.list", /* @version action.account.platform-tenants.list */ 1, "平台读取租户列表"],
+  ["getPlatformTenant", "account.platform-tenant.read", /* @version action.account.platform-tenant.read */ 1, "平台读取租户资料"],
+  ["disableTenant", "account.platform-tenant.disable", /* @version action.account.platform-tenant.disable */ 1, "平台停用租户"],
+  ["enableTenant", "account.platform-tenant.enable", /* @version action.account.platform-tenant.enable */ 1, "平台恢复租户"],
+  ["listPlans", "account.plans.list", /* @version action.account.plans.list */ 1, "读取套餐目录"],
+  ["listPersonalSubscriptions", "account.subscriptions.list", /* @version action.account.subscriptions.list */ 1, "读取个人订阅"],
+  ["listTenantSubscriptions", "account.tenant-subscriptions.list", /* @version action.account.tenant-subscriptions.list */ 1, "读取租户订阅"],
+  ["listSeatPools", "account.seat-pools.list", /* @version action.account.seat-pools.list */ 1, "读取租户席位库存"],
+  ["listSeatAssignments", "account.seat-assignments.list", /* @version action.account.seat-assignments.list */ 1, "读取席位分配"],
+  ["assignSeat", "account.seat.assign", /* @version action.account.seat.assign */ 1, "分配席位"],
+  ["releaseSeat", "account.seat.release", /* @version action.account.seat.release */ 1, "回收席位"],
+  ["reassignSeat", "account.seat.reassign", /* @version action.account.seat.reassign */ 1, "换绑席位"],
+  ["createSubscription", "account.platform-subscription.create", /* @version action.account.platform-subscription.create */ 1, "平台开通订阅"],
+  ["listPlatformSubscriptions", "account.platform-subscriptions.list", /* @version action.account.platform-subscriptions.list */ 1, "平台读取订阅列表"],
+  ["getPlatformSubscription", "account.platform-subscription.read", /* @version action.account.platform-subscription.read */ 1, "平台读取订阅资料"],
+  ["listPlatformSeatPools", "account.platform-seat-pools.list", /* @version action.account.platform-seat-pools.list */ 1, "平台读取订阅席位库存"],
+  ["updateSubscription", "account.platform-subscription.update", /* @version action.account.platform-subscription.update */ 1, "平台变更订阅"],
+  ["renewSubscription", "account.platform-subscription.renew", /* @version action.account.platform-subscription.renew */ 1, "平台续期订阅"],
+  ["listPlatformAudit", "account.platform-audit.list", /* @version action.account.platform-audit.list */ 1, "平台读取商业审计"],
 ] as const;
 
 function expand(value: unknown): unknown {
@@ -56,7 +56,7 @@ function expand(value: unknown): unknown {
   return Object.fromEntries(Object.entries(record).map(([key, entry]) => [key, expand(entry)]));
 }
 const object = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
-export const accountManagementActions = declarations.map(([operation, capability_id, title]) => {
+export const accountManagementActions = declarations.map(([operation, capability_id, version, title]) => {
   const central = accountOperation(operation), declaration = central.declaration, properties: Record<string, unknown> = {}, required: string[] = [];
   for (const [location, key] of [["path", "params"], ["query", "query"]] as const) {
     const parameters = declaration.parameters.filter(p => p.in === location);
@@ -70,7 +70,7 @@ export const accountManagementActions = declarations.map(([operation, capability
   if (idempotency) { properties.idempotencyKey = expand(idempotency.schema); required.push("idempotencyKey"); }
   const response = expand(declaration.responses["200"]!.content["application/json"].schema) as { properties: { data: Record<string, unknown> } };
   const read = central.method === "GET" || operation === "checkEntitlements";
-  const definition: ActionDefinition = { capability_id, version: 1, operation: read ? "query" : "command", action: {
+  const definition: ActionDefinition = { capability_id, version, operation: read ? "query" : "command", action: {
     scope: "home", audiences: ["user"], subject_kinds: [], scheduling: "concurrent", title,
     description: title + "；以中央账号、当前租户权限和版本为准，不改变本地 Home。",
     kind: read ? "query" : "operation", effect: read ? "read" : "write", permissions: [read ? "account:read" : "account:write"],

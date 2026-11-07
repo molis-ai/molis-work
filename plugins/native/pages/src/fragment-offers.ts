@@ -5,7 +5,7 @@ import type { FragmentActionOffer, FragmentOfferChoice, FragmentOffersInput } fr
  * writing menu show (specs/archive/contextual-interaction §6.4.1). Each `pages.ai` choice only proposes text; nothing is written
  * until the person accepts the preview. `object` (整篇) choices act on the whole document.
  */
-const ai = { capability_id: "pages.ai", version: 1 } as const;
+const ai = { capability_id: "pages.ai", version: /* @version action.pages.ai */ 1 } as const;
 const text = ["word", "range", "block"] as const;
 const passages = ["range", "block", "blocks"] as const;
 
@@ -27,7 +27,7 @@ export const PAGES_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
   { offer_id: "translate", title: "翻译", intent: "rewrite", apply: "replace", hint: "在中英文之间翻译", action: ai, granularities: [...text, "blocks"] },
   { offer_id: "compare", title: "比较异同", intent: "combine", apply: "result", hint: "并排比较两段、几段内容或几份材料的相同点、不同点和冲突", action: ai, granularities: ["blocks", "objects"] },
   { offer_id: "merge", title: "合并成一段", intent: "combine", apply: "replace", hint: "把几段内容合并成一段连贯的文字", action: ai, granularities: ["blocks"] },
-  { offer_id: "synthesize", title: "合成新文档", intent: "combine", apply: "record", hint: "把几份材料提炼整合成一篇新文档，原材料不变", action: { capability_id: "pages.generate", version: 1 }, granularities: ["objects"] },
+  { offer_id: "synthesize", title: "合成新文档", intent: "combine", apply: "record", hint: "把几份材料提炼整合成一篇新文档，原材料不变", action: { capability_id: "pages.generate", version: /* @version action.pages.generate */ 1 }, granularities: ["objects"] },
   { offer_id: "proofread", title: "全文校对", intent: "rewrite", apply: "replace", hint: "检查整篇的错别字、语病和标点，给出改好的全文", action: ai, granularities: ["object"] },
   { offer_id: "translate_new", title: "整篇翻译成新文档", intent: "rewrite", apply: "result", hint: "把整篇翻译成另一种语言，确认后存为新文档，原文不变", action: ai, granularities: ["object"] },
 ];

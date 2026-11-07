@@ -1,4 +1,4 @@
-// WUA-13/14/15 and S-112: real Host, real Auth, mock providers, browser/native-bridge paths.
+// WUA-13/14/15 and S-unified-account-provider-callback: real Host, real Auth, mock providers, browser/native-bridge paths.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -106,7 +106,7 @@ try {
   if (await page.evaluate("Boolean(document.querySelector('#cx-exit'))")) { await Promise.all([browser.event('Page.domContentEventFired'), page.click('#cx-exit')]); await page.wait("!document.querySelector('#cx-exit')"); }
   process.stdout.write('Chrome: local entry ready\n');
   const clickText = async text => { await page.command('Page.bringToFront'); await page.evaluate(`{const b=[...document.querySelectorAll('.account-dialog button')].find(b=>b.textContent===${JSON.stringify(text)});if(!b)throw Error('Button missing');document.querySelectorAll('[data-click]').forEach(b=>b.removeAttribute('data-click'));b.dataset.click='';}`); await page.click('[data-click]'); };
-  await page.click('[data-account-link]'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
+  await page.click('[data-unified-account-link]'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
   const evidence = resolve('.impeccable/qa/review/account'); await mkdir(evidence, { recursive: true });
   for (const width of [1440, 1024, 390]) for (const theme of ['light', 'dark']) { await page.viewport(width, 900); await page.evaluate(`document.documentElement.dataset.theme=document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`); await page.screenshot(join(evidence, `providers-${width}-${theme}.png`)); assert.ok(await page.evaluate('document.querySelector(".account-dialog").getBoundingClientRect().right<=innerWidth')); }
   // Browser opens its own popup. Desktop bridge uses the same URL and Host state; no Token travels through IPC.

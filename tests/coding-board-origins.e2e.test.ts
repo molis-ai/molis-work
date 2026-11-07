@@ -106,12 +106,12 @@ test("VUX-40: the plan card and the TaskBoard speak English in English", { timeo
     assert.equal(result.badge, '"Added by you"', "the stylesheet's badge reads the translated label");
     assert.equal(result.count, "0/7 steps done");
     assert.equal(result.offer, "The AI says this is a new task; waiting for you to confirm");
-    assert.match(result.board, /Plan revision 2 · Confirmed · 0\/7 steps done · 1 with subtasks · 1 held by you · 1 unclaimed/);
+    assert.match(result.board, /Plan revision 2 · Confirmed · 0\/7 steps done · 1 with sub-tasks · 1 held by you · 1 unclaimed/);
     assert.match(result.board, /Turns: 1/);
     assert.match(result.board, /Blocked, waiting for your decision/);
     assert.match(result.titles, /Held by: this session/, "an owner of kind session reads as this session");
-    assert.match(result.board, /Subtask “two”/, "a subtask's title — the person's own words — is kept");
-    assert.match(result.titles, /Held by: Subtask “two” · subagent Builder/, "a subtask's kind and role are page words");
+    assert.match(result.board, /Sub-task “two”/, "a sub-task's title — the person's own words — is kept");
+    assert.match(result.titles, /Held by: Sub-task “two” · Role Builder/, "a sub-task's kind and role are page words");
     assert.match(result.titles, /Held by: Other holder/, "an owner of kind other does not show the Host's label for another session");
     assert.match(result.titles, /Held by: you \(you handle this step\)/, "an owner of kind person");
     assert.match(result.titles, /No one holds this step/, "an owner of kind none");

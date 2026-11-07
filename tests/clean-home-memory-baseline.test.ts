@@ -4,10 +4,10 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { describeSqliteSchema, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, openMemoryLedger, ensureStorageSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
 
 const sql = readFileSync(new URL("./fixtures/home-store-schemas/memory.sql", import.meta.url), "utf8");
-const shape = () => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
+const shape = (bound = false) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); if (bound) db.exec("CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL)"); return describeSqliteSchema(db); } finally { db.close(); } };
 test("RAC-2372 memory ledger creates and reopens unchanged current complete schema at 1", () => {
   const home = mkdtempSync(join(tmpdir(), "clean-memory-baseline-"));
   try {
@@ -15,7 +15,8 @@ test("RAC-2372 memory ledger creates and reopens unchanged current complete sche
     const db = new DatabaseSync(join(home, "memory", "memory.db"), { readOnly: true });
     try {
       assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
-      assert.deepEqual(describeSqliteSchema(db), shape());
+      assert.deepEqual(describeSqliteSchema(db), shape(true));
+      assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
       assert.equal(db.prepare("PRAGMA integrity_check").get()!.integrity_check, "ok");
       assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
     } finally { db.close(); }
@@ -27,8 +28,8 @@ test("RAC-2373 a nonempty current memory schema at another version refuses befor
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const db = new DatabaseSync(file); db.exec(sql); db.exec("INSERT INTO memory_markers VALUES ('owner','retained','time','{}'); PRAGMA user_version = 2"); db.close(); chmodSync(file, 0o600);
     const before = readFileSync(file);
-    assert.throws(() => openMemoryLedger({ homeDirectory: home }), (error: { code?: string; found?: number; expected?: number }) =>
-      error.code === "storage.schema_version_mismatch" && error.found === 2 && error.expected === 1);
+    assert.throws(() => openMemoryLedger({ homeDirectory: home }), (error: { code?: string; details?: { found?: number; expected?: number } }) =>
+      error.code === "storage.store_too_new" && error.details?.found === 2 && error.details?.expected === 1);
     assert.deepEqual(readFileSync(file), before);
     const kept = new DatabaseSync(file, { readOnly: true });
     try { assert.equal(kept.prepare("SELECT count(*) AS n FROM memory_markers").get()!.n, 1); assert.deepEqual(describeSqliteSchema(kept), shape()); }

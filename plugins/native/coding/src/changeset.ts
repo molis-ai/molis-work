@@ -9,7 +9,7 @@ export const codingChangeSetReference = (sessionId: string, runId: string) => ({
 
 /** Only a genuine fixed source may offer a return to its original Coding task. */
 export function codingChangeSetPreview(artifact: FixedVersionRecord | null) {
-  if (!artifact || artifact.artifact_type_id !== CODING_CHANGESET_TYPE || artifact.schema_version !== 1
+  if (!artifact || artifact.artifact_type_id !== CODING_CHANGESET_TYPE || artifact.schema_version !== /* @version type.coding.changeset */ 1
     || artifact.availability !== "available" || artifact.content_kind !== "inline"
     || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding") return null;
   try {

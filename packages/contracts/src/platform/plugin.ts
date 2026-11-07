@@ -16,6 +16,7 @@ export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
+export * from "./plugin-sync.js";
 export * from "./plugin-database.js";
 export * from "./plugin-attention.js";
 export * from "./plugin-scenes.js";
@@ -31,16 +32,16 @@ export type { PluginProjectsClient } from "./plugin-projects.js";
 // The services, the Manifest and the route types are declared beside this file (W5-09); this subpath exports all of them.
 export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient, PluginTerminalDirectory, PluginTerminalPanel, PluginTerminalProgram } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
-export type { ArtifactFileDeclaration, ArtifactLinkDeclaration, PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest, PluginMessagesDeclaration, PluginTranslationsDeclaration } from "./plugin-manifest.js";
-export { SURFACE_BROWSER_PERMISSION, browserSiteDeclarations } from "./plugin-manifest.js";
+export type { ArtifactFileDeclaration, ArtifactLinkDeclaration, PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest, PluginLocalesDeclaration, PluginMessagesDeclaration, PluginTranslationsDeclaration } from "./plugin-manifest.js";
+export { PLUGIN_LOCALE_LIMITS, SURFACE_BROWSER_PERMISSION, browserSiteDeclarations } from "./plugin-manifest.js";
 import type { PluginDeployment, PluginManifest } from "./plugin-manifest.js";
 export type { PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
 import type { PluginRouteBinding } from "./plugin-routes.js";
 
 export const platformPluginContract = {
-  contractId: "io.molis.work.platform.plugin.v1",
+  contractId: /* @version contract.io.molis.work.platform.plugin "io.molis.work.platform.plugin.v{version}" */ "io.molis.work.platform.plugin.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.plugin */ 1,
   maturity: "partial",
   ssot: "docs/platform/PLUGIN-PLATFORM.md",
 } as const satisfies ContractDescriptor;
@@ -105,6 +106,8 @@ export interface PluginIntegrationContribution {
  */
 export interface PluginAppContribution {
   kind: "app";
+  /** Optional implemented collections; a declared but undelivered collection stays unavailable. */
+  sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
   /** Renderers for the views the Manifest declares. */
@@ -143,6 +146,10 @@ export interface PluginStartContext {
   project_id?: string;
   /** Trusted local owner for HTTP entrypoint binding; never read from business arguments. */
   readonly actor_id?: string;
+  /** Trusted personal-space binding. Absent in local spaces and bare executors. */
+  readonly sync?: import('./plugin-sync.js').PluginSyncContext;
+  /** Space identity for explicitly authorized saved-content copying; never grants sync admission. */
+  readonly copy?: import('./plugin-sync.js').PluginSyncContext;
   /** Input group the Host validated at activation. Undefined means no selection; never the first group. */
   input_group?: string;
   /** Available when running through the application Host, not a bare reference executor. */
@@ -153,7 +160,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

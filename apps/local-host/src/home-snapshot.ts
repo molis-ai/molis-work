@@ -1,3 +1,4 @@
+import { snapshotSpaceDigest } from "./home-restore-space.js";
 import { lstatSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { dirname, join } from "node:path";
@@ -34,9 +35,11 @@ export async function createHomeSnapshot(
     owner = acquireStorageOwner(root);
   let publication: ReturnType<ReturnType<typeof snapshotDestination>["create"]> | undefined;
   try {
+    const scope = snapshotSpaceDigest(home);
     const assertCurrent = () => {
       options.signal?.throwIfAborted();
       assertStorageOwner(root, owner);
+      if (snapshotSpaceDigest(home) !== scope) throw homeSnapshotErrors.changed("快照期间 Home 空间归属已变化");
     };
     const registry = homeStores(home);
     assertSnapshotHomeInventory(home, registry);
@@ -66,7 +69,8 @@ export async function createHomeSnapshot(
           });
       }
     const manifest: HomeSnapshotManifest = {
-      schema_version: 1,
+      schema_version: /* @version format.home.snapshot.manifest */ 1,
+      space_digest: scope,
       product_version: PRODUCT_VERSION,
       created_at: new Date().toISOString(),
       home_directory: home,

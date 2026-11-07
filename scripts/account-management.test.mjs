@@ -1,6 +1,6 @@
 import { createAccountSessionManager, createAccountAuthentication } from "@molis-ai/molis-work-service-account";
 import { createRequire } from "node:module";
-// WUA-16/17/18 and S-113: real Host, real Auth, mock providers, browser/native-bridge paths.
+// WUA-16/17/18 and S-unified-account-sensitive-operations: real Host, real Auth, mock providers, browser/native-bridge paths.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -127,7 +127,7 @@ try {
   if(await page.evaluate("Boolean(document.querySelector('#cx-exit'))")){await Promise.all([browser.event('Page.domContentEventFired'),page.click('#cx-exit')]);await page.wait("!document.querySelector('#cx-exit')");}
   const clickText=async text=>{await page.command('Page.bringToFront');await page.evaluate(`{const b=[...document.querySelectorAll('.account-dialog button')].find(b=>b.textContent===${JSON.stringify(text)});if(!b)throw Error('Missing '+${JSON.stringify(text)});document.querySelectorAll('[data-test-click]').forEach(b=>b.removeAttribute('data-test-click'));b.dataset.testClick='';}`);await page.click('[data-test-click]');};
   const ready=()=>page.wait("!document.querySelector('.account-form').hasAttribute('aria-busy')");
-  await page.click('[data-account-link]');await page.wait("document.querySelector('.account-form')?.textContent.includes('个人资料与安全')");await ready();await clickText('个人资料与安全');
+  await page.click('[data-unified-account-link]');await page.wait("document.querySelector('.account-form')?.textContent.includes('个人资料与安全')");await ready();await clickText('个人资料与安全');
   const {PNG}=createRequire(resolve(source,'worker/package.json'))('pngjs'), avatar=new PNG({width:1,height:1});avatar.data.fill(127);const avatarFile=join(home,'avatar.png');await writeFile(avatarFile,PNG.sync.write(avatar));
   const doc=await page.command('DOM.getDocument'), fileNode=await page.command('DOM.querySelector',{nodeId:doc.root.nodeId,selector:'input[name=avatar]'});await page.command('DOM.setFileInputFiles',{nodeId:fileNode.nodeId,files:[avatarFile]});
   await page.fill('input[name=name]','Work profile UI');await page.click('.account-form button[type=submit]');await page.wait("document.querySelector('.account-message').textContent.includes('资料已保存')");

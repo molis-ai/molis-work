@@ -12,16 +12,18 @@ T-01 接续记录见文末；已整理提交并进入远端评审。K-06 及首�
 
 邮箱/手机注册登录、验证重发及找回密码在产品内完成；Google/GitHub 授权通过浏览器回到本机 Host，不开放浏览器安装 Token 的接口。管理操作已有固定合同映射，具体动作随相应功能接入。短信、邮件和第三方提供方继续使用 Auth mock，无支付、真实账号迁移或业务共享。
 
+项目选择器和工作台项目菜单分别保留 Personal 账号与空间入口，并提供独立的「Molis 账号」入口。前者管理 Personal 登录和空间切换，后者管理中央登录、个人资料与安全、订阅及租户。两者各用自己的会话和页面事件。首次欢迎、打开和更新页沿用现有入口规则。
+
 ## 验收标准
 
 - **WUA-01** 固定 Auth 合同摘要、生成 DTO 与共享夹具一致；拒绝未知操作、字段、错误 client／环境／回调及不合法响应。证明：`tests/account-client.test.ts`。
-- **WUA-02** 账号 HTTP 读取只接受本机 Host、控制 Token 与同源来源；错误 Origin 不回退，未知路径／查询／正文拒绝。证明：`tests/security-invariants-account-host.test.ts`，安全不变量 S-109。
+- **WUA-02** 账号 HTTP 读取只接受本机 Host、控制 Token 与同源来源；错误 Origin 不回退，未知路径／查询／正文拒绝。证明：`tests/security-invariants-account-host.test.ts`，安全不变量 S-unified-account-host。
 - **WUA-03** 未配置或配置错误不破坏本地 Host；匿名不调用中央服务；安全视图不泄露中央凭据。证明：上述两个测试文件。
 - **WUA-04** 当前账号变化、请求取消或 Host 关闭后拒绝迟到响应；独立 Home 隔离，借用 Web 监听器关闭不销毁 Host 账号。证明：上述两个测试文件。
 - **WUA-05** 使用真实 Auth 隔离运行时，完成 mock 手机登录、读取、资料幂等更新与撤销后拒绝；不访问真实数据库。证明：显式运行 `scripts/central-account.test.mjs`。
 
 - **WUA-06** 同 Host 共享会话；凭据只在加密 SecretStore，正常关闭后新 Host 从原 Home 恢复，浏览器无 Token 安装入口。证明：`tests/security-invariants-account-host.test.ts`、`tests/account-session.test.ts`。
-- **WUA-07** 并发刷新只旋转一次；先持久销毁旧恢复材料，响应丢失、崩溃、持久失败及迟到完成都不得复活凭据。证明：`tests/account-session.test.ts`，安全不变量 S-110。
+- **WUA-07** 并发刷新只旋转一次；先持久销毁旧恢复材料，响应丢失、崩溃、持久失败及迟到完成都不得复活凭据。证明：`tests/account-session.test.ts`，安全不变量 S-unified-account-session。
 - **WUA-08** 显式活动遵循 30/90 天截止；背景读取/刷新不延期；离线只返回展示资料，不授予管理调用或权益。证明：`tests/account-session.test.ts`、`scripts/central-account.test.mjs`。
 - **WUA-09** 当前登录退出不影响其他独立登录；全局退出向 Auth 撤销全部产品；本地先持久清空，远端未确认须明确返回，同键可取回结果，中央撤销后受保护调用拒绝。证明：上述测试、`tests/security-invariants-account-host.test.ts`、真实 Auth 隔离联调。
 
@@ -60,7 +62,7 @@ MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/central-account.test.mjs
 ## WORK-03 验收
 
 - **WUA-10** 入口页与工作台共用产品内表单；邮箱验证后注册、密码登录、+86 验证后自动注册/登录、重发及邮箱找回都调用固定中央协议。受保护 GET 使用显式控制选项，普通 GET 与跨源拒绝不变。证明：`scripts/account-authentication.test.mjs`、`tests/ui-request-client.test.ts`。
-- **WUA-11** 发起证明、PKCE、验证/重设证明和 Token 不进入浏览器、动作、插件或 Agent；取消、过期、重复消费、错误步骤、重启及迟到 Token 均不能越权完成。证明：`tests/security-invariants-account-host.test.ts`「S-111」、`scripts/account-authentication.test.mjs`。
+- **WUA-11** 发起证明、PKCE、验证/重设证明和 Token 不进入浏览器、动作、插件或 Agent；取消、过期、重复消费、错误步骤、重启及迟到 Token 均不能越权完成。证明：`tests/security-invariants-account-host.test.ts`「S-unified-account-credentials」、`scripts/account-authentication.test.mjs`。
 - **WUA-12** Chrome 实际操作入口、邮箱注册与密码登录，1440/1024/390 宽度及深浅色截图无横向溢出；页面关闭清空表单，退出继续使用 WORK-02 会话协议。证明：`scripts/account-authentication.test.mjs`。
 
 真实 Auth + 临时 Home + Chrome 联调：先构建 Auth WASM 和 Work，再运行 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-authentication.test.mjs`。该显式脚本不进入默认全量，外部投递继续 mock。截图只写被忽略的 `.impeccable/qa/review/account/`。
@@ -80,7 +82,7 @@ MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/central-account.test.mjs
 
 ### WORK-03 最终验证记录
 
-官方 Node / Swift 环境整体构建通过。账号客户端、会话、Host 安全入口、请求助手、浏览器脚本声明与翻译六个专项文件共 97 项通过；真实 Auth WASM/D1 + 临时 Home + Chrome 最终联调通过邮箱注册验证、密码登录、手机自动注册、找回密码、取消及迟到 Token 拒绝。S-111 明确覆盖同站/跨站 Fetch Metadata 拒绝，未因提供了正确 Origin 而放行。
+官方 Node / Swift 环境整体构建通过。账号客户端、会话、Host 安全入口、请求助手、浏览器脚本声明与翻译六个专项文件共 97 项通过；真实 Auth WASM/D1 + 临时 Home + Chrome 最终联调通过邮箱注册验证、密码登录、手机自动注册、找回密码、取消及迟到 Token 拒绝。S-unified-account-credentials 明确覆盖同站/跨站 Fetch Metadata 拒绝，未因提供了正确 Origin 而放行。
 
 按修改包 README、安全与合同要求整理的 395 个回归文件中，394 个通过，唯一失败仍为 `tests/security-invariants-knowledge-lifecycle.test.ts` 的 `SYS-01 SYS-02 real Host and SDK stop queued knowledge after delete` 60 秒超时。该项此前已在同一官方环境、干净基线 `4fd250564` 复现（见 WORK-02 记录），没有修改或放宽其断言。Chrome 缺失 framework 引起的环境失败已使用完整测试浏览器逐项重跑通过；安全表文档引用修正后，对应文档门禁也通过。未运行 CI Full suite，不将本轮表述为全仓全部通过。
 
@@ -93,7 +95,7 @@ MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/central-account.test.mjs
 Google/GitHub 使用中央事务和受控 mock。浏览器从账号弹窗打开独立授权窗口，桌面复用既有系统浏览器端口；发起 URL 必须为当前配置的 Auth 来源和对应提供方 browser-start 路径。没有新增桌面 IPC 或任意网络代理。Auth 回到精确 `/account/callback` 后，Host 校验 state、事务、提供方、当前尝试和中央状态，完成 PKCE 换取；原弹窗通过受保护查询更新。回跳只返回纯文本完成/取消提示，不含 Token、控制头、HTML、脚本或外链资源。
 
 - **WUA-13** 两种提供方均可实际授权登录；GitHub 无邮箱身份可用；原页面完成更新，桌面桥只传受控 URL。证明：`scripts/account-provider.test.mjs`。
-- **WUA-14** 非导航、错误来源/state/事务、额外字段、重放、取消竞争、重启及不可信提供方 URL 均拒绝；不能安装迟到 Token。证明：`tests/security-invariants-account-host.test.ts`「S-112」、`scripts/account-provider.test.mjs`。
+- **WUA-14** 非导航、错误来源/state/事务、额外字段、重放、取消竞争、重启及不可信提供方 URL 均拒绝；不能安装迟到 Token。证明：`tests/security-invariants-account-host.test.ts`「S-unified-account-provider-callback」、`scripts/account-provider.test.mjs`。
 - **WUA-15** 浏览器与桌面桥共用入口和状态，提供取消与打开失败提示；1440/1024/390 深浅色截图无横向溢出。证明：`scripts/account-provider.test.mjs`。桌面桥的浏览器用例模拟既有 native opener 的调用，真实授权和本机回跳保持；不将其表述为 Tauri 安装包端到端验证。
 
 复现：构建 Work 与 Auth WASM 后，运行 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-provider.test.mjs`，截图写已有的被忽略账号评审目录。
@@ -115,7 +117,7 @@ Google/GitHub 使用中央事务和受控 mock。浏览器从账号弹窗打开�
 状态：开发与验证已完成；两项既有知识处理测试问题已通过干净基线对照确认，详情见下。
 
 - **WUA-16** 已登录账号弹窗提供昵称、PNG 头像更新和移除；资料与登录方式读取经 `system.account` 动作提供方，中央版本冲突拒绝，保留本机 actor 与 Home。证明：`scripts/account-management.test.mjs`。
-- **WUA-17** 邮箱密码、手机验证码、Google、GitHub 均可验证当前账号；绑定新方式须另验证，换绑固定原 binding；不能解绑最后一种可用方式，取消、退出、重启后临时证明不能继续操作。证明：`scripts/account-management.test.mjs`、`tests/security-invariants-account-host.test.ts`（S-113）。
+- **WUA-17** 邮箱密码、手机验证码、Google、GitHub 均可验证当前账号；绑定新方式须另验证，换绑固定原 binding；不能解绑最后一种可用方式，取消、退出、重启后临时证明不能继续操作。证明：`scripts/account-management.test.mjs`、`tests/security-invariants-account-host.test.ts`（S-unified-account-sensitive-operations）。
 - **WUA-18** 页面完成资料、登录方式及改密流程；改密保留当前登录并调用中央撤销其他登录规则；1440/1024/390 深浅色检查，不新增网络资源，外部服务保持 mock。证明：`scripts/account-management.test.mjs`。
 
 资料的固定 HTTP 映射调用同一动作目录，不直接调用 Auth；凭据交互仍只走受保护认证协议。中央合同不变，新增 Work 公开安全 DTO 与 `account.login-methods.read@1`、`account.profile.update@1`，不增加凭据动作或插件专用入口。
@@ -136,7 +138,7 @@ Google/GitHub 使用中央事务和受控 mock。浏览器从账号弹窗打开�
 状态：实现与验证已完成，外部服务继续 mock。
 
 - **WUA-19** 个人/多租户选择、租户资料、成员与待处理邀请/交接都来自中央分页接口；切换或关闭使旧页面响应失效，不修改本地 actor 或 Home。停用租户仅显示必要状态，不请求详情和成员。证明：`scripts/account-tenants.test.mjs`。
-- **WUA-20** 定向邀请、接受/拒绝/撤销、管理员任命、退出/移除均走同一动作目录；中央验证当前角色、版本及幂等键。普通成员不能邀请或使用平台入口；未知/重复查询、主体注入、错误来源、GET 正文被拒绝。证明：`tests/security-invariants-account-host.test.ts`（S-114）、上述真实 Auth 联调。
+- **WUA-20** 定向邀请、接受/拒绝/撤销、管理员任命、退出/移除均走同一动作目录；中央验证当前角色、版本及幂等键。普通成员不能邀请或使用平台入口；未知/重复查询、主体注入、错误来源、GET 正文被拒绝。证明：`tests/security-invariants-account-host.test.ts`（S-unified-account-tenants）、上述真实 Auth 联调。
 - **WUA-21** 所有者向现有成员发起交接，对方确认后原所有者成为普通成员，原席位保持；移除成员由 Auth 原子结束席位分配。证明：`scripts/account-tenants.test.mjs`，付费夹具由真实中央套餐、订阅和分配 API 创建。
 - **WUA-22** 平台能力分别控制创建/分配、列表及启停，普通用户调用同一路由仍由 Auth 拒绝。Chrome 完成双方邀请/交接及平台创建、停用、恢复，1440/1024/390 深浅色检查无横向溢出；手机号切换到账号 ID 清除旧表单格式限制。证明：上述安全测试和真实浏览器联调。
 
@@ -147,7 +149,7 @@ Google/GitHub 使用中央事务和受控 mock。浏览器从账号弹窗打开�
 
 2026-11-05 WORK-06 最终验证：官方 Node/Swift 环境整体构建、包边界、相对 `origin/main` 的健康门禁、公开 API/动作快照、冻结 Auth 合同、测试源码/构建混用、资源和 diff 检查通过。真实 Auth/WASM/D1 + 临时 Home + Chrome 专项联调通过 WUA-19 至 WUA-22，含停用后的最小状态显示和成员入口拒绝；没有真实外部服务调用。
 
-本批按四个修改包 README 与直接影响范围点名 85 文件，首轮 84 通过。唯一失败是新增 S-114 安全夹具缺少合同必填 `personalScope`，被客户端按预期判为无效上游响应；补齐夹具后 Host 安全文件 13/13 通过，产品代码与拒绝断言未因此放宽。合计 85/85 文件、1,244 项通过；资源门禁另有 171/171 项通过，最终为 86 个不同文件、1,415 项通过，无失败或跳过。
+本批按四个修改包 README 与直接影响范围点名 85 文件，首轮 84 通过。唯一失败是新增 S-unified-account-tenants 安全夹具缺少合同必填 `personalScope`，被客户端按预期判为无效上游响应；补齐夹具后 Host 安全文件 13/13 通过，产品代码与拒绝断言未因此放宽。合计 85/85 文件、1,244 项通过；资源门禁另有 171/171 项通过，最终为 86 个不同文件、1,415 项通过，无失败或跳过。
 
 本轮未运行 CI Full suite，不把定向验证等同全仓全量；前阶段记录的两项知识处理基线问题也未因此视为修复。未运行 Tauri 安装包 E2E，未提交、推送、部署或操作真实 Home/数据库。资源已按本轮批准准确冻结为 1,100,920 字节；下一批按 WORK-07 接入订阅席位及平台变更页面。
 
@@ -156,7 +158,7 @@ Google/GitHub 使用中央事务和受控 mock。浏览器从账号弹窗打开�
 
 - **WUA-23** 个人与租户范围真实读取套餐、期限、状态；所有者/管理员管理库存及分配、回收、换绑，成员仅看自身分配。保留分配与历史分开显示，到期不自动清除分配；续期不恢复已结束分配。证明：`scripts/account-billing.test.mjs` 的真实 Auth/Host/Chrome 流程，中央容量与历史规则继续由 Auth 持有。
 - **WUA-24** 平台按能力开通个人/租户订阅，选择已发布套餐，分别调整套餐与数量、有效期、续期、停用/恢复；每次修改使用重新读取的版本并确认原因。数量不足、删除仍占用类型均拒绝；先回收再减量。目录为空不提供虚构套餐，首期不收款。证明：上述联调覆盖全生命周期与容量冲突、到期保留和回收后减量。
-- **WUA-25** 商业操作从首次 UI 接入即进入唯一动作目录，按固定合同限定正文、查询及来源，拒绝主体注入。普通用户和普通成员不能调用平台/席位管理。平台商业操作记录按权限分页读取；新增库存只读接口不授予席位分配权限。证明：`tests/security-invariants-account-host.test.ts`（S-115）及上述真实联调的拒绝断言。
+- **WUA-25** 商业操作从首次 UI 接入即进入唯一动作目录，按固定合同限定正文、查询及来源，拒绝主体注入。普通用户和普通成员不能调用平台/席位管理。平台商业操作记录按权限分页读取；新增库存只读接口不授予席位分配权限。证明：`tests/security-invariants-account-host.test.ts`（S-unified-account-billing）及上述真实联调的拒绝断言。
 
 从 Auth 原始文件同步合同 1.1.0；新增平台订阅库存读取供非成员平台人员按真实容量维护订阅，其余商业规则不变。新增 15 个固定动作，原租户动作与商业动作共用 `management-actions.ts`。不增加数据库或任意转发入口，不改变本地 Home、actor；具体权益展示继续由 WORK-08 完成。
 
@@ -193,7 +195,7 @@ CI Full、Tauri 安装包验证未执行；外部短信、邮件和提供方为 
 
 复用现有中央 SecretStore 命名与 Host 边界，不新增旧凭据读取或数据转换。补充旧 personal 状态拒绝测试，并与 Club 在同一真实 Auth 中完成合成切换及回退；没有修改 Work 产品源码、公开合同或页面资源。
 
-- **WORK09-01** 合成 personal SecretStore、旧 native capability 与浏览器 Cookie 不触发中央登录；无现行控制凭据拒绝访问，旧回调拒绝；重启仍匿名，新会话可以持久恢复，退出重启后不复活，旧材料原样保留。证明：`tests/security-invariants-account-host.test.ts` 的 WORK09-01（S-109/S-110）。
+- **WORK09-01** 合成 personal SecretStore、旧 native capability 与浏览器 Cookie 不触发中央登录；无现行控制凭据拒绝访问，旧回调拒绝；重启仍匿名，新会话可以持久恢复，退出重启后不复活，旧材料原样保留。证明：`tests/security-invariants-account-host.test.ts` 的 WORK09-01（S-unified-account-host/S-unified-account-session）。
 - **WORK09-02** 两产品重新登录到同一 Auth 主体，资料互相可见；Host 重启保持同一登录，access 失效只刷新一次，重启/刷新不增加用户活动；重启前事务句柄、旧回调拒绝；当前登录退出不影响 Club，全局退出在再次核验时失效。证明：Club 仓库 `scripts/test-account-cutover.mjs` 的 WORK09-02，直接加载本仓库公开构建入口并走真实 Host HTTP。
 - **WORK09-03** 已有本地项目、文件和历史 actor 在登录、换成另一中央账号、离线、退出、加入/退出租户及中央回退后保持；其他产品 v1 会话仍可用，不恢复旧凭据或删除 Home。证明：同一联合脚本 WORK09-03 的逐值对照；本仓库 `tests/web-home-isolation.test.ts`、`tests/goal-management-identity.test.ts` 回归。
 
@@ -393,3 +395,11 @@ K-20 最终整体构建后，Workbench README 与动画/资源相关 22 文件 3
 随后主线 `a4bd94b12` 合入 `task_subjects` 合同及模型/Images 设置，四处冲突已保留双方内容：工作台构建同时包含模型进度与账号客户端，翻译巨大单元元数据对应门禁实测的 3,215 行，资源仅按构建实测刷新。51 项共 7,477,607 字节；workbench.js 为 1,129,189，相对新主线仍为已批准的 +39,618，账号 CSS 与 plugin-frame 增量也未变；主线自己的设置/Images 增量不重复申请账号额度。
 
 历史候选 `e451337fe` 的远端 Verify 与 Full 已通过：Full 精确检出该提交，16 片共 1,671/1,671；11/16 为 105/105、33 分钟。Issue 草稿浏览器用例一次既有重试通过，初次导航后 child execution context 丢失的诊断保留。Verify 检出的是 GitHub 对 main `67b5ca2f2` 的合并树，与 e451 的树不同。上述历史证据不替代此次主线接续后的最终提交检查；owner 评审与后续 CI 以中央交付台账为准。
+
+### T-01 Personal 主线接续
+
+接续 main `10322f83b`，解决 23 处冲突。Personal 空间入口与 Molis 账号入口分别处理，统一账号回跳进入当前 Home 的原有事务与来源校验。七条账号安全不变量使用主线的独立语义记录。41 个动作及账号合同、会话格式登记进统一版本表，保留原值。16 个页面金样移除新增账号按钮后与主线哈希和长度完全一致。
+
+使用 Node 24.15、Swift 6.3.3 和 macOS 26.5 SDK 独立构建主线和候选。51 项资源共 6,821,172 字节。工作台脚本 904,593 → 943,871（+39,278），工作台样式 +450，到达页样式 +656，插件框脚本 +27，均在既有批准范围内。账号脚本与原工作台脚本分别合并重复字符串，仍使用同一已发布资源路径。增量按主线新格式登记在 [账号资源许可](../../tooling/gates/page-asset-allowances/unified-account.json)。
+
+`0efd96ab` 的 Verify 与 Full 16 片通过，11/16 为 105/105、26 分钟。新候选按当前主线的 32 片 Full 流程重新验证，并提交 owner 评审。联合验证只使用临时 Home、合成库和 mock 提供方。

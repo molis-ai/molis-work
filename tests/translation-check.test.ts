@@ -16,6 +16,7 @@ const script = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import
 const cli = fileURLToPath(new URL("../scripts/gates/translations.mjs", import.meta.url));
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 let repo = "";
+let initialQuickBaseline = "";
 
 const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=gates", "-c", "user.email=gates@example.invalid", ...args], { cwd: repo, encoding: "utf8", stdio: "pipe" });
 const put = (file: string, text: string) => { mkdirSync(path.dirname(path.join(repo, file)), { recursive: true }); writeFileSync(path.join(repo, file), text); };
@@ -27,6 +28,7 @@ const gate = (...args: string[]) => {
 };
 const branch = (name: string, mutate: () => void) => {
   git("checkout", "-q", "-f", "main");
+  put(".git/molis-health-baseline.json", initialQuickBaseline);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", name);
   mutate();
@@ -84,6 +86,7 @@ before(() => {
   base();
   git("add", "-A");
   assert.equal(gate("--update").code, 0);
+  initialQuickBaseline = read(".git/molis-health-baseline.json");
   commit("base");
 });
 after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
@@ -413,7 +416,7 @@ test("resolving a conflict lowers the number and --update --base accepts it", ()
   assert.equal(run.code, 0, run.out);
   assert.match(run.out, /Lower than the merge-base: translations/);
   assert.equal(gate("--update", "--base", "main").code, 0);
-  assert.deepEqual(JSON.parse(read("tooling/gates/baseline.json")).translationConflicts, {});
+  assert.deepEqual(JSON.parse(read(".git/molis-health-baseline.json")).translationConflicts, {});
 });
 
 test("renaming or moving a dictionary does not make its frozen conflict new", () => {
@@ -457,14 +460,16 @@ test("a key built from a stable prefix keeps the keys of that family from being 
 
 test("the report prints the numbers and the biggest conflicts; an old-shaped baseline asks for --update", () => {
   git("checkout", "-q", "-f", "main");
+  // Checkout no longer restores the private quick baseline; give this scenario its original baseline explicitly.
+  put(".git/molis-health-baseline.json", initialQuickBaseline);
   const text = gate("--report", "--top", "1").out;
   assert.match(text, /Translations: 3 dictionaries, 8 entries \(7 distinct keys, 1 defined more than once\), 0 stable keys/);
   assert.match(text, /conflicting keys: 1;/);
   assert.match(text, /\s2\s+"说明"/);
-  assert.equal(JSON.parse(read("tooling/gates/baseline.json")).translationConflictTotal, 1);
-  const baseline = JSON.parse(read("tooling/gates/baseline.json"));
+  assert.equal(JSON.parse(read(".git/molis-health-baseline.json")).translationConflictTotal, 1);
+  const baseline = JSON.parse(read(".git/molis-health-baseline.json"));
   delete baseline.translationConflicts;
-  put("tooling/gates/baseline.json", `${JSON.stringify(baseline, null, 2)}\n`);
+  put(".git/molis-health-baseline.json", `${JSON.stringify(baseline, null, 2)}\n`);
   const old = gate();
   assert.equal(old.code, 2, old.out);
   assert.match(old.out, /translationConflicts is missing or has an old shape; regenerate it/);

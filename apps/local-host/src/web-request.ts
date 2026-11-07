@@ -1,4 +1,5 @@
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
+import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
@@ -134,6 +135,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   homePluginsRoute,
   pluginPageRoute, directoryGrantRoute,
   { id: "project-plugin-consents", handle: context => handlePluginConsentSettingsHttp(context, context.hostReference) },
+  { id: "project-task-grants", handle: context => handleTaskGrantsSettingsHttp(context, context.hostReference) },
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {
@@ -189,8 +191,8 @@ const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissio
 
 /** The Goals settings and planning pages: the project's work and its Goals, read by their owners. */
 const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, goalsHere }) =>
-    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, goalsHere) },
+  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, goalsHere, store, serverOptions }) =>
+    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, goalsHere, store, serverOptions.homeDirectory) },
   { id: "planning", handle: ({ request, response, url, controlToken, readWebView, goalActions, composition, localHost }) =>
     composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost, request)) },
 ];

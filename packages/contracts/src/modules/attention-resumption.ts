@@ -2,9 +2,9 @@ import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesAttentionResumptionContract = {
-  contractId: "io.molis.work.module.attention-resumption.v1",
+  contractId: /* @version contract.io.molis.work.module.attention-resumption "io.molis.work.module.attention-resumption.v{version}" */ "io.molis.work.module.attention-resumption.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.attention-resumption */ 1,
   maturity: "partial",
   ssot: "docs/modules/attention-resumption.md",
 } as const satisfies ContractDescriptor;
@@ -12,6 +12,7 @@ export const modulesAttentionResumptionContract = {
 /** The platform's closed list of subject kinds; ownership is a separate fact, not implied by a kind. */
 export const ATTENTION_SUBJECT_TYPES = ["feed_item", "goal_decision", "source_fault"] as const;
 export type AttentionSubjectType = typeof ATTENTION_SUBJECT_TYPES[number];
+export const ATTENTION_CONTENT_REPLICA_ID = 'attention_content';
 export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
 export type AttentionStatus = "open" | "in_progress" | "done" | "dismissed";
 

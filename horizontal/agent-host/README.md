@@ -159,9 +159,10 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。
 
+个人同步的 `savedHistory` 端口只读取当前 Home 唯一 Runtime 的原 Session。导出复核项目、插件、用户、未结算工作及原始轮次归属，使用 SDK 公开 replay/buildExport/readExport，保留错误正文后再按 SDK 规则脱敏和封装。`savedAgentHistoryView` 是无需 Runtime 的只读投影；没有导入、恢复执行或审批的方法。Coding 在自己的 SQL 中保存派生导出，历史不成为另一份可执行账本。
 可信初始输入由受保护 Host 入口交给现 Session attempt 保存原件，后续同 Session 接续只带引用；业务 DTO 不能自证本人身份。`tests/coding-original-inputs.test.ts` 走真实 HTTP/Node 验证原文、首个时间、重启、失败重试同身份、并发拒绝及跨 Session/派生输入拒绝；这只证明原件桥，不代表学习形成已接通。
 
-原件输入与输出对应的正式动作当前为 `agent.run.start@1`、`agent.session.read@1`、`agent.run.read@1`、`agent.run.wait@1`。读取三口旧 @1/@2、启动口旧 @1 固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
+原件输入与输出对应的正式动作当前为 `agent.run.start@1`、`agent.session.read@1`、`agent.run.read@1`、`agent.run.wait@1`。固定了其他版本的引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
 
 `readOriginalInput(ref)` 从该 Session attempt 读取首原件的精确正文、作者、身份和首次时间；`accepted_run` 则指向同原件最近一次已接受且未 refused 的直接尝试（排除 `frozen.continued_from`）。拒绝且未建立 Run 的尝试不阻挡后续真实重试，派生继续不能让失败原件取得学习资格。来源消费方仍检查定位 Run 的当前状态、Session owner、工作和权限；缺失或未接受不从拼接任务恢复。原时间和身份不因读取、继续或重试变化，不扫描 SDK 历史，不增加正文存储；Source Port 的 App 规则见记忆策略 §9.4。
 

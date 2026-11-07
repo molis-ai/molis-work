@@ -58,7 +58,8 @@ function rowsSpecimen(L: Say): string {
   const expired = item("github", "github", "GitHub", "读通知、看仓库、推送代码", state("warning", "reauth", L("需重新授权")),
     `${renderStatusMark({ label: L("登录过期了 · {time} 起", { time: "11-03 21:40" }), state: "reauth", tone: "attention", plain: true })}<p class="mw-field__hint">${escapeHtml(L("在等它的 2 件工作停在原处；重新登录后接着做，不从头来。"))}</p>${actions(`${primary(L("用 {account} 重新登录", { account: "yijunw0212" }))}${renderButton({ label: L("换账号"), variant: "secondary" })}`)}`);
   // Switching account is switching among accounts connected to the service (§13.2, user 11-05): the old one stays and works.
-  const gitlab = item("gitlab", "gitlab", "GitLab", "看合并请求、读流水线", running(L("换账号")),
+  // The row waits on the person's choice, so it carries the 等你 ring, not a running one.
+  const gitlab = item("gitlab", "gitlab", "GitLab", "看合并请求、读流水线", renderStatusMark({ label: L("换账号"), state: "answer", tone: "attention", plain: true }),
     `${renderRadioGroup({ legend: L("用到 {name} 的地方换成哪个账号", { name: "GitLab" }), name: "board-conn-gitlab-switch", items: [
       { value: "team", label: L("{account} · 已连上，能看 molis-ai 的 40 个项目", { account: "molis-bot" }), checked: true },
       { value: "add", label: L("再加一个账号 · 在浏览器登录后切过去") },

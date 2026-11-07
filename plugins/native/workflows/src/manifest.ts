@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { WORKFLOWS_PLUGIN_ID } from "./model.js";
 import { WORKFLOWS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { WORKFLOWS_ACTIONS } from "./actions.js";
+import { workflowsSync } from "./replication.js";
 import { WORKFLOWS_DATABASE } from "./database.js";
 
 import { WORKFLOWS_MESSAGES } from "./messages.js";
@@ -10,10 +11,11 @@ import { WORKFLOWS_EN } from "./en.js";
 const WORKFLOWS_BODY_BYTES = 400_000;
 
 export const workflowsManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: WORKFLOWS_PLUGIN_ID,
-  version: "0.3.0",
+  sync: workflowsSync,
+  version: /* @version product.release */ "0.1.0",
   name: "工作流程",
   name_en: "Workflows",
   summary: "把插件串成流程，一步步做完。",

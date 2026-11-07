@@ -2,6 +2,8 @@
 
 2026-09-08 Cutover 后，现有产品实现已退出旧混合目录；正式调用链位于实际 workspace 包，当前清单以 [`scripts/workspace-packages.mjs`](../scripts/workspace-packages.mjs) 为准，数量由 `pnpm boundary:check` 的 `packageCount` 输出。产品启动器已归 apps/desktop/launchers；0.1.x 的根 SDK 已于 2026-10-04 删除（用户决定），根包不导出代码。历史验收证据见 [Cutover 验证](../specs/molis-work-architecture-reorganization/cutover-validation.md)，不能替代后续变更的验收。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
 
+2026-09-30 空间归属：`packages/storage` 拥有不可变空间元数据和 Store 绑定，`apps/local-host` 按验证后的账号选择独立 Home/Host，项目模块接收 `spaceId` 而不读取登录会话。项目与插件内容继承所在 Store/Home；本地/个人空间可选，团队只预留，未实现云同步。规则与限制见 [Storage](platform/STORAGE-AND-EXCHANGE.md)，验证见 [空间归属切片](../specs/archive/personal-space-ownership/spec.md)。
+
 权威需求书：[架构需求书](../specs/molis-work-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
 
 Molis Work 是本地优先的插件基座加多插件。平台是一个 Home 的常驻宿主、统一动作目录与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归 Module 或插件，每项事实只有一个 owner，下列各表逐包写明。Goals 是每个项目都带的内置插件，拥有 Goal 的事实。
@@ -27,7 +29,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 概念与命名：一个概念一个名字、一个定义，旧称、界面用词与代码改名清单 | [`docs/system/GLOSSARY.md`](system/GLOSSARY.md) |
 | 兼容逻辑清单与删除进度 | [`specs/archive/repository-anti-corruption`](../specs/archive/repository-anti-corruption/spec.md) §4（迁移期记录已归档到 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)） |
 | 每个包的规模、运行状态（在用 / Runtime / 构建期 / 非产品，不是下面第 2 节的状态词）和计划审查深度 | [`specs/archive/repository-anti-corruption`](../specs/archive/repository-anti-corruption/spec.md) §5.1 的包清单表；`scripts/gates/package-inventory.mjs` 按登记表和代码检查，随 `pnpm health:check` 跑。每个包的成熟度（第 2 节四词）唯一写在 `scripts/workspace-packages.mjs`，各表的「包成熟度」列由 `scripts/package-owners.mjs` 逐行校验，随 `pnpm boundary:check` 跑 |
-| 巨大单元只许变小 | `pnpm health:check`（基线 `tooling/gates/baseline.json`，必须长的登记在 `tooling/gates/giant-exceptions.json`）；全部单元的 owner、判定与计划见 [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md)，2026-09 的迁移历史在 [`docs/archive/huge-class-migration-2026-09.md`](archive/huge-class-migration-2026-09.md) |
+| 巨大单元只许变小 | `pnpm health:check`（CI 实测对照 merge-base，必须长的登记在 `tooling/gates/giant-exceptions/`）；全部单元的 owner、判定与计划见 [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md)，2026-09 的迁移历史在 [`docs/archive/huge-class-migration-2026-09.md`](archive/huge-class-migration-2026-09.md) |
 | 评审截图、根目录杂项、vendored 补丁的去留 | [`docs/system/REPOSITORY-HYGIENE.md`](system/REPOSITORY-HYGIENE.md)；`pnpm health:check` 按评审组限制入库的 `.impeccable/` 文件，只许减少 |
 | 业务事实 Module（当前包与尚未建包的未来 owner 见 §5；插件自有的库见 §7） | [`docs/modules/`](modules/README.md) |
 | `horizontal/` 下的横向运行服务与平台产品服务（记忆、放置、搜索、项目资料），当前包见 §6 | [`docs/horizontal/`](horizontal/README.md)（Memory、Placement 的边界见各自包 README） |
@@ -61,6 +63,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 ## 3. Apps
 
+独立 Rust 服务端代码不计入下表的 pnpm 包数：`server/src/sync` 拥有个人同步远端事件、回执、容量、附件与保留记录，`apps/sync-worker` 只负责 Cloudflare 入口装配和部署。两者由 Cargo 与 native-checks 检查；详见 [同步模块](../server/src/sync/README.md)。原 `server` Node 包的登记、身份/IM 事实归属及公开入口不变。
+
 | 目标 package | 负责什么 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `production` | AP4/DV4/Cutover；实际平台安装证据见验证报告 | 应用：@yijunw0212 |
@@ -76,7 +80,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | --- | --- | --- | --- | --- | --- |
 | `packages/contracts` | Module、Service、Platform 的可发布类型与 Schema | Module/Service/Platform 公开类型和 Schema；无业务或 IO 实现 | `production` | F2/F3；63 个 public subpath（外加根入口；2026-10-19 按 package.json exports 核对，含页面事件登记 platform/dom-events 与本机地址判断 platform/loopback；W2-01 删了 6 个只有描述符、没人用的占位）与兼容门禁 | 共享核心：@yijunw0212 |
 | `packages/kernel` | Capability 注册、选择、权限与生命周期骨架 | versioned Capability registry 与统一动作服务核心 `ActionService`（定义/兑现校验、输入输出 schema、可用性、`beforeEffect` 副作用前复查、场景绑定与判断消费）；授权事实由 Local Host 持久保存。另承载平台产品服务「情境排序」（`contextual.ts`，纯函数，位置按 N-03 不变；宿主那一半在 `apps/local-host/src/contextual/`），边界由 `pnpm health:check` 的 K1–K5 守着 | `production` | F2、F3、AP2；`specs/action-architecture/spec.md` | 共享核心：@yijunw0212 |
-| `packages/plugin-runtime` | Plugin 安装、签名身份、grant、隔离和生命周期；安装隔离的私有 KV | 本地 Runtime、持久开发状态、可撤销授权和签名校验；Home 安装/发行物/KV 在 `plugin-runtime/plugin-runtime.db` v2，由 Local Host 组合当前 schema；插件业务 SQLite 仍归各插件；不是 OS sandbox | `production` | F2、FD3、DV3；分发收口见 DV4 | 平台包：@yijunw0212 |
+| `packages/plugin-runtime` | Plugin 安装、签名身份、grant、隔离和生命周期；安装隔离的私有 KV | 本地 Runtime、持久开发状态、可撤销授权和签名校验；Home 安装/发行物/KV 在 `plugin-runtime/plugin-runtime.db`，由 Local Host 组合当前 schema；插件业务 SQLite 仍归各插件；不是 OS sandbox | `production` | F2、FD3、DV3；分发收口见 DV4 | 平台包：@yijunw0212 |
 | `packages/plugin-sdk` | 外部 Plugin 作者使用的稳定 API 与测试入口，也是平台共用的公共运行时底座 | Manifest/definition/polling、公开 Artifact/UI/private client 类型与动作合同再导出；执行生命周期 `createExecutionLifetime`（自有实现，内核、宿主、调度、Shelf、沙箱都从这里取）；Manifest 解析、端口与事件检查、版本比较（`parsePluginManifest`、`comparePluginVersions`，Plugin Runtime 与命令行共用这一份；动作声明检查 `inspectActionDeclarations` 与同一次注册里的交叉引用检查 `inspectActionCrossReferences` 内核注册时也用，Agent 与方法、四种来源协议的检查只供这两处调用，不对外导出）；有界逐行文本比较（`compareTexts`、`splitLines`、`textDiffRow`、`alignSplitRows` 等，工作台审查界面、Coding 与 Diff 从这里取；结果与行的类型留在合同包）；动作的两个绑定函数（`bindPluginActionRoute`：HTTP 路由兑现动作，失败按错误的 kind 答；`bindOwnerPluginAction`：动作只对本机所有者开放；Plugin Runtime 路由器的拒绝同样用 SDK 的 `actionErrorResponse`）；只依赖 contracts（`public-sdk-private-dependency`）；fixture 由 Local Host 实现；界面部件三个子路径（PG-055）：`/ui`（字符串部件与图标名 `PluginIconName`）、`/browser`（DOM 工具）、`/page-globals`（页面全局与端口的类型），插件和宿主都从这里取，design-system 不转出 | `production` | F2、FD3、DV3 | 共享核心：@yijunw0212 |
 | `packages/storage` | SQLite、Filesystem、Blob、事务和 migration 技术能力 | SQLite/事务/文件/密文/联网搜索缓存 Adapter；系统搜索的本地全文索引适配（`openTextSearchIndex`，可删除重建）；业务 schema 归 Module | `production` | 各事实迁移/Cutover；Web Home 作用域隔离 | 平台包：@yijunw0212 |
 | `packages/exchange` | Envelope、ACK、Cursor、Replay、CAS 与 Blob 交换 | 当前不存在正式 Server/Exchange | `absent` | F2；未来独立功能 Spec | — |
@@ -86,7 +90,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `packages/test-kit` | 无业务判断的公共测试工具：包边界规则、无头 Chrome 启动与 DevTools 驱动（`/browser`）、访问本机 Host HTTP 管理接口的客户端（`/local-host-http`） | F3 boundary policy；`/browser`、`/local-host-http`（W2-11）；时钟、fake capability 与其余重复 harness 待迁移；缺片：时钟、fake capability 与其余重复 harness；后续：随 test-kit 收口迁移 | `slice` | F2、F3；后续测试基础设施 Goal | 平台包：@yijunw0212 |
 | `packages/im-ui` | 群聊（IM）页面、样式与浏览器控制器 | 由 Workbench 右栏「讨论」页签（`apps/workbench/src/side-panel.ts` 嵌入 `/im`）和 `apps/server` 的 IM 页面消费；不拥有消息事实。这是在用、还会迭代的功能，不是待删的实验（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」） | `production` | `specs/archive/molis-work-im/spec.md` | 平台包：@yijunw0212 |
 | `packages/plugin-sandbox` | 生成插件的 macOS 沙箱进程与宿主通道 | 插件创作台生成的后端在独立沙箱进程里运行，只经宿主通道使用平台能力 | `production` | `specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md`（S0 执行底座）；整体路线见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md` | 平台包：@yijunw0212 |
-| `tooling/plugin-cli` | Plugin 作者的 validate、create、pack、identity、sign、verify 命令，以及经 Host 的本地开发验证 | `create` 默认生成 v2 Integration 插件；`pack` 生成显式文件列表的 JSON bundle；签名与验证用 Plugin Runtime 的公开包验证接口；`dev` 经注入的 `PluginCliHost` 使用真实 Local Host；由 `apps/desktop/launchers/cli/main.ts` 装配 | `production` | DV3；入口表见 §8 | 工具：@yijunw0212 |
+| `tooling/plugin-cli` | Plugin 作者的 validate、create、pack、identity、sign、verify 命令，以及经 Host 的本地开发验证 | `create` 默认生成 Integration 插件；`pack` 生成显式文件列表的 JSON bundle；签名与验证用 Plugin Runtime 的公开包验证接口；`dev` 经注入的 `PluginCliHost` 使用真实 Local Host；由 `apps/desktop/launchers/cli/main.ts` 装配 | `production` | DV3；入口表见 §8 | 工具：@yijunw0212 |
 
 `packages/contracts/modules`、`services`、`platform` 是同一个发布包的 subpath 分区，不是三个独立 npm package。
 
@@ -97,7 +101,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `modules/identity-team-access` | User、Team、membership、Access Decision | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/projects` | Project 身份、Catalog、workspace membership | 正式 Project/Catalog 事实；Host 编排文件生命周期，Desktop 提供平台 | `production` | AP1/AP2/Cutover；旧 Catalog 已删除 | Module：@yijunw0212 |
 | `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现；缺片：未来 publication / 异步 materialization；后续：补未来能力时另立 Goal（AR2 已验收主路径） | `slice` | AR2 已验收；[验收记录](../specs/molis-work-architecture-reorganization/ar2-validation.md) | Module：@yijunw0212 |
-| `modules/sync-replication` | 发布意图、replica、冲突和用户可见同步状态 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
+| `modules/sync-replication` | 空间同步策略、增量协调、冲突与同步状态 | 个人空间本机联调；复用 owner 适配器与持久队列，默认关闭 | `slice` | F2；`specs/personal-plugin-replication/spec.md` | Module：@yijunw0212 |
 | `modules/actions` | 个人/外部 Action 请求、状态和结果引用 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；旧 Inbox 转发已退出；缺片：完整 snooze/resume；后续：另立 Goal 补未来能力 | `slice` | FD2/Cutover；完整 snooze/resume 仍是未来能力 | Module：@yijunw0212 |
 | `modules/private-work-context` | Runtime context binding（Runtime 工作入口与 Project 的绑定、事件、setup 幂等、拒绝建议） | Runtime 当前 Project 关联经 Ledger API 保存；控制历史留在本模块。Session、内容引用与 Handoff 随 Sessions 插件下线（SC-4）删除，重做见 BL-177；缺片：Sessions 下线后的重做；后续：BL-177 | `slice` | WK1–WK3 已迁移；SC-4 删除 Session 部分 | Module：@yijunw0212 |
@@ -130,7 +134,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 **规划中的平台产品服务：观测和采集层。** [独立需求](../specs/observation-collection/spec.md)于 2026-10-27 从主动助理中迁出，尚未实现，包位置待设计；不计入上表当前包与成熟度。它负责获准的观察记录、工作关联、历史证据可用性与覆盖缺口，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
 
-成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `io.molis.work.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；本人验收与真实 Home 干净重建下的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
+成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `io.molis.work.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；真实 Home 已于 2026-11-07 干净重建，本人验收与重建后的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
 
 ## 7. Plugins
 

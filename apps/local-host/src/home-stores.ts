@@ -1,3 +1,7 @@
+import { readStorageSpace } from "@molis-ai/molis-work-storage";
+import { installedSnapshotOptions } from "./installed-library-snapshot.js";
+import { NATIVE_SESSION_FILE } from "./personal-native-session.js";
+import { pluginSyncDatabaseDeclaration } from './plugin-sync-database.js';
 import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
@@ -25,6 +29,8 @@ type Declaration = HomeStoreDeclaration & { readonly snapshot?: HomeStoreSnapsho
 const owned = (owner: string, ...stores: readonly Declaration[]): HomeSnapshotStore[] => stores.map(store => ({ ...store, owner, snapshot: store.snapshot ?? ordinarySnapshot }));
 const at = (...paths: string[]): HomeStoreDeclaration[] => paths.map(path => ({ path }));
 
+import {SYNC_HOME_STORE} from '@molis-ai/molis-work-module-sync-replication';
+
 /**
  * Every store of a Home (W4-11, docs/system/HOME-DATA.md): the Host's own, those of the modules and services it composes,
  * and the shipped plugins' (each declared by its plugin and carried by its catalog entry, and the library its Manifest
@@ -34,6 +40,12 @@ const at = (...paths: string[]): HomeStoreDeclaration[] => paths.map(path => ({ 
 export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
   const registered = registry ??= Object.assign(homeStoreRegistry([
     ...owned("apps/local-host", { path: "projects", snapshot: projectSnapshot }, { path: "logs", snapshot: omittedSnapshot("Diagnostic logs", "preserve") }),
+    ...owned("apps/local-host",
+      { path: "spaces", snapshot: omittedSnapshot("Each account space has its own Home and storage authority", "preserve") },
+      { path: "storage-space.json", snapshot: omittedSnapshot("The original Home owns its immutable space identity", "preserve") },
+      { path: "plugin-packages", snapshot: omittedSnapshot("Verified installed software stays with its original Home", "preserve") },
+      { path: NATIVE_SESSION_FILE, snapshot: omittedSnapshot("The native account bridge credential belongs to this Home", "preserve") }),
+    ...owned("modules/sync-replication", { ...SYNC_HOME_STORE, snapshot: omittedSnapshot("Device consent, transfer queues and cursors belong to this Home", "preserve") }),
     ...owned("apps/local-host/src/installer", { path: "backups", snapshot: { emptyOnly: true } }),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
@@ -45,7 +57,8 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       KNOWLEDGE_CARDS_HOME_STORE, { path: "feed", snapshot: feedSnapshot }),
     ...owned("server", DISCUSSION_HOME_STORE),
     ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
-      const library = entry.manifest.databases?.home;
+      const declared = entry.manifest.databases?.home;
+      const library = declared && pluginSyncDatabaseDeclaration(entry.manifest, declared);
       const storeName = entry.home_store?.path ?? library?.store_name;
       const snapshot: HomeStoreSnapshotPolicy = storeName === "images" ? {
         entry: (_home, file) => /^runners(?:\/|$)/u.test(file) ? excluded("Image runner ownership locks", "preserve") : { kind: "keep" },
@@ -61,8 +74,8 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("horizontal/agent-host", { path: "agent-runtime", snapshot: agentSnapshot }),
     ...owned("apps/local-host/src/installer", { path: "runtime-config-backups", snapshot: runtimeBackupSnapshot }, ...at("runtime-integrations", "runtime-integration-attempts")),
     ...owned("apps/local-host", { path: "browser", snapshot: browserSnapshot }, { path: "plugin-builder", snapshot: builderSnapshot },
-      { path: "cache", snapshot: omittedSnapshot("Rebuildable cache", "reset") }, ...at("plugin-files", "git-operation-details.json", "config/onboarding.json",
-      "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/plugin-publisher.json")),
+      { path: "cache", snapshot: omittedSnapshot("Rebuildable cache", "reset") }, ...at("computer", "plugin-files", "git-operation-details.json", "config/onboarding.json",
+      "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "config/plugin-publisher.json")),
     ...owned("apps/desktop", { path: "directory-access", snapshot: directoryAccessSnapshot }),
   ]), { snapshotExclusions: [
     { path: "bin", reason: "Reinstallable launchers" }, { path: "releases", reason: "Reinstallable application releases" },
@@ -71,20 +84,19 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     { path: "config/web-service.json", reason: "Machine service receipt" }, { path: "config/uninstall.json", reason: "Uninstall progress receipt" },
   ] });
   if (homeDirectory === undefined) return registered;
-  return extendLibraryRegistry(registered, installedLibrarySnapshots(homeDirectory, registered));
+  return extendLibraryRegistry(homeDirectory, registered, installedLibrarySnapshots(homeDirectory, registered));
 }
 
-export function homeStoresFromLibraryLedger(file: string): HomeSnapshotStoreRegistry {
+export function homeStoresFromLibraryLedger(file: string, home: string): HomeSnapshotStoreRegistry {
   const registered = homeStores();
-  if (lstatSync(file, { throwIfNoEntry: false })) inspectSnapshotSqlite(file, { baseline: INSTALLED_LIBRARIES_HOME_STORE.library!.baseline });
-  return extendLibraryRegistry(registered, installedLibrarySnapshotsFile(file, registered));
+  if (lstatSync(file, { throwIfNoEntry: false })) inspectSnapshotSqlite(file, { baseline: INSTALLED_LIBRARIES_HOME_STORE.library!.baseline, requireSpace: true, space: readStorageSpace(home) ?? undefined });
+  return extendLibraryRegistry(home, registered, installedLibrarySnapshotsFile(file, registered, home));
 }
 
-function extendLibraryRegistry(registered: HomeSnapshotStoreRegistry, snapshots: ReturnType<typeof installedLibrarySnapshots>): HomeSnapshotStoreRegistry {
+function extendLibraryRegistry(home:string, registered: HomeSnapshotStoreRegistry, snapshots: ReturnType<typeof installedLibrarySnapshots>): HomeSnapshotStoreRegistry {
   return Object.assign(homeStoreRegistry([...registered.stores, ...snapshots.map(row => ({
     path: row.store_name, owner: row.plugin_id,
-    snapshot: { database: (file: string) => file === row.store_name + ".db" ? { version: row.version,
-      inspect: () => ({ publisher_signature: row.publisher_signature, declaration_sha256: row.schema_digest }) } : undefined },
+    snapshot: { database: (file: string) => file === row.store_name + ".db" ? installedSnapshotOptions(home,row) : undefined },
   }))]), { snapshotExclusions: registered.snapshotExclusions });
 }
 let registry: HomeSnapshotStoreRegistry | undefined;

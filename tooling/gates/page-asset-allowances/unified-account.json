@@ -1,0 +1,11 @@
+{
+  "reason": "统一账号注册登录、资料、租户、订阅和席位界面复用已有工作台资产。与 Personal 保持各自的入口。账号脚本按字节收益合并重复字符串，受保护请求复用控制头。对独立构建的 main 10322f83b 实测，工作台脚本从 904593 到 943871 字节；四项均低于此前批准的增量。",
+  "review": "Work PR #1846，见 specs/unified-account/spec.md 的 T-01 Personal 主线接续记录和该 PR 的资源评审。",
+  "userApproval": "用户在 WORK-03 至 WORK-08、K-03 和 K-07 逐项批准原一次性增量。见 specs/unified-account/spec.md 的历史资源记录。0efd96ab 相对 a4bd94b12 的已批准额度为工作台脚本 +39618、工作台样式 +452、到达页样式 +683、插件框脚本 +54 字节。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 39278,
+    "/assets/molis-work-workbench.css": 450,
+    "/assets/molis-work-arrival.css": 656,
+    "/assets/molis-work-plugin-frame.js": 27
+  }
+}

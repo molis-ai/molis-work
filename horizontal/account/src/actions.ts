@@ -19,9 +19,9 @@ const profileSchema = schema("ProfileUpdateRequest");
 const profileInput = { ...profileSchema, properties: { ...profileSchema.properties as Record<string, unknown>, idempotencyKey: { type: "string", minLength: 16, maxLength: 128, pattern: "^[ -~]+$" } }, required: [...profileSchema.required as string[], "idempotencyKey"] };
 const metadata = { scope: "home", audiences: ["user"], subject_kinds: [], scheduling: "concurrent" } as const;
 export const accountActions = {
-  methods: { capability_id: "account.login-methods.read", version: 1, operation: "query", action: { ...metadata,
+  methods: { capability_id: "account.login-methods.read", version: /* @version action.account.login-methods.read */ 1, operation: "query", action: { ...metadata,
     title: "读取登录方式", description: "读取当前 Molis 账号的登录方式及验证状态，只返回脱敏标签，不包含密码或验证凭据。", kind: "query", effect: "read", permissions: [ACCOUNT_PERMISSIONS[0]], input_schema: schema("Empty"), output_schema: schema("LoginMethodsView") } },
-  profile: { capability_id: "account.profile.update", version: 1, operation: "command", action: { ...metadata,
+  profile: { capability_id: "account.profile.update", version: /* @version action.account.profile.update */ 1, operation: "command", action: { ...metadata,
     title: "修改个人资料", description: "按读取到的版本更新当前 Molis 账号的昵称或头像，同时影响两个产品显示的统一资料。", kind: "operation", effect: "write", permissions: [ACCOUNT_PERMISSIONS[1]], input_schema: profileInput, output_schema: schema("UserView") } },
 } as const satisfies Record<string, ActionDefinition>;
 export function accountActionProvider(session: () => AccountSessionManager): ActionProviderRegistration {

@@ -9,7 +9,7 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
   let opened: HTMLDialogElement | null = null;
   const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "", cls = "") => { const el = document.createElement(tag); if(text) el.textContent = text; if(cls) el.className = cls; return el; };
   document.addEventListener('click', event => {
-    const trigger = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-account-link]') : null;
+    const trigger = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-unified-account-link]') : null;
     if(!trigger) return;
     event.preventDefault(); if(opened) { opened.focus(); return; }
     const dialog = node('dialog', '', 'mw-dialog account-dialog'); opened = dialog;
@@ -55,8 +55,8 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
         button('个人与租户',()=>{disposeManagement=openAccountTenants(ui,account,back);});
       }
       if(account.state==='OFFLINE_CACHED')message.textContent=L('当前离线，账号状态暂不可确认。');
-      for(const [scope,label] of [['CURRENT_LOGIN','退出登录'],['ALL_MOLIS_PRODUCTS','退出所有产品和设备']]) button(label!,()=>perform(async()=>{const result=await request('/logout',{scope},{'Idempotency-Key':crypto.randomUUID()});form.replaceChildren();document.querySelectorAll('[data-account-link] strong, .arrival-global [data-account-link] > span').forEach(el=>el.textContent=L('登录'));message.textContent=result.remoteRevocation==='CONFIRMED'?L('已退出登录。'):L('本机已退出，远端撤销尚未确认。');button('返回登录',()=>{dialog.addEventListener('close',()=>trigger!.click(),{once:true});dialog.close();});}));
-      document.querySelectorAll('[data-account-link] strong, .arrival-global [data-account-link] > span').forEach(el=>el.textContent=account.user?.displayName||L('已登录'));
+      for(const [scope,label] of [['CURRENT_LOGIN','退出登录'],['ALL_MOLIS_PRODUCTS','退出所有产品和设备']]) button(label!,()=>perform(async()=>{const result=await request('/logout',{scope},{'Idempotency-Key':crypto.randomUUID()});form.replaceChildren();document.querySelectorAll('[data-unified-account-name]').forEach(el=>el.textContent=L('Molis 账号'));message.textContent=result.remoteRevocation==='CONFIRMED'?L('已退出登录。'):L('本机已退出，远端撤销尚未确认。');button('返回登录',()=>{dialog.addEventListener('close',()=>trigger!.click(),{once:true});dialog.close();});}));
+      document.querySelectorAll('[data-unified-account-name]').forEach(el=>el.textContent=account.user?.displayName||L('已登录'));
     }
     const submitStep = (body: unknown) => request('/auth/transactions/'+transaction!.handle+'/submit',body);
     async function startProvider(provider: string) {
@@ -96,7 +96,7 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
       else {const result=await submitStep({step:'REQUEST_CHALLENGE',address});challenge=result.challengeHandle;retryAt=Date.now()+result.retryAfterSeconds*1000;draw();message.textContent=L('验证码已受理，请查看短信或邮件；隔离测试使用 mock 投递。');}
     });};
     for(const [m,label] of [['login','邮箱登录'],['phone','手机验证码'],['signup','邮箱注册'],['reset','找回密码']]) {const b=button(label!,()=>{cancel();mode=m!;address='';retryAt=0;clearInterval(timer);message.textContent='';draw();},modes);buttons.push([b,m!]);}
-    dialog.addEventListener('close',()=>{disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;trigger.focus();});
+    dialog.addEventListener('close',()=>{disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;(trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger).focus();});
     draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else if(account.state==='EXPIRED')message.textContent=L('登录已过期，请重新登录。');});
   });
 })();

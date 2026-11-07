@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Release version consistency (docs/releases/POLICY.md). One product version lives in the root package.json; everything
-// that carries it must agree, the workspace packages stay private 0.0.0, the current version has release notes and a
-// CHANGELOG section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has (every
-// SqliteBaseline constant is listed, and every baseline handed to applySqliteBaseline is such a constant).
+// Release version consistency (docs/releases/POLICY.md). Every first-party version lives in tooling/versions.json: everything
+// that carries one must agree, no declaration may bypass it (scripts/gates/version-declarations.mjs), the workspace packages
+// stay private 0.0.0, the current version has release notes and a CHANGELOG section, and the per-database version table in
+// docs/releases/CHECKLIST.md is the one the code has (every SqliteBaseline constant is listed, and every baseline handed to
+// applySqliteBaseline is such a constant).
 //
 //   node scripts/verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]
 //
@@ -11,6 +12,8 @@
 // Exit codes: 0 consistent, 1 something disagrees (every finding is listed), 2 the command line is unusable.
 // It only reads files: no build, no git.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { generateVersions } from "./generate-versions.mjs";
+import { versionDeclarationProblems } from "./gates/version-declarations.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,17 +21,6 @@ const USAGE = "usage: verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const CHECKLIST = "docs/releases/CHECKLIST.md";
 const CHANGELOG = "docs/releases/CHANGELOG.md";
-
-// Everything besides the root package.json that must carry exactly the product version. The only place in code that spells
-// it out is PRODUCT_VERSION in the Host: Feed's User-Agent and the app version it and the search runtime hand to the Search
-// Evidence Layer, the MCP client version, and the client version the Codex session transport announces all take it from there.
-// A new place in code that announces the product version imports that constant; it is not another entry here.
-const CARRIERS = [
-  { file: "apps/desktop/src-tauri/tauri.conf.json", label: "apps/desktop/src-tauri/tauri.conf.json", pick: text => JSON.parse(text).version },
-  { file: "apps/desktop/src-tauri/Cargo.toml", label: "apps/desktop/src-tauri/Cargo.toml", pick: text => text.match(/^\[package\][^[]*?^version = "([^"]+)"$/ms)?.[1] },
-  { file: "apps/desktop/src-tauri/Cargo.lock", label: "apps/desktop/src-tauri/Cargo.lock#molis-work-desktop", pick: text => text.match(/\[\[package\]\]\nname = "molis-work-desktop"\nversion = "([^"]+)"/)?.[1] },
-  { file: "apps/local-host/src/product-version.ts", label: "apps/local-host/src/product-version.ts#PRODUCT_VERSION", pick: text => text.match(/^export const PRODUCT_VERSION = "([^"]+)";$/m)?.[1] },
-];
 
 // ---- command line ---------------------------------------------------------------------------------------------------
 const fail = message => { console.error(message); process.exit(2); };
@@ -46,7 +38,15 @@ const root = path.resolve(options.root ?? path.join(path.dirname(fileURLToPath(i
 // ---- reading --------------------------------------------------------------------------------------------------------
 const problems = [];
 const problem = message => problems.push(message);
-const readOptional = file => existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), "utf8") : null;
+// Markers are comments next to the literal; the checks below read the literal.
+const inspectSource = (file, text) => /\.m?[tj]s$/.test(file) ? text.replace(/\/\* @version [^*]+\*\/\s*/g, "") : text;
+const readOptional = file => existsSync(path.join(root, file)) ? inspectSource(file, readFileSync(path.join(root, file), "utf8")) : null;
+try {
+  for (const file of generateVersions({ root })) problem(`${file}: differs from tooling/versions.json (run pnpm versions:generate)`);
+} catch (error) { problem(`tooling/versions.json: ${error.message}`); }
+try {
+  for (const finding of versionDeclarationProblems(root)) problem(finding);
+} catch (error) { problem(`version declarations: ${error.message}`); }
 function readNeeded(file) {
   const text = readOptional(file);
   if (text === null) problem(`${file}: the file is missing`);
@@ -64,13 +64,6 @@ function checkProductVersion() {
   if (typeof version !== "string" || !SEMVER.test(version)) {
     problem(`package.json: version ${JSON.stringify(version)} is not MAJOR.MINOR.PATCH`);
     return null;
-  }
-  for (const carrier of CARRIERS) {
-    const text = readNeeded(carrier.file);
-    if (text === null) continue;
-    let found;
-    try { found = carrier.pick(text); } catch { found = undefined; }
-    if (found !== version) problem(`${carrier.label}: ${found ?? "no version found"}, but package.json is ${version}`);
   }
   if (options.tag !== undefined && options.tag !== `v${version}`) problem(`tag ${options.tag} is not v${version} (package.json)`);
   return version;
@@ -250,7 +243,7 @@ function declaredBaselines(directories) {
   const found = [];
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
-      for (const name of baselineNames(readFileSync(path.join(root, file), "utf8"))) found.push(`${file}#${name}`);
+      for (const name of baselineNames(inspectSource(file, readFileSync(path.join(root, file), "utf8")))) found.push(`${file}#${name}`);
     }
   }
   return found;
@@ -275,13 +268,15 @@ function callArguments(text, open) {
 
 // A baseline handed to `applySqliteBaseline(db, path, baseline)` or `openBaselineHomeSqlite(home, name, baseline)` has to be a
 // named, declared constant. An inline object or a name no package declares is a database the table cannot list. The file that
-// defines the two functions is exempt: it only passes its own parameter on.
+// defines the two functions is exempt: it only passes its own parameter on. The two aggregate copy openers take one the same way
+// (design §2.5), and their file is exempt for the same reason. `runSqliteUpgrade(db, path, baseline)` forwards what a store's
+// descriptor carries (specs/upgrade-continuity/upgrade-chain-design.md §2.3), so there, and only there, a property is fine too.
 function checkBaselineCalls(directories, declaredNames) {
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
-      if (file === "packages/storage/src/sqlite-baseline.ts") continue;
+      if (file === "packages/storage/src/sqlite-baseline.ts" || file === "packages/storage/src/aggregate-copy-store.ts") continue;
       const text = readFileSync(path.join(root, file), "utf8");
-      for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite)\s*\(/g)) {
+      for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite|runSqliteUpgrade|openOwnerCopyStore|openAggregateCopyOwner)\s*\(/g)) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
         // This one typed connection bridge forwards the trusted declaration for the Host client and the SQL worker, and the
@@ -292,6 +287,7 @@ function checkBaselineCalls(directories, declaredNames) {
           && /function openPluginDatabaseConnection\(home: string, declaration: PluginDatabaseDeclaration,/.test(text)) continue;
         const unnamed = `declare the baseline as a named constant so the 各库版本表 can list it`;
         if (baseline === undefined) problem(`${file}: ${match[1]} is called without a baseline`);
+        else if (match[1] === "runSqliteUpgrade" && /^\w+(?:\.\w+)+$/.test(baseline)) continue;
         else if (!/^\w+$/.test(baseline)) problem(`${file}: ${match[1]} is called with an inline baseline; ${unnamed}`);
         else if (!declaredNames.has(baseline)) problem(`${file}: ${match[1]} is called with ${baseline}, which no package declares as a SqliteBaseline; ${unnamed}`);
       }

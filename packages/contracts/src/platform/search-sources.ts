@@ -5,8 +5,8 @@ import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js"
  * How a plugin hands its searchable objects to the system search (specs/archive/system-search §5.1).
  * The plugin keeps its own store and rules; search only calls these declared actions with the caller's authority.
  */
-export const SEARCH_ENTRIES_INPUT_TYPE = "molis.search.entries.window.v1";
-export const SEARCH_ENTRIES_OUTPUT_TYPE = "molis.search.entries.page.v1";
+export const SEARCH_ENTRIES_INPUT_TYPE = /* @version type.molis.search.entries.window "molis.search.entries.window.v{version}" */ "molis.search.entries.window.v1";
+export const SEARCH_ENTRIES_OUTPUT_TYPE = /* @version type.molis.search.entries.page "molis.search.entries.page.v{version}" */ "molis.search.entries.page.v1";
 export const SEARCH_ENTRIES_PAGE_LIMIT = 500;
 
 /** Where the person opens an object: the Workbench plugin surface and the object's id inside it. */
@@ -64,9 +64,9 @@ const metadata = (kinds: readonly SearchSourceKind[], title: string, permissions
 });
 
 /** One declaration per source: which kinds it lists and where they open. Discovery confers no authority. */
-export function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
+export function defineSearchEntriesAction(capabilityId: string, version: number, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
   scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = SEARCH_SOURCE_AUDIENCES): ActionDefinition<SearchEntriesInput, SearchEntriesPage> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, `列出可搜索的${/^[A-Za-z]/.test(title) ? " " : ""}${title}`, permissions, scope, audiences),
+  return { capability_id: capabilityId, version: version, operation: "query", action: { ...metadata(kinds, `列出可搜索的${/^[A-Za-z]/.test(title) ? " " : ""}${title}`, permissions, scope, audiences),
     description: `按版本分页列出${title}的全部可搜索条目，供系统搜索建立与更新索引；不修改数据。`,
     input_type: SEARCH_ENTRIES_INPUT_TYPE, output_type: SEARCH_ENTRIES_OUTPUT_TYPE, input_schema: SEARCH_ENTRIES_INPUT_SCHEMA, output_schema: SEARCH_ENTRIES_OUTPUT_SCHEMA } };
 }

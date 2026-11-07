@@ -1,6 +1,6 @@
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { CODING_CHANGESET_TYPE, CODING_PLAN_TYPE, CODING_REPORT_TYPE, codingArtifacts } from "./artifacts.js";
+import { CODING_CHANGESET_TYPE, CODING_PLAN_TYPE, CODING_REPORT_TYPE, codingArtifacts, CODING_ARTIFACT_SCHEMA_VERSIONS } from "./artifacts.js";
 
 type CodingOutputRecord = NonNullable<ReturnType<PluginArtifactClient["read"]>>;
 
@@ -11,7 +11,7 @@ type CodingOutputRecord = NonNullable<ReturnType<PluginArtifactClient["read"]>>;
  */
 export function codingOutputs(context: PluginStartContext, types: readonly string[]): Array<{ reference: ArtifactReference; record: CodingOutputRecord }> {
   const artifacts = codingArtifacts(context), rows = artifacts.listConsumable();
-  return types.flatMap(type => rows.filter(row => row.artifact_type_id === type && row.schema_version === 1).flatMap(row => {
+  return types.flatMap(type => rows.filter(row => row.artifact_type_id === type && row.schema_version === CODING_ARTIFACT_SCHEMA_VERSIONS[type]).flatMap(row => {
     const reference = { artifact_id: row.artifact_id, version: row.version }, record = artifacts.read(reference);
     return record?.producer_plugin_id === context.plugin_id ? [{ reference, record }] : [];
   }));

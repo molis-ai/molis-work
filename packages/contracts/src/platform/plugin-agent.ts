@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "./package.js";
 
 export const platformPluginAgentContract = {
-  contractId: "io.molis.work.platform.plugin-agent.v1",
+  contractId: /* @version contract.io.molis.work.platform.plugin-agent "io.molis.work.platform.plugin-agent.v{version}" */ "io.molis.work.platform.plugin-agent.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.plugin-agent */ 1,
   maturity: "partial",
   ssot: "docs/horizontal/agent-host.md",
 } as const satisfies ContractDescriptor;

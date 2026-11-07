@@ -6,9 +6,9 @@ export { defineConnectorUsagesAction, CONNECTOR_USAGES_INPUT_TYPE, CONNECTOR_USA
 export type { ConnectorUsage, ConnectorUsagesInput, ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult } from "./connector-usages.js";
 
 export const servicesConnectorHostContract = {
-  contractId: "io.molis.work.service.connector-host.v1",
+  contractId: /* @version contract.io.molis.work.service.connector-host "io.molis.work.service.connector-host.v{version}" */ "io.molis.work.service.connector-host.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.connector-host */ 1,
   maturity: "partial",
   ssot: "docs/horizontal/connector-host.md",
 } as const satisfies ContractDescriptor;

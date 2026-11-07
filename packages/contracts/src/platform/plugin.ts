@@ -39,9 +39,9 @@ export type { PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl,
 import type { PluginRouteBinding } from "./plugin-routes.js";
 
 export const platformPluginContract = {
-  contractId: "io.molis.work.platform.plugin.v1",
+  contractId: /* @version contract.io.molis.work.platform.plugin "io.molis.work.platform.plugin.v{version}" */ "io.molis.work.platform.plugin.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.plugin */ 1,
   maturity: "partial",
   ssot: "docs/platform/PLUGIN-PLATFORM.md",
 } as const satisfies ContractDescriptor;

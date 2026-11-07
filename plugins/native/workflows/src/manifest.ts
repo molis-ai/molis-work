@@ -11,11 +11,11 @@ import { WORKFLOWS_EN } from "./en.js";
 const WORKFLOWS_BODY_BYTES = 400_000;
 
 export const workflowsManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: WORKFLOWS_PLUGIN_ID,
   sync: workflowsSync,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "工作流程",
   name_en: "Workflows",
   summary: "把插件串成流程，一步步做完。",

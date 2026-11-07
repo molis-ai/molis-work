@@ -19,20 +19,20 @@ const source = object({ title: { type: "string", minLength: 1, maxLength: 200 },
 type LandingInput = Omit<PagesLandingWrite, "mode"> & { id: string; expected_version: number };
 type LandingOutput = { document: PagesRecord; change_id: string };
 
-function define(document: ActionSchema, mode: PagesLandingMode, verb: string, describe: string, positions: readonly ItemAttachPosition[]): ActionDefinition<LandingInput, LandingOutput> {
+function define(document: ActionSchema, mode: PagesLandingMode, version: number, verb: string, describe: string, positions: readonly ItemAttachPosition[]): ActionDefinition<LandingInput, LandingOutput> {
   return createActionDefinition<LandingInput, LandingOutput>(`pages.landing.${mode}`, "command", { title: verb, description: describe,
     audiences: ["user", "workflow", "agent", "mcp"], permissions: ["pages:write"], subject_kinds: ["pages_document"],
     input_schema: object(mode === "quote" ? { ...input, source } : input), output_schema: object({ document, change_id: id }),
     result_subject: { id: "document.id", revision: "document.version" },
     attach: { attach_id: mode, item_kind: "pages_document", positions, title: "文档", verb, describe, material_field: "text" },
-    undo: { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } } });
+    undo: { capability_id: "pages.revert", version: /* @version action.pages.revert */ 1, input: { change_id: "change_id" } } }, version);
 }
 
 /** `document` is the schema of a Pages document, the same one every Pages action returns. */
 export const definePagesLandingActions = (document: ActionSchema) => ({
-  insert: define(document, "insert", "插入到光标处", "把文字原样插入到打开的文档里光标所在处，没有光标就放在文末；不改动已有的文字", ["cursor", "end"]),
-  replace: define(document, "replace", "替换选中的文字", "用这段文字替换打开的文档里选中的那段文字", ["selection"]),
-  quote: define(document, "quote", "作为引用插入", "把文字作为引用块插入到打开的文档里光标处或文末，下方写明出处；适合别人的原话", ["cursor", "end"]),
+  insert: define(document, "insert", /* @version action.pages.landing.insert */ 1, "插入到光标处", "把文字原样插入到打开的文档里光标所在处，没有光标就放在文末；不改动已有的文字", ["cursor", "end"]),
+  replace: define(document, "replace", /* @version action.pages.landing.replace */ 1, "替换选中的文字", "用这段文字替换打开的文档里选中的那段文字", ["selection"]),
+  quote: define(document, "quote", /* @version action.pages.landing.quote */ 1, "作为引用插入", "把文字作为引用块插入到打开的文档里光标处或文末，下方写明出处；适合别人的原话", ["cursor", "end"]),
 });
 
 export function createPagesLandingHandlers(actions: ReturnType<typeof definePagesLandingActions>, stores: PagesStores): ActionHandlerBinding[] {

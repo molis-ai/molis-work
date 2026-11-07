@@ -461,6 +461,9 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "placement.describe.v1",
       "placement.links.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
   entry("plugins/official-integrations/catalog", "@molis-ai/molis-work-contracts/platform/plugin", {

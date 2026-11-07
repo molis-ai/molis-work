@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { openServerDatabase, SERVER_DATABASE_BASELINE } from "@molis-ai/molis-work-server";
 
 // The server database (identity, transport and IM) has one current schema at version 1 (repository-anti-corruption
@@ -26,7 +26,7 @@ test("RAC-2376 RAC-2380 the current server database starts at 1 and refuses anot
       created.exec(`PRAGMA user_version = ${SERVER_DATABASE_BASELINE.version + 1}; PRAGMA journal_mode = DELETE`);
     } finally { created.close(); }
     const before = readFileSync(path);
-    assert.throws(() => openServerDatabase(directory), (error: unknown) => error instanceof SqliteSchemaVersionError);
+    assert.throws(() => openServerDatabase(directory), { code: "storage.store_too_new" });
     assert.deepEqual(readFileSync(path), before);
     const after = new DatabaseSync(path);
     try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, SERVER_DATABASE_BASELINE.version + 1); }
@@ -71,7 +71,7 @@ test("RAC-2717 a server database at another version in WAL mode is refused with 
       writer.exec(`PRAGMA user_version = ${SERVER_DATABASE_BASELINE.version + 1}`);
       assert.ok(existsSync(wal), "the WAL file holds this write");
       const before = readFileSync(path), beforeWal = readFileSync(wal);
-      assert.throws(() => openServerDatabase(directory), (error: unknown) => error instanceof SqliteSchemaVersionError);
+      assert.throws(() => openServerDatabase(directory), { code: "storage.store_too_new" });
       assert.deepEqual(readFileSync(path), before, "the version check writes nothing to the database");
       assert.deepEqual(readFileSync(wal), beforeWal, "and nothing to its WAL");
       assert.ok(existsSync(shm), "the shared-memory file is there; its lock bytes are the database's runtime state, not content");

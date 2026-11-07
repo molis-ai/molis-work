@@ -93,6 +93,7 @@ test("IMETA-04 safe uninstall preview is read-only and confirmation preserves ev
   }
 });
 
+// N33: both installation.json and release.json reject other schema versions without changing owned or user files.
 test("IMETA-04 unsupported installation and release metadata conflict without deletion; missing program files still uninstall safely", async () => {
   const item = await fixture();
   try {

@@ -55,7 +55,7 @@ test('PCSYNC-14 a newer head retires a deferred download rather than reviving st
 test('PCSYNC-12 deferred-replay schema refuses an old v3 sync library intact',t=>{
  const home=mkdtempSync(join(tmpdir(),'molis-sync-v3-'));t.after(()=>rmSync(home,{recursive:true,force:true}));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
  const db=openBaselineHomeSqlite(home,'sync',{version:3,schema:readFileSync(new URL('./fixtures/home-store-schemas/sync-v3.sql',import.meta.url),'utf8')});db.close();const file=join(home,'sync','sync.db'),before=readFileSync(file);
- assert.throws(()=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',registrations:[],authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){throw new Error('Must not authenticate');}},fetch:async()=>{throw new Error('Must not connect');}}),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(file),before);
+ assert.throws(()=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',registrations:[],authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){throw new Error('Must not authenticate');}},fetch:async()=>{throw new Error('Must not connect');}}),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),before);
 });
 
 

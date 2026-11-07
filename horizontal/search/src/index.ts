@@ -163,23 +163,23 @@ async function findEntry(client: ActionClient, caller: ActionCallContext, source
 
 /** hit_id carries only public identity: scope, provider, source version, kind and object id. */
 export function encodeSearchHitId(input: { project_id: string | null; provider_id: string; capability_id: string; version: number; kind: string; id: string }): string {
-  return JSON.stringify(["search-hit-v1", input.project_id ?? "", input.provider_id, input.capability_id, input.version, input.kind, input.id]);
+  return JSON.stringify([/* @version type.search-hit "search-hit-v{version}" */ "search-hit-v1", input.project_id ?? "", input.provider_id, input.capability_id, input.version, input.kind, input.id]);
 }
 export function decodeSearchHitId(value: string) {
   try {
     const parsed = JSON.parse(value) as unknown[];
-    if (!Array.isArray(parsed) || parsed.length !== 7 || parsed[0] !== "search-hit-v1" || !parsed.slice(1).every((part, index) => index === 3 ? Number.isSafeInteger(part) : typeof part === "string")) throw new Error();
+    if (!Array.isArray(parsed) || parsed.length !== 7 || parsed[0] !== /* @version type.search-hit "search-hit-v{version}" */ "search-hit-v1" || !parsed.slice(1).every((part, index) => index === 3 ? Number.isSafeInteger(part) : typeof part === "string")) throw new Error();
     const [, project, provider_id, capability_id, version, kind, id] = parsed as [string, string, string, string, number, string, string];
     if (!provider_id || !capability_id || !kind || !id) throw new Error();
     return { project_id: project || null, provider_id, capability_id, version, kind, id };
   } catch { throw new ActionError("actions.input_invalid", "搜索结果标识无效，请重新搜索"); }
 }
-const cursorOf = (query: string, offset: number) => JSON.stringify(["search-cursor-v1", query, offset]);
+const cursorOf = (query: string, offset: number) => JSON.stringify([/* @version type.search-cursor "search-cursor-v{version}" */ "search-cursor-v1", query, offset]);
 function offsetOf(cursor: string | null | undefined, query: string): number {
   if (!cursor) return 0;
   try {
     const [tag, forQuery, offset] = JSON.parse(cursor) as [unknown, unknown, unknown];
-    if (tag === "search-cursor-v1" && forQuery === query && Number.isSafeInteger(offset) && Number(offset) >= 0) return Number(offset);
+    if (tag === /* @version type.search-cursor "search-cursor-v{version}" */ "search-cursor-v1" && forQuery === query && Number.isSafeInteger(offset) && Number(offset) >= 0) return Number(offset);
   } catch { /* falls through */ }
   throw new ActionError("actions.input_invalid", "翻页位置已失效，请从第一页重新搜索");
 }

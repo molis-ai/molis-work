@@ -69,7 +69,7 @@ export function installEditor(page: LingguangPage): void {
     const given = record ? s.fresh.get(record.id) : undefined;
     const blank = record !== undefined && given !== undefined && !el.bodyInput.value.trim() && (!el.titleInput.value.trim() || el.titleInput.value === given)
       && !(record.body || "").trim() && (!record.title.trim() || record.title === given) && el.saveStatus.dataset.mwState === "saved";
-    host.view.onClosing(blank ? { reference: { capability_id: "lingguang.revert", version: 1 }, input: { id: record.id, expected_updated_at: record.updated_at } } : null);
+    host.view.onClosing(blank ? { reference: { capability_id: "lingguang.revert", version: /* @version action.lingguang.revert */ 1 }, input: { id: record.id, expected_updated_at: record.updated_at } } : null);
   };
 
   page.dropBlank = async (id) => {

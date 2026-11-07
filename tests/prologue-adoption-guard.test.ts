@@ -56,7 +56,7 @@ async function fixture(yieldIt: boolean, onFirst?: () => void) {
     requests.push({ who, body: raw });
     if (who === "child") { response.end(reply(undefined, "读过了：README 一共三节。")); return; }
     if (requests.filter(one => one.who === "parent").length === 1) {
-      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0];
+      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@1/)?.[0];
       assert.ok(character, "the production coordinator exposes its frozen child role");
       onFirst?.();
       response.end(reply({ name: "dispatch-subagent", input: { instruction: "Read README and say how many sections it has", tools: ["read", "search"], character,

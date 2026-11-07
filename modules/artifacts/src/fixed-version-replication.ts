@@ -20,7 +20,7 @@ export function createFixedVersionReplication<R extends FixedVersionRecord>(db: 
       if (!identity) return null;
       const { project_id: _project, ...portableIdentity } = identity;
       const versions = repository.listVersions(context.projectId, artifactId).map(({ project_id: _project, ...version }) => version);
-      const result = validate({ format: 1, spaceId: context.spaceId, projectId: context.projectId, identity: portableIdentity, versions });
+      const result = validate({ format: /* @version format.artifact.portable */ 1, spaceId: context.spaceId, projectId: context.projectId, identity: portableIdentity, versions });
       check(); return result;
     },
     apply(input: unknown): void {

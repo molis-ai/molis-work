@@ -11,15 +11,13 @@ import { atomicWriteFileSync } from "./atomic-write.js";
 import { resolveHomeSecurityDirectory } from "./local-security-paths.js";
 import { createFileSecretStore, type SecretStore } from "./file-secret-store.js";
 
-// Persisted names are deliberately unchanged so existing references and ciphertext remain readable.
 const CONTENT_KEY_REF = "system:feed:evidence-content-key:v1";
-const RECOVERY_CONTENT_KEY_REF = "system:feed:evidence-content-key:v2";
 const CONTENT_REF = /^molis-work-feed\/sha256\/([0-9a-f]{64})$/u;
 const MAX_CONTENT_BYTES = 1024 * 1024;
 const ALG = "aes-256-gcm" as const;
 
 interface SealedEvidenceBlob {
-  v: 1;
+  v: /* @version format.project.evidence-content */ 1;
   alg: typeof ALG;
   iv: string;
   tag: string;
@@ -41,7 +39,7 @@ export interface EvidenceContentStore {
     missing: number;
     keyAvailable: boolean;
   };
-  /** Removes a body, including its recovery copy. Returns whether a file went; a body that is not there is not an error. */
+  /** Removes a body. Returns whether a file went; a body that is not there is not an error. */
   delete(contentRef: string): boolean;
   /**
    * Deletes the candidate bodies that nothing refers to. This store cannot see who holds a reference (Feed materials,
@@ -60,33 +58,31 @@ export function createEvidenceContentStore(options: {
 } = {}): EvidenceContentStore {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const root = options.rootDirectory ?? path.join(resolveHomeSecurityDirectory(), "evidence");
-  const recoveryRoot = `${root}-recovered-v2`;
 
-  const readKey = (keyRef: string): Buffer | null => {
-    const raw = secretStore.get(keyRef);
+  const readKey = (): Buffer | null => {
+    const raw = secretStore.get(CONTENT_KEY_REF);
     if (!raw) return null;
     const key = Buffer.from(raw, "base64");
     return key.length === 32 ? key : null;
   };
 
-  const keyForWrite = (keyRef: string, targetRoot: string): Buffer => {
-    const existing = readKey(keyRef);
+  const keyForWrite = (): Buffer => {
+    const existing = readKey();
     if (existing) return existing;
-    if (listBlobFiles(targetRoot).length > 0) {
+    if (listBlobFiles(root).length > 0) {
       throw new Error("feed evidence content key unavailable");
     }
     const key = randomBytes(32);
-    secretStore.put(keyRef, key.toString("base64"));
-    return key;
+    if (secretStore.createIfAbsent(CONTENT_KEY_REF, key.toString("base64"))) return key;
+    const current = readKey();
+    if (!current) throw new Error("feed evidence content key unavailable");
+    return current;
   };
 
   const read = (contentRef: string): string => {
-    const recovered = blobPath(recoveryRoot, contentRef);
-    const targetRoot = fs.existsSync(recovered) ? recoveryRoot : root;
-    const keyRef = targetRoot === recoveryRoot ? RECOVERY_CONTENT_KEY_REF : CONTENT_KEY_REF;
-    const key = readKey(keyRef);
+    const key = readKey();
     if (!key) throw new Error("feed evidence content key unavailable");
-    const target = blobPath(targetRoot, contentRef);
+    const target = blobPath(root, contentRef);
     if (!fs.existsSync(target)) throw new Error("feed evidence content unavailable");
     const opened = openSealed(fs.readFileSync(target), contentRef, key);
     if (opened == null) throw new Error("feed evidence content failed integrity validation");
@@ -95,19 +91,17 @@ export function createEvidenceContentStore(options: {
 
   const remove = (contentRef: string): boolean => {
     let removed = false;
-    for (const base of [root, recoveryRoot]) {
-      const target = blobPath(base, contentRef);
-      try {
-        fs.unlinkSync(target);
-        removed = true;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      }
-      try {
-        fs.rmdirSync(path.dirname(target));
-      } catch {
-        // The shard directory still holds other bodies, or is already gone.
-      }
+    const target = blobPath(root, contentRef);
+    try {
+      fs.unlinkSync(target);
+      removed = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    try {
+      fs.rmdirSync(path.dirname(target));
+    } catch {
+      // The shard directory still holds other bodies, or is already gone.
     }
     return removed;
   };
@@ -121,32 +115,13 @@ export function createEvidenceContentStore(options: {
       const contentRef = evidenceContentRef(markdown);
       const destination = blobPath(root, contentRef);
       if (fs.existsSync(destination)) {
-        let existing: string | null = null;
-        try {
-          existing = read(contentRef);
-        } catch {
-          // Migrated project databases can retain valid content refs while the
-          // local v1 encryption key no longer matches the old blob directory.
-          // Never overwrite those blobs. Re-seal the same hash in a v2 overlay
-          // so future reads recover without deleting historical ciphertext.
-          const recovered = blobPath(recoveryRoot, contentRef);
-          if (fs.existsSync(recovered)) {
-            if (read(contentRef) !== markdown) throw new Error("feed evidence content hash collision");
-            return { contentRef };
-          }
-          const recoveryKey = keyForWrite(RECOVERY_CONTENT_KEY_REF, recoveryRoot);
-          atomicWriteFileSync(recovered, JSON.stringify(seal(markdown, contentRef, recoveryKey)), { mode: 0o600 });
-          return { contentRef };
-        }
+        const existing = read(contentRef);
         if (existing !== markdown) throw new Error("feed evidence content hash collision");
         return { contentRef };
       }
-      const useRecovery = readKey(CONTENT_KEY_REF) === null && listBlobFiles(root).length > 0;
-      const targetRoot = useRecovery ? recoveryRoot : root;
-      const keyRef = useRecovery ? RECOVERY_CONTENT_KEY_REF : CONTENT_KEY_REF;
-      const key = keyForWrite(keyRef, targetRoot);
+      const key = keyForWrite();
       const payload = seal(markdown, contentRef, key);
-      atomicWriteFileSync(blobPath(targetRoot, contentRef), JSON.stringify(payload), { mode: 0o600 });
+      atomicWriteFileSync(destination, JSON.stringify(payload), { mode: 0o600 });
       return { contentRef };
     },
     read,
@@ -183,7 +158,7 @@ export function createEvidenceContentStore(options: {
         referenced: refs.length,
         available,
         missing: refs.length - available,
-        keyAvailable: readKey(CONTENT_KEY_REF) !== null || readKey(RECOVERY_CONTENT_KEY_REF) !== null,
+        keyAvailable: readKey() !== null,
       };
     },
   };
@@ -218,7 +193,7 @@ function seal(markdown: string, contentRef: string, key: Buffer): SealedEvidence
     cipher.final(),
   ]);
   return {
-    v: 1,
+    v: /* @version format.project.evidence-content */ 1,
     alg: ALG,
     iv: iv.toString("base64"),
     tag: cipher.getAuthTag().toString("base64"),
@@ -229,7 +204,7 @@ function seal(markdown: string, contentRef: string, key: Buffer): SealedEvidence
 function openSealed(data: Buffer, contentRef: string, key: Buffer): string | null {
   try {
     const payload = JSON.parse(data.toString("utf8")) as SealedEvidenceBlob;
-    if (payload.v !== 1 || payload.alg !== ALG) return null;
+    if (payload.v !== /* @version format.project.evidence-content */ 1 || payload.alg !== ALG) return null;
     const decipher = createDecipheriv(ALG, key, Buffer.from(payload.iv, "base64"));
     decipher.setAAD(Buffer.from(contentRef, "utf8"));
     decipher.setAuthTag(Buffer.from(payload.tag, "base64"));

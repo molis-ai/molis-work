@@ -16,7 +16,7 @@ const cases = [
   { name: "assistant", version: 1, file: "assistant/assistant.db", table: "assistant_settings",
     seed: "INSERT INTO assistant_settings VALUES ('owner', 'setting', 1, 'retained')",
     open: (home: string) => { const db = openBaselineHomeSqlite(home, "assistant", ASSISTANT_STORE_BASELINE); try { new AssistantStore(db); return () => db.close(); } catch (error) { db.close(); throw error; } } },
-  { name: "characters", version: 4, file: "characters/characters.sqlite", table: "character_drafts",
+  { name: "characters", version: 1, file: "characters/characters.sqlite", table: "character_drafts",
     seed: "INSERT INTO character_drafts VALUES ('draft', 'owner', 1, 'time', '{}')",
     open: (home: string) => { const store = openCharacters(home, "owner"); return () => store.close(); } },
 ];
@@ -42,8 +42,8 @@ for (const item of cases) {
       mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
       const seeded = new DatabaseSync(file); seeded.exec(sql); seeded.exec(item.seed); seeded.exec(`PRAGMA user_version = ${version}`); seeded.close(); chmodSync(file, 0o600);
       const before = readFileSync(file);
-      assert.throws(() => item.open(home), (error: { code?: string; found?: number; expected?: number }) =>
-        error.code === "storage.schema_version_mismatch" && error.found === version && error.expected === item.version);
+      assert.throws(() => item.open(home), (error: { code?: string; details?: { found?: number; expected?: number } }) =>
+        error.code === (version === 0 ? "storage.schema_version_mismatch" : "storage.store_too_new") && error.details?.found === version && error.details?.expected === item.version);
       assert.deepEqual(readFileSync(file), before);
       const kept = new DatabaseSync(file, { readOnly: true });
       try {

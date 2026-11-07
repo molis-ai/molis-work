@@ -4,6 +4,7 @@
 // the durations the last runs on this checkout recorded.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { readWeights } from "./shard.mjs";
 import { classifyFile } from "../ci-linux-probe/select.mjs";
 import { runOnce, statusOf, stopRunning } from "../ci-linux-probe/run.mjs";
 
@@ -30,8 +31,8 @@ export function writeDurations(file, durations) {
 }
 
 /** The files in the order they start: longest expected first, ties in the order the caller named them, each marked browser or not. */
-export function plan(entries, durations) {
-  const expected = (entry) => durations[entry.file] ?? GUESS_SECONDS[entry.browser ? "browser" : "other"];
+export function plan(entries, durations, weights = {}) {
+  const expected = (entry) => durations[entry.file] ?? weights[entry.file] ?? GUESS_SECONDS[entry.browser ? "browser" : "other"];
   return entries.map((entry, index) => ({ ...entry, expected: expected(entry), index }))
     .sort((a, b) => b.expected - a.expected || a.index - b.index)
     .map(({ index: _index, ...entry }) => entry);
@@ -107,7 +108,7 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
   const store = durationsFile(root);
   const durations = readDurations(store);
   const entries = files.map((file) => ({ file, browser: classifyFile(root, file).marks.includes("browser") }));
-  const queue = plan(entries, durations);
+  const queue = plan(entries, durations, readWeights(root));
   const browserCount = entries.filter((entry) => entry.browser).length;
   console.log(`run-tests: ${files.length} files, ${Math.min(jobs, files.length)} at a time (at most ${Math.min(browserJobs, browserCount)} of the ${browserCount} browser files), each with its own MOLIS_WORK_HOME`);
 

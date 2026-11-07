@@ -21,15 +21,15 @@
    ```ts
    // 内置插件从 contracts 引入；第三方插件从 Plugin SDK（@molis-ai/molis-work-plugin-sdk）引入同名导出
    import { bindObjectMoveHandler, bindObjectCopyHandler, defineObjectMoveAction, defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
-   move: defineObjectMoveAction("pages.placement.move", ["pages_document"], "文档", ["pages:read", "pages:write"]),
-   copy: defineObjectCopyAction("pages.placement.copy", ["pages_document"], "文档", ["pages:read", "pages:write"]),
+   move: defineObjectMoveAction("pages.placement.move", 1, ["pages_document"], "文档", ["pages:read", "pages:write"]),
+   copy: defineObjectCopyAction("pages.placement.copy", 1, ["pages_document"], "文档", ["pages:read", "pages:write"]),
    bindObjectMoveHandler(actions.move, input => /* 把 input.from_project_id 分区的这一行改到 input.to_project_id，id 不变 */),
    bindObjectCopyHandler(actions.copy, input => /* 同一 request_id 返回同一份副本 */),
    ```
 
    移动时放掉只在原项目有意义的东西（文件夹、原项目里的 Goal 挂接、固定版本编号），有进行中的发布就拒绝。不能移动的对象（绑定外部服务、跨库）不声明，界面会写“不能移动”。
 
-   对象存在 Home、自己记“属于哪个项目”的插件（例如 Todo），声明 Home 作用域的移动：`defineObjectMoveAction(id, kinds, title, permissions, "home")` 配 `bindHomeObjectMoveHandler`，`to_project_id` 是新的归属（`personal` 表示个人空间），返回 `{ subject, project_id: to_project_id, revision }`。复制仍只在项目分区里。
+   对象存在 Home、自己记“属于哪个项目”的插件（例如 Todo），声明 Home 作用域的移动：`defineObjectMoveAction(id, version, kinds, title, permissions, "home")` 配 `bindHomeObjectMoveHandler`，`to_project_id` 是新的归属（`personal` 表示个人空间），返回 `{ subject, project_id: to_project_id, revision }`。复制仍只在项目分区里。
 3. **能接收内容的插件，做成工作流内容站**（`defineWorkflowContentActions`，含 `receive`、需要时 `create`）：灵光“转成文档”、问卷“存成数据表”、Goal“新建演示稿”都走它；同一次交付只建一个对象（用输入里的 `request_id`：由调用的入口给，同一个请求号建同一个对象、重发时返回它；谁交来的从调用上下文的受众读，不从输入读）。内容站的定义放进 manifest 的 `actions`，处理器单独导出（`create<Plugin>ContentHandlers`），由 Host 与插件动作处理器合并注册；不要塞进 `create<Plugin>ActionHandlers`，否则只按 `<plugin>Actions` 注册的调用方会报“处理器未声明”。
 4. **页面声明当前对象**：插件根元素写 `data-assistant-context`（`object: { kind, id, version, title }`、`unsaved`），并在标题行留一个位置槽：
 

@@ -105,7 +105,7 @@ const choice = (offer_id: string): FragmentOfferChoice => ({ offer_id, title: of
 const catalog = (): ActionView[] => [
   { capability_id: "shelf.fragment.offers", version: 1, provider_id: pages.provider_id, operation: "query", provider: pages, availability: { available: true },
     action: { title: "t", description: "d", kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: ["shelf_item"], input_schema: { type: "object" },
-      ...defineFragmentOffersAction("shelf.fragment.offers", ["shelf_item"], "t", [], [choice("explain")]).action } } as ActionView,
+      ...defineFragmentOffersAction("shelf.fragment.offers", 1, ["shelf_item"], "t", [], [choice("explain")]).action } } as ActionView,
   { capability_id: "pages.ai", version: 1, provider_id: pages.provider_id, operation: "command", provider: pages, availability: { available: true },
     action: { title: "ai", description: "ai", kind: "operation", scope: "project", audiences: ["user"], permissions: [], subject_kinds: ["shelf_item"], input_schema: { type: "object" } } } as ActionView,
 ];

@@ -89,7 +89,7 @@ function createAnySearchRuntime(
   host: Parameters<typeof createSearchRuntime>[0]["host"],
 ): SearchRuntime {
   return createSearchRuntime({
-    app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: 1 },
+    app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: /* @version format.search-evidence.data-compatibility */ 1 },
     host,
     providers: [
       {

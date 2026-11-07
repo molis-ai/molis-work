@@ -256,6 +256,7 @@ test("ASC-73: a row opens in place to its natural height on the chevron's clock,
   assert.deepEqual(exceptions, []);
 });
 
+// RAR-07 also verifies returning from the OAuth tab before the next real click.
 test("ASC-78 ASC-80: a login shows its steps and, when cancelled, changes nothing; a key is checked before it is saved", { timeout: 120_000 }, async t => {
   const browser = await openPage(t); if (!browser) return;
   const { page, open, next, answer, rows, origin, exceptions, pending } = browser;
@@ -277,6 +278,8 @@ test("ASC-78 ASC-80: a login shows its steps and, when cancelled, changes nothin
   assert.match(await text(page, "document.querySelector(\"[data-connector-item='gitlab'] [data-connector-add] [data-protocol-result]\")"), /没有连上：登录页关了，或在服务那边点了取消。这里什么都没改/);
   assert.equal(await text(page, stateOf("gitlab")), "已连接 2 个账号", "the row is put back as it was");
 
+  // Return from the OAuth tab as a person does; background Chrome pages may suspend the click helper's animation frames.
+  await page.command("Page.bringToFront");
   // A key: step 2 (验证密钥) while the Host checks it; it is saved only once the service accepts it (§13.6 ④d).
   await page.click("[data-connector-item='wechat'] [data-connection-toggle]");
   await page.wait("document.querySelector('[data-connector-item=wechat]').dataset.open === 'true' && !document.querySelector('[data-connector-item=wechat]').getAnimations({ subtree: true }).some(motion => motion.playState === 'running' && motion.effect?.getComputedTiming().iterations !== Infinity)");

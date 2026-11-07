@@ -62,7 +62,7 @@ const follow = (a: CodingActivation, execution: CodingExecution, sessionId: stri
       if (!SETTLED.includes(view.phase)) continue;
       // Notification only: terminal does not mean every tool succeeded or that a file changed.
       // The activation-owned events client rejects publication after stop/revocation.
-      try { context.services?.events?.publish({ event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1,
+      try { context.services?.events?.publish({ event_type_id: CODING_RUN_UPDATED_EVENT, type_version: /* @version event.io.molis.work.coding.run-updated */ 1,
         payload: { workspace_id: workspaceId, session_id: session.session_id, run_id: run.run_id, phase: view.phase } }); }
       catch { /* A missed UI hint must never retry or reclassify an already executed Run. */ }
       // A round that ended parked (waiting for an answer or a command) shows as waiting from here on.

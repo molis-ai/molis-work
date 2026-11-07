@@ -14,7 +14,7 @@ export function createProjectEvidenceContent(home:string,definitions:readonly Pr
  const store=createEvidenceContentStore({secretStore:createLazyFileSecretStore(home),rootDirectory:join(home,'feed','evidence')});
  const inspect=(key:string,input:unknown)=>{
   authorize();const parts:unknown=JSON.parse(key),wire=object(input),project=object(wire.project),facts=object(wire.facts);
-  if(!Array.isArray(parts)||parts.length!==3||parts[1]!==kind||parts[0]!==parts[2]||typeof parts[0]!=='string'||!parts[0]||parts[0].length>80||wire.format!==1||wire.spaceId!==spaceId||project.id!==parts[0]||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)throw replicaError('replica_scope_mismatch');
+  if(!Array.isArray(parts)||parts.length!==3||parts[1]!==kind||parts[0]!==parts[2]||typeof parts[0]!=='string'||!parts[0]||parts[0].length>80||wire.format!==/* @version format.project.sections */ 1||wire.spaceId!==spaceId||project.id!==parts[0]||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)throw replicaError('replica_scope_mismatch');
   exact(project,['id','title']);exact(facts,definitions.map(d=>d.id));const refs=new Set<string>();
   for(const definition of definitions){const rows=validateProjectReplicaRows(facts[definition.id],definition,parts[0]);definition.validate(rows,parts[0]);for(const ref of definition.contentRefs?.(rows,parts[0])??[]){if(!pattern.test(ref))throw replicaError('replica_references_invalid');refs.add(ref);}}
   return {wire,refs:[...refs].sort()};

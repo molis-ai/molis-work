@@ -9,7 +9,8 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   describeSqliteBaseline,
   describeSqliteSchema,
-  SqliteSchemaVersionError,
+  isSqliteVersionRefusal,
+  sqliteVersionMismatch,
   type SqliteBaseline,
 } from "./sqlite-baseline.js";
 import type { SqliteDatabase } from "./sqlite.js";
@@ -95,7 +96,7 @@ function inspectDatabase(
   if (previous && userVersion !== previous.user_version) throw changed(file);
   const expectedVersion = options.baseline?.version ?? options.version;
   if (expectedVersion !== undefined && userVersion !== expectedVersion)
-    throw new SqliteSchemaVersionError(file, userVersion, expectedVersion);
+    throw sqliteVersionMismatch(file, userVersion, expectedVersion);
   const shape = describeSqliteSchema(database);
   if (shape.tables.molis_storage_space && !spaceMetadataShapeMatches(database))
     throw invalid(`快照库的空间元数据结构不符: ${file}`);
@@ -136,7 +137,7 @@ function inspectDatabase(
     if (
       previous &&
       error !== options.signal?.reason &&
-      (error instanceof SqliteSchemaVersionError ||
+      (isSqliteVersionRefusal(error) ||
         error instanceof ActionError && error.kind === "invalid")
     )
       throw changed(file);

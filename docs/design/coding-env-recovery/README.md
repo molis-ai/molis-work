@@ -77,3 +77,9 @@ python3 -m http.server 4416 --bind 127.0.0.1 --directory docs/design
 
 - 不读文件夹、不跑命令、不调模型、不装依赖；端口、密钥名、测试数、时间、代码版本号都是示例。按钮的后果用底部提示说明。
 - 方案、状态、语言记在本机 `localStorage` 的 `molis-proto.coding-env-recovery.v1`，读不到就从初始状态开始；外观记在 `molis-work:theme`。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+第 33 批 Coding 任务与环境恢复的可点定样：环境与临时副本、预算与重试、重启后接着做、本轮结果；每块 A／B／C，沿用 12 的恢复 A 和 04 的失败框架
+
+用户已选定（2026-11-04：四块都是 A，记在 [Coding 需求书 §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据

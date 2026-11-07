@@ -7,10 +7,10 @@ import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js"
  * store and rules; the system only calls these declared actions, with the person's own authority, in the object's
  * current project, and records the move or copy in its own ledger.
  */
-export const PLACEMENT_MOVE_INPUT_TYPE = "molis.placement.move.input.v1";
-export const PLACEMENT_MOVE_OUTPUT_TYPE = "molis.placement.move.output.v1";
-export const PLACEMENT_COPY_INPUT_TYPE = "molis.placement.copy.input.v1";
-export const PLACEMENT_COPY_OUTPUT_TYPE = "molis.placement.copy.output.v1";
+export const PLACEMENT_MOVE_INPUT_TYPE = /* @version type.molis.placement.move.input "molis.placement.move.input.v{version}" */ "molis.placement.move.input.v1";
+export const PLACEMENT_MOVE_OUTPUT_TYPE = /* @version type.molis.placement.move.output "molis.placement.move.output.v{version}" */ "molis.placement.move.output.v1";
+export const PLACEMENT_COPY_INPUT_TYPE = /* @version type.molis.placement.copy.input "molis.placement.copy.input.v{version}" */ "molis.placement.copy.input.v1";
+export const PLACEMENT_COPY_OUTPUT_TYPE = /* @version type.molis.placement.copy.output "molis.placement.copy.output.v{version}" */ "molis.placement.copy.output.v1";
 /** The personal space is an ordinary project partition with this reserved identity. */
 export const PERSONAL_SPACE_PROJECT_ID = "personal";
 
@@ -38,16 +38,16 @@ const metadata = (kinds: readonly string[], title: string, permissions: readonly
  * `home`: the plugin keeps its objects in the person's Home and records itself which project each belongs to (a todo list);
  * the action runs at Home and `to_project_id` is the new belonging — a project, or the personal space.
  */
-export function defineObjectMoveAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[],
+export function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[],
   scope: "project" | "home" = "project"): ActionDefinition<PlacementMoveInput, PlacementResult> {
-  return { capability_id: capabilityId, version: 1, operation: "command", action: { ...metadata(kinds, title, permissions, scope),
+  return { capability_id: capabilityId, version: version, operation: "command", action: { ...metadata(kinds, title, permissions, scope),
     description: `把${title}移到另一个位置（个人空间或项目）；同一份内容，身份不变。`, effect: "write",
     input_type: PLACEMENT_MOVE_INPUT_TYPE, output_type: PLACEMENT_MOVE_OUTPUT_TYPE, input_schema: PLACEMENT_MOVE_INPUT_SCHEMA, output_schema: PLACEMENT_RESULT_SCHEMA } };
 }
 
 /** Copy makes an independent object in the target partition; the same request_id always returns the same copy. */
-export function defineObjectCopyAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult> {
-  return { capability_id: capabilityId, version: 1, operation: "command", action: { ...metadata(kinds, title, permissions),
+export function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult> {
+  return { capability_id: capabilityId, version: version, operation: "command", action: { ...metadata(kinds, title, permissions),
     description: `把${title}复制一份到另一个位置；之后两份互不影响。`, effect: "write",
     input_type: PLACEMENT_COPY_INPUT_TYPE, output_type: PLACEMENT_COPY_OUTPUT_TYPE, input_schema: PLACEMENT_COPY_INPUT_SCHEMA, output_schema: PLACEMENT_RESULT_SCHEMA } };
 }

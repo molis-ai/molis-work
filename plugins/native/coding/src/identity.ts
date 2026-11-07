@@ -97,7 +97,7 @@ export function projectCodingIdentity(input: CodingIdentityInput): CodingIdentit
   layers.push({
     layer: "task",
     ...LAYER_TITLES.task,
-    entries: task === "" ? [] : [{ prompt_id: "task", version: 1, body: task }],
+    entries: task === "" ? [] : [{ prompt_id: "task", version: /* @version prompt.task */ 1, body: task }],
     ...(task === "" ? { absent_reason: ABSENT.task } : {}),
   });
 

@@ -18,8 +18,8 @@ export const cogniaCollection: PluginSyncCollectionDefinition = {
  create(db,context){
  const key=(value:string)=>requireCognia(value===KEY,'知识同步资产不匹配');
  return {authorizeKey(id){key(id);context.authorize();},belongsToProject(id){key(id);return false;},
-  read(id){key(id);const graph=readGraph(db);validateKnowledgeGraph(graph);return {format:1,spaceId:context.spaceId,graph};},
-  apply(id,value){key(id);const w=syncObject(value);requireCognia(Object.keys(w).sort().join(',')==='format,graph,spaceId'&&w.format===1&&w.spaceId===context.spaceId,'知识同步空间或字段不匹配');const g=validateKnowledgeGraph(w.graph);
+  read(id){key(id);const graph=readGraph(db);validateKnowledgeGraph(graph);return {format:/* @version format.cognia.portable */ 1,spaceId:context.spaceId,graph};},
+  apply(id,value){key(id);const w=syncObject(value);requireCognia(Object.keys(w).sort().join(',')==='format,graph,spaceId'&&w.format===/* @version format.cognia.portable */ 1&&w.spaceId===context.spaceId,'知识同步空间或字段不匹配');const g=validateKnowledgeGraph(w.graph);
    const localPaths=new Map(db.prepare('SELECT id,body FROM cognia_sources').all().map(s=>[String(s.id),(JSON.parse(String(s.body)) as Source).locator]));
    for(const table of [...tables].reverse())db.exec(`DELETE FROM ${table}`);
    for(const d of g.domains)db.prepare('INSERT INTO cognia_domains(id,name) VALUES (?,?)').run(d.id,d.name);
@@ -41,4 +41,4 @@ export const cogniaSyncProjection={
   },
 };
 
-export const cogniaSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'knowledge',title:'知识材料、历史与草稿',schema_version: 2,requires:[],tracking:cogniaCollection.tracking}]};
+export const cogniaSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'knowledge',title:'知识材料、历史与草稿',schema_version: /* @version sync.collection.cognia.knowledge */ 1,requires:[],tracking:cogniaCollection.tracking}]};

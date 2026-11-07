@@ -4,7 +4,7 @@ import type { SqliteExplorationRepository } from "../db/exploration-repository.j
 import type { SqliteDatabase } from "../db/open-database.js";
 import type { SqliteJobRunner } from "../jobs/sqlite-job-runner.js";
 
-export const DISCOVERY_BRAINSTORM_JOB = "discovery.brainstorm.v1";
+export const DISCOVERY_BRAINSTORM_JOB = /* @version type.discovery.brainstorm "discovery.brainstorm.v{version}" */ "discovery.brainstorm.v1";
 
 export interface DiscoveryBrainstormJobInput {
   explorationRunId: string;

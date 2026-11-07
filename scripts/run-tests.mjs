@@ -77,7 +77,7 @@ if (options.shard) {
   targets.splice(0, targets.length, ...mine);
 }
 
-// One browser batch at a time on this machine (docs/system/PARALLEL-DEVELOPMENT.md §5): a run with a browser file takes the machine's
+// Up to three browser batches at a time on this machine (docs/system/PARALLEL-DEVELOPMENT.md §5): a run with a browser file takes the machine's
 // browser slot first and waits its turn when another checkout holds it (scripts/machine-slot.mjs; not in CI, not inside a test).
 {
   const { classifyFile } = await import("./ci-linux-probe/select.mjs");

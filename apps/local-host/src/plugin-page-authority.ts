@@ -179,10 +179,13 @@ export class PluginPageAuthority {
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-workspaces";
     const slotChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && ["/api/host/plugin-page-slot", "/api/host/plugin-page-connection"].includes(pathname);
+    // The platform's reads area on a task (task-grants-platform-area.md §2.3): the same fence as the account picker.
+    const taskGrantsChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
+      && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-task-grants";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
       && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery"].includes(pathname)
         || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery"].includes(pathname));
-    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
+    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const check = () => {
@@ -220,6 +223,12 @@ export function pluginPageRequest(request: IncomingMessage) {
       // Granted, not only declared (§13.5 C2): an installation the person has not given `connections:use` has no account to choose.
       authority.page.activation.assertCurrent(PLUGIN_CONNECTIONS_PERMISSION);
       return { install_id: authority.page.activation.install_id, plugin_id: authority.page.activation.manifest.plugin_id, slot };
+    },
+    /** The installation whose tasks this page's reads area is on: the page's own, never one the request names. */
+    taskGrantsInstall() {
+      authority.check();
+      if (!authority.page.activation.install_id || !authority.page.project_id) throw refused();
+      return authority.page.activation.install_id;
     },
     /** The page's installation for a connection card (§13.5 C2): who it is comes from the page; `granted` asks this installation's grant now. */
     connectionInstallation() {

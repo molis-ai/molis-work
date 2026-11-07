@@ -13,6 +13,20 @@ const RADIUS = "var(--sk-r, var(--radius-control, 8px))";
  */
 const joined = (end = "") => `:root body .mw-btn-group > .mw-btn${end}:not(#mw-joined), :root body .mw-btn-group > *${end} > .mw-btn:not(#mw-joined)`;
 
+/**
+ * Item rows (`mw-items`, `mw-item`): a list on its own surface, one row each, its end holding a state or a control. On the board,
+ * and in the workbench sheet since the platform's reads area on a plugin page draws its categories with them.
+ */
+export const ITEM_ROW_STYLES = `
+  .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
+  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
+  /* An item is one line: its name, then where it lives in muted words, cut first when room runs out. */
+  .mw-item > span:nth-child(2) { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .mw-item strong { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
+  .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }`;
+
 export const CATALOG_PATTERN_STYLES = `
   .mw-catalog .mw-popover .mw-catalog__row { flex-wrap: nowrap; }
   .mw-catalog .mw-popover .mw-input { flex: 1; min-width: 220px; }
@@ -80,18 +94,10 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-stat__trend line + line { stroke: var(--accent); stroke-width: 6; }
   .mw-stat .mw-progress { margin-top: 16px; }
 
-  .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
-  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
-  .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
+${ITEM_ROW_STYLES}
   .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
-  /* An item is one line: its name, then where it lives in muted words, cut first when room runs out. */
-  .mw-item > span:nth-child(2) { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
-  .mw-item strong { flex: 0 1 auto; min-width: 0; }
-  .mw-item small { flex: 1 1 0; min-width: 0; }
-  .mw-item strong, .mw-setting strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
-  .mw-item small, .mw-setting p { margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; }
-  .mw-item small { white-space: nowrap; }
-  .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mw-setting strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
+  .mw-setting p { margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; }
   .mw-settings { display: grid; width: min(560px, 100%); ${SURFACE}; }
   .mw-setting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; min-height: 60px; padding: 12px 16px; }
   .mw-setting + .mw-setting { box-shadow: inset 0 1px 0 var(--line); }

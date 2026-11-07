@@ -393,7 +393,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 
 **规则：先补 schema 约束，再删重复检查，不能反过来**，否则中间有一段没人查。S 片要占快照队列。
 
-1. 把 S 清单和处理器里的检查分成四类（§5.4 的表）：① schema 已经管了的；② schema 能表达（必填、类型、`minItems`、`pattern`、长度、enum）但还没写的；③ schema 管不了的（跨字段、要读库）；④ 类型上只能是 `unknown` 的。已被别处保证的，看它属于哪一类。
+1. 把 S 清单和处理器里的检查分成四类（§5.4 的表）：① schema 已经管了的；② schema 能表达（必填、类型、`minItems`、`pattern`、长度、enum）但还没写的；③ schema 管不了的（跨字段、要读库）；④ 类型上只能是 `unknown` 的。不是输入的（值只来自本包的字面量或代码，比如 Jelly 的 `command.type`）直接删，PR 写明值从哪来，不用拒绝用例。说是被别处保证、但值确实来自输入的，按四类判断。
 2. ② 类**且已被处理器执行**的，补进 schema。只搬已有的检查，不新增拒绝。**不要把约束加到共享片段上：** 输出也过校验（`checkedActionResult`），加在用到它的动作或分支上。新的收紧单独一个 PR，写明。
 3. 确认这个处理器只经 kernel 调用（§5.3）。
 4. 删掉 ① 类和搬完的 ② 类的检查和读值小函数；T 片留下的 `as` 也删掉。表驱动的处理器例外：值在类型上只能是 `unknown`，读值函数在收窄，留着（④ 类，现在只有 Jelly，见 `BL-jelly-command-readers`）。
@@ -509,7 +509,7 @@ node_modules/.bin/tsc -p <包>/tsconfig.json --noEmit --noErrorTruncation
 | --- | --- | --- | --- | --- |
 | **① schema 已经管了** | 关键字已经在这个动作的 schema 里 | 直接删，配一个拒绝用例证明 schema 真的拒 | 不变 | 不变：Kernel 本来就先拒，这条检查本来就走不到 |
 | **② schema 能管、还没写** | 处理器在查，schema 没写；或者值是 `unknown`，因为 schema 松（比如 `{ type: "object" }` 没写字段） | 记进 S 清单。只有程序调用方碰得到才搬；**加在用到它的动作上** | 变 | 变成 `actions.input_invalid` |
-| **③ schema 管不了** | 跨字段、要读库、日历上不存在的日期 | 留 | - | - |
+| **③ schema 管不了** | 跨字段、要读库、日历上不存在的日期；在动作之前的（`plugin-routes.ts` 里的 HTTP 体） | 留 | - | - |
 | **④ 类型上只能是 `unknown`** | 一个处理器服务很多定义，值在类型上本来就只能是 `unknown`，检查同时在收窄 | 留。删了就要写 `as`，方向反了 | - | - |
 
 **④ 是 Jelly 的特例。** 全仓现在只有 `JellyCommand` 是这种形状。`Object.entries` 式的表驱动处理器另外只有 `plugins/native/pages/src/landing-actions.ts:39` 和 `apps/local-host/src/installed-plugin-consent-actions.ts:109`，它们不是这种形状。值是 `unknown` 不等于 ④：别的包碰到，先按 ② 算，真觉得是 ④ 就回来问。
@@ -518,7 +518,7 @@ node_modules/.bin/tsc -p <包>/tsconfig.json --noEmit --noErrorTruncation
 
 1. **页面走得到吗？** 走得到就不搬（错误话会变成通用的），要么页面先拦。Jelly 的选区：`note-actions.ts:69` 空选区根本不发。
 2. **这个片段还有谁在用？** 输出也过校验（`checkedActionResult`）。不要把约束加到共享片段上，新建一个或写在分支里。
-3. **是只搬，还是多拒了？** 原来的检查只在某个分支生效，就只加在那个分支。`text.length` 搬成 `maxLength` 要写明：Ajv 按码点数。
+3. **是只搬，还是多拒了？** 原来的检查只在某个分支生效，就只加在那个分支。`text.length` 搬成 `maxLength` 要写明：Ajv 按码点数。`!x.trim()` 搬成 `pattern: "\\S"` 是等价的：JS 的 `\s` 和 `trim` 认同一组空白字符。
 
 **再查一条路：** 这个检查的上层还有谁不经 Kernel 调？不经 Kernel 就没有 schema 拦，检查不能删。全仓的两条见 §5.3；包自己的路也要查，Jelly 的 `store.execute` 还有 `content-actions` 的 `receive` 和几十处测试直调，有测试钉住的（`tests/jelly-content.test.ts:47` 的 `/预览/`）留着，不改测试。
 

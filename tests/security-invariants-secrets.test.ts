@@ -18,7 +18,7 @@ import type { AddressInfo } from "node:net";
 import { MolisWorkLocalHost, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const CONTROL = "secrets-sweep-control-token-0123456789abcdefghij";
 const SECRETS = {

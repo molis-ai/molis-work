@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, type ServerResponse } from "node:http";
 import test from "node:test";
-import { createDesktopWebHost, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { AssistantStore, MolisWorkLocalHost, resolveWebControlToken, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -73,7 +73,7 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
     t.mock.method(client, "invoke", wrapped as typeof client.invoke);
     return client;
   });
-  const factory = createDesktopWebHost({ ptyClientFilePath: () => "" });
+  const factory = createDesktopWebCore({ ptyClientFilePath: () => "" });
   let server: ReturnType<typeof factory> | undefined;
   try {
     await runWithMolisWorkHome(home, async () => {
@@ -166,7 +166,7 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   const address = model.address();assert.ok(address && typeof address !== "string");
-  const factory = createDesktopWebHost({ ptyClientFilePath: () => "" });
+  const factory = createDesktopWebCore({ ptyClientFilePath: () => "" });
   let server: ReturnType<typeof factory> | undefined;
   try { await runWithMolisWorkHome(home, async () => {
     const project = await withCatalog({ homeDirectory: home }, async catalog => {

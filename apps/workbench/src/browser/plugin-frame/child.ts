@@ -32,6 +32,7 @@ function bindStorage(port: MessagePort, config: FrameConfig): void {
   for (const area of ["localStorage", "sessionStorage"] as const) {
     const values = new Map(Object.entries(config.storage[area]));
     const write = (key: string, value: string | null) => {
+      if (document.body.inert) throw new Error("Account is switching");
       if (value === null) values.delete(key); else values.set(key, value);
       port.postMessage({ type: "storage", area, key, value } satisfies FrameUp);
     };

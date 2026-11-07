@@ -27,7 +27,7 @@ const SIDE_PAGE_SCRIPT = String.raw`() => {
 
 /** A Home plugin can be opened before any project exists. The same contribution and client also mount in Workbench. */
 export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_plugin_id"> & { readonly manifest: Pick<PluginManifest, "name" | "plugin_id"> }, html: string | null, message: string | null, controlToken: string,
-  locale: Pick<WorkbenchRendererPorts["locale"], "L" | "htmlLang" | "clientI18nScript">, retry = false, side = false, project?: { project_id: string; display_name?: string }, frame?: string, lifecycle = true): string {
+  locale: Pick<WorkbenchRendererPorts["locale"], "L" | "htmlLang" | "clientI18nScript"> & Pick<WorkbenchRendererPorts, "accountRegistration">, retry = false, side = false, project?: { project_id: string; display_name?: string }, frame?: string, lifecycle = true): string {
   const { L, htmlLang, clientI18nScript } = locale;
   const name = escapeHtml(entry.manifest.name), id = entry.project_plugin_id;
   // A page drawn by a document of its own (a signed package's) is framed whole; any other is the plugin's HTML in the common opaque frame.
@@ -35,7 +35,7 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
   const client = pluginSurfaceClients().find(item => item.id === id);
   const route = project ? `/projects/${encodeURIComponent(project.project_id)}` : "";
   return renderWorkbenchDocument({ lang: htmlLang(), title: `${entry.manifest.name} · Molis Work`,
-    body_attributes: { class: "immersive-workbench home-plugin-page", "data-home-side": side ? "true" : null, "data-side-view": side ? id : null, "data-project-id": project?.project_id ?? null, "data-route-prefix": route },
+    body_attributes: { class: "immersive-workbench home-plugin-page", "data-home-side": side ? "true" : null, "data-side-view": side ? id : null, "data-project-id": project?.project_id ?? null, "data-route-prefix": route, ...(locale.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
     head_html: `<meta name="molis-work-control-token" content="${escapeHtml(controlToken)}">
     <script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>
     .home-plugin-page{height:100dvh;display:flex;flex-direction:column;background:var(--desk);color:var(--ink)}

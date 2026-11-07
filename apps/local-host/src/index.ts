@@ -221,13 +221,16 @@ export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
+export { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
+export { homeProjectReach } from "./project-reach.js";
+export { AccountRefreshPages } from "./account-refresh-pages.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
 export { createLocalGoalsReadHttp } from "./web-goals-read.js";
-export { createLocalWebServerFactory } from "./web-server.js";
+export { createLocalWebCoreFactory, createLocalWebServerFactory } from "./web-server.js";
 export type { WebServerOptions } from "./web-types.js";
 export type { LocalWebPlatform } from "./web-composition.js";
 export { createLocalUninstallService } from "./local-uninstall.js";
@@ -372,3 +375,5 @@ export { createWebCatalogAccess } from "./web-catalog-access.js";
 export { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.js";
 
 export { verifySyncPluginDistribution } from "./sync-distribution.js";
+
+export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";

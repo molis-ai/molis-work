@@ -10,6 +10,23 @@ import { deferred, grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixture
 import { backgroundProbe } from "./fixtures/plugin-background.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 
+test("ASR-07 page storage scopes isolate identical installations and projects by Home", () => {
+  const homes = [mkdtempSync(join(tmpdir(), "page-scope-a-")), mkdtempSync(join(tmpdir(), "page-scope-b-"))];
+  try {
+    const manifest = {plugin_id: "io.example.scope", ui: {}, actions: [], routes: []} as PluginManifest;
+    const activation = {manifest, install_id: "same-install", project_id: "same-project", actor_id: "web-user", assertCurrent() {}};
+    const open = (home: string) => pluginPagesFor(home).open(manifest.plugin_id, "same-project", "web-user", undefined, activation);
+    const a = open(homes[0]!), b = open(homes[1]!);
+    assert.notEqual(a.storage_scope, b.storage_scope);
+    const reopened = open(homes[0]!);
+    assert.equal(reopened.storage_scope, a.storage_scope, "returning to A keeps A's saved drafts");
+    for (const home of homes) { assert.equal(a.storage_scope.includes(home), false); assert.equal(b.storage_scope.includes(home), false); }
+    pluginPagesFor(homes[0]!).close(a.page_id);
+    pluginPagesFor(homes[0]!).close(reopened.page_id);
+    pluginPagesFor(homes[1]!).close(b.page_id);
+  } finally { homes.forEach(home => rmSync(home, {recursive: true, force: true})); }
+});
+
 test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and do not receive Runtime services", { timeout: 30_000 }, async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Registered pages"), other = await f.project("Other registered pages");
   const prefix = `/projects/${project.project_id}`;

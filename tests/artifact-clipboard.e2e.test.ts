@@ -6,7 +6,7 @@ import test from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { MolisWorkLocalHost, DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 // This checks the real browser clipboard, not the automation tool's virtual clipboard.

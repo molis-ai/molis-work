@@ -6,14 +6,15 @@
 //   node probe-lifecycle.mjs first <home>                 enable, discover, invoke (route and action), undo, search, files, methods
 //   node probe-lifecycle.mjs after-upgrade <home> <id>    the upgraded version and the notes it kept; disable, revoke, uninstall
 import { randomUUID } from "node:crypto";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { homeAgentDefinitions, MolisWorkLocalHost, molisWorkHostProjectReference, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 
 const [phase, home, givenProject] = process.argv.slice(2);
 const PLUGIN_ID = "io.molis.work.probe", KEY = "probe";
 const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
 const token = randomUUID();
-const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
+// The probe exercises the plugin lifecycle within this explicitly selected Home.
+const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const request = async (path, method = "GET", body) => {

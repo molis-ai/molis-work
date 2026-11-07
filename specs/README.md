@@ -73,6 +73,7 @@
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。
 
+- [account-switch-refresh](account-switch-refresh/spec.md)：单活动账号与平台刷新规范；工程、本机与用户桌面候选操作的证据分开记录，当前更新见第 13 节，最终 CI、合并队列及 main 核对以 [PR #1932](https://github.com/molis-ai/molis-work/pull/1932) 实际记录为准。
 - [action-architecture](action-architecture/spec.md)：能力怎样注册、发现、调用、授权（§3「基本合同」）。
 - [plugin-platform-v2](plugin-platform-v2/spec.md)：插件能声明什么、宿主怎么装配、插件之间怎么交换。2026-10-18 补充 Skill Pack、目录元数据、hooks 与 LSP 声明。
 - [molis-work-architecture-reorganization](molis-work-architecture-reorganization/spec.md)：架构与包重组基线。
@@ -115,6 +116,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-07：[单机构建与测试各三个槽位](archive/machine-slots-three/spec.md)归档（已实现，负责人 Codex）；#1953 经 PR CI 与合并队列通过后合入 main，本机主检出已同步并确认两个三槽池。
 
 - 2026-11-07：[路线书审查复核与修复](archive/roadmap-audit-repair/spec.md)归档（已实现，负责人 Codex）；#1898、#1899、追加授权的 #1897 已合入 main，#1900 已合入 gh-pages 并部署；最终 CI、Full 与队列成功，保留首次失败和验证边界。
 

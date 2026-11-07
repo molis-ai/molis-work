@@ -1,4 +1,5 @@
-// Measurement only: real production Host, disposable seeded Home, no model or user data.
+// Measurement only: production selected-Home HTTP core, disposable seeded Home, no model or user data.
+// Measures the business layer after account selection; excludes installation login and account switching.
 // Run after pnpm build: node scripts/visual/http-baseline.mjs <result.json>
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
@@ -12,7 +13,7 @@ const output = resolve(process.argv[2] ?? 'specs/visual-ui-experience/evidence/h
 const home = await mkdtemp(join(tmpdir(), 'molis-visual-baseline-'));
 process.env.MOLIS_WORK_HOME = home;
 process.env.MOLIS_WORK_SECRET_BACKEND = 'file';
-const { openMolisWorkProjectCatalog, createDesktopWebHost } = await import('@molis-ai/molis-work-app-desktop');
+const { openMolisWorkProjectCatalog, createDesktopWebCore } = await import('@molis-ai/molis-work-app-desktop');
 const { seedDemoBoard, LocalProjectDatabase } = await import('@molis-ai/molis-work-app-local-host');
 const { PROJECT_SCOPED_PLUGIN_IDS } = await import('@molis-ai/molis-work-app-local-host');
 const round = value => Math.round(value * 100) / 100;
@@ -57,7 +58,7 @@ try {
   const snapshot = store.snapshot(project.project_id);
   result.dataset = Object.fromEntries(Object.entries(snapshot).filter(([, value]) => Array.isArray(value)).map(([key, value]) => [key, value.length]));
   result.dataset.projectPluginCount = PROJECT_SCOPED_PLUGIN_IDS.length;
-  const createServer = createDesktopWebHost({ ptyClientFilePath: () => resolve('dist/web/pty-client.js') });
+  const createServer = createDesktopWebCore({ ptyClientFilePath: () => resolve('dist/web/pty-client.js') });
   server = createServer({ homeDirectory: home, controlToken: randomBytes(32).toString('hex') });
   server.on('connection', socket => { sockets.add(socket); socket.once('close', () => sockets.delete(socket)); });
   await new Promise((resolveListen, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolveListen); });

@@ -1,25 +1,26 @@
 // FSS-46, the type half: compiled by tests/ui-text-files-contract.test.ts the way an author's package is, which also imports the samples
 // to hold them against the current format constants. Tests are not type-checked otherwise. Each line ending with a "rejects" comment has
 // to be refused with those words, and no other line may have an error. The values come from today's tokens (packages/design-system).
-import type {
-  OwnedTextRef,
-  TextArgValue,
-  UiEnvironmentSnapshot,
-  UiFileResult,
-  UiFontRole,
-  UiFontSchemeFile,
-  UiFormatTool,
-  UiLocalePack,
-  UiMessage,
-  UiResourceRegistry,
-  UiResourceRow,
-  UiRoleSpec,
-  UiSayTool,
-  UiSkinFile,
-  UiSpecFile,
-  UiTextProvider,
-  UiTextTool,
-  UiTokenValue,
+import {
+  UI_FORMAT_VERSIONS,
+  type OwnedTextRef,
+  type TextArgValue,
+  type UiEnvironmentSnapshot,
+  type UiFileResult,
+  type UiFontRole,
+  type UiFontSchemeFile,
+  type UiFormatTool,
+  type UiLocalePack,
+  type UiMessage,
+  type UiResourceRegistry,
+  type UiResourceRow,
+  type UiRoleSpec,
+  type UiSayTool,
+  type UiSkinFile,
+  type UiSpecFile,
+  type UiTextProvider,
+  type UiTextTool,
+  type UiTokenValue,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 const SPEC_REF = { id: "molis-interface", revision: 1 };
@@ -27,7 +28,7 @@ const BASELINE_SKIN = { id: "soft-workbench", revision: 1 };
 const BASELINE_FONT = { id: "system-sans", revision: 1 };
 
 export const SPEC: UiSpecFile = {
-  format_version: 1,
+  format_version: UI_FORMAT_VERSIONS.spec,
   id: "molis-interface",
   revision: 1,
   baseline_skin: BASELINE_SKIN,
@@ -58,7 +59,7 @@ export const SPEC: UiSpecFile = {
 };
 
 export const SKIN: UiSkinFile = {
-  format_version: 1,
+  format_version: UI_FORMAT_VERSIONS.skin,
   id: "soft-workbench",
   revision: 1,
   spec: SPEC_REF,
@@ -89,11 +90,11 @@ export const SKIN: UiSkinFile = {
 };
 
 // A skin a person made: a literal name, and every role but one left to `follows` and the baseline.
-export const MINIMAL_SKIN: UiSkinFile = { format_version: 1, id: "folio", revision: 3, spec: SPEC_REF, name: { literal: "我的皮肤" }, recommended_font: BASELINE_FONT, light: { page: "#faf7f2" }, dark: {}, shared: {}, terminal: {} };
+export const MINIMAL_SKIN: UiSkinFile = { format_version: UI_FORMAT_VERSIONS.skin, id: "folio", revision: 3, spec: SPEC_REF, name: { literal: "我的皮肤" }, recommended_font: BASELINE_FONT, light: { page: "#faf7f2" }, dark: {}, shared: {}, terminal: {} };
 
 const NO_FONT_SET: UiFontRole = {};
 export const FONT_SCHEME: UiFontSchemeFile = {
-  format_version: 1,
+  format_version: UI_FORMAT_VERSIONS.font,
   id: "system-sans",
   revision: 1,
   name: { key: "workbench.font.system-sans" },
@@ -105,13 +106,13 @@ export const FONT_SCHEME: UiFontSchemeFile = {
     code: { families: [{ system: "ui-monospace" }, { system: "SF Mono" }, { system: "monospace" }] },
   },
   faces: [
-    { family: "Inter Variable", weight: [100, 900], unicode_range: ["U+0000-00FF", "U+2000-206F"], resource: "font.inter-latin-variable" },
-    { family: "Noto Sans SC", weight: 400, unicode_range: ["U+4E00-9FFF"], resource: "font.noto-sans-sc-400" },
+    { family: "Inter Variable", weight: [100, 900], unicode_range: ["U+0000-00FF", "U+0131", "U+2000-206F"], resource: "font.inter-latin-variable" },
+    { family: "Noto Sans SC", weight: 400, unicode_range: ["U+2E80-2EFF", "U+4E00-9FFF", "U+FF00-FFEF"], resource: "font.noto-sans-sc-400" },
   ],
 };
 
 export const LOCALE_EN: UiLocalePack = {
-  format_version: 1,
+  format_version: UI_FORMAT_VERSIONS.locale,
   owner: "io.molis.work.example.notes",
   locale: "en",
   messages: {
@@ -119,19 +120,19 @@ export const LOCALE_EN: UiLocalePack = {
     "notes.main.saved": { plural_arg: "count", forms: { one: "{count} note saved", other: "{count} notes saved" } },
   },
 };
-export const LOCALE_ZH: UiLocalePack = { format_version: 1, owner: "workbench", locale: "zh-CN", direction: "ltr", revision: 2, messages: { "common.copy": "复制" } };
+export const LOCALE_ZH: UiLocalePack = { format_version: UI_FORMAT_VERSIONS.locale, owner: "workbench", locale: "zh-CN", direction: "ltr", revision: 2, messages: { "common.copy": "复制" } };
 
 const LICENSE = { spdx: "OFL-1.1", source: "https://github.com/rsms/inter", notice_path: "fonts/OFL.txt" };
 const IN_DESIGN_SYSTEM = { owner: "design-system", package: "@molis-ai/molis-work-design-system" };
 export const REGISTRY: UiResourceRegistry = {
-  format_version: 1,
+  format_version: UI_FORMAT_VERSIONS.registry,
   resources: [
     { id: "spec.molis-interface", kind: "spec", ...IN_DESIGN_SYSTEM, path: "resources/ui-spec.json", load: "startup" },
     { id: "skin.soft-workbench", kind: "skin", ...IN_DESIGN_SYSTEM, path: "resources/skins/soft-workbench.json", load: "startup" },
     { id: "font-scheme.system-sans", kind: "font-scheme", ...IN_DESIGN_SYSTEM, path: "resources/fonts/system-sans.json", load: "first-screen" },
     { id: "locale.workbench", kind: "locale", owner: "workbench", package: "@molis-ai/molis-work-workbench", path: "resources/locales", load: "tool" },
-    { id: "font.inter-latin-variable", kind: "font", ...IN_DESIGN_SYSTEM, path: "fonts/inter-latin-variable.woff2", load: "first-screen", route: "/assets/fonts/inter-latin-variable.woff2", sha256: "0".repeat(64), license: LICENSE },
-    { id: "font.noto-sans-sc-400", kind: "font", ...IN_DESIGN_SYSTEM, path: "fonts/noto-sans-sc-400.woff2", load: "fallback", route: "/assets/fonts/noto-sans-sc-400.woff2", sha256: "1".repeat(64), license: { spdx: "OFL-1.1", source: "https://github.com/notofonts/noto-cjk" } },
+    { id: "font.inter-latin-variable", kind: "font", ...IN_DESIGN_SYSTEM, path: "fonts/inter-latin-variable.woff2", load: "first-screen", route: "/assets/inter-latin-variable.woff2", sha256: "0".repeat(64), license: LICENSE },
+    { id: "font.noto-sans-sc-400", kind: "font", ...IN_DESIGN_SYSTEM, path: "fonts/noto-sans-sc-400.woff2", load: "fallback", route: "/assets/noto-sans-sc-400.woff2", sha256: "1".repeat(64), license: { spdx: "OFL-1.1", source: "https://github.com/notofonts/noto-cjk" } },
     { id: "asset.folio-paper", kind: "asset", ...IN_DESIGN_SYSTEM, path: "assets/folio-paper.png", load: "on-select", sha256: "2".repeat(64), license: LICENSE },
   ],
 };
@@ -190,11 +191,11 @@ export const refusedByTypes = (say: UiSayTool, format: UiFormatTool): readonly u
   const textKind: TextArgValue = { kind: "text", text: "x" }; // rejects: "text"
   const unknownNumberStyle = format.number(1, "currency"); // rejects: "currency"
   const notBound = say({ key: "notes.main.title" }); // rejects: Property 'owner' is missing
-  const wrongFormat: UiSkinFile = { ...SKIN, format_version: 2 }; // rejects: Type '2' is not assignable to type '1'
-  const wrongSpecFormat: UiSpecFile = { ...SPEC, format_version: 2 }; // rejects: Type '2' is not assignable to type '1'
-  const wrongLocaleFormat: UiLocalePack = { ...LOCALE_EN, format_version: 0 }; // rejects: Type '0' is not assignable to type '1'
+  const wrongFormat: UiSkinFile = { ...SKIN, format_version: 0 }; // rejects: Type '0' is not assignable
+  const wrongSpecFormat: UiSpecFile = { ...SPEC, format_version: 0 }; // rejects: Type '0' is not assignable
+  const wrongLocaleFormat: UiLocalePack = { ...LOCALE_EN, format_version: 0 }; // rejects: Type '0' is not assignable
   const skinWithCss: UiSkinFile = { ...SKIN, css: "body {}" }; // rejects: 'css' does not exist
-  const noTerminal: UiSkinFile = { format_version: 1, id: "a", revision: 1, spec: SPEC_REF, name: { literal: "a" }, recommended_font: BASELINE_FONT, light: {}, dark: {}, shared: {} }; // rejects: Property 'terminal' is missing
+  const noTerminal: UiSkinFile = { format_version: UI_FORMAT_VERSIONS.skin, id: "a", revision: 1, spec: SPEC_REF, name: { literal: "a" }, recommended_font: BASELINE_FONT, light: {}, dark: {}, shared: {} }; // rejects: Property 'terminal' is missing
   const anotherAxis: UiSkinFile = { ...SKIN, terminal: { auto: {} } }; // rejects: 'auto' does not exist
   const mixedWithColor: UiTokenValue = { mix: { role: "ink", percent: 7, with: "red" } }; // rejects: "red"
   const anotherStroke: UiTokenValue = { stroke: { width_px: 2, style: "dashed", role: "focus" } }; // rejects: "dashed"

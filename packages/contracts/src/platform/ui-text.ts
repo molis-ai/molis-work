@@ -3,11 +3,11 @@ import type { SandboxSchema } from "./plugin-sandbox.js";
 // A piece of interface text as data (specs/font-and-skin-system/a-section-contract.md §2), published through the `platform/ui`
 // subpath. `plugin-manifest.ts` and the other contracts that only name the shape import these types from this file.
 
-export const NUMBER_STYLES = ["decimal", "percent", "compact"] as const;
-export const DATE_STYLES = ["date", "time", "datetime", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"] as const;
+export const TEXT_NUMBER_STYLES = ["decimal", "percent", "compact"] as const;
+export const TEXT_DATE_STYLES = ["date", "time", "datetime", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"] as const;
 
-export type TextNumberStyle = (typeof NUMBER_STYLES)[number];
-export type TextDateStyle = (typeof DATE_STYLES)[number];
+export type TextNumberStyle = (typeof TEXT_NUMBER_STYLES)[number];
+export type TextDateStyle = (typeof TEXT_DATE_STYLES)[number];
 
 /** One argument. It keeps the raw value, never formatted text: a change of language formats it again. */
 export type TextArg =
@@ -39,7 +39,7 @@ const TEXT_ARG_SCHEMA: SandboxSchema = {
     text: { type: "string", maxLength: TEXT_REF_LIMITS.arg_text },
     number: { type: "number" },
     at: { type: "string", maxLength: TEXT_REF_LIMITS.arg_at },
-    style: { type: "string", enum: [...NUMBER_STYLES, ...DATE_STYLES] },
+    style: { type: "string", enum: [...TEXT_NUMBER_STYLES, ...TEXT_DATE_STYLES] },
   },
 };
 

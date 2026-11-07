@@ -17,11 +17,24 @@ export const UI_FORMAT_VERSIONS = {
 /** Bytes per file (256 KiB, 64 KiB, 1 MiB), compared before parsing, and the deepest nesting a file may have. Plain numbers so the API snapshot shows them. */
 export const UI_FILE_LIMITS = { spec: 262_144, skin: 65_536, font: 65_536, locale: 1_048_576, registry: 65_536, depth: 12 } as const;
 
-/** The shapes of strings the files hold. `color` keeps a file's own letter case: a skin writes back byte for byte what it replaced. */
+/**
+ * The shapes of strings the files hold, and the only place a parser takes them from. Most of these end up inside generated CSS, so each lists what it
+ * allows rather than what it refuses: none lets through anything that leaves a CSS string or declaration (`;`, brackets, quotes, a line break, a backslash).
+ */
 export const UI_FILE_PATTERNS = {
   definition_id: /^[a-z][a-z0-9-]{0,63}$/,
+  /** `--name` in the output. */
+  role_name: /^[a-z][a-z0-9-]*$/,
+  /** Keeps a file's own letter case: a skin writes back byte for byte what it replaced. */
   color: /^(?:#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?|transparent)$/,
-  system_font: /^[A-Za-z0-9 -]+$/,
+  /** `UiFontFamily.system`, `UiFontFamily.face` and `UiFontFace.family`. Unquoted in CSS without a space, so it has to read as an identifier. */
+  font_name: /^-?[A-Za-z](?:[A-Za-z0-9 -]*[A-Za-z0-9])?$/,
+  /** One entry of `UiFontFace.unicode_range`: a code point or a range, the way `@font-face` is written today. */
+  unicode_range: /^U\+[0-9A-Fa-f]{1,6}(?:-[0-9A-Fa-f]{1,6})?$/,
+  /** `UiResourceFields.id` and `UiFontFace.resource`, such as `font.inter-latin-variable`. */
+  resource_id: /^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*$/,
+  /** `UiResourceFields.route`, which goes into `src: url(…)`: only below `/assets/`, so never another host, and no `..` segment. */
+  route: /^\/assets(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)+$/,
 } as const;
 
 export const UI_ROLE_TYPES = ["color", "shadow", "length", "duration", "easing", "stroke", "number"] as const;
@@ -125,7 +138,7 @@ export interface UiSkinFile {
   readonly terminal: { readonly unset?: UiTokenMap; readonly light?: UiTokenMap; readonly dark?: UiTokenMap };
 }
 
-/** `system` takes only ASCII letters, digits, spaces and hyphens (`UI_FILE_PATTERNS.system_font`); `face` names a `UiFontFace.family`. */
+/** Both are `UI_FILE_PATTERNS.font_name`; `face` names a `UiFontFace.family`. */
 export type UiFontFamily = { readonly system: string } | { readonly face: string };
 export interface UiFontRole {
   readonly families?: readonly UiFontFamily[];
@@ -164,6 +177,9 @@ export interface UiLocalePack {
   readonly messages: Readonly<Record<string, UiMessage>>;
 }
 
+export type UiResourceKind = (typeof UI_RESOURCE_KINDS)[number];
+export type UiResourceLoad = (typeof UI_RESOURCE_LOADS)[number];
+
 interface UiResourceFields {
   /** What font schemes and the budget refer to, such as `font.inter-latin-variable`. */
   readonly id: string;
@@ -171,12 +187,11 @@ interface UiResourceFields {
   readonly package: string;
   /** Relative to the package; the language directory for a `locale`. */
   readonly path: string;
-  readonly load: (typeof UI_RESOURCE_LOADS)[number];
+  readonly load: UiResourceLoad;
   /** The path of a file served as is. `fontFaceRules` writes its `src: url(…)` from this. */
   readonly route?: string;
 }
 export interface UiResourceLicense { readonly spdx: string; readonly source: string; readonly notice_path?: string }
-export type UiResourceKind = (typeof UI_RESOURCE_KINDS)[number];
 /**
  * Holds no byte count, and no digest of our own JSON: those are second copies of a fact of the file, and every pull request that changes a
  * word would collide on the same row. A third party's binary is the exception, where a replaced file has to show.

@@ -302,7 +302,7 @@ export const TEXT_REF_SCHEMA: SandboxSchema = {
 | 规则 | 内容与理由 |
 | --- | --- |
 | 版本 | `format_version` 是格式版本，`id`＋`revision` 是定义身份，互不代替。外观的准确引用是 `UiDefinitionRef = { id: string; revision: number }` |
-| 取值 | `id` 匹配 `^[a-z][a-z0-9-]{0,63}$`；`revision` 是正整数。`id`、色值、系统字体名的正则在 `UI_FILE_PATTERNS`，角色类型、资源种类等取值表在 `UI_ROLE_TYPES`、`UI_RESOURCE_KINDS` 等常量，解析器从这里取，不另写一份 |
+| 取值 | `id` 匹配 `^[a-z][a-z0-9-]{0,63}$`；`revision` 是正整数。`id`、角色名、色值、字体名、`unicode_range`、资源 id、`route` 的正则在 `UI_FILE_PATTERNS`，只列允许的字符：会写进 CSS 的字符串不收分号、括号、引号、换行、反斜杠，`url(` 进不来；`route` 只收 `/assets/` 下的路径。角色类型、资源种类等取值表在 `UI_ROLE_TYPES`、`UI_RESOURCE_KINDS` 等常量，解析器从这里取，不另写一份 |
 | 未知字段 | 拒绝，不忽略（需求 §3.1） |
 | 重复属性名 | 进入 `JSON.parse` 之前拒绝，只有 SDK 的 `parseStrictJson` 一份实现：扫描器按路径记键，报 `$.light.ink` 和行列。普通解析器会让后值静默覆盖前值，看不出来 |
 | 危险属性名 | `__proto__`、`constructor`、`prototype` 一律拒绝 |
@@ -401,7 +401,7 @@ export interface UiFontRole {
   readonly weight?: number;
   readonly tracking_em?: number;
 }
-export type UiFontFamily = { readonly system: string } | { readonly face: string };  // system 只收字母、数字、空格、连字符
+export type UiFontFamily = { readonly system: string } | { readonly face: string };  // 都按 UI_FILE_PATTERNS.font_name：字母、数字、空格、连字符
 export interface UiFontFace {
   readonly family: string; readonly weight: number | readonly [number, number];
   readonly unicode_range: readonly string[]; readonly resource: string;   // 登记表的资源 id，不是路径
@@ -565,6 +565,7 @@ A 段什么都不改：令牌仍在基础 CSS 里，没有选择，快照由基�
 | `createTextReader({ packs, locale })` | `ui/text-reader.ts` | 纯函数，给定语言包查词。还没装的包的预览、测试、`installTextForTest` |
 | `parseStrictJson` | `ui/strict-json.ts` | 下面三个 `parse*`；`parseLocalePack`；CLI |
 | `parseUiSpecFile`、`parseSkinFile`、`parseFontScheme` | `ui/appearance-files.ts` | `packages/design-system` 基线加载；组件板 |
+| `parseResourceRegistry` | `ui/appearance-files.ts` | 宿主资源适配器、`packages/design-system` 的基线加载与 `fontFaceRules`、资源报告、`tests/ui-resources.test.ts`（第 1.3 节）。解析和拒绝照第 3.1 节（FSS-46），`UI_RESOURCE_KINDS`、`UI_RESOURCE_LOADS`、`format.ui.registry`、`UI_FILE_LIMITS.registry` 的读者就是它 |
 | `resolveSkin`、`skinTokenDeclarations` | `ui/appearance-resolve.ts` | `palette.ts` 等 |
 | `resolveFontScheme`、`fontTokenDeclarations`、`fontFaceRules` | `ui/appearance-resolve.ts` | `typeface.ts` |
 | `resolveUiEnvironment`、`withDevicePreferences` | `ui/environment.ts` | 组件板；第 16 批的首屏 |
@@ -575,7 +576,7 @@ A 段什么都不改：令牌仍在基础 CSS 里，没有选择，快照由基�
 
 ### 5.1 工具的形状
 
-类型在 `platform/ui-text.ts`（T2 加，T1 不用等它）。`NUMBER_STYLES`、`DATE_STYLES` 同时导出，T4 的 `textRefProblems` 查 `style` 和 `kind` 配不配；`TextNumberStyle` 是前者的类型，与 `TextDateStyle` 对称：
+类型在 `platform/ui-text.ts`（T2 加，T1 不用等它）。`TEXT_NUMBER_STYLES`、`TEXT_DATE_STYLES` 同时导出（不叫 `NUMBER_STYLES`：design-system 已有同名的 CSS 字符串），T4 的 `textRefProblems` 查 `style` 和 `kind` 配不配；`TextNumberStyle` 是前者的类型，与 `TextDateStyle` 对称：
 
 ```ts
 /** 业务写的参数值。按分支展开写，不用 Omit<TextArg, "name">：那样会压扁联合（tsc --strict 实测，{ kind: "number" } 缺值也能过）。 */

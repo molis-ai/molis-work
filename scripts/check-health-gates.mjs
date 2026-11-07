@@ -56,6 +56,7 @@ import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
+import { measureSchemaPatches, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
@@ -152,7 +153,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
+const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -337,17 +338,15 @@ const vendoredSdk = {
   summary: (count) => `${count} vendored SDK`,
 };
 
-// 4. Compatibility code coming back: in-place table patching outside a baseline schema.
+// 4. Compatibility code coming back: in-place table patching outside a baseline schema and the steps of its `upgrades` (scripts/gates/schema-patches.mjs).
 const schemaPatches = {
   id: "schemaPatches",
   measure(snapshot) {
-    let count = 0;
-    for (const file of snapshot.files.filter(isSource)) count += (snapshot.read(file)?.match(/ALTER TABLE|ensureSqliteColumn\(/g) ?? []).length;
-    return count;
+    return measureSchemaPatches(snapshot);
   },
   toBaseline: (count) => ({ schemaPatches: count }),
   fromBaseline(json) { requireShape(Number.isInteger(json.schemaPatches), "schemaPatches"); return json.schemaPatches; },
-  grew: (head, ref) => (head > ref ? [`in-place schema patches ${ref} → ${head}; change the baseline schema instead`] : []),
+  grew: (head, ref) => (head > ref ? [`in-place schema patches ${ref} → ${head}; change the baseline schema, and put the structure change in a step of its \`upgrades\` literal`] : []),
   lowered: (head, ref) => head < ref,
   lines: (head, ref) => [`In-place schema patches: ${head}${ref !== undefined && ref !== head ? `, base ${ref}` : ""}`],
   summary: (count) => `${count} schema patches`,

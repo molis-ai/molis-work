@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
+      "kind": "cohesive-unit",
+      "reason": "同一 AgentDefinitions 数据主人的声明登记、用户覆盖、history 和 uses 共用同一份来源引用及 SQLite 事务；新增的是精确读取与已接受使用的两个既有职责，拆分会分散同一状态和记录，不新增第二份业务账。",
+      "size": {
+        "lines": 257,
+        "methods": 26
+      }
+    }
+  }
+}

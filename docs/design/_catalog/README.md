@@ -43,3 +43,9 @@ python3 -m http.server 4431 --bind 127.0.0.1 --directory docs/design
 ## 没有用的
 
 组件板的 `mw-items`、`mw-stat` 只在组件板自己的版式样式里，产品样式表里没有，所以原型不用它们，改用 `mw-dir-row` 行和数字排版。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+过渡：第 04、25/26、36 批原型用的组件板实件（`export.mjs` 从产品构建导出样式表与脚本，`parts.js` 按组件板标记画部件，`prototype.css` 放原型控制条与「组件板新增」部件）
+
+按 D 轨的收拢计划并进 [kit/](../kit/README.md)，只留 `kit/build.mjs` 一份脚本；新原型用 kit/，不再新加使用者

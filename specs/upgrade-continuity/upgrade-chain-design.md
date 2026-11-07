@@ -1,6 +1,6 @@
 # U1 升级链：设计
 
-状态：设计稿（2026-11-06，路线书第 05 批第 1 项）；尚未实现，机制代码等第 02 批的 #1837 合入后再动（#1790 已合入）。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
+状态：实现中（2026-11-06 设计，路线书第 05 批第 1 项）；U1-a 已合入（[#1908](https://github.com/molis-ai/molis-work/pull/1908)，`a60f4679d`），U1-b 起在途，真实基线的版本都还没动。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
 
 **版本起点。** main 上各库现在不是 1（项目库 17、目录库 26 等，#1877 带来，旧库拒绝）；#1837 把它们归一为 1，合入就按检查单重建真实 Home，回到统一第 1 版（用户 2026-11-06 定，#1877 不改这个决定）。#1837（头 `c88c1c5ac`，以合入后的样子为准）把自有版本的维护入口收到 `tooling/versions.json`：代码里还是数字字面量，旁边一条 `/* @version <条目> */` 标记，由 `pnpm versions:generate` 改写，没有生成的常量文件。所以 §2.1 的写法不变；升版本是改表再生成，手改数字会被核对拦下；新基线同时加条目和标记。段的 `from` 不是版本声明，不用标记（`version-declarations.mjs` 的字段名单不含它）。
 
@@ -63,6 +63,7 @@ export interface SqliteBaseline {
 
 | 读到的版本 | 无表 | 有表 |
 | --- | --- | --- |
+| 负数 | 同右 | `storage.schema_version_mismatch`（不是升级对象） |
 | `0` | 没有对象，或只有一张属于这个 Home 的 `molis_storage_space`：返回 `false`，走建库路径（现状，`emptyForBaseline`）。空间表属于别的 Home 或形状不对：现有的拒绝不变 | `storage.schema_version_mismatch`（现状：无版本却有表，不是升级对象） |
 | `1 ≤ found < version` | 同右 | **`storage.upgrade_pending`**（新）。打开路径拒绝，等升级过程处理 |
 | `found === version` | 同右 | 返回 `true`，继续比结构（现状） |
@@ -482,7 +483,7 @@ apps/desktop/launchers/web/server.ts：
 
 | 码 | 类别 | 含义 |
 | --- | --- | --- |
-| `storage.schema_version_mismatch` | invalid | 无版本却有表 |
+| `storage.schema_version_mismatch` | invalid | 无版本却有表；版本是负数；快照版本不符 |
 | `storage.schema_structure_mismatch` | invalid | 同号结构不符（已有） |
 | `storage.upgrade_pending` | unavailable | 低版本，等升级过程 |
 | `storage.upgrade_in_progress` | unavailable | 维护态拒绝的请求 |

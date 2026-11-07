@@ -130,8 +130,7 @@ export async function loadConnections(page: ImagesPage, signal = page.s.viewSign
 
 export function openConnections(page: ImagesPage): void {
   const { s, el } = page;
-  if (s.resumeConnection !== s.cid) editConnection(page, s.cid);
-  s.resumeConnection = null;
+  editConnection(page, s.cid);
   if (!el.dialog.open) el.dialog.showModal();
   page.root.querySelector<HTMLElement>('[data-images-preset][aria-pressed="true"]')?.focus();
   const seq = s.loadSeq + 1, signal = s.viewSignal;

@@ -1,0 +1,34 @@
+/**
+ * English for the connection card the shell draws on a plugin page (src/browser/plugin-frame/connection-need.ts;
+ * specs/assistant-service-connections/spec.md §13.5). Words the connections page and the component board already have are theirs.
+ */
+export const CONNECTION_NEED_EN: Record<string, string> = {
+  "这把密钥只发往 {origin}": "This key goes only to {origin}",
+  "{owner} 在所有项目都用它": "{owner} uses it in every project",
+  "只这一个来源用它": "Only this source uses it",
+  "接上后这把密钥从此只发往 {origin}": "Once connected, this key goes only to {origin}",
+  "只要一把密钥，填好就接着做刚才那件事。": "Just one key; once it's in, what you were doing goes on.",
+  "在浏览器登录 {name}，点同意；登录完会自动回到这里，接着做刚才那件事。": "Sign in to {name} in the browser and approve; you'll come back here on your own, and what you were doing goes on.",
+  "保存并接上": "Save and connect",
+  "填 {name} 的 API 密钥；检查通过才保存，只存在这台电脑。": "Enter the {name} API key; it's saved only once it passes a check, and only on this computer.",
+  "填一把新的": "Enter a new one",
+  "{account} 的登录失效了；重新登录后接着做刚才那件事。": "{account} is signed out; sign in again and what you were doing goes on.",
+  "换一个": "Use another",
+  "这个账号你停用了；启用后所有用它的地方都恢复。": "You turned this account off; turned on, every place that uses it works again.",
+  "这里接着的密钥用不了了。填一把新的换过去，旧的留着。": "The key here no longer works. Enter a new one to use here; the old one stays.",
+  "登录、点同意后会自动回到这里。": "After you sign in and approve, you'll come back here on your own.",
+  "没有连上。这里什么都没改，可以再试一次。": "Not connected. Nothing changed here; you can try again.",
+  "{name} 还不能在这里一键连接。可以到「服务连接」里看能走的路。": "{name} can't be connected in one step here yet. Service connections shows the ways you can go.",
+  "去服务连接": "Open service connections",
+  "登录回来的是 {account}。要把这一处换成它吗？别的地方不动。": "You came back signed in as {account}. Use it here? Nothing else changes.",
+  "把它用在这里": "Use it here",
+  "{owner} 说：{reason}": "{owner} says: {reason}",
+  "Molis Work · 连接": "Molis Work · connection",
+  "关掉": "Close",
+  "{name}那边暂时限流，密钥没有保存；稍后再试。": "{name} is limiting requests for now; the key wasn't saved. Try again later.",
+  "刚移动过，请再点一次": "It just moved; press again",
+  "没有连上，这里什么都没改": "Not connected; nothing changed here",
+  "没有连上 · 再连一次": "Not connected · connect again",
+  "连接 {name} · 来自 {owner}": "Connect {name} · from {owner}",
+  "这里需要连接 {name}，连接卡在页面上": "{name} needs connecting here; the connection card is on the page",
+};

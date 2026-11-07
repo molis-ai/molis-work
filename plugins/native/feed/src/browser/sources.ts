@@ -57,7 +57,29 @@ export function feedSources(page: FeedPage) {
     const release = page.pending(() => { if (region.isConnected) delete region.dataset.loading; });
     const slot = JSON.parse(region.dataset.pluginRecordSlot!) as { slot_id: string; record_key: string };
     const check = page.guard();
-    try { const choice = await host.connectionSlot({ ...slot, mode: "read", signal: page.signal() }); check(); if (region.isConnected) reflectChoice(region, choice); } finally { release(); }
+    try { const choice = await host.connectionSlot({ ...slot, mode: "read", signal: page.signal() }); check(); if (region.isConnected) { reflectChoice(region, choice); if (!choice) void needAccount(region, slot); } } finally { release(); }
+  };
+  /**
+   * A source with no account yet: the platform's connection card in this row (ASC-70, §13.5). Connected, the source is pulled for the
+   * first time, once (the pull's key is this card's, so an answer handled twice pulls once); cancelled, nothing changes and the
+   * picker stays. A person who left the source (another selection, a redraw) ends the card with nothing done.
+   */
+  const needAccount = async (region: HTMLElement, slot: { slot_id: string; record_key: string }) => {
+    const check = page.guard(), place = document.createElement("div"), pull = crypto.randomUUID();
+    place.dataset.feedConnectionNeed = ""; q("[data-feed-connection-status]", region)?.before(place);
+    const picker = q<HTMLElement>("[data-feed-account-picker]", region); if (picker) picker.hidden = true;
+    try {
+      const outcome = await host.connectionNeed(place, { kind: "slot", slot_id: slot.slot_id, record_key: slot.record_key }, { signal: page.signal() }); check();
+      if (outcome.status !== "connected") { if (picker) picker.hidden = false; status(region, L("没有连上账号；这个来源先不拉取。")); return; }
+      status(region, L("已连上 {account}，正在拉第一次…", { account: outcome.account.label }));
+      const result = await page.api<SyncAnswer>("/sources/" + encodeURIComponent(slot.record_key) + "/sync", "POST", { idempotency_key: pull }); check();
+      await changed();
+      host.showToast(result.run?.error_code ? L("拉取失败：{code}。已保留上次成功内容，可按来源提示重试。", { code: result.run.error_code }) : L("拉取完成：新增 {created}，去重 {deduped}", { created: result.created || 0, deduped: result.deduped || 0 }));
+    } catch (error) {
+      try { check(); } catch { return; }
+      if ((error as Error).name === "AbortError") return;
+      if (picker) picker.hidden = false; place.remove(); status(region, error);
+    }
   };
   const show = (view: string, kind = "") => {
     page.panel = view;

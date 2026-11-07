@@ -4,7 +4,7 @@ import { feedStage, FILTER_FIELDS } from "./stage.js";
 import { feedSources } from "./sources.js";
 import { feedRules } from "./rule-authoring.js";
 
-export type FeedHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "translate" | "pluginRoute" | "route" | "mount" | "search" | "view" | "openView" | "openItem" | "openPlugin" | "showToast" | "invalidateView" | "connectionSlot" | "invokeAction" | "actionAvailability" | "confirm">;
+export type FeedHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "translate" | "pluginRoute" | "route" | "mount" | "search" | "view" | "openView" | "openItem" | "openPlugin" | "showToast" | "invalidateView" | "connectionSlot" | "connectionNeed" | "invokeAction" | "actionAvailability" | "confirm">;
 export interface FeedPage {
   host: FeedHost;
   q<T extends HTMLElement = HTMLElement>(selector: string, within?: ParentNode): T | null;

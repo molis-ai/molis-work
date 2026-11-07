@@ -15,6 +15,7 @@ export const IMAGES_STYLES = `
   .images-submit-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .images-submit-row p { max-width: 46ch; font-size: 11px; line-height: 1.6; color: var(--muted); margin: 0; }
   .images-submit-row > button { flex: none; min-height: 36px; }
+  .images-connection-need { margin-top: 12px; }
   .images-note { margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
   .images-note.is-error { color: var(--red); }
   .images-workspace-body > .images-note { max-width: 760px; margin: 16px auto 0; }

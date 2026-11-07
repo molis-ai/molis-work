@@ -16,7 +16,7 @@ export interface Scope extends UiClientScope {
 
 /** What the workbench hands the Images page's client. */
 export interface ImagesHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement, Element>,
-  "translate" | "route" | "pluginRoute" | "pluginId" | "projectId" | "loadMedia" | "confirm"> {
+  "translate" | "route" | "pluginRoute" | "pluginId" | "projectId" | "loadMedia" | "confirm" | "connectionNeed"> {
   mountPluginClient(root: HTMLElement): Scope | null;
 }
 
@@ -67,7 +67,6 @@ export interface ImagesState {
   editingFormat: ImageApiFormat;
   editingAuth: string;
   pending: Pending | null;
-  resumeConnection: string | null;
   submitting: boolean;
   saving: boolean;
   cancelling: boolean;

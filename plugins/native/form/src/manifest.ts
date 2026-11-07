@@ -19,11 +19,11 @@ export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
 const FORM_BODY_BYTES = 1_000_000;
 
 export const formManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: FORM_PLUGIN_ID,
   sync: formSync,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "Forms",
   summary: "建问卷，收答卷，看逐题汇总。",
   kind: "native",
@@ -59,8 +59,8 @@ export const formManifest: PluginManifest = {
   ],
   artifacts: {
     produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION, title: "问卷",
-      preview: { capability_id: "form.artifacts.preview", version: 1 }, pin: { capability_id: "form.artifacts.pin", version: 1 },
-      compare: { capability_id: "form.artifacts.compare", version: 1 }, continue: { capability_id: "form.artifacts.continue", version: 1 } }],
+      preview: { capability_id: "form.artifacts.preview", version: /* @version action.form.artifacts.preview */ 1 }, pin: { capability_id: "form.artifacts.pin", version: /* @version action.form.artifacts.pin */ 1 },
+      compare: { capability_id: "form.artifacts.compare", version: /* @version action.form.artifacts.compare */ 1 }, continue: { capability_id: "form.artifacts.continue", version: /* @version action.form.artifacts.continue */ 1 } }],
     consumes: [],
   },
   ui: {

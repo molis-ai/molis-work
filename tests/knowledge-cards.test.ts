@@ -118,7 +118,7 @@ test("PMAT-06 search finds a piece by its card's own words, and shows the brief,
 
 test("PMAT-04 a piece whose owner lets out only its title and summary is listed, never sent to a model", async t => {
   const f = await fixture(t);
-  const secrets = defineSearchEntriesAction("vault.search.entries", [{ kind: "secret", title: "保险箱", surface: "vault" }], "保险箱", []);
+  const secrets = defineSearchEntriesAction("vault.search.entries", 1, [{ kind: "secret", title: "保险箱", surface: "vault" }], "保险箱", []);
   f.actions.registerProvider({ provider: { provider_id: "vault", plugin_id: "vault", title: "Vault", kind: "plugin", project_id: "a" }, definitions: [secrets],
     handlers: [bindSearchEntriesHandler(secrets, () => [{ subject: { kind: "secret", id: "s1" }, revision: "1", title: "试用账号清单", summary: "试用期间的账号", updated_at: null, content: "summary", open: { surface: "vault", id: "s1" } }])] });
   await f.indexAll();

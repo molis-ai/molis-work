@@ -48,10 +48,10 @@ test("S-12 RAC-104-B2b-05: a vault entry with a valid Home envelope cannot be re
 
 test("S-12 RAC-104-B2b-05: current vault ciphertext and legitimate Home payloads still open in their original purposes", t => {
   const f = fixture(t), key = Buffer.from(readFileSync(f.keyPath, "utf8").trim(), "base64");
-  // Produce the existing v2 vault format independently, without any payload AAD.
+  // Produce the current vault format independently, without any payload AAD.
   const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", key, iv);
   const ct = Buffer.concat([cipher.update("existing current-format credential", "utf8"), cipher.final()]);
-  const current = Buffer.from(JSON.stringify({ v: 2, alg: "aes-256-gcm", iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ct: ct.toString("base64") })).toString("base64");
+  const current = Buffer.from(JSON.stringify({ v: 1, alg: "aes-256-gcm", iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ct: ct.toString("base64") })).toString("base64");
   const vault = f.vault(); vault.entries.credential = current; writeFileSync(f.vaultPath, JSON.stringify(vault)); resetSecretStoreCache();
   assert.equal(f.get(), "existing current-format credential");
   assert.equal(readExistingSecret(f.home, "credential"), "existing current-format credential");

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
 
-export function initialVersionProblems({ manifests, hostViews, registrations }) {
+export function initialVersionProblems({ manifests, hostViews, registrations, versionEntries = {} }) {
   const problems = new Set();
   const check = (owner, kind, id, version) => {
     if (version !== 1) problems.add(`${owner}: ${kind} ${id} = ${String(version)} (expected 1)`);
@@ -22,21 +22,22 @@ export function initialVersionProblems({ manifests, hostViews, registrations }) 
     check(owner, "Manifest", "host_api_version", manifest.host_api_version);
     for (const action of manifest.actions ?? []) check(owner, "action", action.capability_id, action.version);
     if (manifest.agent) agent(owner, manifest.agent);
+    for (const method of manifest.methods ?? []) check(owner, "method", method.skill_id, method.version);
   }
   for (const view of hostViews) check(view.provider.plugin_id ?? view.provider.provider_id, "action", view.capability_id, view.version);
   for (const owner of registrations) agent(owner.owner_id, owner);
+  // Instructions a running plugin carries and the Markdown methods reach the register only while a Home runs; their source entries say the same.
+  for (const [key, version] of Object.entries(versionEntries)) {
+    const kind = /^(prompt|method)\./.exec(key)?.[1];
+    if (kind) check("tooling/versions.json", kind, key, version);
+  }
   return [...problems].sort();
 }
 
-// These are versions chosen by an upstream provider, the bundled SQLite binary, the release process, or a SemVer pattern.
-const outsideUniformOrigin = new Map([
-  ["plugins/official-integrations/catalog/src/document-import.ts", "NOTION_VERSION"],
-  ["plugins/official-integrations/github/src/provider.ts", "GITHUB_API_VERSION"],
-  ["packages/plugin-runtime/src/project-database-statements.ts", "PLUGIN_STATEMENT_SQLITE_VERSION"],
-  ["apps/local-host/src/connector-tool-runtime.ts", "UV_BOOTSTRAP_VERSION"],
-  ["apps/local-host/src/product-version.ts", "PRODUCT_VERSION"],
-  ["apps/local-host/src/plugin-builder/build-dependencies.ts", "VERSION"],
-]);
+// Versions chosen by an upstream provider or the bundled SQLite binary are listed with their reason in one place; the product
+// version carries its own marker, and a pattern (a RegExp named VERSION) is not a version at all.
+const outsideUniformOrigin = new Set(JSON.parse(readFileSync(new URL("../../tooling/gates/version-exceptions.json", import.meta.url), "utf8"))
+  .filter(entry => entry.file && entry.name).map(entry => `${entry.file}#${entry.name}`));
 
 export function sourceVersionProblems(file, source) {
   if (!/\b[A-Z_\d]*VERSION\b/.test(source)) return [];
@@ -46,9 +47,10 @@ export function sourceVersionProblems(file, source) {
     if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const)) {
       for (const declaration of node.declarations) {
         const name = declaration.name.getText(tree);
-        if (!/^[A-Z_\d]*VERSION$/.test(name) || outsideUniformOrigin.get(file) === name) continue;
+        if (!/^[A-Z_\d]*VERSION$/.test(name) || outsideUniformOrigin.has(`${file}#${name}`)) continue;
         let value = declaration.initializer;
         while (value && (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value))) value = value.expression;
+        if (value && (ts.isRegularExpressionLiteral(value) || /@version product\./.test(source.slice(value.pos, value.getStart(tree))))) continue;
         if (value && ts.isNumericLiteral(value) && Number(value.text) === 1) continue;
         if (value && ts.isStringLiteralLike(value) && /^(?:[a-z][a-z0-9._-]*\/)?1$/.test(value.text)) continue;
         problems.push(`${file}: ${name} = ${value?.getText(tree) ?? "(missing)"} (expected 1)`);
@@ -68,7 +70,8 @@ async function check() {
     const { builtinRegistrations } = await import("../../apps/local-host/dist/agent-definitions/builtin-registrations.js");
     const { manifests } = await loadManifests();
     const { hostViews } = await collectHost(home);
-    return initialVersionProblems({ manifests, hostViews, registrations: builtinRegistrations() });
+    const versionEntries = JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8")).versions;
+    return initialVersionProblems({ manifests, hostViews, registrations: builtinRegistrations(), versionEntries });
   });
   for (const file of files) {
     if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(file) || /(?:^|\/)(?:tests|fixtures)\//.test(file)) continue;
@@ -76,7 +79,7 @@ async function check() {
   }
   for (const problem of problems) console.error(problem);
   if (problems.length) process.exitCode = 1;
-  else console.log("The registered actions, manifests, prompts, roles and first-party version constants are at the unified origin.");
+  else console.log("The registered actions, manifests, prompts, instructions, roles, methods and first-party version constants are at the unified origin.");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await check();

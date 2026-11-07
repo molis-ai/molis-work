@@ -20,10 +20,12 @@ export {
   openHomeSqliteFile,
   openReadOnlyHomeSqlite,
 } from "./home-sqlite.js";
+export { runSqliteUpgrade, type SqliteUpgradeResult } from "./sqlite-upgrade.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
   isSqliteSchemaStructureMismatch,
-  SqliteSchemaVersionError,
+  isSqliteVersionRefusal,
+  sqliteVersionRefusal,
   checkSqliteBaselineVersion,
   applySqliteBaseline,
   clearInExistingHomeSqlite,
@@ -34,6 +36,7 @@ export {
   type SqliteBaseline,
   type SqliteBaselineDatabase,
   type SqliteSchemaObject,
+  type SqliteUpgradeStep,
   type SqliteSchemaShape,
 } from "./sqlite-baseline.js";
 
@@ -82,4 +85,5 @@ export { createCollectionCopy } from './collection-copy.js';
 
 export { nativeSqliteOwnerBoundary, type PluginSqlExecution } from './sqlite-owner-boundary.js';
 export { sqliteBaselineTriggers, assertSqliteBaselineTriggers } from './sqlite-baseline-inspection.js';
+export { dumpSqliteText, countSqliteRows, SQLITE_DUMP_NORMALIZED_COLUMNS, type SqliteTextDump } from './sqlite-text-dump.js';
 export { inspectEvidenceContentSnapshot } from "./evidence-snapshot.js";

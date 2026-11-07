@@ -17,19 +17,19 @@ const message = object({ message_id: id, author: { enum: ["user", "assistant", "
 const thread = object({ thread_id: id, page_id: id, revision: { type: "integer", minimum: 0 },
   anchor: object({ kind: { enum: ["document", "text"] }, mark_id: id, excerpt: text }, ["kind", "excerpt"]),
   detached: { type: "boolean" }, messages: { type: "array", items: message } });
-const define = <I, O>(suffix: string, title: string, input: ActionSchema, output: ActionSchema, write = false, role?: "context" | "reply"): ActionDefinition<I, O> => ({ ...createActionDefinition<I, O>(`pages.comments.${suffix}`, write ? "command" : "query", { title, description: title, kind: write ? "operation" : "query", scope: "project", audiences: ["user"],
+const define = <I, O>(suffix: string, version: number, title: string, input: ActionSchema, output: ActionSchema, write = false, role?: "context" | "reply"): ActionDefinition<I, O> => ({ ...createActionDefinition<I, O>(`pages.comments.${suffix}`, write ? "command" : "query", { title, description: title, kind: write ? "operation" : "query", scope: "project", audiences: ["user"],
     effect: write ? "write" : "read", permissions: write ? ["pages:read", "pages:write"] : ["pages:read"], subject_kinds: ["pages_document"],
-    input_schema: input, output_schema: output, ...(role ? { thread_source: { role, subject_kind: "pages_document" } } : {}) }), provider_id: "io.molis.work.pages" });
+    input_schema: input, output_schema: output, ...(role ? { thread_source: { role, subject_kind: "pages_document" } } : {}) }, version), provider_id: "io.molis.work.pages" });
 const target = { subject_id: id, thread_id: id };
 export const pagesCommentActions = {
-  list: define<{ page_id: string }, { threads: PagesCommentThread[] }>("list", "查看文档评论", object({ page_id: id }), object({ threads: { type: "array", items: thread } })),
-  append: define<AppendPagesComment, { thread: PagesCommentThread }>("append", "发送评论", object({ page_id: id, thread_id: id, request_id: id,
+  list: define<{ page_id: string }, { threads: PagesCommentThread[] }>("list", /* @version action.pages.comments.list */ 1, "查看文档评论", object({ page_id: id }), object({ threads: { type: "array", items: thread } })),
+  append: define<AppendPagesComment, { thread: PagesCommentThread }>("append", /* @version action.pages.comments.append */ 1, "发送评论", object({ page_id: id, thread_id: id, request_id: id,
     body: { type: "string", minLength: 1, maxLength: 20000 }, reply_to: id, expected_version: { type: "integer", minimum: 1 },
     anchor: object({ kind: { enum: ["document", "text"] }, mark_id: id }, ["kind"]) }, ["page_id", "thread_id", "request_id", "body"]), object({ thread }), true),
-  context: define<{ subject_id: string; thread_id: string; message_id: string; draft?: AssistantThreadDraft }, AssistantThreadContext>("context", "读取评论的回复上下文",
+  context: define<{ subject_id: string; thread_id: string; message_id: string; draft?: AssistantThreadDraft }, AssistantThreadContext>("context", /* @version action.pages.comments.context */ 1, "读取评论的回复上下文",
     object({ ...target, message_id: id, draft: object({ text: { type: "string", maxLength: 100000 }, revision: id }) }, ["subject_id", "thread_id", "message_id"]),
     object({ title: text, revision: text, text, truncated: { type: "boolean" }, message: object({ message_id: id, body: text, request_id: id }) }), false, "context"),
-  reply: define<{ subject_id: string; thread_id: string }, { thread: PagesCommentThread }>("reply", "接收助理在原评论的回复", object(target), object({ thread }), true, "reply"),
+  reply: define<{ subject_id: string; thread_id: string }, { thread: PagesCommentThread }>("reply", /* @version action.pages.comments.reply */ 1, "接收助理在原评论的回复", object(target), object({ thread }), true, "reply"),
 };
 
 /** What of a document and of a comment thread the assistant is handed: at most this many UTF-16 units of each (the opening of the document, the latest of the thread). The Host refuses a context text over 100000 units, and these two parts are most of it. */

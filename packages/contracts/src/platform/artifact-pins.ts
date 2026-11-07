@@ -7,8 +7,8 @@ import type { ArtifactOrigin, ArtifactReference, ArtifactVersionRecord } from ".
  * revision as a new version and says which one. Callers such as a Goal handing in a deliverable find the owner by the
  * object's kind through these types, never by a list of plugins.
  */
-export const ARTIFACT_PIN_INPUT_TYPE = "molis.artifacts.pin.request.v1";
-export const ARTIFACT_PIN_OUTPUT_TYPE = "molis.artifacts.pin.v1";
+export const ARTIFACT_PIN_INPUT_TYPE = /* @version type.molis.artifacts.pin.request "molis.artifacts.pin.request.v{version}" */ "molis.artifacts.pin.request.v1";
+export const ARTIFACT_PIN_OUTPUT_TYPE = /* @version type.molis.artifacts.pin "molis.artifacts.pin.v{version}" */ "molis.artifacts.pin.v1";
 export interface ArtifactPinInput { subject_id: string }
 /** `recovered`: an interrupted earlier pin of the same revision was finished instead of writing another version. */
 export interface ArtifactPinResult { artifact: ArtifactReference; recovered: boolean }
@@ -19,8 +19,8 @@ export const ARTIFACT_PIN_OUTPUT_SCHEMA = { type: "object", properties: {
   artifact: { type: "object", properties: { artifact_id: id, version: { type: "integer", minimum: 1 } }, required: ["artifact_id", "version"], additionalProperties: false },
   recovered: { type: "boolean" } }, required: ["artifact", "recovered"], additionalProperties: false };
 
-export function defineArtifactPinAction(capabilityId: string, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult> {
-  return { capability_id: capabilityId, version: 1, operation: "command", action: {
+export function defineArtifactPinAction(capabilityId: string, version: number, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult> {
+  return { capability_id: capabilityId, version: version, operation: "command", action: {
     title: `固定${typeTitle}的当前版本`, description: `把这份${typeTitle}的当前内容存为成果库里的新一版并返回它；原对象之后仍可修改，已固定的版本不变。`,
     kind: "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [subjectKind],
     input_type: ARTIFACT_PIN_INPUT_TYPE, output_type: ARTIFACT_PIN_OUTPUT_TYPE, input_schema: ARTIFACT_PIN_INPUT_SCHEMA, output_schema: ARTIFACT_PIN_OUTPUT_SCHEMA } };
@@ -80,15 +80,15 @@ export async function pinActionSubject(client: ActionClient, caller: ActionExecu
  * Whether a pinned version still matches its work object (A4b, 「原文已改」): the owner compares the version's content with
  * the object as it is now. Revisions alone cannot tell: owners bump them for renames, stars and the pin itself.
  */
-export const ARTIFACT_COMPARE_INPUT_TYPE = "molis.artifacts.compare.request.v1";
-export const ARTIFACT_COMPARE_OUTPUT_TYPE = "molis.artifacts.compare.v1";
+export const ARTIFACT_COMPARE_INPUT_TYPE = /* @version type.molis.artifacts.compare.request "molis.artifacts.compare.request.v{version}" */ "molis.artifacts.compare.request.v1";
+export const ARTIFACT_COMPARE_OUTPUT_TYPE = /* @version type.molis.artifacts.compare "molis.artifacts.compare.v{version}" */ "molis.artifacts.compare.v1";
 /** `moved`: the object still exists in this Home, in another place than the project holding the version; `missing`: it is gone. */
 export type ArtifactCompareState = "same" | "changed" | "moved" | "missing";
 export interface ArtifactCompareInput { artifact: ArtifactVersionRecord }
 export interface ArtifactCompareResult { state: ArtifactCompareState }
 
-export function defineArtifactCompareAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+export function defineArtifactCompareAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `比较${typeTitle}与原对象`, description: `判断固定下来的这一版${typeTitle}与原对象现在的内容是否相同；不修改数据。`,
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], plugin: false, permissions: [...permissions], subject_kinds: [],
     input_type: ARTIFACT_COMPARE_INPUT_TYPE, output_type: ARTIFACT_COMPARE_OUTPUT_TYPE,
@@ -143,14 +143,14 @@ export function objectOrMissing<T>(read: () => T): T | null {
  * The version itself never changes. A plugin declares it on the types it can continue from, its own or another's
  * (Pages continues from imported text files).
  */
-export const ARTIFACT_CONTINUE_INPUT_TYPE = "molis.artifacts.continue.request.v1";
-export const ARTIFACT_CONTINUE_OUTPUT_TYPE = "molis.artifacts.continue.v1";
+export const ARTIFACT_CONTINUE_INPUT_TYPE = /* @version type.molis.artifacts.continue.request "molis.artifacts.continue.request.v{version}" */ "molis.artifacts.continue.request.v1";
+export const ARTIFACT_CONTINUE_OUTPUT_TYPE = /* @version type.molis.artifacts.continue "molis.artifacts.continue.v{version}" */ "molis.artifacts.continue.v1";
 export interface ArtifactContinueInput { artifact: ArtifactVersionRecord }
 export interface ArtifactContinueResult { open: { surface: string; id: string; title: string } }
 
-export function defineArtifactContinueAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult> {
+export function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult> {
   const id = { type: "string", minLength: 1 };
-  return { capability_id: capabilityId, version: 1, operation: "command", action: {
+  return { capability_id: capabilityId, version: version, operation: "command", action: {
     title: `从这一版新建${objectTitle}`, description: `用成果库里的一版新建一份${objectTitle}继续编辑；这一版本身不变。`,
     kind: "operation", scope: "project", audiences: ["user"], plugin: false, permissions: [...permissions], subject_kinds: [],
     input_type: ARTIFACT_CONTINUE_INPUT_TYPE, output_type: ARTIFACT_CONTINUE_OUTPUT_TYPE,
@@ -177,16 +177,16 @@ export function bindArtifactContinue(definition: ActionDefinition<ArtifactContin
  * 「被谁引用」 beyond Goals (artifact-positioning 五.1): a plugin whose objects can point at a version in the 成果库 (a Pages
  * document linking to it) says which of its objects do. The 成果库 asks every plugin that declares it; none is named.
  */
-export const ARTIFACT_REFERRERS_INPUT_TYPE = "molis.artifacts.referrers.request.v1";
-export const ARTIFACT_REFERRERS_OUTPUT_TYPE = "molis.artifacts.referrers.v1";
+export const ARTIFACT_REFERRERS_INPUT_TYPE = /* @version type.molis.artifacts.referrers.request "molis.artifacts.referrers.request.v{version}" */ "molis.artifacts.referrers.request.v1";
+export const ARTIFACT_REFERRERS_OUTPUT_TYPE = /* @version type.molis.artifacts.referrers "molis.artifacts.referrers.v{version}" */ "molis.artifacts.referrers.v1";
 export interface ArtifactReferrersInput { reference: ArtifactReference }
 export interface ArtifactReferrer { subject: { kind: string; id: string }; title: string; open: { surface: string; id: string } }
 export interface ArtifactReferrersResult { referrers: ArtifactReferrer[] }
 
-export function defineArtifactReferrersAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult> {
+export function defineArtifactReferrersAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult> {
   const id = { type: "string", minLength: 1 };
   const pair = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
-  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+  return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `引用这一版的${objectTitle}`, description: `列出链接到成果库里这一版的${objectTitle}；不修改数据。`,
     kind: "query", scope: "project", audiences: ["user", "agent"], permissions: [...permissions], subject_kinds: [],
     input_type: ARTIFACT_REFERRERS_INPUT_TYPE, output_type: ARTIFACT_REFERRERS_OUTPUT_TYPE,
@@ -208,15 +208,15 @@ export function isArtifactReferrersAction(action: { input_type?: string; output_
  * same audiences that action does; at most 200 ids per call, the 成果库 asks in batches.
  */
 export const ARTIFACT_LINK_SUBJECTS_BATCH = 200;
-export const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = "molis.artifacts.link_subjects.request.v1";
-export const ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE = "molis.artifacts.link_subjects.v1";
+export const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = /* @version type.molis.artifacts.link_subjects.request "molis.artifacts.link_subjects.request.v{version}" */ "molis.artifacts.link_subjects.request.v1";
+export const ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE = /* @version type.molis.artifacts.link_subjects "molis.artifacts.link_subjects.v{version}" */ "molis.artifacts.link_subjects.v1";
 export interface ArtifactLinkSubjectsInput { ids: string[] }
 export interface ArtifactLinkSubject { id: string; title: string; open: { surface: string; id: string } }
 export interface ArtifactLinkSubjectsResult { objects: ArtifactLinkSubject[] }
 
-export function defineArtifactLinkSubjectsAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult> {
+export function defineArtifactLinkSubjectsAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult> {
   const id = { type: "string", minLength: 1 };
-  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+  return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `链接到成果的${objectTitle}`, description: `按 id 读出链接到成果库版本的${objectTitle}的名字和打开位置；读不到的不返回，不修改数据。`,
     kind: "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [],
     input_type: ARTIFACT_LINK_SUBJECTS_INPUT_TYPE, output_type: ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE,

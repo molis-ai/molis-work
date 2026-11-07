@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesModelProvidersContract = {
-  contractId: "io.molis.work.module.model-providers.v1",
+  contractId: /* @version contract.io.molis.work.module.model-providers "io.molis.work.module.model-providers.v{version}" */ "io.molis.work.module.model-providers.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.model-providers */ 1,
   maturity: "partial",
   ssot: "docs/SSOT-MATRIX.md",
 } as const satisfies ContractDescriptor;

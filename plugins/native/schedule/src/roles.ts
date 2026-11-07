@@ -15,7 +15,7 @@ export const scheduleAgentManifest: AgentManifest = {
   roles: [
     {
       role_id: SCHEDULE_READER_ROLE,
-      version: 2,
+      version: /* @version role.reader */ 1,
       name: "只读执行",
       execution: "read-only",
       prompts: ["schedule-base", "schedule-reader"],
@@ -23,7 +23,7 @@ export const scheduleAgentManifest: AgentManifest = {
     },
     {
       role_id: SCHEDULE_BRIEF_ROLE,
-      version: 1,
+      version: /* @version role.brief */ 1,
       name: "读数据执行",
       execution: "read-only",
       workspace: "business",
@@ -32,16 +32,16 @@ export const scheduleAgentManifest: AgentManifest = {
     },
   ],
   prompts: [
-    { prompt_id: "schedule-base", version: 2, layer: "base" },
-    { prompt_id: "schedule-reader", version: 2 },
-    { prompt_id: "schedule-brief", version: 1 },
+    { prompt_id: "schedule-base", version: /* @version prompt.schedule-base */ 1, layer: "base" },
+    { prompt_id: "schedule-reader", version: /* @version prompt.schedule-reader */ 1 },
+    { prompt_id: "schedule-brief", version: /* @version prompt.schedule-brief */ 1 },
   ],
 };
 
 export const schedulePrompts: readonly AgentPromptText[] = [
   {
     prompt_id: "schedule-base",
-    version: 2,
+    version: /* @version prompt.schedule-base */ 1,
     layer: "base",
     body: [
       "你在一条无人值守的定时任务里工作：它每天到点跑一轮，用户之后在这条任务的对话里看结果，常常只看开头，所以先给结论，再给必要的依据。",
@@ -50,7 +50,7 @@ export const schedulePrompts: readonly AgentPromptText[] = [
   },
   {
     prompt_id: "schedule-reader",
-    version: 2,
+    version: /* @version prompt.schedule-reader */ 1,
     body: [
       "这一轮只读，手边只有读文件和搜索；需要改什么，写成建议交给用户。",
       IMPORTANT_MARK,
@@ -58,7 +58,7 @@ export const schedulePrompts: readonly AgentPromptText[] = [
   },
   {
     prompt_id: "schedule-brief",
-    version: 1,
+    version: /* @version prompt.schedule-brief */ 1,
     body: [
       "这一轮只读，没有项目文件：手边只有用户允许这条任务读的那几类数据。先在能力目录里查能读什么，再用查到的只读能力去读；需要改什么，写成建议交给用户。",
       "任务说明要的某一类在目录里找不到、或者读的时候被拒绝，就在回复里直接说这一类读不到，不拿别的内容代替，也不猜。",

@@ -6,14 +6,14 @@ import { planInformationWork, type InformationPlanEntry, type InformationPlanSna
 export const INFORMATION_PROVIDER_ID = "system.information";
 
 /** The two owner actions the plan reads, named by capability id only: the directory decides which provider answers each. */
-const feedSnapshot = { capability_id: "feed.snapshot", version: 1 } as const;
-const inboxList = { capability_id: "inbox.list", version: 1 } as const;
+const feedSnapshot = { capability_id: "feed.snapshot", version: /* @version action.feed.snapshot */ 1 } as const;
+const inboxList = { capability_id: "inbox.list", version: /* @version action.inbox.list */ 1 } as const;
 
 const text = { type: "string" };
 const fields = (properties: Record<string, unknown>) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
 
 export const informationActions = {
-  plan: { capability_id: "information.plan", version: 1, operation: "query", action: {
+  plan: { capability_id: "information.plan", version: /* @version action.information.plan */ 1, operation: "query", action: {
     title: "起草信息处理方案", description: "根据当前项目的 Feed 与 Inbox 提出筛选或写作方案；不会执行方案中的操作",
     kind: "query", scope: "project", scheduling: "concurrent", execution: { cost: "metered" }, audiences: ["user"], permissions: ["feed:read", "inbox:read", "model:invoke"], subject_kinds: [],
     required_actions: [feedSnapshot, inboxList],

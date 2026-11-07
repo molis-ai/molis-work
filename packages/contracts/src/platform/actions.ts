@@ -1,5 +1,6 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
+export * from "./action-input.js";
 export * from "./action-execution.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
@@ -363,7 +364,7 @@ export interface ActionProvider {
    * A provider of the Host's own (`kind` `system`) declares itself, where the Host registers it, as one a background task may be given
    * to read (`agent.task_grants`): then its agent-audience read-only queries are one category, granted only when the person turns it
    * on. Only a provider that reads within the calling project, never across plugins, declares it. An external MCP source (`kind`
-   * `mcp`) must not declare it: it is never a task's category (S-141 ⑥). A plugin is offered by its Manifest's read groups and does
+   * `mcp`) must not declare it: it is never a task's category (S-task-grant-subjects ⑥). A plugin is offered by its Manifest's read groups and does
    * not need it (specs/proactive-assistant/schedule-task-reads.md §3.2).
    */
   readonly task_readable?: true;

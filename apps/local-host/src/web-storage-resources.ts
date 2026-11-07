@@ -25,8 +25,8 @@ function homeShelf(localHost: MolisWorkLocalHost): () => ComputerShelf {
     let caller: ReturnType<typeof localWebActionContext> | undefined;
     const current = () => caller ??= localWebActionContext(localHost, undefined, LOCAL_OWNER_PERMISSIONS);
     return {
-      admit: async input => await client.invoke(await current(), { capability_id: "shelf.items.admit", version: 1 }, input) as { item: { item_id: string } },
-      remove: async itemId => client.invoke(await current(), { capability_id: "shelf.items.delete", version: 1 }, { item_id: itemId }),
+      admit: async input => await client.invoke(await current(), { capability_id: "shelf.items.admit", version: /* @version action.shelf.items.admit */ 1 }, input) as { item: { item_id: string } },
+      remove: async itemId => client.invoke(await current(), { capability_id: "shelf.items.delete", version: /* @version action.shelf.items.delete */ 1 }, { item_id: itemId }),
     };
   };
 }

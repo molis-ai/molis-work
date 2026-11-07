@@ -108,7 +108,7 @@ test("Schedule consumes only the platform's list and clear of its tasks' grants;
 test("PWA-149 the brief role reads business data only: no directory, no host tools, read-only; the reader role is as it was", () => {
   const roles = new Map(scheduleAgentManifest.roles.map(role => [role.role_id, role]));
   assert.deepEqual(roles.get(SCHEDULE_BRIEF_ROLE), { role_id: "brief", version: 1, name: "读数据执行", execution: "read-only", workspace: "business", prompts: ["schedule-base", "schedule-brief"], host_tools: [] });
-  assert.deepEqual(roles.get(SCHEDULE_READER_ROLE), { role_id: "reader", version: 2, name: "只读执行", execution: "read-only", prompts: ["schedule-base", "schedule-reader"], host_tools: ["read-file", "search"] });
+  assert.deepEqual(roles.get(SCHEDULE_READER_ROLE), { role_id: "reader", version: 1, name: "只读执行", execution: "read-only", prompts: ["schedule-base", "schedule-reader"], host_tools: ["read-file", "search"] });
   const body = (id: string) => schedulePrompts.find(prompt => prompt.prompt_id === id)!.body;
   const mark = body("schedule-reader").split("\n").find(line => line.includes("IMPORTANT"))!;
   assert.ok(body("schedule-brief").split("\n").includes(mark), "the brief keeps the first-line IMPORTANT mark in the same words");
@@ -216,18 +216,28 @@ test("PWA-151 archiving a task clears its grants; a clear the platform refused l
   assert.deepEqual(fake.subjects, []);
 });
 
-test("PWA-151 the reconcile job lists once per start and clears subjects of archived or missing tasks, never a live one; a failure is retried", async () => {
+test("PWA-151 a project that only starts makes no task grant call: the reconcile job asks the platform nothing until Schedule has read a list or owes a clear", async () => {
+  const fake = platform([subject("sct_archived", ["granted"])]);
+  const grants = createScheduleTaskGrants(fake.actions);
+  for (let pass = 0; pass < 3; pass += 1) assert.equal(await grants.reconcile(() => new Set()), true);
+  assert.deepEqual(fake.calls, [], "no list and no clear at start");
+});
+
+test("PWA-151 once per start the reconcile job clears subjects of archived or missing tasks from the first list a round read, never a live one; a failed clear is retried", async () => {
   const fake = platform([subject("sct_live", ["granted"]), subject("sct_gone", ["granted"]), subject("sct_archived", ["unavailable"])]);
   const grants = createScheduleTaskGrants(fake.actions), live = new Set(["sct_live"]);
-  fake.state.listFails = true;
-  assert.equal(await grants.reconcile(() => live), false, "a platform that cannot answer is tried again on the next pass");
-  fake.state.listFails = false;
+  // A due round reads the platform's list to choose its role: that one answer is what the sweep takes.
+  await grants.list();
+  fake.state.refuse = true;
+  assert.equal(await grants.reconcile(() => live), false, "a platform that refuses the clear is tried again on the next pass");
+  fake.state.refuse = false;
   assert.equal(await grants.reconcile(() => live), true);
-  assert.deepEqual(fake.cleared().sort(), ["sct_archived", "sct_gone"]);
-  assert.deepEqual(fake.subjects.map(item => item.key), ["sct_live"]);
+  assert.deepEqual(fake.subjects.map(item => item.key), ["sct_live"], "the archived and the missing task's subjects are cleared, the live one is not");
+  assert.equal(fake.calls.filter(call => call.capability_id === agentTaskGrantActions.list.capability_id).length, 1, "the sweep listed nothing of its own");
   const before = fake.calls.length;
+  await grants.list();
   for (let pass = 0; pass < 3; pass += 1) await grants.reconcile(() => live);
-  assert.equal(fake.calls.length, before, "after one sweep the job asks the platform nothing until a clear is owed");
+  assert.equal(fake.calls.length, before + 1, "after one sweep the job asks the platform nothing until a clear is owed, whatever is read later");
 });
 
 test("PWA-151 the reconcile job reads the live tasks after the platform's list: a task made and granted in between keeps its grants", async () => {
@@ -238,7 +248,9 @@ test("PWA-151 the reconcile job reads the live tasks after the platform's list: 
     if (definition.capability_id === agentTaskGrantActions.list.capability_id) live.add("sct_new");
     return answer;
   } };
-  assert.equal(await createScheduleTaskGrants(actions).reconcile(() => live), true);
+  const grants = createScheduleTaskGrants(actions);
+  await grants.list();
+  assert.equal(await grants.reconcile(() => live), true);
   assert.deepEqual(fake.cleared(), [], "the new task's grants are not taken");
   assert.deepEqual(fake.subjects.map(item => item.key), ["sct_new"]);
 });

@@ -248,6 +248,7 @@ export function checkMigratedIntegrationOwnership(repositoryRoot) {
     errors.push(`${listenerPath}: Listener Host must remain Provider-neutral`);
   }
 
+  const centralVersions = readJson(path.join(repositoryRoot, "tooling/versions.json")).versions;
   for (const name of ["github", "gmail", "rss", "web-query", "youtube"]) {
     const pluginRoot = path.join(repositoryRoot, "plugins/official-integrations", name);
     const manifestPath = path.join(pluginRoot, "manifest.json");
@@ -257,7 +258,7 @@ export function checkMigratedIntegrationOwnership(repositoryRoot) {
     }
     const manifest = readJson(manifestPath);
     if (
-      manifest.schema_version !== 1 || manifest.host_api_version !== 1
+      manifest.schema_version !== centralVersions["manifest.schema"] || manifest.host_api_version !== centralVersions["host.api"]
       || manifest.kind !== "integration"
       || !String(manifest.plugin_id ?? "").startsWith("io.molis.work.integration.")
       || !String(manifest.version ?? "").match(/^\d+\.\d+\.\d+/u)

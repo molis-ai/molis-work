@@ -1,12 +1,14 @@
+// Generic only so an action's input type can be read from its schema (specs/action-input-contracts §4.5): the values are what they always were.
+
 /** A closed action object. Passing an empty required list makes each declared field optional. */
-export function objectSchema(properties: Record<string, unknown>, required: readonly string[] = Object.keys(properties)) {
-  return { type: "object" as const, properties, required, additionalProperties: false as const };
+export function objectSchema<const P extends Readonly<Record<string, unknown>>, const R extends readonly string[] = readonly (keyof P & string)[]>(properties: P, required?: R) {
+  return { type: "object" as const, properties, required: (required ?? Object.keys(properties)) as R, additionalProperties: false as const };
 }
 
-export function arraySchema(items: unknown) {
+export function arraySchema<const I>(items: I) {
   return { type: "array" as const, items };
 }
 
-export function nullableSchema(schema: unknown) {
-  return { anyOf: [schema, { type: "null" }] };
+export function nullableSchema<const S>(schema: S) {
+  return { anyOf: [schema, { type: "null" as const }] as const };
 }

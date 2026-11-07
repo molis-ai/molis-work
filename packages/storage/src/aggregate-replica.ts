@@ -57,7 +57,7 @@ export function createAggregatePortableOwner(db:ReplicaDatabase,definitions:read
       if(!row)return null;
       const value:AggregateRecords={record:pick(row,d.columns),children:Object.fromEntries(d.children.map(c=>[c.table,db.prepare(`SELECT ${c.columns.join(',')} FROM ${c.table} WHERE ${c.parent}=? ORDER BY ${c.orderBy}`).all(id).map(row=>validateAggregatePortableRow(row,c.columns))]))};
       d.validate(value);
-      const envelope={format:1,spaceId:context.spaceId,project:{id:projectId,title:project.title},...value};
+      const envelope={format:/* @version format.aggregate.replica */ 1,spaceId:context.spaceId,project:{id:projectId,title:project.title},...value};
       size(envelope);return envelope;
     },
     apply(key:string,value:unknown) {
@@ -69,7 +69,7 @@ export function createAggregatePortableOwner(db:ReplicaDatabase,definitions:read
       }
       size(value);const wire=object(value);exact(wire,['format','spaceId','project','record','children']);
       const project=object(wire.project);exact(project,['id','title']);
-      if(wire.format!==1||wire.spaceId!==context.spaceId||project.id!==projectId||typeof project.title!=='string'||project.title.length>120)invalid();
+      if(wire.format!==/* @version format.aggregate.replica */ 1||wire.spaceId!==context.spaceId||project.id!==projectId||typeof project.title!=='string'||project.title.length>120)invalid();
       const record=validateAggregatePortableRow(wire.record,d.columns),children=object(wire.children);exact(children,d.children.map(c=>c.table));
       if(record.id!==id||record.project_id!==projectId)invalid();
       const parsed:AggregateRecords={record,children:{}};

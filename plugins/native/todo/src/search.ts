@@ -9,9 +9,9 @@ import { todoErrors } from "./error.js";
 export const todoSearchActions = {
   // Two sources over one store: the person's own (personal and unplaced) is indexed once for the Home; a project's todos
   // are indexed with that project, so a project search finds them and no other project or the personal index holds them.
-  entries: defineSearchEntriesAction("todo.search.entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "个人待办", ["todo:read"], "home"),
-  projectEntries: defineSearchEntriesAction("todo.search.project_entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "项目待办", ["todo:read"], "project"),
-  subject: withProjectReach(defineSubjectContextAction("todo.item.subject.read", TODO_SUBJECT_KIND, "待办", ["todo:read"], "home")),
+  entries: defineSearchEntriesAction("todo.search.entries", /* @version action.todo.search.entries */ 1, [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "个人待办", ["todo:read"], "home"),
+  projectEntries: defineSearchEntriesAction("todo.search.project_entries", /* @version action.todo.search.project_entries */ 1, [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "项目待办", ["todo:read"], "project"),
+  subject: withProjectReach(defineSubjectContextAction("todo.item.subject.read", /* @version action.todo.item.subject.read */ 1, TODO_SUBJECT_KIND, "待办", ["todo:read"], "home")),
 };
 
 const STATUS: Record<TodoItem["status"], string> = { open: "待处理", doing: "进行中", waiting: "等待他人", done: "已完成", cancelled: "已取消" };

@@ -48,7 +48,7 @@ export const roundReport = async (a: CodingActivation, record: CodingSessionReco
   const saved = readCodingExecutionReport(artifacts, record.session_id, runId);
   if (saved) return saved;
   const reference = codingReportReference(record.session_id, runId);
-  const result = artifacts.publish({ ...reference, artifact_type_id: CODING_REPORT_TYPE, schema_version: 1,
+  const result = artifacts.publish({ ...reference, artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1,
     content: { kind: "inline", payload: JSON.parse(JSON.stringify(report)) }, ...codingReportPublication(report, record.session_id, runId, artifacts) });
   return { report, reference, saved_at: result.artifact.created_at };
 };
@@ -90,7 +90,7 @@ const ROUTES: RouteMaker[] = [
       const saved = readCodingChangeSet(artifacts, record.session_id, runId);
       if (saved) return { ...saved, output: context.services!.outputs!.reference("changeset") };
       const reference = codingChangeSetReference(record.session_id, runId);
-      const result = context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1,
+      const result = context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1,
         content: { kind: "inline", payload: JSON.parse(JSON.stringify(change)) },
         metadata: { title: `${record.title} · 第 ${snapshot.runs.indexOf(ref) + 1} 轮固定变更`, session_id: record.session_id, run_id: runId } });
       return { change, reference, saved_at: result.artifact.created_at, output: context.services!.outputs!.reference("changeset") };

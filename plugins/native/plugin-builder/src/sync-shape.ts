@@ -6,7 +6,7 @@ import {validateBuilderDirectories,type BuilderPortableDirectory} from './sync-f
 import {validateBuilderResults,validateBuilderSelection,validateBuilderReleaseFiles} from './sync-records.js';
 import {validateBuilderDesignDomain,validateBuilderNodeDomain,validateBuilderPreviewDomain,validateBuilderSnapshotLinks,validateBuilderDecisionLinks} from './sync-domain.js';
 
-export interface BuilderPortableState {format:1;builds:Record<string,unknown>[];releases:Record<string,unknown>[];files:Record<string,BuilderPortableDirectory[]>}
+export interface BuilderPortableState {format:/* @version format.builder.portable */ 1;builds:Record<string,unknown>[];releases:Record<string,unknown>[];files:Record<string,BuilderPortableDirectory[]>}
 const errors=defineErrorCodes('plugin_builder',{sync_invalid:'invalid',sync_busy:'unavailable'});
 export function builderSyncInvalid():never{throw errors.sync_invalid('创作同步内容或归属无效，原内容已保留');}
 export const builderSyncBusy=():never=>{throw errors.sync_busy('创作执行尚未结束，内容已保留',{sync_waiting:true});};
@@ -76,12 +76,12 @@ function release(value:unknown){
  if(!['project','home'].includes(String(distribution.runtime_scope))||typeof distribution.publisher_key_id!=='string'||!/^ed25519:sha256:[a-f0-9]{64}$/.test(distribution.publisher_key_id))builderSyncInvalid();
  if(!id(r.buildId)||!id(r.pluginId)||!Number.isSafeInteger(r.version)||Number(r.version)<1||!stamp(r.publishedAt))builderSyncInvalid();
  const d=design(r.design),c=object(d.contract),m=object(r.manifest);keys(m,['version','pluginId','revision','effects'],['version','pluginId','revision','effects']);
- if(m.version!==1||m.pluginId!==r.pluginId||c.pluginId!==r.pluginId||r.pluginId!=='io.molis.work.generated.'+r.buildId||m.revision!==c.revision||!isDeepStrictEqual(m.effects,r.permissions)||!isDeepStrictEqual(m.effects,effectsFromContract((r.design as AgentDesign).contract)))builderSyncInvalid();validateBuilderNodeDomain(d,r.nodes,[],true);
+ if(m.version!==/* @version format.builder.build-manifest */ 1||m.pluginId!==r.pluginId||c.pluginId!==r.pluginId||r.pluginId!=='io.molis.work.generated.'+r.buildId||m.revision!==c.revision||!isDeepStrictEqual(m.effects,r.permissions)||!isDeepStrictEqual(m.effects,effectsFromContract((r.design as AgentDesign).contract)))builderSyncInvalid();validateBuilderNodeDomain(d,r.nodes,[],true);
  const ids=new Set<string>();for(const prompt of list(r.prompts)){const p=object(prompt);keys(p,['id','title','purpose','body'],['id','title','purpose','body']);if(!id(p.id)||ids.has(p.id)||['title','purpose','body'].some(k=>typeof p[k]!=='string'))builderSyncInvalid();ids.add(p.id);}return r as Record<string,unknown>&Pick<AgentRelease,'design'|'nodes'>;
 }
 /** Validate the entire owner unit before project creation or staging any target bytes. */
 export function validateBuilderPortable(input:unknown):BuilderPortableState{
- const value=object(input);keys(value,['format','builds','releases','files'],['format','builds','releases','files']);if(value.format!==1)builderSyncInvalid();
+ const value=object(input);keys(value,['format','builds','releases','files'],['format','builds','releases','files']);if(value.format!==/* @version format.builder.portable */ 1)builderSyncInvalid();
  const builds=list(value.builds).map(build),releases=list(value.releases).map(release),ids=new Set<string>(),versions=new Set<string>();
  for(const b of builds){if(ids.has(String(b.id)))builderSyncInvalid();ids.add(String(b.id));}
  for(const r of releases){const key=JSON.stringify([r.buildId,r.version]);if(versions.has(key))builderSyncInvalid();versions.add(key);ids.add(String(r.buildId));}
@@ -89,7 +89,7 @@ export function validateBuilderPortable(input:unknown):BuilderPortableState{
  const checked=Object.fromEntries([...ids].map(id=>[id,validateBuilderDirectories(files[id])]));
  for(const [id,entries] of Object.entries(checked))for(const e of entries){const b=builds.find(b=>b.id===id);if(e.slot.startsWith('current')&&!b||e.slot.startsWith('history-')&&(!b||Number(e.slot.match(/[0-9]+/)![0])>=list(b.history).length)||e.slot.startsWith('release-')&&!releases.some(r=>r.buildId===id&&r.version===Number(e.slot.slice(8))))builderSyncInvalid();}
  for(const r of releases){const directory=checked[String(r.buildId)]?.find(e=>e.slot==='release-'+r.version);if(!directory)builderSyncInvalid();validateBuilderReleaseFiles(r,directory!);}
- return {format:1,builds,releases,files:checked};
+ return {format:/* @version format.builder.portable */ 1,builds,releases,files:checked};
 }
 
 export function validateBuilderUnit(input:unknown,itemId:string):BuilderPortableState {

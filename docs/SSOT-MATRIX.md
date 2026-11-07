@@ -29,7 +29,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 概念与命名：一个概念一个名字、一个定义，旧称、界面用词与代码改名清单 | [`docs/system/GLOSSARY.md`](system/GLOSSARY.md) |
 | 兼容逻辑清单与删除进度 | [`specs/archive/repository-anti-corruption`](../specs/archive/repository-anti-corruption/spec.md) §4（迁移期记录已归档到 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)） |
 | 每个包的规模、运行状态（在用 / Runtime / 构建期 / 非产品，不是下面第 2 节的状态词）和计划审查深度 | [`specs/archive/repository-anti-corruption`](../specs/archive/repository-anti-corruption/spec.md) §5.1 的包清单表；`scripts/gates/package-inventory.mjs` 按登记表和代码检查，随 `pnpm health:check` 跑。每个包的成熟度（第 2 节四词）唯一写在 `scripts/workspace-packages.mjs`，各表的「包成熟度」列由 `scripts/package-owners.mjs` 逐行校验，随 `pnpm boundary:check` 跑 |
-| 巨大单元只许变小 | `pnpm health:check`（基线 `tooling/gates/baseline.json`，必须长的登记在 `tooling/gates/giant-exceptions.json`）；全部单元的 owner、判定与计划见 [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md)，2026-09 的迁移历史在 [`docs/archive/huge-class-migration-2026-09.md`](archive/huge-class-migration-2026-09.md) |
+| 巨大单元只许变小 | `pnpm health:check`（CI 实测对照 merge-base，必须长的登记在 `tooling/gates/giant-exceptions/`）；全部单元的 owner、判定与计划见 [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md)，2026-09 的迁移历史在 [`docs/archive/huge-class-migration-2026-09.md`](archive/huge-class-migration-2026-09.md) |
 | 评审截图、根目录杂项、vendored 补丁的去留 | [`docs/system/REPOSITORY-HYGIENE.md`](system/REPOSITORY-HYGIENE.md)；`pnpm health:check` 按评审组限制入库的 `.impeccable/` 文件，只许减少 |
 | 业务事实 Module（当前包与尚未建包的未来 owner 见 §5；插件自有的库见 §7） | [`docs/modules/`](modules/README.md) |
 | `horizontal/` 下的横向运行服务与平台产品服务（记忆、放置、搜索、项目资料），当前包见 §6 | [`docs/horizontal/`](horizontal/README.md)（Memory、Placement 的边界见各自包 README） |
@@ -80,7 +80,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | --- | --- | --- | --- | --- | --- |
 | `packages/contracts` | Module、Service、Platform 的可发布类型与 Schema | Module/Service/Platform 公开类型和 Schema；无业务或 IO 实现 | `production` | F2/F3；63 个 public subpath（外加根入口；2026-10-19 按 package.json exports 核对，含页面事件登记 platform/dom-events 与本机地址判断 platform/loopback；W2-01 删了 6 个只有描述符、没人用的占位）与兼容门禁 | 共享核心：@yijunw0212 |
 | `packages/kernel` | Capability 注册、选择、权限与生命周期骨架 | versioned Capability registry 与统一动作服务核心 `ActionService`（定义/兑现校验、输入输出 schema、可用性、`beforeEffect` 副作用前复查、场景绑定与判断消费）；授权事实由 Local Host 持久保存。另承载平台产品服务「情境排序」（`contextual.ts`，纯函数，位置按 N-03 不变；宿主那一半在 `apps/local-host/src/contextual/`），边界由 `pnpm health:check` 的 K1–K5 守着 | `production` | F2、F3、AP2；`specs/action-architecture/spec.md` | 共享核心：@yijunw0212 |
-| `packages/plugin-runtime` | Plugin 安装、签名身份、grant、隔离和生命周期；安装隔离的私有 KV | 本地 Runtime、持久开发状态、可撤销授权和签名校验；Home 安装/发行物/KV 在 `plugin-runtime/plugin-runtime.db` v2，由 Local Host 组合当前 schema；插件业务 SQLite 仍归各插件；不是 OS sandbox | `production` | F2、FD3、DV3；分发收口见 DV4 | 平台包：@yijunw0212 |
+| `packages/plugin-runtime` | Plugin 安装、签名身份、grant、隔离和生命周期；安装隔离的私有 KV | 本地 Runtime、持久开发状态、可撤销授权和签名校验；Home 安装/发行物/KV 在 `plugin-runtime/plugin-runtime.db`，由 Local Host 组合当前 schema；插件业务 SQLite 仍归各插件；不是 OS sandbox | `production` | F2、FD3、DV3；分发收口见 DV4 | 平台包：@yijunw0212 |
 | `packages/plugin-sdk` | 外部 Plugin 作者使用的稳定 API 与测试入口，也是平台共用的公共运行时底座 | Manifest/definition/polling、公开 Artifact/UI/private client 类型与动作合同再导出；执行生命周期 `createExecutionLifetime`（自有实现，内核、宿主、调度、Shelf、沙箱都从这里取）；Manifest 解析、端口与事件检查、版本比较（`parsePluginManifest`、`comparePluginVersions`，Plugin Runtime 与命令行共用这一份；动作声明检查 `inspectActionDeclarations` 与同一次注册里的交叉引用检查 `inspectActionCrossReferences` 内核注册时也用，Agent 与方法、四种来源协议的检查只供这两处调用，不对外导出）；有界逐行文本比较（`compareTexts`、`splitLines`、`textDiffRow`、`alignSplitRows` 等，工作台审查界面、Coding 与 Diff 从这里取；结果与行的类型留在合同包）；动作的两个绑定函数（`bindPluginActionRoute`：HTTP 路由兑现动作，失败按错误的 kind 答；`bindOwnerPluginAction`：动作只对本机所有者开放；Plugin Runtime 路由器的拒绝同样用 SDK 的 `actionErrorResponse`）；只依赖 contracts（`public-sdk-private-dependency`）；fixture 由 Local Host 实现；界面部件三个子路径（PG-055）：`/ui`（字符串部件与图标名 `PluginIconName`）、`/browser`（DOM 工具）、`/page-globals`（页面全局与端口的类型），插件和宿主都从这里取，design-system 不转出 | `production` | F2、FD3、DV3 | 共享核心：@yijunw0212 |
 | `packages/storage` | SQLite、Filesystem、Blob、事务和 migration 技术能力 | SQLite/事务/文件/密文/联网搜索缓存 Adapter；系统搜索的本地全文索引适配（`openTextSearchIndex`，可删除重建）；业务 schema 归 Module | `production` | 各事实迁移/Cutover；Web Home 作用域隔离 | 平台包：@yijunw0212 |
 | `packages/exchange` | Envelope、ACK、Cursor、Replay、CAS 与 Blob 交换 | 当前不存在正式 Server/Exchange | `absent` | F2；未来独立功能 Spec | — |
@@ -90,7 +90,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `packages/test-kit` | 无业务判断的公共测试工具：包边界规则、无头 Chrome 启动与 DevTools 驱动（`/browser`）、访问本机 Host HTTP 管理接口的客户端（`/local-host-http`） | F3 boundary policy；`/browser`、`/local-host-http`（W2-11）；时钟、fake capability 与其余重复 harness 待迁移；缺片：时钟、fake capability 与其余重复 harness；后续：随 test-kit 收口迁移 | `slice` | F2、F3；后续测试基础设施 Goal | 平台包：@yijunw0212 |
 | `packages/im-ui` | 群聊（IM）页面、样式与浏览器控制器 | 由 Workbench 右栏「讨论」页签（`apps/workbench/src/side-panel.ts` 嵌入 `/im`）和 `apps/server` 的 IM 页面消费；不拥有消息事实。这是在用、还会迭代的功能，不是待删的实验（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」） | `production` | `specs/archive/molis-work-im/spec.md` | 平台包：@yijunw0212 |
 | `packages/plugin-sandbox` | 生成插件的 macOS 沙箱进程与宿主通道 | 插件创作台生成的后端在独立沙箱进程里运行，只经宿主通道使用平台能力 | `production` | `specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md`（S0 执行底座）；整体路线见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md` | 平台包：@yijunw0212 |
-| `tooling/plugin-cli` | Plugin 作者的 validate、create、pack、identity、sign、verify 命令，以及经 Host 的本地开发验证 | `create` 默认生成 v2 Integration 插件；`pack` 生成显式文件列表的 JSON bundle；签名与验证用 Plugin Runtime 的公开包验证接口；`dev` 经注入的 `PluginCliHost` 使用真实 Local Host；由 `apps/desktop/launchers/cli/main.ts` 装配 | `production` | DV3；入口表见 §8 | 工具：@yijunw0212 |
+| `tooling/plugin-cli` | Plugin 作者的 validate、create、pack、identity、sign、verify 命令，以及经 Host 的本地开发验证 | `create` 默认生成 Integration 插件；`pack` 生成显式文件列表的 JSON bundle；签名与验证用 Plugin Runtime 的公开包验证接口；`dev` 经注入的 `PluginCliHost` 使用真实 Local Host；由 `apps/desktop/launchers/cli/main.ts` 装配 | `production` | DV3；入口表见 §8 | 工具：@yijunw0212 |
 
 `packages/contracts/modules`、`services`、`platform` 是同一个发布包的 subpath 分区，不是三个独立 npm package。
 
@@ -133,7 +133,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 **规划中的平台产品服务：观测和采集层。** [独立需求](../specs/observation-collection/spec.md)于 2026-10-27 从主动助理中迁出，尚未实现，包位置待设计；不计入上表当前包与成熟度。它负责获准的观察记录、工作关联、历史证据可用性与覆盖缺口，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
 
-成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `io.molis.work.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；本人验收与真实 Home 干净重建下的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
+成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `io.molis.work.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；真实 Home 已于 2026-11-07 干净重建，本人验收与重建后的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
 
 ## 7. Plugins
 

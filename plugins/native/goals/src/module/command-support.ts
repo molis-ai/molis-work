@@ -1,4 +1,4 @@
-import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { goalErrors } from "./errors.js";
 import { createHash } from "node:crypto";
 import type { GoalRecord } from "../contract/goals.js";
@@ -77,7 +77,7 @@ export class GoalsCommandContext {
 }
 
 export function requestHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+  return createHash("sha256").update(canonicalJsonText(value)!).digest("hex");
 }
 
 export function unique<T>(values: T[]): T[] {

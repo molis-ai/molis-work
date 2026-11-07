@@ -63,18 +63,18 @@
   );
 
 
-    CREATE TABLE IF NOT EXISTS sync_1ffe8fce08869d74e384848964db_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS sync_1ffe8fce08869d74e384848964db_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS sync_1ffe8fce08869d74e384848964db_replica_changes_key ON sync_1ffe8fce08869d74e384848964db_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS sync_1ffe8fce08869d74e384848964db_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS sync_1ffe8fce08869d74e384848964db_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS sync_1ffe8fce08869d74e384848964db_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS sync_1ffe8fce08869d74e384848964db_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS sync_7850314bc5fb74741120b35ad6fa_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS sync_7850314bc5fb74741120b35ad6fa_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS sync_7850314bc5fb74741120b35ad6fa_replica_changes_key ON sync_7850314bc5fb74741120b35ad6fa_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS sync_7850314bc5fb74741120b35ad6fa_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS sync_7850314bc5fb74741120b35ad6fa_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS sync_7850314bc5fb74741120b35ad6fa_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS sync_7850314bc5fb74741120b35ad6fa_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 
-CREATE TABLE sync_1ffe8fce08869d74e384848964db_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
-CREATE TABLE sync_1ffe8fce08869d74e384848964db_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
-INSERT INTO sync_1ffe8fce08869d74e384848964db_context(id,project_id) VALUES(1,NULL);
-INSERT INTO sync_1ffe8fce08869d74e384848964db_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
-CREATE TRIGGER "sync_1ffe8fce08869d74e384848964db_track_0_insert" AFTER INSERT ON "todo_items" BEGIN INSERT INTO sync_1ffe8fce08869d74e384848964db_replica_changes(key) SELECT key FROM (SELECT json_array('todo',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_1ffe8fce08869d74e384848964db_replica_state WHERE id=1)=0;INSERT INTO "todo_editor_versions" ("id","revision") SELECT NEW."id",NEW."revision" WHERE 1=1 ON CONFLICT ("id") DO UPDATE SET "revision"=MAX("revision",excluded."revision"); END;
-CREATE TRIGGER "sync_1ffe8fce08869d74e384848964db_track_0_update" AFTER UPDATE ON "todo_items" BEGIN INSERT INTO sync_1ffe8fce08869d74e384848964db_replica_changes(key) SELECT key FROM (SELECT json_array('todo',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_1ffe8fce08869d74e384848964db_replica_state WHERE id=1)=0;INSERT INTO sync_1ffe8fce08869d74e384848964db_replica_changes(key) SELECT key FROM (SELECT json_array('todo',OLD."id") AS key WHERE 1=1 EXCEPT SELECT json_array('todo',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_1ffe8fce08869d74e384848964db_replica_state WHERE id=1)=0;INSERT INTO "todo_editor_versions" ("id","revision") SELECT NEW."id",NEW."revision" WHERE 1=1 ON CONFLICT ("id") DO UPDATE SET "revision"=MAX("revision",excluded."revision"); END;
-CREATE TRIGGER "sync_1ffe8fce08869d74e384848964db_track_0_delete" AFTER DELETE ON "todo_items" BEGIN INSERT INTO sync_1ffe8fce08869d74e384848964db_replica_changes(key) SELECT key FROM (SELECT json_array('todo',OLD."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_1ffe8fce08869d74e384848964db_replica_state WHERE id=1)=0; END;
+CREATE TABLE sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
+CREATE TABLE sync_7850314bc5fb74741120b35ad6fa_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
+INSERT INTO sync_7850314bc5fb74741120b35ad6fa_context(id,project_id) VALUES(1,NULL);
+INSERT INTO sync_7850314bc5fb74741120b35ad6fa_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
+CREATE TRIGGER "sync_7850314bc5fb74741120b35ad6fa_track_0_insert" AFTER INSERT ON "todo_items" BEGIN INSERT INTO sync_7850314bc5fb74741120b35ad6fa_replica_changes(key) SELECT key FROM (SELECT json_array('todo',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_7850314bc5fb74741120b35ad6fa_replica_state WHERE id=1)=0;INSERT INTO "todo_editor_versions" ("id","revision") SELECT NEW."id",NEW."revision" WHERE 1=1 ON CONFLICT ("id") DO UPDATE SET "revision"=MAX("revision",excluded."revision"); END;
+CREATE TRIGGER "sync_7850314bc5fb74741120b35ad6fa_track_0_update" AFTER UPDATE ON "todo_items" BEGIN INSERT INTO sync_7850314bc5fb74741120b35ad6fa_replica_changes(key) SELECT key FROM (SELECT json_array('todo',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_7850314bc5fb74741120b35ad6fa_replica_state WHERE id=1)=0;INSERT INTO sync_7850314bc5fb74741120b35ad6fa_replica_changes(key) SELECT key FROM (SELECT json_array('todo',OLD."id") AS key WHERE 1=1 EXCEPT SELECT json_array('todo',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_7850314bc5fb74741120b35ad6fa_replica_state WHERE id=1)=0;INSERT INTO "todo_editor_versions" ("id","revision") SELECT NEW."id",NEW."revision" WHERE 1=1 ON CONFLICT ("id") DO UPDATE SET "revision"=MAX("revision",excluded."revision"); END;
+CREATE TRIGGER "sync_7850314bc5fb74741120b35ad6fa_track_0_delete" AFTER DELETE ON "todo_items" BEGIN INSERT INTO sync_7850314bc5fb74741120b35ad6fa_replica_changes(key) SELECT key FROM (SELECT json_array('todo',OLD."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_7850314bc5fb74741120b35ad6fa_replica_state WHERE id=1)=0; END;

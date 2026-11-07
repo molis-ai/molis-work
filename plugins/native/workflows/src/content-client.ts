@@ -22,7 +22,7 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
   // Every invocation is still checked by the kernel, and a failed read is not kept.
   let views: Promise<readonly ActionView[]> | undefined;
   const directory = () => views ??= actions.discover()
-    .then(all => all.filter(view => view.action.workflow_content?.protocol === 1))
+    .then(all => all.filter(view => view.action.workflow_content?.protocol === /* @version protocol.workflow-content */ 1))
     .catch(error => { views = undefined; throw error; });
   const group = (views: readonly ActionView[]) => {
     const groups = new Map<string, ActionView[]>();

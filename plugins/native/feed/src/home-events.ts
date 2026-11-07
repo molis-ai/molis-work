@@ -2,7 +2,7 @@ import { defineHomeEventsAction, withinHomeEventWindow, assertHomeEventWindow, t
 import type { FeedApplication } from "./application.js";
 import type { FeedHydrate } from "./item-hydration.js";
 
-export const feedHomeEventsAction = defineHomeEventsAction("feed.home.events", ["feed_item", "source"], "Feed 首页事项", ["feed:read", "inbox:read"]);
+export const feedHomeEventsAction = defineHomeEventsAction("feed.home.events", /* @version action.feed.home.events */ 1, ["feed_item", "source"], "Feed 首页事项", ["feed:read", "inbox:read"]);
 const organization = new Set(["github", "gmail", "youtube_channel"]);
 export function createFeedHomeEventsHandler(feed: FeedApplication, board: string, hydrate: FeedHydrate,
   readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {

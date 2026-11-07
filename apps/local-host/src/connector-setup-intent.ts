@@ -6,7 +6,7 @@ import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
 const errors = defineErrorCodes("connector.setup.intent", { changed: "conflict", denied: "forbidden" });
 export const connectorSetupIntentAction: ActionDefinition = {
-  capability_id: "connectors.setup.resolve", version: 1, operation: "command", action: {
+  capability_id: "connectors.setup.resolve", version: /* @version action.connectors.setup.resolve */ 1, operation: "command", action: {
     title: "按最新要求保留或取消接入", description: "本人发来新要求后，读取本会话接入请求的最新状态和 intent_revision，再按最新意图选择 retain 或 cancel。保留只释放该接入的提交，不启动业务任务；改用另一服务、账号或撤回接入授权时取消旧请求。不能依据旧计划自动保留。",
     scope: "home", audiences: ["agent"], subject_kinds: ["connector"], kind: "operation", effect: "write", permissions: ["connectors:management:write"],
     input_schema: { type: "object", properties: { authorization_id: { type: "string", format: "uuid" }, intent_revision: { type: "string", minLength: 1 },
@@ -16,7 +16,7 @@ export const connectorSetupIntentAction: ActionDefinition = {
 };
 
 export function connectorSetupIntentHandler(home: string, remember: ConnectorMcpDirectory["remember"]): ActionHandlerBinding {
-  return { capability_id: connectorSetupIntentAction.capability_id, version: 1, handle: async (caller, input) => {
+  return { capability_id: connectorSetupIntentAction.capability_id, version: connectorSetupIntentAction.version, handle: async (caller, input) => {
     const choice = input as { authorization_id: string; intent_revision: string; decision: "retain" | "cancel" };
     await caller.beforeEffect();
     const initiator = connectorAuthorizationInitiator(home, choice.authorization_id);

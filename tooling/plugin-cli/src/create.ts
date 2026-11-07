@@ -12,7 +12,7 @@ export interface CreatePluginProjectInput {
 
 export async function createPluginProject(input: CreatePluginProjectInput): Promise<{ directory: string; plugin_id: string }> {
   const manifest = parsePluginManifest({
-    schema_version: 1, host_api_version: 1, plugin_id: input.plugin_id, version: "2.0.0",
+    schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.plugin_id, version: "2.0.0",
     name: "Local Plugin Sample", kind: "integration",
     publisher: { publisher_id: input.publisher_id, signature: input.binding_signature },
     entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
@@ -36,7 +36,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     "README.md": "# Local Plugin Sample\n\nThis is a local development sample, not a reviewed marketplace release.\n"
       + "The supplied publisher signature is a binding identity, not proof of cryptographic signing.\n\n"
       + "Install the matching local Molis Work SDK distribution, then run through the Molis Work application Host.\n"
-      + "The v2 manifest registers health, results.read, results.publish and results.preview with the common action service.\n"
+      + "The manifest registers health, results.read, results.publish and results.preview with the common action service.\n"
       + "The saved result type has a display name and a preview action of its own, which every Artifact type a plugin pins must declare.\n"
       + "Each poll invokes the same registered publish action; the UI displays the original private counter.\n"
       + "Health can be explicitly authorized for MCP. Personal results use the local startup owner's identity and are not exposed to other clients.\n"

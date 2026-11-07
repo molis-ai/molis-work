@@ -101,3 +101,9 @@ node docs/design/kit/build.mjs
 - 不读文件夹、不跑命令、不调模型；文件树、命令、时间、退出信息、规则文件都是示例。按钮的后果用底部提示说明。
 - 「技术细节」里的 `exit cancelled`、`exit timed-out`、`exit none (a signal ended it)` 是当前 vendored SDK 真实给出的结束说法，`exit ?` 表示什么都没收到。
 - 方案、状态、语言记在本机 `localStorage` 的 `molis-proto.coding-execution-states.v2`，读不到就从初始状态开始；外观由组件板的主题脚本记在 `molis-work:theme`。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+第 12 批 Coding 执行的可点定样：目录（执行目录、临时查看、冻结、输出不见了）、规则和模式（只读提示与切换、规则来源）、恢复（失败、结果未知、取消、超时、被系统结束、重启后、等待前一步，沿用 04 的恢复框架）、计划卡与任务板按位置编号；每块 A／B／C 三个方案，中英文、浅深色
+
+用户已选定（2026-11-04：目录 C，其余 A，记在 [Coding 需求书 §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据

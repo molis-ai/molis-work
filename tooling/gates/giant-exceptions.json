@@ -25,14 +25,14 @@
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
       "reason": "项目目录的门面及连接寿命：现行结构检查、同 Home owner 持有与释放都围绕目录连接，其余方法多为转发；按资源拆出更多门面只会增加转发层，不改善这一职责边界。",
-      "size":{"lines": 237, "methods": 34}
+      "size":{"lines": 245, "methods": 35}
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
       "kind": "cohesive-unit",
       "reason": "动作服务统一持有提供方登记、绑定、调用、场景与依赖可用性的登记表；阶段元数据从同一提供方读取并随调用权限约束，保持唯一注册与调用入口，拆开会分散同一登记表的所有权。",
       "size": {
-        "lines": 442,
-        "methods": 16
+        "lines": 452,
+        "methods": 18
       }
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -93,7 +93,7 @@
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3213
+      "size": 3214
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
@@ -143,7 +143,7 @@
     "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": {
       "kind": "cohesive-unit",
       "reason": "单个不透明插件 frame 的生命周期与私有端口适配：消息分派共享同一个 scope、page、窗口和清理闭包，统一在显隐与卸载时撤销；业务处理已在独立模块，拆开此入口会分散同一端口的所有权和释放顺序。",
-      "size": 188
+      "size": 222
     },
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
       "kind": "cohesive-unit",
@@ -248,7 +248,7 @@
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
       "kind": "cohesive-unit",
       "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。",
-      "size": { "lines": 303, "methods": 23 }
+      "size": { "lines": 315, "methods": 26 }
     },
     "class horizontal/memory/src/service.ts#MemoryService": {
       "kind": "cohesive-unit",
@@ -262,6 +262,11 @@
       "kind": "cohesive-unit",
       "reason": "用户 2026-11-02 明确授权 T-061 按现行 Memory 暂缓拆分：写入审批、召回、维护学习与范围搬运仍共用同一记忆账本和后端端口，本轮先按当前大小登记；#1101 新记忆体系与 #1059 偏好扩展留后，两项产品实际采用后由记忆线按批 C 的四协作者方案重评，保留原判拆与后继责任。文件还含调用者、服务端口与提交输入声明；本轮不搬动这些声明。",
       "size": 1151
+    },
+    "function apps/local-host/src/space-web-server.ts#createSpaceContext": {
+      "kind": "cohesive-unit",
+      "reason": "同一安装活动账号的表面生命周期主人：登录租约、凭据发放、旧环境释放与失败重试共同决定同一次交接，内部操作已有独立函数；拆开共享状态会新增主人和转发接口，破坏关闭后再开放的统一顺序。",
+      "size": 181
     }
   }
 }

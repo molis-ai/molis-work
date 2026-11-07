@@ -359,10 +359,14 @@ const headErrors = (measured, budget, base) => {
 // (specs/assistant-service-connections/spec.md §13.5 C1). Keyed on main's budget 188418 (after #1884, whose P3-0a entry is spent
 // there and replaced; still the budget after #1886 and #1892): plugin-frame.js +14 B. Tried: the two placeholders share one `unavailable` function instead of
 // a second inline copy, one fixed Error, no frame message.
+// ASR-04/07: account draft drain, multi-page preparation and registration gate.
+// Reuses the existing lease, drafts and lifecycle; bundles remain minified, with no new runtime dependency.
+// Removed the unused toast writer and shared menu/transition helpers; measured growth is frame +3104 B, workbench +7017 B.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [761321, 761636],
   "/assets/molis-work-workbench.css": [1108342, 1108657],
-  "/assets/molis-work-plugin-frame.js": [188418, 188432],
+  "/assets/molis-work-plugin-frame.js": [188432, 191536],
+  "/assets/molis-work-workbench.js": [892831, 899848],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],

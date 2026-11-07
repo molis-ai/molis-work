@@ -4,6 +4,8 @@ import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-h
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
 export * from "./ui-connections.js";
+export * from "./ui-environment.js";
+export * from "./ui-files.js";
 export * from "./ui-text.js";
 
 /** A renderer contract requirement, not a callable business capability. */

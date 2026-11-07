@@ -188,6 +188,26 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 动作声明可用公开入口的 `createActionDefinition`。调用方给出 id、操作、输入输出、权限、受众和版本。默认是项目范围，查询的种类为 query，命令为 operation；需要 Home 范围、判断、导航或并发调度时显式声明。`objectSchema` 默认所有字段必填，第二个参数可指定必填字段；`arraySchema` 和 `nullableSchema` 分别声明数组和可空值。`isRecord` 排除 null 与数组，接受非数组对象。`/browser` 的 `messageOf` 保留 Error 的消息，其余抛出值按字符串呈现。
 
+动作的输入类型从 schema 来，处理器不再自己断言。平台在调用处理器之前已经按 schema 查过输入，`bindActionHandler` 把定义和处理函数接起来，处理函数拿到的就是声明的类型。`objectSchema`、`arraySchema`、`nullableSchema` 保留传入的字面量；自己写的共享片段加 `as const`。
+
+按输入类型归谁，有两种写法（`specs/action-input-contracts/spec.md` §4.4）：
+
+- **包内部的动作：从 schema 推。** 不写手写的输入类型。自己的 `define` 帮手用 `const` 泛型接 schema。TypeScript 不支持只推一部分泛型，所以写成柯里化：
+
+```ts
+const define = <Output>() => <const S extends ActionSchema>(suffix: string, version: number, input_schema: S) =>
+  createActionDefinition<InferActionInput<S>, Output>(`my.${suffix}`, "query", { title, description, audiences, permissions, subject_kinds, input_schema }, version);
+
+const read = define<{ title: string }>()("read", 1, objectSchema({ id: { type: "string", minLength: 1 } }));
+bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { availability });
+```
+
+- **输入类型是公开合同的一部分：留手写接口，由编译器钉住。** schema 外面包 `inputSchemaFor<Input>()(schema)`。接口和 schema 说的不是同一个形状就编译失败，包括两边多出来的键，没有关掉的参数。它返回 `ActionSchema`，字面量不进 `.d.ts`。接口是判别联合、schema 是一个扁平对象时写 `inputSchemaFor<FlatUnion<Input>>()(schema)`：键和字段类型由编译器管，哪些字段能一起出现仍归处理器。过不了也修不了的，写进 §4.4 的名单并带理由，不放宽工具。
+
+推不出来的 schema（`$ref`，没写 `type` 和 `properties` 的 `allOf`、`if/then`）推成 `unknown`：读字段时编译报错，不会悄悄变成 `any`。`allOf`、`if/then` 里的必填不参与推导，处理器读的时候还要自己判断。运行时才知道形状的动作用 `input: unknown`，原样转发。
+
+`defineAction` 收到 schema 还是字面量的定义时，处理函数的 `input` 从 schema 推，不用写 `Input`。`createActionDefinition` 的结果里 schema 已经是 `ActionSchema`，这时 `input` 是它声明的 `Input`。注意两边的参数顺序：`bindActionHandler` 的处理函数是 `(input, caller)`，`defineAction` 的是 `(context, input)`。
+
 ## 开发要求
 
 - 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`）、动作声明检查（`inspectActionDeclarations`，逐个动作的形状）和同一次注册里的交叉引用检查（`inspectActionCrossReferences`，撤销、后台任务、片段与事项选项、结果对象，见 `src/action-cross-references.ts`；查 schema 里的路径用不对外导出的 `src/schema-paths.ts`）；端口与事件、Agent 与方法、四种来源协议、成果类型的检查（每个产出类型有显示名和本插件的预览查询，固定要配比较，继续指向本插件的命令；v1 不能产出成果类型）分别在 `src/wiring-declarations.ts`、`src/agent-declarations.ts`、`src/source-declarations.ts`、`src/artifact-declarations.ts`，不对外导出；读取分组（Manifest 的 `read_groups`：别的插件的后台任务能被允许读的几组，只收本插件对 agent 开放的只读查询，一个动作只在一组）的检查在 `src/read-group-declarations.ts`，同样不对外导出；任务主体对应的对象种类（Manifest 的 `task_subjects`：只有 `kind` 一项，必须是本插件某个对 user 开放的搜索来源列出的种类，平台以本人身份经它取任务标题）的检查在 `src/task-subject-declarations.ts`，同样不对外导出；动作的两个绑定函数（`bindPluginActionRoute`：HTTP 路由兑现动作，失败按 kind 答；`bindOwnerPluginAction`：动作只对本机所有者开放，`src/routes.ts`）；有界逐行文本比较（`compareTexts`、`splitLines`、`joinLines`、`reconstructSides`、`textDiffRow`、`alignSplitRows`、`DIFF_STEP_BUDGET`，`src/text-diff.ts`；CRLF 与 LF 是不同的行，超过步数预算时退化为整块删加整块插入，结果仍然完整）；Git 工作树状态的读法（`parsePorcelainStatus` 读 `git status --porcelain=v1 -z --branch` 的输出，`src/git-porcelain.ts`；宿主的工作区 Git 服务和 Git 插件读的是同一份，重命名占两条记录、七种未合并字母对都算冲突，越界或带控制字符的路径抛 `git.path_unsafe`，读不懂的记录抛 `git.status_unreadable`）；问卷的读答与检查（`questionAnswer` 把共享问卷卡的字段值读成答案（字段按题型命名：`q`/`t`/`n`/`d`/`w` 加题号，名字只是读法，答案对不对以问过的题为准），`questionProblems` 按问过的题逐题给出原因，`questionSetFlaw` 检查一组题本身，`QUESTION_LIMITS`，`src/question-answers.ts`、`src/question-rules.ts`）：不经 Agent 运行、自己先问人的插件（结果形状是合同的 `InteractionRequest`）用它，规则与 Prologue 的 `validateQuestionnaireAnswer` 同结论，由 `tests/question-rules-consistency.test.ts` 锁住；操作卡的判断规则（`draftActionCard`、`runActionCard`、`dismissActionCard`、`sweepActionCard`、`cardSubject`，端口 `CardStore` 与 `CardAuthority`，`src/action-cards.ts`；卡上控件的值读成输入用的字符串 `cardInputValues`、`instantIn`、`wallClockIn`，`src/card-values.ts`）：一张卡只按它显示的 revision 与精确引用执行一次，先认领再执行，过期、对象改过、能力不再提供都不执行，未知结果不当普通失败重试；助理与 Coding 各用自己的存储实现端口（specs/ai-interaction-experience D26），规则由 `tests/action-cards.test.ts` 锁住；整字截（`/whole-units` 子路径，`cutHead`、`cutTail`、`cutCharacters`、`exceedsCharacters`，`src/whole-units.ts`；一处规则，各处不再各自 `slice` 再补代理判断）与代码着色（`/highlight` 子路径，`codeTokens`、`growCodeTokens`、`diffRowTokens`、`codeLanguage`，`src/highlight.ts`）：零 import、每个函数自包含，页面可以把源码带进脚本，Coding 与工作台的助理用同一份；富文本（`/rich-text` 子路径，`renderRichText`、`richPlainText`，`src/rich-text.ts`）：GFM Markdown 加白名单 HTML，结果一律消毒，链接只留 http(s)；密钥脱敏（根入口的 `redactSecrets`，`src/redact-secrets.ts`）：外部文字交给模型或显示之前遮住常见的凭据形状。三样原来分别住在 Coding 和 Feed，2026-10-22 搬来（PG-062，`specs/coding-plugin/spec.md` §K），由 `tests/plugin-sdk-subpaths.test.ts` 锁住。比较视图（`/diff-view` 子路径，`emptyDiffView`、`compareChange`、`compareHunks`、`renderDiff`、`diffViewText`，`src/diff-view.ts`；unified diff 的读写 `parseUnifiedDiff`、`hunkRows`、`countChangedLines`、`unifiedPatch`，`src/unified-diff.ts`，错误码 `diff.unified.*` 的主人是 diff）：2026-10-23 从 Diff 插件搬来，Diff 与 Coding 的变更阅读器都用它画（PG062-08..10）。连接器 OAuth 声明共用的模板与取值规则（`/oauth` 子路径，`src/oauth.ts`：占位文法 `oauthPlaceholder`、地址与路径模板、请求头和值的写法、setting 值的规则、租户来源、JSON Pointer 转义、码点排序）：Manifest 解析里 `kind: "oauth"` 方法的形状检查（`src/oauth-declarations.ts`，不对外导出）和宿主的解释器（`apps/local-host/src/connector-oauth-declarations.ts`）读同一份规则，不各写一套（写法见 `skills/molis-plugin-dev/integrations.md`「OAuth 与账号」）；根入口不导出它们。
@@ -202,6 +222,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 动作适配只转换参数与结果，执行仍经同一 Kernel 的 schema、项目策略与权限；缺少动作服务时不直调业务兜底。
   - 处理器在外部等待之后、保存之前调用 `beforeWrite()`；owner binder 保留 owner、依赖、安装和 Runtime grant，最终复用原 execution fence，不能借新目录登记继续旧调用。
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
+  - `bindActionHandler` 是把动作输入当作声明类型的唯一一处；处理器和各包的 `bind` 不再各写 `input as X`（`tests/action-input-types.test.ts`，AIC-10）。
+  - `objectSchema`、`arraySchema`、`nullableSchema` 的泛型只为保留字面量，返回的值不变，动作快照因此不变。
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 操作卡给人读的样子只有一份：`actionCardView`（`src/action-cards.ts`），助理和保管卡的插件都用它，插件再交给 `services.interaction.cardHtml` 画（PG-062）。
   - `/diff-view` 只加载 SDK 自己的文件与合同包，不带词；`renderDiff` 不自己转义、翻译或画图标，三样都由调用方的 `primitives` 给，每个标签用调用方自己的键（`labels`），仓库里只有它一份比较画法（PG062-08、PG062-10）。

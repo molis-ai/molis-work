@@ -72,7 +72,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 `ProjectReplicaDefinition.beforeClear` 在目标事务内、删除任何 owner 行之前校验刚读取的本机事实，替换与墓碑都须经过；不授予执行权限。`ProjectReplicaTable.journalColumns` 可把 UPDATE 日志限定在已声明的内容列，INSERT/DELETE 仍保留。owner 的 `restore` 只能消费同事务捕获一次的本机状态，不能从网络恢复运行绑定。
 
-- 负责：Module、Service、Platform 的公开合同子路径：类型、schema 与负载解析规则（Manifest 的解析与版本比较、动作、Agent、方法的声明检查、逐行文本比较、动作的两个绑定函数 `bindPluginActionRoute` 与 `bindOwnerPluginAction` 都在 plugin-sdk，不在这里；比较结果与行的类型 `TextDiff`、`TextDiffRow` 等留在这里）。
+- 负责：Module、Service、Platform 的公开合同子路径：类型、schema 与负载解析规则（Manifest 的解析与版本比较、动作、Agent、方法的声明检查、逐行文本比较、动作的两个绑定函数 `bindPluginActionRoute` 与 `bindOwnerPluginAction` 都在 plugin-sdk，不在这里；比较结果与行的类型 `TextDiff`、`TextDiffRow` 等留在这里）。动作输入的类型工具也在这里：`platform/action-input.ts`，经 `platform/actions` 转出，有 `InferActionInput`、`FlatUnion`、`bindActionHandler`、`inputSchemaFor`。
 - 不负责：业务实现、数据库、网络客户端、App 或插件实现。
 - 公开入口：`@molis-ai/molis-work-contracts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/package`。
 - 依赖：不依赖任何工作区包，也不依赖 App、业务实现、数据库或网络客户端（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 2 节）；所有包都依赖它。
@@ -84,6 +84,9 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 错误只有一个模型：`ActionError`（`src/platform/action-errors.ts`）带码、消息和可选的 kind 与 details。码是 `<主人>.<原因>`，平台自己的码在 `ACTION_ERROR_KINDS` 一码一行（只给 kind，不带 HTTP 数字；状态由插件 SDK 的 `actionHttpStatus` 按 kind 给），主人的码用 `defineErrorCodes` 声明；新增一个平台码要同时加一行，`tests/action-error-model.test.ts` 查着。公开出口：`ACTION_ERROR_CODE`、`ACTION_ERROR_KINDS`、`ACTION_ERROR_KIND_NAMES`、`ActionErrorKind`、`ActionErrorOptions`、`defineErrorCodes`（返回类型 `ErrorCodeRaisers`）、`isActionErrorKind`、`platformErrorKind`；后两个函数是给插件 SDK 读 kind 用的，插件作者通常只用 `defineErrorCodes` 与 SDK 的 `actionHttpStatus` 一类。
   - `ActionAvailability` 的拒绝分支可带 `kind`；Kernel 的动作与 typed 派发、SDK owner 绑定保留主人的分类，未给 kind 的取现行共同规则。此字段不改变动作 schema 或版本。
   - 改合同同时更新生产方、消费方、Skill 与手册，不留只有一边认识的字段。
+  - 动作输入的类型工具只有类型和两个小函数，不加第三方依赖：外部作者只装 contracts 和 plugin-sdk（`specs/action-input-contracts/spec.md` §4.1）。
+  - 公开合同的动作（`services/*`、`modules/*` 和共享帮手）留手写接口，schema 包 `inputSchemaFor`；包内部的动作从 schema 推。两种写法的取舍和过不了的名单在 §4.4。`inputSchemaFor` 没有关掉的参数，过不了就改接口或 schema，或者带理由进名单。
+  - 导出的 schema 常量和帮手的类型在 API 快照里，加 `as const` 或改 `const` 泛型都要 `pnpm api:update`，排 api 队列（§4.5）。
   - Projects 的 `renameProject` 第四参为必填的原始名称观察值；Host HTTP、Workbench 表单和进程内调用同步更新。缺失或过期值按 `catalog.project_name_conflict` 拒绝，不提供旧签名别名或用新读取替换旧观察。
 
   - 插件的合同（动作、记录、错误码）归插件自己：写在插件包的 `src/contract.ts`、由包的 `./contract` 子路径公开（Shelf 在 `modules/shelf` 的 `./contract`），不放进 contracts，contracts 也不留转发；`tests/plugin-contract-ownership.test.ts` 钉住。`./modules/*` 里留下的是平台的事实（成果库、项目、Characters、情境、系统能力 `functions`、模型提供方、工作区服务等）和仍待迁出的 `alchemist`。跨插件的使用方不 import 提供方的合同，在 Manifest 里按动作 id 消费，源码里自备只写发问所需（id、版本、权限、输入形状）的视图经 `services.actions.invoke` 调，执行时宿主按提供方的定义校验输入、输出与权限。

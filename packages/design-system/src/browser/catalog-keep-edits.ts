@@ -91,7 +91,7 @@ export function wireCatalogKeepEdits(): void {
   });
   // The wash has played; the attribute comes off so the next one starts clean.
   board.addEventListener("animationend", (event) => {
-    if (event.animationName === "craft-landed" && (event.target as Element).getAttribute("data-craft-new") === "field") (event.target as Element).removeAttribute("data-craft-new");
+    if (event.pseudoElement === "::after" && (event.target as Element).getAttribute("data-craft-new") === "field") (event.target as Element).removeAttribute("data-craft-new");
   });
   fitFolds();
   addEventListener("resize", fitFolds);

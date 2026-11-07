@@ -174,6 +174,9 @@ test("N14: the board's four parts are named, in both languages and themes, insid
   assert.equal(moving.wash.animation, "craft-landed");
   assert.equal(moving.wash.left, "-8px", "the wash reaches a little past the field");
   assert.match(moving.wash.background, /\/ 0\.1\)$/, `the wash is a tenth of the accent, so the words stay readable (${moving.wash.background})`);
+  // Once played, the attribute comes off so the next one starts clean; the specimen holding the bright frame keeps it.
+  await waitFor("!document.querySelector('[data-keep-wash]').hasAttribute('data-craft-new')");
+  assert.equal(await evaluate<string>("document.querySelector('[data-keep-wash-hold]').getAttribute('data-craft-new') ?? ''"), "field", "the held frame stays");
 
   // Reduced motion: everything quiet, and the state is the same.
   await open("zh", 1440);

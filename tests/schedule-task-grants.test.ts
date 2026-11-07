@@ -108,7 +108,7 @@ test("Schedule consumes only the platform's list and clear of its tasks' grants;
 test("PWA-149 the brief role reads business data only: no directory, no host tools, read-only; the reader role is as it was", () => {
   const roles = new Map(scheduleAgentManifest.roles.map(role => [role.role_id, role]));
   assert.deepEqual(roles.get(SCHEDULE_BRIEF_ROLE), { role_id: "brief", version: 1, name: "读数据执行", execution: "read-only", workspace: "business", prompts: ["schedule-base", "schedule-brief"], host_tools: [] });
-  assert.deepEqual(roles.get(SCHEDULE_READER_ROLE), { role_id: "reader", version: 2, name: "只读执行", execution: "read-only", prompts: ["schedule-base", "schedule-reader"], host_tools: ["read-file", "search"] });
+  assert.deepEqual(roles.get(SCHEDULE_READER_ROLE), { role_id: "reader", version: 1, name: "只读执行", execution: "read-only", prompts: ["schedule-base", "schedule-reader"], host_tools: ["read-file", "search"] });
   const body = (id: string) => schedulePrompts.find(prompt => prompt.prompt_id === id)!.body;
   const mark = body("schedule-reader").split("\n").find(line => line.includes("IMPORTANT"))!;
   assert.ok(body("schedule-brief").split("\n").includes(mark), "the brief keeps the first-line IMPORTANT mark in the same words");

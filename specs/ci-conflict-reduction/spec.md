@@ -65,3 +65,5 @@
 
 
 首轮云端实测：合并候选 `bb0760f000`（main `a557e01e84` + head `eb2c76ba01`），页面资源比较 83 秒，其中临时基点 64 包构建 72.3 秒，51 个资源通过；测量产物成功保存。首轮合同检查的 `builtin-plugin-assembly-gate.test.ts` 9/10 通过，失败明确归因于本次待办路径迁移遗漏，保留该首败。修复仅更新测试读取的事实位置，不修改产品装配或批准例外；`builtin-plugin-assembly-gate` 10/10、`vendor-provenance` 79/79 通过。最终云端结果记录在本补丁 PR 描述，避免仅为回填结果触发又一轮 CI。
+
+队列接续（2026-11-06）：候选 `87d329c786` 的 PR CI 通过，等树的合并队列 `6a65f64d28` 首轮在 `security-invariants-plugin-terminal-launch.test.ts` 的 RAC-2565 失败（14/15），错误为 `ioctl ENOTTY`。该用例及 PTY 实现与 main 相同：测试用会执行 resize 的 attachOnly 请求反复探测一个立即退出的程序，撞上原生终端已关闭、退出回调尚未处理的窗口。修复限定于该恢复参数用例：在启动前订阅生产 WebSocket 的 exit 事件，以实际退出作为下一次启动的前提；保留无效 session 的拒绝、持久化和实际启动参数断言，不捕获忽略 ENOTTY、不加 sleep 或重试、不改产品 PTY 行为。按 CCR-09 验定向回归及新的 PR / 合并队列结果，保留首败。

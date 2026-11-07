@@ -4,7 +4,7 @@
 // security-invariants-plugin-project-database.test.ts and security-invariants-local-entry.test.ts; this file holds the sentence, its log
 // entry and the pin: `.nvmrc`, the workflows and `engines` name one version, and the sentence names the same one.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { captureHostLog, reportSqliteVersion, sqliteVersionNotice, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { PLUGIN_STATEMENT_SQLITE_VERSION } from "@molis-ai/molis-work-plugin-runtime";
@@ -32,7 +32,7 @@ test("SQLD-06 a Host on another SQLite says so once: both versions, what follows
     assert.ok(result.includes("v24.22.2"), "names the Node it is running on");
     assert.ok(result.includes(running), "names the SQLite it has");
     assert.ok(result.includes(PLUGIN_STATEMENT_SQLITE_VERSION), "names the reviewed SQLite");
-    assert.match(result, /拒绝全部插件语句/, "says what would follow");
+    assert.match(result, /拒绝项目库里的全部插件语句/, "says what would follow");
     assert.match(result, /项目库现在仍用随包的 SQLite/, "says what is true of this build today");
     assert.ok(result.includes(`Node ${LOCKED}`), "says which Node to use");
     assert.doesNotMatch(result, /[!！]|错误|失败|警告/, "calm: a note, not an alarm");
@@ -44,11 +44,14 @@ test("SQLD-06 a Host on another SQLite says so once: both versions, what follows
 
 test("SQLD-06 .nvmrc, every workflow's setup-node and engines.node name one Node patch version, the one the sentence tells people to use", () => {
   assert.match(LOCKED, /^24\.\d+\.\d+$/);
-  for (const file of [".github/workflows/ci.yml", ".github/workflows/full-suite.yml", ".github/workflows/release-macos.yml"]) {
+  // Every workflow in the directory, so a new one cannot bring a floating Node unseen. One that sets up no Node is not the question.
+  const workflows = readdirSync(new URL("../.github/workflows/", import.meta.url)).filter(name => /\.ya?ml$/.test(name)).map(name => `.github/workflows/${name}`);
+  assert.ok(workflows.includes(".github/workflows/ci.yml") && workflows.includes(".github/workflows/release-macos.yml"));
+  for (const file of workflows) {
     const text = read(file);
     const setups = text.match(/uses: actions\/setup-node@/g)?.length ?? 0;
+    if (setups === 0) continue;
     const pins = [...text.matchAll(/^\s+node-version: (\S+)\s*$/gm)].map(match => match[1]);
-    assert.ok(setups > 0, `${file} sets up Node`);
     assert.equal(pins.length, setups, `${file}: every setup-node step names a version`);
     assert.deepEqual([...new Set(pins)], [LOCKED], `${file}: the exact patch version, not a range or a floating major`);
   }

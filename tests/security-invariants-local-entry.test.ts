@@ -132,12 +132,13 @@ test("S-01 the launcher listens on 127.0.0.1 only: it announces that address and
 
 // SQLD-06: the start line for a Node whose SQLite is not the one the plugin statement check was read against. It is said on the
 // real launcher, in a temporary Home, and only said: the check itself refuses on its own (security-invariants-plugin-project-database).
-// On the locked Node (.nvmrc) the two versions are the same and the launcher says nothing; on any other Node it says so. The test
-// asserts whichever holds for the Node it runs on, so CI (locked) proves the silent half and a developer machine the spoken half.
-test("SQLD-06 the launcher says at start that the Node's SQLite is not the reviewed one, and says nothing when it is", { timeout: 60_000 }, async t => {
+// Two starts, because one start can only prove one half on a given machine: with this Node as it is, the launcher says nothing on the
+// locked Node (.nvmrc, CI) and says so on any other; with a preload that makes `process.versions.sqlite` another version, it says so
+// on every machine, which is what keeps the launcher's call to the notice from being deleted unseen.
+async function launcherStartLines(t: TestContext, preload: string[] = []): Promise<{ output: string; errors: string }> {
   const home = await mkdtemp(join(os.tmpdir(), "sqlite-version-launcher-"));
   const port = await freePort();
-  const child = spawn(process.execPath, ["--import", "tsx", LAUNCHER, "--port", String(port), "--home", home], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, MOLIS_WORK_HOME: home } });
+  const child = spawn(process.execPath, [...preload, "--import", "tsx", LAUNCHER, "--port", String(port), "--home", home], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, MOLIS_WORK_HOME: home } });
   let output = "", errors = "";
   child.stdout.on("data", chunk => { output += String(chunk); });
   child.stderr.on("data", chunk => { errors += String(chunk); });
@@ -150,10 +151,23 @@ test("SQLD-06 the launcher says at start that the Node's SQLite is not the revie
   while (!output.includes("项目列表") && child.exitCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
   assert.match(output, /项目列表/, `the launcher started (stderr: ${errors})`);
   await new Promise(resolve => setTimeout(resolve, 300));
+  return { output, errors };
+}
+const SQLITE_NOTICE = `插件语句检查审过的是 ${PLUGIN_STATEMENT_SQLITE_VERSION}`;
+const SQLITE_NOTICE_ENTRY = '"event":"sqlite_version_unreviewed"';
+
+test("SQLD-06 the launcher on this Node says at start that its SQLite is not the reviewed one, and says nothing when it is", { timeout: 60_000 }, async t => {
+  const { output, errors } = await launcherStartLines(t);
   const reviewed = process.versions.sqlite === PLUGIN_STATEMENT_SQLITE_VERSION;
   t.diagnostic(`this Node ${process.version} has SQLite ${process.versions.sqlite}; the reviewed one is ${PLUGIN_STATEMENT_SQLITE_VERSION}`);
-  assert.equal(output.includes(`插件语句检查审过的是 ${PLUGIN_STATEMENT_SQLITE_VERSION}`), !reviewed, `the start lines: ${output}`);
-  assert.equal(errors.includes('"event":"sqlite_version_unreviewed"'), !reviewed, `the Host log: ${errors}`);
+  assert.equal(output.includes(SQLITE_NOTICE), !reviewed, `the start lines: ${output}`);
+  assert.equal(errors.includes(SQLITE_NOTICE_ENTRY), !reviewed, `the Host log: ${errors}`);
+});
+
+test("SQLD-06 the launcher says so at start on every machine when the Node's SQLite is another version (a preload makes it 0.0.0)", { timeout: 60_000 }, async t => {
+  const { output, errors } = await launcherStartLines(t, ["--import", 'data:text/javascript,Object.defineProperty(process.versions,"sqlite",{value:"0.0.0"})']);
+  assert.ok(output.includes(SQLITE_NOTICE) && output.includes("SQLite 是 0.0.0"), `the start lines: ${output}`);
+  assert.ok(errors.includes(SQLITE_NOTICE_ENTRY), `the Host log: ${errors}`);
 });
 
 // ---- S-02 ------------------------------------------------------------------------------------------------------

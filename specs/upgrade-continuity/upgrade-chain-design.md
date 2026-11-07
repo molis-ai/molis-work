@@ -1,8 +1,8 @@
 # U1 升级链：设计
 
-状态：设计稿（2026-11-06，路线书第 05 批第 1 项）；尚未实现，机制代码等第 02 批的 #1837 合入后再动（#1790 已合入）。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
+状态：实现中（2026-11-06 设计，路线书第 05 批第 1 项）；U1-a 已合入（[#1908](https://github.com/molis-ai/molis-work/pull/1908)，`a60f4679d`），U1-b、U1-c、U1-i 在途，真实基线的版本都还没动。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
 
-**版本起点。** main 上各库现在不是 1（项目库 17、目录库 26 等，#1877 带来，旧库拒绝）；#1837 把它们归一为 1，合入就按检查单重建真实 Home，回到统一第 1 版（用户 2026-11-06 定，#1877 不改这个决定）。#1837（头 `c88c1c5ac`，以合入后的样子为准）把自有版本的维护入口收到 `tooling/versions.json`：代码里还是数字字面量，旁边一条 `/* @version <条目> */` 标记，由 `pnpm versions:generate` 改写，没有生成的常量文件。所以 §2.1 的写法不变；升版本是改表再生成，手改数字会被核对拦下；新基线同时加条目和标记。段的 `from` 不是版本声明，不用标记（`version-declarations.mjs` 的字段名单不含它）。
+**版本起点。** 各库已回到统一第 1 版：#1837 把它们归一，真实 Home 按检查单重建，统一起点登记在 `docs/releases/CHECKLIST.md` 第 4 节（#1914，2026-11-07）。#1837 把自有版本的维护入口收到 `tooling/versions.json`：代码里还是数字字面量，旁边一条 `/* @version <条目> */` 标记，由 `pnpm versions:generate` 改写，没有生成的常量文件。所以 §2.1 的写法不变；升版本是改表再生成，手改数字会被核对拦下；新基线同时加条目和标记。段的 `from` 不是版本声明，不用标记（`version-declarations.mjs` 的字段名单不含它）。
 
 验收编号沿用 `UPG-01`～`UPG-21`；本文新增的检查用 `UPG1-` 前缀，在 §13 列出。
 
@@ -63,6 +63,7 @@ export interface SqliteBaseline {
 
 | 读到的版本 | 无表 | 有表 |
 | --- | --- | --- |
+| 负数 | 同右 | `storage.schema_version_mismatch`（不是升级对象） |
 | `0` | 没有对象，或只有一张属于这个 Home 的 `molis_storage_space`：返回 `false`，走建库路径（现状，`emptyForBaseline`）。空间表属于别的 Home 或形状不对：现有的拒绝不变 | `storage.schema_version_mismatch`（现状：无版本却有表，不是升级对象） |
 | `1 ≤ found < version` | 同右 | **`storage.upgrade_pending`**（新）。打开路径拒绝，等升级过程处理 |
 | `found === version` | 同右 | 返回 `true`，继续比结构（现状） |
@@ -482,7 +483,7 @@ apps/desktop/launchers/web/server.ts：
 
 | 码 | 类别 | 含义 |
 | --- | --- | --- |
-| `storage.schema_version_mismatch` | invalid | 无版本却有表 |
+| `storage.schema_version_mismatch` | invalid | 无版本却有表；版本是负数；快照版本不符 |
 | `storage.schema_structure_mismatch` | invalid | 同号结构不符（已有） |
 | `storage.upgrade_pending` | unavailable | 低版本，等升级过程 |
 | `storage.upgrade_in_progress` | unavailable | 维护态拒绝的请求 |
@@ -522,13 +523,15 @@ apps/desktop/launchers/web/server.ts：
 
 ## 11. 门禁改动方案（用户 2026-11-06 同意）
 
-这四份都是「改门禁本身」。U1 机制（U1-a～e、g）用测试基线，不碰它们也能合入；第一次真实升版本之前必须改完（U1-i）。#1837 改了其中的 `initial-versions.mjs`、`verify-release-versions.mjs`，下面的改法不受影响：§11.1 的常量都还在，只是多了标记，`sourceVersionProblems` 仍然要求是 1；§11.3 读字面量之前先去掉标记（`inspectSource`），`objectVersion`、`checkBaselineCalls` 都还在。
+这四份都是「改门禁本身」。U1 机制（U1-a～e、g）用测试基线，不靠这四份也能合入，其中 U1-d 接 `initial-versions.mjs` 的 `chains`，U1-e 改它的六项名单；第一次真实升版本之前必须改完（U1-i）。#1837 改了其中的 `initial-versions.mjs`、`verify-release-versions.mjs`，下面的改法不受影响：§11.1 的常量都还在，只是多了标记，`sourceVersionProblems` 仍然要求是 1；§11.3 读字面量之前先去掉标记（`inspectSource`），`objectVersion`、`checkBaselineCalls` 都还在。
 
 ### 11.1 `scripts/gates/initial-versions.mjs`
 
-没接进 `pnpm health:check`，只有单测；不查基线的 `version:`。改法：
+现在没接进 `pnpm health:check`，只有单测；不查基线的 `version:`。改法：
 
-- `sourceVersionProblems` 里的常量分两类。持久化格式（`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`、账本、Jelly 的 `schema_version`）：大于 1 只在升级链登记了连续段、并且回放通过时放行。
+- 源码和持久化格式条目这半接进 `pnpm health:check` 的绝对规则（不用构建；用户 2026-11-07 同意，U1-i）；提示词和方法不进 CI，用户说的是「数据文件」，提示词还有 `tests/prompt-registration.test.ts` 管版本。`chains` 那半要 U1-d 的登记表，U1-d 接两处：`initial-versions.mjs` 的 `check()` 和 `check-health-gates.mjs` 调 `versionOriginProblems` 的地方，只接前一处，第一次真升版本 CI 就红。
+
+- `sourceVersionProblems` 里的常量分两类。持久化格式（`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`、账本、Jelly 的 `schema_version`，以及用户 2026-11-07 同意补上的 `config/onboarding.json`、`config/project-arrival.json`、`browser/sites.json`、`computer/settings.json`、`computer/records`、`jelly/preferences.json` 这六项（§2.6 说它们进链））：大于 1 只在升级链登记了连续段、并且回放通过时放行。U1-e 接这六项时把它们列进 `docs/releases/CHECKLIST.md` 第 3 节，并把字面量收成 `*_VERSION` 常量。
 - 动作、Manifest、提示词、角色：继续全 1，不动（`initialVersionProblems`）。
 - 这就是 `CONTRACT-CHANGES.md` §3 说的「由主人的连续升级与回放检查接替」。
 
@@ -634,12 +637,12 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 | U1-a 分类与段 | `SqliteUpgradeStep`、`checkSqliteBaselineVersion` 分类、错误码、拆 `SqliteSchemaVersionError`、单库跑法（无快照） | `packages/storage/src/{sqlite-baseline,sqlite-upgrade,index}.ts`、`README`；消费者约 10 个文件；`docs/system/CONTRACT-CHANGES.md` 一行 | UPG1-01 | Opus | **#1837 合入**（共用 `packages/storage/README.md`、`docs/system/CONTRACT-CHANGES.md` 和 7 个用到 `SqliteSchemaVersionError` 的文件） |
 | U1-b 快照与放回 | 升级快照、放回、磁盘检查 | 新 `packages/storage/src/upgrade-snapshot.ts`；`snapshot-sqlite.ts` 不改语义 | UPG1-02、09；S-143、S-145 | Opus | U1-a |
 | U1-c 过程、记录、戳记、入口 | `runHomeUpgrade`、`ensureHomeUpgraded`、`acquireUpgradedHomeOwner`、记录、戳记及自愈（§3.3）、`upgrade/` 登记；§4.3 四个取锁点和 CLI、MCP `:65` 的包装 | 新 `apps/local-host/src/home-upgrade*.ts`、`home-storage-lifetime.ts`、`project-catalog.ts`、`space-web-server.ts`、`installer/{uninstall-owner,uninstall}.ts`、`cli-project.ts`、`mcp-v1-tool.ts`、`management-action-client.ts`、`home-stores.ts`、`docs/system/HOME-DATA.md`；`packages/storage` 的 `onUpgradePending` | UPG1-03、04、05、08、13（CLI、maintenance、purge、snapshot 部分）、15（`bootstrapSpace` 那一半）、17；S-141、S-142、S-144 | Opus | U1-b；**宿主启动是规则 4 枢纽，认领板预警** |
-| U1-d 平台库接入 | 全部描述符；目录库适配；项目库；Alchemist；两个可重建库；收 §2.5 的手写检查；约 55 行测试改断言 | `apps/local-host/src/{project-database,catalog-schema,project-catalog,project-catalog-replication,installed-plugin-libraries,home-plugin-store,alchemist-search}.ts`、`plugins/native/alchemist/src/{index.ts,studio/server/sync/open.ts}`（E 轨预警）、`packages/storage/src/aggregate-copy-store.ts`、`server/src/database.ts`、`memory-ledger.ts`、`tests/` | UPG1-12、16；§13.2 末段；[SQLite 第二步](../sqlite-driver-switch/spec.md) §4 的两份 SQLite 不变量 | Opus 5.5 high | U1-c；**02 收尾**（#1837 还在改 `home-store-snapshot.ts`） |
-| U1-e 带版本文件 | `VersionedFile`、§2.6 的文件；修四个吞错的读路径；密钥段规则与测试 | `packages/storage/src/versioned-file.ts`、`adapters/file-secret-store.ts`、`modules/shelf/src/catalog.ts`、`apps/local-host/src/{mcp-settings-store,model-configuration,browser/browser-surfaces,computer/computer-settings,computer/computer-records}.ts`、`installer/home-files.ts` | UPG1-06、07 | Opus 5.5 high | U1-c；Shelf 属 E 轨，Jelly 文件在宿主；预警 |
+| U1-d 平台库接入 | 全部描述符；目录库适配；项目库；Alchemist；两个可重建库；收 §2.5 的手写检查；把 `chains` 接进 `initial-versions.mjs` 和 `check-health-gates.mjs` 两处（§11.1）；约 55 行测试改断言 | `scripts/gates/initial-versions.mjs`、`scripts/check-health-gates.mjs`、`apps/local-host/src/{project-database,catalog-schema,project-catalog,project-catalog-replication,installed-plugin-libraries,home-plugin-store,alchemist-search}.ts`、`plugins/native/alchemist/src/{index.ts,studio/server/sync/open.ts}`（E 轨预警）、`packages/storage/src/aggregate-copy-store.ts`、`server/src/database.ts`、`memory-ledger.ts`、`tests/` | UPG1-12、16；§13.2 末段；[SQLite 第二步](../sqlite-driver-switch/spec.md) §4 的两份 SQLite 不变量 | Opus 5.5 high | U1-c；**02 收尾**（#1837 还在改 `home-store-snapshot.ts`） |
+| U1-e 带版本文件 | `VersionedFile`、§2.6 的文件；修四个吞错的读路径；密钥段规则与测试；§11.1 那六项列进 CHECKLIST 第 3 节，字面量收成 `*_VERSION` 常量，从 `PERSISTENT_ENTRIES` 搬到 `PERSISTENT_CONSTANTS`，`UPG1-i-initial-11` 的 `CHAIN_FILES` 跟着改 | `packages/storage/src/versioned-file.ts`、`adapters/file-secret-store.ts`、`modules/shelf/src/catalog.ts`、`apps/local-host/src/{mcp-settings-store,model-configuration,onboarding,project-arrival,browser/browser-surfaces,computer/computer-settings,computer/computer-records}.ts`、`installer/home-files.ts`、`docs/releases/CHECKLIST.md`、`scripts/gates/initial-versions.mjs` 和用例 | UPG1-06、07 | Opus 5.5 high | U1-c；Shelf 属 E 轨，Jelly 文件在宿主；预警 |
 | U1-f 插件表合同与范围检查 | `PluginDatabaseDeclaration.upgrades`、`HomeStoreDeclaration` 的段；§2.4 的三层检查和跑法，对所有插件同一份；装上的插件写了就拒绝（唯一的开关）；记进「2026-10-18 改」清单 | `packages/contracts/src/platform/plugin-database.ts`；`tooling/gates/api/contracts/platform/{plugin,plugin-registration}.txt`、`plugin-sdk/index.txt`；`packages/plugin-runtime/src/project-database.ts`、新 `plugin-upgrade-steps.ts`、`apps/local-host/src/{project-plugin-databases,plugin-sync-database,home-stores}.ts`；`docs/system/SECURITY-INVARIANTS.md`（S-46、S-147）；`specs/archive/repository-anti-corruption/spec.md` §1 | UPG1-10、14；S-147 | Opus 5.5 high | U1-c；**公共合同队列**（§15.1）；用户 2026-11-06 已定 |
 | U1-g 维护态 | `planHomeUpgrade`（含枚举账号 Home）、`runUpgradeMaintenance`、Worker、`/health` 新状态、MCP 映射 | `apps/desktop/launchers/web/server.ts`、新 `apps/local-host/src/upgrade-maintenance.ts`、`mcp-resident-health.ts`、`mcp-resident-start.ts`、`installer/web-service-platform.ts` | UPG1-11、13（MCP 生产路径）、15；S-146 | Opus | U1-c |
 | U1-h 桌面等待 | `web_identity` 验证 503 的 `upgrading`，`web_service.rs` 见到就不算超时 | `apps/desktop/adapters/tauri/src/{web_identity,web_service}.rs` | Rust 单测：`upgrading` 不被杀，无 `upgrading` 仍 8 秒 | Sonnet | U1-g；**F 轨独占**，由 F 落 |
-| U1-i 门禁 | §11 四份 | `scripts/gates/{initial-versions,store-versions}.mjs`、`scripts/verify-release-versions.mjs`、`scripts/check-health-gates.mjs`、`docs/releases/CHECKLIST.md`、`tooling/gates/README.md` | 变异用例 | Opus | U1-a；用户 2026-11-06 已同意；在第一段真实升级之前 |
+| U1-i 门禁 | §11 四份 | `scripts/gates/{initial-versions,store-versions}.mjs`、`scripts/verify-release-versions.mjs`、`scripts/check-health-gates.mjs`、`docs/releases/CHECKLIST.md`、`tooling/gates/README.md` | 变异用例 | Opus | U1-a；用户 2026-11-06 同意四份，2026-11-07 同意把 `initial-versions.mjs` 的源码和持久化格式条目这半接进 `pnpm health:check`；在第一段真实升级之前 |
 | U1-j 结构比较记忆 | §3.2，可晚做 | `packages/storage/src/sqlite-baseline.ts` | 文件变了就重比的拒绝测试；N56 预算 | Sonnet | U1-d |
 
 U1 的机制代码（U1-a～c）不动任何真实基线的版本，合入时用户没有感觉。
@@ -652,7 +655,7 @@ U1 的机制代码（U1-a～c）不动任何真实基线的版本，合入时用
 - **08 C-1、05② C-2**：都碰 Manifest 和 `plugin-sdk/index.txt`。U1-f 排队列，共用的快照上不固定先后，同一时间一个 PR，谁先准备好谁先：`index.txt` 和这两片、N22-01 一前一后，`platform/plugin.txt` 和 N22-01、N22-02 一前一后（统筹 11-07 定，见[动作输入类型 §8.4](../action-input-contracts/spec.md)）。它们只共用生成的快照，没有语义依赖；首次改插件表结构才真的需要 U1-f，所以它不抢位，也不让别的片等它。
 - **SQLite 第二步**：真实重叠是 `packages/storage/src/snapshot-sqlite.ts`、`sqlite-baseline.ts`。U1-a、b 先合，理由是第二步要换这两个文件里的驱动类型；反过来先换驱动，U1 要在新接口上重写错误判断。U1 新代码只用 `exec`、`prepare`（`SqliteBaselineDatabase`）和 errcode 判断，第二步几乎不用碰它。**U1-c 之后的片和第二步不共用文件，可以并行。**
 - **U2**：U2-a、b 和 U1 共用同一份 `homeStores()` 枚举，改的文件不重叠（`scripts/`、`tests/`），但都读快照那套。U1-a 之前 U2-a 就能写，见 U2 设计 §8。转储器放 `packages/storage`，要写在窄接口上。
-- **02**：#1790 已合入。U1-a 等 #1837（共用 `packages/storage/README.md`、`docs/system/CONTRACT-CHANGES.md` 和用到 `SqliteSchemaVersionError` 的文件，#1877 之后是 7 个）。#1837 还改 `home-store-snapshot.ts`、`file-secret-store.ts`，U1-d、e 也排在它之后。
+- **02**：#1790、#1837 已合入，统一起点已登记（#1914），U1 各片不再等 02。
 
 ### 15.2 跟进（不在 U1）
 

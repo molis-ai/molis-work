@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
 
 // ac-trust T3b (RAC-400, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4.1): the person takes back the agreement that keeps Goals

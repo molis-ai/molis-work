@@ -9,7 +9,7 @@
 - **第 02 批 Feed 证据和搜索回到统一起点。** 证据只读写 `feed/evidence/` 与一把现行密钥，搜索意图只用 `feed-intent-v1`；不再读取恢复副本或尝试旧环境口令盐。已有正文缺钥、错钥或损坏时拒绝，原文件不变。此变更须随约定维护窗口先验证完整备份可恢复，再干净重建真实 Home；不要把此构建直接用于旧 Home 的就地升级。实际现场完成另记。
 - **个人版合入主线存储调整**：保留合并后的完整结构和同步日志，重建前各库与本机持久化文件归一为 1；同步日志随 owner 的完整结构验证。各库版本见[发布清单](CHECKLIST.md)。旧 Work／Sessions 功能随主线移除，其他个人同步保留；旧库不就地升级。安装前按第 02 批已定维护窗口先验证完整备份可恢复，再搬开旧 Home 并干净重建。这次只合代码，不维护正在使用的数据。
 - **第 02 批统一插件与动作版本。** 插件清单的 `schema_version` 和 `host_api_version` 都填 1，使用当前完整声明；填 2 的清单会被拒绝。内置清单和宿主快照中，101 个原为 @2～@8 的动作回到 @1；之后合入的 `shelf.items.edit@2` 也回到 @1，MCP 工具名从 `shelf.items.edit__v2` 变成 `shelf.items.edit__v1`。工作流步骤、绑定、外部脚本应按现行目录逐项核对输入输出：名字保留的动作若曾固定在旧 @1，现在会直接对上现行形状，版本号本身不会拒绝这条旧引用。真实 Home 在约定维护窗口重建。
-- **第 02 批：内置方法的版本回到 1。** 内置方法的版本由 2、3 回到 1，方法详情页显示的版本随之变化。`goals.events.configure` 明确固定旧版本 2、3 的调用会被拒（`goals.event_config.planning_version_unavailable`），要改成 1 或不传 `version`；固定 1 的引用现在对上现行正文。动作快照看不到这个变化。
+- **第 02 批：内置方法的版本回到 1。** Goals 内置规划方法的版本由 2、3 回到 1，`issues-capture` 由 11 回到 1，`meeting-notes` 由 2 回到 1，方法详情页显示的版本随之变化。`goals.events.configure` 明确固定旧版本 2、3 的调用会被拒（`goals.event_config.planning_version_unavailable`），要改成 1 或不传 `version`；固定 1 的引用现在对上现行正文。动作快照看不到这个变化。
 - **第 02 批：动作工厂的版本成为必填。** 20 个 `define*Action` 工厂的 `version` 改成紧跟 id 的必填参数，`createActionDefinition` 的末位 `version` 和 `defineWorkExecutorAction` 的 `version` 也去掉了缺省 1。插件源码要补上这个参数。
 - **记忆导出包的版本回到 1。** `molis.memory` 包只收 `version: 1`，之前导出的版本 2 文件导入时被拒（「版本 2 不认识」），不转换。
 - Agent 及项目工作区动作的名字不再带 `.vN`。单条记录绑定的 `connectors.plugin_slot.read@2`、`connectors.plugin_slot.bind@2` 分别改为 `connectors.plugin_slot.record.read@1`、`connectors.plugin_slot.record.bind@1`；按安装绑定仍用原 `read@1`、`bind@1`。MCP 客户端须重新发现工具，例如 `molis_work_v1_action_projects.workspace.read.v1__v1` 改为 `molis_work_v1_action_projects.workspace.read__v1`，`molis_work_v1_action_feed.items.promote__v2` 改为 `molis_work_v1_action_feed.items.promote__v1`。按旧名调用会失败。本节 10 月条目保留当时的版本变化；更新固定引用时请使用这次复位后的目录。
@@ -99,7 +99,7 @@
 ### 升级须知（需要动手）
 
 - **产品与内置插件复位 0.1.0（N34）。** 按用户 2026-11-02 决定，根产品、桌面端、宿主和全部现行内置 Manifest 一起复位；63 个私有工作区包仍为 0.0.0，独立插件、示例及上游版本保留原归属。装过 0.3.0 的开发机随约定的真实 Home 重建窗口手动重装，不能把版本数字变小当成可直接打开旧数据的证明。
-- **旧同名发布已经释放，新候选尚未发布。** 旧 GoalBoard `v0.1.0` release 及同名 tag 已于 2026-11-06 按追加授权删除并核实；不影响 v0.2.0 或历史许可。本候选的最终构建、清单摘要、登记和隔离安装另验，真实 Home 尚未切换。范围与待验项见 [v0.1.0.md](v0.1.0.md)。
+- **旧同名发布已经释放，新候选尚未发布。** 旧 GoalBoard `v0.1.0` release 及同名 tag 已于 2026-11-06 按追加授权删除并核实；不影响 v0.2.0 或历史许可。本候选的最终构建、清单摘要、登记和隔离安装另验。开发机的真实 Home 已于 2026-11-07 干净重建到 0.1.0，见[检查清单第 4 节](CHECKLIST.md#4-真实-home搬开后干净重建)。范围与待验项见 [v0.1.0.md](v0.1.0.md)。
 
 ## [0.3.0] - 2026-10-16（历史候选，未发布）
 

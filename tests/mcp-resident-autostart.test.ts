@@ -68,7 +68,7 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     for (const reply of accepted) assert.equal((JSON.parse(reply.content[0]!.text) as Resolution).connection?.project_id, one.connection.project_id);
     assert.equal((await tool<Resolution>(a, "context_resolve")).connection?.project_id, one.connection.project_id);
     assert.equal((await tool<Resolution>(b, "context_resolve")).connection?.project_id, one.connection.project_id);
-    const first = await f.health(), peers = storageOwnerProcesses(st), owner = await peers.start(join(f.home, "agent-runtime"));
+    const first = await f.health(), peers = storageOwnerProcesses(st), owner = await peers.start(join(f.accountHome, "agent-runtime"));
     try { assert.deepEqual(await owner.request("acquire"), { code: "storage.owner.busy" }); }
     finally { await owner.stop(); }
     assert.equal((await tool<ProjectList>(a, "context_list_projects")).projects.filter(project => project.display_name === input.display_name).length, 1);
@@ -99,9 +99,9 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
   t.signal.throwIfAborted();
   await t.test("a real offline owner remains held with its inode and data intact; a new request can recover after release", async st => {
     st.after(f.cleanupCase);
-    await f.release(); const peers = storageOwnerProcesses(st), owner = await peers.start(join(f.home, "agent-runtime"));
+    await f.release(); const peers = storageOwnerProcesses(st), owner = await peers.start(join(f.accountHome, "agent-runtime"));
     const acquired = await owner.request("acquire"); assert.equal(acquired.state, "held");
-    const file = join(f.home, "agent-runtime", ".molis-runtime-owner.db"), before = await stat(file);
+    const file = join(f.accountHome, "agent-runtime", ".molis-runtime-owner.db"), before = await stat(file);
     const peer = await f.connect("busy-session");
     try {
       const answer = await peer.request("tools/call", { name: "molis_work_v1_context_resolve", arguments: {} }).promise;

@@ -13,25 +13,25 @@ import { goalsManagementContext, managementInputFields, requireManagementDefinit
 export const MANAGEMENT_ACTION_PATH = "/api/internal/management-action";
 
 /** Catalog ownership is read without creating, upgrading or writing a Home. Project facts stay in Projects. */
+export function catalogManagementProjects(home:string) {
+  const file=join(home,"projects","catalog.db");if(!existsSync(file))return [];
+  const storage=new LocalSqliteStorage(file,{readonly:true});
+  try{
+    assertOwnedCatalog(storage,file);assertCurrentCatalog(storage,file);
+    return new ProjectsModule({db:storage.db,projects_directory:join(home,"projects"),plugins:{has:()=>false,companions:()=>[]}}).query.listProjects();
+  }finally{storage.close();}
+}
 export function catalogManagementProject(home: string, databasePath: string): { project_id: string; database_path: string } | undefined {
-  const path = join(home, "projects", "catalog.db");
-  if (!existsSync(path) || !existsSync(databasePath)) return undefined;
-  const storage = new LocalSqliteStorage(path, { readonly: true });
-  try {
-    assertOwnedCatalog(storage, path); assertCurrentCatalog(storage, path);
-    const target = realpathSync(databasePath);
-    // Only reads the catalog, so it knows no Plugin to enable.
-    const matches = new ProjectsModule({ db: storage.db, projects_directory: join(home, "projects"), plugins: { has: () => false, companions: () => [] } }).query.listProjects()
-      .filter(project => existsSync(project.database_path) && realpathSync(project.database_path) === target);
-    if (matches.length > 1) throw new ActionError("actions.scope_mismatch", "这个数据库对应多个项目，不能选择管理调用范围");
-    const project = matches[0];
-    return project && { project_id: project.project_id, database_path: project.database_path };
-  } finally { storage.close(); }
+  if(!existsSync(databasePath))return undefined;
+  const target=realpathSync(databasePath);
+  const matches=catalogManagementProjects(home).filter(project=>existsSync(project.database_path)&&realpathSync(project.database_path)===target);
+  if(matches.length>1)throw new ActionError("actions.scope_mismatch","这个数据库对应多个项目，不能选择管理调用范围");
+  const project=matches[0];return project&&{project_id:project.project_id,database_path:project.database_path};
 }
 
 /** Only a never-delivered call may use its original in-process path. Refusal and unknown delivery never fall back. */
 export function residentManagementActions(options: {
-  home: string; origin: string; databasePath: string; projectId: string; signal?: AbortSignal;
+  home: string; origin: string; controlToken?:string; databasePath: string; projectId: string; signal?: AbortSignal;
   ensureResident?(): Promise<void>;
   fallback(): GoalsManagementActions;
 }): GoalsManagementActions {
@@ -45,7 +45,7 @@ export function residentManagementActions(options: {
       await options.ensureResident(); options.signal?.throwIfAborted();
     }
     const callId = currentCallId() ?? newCallId();
-    const answer = await postToResidentHost({ origin, homeDirectory: options.home, path: MANAGEMENT_ACTION_PATH, signal: options.signal,
+    const answer = await postToResidentHost({ origin, homeDirectory: options.home, controlToken:options.controlToken, homeId:actionGatewayHomeId(options.home), path: MANAGEMENT_ACTION_PATH, signal: options.signal,
       retryHint: "请先按调用编号核对结果，不要另起一次管理操作",
       body: { home_id: actionGatewayHomeId(options.home), database_path: options.databasePath, project_id: options.projectId, call_id: callId,
         capability: { capability_id: reference.capability_id, version: reference.version }, input, ...(evidence !== undefined ? { evidence } : {}) } });

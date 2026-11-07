@@ -33,6 +33,7 @@
 - [upgrade-continuity](upgrade-continuity/spec.md)：升级后持续可用。库的升级链从统一起点起算（先快照、再升级、失败回退、只影响主人），新程序先在副本上演练再替换，从 M1 起合同有过渡期、保存的引用自动接上，每个发布版本留金样 Home 回放；用户只感觉到功能升级。
 - [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；设计稿，没有实现。
 - [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 全部处理器一次迁到从 schema 推导的类型（用户 2026-11-06 定），约 30 片；设计稿，没有实现。
+- [draft-and-return](draft-and-return/spec.md)：草稿与返回（路线书 12 第三项）。平台共用的「回程」：从哪里进的设置、配好后回到哪里、回来后只接着做依赖新配置的那一步；插件页面用 `host.returns`，普通链接自动得到回到原处，第 13 批⑤是第一个消费者。2026-11-07 设计稿，没有实现；五项待用户拍板（含返回条定样）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）；2026-10-27 补服务连接页面的默认直接连接、技术配置收起及连接后可用要求（ASC-45～50，需求阶段）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。
@@ -72,6 +73,7 @@
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。
 
+- [account-switch-refresh](account-switch-refresh/spec.md)：单活动账号与平台刷新规范；工程、本机与用户桌面候选操作的证据分开记录，当前更新见第 13 节，最终 CI、合并队列及 main 核对以 [PR #1932](https://github.com/molis-ai/molis-work/pull/1932) 实际记录为准。
 - [action-architecture](action-architecture/spec.md)：能力怎样注册、发现、调用、授权（§3「基本合同」）。
 - [plugin-platform-v2](plugin-platform-v2/spec.md)：插件能声明什么、宿主怎么装配、插件之间怎么交换。2026-10-18 补充 Skill Pack、目录元数据、hooks 与 LSP 声明。
 - [molis-work-architecture-reorganization](molis-work-architecture-reorganization/spec.md)：架构与包重组基线。
@@ -114,6 +116,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-07：[单机构建与测试各三个槽位](archive/machine-slots-three/spec.md)归档（已实现，负责人 Codex）；#1953 经 PR CI 与合并队列通过后合入 main，本机主检出已同步并确认两个三槽池。
 
 - 2026-11-07：[路线书审查复核与修复](archive/roadmap-audit-repair/spec.md)归档（已实现，负责人 Codex）；#1898、#1899、追加授权的 #1897 已合入 main，#1900 已合入 gh-pages 并部署；最终 CI、Full 与队列成功，保留首次失败和验证边界。
 

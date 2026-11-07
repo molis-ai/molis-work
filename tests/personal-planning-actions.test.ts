@@ -14,7 +14,7 @@ import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";

@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, bindDatabaseSpace, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return describeSqliteSchema(db); } finally { db.close(); } };
@@ -18,44 +19,44 @@ const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly
 test('PCSYNC-12 a v8 project refuses before WAL or ownership writes and keeps every original byte',t=>{
  const directory=mkdtempSync(join(tmpdir(),'project-v8-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v8.sql',import.meta.url),'utf8')+'PRAGMA user_version=8');db.close();
- const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 test('PCSYNC-12 a v9 project also refuses unchanged before installing a new journal',t=>{
  const directory=mkdtempSync(join(tmpdir(),'project-v9-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v9.sql',import.meta.url),'utf8')+'PRAGMA user_version=9');db.close();
- const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 test('PCSYNC-12 a v10 project refuses unchanged before adding message-content journals',t=>{
  const directory=mkdtempSync(join(tmpdir(),'project-v10-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v10.sql',import.meta.url),'utf8')+'PRAGMA user_version=10');db.close();
- const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 test('PCSYNC-12 a v11 project refuses unchanged before adding process-item journals',t=>{
  const directory=mkdtempSync(join(tmpdir(),'project-v11-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v11.sql',import.meta.url),'utf8')+'PRAGMA user_version=11');db.close();
- const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 test('PCSYNC-12 a v12 project refuses unchanged before adding private Coding journals and editor high-water marks',t=>{
  const directory=mkdtempSync(join(tmpdir(),'project-v12-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v12.sql',import.meta.url),'utf8')+'PRAGMA user_version=12');db.close();
- const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 test('PCSYNC-12 a v13 project refuses unchanged before adding private authoring item journals',t=>{
  const directory=mkdtempSync(join(tmpdir(),'project-v13-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v13.sql',import.meta.url),'utf8')+'PRAGMA user_version=13');db.close();
- const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 
 test('PCSYNC-12 the personal v15 baseline refuses byte-for-byte unchanged before the v16 plugin ledger split',t=>{
  const directory=mkdtempSync(join(tmpdir(),'project-v15-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v15.sql',import.meta.url),'utf8')+'PRAGMA user_version=15');db.close();
- const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
 });
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -99,7 +100,7 @@ test("RAC-2361 ATTN-OWNER-07 a noncurrent project with legal namespace-shaped id
     const before = { schema: describeSqliteSchema(old), rows: old.prepare("SELECT * FROM inbox_entries").all() };
     old.close();
     const bytes = readFileSync(file);
-    assert.throws(() => new LocalProjectDatabase(file), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 1);
+    assert.throws(() => new LocalProjectDatabase(file), error => isSqliteVersionRefusal(error) && error.code === "storage.store_too_new" && error.details?.found === 2 && error.details?.expected === 1);
     assert.deepEqual(readFileSync(file), bytes);
     const after = new DatabaseSync(file, { readOnly: true });
     try {
@@ -187,7 +188,7 @@ test("a project database at another version, or with tables but no version, is r
     const ahead = new DatabaseSync(later); ahead.exec(PROJECT_DATABASE_BASELINE.schema); ahead.exec(`PRAGMA user_version = ${PROJECT_DATABASE_BASELINE.version + 1}`); ahead.close();
     for (const path of [unversioned, later]) {
       const before = shapeOf(path);
-      assert.throws(() => new LocalProjectDatabase(path), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === path);
+      assert.throws(() => new LocalProjectDatabase(path), (error: unknown) => isSqliteVersionRefusal(error) && error.code === (path === unversioned ? "storage.schema_version_mismatch" : "storage.store_too_new") && error.details?.path === basename(path) && !error.message.includes(directory));
       // J7A-01/J7A-02: recovery refuses the current owner code and preserves the database shape.
       assert.throws(() => new LocalProjectDatabase(path, { existingOnly: true }), { code: "catalog.project_recovery_unsupported_schema", message: "catalog.project_recovery_unsupported_schema", kind: "invalid" });
       assert.deepEqual(shapeOf(path), before, "nothing is upgraded in place");
@@ -199,5 +200,49 @@ test("a project database at another version, or with tables but no version, is r
 test('a v14 project refuses unchanged before adding derived saved SDK history',t=>{
  const directory=mkdtempSync(join(tmpdir(),'project-v14-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v14.sql',import.meta.url),'utf8')+'PRAGMA user_version=14');db.close();
- const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
+});
+
+// A binding is not an old business schema; both the standalone and managed bootstrap remain valid.
+test("S-142 PCSYNC-F2 same-Home space-only libraries initialize without changing their binding", t => {
+  const home = mkdtempSync(join(tmpdir(), "project-bound-bootstrap-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const space = ensureStorageSpace(home), directory = join(home, "projects", "p");
+  mkdirSync(directory, { recursive: true });
+  const standalone = join(home, "standalone.db"), managed = join(directory, "molis-work.db");
+  for (const file of [standalone, managed]) {
+    const db = new DatabaseSync(file);
+    try {
+      bindDatabaseSpace(db, space);
+      if (file === standalone) applySqliteBaseline(db, file, PROJECT_DATABASE_BASELINE);
+    } finally { db.close(); }
+  }
+  const opened = new LocalProjectDatabase(managed);
+  try { assert.deepEqual(readDatabaseSpace(opened.db), space); } finally { opened.close(); }
+  for (const file of [standalone, managed]) {
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, PROJECT_DATABASE_BASELINE.version);
+      assert.deepEqual(readDatabaseSpace(db), space);
+    } finally { db.close(); }
+  }
+});
+
+for (const version of [0, PROJECT_DATABASE_BASELINE.version]) test(`S-142 PCSYNC-F2 managed project refuses foreign space at version ${version} before any writable open`, t => {
+  const home = mkdtempSync(join(tmpdir(), "project-foreign-space-")), other = mkdtempSync(join(tmpdir(), "project-foreign-owner-"));
+  t.after(() => { rmSync(home, { recursive: true, force: true }); rmSync(other, { recursive: true, force: true }); });
+  ensureStorageSpace(home);
+  const directory = join(home, "projects", "p"); mkdirSync(directory, { recursive: true });
+  const file = join(directory, "molis-work.db"), db = new DatabaseSync(file);
+  try {
+    bindDatabaseSpace(db, ensureStorageSpace(other));
+    if (version) applySqliteBaseline(db, file, PROJECT_DATABASE_BASELINE);
+  } finally { db.close(); }
+  chmodSync(file, 0o644);
+  const digest = () => createHash("sha256").update(readFileSync(file)).digest("hex");
+  const before = digest(), mode = statSync(file).mode & 0o777, members = readdirSync(directory).sort();
+  assert.throws(() => new LocalProjectDatabase(file), /SPACE_OWNERSHIP_MISMATCH/);
+  assert.equal(digest(), before, "foreign database bytes are preserved");
+  assert.equal(statSync(file).mode & 0o777, mode);
+  assert.deepEqual(readdirSync(directory).sort(), members, "no journal sidecar is created");
 });

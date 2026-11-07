@@ -56,9 +56,12 @@ import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
+import { versionOriginProblems } from "./gates/initial-versions.mjs";
+import { measureSchemaPatches, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
+import { actionInputMetrics } from "./gates/action-input-counts.mjs";
 import { errorOwnersWantsText } from "./gates/error-owners.mjs";
 import { pluginRegistryProblems } from "./generate-plugin-registry.mjs";
 
@@ -152,7 +155,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
+const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -337,17 +340,15 @@ const vendoredSdk = {
   summary: (count) => `${count} vendored SDK`,
 };
 
-// 4. Compatibility code coming back: in-place table patching outside a baseline schema.
+// 4. Compatibility code coming back: in-place table patching outside a baseline schema and the steps of its `upgrades` (scripts/gates/schema-patches.mjs).
 const schemaPatches = {
   id: "schemaPatches",
   measure(snapshot) {
-    let count = 0;
-    for (const file of snapshot.files.filter(isSource)) count += (snapshot.read(file)?.match(/ALTER TABLE|ensureSqliteColumn\(/g) ?? []).length;
-    return count;
+    return measureSchemaPatches(snapshot);
   },
   toBaseline: (count) => ({ schemaPatches: count }),
   fromBaseline(json) { requireShape(Number.isInteger(json.schemaPatches), "schemaPatches"); return json.schemaPatches; },
-  grew: (head, ref) => (head > ref ? [`in-place schema patches ${ref} → ${head}; change the baseline schema instead`] : []),
+  grew: (head, ref) => (head > ref ? [`in-place schema patches ${ref} → ${head}; change the baseline schema, and put the structure change in a step of its \`upgrades\` literal`] : []),
   lowered: (head, ref) => head < ref,
   lines: (head, ref) => [`In-place schema patches: ${head}${ref !== undefined && ref !== head ? `, base ${ref}` : ""}`],
   summary: (count) => `${count} schema patches`,
@@ -404,6 +405,8 @@ METRICS.push(testImportSplits({ perFile }));
 // 9. The error model (W3-02-B): Error subclasses, code shape, statuses chosen by a test of an error, the owner of a code; the rules live in
 // scripts/gates/error-*.mjs and the owner table in tooling/gates/error-owners.json (the repository this script belongs to must have it).
 METRICS.push(...createErrorMetrics({ root, required: isOwnRepository(root, import.meta.url), isSource: isStructureSource, perFile, rekey, rekeyFile, sumOf }));
+// 10. `as` on an action handler's input and input types written by hand at a definition, interim until N22-G turns them into absolute rules (scripts/gates/action-input-counts.mjs).
+METRICS.push(...actionInputMetrics({ perFile }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 
@@ -502,6 +505,8 @@ const storeVersions = () => {
     throw error;
   }
 };
+// The half of the unified-origin check that needs no build (scripts/gates/initial-versions.mjs, user 2026-11-07): not a number, every version is 1 or has its chain.
+const versionOrigin = () => versionOriginProblems(workingTree(), { readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
@@ -545,7 +550,7 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const api = apiSnapshots();
-const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...api.errors];
+const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...versionOrigin(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   process.exit(1);

@@ -1,5 +1,6 @@
 import type { UiPageReviewQuery } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pageDialogs } from "./dialogs.js";
+import { overFrame } from "./over-frame.js";
 import type { FrameDown, FrameHost, FrameScope, FrameUp } from "./types.js";
 
 type ReviewMessage = Extract<FrameUp, { type: "review-show" | "review-layout" | "review-close" }>;
@@ -28,13 +29,9 @@ export function pageReviews(port: MessagePort, scope: FrameScope, root: HTMLElem
       if (!scope.visible || !box || ![box.x, box.y, box.width, box.height].every(Number.isFinite) || box.width <= 0) {
         entry.holder.style.visibility = "hidden"; return;
       }
-      const owner = frame.getBoundingClientRect(), bounds = root.getBoundingClientRect();
-      const left = Math.max(0, box.x), top = Math.max(0, box.y), right = Math.min(owner.width, box.x + box.width), bottom = Math.min(owner.height, box.y + box.height);
       // Layout can arrive after show. Geometry must not abort the review's owner-page lifetime.
       entry.holder.style.removeProperty("visibility");
-      Object.assign(entry.holder.style, { left: owner.left - bounds.left + left + "px", top: owner.top - bounds.top + top + "px",
-        width: Math.max(0, right - left) + "px", height: Math.max(0, bottom - top) + "px" });
-      Object.assign(entry.content.style, { left: box.x - left + "px", top: box.y - top + "px", width: box.width + "px" });
+      overFrame(root, frame.getBoundingClientRect(), entry.holder, entry.content, box, false);
       return;
     }
     try {

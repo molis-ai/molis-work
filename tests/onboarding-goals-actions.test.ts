@@ -11,7 +11,7 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from 
 import { agentHostCapabilities, type AgentSessionOwner, type AgentStartInput, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { managementGoals } from "./goal-management-caller.js";
 import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import { watchSettlements, type Settlement } from "./fixtures/settlements.js";

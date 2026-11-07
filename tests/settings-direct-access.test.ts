@@ -5,7 +5,7 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // Settings are part of the workbench (specs/artifact-positioning S6). A settings address a person opens directly (the
 // address bar, a bookmark, a reload: a page navigation) opens a project's workbench with that page in its settings;

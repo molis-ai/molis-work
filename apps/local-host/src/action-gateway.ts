@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
 import { createHash } from "node:crypto";
 import { resolveHomeDirectory } from "@molis-ai/molis-work-storage";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -24,6 +27,7 @@ export const isGatewayCallId = (value: unknown): value is string => typeof value
 export class LocalActionGatewayClient implements ActionClient {
   private readonly origin: string;
   private instance?: string;
+  private credential?:Promise<string|null>;
   constructor(private readonly options: { url: string; homeDirectory: string; clientId: string; projectId: string | null; controlToken?: string; runtimeSessionId?: string }) {
     this.origin = residentHostOrigin(options.url);
   }
@@ -56,9 +60,11 @@ export class LocalActionGatewayClient implements ActionClient {
   private async request(body: Record<string, unknown>, caller: ActionCallContext, callId?: string): Promise<Record<string, unknown>> {
     const invoking = body.operation === "invoke";
     const unavailable = () => new ActionError("actions.service_unavailable", "系统服务尚未连接，请启动对应 Home 的常驻服务");
+    const token=await (this.credential??=this.options.controlToken!==undefined?Promise.resolve(this.options.controlToken):readFile(path.join(this.options.homeDirectory,WEB_CONTROL_TOKEN_RELATIVE_PATH),"utf8").then(value=>value.trim(),()=>null));
+    if(token===null)throw unavailable();
     let answer: ResidentHostAnswer | null;
     try {
-      answer = await postToResidentHost({ origin: this.origin, homeDirectory: this.options.homeDirectory, controlToken: this.options.controlToken,
+      answer = await postToResidentHost({ origin: this.origin, homeDirectory: this.options.homeDirectory, controlToken: token,
         path: ACTION_GATEWAY_PATH, homeId: actionGatewayHomeId(this.options.homeDirectory), signal: caller.signal, retryHint: "请核对原结果，不会自动重试",
         body: { ...body, home_id: actionGatewayHomeId(this.options.homeDirectory), client_id: this.options.clientId,
           project_id: this.options.projectId, ...(this.options.runtimeSessionId === undefined ? {} : { runtime_session_id: this.options.runtimeSessionId }) } });

@@ -37,7 +37,7 @@
 5. **外部已经在用的名字**（Runtime 用的 MCP 工具名）：改动是产品决定，先问用户，在 spec §1 记一行，PR 里列新旧名，外部插件同步。
 6. **门禁守着**：源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，只许减少，新文件从零（`pnpm health:check`，`AGENTS.md` 健康门禁一条）。就地补表、测试引用包内部同样只许减少。
 
-   **统一起点版本检查（N41）。** 重建窗口以 `node scripts/gates/initial-versions.mjs` 复核当前构建。它在临时 Home 检查内置 Manifest 与宿主登记的动作，再读内置提示词、主角色和子角色的登记，以及产品代码中自有的版本常量。外部服务的协议号、SQLite 引擎版本、产品 SemVer 与匹配 SemVer 的正则分别由各自的主人检查。任何一项未复位都会指出名字并返回失败。窗口前继续执行现有兼容标记检查，到窗口再切换阶段一的合并门禁。窗口的执行结果、构建和日期由维护者另记。之后，公开合同、提示词与角色沿阶段一规则；持久化库或文件的结构版本依第 3 节第 4 条升级。U1 首次接入这类版本时，须在同一变更中以主人的升级链及回放验收接替该项初始值检查，不能直接删检查来放行高版本。
+   **统一起点版本检查（N41）。** 分两半。不用构建的一半是产品代码中自有的 `*VERSION` 常量和 `tooling/versions.json` 里持久化格式的条目：它是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定），CI 里跑。另一半只有 `node scripts/gates/initial-versions.mjs` 查：它在临时 Home 检查内置 Manifest 与宿主登记的动作，再读内置提示词、主角色和子角色的登记和提示词、方法的版本条目，并把前一半再查一遍。这一半只在有人跑时才查，现在是重建窗口手跑，复核当前构建。外部服务的协议号、SQLite 引擎版本、产品 SemVer 与匹配 SemVer 的正则分别由各自的主人检查。任何一项未复位都会指出名字并返回失败。窗口前继续执行现有兼容标记检查，到窗口再切换阶段一的合并门禁。窗口的执行结果、构建和日期由维护者另记。之后，公开合同、提示词与角色沿阶段一规则；持久化库或文件的结构版本依第 3 节第 4 条升级。持久化格式的名单在 `scripts/gates/initial-versions.mjs`，大于 1 时要有登记的连续升级链且回放通过。这份登记（`chains`）由 U1-d 接，脚本和 `pnpm health:check` 两处都要接；接上之前，它们大于 1 一律失败。U1 首次接入这类版本时，须在同一变更中以主人的升级链及回放验收接替该项初始值检查，不能直接删检查来放行高版本。
 
    **公开 API 快照门禁**（`scripts/gates/api-snapshot.mjs`，口径在 `tooling/gates/README.md`「公开 API 快照」）：`packages/contracts` 每个子路径和 `packages/plugin-sdk` 的公开 API 由编译器的声明输出生成（名字加签名，去注释），入库在 `tooling/gates/api/`。`pnpm health:check` 把源码生成的内容和入库的快照比，有任何不同就失败：加、删、改签名、新子路径没有快照、已删子路径的快照还在、快照被手改。它是一份不许静默变化的清单，不是只许减少的数字，所以 `--update` 和改基线都碰不到它。有意改 API 的 PR：先改代码，再跑 `pnpm api:update`，提交 `tooling/gates/api/` 的变化，并在 PR「公开合同与 API 影响」一栏写这个变化对插件和调用方的影响（`.github/pull_request_template.md`）；`--base` 时门禁日志还会列出相对 merge-base 的 API 变化，评审读它。它只管形状：函数体、注释、语义变化看不到，各插件 Manifest 里的动作声明与 schema 也不在里面（那是路线图 W2-15 的动作合同快照），所以第 3 条的版本字段和评审照旧要做。
 
@@ -58,6 +58,7 @@
 | 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
 | Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
 | 中文原文作为翻译键（2026-10-25 决定） | 现行翻译键机制；插件词典由插件在 Manifest 声明，平台同样加载内置与第三方插件，不在工作台导入插件词典 | [工作台「界面文字」](../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)及各插件词典 owner；稳定键接续按该处规则，不新增旧键读取兜底 |
+| 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行，读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点；段的跑法和范围检查对所有插件同一份，唯一的暂时例外是装上的插件写了段在安装时拒绝，移除条件是 U4（用户 2026-11-06 定） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
 
 第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 
@@ -65,11 +66,13 @@
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
 
-**库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
+**库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只认这张表；统一起点登记之后还读升级段所在的代码文件）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
+
+统一起点已登记（检查清单第 4 节），之后这张表多三条规则：版本不许降，写了行也不行；升版本的行，「维护」一格固定写成 `定义处#旧→新`，整格用反引号包住，比如 `` `plugins/native/pages/src/database.ts#PAGES_DATABASE#1→2` ``，定义处和检查清单同一行的「定义处」完全相同，旧、新和「版本」一格的两个数字相同；这个定义的 `upgrades` 字面量里，要有从旧到新减一的每个 `from`。表里留着历史，同样数字的旧行写着文字不碍事，写成指针的每一行都要站得住。完整口径见 [tooling/gates/README.md](../../tooling/gates/README.md)。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
-| `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表；真实统一起点未生效。旧Home完整备份、搬开后新建，错版和不符所属结构仍拒绝，不就地升级；实际维护未执行。 |
+| `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
 | `projects/<project_id>/molis-work.db#goals` | 2 → 1 | 同上 | 同上 |
 | `projects/<project_id>/molis-work.db#inbox` | 2 → 1 | 同上 | 同上 |

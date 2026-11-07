@@ -35,6 +35,7 @@ export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts, exposedO
 export { createStudioPublisher, readStudioDistribution } from "./plugin-builder/studio-release.js";
 export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";
+export { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
@@ -215,17 +216,21 @@ export { assertMcpStartInput } from "./mcp-start-preflight.js";
 export { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
 export { runtimeConnectionIdentity } from "./mcp-event-identity.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
+export { taskGrantActionProvider, type TaskGrantPorts } from "./task-grant-actions.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
+export { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
+export { homeProjectReach } from "./project-reach.js";
+export { AccountRefreshPages } from "./account-refresh-pages.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
 export { createLocalPlanningHttp } from "./web-planning.js";
 export { createLocalGoalsReadHttp } from "./web-goals-read.js";
-export { createLocalWebServerFactory } from "./web-server.js";
+export { createLocalWebCoreFactory, createLocalWebServerFactory } from "./web-server.js";
 export type { WebServerOptions } from "./web-types.js";
 export type { LocalWebPlatform } from "./web-composition.js";
 export { createLocalUninstallService } from "./local-uninstall.js";
@@ -331,6 +336,7 @@ export { handleAttentionHttp, type AttentionSources } from "./attention-http.js"
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
+export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";
 export { hostLog, captureHostLog, eachListener, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
 
 
@@ -368,3 +374,5 @@ export { createWebCatalogAccess } from "./web-catalog-access.js";
 export { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.js";
 
 export { verifySyncPluginDistribution } from "./sync-distribution.js";
+
+export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";

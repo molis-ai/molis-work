@@ -8,6 +8,8 @@
  *   word, path or URL that neither wraps nor is meant to scroll.
  * Code, inputs, scrollers that scroll on purpose (overflow auto/scroll, `data-overflow-fade`) and hidden text (a
  * screen-reader-only 1px box among it) are left out.
+ * A line its own box clips away (a clamp, a fixed height) is not drawn, so it counts neither as a line nor as the last one. A
+ * scroller's lines still count: scrolling reaches them. A box clipped by an ancestor is not looked at.
  */
 export const TEXT_WRAP_AUDIT = `(() => {
   const issues = [];
@@ -15,8 +17,10 @@ export const TEXT_WRAP_AUDIT = `(() => {
   const shown = (el) => { const box = el.getBoundingClientRect(); if (!box.width || !box.height || (box.width <= 1 && box.height <= 1)) return false;
     const style = getComputedStyle(el); return style.visibility !== 'hidden' && style.display !== 'none' && !el.closest('[hidden], [inert], [aria-hidden=true]'); };
   const lines = (el) => { const rows = []; const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const range = document.createRange();
+    const box = el.getBoundingClientRect(), clips = /hidden|clip/.test(getComputedStyle(el).overflowY);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) { if (!node.data.trim()) continue;
       for (let i = 0; i < node.length; i++) { range.setStart(node, i); range.setEnd(node, i + 1); const rect = range.getClientRects()[0]; if (!rect || !rect.width) continue;
+        if (clips && rect.top >= box.bottom - 1) continue;
         let row = rows.find(r => Math.abs(r.top - rect.top) < rect.height / 2); if (!row) { row = { top: rect.top, left: rect.left, right: rect.right, text: '' }; rows.push(row); }
         row.left = Math.min(row.left, rect.left); row.right = Math.max(row.right, rect.right); row.text += node.data[i]; } }
     return rows.sort((a, b) => a.top - b.top); };

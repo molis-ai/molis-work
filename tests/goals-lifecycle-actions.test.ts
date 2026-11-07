@@ -8,7 +8,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
 // The plugin runs over its own connection to the project's library and writes its events under its own names, so a trigger that makes

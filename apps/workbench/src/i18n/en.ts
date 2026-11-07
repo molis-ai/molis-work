@@ -1,6 +1,7 @@
 import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../judgment-rules/en.js";
 import { GAP_EN } from "./gap-en.js";
+import { ACCOUNT_EN } from "./account-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
@@ -18,6 +19,8 @@ import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 import { SERVICE_CONNECTION_EN } from "./service-connection-en.js";
 import { MODEL_SETTINGS_EN } from "./model-settings-en.js";
+import { TASK_GRANTS_AREA_EN } from "./task-grants-area-en.js";
+import { TASK_GRANTS_PAGE_EN } from "./task-grants-page-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
   "角色资料": "Role material",
@@ -33,6 +36,8 @@ export const EN: Record<string, string> = {
   ...SIDE_PANEL_EN,
   ...SERVICE_CONNECTION_EN,
   ...MODEL_SETTINGS_EN,
+  ...TASK_GRANTS_AREA_EN,
+  ...TASK_GRANTS_PAGE_EN,
   "连接不可用": "Connection unavailable",
   "原连接已不可用，请重新选择": "Previous connection unavailable; choose another",
   "官方连接方式": "Official connection methods",
@@ -3209,4 +3214,4 @@ Object.assign(EN, {
   "继续前必须打开「显式继续」并填写原因。": "Before continuing, open Resume explicitly and give a reason.",
   "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": "This Goal was removed from the active list; its content and history remain.",
 });
-Object.assign(EN, GAP_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);
+Object.assign(EN, GAP_EN, ACCOUNT_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);

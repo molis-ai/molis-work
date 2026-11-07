@@ -47,8 +47,8 @@ for (const { declaration, manifest, table, seed } of cases) {
       mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
       const raw = new DatabaseSync(file); raw.exec(sql); bindDatabaseSpace(raw,ensureStorageSpace(home)); raw.exec(seed); raw.exec("PRAGMA user_version = 2"); raw.close(); chmodSync(file, 0o600);
       const before = readFileSync(file), filesBefore = readdirSync(dirname(file)).sort();
-      assert.throws(() => open(home, () => {}), (error: { code?: string; found?: number; expected?: number }) =>
-        error.code === "storage.schema_version_mismatch" && error.found === 2 && error.expected === 1);
+      assert.throws(() => open(home, () => {}), (error: { code?: string; details?: { found?: number; expected?: number } }) =>
+        error.code === "storage.store_too_new" && error.details?.found === 2 && error.details?.expected === 1);
       assert.deepEqual(readFileSync(file), before);
       assert.deepEqual(readdirSync(dirname(file)).sort(), filesBefore, "the refusal creates no journal, WAL or SHM sidecar");
       const kept = new DatabaseSync(file, { readOnly: true });

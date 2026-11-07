@@ -111,13 +111,22 @@ export class LocalHost<Runtime> {
     } };
   }
 
-  /** System capabilities share the registry but do not create a fictitious project Runtime. */
-  inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+  private metadataCaller(caller: ActionCallContext, reference?: LocalHostProjectReference): ActionCallContext {
     this.assertRunning(); caller.signal?.throwIfAborted();
     const project = reference ? normalizeReference(reference) : undefined;
     if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "目录上下文与项目不一致");
     if (project) this.line.assertCompatibleReference(project);
-    return registeredActionMetadata(this.capabilities, snapshotCaller(caller));
+    return snapshotCaller(caller);
+  }
+
+  /** System capabilities share the registry but do not create a fictitious project Runtime. */
+  inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    return registeredActionMetadata(this.capabilities, this.metadataCaller(caller, reference));
+  }
+
+  /** The same registered scene declarations and visibility rules discovery uses; never an execution grant. */
+  inspectSceneMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    return this.actionService.inspectSceneMetadata(this.metadataCaller(caller, reference));
   }
 
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference): Promise<ActionView[]> {

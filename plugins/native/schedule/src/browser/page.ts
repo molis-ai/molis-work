@@ -1,5 +1,6 @@
 import { required } from "./dom.js";
-import type { OperationReview, ReminderReview, ScheduleHost, Translate } from "./types.js";
+import type { UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OperationReview, Readiness, ReminderReview, ScheduleHost, Translate } from "./types.js";
 
 /** Everything the Schedule client shares between its parts: the page's elements and what is open on it. */
 export interface SchedulePage {
@@ -7,7 +8,8 @@ export interface SchedulePage {
   readonly L: Translate;
   readonly workbench: HTMLElement;
   readonly list: HTMLElement;
-  readonly dialog: HTMLDialogElement;
+  /** The new/edit form, in the detail pane where a task's detail goes. */
+  readonly pane: HTMLElement;
   readonly form: HTMLFormElement;
   readonly errorEl: HTMLElement;
   readonly recoveryDialog: HTMLDialogElement;
@@ -23,8 +25,18 @@ export interface SchedulePage {
   recovering: boolean;
   operationReview: OperationReview | null;
   operationBusy: boolean;
-  /** Counts the openings of the dialog, so a readiness answer from an earlier one is not shown in this one. */
+  /** Counts the openings of the form, so a readiness answer from an earlier one is not shown in this one. */
   hinting: number;
+  /** Counts the reads of what the tasks may read, so a late answer does not overwrite a later one. */
+  reading: number;
+  /** The task just created: its detail says once that what it reads is chosen there. */
+  created: string;
+  /** Whether the project has a workspace, once read: a task that reads files only needs one. */
+  ready?: Readiness;
+  /** The platform's reads area in the open task's detail (area.ts): its element, and what closes it. */
+  area: { readonly element: HTMLElement; readonly control: AbortController } | null;
+  /** What the person last changed in the area, by task, with the read of the list under way then (newer than that read's answer). */
+  readonly changes: Map<string, { readonly state: UiTaskGrantsAreaState; readonly during: number }>;
 }
 
 /** The page of a mounted Schedule client, or null when this root has no Schedule workbench. */
@@ -33,7 +45,7 @@ export function createPage(host: ScheduleHost): SchedulePage | null {
   if (!workbench || !list) return null;
   return {
     host, L: host.translate, workbench, list,
-    dialog: required<HTMLDialogElement>(workbench, "[data-schedule-create-dialog]"),
+    pane: required(workbench, "[data-schedule-create-pane]"),
     form: required<HTMLFormElement>(workbench, "[data-schedule-create-form]"),
     errorEl: required(workbench, "[data-schedule-create-error]"),
     recoveryDialog: required<HTMLDialogElement>(workbench, "[data-schedule-recovery-dialog]"),
@@ -41,6 +53,7 @@ export function createPage(host: ScheduleHost): SchedulePage | null {
     recoveryError: required(workbench, "[data-schedule-recovery-error]"),
     operationDialog: required<HTMLDialogElement>(workbench, "[data-schedule-operation-dialog]"),
     operationForm: required<HTMLFormElement>(workbench, "[data-schedule-operation-form]"),
-    editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, hinting: 0,
+    editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, hinting: 0, reading: 0, created: "",
+    area: null, changes: new Map(),
   };
 }

@@ -119,7 +119,7 @@ macOS 上，当前这条 Goal 也在 **屏幕顶部菜单栏**。点 Molis Work 
 
 ### macOS Desktop（待公开发布）
 
-截至 2026-11-06，产品与内置插件版本已复位为开发统一起点 0.1.0，尚未发布，真实 Home 也尚未重建。原 v0.3.0 候选保留为历史记录；已经发布的 GoalBoard v0.2.0 只有源码，不能用它代表本文的开发中功能。现在试用请按下节从源码运行。发布范围与验证缺口见 [0.1.0 候选记录](docs/releases/v0.1.0.md)。
+截至 2026-11-07，产品与内置插件版本已复位为开发统一起点 0.1.0，尚未发布；开发机的真实 Home 已按这个起点干净重建。原 v0.3.0 候选保留为历史记录；已经发布的 GoalBoard v0.2.0 只有源码，不能用它代表本文的开发中功能。现在试用请按下节从源码运行。发布范围与验证缺口见 [0.1.0 候选记录](docs/releases/v0.1.0.md)。
 
 公开安装包发布后，从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 按实际附件选择与你的 Mac 匹配的 DMG：
 
@@ -132,7 +132,7 @@ macOS 上，当前这条 Goal 也在 **屏幕顶部菜单栏**。点 Molis Work 
 
 ### 从源码体验
 
-需要 Node.js 24+、pnpm，以及 macOS（常驻 Web 服务目前使用 LaunchAgent；其他系统可以前台启动 Web）。
+需要 Node.js 24.15.x（确切版本写在 `.nvmrc`）、pnpm，以及 macOS（常驻 Web 服务目前使用 LaunchAgent；其他系统可以前台启动 Web）。
 
 ```bash
 git clone https://github.com/molis-ai/molis-work.git

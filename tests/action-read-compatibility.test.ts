@@ -1,86 +1,33 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { BUILTIN_PLUGIN_REGISTRY, DEMO_PROJECT_ID, PROJECT_SCOPED_PLUGIN_IDS, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { join } from "node:path";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
-import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { goalEventHistoryKinds, materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
-
-/**
- * Reads echo what is stored. One historical record that an output contract no longer admits makes the whole read
- * fail (a project page that does not open). Every parameterless read in the directory runs here over real historical
- * dumps and the demo seed. An unexpected error is a broken read, not an acceptable business result.
- */
-const needsNothing = (view: ActionView) => view.operation === "query"
-  && view.action.input_schema?.type === "object" && !((view.action.input_schema.required as unknown[] | undefined)?.length);
-
-// These fixtures deliberately contain neither model settings nor a managed workspace.
-// Match the exact capability/version AND code; unknown exceptions still fail the gate.
-const unavailableInFixture: Record<string, string> = {
-  "alchemist.runtime.verify@1": "alchemist.runtime_not_configured",
-  "git.operations@1": "actions.dependency_missing",
-  "git.pr-support@1": "actions.dependency_missing",
-  "git.results@1": "actions.dependency_missing",
-  "git.state@1": "actions.dependency_missing",
-  "git.summary@1": "actions.dependency_missing",
-};
+import { readEveryParameterlessAction, registerProjectCopy } from "./fixtures/parameterless-reads.js";
 
 async function probe(t: test.TestContext, databasePath: string, projectId: string) {
   const web = await serveHomeRuntime(t, { workspacesFor: undefined });
   const projectName = `Read historical project ${projectId}`;
-  const copy = await web.host.configurePersonalPlanning(web.home, withMolisWorkProjectCatalog)({ homeDirectory: web.home }, catalog => {
-    let copy: string;
-    // Restore the dump under its own id, through the catalog table's owner; neither data nor identity is rewritten.
-    const storage = new LocalSqliteStorage(catalog.databasePath);
-    try {
-      const projects = new ProjectsModule({ db: storage.db, projects_directory: catalog.projectsDirectory, plugins: BUILTIN_PLUGIN_REGISTRY });
-      const record = projects.lifecycle.prepareRecord({ project_id: projectId, display_name: projectName, data_class: "user" });
-      copy = record.database_path;
-      mkdirSync(dirname(copy), { recursive: true }); copyFileSync(databasePath, copy);
-      projects.lifecycle.register(record, "project.created", "fixture-restore");
-      for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) projects.commands.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "fixture-restore" });
-    } finally { storage.close(); }
-    assert.equal(catalog.getProject(projectId).database_path, copy);
-    return copy;
-  });
-  const host = web.host, ref = molisWorkHostProjectReference({ databasePath: copy, projectId });
-  const broken: string[] = [], read = new Set<string>();
-  const base = { actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: [] };
-  for (const view of (await host.inspectActions(base, ref)).filter(needsNothing)) {
-    const caller = { ...base, permissions: view.action.permissions };
-    const client = view.action.scope === "home" ? host.homeActionClient() : host.actionClient(ref);
-    try {
-      if (view.capability_id === "plugins.project_reach.list" && view.version === 1) {
-        // T145: even a read needs the project's actual settings door, not an invented user_action or a forbidden allowlist.
-        await assert.rejects(client.invoke(caller, view, {}), { code: "actions.forbidden", message: "项目同意只接受本人在对应项目设置里的操作" });
-        const response = await web.request(`/projects/${encodeURIComponent(projectId)}/api/settings/plugin-project-reach/list`, { method: "POST", body: {} });
-        assert.equal(response.status, 200, await response.clone().text());
-        assert.deepEqual(await response.json(), { plugins: [], project_name: projectName, capabilities: [] });
-      } else {
-        await client.invoke(view.action.scope === "home" ? { ...caller, project_id: null } : caller, view, {});
-      }
-      read.add(view.capability_id);
-    } catch (error) {
-      const code = (error as { code?: string }).code;
-      if (code && unavailableInFixture[`${view.capability_id}@${view.version}`] === code) continue;
-      broken.push(`${view.capability_id}@${view.version}: ${code ?? "unexpected_error"}: ${(error as Error).message}`);
-    }
-  }
-  assert.deepEqual(broken, []);
+  const copy = await registerProjectCopy(web.host, web.home, withMolisWorkProjectCatalog, databasePath, projectId, projectName);
+  const { broken, read } = await readEveryParameterlessAction(web.host, copy, projectId, { projectReachThroughSettings: async () => {
+    const response = await web.request(`/projects/${encodeURIComponent(projectId)}/api/settings/plugin-project-reach/list`, { method: "POST", body: {} });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.deepEqual(await response.json(), { plugins: [], project_name: projectName, capabilities: [] });
+  } });
+  assert.deepEqual(broken.map(item => `${item.action}: ${item.code}: ${item.message}`), []);
   assert.ok(read.has("goals.snapshot.read"), "the historical project snapshot must actually succeed");
   assert.ok(read.has("plugins.project_reach.list"), "the real project settings read must actually succeed");
   assert.ok(read.size > 10, "the directory must actually be read");
 }
 
 for (const kind of goalEventHistoryKinds) {
-  test(`every parameterless read accepts the historical v35 ${kind} project`, { timeout: 60_000 }, async t => {
+  test(`every parameterless read accepts the history-carrying ${kind} project`, { timeout: 60_000 }, async t => {
     const fixture = materializeGoalEventHistory(kind);
     t.after(() => rmSync(fixture.directory, { recursive: true, force: true }));
     // The dump predates the Molis Work rename and keeps the board id it was recorded with.

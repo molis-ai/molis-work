@@ -394,8 +394,8 @@ jelly.note.restore	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	h
 jelly.note.subject.read	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	jelly:read	jelly_note	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-
 jelly.note.update	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_note	-	-	2abd7f8a6bab	fde0c80ab0e9	b4b3b9524608
 jelly.plan.apply	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	715bc0a079f5	19c72840481e	-
-jelly.plan.generate	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	concurrent	agent,mcp,user,workflow	jelly:read,model:invoke	jelly_workspace	-	-	c3db3ed4243e	05e76ff7d41d	613063238287
-jelly.plan.manual	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	c3db3ed4243e	05e76ff7d41d	-
+jelly.plan.generate	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	concurrent	agent,mcp,user,workflow	jelly:read,model:invoke	jelly_workspace	-	-	e4a35bfb9764	05e76ff7d41d	613063238287
+jelly.plan.manual	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	e4a35bfb9764	05e76ff7d41d	-
 jelly.redo	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	0e2fb341a6b4	19c72840481e	-
 jelly.relation.attach	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	82fbd0256868	19c72840481e	-
 jelly.relation.detach	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	82fbd0256868	19c72840481e	-
@@ -509,6 +509,7 @@ schedule.jobs.enabled	1	io.molis.work.schedule	io.molis.work.schedule	command	op
 schedule.operation.wakeup	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	concurrent	plugin	actions:invoke,notifications:write,plugins:read,schedule:read,schedule:write,storage:private	-	-	-	26a141b2b83f	6b95cd75c054	e043d8211b2d
 schedule.operations.recover	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	101d75fb1fb4	3a6d85c8b680	5e0374458cf9
 schedule.reminder.wakeup	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	concurrent	plugin	notifications:write,plugins:read,schedule:read,schedule:write,storage:private	-	-	-	26a141b2b83f	6b95cd75c054	e043d8211b2d
+schedule.reminders.list	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	-	agent,mcp,user,workflow	schedule:read	schedule_task	-	-	d746974fa9af	281e567b15dc	-
 schedule.reminders.recover	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	7d166bfb9194	94f0313dd382	5e0374458cf9
 schedule.search.entries	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	schedule:read	schedule_task	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	a54d5f58204b
 schedule.subject.read	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	schedule:read	schedule_task	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-

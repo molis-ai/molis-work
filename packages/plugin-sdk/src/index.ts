@@ -41,6 +41,7 @@ export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { createActionDefinition, defineAction } from "./actions.js";
+export { bindActionHandler, inputSchemaFor, type FlatUnion, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
 export { PAGE_ROUTE_LIMITS, matchDeclaredPageRoute, matchPageRoute, pageRouteProblems, stageRequestParams, type DeclaredPageRouteMatch, type PageRouteMatch } from "./page-routes.js";

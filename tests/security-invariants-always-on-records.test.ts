@@ -7,14 +7,14 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, builtinMarketDirectory, runningPluginDirectory, withReadOnlyPluginDirectory, homeProjectReach } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PLUGIN_TRUST_SCHEMA_SQL, PluginRuntime, SqlitePluginConsentLedger, SqlitePluginRuntimeRepository, UNSIGNED_TRUST, alwaysOnAgreed, consentSubject, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { sqliteVersionRefusal } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // ac-trust T3 (specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4): the 常开 list is worked out from the consent ledger and the
@@ -242,6 +242,157 @@ test("MEM-42 one discovery reads and validates the current Home plugin library o
   assert.deepEqual(filesAt(f.home), before, "discovery changes no files, agreements or installation records");
 });
 
+test("ASR-12 one read-only Home aggregate shares its directory across projections and project enumeration", async t => {
+  const f = await catalogFixture(t), db = seedStore(f.home);
+  t.after(() => db.close());
+  const second = await f.catalog.createProject({ display_name: "another project", actor_id: "test" });
+  // The public runner acquires its own Home owner; setup releases its independent owner before the aggregate begins.
+  f.catalog.close();
+  const cachedHost = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  const access = cachedHost.ensureWebCatalog(f.home, openMolisWorkProjectCatalog);
+  await access.warm();
+  const directory = () => builtinMarketDirectory(f.home).filter(entry => entry.always_on).map(entry => entry.id);
+  let reads = 0;
+  const prepare = DatabaseSync.prototype.prepare;
+  const observation = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    if (sql === "PRAGMA user_version" && this.location() === db.location()) reads++;
+    return prepare.call(this, sql);
+  });
+  try {
+    await withReadOnlyPluginDirectory(f.home, async () => {
+      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "goals")!.always_on, true);
+      runningPluginDirectory({ enabledPluginIds: () => [], state: () => null, manifest: () => undefined }, f.home);
+      await access.withCatalog({ homeDirectory: f.home }, catalog => {
+        for (const project of [f.project, second]) assert.ok(catalog.projectPluginMembership(project.project_id, directory).plugins.includes("goals"));
+      });
+      await withReadOnlyPluginDirectory(f.home, async () => { await Promise.resolve(); builtinMarketDirectory(f.home); });
+      assert.equal(reads, 1, "nested projections and extra projects do not discover the same directory again");
+    });
+    await withReadOnlyPluginDirectory(f.home, async () => { builtinMarketDirectory(f.home); });
+    assert.equal(reads, 2, "a new aggregate always reads its own current directory");
+    const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
+    const ledger = new SqlitePluginConsentLedger(db);
+    ledger.record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature, manifest_digest: pluginManifestDigest(goals),
+      granted_by: "user", grants: [ALWAYS_ON], at: "2026-11-07T01:00:00.000Z" });
+    const policy = projectActionAvailability(access.withCatalog, f.home), caller = person([], f.project.project_id);
+    const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
+    await withReadOnlyPluginDirectory(f.home, async () => {
+      const before = reads;
+      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.ok(catalog.projectPluginMembership(f.project.project_id, directory).plugins.includes("goals")));
+      assert.equal(reads, before + 1);
+      await Promise.resolve();
+      for (const row of ledger.consents(goals.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T02:00:00.000Z");
+      await access.withCatalog({ homeDirectory: f.home }, catalog => {
+        assert.throws(() => catalog.projectPluginMembership(f.project.project_id, () => { throw new Error("projection provider failed"); }), /projection provider failed/u);
+      });
+      assert.equal(reads, before + 1, "a failed projection provider did not open or retain a Home library");
+      assert.equal((await policy(caller, action)).available, false, "the actual cached owner restores default live admission after the projection provider throws");
+      assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, false, "post-await discovery is also current");
+      assert.equal(reads, before + 3, "two protected current checks are counted separately from the one directory discovery");
+      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.ok(catalog.projectPluginMembership(f.project.project_id, directory).plugins.includes("goals")));
+      assert.equal(reads, before + 3, "the presentation directory survives only in its own request");
+    });
+    await withReadOnlyPluginDirectory(f.home, async () => {
+      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.equal(catalog.projectPluginMembership(f.project.project_id, directory).plugins.includes("goals"), false));
+    });
+  } finally { observation.mock.restore(); await cachedHost.close(); }
+});
+
+test("ASR-12 Home reach reads one fresh directory for any number of projects, after catalog waits and independently of the surrounding request", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-reach-read-cost-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }), db = seedStore(home);
+  let host: MolisWorkLocalHost | undefined;
+  t.after(async () => { db.close(); await host?.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });
+  const f = { home, project: await catalog.createProject({ display_name: "first", actor_id: "test" }) };
+  catalog.close();
+  host = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  let gate: Promise<void> | undefined;
+  const access = host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog);
+  await access.warm();
+  const withCatalog = host.configurePersonalPlanning(f.home, async (options, operation) => {
+    if (gate) await gate;
+    return access.withCatalog(options, operation);
+  });
+  const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
+  const ledger = new SqlitePluginConsentLedger(db);
+  const grant = (at: string) => ledger.record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature,
+    manifest_digest: pluginManifestDigest(goals), granted_by: "user", grants: [ALWAYS_ON], at });
+  grant("2026-11-07T01:00:00.000Z");
+  const reach = homeProjectReach(f.home, () => []), caller = person([]), expected = [f.project.project_id];
+  let reads = 0;
+  const connections = new Set<DatabaseSync>(), prepare = DatabaseSync.prototype.prepare;
+  const observation = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    if (sql === "PRAGMA user_version" && this.location() === db.location()) { reads++; connections.add(this); }
+    return prepare.call(this, sql);
+  });
+  const read = async (ids: readonly string[]) => {
+    reads = 0; connections.clear();
+    assert.deepEqual([...(await reach(goals, caller))!].sort(), [...ids].sort());
+    assert.equal(reads, 1, "one current directory read for this synchronous enumeration");
+    assert.equal(connections.size, 1, "additional projects do not open additional Home plugin connections");
+    for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u);
+  };
+  try {
+    await read(expected);
+    await withCatalog({ homeDirectory: f.home }, async catalog => {
+      for (let index = 0; index < 4; index++) expected.push((await catalog.createProject({ display_name: `project ${index}`, actor_id: "test" })).project_id);
+    });
+    await read(expected);
+    await withReadOnlyPluginDirectory(f.home, async () => {
+      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "goals")!.always_on, true);
+      let release!: () => void;
+      gate = new Promise<void>(resolve => { release = resolve; });
+      const pending = read([]);
+      await Promise.resolve();
+      for (const row of ledger.consents(goals.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T02:00:00.000Z");
+      release(); await pending; gate = undefined;
+      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "goals")!.always_on, true, "the surrounding projection remains old");
+      await read([]);
+    });
+    grant("2026-11-07T03:00:00.000Z");
+    await read(expected);
+    db.exec("PRAGMA user_version=2");
+    await assert.rejects(reach(goals, caller), { code: "storage.store_too_new" }, "a later call still validates the actual store");
+  } finally { observation.mock.restore(); }
+});
+
+test("ASR-12 a read-only directory never authorizes after await; new requests see revocation, consent and installation changes without crossing Homes", async t => {
+  const a = await catalogFixture(t), b = await catalogFixture(t), db = seedStore(a.home), otherDb = seedStore(b.home);
+  t.after(() => { db.close(); otherDb.close(); });
+  const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
+  const ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger });
+  const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
+    definition: { manifest: goals, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
+  const policy = projectActionAvailability(async (_options, work) => work(a.catalog), a.home), caller = person([], a.project.project_id);
+  const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
+  const mark = (home: string) => builtinMarketDirectory(home).find(entry => entry.id === "goals")!.always_on === true;
+  let release!: () => void, lateRead!: Promise<boolean>;
+  const afterRequest = new Promise<void>(resolve => { release = resolve; });
+  await withReadOnlyPluginDirectory(a.home, async () => {
+    assert.equal(mark(a.home), true);
+    assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, true);
+    await Promise.resolve();
+    for (const row of ledger.consents(goals.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T01:00:00.000Z");
+    assert.equal((await policy(caller, action)).available, false, "live admission ignores the presentation memo after revocation");
+    assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, false, "post-await aggregate discovery still rejects a withdrawn source");
+    assert.equal(mark(a.home), true, "only the immutable presentation answer remains scoped to this request");
+    await withReadOnlyPluginDirectory(b.home, async () => { assert.equal(mark(b.home), true); });
+    assert.equal(mark(a.home), true, "a nested Home cannot replace its parent's directory");
+    lateRead = afterRequest.then(() => mark(a.home));
+  });
+  release();
+  assert.equal(await lateRead, false, "detached work inheriting the request context cannot retain its memo");
+  await withReadOnlyPluginDirectory(a.home, async () => { assert.equal(mark(a.home), false); assert.equal(mark(b.home), true); });
+  ledger.record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature, manifest_digest: pluginManifestDigest(goals),
+    granted_by: "user", grants: [ALWAYS_ON], at: "2026-11-07T02:00:00.000Z" });
+  await withReadOnlyPluginDirectory(a.home, async () => { assert.equal(mark(a.home), true); });
+  repository.save({ ...install, state: "disabled" });
+  await withReadOnlyPluginDirectory(a.home, async () => { assert.equal(mark(a.home), false); });
+  repository.save({ ...install, state: "installed" });
+  await withReadOnlyPluginDirectory(a.home, async () => { assert.equal(mark(a.home), true); });
+});
+
 for (const corruption of ["version", "structure"] as const) test(`MEM-42 later discovery and live reads see consent changes and refuse ${corruption} damage before missing-project fallback`, async t => {
   const f = await catalogFixture(t), db = seedStore(f.home);
   t.after(() => db.close());
@@ -275,7 +426,7 @@ for (const corruption of ["version", "structure"] as const) test(`MEM-42 later d
   await read(true);
   if (corruption === "version") db.exec("PRAGMA user_version = 2");
   else db.exec("DROP TABLE plugin_private_values");
-  const before = filesAt(f.home), refusal = { code: corruption === "version" ? "storage.schema_version_mismatch" : "actions.execution_failed" };
+  const before = filesAt(f.home), refusal = { code: corruption === "version" ? "storage.store_too_new" : "actions.execution_failed" };
   for (const project_id of [f.project.project_id, "absent-project"]) {
     const context = { ...caller, project_id };
     await assert.rejects(policy.snapshotForDiscovery(context), refusal);
@@ -312,7 +463,7 @@ test("RAC-401 S-34 a query before Host startup records nothing and the real supe
 for (const [name, corrupt, expected] of [
   ["non-SQLite bytes", (file: string) => writeFileSync(file, "not a SQLite database"), /not a database/u],
   ["empty existing file", (file: string) => writeFileSync(file, ""), { code: "storage.schema_version_mismatch" }],
-  ["wrong version", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 2"); } finally { db.close(); } }, { code: "storage.schema_version_mismatch" }],
+  ["wrong version", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 2"); } finally { db.close(); } }, { code: "storage.store_too_new" }],
   ["current version with missing tables", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 1"); } finally { db.close(); } }, { code: "actions.execution_failed" }],
 ] as const) {
   test(`RAC-401 S-34 an existing Runtime store with ${name} is refused, never treated as missing or repaired by a query`, async t => {
@@ -361,7 +512,7 @@ for (const corruption of ["version", "structure"] as const) {
       const consents = ledger.consents(goals.plugin_id), installs = repository.list();
       db.close();
       const before = filesAt(home), bytes = readFileSync(storePath(home));
-      const refusal = { code: corruption === "version" ? "storage.schema_version_mismatch" : "actions.execution_failed" };
+      const refusal = { code: corruption === "version" ? "storage.store_too_new" : "actions.execution_failed" };
       for (let attempt = 0; attempt < 2; attempt++) {
         assert.throws(() => catalog.listProjectPlugins(project.project_id), refusal);
         assert.throws(() => catalog.projectPluginMembership(project.project_id).hidden, refusal);
@@ -416,8 +567,8 @@ for (const corruption of ["version", "structure"] as const) {
   });
 }
 
-for (const error of [new SqliteSchemaVersionError("unrelated.db", 2, 1), new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源")]) {
-  test(`RAC-403 a ${error.name} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
+for (const [error, status] of [[sqliteVersionRefusal("unrelated.db", 2, 1), 503], [new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源"), 500]] as const) {
+  test(`RAC-403 a ${error.code} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
     const f = await serveHomeRuntime(t, { actionAvailability: (_caller, action) => {
       if (action.capability_id === goalsActions.collection.capability_id) throw error;
       return { available: true };
@@ -425,7 +576,7 @@ for (const error of [new SqliteSchemaVersionError("unrelated.db", 2, 1), new Act
     const one = await f.project("Other errors stay visible");
     for (const path of ["/", "/api/board", "/api/board/refresh"]) {
       const page = await f.request(`/projects/${one.project_id}${path}`);
-      assert.equal(page.status, 500);
+      assert.equal(page.status, status);
       assert.doesNotMatch(await page.text(), /data-home-plugin-store-unavailable/u);
     }
   });

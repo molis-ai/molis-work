@@ -1,4 +1,4 @@
-import { COMPOSER_BOARD_EN } from "@molis-ai/molis-work-design-system";
+import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN } from "@molis-ai/molis-work-design-system";
 
 /**
  * English for the component board's conditions section and its frame (apps/workbench/src/condition-*.ts, specs/visual-ui-experience
@@ -6,6 +6,7 @@ import { COMPOSER_BOARD_EN } from "@molis-ai/molis-work-design-system";
  */
 export const BOARD_EN: Record<string, string> = {
   ...COMPOSER_BOARD_EN,
+  ...KEEP_EDITS_BOARD_EN,
   "条件与状态": "Conditions and states",
   "正文语言": "Body language",
   "混排": "Mixed",
@@ -245,4 +246,13 @@ export const BOARD_EN: Record<string, string> = {
   "项目页与打开页各自的样式表都带这排图标，画出来一样。": "The project page's sheet and the arrival page's each carry this row and draw it the same.",
   "同一排图标，打开页的样式表画的：": "The same row, drawn by the arrival page's sheet:",
   "打开页样式表里的图标标签": "Glyph tabs in the arrival sheet",
+  "平台区域": "Platform area",
+  "外框与标头 · 宽档（480px 起）": "Frame and header · wide step (from 480px)",
+  "每种状态各一行：开着、关着、有新的读取能力、暂时读不到、已不再提供": "One row per state: on, off, reads more now, not readable for now, no longer offered",
+  "窄档（280–479px）· 标头说明与变化行可占两行": "Narrow step (280–479px) · the header line and the change line may take two lines",
+  "未就绪 · 刚出现或刚移动的 500 毫秒里，控件变淡、按下不生效": "Not ready · for 500 ms after it appears or moves, the controls fade and a press does nothing",
+  "正在保存": "Saving",
+  "没有能读的数据": "Nothing to read",
+  "变化行 · 宽档": "Change line · wide step",
+  "变化行 · 窄档": "Change line · narrow step",
 };

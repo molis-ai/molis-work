@@ -11,7 +11,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 test("current catalog reads under another writer without changing facts or waiting for its lock", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-catalog-contention-"));

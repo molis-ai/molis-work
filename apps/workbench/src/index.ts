@@ -86,6 +86,7 @@ export { renderMolisWorkCharactersClientScript } from "./characters/client-asset
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
 
 export {PERSONAL_ACCOUNT_CLIENT_SCRIPT} from './scripts/personal-account.js';
+export {renderPersonalAccountEntry} from './arrival/shell.js';
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";

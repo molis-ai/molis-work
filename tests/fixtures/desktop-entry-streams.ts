@@ -31,20 +31,20 @@ export async function seedEntryProject(homeDirectory: string): Promise<string> {
 }
 
 /** The actual IM HTTP/session/room/SSE owners; no replacement stream handler. */
-export async function openEntryEventStream(t: TestContext, origin: string, home: string, projectId: string) {
-  const session = await fetch(origin + "/im/api/session");
+export async function openEntryEventStream(t: TestContext, origin: string, home: string, projectId: string, identityHeaders: Record<string, string> = {}) {
+  const session = await fetch(origin + "/im/api/session", { headers: identityHeaders });
   assert.equal(session.status, 200);
   const cookie = session.headers.get("set-cookie")!.split(";")[0]!;
   await session.text();
   const post = async (route: string, body: unknown) => {
-    const response = await fetch(origin + route, { method: "POST", headers: { ...entryRequestHeaders(home, origin), cookie }, body: JSON.stringify(body) });
+    const response = await fetch(origin + route, { method: "POST", headers: { ...entryRequestHeaders(home, origin), ...identityHeaders, cookie }, body: JSON.stringify(body) });
     assert.equal(response.status, 200, await response.clone().text());
     return response.json() as Promise<{ room: { id: string } }>;
   };
   await post("/im/api/session", { display_name: "Shutdown fixture", client_id: randomUUID() });
   await post("/projects/" + projectId + "/api/im/connect", {});
   const { room } = await post("/im/api/projects/" + projectId + "/room", {});
-  const response = await fetch(origin + "/im/api/rooms/" + room.id + "/events", { headers: { cookie } });
+  const response = await fetch(origin + "/im/api/rooms/" + room.id + "/events", { headers: { ...identityHeaders, cookie } });
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/event-stream/);
   const reader = response.body!.getReader();
@@ -73,8 +73,8 @@ function processAlive(pid: number): boolean {
 }
 
 /** Real authenticated PTY WebSocket attached to a real child Goals started in the project (`seedEntryProject`), owned by the Host's PTY. */
-export async function openEntryTerminal(t: TestContext, origin: string, home: string, projectId: string) {
-  const socket = new WebSocket(origin.replace("http:", "ws:") + "/pty", { origin });
+export async function openEntryTerminal(t: TestContext, origin: string, home: string, projectId: string, identityHeaders: Record<string, string> = {}) {
+  const socket = new WebSocket(origin.replace("http:", "ws:") + "/pty", { origin, headers: identityHeaders });
   const closed = new Promise<void>(resolve => { socket.once("close", resolve); });
   await once(socket, "open");
   const ready = once(socket, "message");
@@ -87,7 +87,7 @@ export async function openEntryTerminal(t: TestContext, origin: string, home: st
     const child = pid ?? pidIn(pidFile);
     if (child && processAlive(child)) process.kill(child, "SIGKILL");
   });
-  const opened = await fetch(origin + goalTerminalsPath(projectId, ENTRY_TERMINAL_GOAL), { method: "POST", headers: entryRequestHeaders(home, origin),
+  const opened = await fetch(origin + goalTerminalsPath(projectId, ENTRY_TERMINAL_GOAL), { method: "POST", headers: { ...entryRequestHeaders(home, origin), ...identityHeaders },
     body: JSON.stringify({ key: "shutdown", command: process.execPath, args: ["-e", 'require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)', pidFile] }) });
   assert.equal(opened.status, 200, await opened.clone().text());
   const spawned = once(socket, "message");

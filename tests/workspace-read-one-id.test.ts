@@ -18,7 +18,7 @@ import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/wor
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 import { initializeBoard } from "./fixtures/goals-board.js";

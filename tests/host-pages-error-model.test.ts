@@ -239,7 +239,7 @@ test("the plugin routes of the settings tell a missing project from every other 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "设置项目", actor_id: "test" });
   catalog.close();
-  const { createMolisWorkWebServer } = await import("../apps/desktop/launchers/web/server.js");
+  const { createSingleHomeTestWebServer: createMolisWorkWebServer } = await import("./fixtures/local-web-core.js");
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

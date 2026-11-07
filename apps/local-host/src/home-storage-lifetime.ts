@@ -146,12 +146,12 @@ export function releaseHomeStorageOwner(host: object): void {
   held.released = true;
 }
 
-/** Try every independent close step, remember successes, and retry failures only on the next explicit close. */
-export async function closeHostResourceSteps(completed: Set<string>, steps: ReadonlyArray<readonly [string, () => unknown]>): Promise<void> {
+/** Try every independent close step and propagate failures; an outer entry may own the final diagnostic. */
+export async function closeHostResourceSteps(completed: Set<string>, steps: ReadonlyArray<readonly [string, () => unknown]>, failureReportedByCaller=false): Promise<void> {
   const failures: unknown[] = [];
   for (const [name, close] of steps) {
     if (completed.has(name)) continue;
-    try { await close(); completed.add(name); } catch (error) { hostLog.warn("host", "resource_close_failed", error, { resource: name }); failures.push(error); }
+    try { await close(); completed.add(name); } catch (error) { if(!failureReportedByCaller)hostLog.warn("host", "resource_close_failed", error, { resource: name }); failures.push(error); }
   }
   if (failures.length === 1) throw failures[0];
   if (failures.length) throw new AggregateError(failures, "Home 的部分资源尚未关闭，仍保留原存储所有权；可再次明确关闭");

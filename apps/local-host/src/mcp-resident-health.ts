@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { request } from "node:http";
 import path from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionGatewayHomeId } from "./action-gateway.js";
 import { residentHostOrigin } from "./resident-host-request.js";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH, webHealthProof } from "./web-control-token.js";
 
@@ -14,7 +15,7 @@ export async function probeMcpResident(home: string, address: string, signal: Ab
   signal.throwIfAborted();
   const challenge = randomBytes(32).toString("base64url");
   const result = await new Promise<{ status: number; proof: string | undefined; body: Buffer } | "pending" | null>((resolve, reject) => {
-    const req = request(`${origin}/health?challenge=${challenge}`, { signal, maxHeaderSize: 8192, agent: false }, response => {
+    const req = request(`${origin}/health?challenge=${challenge}`, { signal, maxHeaderSize: 8192, agent: false, headers:{"x-molis-work-home-id":actionGatewayHomeId(home)} }, response => {
       const length = response.headers["content-length"];
       if (response.headers["transfer-encoding"] !== undefined || typeof length !== "string" || !/^\d+$/.test(length) || Number(length) > 4096) {
         req.destroy(new ActionError("actions.transport_invalid", "常驻服务健康响应长度无效")); return;

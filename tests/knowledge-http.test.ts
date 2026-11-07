@@ -7,7 +7,7 @@ import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import type { KnowledgeCardRecord, KnowledgeCardsResponse, KnowledgeOrganizeResponse, KnowledgeReceiptsResponse, KnowledgeSearchResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 interface States { states: Array<{ kind: string; id: string; state: string; excluded: boolean; changed: boolean }>; model_ready: boolean; listing: boolean }
 

@@ -1,3 +1,4 @@
+import { unboundConfirmation, type ConfirmationAuthority } from "./confirmation-authority.js";
 import { installerErrors } from "./errors.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
@@ -211,10 +212,16 @@ export async function readReceipt(filePath: string): Promise<WebServiceReceipt |
   try { return JSON.parse(text) as WebServiceReceipt; } catch { return null; }
 }
 
-export async function writeAtomic(filePath: string, content: string): Promise<void> {
+export async function writeAtomic(filePath: string, content: string, authority: ConfirmationAuthority = unboundConfirmation): Promise<import("node:fs").Stats> {
+  authority.effect();
   const temporary = `${filePath}.tmp-${randomUUID()}`;
   await fs.writeFile(temporary, content, { encoding: "utf8", mode: 0o644 });
-  await fs.rename(temporary, filePath);
+  try {
+    authority.current();
+    const identity = await fs.lstat(temporary); authority.current(); authority.effect();
+    await fs.rename(temporary, filePath);
+    return identity;
+  } finally { await fs.rm(temporary, { force: true }); }
 }
 
 export function digest(value: string): string { return createHash("sha256").update(value).digest("hex"); }

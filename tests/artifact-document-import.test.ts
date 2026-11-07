@@ -10,7 +10,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost, withConnectorConnections, DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, homeIntegrationRegistry, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { artifactsActions, artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument, type ArtifactDocumentImportPorts, type ImportedArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { documentImportConnections, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
 import { GoalProjectApplication, boardSnapshot, seedBoard } from "./fixtures/goal-application.js";

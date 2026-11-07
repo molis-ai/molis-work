@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import test, { type TestContext } from "node:test";
 
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { fakeProjectSettings, pluginActions } from "./fixtures/plugin-actions.js";
 import { deferred } from "./fixtures/home-runtime.js";
 

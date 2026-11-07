@@ -132,7 +132,7 @@ macOS 上，当前这条 Goal 也在 **屏幕顶部菜单栏**。点 Molis Work 
 
 ### 从源码体验
 
-需要 Node.js 24+、pnpm，以及 macOS（常驻 Web 服务目前使用 LaunchAgent；其他系统可以前台启动 Web）。
+需要 Node.js 24.15.x（确切版本写在 `.nvmrc`）、pnpm，以及 macOS（常驻 Web 服务目前使用 LaunchAgent；其他系统可以前台启动 Web）。
 
 ```bash
 git clone https://github.com/molis-ai/molis-work.git

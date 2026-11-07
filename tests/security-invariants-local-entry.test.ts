@@ -22,6 +22,7 @@ import { WebSocket } from "ws";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
 import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
+import { PLUGIN_STATEMENT_SQLITE_VERSION } from "@molis-ai/molis-work-plugin-runtime";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "security-invariants-control-token-0123456789abcdef";
@@ -127,6 +128,32 @@ test("S-01 the launcher listens on 127.0.0.1 only: it announces that address and
   const reachable = others.filter(address => !/^198\.1[89]\./.test(address));
   for (const address of reachable) assert.equal(await answersAt(address, port, child.pid!), false, `${address}:${port} must not reach the launcher`);
   assert.equal(await answersAt("::1", port, child.pid!), false, "the IPv6 loopback is another socket and is not bound either");
+});
+
+// SQLD-06: the start line for a Node whose SQLite is not the one the plugin statement check was read against. It is said on the
+// real launcher, in a temporary Home, and only said: the check itself refuses on its own (security-invariants-plugin-project-database).
+// On the locked Node (.nvmrc) the two versions are the same and the launcher says nothing; on any other Node it says so. The test
+// asserts whichever holds for the Node it runs on, so CI (locked) proves the silent half and a developer machine the spoken half.
+test("SQLD-06 the launcher says at start that the Node's SQLite is not the reviewed one, and says nothing when it is", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(os.tmpdir(), "sqlite-version-launcher-"));
+  const port = await freePort();
+  const child = spawn(process.execPath, ["--import", "tsx", LAUNCHER, "--port", String(port), "--home", home], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, MOLIS_WORK_HOME: home } });
+  let output = "", errors = "";
+  child.stdout.on("data", chunk => { output += String(chunk); });
+  child.stderr.on("data", chunk => { errors += String(chunk); });
+  t.after(async () => {
+    child.kill("SIGTERM");
+    await new Promise<void>(resolve => { child.once("exit", () => resolve()); setTimeout(() => { child.kill("SIGKILL"); resolve(); }, 3000).unref(); });
+    await rm(home, { recursive: true, force: true });
+  });
+  const deadline = Date.now() + 40_000;
+  while (!output.includes("项目列表") && child.exitCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.match(output, /项目列表/, `the launcher started (stderr: ${errors})`);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const reviewed = process.versions.sqlite === PLUGIN_STATEMENT_SQLITE_VERSION;
+  t.diagnostic(`this Node ${process.version} has SQLite ${process.versions.sqlite}; the reviewed one is ${PLUGIN_STATEMENT_SQLITE_VERSION}`);
+  assert.equal(output.includes(`插件语句检查审过的是 ${PLUGIN_STATEMENT_SQLITE_VERSION}`), !reviewed, `the start lines: ${output}`);
+  assert.equal(errors.includes('"event":"sqlite_version_unreviewed"'), !reviewed, `the Host log: ${errors}`);
 });
 
 // ---- S-02 ------------------------------------------------------------------------------------------------------

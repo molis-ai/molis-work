@@ -142,7 +142,15 @@ test("TGA-24 TGA-25 TGA-27 授权与放行 reads once, takes a category back wit
   await p.shot("zh-light-empty");
 });
 
-/** What the page is answered with in the second test: a task holding a category in each state, a named task, and one not named. */
+/**
+ * A provider's title that is markup and every character that needs escaping: the page shows it as words, makes no element of it,
+ * and its `onerror` never runs (it would mark `window.tgpRan`).
+ */
+const EVIL = `唯一的任务<img src=x onerror="window.tgpRan=1">"'&`;
+/**
+ * What the page is answered with in the second test: a task holding a category in each state, a named task, one not named, one
+ * named with markup (`EVIL`), and an installation whose titles never end, a new cursor on every page.
+ */
 const ANSWER = String.raw`(() => {
   const cat = (provider_id, group_id, title, description) => ({ provider_id, ...(group_id ? { group_id } : {}), title, description });
   const todo = cat("plugin.todo", null, "待办", "标题、截止日期和是否完成"), notes = cat("plugin.notes", "pages", "笔记", "这个项目里页面的标题和正文");
@@ -153,13 +161,16 @@ const ANSWER = String.raw`(() => {
     { plugin_install_id: "install-a", key: "archived", revision: "r2", categories: [state(todo, "granted")] },
     { plugin_install_id: "install-b", key: "nightly", revision: "r3", categories: [state(todo, "granted")] },
     { plugin_install_id: "install-c", key: "solo", revision: "r4", categories: [state(todo, "granted")] },
+    { plugin_install_id: "install-d", key: "endless", revision: "r5", categories: [state(todo, "granted")] },
   ];
+  let page = 0;
   return body => {
     if (body.mode === "list") return { body: { categories: [todo, notes], subjects: window.tgpSubjects, installations: [
       { plugin_install_id: "install-a", plugin_id: "io.molis.work.schedule", name: "日程", titled: true }, { plugin_install_id: "install-b", plugin_id: "io.molis.work.example", name: "示例", titled: true },
-      { plugin_install_id: "install-c", plugin_id: "io.molis.work.single", name: "单个", titled: true }] } };
+      { plugin_install_id: "install-c", plugin_id: "io.molis.work.single", name: "单个", titled: true }, { plugin_install_id: "install-d", plugin_id: "io.molis.work.endless", name: "无尽", titled: true }] } };
     if (body.mode === "titles" && body.plugin_install_id === "install-b") return { status: 503, body: { code: "actions.unavailable", error: "暂时不可用" } };
-    if (body.mode === "titles" && body.plugin_install_id === "install-c") return { body: { entries: [{ key: "solo", title: "唯一的任务", open: { surface: "single", id: "solo" } }], next_cursor: "more" } };
+    if (body.mode === "titles" && body.plugin_install_id === "install-c") return { body: { entries: [{ key: "solo", title: ${JSON.stringify(EVIL)}, open: { surface: "single", id: "solo" } }], next_cursor: "more" } };
+    if (body.mode === "titles" && body.plugin_install_id === "install-d") { page += 1; return { body: { entries: [{ key: "other-" + page, title: "别的", open: { surface: "endless", id: "other" } }], next_cursor: "d" + page } }; }
     if (body.mode === "titles" && body.cursor === null) return { body: { entries: [{ key: "other", title: "别的任务", open: { surface: "schedule", id: "other" } }], next_cursor: "c2" } };
     if (body.mode === "titles" && body.cursor === "c2") return { body: { entries: [{ key: "morning", title: "每天早上的简报", open: { surface: "schedule", id: "morning" } }], next_cursor: "c3" } };
     if (body.mode === "titles") return { body: { entries: [], next_cursor: null } };
@@ -176,15 +187,18 @@ const ANSWER = String.raw`(() => {
   };
 })()`;
 
-test("TGA-25 TGA-26 a category in each state has its own action, sent with the rest as read, and a task is named by its plugin's own titles, one more page only while unnamed", { timeout: 180_000 }, async t => {
+test("TGA-25 TGA-26 a category in each state has its own action, sent with the rest as read, and a task is named by its plugin's own titles, one more page only while unnamed and at most twenty, shown as words", { timeout: 180_000 }, async t => {
   const p = await open(t, ANSWER); if (!p) return;
   const { browser } = p;
   await p.visit();
   // TGA-26: the next page of titles only while a task is unnamed: install-a's to its last page (one task is never listed), install-c's
   // first page alone (it names its one task, though it says there is more); install-b's titles fail and its task is named by its plugin.
-  const opened = await p.sent();
-  assert.deepEqual(opened.filter(body => body.mode === "titles").map(body => [body.plugin_install_id, body.cursor]).sort(),
+  // install-d gives a new cursor on every page and never its task: twenty pages (10,000 entries), then its task is named by its plugin.
+  const opened = (await p.sent()).filter(body => body.mode === "titles").map(body => [body.plugin_install_id, body.cursor]);
+  assert.deepEqual(opened.filter(([install]) => install !== "install-d").sort(),
     [["install-a", null], ["install-a", "c2"], ["install-a", "c3"], ["install-b", null], ["install-c", null]].sort(), "the next page only while a task is unnamed");
+  assert.deepEqual(opened.filter(([install]) => install === "install-d"), [["install-d", null], ...Array.from({ length: 19 }, (_, index) => ["install-d", "d" + (index + 1)])],
+    "a provider that keeps giving new cursors is read for twenty pages, no more");
   const head = (id: string) => browser.evaluate<{ name: string; open: string | null; clear: boolean }>(`(() => { const card = ${p.task(id)};
     return { name: card.querySelector("header strong").textContent, open: card.querySelector("header a")?.getAttribute("href") ?? null, clear: !!card.querySelector("[data-task-grants-act=clear]") }; })()`);
   const morning = await head("install-a\nmorning");
@@ -192,7 +206,12 @@ test("TGA-25 TGA-26 a category in each state has its own action, sent with the r
   assert.ok(morning.open && new URL(morning.open, browser.origin).searchParams.get("openPlugin") === "schedule" && new URL(morning.open, browser.origin).searchParams.get("openItem") === "morning", morning.open ?? "");
   assert.deepEqual(await head("install-a\narchived"), { name: "日程 · 一个任务", open: null, clear: true }, "a task its plugin's source does not list: named by the plugin, still taken back");
   assert.deepEqual(await head("install-b\nnightly"), { name: "示例 · 一个任务", open: null, clear: true }, "titles that failed: named by the plugin");
-  assert.equal((await head("install-c\nsolo")).name, "唯一的任务");
+  assert.deepEqual(await head("install-d\nendless"), { name: "无尽 · 一个任务", open: null, clear: true }, "titles past twenty pages: named by the plugin");
+  // A title that is markup is words: the same text in the heading, its tooltip and the open link's name; no element made of it, nothing run.
+  const solo = await browser.evaluate<{ text: string; tooltip: string; label: string; parts: string[]; images: number; ran: boolean }>(`(() => { const card = ${p.task("install-c\nsolo")}, strong = card.querySelector("header strong");
+    return { text: strong.textContent, tooltip: strong.title, label: card.querySelector("header a").getAttribute("aria-label"), parts: [...card.querySelector("header").querySelectorAll("*")].map(part => part.tagName),
+      images: document.querySelector("[data-task-grants-list]").querySelectorAll("img").length, ran: window.tgpRan === 1 }; })()`);
+  assert.deepEqual(solo, { text: EVIL, tooltip: EVIL, label: "打开 · " + EVIL, parts: ["STRONG", "SPAN", "A", "BUTTON"], images: 0, ran: false }, "a provider's markup is shown as its words");
   assert.deepEqual(await p.rows("install-a\nmorning"), [["plugin.todo\n", "granted"], ["plugin.notes\npages", "needs_confirmation"], ["plugin.inbox\n", "unavailable"], ["plugin.feed\n", "removed"]].map(([name, status]) => ({ name, status })));
   const acts = await browser.evaluate<string[][]>(`[...(${p.task("install-a\nmorning")}).querySelectorAll("[data-task-grants-row]")].map(row => [...row.querySelectorAll("[data-task-grants-act]")].map(button => button.dataset.taskGrantsAct))`);
   assert.deepEqual(acts, [["off"], ["allow", "off"], ["off"], ["remove"]], "允许 only where there is more to allow, 移除 only where it is no longer offered");
@@ -207,7 +226,7 @@ test("TGA-25 TGA-26 a category in each state has its own action, sent with the r
   await browser.waitFor(`(${p.row("install-a\nmorning", "plugin.notes\npages")})?.dataset.status === "granted"`);
   assert.deepEqual((await p.sent()).slice(mark), [{ mode: "set", plugin_install_id: "install-a", key: "morning", expected_revision: "r1",
     categories: [{ provider_id: "plugin.todo" }, { provider_id: "plugin.notes", group_id: "pages", confirm: true }, { provider_id: "plugin.inbox" }, { provider_id: "plugin.feed" }] }]);
-  assert.equal(await p.toast(), "已允许笔记的新读取能力；不想要就关掉这一类", "what it did, said as the area says it");
+  assert.equal(await p.toast(), "已允许笔记的新读取能力；不想要可以撤回这一类", "what it did, in the page's own words: there is no switch here to point to");
   // 移除 takes the removed one off and keeps the rest as they are now, with the revision the answer gave.
   const mark2 = (await p.sent()).length;
   await p.pressIn(p.row("install-a\nmorning", "plugin.feed\n"), "[data-task-grants-act=remove]");
@@ -220,7 +239,7 @@ test("TGA-25 TGA-26 a category in each state has its own action, sent with the r
   await p.visit(`/locale?lang=en&next=${encodeURIComponent(p.prefix + "/settings/grants")}`);
   assert.equal(await browser.evaluate(`document.documentElement.lang`), "en");
   const words = await browser.evaluate<string>(`document.querySelector("[data-task-grants-settings]").innerText`);
-  assert.ok(!/[一-鿿]/u.test(words.replace(/每天早上的简报|唯一的任务|日程|示例|单个|待办|标题、截止日期和是否完成|笔记|这个项目里页面的标题和正文|收件箱|发件人、主题和开头几行|订阅|关注来源的标题和摘要/gu, "")), "every word of the page's own is English: " + words);
+  assert.ok(!/[一-鿿]/u.test(words.replace(/每天早上的简报|唯一的任务|日程|示例|单个|无尽|待办|标题、截止日期和是否完成|笔记|这个项目里页面的标题和正文|收件箱|发件人、主题和开头几行|订阅|关注来源的标题和摘要/gu, "")), "every word of the page's own is English: " + words);
   for (const [scheme, widths] of [["light", [1440, 1024, 390]], ["dark", [1440, 1024, 390]]] as const) {
     await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, browser.sessionId);
     for (const width of widths) {
@@ -234,4 +253,13 @@ test("TGA-25 TGA-26 a category in each state has its own action, sent with the r
       await p.shot(`en-${scheme}-${width}`);
     }
   }
+  // Taking back a category that cannot simply be turned on again says where to turn it on: the task's own 「能读的数据」, not a switch.
+  // (The page was read again for English, so the task is as first answered.)
+  await browser.setViewport(1440, 960);
+  const mark3 = (await p.sent()).length;
+  await p.pressIn(p.row("install-a\nmorning", "plugin.inbox\n"), "[data-task-grants-act=off]");
+  await browser.waitFor(`!(${p.row("install-a\nmorning", "plugin.inbox\n")})`);
+  assert.deepEqual((await p.sent()).slice(mark3), [{ mode: "set", plugin_install_id: "install-a", key: "morning", expected_revision: "r1",
+    categories: [{ provider_id: "plugin.todo" }, { provider_id: "plugin.notes", group_id: "pages" }, { provider_id: "plugin.feed" }] }]);
+  assert.equal(await p.toast(), "收件箱 withdrawn; to read it again, turn it on in the task's “Data it can read”");
 });

@@ -225,6 +225,8 @@ test("S-task-grants-area TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19
   const { browser, child } = p;
   await p.place("tga", "daily", "left:24px;top:24px;width:560px");
   assert.equal(await p.placed("tga"), "shown");
+  const motion = () => browser.evaluate<string>(`getComputedStyle(document.querySelector(${JSON.stringify(AREA)})).animationName`);
+  assert.equal(await motion(), "craft-rise", "the area's first reveal is the shared rise");
   const rows = await browser.evaluate<string[]>(`[...document.querySelectorAll("${AREA} [data-task-grants-row]")].map(row => row.dataset.taskGrantsRow)`);
   const target = rows.indexOf("io.molis.work.schedule\nreminders");
   assert.ok(target >= 0, "Schedule offers its reminders");
@@ -336,6 +338,7 @@ test("S-task-grants-area TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19
   await p.press("", point);
   await browser.evaluate(`document.querySelector("[data-work-surface=schedule]").hidden = false`);
   await browser.waitFor(`!document.querySelector("[data-framed-area]").hidden`);
+  assert.equal(await motion(), "craft-fade-in", "shown again, the area fades in on the short clock and does not rise a second time (DESIGN「Motion」)");
   await child.evaluate(`(() => { const dialog = document.body.appendChild(document.createElement("dialog")); dialog.id = "tga-dialog"; dialog.showModal(); })()`);
   await browser.waitFor(`document.querySelector("[data-framed-area]").hidden`);
   await p.press("", point);

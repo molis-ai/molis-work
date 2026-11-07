@@ -8,10 +8,12 @@ import { ITEM_ROW_STYLES } from "@molis-ai/molis-work-design-system";
  * are generic (`mw-platform-area__*`); what the reads area adds is `task-grants-area__*`. Controls not ready yet (§3.3, carrying
  * `aria-disabled` from the shell) are faded. The change line stays put (D2), so it is a quiet line in the area's own ground, not the
  * graphite toast that comes and goes; only a failure takes colour. It arrives with the shared `craft-rise` (DESIGN「Motion」:
- * a surface's first reveal), not a rise of its own.
+ * a surface's first reveal), not a rise of its own; shown again after its page was hidden (`data-shown`), it fades in with the
+ * shared `craft-fade-in` on the short clock.
  */
 export const PLATFORM_AREA_STYLES = `${ITEM_ROW_STYLES}
 .mw-platform-area{container-type:inline-size;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:10px;padding:12px 14px 12px;border-radius:var(--r-card);background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--line),var(--lift-1);color:var(--ink);font-size:13px;overflow:hidden;animation:craft-rise var(--dur-move) var(--ease-quint) both}
+.mw-platform-area[data-shown]{animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
 .mw-platform-area__head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;min-width:0}
 .mw-platform-area__kicker{display:inline-flex;align-items:center;gap:6px;flex:none;height:22px;padding:0 8px 0 6px;border-radius:var(--r-tag);background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:var(--weight-control,560);white-space:nowrap}
 .mw-platform-area__kicker svg{width:13px;height:13px;flex:none}
@@ -39,5 +41,5 @@ export const PLATFORM_AREA_STYLES = `${ITEM_ROW_STYLES}
 .task-grants-area__row .mw-item__end{gap:10px}
 @container (max-width:479.98px){.task-grants-area__row small{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}}
 .task-grants-area__empty{margin:0;padding:14px 12px;border-radius:var(--sk-r-card,12px);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:12px;line-height:1.6}
-@media (prefers-reduced-motion:reduce){.mw-platform-area{animation:none}}
+@media (prefers-reduced-motion:reduce){.mw-platform-area,.mw-platform-area[data-shown]{animation:none}}
 `;

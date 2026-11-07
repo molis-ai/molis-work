@@ -36,7 +36,7 @@ const idle: TaskGrantsLine = { text: t("拨一下即生效，下一次运行起�
 /** One area as the shell holds it: a fixed width, the height step that width gets, the shell's markup inside. */
 function area(width: number, reads: typeof MIXED, line: TaskGrantsLine, options: { unready?: boolean; busy?: boolean } = {}): HTMLElement {
   const surface = document.createElement("section");
-  surface.className = "mw-platform-area task-grants-area";
+  surface.className = "mw-platform-area";
   surface.style.width = width + "px";
   surface.style.height = (width < 480 ? TASK_GRANTS_AREA_HEIGHTS.narrow : TASK_GRANTS_AREA_HEIGHTS.wide) + "px";
   surface.innerHTML = taskGrantsAreaHtml(t, owner, taskGrantRows(reads), line, Boolean(options.busy));

@@ -94,16 +94,17 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
     + `<footer class="mw-platform-area__foot" data-framed-area-foot><div class="mw-toast${line.tone === "danger" ? " is-error" : ""}${fresh ? " is-fresh" : ""}" role="status"><span title="${escape(line.text)}">${escape(line.text)}</span>${act}</div></footer>`;
 }
 
-/** What the line says after a write, by what the person did (§3.6), and whether it offers undo; the 授权与放行 page says the same. */
-export function doneLine(t: Translate, change: Change): TaskGrantsLine {
-  const name = { name: change.row.title };
-  if (change.kind === "undo") return { text: t("已撤销刚才的改动") };
-  if (change.kind === "on") return { text: t("已允许读{name}，下一次运行起能读到", name), act: "undo" };
-  if (change.kind === "allow") return { text: t("已允许{name}的新读取能力；不想要就关掉这一类", name) };
-  if (change.kind === "remove") return { text: t("已移除{name}，这一类已不再提供", name) };
-  if (change.row.status === "needs_confirmation") return { text: t("已撤回{name}；要再读它，重新打开开关，会按它现在的读取能力允许", name) };
-  if (change.row.status === "unavailable") return { text: t("已撤回{name}；它的插件回来之后，重新打开开关才能再读", name) };
-  return { text: t("已撤回{name}，下一次运行起读不到", name), act: "undo" };
+/**
+ * What the line says after a write, by what the person did (§3.6); it offers undo when the change has one (turning a category on,
+ * or taking back one that was granted). The 授权与放行 page has no switch, so it says the lines that point at one in its own words.
+ */
+function doneLine(t: Translate, change: Change): TaskGrantsLine {
+  const { kind, row } = change, status = row.status;
+  return { text: t(kind === "undo" ? "已撤销刚才的改动" : kind === "on" ? "已允许读{name}，下一次运行起能读到"
+    : kind === "allow" ? "已允许{name}的新读取能力；不想要就关掉这一类" : kind === "remove" ? "已移除{name}，这一类已不再提供"
+    : status === "needs_confirmation" ? "已撤回{name}；要再读它，重新打开开关，会按它现在的读取能力允许"
+    : status === "unavailable" ? "已撤回{name}；它的插件回来之后，重新打开开关才能再读" : "已撤回{name}，下一次运行起读不到", { name: row.title }),
+  act: change.undo ? "undo" : undefined };
 }
 
 interface Entry { readonly id: number; readonly key: string; readonly area: FramedArea; reads: Reads | null; line: TaskGrantsLine; busy: boolean;
@@ -127,6 +128,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   const close = (id: number) => { entries.get(id)?.area.close(); entries.delete(id); };
   scope.own(() => { for (const id of [...entries.keys()]) close(id); });
   const idle = (): TaskGrantsLine => ({ text: t("拨一下即生效，下一次运行起按新的范围读") });
+  const unread = (): TaskGrantsLine => ({ text: t("暂时读不到这个任务能读什么"), act: "read", tone: "danger" });
 
   const read = async (entry: Entry) => {
     entry.reads = await request<Reads>(entry, { mode: "read" });
@@ -147,7 +149,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       // Changed elsewhere (the same task open beside, or the grants page): read again, and the undo no longer applies.
       if ((error as { code?: string }).code === "actions.conflict") {
         entry.last = null; entry.line = { text: t("已在别处改动，已刷新") };
-        try { await read(entry); } catch { entry.line = { text: t("暂时读不到这个任务能读什么"), act: "read", tone: "danger" }; }
+        try { await read(entry); } catch { entry.line = unread(); }
       } else {
         // The switch goes back as it was; an undo that failed is spent (§3.6 「失败」).
         entry.last = change.kind === "undo" ? null : change;
@@ -168,9 +170,11 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     // ①⑤⑥ are said nowhere: a scripted press, a press while a write is under way, a page that has moved on.
     if (refusal?.reason === "silent" || entry.busy || !scope.alive || entries.get(entry.id) !== entry || !entry.reads) return;
     if (refusal) {
-      entry.line = { text: refusal.reason === "moved" ? t("刚移动过，请再拨一次") : t("请先让这一块完整显示") };
-      if (refusal.reason === "partial" && refusal.reveal) send({ type: "task-grants-reveal", id: entry.id });
-      if (refusal.reason === "partial" && !refusal.reveal) control.closest("li")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      entry.line = { text: t(refusal.reason === "moved" ? "刚移动过，请再拨一次" : "请先让这一块完整显示") };
+      if (refusal.reason === "partial") {
+        if (refusal.reveal) send({ type: "task-grants-reveal", id: entry.id });
+        else control.closest("li")?.scrollIntoView({ block: "nearest" });
+      }
       draw(entry); return;
     }
     // A control's name is its act, then the category it is for: `switch:`, `allow:` or `remove:` and the row's name.
@@ -190,7 +194,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   const reread = async (entry: Entry) => {
     entry.busy = true; draw(entry);
     try { await read(entry); entry.line = idle(); }
-    catch { if (entries.get(entry.id) === entry) entry.line = { text: t("暂时读不到这个任务能读什么"), act: "read", tone: "danger" }; }
+    catch { if (entries.get(entry.id) === entry) entry.line = unread(); }
     finally { if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); } }
   };
   // Back in view, each area reads once (§3.6); nothing is read while the page is hidden.
@@ -206,6 +210,8 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     stop = scope.whenVisible(() => end(true));
   });
   scope.own(() => { for (const end of [...waiting.values()]) end(); });
+  /** The page's area could not be shown: it is told so, with the one plain reason. */
+  const unshown = (id: number) => send({ type: "task-grants-shown", id, error: TASK_GRANTS_UNAVAILABLE });
   const open = async (message: Extract<TaskGrantsUp, { type: "task-grants-open" }>) => {
     // An open names an id and a key, nothing more: a category list, a state, an installation is not the page's to give.
     const shaped = Object.keys(message).length === 3 && Number.isSafeInteger(message.id) && message.id > 0 && !entries.has(message.id)
@@ -216,19 +222,24 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     if (shaped && !visible) return;
     const valid = visible && scope.alive && scope.visible && !entries.has(message.id);
     const area = valid ? areas.open({ heights: TASK_GRANTS_AREA_HEIGHTS, onHeight: height => send({ type: "task-grants-size", id: message.id, height }) }) : null;
-    if (!area) { if (Number.isSafeInteger(message.id) && !entries.has(message.id)) send({ type: "task-grants-shown", id: message.id, error: TASK_GRANTS_UNAVAILABLE }); return; }
-    area.surface.className = "mw-platform-area task-grants-area";
-    area.surface.setAttribute("aria-label", t("Molis Work · 只有你能改") + " · " + owner);
-    area.surface.dataset.taskGrantsArea = "";
+    if (!area) { if (Number.isSafeInteger(message.id) && !entries.has(message.id)) unshown(message.id); return; }
+    const { surface, holder } = area;
+    surface.className = "mw-platform-area";
+    surface.setAttribute("aria-label", t("Molis Work · 只有你能改") + " · " + owner);
+    surface.dataset.taskGrantsArea = "";
+    // Shown again (its page back in view, a dialog closed, its frame wide enough again), the area fades in with the shared
+    // `craft-fade-in` (DESIGN「Motion」), not its first reveal's `craft-rise`. It is marked as it hides, never while in sight.
+    let seen = false;
+    new MutationObserver(() => { if (!holder.hidden) seen = true; else if (seen) surface.dataset.shown = ""; }).observe(holder, { attributeFilter: ["hidden"] });
     const entry: Entry = { id: message.id, key: message.key, area, reads: null, line: idle(), busy: false, last: null };
     entries.set(entry.id, entry);
-    area.surface.addEventListener("click", event => press(entry, event));
+    surface.addEventListener("click", event => press(entry, event));
     try {
       await read(entry);
       if (entries.get(entry.id) !== entry) return;
       draw(entry); send({ type: "task-grants-shown", id: entry.id });
     } catch {
-      close(entry.id); send({ type: "task-grants-shown", id: entry.id, error: TASK_GRANTS_UNAVAILABLE });
+      close(entry.id); unshown(entry.id);
     }
   };
   return (message: TaskGrantsUp) => {

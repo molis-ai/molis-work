@@ -71,7 +71,7 @@ export function queueReplicaChange(db: ReplicaDatabase, key: string): void {
  */
 export function retainLocalReplicaSnapshot(db:{prepare(sql:string):{run(...parameters:string[]):unknown}},key:string,value:unknown,authorize:()=>void,protection?:import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncLocalProtection):void {
   authorize();if(typeof key!=='string'||!key||key.length>500||value===null)throw syncError('invalid','本机删除保留内容无效');
-  const json=canonicalReplicaText(value);if(Buffer.byteLength(json)>100000000)throw syncError('limit','本机删除保留内容超过上限，原件已保留');
+  const json=canonical(value);if(Buffer.byteLength(json)>100000000)throw syncError('limit','本机删除保留内容超过上限，原件已保留');
   const serial=replicaSerialization(authorize,protection);
   db.prepare("INSERT INTO replica_resolutions(key,choice,local_json,remote_json) VALUES (?,'local_delete',?,?)").run(key,serial.write(value,key,'recovery_local'),serial.write(null,key,'recovery_remote'));authorize();
 }
@@ -96,7 +96,7 @@ function receiveDecision(db: ReplicaDatabase, serial: ReturnType<typeof replicaS
   const out=db.prepare('SELECT through_seq,operation FROM replica_outbox WHERE key=?').get(event.key);
   const mutation=out ? serial.read(out.operation,event.key,'outbox') as SyncMutation : undefined;
   if(mutation&&mutation.operationId===event.operationId){
-    if(canonicalReplicaText(mutation)!==canonicalReplicaText({operationId:event.operationId,key:event.key,base:event.base,value:event.value}))throw syncError('invalid','同步回执与待提交内容不一致',{sync_key:event.key});
+    if(canonical(mutation)!==canonical({operationId:event.operationId,key:event.key,base:event.base,value:event.value}))throw syncError('invalid','同步回执与待提交内容不一致',{sync_key:event.key});
     return {kind:'acknowledge',through:Number(out!.through_seq)};
   }
   if(db.prepare('SELECT 1 FROM replica_changes WHERE key=?').get(event.key)||db.prepare('SELECT 1 FROM replica_conflicts WHERE key=? AND waiting=0').get(event.key))return {kind:'conflict'};
@@ -250,7 +250,7 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
   };
 }
 
-export function canonicalReplicaText(value:unknown):string {
+function canonical(value:unknown):string {
   return JSON.stringify(canonicalJsonValue(value));
 }
 

@@ -7,7 +7,6 @@ import { servicesImContract } from "@molis-ai/molis-work-contracts/services/im";
 import { servicesMemoryContract } from "@molis-ai/molis-work-contracts/services/memory";
 import { packageFingerprint } from "@molis-ai/molis-work-service-memory";
 import { previewProjectCopy } from "@molis-ai/molis-work-service-placement";
-import { canonicalReplicaText } from "@molis-ai/molis-work-storage";
 import { buildSync } from "esbuild";
 
 test("CLN-06 canonical JSON keeps existing request comparison and fingerprint inputs", () => {
@@ -68,11 +67,10 @@ test("the copy preview's fingerprint and saved bytes stay what they were before 
 /** Holds two integer-shaped keys, where the handwritten forms below and `canonicalJsonText` disagree. */
 const INTEGER_KEYS = { "10": [{ z: 1, "10": 3, "2": 2 }], a: 3, "2": 1 };
 
-test("byte protocols that keep JavaScript's integer key order stay on the bytes of the forms they replaced", () => {
+test("digests that keep JavaScript's integer key order stay on the bytes of the forms they replaced", () => {
   // Every expected value below was produced by the handwritten form on main before this test existed, over the same input.
   const text = '{"2":1,"10":[{"2":2,"10":3,"z":1}],"a":3}';
   assert.notEqual(canonicalJsonText(INTEGER_KEYS), text, "a swap to canonicalJsonText would change every line below");
-  assert.equal(canonicalReplicaText(INTEGER_KEYS), text);
   assert.deepEqual(goalContextReference({ state: { goal_id: "g", target: INTEGER_KEYS }, goal: { target: INTEGER_KEYS, project_id: "p", goal_id: "g" } } as never),
     { artifact_id: "coding-goal-context:9be10d6d9bac77c511ea6254a0d1a2df22b70668b3543e63356d0b9fc0a9eef1", version: 1 });
   assert.equal(createSyncConflictState({ operationId: "op", key: "k", base: 0, revision: 1, value: INTEGER_KEYS }, { "10": 1, "2": 2 }, 1),

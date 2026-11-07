@@ -79,7 +79,7 @@ async function open(t: TestContext) {
   const sets = async () => (await sent()).filter(item => item.body?.mode === "set");
   const down = () => browser.evaluate<Array<Record<string, unknown>>>("window.tgaDown");
   const records = async () => JSON.stringify((await readMcpToolPreference(browser.homeDirectory)).action_grants.filter(grant => grant.client_id.startsWith("agent:task:")).map(({ generation: _generation, ...grant }) => grant));
-  const line = (nth = 0) => browser.evaluate<string>(`document.querySelectorAll(${JSON.stringify(AREA)})[${nth}]?.querySelector(".mw-toast > span")?.textContent ?? ""`);
+  const line = (nth = 0) => browser.evaluate<string>(`document.querySelectorAll(${JSON.stringify(AREA)})[${nth}]?.querySelector(".mw-platform-area__foot .mw-alert > span")?.textContent ?? ""`);
   /** The centre of an outer element, in the window's coordinates. */
   const centre = (selector: string) => browser.evaluate<{ x: number; y: number }>(`(() => { const box = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; })()`);
   /** A real press of the mouse, as the browser delivers a person's: trusted, from a pointerdown. */
@@ -190,7 +190,7 @@ test("S-task-grants-area TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is t
   assert.notEqual(await p.records(), none, "the person's press wrote the task's grants");
   // Undo goes back to what was there before.
   await p.ready();
-  await p.press(`${AREA} .mw-toast__action`);
+  await p.press(`${AREA} .mw-platform-area__foot .mw-btn`);
   await browser.waitFor(`document.querySelector(${JSON.stringify(AREA + " [data-task-grants-row]:nth-child(" + (target + 1) + ")")}).dataset.status === "off"`);
   assert.deepEqual((await p.sets()).at(-1)!.body.categories, []);
   assert.equal(await p.records(), none, "undo restored the records as they were");
@@ -481,7 +481,7 @@ test("S-task-grants-area TGA-12 TGA-13 TGA-14 TGA-17 a change sends every catego
   const allowed = await act(OPERATIONS, "allow", "granted");
   assert.deepEqual(allowed.categories!.filter(item => item.confirm).map(item => item.group_id), ["operations"]);
   assert.match(await p.line(), /新读取能力/);
-  assert.equal(await browser.evaluate(`document.querySelector("${AREA} .mw-toast__action")`), null, "allowing has no undo");
+  assert.equal(await browser.evaluate(`document.querySelector("${AREA} .mw-platform-area__foot .mw-btn")`), null, "allowing has no undo");
   // TGA-12: a category no longer offered is removed on the person's word, with no undo.
   const kept = JSON.parse(await readFile(file, "utf8")) as { action_grants: Array<Record<string, unknown>> };
   const model = kept.action_grants.find(grant => String(grant.client_id).endsWith(":daily") && grant.provider_id === SCHEDULE)!;
@@ -510,7 +510,7 @@ test("S-task-grants-area TGA-12 TGA-13 TGA-14 TGA-17 a change sends every catego
   const index = await rowOf(REMINDERS);
   await p.settle();
   await p.press(p.control("switch", index));
-  await browser.waitFor(`document.querySelector("${AREA} .mw-toast.is-error")`);
+  await browser.waitFor(`document.querySelector("${AREA} .mw-platform-area__foot .mw-alert--danger")`);
   assert.equal(await p.line(), "没能保存，原来的授权没变");
   assert.equal(await p.records(), both, "TGA-17 a press after the page closed wrote nothing");
 });

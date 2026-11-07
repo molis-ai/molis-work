@@ -122,7 +122,7 @@ test("TGA-21 TGA-22 Schedule places the platform's area in the open task's detai
   assert.deepEqual((await browser.evaluate<Array<Record<string, unknown>>>("window.tgaDown")).filter(message => message.type === "task-grants-changed").map(message => message.state), [{ granted: true, attention: false }]);
   // Undo takes it back, and the mark with it.
   await ready();
-  await press(`${AREA} .mw-toast__action`);
+  await press(`${AREA} .mw-platform-area__foot .mw-btn`);
   await browser.waitFor(`document.querySelector(${JSON.stringify(control)}).dataset.status === "off"`);
   await child.waitFor(`document.querySelector(${JSON.stringify(row(first) + " [data-schedule-kind-mark]")}).dataset.scheduleKindMark === "files"`);
   await settle(300);

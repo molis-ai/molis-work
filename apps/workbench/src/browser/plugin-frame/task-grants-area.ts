@@ -81,17 +81,19 @@ export function taskGrantRowHtml(t: Translate, row: Row, end: string): string {
 
 /** The area's markup: the platform's header, one row per category, and the one line that says what just happened. */
 export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly Row[], line: TaskGrantsLine, busy: boolean, fresh = false): string {
-  const control = (name: string, label: string, act: string, extra = "") =>
-    `<button type="button" class="mw-btn mw-btn--sm mw-btn--secondary" data-framed-control="${escape(act + ":" + name)}"${extra}>${escape(label)}</button>`;
-  const item = (row: Row) => taskGrantRowHtml(t, row, row.status === "removed" ? control(row.name, t("移除"), "remove")
-    : `${row.status === "needs_confirmation" ? control(row.name, t("允许"), "allow") : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${row.status !== "off" ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}"><span class="mw-switch__track" aria-hidden="true"></span></span>`);
+  /** A small button by its control name (§3.3): a row's 允许 or 移除 (secondary), or the line's act (ghost). */
+  const control = (name: string, label: string, variant = "secondary") =>
+    `<button type="button" class="mw-btn mw-btn--sm mw-btn--${variant}" data-framed-control="${escape(name)}">${escape(label)}</button>`;
+  const item = (row: Row) => taskGrantRowHtml(t, row, row.status === "removed" ? control("remove:" + row.name, t("移除"))
+    : `${row.status === "needs_confirmation" ? control("allow:" + row.name, t("允许")) : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${row.status !== "off" ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}"><span class="mw-switch__track" aria-hidden="true"></span></span>`);
   const list = rows.length ? `<ul class="mw-items task-grants-area__rows">${rows.map(item).join("")}</ul>`
     : `<p class="task-grants-area__empty">${escape(t("这个项目里还没有能读的插件数据。装了待办、日程、笔记一类的插件后，它们会出现在这里。"))}</p>`;
-  const act = line.act ? `<button type="button" class="mw-toast__action" data-framed-control="${line.act}">${escape(line.act === "undo" ? t("撤销") : t("重试"))}</button>` : "";
+  // The line stays put (D2): a persistent status line, the design system's `mw-alert`, not a passing toast (DESIGN「Toasts」).
+  const act = line.act ? control(line.act, t(line.act === "undo" ? "撤销" : "重试"), "ghost") : "";
   return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-shield"></use></svg>${escape(t("Molis Work · 只有你能改"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
     + `<p class="mw-platform-area__lead">${escape(t("只能读，不能改；只给这个任务；随时可以撤回"))}</p></header>`
     + `<div class="mw-platform-area__body" data-framed-scroll${busy ? ' aria-busy="true"' : ""}>${list}</div>`
-    + `<footer class="mw-platform-area__foot" data-framed-area-foot><div class="mw-toast${line.tone === "danger" ? " is-error" : ""}${fresh ? " is-fresh" : ""}" role="status"><span title="${escape(line.text)}">${escape(line.text)}</span>${act}</div></footer>`;
+    + `<footer class="mw-platform-area__foot" data-framed-area-foot><div class="mw-alert${line.tone === "danger" ? " mw-alert--danger" : ""}${fresh ? " is-fresh" : ""}" role="status"><span title="${escape(line.text)}">${escape(line.text)}</span>${act}</div></footer>`;
 }
 
 /**

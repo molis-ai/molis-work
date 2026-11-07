@@ -1,0 +1,5 @@
+# S-ui-text-markup
+
+| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
+| --- | --- | --- | --- | --- |
+| S-ui-text-markup | 界面文字工具（第 14 批）：语言文件里的词和存下来的引用不能变成标记，也不能冒充别的主人。语言文件的文字带 `<`、`>`、`&`、`"`、`'` 默认拒绝（`ui.locale_markup`），只有内容包不查，外部沙箱插件照样查；`t`、`say`、`createTextReader` 的结果把全文转义一次，内容包的词、`literal`、`fallback`、字符串参数都只显示成文字；声明里写 `owner` 拒绝，键的前缀不是主人名拒绝（`ui.text_ref_invalid`）。`t.text`、`say.text` 不转义，写进 HTML 是注入，只靠评审 | `packages/plugin-sdk/src/ui/locale-pack.ts` 的 `parseLocalePack`；`packages/plugin-sdk/src/ui/text.ts` 的 `t`、`say`；`packages/plugin-sdk/src/ui/text-reader.ts`；`packages/plugin-sdk/src/ui/text-ref.ts` 的 `ownedTextRef` | `tests/ui-text-locale-pack.test.ts`「by default for every pack」；`tests/ui-text-tools.test.ts`「a string argument is escaped」「escapes the whole text once」「through say and createTextReader」；`tests/ui-text-ref.test.ts`「an owner in a declaration is refused」「the prefix decides whose it is」 | |

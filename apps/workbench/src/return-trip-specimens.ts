@@ -12,23 +12,23 @@ function figure(L: Say, caption: string, body: string): string {
   return `<figure class="mw-catalog__specimen" data-board-review="d-track"><figcaption>${escapeHtml(caption)} ${renderBadge({ label: L("待 D 轨合审"), tone: "info" })}</figcaption>${body}</figure>`;
 }
 
-function bar(L: Say, name: string, state: ReturnBarState, body: string, back: string): string {
-  return renderReturnBar({ title: L("从「{name}」来", { name }), body: L(body), back: L(back), label: L("从哪里来"), state });
+function bar(L: Say, name: string, state: ReturnBarState, body: string, back: string, kept = false): string {
+  return renderReturnBar({ title: L("从「{name}」来", { name }), body: L(body) + (kept ? L("你写的都还在。") : ""), back: L(back), label: L("从哪里来"), state });
 }
 
 function barsSpecimen(L: Say): string {
   const row = (label: string, body: string) => `<li><span>${escapeHtml(L(label))}</span>${body}</li>`;
   return `<ul class="mw-return-board__states">
-    ${row("在等配好", bar(L, "Cognia", "waiting", "配好模型后自动回去，你写的都还在。", "现在回去"))}
-    ${row("连接在等", bar(L, "Feed", "waiting", "连好后自动回去，你写的都还在。", "现在回去"))}
+    ${row("在等配好", bar(L, "Coding", "waiting", "配好模型后自动回去。", "现在回去", true))}
+    ${row("连接在等", bar(L, "Feed", "waiting", "连好后自动回去。", "现在回去"))}
     ${row("本来就好", bar(L, "Feed", "look", "看完点「回去」，回到原来的地方。", "回去"))}
     ${row("已经好了", bar(L, "Coding", "ready", "已经好了，可以回去了。", "回去"))}
-    ${row("原处已关", bar(L, "Images", "gone", "原来的页面已经关了，配好的设置都在。", "回去"))}
+    ${row("原处已关", bar(L, "Images", "gone", "原来的页面已经关了，配好的设置都在。", "关闭设置"))}
   </ul>`;
 }
 
 function narrowSpecimen(L: Say): string {
-  return `<div class="mw-return-board__narrow">${bar(L, "Cognia", "waiting", "配好模型后自动回去，你写的都还在。", "现在回去")}</div>`;
+  return `<div class="mw-return-board__narrow">${bar(L, "Cognia", "waiting", "配好模型后自动回去。", "现在回去")}</div>`;
 }
 
 function resumeSpecimen(L: Say): string {
@@ -55,6 +55,6 @@ export const RETURN_TRIP_SECTION_STYLES = "#return-trips .mw-catalog__specimen{m
   + ".mw-return-board__states{display:grid;gap:12px;max-width:760px;margin:0;padding:0;list-style:none}"
   + ".mw-return-board__states>li{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:12px;min-width:0}"
   + ".mw-return-board__states>li>span:first-child{color:var(--ink-soft);font-size:12px}"
-  + ".mw-return-board__narrow{max-width:390px}"
+  + ".mw-return-board__narrow{box-sizing:border-box;width:390px;max-width:100%;padding:16px;border:1px dashed var(--line);border-radius:12px}"
   + ".mw-return-board__prompts{display:grid;gap:24px;max-width:560px}"
   + "@media (max-width:760px){.mw-return-board__states>li{grid-template-columns:minmax(0,1fr);gap:4px}}";

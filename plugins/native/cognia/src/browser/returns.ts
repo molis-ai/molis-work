@@ -6,9 +6,10 @@ import { notice, q, type CogniaPage } from "./page.js";
 
 /**
  * The model the asks need (specs/draft-and-return §4): 打开模型设置 asks the settings for a model with the step `query`, the ask
- * the missing model held back. Back with a model, the list reads again and the platform's 接着做 prompt offers that ask once; it
- * opens the ask's dialog and nothing more, so what is asked is still the person's. A trip that ended after the page was rebuilt
- * comes back through `arrived()` the same way.
+ * the missing model held back. Back with a model, the list reads again and, once a read shows the model can run (the read right
+ * after going back may not yet: the settings tell the pages a first model is ready after that, and the list reads again then), the
+ * platform's 接着做 prompt offers that ask once; it opens the ask's dialog and nothing more, so what is asked is still the person's.
+ * A trip that ended after the page was rebuilt comes back through `arrived()` the same way.
  */
 export function installReturns(page: CogniaPage, ask: () => void): void {
   void page.host.returns.arrived().then(outcome => { if (outcome) void back(page, outcome, ask); }, () => undefined);
@@ -20,8 +21,15 @@ export async function goForModel(page: CogniaPage, ask: () => void): Promise<voi
 }
 
 async function back(page: CogniaPage, outcome: UiReturnOutcome, ask: () => void): Promise<void> {
+  page.modelRead = outcome.status === "ready" && outcome.carry.step === "query" ? () => {
+    if (!page.state.ai_available) return;
+    page.modelRead = undefined;
+    prompt(page, ask);
+  } : undefined;
   await reload(page);
-  if (outcome.status !== "ready" || outcome.carry.step !== "query" || !page.state.ai_available) return;
+}
+
+function prompt(page: CogniaPage, ask: () => void): void {
   page.root.querySelector("[data-cognia-resume]")?.remove();
   const holder = document.createElement("div");
   holder.dataset.cogniaResume = "";

@@ -10,6 +10,8 @@ import { select } from "./select.js";
  * platform's drafts (`composer:<session>`) and asks the settings for a model with the step `send`. Back with a model, the page asks
  * once with the platform's 接着做 prompt and sends only when the person says so; the send asks what it always asks. A trip that ended
  * after the page was rebuilt comes back through `arrived()` the same way. Without words there is no step: the page just reads again.
+ * The copy in the drafts is the trip's alone (the composer keeps its own): it goes once the person answers, or at once when the
+ * model is not ready. The prompt is the composer form's first row, at the input's width.
  */
 const draftKey = (session: string) => "composer:" + session;
 
@@ -36,15 +38,16 @@ async function goForModel(page: Page, send: () => Promise<void>): Promise<void> 
 
 async function back(page: Page, outcome: UiReturnOutcome, send: () => Promise<void>): Promise<void> {
   const key = outcome.carry.draft_key ?? "", session = key.startsWith("composer:") ? key.slice("composer:".length) : "";
-  if (outcome.status !== "ready" || outcome.carry.step !== "send" || !session) return;
   const { host, input, L, q, s } = page;
+  if (session && outcome.status !== "ready") { await host.drafts.write(key, null); return; }
+  if (outcome.status !== "ready" || outcome.carry.step !== "send" || !session) return;
   const words = await host.drafts.read(key);
   if (!words) return;
   page.root.querySelector("[data-coding-resume]")?.remove();
   const holder = document.createElement("div");
   holder.dataset.codingResume = "";
   holder.innerHTML = renderResumePrompt({ title: L("coding.resume.model-ready"), body: L("coding.resume.kept"), resume: L("coding.resume.send"), dismiss: L("coding.resume.dismiss") });
-  q("[data-coding-composer]").before(holder);
+  q("[data-coding-composer]").prepend(holder);
   holder.querySelector<HTMLElement>("[data-resume-prompt=resume]")?.focus({ preventScroll: true });
   holder.addEventListener("click", event => {
     const choice = (event.target as Element | null)?.closest<HTMLElement>("[data-resume-prompt]")?.dataset.resumePrompt;

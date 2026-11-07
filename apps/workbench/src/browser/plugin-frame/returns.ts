@@ -72,7 +72,9 @@ export function pageReturns(port: MessagePort, scope: FrameScope, root: HTMLElem
     const detail = (event as CustomEvent<{ return_id?: unknown; status?: unknown }>).detail, returnId = detail?.return_id;
     if (typeof returnId !== "string") return;
     const waiting = goes.get(returnId);
-    if (waiting && detail?.status === "ended") { goes.delete(returnId); waiting.finish({ outcome: { status: "not_ready", carry: waiting.carry } }); }
+    // Refused: the trip never opened (no settings, no trips here), so `go()` rejects as unavailable. Ended: it opened and went with no outcome.
+    if (waiting && detail?.status === "refused") { goes.delete(returnId); waiting.finish({ error: RETURNS_UNAVAILABLE }); }
+    else if (waiting && detail?.status === "ended") { goes.delete(returnId); waiting.finish({ outcome: { status: "not_ready", carry: waiting.carry } }); }
     else if (waiting) tryGo(returnId);
     else if (arrived && detail?.status === "ended" && arrived.trip === returnId) finishArrived(null);
     else tryArrived();

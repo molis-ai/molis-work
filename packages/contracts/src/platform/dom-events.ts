@@ -263,7 +263,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:layout-holds", kind: "request", owner: "tab-workspace", on: "document",
     detail: "{ pane, surface, answer? }; the handler sets answer to a boolean, synchronously",
-    summary: "Is a return trip's place still in the layout: the pane is there and has a view or a tab of this surface (not a frame's key). Sent by the settings-return owner when a trip settles with no page claiming it; an embedded pane document does not answer, and with no answer the sender does not judge. Kept by the work-area batch (07) from now on.",
+    summary: "Is a return trip's place still in the layout: the pane is there and has a view or a tab of this surface (not a frame's key). Sent by the settings-return owner when a trip settles with no page claiming it; an embedded pane document does not answer, and with no answer the sender does not judge.",
   },
   {
     name: "molis-work:model-ready", kind: "announcement", owner: "settings-directory", on: "document",
@@ -312,7 +312,7 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:return-settled", kind: "announcement", owner: "settings-return", on: "document",
-    detail: "{ return_id, status }: ready, not_ready, or ended (removed with no outcome: expired, or the person left the place)",
+    detail: "{ return_id, status }: ready, not_ready, ended (removed with no outcome: expired, or the person left the place), or refused (it never opened: no settings or no trips in this document)",
     summary: "A return trip settled or ended; the frame host waiting on it claims it inside the dispatch. It hands nothing over itself. After a start the owner sends it once more for each settled trip still waiting. Only on the outer document.",
   },
   {

@@ -104,3 +104,21 @@ test("S-return-trip-delivery another window's trip is not handed over, and a sav
   await page.waitFor("window.went !== undefined", 15_000);
   assert.deepEqual(await page.evaluate("window.went"), { status: "not_ready", carry: CARRY });
 });
+
+test("S-return-trip-delivery ⑯ a sign-in landing page starts as a new window: the trips it was handed are gone and none settles there", { timeout: 150_000 }, async t => {
+  const at = await open(t);
+  if (!at) return;
+  const { browser, page, opened, stored } = at;
+  await opened();
+  const before = await browser.evaluate<string>("sessionStorage.getItem('molis-work:return-window')");
+  // The same tab lands on the authorization's answer within the reload mark: still a new window, as a copied tab would be.
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?desktop=1&openPlugin=${SURFACE}&settingsPath=${encodeURIComponent("/settings/connectors?connected=github")}` }, browser.sessionId));
+  await browser.waitFor("document.body.dataset.desktopSurface === 'settings'", 15_000);
+  assert.notEqual(await browser.evaluate("sessionStorage.getItem('molis-work:return-window')"), before, "a new window number");
+  assert.equal(await stored(), undefined, "the trips it was handed are removed");
+  assert.equal(await browser.evaluate("document.querySelector('[data-settings-return-bar]')"), null, "no bar");
+  await browser.evaluate("[...document.querySelectorAll('[data-cover-close]')].find(button => button.checkVisibility())?.click()");
+  await browser.waitFor("document.body.dataset.desktopSurface !== 'settings'", 15_000);
+  await page.waitFor("window.pageHost?.returns", 20_000);
+  assert.equal(await at.arrived(1500), null, "nothing settled there reaches the page");
+});

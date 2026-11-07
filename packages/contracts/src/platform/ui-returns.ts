@@ -5,13 +5,16 @@
 /** What the settings have to make true. The first version has a text model only; a connection is asked in place (`connectionNeed`). */
 export type UiReturnNeed = { readonly kind: "model" };
 
-/** Names the page wants back, never content: a key of its own `host.drafts`, the one step to do on return, what was selected. */
+/**
+ * Names the page wants back, never content: a key of its own `host.drafts`, the one step to do on return, what was selected. Every
+ * value given is non-empty text with no control characters; lengths count characters as code points (`UI_RETURN_CARRY_LIMITS`).
+ */
 export interface UiReturnCarry {
   /** A key of this page's own `host.drafts`, at most 256 characters. */
   readonly draft_key?: string;
   /** The one step to do on return, at most 128 characters of `[A-Za-z0-9._:-]`. */
   readonly step?: string;
-  /** What was selected; `id` is at most 256 characters with no control characters. */
+  /** What was selected: `kind` at most 64 characters, `id` at most 256. */
   readonly object?: { readonly kind: string; readonly id: string };
 }
 
@@ -25,13 +28,13 @@ export interface UiPageReturns {
   /**
    * Opens the settings for `need` over the workbench, remembering this page as where the person came from. Resolves when the
    * person is back here. Rejects at once, with one fixed message whatever the reason, when the page is not visible, the carry is
-   * refused or returns are unavailable. Rejects with an `AbortError` when the page aborts `signal` or this mount ends: the trip
+   * refused or returns are unavailable (no settings to open, or no trips in this window). Rejects with an `AbortError` when the page aborts `signal` or this mount ends: the trip
    * then ends as `not_ready`, and a setting finished after that stays with its owner. Whether a later mount of this page gets the
    * outcome is decided by the platform from the workbench layout, never by the page (see `arrived`).
    */
   go(need: UiReturnNeed, carry?: UiReturnCarry, options?: { signal?: AbortSignal }): Promise<UiReturnOutcome>;
   /**
-   * Once per mount. When a trip opened by `go` on an earlier mount of this page, in the same place, was kept because the page
+   * Once per mount. When a trip opened by `go` (never one the platform opened for its own cards) on an earlier mount of this page, in the same place, was kept because the page
    * was rebuilt without the person leaving it (a reload, a pane frame the workbench let go of), this waits until that trip
    * settles and resolves with its outcome, or resolves `null` when it ends without one or this mount ends first. With no such
    * trip it resolves `null` at once. Show the outcome with the platform's resume prompt; never redo the step unasked.

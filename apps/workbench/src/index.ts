@@ -68,7 +68,7 @@ export { pluginPageClients, pluginSettingsClients, pluginSettingsStyleLinks, plu
 export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
 // The return trips' checks and their one writer (specs/draft-and-return §2), for the unit tests of S-return-trip-*.
 export {
-  RETURN_TRIP_RULES, createReturnOwner, needOfAddress, placeOf, readReturnTrips, returnGo, returnLink, returnTrip, startReturnWindow,
+  RETURN_TRIP_RULES, createReturnOwner, needOfAddress, placeOf, readReturnTrips, returnGo, returnLanding, returnLink, returnRelay, returnTrip, startReturnWindow,
   type ReturnTrip, type ReturnOwnerEnv, type ReturnStorage, type ReturnPlaceRoot,
 } from "./browser/return-trips.js";
 export { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";

@@ -159,7 +159,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (!body || !node) return;
       if (node.ownerDocument !== document) document.adoptNode(node);
       [...body.children].forEach((child) => {
-        if (child === node) return;
+        if (child === node || child.matches("[data-settings-return-bar]")) return;
         if (child.matches("[data-work-surface]") && pool) { child.hidden = true; pool.append(child); }
         else child.remove();
       });
@@ -411,6 +411,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (openProjectSettingsFromUrl(asked.href) || openGlobalSettingsFromUrl(asked.href, false)) return;
     openShell("settings", "appearance");
   }, 0);
+  // After the boot address opened the settings (the two timers above): the return trips are judged against the cover as it is then.
+  setTimeout(() => returns?.start(), 0);
   document.addEventListener("click", (event) => {
     const projectOpener = event.target.closest("[data-directory-open=project-settings]");
     if (projectOpener) {

@@ -108,7 +108,7 @@ export const CODING_MESSAGES = {
   "coding.composer.send": { zh: "发送", en: "Send" },
   "coding.model.open-settings": { zh: "打开模型设置", en: "Open model settings" },
   "coding.resume.model-ready": { zh: "刚才去配了模型，已经好了", en: "The model you went to set up is ready" },
-  "coding.resume.kept": { zh: "你写的那段还在输入框里。", en: "What you wrote is still in the input." },
+  "coding.resume.kept": { zh: "你写的那段还在输入框里。", en: "What you wrote is still in the message box." },
   "coding.resume.send": { zh: "接着发送", en: "Send it now" },
   "coding.resume.dismiss": { zh: "先不用", en: "Not now" },
   "coding.composer.draft-note": { zh: "模型与方式的选择用于下一轮。", en: "The model and mode you choose apply to the next turn." },

@@ -5,9 +5,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  RETURN_TRIP_RULES, createReturnOwner, needOfAddress, placeOf, readReturnTrips, returnGo, returnLink, returnTrip, startReturnWindow,
+  RETURN_TRIP_RULES, createReturnOwner, needOfAddress, placeOf, readReturnTrips, returnGo, returnLanding, returnLink, returnRelay, returnTrip, startReturnWindow,
   type ReturnOwnerEnv, type ReturnPlaceRoot, type ReturnStorage, type ReturnTrip,
 } from "@molis-ai/molis-work-app-workbench";
+import { UI_RETURN_CARRY_LIMITS } from "@molis-ai/molis-work-contracts/platform/ui";
 
 const KEYS = RETURN_TRIP_RULES.keys;
 const SCOPE = "install-a:project-1", OTHER_SCOPE = "install-b:project-1";
@@ -56,6 +57,32 @@ test("S-return-trip-source a page's return-go carries only the need and its carr
   ];
   for (const change of refused) assert.equal(returnGo({ type: "return-go", id: 1, need: { kind: "model" }, ...change }), null, JSON.stringify(change));
   assert.equal(returnGo({ type: "return-go", id: 0, need: { kind: "model" } }), null);
+  // The limits are the contract's own, counted in characters (code points), and a value given is never empty.
+  assert.deepEqual([RETURN_TRIP_RULES.draftKey, RETURN_TRIP_RULES.objectId, RETURN_TRIP_RULES.objectKind],
+    [UI_RETURN_CARRY_LIMITS.draft_key, UI_RETURN_CARRY_LIMITS.object_id, UI_RETURN_CARRY_LIMITS.object_kind]);
+  const carried = (carry: unknown) => returnGo({ type: "return-go", id: 1, need: { kind: "model" }, carry })?.carry ?? null;
+  assert.ok(carried({ step: "s".repeat(UI_RETURN_CARRY_LIMITS.step) }));
+  assert.ok(carried({ draft_key: "草".repeat(256), object: { kind: "𝒌".repeat(64), id: "😀".repeat(256) } }), "256 characters, whatever their UTF-16 length");
+  for (const carry of [{ draft_key: "😀".repeat(257) }, { object: { kind: "k".repeat(65), id: "i" } }, { draft_key: "" }, { step: "" }, { object: { kind: "", id: "i" } }])
+    assert.equal(carried(carry), null, JSON.stringify(carry).slice(0, 60));
+});
+
+test("S-return-trip-source ④ a pane's request is put on the pane its frame is, never the one it names", () => {
+  const asked = { type: "workbench-open-settings", paneId: "pane-9", href: "/settings/models", return_id: "r-1", carry: { step: "send" },
+    from: { kind: "page", mount: "m", scope: SCOPE, plugin: "io.molis.work.coding", surface: "coding", place: { pane: "pane-9", surface: "coding" } } };
+  const relayed = returnRelay(asked, "pane-1", "coding");
+  assert.deepEqual(relayed.from.place, { pane: "pane-1", surface: "coding" }, "the place is the frame's pane");
+  assert.deepEqual(Object.keys(relayed).sort(), ["carry", "from", "href", "return_id"], "nothing else the message holds is passed on");
+  // A request that names no page's source is a trip from under the cover, still on the frame's pane.
+  assert.deepEqual(returnRelay({ href: "/settings/models", from: { kind: "assistant", work_id: "w" } }, "pane-1", "coding").from, { kind: "under-cover", place: { pane: "pane-1", surface: "coding" } });
+  // A frame that is no pane's puts no place at all.
+  assert.equal(returnRelay(asked, "", "coding").from.place, null);
+  // The need is a model or a connection with its slot; `setup` is the platform's alone and never comes through a pane.
+  assert.deepEqual(returnRelay({ ...asked, need: { kind: "model" } }, "pane-1", "coding").need, { kind: "model" });
+  assert.deepEqual(returnRelay({ ...asked, need: { kind: "connection", service_id: "github", slot: { slot_id: "repo", record_key: "r-1" } } }, "pane-1", "coding").need,
+    { kind: "connection", service_id: "github", slot: { slot_id: "repo", record_key: "r-1" } });
+  for (const need of [{ kind: "setup", authorization_id: "a-1" }, { kind: "connection", service_id: "../x" }, { kind: "model", href: "/x" }])
+    assert.equal(returnRelay({ ...asked, need }, "pane-1", "coding").need, undefined, JSON.stringify(need));
 });
 
 test("S-return-trip-source the place is the pane the page is in, computed from the trusted DOM", () => {
@@ -148,9 +175,10 @@ test("S-return-trip-delivery ready only after the owner read the need back", asy
   // ⑲ Saved is not met: the trip settles not ready, never ready.
   assert.equal(await o.trips.check("go-1"), "not_ready");
   assert.deepEqual(o.trips.claim({ return_id: "go-1", origin: origin() }), { status: "not_ready", carry: { draft_key: "composer:1", step: "send:k1" } });
-  // A met need at open is remembered, so the settings do not close on their own.
+  // A met need at open is remembered, so the settings do not close on their own; until the first read it is not known.
   const later = owner({ met: true });
   goTrip(later);
+  assert.equal(later.trips.find("go-1")?.met_at_open, null);
   await flush();
   assert.equal(later.trips.find("go-1")?.met_at_open, true);
   const unmet = owner({ met: false });
@@ -183,9 +211,14 @@ test("S-return-trip-delivery a window's trips are its own", async () => {
   for (const [key, value] of storage.map) copy.setItem(key, value);
   assert.equal(startReturnWindow(copy, 75_100, false, () => "window-copy"), "window-copy");
   assert.equal(readReturnTrips(copy, "window-3", "project-1").length, 0);
-  // A sign-in landing page renumbers even with a fresh mark.
+  // ⑯ A sign-in landing page renumbers even with a fresh mark: a boot address whose settings path answers an authorization.
   storage.setItem(KEYS.handoff, JSON.stringify({ id: "window-3", at: 80_000 }));
   assert.equal(startReturnWindow(storage, 80_001, true, () => "window-landing"), "window-landing");
+  const at = (path: string) => "?settingsPath=" + encodeURIComponent(path);
+  for (const path of ["/settings/connectors?connected=github", "/capabilities/connections?connection_error=denied", "/settings/connectors?setup=a-1"])
+    assert.equal(returnLanding(at(path), "http://h"), true, path);
+  for (const search of [at("/settings/models"), at("/settings/connectors?connector=github"), "?connected=github", ""])
+    assert.equal(returnLanding(search, "http://h"), false, search);
   // ⑫ An owner of another window does nothing with them.
   const mine = memory(), first = owner({ storage: mine, window: "window-a" }), second = owner({ storage: mine, window: "window-b" });
   goTrip(first);
@@ -214,6 +247,14 @@ test("S-return-trip-delivery a page the person left gets nothing, a rebuilt one 
   await flush();
   await side.trips.check("go-1");
   assert.equal(side.trips.list().length, 0);
+  // The in-place connection card's trip is handed only by its id: arrived() never gets it, and unclaimed at settling it goes.
+  const card = owner();
+  card.trips.open({ id: "card-1", from: pageFrom(), need: { kind: "connection", service_id: "github" }, claim: true, cover: "settings connectors" });
+  assert.equal(card.trips.claim({ origin: origin() }), null);
+  await flush();
+  await card.trips.check("card-1");
+  assert.equal(card.trips.list().length, 0);
+  assert.deepEqual(card.settled, [["card-1", "ready"], ["card-1", "ended"]]);
   // Single pane and split give the same place, so the same trip is found (the place is the pane, not the frame).
   const split = owner();
   goTrip(split, "go-1", { place: { pane: "pane-1", surface: "coding" } });

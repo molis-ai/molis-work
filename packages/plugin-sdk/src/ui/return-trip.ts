@@ -15,14 +15,15 @@ import { cx, escapeHtml } from "./html.js";
 export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
 /**
- * The settings' return bar (an info alert with one secondary button). `title` names where the person came from; `body` says what
- * happens now. The body is a polite live region, so a change of state is heard; the bar itself is a labelled region.
+ * The settings' return bar, as the service-connections prototype's plan B top bar has it: an info alert (success once set up) with
+ * where the person came from (`title`), what happens now (`body`) and, under them, one secondary button back. The body is a polite
+ * live region, so a change of state is heard; the bar itself is a labelled region.
  */
 export function renderReturnBar(options: { title: string; body: string; back: string; label: string; state?: ReturnBarState; className?: string }): string {
   const state = options.state ?? "waiting";
   return `<div class="${cx("mw-alert", state === "ready" ? "mw-alert--success" : "mw-alert--info", "mw-return-bar", options.className)}" data-slot="return-bar" data-return-bar-state="${state}" role="region" aria-label="${escapeHtml(options.label)}">`
-    + `<div class="mw-return-bar__text"><strong data-return-bar-title>${escapeHtml(options.title)}</strong><p data-return-bar-body aria-live="polite">${escapeHtml(options.body)}</p></div>`
-    + renderButton({ label: options.back, variant: "secondary", icon: "back", className: "mw-return-bar__back", attrs: { "data-return-bar-back": "" } })
+    + `<strong data-return-bar-title>${escapeHtml(options.title)}</strong><p data-return-bar-body aria-live="polite">${escapeHtml(options.body)}</p>`
+    + `<div class="mw-return-bar__actions">${renderButton({ label: options.back, variant: "secondary", icon: "back", attrs: { "data-return-bar-back": "" } })}</div>`
     + `</div>`;
 }
 

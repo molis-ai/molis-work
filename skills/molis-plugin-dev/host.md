@@ -307,11 +307,11 @@ Home 级插件要在本人自己的页面里看到各个项目的内容（Todo �
 
 ### 缺模型去设置、配好再回来：`host.returns`
 
-页面上被缺模型挡住时，不链到设置地址，调 `host.returns.go({ kind: "model" }, carry, { signal })`（合同 `UiPageReturns`，`@molis-ai/molis-work-contracts/platform/ui`）：外壳在原处打开模型设置，顶上出返回条；人配好（回程主人读回模型目录，`health` 里有 `ready`）就关掉设置回到这一页，Promise 答 `{ status: "ready", carry }`；人自己回去、没配好，答 `{ status: "not_ready", carry }`；页面关了或 `signal` 中止，以 `AbortError` 结束；`carry` 不合、页面看不见时拒绝，设置不开。
+页面上被缺模型挡住时，不链到设置地址，调 `host.returns.go({ kind: "model" }, carry, { signal })`（合同 `UiPageReturns`，`@molis-ai/molis-work-contracts/platform/ui`）：外壳在原处打开模型设置，顶上出返回条；人配好（回程主人读回模型目录，`health` 里有 `ready`）就关掉设置回到这一页，Promise 答 `{ status: "ready", carry }`；人自己回去、没配好，答 `{ status: "not_ready", carry }`；页面关了或 `signal` 中止，以 `AbortError` 结束；`carry` 不合、页面看不见、或这个窗口开不了回程时立即拒绝，设置不开或不带返回条。
 
-- `carry` 只放名字：`draft_key`（至多 256 字）、`step`（`[A-Za-z0-9._:-]`，至多 128 字）、`object: { kind, id }`（kind 至多 64 字，id 至多 256 字）。草稿正文先写进 `host.drafts`，回程里不放正文、密钥、地址。来处（安装、界面、所在的栏）由外壳写，页面给不了。
+- `carry` 只放名字：`draft_key`（至多 256 字）、`step`（`[A-Za-z0-9._:-]`，至多 128 字）、`object: { kind, id }`（kind 至多 64 字，id 至多 256 字）；按码点计、不许为空，上限是合同的 `UI_RETURN_CARRY_LIMITS`。返回条只在带了 `draft_key` 时说「你写的都还在」。草稿正文先写进 `host.drafts`，回程里不放正文、密钥、地址。来处（安装、界面、所在的栏）由外壳写，页面给不了。
 - 页面在设置里被刷新、重建过，回来后调一次 `host.returns.arrived()`：有这一页开的回程还开着就一直等，结算后答结果，没有就是 `null`，第二次也是 `null`。只在页面看得见时认领。
-- 回来以后：入口是页面上一个普通的「模型设置」按钮（没说为了哪一步）的，配好也只问一句，用 SDK 的 `renderResumePrompt`（`@molis-ai/molis-work-plugin-sdk/ui`，平台的「接着做」共用件），人点了才做，从不自动做那一步（U1）。用的是原来那一步的幂等键，原有的确认照问。
+- 回来以后：入口是页面上一个普通的「模型设置」按钮（没说为了哪一步）的，配好也只问一句，用 SDK 的 `renderResumePrompt`（`@molis-ai/molis-work-plugin-sdk/ui`，平台的「接着做」共用件），人点了才做，从不自动做那一步（U1）。问话放在被挡住的那一步旁边、与它同宽（Coding 是输入表单的第一行）。要等页面自己再读到模型可用才出问话（Cognia 在列表读回 `ai_available` 之后），答 `not_ready` 时清掉为这次回程写进 `host.drafts` 的那份草稿。用的是原来那一步的幂等键，原有的确认照问。
 - 例子：Coding 的模型设置入口（`plugins/native/coding/src/browser/main/returns.ts`）、Cognia（`plugins/native/cognia/src/browser/returns.ts`）、工作流程连接浮层（`plugins/native/workflows/src/browser/returns.ts`，带 `object` 回来重开那条流程与浮层）。规格 `specs/draft-and-return/spec.md`，安全规则 `docs/system/security-invariants/S-return-trip-source.md` 等三条。
 
 ### 项目插件的闹钟、后台 Agent 与通知

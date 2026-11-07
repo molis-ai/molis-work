@@ -1,6 +1,6 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import {
-  RETURN_TRIP_RULES, createReturnOwner, leaveReturnWindow, needOfAddress, placeOf, returnFrom, returnLink, returnNeed, startReturnWindow,
+  RETURN_TRIP_RULES, createReturnOwner, leaveReturnWindow, needOfAddress, placeOf, returnFrom, returnLanding, returnLink, returnNeed, startReturnWindow,
   type ReturnNeed, type ReturnPlace, type ReturnStatus, type ReturnTrip,
 } from "./return-trips.js";
 
@@ -10,12 +10,13 @@ import {
  * Bundled into dist/settings-return-client.js, which defines the page global `molisWorkSettingsReturn` the bootstrap calls.
  *
  * - The window number (§2.2): the `pagehide` mark is read and removed at once; a new tab, a copied tab and a sign-in landing page
- *   (a boot address naming `connected`, `connection_error` or `setup`) get a new number and lose the copied trips.
+ *   (`returnLanding`) get a new number and lose the copied trips.
  * - `open`: the settings directory calls it after it opened the settings for `molis-work:open-settings-path`. Only a request that
  *   carries the frame host's `return_id` and a page's `from` opens a trip the page claims; a link inside the settings opens none.
  * - `saved`: a settings page saved what a trip may need; the trip is read back from its owner, and when met on the page it was opened
  *   for (and not met when it opened) the person goes back. Elsewhere in the settings the bar says it is set up.
  * - `molis-work:place-changed`: the settings closed or changed into another cover, not by this owner: the trip is read and settled.
+ *   Only after `start`: until then the changes are the document's own start (a reload, a language switch), judged once by `boot`.
  * - Going back: close the cover (as `closeCover` steps back), then the surface's own open when the place is not the one in front, or
  *   the Assistant on the Work; then settle, so a page that claims finds itself shown.
  */
@@ -51,6 +52,11 @@ export interface SettingsReturn {
   link(anchor: Element, href: string, cover: string, wasOpen: boolean): void;
   /** A settings page saved what a trip may need; `known` when its answer already says the need is met, so it is not read again. */
   saved(kind: ReturnNeed["kind"], known?: boolean): Promise<void>;
+  /**
+   * The document's start is done: the settings the boot address asks for (`?settings=`, `?settingsPath=`, as after switching the
+   * language) are open by now, so the trips are judged against the cover as it is. The settings directory calls it once.
+   */
+  start(): void;
   paint(): void;
 }
 
@@ -59,23 +65,15 @@ const detailOf = (event: Event): Detail | null => {
   const detail = (event as CustomEvent<unknown>).detail;
   return detail && typeof detail === "object" ? detail as Detail : null;
 };
-const announce = (id: string, status: ReturnStatus | "ended") => document.dispatchEvent(new CustomEvent("molis-work:return-settled", { detail: { return_id: id, status } }));
-const announceEnded = (id: unknown) => { if (typeof id === "string" && id.length <= 64) announce(id, "ended"); };
+const announce = (id: string, status: ReturnStatus | "ended" | "refused") => document.dispatchEvent(new CustomEvent("molis-work:return-settled", { detail: { return_id: id, status } }));
+/** A trip a page asked for that did not open (no settings, no trips in this document): its `go()` is refused at once. */
+const refuse = (id: unknown) => { if (typeof id === "string" && id.length <= 64) announce(id, "refused"); };
 /** Said on the bar and in the toast when the place the person came from was closed. */
 const GONE = "原来的页面已经关了，配好的设置都在。";
-const IDLE: SettingsReturn = { open: detail => announceEnded((detail as Detail | null)?.return_id), refuse: announceEnded, link() {}, saved: async () => {}, paint() {} };
+const IDLE: SettingsReturn = { open: detail => refuse((detail as Detail | null)?.return_id), refuse, link() {}, saved: async () => {}, start() {}, paint() {} };
 
 function sessionStore(): Storage | null {
   try { return sessionStorage; } catch { return null; }
-}
-
-/** A sign-in landing page: its boot address names the answer of an authorization (§2.2, a new window number at once). */
-function landingPage(): boolean {
-  const boot = new URLSearchParams(location.search);
-  if (!boot.has("settingsPath")) return false;
-  let asked: URLSearchParams;
-  try { asked = new URL(boot.get("settingsPath") || "/", location.origin).searchParams; } catch { return false; }
-  return ["connected", "connection_error", "setup"].some(key => asked.has(key));
 }
 
 /** Reads a need back from its owner, as the person, through the routes the settings already use (§3.4). */
@@ -101,11 +99,12 @@ type BarState = "waiting" | "look" | "ready" | "gone";
 const setText = (node: Element | null | undefined, text: string) => { if (node && node.textContent !== text) node.textContent = text; };
 
 /**
- * The return bar on the settings surface (U4): one, cloned from the surface's template, on top of the cover the trip was opened for;
- * any other is removed. Its button calls `back` with the trip it shows.
+ * The return bar on the settings surface (U4): one, cloned from the surface's template, at the top of the settings' own column (it
+ * scrolls with them) on the cover the trip was opened for; any other is removed. Its button calls `back` with the trip it shows.
  */
-function paintReturnBar(L: SettingsReturnHost["translate"], kind: string | null, trip: ReturnTrip | null, view: { name: string; ready: boolean; back(id: string): void }) {
-  const surface = kind ? document.querySelector(`[data-work-surface="${CSS.escape(kind)}"]`) : null;
+function paintReturnBar(L: SettingsReturnHost["translate"], kind: string | null, trip: ReturnTrip | null, view: { name: string | null; ready: boolean; back(id: string): void }) {
+  const cover = kind ? document.querySelector(`[data-work-surface="${CSS.escape(kind)}"]`) : null;
+  const surface = cover?.querySelector("[data-settings-stage-body]") ?? cover;
   document.querySelectorAll("[data-settings-return-bar]").forEach(bar => { if (!trip || bar.parentElement !== surface) bar.remove(); });
   if (!trip || !surface) return;
   let bar = surface.querySelector<HTMLElement>(":scope > [data-settings-return-bar]");
@@ -122,12 +121,14 @@ function paintReturnBar(L: SettingsReturnHost["translate"], kind: string | null,
   bar.dataset.returnBarState = state;
   bar.classList.toggle("mw-alert--success", state === "ready");
   bar.classList.toggle("mw-alert--info", state !== "ready");
+  // "What you wrote is kept" only when the page said where its draft is.
+  const kept = Boolean(trip.carry?.draft_key), model = trip.need.kind === "model";
   const body = state === "gone" ? L(GONE) : state === "ready" ? L("已经好了，可以回去了。")
     : state === "look" ? L("看完点「回去」，回到原来的地方。")
-    : trip.need.kind === "model" ? L("配好模型后自动回去，你写的都还在。") : L("连好后自动回去，你写的都还在。");
-  setText(bar.querySelector("[data-return-bar-title]"), L("从「{name}」来", { name: view.name }));
+    : (model ? L("配好模型后自动回去。") : L("连好后自动回去。")) + (kept ? L("你写的都还在。") : "");
+  setText(bar.querySelector("[data-return-bar-title]"), view.name ? L("从「{name}」来", { name: view.name }) : L("从原来的页面来"));
   setText(bar.querySelector("[data-return-bar-body]"), body);
-  setText(bar.querySelector("[data-return-bar-back] [data-slot=button-label]"), state === "waiting" ? L("现在回去") : L("回去"));
+  setText(bar.querySelector("[data-return-bar-back] [data-slot=button-label]"), state === "waiting" ? L("现在回去") : state === "gone" ? L("关闭设置") : L("回去"));
 }
 
 export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
@@ -135,7 +136,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   if (!project || window.top !== window) return IDLE;
   const storage = sessionStore();
   if (!storage) return IDLE;
-  const windowId = startReturnWindow(storage, Date.now(), landingPage(), () => crypto.randomUUID());
+  const windowId = startReturnWindow(storage, Date.now(), returnLanding(location.search, location.origin), () => crypto.randomUUID());
   const workspace = () => host.tabWorkspace() || null;
   const coverKind = () => workspace()?.exclusive?.() || null;
   const fallback = L("请稍后重试"), read = (need: ReturnNeed) => readNeed(need, fallback);
@@ -149,14 +150,16 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     },
     changed: () => paint(),
   });
+  /** The place's own name, or null when the workbench has none for it (the bar and the toast then say "the page you came from"). */
   const nameOf = (trip: ReturnTrip) => {
     if (trip.from.kind === "assistant") return L("助理");
     const place = placeOfTrip(trip);
-    return (place && workspace()?.pluginTitle?.(place.surface)) || L("原来的页面");
+    return (place && workspace()?.pluginTitle?.(place.surface)) || null;
   };
   const sectionOf = (trip: ReturnTrip) => trip.cover.split(" ")[1] || "";
   const shownSection = () => (workspace()?.coverPlace?.(coverKind()) || "").split(" ")[0];
-  let closing = false;
+  // `started`: the document's start is done (`start`); the covers its start restores and closes before that are not the person's doing.
+  let closing = false, started = false;
   const closeSettings = () => {
     closing = true;
     try {
@@ -184,9 +187,10 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     const status: ReturnStatus = met === true || await owner.met(trip.need) ? "ready" : "not_ready";
     const landed = travel(trip);
     owner.settle(trip.id, status);
+    const name = nameOf(trip), model = trip.need.kind === "model";
     if (landed === "gone") host.showToast?.(L(GONE));
-    else if (status === "ready" && trip.need.kind === "model") host.showToast?.(L("模型已连接，回到「{name}」接着做。", { name: nameOf(trip) }));
-    else if (status === "ready" && trip.need.kind !== "none") host.showToast?.(L("已经连上，回到「{name}」。", { name: nameOf(trip) }));
+    else if (status === "ready" && trip.need.kind !== "none") host.showToast?.(model ? (name ? L("模型已连接，回到「{name}」接着做。", { name }) : L("模型已连接，可以继续了。"))
+      : name ? L("已经连上，回到「{name}」。", { name }) : L("已连接"));
   };
   function paint() {
     const kind = coverKind(), trip = owner.current(kind);
@@ -199,7 +203,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   document.addEventListener("molis-work:place-changed", event => {
     const detail = detailOf(event), previous = detail?.previous && typeof detail.previous === "object" ? detail.previous as Detail : null;
     const cover = detail?.cover ?? null, before = previous?.cover ?? null;
-    if (!closing && cover !== before) for (const trip of owner.list()) if (!trip.outcome && trip.cover.split(" ")[0] === before) void owner.check(trip.id);
+    if (started && !closing && cover !== before) for (const trip of owner.list()) if (!trip.outcome && trip.cover.split(" ")[0] === before) void owner.check(trip.id);
     paint();
   });
   addEventListener("pagehide", () => leaveReturnWindow(storage, windowId, Date.now()));
@@ -209,8 +213,12 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     owner.reload();
     paint();
   });
-  setTimeout(() => void owner.boot(coverKind()).then(paint), 0);
   return {
+    start() {
+      if (started) return;
+      started = true;
+      void owner.boot(coverKind()).then(paint);
+    },
     open(detail, cover, wasOpen) {
       const asked = detail && typeof detail === "object" ? detail as Detail : {};
       const id = typeof asked.return_id === "string" ? asked.return_id : null;
@@ -219,10 +227,10 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
       const need = returnNeed(asked.need) || needOfAddress(String(asked.href || ""), location.origin, prefix);
       const claim = id !== null && from.kind === "page";
       const opened = owner.open({ ...(id ? { id } : {}), from, need, claim, ...(claim ? { carry: asked.carry } : {}), cover });
-      if (!opened && id) announceEnded(id);
+      if (!opened && id) refuse(id);
       paint();
     },
-    refuse: announceEnded,
+    refuse,
     link(anchor, href, cover, wasOpen) {
       if (wasOpen) return;
       const surface = anchor.closest<HTMLElement>("[data-work-surface]")?.dataset.workSurface || "";

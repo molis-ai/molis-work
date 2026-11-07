@@ -1,4 +1,4 @@
-// SECURITY-INVARIANTS S-142, the Host's half (specs/proactive-assistant/task-grants-platform-area.md §2.3, §4): the route behind the
+// SECURITY-INVARIANTS S-task-grants-area, the Host's half (specs/proactive-assistant/task-grants-platform-area.md §2.3, §4): the route behind the
 // platform's reads area on a plugin page is the trusted shell's alone. It takes only the outer page header without the frame bridge's,
 // names only the task's key, finds the installation and the project from the page's authority, and writes as the person through
 // `agent.task_grants.set`. Every refusal asserts that the task's grant records did not change. The shell's half (where the area is drawn
@@ -46,7 +46,7 @@ async function world(t: TestContext) {
   return { f, open, records };
 }
 
-test("S-142 TGA-08 TGA-09 TGA-17 the reads area's route is the trusted shell's, takes the installation from the page, and writes nothing once the page is gone", { timeout: 60_000 }, async t => {
+test("S-task-grants-area TGA-08 TGA-09 TGA-17 the reads area's route is the trusted shell's, takes the installation from the page, and writes nothing once the page is gone", { timeout: 60_000 }, async t => {
   const { f, open, records } = await world(t);
   const a = await open("Area one"), b = await open("Area two");
   const post = (endpoint: string, headers: Record<string, string>, body: unknown) => f.request(endpoint, { method: "POST", headers, body });

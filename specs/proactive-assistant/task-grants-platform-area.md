@@ -190,7 +190,7 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 ## 4. 新的安全不变量（问题 3）
 
-编号：**S-1xx（暂编，落地时按表顺延）**。S-108 已被第 13 批「换用账号」占用；P2 的「按任务的授权主体」那条（实施方案 §4 原暂编 S-108）先落就先取号，本条排在它后面。
+名称：**`S-task-grants-area`**（记录在 [`docs/system/security-invariants/S-task-grants-area.md`](../../docs/system/security-invariants/S-task-grants-area.md)；起草时暂编 S-1xx、P3-1 写手暂编 S-142，main 改成每条一个文件、按语义命名之后用名字，不再取号）。P2 的「按任务的授权主体」那条是 [`S-task-grant-subjects`](../../docs/system/security-invariants/S-task-grant-subjects.md)。
 
 **一句话**：插件页面里那块「能读的数据」只由工作台画在插件框外、只由本人对它的真实点按改动：插件只给位置与自己任务的 key，读不到其中的类别与开关（高度也只按宽度取档），不能让它透明、移位、被盖住，也不能替本人点；不满足时开关不响应、不写任何记录。
 
@@ -363,6 +363,6 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 | --- | --- | --- | --- |
 | P3-0a 页面接口合同 | 第 7 节 P3-0a | D 写、C1 评 | 本稿审过；#1836 让出 SDK 快照 |
 | P3-0b Manifest `task_subjects` 合同 | 第 7 节 P3-0b | C1 | 本稿审过（可与 P3-0a 并行，先合） |
-| P3-1 区域与路由 | 外层画区域与六条检查（含 D1 的原因提示与 `task-grants-reveal`、D2 的常驻变化行）、框里的报位置、宿主路由、不变量行与 TGA-01～19、高度两档的常量、组件板标本（平台区域外框与标头）、中英文词条 | D | P3-0a、P2 的三个平台动作已在宿主可调且 `set` 按 3.6 R1～R5 |
+| P3-1 区域与路由 | 外层画区域与六条检查（含 D1 的原因提示与 `task-grants-reveal`、D2 的常驻变化行）、框里的报位置、宿主路由、不变量记录 `S-task-grants-area` 与 TGA-01～19、高度两档的常量、组件板标本（平台区域外框与标头）、中英文词条 | D | P3-0a、P2 的三个平台动作已在宿主可调且 `set` 按 3.6 R1～R5 |
 | P3-2 Schedule 接入 | 任务详情里放空元素、`place`、用 `onChange` 更新列表标记；Manifest 加 `task_subjects: { kind: "schedule_task" }` | E（规则 7） | P3-1、P3-0b |
 | P3-3 「授权与放行」按任务列出 | 第 5 节（含 5.2 取标题） | D | P2、P3-0b |

@@ -1,4 +1,4 @@
-// SECURITY-INVARIANTS S-142, the shell's half (specs/proactive-assistant/task-grants-platform-area.md §3, §4): the reads area of a
+// SECURITY-INVARIANTS S-task-grants-area, the shell's half (specs/proactive-assistant/task-grants-platform-area.md §3, §4): the reads area of a
 // plugin page's task is drawn by the workbench outside the plugin's frame and changes only on the person's own, deliberate press. The
 // page gives an empty element and a key; what it can make the area do (move it, cover it, half show it, press for the person, send it
 // made-up messages) writes nothing. Every refusal asserts that no `set` went to the Host and that the grant records did not change.
@@ -99,7 +99,7 @@ async function open(t: TestContext) {
   return { browser, child, prefix, visit, place, placed, shown, sent, sets, down, records, line, centre, press, key, settle, ready, control };
 }
 
-test("S-142 TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is the shell's: the page's styles, made-up messages and scripted clicks change nothing, and the person's own press writes once", { timeout: 120_000 }, async t => {
+test("S-task-grants-area TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is the shell's: the page's styles, made-up messages and scripted clicks change nothing, and the person's own press writes once", { timeout: 120_000 }, async t => {
   const p = await open(t); if (!p) return;
   const { browser, child } = p;
   await p.place("tga", "daily", "left:24px;top:24px;width:560px");
@@ -220,7 +220,7 @@ test("S-142 TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is the shell's: t
   assert.equal(await child.evaluate("document.getElementById('tga').getBoundingClientRect().height"), WIDE);
 });
 
-test("S-142 TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19 a press counts only on an area that has held still, shown whole and on top, for long enough", { timeout: 150_000 }, async t => {
+test("S-task-grants-area TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19 a press counts only on an area that has held still, shown whole and on top, for long enough", { timeout: 150_000 }, async t => {
   const p = await open(t); if (!p) return;
   const { browser, child } = p;
   await p.place("tga", "daily", "left:24px;top:24px;width:560px");
@@ -367,7 +367,7 @@ test("S-142 TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19 a press coun
   assert.equal(await p.records(), granted, "nothing but the one deliberate press wrote");
 });
 
-test("S-142 TGA-12 TGA-13 TGA-14 TGA-17 a change sends every category the task holds as recorded, allows and removes only on the person's word, and a changed key or a closed page writes nothing", { timeout: 150_000 }, async t => {
+test("S-task-grants-area TGA-12 TGA-13 TGA-14 TGA-17 a change sends every category the task holds as recorded, allows and removes only on the person's word, and a changed key or a closed page writes nothing", { timeout: 150_000 }, async t => {
   const p = await open(t); if (!p) return;
   const { browser } = p;
   const REMINDERS = "io.molis.work.schedule\nreminders", OPERATIONS = "io.molis.work.schedule\noperations", INBOX = "io.molis.work.inbox\ninbox";

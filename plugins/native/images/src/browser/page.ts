@@ -14,7 +14,7 @@ const elementsOf = (root: HTMLElement): Elements => {
 
 const freshState = (context: string): ImagesState => ({
   context, conns: [], authConnections: [], jobs: [], cid: "", jobId: "", editingId: "", editingFormat: "openai-images", editingAuth: "",
-  pending: null, submitting: false, saving: false, cancelling: false, listSeq: 0, loadSeq: 0, timer: 0,
+  pending: null, resumeConnection: null, submitting: false, saving: false, cancelling: false, listSeq: 0, loadSeq: 0, timer: 0,
   listSignature: "", resultSignature: "", viewSignal: undefined,
 });
 

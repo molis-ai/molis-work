@@ -67,6 +67,7 @@ export interface ImagesState {
   editingFormat: ImageApiFormat;
   editingAuth: string;
   pending: Pending | null;
+  resumeConnection: string | null;
   submitting: boolean;
   saving: boolean;
   cancelling: boolean;

@@ -125,6 +125,7 @@ async function click(page: ImagesPage, event: Event): Promise<void> {
   const origin = event.target as Element | null;
   const link = origin?.closest('a[href^="/settings/"]');
   if (link && page.el.dialog.contains(link)) {
+    page.s.resumeConnection = page.s.cid;
     page.el.dialog.close();
     return;
   }

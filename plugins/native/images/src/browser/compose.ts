@@ -24,7 +24,8 @@ async function needKey(page: ImagesPage, connection: ImageConnection): Promise<v
     if (!page.life.alive) return;
     if (outcome.status !== "connected") { page.say(page.L("images.compose.key-cancelled")); return; }
     await loadConnections(page);
-    if (page.s.cid === connection.id && page.pickedConn()?.available !== false) await submit(page);
+    // Still the same service: generated once more (should it still have no key, submit finds this card's place taken and stops).
+    if (page.s.cid === connection.id) await submit(page);
   } catch (error) {
     if ((error as Error).name !== "AbortError") page.say(messageOf(error) || page.L("images.error.request"), true);
   } finally { generate.classList.replace("mw-btn--secondary", "mw-btn--primary"); if (page.life.alive) place.hidden = true; }
@@ -59,7 +60,7 @@ async function submit(page: ImagesPage): Promise<void> {
   } catch (error) {
     if (currentContext !== page.projectId()) return;
     // The key went away between reading the services and starting (another page removed it): asked for in place, as above.
-    if ((error as { code?: string }).code === "images.key_required") { void loadConnections(page).then(() => { const now = page.pickedConn(); if (now?.available === false) void needKey(page, now); }).catch(() => undefined); return; }
+    if ((error as { code?: string }).code === "images.key_required") { void needKey(page, connection); return; }
     page.say(unconfirmed(error) ? L("images.compose.unconfirmed") : messageOf(error), true);
     void loadJobs(page).catch(() => undefined);
   } finally {

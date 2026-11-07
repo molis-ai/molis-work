@@ -431,6 +431,7 @@ const SCREENS: Array<{ name: string; width: number; height?: number }> = [
 ];
 
 // K05-02: landscape phones keep every chooser action visible and reachable.
+// T01-ACCOUNT-ARRIVAL-01: the narrow titlebar has room for both account entries.
 test("every state of the chooser lays out cleanly at every width, in light and dark: nothing overlaps, is cut off, or out of reach", { timeout: 600_000 }, async t => {
   const chooser = await openChooser(t);
   if (!chooser) return;

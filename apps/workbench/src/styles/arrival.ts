@@ -329,6 +329,7 @@ export const ARRIVAL_STYLES = String.raw`
   }
   .ob-model-form { display: grid; gap: 14px; margin-top: 16px; }
   .ob-model-form .mw-input { width: 100%; }
-  @media(max-width:360px){.arrival-brand .mw-wordmark{display:none}}
+  /* Keep the brand glyph and give phone-width controls the wordmark’s room. */
+  @media(max-width:420px){.arrival-brand .mw-wordmark{display:none}}
   ${BACKGROUND_TASKS_MENU_STYLES}
 `;

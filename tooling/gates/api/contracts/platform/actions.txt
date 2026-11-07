@@ -1666,6 +1666,12 @@ export interface FileSourceKind {
     surface: string;
 }
 
+export type FlatUnion<U> = Expand<{
+    [K in AllKeys<U> as IsRequired<U, K> extends true ? K : never]: ValueOf<U, K>;
+} & {
+    [K in AllKeys<U> as IsRequired<U, K> extends true ? never : K]?: Exclude<ValueOf<U, K>, undefined>;
+}>;
+
 export interface FragmentActionOffer {
     readonly offer_id: string;
     readonly title: string;
@@ -2193,6 +2199,48 @@ export declare const ITEM_DECLARATION_LIMITS: {
     readonly example: 120;
     readonly examples: 3;
 };
+
+export type InferActionInput<S> = S extends {
+    readonly const: infer C;
+} ? C : S extends {
+    readonly enum: readonly (infer E)[];
+} ? E : S extends {
+    readonly oneOf: readonly (infer U)[];
+} ? (U extends unknown ? InferActionInput<U> : never) : S extends {
+    readonly anyOf: readonly (infer U)[];
+} ? (U extends unknown ? InferActionInput<U> : never) : S extends {
+    readonly type: readonly (infer T)[];
+} ? (T extends unknown ? InferActionInput<Omit<S, "type"> & {
+    readonly type: T;
+}> : never) : S extends {
+    readonly type: "array";
+    readonly maxItems: 0;
+} ? [] : S extends {
+    readonly type: "array";
+    readonly items: infer I extends readonly unknown[];
+} ? OptionalFrom<{
+    -readonly [K in keyof I]: InferActionInput<I[K]>;
+}, S extends {
+    readonly minItems: infer N extends number;
+} ? N : 0> : S extends {
+    readonly type: "array";
+    readonly minItems: infer N extends number;
+    readonly maxItems: infer M extends number;
+    readonly items: infer I;
+} ? (number extends N ? InferActionInput<I>[] : N extends M ? RepeatTuple<InferActionInput<I>, N> : InferActionInput<I>[]) : S extends {
+    readonly type: "array";
+    readonly items: infer I;
+} ? InferActionInput<I>[] : S extends {
+    readonly type: "object";
+    readonly properties: infer P;
+} ? Prop<P, S extends {
+    readonly required: infer R extends readonly string[];
+} ? (string extends R[number] ? readonly [] : R) : readonly []> : S extends {
+    readonly type: "object";
+    readonly additionalProperties: infer A;
+} ? (A extends object ? Readonly<Record<string, InferActionInput<A>>> : Readonly<Record<string, unknown>>) : S extends {
+    readonly type: infer T;
+} ? (string extends T ? unknown : Simple<T>) : unknown;
 
 export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
@@ -3204,6 +3252,8 @@ export declare function assertHomeEventWindow(window: HomeEventWindow): void;
 
 export declare function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient;
 
+export declare function bindActionHandler<I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>, extra?: Pick<ActionHandlerBinding, "execution" | "availability">): ActionHandlerBinding;
+
 export declare function bindArtifactCompare(definition: ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>, artifactTypeId: string, current: (objectId: string, caller: ActionCallContext) => unknown | null, same: (payload: unknown, object: unknown) => boolean, elsewhere?: (objectId: string, caller: ActionCallContext) => boolean): ActionHandlerBinding;
 
 export declare function bindArtifactContinue(definition: ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>, artifactTypeIds: readonly string[], start: (artifact: ArtifactVersionRecord, caller: ActionExecutionContext) => ArtifactContinueResult["open"] | Promise<ArtifactContinueResult["open"]>): ActionHandlerBinding;
@@ -3299,6 +3349,8 @@ export declare function fileContentOf(input: {
 }): FileContent;
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
+
+export declare const inputSchemaFor: <I>() => <const S extends ActionSchema>(schema: S & InputMatches<I, S>) => ActionSchema;
 
 export declare function isActionErrorKind(value: unknown): value is ActionErrorKind;
 
@@ -3445,6 +3497,12 @@ export declare function workExecutorRoleOf(action: {
 
 // Declarations the exports above refer to, which no entry exports itself:
 
+type AllKeys<U> = U extends unknown ? keyof U : never;
+
+type DeepExcess<I, T> = unknown extends T ? never : true extends IsUnion<NonNullable<T>> ? never : NonNullable<I> extends readonly unknown[] ? (NonNullable<T> extends readonly unknown[] ? ElementExcess<NonNullable<I>, NonNullable<T>> : never) : NonNullable<I> extends object ? (NonNullable<T> extends object ? (string extends keyof NonNullable<I> ? never : string extends keyof NonNullable<T> ? (unknown extends NonNullable<T>[string & keyof NonNullable<T>] ? keyof NonNullable<I> : never) : Exclude<keyof NonNullable<I>, keyof NonNullable<T>> | {
+    [K in keyof NonNullable<I> & keyof NonNullable<T>]-?: DeepExcess<NonNullable<I>[K], NonNullable<T>[K]>;
+}[keyof NonNullable<I> & keyof NonNullable<T>]) : never) : never;
+
 interface DestinationDeclaration {
     readonly title: string;
     readonly verb: string;
@@ -3454,10 +3512,44 @@ interface DestinationDeclaration {
     readonly places?: readonly SurfacePlace[];
 }
 
+type ElementExcess<I extends readonly unknown[], T extends readonly unknown[]> = {
+    [K in keyof I]-?: K extends keyof T ? DeepExcess<I[K], T[K]> : never;
+}[number];
+
+type Expand<T> = T extends object ? {
+    [K in keyof T]: T[K];
+} & {} : T;
+
+type InputMatches<I, S> = [InferActionInput<S>] extends [I] ? [I] extends [StrictTarget<InferActionInput<S>>] ? [DeepExcess<I, InferActionInput<S>>] extends [never] ? [DeepExcess<InferActionInput<S>, I>] extends [never] ? unknown : "schema 有接口没写的键" : "接口有 schema 不认识的键" : "接口比 schema 宽" : "schema 比接口松";
+
+type IsRequired<U, K extends PropertyKey> = [U] extends [U extends unknown ? (K extends keyof U ? (Pick<U, K> extends Required<Pick<U, K>> ? U : never) : never) : never] ? true : false;
+
+type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : never;
+
+type OptionalFrom<T extends readonly unknown[], Min extends number, Head extends unknown[] = []> = Head["length"] extends Min ? [...Head, ...Partial<T>] : T extends readonly [infer F, ...infer R] ? OptionalFrom<R, Min, [...Head, F]> : Head;
+
+type Prop<P, R extends readonly string[]> = Expand<{
+    readonly [K in keyof P & R[number]]: InferActionInput<P[K]>;
+} & {
+    readonly [K in Exclude<keyof P, R[number]>]?: InferActionInput<P[K]>;
+}>;
+
+type RepeatTuple<T, N extends number, Acc extends unknown[] = []> = Acc["length"] extends N ? Acc : Acc["length"] extends 8 ? T[] : RepeatTuple<T, N, [...Acc, T]>;
+
 type RoundRef = {
     session_id: string;
     run_id: string;
 };
+
+type Simple<T> = T extends "string" ? string : T extends "integer" | "number" ? number : T extends "boolean" ? boolean : T extends "null" ? null : T extends "object" ? Record<string, unknown> : T extends "array" ? unknown[] : unknown;
+
+type StrictTarget<T> = unknown extends T ? T : string extends keyof T ? (unknown extends T[keyof T] ? object : {
+    readonly [K in keyof T]: StrictTarget<T[K]>;
+}) : {
+    readonly [K in keyof T]: StrictTarget<T[K]>;
+};
+
+type ValueOf<U, K extends PropertyKey> = U extends unknown ? (K extends keyof U ? U[K] : never) : never;
 
 interface WorkflowStationSpec {
     id: string;

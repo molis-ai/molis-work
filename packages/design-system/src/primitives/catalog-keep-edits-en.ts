@@ -11,7 +11,8 @@ export const KEEP_EDITS_BOARD_EN: Readonly<Record<string, string>> = {
 
   "要处理的事：一个主按钮": "Something to deal with: one primary button",
   "两条出路：主按钮排在后面": "Two ways out: the primary comes last",
-  "慢了才出转圈，字还在": "A spinner only when it is slow, the words stay",
+  "慢了才出转圈，按钮不变宽": "A spinner only when it is slow, the button keeps its width",
+  "最挤：按钮的字放不下时折行": "Most crowded: a button's words wrap when they cannot fit",
   "坏消息：说得平和，给下一步": "Bad news: said calmly, with a next step",
   "只是知会：没有主按钮": "Only telling you: no primary button",
   "完成：升起，对勾落定": "Done: rises in, the tick settles",
@@ -29,7 +30,8 @@ export const KEEP_EDITS_BOARD_EN: Readonly<Record<string, string>> = {
   "已载入最新版": "Latest version loaded",
   "判断说明两边都改了，你写的就在它下面。": "Instructions: changed on both sides; yours is right under it.",
   "载入最新版": "Load latest",
-  "正在载入…": "Loading…",
+  "载入最新版之后再逐项决定：两边都改的字段放回你写的，别处改的字段留着最新版，然后从头看一遍再发布这条判断规则":
+    "Load the latest version, then decide field by field: put back what you wrote where both sides changed, keep the latest elsewhere, and read it all once more before publishing this judgment rule",
   "再试一次": "Try again",
   "存成新规则": "Save as new rule",
   "看看改了什么": "See what changed",

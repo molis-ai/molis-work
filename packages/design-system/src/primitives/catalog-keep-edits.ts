@@ -10,13 +10,12 @@ import type { Say } from "./catalog-composer.js";
 export const KEEP_EDITS_BOARD_STYLES = `
   /* 1 · Buttons inside an alert: under its words, so the next step reads as the answer to what the alert says. One shape for
      every alert with a next step; a page never writes its own row. */
-  .mw-alert { min-width: 0; }
+  /* The column is the alert's own width, so a long button wraps instead of widening the alert and its words. */
+  .mw-alert { min-width: 0; grid-template-columns: minmax(0, 1fr); }
   .mw-alert > :is(strong, p) { min-width: 0; overflow-wrap: anywhere; }
-  .mw-alert__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-  .mw-alert > p + .mw-alert__actions { margin-top: 0; }
-  /* A label longer than the row is cut rather than running out of the alert; the row's button stays one line. */
-  .mw-alert__actions > .mw-btn { max-width: 100%; }
-  .mw-alert__actions > .mw-btn > [data-slot="button-label"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .mw-alert__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  /* An action's words are never cut (DESIGN): only a label that cannot fit the row wraps, and only that button grows. */
+  .mw-alert__actions > .mw-btn { max-width: 100%; height: auto; white-space: normal; text-align: start; padding-block: 4px; }
   .mw-alert__title { display: flex; align-items: flex-start; gap: 6px; }
   .mw-alert__mark { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; }
   .mw-alert[tabindex="-1"]:focus { outline: none; }
@@ -51,8 +50,9 @@ export const KEEP_EDITS_BOARD_STYLES = `
   @media (forced-colors: active) { .mw-step-dot { forced-color-adjust: none; background: Highlight; } }
 
   /* 4 · A field whose content just changed: the same [data-craft-new] moment on the same clock, but the row's opaque wash would hide
-     the words in a field, so here it is translucent and reaches a little past the field's edge. */
-  [data-craft-new="field"]::after { inset: -4px -8px; border-radius: var(--r-control); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+     the words in a field. A little of the accent itself shows as much as the row's wash does and leaves the words readable (the soft
+     tone is close to the paper, so over words it only fades them); it reaches a little past the field's edge. */
+  [data-craft-new="field"]::after { inset: -4px -8px; border-radius: var(--r-control); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 
   @media (prefers-reduced-motion: reduce) { .mw-alert--rise, .mw-alert--rise .mw-alert__mark, .mw-alert.is-nudged, .mw-kept--rise { animation: none; } }
   html[data-craft-still] :is(.mw-alert--rise, .mw-alert--rise .mw-alert__mark, .mw-alert.is-nudged, .mw-kept--rise) { animation: none !important; }
@@ -66,6 +66,7 @@ export const KEEP_EDITS_BOARD_STYLES = `
 
 const LONG_TITLE = "这条规则在别处改过，而且改的正好是你现在写的这几个字段：判断说明、判断条件和结果怎样用";
 const LONG_BODY = "你写的都还在，还没存。载入最新版之后，两边都改的字段会把你写的摆在该字段正下方，只有你改的字段留着，存下去的可能是两边都没见过的组合，所以放回之前请先看一眼。";
+const LONG_ACTION = "载入最新版之后再逐项决定：两边都改的字段放回你写的，别处改的字段留着最新版，然后从头看一遍再发布这条判断规则";
 const SHORT_KEPT = "只看客户直接发来的消息，转发的不算。";
 const LATEST_KEPT = "客户发来的消息都算，也包括转发过来的。";
 const LONG_KEPT = "只看客户直接发来的消息，转发的不算。如果消息里提到了退款、合同到期或者投诉，就算值得跟进；只是问候、自动回复或者已经由别的同事回复过的，都不算。遇到拿不准的情况，宁可多留一条，也不要漏掉，因为漏掉一条要跟进的消息比多看一条的代价大得多。周末和节假日发来的也一样处理，不要因为时间不对就跳过。";
@@ -84,12 +85,13 @@ function alertActionsSection(say: Say): string {
   return section("alert-actions", say("提示里的按钮 / Alert Actions"), `<div class="mw-catalog__specimens">
     ${specimen(say("要处理的事：一个主按钮"), stack(renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), actions: [load()] })))}
     ${specimen(say("两条出路：主按钮排在后面"), stack(renderAlert({ tone: "warning", title: say("这条规则又被改了一次"), body: say("可能还有人在改它。你写的都还在，还没存。"), actions: [keepAsNew(), load()] })))}
-    ${specimen(say("慢了才出转圈，字还在"), stack(renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), actions: [{ label: say("正在载入…"), variant: "primary", icon: "refresh", loading: true }] })))}
+    ${specimen(say("慢了才出转圈，按钮不变宽"), stack(renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), actions: [{ ...load(), loading: true }] })))}
     ${specimen(say("坏消息：说得平和，给下一步"), stack(renderAlert({ tone: "warning", title: say("最新版还没载入"), body: say("连接好像断了。你写的都还在，连上后再试一次。"), actions: [{ label: say("再试一次"), variant: "primary" }] })))}
     ${specimen(say("只是知会：没有主按钮"), stack(renderAlert({ title: say("这条规则刚在别处改过，已换成最新版"), body: say("发布前看一眼。"), actions: [{ label: say("看看改了什么") }] })))}
     ${specimen(say("完成：升起，对勾落定"), stack(`<div data-keep-rise>${renderAlert({ tone: "success", state: "done", rise: true, title: say("已载入最新版"), body: say("判断说明两边都改了，你写的就在它下面。"), actions: [{ label: hide(say, "Dismiss") }] })}</div><div class="mw-catalog__row">${replay("data-keep-replay-rise", "再看一遍")}</div>`))}
     ${specimen(say("被拦下时：轻跳一下，焦点到主按钮"), stack(`<div data-keep-nudge>${renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), attrs: { tabindex: "-1" }, actions: [load()] })}</div><div class="mw-catalog__row">${renderButton({ label: say("发布 v1"), variant: "secondary", attrs: { "data-keep-press": "" } })}</div>`))}
     ${specimen(say("最挤：长标题、长正文、两个长按钮"), stack(renderAlert({ tone: "warning", title: say(LONG_TITLE), body: say(LONG_BODY), actions: [{ label: say("用我写的另起一条") }, { label: say("载入最新版，再放回"), variant: "primary" }] })))}
+    ${specimen(say("最挤：按钮的字放不下时折行"), stack(renderAlert({ tone: "warning", title: say("这条规则在别处改过"), body: say("你写的都还在，还没存。"), actions: [{ label: say("存成新规则") }, { label: say(LONG_ACTION), variant: "primary", attrs: { "data-keep-long-label": "" } }] })))}
   </div>`);
 }
 

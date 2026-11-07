@@ -37,6 +37,15 @@ test("what goes into an alert's actions is escaped: words and attributes", () =>
   assert.match(html, /data-arg="&quot;&gt;&lt;script&gt;x\(\)&lt;\/script&gt;"/);
 });
 
+test("an alert's role is status unless named, and null leaves it to the live region around it", () => {
+  const plain = '<div class="mw-alert mw-alert--info" data-slot="alert" role="status"><strong>t</strong></div>';
+  assert.equal(renderAlert({ title: "t" }), plain);
+  assert.equal(renderAlert({ title: "t", role: undefined }), plain);
+  assert.equal(renderAlert({ title: "t", role: "status" }), plain);
+  assert.equal(renderAlert({ title: "t", role: "alert" }), plain.replace('role="status"', 'role="alert"'));
+  assert.equal(renderAlert({ title: "t", role: null }), plain.replace(' role="status"', ""));
+});
+
 test("an alert's mark, rise and attributes appear only when asked for", () => {
   const done = renderAlert({ title: "已载入", tone: "success", state: "done", rise: true, attrs: { tabindex: "-1" } });
   assert.match(done, /^<div class="mw-alert mw-alert--success mw-alert--rise" data-slot="alert" role="status" tabindex="-1"><strong class="mw-alert__title"><span class="mw-alert__mark" aria-hidden="true">/);

@@ -91,7 +91,7 @@ Integration Manifest 用 `source_presentations` 声明纯展示；`definePolling
 - `@molis-ai/molis-work-plugin-sdk/browser`：会被打进插件自己页面包的 DOM 工具，没有 import、不碰 Node。`placeFloating`、`placeOverlay`、`pinAt`（浮层放哪里）、`followScroll`、`scrollShouldFollow`（跟随滚动）。
 - `@molis-ai/molis-work-plugin-sdk/page-globals`：宿主往每个插件页面注入的全局（`window.molisReflow`、`molisShowMore`、`molisMediaZoom` 等）与页面端口（`InteractionClient`、`Reflow` 等）的类型。插件的浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals"` 纳入，运行时什么也不加载。
 - 标记和类名是合同：部件写出的 `mw-btn`、`data-slot`、`data-work-surface` 等由宿主的样式表和页面脚本定义，一个类名都不能没有规则。`tests/sdk-ui-markup.test.ts` 把每个部件用典型输入渲染一遍，收集类名，逐个核对宿主样式表里有规则（RAC-551）；公开形状进 `tooling/gates/api/plugin-sdk/` 的快照，改它走 `pnpm api:update` 并在 PR 里写对插件作者的影响。
-- 接住「内容在别处变了」的部件（[定样](../../docs/design/rule-stale-reload/README.md)）：`renderAlert` 的 `actions`（提示里的按钮，`MwButtonOptions` 的列表，默认 ghost，转义归 `renderButton`）、`state`（标题前的状态环）、`rise`（第一次出现时升起、对勾落定，重绘时不传）、`attrs`；不传时输出不变。`renderKept`（你写的、最新版那一行）、`renderStepDot`（步骤数字上的小点，带可读名称）。样式现在是组件板自己的（`packages/design-system/src/primitives/catalog-keep-edits.ts`），N14 的界面把它们挪进页面样式表之前，页面用了也不成样；`tests/keep-edits-parts.test.ts` 的 `UNTIL_N14` 正好列着还差规则的类名。
+- 接住「内容在别处变了」的部件（[定样](../../docs/design/rule-stale-reload/README.md)）：`renderAlert` 的 `actions`（提示里的按钮，`MwButtonOptions` 的列表，默认 ghost，转义归 `renderButton`）、`state`（标题前的状态环）、`rise`（第一次出现时升起、对勾落定，重绘时不传）、`role`（默认 `status`，外层已有常驻读屏区时传 `null`）、`attrs`；不传时输出不变。`renderKept`（你写的、最新版那一行）、`renderStepDot`（步骤数字上的小点，带可读名称）。样式现在是组件板自己的（`packages/design-system/src/primitives/catalog-keep-edits.ts`），N14 的界面把它们挪进页面样式表之前，页面用了也不成样；`tests/keep-edits-parts.test.ts` 的 `UNTIL_N14` 正好列着还差规则的类名。
 - 伙伴页面舞台（Files、Git、Diff、Text Stats 嵌进 Coding 页的那种）不在这里：四个插件各自用上面的部件写自己的舞台。
 
 ## 动作与判断消费场景

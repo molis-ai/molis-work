@@ -7,12 +7,12 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // N14's four parts on the component board (docs/design/rule-stale-reload/README.md「组件板新增」, decided 2026-11-06, plan A): buttons
 // inside an alert, the kept row, the dot on a step and a field's arrival wash, in Chinese and English, light and dark, inside the
-// window at 1440, 1024 and 390, with the longest words they meet. Keyboard: the kept row's button keeps the focus when it swaps, a
+// window at 1440, 1024, 390 and 320, with the longest words they meet. Keyboard: the kept row's button keeps the focus when it swaps, a
 // blocked press sends the focus to the alert's primary. Motion: only on the tokens, and quiet under reduced motion.
 // MOLIS_WORK_BOARD_SHOTS=1 also writes shots into the ignored review folder.
 
 const SECTIONS = ["alert-actions", "kept", "step-dot", "field-wash"];
-const WIDTHS = [1440, 1024, 390] as const;
+const WIDTHS = [1440, 1024, 390, 320] as const;
 const SCOPE = SECTIONS.map((id) => `#${id}`).join(", ");
 
 const SEEN = `(() => {
@@ -33,8 +33,18 @@ const SEEN = `(() => {
     // Nothing runs past the alert or kept row it belongs to, and the crowded alert is as wide as the plain ones.
     escaped: buttons.filter((b) => b.getBoundingClientRect().right > b.closest('.mw-alert, .mw-kept').getBoundingClientRect().right).map((b) => b.textContent.trim().slice(0, 24)),
     alertWidths: [...new Set([...document.querySelectorAll('#alert-actions .mw-alert')].map((a) => Math.round(a.getBoundingClientRect().width)))],
-    // A button with words stays on one line, and its words are not cut.
-    wrapped: buttons.filter((b) => !b.classList.contains('mw-kept__more') && (b.getBoundingClientRect().height > 46 || b.scrollWidth > b.clientWidth + 1)).map((b) => b.textContent.trim().slice(0, 24) + ' ' + Math.round(b.getBoundingClientRect().height)),
+    // A button's words wrap only when they cannot fit the row, and are never cut.
+    wrapped: buttons.filter((b) => { if (b.classList.contains('mw-kept__more')) return false;
+      const words = document.createRange(); words.selectNodeContents(b.querySelector('[data-slot=button-label]'));
+      const lines = new Set([...words.getClientRects()].map((r) => Math.round(r.top))).size, row = b.parentElement.getBoundingClientRect().width;
+      return lines > 1 && b.getBoundingClientRect().width < row - 1; }).map((b) => b.textContent.trim().slice(0, 24)),
+    cut: buttons.filter((b) => b.scrollWidth > b.clientWidth + 1 || b.scrollHeight > b.clientHeight + 1 || getComputedStyle(b.querySelector('[data-slot=button-label]')).textOverflow === 'ellipsis').map((b) => b.textContent.trim().slice(0, 24)),
+    // Nothing in an alert runs past its padding: words, the row or its buttons.
+    outOfAlert: [...document.querySelectorAll('#alert-actions .mw-alert')].flatMap((alert) => { const edge = alert.getBoundingClientRect().right - parseFloat(getComputedStyle(alert).paddingRight);
+      return [...alert.querySelectorAll('*')].filter((el) => visible(el) && el.getBoundingClientRect().right > edge + 1).slice(0, 2).map((el) => el.tagName.toLowerCase() + ' ' + Math.round(el.getBoundingClientRect().right - edge)); }),
+    longLabel: (() => { const b = document.querySelector('[data-keep-long-label]'); return { length: b.textContent.trim().length, height: b.getBoundingClientRect().height, peer: b.previousElementSibling.getBoundingClientRect().height }; })(),
+    // A loading button is as wide as the same button at rest.
+    loadingWidth: (() => { const [idle, busy] = [...document.querySelectorAll('#alert-actions .mw-alert')].slice(0, 3).filter((a, i) => i !== 1).map((a) => a.querySelector('.mw-btn--primary').getBoundingClientRect().width); return Math.abs(idle - busy); })(),
     smallTargets: buttons.filter((b) => b.getBoundingClientRect().height < 44).map((b) => b.textContent.trim().slice(0, 24) + ' ' + Math.round(b.getBoundingClientRect().height)),
     stepDots: [...document.querySelectorAll('#step-dot .mw-step-dot')].filter(visible).map((dot) => { const d = dot.getBoundingClientRect(), n = dot.parentElement.getBoundingClientRect();
       return { off: Math.max(Math.abs((d.left + d.right) / 2 - n.right), Math.abs((d.top + d.bottom) / 2 - n.top)), name: dot.getAttribute('aria-label'), inName: dot.closest('button').querySelector('.mw-step-dot') === dot }; }),
@@ -56,7 +66,7 @@ test("N14: the board's four parts are named, in both languages and themes, insid
 
   for (const lang of ["zh", "en"] as const) for (const width of WIDTHS) for (const theme of ["light", "dark"] as const) {
     await open(lang, width, theme);
-    const seen = await evaluate<{ sections: string[]; words: string; unnamed: number; pageScroll: number; spills: string[]; escaped: string[]; alertWidths: number[]; wrapped: string[]; smallTargets: string[]; stepDots: Array<{ off: number; name: string; inName: boolean }> }>(SEEN);
+    const seen = await evaluate<{ sections: string[]; words: string; unnamed: number; pageScroll: number; spills: string[]; escaped: string[]; alertWidths: number[]; wrapped: string[]; cut: string[]; outOfAlert: string[]; longLabel: { length: number; height: number; peer: number }; loadingWidth: number; smallTargets: string[]; stepDots: Array<{ off: number; name: string; inName: boolean }> }>(SEEN);
     const at = `${lang} ${width}px ${theme}`;
     assert.deepEqual(seen.sections, SECTIONS, "every part has its section, in order");
     if (lang === "en") assert.equal(seen.words.match(/[㐀-鿿]+/g)?.join(" ") ?? "", "", `${at}: no Chinese is left in English`);
@@ -65,8 +75,13 @@ test("N14: the board's four parts are named, in both languages and themes, insid
     assert.deepEqual(seen.spills, [], `${at}: nothing runs past its section`);
     assert.deepEqual(seen.escaped, [], `${at}: a button stays inside its alert or row`);
     assert.equal(seen.alertWidths.length, 1, `${at}: every alert has the same width (${seen.alertWidths})`);
-    assert.deepEqual(seen.wrapped, [], `${at}: a button's words stay on one line, whole`);
-    if (width === 390) assert.deepEqual(seen.smallTargets, [], `${at}: the alerts' and kept rows' buttons are 44px targets on a phone`);
+    assert.deepEqual(seen.wrapped, [], `${at}: a button's words wrap only when they cannot fit the row`);
+    assert.deepEqual(seen.cut, [], `${at}: a button's words are never cut`);
+    assert.deepEqual(seen.outOfAlert, [], `${at}: nothing runs past an alert's padding`);
+    assert.ok(seen.longLabel.length > 40, "the long label is really long");
+    assert.ok(seen.longLabel.height > seen.longLabel.peer, `${at}: only the button that cannot fit grows (${seen.longLabel.height} vs ${seen.longLabel.peer})`);
+    assert.ok(seen.loadingWidth <= 0.5, `${at}: a loading button keeps its width (${seen.loadingWidth}px)`);
+    if (width <= 390) assert.deepEqual(seen.smallTargets, [], `${at}: the alerts' and kept rows' buttons are 44px targets on a phone`);
     assert.ok(seen.stepDots.length >= 3, "the dots on the other steps show");
     for (const dot of seen.stepDots) {
       assert.ok(dot.off <= 6, `${at}: the dot sits on the number's corner (${dot.off}px off)`);
@@ -158,7 +173,7 @@ test("N14: the board's four parts are named, in both languages and themes, insid
   assert.deepEqual(moving.delays, [0, 65, 130], "a group arrives one after another, half a hover apart");
   assert.equal(moving.wash.animation, "craft-landed");
   assert.equal(moving.wash.left, "-8px", "the wash reaches a little past the field");
-  assert.match(moving.wash.background, /color\(srgb .* \/ 0\.\d+\)|rgba\(.*, 0\.\d+\)|color-mix|oklab\(.* \/ 0?\.\d+\)/, `the wash is translucent, so the words show through (${moving.wash.background})`);
+  assert.match(moving.wash.background, /\/ 0\.1\)$/, `the wash is a tenth of the accent, so the words stay readable (${moving.wash.background})`);
 
   // Reduced motion: everything quiet, and the state is the same.
   await open("zh", 1440);

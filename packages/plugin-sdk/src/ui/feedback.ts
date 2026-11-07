@@ -42,15 +42,18 @@ export function renderAlert(options: {
   state?: StateRingState;
   actions?: readonly MwButtonOptions[];
   rise?: boolean;
+  /** Defaults to "status"; null when an enclosing live region already speaks for it. */
+  role?: "status" | "alert" | null;
   attrs?: Record<string, AttrValue>;
 }): string {
+  const role = options.role === undefined ? "status" : options.role;
   const title = options.state
     ? `<strong class="mw-alert__title"><span class="mw-alert__mark" aria-hidden="true">${renderStateRing({ state: options.state })}</span><span>${escapeHtml(options.title)}</span></strong>`
     : `<strong>${escapeHtml(options.title)}</strong>`;
   const actions = options.actions?.length
     ? `<div class="mw-alert__actions">${options.actions.map((action) => renderButton({ ...action, variant: action.variant ?? "ghost" })).join("")}</div>`
     : "";
-  return `<div class="${cx("mw-alert", `mw-alert--${options.tone ?? "info"}`, options.rise && "mw-alert--rise", options.className)}" data-slot="alert" role="status"${renderAttrs(options.attrs)}>${title}${
+  return `<div class="${cx("mw-alert", `mw-alert--${options.tone ?? "info"}`, options.rise && "mw-alert--rise", options.className)}" data-slot="alert"${role ? ` role="${role}"` : ""}${renderAttrs(options.attrs)}>${title}${
     options.body ? `<p>${escapeHtml(options.body)}</p>` : ""
   }${actions}</div>`;
 }

@@ -70,7 +70,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # The version is the root package.json "packageManager", the pin the other workflows use.
       - name: Install pnpm

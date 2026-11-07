@@ -2,6 +2,8 @@ import { collapsePage } from "./view.js";
 import { pagePlacement } from "./placement.js";
 import { pageReviews } from "./reviews.js";
 import { pageEmbeds } from "./embed.js";
+import { pageFramedAreas } from "./framed-area.js";
+import { pageTaskGrants } from "./task-grants-area.js";
 import { downloadFrameFile, downloadPageBlob } from "./links.js";
 import { printPageDocument } from "./files.js";
 import { pageMessages } from "./messages.js";
@@ -144,6 +146,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       if (!node.checkVisibility({ visibilityProperty: true })) return false;
     return scope.visible;
   };
+  const taskGrants = pageTaskGrants(port, scope, pageFramedAreas(scope, root, frame, visible), grant.page_id, route, host.translate, host.translate(frame.title));
   const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),
     theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) }); };
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
@@ -198,6 +201,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "open-behind") { if (scope.visible && typeof message.itemId === "string" && message.itemId.length <= 1000 && typeof message.title === "string") host.openBehind?.(pack.id, message.itemId, message.title.slice(0, 1000)); return; }
     if (message.type === "workspace") { void workspaces(message); return; }
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
+    if (message.type === "task-grants-open" || message.type === "task-grants-layout" || message.type === "task-grants-close") { taskGrants(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") { void drafts(message); return; }
     if (message.type === "context-intake") { makeIntake(message); return; }

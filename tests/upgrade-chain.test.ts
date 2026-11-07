@@ -212,12 +212,50 @@ test("UPG1-01 any failure inside the run rolls the whole chain back and leaves t
   });
 });
 
+test("UPG1-01 a step function that returns a promise fails the upgrade: rolled back, version unchanged, nothing left unhandled", async t => {
+  const unhandled: unknown[] = [];
+  const collect = (reason: unknown) => { unhandled.push(reason); };
+  process.on("unhandledRejection", collect);
+  t.after(() => { process.off("unhandledRejection", collect); });
+  const rejectedThenable = { then: (_resolve: unknown, reject: (reason: unknown) => void) => { reject(new Error("rejected thenable")); } };
+  const hostileThenable = { then: () => { throw new Error("then itself throws"); } };
+  // `=> void` accepts every one of these, so the compiler does not stop them.
+  const cases: ReadonlyArray<readonly [string, Partial<SqliteUpgradeStep>, string]> = [
+    ["an async run that rejects at once", { run: async () => { throw new Error("async run"); } }, "step_failed"],
+    ["an async run that rejects after it wrote and waited", { run: async db => { db.exec("UPDATE notes SET body = 'changed'"); await null; throw new Error("async run"); } }, "step_failed"],
+    ["an async run that succeeds", { run: async () => undefined }, "step_failed"],
+    ["an async run that writes after waiting", { run: async db => { await null; db.exec("UPDATE notes SET body = 'late'"); } }, "step_failed"],
+    ["a run returning a rejected thenable", { run: () => rejectedThenable }, "step_failed"],
+    ["a run returning a thenable whose then throws", { run: () => hostileThenable }, "step_failed"],
+    ["an async verify that rejects at once", { verify: async () => { throw new Error("async verify"); } }, "verify_failed"],
+    ["an async verify that rejects after waiting", { verify: async () => { await null; throw new Error("async verify"); } }, "verify_failed"],
+    ["an async verify that succeeds", { verify: async () => undefined }, "verify_failed"],
+    ["a verify returning a rejected thenable", { verify: () => rejectedThenable }, "verify_failed"],
+  ];
+  for (const [name, step, reason] of cases) await t.test(name, async t => {
+    const { path } = seededV1(t);
+    const before = stateOf(path);
+    const baseline: SqliteBaseline = { version: 2, schema: V2, upgrades: [{ ...addTag, ...step }] };
+    onStore(path, db => assert.throws(() => runSqliteUpgrade(db, path, baseline), (error: unknown) => {
+      failed(reason, 1)(error);
+      assert.ok((error as Error).cause instanceof TypeError, "the cause names the function, not whatever it settled to");
+      return true;
+    }));
+    // Let whatever the dropped promise still had to do settle before looking at the store and at the process.
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(stateOf(path), before, "the version, the structure and the rows are what they were");
+    assert.deepEqual(unhandled, []);
+  });
+});
+
 test("UPG1-01 what a step threw stays out of the refusal a caller can see", t => {
   const { home, path } = seededV1(t);
   const secret = new Error("secret note body");
   onStore(path, db => assert.throws(() => runSqliteUpgrade(db, path, { version: 2, schema: V2, upgrades: [{ from: 1, run: () => { throw secret; } }] }, home), (error: unknown) => {
     assert.ok(error instanceof ActionError);
     assert.equal(error.cause, secret, "the cause stays on the error for the process that records it");
+    assert.equal(Object.keys(error).includes("cause"), false, "not enumerable, as ActionError's own constructor makes it");
+    assert.equal(JSON.stringify(error).includes("secret"), false);
     assert.equal(error.message.includes("secret"), false);
     assert.equal(error.message.includes(home), false);
     assert.deepEqual(error.details, { path: "notes/notes.db", found: 1, expected: 2, reason: "step_failed", step: 1 });

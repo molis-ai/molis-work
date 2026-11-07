@@ -113,7 +113,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 快照技术拒绝沿共同 `ActionError`：静态不合法为平台 `actions.input_invalid`，开始复制后观察到改变为 `actions.conflict`；源库原 `storage.schema_version_mismatch`、取消和 I/O 原样传播。Home 编排把这两类转为自己的快照码，不依赖消息文本。当前库由owner的基线/元数据检查与完整性验证共同决定可捕获范围，公开拒绝及源零写证明见 `tests/home-snapshot-errors.test.ts`。退役Sessions的metadata端口已按2026-10-30用户决定删除，未知目录不被读取。
 
-升级链的单库跑法在 `sqlite-upgrade.ts`（`runSqliteUpgrade`，[设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.2）：调用方持存储主人锁、这个文件上没有别的连接，自己开好连接交进来，跑法校验段连续，在一个写事务里依次跑段、写版本，提交前查完整性、外键、结构（含 Home 空间表）、各表行数和主人的检查；任何一步失败都回滚并报 `storage.upgrade_failed`，段抛出的原始错误只放在 `cause`，不进消息和 `details`。段带 `rebuilds_tables` 时外键在事务外关掉，结束后恢复原状并读回确认。快照与放回不在这里（U1-b）。版本拒绝的 `details` 带 `found`、`expected` 和 `path`：`path` 与消息里的位置只写相对 Home 的路径，没有 Home 时只写文件名，因为动作错误原样给调用方。
+升级链的单库跑法在 `sqlite-upgrade.ts`（`runSqliteUpgrade`，[设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.2）：调用方持存储主人锁、这个文件上没有别的连接，自己开好连接交进来，跑法校验段连续，在一个写事务里依次跑段、写版本，提交前查完整性、外键、结构（含 Home 空间表）、各表行数和主人的检查；任何一步失败都回滚并报 `storage.upgrade_failed`，段抛出的原始错误只放在 `cause`，不进消息和 `details`。事务不能等，`run`、`verify` 返回 Promise 或别的 thenable 一律按失败算；这时函数可能还没跑完，所以调用方要在同一轮事件循环里关掉连接，它后面的写才落不进库。段带 `rebuilds_tables` 时外键在事务外关掉，结束后恢复原状并读回确认。快照与放回不在这里（U1-b）。版本拒绝的 `details` 带 `found`、`expected` 和 `path`：`path` 与消息里的位置只写相对 Home 的路径，没有 Home 时只写文件名，因为动作错误原样给调用方。
 
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
 - 不负责：Module schema 的业务含义、跨 Module 查询；搜索来源的发现、同步与权限（归 `horizontal/search`）。

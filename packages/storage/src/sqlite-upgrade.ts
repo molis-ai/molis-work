@@ -34,7 +34,7 @@ type UpgradeFailure = (reason: keyof typeof FAILURES, options?: { readonly step?
 const readVersion = (db: SqliteBaselineDatabase) => Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
 const readForeignKeys = (db: SqliteBaselineDatabase) => Number((db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys);
 
-/** The steps from `found` to the baseline's version, in order. Every declared step is checked, so a bad declaration fails on any store. */
+/** The steps from `found` to the baseline's version, in order. Every declared step is checked, so a bad declaration fails whichever older version the store is at. */
 function stepsToRun(baseline: SqliteBaseline, found: number, fail: UpgradeFailure): readonly SqliteUpgradeStep[] {
   const declared = new Map<number, SqliteUpgradeStep>();
   for (const step of baseline.upgrades ?? []) {
@@ -74,11 +74,22 @@ function tableRowCounts(db: SqliteBaselineDatabase): ReadonlyMap<string, number>
   }));
 }
 
+/**
+ * The transaction cannot wait, so an `async` function would fail after the commit (`=> void` lets the compiler accept one). Returning a
+ * promise is the failure, whatever it settles to; its own rejection is dropped here so it does not end the process as unhandled.
+ */
+function callStepFunction(work: ((db: SqliteBaselineDatabase) => unknown) | undefined, db: SqliteBaselineDatabase): void {
+  const result = work?.(db);
+  if ((typeof result !== "object" && typeof result !== "function") || result === null || !("then" in result) || typeof result.then !== "function") return;
+  Promise.resolve(result).catch(() => undefined);
+  throw new TypeError("升级段的函数必须是同步的");
+}
+
 function runSteps(db: SqliteBaselineDatabase, steps: readonly SqliteUpgradeStep[], fail: UpgradeFailure): void {
   for (const step of steps) {
     try {
       if (step.sql !== undefined) db.exec(step.sql);
-      step.run?.(db);
+      callStepFunction(step.run, db);
     } catch (cause) { throw fail("step_failed", { step: step.from, cause }); }
     if (!transactionOpen(db)) throw fail("transaction_ended", { step: step.from });
   }
@@ -93,7 +104,7 @@ function verifyUpgrade(db: SqliteBaselineDatabase, baseline: SqliteBaseline, ste
   const reduces = new Set(steps.flatMap(step => step.reduces_rows ?? [])), rowsAfter = tableRowCounts(db);
   for (const [table, before] of rowsBefore) if (!reduces.has(table) && (rowsAfter.get(table) ?? 0) < before) throw fail("rows_reduced");
   for (const step of steps) {
-    try { step.verify?.(db); }
+    try { callStepFunction(step.verify, db); }
     catch (cause) { throw fail("verify_failed", { step: step.from, cause }); }
   }
 }
@@ -126,11 +137,14 @@ export function runSqliteUpgrade(db: SqliteBaselineDatabase, path: string, basel
   if (found === to) return { from: to, to };
   if (found < 1 || found > to) throw sqliteVersionRefusal(path, found, to, home);
   const store = sqliteStoreLabel(path, home);
-  const fail: UpgradeFailure = (reason, options = {}) => Object.assign(
-    storageErrors.upgrade_failed(`${store} 从版本 ${found} 升到 ${to} 没有成功：${FAILURES[reason]}。`, {
+  const fail: UpgradeFailure = (reason, options = {}) => {
+    const error = storageErrors.upgrade_failed(`${store} 从版本 ${found} 升到 ${to} 没有成功：${FAILURES[reason]}。`, {
       path: store, found, expected: to, reason, ...(options.step === undefined ? {} : { step: options.step }),
-    }),
-    options.cause === undefined ? {} : { cause: options.cause });
+    });
+    // The raiser takes no cause. Not enumerable, as in `ActionError`'s own constructor, so serializing the error leaves it out.
+    if (options.cause !== undefined) Object.defineProperty(error, "cause", { value: options.cause, writable: true, configurable: true });
+    return error;
+  };
   const steps = stepsToRun(baseline, found, fail);
   if (!steps.some(step => step.rebuilds_tables)) {
     upgradeInOneTransaction(db, baseline, found, steps, fail);

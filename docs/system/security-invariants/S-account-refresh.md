@@ -1,0 +1,5 @@
+# S-account-refresh
+
+| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
+| --- | --- | --- | --- | --- |
+| S-account-refresh | 当前安装账号是个人业务唯一身份来源；普通浏览器须证明当前账号才可附着，不能借匿名登录替换现行账号。短期一次性票据、已附着 cookie 和个人 Home 控制令牌绑定原账号租约；退出、切换及 A→B→A 后旧凭证均拒绝，不取得后续身份。切换先冻结参与页并等待全部确认；准备取消或页面离开使在途登录晚到结果失效，保留 A。账号撤权先于旧资源释放，全部释放前 B 不开放；释放失败保留撤权，仅显式重试恢复 | `apps/local-host/src/personal-http.ts`、`personal-auth.ts`、`personal-web-sessions.ts`、`account-refresh-pages.ts`、`space-web-server.ts`、`web-control-token.ts` | `tests/personal-http.test.ts`「S-141 native login and restart remain isolated from ordinary browser sessions and UI hints」；`tests/space-surface-account-race.test.ts`「ASR-01/02/03/08」「ASR-05/08」「ASR-02 a new browser」「ASR-04/05」；`tests/account-refresh-pages.test.ts`；`tests/account-process-connection.test.ts`「ASR-02/03/06」 | 公共监听器不因账号切换重启；根安装控制令牌仅供管理，不授予匿名业务身份。CLI/MCP 显式连接须额外读取原生 0600 能力证明，随后固定当前 Home 与个人令牌；普通网页即使持根页面令牌也不能签发连接，旧进程不能重读新凭据升级身份 |

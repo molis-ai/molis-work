@@ -352,7 +352,7 @@ test("ASR-12 Home reach reads one fresh directory for any number of projects, af
     grant("2026-11-07T03:00:00.000Z");
     await read(expected);
     db.exec("PRAGMA user_version=2");
-    await assert.rejects(reach(goals, caller), { code: "storage.schema_version_mismatch" }, "a later call still validates the actual store");
+    await assert.rejects(reach(goals, caller), { code: "storage.store_too_new" }, "a later call still validates the actual store");
   } finally { observation.mock.restore(); }
 });
 

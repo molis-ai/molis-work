@@ -1028,7 +1028,6 @@
     "format.runtime.integration.plan": 1,
     "format.runtime.integration.receipt": 1,
     "format.runtime.private-replica": 1,
-    "format.sandbox.agent-method": 1,
     "format.sandbox.agent-prompt": 1,
     "format.sandbox.agent-role": 1,
     "format.sandbox.contract": 1,

@@ -234,10 +234,13 @@ test("PWA-151 once per start the reconcile job clears subjects of archived or mi
   assert.equal(await grants.reconcile(() => live), true);
   assert.deepEqual(fake.subjects.map(item => item.key), ["sct_live"], "the archived and the missing task's subjects are cleared, the live one is not");
   assert.equal(fake.calls.filter(call => call.capability_id === agentTaskGrantActions.list.capability_id).length, 1, "the sweep listed nothing of its own");
+  // A subject of a task that is not live shows up after the sweep: a second sweep would clear it, so the count below can fail.
+  fake.subjects.push(subject("sct_late", ["granted"]));
   const before = fake.calls.length;
   await grants.list();
   for (let pass = 0; pass < 3; pass += 1) await grants.reconcile(() => live);
   assert.equal(fake.calls.length, before + 1, "after one sweep the job asks the platform nothing until a clear is owed, whatever is read later");
+  assert.deepEqual(fake.subjects.map(item => item.key), ["sct_live", "sct_late"], "the subject read after the one sweep is not swept again");
 });
 
 test("PWA-151 the reconcile job reads the live tasks after the platform's list: a task made and granted in between keeps its grants", async () => {

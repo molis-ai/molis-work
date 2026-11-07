@@ -98,3 +98,7 @@ Full 第二轮中，首轮的分栏文件已 3/3 通过（107 秒），但第 11
 上一轮候选 `c30cc589bc` 的 [CI 42323693335](https://github.com/molis-ai/molis-work/actions/runs/42323693335) 与 [Full 42323734167](https://github.com/molis-ai/molis-work/actions/runs/42323734167) 均通过，实际检出同一合并候选 `780f5dc41a`。CI 用时 10 分 04 秒，Full 32/32 片及汇总通过，用时 31 分 08 秒，纯测试最长 / 平均 1.30；Full 有 3 个文件重试后通过，不能视为首遍全绿。收尾核对发现第 1 片只有一个长文件，沿用的单文件入口绕过了分片的超时、重试与计时摘要；本轮补正为只要使用 `--shard` 就走现有协调器，保持显式单文件命令原样。增加单文件分片的真实子进程回归，验证超时后重试、持续失败及稳定通过的摘要；后续最终提交与云端结果仍在 PR 验证段维护。
 
 单文件分片补正后整体 `pnpm build` 通过，经公共机器槽与 `--jobs 1` 运行 `tests/run-tests-pool.test.ts`、`tests/run-tests-shard.test.ts`、`tests/ci-shard-weights.test.ts`、`tests/ci-timeouts.test.ts`：4 文件 / 28 项全部通过。新增回归真实触发 10 秒超时后重试，持续失败仍返回 1，稳定通过输出 `[1/1]` 文件计时与 `1 of 1` 摘要。
+
+候选 `674481440c` 的 CI 42326945314 通过（9 分 27 秒）；Full 42326977936 在 32 分 02 秒失败，31/32 片通过，第 31 片的 `connector-mcp-replacement.e2e.test.ts` 两次均在首次点击后缺少 replaces 状态。该测试、连接页面脚本和 ChromePage 点击助手与基线 `585ae7afcb` 一致。本机使用同一专用 Chrome for Testing 复现首次按钮被遮挡（5/6 通过）。页面按地址自动展开时安排下一帧滚动与标题聚焦，fixture 只等待事件绑定和 open 状态，未等待这一就绪步骤。本轮测试准备修复范围补充 `tests/connector-mcp-replacement.e2e.test.ts`：只补 reduced-motion 与初始标题聚焦等待，保持真实鼠标输入、业务断言及原超时。单文件分片补正已在本轮云端验证：`chinese-layers.e2e.test.ts` 2/2 首遍通过，711 秒，具有 `[1/1]` 计时和汇总，权重采集器成功读取 711。
+
+补齐 MCP fixture 就绪条件后，同一专用 Chrome for Testing、机器槽与 `--jobs 1` 下 6/6 通过（17.3 秒）。该轮 Full 的 32 份摘要覆盖 1,761 个不同文件，未发现重复；除持续失败的 MCP 文件外，分栏恢复、代码着色与 Issue 捕捉三个文件重试通过，首败证据保留。

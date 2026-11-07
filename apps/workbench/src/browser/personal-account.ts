@@ -22,8 +22,7 @@ declare global {
 function errorMessage(error: unknown, fallback: string): string { return error instanceof Error ? error.message || fallback : fallback; }
 const init = () => {
   const desktop = new URLSearchParams(location.search).get('desktop') === '1' || document.body.dataset.nativeDesktop === 'true';
-  const returnTo = location.pathname + location.search + location.hash;
-  const query = new URLSearchParams({returnTo});
+  const query = new URLSearchParams({returnTo: location.pathname + location.search + location.hash});
   if (desktop) query.set('desktop', '1');
   let loginWindow: Window | null = null;
   const closeLoginWindow = () => { loginWindow?.close(); loginWindow = null; };
@@ -33,6 +32,7 @@ const init = () => {
   const transition = accountTransition();
   const menuController = createAccountMenuController(L, () => ({identity,space,configured,loaded,busy,preparing:transition.preparing}), () => void update());
   const {menu,notice,paint,feedback} = menuController;
+  const reportRequestFailure = (error: unknown) => feedback(errorMessage(error, '请求失败，请重试。'), true);
   const syncConsent=createSyncConsent();
   const registration = accountRegistration(L, () => update(true));
   let generation: number | undefined;
@@ -73,7 +73,7 @@ const init = () => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-personal-action]') : null;
     if (!button) return;
     const action = button.dataset.personalAction ?? "";
-    if (action === 'cancel') { try { await cancelAttempt(); } catch(error) { feedback(errorMessage(error, '请求失败，请重试。'), true); } return; }
+    if (action === 'cancel') { try { await cancelAttempt(); } catch(error) { reportRequestFailure(error); } return; }
     if (busy) return;
     if (!['login', 'switch', 'logout', 'retry'].includes(action)) return;
     setBusy(true); feedback(''); feedback('', true);
@@ -107,12 +107,12 @@ const init = () => {
         attempt = ''; closeLoginWindow(); identity = null; paint();
         location.assign(destination); return;
       }
-    } catch (error) { await cancelAttempt().catch(() => { /* A revoked account cannot be resumed by this page. */ }); closeLoginWindow(); feedback(errorMessage(error, '请求失败，请重试。'), true); }
+    } catch (error) { await cancelAttempt().catch(() => { /* A revoked account cannot be resumed by this page. */ }); closeLoginWindow(); reportRequestFailure(error); }
     finally { setBusy(false); }
   });
   const update = async (force = false) => {
     if ((document.hidden && !attempt && !force) || checking) return;
-    if (attempt && Date.now() > expires) { await cancelAttempt().catch(error => feedback(errorMessage(error, '请求失败，请重试。'), true)); feedback('登录等待已结束，可重新登录。', true); }
+    if (attempt && Date.now() > expires) { await cancelAttempt().catch(reportRequestFailure); feedback('登录等待已结束，可重新登录。', true); }
     checking = true;
     try {
       const statusQuery = new URLSearchParams();

@@ -466,5 +466,10 @@
     "file": "plugins/native/git/src/browser/request.ts",
     "name": "version",
     "reason": "Git 内嵌页按路由拼出动作 id，发一个共同的版本；一张逐动作的表放不进页面资源预算。这个字面量与它能到的动作条目相等，由 tests/version-source.test.ts 核对，其中一个动作升版本时那条测试失败，届时再改成逐动作传。"
+  },
+  {
+    "file": "packages/contracts/src/platform/external-tools.ts",
+    "name": "version",
+    "reason": "外部工具登记表每行 `checked.version` 记的是核对那一行时外部工具的上游版本（如 Codex 0.166.0），说明这行依据哪一版写成，不是产品版本，也不是合同或库的版本，不进 tooling/versions.json。"
   }
 ]

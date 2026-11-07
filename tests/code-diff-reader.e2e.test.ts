@@ -19,7 +19,7 @@ function bigWrite() {
   const before = Array.from({ length: 10_040 }, (_, n) => `const line${n + 1} = ${n + 1};`);
   const after = before.flatMap((line, n) => n === 10_004 ? [`const line10005 = "${"wide ".repeat(80)}";`, "const added = true;"]
     : n === 10_019 ? ["const line10020 = 0;"] : [line]);
-  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-big", applied: true, files: [{ path: "big.ts", kind: "modified", added_lines: 3, removed_lines: 2, diff: "",
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-big", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "big.ts", kind: "modified", added_lines: 3, removed_lines: 2, diff: "",
     review: { review_id: "review-big", before_text: before.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   const html = (mode: "unified" | "split") => renderDiff({ labels: DIFF_LABELS, view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });

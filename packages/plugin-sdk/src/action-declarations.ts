@@ -1,4 +1,3 @@
-const workflowOutputVersions = { list: /* @version type.molis.workflow.content.list.output */ 1, read: /* @version type.molis.workflow.content.read.output */ 1, receive: /* @version type.molis.workflow.content.receive.output */ 1, create: /* @version type.molis.workflow.content.create.output */ 1 } as const;
 import { canonicalJsonText, isRecord } from "./json-value.js";
 import {
   DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_COLLECTION_SCHEMA, DUE_REMINDER_WINDOW_SCHEMA,
@@ -6,7 +5,7 @@ import {
   SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN,
   SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE,
   SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_TYPE,
-  WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, validActionExecutionPolicy, validActionResultView, type WorkflowContentStation,
+  WORKFLOW_CONTENT_OUTPUT_VERSIONS, WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, validActionExecutionPolicy, validActionResultView, type WorkflowContentStation,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { contextDeclarationProblems } from "./context-declarations.js";
 import {
@@ -258,7 +257,7 @@ function workflowContentProblems(key: string, version: unknown, operation: unkno
   // saved against it must find nothing rather than the new shape under that number.
   const current = WORKFLOW_CONTENT_VERSIONS[role];
   const inputOk = a.input_type === `molis.workflow.content.${role}.input.v${current}` && canonicalSchema(a.input_schema) === canonicalSchema(schemas.input);
-  const outputOk = a.output_type === `molis.workflow.content.${role}.output.v${workflowOutputVersions[role]}` && canonicalSchema(a.output_schema) === canonicalSchema(schemas.output);
+  const outputOk = a.output_type === `molis.workflow.content.${role}.output.v${WORKFLOW_CONTENT_OUTPUT_VERSIONS[role]}` && canonicalSchema(a.output_schema) === canonicalSchema(schemas.output);
   const shapeOk = a.scope === "project" && a.audiences.includes("workflow") && operation === (role === "list" || role === "read" ? "query" : "command");
   if (inputOk && outputOk && shapeOk) return Number(version) >= current ? [] : [`能力 ${key} 的版本低于工作流内容协议 ${role} 的现行版本 ${current}`];
   const gap = shapeOk && outputOk ? "输入" : shapeOk && inputOk ? "输出" : "输入输出";

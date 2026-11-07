@@ -30,8 +30,8 @@ export function mcpSelection(value: unknown): AgentMcpToolRef[] {
   const refs = value.map(item => {
     if (!item || typeof item !== "object") throw codingFailure("coding.server.mcp-tool-ref");
     const entry = item as Record<string, unknown>;
-    if (entry.configuration_version !== undefined && (!Number.isInteger(entry.configuration_version) || Number(entry.configuration_version) < 1)) throw codingFailure("coding.server.mcp-config-version");
-    return { ...(entry.configuration_version === undefined ? {} : {configuration_version: entry.configuration_version as number}), server: text(entry.server, "coding.field.mcp-server"), tool: text(entry.tool, "coding.field.mcp-tool"), version: text(entry.version, "coding.field.mcp-version") };
+    if (!Number.isInteger(entry.configuration_version) || Number(entry.configuration_version) < 1) throw codingFailure("coding.server.mcp-config-version");
+    return { configuration_version: entry.configuration_version as number, server: text(entry.server, "coding.field.mcp-server"), tool: text(entry.tool, "coding.field.mcp-tool"), version: text(entry.version, "coding.field.mcp-version") };
   });
   if (new Set(refs.map(ref=>JSON.stringify([ref.server,ref.tool]))).size !== refs.length) throw codingFailure("coding.server.mcp-tool-repeat");
   return refs;

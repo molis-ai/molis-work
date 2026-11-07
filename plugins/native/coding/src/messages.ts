@@ -516,7 +516,6 @@ export const CODING_MESSAGES = {
   "coding.facts.actions": { zh: "本轮能力", en: "Abilities this turn" },
   "coding.facts.mcp": { zh: "本轮 MCP", en: "MCP this turn" },
   "coding.facts.configuration": { zh: "配置 {version}", en: "settings {version}" },
-  "coding.facts.not-recorded": { zh: "未记录", en: "not recorded" },
   "coding.facts.mcp-sources": { zh: "本轮 MCP 资料", en: "MCP material this turn" },
   "coding.facts.mcp-source-kind": { zh: "MCP 资料来源", en: "MCP material sources" },
   "coding.facts.character": { zh: "本轮 Character", en: "Character this turn" },

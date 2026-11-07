@@ -477,7 +477,7 @@ test("Agent declarations: a block that breaks every segment reports them in the 
   ].join(SEPARATOR));
 });
 
-test("Manifest declarations: a v2 Manifest that breaks every section reports them in the order the sections are checked", () => {
+test("Manifest declarations: a Manifest that breaks every section reports them in the order the sections are checked", () => {
   const broken = declarationManifest({
     actions: [defined({ permissions: ["storage:private"], result_scene: { scene_id: "example.review" } })],
     action_scenes: [scene({ permissions: ["a:one"], configuration_permissions: ["c:two"] })],

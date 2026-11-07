@@ -6,7 +6,7 @@ import type {
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PPT_BACKGROUND_SWATCHES, PPT_PRIMARY_SWATCHES, PPT_TEXT_SWATCHES } from "./colors.js";
 
-export const PPT_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.ppt.ui "io.molis.work.native.ppt.ui.v{version}" */ "io.molis.work.native.ppt.ui.v1";
+export const PPT_UI_CONTRIBUTION_ID = "io.molis.work.native.ppt.ui.v1";
 
 export type PptUiSurface = "directory" | "workbench";
 

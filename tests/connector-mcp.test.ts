@@ -416,7 +416,7 @@ test("MCP rejects issuerless OAuth credentials before they leave the Host", asyn
     delete client.issuer; delete tokens.issuer;
     secrets.put("client", JSON.stringify(client)); secrets.put("oauth", JSON.stringify(tokens));
     const before = remote.stats();
-    await assert.rejects(host.inspectMcpConnection(temp, started.connectionId), /旧版本.*重新连接/u);
+    await assert.rejects(host.inspectMcpConnection(temp, started.connectionId), /缺少签发方.*重新连接/u);
     const after = remote.stats();
     assert.equal(after.tokenRequestCount, before.tokenRequestCount, "the refresh token never reaches a token endpoint");
     assert.equal(after.initializationCount, before.initializationCount, "the access token never reaches the MCP server");

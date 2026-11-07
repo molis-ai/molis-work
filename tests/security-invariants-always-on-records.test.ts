@@ -416,7 +416,7 @@ for (const corruption of ["version", "structure"] as const) {
   });
 }
 
-for (const [error, status] of [[sqliteVersionRefusal("unrelated.db", 2, 1), 503], [new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源"), 500]] as const) {
+for (const [error, status] of [[sqliteVersionRefusal("unrelated.db", 2, 1), 503], [new ActionError("actions.execution_failed", "Home 插件运行库结构与当前基线不一致，请保留故障库并检查其来源"), 500]] as const) {
   test(`RAC-403 a ${error.code} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
     const f = await serveHomeRuntime(t, { actionAvailability: (_caller, action) => {
       if (action.capability_id === goalsActions.collection.capability_id) throw error;

@@ -55,7 +55,7 @@ test("RAC-2342: the Module keeps all 17 actions and the platform provider and pr
   // RAC-1047 (PG-077): the id the actions are called by and the identity a version carries are two constants with one value each, pinned.
   assert.equal(module.ARTIFACTS_PROVIDER_ID, "io.molis.work.artifacts");
   assert.equal(module.ARTIFACTS_PROVIDER_TITLE, "成果");
-  assert.deepEqual({ ...module.ARTIFACT_PRODUCER }, { plugin_id: "io.molis.work.artifacts", plugin_version: "0.3.0", binding_signature: "official-artifacts-binding" });
+  assert.deepEqual({ ...module.ARTIFACT_PRODUCER }, { plugin_id: "io.molis.work.artifacts", plugin_version: JSON.parse(read("package.json")).version, binding_signature: "official-artifacts-binding" });
   assert.equal(module.ARTIFACTS_PLUGIN_ID, "io.molis.work.artifacts");
   assert.equal(module.ARTIFACTS_PROJECT_PLUGIN_ID, "artifacts");
   assert.deepEqual(module.ARTIFACTS_HOME_STORE, { path: "artifacts" });

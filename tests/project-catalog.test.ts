@@ -64,13 +64,13 @@ test("a reader that is older than the catalog reports exact versions and a non-d
   assert.equal(error.code, "catalog.reader_too_old");
   assert.deepEqual(error.details, {
     actual_schema_version: 9,
-    supported_schema_min: 1,
+    supported_schema_min: 8,
     supported_schema_max: 8,
-    recovery: "new_or_fork_session_then_context_resolve",
+    recovery: "upgrade_then_context_resolve",
   });
   assert.match(error.message, /catalog schema=9/);
-  assert.match(error.message, /reader.*1\.\.8/);
-  assert.match(error.message, /新建或 Fork/);
+  assert.match(error.message, /只认 8/);
+  assert.match(error.message, /升级到能读它的版本/);
   assert.match(error.message, /确认当前任务焦点/);
   assert.match(error.message, /context_resolve/);
   assert.match(error.message, /不要回滚 catalog\.db/);

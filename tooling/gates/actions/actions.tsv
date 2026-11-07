@@ -239,8 +239,8 @@ git.operations	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	
 git.pr-support	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private,workspace:read	git,workspace	-	-	d746974fa9af	6acbda275a13	a7fd75581995
 git.prepare-index	1	io.molis.work.git	io.molis.work.git	command	operation	project	write	-	agent,mcp,plugin,user,workflow	artifact:read,artifact:write,storage:private	git,workspace	-	-	f2b96d30b920	18a6c013818d	-
 git.prepare-operation	1	io.molis.work.git	io.molis.work.git	command	operation	project	write	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private	git,workspace	-	-	2f5fb9f11bb7	18a6c013818d	-
-git.results	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private	git,workspace	-	-	d746974fa9af	d87be8e36d75	-
-git.save-result	1	io.molis.work.git	io.molis.work.git	command	operation	project	write	-	agent,mcp,plugin,user,workflow	artifact:read,artifact:write,storage:private	git,workspace	-	-	d7ec7d486cde	b66ce8af9fe4	-
+git.results	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private	git,workspace	-	-	d746974fa9af	76c7dc4f5711	-
+git.save-result	1	io.molis.work.git	io.molis.work.git	command	operation	project	write	-	agent,mcp,plugin,user,workflow	artifact:read,artifact:write,storage:private	git,workspace	-	-	d7ec7d486cde	c91ddf063c92	-
 git.select-diff	1	io.molis.work.git	io.molis.work.git	command	operation	project	write	-	agent,mcp,plugin,user,workflow	artifact:read,artifact:write,storage:private,workspace:read	git,workspace	-	-	c4bd32d28ada	2bb3bd832cd7	a7fd75581995
 git.state	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private,workspace:read	git,workspace	-	-	d746974fa9af	9ff8783ab9e7	a7fd75581995
 git.summary	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private,workspace:read	git,workspace	-	-	d746974fa9af	1e959873bbba	a7fd75581995

@@ -1872,7 +1872,7 @@ export interface BuilderAgentActivity {
 
 export interface BuilderAgentRecord {
     id: string;
-    role: BuilderAgentRequest['role'] | 'model';
+    role: BuilderAgentRequest['role'];
     promptVersion: string;
     contractRevision: string;
     instruction: string;

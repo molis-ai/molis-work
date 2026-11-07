@@ -223,7 +223,6 @@ export interface GitReviewedResult extends GitOperationResult {
             at: string;
             reason: string;
         };
-        reconciliation_reason?: string;
     };
 }
 

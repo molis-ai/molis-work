@@ -5180,6 +5180,13 @@ export interface SyncTrackedTable {
     };
 }
 
+export declare const WORKFLOW_CONTENT_OUTPUT_VERSIONS: {
+    readonly list: 1;
+    readonly read: 1;
+    readonly receive: 1;
+    readonly create: 1;
+};
+
 export declare const WORKFLOW_CONTENT_SCHEMAS: {
     readonly list: {
         readonly input: Readonly<Record<string, unknown>>;

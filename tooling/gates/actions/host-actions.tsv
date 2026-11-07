@@ -222,7 +222,7 @@ projects.workspace.git.inspect	1	platform	query	query	project	read	-	agent,mcp,u
 projects.workspace.git.operation.prepare	1	platform	command	operation	project	write	-	plugin	review:git-operation	workspace	-	-	3994c5ceffab	18a6c013818d	-
 projects.workspace.git.operations	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	52405559fce7	-
 projects.workspace.git.prepare-index	1	platform	command	operation	project	write	-	plugin	review:git-index	workspace	-	-	f2b96d30b920	18a6c013818d	-
-projects.workspace.git.results	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	5f1692d9fc51	-
+projects.workspace.git.results	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	49e0010f0e0c	-
 projects.workspace.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.workspace.optional	9cecb8ebe607	bff4d7a70ea2	-
 projects.workspace.writers.integration.prepare	1	platform	command	operation	project	write	-	plugin	review:git-integration	workspace	-	-	7b81d085e37e	18a6c013818d	-
 projects.workspace.writers.integration.read	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	a06b911bc763	435073ad19b3	-

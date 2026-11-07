@@ -22,7 +22,7 @@ export interface AgentWorkingDirectory {
   realpath_verified: boolean;
 }
 
-/** Absence retains the historical workspace requirement. No process cwd fallback is permitted. */
+/** Absent means required, the default mode: the request names its directory. No process cwd fallback is permitted. */
 export type AgentWorkspace =
   | { workspace?: "required"; directory: AgentWorkingDirectory }
   | { workspace: "none"; directory?: never }

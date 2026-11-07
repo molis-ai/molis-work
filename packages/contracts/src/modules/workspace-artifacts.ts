@@ -138,8 +138,6 @@ export interface GitReviewedResult extends GitOperationResult {
     decided_at: string | null;
     failure_reason?: string;
     reconciliation?: { actor_id: string; at: string; reason: string };
-    /** Older fixed results may only have the reason; never invent their actor or time. */
-    reconciliation_reason?: string;
   };
 }
 
@@ -514,7 +512,7 @@ export interface ChangeSet {
   before: string;
   after: string;
   source: ChangeSetSource;
-  /** Optional for older/text-only producers; absent means metadata is unknown. */
+  /** Absent when the producer only supplies text: the Git metadata is unknown then. */
   git?: { before_mode: GitFileMode | null; after_mode: GitFileMode | null; previous_path?: readonly string[] };
 }
 

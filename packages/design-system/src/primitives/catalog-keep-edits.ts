@@ -37,7 +37,7 @@ export const KEEP_EDITS_BOARD_STYLES = `
   .mw-kept__text.is-open { display: block; -webkit-line-clamp: unset; }
   .mw-kept__text.is-blank { color: var(--muted); }
   /* The padding reaches a finger without taking line room, as the link beside a status mark does. */
-  .mw-btn.mw-kept__more { --reach: 4px; justify-self: start; min-height: 0; padding: var(--reach) 0; margin-block: calc(-1 * var(--reach)); font-size: 12px; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; }
+  .mw-btn.mw-kept__more { --reach: 4px; justify-self: start; min-height: 0; padding: var(--reach) 0; margin-block: calc(-1 * var(--reach)); font-size: 13px; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; }
   .mw-btn.mw-kept__more[hidden] { display: none; }
   /* A group arrives one after another, half a hover apart. */
   .mw-kept--rise { animation: craft-rise var(--dur-move) var(--ease-quint) backwards; animation-delay: calc(var(--i, 0) * var(--dur-hover) / 2); }

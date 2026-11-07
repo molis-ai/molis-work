@@ -42,7 +42,6 @@ type Statement = {
 };
 
 export interface ScheduleSqliteDatabase {
-  exec(sql: string): void;
   prepare(sql: string): Statement;
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }

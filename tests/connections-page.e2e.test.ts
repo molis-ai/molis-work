@@ -92,7 +92,7 @@ async function openPage(t: TestContext) {
     receive = request => { clearTimeout(timer); resolve(request); };
   });
   const answer = (request: Held, body: unknown, status = 200) => { request.response.writeHead(status, { "content-type": "application/json" }); request.response.end(JSON.stringify(body)); };
-  return { page, origin, open, next, answer, reads, usages, rows, exceptions, setLocale: (value: "zh" | "en") => { locale = value; } };
+  return { page, origin, open, next, answer, reads, usages, rows, exceptions, pending: () => held.length, setLocale: (value: "zh" | "en") => { locale = value; } };
 }
 
 const text = (page: ChromePage, expression: string) => page.evaluate<string>(`((${expression})?.textContent ?? '').replace(/\\s+/g, ' ').trim()`);
@@ -258,7 +258,7 @@ test("ASC-73: a row opens in place to its natural height on the chevron's clock,
 
 test("ASC-78 ASC-80: a login shows its steps and, when cancelled, changes nothing; a key is checked before it is saved", { timeout: 120_000 }, async t => {
   const browser = await openPage(t); if (!browser) return;
-  const { page, open, next, answer, rows, origin, exceptions } = browser;
+  const { page, open, next, answer, rows, origin, exceptions, pending } = browser;
   await open("gitlab");
   // One more account: the login is behind 再加一个账号, and the row runs while the browser login is under way.
   await page.click("[data-connector-item='gitlab'] [data-connector-add] > summary");
@@ -295,7 +295,7 @@ test("ASC-78 ASC-80: a login shows its steps and, when cancelled, changes nothin
   const form = "document.querySelector(\"[data-connector-auth='wechat']\")", keyError = `${form}?.querySelector('[data-connector-key-error]')`;
   const result = `${form}.querySelector('[data-protocol-result]')`;
   await page.wait(`${keyError}?.textContent.includes('拒绝了这把密钥')`);
-  assert.equal(await text(page, keyError), "微信 拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。");
+  assert.equal(await text(page, keyError), "微信拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。");
   assert.equal(await page.evaluate(`${keyError}.getAttribute('role')`), "alert");
   assert.equal(await page.evaluate(`${keyProgress}.dataset.state`), "failed");
   assert.equal(await text(page, result), "还没保存，填的还在。");
@@ -304,13 +304,21 @@ test("ASC-78 ASC-80: a login shows its steps and, when cancelled, changes nothin
   assert.equal(await text(page, stateOf("wechat")), before, "the row is put back as it was");
   assert.equal(await page.evaluate(`Boolean(document.querySelector('${row(KEY)}'))`), false, "nothing was saved");
 
-  // The service asks to wait: said as the service's, and the same key is asked again by itself at the time the service gave.
+  // The service asks to wait: said as the service's. A key the person has typed in since is not sent again by itself.
+  const limitedAnswer = () => ({ error: "服务那边请求太多，密钥没有保存", code: "connector.check.rate_limited", saved: false, details: { retry_at: new Date(Date.now() + 1500).toISOString() } });
   await page.click("[data-connector-auth='wechat'] button[type=submit]");
-  const limited = await next();
+  const edited = await next();
   assert.equal(await page.evaluate(`Boolean(${keyError})`), false, "another try clears the last refusal");
-  answer(limited, { error: "服务那边请求太多，密钥没有保存", code: "connector.check.rate_limited", saved: false, details: { retry_at: new Date(Date.now() + 1500).toISOString() } }, 429);
+  answer(edited, limitedAnswer(), 429);
   await page.wait(`${keyProgress}?.dataset.state === 'hold'`);
-  assert.match(await text(page, result), /^微信 说请求太多，这是服务那边的原因，不是你填错了。\d\d:\d\d 自动再查一次。还没保存，填的还在。$/);
+  assert.match(await text(page, result), /^微信说请求太多，这是服务那边的原因，不是你填错了。\d\d:\d\d 自动再查一次。还没保存，填的还在。$/);
+  await page.fill("[data-connector-auth='wechat'] input[type=password]", "fixture-only-wechat-secret");
+  await new Promise(resolve => setTimeout(resolve, 2500));
+  assert.equal(pending(), 0, "the person changed the key, so it is not sent again by itself");
+  // Left as it was, the same key is asked again by itself at the time the service gave.
+  await page.click("[data-connector-auth='wechat'] button[type=submit]");
+  answer(await next(), limitedAnswer(), 429);
+  await page.wait(`${keyProgress}?.dataset.state === 'hold'`);
   const again = await next();
   assert.equal(again.url, "/api/settings/connectors/connections");
   assert.equal((JSON.parse(again.body) as { token?: string }).token, "ww-fixture-corp:fixture-only-wechat-secret");
@@ -350,7 +358,7 @@ test("ASC-81 ASC-82: a new key the service refuses leaves the old one in use, sa
       await page.wait(note);
       const result = `${form}.closest('[data-connection-scope]').querySelector('[data-connection-result]')`;
       if (locale === "zh") {
-        assert.equal(await text(page, note), "微信 拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。");
+        assert.equal(await text(page, note), "微信拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。");
         assert.equal(await text(page, result), "新密钥没有换上，旧密钥照常在用。");
       } else {
         assert.match(await text(page, note), /refused the new key\. The current key keeps working/);

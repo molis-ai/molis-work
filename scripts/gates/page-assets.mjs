@@ -364,10 +364,16 @@ const headErrors = (measured, budget, base) => {
 // per-project key helper, one chosen-project path through setProject and the place named before the title. Tried: removed the
 // chooser's own draft map (the island owns drafts now) and its swap code, dropped a tooltip naming the project and its translation,
 // shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 892831 base after 13④a (#1886), whose workbench.js entry is spent there.
+// 13④d BL-1058，#1903，统筹审过放行 (2026-11-06, under 10 KB, no new asset): a service connection's key is checked before it is
+// saved. Keyed on merge-base 223a1a50 (after #1871), so the 自然高度折叠 sheet entries and the capsule fix's workbench.js entry are
+// spent there and replaced. workbench.js +2024 B: the refusal under the key field (role=alert, aria-invalid, focus), the
+// rate-limit retry at `retry_at` that waits for the person once they edit the key, and the result words; the old `/verify`
+// fallback is removed. settings.css and workbench.css +63 B each: the inline 换密钥 form's error takes its own row.
+// Tried: one `unsaved` handler for both forms instead of two copies, the status words reuse the existing progress.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [761321, 761636],
-  "/assets/molis-work-workbench.css": [1108342, 1108657],
-  "/assets/molis-work-workbench.js": [892831, 893138],
+  "/assets/molis-work-settings.css": [761636, 761699],
+  "/assets/molis-work-workbench.css": [1108657, 1108720],
+  "/assets/molis-work-workbench.js": [893138, 895162],
   "/assets/molis-work-plugin-frame.js": [188418, 188432],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],

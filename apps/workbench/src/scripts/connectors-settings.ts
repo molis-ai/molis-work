@@ -319,8 +319,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (error.code === 'connector.read.refused') {
           const input = keyInput(form), note = make('p');
           note.className = 'mw-field__error'; note.setAttribute('role', 'alert'); note.dataset.connectorKeyError = '';
-          note.textContent = replacing ? L('{name} 拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。', { name })
-            : L('{name} 拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。', { name });
+          note.textContent = replacing ? L('{name}拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。', { name })
+            : L('{name}拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。', { name });
           input?.setAttribute('aria-invalid', 'true');
           (form.matches('.settings-connection-inline') ? form : input?.closest('label') || form).append(note);
           output(result, kept, true);
@@ -330,13 +330,13 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (error.code === 'connector.check.rate_limited') {
           const at = Date.parse(error.body?.details?.retry_at || '');
           const time = at > Date.now() ? new Date(at).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }) : '';
-          output(result, glue(time ? L('{name} 说请求太多，这是服务那边的原因，不是你填错了。{time} 自动再查一次。', { name, time })
-            : L('{name} 说请求太多，这是服务那边的原因，不是你填错了。稍后再试。', { name }), kept), true);
+          output(result, glue(time ? L('{name}说请求太多，这是服务那边的原因，不是你填错了。{time} 自动再查一次。', { name, time })
+            : L('{name}说请求太多，这是服务那边的原因，不是你填错了。稍后再试。', { name }), kept), true);
           if (time) form.molisRetry = setTimeout(() => { if (form.isConnected && !form.querySelector('button[type=submit]')?.disabled) form.requestSubmit(); }, Math.min(at - Date.now(), 3600000) + 500);
           return true;
         }
-        output(result, glue(error.code === 'connector.read.unreachable' ? L('暂时连不上 {name}，所以没有检查成。稍后再试。', { name })
-          : L('{name} 没有确认这把密钥。检查有没有填对，再试一次。', { name }), kept), true);
+        output(result, glue(error.code === 'connector.read.unreachable' ? L('暂时连不上{name}，所以没有检查成。稍后再试。', { name })
+          : L('{name}没有确认这把密钥。检查有没有填对，再试一次。', { name }), kept), true);
         return true;
       };
       box.querySelectorAll('[data-connector-auth], [data-connection-replace]').forEach(form => form.addEventListener('input', () => clearTimeout(form.molisRetry)));

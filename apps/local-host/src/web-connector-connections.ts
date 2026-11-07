@@ -52,6 +52,11 @@ export async function handleConnectorConnectionsHttp(
   const collection = url.pathname === "/api/settings/connectors/connections";
   const item = url.pathname.match(ITEM_PATH);
   if (!collection && !item) return false;
+  // A page that goes away while its key is being checked is a cancelled call: the check stops, and nothing is written after it (AGENTS.md).
+  const controller = new AbortController();
+  const cancel = () => controller.abort(new ActionError("actions.cancelled", "这次设置操作已经结束"));
+  const disconnected = () => { if (!response.writableEnded) cancel(); };
+  request.once("aborted", cancel); response.once("close", disconnected);
   try {
     if (request.method === "GET" && collection) {
       const serviceId = url.searchParams.get("service_id") || undefined;
@@ -86,7 +91,8 @@ export async function handleConnectorConnectionsHttp(
         serviceId: body.service_id as string, displayName: body.display_name as string,
         token: body.token as string, accountLabel: typeof body.account_label === "string" ? body.account_label : null,
       }), ...(declarer ? { declarer } : {}) };
-      const checked = remember ? await checkCandidateKey(homeDirectory, { serviceId: completion.input.serviceId, token: completion.input.token }) : null;
+      const checked = await checkCandidateKey(homeDirectory, { serviceId: completion.input.serviceId, token: completion.input.token }, { signal: controller.signal });
+      controller.signal.throwIfAborted();
       const setup = startConnectorSetupSubmission(homeDirectory, setupId, plan);
       try {
         setup?.assertCurrent();
@@ -109,8 +115,9 @@ export async function handleConnectorConnectionsHttp(
       // A new key replaces the old one only once the service accepts it (§13.6 ④d): until then, and when it is refused, the old key stays.
       // The check is held to the version of the connection read above, and the save compares that version again.
       if (plan) checkConnectorSetupSubmission(homeDirectory, setupId, plan);
-      const checked = completion?.target?.expectedRevision && remember ? await checkCandidateKey(homeDirectory, { serviceId: completion.input.serviceId,
-        token: completion.input.token, target: { connectionId: completion.target.connectionId, expectedRevision: completion.target.expectedRevision } }) : null;
+      const checked = completion?.target?.expectedRevision ? await checkCandidateKey(homeDirectory, { serviceId: completion.input.serviceId,
+        token: completion.input.token, target: { connectionId: completion.target.connectionId, expectedRevision: completion.target.expectedRevision } }, { signal: controller.signal }) : null;
+      controller.signal.throwIfAborted();
       const setup = plan ? startConnectorSetupSubmission(homeDirectory, setupId, plan) : undefined;
       if (setup && completion) {
         try {
@@ -155,6 +162,6 @@ export async function handleConnectorConnectionsHttp(
       error: known ? error.message : "连接操作失败，请检查本机凭据存储和输入",
       ...(known ? { code: error.code } : {}),
     });
-  }
+  } finally { request.off("aborted", cancel); response.off("close", disconnected); }
   return true;
 }

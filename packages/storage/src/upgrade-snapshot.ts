@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, constants, copyFileSync, lstatSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, statfsSync } from "node:fs";
+import { chmodSync, closeSync, constants, copyFileSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, statfsSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
 import { atomicWriteFileSync, syncPath } from "./adapters/atomic-write.js";
 import { assertStorageOwner, type StorageOwner } from "./adapters/storage-owner.js";
@@ -57,6 +57,7 @@ type SnapshotFailure = keyof typeof FAILURES;
 const SIDECARS = ["-wal", "-shm", "-journal"] as const;
 const UPGRADE_DIRECTORY = "upgrade";
 const MANIFEST = "manifest.json";
+const MANIFEST_SCHEMA_VERSION = /* @version format.home.upgrade.snapshot */ 1;
 const MANIFEST_MAXIMUM_BYTES = 16 * 1024 * 1024;
 const RESTORE_SUFFIX = ".upgrade-restore";
 const RUN_ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -144,20 +145,39 @@ function parseEntry(value: unknown): UpgradeSnapshotEntry {
 function readManifest(paths: UnitPaths, runId: string): readonly UpgradeSnapshotEntry[] {
   if (!present(paths.manifest)) return [];
   const manifest = exactFields(JSON.parse(readSnapshotFile(paths.manifest, MANIFEST_MAXIMUM_BYTES).toString("utf8")), ["schema_version", "run_id", "files"]);
-  if (manifest.schema_version !== 1 || manifest.run_id !== runId || !Array.isArray(manifest.files)) throw new Error("wrong manifest");
+  if (manifest.schema_version !== MANIFEST_SCHEMA_VERSION || manifest.run_id !== runId || !Array.isArray(manifest.files)) throw new Error("wrong manifest");
   const files = manifest.files.map(parseEntry);
   if (new Set(files.map(entry => entry.path)).size !== files.length) throw new Error("repeated entry");
   return files;
 }
 
 const writeManifest = (paths: UnitPaths, runId: string, files: readonly UpgradeSnapshotEntry[]) =>
-  atomicWriteFileSync(paths.manifest, `${JSON.stringify({ schema_version: 1, run_id: runId, files })}\n`, { mode: 0o600, durable: true });
+  atomicWriteFileSync(paths.manifest, `${JSON.stringify({ schema_version: MANIFEST_SCHEMA_VERSION, run_id: runId, files })}\n`, { mode: 0o600, durable: true });
+
+/**
+ * In a rollback-journal store, a write killed before its journal was flushed leaves a journal that is empty or starts with a zero byte:
+ * SQLite writes the header's first bytes only at the flush. The connection just closed looked at it and, by SQLite's own rule, found nothing
+ * to roll back (the database file has not been touched yet; a journal past that point is played back and removed). SQLite only removes it
+ * at the next write, so it would stop the snapshot. A WAL store has no business with such a file, and it stays a refusal.
+ */
+function removeUnflushedJournal(file: string): void {
+  const journal = `${file}-journal`, found = lstatSync(journal, { throwIfNoEntry: false });
+  if (!found?.isFile()) return;
+  if (found.size > 0) {
+    const fd = openSync(journal, "r"), first = Buffer.alloc(1);
+    try { readSync(fd, first, 0, 1, 0); } finally { closeSync(fd); }
+    if (first[0] !== 0) return;
+  }
+  rmSync(journal, { force: true });
+}
 
 /** §2.2 step 2. Also how a store left by a kill recovers: opening replays a WAL, and a read rolls back a hot journal. */
 function checkpoint(paths: UnitPaths, open: (file: string) => UpgradeSqliteConnection): UpgradeSnapshotEntry["sqlite"] {
+  let wal = true;
   const sqlite = attempt("checkpoint_failed", paths.label, () => {
     const db = open(paths.file);
     try {
+      wal = String((db.prepare("PRAGMA journal_mode").get() as { journal_mode: unknown }).journal_mode).toLowerCase() === "wal";
       const { user_version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
       const schema_sha256 = sha256(JSON.stringify(describeSqliteSchema(db)));
       const { busy } = db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get() as { busy: number };
@@ -165,6 +185,7 @@ function checkpoint(paths: UnitPaths, open: (file: string) => UpgradeSqliteConne
       return { user_version: Number(user_version), schema_sha256 };
     } finally { db.close(); }
   });
+  if (!wal) attempt("checkpoint_failed", paths.label, () => removeUnflushedJournal(paths.file));
   if (sidecarPresent(paths.file)) throw fail("sidecars_remain", paths.label);
   return sqlite;
 }

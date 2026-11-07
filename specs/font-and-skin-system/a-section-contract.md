@@ -262,7 +262,8 @@ export const OWNED_TEXT_REF_SCHEMA: SandboxSchema = /* TEXT_REF_SCHEMA 加可选
 3. 05② §7（C-2、15）：
    - 定义 `OwnedPresentationObject = PresentationObject & { readonly owner: string }`，`owner` 由平台按可信目录填，声明里没有。`renderPresentationForm(object, form, values)`、`presentationText(object, values, locale)` 对值里的引用做第 2.3 节那次不抛的绑定。
    - 挂载位由平台画（第 8.3 节 (a)），今天的 `nested` 还差四件：① 它只装 `manifest.ui.embedded_plugins` 里的插件自己画的 surface（`UiNestedContentModel`，`ui.ts:538`；`nestedContent`，`project-plugin-stages.ts:173`），平台画的内容没走过；② 它是同步的（同文件第 122、173 行），`surfaces.compose@1` 和 values 是异步动作，要先读好再传入；③ `presentation.mounts`（`id`）和 `descriptor.slots`（`slot_id`）成了两份声明，要定以谁为准；④ 15 §4.3 按事件刷新一个位置，`nested` 只在整页画时填，没有单独刷新的路。
-   - **开工前要核，我没走通：** frame 里平台画的 `SurfaceItem.actions` 按钮点下去谁接。`child.ts:90` 的 `invokeAction` 是给插件脚本的，平台画的 HTML 没有接点击的脚本，要经动作网关还得补一段。核不过回到 (b)。
+   - **开工前要核：** frame 里的 `SurfaceItem.actions` 按钮以谁的身份调动作。这件事和 (a)、(b) 无关，两条路都要答。可选：只放平台的通用操作，经父文档走（照 `pageIntake`）；或按钮由外壳盖在 frame 上画（照 `connection-slot`、`embed-open` 的位置上报）；或这个位置不带按钮。核不过由 15 接页面的片回来问，不是回到 (b)。
+   - 开工时比较一下 `placement.ts:25-27`：父文档把平台画的 HTML 发进 frame，异步，也能单独刷新一个位置，可能比 `nested` 更合适 ②、④。
 4. **`action.<capability_id>.title` 这种键过不了 `STABLE_KEY`。** `io.molis.work.example.notes.results.publish` 这样的能力 id 拼出来有 9 段，上限是 5 段，开头也不是主人名。FSS-40 本来就暂不实现，但 15 S-1 不要写死这个形状。推荐写法：`<主人名>.action.<能力 id 去掉插件前缀，点换连字符>.<部分>`，如 `notes.action.results-publish.title`。实现方案 §7.4 已同步改。
 
 ### 2.5 `TEXT_REF_SCHEMA`
@@ -653,8 +654,8 @@ export interface UiTextProvider {
 
 **后台不继承请求的语言。** `AsyncLocalStorage` 会被定时器和懒打开的对象继承，`web-server.ts:138-156` 又给每个请求语言，所以从页面请求的 async 链上起的工作会一直用那个页面的语言（实测：en 请求里起的定时器一直是 en）。现成的路：`assistant-dispatch.ts:245` 的 `continuations.watch`，之后 `assistant-service.ts:81` 以 `byHost` 开下一轮；`activation-jobs.ts:97` 的定时器和作业（`outsidePluginAction` 只退出插件范围，不退出语言）；`host.withProject` 懒打开的 Runtime。平台两层解决，业务不写：
 
-1. **页面的语言随请求结束作废。** `web-server.ts:156` 的范围带一个结束标记，请求的 promise 结束就标上，`locale()` 读到作废的当没有。不靠入口名单，漏掉的路也读不到旧请求的语言（原型实测：范围内 en，结束后 null；4 个并发不串）。`pageLocale()` 本身不动，这一层只给 provider。handler 返回后还在写的流式响应（`agent-surface.ts:290`）T8 核。T8 做。
-2. **平台的后台入口给语言。** `runBackgroundWork(fn)`（`web-locale.ts`）：每次开始运行时读「最后用的语言」（第 15.1 节），在新的范围里跑 `fn`。入口是上面三处、`periodic-tasks.ts` 的 tick 和定时任务。`plugin-runtime` 不依赖 `local-host`，经 `gate.operation`（`activation-jobs.ts:100`）这一层由宿主传入，写手核。T10 做助理的入口，其余第 16 批接第一处后台 `t` 时做。
+1. **语言随范围结束作废。** 结束标记放进开范围的函数本身（`runWithLocale`、`runBackgroundWork`），不只 `web-server.ts:156`：`fn` 同步返回的当场标上（`web-catalog-board.ts`），返回 promise 的等它结束。`locale()` 读到作废的当没有。不靠入口名单，请求里嵌套的范围（`plugin-interaction.ts:82`）和后台范围里起的定时器都读不到旧语言（原型实测：范围内 en，结束后 null；4 个并发不串）。`pageLocale()` 本身不动，这一层只给 provider。不等流结束的路由（`plugin-builder/agent-surface.ts:286`，今天不译文字）第 16 批在打开时取下语言。T8 做。
+2. **平台的后台入口给语言。** `runBackgroundWork(fn)`（`web-locale.ts`）：每次开始运行时读「最后用的语言」（第 15.1 节），在新的范围里跑 `fn`，结束同样作废。入口是上面三处、`periodic-tasks.ts` 的 tick 和定时任务。`plugin-runtime` 不依赖 `local-host`，经 `gate.operation`（`activation-jobs.ts:100`）这一层由宿主传入，写手核。T10 做助理的入口，其余第 16 批接第一处后台 `t` 时做。
 
 今天的 `pageLocale()`、`L` 同样继承（`web-locale.ts:8` 的注释说定时器里没有，不准确）。A 段不改（决定 20），主会话登待办。
 
@@ -702,15 +703,17 @@ export interface UiTextProvider {
 
 **三方文字合并。** 服务端把同一页按旧、新两种语言各画一遍，两份的差异就是要改的字；用户内容两边相同，不在差异里。两份 HTML 结构差异是 0、同语言两次渲染噪声是 0，评审台静态比过 7 个页面。
 
+**不碰的节点（第 3、4 步都用，「两个都换」也不例外）：** `input`、`textarea`、`contenteditable` 及其内部、`translate="no"`。可编辑节点的文字会被存进数据（Jelly `blocks.ts:39,57`、`note-events.ts:103`；`pages/src/editor-gap.ts:129,153`），超出用户接受的「不写数据」。
+
 1. **全部取到才动页面。** `fetch(location)` 两次，用请求头指定语言（语言不是权限，这个头不授予任何东西）；取工作台和本页插件的新语言词。主文档里每个 iframe 的文档就在 `script[data-plugin-document]` 里，不多发请求。**任何一步失败：** 页面和偏好都不动，说一句没切成，给重试。都到了才写偏好、换上下文。
 2. **算差异。** 两棵树同步走，记下不同的文字节点和属性（`checked`、`selected`、`open`、`style`、`class` 除外）。`value` 按元素类型分：按钮类算（演示页有 6 处），输入框不算。还要走进 `<template>` 的内容（每页 5 个），`<script type="application/json">` 按整段比（选择页 `arrival-data`）。CSS 变量里的字（`navigation-presentation.ts:9` 的 `--stage-title`）不合并，由画它的代码重跑。
 3. **序列对齐后写回。** 按最近的带 `id` 或 `data-plugin-contribution` 的祖先分组，旧 HTML 的文字序列和现有 DOM 的文字序列做最长公共子序列，对上的才改，对不上的不动。客户端节点是多出来的，不占位置。**同字紧挨（中间没有别的字）对不准，这时两个都换**，真界面字不留旧语言。只改 `Text.data` 和 `setAttribute`，没有删除节点、没有 `innerHTML`，所以节点、事件监听、焦点、输入框内容和选区、滚动、`details` 和 `dialog` 的开合都不动（评审台真实 Chrome 实测保住输入内容、焦点和选区）。结构不同的子树：里面没有表单控件和客户端节点就整块换，否则留着并记一条问题。
-4. **客户端画的字。** 第 3 步之后，整个节点的文字（或上述属性）等于产出记录里的一条，就按记录的键和参数重算。记录上限 2,000 条，先进先出。跳过 `input`、`textarea`、`contenteditable` 和 `translate="no"`。
+4. **客户端画的字。** 第 3 步之后，整个节点的文字（或上述属性）等于产出记录里的一条，就按记录的键和参数重算。记录上限 2,000 条，先进先出。
 5. **发一次现有的失效**（`molis-work:select-item { invalidate: true }`，`tab-workspace-plugins.ts:212`）。有自己重取路径的列表和切换途中打开的标签由此重取。评审台跑的 5 个场景里这个选择器匹配到 0 个，没查透，**不能指望它纠正真界面字**。
 
 切换串行：进行中再切就排队，只做最后一次。iframe 由父页面经端口把新语言包和两份文档发给子页面，跑同一段代码。
 
-**序列对齐跑过了，离线：** 7 个页面的两种语言真实渲染，1,731 句界面字（同一锚下去重），每句在四个位置各加一个同字的客户端行，共 6,924 次；另删真节点 248 次。不加「两个都换」：隔着别的字的都对，紧挨的有 1,890 次把客户端行译掉、真界面字留旧语言（序号定位在隔着字时也错）。加上：真界面字留旧语言 0 次，译错 0 次，客户端行译掉 3,780 次，全是紧挨的；删节点 0 处错。**限制：** 用 `htmlparser2` 模拟，不是浏览器；每次只加一个节点；连续几条客户端行、节点重排、iframe 都没跑。
+**序列对齐跑过了，离线：** 7 个页面的两种语言真实渲染，1,731 句界面字（同一锚下去重），每句在四个位置各加一个同字的客户端行，共 6,924 次；另删真节点 248 次。不加「两个都换」：隔着别的字的都对，紧挨的有 1,890 次把客户端行译掉、真界面字留旧语言（序号定位在隔着字时也错）。加上：真界面字留旧语言 0 次，译错 0 次，客户端行译掉 3,780 次，全是紧挨的；删节点 0 处错。**限制：** 用 `htmlparser2` 模拟，不是浏览器；每次只加一个节点；连续几条客户端行、服务端画的用户内容也同字、节点重排、iframe 都没跑。
 
 **残余：**
 
@@ -891,7 +894,7 @@ apps/workbench/
 | 时机 | 谁 | 做什么 |
 | --- | --- | --- |
 | 会话打开 | `openHostSession`、Home 执行器 | `options.localePacks?.(definition)` 有内容就 `registerPluginText(plugin_id, reader)`，拿到一个撤回函数 |
-| 会话释放（停用、撤权、升级前的旧会话） | 同一处的 `dispose` | 调撤回函数。按计数：同一插件在几个项目里各有一次会话，都释放才删。两个项目装了不同版本时，先查最新登记的，没有的键再查旧的：词是显示，不是权限，残余是显示新版的译文 |
+| 会话释放（停用、撤权、升级前的旧会话） | 同一处的 `dispose` | 调撤回函数。按计数：同一插件在几个项目里各有一次会话，都释放才删。两个项目装了不同版本时，先查最新登记的，没有的键再查旧的：词是显示，不是权限，残余是显示新版的译文；同一 `plugin_id`、不同发布者的残余登在 BL-586 下 |
 | 卸载 | 卸载先停，走上一行 | 不另写 |
 | 升级 | 新会话登记新的读取器，旧的随旧会话撤回 | 所以插件升级后不重启进程也不会留旧词 |
 | 内容包（08，第 6.2 节） | 没有会话：安装记录启用时登记，停用时撤回 | 和 08 第 3 节「启用时登记方法」同一个时机 |
@@ -907,7 +910,7 @@ apps/workbench/
 | **(a) 平台画，放进插件文档（推荐）** | 挂载位的内容由平台在服务端画好。iframe 插件的文档也是服务端画的（`script[data-plugin-document]`），所以拿得到；切语言走第 5.4 节 | 插件只能占一个位置，不能重画别人的对象，符合「外观用组件板已有的控件」（05② §7）。**不是现成合同：** `nested` 还差四件，frame 里的按钮没走通，都列在第 2.4 节第 3 条，归 05②、15 |
 | (b) 把别人的词带进 frame | `FrameConfig.text` 带上别人的语言包，或按引用预先解析 | frame 的配置要按「这一屏可能出现谁的对象」算词；多字节；隔离的 frame 拿到别人的文字 |
 
-推荐 (a)，理由是「frame 只带自己的词」这条规则不破例。frame 按钮核不过回到 (b)。签名定成 `renderPresentationForm(object: OwnedPresentationObject, form, values): string`，**不加工具和主人参数**；平台画（挂载位、MLN-23）和插件预览是同一个函数。这不要求 A 段写代码。
+推荐 (a)，理由是「frame 只带自己的词」这条规则不破例。开工前要核：frame 里的 `SurfaceItem.actions` 按钮以谁的身份调动作。这件事和 (a)、(b) 无关，两条路都要答。可选：只放平台的通用操作，经父文档走（照 `pageIntake`）；或按钮由外壳盖在 frame 上画（照 `connection-slot`、`embed-open` 的位置上报）；或这个位置不带按钮。核不过由 15 接页面的片回来问，不是回到 (b)。签名定成 `renderPresentationForm(object: OwnedPresentationObject, form, values): string`，**不加工具和主人参数**；平台画（挂载位、MLN-23）和插件预览是同一个函数。这不要求 A 段写代码。
 
 ### 8.4 两包样例
 
@@ -988,6 +991,14 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 
 **按决定 27（#1927）写：** T1 起每一片都答开工前检查的第 15 项「全局最优」；有更好的方案可以换，批次文件写明原来怎样、现在怎样、为什么更好、影响谁，再告诉用户；这一片让什么变多余就在这一片删；每批全部合入后评审台做一次收尾检查。
 
+**各片开工注意事项：**
+
+- **T3、T8：** `cli.ts:44` 按位置查 `args[4]`，`--locale` 排在它后面解析；`local-plugin-development.ts:49` 逐字段重组输入，要加 `locale`。
+- **T8：** FSS-61 把三段相邻同字（客户端、服务端用户内容、界面字，含客户端删掉用户内容）和连续几条客户端行跑一遍，结果写进第 5.4 节的限制。
+- **T9b：** `skills/molis-plugin-dev/elements.md:9` 的「反向域名」写明前缀是 `io.molis.work.`。
+- **T10：** 文件清单加 `docs/system/HOME-DATA.md` 一行，不变量正文在 `docs/system/security-invariants/`，`SECURITY-INVARIANTS.md:56` 提到 `/locale` 现在写 Home，看不到的部分写本机非浏览器进程能自带这个头。拒绝测试覆盖 `cross-site`、`same-site`、`none`、没有头。只在 `lang` 合法时写（`web-server.ts:136-138` 的推算不算切语言）。同步写，临时文件改名，权限 0600（同 `project-arrival.ts`）；写成功才改内存，失败下次还能重试。比程序新的文件：`readUiLocale` 返回 `null`，`rememberUiLocale` 不盖。
+- **T10 的提醒给统筹：** `prompt.assistant-base` 升到 2 后 `scripts/gates/initial-versions.mjs` 会报它不是 1。这个脚本不在 CI 里，发布检查单点名（`CHECKLIST.md:129,158`），统一起点已登记，属于预期。
+
 **给别批的。** 合同都只等 T1 或 T3 的类型；校验等 T4；**实现里要调 `say` 的片等 T8**（`ui-text-provider.ts`、`plugin-text.ts`），没装时开发路径和测试抛错，正式运行显示默认语言。
 
 | 片 | 合同等 | SDK 校验等 | 用来 |
@@ -1001,7 +1012,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 | 08 C-2 | T1 | T4 | `skills.body.read@1` 的 `locale`、`fell_back`；实现等 T8 |
 | 09 第 9-1 项 | T10 | | 委派协议带上冻结的 `reply_locale`（第 15.3 节） |
 
-路线书的 `dependencies.md` 第 192、194、199 行已在本 PR 改；批次文件由主会话改（第 16.4 节）。
+路线书的 `dependencies.md` 第 192、199 行已在本 PR 改；批次文件由主会话改（第 16.4 节）。
 
 **MLN-23 不卡：** 它用 `renderPresentationForm` 读内置插件的 `label`，实现是第 37 批第 2 项「主线第一片接顶部切换器」，排在第 16 批切换之后（`dependencies.md` 15-1、第 218 行），那时内置插件已经有语言文件。批文件没有写编号 MLN-23，是按「顶部切换器」对上的；如果它被提前，要停下问。
 
@@ -1020,9 +1031,9 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 | 5 | 放在哪个包 | 合同在 contracts；工具在 SDK `/ui`（只依赖 contracts，无 Node 内建）；基线在 design-system（读文件）；语言文件读取在 plugin-runtime；A 段不加新包。**B 段的外观主人按用户 11-01 的规定进 `horizontal/` 新包，不进实现方案写的 `apps/local-host/src/interface/`**，方案已加注 |
 | 6 | 表与存储 | 不加表，不改库结构，不碰发行物（`artifact_json` 不变）。T10 加一个 Home 文件 `config/ui-locale.json`（第 15.1 节）。第 16 批外部包走已签名的包文件（第 6.3 节），同样不用新表 |
 | 7 | 兼容与迁移 | 不加。`ui.locales` 与 `ui.messages` 同写拒绝，没有翻译器读两种。`literal` 是语义不是兼容 |
-| 8 | 安全边界 | 不碰令牌、动作网关、MCP、桌面 IPC。相关的四点：① 文字冒充（主人不从声明读、前缀规则），FSS-42、43 断言拒绝；② 不可信文件（重复键、危险属性名、CSS、外部 URL、语言包里的标记字符），FSS-46、70 断言拒绝；③ `t` 的字符串参数转义，合并代码不用 `innerHTML`，FSS-61、70 断言；④ `/locale` 这条 GET 在 `authorizeLocalWebRequest` 之前，跨站也能到，写 Home 记录要先确认同源，T10 加一行不变量和拒绝测试。切语言的请求头只选语言、不授予任何东西。文字工具是否进 `SECURITY-INVARIANTS.md` 由 T4 写手按该文件规则加一行，评审确认 |
+| 8 | 安全边界 | 不碰令牌、动作网关、MCP、桌面 IPC。相关的四点：① 文字冒充（主人不从声明读、前缀规则），FSS-42、43 断言拒绝；② 不可信文件（重复键、危险属性名、CSS、外部 URL、语言包里的标记字符），FSS-46、70 断言拒绝；③ `t` 的字符串参数转义，合并代码不用 `innerHTML`，FSS-61、70 断言；④ `/locale` 是 GET，跨站 `<img>` 能到（`refuseForeignRequest` 拒非回环和跨站 iframe，`authorizeLocalWebRequest` 放行所有 GET），写 Home 记录只认 `Sec-Fetch-Site: same-origin`，T10 加一行不变量和拒绝测试。切语言的请求头只选语言、不授予任何东西。文字工具是否进 `SECURITY-INVARIANTS.md` 由 T4 写手按该文件规则加一行，评审确认 |
 | 9 | 调用次数 | 见下表 |
-| 10 | 升级与数据 | A 段只有 T10 写 Home：一个新文件，第 1 版，第一次写才有，不用升级步骤；没有它就是没有记录。没有改库或已有带版本文件的结构。`format.ui.*` 进 Home 是 D 段的事，到时按 `VersionedFile` 走升级链 |
+| 10 | 升级与数据 | A 段只有 T10 写 Home：一个新的带版本文件，进 `home-stores.ts`，第 1 版不用升级步骤；不存在就用默认，这是初始状态，不算新增兼容逻辑。没有改库或已有带版本文件的结构。`format.ui.*` 进 Home 是 D 段的事，到时按 `VersionedFile` 走升级链 |
 | 11 | 成果与过程项 | 配置不进成果库（需求 §3.1） |
 | 12 | 页面、外壳与文字 | 不出新页面，组件板加一节开发标本。不登记 DOM 事件（第 4.5 节）。页面资源无增长（第 9 节）。标本是开发工具，不算定样，没有新组件。新文字有主人；A 段逻辑不依赖译文；不存译文；令牌不改名；回复语言由平台一处给 |
 | 13 | 错误 | `defineErrorCodes("ui", …)`，`error-owners.json` 加 `ui` 一条，路径只含新文件。不写 Error 子类。报错带文件和下一步（第 3.1 节） |
@@ -1129,9 +1140,9 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 - **什么时候更新：** 用户在页面上切语言，或发起一轮助理工作。只是打开页面不算，后台开着的旧窗口不会改掉它。
 - **什么时候读：** 定时任务每次开始运行时读，已有日报从下一次起跟着变，不用逐个改。**一轮之内不变。**
 - **和「界面语言只在这个浏览器」：** 不冲突。界面语言仍是每个浏览器各选各的，Cookie 不变；这项记录不决定任何页面显示，只给没有页面的工作用。两个浏览器语言不同时，没有页面的工作跟最后动的那个。
-- **主人与存放：** 主人是宿主，新文件 `apps/local-host/src/ui-locale-memory.ts`；存在 `<Home>/config/ui-locale.json`（`home-stores.ts` 加一行，版本条目 `format.ui.last-locale`）。不加表，别的包不碰文件。B 段的外观主人进 `horizontal/` 时连同文件一起搬。
+- **主人与存放：** 主人是宿主，新文件 `apps/local-host/src/ui-locale-memory.ts`；存在 `<Home>/config/ui-locale.json`，算带版本文件（`home-stores.ts` 加一行，版本条目 `format.ui.last-locale`，第 1 版不用升级步骤）；不存在就用默认，不算新增兼容逻辑。不加表，别的包不碰文件。B 段的外观主人进 `horizontal/` 时连同文件一起搬。
 - **读写函数：** `rememberUiLocale(home, locale)`：取值校验过才写，和内存里相同就不写，写失败只记一条问题，不挡请求。`readUiLocale(home)`：第一次读文件，之后走内存；没有记录或读不了时是 `null`，调用方用 `resolveWebLocale` 的默认。
-- **写的入口：** `assistant-http.ts:272`，和 `/locale`（`web-server.ts:134`）。`/locale` 在 `authorizeLocalWebRequest` 之前，跨站 GET 也能到：Cookie 照旧，写 Home 记录要先确认 `Sec-Fetch-Site: same-origin`，否则跳过。第 16 批原地切语言后改走写偏好的动作。
+- **写的入口：** `assistant-http.ts:272`，和 `/locale`（`web-server.ts:134`）。`/locale` 是 GET：`web-server.ts:133` 的 `refuseForeignRequest` 拒掉非回环的 `Host` 和跨站 iframe，`authorizeLocalWebRequest` 本来就放行所有 GET（`web-http.ts:152`），所以跨站 `<img>` 还能到。Cookie 照旧，写 Home 记录只认 `Sec-Fetch-Site: same-origin`，别的和没有这个头都跳过。第 16 批原地切语言后改走写偏好的动作。
 
 否掉：**记下发起时的语言**，切语言之后旧日报不变，要逐个改；**用主人默认语言**，英文用户也会收到中文日报，不满足用户的要求。
 
@@ -1141,7 +1152,7 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 
 - **路径：** `assistant-http.ts:272` → `assistant-service.ts:205` → `assistant-dispatch.ts:230` 的 `host.start`（`assistant-round-start.ts:32`）。`assistant-executor.ts:106` 是外部执行方的，不走这里。
 - **有页面的一轮：** 在 `assistant-http.ts:272` 这个入口读 `pageLocale()`，记第 15.1 节的记录，作为参数经 `send`、`dispatch` 进 authority，后面不再碰全局。
-- **宿主发起的一轮**（`byHost`：定时安排、续轮，`assistant-service.ts:81,95`）：开始时读第 15.1 节的记录，不继承当初页面的语言。这几个入口同时包 `runBackgroundWork`（第 5.2 节）。
+- **宿主发起的一轮**（定时安排、续轮等，开轮的入口不止 `assistant-service.ts:81,95`）：`dispatch` 没收到语言就读第 15.1 节的记录，放在这一处，不靠入口名单，也不继承当初页面的语言。长期任务的入口包 `runBackgroundWork`（第 5.2 节）。
 - **固定文字：** 取值校验（`isWebLocale`）后映射到固定的一段话，不把字符串拼进提示词。不用 `LOCALE_TAG`，所以 T10 不等 T1。
 - **版本记得下：** 放进 `composeRolePrompts`（`run-start.ts:71`，调用在 `index.ts:351`），一条带 `prompt_id`、`version`（`prompt.reply-language`，走 `tooling/versions.json`）的提示词，`freezeRunStart` 就记下了。`prologue-run-start.ts:87` 只拼字符串，记不下。`ASSISTANT_BASE` 那句改成「回复语言见本轮说明；本轮没有说明时，用用户使用的语言」，`prompt.assistant-base` 升一版。
 - **它不是最后一段：** `roundCharacter` 之后还接 `childInstructions`、方法正文、界面说明、步骤板；方法正文今天是中文，最可能把回复带回中文。FSS-71 的真实模型验证带一个方法一起试。
@@ -1163,7 +1174,7 @@ T10 不依赖其余各片，也不碰文字工具。
 | 读正文 | §8 `skills.body.read@1` | 语言不进输入。user、plugin 用调用上下文的 `locale`；agent 用这一轮冻结的 `reply_locale`，第 16 批之前到不了 `ActionCallContext.locale` 时读默认语言。输出加 `locale`（实际用的，单文件包是 `null`）和 `fell_back: boolean`，默认语言未知时 `fell_back` 是 `false`。回退不算「悄悄换版本」，版本没变，结果也写明了 |
 | 轮次 | §5、§7 | 开轮时 `reply_locale` 和 `SkillRef` 名单一起冻结，不另起字段，第 09 批委派协议带上 |
 | 元数据 | §4.1、§4.2、§8 | **宿主只读词表，不读 frontmatter**（08 §4.1）。`pack-content` 把译文文件 frontmatter 的 `name`、`description`、`when_to_use`、`summary`、`when_not_to_use`、`argument_hint` 转进语言文件，键是 `<主人>.skill-<skill_id>.<字段>`。所以这要求有 `ui.locales`；没有它却有 `SKILL.en.md` 的包，元数据只有默认语言。给模型选 Skill 的 `description` 也跟语言，不进 MCP。`excerpt` 从所用语言的正文取。译文文件写 `tools`、`applies_to` 就拒绝 |
-| 键的形状 | §4.2 | `skill_id`（`AGENT_TOKEN`）可以数字开头，`STABLE_KEY` 第二段起要字母开头，所以写成一段 `skill-<skill_id>`。导入包算 `plugin_id` 时最后一段以字母开头，否则主人名过不了 |
+| 键的形状 | §4.2 | `skill_id`（`AGENT_TOKEN`）可以数字开头，`STABLE_KEY` 第二段起要字母开头，所以写成一段 `skill-<skill_id>`。导入包算 `plugin_id` 时最后一段以字母开头，否则主人名过不了；前缀也必须是 `io.molis.work.`，否则 `parsePluginManifest` 拒绝 |
 | 外部导入 | §6 | 不要语言标记，单文件当默认语言。`ui.locales` 对内容包可选 |
 | 资源 | §4.2 | `SkillResourceDeclaration` 加可选 `locale`。`scripts/`、`assets/` 不分语言。上限不变（按全部语言计） |
 | 白名单 | §3 | 收 `ui.locales`，去掉 `ui.messages`、`ui.translations`（第 6.2 节） |
@@ -1225,7 +1236,7 @@ A 段新写法只有开发路径走得通，带 `ui.locales` 的沙箱包装不�
 | `skills/molis-plugin-dev/ui.md`「文案与 i18n」 | 不抄第二份，加一句指向新章，写明这一节是内置插件第 16 批之前的写法。`CHAPTERS` 只挂 `ui.md` 的「质量线」一节（`plugin-builder/skill.ts:17-20`），这里不在挂载范围 | T9b |
 | `docs/platform/PLUGIN-DEVELOPMENT.md` | 加一节：怎样声明 `ui.locales`、`validate` 的错误怎么读、现在哪条路走得通 | T9b |
 | `development-workflow.md` 第 4 节 | **并入第 12 项，改名「页面、外壳与文字」（主会话裁定），不为文字加项。** 加的内容：新文字归谁、新代码不依赖译文、不存译文、颜色字体只用语义变量、给模型的内容跟语言；按第 16.1 节标「今天」和「第 16 批起」 | T9b |
-| `development-workflow.md` 第 10.1 节 | 第 3 行或第 6 行加一句评审要点，指向第 4 节第 12 项；保持六行，不加第七行 | T9b |
+| `development-workflow.md` 第 10.1 节 | 第 3 行或第 6 行加一句评审要点，指向第 4 节第 12 项；不加新行 | T9b |
 | `docs/prompts/repository-systematic-review.md` | 第 9 节（前端质感）加一条：文字、语言、外观变量；指向新章 | T9b |
 | `docs/system/DEVELOPMENT-REQUIREMENTS.md` | 不改。它只管包 README「开发要求」的写法，文字规矩不在那一层 | |
 | `AGENTS.md` | 「先读哪里」加一行。硬约束加一条窄的，带时间边界：「新代码不拿译文做判断、不把译文存进业务数据；存量清单在字体皮肤设计稿第 14 节，第 16 批改完（`RoleTemplate` 采用时存字符串是例外）。第 16 批起后台工作存 `TextRef`。」SDK 共用工具枚举加文字工具 | T9b |

@@ -129,8 +129,9 @@ function upgradeInOneTransaction(db: SqliteBaselineDatabase, baseline: SqliteBas
 /**
  * Upgrade one store on the connection the caller opened (upgrade-chain-design §2.2, steps 1, 4, 5). The caller holds the storage owner
  * lock and has no other connection on the file. The connection stays open: the upgrade process closes it, and takes the snapshot around
- * this call. Every failure rolls back and raises `storage.upgrade_failed`; a store at the current version is left alone, and one this
- * build cannot start from is refused by what it is, without a write.
+ * this call. After a throw it must close the connection synchronously, with no `await` in between, or the later writes of a step function
+ * that returned a promise still land in the store. Every failure rolls back and raises `storage.upgrade_failed`; a store at the current
+ * version is left alone, and one this build cannot start from is refused by what it is, without a write.
  */
 export function runSqliteUpgrade(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, home?: string): SqliteUpgradeResult {
   const to = baseline.version, found = readVersion(db);

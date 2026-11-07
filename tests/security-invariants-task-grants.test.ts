@@ -8,11 +8,12 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { MolisWorkLocalHost, pluginInstallActions, projectDeletedHooksFor, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, pluginInstallActions, projectDeletedHooksFor, readMcpToolPreference, taskGrantActionProvider } from "@molis-ai/molis-work-app-local-host";
 import {
-  LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionView, type ExactActionReference,
+  LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionView, type ExactActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginAgentRunInput, PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { PluginAgentRunInput, PluginDefinition, PluginReadGroupDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { agentHostCapabilities, type AgentActionClient, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import {
@@ -441,15 +442,88 @@ test("S-141 R5 every category list offers is one set takes as a new category: on
     [[a.shelf.provider_id, "unavailable"]], "the task that holds it sees it under its own state");
 });
 
-test("S-141 R1 a held category is taken by its records: a group no longer offered or no group at all keeps them, and the same reference new to a task is refused", { timeout: 120_000 }, async t => {
+test("S-141 R1 a reference neither held nor offered now names nothing for a task new to it, and is a stale one, refused as a conflict, from a task holding its provider", { timeout: 120_000 }, async t => {
   const w = await world(t), a = await w.open("Held by records");
   // New to the task, neither names a category offered now.
   await assert.rejects(a.set("daily", [{ provider_id: a.providerId }]), { code: "actions.input_invalid" });
   await assert.rejects(a.set("daily", [{ ...a.shelf, group_id: "gone" }]), { code: "actions.input_invalid" });
   await a.set("daily", [a.group, a.shelf]);
   const before = (await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort();
-  await a.set("daily", [{ provider_id: a.providerId }, { ...a.shelf, group_id: "gone" }]);
-  assert.deepEqual((await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort(), before, "held, they are kept exactly");
+  // The task holds these providers under other categories: such references come from a view of before their groups changed.
+  await assert.rejects(a.set("daily", [{ provider_id: a.providerId }, a.shelf]), { code: "actions.conflict" });
+  await assert.rejects(a.set("daily", [a.group, { ...a.shelf, group_id: "gone" }]), { code: "actions.conflict" });
+  assert.deepEqual((await w.records("agent:task:")).map(grant => [grant.capability_id, grant.generation]).sort(), before, "the refused calls changed nothing");
+});
+
+/**
+ * The Host's task grant provider over ports whose catalog and declarations this test sets. A running plugin's Manifest is the
+ * platform's frozen copy, so a provider that changes its read groups between two calls (an upgrade with other groups) is written
+ * here as the declarations the ports answer; the records are the Home's, read and written as the Host does.
+ */
+async function regroupable(t: TestContext) {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "task-grant-regroup-")));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const reference: LocalHostProjectReference = { project_id: "p-regroup", storage_key: "p-regroup" };
+  const install = "install-reader", shelfInstall = "install-shelf";
+  const view = (definition: ActionDefinition, provider_id: string, plugin_id: string): ActionView => ({ capability_id: definition.capability_id,
+    version: definition.version, operation: definition.operation, action: definition.action, availability: { available: true },
+    provider: { provider_id, title: plugin_id, kind: "plugin", plugin_id, plugin_install_id: provider_id } });
+  const views = [view(notes, install, READER), view(loose, install, READER), view(shelfRead, shelfInstall, SHELF)];
+  const state: { groups?: PluginReadGroupDeclaration[] } = {};
+  const provider = taskGrantActionProvider({ homeDirectory: home, project: id => id === reference.project_id ? reference : undefined,
+    catalog: async () => views,
+    declarations: async () => ({ of: ({ provider_id }) => provider_id === install && state.groups ? { read_groups: state.groups } : {},
+      installed: id => id === install || id === shelfInstall }) });
+  const handle = (action: { capability_id: string }, input: unknown) => {
+    const handler = provider.handlers.find(entry => entry.capability_id === action.capability_id);
+    assert.ok(handler, `the provider handles ${action.capability_id}`);
+    const caller: ActionExecutionContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: reference.project_id, permissions: ["projects:settings"],
+      beforeEffect: async () => {} };
+    return Promise.resolve(handler.handle(caller, input));
+  };
+  const list = async () => await handle(agentTaskGrantActions.list, {}) as TaskGrantListResult;
+  const subject = async (key: string) => (await list()).subjects.find(item => item.key === key);
+  const set = async (key: string, categories: readonly TaskGrantSetCategory[], expected?: string) => await handle(agentTaskGrantActions.set,
+    { plugin_install_id: install, key, categories, expected_revision: expected ?? (await subject(key))?.revision ?? "" }) as TaskGrantSubject;
+  const held = async () => (await readMcpToolPreference(home)).action_grants.map(grant => [grant.client_id, grant.capability_id, grant.generation]).sort();
+  const status = async (key: string) => (await subject(key))?.categories.map(category => [category.provider_id, category.group_id ?? null, category.status]).sort();
+  const recorded = async (key: string) => (await readMcpToolPreference(home)).action_grants.filter(grant => grant.client_id.endsWith(`:${key}`)).map(grant => grant.capability_id).sort();
+  return { state, install, shelf: { provider_id: shelfInstall }, set, subject, held, status, recorded };
+}
+
+test("S-141 R1 R4 PWA-151 a set built on what the person read before the provider changed its read groups is a conflict and changes nothing", async t => {
+  const r = await regroupable(t);
+  const whole = { provider_id: r.install }, notesGroup = { provider_id: r.install, group_id: "notes" }, looseGroup = { provider_id: r.install, group_id: "loose" };
+  const notesDeclared: PluginReadGroupDeclaration = { group_id: "notes", title: "笔记", description: "这个插件的笔记", actions: [notes.capability_id] };
+  const looseDeclared: PluginReadGroupDeclaration = { group_id: "loose", title: "零散", description: "不在笔记里的", actions: [loose.capability_id] };
+
+  // Scenario one: the reader declared no groups and the person turned on all of it; it then declares `notes`, leaving `loose` in none.
+  await r.set("daily", [whole]);
+  const seen = (await r.subject("daily"))?.revision;
+  r.state.groups = [notesDeclared];
+  let before = await r.held();
+  // The page still shows the whole reader: turning on the shelf beside it sends that row back. Taken as it reads now, the call would
+  // keep `loose` alone (under the reader with no group) and drop `notes`, which the person never touched.
+  await assert.rejects(r.set("daily", [whole, r.shelf], seen), { code: "actions.conflict" });
+  assert.deepEqual(await r.held(), before, "nothing was kept or dropped");
+  assert.deepEqual(await r.status("daily"), [[r.install, null, "removed"], [r.install, "notes", "granted"]].sort(), "read again, the person sees the groups as they are now");
+
+  // Scenario two: the reader declares `notes` and `loose`, both turned on; it then drops `loose`.
+  r.state.groups = [notesDeclared, looseDeclared];
+  await r.set("weekly", [notesGroup, looseGroup]);
+  const earlier = (await r.subject("weekly"))?.revision;
+  r.state.groups = [notesDeclared];
+  before = await r.held();
+  // The page still shows both: turning `notes` off sends `loose` alone. Taken as it reads now, it would keep the whole reader, `notes` too.
+  await assert.rejects(r.set("weekly", [looseGroup], earlier), { code: "actions.conflict" });
+  // With the revision read now the reference is still a stale one: neither held nor offered, of a provider the task holds.
+  await assert.rejects(r.set("weekly", [looseGroup]), { code: "actions.conflict" });
+  assert.deepEqual(await r.held(), before, "nothing was kept or dropped");
+  assert.deepEqual(await r.status("weekly"), [[r.install, null, "removed"], [r.install, "notes", "granted"]].sort());
+  // Read again, turning `notes` off takes it off (PWA-151): the removed row, sent back as it is listed, keeps its record.
+  await r.set("weekly", [whole]);
+  assert.deepEqual(await r.recorded("weekly"), [loose.capability_id]);
+  assert.deepEqual(await r.status("weekly"), [[r.install, null, "removed"]]);
 });
 
 test("S-141 R1 R4 C1 a category its provider no longer declares is listed as removed, kept exactly while it is held and unreadable meanwhile, and gone once left out", { timeout: 120_000 }, async t => {

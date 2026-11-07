@@ -211,7 +211,7 @@ test("PWA-151 archiving a task clears its grants; a clear the platform refused l
   assert.equal(getScheduleConversationTask(db, b.task_id)!.archived, true);
   fake.state.refuse = false;
   const live = new Set<string>();
-  assert.equal(await grants.reconcile(live), true);
+  assert.equal(await grants.reconcile(() => live), true);
   assert.deepEqual(fake.cleared(), [a.task_id, b.task_id, b.task_id], "the reconcile job clears what the archive could not");
   assert.deepEqual(fake.subjects, []);
 });
@@ -220,14 +220,27 @@ test("PWA-151 the reconcile job lists once per start and clears subjects of arch
   const fake = platform([subject("sct_live", ["granted"]), subject("sct_gone", ["granted"]), subject("sct_archived", ["unavailable"])]);
   const grants = createScheduleTaskGrants(fake.actions), live = new Set(["sct_live"]);
   fake.state.listFails = true;
-  assert.equal(await grants.reconcile(live), false, "a platform that cannot answer is tried again on the next pass");
+  assert.equal(await grants.reconcile(() => live), false, "a platform that cannot answer is tried again on the next pass");
   fake.state.listFails = false;
-  assert.equal(await grants.reconcile(live), true);
+  assert.equal(await grants.reconcile(() => live), true);
   assert.deepEqual(fake.cleared().sort(), ["sct_archived", "sct_gone"]);
   assert.deepEqual(fake.subjects.map(item => item.key), ["sct_live"]);
   const before = fake.calls.length;
-  for (let pass = 0; pass < 3; pass += 1) await grants.reconcile(live);
+  for (let pass = 0; pass < 3; pass += 1) await grants.reconcile(() => live);
   assert.equal(fake.calls.length, before, "after one sweep the job asks the platform nothing until a clear is owed");
+});
+
+test("PWA-151 the reconcile job reads the live tasks after the platform's list: a task made and granted in between keeps its grants", async () => {
+  const fake = platform([subject("sct_new", ["granted"])]), live = new Set<string>();
+  // The person makes the task and turns a category on while the platform answers the list.
+  const actions = { invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> => {
+    const answer = await fake.actions.invoke(definition, input);
+    if (definition.capability_id === agentTaskGrantActions.list.capability_id) live.add("sct_new");
+    return answer;
+  } };
+  assert.equal(await createScheduleTaskGrants(actions).reconcile(() => live), true);
+  assert.deepEqual(fake.cleared(), [], "the new task's grants are not taken");
+  assert.deepEqual(fake.subjects.map(item => item.key), ["sct_new"]);
 });
 
 test("PWA-152 the page reads the grants once for the whole list, as counts by state (never another plugin's words)", async () => {

@@ -109,6 +109,25 @@ test("N14: the board's four parts are named, in both languages and themes, insid
   // The fold shows only for text that is really cut, and opening it reports its state.
   const fold = await evaluate<Array<{ hidden: boolean; expanded: string | null; label: string }>>(`[...document.querySelectorAll('#kept .mw-kept__more')].map((more) => ({ hidden: more.hidden, expanded: more.getAttribute('aria-expanded'), label: more.textContent.trim() }))`);
   assert.deepEqual(fold, [{ hidden: false, expanded: "false", label: "看全部" }]);
+  // No way to the rest when nothing is cut. Put back while folded: the short text needs none, and swapping back brings it again.
+  const longKept = "document.querySelector('#kept .mw-kept__more').closest('.mw-kept')";
+  const foldState = () => evaluate<{ hidden: boolean; label: string; focus: string }>(`(() => { const kept = ${longKept}, more = kept.querySelector('.mw-kept__more');
+    return { hidden: more.hidden, label: more.textContent.trim(), focus: document.activeElement.textContent.trim() }; })()`);
+  const swapLong = () => evaluate(`${longKept}.querySelector('[data-keep-swap]').click()`);
+  await swapLong();
+  assert.equal((await foldState()).hidden, true, "put back while folded: the short text has no way to more");
+  await swapLong();
+  assert.equal((await foldState()).hidden, false, "swapped back: the long text has it again");
+  // Open, put back, fold: the text fits, so the way to the rest goes, and the keyboard's focus moves to the row's other button.
+  await evaluate(`${longKept}.querySelector('.mw-kept__more').click()`);
+  await swapLong();
+  assert.deepEqual([(await foldState()).hidden, (await foldState()).label], [false, "收起"], "still open after putting back, with the way to fold it");
+  await evaluate(`${longKept}.querySelector('.mw-kept__more').focus()`);
+  await press("Enter");
+  assert.deepEqual(await foldState(), { hidden: true, label: "看全部", focus: "换回" }, "folded: nothing is cut, no way to more, the focus on the row's button");
+  await swapLong();
+  assert.equal((await foldState()).hidden, false);
+
   const opened = await evaluate<{ expanded: string | null; label: string; cut: boolean }>(`(() => { const more = document.querySelector('#kept .mw-kept__more'); more.click(); const text = more.parentElement.querySelector('.mw-kept__text');
     return { expanded: more.getAttribute('aria-expanded'), label: more.textContent.trim(), cut: text.scrollHeight > text.clientHeight + 1 }; })()`);
   assert.deepEqual(opened, { expanded: "true", label: "收起", cut: false });

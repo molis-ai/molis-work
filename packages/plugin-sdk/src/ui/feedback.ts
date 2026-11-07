@@ -48,7 +48,7 @@ export function renderAlert(options: {
     ? `<strong class="mw-alert__title"><span class="mw-alert__mark" aria-hidden="true">${renderStateRing({ state: options.state })}</span><span>${escapeHtml(options.title)}</span></strong>`
     : `<strong>${escapeHtml(options.title)}</strong>`;
   const actions = options.actions?.length
-    ? `<div class="mw-alert__actions">${options.actions.map((action) => renderButton({ variant: "ghost", ...action })).join("")}</div>`
+    ? `<div class="mw-alert__actions">${options.actions.map((action) => renderButton({ ...action, variant: action.variant ?? "ghost" })).join("")}</div>`
     : "";
   return `<div class="${cx("mw-alert", `mw-alert--${options.tone ?? "info"}`, options.rise && "mw-alert--rise", options.className)}" data-slot="alert" role="status"${renderAttrs(options.attrs)}>${title}${
     options.body ? `<p>${escapeHtml(options.body)}</p>` : ""
@@ -79,7 +79,7 @@ export function renderKept(options: {
     : "";
   return `<div class="${cx("mw-kept", options.swapped && "is-swapped", options.rise && "mw-kept--rise", options.className)}" data-slot="kept"${
     options.index ? ` style="--i:${Math.max(0, Math.trunc(options.index))}"` : ""
-  }${renderAttrs(options.attrs)}><div class="mw-kept__head"><span class="mw-kept__who">${escapeHtml(options.who)}</span>${renderButton({ variant: "ghost", ...options.action })}</div><p class="${cx(
+  }${renderAttrs(options.attrs)}><div class="mw-kept__head"><span class="mw-kept__who">${escapeHtml(options.who)}</span>${renderButton({ ...options.action, variant: options.action.variant ?? "ghost" })}</div><p class="${cx(
     "mw-kept__text",
     !options.text && "is-blank",
     options.more?.open && "is-open",

@@ -45,6 +45,9 @@ function foldKept(more: HTMLElement): void {
   const open = more.parentElement?.querySelector(".mw-kept__text")?.classList.toggle("is-open") ?? false;
   more.setAttribute("aria-expanded", String(open));
   more.querySelector("[data-slot=button-label]")!.textContent = (open ? more.dataset.keepClose : more.dataset.keepOpen) ?? "";
+  fitFolds();
+  // Folding a text that fits takes the way to the rest away, and the focus was on it: it moves to the row's other button.
+  if (more.hidden) more.closest(".mw-kept")?.querySelector<HTMLElement>("[data-keep-swap]")?.focus();
 }
 
 function moveStep(button: HTMLElement): void {

@@ -19,6 +19,17 @@ test("an alert's actions are a row of real buttons under its words, ghost unless
   assert.match(html, /<p>还没存。<\/p><div class="mw-alert__actions"><button [^>]*class="mw-btn mw-btn--ghost mw-btn--sm"[^>]*>.*存成新规则.*<\/button><button [^>]*class="mw-btn mw-btn--primary mw-btn--sm"[^>]*data-act="reload"[^>]*>.*载入最新版.*<\/button><\/div><\/div>$/s);
 });
 
+test("a button without a variant is ghost even when the variant is written as undefined, so one alert never gets two primaries", () => {
+  const kept = (variant?: "primary") => renderKept({ who: "你写的", text: "x", action: { label: "放回", variant } });
+  const alert = (variant?: "primary") => renderAlert({ title: "t", actions: [{ label: "存成新规则", variant }] });
+  for (const html of [alert(undefined), kept(undefined)]) {
+    assert.match(html, /mw-btn--ghost/);
+    assert.doesNotMatch(html, /mw-btn--primary/);
+  }
+  assert.match(alert("primary"), /mw-btn--primary/, "a named variant stays");
+  assert.match(kept("primary"), /mw-btn--primary/, "a named variant stays");
+});
+
 test("what goes into an alert's actions is escaped: words and attributes", () => {
   const html = renderAlert({ title: "<b>题</b>", body: "<i>文</i>", actions: [{ label: '<img src=x onerror="a()">', attrs: { "data-arg": '"><script>x()</script>' } }] });
   assert.doesNotMatch(html, /<img|<script|<b>|<i>/);
@@ -48,7 +59,7 @@ test("the step's dot has a name, not only a colour", () => {
 });
 
 // RAC-551 says every class a /ui part writes has a rule in the host's sheets. These parts are published before their rules reach
-// the sheets: until N14's page draws them they are the board's own (KEEP_EDITS_BOARD_STYLES), as the composer's are. These are
+// the sheets: until N14's page draws them they are the board's own (KEEP_EDITS_BOARD_STYLES). These are
 // exactly the classes waiting. N14's interface moves the rules into the page sheets, empties this list and adds the parts to
 // samples() in sdk-ui-markup.test.ts; a class missing a rule for any other reason fails here.
 const UNTIL_N14 = ["mw-alert--rise", "mw-alert__actions", "mw-alert__mark", "mw-alert__title", "mw-kept", "mw-kept--rise", "mw-kept__head", "mw-kept__more", "mw-kept__text", "mw-kept__who", "mw-step-dot"];

@@ -2,7 +2,7 @@
 
 每次发布把这份清单复制进发布 PR 的描述，逐项勾选；做不到的项写明原因，不删项。规则出处是 [POLICY.md](POLICY.md)。
 
-当前准备 [0.1.0 统一起点候选](v0.1.0.md)：N34 已在源码中复位产品与全部内置 Manifest，旧同名 release/tag 已按 2026-11-06 追加授权删除并核实释放；最终构建、登记与隔离安装另验。新版本未发布，真实 Home 未重建，统一起点日期仍未生效。旧 0.3.0 候选的构建和产物证据不能替代本次检查。
+当前准备 [0.1.0 统一起点候选](v0.1.0.md)：N34 已在源码中复位产品与全部内置 Manifest，旧同名 release/tag 已按 2026-11-06 追加授权删除并核实释放；最终构建、登记与隔离安装另验。新版本未发布。真实 Home 已于 2026-11-07 干净重建，统一起点已登记（第 4 节）。旧 0.3.0 候选的构建和产物证据不能替代本次检查。
 
 ## 1. 定版本，写材料
 
@@ -78,7 +78,7 @@
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
 Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-30干净重建取代。实现历史见 [Pages与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
-当前版本只以上表和代码核对为准。2026-10-30用户决定统一为现行结构的第1版、旧Home搬开后重建；真实 Home 的统一起点尚未生效；本次合流保留 Personal 的个人同步技术表与高水位，将现行完整基线及本机持久化文件归一为 1（具体以上表为准）。现行同步集合也归一为 1；新 Home 不继承旧同步授权、游标或远端数据的采用结论。不增加读取兼容或请求内补表，不触及真实 Home。
+当前版本只以上表和代码核对为准。2026-10-30用户决定统一为现行结构的第1版、旧Home搬开后重建；真实 Home 的统一起点已于 2026-11-07 生效（第 4 节）；本次合流保留 Personal 的个人同步技术表与高水位，将现行完整基线及本机持久化文件归一为 1（具体以上表为准）。现行同步集合也归一为 1；新 Home 不继承旧同步授权、游标或远端数据的采用结论。不增加读取兼容或请求内补表，不触及真实 Home。
 
 版本号相同、结构不同的库**不一律拒绝**：`openBaselineHomeSqlite` 的只读结构核对只要求当前基线的每张表都在、且形状与基线一致，**允许额外的表**（项目库会带内置插件自己的表）；缺表或基线表形状不同才报 `storage.schema_structure_mismatch`；有表无版本报 `storage.schema_version_mismatch`，低版本报 `storage.upgrade_pending`，高版本报 `storage.store_too_new`。所以「同号旧形状」既不能推成必拒，也不能推成必收：已知旧同号形状（旧角色库为1但没有 `character_runs`；#661之前的连接库为1；记忆账本旧1带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1）里，带额外表的不一定被这套结构核对拒掉；其他 owner 自己的路径、权限、密钥与 JSON 检查也不是这个函数的保证，仍由各自入口负责；数字重新从1起算不证明这些旧形状会被接受。重建前不要用新构建打开旧 Home。这里只引用既有记录，没有重新读取真实Home。
 
@@ -92,6 +92,58 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 ## 4. 真实 Home：搬开后干净重建
 
 **统一起点的记录**由维护者在本节各项实操通过后填写：日期、提交、构建版本、各库与带版本文件的实际版本，以及可恢复备份的验证结果。记录生效后，各库与带版本文件改结构须带逐版升级步骤。首次外部安装的日期另记在[合同变更流程](../system/CONTRACT-CHANGES.md)。
+
+统一起点登记：2026-11-07，main 提交 `1b69dcb222`
+
+**统一起点：2026-11-07。** 操作者是第 02 批统筹会话，用户在场并确认开始。
+
+| 项 | 实际 |
+| --- | --- |
+| main 提交 | `1b69dcb222` |
+| 产品版本 | 0.1.0 |
+| 新构建 | `content_digest` `cc7b599b…`，`source_digest` `709bc5fc…` |
+| 旧构建 | 0.3.0，`content_digest` `47884c43…`，在旧 Home 的 `releases/` 里；没有单独的安装包 |
+| 真实 Home | `~/.molis-work` |
+| 备份 | `~/.molis-work-rebuild-20261107/backup` |
+| 搬开的旧 Home | `~/.molis-work-rebuild-20261107/moved` |
+| 旧服务文件 | 同目录的 `com.molis.work.web.plist.moved` |
+
+**各库与带版本文件的实际版本：全部是 1。**
+
+| 记在哪里 | 范围 | 版本 |
+| --- | --- | --- |
+| `user_version` | 26 个库，含项目库、`characters/characters.sqlite`、Alchemist 的 `studio.sqlite` | 1 |
+| `catalog_meta.schema_version` | `projects/catalog.db` | 1 |
+| `search_meta.schema` | `search/search.db` | 1 |
+| `plugin_project_databases.version` | 项目库里 Goals、Inbox、Schedule、Feed、Coding 的表 | 1 |
+| 文件内的版本字段 | `config/installation.json`、`release.json`、`config/onboarding.json`、`config/web-service.json`、`config/project-arrival.json`、`feed/secrets.json`、`shelf/catalog.json` | 1 |
+
+按需才建的库这次没有生成，例如 `server/server.sqlite` 和 Alchemist 搜索缓存。
+
+**备份验证。** 搬动前的旧 Home、备份和搬开后的原件逐项比对路径、权限、大小、修改时间和 SHA-256：28,487 项，0 处差异。旧构建在备份的拷贝上能启动，离线快照通过。随后把备份拷回原路径，用旧构建启动并读到项目列表，回退路径走通，这份拷贝已删除。
+
+**原密钥。** 钥匙串条目 `com.molis.work.feed.secretstore` 建于 11-07 02:19，晚于旧 Home 最后一次写入（01:20，一次 `service stop`）。旧 Home 没有 `feed/secrets.json`，也没有密封数据，回退不依赖密钥。条目保留，未改动。
+
+**旧 Home 的内容。** 0 个项目、0 个连接、0 轮助理，所以 BL-937 没有旧轮次可删。
+
+**隔离演练（同一提交）。** `initial-versions.mjs` 和 `verify-release-versions.mjs` 通过。新建、重启、建项目、快照恢复通过。错版本被拒绝：Home 库和项目库报 `storage.schema_version_mismatch`，目录库报 `catalog.reader_too_old`。新构建打开旧 Home 的拷贝，25 秒内没有就绪（`/health` 一直是 503）。
+
+**新 Home 核对（停服务后，在拷贝上只读）。**
+
+- 所有库 `integrity_check` 为 ok，`foreign_key_check` 为空。
+- 17 条内置插件安装记录的版本和摘要与构建清单一致，状态都是 `installed`。
+- 离线快照通过。它会拒绝无归属、错版本和损坏的内容。
+- 助理轮次、请求、工作都是 0。
+- 项目「第一个项目」建好，常驻服务重启后项目还在，`service status` 为 `running`。
+- 首次连接：假密钥只以 `keychain+aes-gcm` 密文存在本机，全目录搜不到明文，重启后能解密，断开后密文清除。用户 2026-11-07 定：首次连接用本机假密钥走产品路径算通过，真实账号连接放进 BL-929。
+
+**未验证。**
+
+- 真实账号的连接和 OAuth 授权。
+- MCP 授权：旧 Home 没有，新 Home 也没建。
+- 助理界面没有目视打开，轮次为零来自数据库和接口。
+- 桌面 App：本机没有安装版，不需要重装 0.1.0。
+- 本人体验按 BL-929 单独验。
 
 用户已于 2026-11-04 确认[第 02 批维护窗口](../../specs/post-anticorruption-roadmap/reference/batches/02.md#batch-02-item-3)。待 ① 遗留核账、② 共享代码与合同、④ 升级规则的 PR 合入后，按以下步骤在用户在场时执行，并记录实际构建、原 Home 路径和操作者。若需改期，由统筹提前一天与用户另约窗口。重建日期在实操通过后填写。
 
@@ -109,7 +161,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 ### 4.2 搬开旧 Home
 
-[BL-928](../../specs/BACKLOG.md) 要求先有完整可恢复备份。记录真实 Home 的绝对路径，停写后在 Home 外以私有权限完整复制目录，保留文件权限与内容，核对可按原路径、原安装与原密钥取回。备份和搬开分别使用两个尚不存在的位置，权限限本人，已有目录不覆盖。另有已登记业务集合的[离线快照与恢复](../cli-and-development.md#home-离线快照)，其范围不含全部旧目录，且要求同机、原路径和原密钥。旧格式被快照拒绝时如实记录，不能把失败的快照当作备份。无法证实备份可恢复时，先解决问题再搬动原目录。
+先要有完整可恢复备份。记录真实 Home 的绝对路径，停写后在 Home 外以私有权限完整复制目录，保留文件权限与内容，核对可按原路径、原安装与原密钥取回。备份和搬开分别使用两个尚不存在的位置，权限限本人，已有目录不覆盖。另有已登记业务集合的[离线快照与恢复](../cli-and-development.md#home-离线快照)，其范围不含全部旧目录，且要求同机、原路径和原密钥。旧格式被快照拒绝时如实记录，不能把失败的快照当作备份。无法证实备份可恢复时，先解决问题再搬动原目录。
 
 备份核实后才把整个原 Home 搬到预定位置，保留旧安装和 Keychain 主密钥。新 Home 不带入旧库。记录实际两处位置，不把备份内容或密钥写进仓库。
 

@@ -1,7 +1,8 @@
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
-import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
@@ -243,11 +244,8 @@ export class MolisWorkProjectCatalog {
 
   static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
     const home = resolveConfiguredHome(options.homeDirectory), root = agentRuntimeDirectory(home);
-    if (options.storageOwner === undefined) {
-      assertNoPendingHomeRestore(root);
-      preflightMemoryHome(home);
-    }
-    const owned = options.storageOwner === undefined ? acquireStorageOwner(root) : undefined;
+    // Given an owner, that owner's taker has already upgraded this Home.
+    const owned = options.storageOwner === undefined ? acquireUpgradedHomeOwner(home, preflightMemoryHome) : undefined;
     const owner = options.storageOwner ?? owned!;
     let retained: ReturnType<typeof retainStorageOwner> | undefined;
     let opened: MolisWorkProjectCatalog | undefined;

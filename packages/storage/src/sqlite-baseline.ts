@@ -81,7 +81,32 @@ export function sqliteVersionRefusal(path: string, found: number, expected: numb
 
 /** Whether an error is one of the refusals above, for owners that give their store its own name and recovery page. */
 export const isSqliteVersionRefusal = (error: unknown): error is ActionError =>
-  error instanceof ActionError && (error.code === "storage.schema_version_mismatch" || error.code === "storage.upgrade_pending" || error.code === "storage.store_too_new");
+  error instanceof ActionError && (error.code === "storage.schema_version_mismatch" || error.code === "storage.upgrade_pending" || error.code === "storage.store_too_new"
+    || error.code === "storage.upgrade_failed" || error.code === "storage.upgrade_no_space");
+
+/** Hears of an older store being refused, by the path it was opened at. It may return what to raise instead: only the Host knows that this store's upgrade already failed. */
+export type UpgradePendingListener = (path: string) => Error | undefined;
+const upgradePendingListeners = new Set<UpgradePendingListener>();
+
+/**
+ * Tells the process holding a Home's lock that an open met an older store (upgrade-chain-design §3.3). Storage knows no Home, so it only
+ * passes the signal on; a process that holds no lock has no listener and writes nothing. This is the only work an open path can add here,
+ * and it is one emptiness check unless the open has already failed.
+ */
+export function onUpgradePending(listener: UpgradePendingListener): () => void {
+  upgradePendingListeners.add(listener);
+  return () => { upgradePendingListeners.delete(listener); };
+}
+
+/** The refusal an open raises, after the signal. A listener's own failure never hides the store's refusal. */
+function versionRefusalAfterSignal(path: string, found: number, expected: number, home?: string): Error {
+  let replacement: Error | undefined;
+  if (found >= 1 && found < expected) for (const listener of upgradePendingListeners) {
+    try { replacement = listener(path) ?? replacement; }
+    catch { /* The listener logs its own failures; what the caller needs to hear is that this store is refused. */ }
+  }
+  return replacement ?? sqliteVersionRefusal(path, found, expected, home);
+}
 
 /**
  * The version half of every baseline check, on whichever driver owns the file: true when the store is at the baseline's version, false
@@ -91,7 +116,7 @@ export const isSqliteVersionRefusal = (error: unknown): error is ActionError =>
 export function checkSqliteBaselineVersion(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, home?: string): boolean {
   const found = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
   if (found === baseline.version) return true;
-  if (found !== 0 || !emptyForBaseline(db, path, home)) throw sqliteVersionRefusal(path, found, baseline.version, home);
+  if (found !== 0 || !emptyForBaseline(db, path, home)) throw versionRefusalAfterSignal(path, found, baseline.version, home);
   return false;
 }
 
@@ -218,7 +243,7 @@ function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: Sqlit
       db.exec("COMMIT");
       return;
     }
-    if (current !== 0 || !emptyForBaseline(db,path,home)) throw sqliteVersionRefusal(path,current,baseline.version,home);
+    if (current !== 0 || !emptyForBaseline(db,path,home)) throw versionRefusalAfterSignal(path,current,baseline.version,home);
     db.exec(baseline.schema);
     db.exec(`PRAGMA user_version = ${baseline.version}`);
     db.exec("COMMIT");

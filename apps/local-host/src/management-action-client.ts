@@ -2,7 +2,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
-import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, upgradeFailedRefusal, upgradeInProgressRefusal } from "@molis-ai/molis-work-storage";
 import { currentCallId, markCallRecorded, newCallId, assertActionInput } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
@@ -27,6 +27,31 @@ export function catalogManagementProject(home: string, databasePath: string): { 
     const project = matches[0];
     return project && { project_id: project.project_id, database_path: project.database_path };
   } finally { storage.close(); }
+}
+
+const codeOf = (error: unknown) => (error instanceof ActionError ? error.code : undefined);
+
+/** What refuses this catalog for being older, if that is what refuses it. Any other refusal is the lookup's to raise, where it always has been. */
+function catalogUpgradePending(path: string): ActionError | undefined {
+  if (!existsSync(path)) return undefined;
+  const storage = new LocalSqliteStorage(path, { readonly: true });
+  try { assertOwnedCatalog(storage, path); assertCurrentCatalog(storage, path); return undefined; }
+  catch (error) { return codeOf(error) === "storage.upgrade_pending" ? error as ActionError : undefined; }
+  finally { storage.close(); }
+}
+
+/**
+ * For the entries with nothing to forward to (the CLI, the management MCP without a resident starter), ahead of their lookup: an older
+ * catalog is theirs to upgrade, under the lock `upgrade` takes. Too new or already failed takes no lock and is left for the lookup to raise.
+ * Whoever only reads calls `catalogManagementProject`, which keeps refusing.
+ */
+export function upgradeOlderCatalog(home: string, upgrade: () => void): void {
+  const path = join(home, "projects", "catalog.db");
+  if (!catalogUpgradePending(path)) return;
+  try { upgrade(); }
+  catch (error) { throw codeOf(error) === "storage.owner.busy" ? upgradeInProgressRefusal() : error; }
+  const still = catalogUpgradePending(path);
+  if (still) throw upgradeFailedRefusal(typeof still.details?.path === "string" ? still.details.path : "projects/catalog.db", "still_pending", "这个库升级没有成功，已放回升级之前的样子。");
 }
 
 /** Only a never-delivered call may use its original in-process path. Refusal and unknown delivery never fall back. */

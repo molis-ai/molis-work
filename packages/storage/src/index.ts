@@ -10,7 +10,7 @@ export { createAtomicFileDocument } from './adapters/file-document.js';
 export { ensureStorageSpace, readStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace, type SpaceAssetRef } from './space.js';
 export { snapshotFileStat, isSnapshotSqlite, readSnapshotFile, copySnapshotFile, snapshotFileDigest } from "./snapshot-files.js";
 export { backupSnapshotSqlite, inspectSnapshotSqlite, type SqliteSnapshotOptions, type SqliteSnapshotInfo } from "./snapshot-sqlite.js";
-export { acquireStorageOwner, acquireStorageOwnerForRecovery, assertStorageOwner, retainStorageOwner, borrowStorageOwner, hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, type StorageOwner, type StorageOwnerBorrow } from "./adapters/storage-owner.js";
+export { acquireStorageOwner, acquireStorageOwnerForRecovery, assertStorageOwner, onStorageOwnerRelease, retainStorageOwner, borrowStorageOwner, hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, type StorageOwner, type StorageOwnerBorrow } from "./adapters/storage-owner.js";
 export { HOME_RESTORE_JOURNAL, assertNoPendingHomeRestore } from "./adapters/home-restore-guard.js";
 
 export {
@@ -21,6 +21,7 @@ export {
   openReadOnlyHomeSqlite,
 } from "./home-sqlite.js";
 export { runSqliteUpgrade, type SqliteUpgradeResult } from "./sqlite-upgrade.js";
+export { readUpgradeStoreSpace, readUpgradeStoreVersion, upgradeFailedRefusal, upgradeInProgressRefusal, upgradeNoSpaceRefusal, type UpgradeStoreVersion } from "./upgrade-inspection.js";
 export {
   assertUpgradeDiskSpace,
   captureUpgradeSnapshot,
@@ -36,6 +37,7 @@ export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type Home
 export {
   isSqliteSchemaStructureMismatch,
   isSqliteVersionRefusal,
+  onUpgradePending,
   sqliteVersionRefusal,
   checkSqliteBaselineVersion,
   applySqliteBaseline,
@@ -49,6 +51,7 @@ export {
   type SqliteSchemaObject,
   type SqliteUpgradeStep,
   type SqliteSchemaShape,
+  type UpgradePendingListener,
 } from "./sqlite-baseline.js";
 
 export {

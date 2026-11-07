@@ -414,9 +414,12 @@ function applyBoard(md){
       const r=rs[i]||['','','','','待认领',''];
       const name=(r[1].match(/\[([^\]]+)\]/)||[])[1]||r[1];
       if(rs[i]&&name!==it.t)boardOff++;
-      const base=BASES.find(k=>r[4].startsWith(k));
-      it.s=base||(r[2]&&r[2]!=='—'?'已认领':r[4]);
-      it.note=base?r[4].slice(base.length).replace(/^[：:，,（(\s]+|[）)\s]+$/g,''):r[4];
+      // 状态只认固定词开头，开头的粗体不算状态。读不懂的行仍按有人认领显示，但要算进「对不上」，不能悄悄当成进行中
+      const cell=r[4].replace(/^\*\*(.+?)\*\*/,'$1').trim();
+      const base=BASES.find(k=>cell.startsWith(k));
+      if(rs[i]&&!base)boardOff++;
+      it.s=base||(r[2]&&r[2]!=='—'?'已认领':cell);
+      it.note=base?cell.slice(base.length).replace(/^[：:，,（(\s]+|[）)\s]+$/g,''):cell;
       it.draft=/定样|只读|核查|盘点/.test(r[2]+r[4]);it.draftWord=(/定样/.test(r[2]+r[4])&&'只做定样')||(/只读|核查/.test(r[2]+r[4])&&'只读核查')||(/盘点/.test(r[2]+r[4])&&'只做盘点')||'';
       it.who=r[2];it.date=r[5];it.login=D.claimers[`${b.id}-${i+1}`]||'';
       it.prs=[...r[3].matchAll(/#(\d+)/g)].map(m=>m[1]);
@@ -518,7 +521,7 @@ let boardAt=D.boardAt,boardFailed=false;
 function renderSource(){
   const d=new Date(boardAt),p=n=>String(n).padStart(2,'0'),when=`${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   src.textContent=(boardFailed?`暂时读不到 #1743，显示的是 ${when} 的进展`:`更新于 ${when}`)+(boardOff?` · ${boardOff} 处对不上`:'');
-  src.title=boardOff?`#1743 有 ${boardOff} 处与路线书对不上`:'';
+  src.title=boardOff?`#1743 有 ${boardOff} 处与路线书对不上，或状态没有用固定词开头`:'';
 }
 let tab='all',selected=null;
 const VIEW_KEY='molis-view';

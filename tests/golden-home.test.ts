@@ -227,6 +227,15 @@ describe("a generated golden Home", { concurrency: false }, () => {
     assert.match(again.output, /identical/u);
   }, { timeout: 600_000 });
 
+  test("UPG2-02: a machine slow enough for the Host's rounds to come due gives the same bytes", () => {
+    const slow = spawnSync(process.execPath, ["--disable-warning=ExperimentalWarning", GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", golden], {
+      cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, NODE_OPTIONS: `--import=${path.join(root, "tests/fixtures/long-periods-come-due.mjs")}` },
+    });
+    assert.equal(slow.status, 0, `${slow.stdout}${slow.stderr}`);
+    assert.match(slow.stdout, /identical/u);
+  }, { timeout: 600_000 });
+
   test("UPG2-02: `check` says which table differs, and does not say what is in it", () => {
     const parent = tampered("changed", sql => sql.replace(GENERATED_TEXT, "改过的金样内容"),
       entry => readFileSync(path.join(golden, `stores/${entry.path}.sql`), "utf8").includes(GENERATED_TEXT));

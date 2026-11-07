@@ -97,6 +97,12 @@
       ],
       "reason": "The project catalog: creating, binding, recovering and deleting projects (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
     },
+    "projects": {
+      "paths": [
+        "packages/contracts/src/modules/projects-errors.ts"
+      ],
+      "reason": "The refusals of a project's input and output directories (specs/shared-sources-and-surfaces §3, §4), whose codes are projects.directory_*. Kept apart from the Catalog's error declaration in modules/projects.ts, which stays catalog's."
+    },
     "catalog_integration": {
       "paths": [
         "plugins/official-integrations/catalog/"

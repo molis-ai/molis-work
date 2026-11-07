@@ -179,10 +179,10 @@ test("N14: the board's four parts are named, in both languages and themes, insid
   await open("zh", 1440);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await evaluate("document.documentElement.removeAttribute('data-craft-still')");
-  const quiet = await evaluate<{ running: number; focus: string; box: string | null; who: string }>(`(() => { document.querySelector('[data-keep-replay-rise]').click(); document.querySelector('[data-keep-replay-group]').click(); document.querySelector('[data-keep-press]').click(); document.querySelector('[data-keep-replay-wash]').click();
+  const quiet = await evaluate<{ running: string[]; focus: string; box: string | null; who: string }>(`(() => { document.querySelector('[data-keep-replay-rise]').click(); document.querySelector('[data-keep-replay-group]').click(); document.querySelector('[data-keep-press]').click(); document.querySelector('[data-keep-replay-wash]').click();
     const focus = document.activeElement.textContent.trim(); const pair = ${pair}; pair.querySelector('[data-keep-swap]').click();
-    const running = [...document.querySelectorAll('${SCOPE}')].flatMap((s) => [s, ...s.querySelectorAll('*')]).flatMap((el) => el.getAnimations({ subtree: false })).filter((a) => a.playState === 'running' && !/ring|state/i.test(a.animationName ?? '')).length;
+    const running = [...document.querySelectorAll('${SCOPE}')].flatMap((s) => [s, ...s.querySelectorAll('*')]).flatMap((el) => el.getAnimations({ subtree: false })).filter((a) => a.playState === 'running' && !/ring|state/i.test(a.animationName ?? '')).map((a) => a.effect.target.tagName + '.' + a.effect.target.getAttribute('class') + ' ' + (a.animationName ?? a.transitionProperty));
     return { running, focus, box: pair.querySelector('[data-keep-box]').getAttribute('data-craft-new'), who: pair.querySelector('.mw-kept__who').textContent }; })()`);
-  assert.deepEqual(quiet, { running: 0, focus: "载入最新版", box: null, who: "最新版" }, "with reduced motion nothing moves and the state still changes");
+  assert.deepEqual(quiet, { running: [], focus: "载入最新版", box: null, who: "最新版" }, "with reduced motion nothing moves and the state still changes");
   await command("Emulation.setEmulatedMedia", { features: [] }, sessionId);
 });

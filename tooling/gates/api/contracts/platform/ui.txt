@@ -13,6 +13,19 @@ export interface InteractionNextStep {
     waitingLabel?: string;
 }
 
+export declare const LOCALE_TAG: RegExp;
+
+export declare const OWNED_TEXT_REF_SCHEMA: SandboxSchema;
+
+export type OwnedTextRef = {
+    readonly owner: string;
+    readonly key: string;
+    readonly args?: readonly TextArg[];
+    readonly fallback?: string;
+} | {
+    readonly literal: string;
+};
+
 export interface OwnedUiContribution<TModel = unknown> {
     readonly descriptor: UiContributionDescriptor;
     render(request: UiRenderRequest<TModel>): string;
@@ -232,6 +245,45 @@ export interface StageTerminalPaneModel {
     text: (value: string, vars?: Record<string, string | number>) => string;
     icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }
+
+export declare const TEXT_REF_LIMITS: {
+    readonly key: 120;
+    readonly args: 8;
+    readonly arg_name: 64;
+    readonly arg_text: 2000;
+    readonly arg_at: 40;
+    readonly literal: 2000;
+    readonly fallback: 2000;
+    readonly owner: 200;
+};
+
+export declare const TEXT_REF_SCHEMA: SandboxSchema;
+
+export type TextArg = {
+    readonly name: string;
+    readonly kind: "text";
+    readonly text: string;
+} | {
+    readonly name: string;
+    readonly kind: "number";
+    readonly number: number;
+    readonly style?: (typeof NUMBER_STYLES)[number];
+} | {
+    readonly name: string;
+    readonly kind: "date";
+    readonly at: string;
+    readonly style: TextDateStyle;
+};
+
+export type TextDateStyle = (typeof DATE_STYLES)[number];
+
+export type TextRef = {
+    readonly key: string;
+    readonly args?: readonly TextArg[];
+    readonly fallback?: string;
+} | {
+    readonly literal: string;
+};
 
 export declare const UI_CONNECTION_NEED_REASON_MAX = 80;
 
@@ -746,3 +798,7 @@ export declare const platformUiContract: {
 // Declarations the exports above refer to, which no entry exports itself:
 
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
+
+declare const DATE_STYLES: readonly ["date", "time", "datetime", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"];
+
+declare const NUMBER_STYLES: readonly ["decimal", "percent", "compact"];

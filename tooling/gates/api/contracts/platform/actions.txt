@@ -1832,53 +1832,51 @@ export declare const HOME_EVENT_COLLECTION_SCHEMA: {
                     };
                     open: {
                         anyOf: ({
-                            type: string;
-                            properties: {
-                                kind: {
-                                    enum: string[];
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly enum: readonly ["item", "group", "surface"];
                                 };
-                                surface: {
+                                readonly surface: {
                                     pattern: string;
                                     minLength: 1;
                                     type: "string";
                                 };
-                                id: {
-                                    type: string[];
-                                    minLength: number;
+                                readonly id: {
+                                    readonly type: readonly ["string", "null"];
+                                    readonly minLength: 1;
                                 };
-                                title: {
+                                readonly title: {
                                     readonly minLength: 1;
                                     readonly type: "string";
                                 };
-                                label: {
+                                readonly label: {
                                     readonly minLength: 1;
                                     readonly type: "string";
                                 };
                             };
-                            required: string[];
-                            additionalProperties: boolean;
-                            anyOf: ({
-                                properties: {
-                                    kind: {
-                                        const: string;
-                                        enum?: undefined;
+                            readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                            readonly additionalProperties: false;
+                            readonly anyOf: readonly [{
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly const: "surface";
                                     };
-                                    id: {
-                                        type: string;
+                                    readonly id: {
+                                        readonly type: "null";
                                     };
                                 };
-                            } | {
-                                properties: {
-                                    kind: {
-                                        enum: string[];
-                                        const?: undefined;
+                            }, {
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly enum: readonly ["item", "group"];
                                     };
-                                    id: {
+                                    readonly id: {
                                         readonly minLength: 1;
                                         readonly type: "string";
                                     };
                                 };
-                            })[];
+                            }];
                         } | {
                             type: string;
                         })[];
@@ -1952,53 +1950,51 @@ export declare const HOME_EVENT_SCHEMA: {
         };
         open: {
             anyOf: ({
-                type: string;
-                properties: {
-                    kind: {
-                        enum: string[];
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly enum: readonly ["item", "group", "surface"];
                     };
-                    surface: {
+                    readonly surface: {
                         pattern: string;
                         minLength: 1;
                         type: "string";
                     };
-                    id: {
-                        type: string[];
-                        minLength: number;
+                    readonly id: {
+                        readonly type: readonly ["string", "null"];
+                        readonly minLength: 1;
                     };
-                    title: {
+                    readonly title: {
                         readonly minLength: 1;
                         readonly type: "string";
                     };
-                    label: {
+                    readonly label: {
                         readonly minLength: 1;
                         readonly type: "string";
                     };
                 };
-                required: string[];
-                additionalProperties: boolean;
-                anyOf: ({
-                    properties: {
-                        kind: {
-                            const: string;
-                            enum?: undefined;
+                readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                readonly additionalProperties: false;
+                readonly anyOf: readonly [{
+                    readonly properties: {
+                        readonly kind: {
+                            readonly const: "surface";
                         };
-                        id: {
-                            type: string;
+                        readonly id: {
+                            readonly type: "null";
                         };
                     };
-                } | {
-                    properties: {
-                        kind: {
-                            enum: string[];
-                            const?: undefined;
+                }, {
+                    readonly properties: {
+                        readonly kind: {
+                            readonly enum: readonly ["item", "group"];
                         };
-                        id: {
+                        readonly id: {
                             readonly minLength: 1;
                             readonly type: "string";
                         };
                     };
-                })[];
+                }];
             } | {
                 type: string;
             })[];
@@ -2054,53 +2050,51 @@ export declare const HOME_EVENT_WINDOW_SCHEMA: {
 };
 
 export declare const HOME_OPEN_TARGET_SCHEMA: {
-    type: string;
-    properties: {
-        kind: {
-            enum: string[];
+    readonly type: "object";
+    readonly properties: {
+        readonly kind: {
+            readonly enum: readonly ["item", "group", "surface"];
         };
-        surface: {
+        readonly surface: {
             pattern: string;
             minLength: 1;
             type: "string";
         };
-        id: {
-            type: string[];
-            minLength: number;
+        readonly id: {
+            readonly type: readonly ["string", "null"];
+            readonly minLength: 1;
         };
-        title: {
+        readonly title: {
             readonly minLength: 1;
             readonly type: "string";
         };
-        label: {
+        readonly label: {
             readonly minLength: 1;
             readonly type: "string";
         };
     };
-    required: string[];
-    additionalProperties: boolean;
-    anyOf: ({
-        properties: {
-            kind: {
-                const: string;
-                enum?: undefined;
+    readonly required: readonly ["kind", "surface", "id", "title", "label"];
+    readonly additionalProperties: false;
+    readonly anyOf: readonly [{
+        readonly properties: {
+            readonly kind: {
+                readonly const: "surface";
             };
-            id: {
-                type: string;
+            readonly id: {
+                readonly type: "null";
             };
         };
-    } | {
-        properties: {
-            kind: {
-                enum: string[];
-                const?: undefined;
+    }, {
+        readonly properties: {
+            readonly kind: {
+                readonly enum: readonly ["item", "group"];
             };
-            id: {
+            readonly id: {
                 readonly minLength: 1;
                 readonly type: "string";
             };
         };
-    })[];
+    }];
 };
 
 export interface HomeBackgroundTask {
@@ -2814,18 +2808,18 @@ export declare const SUBJECT_OFFERS_OUTPUT_SCHEMA: {
         offers: {
             type: string;
             items: {
-                type: string;
-                properties: {
-                    offer_id: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly offer_id: {
                         readonly type: "string";
                         readonly minLength: 1;
                     };
-                    title: {
-                        maxLength: number;
-                        type: "string";
-                        minLength: 1;
+                    readonly title: {
+                        readonly maxLength: 120;
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
-                    action: {
+                    readonly action: {
                         readonly type: "object";
                         readonly properties: {
                             readonly capability_id: {
@@ -2844,10 +2838,10 @@ export declare const SUBJECT_OFFERS_OUTPUT_SCHEMA: {
                         readonly required: readonly ["capability_id", "version"];
                         readonly additionalProperties: false;
                     };
-                    input: {};
+                    readonly input: {};
                 };
-                required: string[];
-                additionalProperties: boolean;
+                readonly required: readonly ["offer_id", "title", "action", "input"];
+                readonly additionalProperties: false;
             };
         };
     };
@@ -2858,18 +2852,18 @@ export declare const SUBJECT_OFFERS_OUTPUT_SCHEMA: {
 export declare const SUBJECT_OFFERS_OUTPUT_TYPE = "molis.subject-offers.output.v1";
 
 export declare const SUBJECT_OFFER_SCHEMA: {
-    type: string;
-    properties: {
-        offer_id: {
+    readonly type: "object";
+    readonly properties: {
+        readonly offer_id: {
             readonly type: "string";
             readonly minLength: 1;
         };
-        title: {
-            maxLength: number;
-            type: "string";
-            minLength: 1;
+        readonly title: {
+            readonly maxLength: 120;
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        action: {
+        readonly action: {
             readonly type: "object";
             readonly properties: {
                 readonly capability_id: {
@@ -2888,10 +2882,10 @@ export declare const SUBJECT_OFFER_SCHEMA: {
             readonly required: readonly ["capability_id", "version"];
             readonly additionalProperties: false;
         };
-        input: {};
+        readonly input: {};
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["offer_id", "title", "action", "input"];
+    readonly additionalProperties: false;
 };
 
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";

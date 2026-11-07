@@ -23,7 +23,7 @@ const instant = { ...id, format: "date-time" } as const;
 export const HOME_EVENT_WINDOW_SCHEMA = { type: "object", properties: { from: instant, to: instant, now: instant }, required: ["from", "to", "now"], additionalProperties: false } as const;
 export const HOME_OPEN_TARGET_SCHEMA = { type: "object", properties: { kind: { enum: ["item", "group", "surface"] }, surface: token,
   id: { type: ["string", "null"], minLength: 1 }, title: id, label: id }, required: ["kind", "surface", "id", "title", "label"], additionalProperties: false,
-  anyOf: [{ properties: { kind: { const: "surface" }, id: { type: "null" } } }, { properties: { kind: { enum: ["item", "group"] }, id } }] };
+  anyOf: [{ properties: { kind: { const: "surface" }, id: { type: "null" } } }, { properties: { kind: { enum: ["item", "group"] }, id } }] } as const;
 export const HOME_EVENT_SCHEMA = { type: "object", properties: { event_id: id, subject: ACTION_SUBJECT_SCHEMA, occurred_at: instant,
   placement: { enum: ["occurred", "active", "today"] }, category: { enum: ["personal", "organization"] }, title: id, summary: text, content: text,
   facts: { type: "array", items: { type: "array", items: text, minItems: 2, maxItems: 2 } }, needs_attention: { type: "boolean" },

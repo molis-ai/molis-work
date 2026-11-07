@@ -144,8 +144,10 @@ type Started = { kind: "new"; title: string; note?: string } | { kind: "resume";
 const flatSchemaFields = { kind: { enum: ["new", "resume"] }, title: { type: "string" }, session: { type: "string" }, note: { type: "string" } } as const;
 same<Equal<FlatUnion<Started>, { kind: "new" | "resume"; note?: string; title?: string; session?: string }>>();
 inputSchemaFor<FlatUnion<Started>>()({ type: "object", properties: flatSchemaFields, required: ["kind"], additionalProperties: false });
-// Not a union: unchanged, so it cannot loosen another definition.
+// A plain object comes back the same.
 same<Equal<FlatUnion<{ a: string; b?: number }>, { a: string; b?: number }>>();
+// A union with null is not a case to flatten: null goes and every key turns optional, so the definition is looser than its interface.
+same<Equal<FlatUnion<{ a: string; b?: number } | null>, { a?: string; b?: number }>>();
 // A key too many, a field of the wrong type, a discriminant value that does not match, a key required that one branch does not have.
 inputSchemaFor<FlatUnion<Started>>()({ type: "object", properties: { ...flatSchemaFields, extra: { type: "string" } }, required: ["kind"] }); // rejects: schema 有接口没写的键
 inputSchemaFor<FlatUnion<Started>>()({ type: "object", properties: { ...flatSchemaFields, title: { type: "integer" } }, required: ["kind"] }); // rejects: schema 比接口松

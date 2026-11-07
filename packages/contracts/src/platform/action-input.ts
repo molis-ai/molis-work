@@ -73,7 +73,9 @@ type ValueOf<U, K extends PropertyKey> = U extends unknown ? (K extends keyof U 
 type IsRequired<U, K extends PropertyKey> = [U] extends [U extends unknown ? (K extends keyof U ? (Pick<U, K> extends Required<Pick<U, K>> ? U : never) : never) : never] ? true : false;
 /**
  * A discriminated union flattened to the one object its flat schema describes, written at the definition so it shows there: keys and field
- * types stay checked, which fields may appear together stays with the handler. Not a union: unchanged, so it cannot loosen another definition.
+ * types stay checked, which fields may appear together stays with the handler. For objects and unions of objects only. A plain object comes
+ * back the same apart from `readonly`. An array, tuple or scalar does not come back as itself. `X | null` drops the `null` and makes every key
+ * optional, which loosens the definition.
  */
 export type FlatUnion<U> = Expand<{ [K in AllKeys<U> as IsRequired<U, K> extends true ? K : never]: ValueOf<U, K> }
   & { [K in AllKeys<U> as IsRequired<U, K> extends true ? never : K]?: Exclude<ValueOf<U, K>, undefined> }>;

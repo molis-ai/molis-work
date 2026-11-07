@@ -1,5 +1,8 @@
 import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
 
+/** Page-local state: a saved directory from another version is not restored, and the page opens at the root. */
+const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state */ 1;
+
 /**
  * AP3 Workbench client segment: bootstrap.
  *
@@ -9,9 +12,6 @@ import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
  * - `paneMessages`: the one split-pane message check (S-30, `pane-messages.ts`), handed to the factories that listen for
  *   pane messages (the tab workspace, the context actions) so the page carries it once.
  */
-/** Page-local state: a saved directory from another version is not restored, and the page opens at the root. */
-const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state */ 1;
-
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const q = (selector) => document.querySelector(selector);
     const goalData = q("#molis-work-data");

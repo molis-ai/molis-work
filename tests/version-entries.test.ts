@@ -85,7 +85,7 @@ test("an encoding discriminator is not a version, so moving a version cannot mak
 
 test("an entry that served two things is split, and two entries for one thing are one", () => {
   assert.ok(!entries.includes("role.reader"));
-  assert.deepEqual(moved("role.coding.reader", 2), ["plugins/native/coding/src/roles.ts"]);
+  assert.deepEqual(moved("role.coding.main-reader", 2), ["plugins/native/coding/src/roles.ts"]);
   assert.deepEqual(moved("role.schedule.reader", 2), ["plugins/native/schedule/src/roles.ts"]);
   assert.ok(!entries.includes("format.continuity.assets"), "the same molis-work-assets bundle");
   assert.deepEqual(moved("format.asset.bundle", 2), ["apps/server/src/assets.ts", "server/src/continuity/service.ts"], "the writer and the reader move together");
@@ -111,6 +111,8 @@ test("a fixed name stays out of the table: UI contribution ids and slots have no
   assert.match(source("packages/plugin-sdk/src/sandbox-manifest.ts"), /pluginId \+ '\.ui\.v1'/, "written the same way as a built-in's");
 });
 
-test("the action gateway pack starts at the unified origin: the SDK only checks its form and compares within one process", () => {
-  assert.equal(real.versions["protocol.prologue.pack.action-gateway"], "1.0.0");
+test("the action gateway pack takes its version from the table, in the SemVer form the SDK requires", () => {
+  const version = real.versions["protocol.prologue.pack.action-gateway"];
+  assert.match(String(version), /^\d+\.\d+\.\d+$/);
+  assert.ok(source("horizontal/agent-host/src/adapters/prologue-action-gateway.ts").includes(`/* @version protocol.prologue.pack.action-gateway */ "${version}"`));
 });

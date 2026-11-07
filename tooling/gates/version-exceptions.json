@@ -480,22 +480,22 @@
   {
     "file": "modules/artifacts/src/fixed-version-replication-shape.ts",
     "name": "format",
-    "reason": "同一字段的两个编码判别值（内联 1、附件或分块 2），按内容大小选，不是版本；放进版本表，内联升版就和另一种编码相撞。"
+    "reason": "成果同步的两个编码判别值（内联 1、附件 2）：版本内容超过 64 KB，或者是带原件的导入文档（不看大小），就走附件；不是版本。放进版本表，内联升版就和附件相撞。"
   },
   {
     "file": "modules/artifacts/src/sync-content.ts",
     "name": "format",
-    "reason": "同一字段的两个编码判别值（内联 1、附件或分块 2），按内容大小选，不是版本；放进版本表，内联升版就和另一种编码相撞。"
+    "reason": "成果同步的两个编码判别值（内联 1、附件 2）：版本内容超过 64 KB，或者是带原件的导入文档（不看大小），就走附件；不是版本。放进版本表，内联升版就和附件相撞。"
   },
   {
     "file": "packages/storage/src/project-replica-content.ts",
     "name": "format",
-    "reason": "同一字段的两个编码判别值（内联 1、附件或分块 2），按内容大小选，不是版本；放进版本表，内联升版就和另一种编码相撞。"
+    "reason": "项目内容同步的两个编码判别值（内联 1、分块 2）：超过 64 KB 的 Goal 内容分块，其余内联；不是版本。放进版本表，内联升版就和分块相撞。"
   },
   {
     "file": "apps/local-host/src/project-goal-content.ts",
     "name": "format",
-    "reason": "同一字段的两个编码判别值（内联 1、附件或分块 2），按内容大小选，不是版本；放进版本表，内联升版就和另一种编码相撞。"
+    "reason": "项目内容同步的两个编码判别值（内联 1、分块 2）：超过 64 KB 的 Goal 内容分块，其余内联；不是版本。放进版本表，内联升版就和分块相撞。"
   },
   {
     "file": "apps/workbench/src/artifacts/browser-ui.ts",

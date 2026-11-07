@@ -320,7 +320,7 @@ export {
   reviewProjectFor,
   type ComputerRoundHolder,
 } from "./computer/computer-policy.js";
-export { ASSISTANT_RULES_PROVIDER, registerAssistantRuleActions } from "./assistant/assistant-rule-actions.js";
+export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
 
 export {PersonalAuth,personalCloudConfig} from './personal-auth.js';
 export {personalReturnPath} from './personal-http.js';

@@ -7,7 +7,8 @@ import { createHandlePosition } from "./editor-block-handle-position.js";
 import { hoverKey, EMPTY_HOVER, rowAtSelection, rowAtPosition } from "./editor-block-selection.js";
 import { blockMenuTarget, handleAnchor, insertSlashBelow } from "./commands.js";
 import type { Translate } from "./editor-types.js";
-import { t, stopEvent, overlayRoot, dsIcon, escapeHtml } from "./editor-view-ui.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t, stopEvent, overlayRoot, dsIcon } from "./editor-view-ui.js";
 
 function handleWidget(translate: Translate | undefined): HTMLElement {
   const wrap = document.createElement("div");

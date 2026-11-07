@@ -1,4 +1,5 @@
-import { button, messageOf, text } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { button, text } from "./dom.js";
 import type { AuthConnection, ImageConnection, ImagesPage } from "./types.js";
 
 /**

@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { closeDialog, showAdd, showAi, showDomain, showDraft, showDrafts, showEdit, showImport } from "./dialog.js";
 import { OWN_SOURCES } from "./labels.js";
 import { countSelected, load } from "./list.js";

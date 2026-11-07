@@ -1,5 +1,3 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-export { escapeHtml };
 // Small DOM helpers shared by editor overlays and node views.
 import type { Translate } from "./editor-types.js";
 import { scrollChildIntoView } from "./floating.js";

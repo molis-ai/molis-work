@@ -1,6 +1,4 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
-export { messageOf, esc };
 import type { Translate } from "./types.js";
 import type { WorkflowLinkKind } from "../model.js";
 

@@ -1,6 +1,8 @@
 import type { WorkflowActionStep } from "../model.js";
 import { ruleKey } from "./chain.js";
-import { copy, esc, ico, messageOf, said, settle, uid } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { copy, ico, said, settle, uid } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { fitPop, markOpen, placePop } from "./popover.js";
 import { chainOf, saveFlow } from "./save.js";

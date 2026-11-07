@@ -1,6 +1,4 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
-export { messageOf, esc };
 
 /** A ghost button that names an action; `label` is already the words the person reads. */
 export const button = (label: string, action: string, extra = ""): string =>

@@ -1,5 +1,7 @@
 import type { WorkflowLink } from "../model.js";
-import { EASE_STANDARD, copy, esc, ico, messageOf, motion, uid } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { EASE_STANDARD, copy, ico, motion, uid } from "./dom.js";
 import { drawFlow } from "./flow.js";
 import { drawList } from "./list.js";
 import { emitCtx } from "./nav.js";

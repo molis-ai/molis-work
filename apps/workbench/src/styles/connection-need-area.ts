@@ -22,4 +22,5 @@ export const CONNECTION_NEED_AREA_STYLES = `
 .connection-need-area__line{display:flex;align-items:center;gap:8px;min-width:0}
 .connection-need-area__line>p{flex:1 1 auto;min-width:0;margin:0;overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}.connection-need-area__line>p:focus{outline:none}
 .connection-need-area__line>p:focus-visible{outline:var(--focus-stroke);outline-offset:1px;border-radius:var(--r-tag)}
+.assistant-connection-need{margin-top:10px}.assistant-connection-need[data-stage=line]{min-height:48px}
 `;

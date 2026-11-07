@@ -35,12 +35,12 @@ function beginSourceOperation(page: FeedPage, button: HTMLButtonElement) {
   return { area: area || dialog, release };
 }
 
-/** Source selection/configuration belongs to this mount; account choice belongs to the trusted Host. */
-export function feedSources(page: FeedPage) {
-  const { host, q, all } = page, L = host.translate;
-  let filter = "all", previous = "all";
-  const field = (area: ParentNode, selector: string) => q<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector, area)?.value || "";
-  const status = (area: ParentNode | null, message: unknown) => { const node = area && q("[data-source-action-status],[data-feed-add-error],[data-feed-source-error],[data-feed-connection-status]", area); if (node) { node.hidden = !message; if (typeof message === "string") node.textContent = message; else molisWorkRequest.show(node, message); } };
+/**
+ * A source's account: what the trusted Host says is on it (never the directory), the picker, and, with none yet, the platform's
+ * connection card in the row.
+ */
+function sourceAccounts(page: FeedPage, status: (area: ParentNode | null, message: unknown) => void, changed: () => Promise<void>) {
+  const { host, q } = page, L = host.translate;
   const reflectChoice = (region: HTMLElement, choice: UiConnectionSlotChoice | null) => {
     const select = q<HTMLSelectElement>("[data-plugin-record-slot-account]", region);
     if (select) { select.replaceChildren(new Option(choice?.label || L("请选择账号连接"), choice?.connection_id || "")); select.disabled = Boolean(choice); }
@@ -81,6 +81,16 @@ export function feedSources(page: FeedPage) {
       if (picker) picker.hidden = false; place.remove(); status(region, error);
     }
   };
+  return { loadChoice };
+}
+
+/** Source selection/configuration belongs to this mount; account choice belongs to the trusted Host. */
+export function feedSources(page: FeedPage) {
+  const { host, q, all } = page, L = host.translate;
+  let filter = "all", previous = "all";
+  const field = (area: ParentNode, selector: string) => q<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector, area)?.value || "";
+  const status = (area: ParentNode | null, message: unknown) => { const node = area && q("[data-source-action-status],[data-feed-add-error],[data-feed-source-error],[data-feed-connection-status]", area); if (node) { node.hidden = !message; if (typeof message === "string") node.textContent = message; else molisWorkRequest.show(node, message); } };
+  const { loadChoice } = sourceAccounts(page, status, () => changed());
   const show = (view: string, kind = "") => {
     page.panel = view;
     const dialog = q("[data-feed-sources-dialog]"), workbench = q("[data-feed-workbench]") || host.root;

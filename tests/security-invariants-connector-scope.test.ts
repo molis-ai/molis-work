@@ -4,8 +4,9 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { connectorCliActions, connectorLocalActions, connectorManagementActions, connectorSetupAction, connectorSetupExecuteAction, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient, presentActionResult, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { assistantConnectionCard, connectorCliActions, connectorLocalActions, connectorManagementActions, connectorSetupAction, connectorSetupExecuteAction, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, presentActionResult, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
 import { createCliPackageFixture } from "./fixtures/connector-cli-package.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
@@ -14,6 +15,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 type TestHome = Awaited<ReturnType<typeof openTestHome>>;
 type Client = ReturnType<TestHome["host"]["homeActionClient"]>;
 type Request = { authorization_id: string };
+type CardWork = Parameters<typeof assistantConnectionCard>[2];
 const preparer: ActionCallContext = { actor_id: "connector-preparer", runtime_session_id: "preparing-session", audience: "agent", project_id: null,
   permissions: ["connectors:management:read", "connectors:management:write", "mcp:external"] };
 
@@ -136,6 +138,33 @@ test("ASC-69 S-37 a presented pending connection is read and cancelled only by t
     "the refusals left the request to its own session");
   assert.equal((await actions.invoke(preparer, connectorManagementActions.cancel, request) as { status: string }).status, "cancelled",
     "its own session still cancels it");
+});
+
+// ASC-69, S-37: the Assistant's card for that result reads and cancels as the person in the work's own project and runtime session, with
+// the id the Host kept on the card: a work whose session did not prepare the request gets only the 「继续接入」 link, and its cancel is
+// refused without ending the request; the work that prepared it draws the card and cancels it.
+test("ASC-69 S-37 the Assistant's connection card reads and cancels only the request its own work's session prepared", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), actions = home.host.homeActionClient();
+  const assistant = { ...preparer, actor_id: LOCAL_PERSON_ACTOR_ID, runtime_session_id: "assistant-session" };
+  const prepared = await actions.invoke(assistant, connectorSetupAction, { service_id: "github", method: "token", display_name: "Work account", expected_revision: null }) as Request;
+  const card = { status: "done", presentation: { summary: "接入方案已准备", pending_connection: { authorization_id: prepared.authorization_id } } } as AssistantCard;
+  const work = (session: string) => ({ project_ref: undefined, session_id: session }) as CardWork;
+  const say = (text: string, values: Record<string, string | number> = {}) => text.replace(/\{(\w+)\}/gu, (_, name: string) => String(values[name] ?? ""));
+  const state = async () => (await actions.invoke(assistant, connectorManagementActions.authorization, prepared) as { status: string }).status;
+  assert.deepEqual(await assistantConnectionCard(home.host, home.home, work("another-session"), card, "read", say), { state: "link" },
+    "another session's work draws no card, only the link");
+  await assert.rejects(assistantConnectionCard(home.host, home.home, work("another-session"), card, "cancel", say), { code: "connector.setup.foreign_request" },
+    "another session's work cannot cancel it");
+  assert.equal(await state(), "prepared", "the refused cancel left the request to the session that prepared it");
+  const drawn = await assistantConnectionCard(home.host, home.home, work("assistant-session"), card, "read", say);
+  assert.equal(drawn.state, "prepared");
+  assert.ok("html" in drawn && drawn.html.includes("data-connection-need-key") && drawn.html.includes("GitHub"), "its own work draws the key card for the service");
+  assert.deepEqual("setup" in drawn ? drawn.setup : null, { service_id: "github", method: "token", display_name: "Work account", setup_id: prepared.authorization_id },
+    "the page gets only the non-secret plan");
+  const cancelled = await assistantConnectionCard(home.host, home.home, work("assistant-session"), card, "cancel", say);
+  assert.equal(cancelled.state, "cancelled"); assert.equal(await state(), "cancelled", "its own work cancels it");
+  await assert.rejects(assistantConnectionCard(home.host, home.home, work("assistant-session"), { ...card, presentation: { summary: "x" } } as AssistantCard, "read", say),
+    { code: "assistant.not_found" }, "a card without a pending connection has none to read");
 });
 
 // RAC-1479 order proof: the initiator check must come before beforeEffect, so a refused cancel adds no effect boundary of its own to

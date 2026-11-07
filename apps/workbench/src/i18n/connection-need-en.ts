@@ -31,4 +31,6 @@ export const CONNECTION_NEED_EN: Record<string, string> = {
   "没有连上 · 再连一次": "Not connected · connect again",
   "连接 {name} · 来自 {owner}": "Connect {name} · from {owner}",
   "这里需要连接 {name}，连接卡在页面上": "{name} needs connecting here; the connection card is on the page",
+  "已连上 {name}": "Connected to {name}",
+  "浏览器拦截了新窗口，允许弹出后再点一次连接。": "The browser blocked the new window. Allow pop-ups, then press connect again.",
 };

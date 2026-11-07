@@ -250,6 +250,9 @@ test("AIC-12: a selection in a note must hold something, the schema refuses it b
   for (const action of [actions.manualPlan, actions.modelPlan]) {
     await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [], text: block.text } }), { code: "actions.input_invalid" });
     await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: " \n" } }), { code: "actions.input_invalid" });
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id, block.id], text: block.text } }), { code: "actions.input_invalid" });
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: block.id, text: block.text } }), { code: "actions.input_invalid" });
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: 1 } }), { code: "actions.input_invalid" });
     // What a person can select still goes through, and the block comparison that needs the note stays with the handler.
     const selected = await f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: block.text } });
     assert.deepEqual(selected.plan.selection, { block_ids: [block.id], text: block.text });

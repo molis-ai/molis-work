@@ -90,6 +90,17 @@ test("UPG1-02: a step that writes COMMIT; BEGIN keeps its first half past the ro
   }
 });
 
+test("UPG1-09: a journal SQLite ignores, left by a write killed before the flush, does not stop the snapshot", async t => {
+  for (const [name, journal] of [["empty", ""], ["header not flushed yet", Buffer.alloc(4096)]] as const) {
+    await t.test(name, t => {
+      const { file, unit } = upgradeHome(t, { journal: "DELETE" }), before = sha256(file);
+      writeFileSync(`${file}-journal`, journal);
+      assert.equal(capture(unit).sha256, before);
+      assert.deepEqual(sidecarsOf(file), []);
+    });
+  }
+});
+
 test("UPG1-02: the snapshot records what the design asks of it, and a clean upgrade leaves it alone", t => {
   const { file, unit, run } = upgradeHome(t);
   chmodSync(file, 0o640);

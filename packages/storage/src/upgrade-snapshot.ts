@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { chmodSync, closeSync, constants, copyFileSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, statfsSync } from "node:fs";
-import { dirname, isAbsolute, join, normalize, sep } from "node:path";
+import { dirname, isAbsolute, join, normalize, relative, sep } from "node:path";
 import { atomicWriteFileSync, syncPath } from "./adapters/atomic-write.js";
 import { assertStorageOwner, type StorageOwner } from "./adapters/storage-owner.js";
 import { snapshotFileDigest, snapshotFileStat, readSnapshotFile } from "./snapshot-files.js";
@@ -11,14 +11,15 @@ export interface UpgradeSqliteConnection extends SqliteBaselineDatabase {
   close(): unknown;
 }
 
-/**
- * One store of one upgrade run. `home` is trusted and `relativePath` comes from the store's descriptor, never from a record
- * (S-upgrade-snapshot-confinement). `lockDirectory` is where this Home's owner lock lives, which the Host keeps inside the Home.
- */
-export interface UpgradeSnapshotUnit {
+/** The proof of holding a Home. `lockDirectory` is where its owner lock lives: the Host keeps it in `<home>/agent-runtime`, and it has to be inside this Home. */
+export interface UpgradeHomeLock {
   readonly owner: StorageOwner;
   readonly lockDirectory: string;
   readonly home: string;
+}
+
+/** One store of one upgrade run. `home` is trusted and `relativePath` comes from the store's descriptor, never from a record (S-upgrade-snapshot-confinement). */
+export interface UpgradeSnapshotUnit extends UpgradeHomeLock {
   readonly runId: string;
   readonly relativePath: string;
 }
@@ -77,6 +78,16 @@ const isSnapshotFailure = (error: unknown) => error instanceof Error && "code" i
 function attempt<T>(reason: SnapshotFailure, label: string, work: () => T): T {
   try { return work(); }
   catch (error) { throw isSnapshotFailure(error) ? error : fail(reason, label, error); }
+}
+
+/** A live lock is not enough: it has to be this Home's, or a caller could hold one Home and change another. */
+function assertHomeLock({ owner, lockDirectory, home }: UpgradeHomeLock): void {
+  assertStorageOwner(lockDirectory, owner);
+  const label = UPGRADE_DIRECTORY;
+  attempt("invalid_path", label, () => {
+    const inside = relative(realpathSync(home), realpathSync(lockDirectory));
+    if (inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside)) throw fail("invalid_path", label);
+  });
 }
 
 interface UnitPaths {
@@ -154,38 +165,44 @@ function readManifest(paths: UnitPaths, runId: string): readonly UpgradeSnapshot
 const writeManifest = (paths: UnitPaths, runId: string, files: readonly UpgradeSnapshotEntry[]) =>
   atomicWriteFileSync(paths.manifest, `${JSON.stringify({ schema_version: MANIFEST_SCHEMA_VERSION, run_id: runId, files })}\n`, { mode: 0o600, durable: true });
 
+/** Empty, or a zero first byte: what SQLite itself takes as nothing to roll back. */
+function journalLooksUnflushed(journal: string): boolean {
+  const found = lstatSync(journal, { throwIfNoEntry: false });
+  if (!found?.isFile()) return false;
+  if (found.size === 0) return true;
+  const fd = openSync(journal, "r"), first = Buffer.alloc(1);
+  try { readSync(fd, first, 0, 1, 0); } finally { closeSync(fd); }
+  return first[0] === 0;
+}
+
 /**
- * In a rollback-journal store, a write killed before its journal was flushed leaves a journal that is empty or starts with a zero byte:
- * SQLite writes the header's first bytes only at the flush. The connection just closed looked at it and, by SQLite's own rule, found nothing
- * to roll back (the database file has not been touched yet; a journal past that point is played back and removed). SQLite only removes it
- * at the next write, so it would stop the snapshot. A WAL store has no business with such a file, and it stays a refusal.
+ * A rollback-journal store whose write was killed before the journal's flush keeps a journal SQLite ignores on every read and removes only
+ * at the next write, which would stop the snapshot; this brings that removal forward (S-upgrade-journal-removal). A live writer's journal
+ * has the same bytes, and reads and the checkpoint do not notice it, so the exclusive lock is what tells them apart: with a writer or reader
+ * still on the file it fails and nothing is removed. A WAL store has no business with such a file, and it stays a refusal.
  */
-function removeUnflushedJournal(file: string): void {
-  const journal = `${file}-journal`, found = lstatSync(journal, { throwIfNoEntry: false });
-  if (!found?.isFile()) return;
-  if (found.size > 0) {
-    const fd = openSync(journal, "r"), first = Buffer.alloc(1);
-    try { readSync(fd, first, 0, 1, 0); } finally { closeSync(fd); }
-    if (first[0] !== 0) return;
-  }
-  rmSync(journal, { force: true });
+function removeUnflushedJournal(db: UpgradeSqliteConnection, file: string): void {
+  const journal = `${file}-journal`;
+  if (!journalLooksUnflushed(journal)) return;
+  db.exec("BEGIN EXCLUSIVE");
+  try { if (journalLooksUnflushed(journal)) rmSync(journal, { force: true }); }
+  finally { db.exec("ROLLBACK"); }
 }
 
 /** §2.2 step 2. Also how a store left by a kill recovers: opening replays a WAL, and a read rolls back a hot journal. */
 function checkpoint(paths: UnitPaths, open: (file: string) => UpgradeSqliteConnection): UpgradeSnapshotEntry["sqlite"] {
-  let wal = true;
   const sqlite = attempt("checkpoint_failed", paths.label, () => {
     const db = open(paths.file);
     try {
-      wal = String((db.prepare("PRAGMA journal_mode").get() as { journal_mode: unknown }).journal_mode).toLowerCase() === "wal";
       const { user_version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
       const schema_sha256 = sha256(JSON.stringify(describeSqliteSchema(db)));
       const { busy } = db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get() as { busy: number };
       if (busy !== 0) throw fail("checkpoint_failed", paths.label);
+      const { journal_mode } = db.prepare("PRAGMA journal_mode").get() as { journal_mode: string };
+      if (journal_mode.toLowerCase() !== "wal") removeUnflushedJournal(db, paths.file);
       return { user_version: Number(user_version), schema_sha256 };
     } finally { db.close(); }
   });
-  if (!wal) attempt("checkpoint_failed", paths.label, () => removeUnflushedJournal(paths.file));
   if (sidecarPresent(paths.file)) throw fail("sidecars_remain", paths.label);
   return sqlite;
 }
@@ -208,7 +225,7 @@ function assertOrdinaryStore(paths: UnitPaths): void {
  * has since changed, since that store may be the failed upgrade. Contents are copied as they are: nothing is decrypted or sealed again.
  */
 export function captureUpgradeSnapshot(unit: UpgradeSnapshotUnit, open: (file: string) => UpgradeSqliteConnection, keys?: readonly UpgradeSnapshotKeyDependency[]): UpgradeSnapshotEntry {
-  assertStorageOwner(unit.lockDirectory, unit.owner);
+  assertHomeLock(unit);
   const paths = unitPaths(unit);
   assertOrdinaryStore(paths);
   const sqlite = checkpoint(paths, open);
@@ -249,7 +266,7 @@ function verifiedEntry(unit: UpgradeSnapshotUnit, paths: UnitPaths): UpgradeSnap
 
 /** Whether a snapshot still is what was taken, without touching the store: a resumed run checks this before it starts the transaction again (§6). */
 export function verifyUpgradeSnapshot(unit: UpgradeSnapshotUnit): UpgradeSnapshotEntry {
-  assertStorageOwner(unit.lockDirectory, unit.owner);
+  assertHomeLock(unit);
   return verifiedEntry(unit, unitPaths(unit));
 }
 
@@ -260,11 +277,14 @@ export function verifyUpgradeSnapshot(unit: UpgradeSnapshotUnit): UpgradeSnapsho
  * restored file would make it read as the upgraded state, with `integrity_check` still ok.
  *
  * Whether to restore is the store's version, never the failure's reason: only a store already at the target version was upgraded (a run can
- * fail after its commit, §6). Any other failure restores, because a step can commit behind the run's back (`COMMIT; BEGIN` leaves the
- * version old and half the change kept, and reports whatever check failed next).
+ * fail after its commit, §6). Any other failure restores, because a step can commit behind the run's back: `COMMIT; BEGIN`, or an `async`
+ * step's `COMMIT` before its first `await`, leaves the version old and half the change kept, and reports whatever failed next.
+ *
+ * No `await` from the failed run through closing its connection and calling this: a step that returned a promise may still be running, and
+ * only the closed connection stops its later writes from landing in the restored file.
  */
 export function restoreUpgradeSnapshot(unit: UpgradeSnapshotUnit): UpgradeSnapshotEntry {
-  assertStorageOwner(unit.lockDirectory, unit.owner);
+  assertHomeLock(unit);
   const paths = unitPaths(unit);
   if (present(paths.file)) attempt("invalid_path", paths.label, () => snapshotFileStat(paths.file));
   const entry = verifiedEntry(unit, paths);
@@ -307,9 +327,9 @@ export function assertUpgradeDiskSpace(home: string, relativePaths: readonly str
 }
 
 /** §5.4: snapshots stay until the next successful upgrade. Removes every other run; the directory's other files are not this function's, and a link goes without being followed. */
-export function pruneUpgradeSnapshots({ owner, lockDirectory, home }: Pick<UpgradeSnapshotUnit, "owner" | "lockDirectory" | "home">, keepRunId: string): void {
-  assertStorageOwner(lockDirectory, owner);
-  const label = UPGRADE_DIRECTORY;
+export function pruneUpgradeSnapshots(lock: UpgradeHomeLock, keepRunId: string): void {
+  assertHomeLock(lock);
+  const { home } = lock, label = UPGRADE_DIRECTORY;
   attempt("prune_failed", label, () => {
     if (!RUN_ID.test(keepRunId)) throw fail("invalid_path", label);
     const upgrade = join(realpathSync(home), UPGRADE_DIRECTORY), found = lstatSync(upgrade, { throwIfNoEntry: false });

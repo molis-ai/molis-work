@@ -1,11 +1,13 @@
 // The upgrade snapshot's two refusals (specs/upgrade-continuity/upgrade-chain-design.md §5, §10; docs/system/security-invariants/):
-// S-upgrade-snapshot-confinement (the design's provisional S-143) and S-upgrade-restore-verified (its provisional S-145).
+// S-upgrade-snapshot-confinement (the design's provisional S-143), S-upgrade-restore-verified (its provisional S-145) and S-upgrade-journal-removal.
 import assert from "node:assert/strict";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { chmodSync, linkSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { captureUpgradeSnapshot, pruneUpgradeSnapshots, restoreUpgradeSnapshot, runSqliteUpgrade, verifyUpgradeSnapshot, type UpgradeSqliteConnection } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, captureUpgradeSnapshot, openSqliteConnection, pruneUpgradeSnapshots, restoreUpgradeSnapshot, runSqliteUpgrade, verifyUpgradeSnapshot, type UpgradeSqliteConnection } from "@molis-ai/molis-work-storage";
 import { capture, notesOf, onStore, openNode, present, runFiles, seedStore, sha256, sidecarsOf, STORE, upgradeHome, versionOf } from "./fixtures/upgrade-snapshot-home.js";
 
 const failure = (reason: string, area?: string) => (error: Error & { code?: string; details?: { reason?: string } }) => {
@@ -162,6 +164,94 @@ test("S-upgrade-snapshot-confinement S-143: without this Home's live lock nothin
     assert.throws(() => captureUpgradeSnapshot(borrowed, neverOpened), invalid);
     assert.throws(() => restoreUpgradeSnapshot(borrowed), invalid);
     assert.equal(present(first.run), false);
+  });
+  await t.test("another Home's lock, named by its own directory", t => {
+    const first = upgradeHome(t), second = upgradeHome(t);
+    capture(first.unit);
+    changeStore(first.file);
+    const changed = sha256(first.file), named = { ...first.unit, owner: second.owner, lockDirectory: second.home };
+    assert.throws(() => captureUpgradeSnapshot({ ...named, runId: "run-2" }, neverOpened), failure("invalid_path", first.area));
+    assert.throws(() => restoreUpgradeSnapshot(named), failure("invalid_path", first.area));
+    assert.throws(() => verifyUpgradeSnapshot(named), failure("invalid_path", first.area));
+    assert.throws(() => pruneUpgradeSnapshots(named, "run-2"), failure("invalid_path", first.area));
+    assert.equal(sha256(first.file), changed);
+    assert.ok(present(first.run));
+  });
+  await t.test("the Host's lock lives in the Home's agent-runtime, and the Home itself is then the wrong place to look", t => {
+    const { home, file, unit, release } = upgradeHome(t);
+    release();
+    const lockDirectory = join(home, "agent-runtime"), owner = acquireStorageOwner(lockDirectory);
+    t.after(() => owner.release());
+    assert.throws(() => captureUpgradeSnapshot({ ...unit, owner, lockDirectory: home }, neverOpened), (error: Error & { code?: string }) => error.code === "storage.owner.invalid");
+    const entry = capture({ ...unit, owner, lockDirectory });
+    assert.equal(sha256(file), entry.sha256);
+  });
+});
+
+/** A writer in another process, stopped before its journal's flush, that commits when asked. */
+async function liveWriter(t: TestContext, file: string) {
+  const child = spawn(process.execPath, ["--no-warnings", "--input-type=module", "-e", `
+    import { DatabaseSync } from "node:sqlite";
+    const db = new DatabaseSync(${JSON.stringify(file)});
+    db.exec("BEGIN; UPDATE notes SET body = 'still being written';");
+    process.stdout.write("ready\\n");
+    process.stdin.once("data", () => { db.exec("COMMIT"); db.close(); process.exit(0); });`], { stdio: ["pipe", "pipe", "inherit"] });
+  t.after(() => { child.kill("SIGKILL"); });
+  await once(child.stdout, "data");
+  return { commit: async () => { child.stdin.write("commit\n"); const [code] = await once(child, "exit"); assert.equal(code, 0); } };
+}
+
+test("S-upgrade-journal-removal: a live writer's journal has a killed one's bytes, and it is not removed: the lock tells them apart", async t => {
+  for (const [driver, open] of Object.entries({ "node:sqlite": openNode, "better-sqlite3": (path: string) => openSqliteConnection(path, { fileMustExist: true, timeout: 0 }) })) {
+    await t.test(driver, async t => {
+      const { area, file, unit, run } = upgradeHome(t, { journal: "DELETE" });
+      const writer = await liveWriter(t, file), journal = `${file}-journal`;
+      assert.equal(readFileSync(journal)[0], 0, "the same first byte as a write killed before its flush");
+      const before = sha256(journal), store = sha256(file);
+      assert.throws(() => captureUpgradeSnapshot(unit, open), failure("checkpoint_failed", area));
+      assert.equal(sha256(journal), before, "the writer's journal is still there, whole");
+      assert.equal(sha256(file), store);
+      assert.equal(present(run), false);
+      await writer.commit();
+      assert.deepEqual(notesOf(file).map(row => row.body), ["still being written", "still being written"], "the writer finished as if nothing had happened");
+    });
+  }
+});
+
+test("S-upgrade-journal-removal: only an empty or zero-first-byte journal of a rollback-journal store goes", async t => {
+  await t.test("beside a WAL store the same file stays a refusal", t => {
+    const { area, file, unit, run } = upgradeHome(t);
+    for (const bytes of [Buffer.alloc(0), Buffer.alloc(4096)]) {
+      writeFileSync(`${file}-journal`, bytes);
+      assert.throws(() => capture(unit), failure("sidecars_remain", area));
+      assert.deepEqual(readFileSync(`${file}-journal`), bytes);
+      assert.equal(present(run), false);
+    }
+  });
+  await t.test("a journal with its first byte set is SQLite's to play back, and what it holds comes back", t => {
+    const { file, unit } = upgradeHome(t, { journal: "DELETE" });
+    const notes = notesOf(file);
+    // A real hot journal, from a store written past the flush: removing it by hand would keep the half-done write.
+    const result = spawnSync(process.execPath, ["--no-warnings", "--input-type=module", "-e", `
+      import { DatabaseSync } from "node:sqlite";
+      const db = new DatabaseSync(${JSON.stringify(file)});
+      db.exec("PRAGMA cache_size = 1; BEGIN; UPDATE notes SET body = 'never committed'; CREATE TABLE bulk (body TEXT);");
+      const insert = db.prepare("INSERT INTO bulk VALUES (?)");
+      for (let i = 0; i < 400; i += 1) insert.run("x".repeat(2000));
+      process.kill(process.pid, "SIGKILL");
+      await new Promise(() => {});`], { encoding: "utf8" });
+    assert.equal(result.signal, "SIGKILL", result.stderr);
+    assert.notEqual(readFileSync(`${file}-journal`)[0], 0);
+    capture(unit);
+    assert.deepEqual(notesOf(file), notes);
+  });
+  await t.test("a journal that is a link is refused before anything opens it", t => {
+    const { area, file, outside, unit } = upgradeHome(t, { journal: "DELETE" }), kept = join(outside, "kept");
+    writeFileSync(kept, "");
+    symlinkSync(kept, `${file}-journal`);
+    assert.throws(() => captureUpgradeSnapshot(unit, neverOpened), failure("invalid_path", area));
+    assert.equal(lstatSync(`${file}-journal`).isSymbolicLink(), true);
+    assert.equal(readFileSync(kept, "utf8"), "");
   });
 });
 

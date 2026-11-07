@@ -90,6 +90,48 @@ test("UPG1-02: a step that writes COMMIT; BEGIN keeps its first half past the ro
   }
 });
 
+test("UPG1-02: an async step's COMMIT before its first await keeps its first half too, and a closed connection stops the rest", async t => {
+  for (const [driver, open] of Object.entries(DRIVERS)) for (const journal of ["WAL", "DELETE"] as const) {
+    await t.test(`${driver} ${journal}`, async t => {
+      const { file, unit } = upgradeHome(t, { journal });
+      const entry = captureUpgradeSnapshot(unit, open), notes = notesOf(file);
+      let lateWrite: unknown = "not reached";
+      const baseline: SqliteBaseline = { version: 2, schema: V2, upgrades: [{ from: 1, run: async db => {
+        db.exec(`${addTag}; COMMIT;`);
+        await null;
+        try { db.exec("UPDATE notes SET body = 'after the first await'"); lateWrite = "landed"; }
+        catch (error) { lateWrite = error; }
+      } }] };
+      const db = open(file);
+      assert.throws(() => runSqliteUpgrade(db, file, baseline), failed("step_failed"));
+      // Nothing is awaited from here until the restore is done (the note on restoreUpgradeSnapshot).
+      db.close();
+      assert.equal(versionOf(file), 1);
+      assert.ok(onStore(file, db => db.prepare("SELECT 1 FROM pragma_table_info('notes') WHERE name = 'tag'").get()), "the first half is committed");
+      assert.notEqual(sha256(file), entry.sha256);
+      restoreUpgradeSnapshot(unit);
+      assert.equal(sha256(file), entry.sha256);
+      await new Promise(resolve => setImmediate(resolve));
+      assert.ok(lateWrite instanceof Error, "the rest of the step found the connection closed");
+      assert.equal(sha256(file), entry.sha256);
+      assert.deepEqual(notesOf(file), notes);
+    });
+  }
+});
+
+test("UPG1-09: a real write killed before the journal's flush does not stop the snapshot, and its change is not in the baseline", async t => {
+  for (const [driver, open] of Object.entries(DRIVERS)) await t.test(driver, t => {
+    const { file, unit } = upgradeHome(t, { journal: "DELETE" }), before = sha256(file), notes = notesOf(file);
+    dieHolding(file, `db.exec("BEGIN; UPDATE notes SET body = 'never committed';");`);
+    assert.equal(readFileSync(`${file}-journal`)[0], 0, "the kill left a journal SQLite does not take as hot");
+    assert.equal(sha256(file), before, "the store itself was not written");
+    const entry = captureUpgradeSnapshot(unit, open);
+    assert.equal(entry.sha256, before);
+    assert.deepEqual(sidecarsOf(file), []);
+    assert.deepEqual(notesOf(file), notes);
+  });
+});
+
 test("UPG1-09: a journal SQLite ignores, left by a write killed before the flush, does not stop the snapshot", async t => {
   for (const [name, journal] of [["empty", ""], ["header not flushed yet", Buffer.alloc(4096)]] as const) {
     await t.test(name, t => {

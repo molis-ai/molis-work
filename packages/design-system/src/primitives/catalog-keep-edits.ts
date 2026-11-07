@@ -33,8 +33,9 @@ export const KEEP_EDITS_BOARD_STYLES = `
   .mw-kept.is-swapped { background: var(--surface-soft); }
   .mw-kept__head { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .mw-kept__who { flex: 1; min-width: 0; color: var(--ink); font-size: 12px; font-weight: var(--weight-control); overflow-wrap: anywhere; }
-  .mw-kept__text { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-  .mw-kept__text.is-open { display: block; -webkit-line-clamp: unset; }
+  /* Three lines by height, not -webkit-line-clamp: a clamped box gives up the shared text-wrap: pretty, so its last line can be one character. */
+  .mw-kept__text { margin: 0; max-height: 4.8em; color: var(--ink-soft); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
+  .mw-kept__text.is-open { max-height: none; }
   .mw-kept__text.is-blank { color: var(--muted); }
   /* The padding reaches a finger without taking line room, as the link beside a status mark does. */
   .mw-btn.mw-kept__more { --reach: 4px; justify-self: start; min-height: 0; padding: var(--reach) 0; margin-block: calc(-1 * var(--reach)); font-size: 13px; line-height: 20px; text-decoration: underline; text-underline-offset: 3px; }

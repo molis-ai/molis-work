@@ -6,14 +6,14 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 // and the Host's; that no two installed Plugins declare one key is still the Host's, when it reads the Manifests.
 
 /** `owner.area.name`: lower-case segments, 2 to 5 of them. */
-const STABLE_KEY = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$/u;
+export const STABLE_KEY = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9_-]*){1,4}$/u;
 const PLACEHOLDER = /\{([A-Za-z_]\w*)\}/gu;
 const HAN = /\p{Script=Han}/u;
 /** The owner segment shared words use (`common.save`); no Plugin takes it. */
-const SHARED_OWNER = "common";
+export const SHARED_OWNER = "common";
 
 /** The name a Plugin's keys start with: the last segment of its plugin_id (`io.molis.work.text-stats` -> `text-stats`). */
-const messageOwnerOf = (pluginId: string): string => pluginId.slice(pluginId.lastIndexOf(".") + 1);
+export const messageOwnerOf = (pluginId: string): string => pluginId.slice(pluginId.lastIndexOf(".") + 1);
 
 export const PLUGIN_MESSAGE_LIMITS = { entries: 5000, keyLength: 120, textLength: 2000 } as const;
 

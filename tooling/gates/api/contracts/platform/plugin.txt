@@ -2600,6 +2600,10 @@ export declare const PLUGIN_JUDGMENTS_READ_PERMISSION = "judgments:read";
 
 export declare const PLUGIN_JUDGMENTS_WRITE_PERMISSION = "judgments:write";
 
+export declare const PLUGIN_LOCALE_LIMITS: {
+    readonly available: 32;
+};
+
 export declare const PLUGIN_LOCAL_TOOLS_LIMITS: Readonly<{
     tools: 32;
     binaries: 4;
@@ -3422,6 +3426,11 @@ export interface PluginLocalToolsDeclaration {
     readonly custom_executables?: true;
 }
 
+export interface PluginLocalesDeclaration {
+    readonly default: string;
+    readonly available: readonly string[];
+}
+
 export interface PluginManifest {
     sync?: import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncDeclaration;
     schema_version: 1;
@@ -3494,6 +3503,7 @@ export interface PluginManifest {
         page_routes?: UiPageRouteDeclaration[];
         messages?: PluginMessagesDeclaration;
         translations?: PluginTranslationsDeclaration;
+        locales?: PluginLocalesDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;

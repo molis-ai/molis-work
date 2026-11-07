@@ -12,7 +12,7 @@ import type {LocalWebCatalogRunner} from './web-project-settings.js';
 export function createPersonalCatalogRegistration(home:string,spaceId:string,userId:string,authorize:()=>void,withCatalog:LocalWebCatalogRunner,publisherId:string,lifecycle?:CatalogSyncLifecycle):SyncRegistration {
   authorize();const space=ensureStorageSpace(home);
   if(space.kind!=='personal'||space.spaceId!==spaceId||space.ownerUserId!==userId)throw new Error('项目资料不属于当前个人空间');
-  const selection={plugin_id:modulesProjectsContract.contractId,publisher_id:publisherId,publisher_signature:'official-project-catalog-binding',collection_id:'projects',schema_version:1};
+  const selection={plugin_id:modulesProjectsContract.contractId,publisher_id:publisherId,publisher_signature:'official-project-catalog-binding',collection_id:'projects',schema_version:/* @version sync.collection.platform.projects */ 1};
   const namespace=syncNamespace(selection),options={spaceId,authorize,excludedProjectIds:[PERSONAL_SPACE_PROJECT_ID]};let available=true;
   const protection=createLocalPayloadProtection({secrets:createLazyFileSecretStore(home),keyRef:'system:sync:project-catalog:payload:v1',scope:JSON.stringify([spaceId,namespace]),authorize,
     hasProtectedData:()=>projectCatalogHasProtectedData(home)||hasProtectedSyncPayloads(home,namespace)});

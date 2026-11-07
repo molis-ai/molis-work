@@ -1,7 +1,6 @@
 import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
-import path from "node:path";
-import { projectDirectoryPath, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { projectDirectoryPath, recordedStagedProjectDirectoryPath, stagedProjectDirectoryPath, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
@@ -41,7 +40,7 @@ export class ManagedProjectDeletion {
 
     const project = this.projects.query.getProject(projectId);
     const projectDirectory = projectDirectoryPath(this.projectsDirectory, project.project_id);
-    const stagedDirectory = path.join(this.projectsDirectory, `.deleting-${project.project_id}-${randomUUID()}`);
+    const stagedDirectory = stagedProjectDirectoryPath(this.projectsDirectory, project.project_id, randomUUID());
     await fs.rename(projectDirectory, stagedDirectory);
     let catalogCommitted = false;
     try {
@@ -99,6 +98,14 @@ export class ManagedProjectDeletion {
 
   private async runCleanup(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
     if (record.cleanup_state === "complete") return this.projects.lifecycle.deletionRecord(record);
+    // The receipt is not trusted (S-102): it may have been edited, or come with a Home copied from somewhere else. One that does not stand for a
+    // stage of its own project runs nothing, not even an owner: its project id may name a project that is still in use.
+    let stagedDirectory: string;
+    try {
+      stagedDirectory = recordedStagedProjectDirectoryPath(this.projectsDirectory, record.project_id, record.staged_directory);
+    } catch (error) {
+      return this.recordCleanup(record.deletion_id, [error instanceof Error ? error.message : String(error)]);
+    }
     const problems: string[] = [];
     // Each owner clears what it keeps for the project, once the catalog no longer has it. A step that fails, that its owner
     // defers (the service is another process's), or whose owner this process does not have, stays pending with the error
@@ -118,11 +125,15 @@ export class ManagedProjectDeletion {
       }
     }
     try {
-      await fs.rm(record.staged_directory, { recursive: true, force: true });
+      await fs.rm(stagedDirectory, { recursive: true, force: true });
     } catch (error) {
       problems.push(error instanceof Error ? error.message : String(error));
     }
-    record = await this.commit(() => this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, problems.length
+    return this.recordCleanup(record.deletion_id, problems);
+  }
+
+  private async recordCleanup(deletionId: string, problems: readonly string[]): Promise<MolisWorkProjectDeletionRecord> {
+    const record = await this.commit(() => this.projects.lifecycle.updateDeletionCleanup(deletionId, problems.length
       ? { state: "pending", error: problems.join("；"), cleaned_at: null }
       : { state: "complete", error: null, cleaned_at: new Date().toISOString() }));
     return this.projects.lifecycle.deletionRecord(record);

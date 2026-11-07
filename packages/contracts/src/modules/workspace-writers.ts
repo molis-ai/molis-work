@@ -65,12 +65,12 @@ export interface WriterIntegrationView {
 export interface WriterIntegrationSource { session_id: string; run_id: string; subagent_id: string }
 export const writerIntegrationCapabilities = {
   read: {
-    capability_id: "projects.workspace.writers.integration.read", version: 1, operation: "query",
+    capability_id: "projects.workspace.writers.integration.read", version: /* @version action.projects.workspace.writers.integration.read */ 1, operation: "query",
     action: /* @__PURE__ */ gitHostAction("读取子任务成果", "读取本安装自己的会话里一个已结束子任务的独立工作树相对主工作区的逐文件变更，每个文件能否整合、为什么；两边都改过的文本给出三方合并", "query", "workspace:read",
       /* @__PURE__ */ object(writerSource), writerIntegrationView),
   } as ActionDefinition<WriterIntegrationSource, WriterIntegrationView>,
   prepare: {
-    capability_id: "projects.workspace.writers.integration.prepare", version: 1, operation: "command",
+    capability_id: "projects.workspace.writers.integration.prepare", version: /* @version action.projects.workspace.writers.integration.prepare */ 1, operation: "command",
     action: /* @__PURE__ */ gitHostAction("发起子任务成果整合的审查", "按调用方看到的逐文件修订，为把所选文件从子任务的独立工作树整合回主工作区发起宿主审查；只返回审查身份，用户批准后才写入，期间任何一边变化都会被拒绝", "operation", "review:git-integration",
       /* @__PURE__ */ object({ ...writerSource, operation_id: operationId, files: { type: "array", items: writerIntegrationChoice } }), reviewIdentity),
   } as ActionDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string; resolution?: string }[] }, { review_id: string }>,
@@ -78,12 +78,12 @@ export const writerIntegrationCapabilities = {
 
 export const writerDirectoryCapabilities = {
   list: {
-    capability_id: "projects.workspace.writers.list", version: 1, operation: "query",
+    capability_id: "projects.workspace.writers.list", version: /* @version action.projects.workspace.writers.list */ 1, operation: "query",
     action: /* @__PURE__ */ gitHostAction("列出独立工作树", "列出主工作区下宿主创建的独立工作树，以及各自是否已授权给本项目；分支被手动切换或来源缺失的目录也列出并写明原因，但不能分配或整合", "query", "workspace:read",
       /* @__PURE__ */ object({ workspace_id: id }), { type: "array", items: writerDirectory }),
   } as ActionDefinition<{ workspace_id: string }, PreparedWriterDirectory[]>,
   prepare: {
-    capability_id: "projects.workspace.writers.prepare", version: 1, operation: "command",
+    capability_id: "projects.workspace.writers.prepare", version: /* @version action.projects.workspace.writers.prepare */ 1, operation: "command",
     action: /* @__PURE__ */ gitHostAction("发起独立工作树的审查", "为在主工作区下创建一个独立工作树和本地分支、并授权本项目在其中执行发起宿主审查；只返回审查身份和将创建的目录，用户批准后才创建，期间仓库或授权变化会被拒绝", "operation", "review:git-worktree",
       /* @__PURE__ */ object({ workspace_id: id, operation_id: operationId }), /* @__PURE__ */ object({ review_id: id, directory: writerDirectory })),
   } as ActionDefinition<{ workspace_id: string; operation_id: string }, { review_id: string; directory: PreparedWriterDirectory }>,

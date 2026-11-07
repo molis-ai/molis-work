@@ -5,7 +5,7 @@ import { sortGoalTreeItems } from "./tree-order.js";
 import { buildGoalMomentumView } from "./momentum-view.js";
 import type { GoalMomentumGoalInput } from "./momentum-model.js";
 
-export const GOALS_MOMENTUM_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.momentum.v1";
+export const GOALS_MOMENTUM_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.momentum "io.molis.work.native.goals.momentum.v{version}" */ "io.molis.work.native.goals.momentum.v1";
 
 /** The facts momentum reads from one Goal of the document collection. */
 export function goalMomentumInput(item: GoalsMomentumItem): GoalMomentumGoalInput {

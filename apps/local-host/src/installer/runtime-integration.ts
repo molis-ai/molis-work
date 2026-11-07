@@ -260,7 +260,7 @@ export class RuntimeIntegrationService {
     if (text == null) return null;
     try {
       const receipt = JSON.parse(text) as IntegrationReceipt;
-      if (!isOwnedIntegrationOwner(receipt.owner) || receipt.schema_version !== 1 || receipt.runtime_id !== runtimeId) {
+      if (!isOwnedIntegrationOwner(receipt.owner) || receipt.schema_version !== /* @version format.runtime.integration.receipt */ 1 || receipt.runtime_id !== runtimeId) {
         throw new Error("owner mismatch");
       }
       return receipt;
@@ -276,7 +276,7 @@ export class RuntimeIntegrationService {
   private async writeAttempt(plan: RuntimeIntegrationPlan, status: "rolled_back" | "conflict", message: string): Promise<void> {
     const filePath = path.join(this.homeDirectory, "runtime-integration-attempts", `${plan.plan_id}-${randomUUID()}.json`);
     await writeAtomic(filePath, `${JSON.stringify({
-      schema_version: 1,
+      schema_version: /* @version format.runtime.integration.receipt */ 1,
       owner: INTEGRATION_OWNER,
       plan_id: plan.plan_id,
       runtime_id: plan.runtime_id,

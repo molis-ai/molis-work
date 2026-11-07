@@ -27,7 +27,7 @@ export const installedLibraryErrors = defineErrorCodes("plugin.home_database", {
 export const INSTALLED_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
 
 const LEDGER_BASELINE: SqliteBaseline = {
-  version: 1,
+  version: /* @version database.ledger_baseline */ 1,
   schema: `
     CREATE TABLE IF NOT EXISTS plugin_home_libraries (
       plugin_id TEXT PRIMARY KEY,

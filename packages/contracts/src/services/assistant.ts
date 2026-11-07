@@ -19,9 +19,9 @@ import type { MemoryChange } from "./memory.js";
  * context and capability contracts, never by the Assistant knowing them one by one.
  */
 export const servicesAssistantContract = {
-  contractId: "io.molis.work.service.assistant.v1",
+  contractId: /* @version contract.io.molis.work.service.assistant "io.molis.work.service.assistant.v{version}" */ "io.molis.work.service.assistant.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.assistant */ 1,
   maturity: "partial",
   ssot: "specs/archive/system-assistant/spec.md",
 } as const satisfies ContractDescriptor;

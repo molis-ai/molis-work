@@ -243,6 +243,58 @@ for (const mode of ["cancel", "failure", "success"] as const) test(`Jelly model 
   assert.deepEqual(await f.read(), before);
 });
 
+test("AIC-12: a selection in a note must hold something, the schema refuses it before any handler runs, and a text source still carries one unread", async t => {
+  const f = fixture(t, planModel);
+  const note = (await f.command("note.create", { title: "原笔记", markdown: "第一段" })).notes[0]!, block = note.blocks[0]!;
+  const before = await f.read(), source = { source_type: "note", source_id: note.id };
+  for (const action of [actions.manualPlan, actions.modelPlan]) {
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [], text: block.text } }), { code: "actions.input_invalid" });
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: " \n" } }), { code: "actions.input_invalid" });
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id, block.id], text: block.text } }), { code: "actions.input_invalid" });
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: block.id, text: block.text } }), { code: "actions.input_invalid" });
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: 1 } }), { code: "actions.input_invalid" });
+    // What a person can select still goes through, and the block comparison that needs the note stays with the handler.
+    const selected = await f.bound.invoke(action, { ...source, selection: { block_ids: [block.id], text: block.text } });
+    assert.deepEqual(selected.plan.selection, { block_ids: [block.id], text: block.text });
+    await assert.rejects(f.bound.invoke(action, { ...source, selection: { block_ids: ["other"], text: block.text } }), { code: "jelly.source_changed" });
+  }
+  // The constraint moved, and did not spread: a text source never read its selection, and the shared fragment is also the plan's output.
+  const unread = await f.bound.invoke(actions.manualPlan, { source_type: "text", text: "原文", selection: { block_ids: [], text: "" } });
+  assert.deepEqual(unread.plan.selection, { block_ids: [], text: "" });
+  assert.deepEqual(await f.read(), before);
+});
+
+test("AIC-12: the checks the handlers dropped are refused by the schema, so a bad value still changes nothing", async t => {
+  const f = fixture(t);
+  const before = await f.read();
+  const plan = { id: "plan", title: "计划", source_type: "text", source_id: null, source_hash: "0".repeat(64), source_text: "原文", created_at: day, actions: [{ id: "a", title: "步骤", notes: "", schedule: null, category_id: "uncategorized", priority: "none" }] };
+  const action = plan.actions[0]!, occurrence = { id: "series", original_date: day };
+  // Each good input gets past the schema (the store refuses it: nothing by that name exists), so what is refused is the one bad value.
+  const cases: [keyof typeof commands, Record<string, unknown>, Record<string, unknown>][] = [
+    ["item.move_many", { ids: ["item"], date: day }, { ids: [] }],
+    ["series.update", { ...occurrence, scope: "onlyThis", patch: {} }, { scope: "later" }],
+    ["series.delete", { ...occurrence, scope: "onlyThis" }, { scope: "later" }],
+    ["series.complete", { ...occurrence, completed: true }, { completion_description: 1 }],
+    ["note.import", { id: "note", format: "markdown", mode: "append", source: "正文" }, { format: "pdf" }],
+    ["note.import", { id: "note", format: "markdown", mode: "append", source: "正文" }, { mode: "merge" }],
+    ["item.notes_to_note", { owner_id: "item", mode: "new" }, { mode: "move" }],
+    ["task.complete", { note_id: "note", block_id: "block", completed: true }, { completed: "yes" }],
+    ["plan.apply", { plan }, { plan: { ...plan, id: "" } }],
+    ["plan.apply", { plan }, { plan: { ...plan, actions: undefined } }],
+    ["plan.apply", { plan }, { plan: { ...plan, source_type: "web" } }],
+    ["plan.apply", { plan }, { plan: { ...plan, actions: [{ ...action, title: "" }] } }],
+    ["plan.apply", { plan }, { plan: { ...plan, actions: [{ ...action, notes: 1 }] } }],
+    ["plan.apply", { plan }, { plan: { ...plan, actions: [{ ...action, priority: "P9" }] } }],
+    ["plan.apply", { plan }, { plan: { ...plan, actions: [{ ...action, duration_minutes: 20 }] } }],
+  ];
+  for (const [type, good, bad] of cases) {
+    await assert.rejects(f.command(type, good), (error: { code?: string }) => error.code !== "actions.input_invalid", `${type} ${JSON.stringify(good)}`);
+    await assert.rejects(f.command(type, { ...good, ...bad }), { code: "actions.input_invalid" }, `${type} ${JSON.stringify(bad)}`);
+  }
+  await assert.rejects(f.bound.invoke(actions.manualPlan, { source_type: "web", text: "原文" }), { code: "actions.input_invalid" });
+  assert.deepEqual(await f.read(), before);
+});
+
 test("model plan action returns a real preview and requires source mapping before execution", async t => {
   const { bound, command, read } = fixture(t, async () => JSON.stringify({ actions: [{ title: "模型给出的步骤", notes: "核对来源", minutes: 30 }] }));
   await assert.rejects(bound.invoke(actions.modelPlan, { source_type: "note" }), { code: "actions.input_invalid" });

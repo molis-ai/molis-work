@@ -63,7 +63,7 @@ function topicsSpecimen(): string {
   const chips = TOPICS.map((topic) => `<button type="button" class="mw-topic" aria-pressed="${Boolean(topic.current)}" data-status="${topic.status}" data-tone="${topic.tone}"${topic.unread ? " data-unread" : ""}>${topic.name}${topic.concluded ? icon("check") : ""}${topic.unread ? `<span class="mw-sr-only">，有未读</span>` : ""}</button>`).join("");
   return `<div class="mw-thread-head" data-collab-topics><div class="mw-topics" role="group" aria-label="项目讨论的话题">${chips}</div>`
     + `<p class="mw-thread-status" data-tone="${current.tone}" data-topic-status>${current.status}</p>`
-    + `<label class="mw-thread-compose"><span data-topic-to>发到 ${current.name}</span><input class="mw-thread-compose__input" placeholder="发送消息…" aria-label="消息"></label></div>`;
+    + `<label class="mw-thread-compose"><span data-topic-to>发给 ${current.name}</span><input class="mw-thread-compose__input" placeholder="发送消息…" aria-label="消息"></label></div>`;
 }
 
 function conversationSpecimen(): string {
@@ -112,7 +112,7 @@ export function renderCollabSection(): string {
       ${specimen("谁 · 人是圆的，AI 是方的", `<div class="mw-collab-faces">${faces}</div>`)}
       ${specimen("谁在接 · 人在前，交给的 AI 叠在后面", `<div class="mw-collab-row">${owner("你 · Codex", YOU, CODEX)}${owner("阿哲 · Claude Code", ZHE, CLAUDE)}${owner("阿哲验收", ZHE)}</div>`)}
       ${specimen("完成要求 · AI 交依据，人来打勾（没有依据的勾不了）", requirementsSpecimen())}
-      ${specimen("项目讨论 · 话题、状态、发到哪", topicsSpecimen())}
+      ${specimen("项目讨论 · 话题、状态、发给谁", topicsSpecimen())}
       ${specimen("对话 · 助理听到的那半句、它在准备", conversationSpecimen())}
       ${specimen("AI 带来的东西 · 能点的回答，答了收成一行", broughtSpecimen())}
       ${specimen("同一件事串起来 · 和叫人的那条规则", sourcesSpecimen())}

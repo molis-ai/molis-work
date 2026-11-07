@@ -21,7 +21,7 @@ export function feedWakeAction(tick: ActionDefinition): ActionDefinition<Schedul
     input_schema: { type: "object", properties: { job_id: text, plugin_id: text, capability_id: text, object_ref: text, due_at: text },
       required: ["job_id", "plugin_id", "capability_id", "object_ref", "due_at"], additionalProperties: false },
     output_schema: { type: "object", properties: { status: { enum: ["ok", "failed", "plugin_unavailable"] }, detail: { type: "string" } }, additionalProperties: false },
-  });
+  }, /* @version action.feed.sources.wake */ 1);
 }
 
 /** The job that asks the clock: kept while the activation runs, because the clock takes a registration only from an installation that is running. */

@@ -62,7 +62,7 @@ export class ImagesStore {
       if(JSON.stringify(job)!==JSON.stringify(retained.job))throw imagesErrors.request_conflict("图片记录已更新，原件已保留。");
       const columns=['id','project_id','connection_name','api_format','model','prompt','size','aspect_ratio','status','error','created_at','finished_at'] as const;
       if (!this.sync) throw imagesErrors.invalid("个人空间同步服务未提供");
-      this.sync.retain("saved_images",this.db,JSON.stringify([job.project_id,'image',job.id]),{format:1,spaceId:retained.spaceId,project:{id:job.project_id,title:job.project_id},record:Object.fromEntries(columns.map(key=>[key,job[key]])),images:retained.images});
+      this.sync.retain("saved_images",this.db,JSON.stringify([job.project_id,'image',job.id]),{format:/* @version format.images.portable */ 1,spaceId:retained.spaceId,project:{id:job.project_id,title:job.project_id},record:Object.fromEntries(columns.map(key=>[key,job[key]])),images:retained.images});
     }
     const result = this.db.run("DELETE FROM jobs WHERE project_id = ? AND id = ? AND status != 'running'", [projectId, id]);
     if (Number(result.changes) !== 1) throw imagesErrors.running("请先停止生成，再删除记录。");

@@ -182,7 +182,7 @@ export class RuntimeIntegrationPlanner {
   ): RuntimeIntegrationPlan {
     const verb = common.action === "connect" ? "接入" : "移除接入";
     return {
-      schema_version: 1,
+      schema_version: /* @version format.runtime.integration.plan */ 1,
       plan_id: common.planId,
       plan_hash: common.planHash,
       runtime_id: common.adapter.id,
@@ -209,7 +209,7 @@ function preparedWithStatus(
   const verb = common.action === "connect" ? "接入" : "移除接入";
   return {
     publicPlan: {
-      schema_version: 1,
+      schema_version: /* @version format.runtime.integration.plan */ 1,
       plan_id: common.planId,
       plan_hash: common.planHash,
       runtime_id: common.adapter.id,

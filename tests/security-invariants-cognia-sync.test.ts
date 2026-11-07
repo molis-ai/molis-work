@@ -21,9 +21,13 @@ test('S-129 PCSYNC-01/11/22 knowledge refuses a local scanner path, corrupt orig
  let revision=0;for(const make of bads){b.receive({...next,operationId:'bad:'+revision,revision:++revision,value:make()});assert.equal(b.conflicts().length,1);assert.throws(()=>b.resolve(next.key,'remote',revision));assert.deepEqual(target.materials(),[]);assert.equal(owner.read(m.id).body,'Unique original');}
  b.receive({...next,operationId:'good',revision:++revision});b.resolve(next.key,'remote',revision);assert.equal(target.read(m.id).body,'Unique original');assert.equal(b.next(),null,'applying content has no new work or replication echo');
 });
-test('S-129 PCSYNC-12 Cognia v1 is rejected intact instead of silently adding synchronization tables',t=>{
- const home=mkdtempSync(join(tmpdir(),'cognia-old-schema-'));t.after(()=>rmSync(home,{recursive:true,force:true}));ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
- const db=openBaselineHomeSqlite(home,'cognia',{version:1,schema:readFileSync(new URL('./fixtures/home-store-schemas/cognia.sql',import.meta.url),'utf8')});db.close();const file=join(home,'cognia','cognia.db'),before=readFileSync(file);assert.throws(()=>openCogniaSyncStore(home),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(file),before);
+test('S-129 PCSYNC-12 N41-PERSONAL-01 Cognia refuses old structure and wrong versions without changing original rows or bytes',t=>{
+ for(const [version,code] of [[1,'storage.schema_structure_mismatch'],[2,'storage.store_too_new']] as const){
+  const home=mkdtempSync(join(tmpdir(),'cognia-old-schema-'));t.after(()=>rmSync(home,{recursive:true,force:true}));ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
+  const db=openBaselineHomeSqlite(home,'cognia',{version,schema:readFileSync(new URL('./fixtures/home-store-schemas/cognia-v2.sql',import.meta.url),'utf8')});
+  db.prepare("INSERT INTO cognia_sources VALUES('keep','original content')").run();db.close();
+  const file=join(home,'cognia','cognia.db'),before=readFileSync(file);assert.throws(()=>openCogniaSyncStore(home),{code});assert.deepEqual(readFileSync(file),before);
+ }
 });
 test('S-129 PCSYNC-14 malformed knowledge projections are permanent owner refusals before any byte read',async()=>{
  const spaceId='test-personal',key=JSON.stringify(['cognia','knowledge']);

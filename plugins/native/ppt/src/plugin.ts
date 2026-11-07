@@ -34,10 +34,10 @@ export function createPptPlugin(): PluginDefinition {
       ...(model ? { complete: async (prompt, options) => { await options.beforeDispatch?.(); return model.complete(prompt, { signal: options.signal }); } } : {}),
       ...(pages ? {
         listPages: async () => (await pages.invokeQuery<Record<string, never>, Array<{ item_id: string; title: string; at: string }>>(
-          { capability_id: "pages.content.list", version: 1 }, {})).map(item => ({ id: item.item_id, title: item.title, updated_at: item.at })),
+          { capability_id: "pages.content.list", version: /* @version action.pages.content.list */ 1 }, {})).map(item => ({ id: item.item_id, title: item.title, updated_at: item.at })),
         readPage: async pageId => {
           try {
-            const page = await pages.invokeQuery<{ item_id: string }, { title: string; body: string }>({ capability_id: "pages.content.read", version: 1 }, { item_id: pageId });
+            const page = await pages.invokeQuery<{ item_id: string }, { title: string; body: string }>({ capability_id: "pages.content.read", version: /* @version action.pages.content.read */ 1 }, { item_id: pageId });
             return { title: page.title, body: page.body };
           } catch (error) {
             // The delegated query says a missing target and a missing grant the same way; PPT says the person's refusal.

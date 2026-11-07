@@ -43,7 +43,7 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
   if (!pack || typeof pack !== "object") refuse("不是记忆包");
   const value = pack as Partial<MemoryExportPackage>;
   if (value.format !== "molis.memory") refuse("格式不认识");
-  if (value.version !== 2) refuse(`版本 ${String(value.version)} 不认识`);
+  if (value.version !== /* @version format.memory.export */ 1) refuse(`版本 ${String(value.version)} 不认识`);
   if (!Array.isArray(value.entries) || value.entries.length > 2000) refuse("条目缺失或太多");
   return value.entries!.map((item, index) => {
     const at = `第 ${index + 1} 条`;

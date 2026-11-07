@@ -9,6 +9,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { newPublisher, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 import { waitWork } from "./fixtures/assistant-send-journey.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve boundary names and source through model handoff", { skip: process.platform !== "darwin", timeout: 150_000 }, async t => {
   let model!: Awaited<ReturnType<typeof issueModel>>;
@@ -85,8 +86,8 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   await browser.evaluate(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).find(node=>node.textContent.startsWith('方法：')&&node.textContent.includes(${JSON.stringify(names[0])})).click()`);
   await browser.evaluate("(() => {const input=document.querySelector('[data-assistant-input]');input.value='用所选资料审稿';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
   await browser.click("[data-assistant-send]");
-  await browser.waitFor("!!localStorage.getItem('molis.assistant.current')");
-  const workId = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  await browser.waitFor(`!!${CURRENT_WORK}`);
+  const workId = await browser.evaluate<string>(CURRENT_WORK);
   const view: AssistantWorkView = await waitWork(browser, workId, value => value.work.state === "completed");
   const adopted = view.rounds[0]!.materials.filter(item => item.kind === "method"); assert.equal(adopted.length, 4);
   for (const name of names.slice(0, 3)) assert.ok(adopted.some(item => item.method?.name === name));

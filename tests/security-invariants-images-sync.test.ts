@@ -6,7 +6,8 @@ import { mkdtempSync, rmSync, readFileSync, mkdirSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import {imagesActions} from '@molis-ai/molis-work-plugin-images';
+import {createImagesSyncBindings,imagesActions,imagesManifest} from '@molis-ai/molis-work-plugin-images';
+import {ownerSyncFixture} from './fixtures/plugin-sync-stores.js';
 import {bindPersonalSpaceAuthority} from '@molis-ai/molis-work-app-local-host';
 import { ensureStorageSpace, personalStorageSpace, openBaselineHomeSqlite } from '@molis-ai/molis-work-storage';
 
@@ -60,11 +61,13 @@ test('S-128 PCSYNC-01/23 image restoration refuses foreign identities, execution
  }
  replica.receive({key,operationId:'good',base:0,revision:++revision,value});replica.resolve(key,'remote',revision);assert.equal(replica.cursor(),revision);assert.equal(replica.counts().pending,0);
 });
-test('S-128 PCSYNC-12 Images v1 is refused with original bytes unchanged',async t=>{
- const root=mkdtempSync(join(tmpdir(),'sync-old-schema-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
- const home=join(root,'images'),space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
- const db=openBaselineHomeSqlite(home,'images',{version:1,schema:readFileSync(new URL('./fixtures/home-store-schemas/images.sql',import.meta.url),'utf8')});db.close();const file=join(home,'images','images.db'),before=readFileSync(file);
- await assert.rejects(imageRuntimeFixture(t,{home}));assert.deepEqual(readFileSync(file),before);
+test('S-128 PCSYNC-12 Images refuses the old structure and a wrong version with original bytes unchanged',async t=>{
+ for(const [version,code] of [[1,'storage.schema_structure_mismatch'],[2,'storage.store_too_new']] as const){
+  const root=mkdtempSync(join(tmpdir(),'sync-old-schema-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const home=join(root,'images'),space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
+  const db=openBaselineHomeSqlite(home,'images',{version,schema:readFileSync(new URL('./fixtures/home-store-schemas/images-v2.sql',import.meta.url),'utf8')});db.close();const file=join(home,'images','images.db'),before=readFileSync(file);
+  assert.throws(()=>ownerSyncFixture(home,imagesManifest,createImagesSyncBindings),{code});assert.deepEqual(readFileSync(file),before);
+ }
 });
 
 test('S-128 PCSYNC-11 the Images owner refuses a symlinked assets directory before exporting bytes',async t=>{

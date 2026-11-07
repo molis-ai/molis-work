@@ -7,7 +7,6 @@
 export const LINGGUANG_EN: Record<string, string> = {
   "灵光里的想法与对话": "灵光 ideas and conversations",
   "灵光": "Lingguang",
-  "缺少项目": "Missing project",
   "未命名灵光": "Untitled spark",
   "先选至少一条": "Select at least one spark",
   "交给助理": "Hand to the Assistant",

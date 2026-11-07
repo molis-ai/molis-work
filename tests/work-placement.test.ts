@@ -46,11 +46,11 @@ const strFromU8 = (value: Buffer) => value.toString("utf8");
 
 /* ---------- A small plugin whose notes live in project partitions, like Pages or PPT ---------- */
 interface Note { id: string; project: string; title: string; body: string; version: number; /** The audience of the call that made it by receive. */ by?: string }
-const reader = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
-const mover = defineObjectMoveAction("notes.placement.move", ["note"], "笔记", ["notes:write"]);
-const copier = defineObjectCopyAction("notes.placement.copy", ["note"], "笔记", ["notes:write"]);
+const reader = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", ["notes:read"]);
+const mover = defineObjectMoveAction("notes.placement.move", 1, ["note"], "笔记", ["notes:write"]);
+const copier = defineObjectCopyAction("notes.placement.copy", 1, ["note"], "笔记", ["notes:write"]);
 const station = defineWorkflowContentActions({ id: "notes", title: "笔记", icon: "note", create: true, subject_kind: "note", read_permissions: ["notes:read"], write_permissions: ["notes:write"] });
-const homeReader = defineSubjectContextAction("clips.subject.read", "clip", "剪藏", ["notes:read"], "home");
+const homeReader = defineSubjectContextAction("clips.subject.read", 1, "clip", "剪藏", ["notes:read"], "home");
 
 function notesPlugin(actions: ActionService, notes: Map<string, Note>, projects: readonly string[]) {
   const copies = new Map<string, string>();
@@ -242,8 +242,8 @@ test("LOGIC-06 a cancelled move of a Home-kept object is undone by the Home move
   // The first lease writes the title while reading. The next one is the move itself, after the plugin has changed where the todo belongs.
   let leased = 0;
   const f = fixture(undefined, { beforeEffect: () => { leased += 1; if (leased > 1) throw new Error("这一轮被取消"); }, homeCatalog: true, deadLease: true });
-  const homeMover = defineObjectMoveAction("todos.placement.move", ["todo_item"], "待办", ["notes:write"], "home");
-  const todoReader = defineSubjectContextAction("todos.subject.read", "todo_item", "待办", ["notes:read"], "home");
+  const homeMover = defineObjectMoveAction("todos.placement.move", 1, ["todo_item"], "待办", ["notes:write"], "home");
+  const todoReader = defineSubjectContextAction("todos.subject.read", 1, "todo_item", "待办", ["notes:read"], "home");
   const todos = new Map([["t1", { belongs: "personal" }]]);
   f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
     handlers: [{ ...todoReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
@@ -318,7 +318,7 @@ test("Goals keeps a Goal's materials: bind once, list both ways, release keeps h
 
 test("an object keeps showing the Goals it serves after it moves out of their project, and a Home item shows its Goal too", async () => {
   const f = fixture();
-  const goalReader = defineSubjectContextAction("goals.subject.read", "goal", "目标", ["goals:read"]);
+  const goalReader = defineSubjectContextAction("goals.subject.read", 1, "goal", "目标", ["goals:read"]);
   const records = new Map<string, import("@molis-ai/molis-work-plugin-goals/contract").GoalInputBindingRecord[]>();
   for (const project of ["personal", "q4"]) {
     const rows: import("@molis-ai/molis-work-plugin-goals/contract").GoalInputBindingRecord[] = [];
@@ -423,11 +423,11 @@ test("plugin stores move with the same id, copy independently and receive handed
 
 test("a plugin that keeps its objects at Home moves them through its own Home-scoped mover", async () => {
   // A home mover is allowed; a home copier is not (copies stay in partitions).
-  const homeMover = defineObjectMoveAction("todos.placement.move", ["todo_item"], "待办", ["notes:write"], "home");
+  const homeMover = defineObjectMoveAction("todos.placement.move", 1, ["todo_item"], "待办", ["notes:write"], "home");
   assert.deepEqual(inspectActionDeclarations([homeMover], undefined), []);
   assert.match(inspectActionDeclarations([{ ...copier, action: { ...copier.action, scope: "home" } }], undefined).join(), /放置协议/);
   const f = fixture();
-  const todoReader = defineSubjectContextAction("todos.subject.read", "todo_item", "待办", ["notes:read"], "home");
+  const todoReader = defineSubjectContextAction("todos.subject.read", 1, "todo_item", "待办", ["notes:read"], "home");
   const todos = new Map([["t1", { title: "发布后回访五位用户", belongs: "personal" }]]);
   const calls: string[] = [];
   f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
@@ -466,7 +466,7 @@ test("the person finds what is in their personal space from any project; a proje
   const home = await mkdtemp(join(tmpdir(), "placement-search-"));
   const index = openTextSearchIndex({ homeDirectory: home });
   const actions = new ActionService();
-  const entries = defineSearchEntriesAction("notes.search.entries", [{ kind: "note", title: "笔记", surface: "notes" }], "笔记", ["notes:read"]);
+  const entries = defineSearchEntriesAction("notes.search.entries", 1, [{ kind: "note", title: "笔记", surface: "notes" }], "笔记", ["notes:read"]);
   const notes = new Map([["n-personal", { project: "personal", title: "上线前检查清单", body: "回滚预案与值班表" }], ["n-q4", { project: "q4", title: "发布说明", body: "新版亮点" }]]);
   for (const project of ["personal", "q4"]) {
     actions.registerProvider({ provider: { provider_id: "notes", plugin_id: "notes", title: "笔记", kind: "plugin", project_id: project }, definitions: [entries, reader],

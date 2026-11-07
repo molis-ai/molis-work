@@ -34,7 +34,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 26 | 项目库（17）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（3）、11 个个人插件库、Home Runtime 安装库、server、characters |
+| `PRAGMA user_version`，经 `applySqliteBaseline` | 26 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（1）、11 个个人插件库、Home Runtime 安装库、server、characters |
 | 自己的 meta 表 | 1 | `projects/catalog.db`（catalog_meta）；退役Sessions登记与reader已删除 |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
@@ -47,11 +47,12 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 26（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
+| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 1（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
 | `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 15 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 1，插件的表另记在 `plugin_project_databases.version` | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
+| `projects/.deleting-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-deletion.ts:43-44`：永久删除项目时，先把项目目录改名到这里，清理时删掉（`:128`）。路径由 `modules/projects/src/project-paths.ts` 推导；目录库回执 `project_deletions.staged_directory` 记的路径只认最后一段（S-102） | 目录 | 临时（进程在中途被杀时，这里是用户已确认删除的项目数据，下次清理按未完成的回执删掉） | purge（在 `projects/` 内） |
 
 
 
@@ -60,7 +61,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `assistant/assistant.db` | 宿主；`apps/local-host/src/assistant/assistant-http.ts:43` 打开，`apps/local-host/src/assistant/assistant-store.ts:18` 基线、`:158` 套用。基线末尾拼进 `modules/context-ledger` 的 `context_edges`（`:63`），所以这个库有 13 张表，其中一张不归宿主 | SQLite 带版本 · `user_version` = 1 | 必备份 | purge |
-| `memory/memory.db` | `packages/storage/src/adapters/memory-ledger.ts:62-64`，基线 `:22` | SQLite 带版本 · WAL · 3 | 必备份。记忆的正文在 Prologue 条目里（即 `agent-runtime/`），账本只存修订、候选、使用回执等（`packages/storage/src/adapters/memory-ledger.ts:13-17`），两者取同一时点。旧格式须显式采用；启动时不自动补齐旧偏好 | purge（`memory` 已登记） |
+| `memory/memory.db` | `packages/storage/src/adapters/memory-ledger.ts:62-64`，基线 `:22` | SQLite 带版本 · WAL · 1 | 必备份。记忆的正文在 Prologue 条目里（即 `agent-runtime/`），账本只存修订、候选、使用回执等（`packages/storage/src/adapters/memory-ledger.ts:13-17`），两者取同一时点。旧格式须显式采用；启动时不自动补齐旧偏好 | purge（`memory` 已登记） |
 | `knowledge/knowledge.db` | `packages/storage/src/adapters/knowledge-cards.ts` 的 `openKnowledgeCards`，基线 `KNOWLEDGE_CARDS_BASELINE`，由 `apps/local-host/src/knowledge-actions.ts` 打开 | SQLite 带版本 · WAL · 1 | 必备份。项目资料的卡片（含人改过的字段、「不给 Agent 用」）、每天的整理用量，与资料原文被谁在哪一轮读过的使用记录（保留 30 天、每个项目最多 5000 条）；不存资料正文 | purge（`knowledge` 已登记；删项目时按 `project_id` 清） |
 | `placement/placement.db` | 宿主；`apps/local-host/src/placement-actions.ts:63-64` 打开，`:58` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `agent-definitions/agent-definitions.db` | 宿主；`apps/local-host/src/agent-definitions/agent-definitions.ts:316` 打开，`:20` 基线、`:57` 套用 | SQLite 带版本 · 1 | 必备份（用户改过的提示词与历史） | purge |
@@ -95,7 +96,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
 | `workflows/workflows.db` | `plugins/native/workflows/src/store.ts:195-197`，基线 `:166` | 1 · WAL | `workflows`、`instances` |
 
-Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当前 v2 把安装、发行物与安装隔离 KV 放在同一库，非空 v1 或结构不完整的 v2 拒绝，不就地迁移或补表。基线、拒绝与保存重启见 `tests/home-store-baselines.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/issue-home-runtime.test.ts`。任何其他 Home 的 v1 数据仍须独立列出与演练后取得具体维护授权。以下是已有库的基线来源：
+Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当前把安装、发行物与安装隔离 KV 放在同一库，错版或结构不完整的库拒绝，不就地迁移或补表。基线、拒绝与保存重启见 `tests/home-store-baselines.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/issue-home-runtime.test.ts`。任何其他 Home 的 v1 数据仍须独立列出与演练后取得具体维护授权。以下是已有库的基线来源：
 
 `tests/home-store-baselines.test.ts` 把已有库的基线（以及 3.2 里的 assistant、memory、functions、placement、agent-definitions、connectors、context-onboarding）和 `tests/fixtures/home-store-schemas/` 下取自存量库的结构夹具比对。2026-10-04 真实 Home 的 17 个库用一次性工具盖了版本 1，工具已删（取自 Git 历史 `scripts/stamp-store-baselines.mjs`）；炼金术士搜索库的夹具是 `alchemist-search.sql`（上一版建库语句生成，真实 Home 没有这种文件）。
 
@@ -103,8 +104,8 @@ Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `plugin-runtime/plugin-runtime.db` | 平台 Home Runtime；安装/发行物/KV 事实，以及 Home 级的同意账本 `plugin_consents` 与发布者固定表 `plugin_publishers`（ac-trust），归 `packages/plugin-runtime`；`apps/local-host/src/home-plugin-store.ts` 组合当前结构 | SQLite 当前基线 3 · 回滚；旧版或坏结构拒绝 | 必备份 | purge |
-| `plugin-libraries/plugin-libraries.db` | 宿主；`apps/local-host/src/installed-plugin-libraries.ts`（PG-022 P1b）：装进来、由宿主自己运行的插件的 Home 库的账本，一个插件 ID 一行（发布者取自安装记录、库名、版本、表的哈希）；用到时才建，库本身在 `<home>/<库名>/<库名>.db`，不在登记里，由账本的行带出 | SQLite 当前基线 3 · 拒绝；`uninstall --purge-user-data` 读它清这些库 | 必备份 | purge |
+| `plugin-runtime/plugin-runtime.db` | 平台 Home Runtime；安装/发行物/KV 事实，以及 Home 级的同意账本 `plugin_consents` 与发布者固定表 `plugin_publishers`（ac-trust），归 `packages/plugin-runtime`；`apps/local-host/src/home-plugin-store.ts` 组合当前结构 | SQLite 当前基线 1 · 回滚；旧版或坏结构拒绝 | 必备份 | purge |
+| `plugin-libraries/plugin-libraries.db` | 宿主；`apps/local-host/src/installed-plugin-libraries.ts`（PG-022 P1b）：装进来、由宿主自己运行的插件的 Home 库的账本，一个插件 ID 一行（发布者取自安装记录、库名、版本、表的哈希）；用到时才建，库本身在 `<home>/<库名>/<库名>.db`，不在登记里，由账本的行带出 | SQLite 当前基线 1 · 拒绝；`uninstall --purge-user-data` 读它清这些库 | 必备份 | purge |
 | `server/server.sqlite` | `server`；`server/src/database.ts` 的 `openServerDatabase` / `SERVER_DATABASE_BASELINE`；本机由 `apps/local-host/src/im-server.ts` 挂载。右栏讨论的群聊、成员、消息、Thread 与回执都归 server | SQLite 当前基线1 · WAL；旧Home整体搬开后新建，错版/错结构拒绝 | 必备份（第 7 节 E 组），有正文与成员事实；`im_rooms.invite_token_hash`、`mw_sessions.token_hash`、`mw_codes.hash` 只存哈希，邀请回执只存安全状态，原令牌不入库。非项目群按令牌的 SHA-256 入群，项目群不开放邀请；原文只留生成时页面内存 | purge（`server` 已登记，普通卸载保留） |
 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | `plugins/native/alchemist`；路径 `apps/local-host/src/alchemist-paths.ts:4`（`alchemistProjectDirectory`；`apps/local-host/src/alchemist-service-host.ts:49` 在其下拼 `studio.sqlite`），建库 `src/studio/server/db/schema.ts:480`，基线 `:8` | SQLite 带版本 · WAL · 1 | 必备份 | purge（`alchemist` 已登记，整个目录） |
 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 宿主；`apps/local-host/src/alchemist-search.ts`（`createAlchemistSearchPort`，基线 `ALCHEMIST_SEARCH_BASELINE`；目录同样由 `apps/local-host/src/alchemist-paths.ts:4` 给出），表 `feed_runtime_blobs` 来自 `packages/storage` 的 `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | SQLite 带版本 · WAL · 1（W2-05） | 必备份（研究报告引用的证据，重取要花外部请求）；只在用过搜索后才出现 | purge（同上） |
@@ -134,7 +135,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`）：T-148 起只建表、没有读写；何时删随 #1633 定 |
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref`；`plugin_terminal_panels`、`plugin_terminal_panel_aliases`（`src/plugin-terminal-panels.ts`）：插件经 `services.terminal` 起的终端记录与运行时会话别名（S-103） |
 
-### 4.2 `projects/<id>/molis-work.db`（v17）
+### 4.2 `projects/<id>/molis-work.db`
 当前个人版同步结构在主线平台／插件边界上维护空间归属与技术日志；业务字段和恢复校验仍归原 owner。旧格式不自动升级，本轮仅使用隔离测试 Home。
 
 
@@ -217,8 +218,8 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/workspace-git-actions.ts:52`：Git 操作审查产生的细节文字，按项目与操作 id 存；同一进程里的保存排队写 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | purge |
 | `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 1（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
 | `feed/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | purge |
-| `feed/evidence/blobs/**`、`feed/evidence-recovered-v2/blobs/**` | `packages/storage/src/adapters/evidence-content.ts:46-47`（恢复根目录是 `<根>-recovered-v2`，`:47`）：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>` | 加密文件 · 无存储版本 | 必备份，但没有 `secrets.json` 加 Keychain 主密钥就读不出（密钥引用 `system:feed:evidence-content-key:v1`、`:v2`，`:15-16`） | purge |
-| `alchemist/projects/<id>/search-content/`，及其 `-recovered-v2` | `apps/local-host/src/alchemist-search.ts:23`：同一个证据存储，根目录换了 | 加密文件 · 无存储版本 | 必备份，同上需要密钥 | purge（`alchemist` 目录） |
+| `feed/evidence/blobs/**` | `packages/storage/src/adapters/evidence-content.ts`：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>`；只有此目录 | 加密文件 · 无存储版本 | 必备份，读取要求 `secrets.json`、其原后端主密钥和唯一正文密钥引用 `system:feed:evidence-content-key:v1`；缺钥、错钥或损坏密文拒绝，不另写副本。已删除的恢复目录按未知数据拒绝快照；真实切换沿第 02 批重建窗口 | purge |
+| `alchemist/projects/<id>/search-content/` | `apps/local-host/src/alchemist-search.ts:23`：同一个证据存储，根目录换了 | 加密文件 · 无存储版本 | 必备份，同上需要密钥 | purge（`alchemist` 目录） |
 
 ### 6.2 文件型状态
 
@@ -233,7 +234,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `cache/research-library/<sha256>/` | `apps/local-host/src/research-library-source.ts:17`：研究库仓库的 bare Git 缓存 | Git 目录 | 可重建 | purge |
 | `jelly/preferences.json` | `apps/local-host/src/jelly-model.ts:16`：Jelly 选中的模型 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
 | `spaces/<spaceId>/sync/device.json` | `modules/sync-replication/src/device.ts`：本机当前账号是否自动同步，绑定 spaceId，不含凭据，不随空间策略上传 | JSON · `version` = 1；未创建表示尚未选择，错版或跨空间拒绝 | 必备份；只在同一设备与账号下恢复 | purge（`spaces` 目录） |
-| `spaces/<spaceId>/sync/sync.db` | `modules/sync-replication/src/database.ts`：空间策略缓存、分区/共同流游标、永久异常隔离与临时接收延迟、附件上传回执和下载暂存；不是附件的第二份业务事实 | SQLite · `user_version` = 5；下载暂存按集合隔离且固定本机保护模式；旧库拒绝，不在打开时补表；校验后 owner 接收完成清暂存 | 与当前空间一同备份；未完成进度可恢复，不单独跨账号复制 | purge（`spaces` 目录） |
+| `spaces/<spaceId>/sync/sync.db` | `modules/sync-replication/src/database.ts`：空间策略缓存、分区/共同流游标、永久异常隔离与临时接收延迟、附件上传回执和下载暂存；不是附件的第二份业务事实 | SQLite · `user_version` = 1；下载暂存按集合隔离且固定本机保护模式；旧库拒绝，不在打开时补表；校验后 owner 接收完成清暂存 | 与当前空间一同备份；未完成进度可恢复，不单独跨账号复制 | purge（`spaces` 目录） |
 | `jelly/preferences.json` | `apps/local-host/src/model-configuration.ts`：可信 consumer 声明的 Jelly 模型选择 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
 | `characters/runs/character-*/` | `apps/local-host/src/character-native-execution.ts:16-19`：交给外部 Agent 执行时临时写出的角色包 | 目录 | 临时 | purge |
 | `artifacts/projects/<编码后的 project_id>/originals/<sha256>` | `modules/artifacts/src/artifact-original-store.ts`（`storeArtifactOriginal`、`openArtifactOriginal`）：成果库导入的超过 6 MB 的原文件，按内容摘要存一份；6 MB 以内的仍在版本记录里（`original_file.data_base64`），两种都是现行形状，按大小选 | 文件目录 · 无版本 | 必备份（人导入的原件，版本记录只存摘要） | purge（`artifacts` 已登记；删项目时整个项目目录删掉） |
@@ -293,7 +294,7 @@ B2b 的 owner 接口目前在内存中生成完整结果：所有安装合计最
 
 ## 7. 备份：必须取同一时点的组
 
-个人版离线快照与恢复日志使用现行格式 2。恢复同时核验原 Home 的规范路径、空间描述摘要及绑定数据库的真实 owner；不把归档中的空间描述写回原 Home。账号子空间、设备同步队列和原生会话凭据保留在原机，不打包其内容。子空间自己作为备份源时仍只限该空间。真正从未绑定过的空 Home 可以恢复：先在隔离目录生成默认记忆库与随机本地身份，业务恢复提交后再以独占方式发布同一身份；中断可继续，不覆盖已有空间。
+个人版离线快照与恢复日志使用现行格式。恢复同时核验原 Home 的规范路径、空间描述摘要及绑定数据库的真实 owner；不把归档中的空间描述写回原 Home。账号子空间、设备同步队列和原生会话凭据保留在原机，不打包其内容。子空间自己作为备份源时仍只限该空间。真正从未绑定过的空 Home 可以恢复：先在隔离目录生成默认记忆库与随机本地身份，业务恢复提交后再以独占方式发布同一身份；中断可继续，不覆盖已有空间。
 
 `molis-work home snapshot --to <新目录> [--home <原Home>] [--json]` 的实施使用同一 Home lease，在业务初始化前取得所有权，从唯一 `homeStores()` 捕获实际 SQLite 库、分区与必要非 SQLite 文件。SQLite 使用 backup API，包含已提交 WAL，不直接拷贝 `.db` 或侧车。用法、失败清理和原路径约束见 [CLI 与开发](../cli-and-development.md#home-离线快照)。`tests/home-backup-recovery.test.ts` 的旧局部恢复用例不能证明全部 owner 覆盖。
 

@@ -447,8 +447,28 @@ Coding 的公开查询默认许可及项目/本次任务关闭沿 [B1、CNW-01�
 | ASC-61 | 已保存的供应商用四行人话：用的密钥（连接名，不显示原文）、连得上吗（从没检查过／连得上带检查时间／改过之后还没检查／密钥被拒／请求太多或额度用完带什么时候再查）、能做什么（启用的模型）、谁在用（是不是默认、同一把密钥还给谁用）；原始检查结果与 id 只在「高级」的诊断里（§13.1） | 页面渲染回归 |
 | ASC-62 | 保存前的检查被服务拒绝时什么都不写、答复带 `model_provider.*` 码：密钥被拒写在密钥字段下（第一次连「还没保存」，换密钥——填了新的或选了别的连接——「旧密钥照常在用」；已保存的供应商没换密钥、是现在用的那把被拒时，写这把被拒、请换一把，不说旧密钥照常在用）、步骤停在填密钥；429 如实写「请求太多或额度用完」、是服务那边的原因，写明约什么时候自动再查、表单没改才自动再查；密钥不出现在答复和页面里；通过后页面读到这次检查（§13.1、§13.2） | 宿主答复与页面的浏览器回归 |
 | ASC-63 | Images 的生图服务对话框按定样 A：先选服务（OpenAI、Gemini、自定义），选了就写出用哪个模型、能选哪些尺寸；名称、协议、地址、模型名收在「高级」，自定义时自动展开、保存时缺项也展开；保存后生成页按这个模型给出可选尺寸（PF-A05） | 浏览器回归 |
+| ASC-64 | 插件页面经 `connectionNeed` 在自己留的空位上要连接，只能说 Manifest 声明且已获授予的槽（按记录的带记录键）或图像生成目标；外壳在框外贴着空位画卡，服务、标头、插件名取自目录，槽的缘由标成插件的引用并限长；目标已接好可用账号时不出卡、直接答已连上 | 外壳与页面的浏览器回归 |
+| ASC-65 | 卡里几种起点：没有账号就地连（登录类不填字段，图像密钥只问一把、醒目写只发往哪个 origin、只在可信文档里输入）；有账号（哪怕只有一个）出选账号卡、写明作用范围、可再加一个，图像只列同 origin 或未钉的；接着的账号失效就用原账号重新登录，回来是别的账号时只把这一处换过去；被停用的写明并可启用或换一个；图像密钥被拒填一把新的换过去。还不能一键连接的如实写原因和能走的路 | 各状态的浏览器回归，对照 #1862 标本 |
+| ASC-66 | 连好后卡收成一行「已连上 · 账号」，焦点落在这一行、读屏读出；插件拿到「已连上」只有显示名；插件自动把刚才那件做一次（幂等键保证只一次），本来要确认的照原有确认再问，草稿与输入还在 | 浏览器回归加插件一侧的断言 |
+| ASC-67 | 取消收成「没有连上，这里什么都没改」，插件拿到「取消」、草稿不动、进行中的授权被取消，同一页再要只出收起的一行；登录被拒、回调失败、密钥被拒在卡里说人话、可再试，插件一直等、只能经 `signal` 退出；限流写明是服务那边与多久后再查，验证前不接到位置 | 状态与时序回归 |
+| ASC-68 | C3 的十条拒绝：目标不合、伪造上行、路由、点击劫持、高度、图像地址、换账号、页面失效后、要卡本身不写与取消收干净、正路只写一次 | [S-plugin-connection-card](../../docs/system/security-invariants/S-plugin-connection-card.md) 的拒绝测试。宿主一半（第 1、3、6～9 组与第 10 组的宿主一条）已在 `tests/security-invariants-connection-card.test.ts`（④c-1）；浏览器一半（第 2、4、5 组、第 8 组的点击一半、第 10 组的浏览器一条）随外壳实现进 `tests/security-invariants-connection-card.e2e.test.ts` |
+| ASC-69 | 助理对话里缺连接时，按 `ActionResultView` 的「待完成的接入」画同一张卡，不再只给「继续接入」链接；连好后经已登记的等待回到同一件工作、只续一次，取消让等待结束、不重做；卡只按发起这条授权的人、项目和运行会话读、取消，别的会话的授权号不出卡、取消被拒，授权过期退回「继续接入」链接 | 助理的浏览器回归；`ActionResultView.pending_connection` 的合同一半在 `tests/action-result.test.ts`，prepare 的声明与另一个运行会话被拒在 `tests/security-invariants-connector-scope.test.ts` |
+| ASC-70 | Feed 加 GitHub 通知来源缺账号时，在来源那一行出卡，接到这条来源后拉第一次；Images 生成时缺图像服务的密钥，在生成区出卡，填好后接到这个目标，照三第 5 条接着生成（花钱的照原有确认）；`connectionSlot` 的对话框没有账号时换成同一张卡、并过防遮盖 | 两个插件的浏览器回归 |
+| ASC-71 | 卡在 1440、1024、375 三种宽度、浅深两套、中英两种界面都不溢出；高度只按宽度取两档，正文在卡内滚动；随空位滚动与裁切，插件页打开对话框、空位滚出或与别的块相交时藏起、不响应；窄的一档按钮上下排，点按目标 44 px | 截图与版面检查 |
+| ASC-73 | 设置里的「服务连接」是按用途分组的一列（模型、代码与项目、邮件与日程、文档与笔记、消息，另有设计、客户与销售；目录里已没有的服务单列一组），每个服务一行，只写名字、用途和一个状态，各占一行、放不下用省略号；点一行就在原处展开，其他行不动，不跳页、没有返回按钮，窄屏同一套；搜索只筛行。行的状态按组件板「服务连接」九种写：要重新登录 > 服务限流 > 没通过检查 > 「已连接 · 账号」/「已连接 N 个账号」> 已停用；没连的写暂未接入、未连接或还不能一键连接（§13.1 方案 A、§13.6） | `tests/connectors-settings-behaviors.test.ts`、`tests/connector-method-directory.test.ts` 与 `tests/connections-page.e2e.test.ts` 的 ASC-73；`tests/connector-orphan-connection.e2e.test.ts` |
+| ASC-74 | 连上的每个账号用四行人话：这个账号（或这把密钥）、连得上吗（含检查时间；没查过写「还没检查过」，只能在用它的地方检查的写明）、能做什么（权限原值在「高级」）、谁在用；「谁在用」在服务展开时按账号读一次（`connectors.usages.read@1`），重新登录后的「换过去」与这一行共用这次读取，换账号前再读一次；读不到写「暂时读不到」、有没查到的汇报方写「没能全部查到」；目录里已没有的服务展开时同样读；换过之后（成功、失败或超时）这个服务的每个账号再读一次 | `tests/connectors-settings-behaviors.test.ts` 的 ASC-74；`tests/connections-page.e2e.test.ts`、`tests/connector-mcp-replacement.e2e.test.ts` 的 ASC-74 |
+| ASC-75 | 有一键登录的服务，这一行的默认路径就是那一个按钮，什么都不问；自己的应用、地址、接口格式、别的连接方式都在「高级」。还不能一键连接的服务在行里写原因和现在能走的路，点「看其他连接方式」直接打开「高级」里的那几条，不给点了也走不通的按钮（ASC-47） | `tests/connector-method-directory.test.ts` 的 ASC-75 |
+| ASC-76 | 每个服务最下面一个收起的「高级」：每个账号的改名、换密钥、停用、移除、权限原值与诊断，以及其他连接方式和新连接的名称；点开才看到。在「高级」里没保存的改动（地址、名称、设置）只留在这个窗口里，回到页面时在「高级」前提示「接着改」「放弃改动」；密钥和其他密码框从不留下，地址只留到路径，查询串、片段与用户名密码不留 | `tests/connections-page.e2e.test.ts` 的 ASC-76 |
+| ASC-77 | 「换账号」是在同一服务已连上的账号之间切换：选另一个已连上的账号，或「再加一个账号 · 在浏览器登录后切过去」；选择时这一行的状态是等你的「换账号」，「先不换」放回原样；切过去走 `connectors.usages.switch@1`，换前再读一次用途，如实写换过去几处、没换的是哪几处及原因；换前的读取有没查到的地方、或有插件整个没换成时，写明没能全部查到或换到，不写「不用换」「都换过去了」，也不写「原来的账号留着、照常可用」这句收尾；都换过去时写原来的账号留着、照常可用。切过去以后焦点回到这个账号的「换账号」，它带 `aria-expanded` 与 `aria-controls`。OAuth 的「重新授权」只回原账号，提示要连另一个账号用「换账号」；新登录回来是替某个账号加的，给出「把用到它的地方换到这条」 | `tests/connections-page.e2e.test.ts` 的 ASC-77 |
+| ASC-78 | 登录与粘贴密钥都在行里显示步骤（在浏览器登录 → 看能做什么 → 能用了；填密钥 → 验证密钥 → 能用了），进行时这一行写「连接中」；取消、超时、失败各写一句「这里什么都没改」，步骤标成取消或没通过，行的状态放回原样；密钥先查后存，服务不认就什么都不存（ASC-80、ASC-81，11-06 起取代原来的「密钥存好了，但没通过检查」）；限流写明是服务那边的原因、几点自动再查 | `tests/connections-page.e2e.test.ts` 的 ASC-78；`tests/connector-setup.e2e.test.ts` |
+| ASC-79 | 连接页的文字与容器：每个动作的回答在自己的框里（N6）；合起来的几句话中文不加空格、英文加一个空格，由代码拼，不靠词典里的空格（M3）；重新登录预填的名字整个不超过 100 个字（M1）；「移除旧连接」的确认取消后，原来的话、语气和 `role` 都放回去（M2）；账号的四行按内容区宽度（不是窗口宽度）在窄处改成上下排；中英、深浅、1440/1024/768/390 几个宽度下行不折行、页面不横向溢出、按钮有边框 | `tests/connections-page.e2e.test.ts` 的 ASC-79；`tests/connector-mcp-replacement.e2e.test.ts` |
+| ASC-80 | 第一次填的密钥先查后存（§13.6 ④d）：能单独查的服务（目录服务、GitHub、Gmail）由宿主拿候选密钥问一次服务，通过了才建连接，这次检查记成这条连接这一版的第一次检查、随保存的答复回来；服务拒绝（`connector.read.refused`）、限流（`connector.check.rate_limited`，带 `details.retry_at`）、连不上（`connector.read.unreachable`）、没确认（`connector.read.answered`）时什么都不存：不建连接、不记检查，候选密钥不进库、密钥文件、日志和检查记录；答复带码、`saved: false` 和宿主自己的话，不带服务原话，也不带密钥；对话里准备的接入请求照旧开着，可以再填一把。页面：拒绝写在密钥字段下（「{服务}拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。」，`role=alert`，框标 `aria-invalid`），步骤停在验证密钥、标没通过，结果框写「还没保存，填的还在。」，行的状态放回原样，填的还在；限流写是服务那边的原因、几点自动再查，到点时没改过就自己再查一次（改过就等人自己提交），步骤标「等服务那边」；通过写「密钥检查通过，已经存好。」。检查时页面走开（请求中止、连接断开）就停下这次检查，之后什么都不写；对话里准备的请求在检查期间被取消，这次也不开始、不写。模型、图像、MCP Bearer 这类只能在用它的地方查的密钥照旧不查 | `tests/security-invariants-connector-candidate-key.test.ts` 的 ASC-80；`tests/connections-page.e2e.test.ts`、`tests/connector-setup.e2e.test.ts` 的 ASC-80 |
+| ASC-81 | 换密钥先查后存：新密钥通过检查才换上；服务拒绝、限流或连不上时旧密钥照常在用，连接还是原来那一版（`updated_at` 不变），这次检查不记到旧密钥头上；检查期间这条连接变了（改名、断开、别处换了密钥）就停下，不发出也不保存。页面在新密钥字段下写「{服务}拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。」，结果框写「新密钥没有换上，旧密钥照常在用。」；通过写「新密钥检查通过，已经换上。」 | `tests/security-invariants-connector-candidate-key.test.ts` 的 ASC-81；`tests/connections-page.e2e.test.ts` 的 ASC-81 |
+| ASC-82 | 「换密钥」被拒的那句话在表单里单独一行，在字段和按钮下面，不撑宽表单；中英两种界面、浅深两套、1440/1024/390 三种宽度下页面不横向溢出 | `tests/connections-page.e2e.test.ts` 的 ASC-82 |
 
-ASC-54～55 为本次新增需求，尚未实现或验证；实施用例须在测试名或注释中引用编号。ASC-56、ASC-57 为第 13 批（11-05、11-06）补充，用例见 `tests/model-provider-list.test.ts`、`tests/model-released-key.test.ts`。ASC-58 为第 13 批⑥（11-06）补充：合同 #1861 先行，实现与用例见 `tests/connector-failure-reminders.test.ts`、`tests/connector-failure-reminders.e2e.test.ts`、`tests/security-invariants-connection-refresh.test.ts` 与 `tests/connector-mcp.test.ts` 里带 ASC-58 的用例。 ASC-59 为第 13 批③（11-06）补充。 ASC-60～63 为第 13 批④b（11-06）补充，用例见 `tests/model-settings-plan-a.test.ts`、`tests/model-settings-plan-a.e2e.test.ts`、`tests/images-service-pick.e2e.test.ts`。
+ASC-73～79 为第 13 批④a（11-06）补充：把设置里的「服务连接」页按 §13.1 方案 A 改成产品界面，界面取组件板「服务连接」一节的实件，决定见 §13.6。ASC-80～82 为第 13 批④d（11-06，BL-1058）补充：服务连接的密钥先查后存，决定见 §13.6 末尾的④d 表；换密钥的候选密钥只发往连接绑定的站点是安全不变量 S-connector-candidate-key。
+
+ASC-54～55 为本次新增需求，尚未实现或验证；实施用例须在测试名或注释中引用编号。ASC-56、ASC-57 为第 13 批（11-05、11-06）补充，用例见 `tests/model-provider-list.test.ts`、`tests/model-released-key.test.ts`。ASC-58 为第 13 批⑥（11-06）补充：合同 #1861 先行，实现与用例见 `tests/connector-failure-reminders.test.ts`、`tests/connector-failure-reminders.e2e.test.ts`、`tests/security-invariants-connection-refresh.test.ts` 与 `tests/connector-mcp.test.ts` 里带 ASC-58 的用例。 ASC-59 为第 13 批③（11-06）补充。 ASC-60～63 为第 13 批④b（11-06）补充，用例见 `tests/model-settings-plan-a.test.ts`、`tests/model-settings-plan-a.e2e.test.ts`、`tests/images-service-pick.e2e.test.ts`。 ASC-64～71 为第 13 批④c（11-06）补充，设计与拍板见 §13.5：合同（`connectionNeed`、`ActionResultView.pending_connection`）先行，外壳、宿主路由与安全不变量新行的拒绝测试随实现 PR；ASC-69 的合同一半见 `tests/action-result.test.ts`。
 
 ### 10.1 验证计划与完成判定
 
@@ -890,7 +910,7 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 
 ### 13.5 原处的连接卡：设计稿（第 13 批④c 第一步，2026-11-06）
 
-状态：设计稿。评审台、合同台合审方向同意（[#1882 评论](https://github.com/molis-ai/molis-work/pull/1882#issuecomment-6684027053)，挡合并 5 条、小修若干，已按评审改完）。第六节的 4 项用户 11-06 在弹窗里定了（都按推荐），2 项统筹定了，正文已按定下的写死。没有产品代码，contracts 源码与快照都没动；合同按第五节另开小 PR，在本稿合入之后开。
+状态：设计稿已合入（#1882，评审台、合同台两轮审过：[第一轮](https://github.com/molis-ai/molis-work/pull/1882#issuecomment-6684027053)、[第二轮](https://github.com/molis-ai/molis-work/pull/1882#issuecomment-6685117982)）。第六节的 4 项用户 11-06 在弹窗里定了（都按推荐），2 项统筹定了，正文已按定下的写死。第五节的 C1、C5 在合同 PR 里落（叠在第 18 批 P3-0a 的 #1884 之上）：只有类型、`child.ts` 的拒绝占位与结果视图的声明，外壳与宿主路由（C2）、安全表的新行与十组拒绝测试（C3）随实现 PR。④c-1 落了 C2 与 C3 的宿主一半（安全不变量 [S-plugin-connection-card](../../docs/system/security-invariants/S-plugin-connection-card.md)，取舍见第五节 C2 行下的「C2 的取舍」）；外壳画卡与 C3 的浏览器一半是下一片。
 
 用户 11-04 定的方案 A（§13.1）：从别处发现缺连接时，缺连接的地方出一张卡，在卡里连完，卡收成一行「已连上」，原来的事接着做。组件板标本已在 main（#1862：`apps/workbench/src/service-connection-parts.ts` 的 `renderConnectionCard`，`apps/workbench/src/browser/service-connection-item.ts` 的 `startConnectionCard`、`foldConnectionCard`）。统筹 11-06 定卡由平台画：插件经平台要连接，平台在这个插件的位置出卡；不进 SDK `/ui`，类名留在 `apps/workbench`。
 
@@ -950,7 +970,7 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 | --- | --- | --- |
 | 没有这个服务的账号 | 「连接 GitHub」：登录类不填字段。图像目标只问一把密钥，卡上醒目写「这把密钥只发往 `<origin>`」（origin 由外壳从 `base_url` 规范化得出，不由插件写字），写清去哪里拿、加密存在这台电脑（#1881 的说法）；存密钥、钉地址、接到这个目标由 C2 一次做完。密钥只在外壳文档里输入 | 连好并接到这个目标后 `connected` |
 | 已有账号、没接到这里 | 选账号卡：列出已连上的账号（目录只在外壳里读，列表在卡内滚动），写明作用范围——按安装的槽「Feed 在所有项目都用它」，按记录的槽「只这一个来源用它」；可「再加一个账号」。**只有一个可用账号也出这张卡**，一次点击（用户 11-06 定，见六第 2 项）。图像目标只列没钉地址、或钉在同一 origin 的连接，并写明「接上后这把密钥从此只发往 `<origin>`」 | 选定并接好后 `connected` |
-| 接着的账号登录失效 | 「用原账号重新登录」：经 `connectors.setup.prepare@1` 带原连接与修订号，仍只回原账号。回来的是另一个账号时（新建了一条连接），照 §13.2 给「把它用在这里」，经 S-108 的 `connectors.plugin_slot.switch@1` 按这一处的 `usage_id` 只换这一处，别的使用处不动 | 重新登录成功或换过去后 `connected` |
+| 接着的账号登录失效 | 「用原账号重新登录」：经 C2 以本人身份调 `connectors.setup.prepare@1`，带原连接与宿主读到的修订号，只许这里正在用的账号，仍只回原账号。回来的是另一个账号时（新建了一条连接），照 §13.2 给「把它用在这里」，经 C2 只换这一处：按安装的槽调 S-108 的 `connectors.plugin_slot.switch@1`，`usage_id` 由宿主按（安装、插件、槽、null）算出；按记录的槽调 `connectors.plugin_slot.record.bind@1`，只重绑这一条记录。别的使用处（别的安装、同一个槽的别的记录）不动 | 重新登录成功或换过去后 `connected` |
 | 接着的账号被人停用 | 写明「这个账号你停用了；启用后所有用它的地方都恢复」，给「启用」（`connectors.connection.control@1`）或换一个；不自动启用 | 启用或换好后 `connected` |
 | 图像目标接着的密钥被拒 | 写明被拒，填一把新的：C2 把新密钥存成一条钉在同一 origin 的新连接并把这个目标换过去，旧的留着（§13.2「旧密钥留着、当场指出」） | 换好后 `connected` |
 | 还不能一键连接（ASC-47） | 如实写原因和能走的路；只有这一种给去连接页（④a）的入口，离开原处 | 人关掉卡时 `cancelled` |
@@ -965,12 +985,12 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 | --- | --- | --- | --- |
 | 读目标的现状（有没有接着、可不可用） | C2 | 读绑定与连接状态；按记录的经 `connectors.plugin_slot.record.read@1`，按安装的经 `connectors.plugin_slot.read@1` | 是 |
 | 读这个服务的账号（选账号卡） | 设置路由（连接页同一条，`/api/settings/connectors/connections?service_id=…`） | `connectors.connections.read@1`；只在外壳里读，不进框 | 否（只读本人的连接，不进插件） |
-| 开始登录、重新登录 | 动作 | `connectors.setup.prepare@1` | 否：建连接是本人的事，页面撤了连接照样留着 |
+| 开始登录、重新登录 | C2 | `connectors.setup.prepare@1`，以本人身份；服务取自 Manifest，登录方式由宿主按目录选；重新登录只许这里正在用的账号 | 是，写前 `beforeEffect`（页面撤了，已建的连接照样留着，但不能再从这张卡开始新的登录） |
 | 读授权进度、取消 | 动作 | `connectors.authorization.read@1`、`connectors.authorization.cancel@1` | 否 |
 | 存密钥（服务连接的密钥类） | 设置路由（连接页同一条 `/api/settings/connectors/*`） | 连接主人的保存与检查（§13.2「保存后自动检查」） | 否 |
 | 图像目标：存密钥、钉地址、接到目标 | C2，一次做完 | 连接主人的保存，加图像绑定自己的那份写入与地址核对 | 是：页面授权不是当前的就整次不做，什么都不存 |
 | 接到这个位置（选账号、连好后接上） | C2 | 按安装的 `connectors.plugin_slot.bind@1`，按记录的 `connectors.plugin_slot.record.bind@1` | 是，写前 `beforeEffect` |
-| 换用（失效后回来是别的账号） | C2 | `connectors.plugin_slot.switch@1`（S-108），`usage_id` 由宿主按（安装、槽、记录）算出，不从输入读 | 是，写前 `beforeEffect` |
+| 换用（失效后回来是别的账号） | C2 | 按安装的槽：`connectors.plugin_slot.switch@1`（S-108），`usage_id` 由宿主按（安装、插件、槽、null）算出，不从输入读；按记录的槽：`connectors.plugin_slot.record.bind@1`，只重绑这一条记录（`switch@1` 的一处使用涵盖这个项目里这个槽的全部记录） | 是，写前 `beforeEffect` |
 | 启用 | C2 | `connectors.connection.control@1` | 是，写前 `beforeEffect` |
 
 C2 调这些动作都以本人身份（页面授权里的 actor），和现在的 `pageConnectionSlot` 一样；插件的取数桥调不到 C2。
@@ -995,13 +1015,22 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 
 | # | 改什么 | 在哪里 | 影响 |
 | --- | --- | --- | --- |
-| C1 | `UiPluginClientHost` 加 `connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: { signal?: AbortSignal }): Promise<UiConnectionNeedOutcome>`；`UiConnectionNeedTarget = { kind: "slot"; slot_id; record_key? } \| ({ kind: "image" } & PluginImageTarget)`；`UiConnectionNeedOutcome = { status: "connected"; account: { label } } \| { status: "cancelled" }`；页面关闭以 `AbortError` 拒，和 `connectionSlot` 一样 | `packages/contracts/src/platform/ui.ts` | contracts 的 `platform/ui` API 快照变；SDK 在 `packages/plugin-sdk/src/index.ts` 再导出这几个类型名，SDK 快照也变（只是类型再导出）。和 18 P3 的 `taskGrants` 改同一个文件、同一种签名：18 P3 的合同 PR 先，本片叠在它后面。contracts 与 SDK 都算共享核心，按共享核心跑全量（统筹起） |
-| C2 | 宿主的页面路由（新开一条，或扩 `/api/host/plugin-page-slot`）：只认外层加的页面头，输入只有目标与本人选的账号；三第 4 条表里标「C2」的几步都在这里；核授予（`connections:use`、`image_generation.write_permission`），同时给 `connectionSlot` 补上；图像目标的存密钥、钉地址、接上一次做完；换用经 `connectors.plugin_slot.switch@1` | `apps/local-host/src/plugin-connection-slots-http.ts`、`plugin-page-authority.ts` | 不是动作，不进动作快照；是安全边界，见 C3 |
-| C3 | [安全不变量](../../docs/system/SECURITY-INVARIANTS.md)新开一行，**暂定 S-121，合同 PR 时由统筹确认**（main 的表到 S-108；S-109 是 18 P2 的任务主体，S-110～113 是场景与页面合同，S-114～119 是 Sessions 重做，S-120 留给 18 P3 的平台区域；`personal` 分支自用的 S-120～140 按 10-24 的约定由对方改号）。前提照 18 P3 §4：路由的信任只靠外层的页面头，同源文档里不跑插件代码（S-21、S-47）。拒绝测试见下 | `docs/system/SECURITY-INVARIANTS.md` | 随 C1 的合同 PR 登记，测试随实现 PR |
+| C1 | `UiPluginClientHost` 加 `connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: { signal?: AbortSignal }): Promise<UiConnectionNeedOutcome>`；`UiConnectionNeedTarget = { kind: "slot"; slot_id; record_key? } \| ({ kind: "image" } & PluginImageTarget)`；`UiConnectionNeedOutcome = { status: "connected"; account: { label } } \| { status: "cancelled" }`；页面关闭以 `AbortError` 拒，和 `connectionSlot` 一样 | `packages/contracts/src/platform/ui.ts` | contracts 的 `platform/ui` API 快照变；SDK 在 `packages/plugin-sdk/src/index.ts` 再导出这几个类型名，SDK 快照也变（只是类型再导出）。和 18 P3 的 `taskGrants` 改同一个文件、同一种签名：18 P3 的合同 PR 先，本片叠在它后面。contracts 与 SDK 都算共享核心，按共享核心跑全量（统筹起）。**合同 PR 已落**：类型照左列，另加 `UI_CONNECTION_NEED_REASON_MAX = 80`（卡上引用槽的 `reason` 截到的字数）；页面的连接类型（原有的 `UiConnectionSlotChoice`、`UiConnectionSlotRequest` 连同新的三项）挪进同目录的 `ui-connections.ts`，由 `ui.ts` 原样再导出，`platform/ui` 子路径与它的 API 快照不受影响（`ui.ts` 加上 18 P3-0a 与本片会超过 800 行的文件上限，而它本来就混着几件事，按职责拆出这一块，不登巨大单元）；工作台 `child.ts` 先给拒绝的占位，与 18 P3-0a 的 `taskGrants.place` 共用一个 `unavailable`，一律以固定的 `Error("Unavailable")` 拒、不发框通道消息，外壳实现换成框里报位置的那一半 |
+| C2 | 宿主的页面路由（新开一条，或扩 `/api/host/plugin-page-slot`）：只认外层加的页面头，输入只有目标与本人选的账号；三第 4 条表里标「C2」的几步都在这里；核授予（`connections:use`、`image_generation.write_permission`），同时给 `connectionSlot` 补上；图像目标的存密钥、钉地址、接上一次做完；图像绑定没有对 `user` 开放的动作，C2 复用 `createPluginImageGenerationPort(...).bind`（`apps/local-host/src/plugin-image-generation-service.ts`），沙箱插件的命名空间照 `sandbox-image-generation.ts` 的推导（S-91、BL-491），不另写 SQL；换用经 `connectors.plugin_slot.switch@1` | `apps/local-host/src/plugin-connection-slots-http.ts`、`plugin-page-authority.ts` | 不是动作，不进动作快照；是安全边界，见 C3 |
+| C3 | [安全不变量](../../docs/system/SECURITY-INVARIANTS.md)新开一条独立记录，用语义 ID，不取连续编号（#1904 起每条不变量一个文件、新增用 `S-<语义名称>.md`）：**[`S-plugin-connection-card`](../../docs/system/security-invariants/S-plugin-connection-card.md)**（④c-1 原先取的连续号在合并 main 时改成这个语义 ID）。前提照 18 P3 §4：路由的信任只靠外层的页面头，同源文档里不跑插件代码（S-21、S-47）。行文草案与拒绝测试见下。④c-1 在记录里先写宿主一半与它的测试，浏览器一半写明随下一片补 | `docs/system/security-invariants/S-plugin-connection-card.md` | 表行连同十组拒绝测试随实现 PR 一起进（安全表的门禁要求行里点名的测试存在，合同 PR 只改本节的草案）。宿主一半随 ④c-1 已进；浏览器一半与外壳同一个 PR 补进同一行 |
 | C4（可选） | 页面事件 `molis-work:connection-settled`（草案见三第 6 条） | `packages/contracts/src/platform/dom-events.ts` | 本片不加；④a 要用时再加，跑 `pnpm api:update` |
-| C5 | `ActionResultView` 加一种「待完成的接入」：授权号在输出里的指针（如 `pending_connection: { authorization_pointer: "/authorization_id" }`）；助理与别处的结果视图按它画连接卡，不按动作 id 分支；`connectors.setup.prepare@1` 的 `result_view` 声明它 | `packages/contracts/src/platform/action-result.ts`；`apps/local-host/src/connector-setup.ts` | 和 C1 同一个 PR 或紧接一个；动了 `result_view` 要先 `pnpm build` 再 `pnpm actions:update` |
+| C5 | `ActionResultView` 加一种「待完成的接入」：授权号在输出里的指针（如 `pending_connection: { authorization_pointer: "/authorization_id" }`）；助理与别处的结果视图按它画连接卡，不按动作 id 分支；`connectors.setup.prepare@1` 的 `result_view` 声明它 | `packages/contracts/src/platform/action-result.ts`；`apps/local-host/src/connector-setup.ts` | 和 C1 同一个 PR 或紧接一个；动了 `result_view` 要先 `pnpm build` 再 `pnpm actions:update`。**合同 PR 已落**：`ActionResultView.pending_connection?: { authorization_pointer }`，指针不许为空；呈现快照 `ActionResultPresentation.pending_connection?: { authorization_id }`，只收指针处由字母、数字、`-` 组成、至多 100 字符的字符串（布尔、数字不算），别的不出、不让已完成的调用失败（ASC-69 的合同一半在 `tests/action-result.test.ts`）。卡读、取消这条授权只认发起它的人、项目和运行会话（宿主的 `requireConnectorInitiator`）：别人的授权号画不出卡、也取消不了，授权过期时退回「继续接入」链接；插件动作同样能声明 `pending_connection`，靠的就是这一条兜住。prepare 的声明与指针落在输出的必填字符串上，由 `tests/security-invariants-connector-scope.test.ts` 的 ASC-69 用例钉住（动作快照不哈希 `result_view`），另一个运行会话读、取消被拒也在那里。`connectors.setup.prepare@1` 声明 `pending_connection: { authorization_pointer: "/authorization_id" }`，「继续接入」链接留着，给画不了卡的地方用。动作快照的 `traits` 不含 `result_view`，`pnpm actions:update` 后 `tooling/gates/actions/` 无变化 |
 
-不新增：动作、Manifest 字段、表、Error 子类。新的错误码（如目标没声明、未获授予、页面已不是当前的）用 `defineErrorCodes` 声明，先在 `tooling/gates/error-owners.json` 加主人。
+**C2 的取舍（④c-1，2026-11-06）**：
+
+- **新开一条路由** `POST /api/host/plugin-page-connection`，不扩 `/api/host/plugin-page-slot`：后者只认按记录的槽、`mode` 只有 `read` 与 `bind`、记录键必填；连接卡的目标多了按安装的槽与图像两种，操作多了五种，合在一起要么放宽它的形状核对、要么让一条路由按 `mode` 分出两套规则。两条路由共用同一份「只认外层页面头、在页面自己的项目里」的核对（`trustedPluginPage`）与以本人身份、每次调用都再核页面的动作客户端（`pageOwnerClient`），传输守卫里同一个 `slotChoice` 放行这两条，不另开一种头。代码在 `apps/local-host/src/plugin-connection-need-http.ts`（主人 `host`，错误码 `host.connection_need.*`）。
+- **请求体**：`{ operation, target, connection_id? | api_key? }`，`operation` 是 `read`（读目标现状）、`prepare`（就地连或用原账号重新登录，经 `connectors.setup.prepare@1`）、`bind`（选账号接上）、`switch`（换用）、`enable`（启用这里接着的那条）、`save_key`（图像目标存密钥、钉地址、接上）。每种操作只收自己的那几个字段，多一个就 `actions.input_invalid`。答复只给可信外壳：服务、图像目标的 origin、这里接着的账号（`connection_id`、显示名、方式、状态，和 `connectionSlot` 同一种形状）；`prepare` 另给授权号与受保护表单的入口。外壳不把它们原样交给框，框只拿 `UiConnectionNeedOutcome`。
+- **开始登录也经 C2**：设计稿第三节第 4 条的表原把「开始登录、重新登录」写成外壳直接调动作（表已随 ④c-1 改正）；现在由 C2 以本人身份调同一个 `connectors.setup.prepare@1`，好处是服务由宿主从 Manifest 取、外壳不必自己写服务 id，重新登录只许这里正在用的那个账号（页面给的 `connection_id` 与绑定的不同即拒）。代价是页面授权撤了之后不能再从这张卡开始新的登录——卡已经收起，本来也不该再开始。读授权进度、取消仍照表直接调动作，授权记录的发起人是本人、本项目，`requireConnectorInitiator` 照旧兜住。登录方式由宿主按目录选：可在应用内登录的 OAuth 优先，其次可粘贴的密钥。
+- **按记录的槽换用只重绑这一条记录**：`connectors.plugin_slot.switch@1` 的 `usage_id` 是（安装、插件、槽、项目），一处按记录的使用代表这个项目里这个槽的全部记录，按它换会把同一个槽的别的记录一起换走，与「只换这一处」不符。所以按安装的槽经 `switch@1`（`usage_id` 由宿主按安装、插件、槽算出），按记录的槽经 `connectors.plugin_slot.record.bind@1` 只重绑这一条记录；两条路都先核要换成的账号是这个服务的、连通的、不是为别的包的安装建的（T-134）。要不要给 `switch@1` 加精确到记录的使用处，交统筹另定。
+- **不出卡的情况在宿主就拒**：目标没声明、按记录与按安装的形状不合、没获授予 `connections:use` 或图像写权限，连 `read` 都拒（`host.connection_need.target_undeclared`、`host.connection_need.not_granted`），外壳据此不画卡。`connectionSlot` 的选账号路由同样补上授予核对（传输守卫给的 `connectionSlot` 里查 `connections:use`）。图像目标的命名空间取实例自己拿到的图片生成服务：原生插件是 Manifest 的 `image_generation.store_name`，沙箱包是 `sandboxImageDeclaration` 推导出的（S-91）；实例没拿到这项服务就是没声明。
+- **图像的密钥现在不先验证**：存、钉、接一次做完，和连接页「先存再查」一致；「用候选密钥检查、不存」的入口是 ④d（BL-1058），落地后 C2 的 `save_key` 改成先查后存。还能用的密钥不在卡里替换（`host.connection_need.account_bound`），被拒的才填一把新的。
+
+不新增：动作、Manifest 字段、表、Error 子类。合同 PR 不新增错误码（占位只用固定的 `Error("Unavailable")`）；C2 要的错误码（如目标没声明、未获授予、页面已不是当前的）随实现 PR 用 `defineErrorCodes` 声明，码的前缀是所在文件在 `tooling/gates/error-owners.json` 里的主人：`plugin-connection-slots-http.ts`、`plugin-page-authority.ts` 现在归 `host`（`host.*`），`apps/local-host/src/connector*` 归 `connector`（`connector.*`）；文件的主人给出后不在功能 PR 里改，所以 C2 的码按落在哪个文件取前缀，不为它改表。
 
 **C3 的拒绝测试**（随实现 PR 落；浏览器的放 `tests/security-invariants-connection-card.e2e.test.ts`，宿主路由的放 `tests/security-invariants-connection-card.test.ts`；每条都断言绑定、连接、授权记录不变）：
 
@@ -1016,6 +1045,12 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 9. **要卡本身不写、取消收干净**：插件调 `connectionNeed` 本身不写任何记录；人点取消，进行中的授权经 `connectors.authorization.cancel@1` 取消，没有绑定。
 10. **正路**：就地连、选账号、重新登录、启用各走一次，都写对、只写一次（证明拒绝不是因为卡根本不能用）。
 
+**④c 安全不变量新行的行文草案**（落地为独立记录 [`S-plugin-connection-card`](../../docs/system/security-invariants/S-plugin-connection-card.md)；五列与别的记录相同，测试列只写真实存在的测试，写成路径加「标题片段」）：
+
+- **不变量（拒绝什么）**：原处的连接卡（第 13 批④c，本节；用户与统筹 2026-11-06 定）。插件页面经 `host.connectionNeed(place, target, { signal })` 只能说本安装 Manifest `connections.slots` 声明、且已获授予 `connections:use` 的槽（`per_record` 必带合法记录键，`installation` 不许带），或声明了 `image_generation`、且已获图像写权限的图像目标；目标不合不出卡、不写。要卡本身不写任何记录。卡由可信外壳在框外画：平台标头、服务名、插件名取自目录，槽的 `reason` 标成插件的引用、截到 `UI_CONNECTION_NEED_REASON_MAX`；图像目标只显示外壳从 `base_url` 规范化出的 origin。卡里的写只经宿主页面路由（C2）：信任只靠外层加的 `x-molis-context-page`，带框里取数桥 `x-molis-plugin-page` 的请求拒；输入只有目标与本人选的账号，带安装、插件、服务、地址字段的 `actions.input_invalid`；以页面授权里的本人调已注册动作（`connectors.plugin_slot.bind@1`、`connectors.plugin_slot.record.bind@1`、`connectors.connection.control@1`；换用经 S-108 的 `connectors.plugin_slot.switch@1`，`usage_id` 由宿主按安装、槽、记录算出），图像绑定复用 `createPluginImageGenerationPort(...).bind`（沙箱照 S-91）；写前 `beforeEffect` 并核页面授权仍是当前的，不是当前的整次不做、什么都不存。卡里会写的控件六条都过才发请求：`isTrusted`；整块可见、不与平台区域、审查卡、嵌入相交；`elementsFromPoint` 在控件中心、标头、按钮行三处命中卡；卡的视口矩形稳定 500 ms（键盘激活另要焦点停留 500 ms）；一次一个；页面与目标仍是当前。卡的层级为 2，高于审查卡与嵌入。高度只按宽度取两档，下行消息不带账号目录与密钥字段的内容。答复只有 `connected` 加账号显示名，或 `cancelled`，不带连接 id、状态与凭据。图像目标的密钥钉在卡上写的 origin，插件之后以别的 `base_url` 去 `bind` 得 `connector.connection.service_mismatch`；选账号卡不列钉在别的 origin 的连接。页面关闭、换视图、插件停用或卸载、页面授权撤销之后，人再点不写绑定；晚到的 OAuth 回调只留下连接，不接到这个位置。结果视图声明的待完成接入（C5），卡读、取消授权只认发起它的人、项目和运行会话（`requireConnectorInitiator`），别人的授权号画不出卡、取消不了，授权过期退回「继续接入」链接。前提照 18 P3 §4：外层与同源文档里不跑插件代码（S-21、S-47），哪天不成立，本条与连接槽、审查决定一起先改。
+- **代码位置**：外壳的连接卡与和 18 P3 共用的防遮盖模块（`apps/workbench/src/browser/plugin-frame/` 下，文件名随实现定）、框里的报位置（`child.ts` 现在的 `connectionNeed` 占位换掉）、`apps/local-host/src/plugin-connection-slots-http.ts`、`apps/local-host/src/plugin-page-authority.ts`。
+- **测试（CI 里跑）**：`tests/security-invariants-connection-card.test.ts`（宿主路由：上面拒绝第 1、3、6～9 组的宿主一半）；**测试（只在本机跑）**：`tests/security-invariants-connection-card.e2e.test.ts`（浏览器：第 2、4、5 组与第 8 组的点击一半）；第 10 组正路两边各一条。测试名带落地时取到的 S 号与 ASC-68。浏览器用例若进 CI 的安全分片，按实现时 `pnpm test:security` 的分法放进 CI 列。
+
 **六、拍板记录**
 
 | # | 事项 | 定下 | 谁定 | 说明 |
@@ -1023,18 +1058,18 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 | 1 | 连完以后要不要自动接着做刚才按下的那一件（如 Images 生成，要花钱） | **自动把刚才那件做一次**；本来要确认的（花钱、不可撤回）照插件原有的确认再问（插件原本就有确认的照旧再问，原本没有的不新加） | **用户 11-06 定**（弹窗，选推荐） | 这是对插件的规则：平台不替插件重放；插件用原来那一步的幂等键保证只做一次（三第 5 条） |
 | 2 | 只有一个可用账号时，出选账号卡还是直接接上 | **也出选账号卡**，一次点击，写明作用范围 | **用户 11-06 定**（弹窗，选推荐） | 「直接接上」等于改 S-57（哪个插件用哪个账号只由人定），按安装的槽还会影响所有项目，不是普通的体验取舍 |
 | 3 | 卡已不在时晚到的登录，要不要自动接到原位置 | **不自动接回**，只留下连接；接回等返回能力带这份意图 | **用户 11-06 定**（弹窗，选推荐） | 自动接要把「接到哪里」存进授权记录（新记录、要清理），还可能接到人已经离开的事上 |
-| 4 | Git（原写作 Coding）推送时向 GitHub 多要写仓库的权限 | **默认登录不变**，推送时按差额再要，先只要 `public_repo`；牵涉第 26 批的应用审核与账号。**移出 ④c**，登 BL-1056 | **用户 11-06 定**（弹窗，选推荐） | 推送现在走本机 `gh` 登录，只有改成用平台账号时才需要这项权限；是另一份合同、另一批，不拖住 Feed 和 Images |
+| 4 | Git（原写作 Coding）推送时向 GitHub 多要写仓库的权限 | **默认登录不变**，推送时按差额再要，先只要 `public_repo`，私有仓库再要 `repo`；牵涉第 26 批的应用审核与账号。**移出 ④c**，登 BL-1056 | **用户 11-06 定**（弹窗，选推荐） | 推送现在走本机 `gh` 登录，只有改成用平台账号时才需要这项权限；是另一份合同、另一批，不拖住 Feed 和 Images |
 | 5 | 「经平台动作要连接」改为「经页面宿主方法要连接」 | **改** | 统筹 11-06 定（合同台同意） | 理由见二 |
 | 6 | 生成插件经 UI 目录拿同一张卡 | **紧接一片**，在 Feed、Images 接好之后，登 BL-1057 | 统筹 11-06 定 | 插件同等待遇；第一片先把外壳模块做稳 |
 
 **七、和在途的几处会不会撞**
 
-- **18 P3（平台区域，#1860 已合设计）**：同一个合同文件（`ui.ts`）、同一种签名，18 P3 的合同 PR 先；防遮盖的外壳模块只有一份，18 P3 先落，本片接上；一页 4 块的上限两者合计，相交都藏起。
+- **18 P3（平台区域，#1860 已合设计）**：同一个合同文件（`ui.ts`）、同一种签名，18 P3 的合同 PR 先；防遮盖的外壳模块只有一份，18 P3 先落，本片接上；一页 4 块的上限两者合计，相交都藏起。18 P3 的合同 PR 是 #1884（P3-0a），本片的合同 PR 从它的头开出、叠在它之上；#1884 合入后合 main。要是本片合同 PR 审完时 #1884 还没合，按 MERGE-QUEUE §1a 两边合成一个批合同 PR 一起落，不干等（合同台第二轮小修 1，统筹 11-06 记给合同 PR）。#1884 已于 11-06 合入 main（4e0cbaa941），本片合同 PR 照统筹意见合 main、不变基；插件框资源 `molis-work-plugin-frame.js` 的一次性放行条目按 #1884 之后的预算 188418 重登，只剩本片的 +14 B。
 - **#1870（反复失败只提醒一次，ASC-58）**：不撞。提醒管后台调用的连续失败、经助理的「等你处理」带人去连接页；卡管有人在场时的缺连接。卡里重新登录成功会让连接换版本，#1870 照它的规则清掉这条连接未处理的提醒；插件因没有绑定而没发出的请求属于「发出前就被拒」，本来就不计数；人在卡里取消不算失败。
 - **#1881（模型设置与 Images 对话框，ASC-60～63）**：不撞语义，撞文件。卡用 #1881 已用的「填密钥 · 验证密钥 · 能用了」进度部件与密钥说法；Images 的接法改 `plugins/native/images/src/ui.ts`、`browser/connections.ts`，排在 #1881 合入之后。模型提供方（Cognia、工作流程等「先去设置模型」）不在来处里，仍走模型设置与 `molis-work:model-ready`，本片不给模型出卡。
 - **④a（连接页按 A 改）**：#1865 已合入，④a 不再等它。同一套「连接过程」（开登录、读授权记录、存密钥、检查、限流再查）只能有一份：④a 把它从连接页抽成外壳的浏览器模块，卡直接用；先合 ④a，再做卡的外壳实现。连接页上「谁在用它」照旧经 `connectors.usages.read@1`，卡接好的位置自然出现在那里。`connection-slot.ts` 的空状态改成卡，要和 ④a 的写手对一下。
 - **#1865（MCP 重新登录，ASC-59，已合入）**：卡的「登录失效」只走 OAuth 与密钥两类的「回到原账号」；远程 MCP 的重新登录按 #1865 新建连接、再一步换过去，卡里遇到 MCP 失效时给去连接页的入口，不在卡里另做一份换用。
-- 编号：#1865 用了 ASC-59，#1881 用 ASC-60～63，本节从 ASC-64 起；本节只在这里列草案，不改 §10 的表。
+- 编号：#1865 用了 ASC-59，#1881 用 ASC-60～63，本节从 ASC-64 起；ASC-64～71 已随合同 PR 移进 §10 的表。
 
 **八、开工前检查**（[需求开发流程第 4 节](../post-anticorruption-roadmap/reference/development-workflow.md)；档位：大需求里的一片；类型：产品线（服务连接）加横向能力）
 
@@ -1047,7 +1082,7 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 | 5 | 放在哪个包 | 外壳模块在 `apps/workbench`（与 `connection-slot.ts`、`reviews.ts` 同处，防遮盖与 18 P3 共用一份），宿主页面路由在 `apps/local-host`；不是新的平台服务，不开 `horizontal/` 包 |
 | 6 | 表与存储 | 不加表 |
 | 7 | 兼容与迁移 | 不涉及：新加的方法与类型，没有旧数据要读 |
-| 8 | 安全边界 | 碰页面授权、S-57、S-71、S-108 与图像连接的地址钉；密钥只在可信文档里输入；防遮盖照 18 P3；按 C3 新开一行（暂定 S-121）并写拒绝测试 |
+| 8 | 安全边界 | 碰页面授权、S-57、S-71、S-108 与图像连接的地址钉；密钥只在可信文档里输入；防遮盖照 18 P3；按 C3 新开一条独立记录（语义 ID `S-plugin-connection-card`）并写拒绝测试 |
 | 9 | 调用次数 | 要卡：一次页面授权核对加一次目标现状读取；已接好就不再多发。授权进行中只在页面可见时每 2 秒读一次授权记录，到终态即停；选账号卡一次读完这个服务的账号 |
 | 10 | 升级与数据 | 不改已有连接、绑定、授权记录 |
 | 11 | 成果与过程项 | 不涉及：卡不产出内容 |
@@ -1055,17 +1090,57 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 | 13 | 错误 | 新码用 `defineErrorCodes`，不写 Error 子类 |
 | 14 | 冲突面 | 合同 PR 动 `packages/contracts/src/platform/ui.ts`（与 18 P3 同文件，排在它后面）、`action-result.ts`、SDK 再导出一行、两份 API 快照、动作快照（C5）、安全表一行；实现排在 18 P3 的外壳模块、④a、#1881 之后 |
 
-**九、验收编号草案**（接 ASC-64 起；合同 PR 时移进 §10 的表，用例在测试名或注释里写编号）
-
-| 编号 | 验收 | 怎么证明 |
-| --- | --- | --- |
-| ASC-64 | 插件页面经 `connectionNeed` 在自己留的空位上要连接，只能说 Manifest 声明且已获授予的槽（按记录的带记录键）或图像生成目标；外壳在框外贴着空位画卡，服务、标头、插件名取自目录，槽的缘由标成插件的引用并限长；目标已接好可用账号时不出卡、直接答已连上 | 外壳与页面的浏览器回归 |
-| ASC-65 | 卡里几种起点：没有账号就地连（登录类不填字段，图像密钥只问一把、醒目写只发往哪个 origin、只在可信文档里输入）；有账号（哪怕只有一个）出选账号卡、写明作用范围、可再加一个，图像只列同 origin 或未钉的；接着的账号失效就用原账号重新登录，回来是别的账号时只把这一处换过去；被停用的写明并可启用或换一个；图像密钥被拒填一把新的换过去。还不能一键连接的如实写原因和能走的路 | 各状态的浏览器回归，对照 #1862 标本 |
-| ASC-66 | 连好后卡收成一行「已连上 · 账号」，焦点落在这一行、读屏读出；插件拿到「已连上」只有显示名；插件自动把刚才那件做一次（幂等键保证只一次），本来要确认的照原有确认再问，草稿与输入还在 | 浏览器回归加插件一侧的断言 |
-| ASC-67 | 取消收成「没有连上，这里什么都没改」，插件拿到「取消」、草稿不动、进行中的授权被取消，同一页再要只出收起的一行；登录被拒、回调失败、密钥被拒在卡里说人话、可再试，插件一直等、只能经 `signal` 退出；限流写明是服务那边与多久后再查，验证前不接到位置 | 状态与时序回归 |
-| ASC-68 | C3 的十条拒绝：目标不合、伪造上行、路由、点击劫持、高度、图像地址、换账号、页面失效后、要卡本身不写与取消收干净、正路只写一次 | 安全不变量新行（暂定 S-121）的拒绝测试 |
-| ASC-69 | 助理对话里缺连接时，按 `ActionResultView` 的「待完成的接入」画同一张卡，不再只给「继续接入」链接；连好后经已登记的等待回到同一件工作、只续一次，取消让等待结束、不重做 | 助理的浏览器回归 |
-| ASC-70 | Feed 加 GitHub 通知来源缺账号时，在来源那一行出卡，接到这条来源后拉第一次；Images 生成时缺图像服务的密钥，在生成区出卡，填好后接到这个目标，照三第 5 条接着生成（花钱的照原有确认）；`connectionSlot` 的对话框没有账号时换成同一张卡、并过防遮盖 | 两个插件的浏览器回归 |
-| ASC-71 | 卡在 1440、1024、375 三种宽度、浅深两套、中英两种界面都不溢出；高度只按宽度取两档，正文在卡内滚动；随空位滚动与裁切，插件页打开对话框、空位滚出或与别的块相交时藏起、不响应；窄的一档按钮上下排，点按目标 44 px | 截图与版面检查 |
+**九、验收编号**：ASC-64～71 已随合同 PR 移进 §10 的表（#1881 的 ASC-60～63 合入之后），用例在测试名或注释里写编号。
 
 原草案的 ASC-72（Coding 推送缺权限）随第六节第 4 项移出，见 BL-1056。
+
+### 13.6 设置里的「服务连接」页改成产品界面（第 13 批④a，2026-11-06）
+
+按 §13.1 方案 A 把设置里的「服务连接」页改成产品界面，验收见 ASC-73～79。界面取组件板「服务连接」一节的实件（`service-connection-parts.ts` 的行、步骤进度与状态，`browser/service-connection-item.ts` 的展开程序），产品直接用这些函数和类名，不另写一份。
+
+| 事项 | 定下 | 谁定 | 理由与代价 |
+| --- | --- | --- | --- |
+| 按用途分组 | 页面自己把目录的 `group_id` 归成七组：模型（`model-api`、`image-api`）、代码与项目（`code`、`work`）、邮件与日程（`mail`）、文档与笔记（`files`）、消息（`chat`、`social`）、设计、客户与销售；组内按「有账号 > 能连 > 暂未接入」排。目录与合同里的分组不动；提供它的插件已不在的连接单列「目录里已没有的服务」，照样能检查、换密钥、移除 | 按推荐定 | 只是显示的归类，不改目录合同；用户定的五组之外的两组（设计、客户与销售）各有三四个服务，并进别的组会让人找不到 |
+| 一行一个服务、就地展开 | 原来的卡片网格、分类下拉、详情页与返回按钮去掉；服务行用组件板的 `renderConnectionItem`，展开后依次是：来源、反馈、各账号的四行与动作、再加一个账号（有账号时收起）、连好以后、「高级」 | 用户 11-04（方案 A） | 不跳页，窄屏同一套 |
+| 谁在用 | 服务展开时每个账号读一次 `connectors.usages.read@1`，同一页面里与「换过去」共用；换账号前再读一次 | 按推荐定 | 调用次数（N42～N56）：只在打开时读、按账号一次；不打开不读 |
+| 换账号 | 账号那一行里展开选择：已连上的其他账号（默认选第一个）或「再加一个账号」；选已连上的就调 `connectors.usages.switch@1`，选再加一个就在同一服务的登录里走一次，回来后给「把用到它的地方换到这条」；只给本人管理的 OAuth 账号 | 用户 11-05（§13.2 多账号切换）；放法按推荐定 | 不改合同，用第 13 批②已有的动作 |
+| 高级的草稿 | 「高级」里不是密码框、不是隐藏字段的输入改了就记在这个窗口的 `sessionStorage`（`molis-connectors-draft:<服务>`），回来时在「高级」前提示（提示框下面是「接着改」「放弃改动」两个按钮，不往提示框里塞）；保存成功或放弃就删；密钥从不记，地址只记到路径为止（去掉查询串、片段和用户名密码，有的服务把密钥放在那里） | 按推荐定 | 只留在这个窗口，不进库、不跨设备；关掉窗口就没了，和「没保存」一致 |
+| 密钥保存前先检查 | **单开 ④d，见 BL-1058**（④d 已做，见本节末尾的④d 表；下面是④a 当时的现状）：宿主现在只有「先存再查」（POST/PATCH 存下后查一次，§13.2），没有「只查不存」的入口，所以第一次填的密钥被拒时已经存下（页面如实写「密钥存好了，但没通过检查」），「换密钥」时 PATCH 已经把旧密钥换掉。这一片不做；④d 在宿主加「用候选密钥检查、不存」的入口（改合同），接在④c 合同之后，做法同模型设置（④b，ASC-62）在模型提供方自己的保存里先查后存 | 统筹 11-06 | 自有应用、地址这类设置只在登录成功时才存，本来就是「先查后存」；缺口只在密钥 |
+| 只带这一页画的样式 | 组件实件的样式分三份导出：步骤进度（`SERVICE_CONNECTION_PROGRESS_STYLES`）、就地展开的行（`SERVICE_CONNECTION_ITEM_STYLES`）、原处的连接卡（`SERVICE_CONNECTION_CARD_STYLES`），组件板带全部（`SERVICE_CONNECTION_PART_STYLES`）。两张设置样式表都带模型设置的样式（含进度），连接页只再带行的样式，不带它不画的连接卡；`tests/connections-page.e2e.test.ts` 量两张样式表里进度各一份、连接卡零份 | 按推荐定 | 与④b（#1881）同一份切法，④b 先合入，这里接着用 |
+| 页面程序 | 组件实件的展开程序打成 `dist/connections-page-client.js`，连接页的程序在前面带上它（`globalThis.molisWorkConnectionItems`）；步骤用④b 已经带到每个有连接页的页面上的进度程序（`molisWorkConnectionProgress`，`src/browser/model-settings-progress.ts`），用到时再取，不打第二份 | 按推荐定 | 不另写一份展开程序；不新增页面资源（随设置页的程序一起下发） |
+| 组件板「选账号卡」的选中反馈 | **这一片不做**：#1862 小修里「账号选项没有选中反馈」等 `claude/d-13-fix-visual-order` 修好这张卡、合入 main 后再接 | 统筹 11-06 | 那张卡正在修图标与首行对齐，同时改会冲突；产品里的同类选项（换账号的单选）按首行对齐，用例里量 |
+| 图像插件的「Connectors」说法 | 不在这一片改：它是图像插件自己的文字，不是组件实件 | 按推荐定 | 只统一共享部件里的说法 |
+
+开工前检查（[需求开发流程第 4 节](../post-anticorruption-roadmap/reference/development-workflow.md)）。档位：大需求里的一片；类型：产品界面（服务连接）。
+
+| # | 项 | 答 |
+| --- | --- | --- |
+| 1 | 事实主人 | 连接、绑定、检查记录仍归宿主的 connector 部分；页面只显示和发起动作，不存事实。分组只是页面的显示归类 |
+| 2 | 插件同等待遇 | 插件声明的服务和平台自己的服务走同一套行与「高级」；插件连接槽照旧 |
+| 3 | 能力注册 | 没有新动作；用已有的 `connectors.usages.read@1`、`connectors.usages.switch@1` 与连接页的 HTTP 路由 |
+| 4 | 合同 | 不改 contracts 导出、动作 schema、Manifest、MCP 工具名与库结构；「密钥先查后存」需要改合同，停下交统筹（见上表） |
+| 5 | 放在哪个包 | 都在 `apps/workbench`：设置页的渲染、样式、页面程序与英文词典；组件实件在原文件里只加属性透传与进度样式的切分 |
+| 6 | 表与存储 | 不加表；页面只在 `sessionStorage` 记「高级」的草稿与登录的等待记录 |
+| 7 | 兼容与迁移 | 不加；旧的卡片网格与详情页的类名、属性一并删掉，用到它们的用例改成新结构 |
+| 8 | 安全边界 | 不碰宿主边界；草稿不记密钥和密码框，用例断言；连接页里的文字都转义，名字截到 100 字 |
+| 9 | 调用次数 | 打开服务时每个账号读一次用途，与「换过去」共用；换账号多一次读取与一次换用；不打开不读 |
+| 10 | 升级与数据 | 已有连接、绑定不动 |
+| 11 | 成果与过程项 | 不涉及 |
+| 12 | 页面与外壳 | 只改设置里的一页，不出新页面、不开新标签页；字节见 PR 的页面资源一节 |
+| 13 | 错误 | 没有新错误码；换用的拒绝码沿用 `connector.plugin_slots.*`、`connector.switch.*`，页面翻成人话 |
+| 14 | 冲突面 | `apps/workbench/package.json` 的打包行、`settings-models.ts` 与进度样式的切分和④b（#1881）重叠；不改 `settings-connection-status.ts`（#1870）；不改组件板「选账号卡」（`claude/d-13-fix-visual-order`） |
+
+**④d：服务连接的密钥先查后存（BL-1058，2026-11-06）**。验收见 ASC-80～82，安全不变量 S-connector-candidate-key。
+
+| 事项 | 定下 | 谁定 | 理由与代价 |
+| --- | --- | --- | --- |
+| 入口放在哪 | **不另开「只查不存」的入口，在原来的保存路由里先查后存**：`POST /api/settings/connectors/connections`（第一次填）与 `PATCH …/connections/<id>`（换密钥）收到密钥后，宿主先拿这把候选密钥问一次服务（`apps/local-host/src/connector-candidate-check.ts` 的 `checkCandidateKey`，读法与「检查连接」相同：目录服务读账号，GitHub、Gmail 读健康），通过了才写；没通过就整个请求失败，什么都不写。做法同模型设置（④b，ASC-62）在模型提供方自己的保存里先查后存 | 按推荐定（统筹 11-06 交写手选） | 查和存在同一个请求里挨着做：候选密钥只经过宿主一次，页面不用送两遍；连接的版本在查之前读下，查的过程中与写入时各比一次，不会出现「查过的是这把、存进去的是别的」。另开「只查」入口要页面先查再存，中间的空档里别处可能已换了密钥，还要多一条路由和它的授权 |
+| 合同 | **不改 contracts 导出、动作 schema、Manifest、MCP 工具名与库结构**：改的是宿主设置页 HTTP 路由的语义与答复（不是动作，不进动作目录）。没通过时答复的状态按错误种类由插件 SDK 的 `actionHttpStatus` 选（拒绝、连不上、没确认是 `upstream` 即 502，限流是 429），带 `code`（沿用 `connector-access.ts` 已有的 `connector.read.refused`／`unreachable`／`answered` 与 `connector.check.rate_limited`，不新增错误码）、`saved: false`、限流时的 `details.retry_at`，`error` 是宿主自己的一句话；通过时答复照旧带 `verification: { available: true, result }`。原来存下后检查失败才有的 `verification.available === false` 不会再出现。快照没有变化，`pnpm api:update`、`pnpm actions:update` 跑过、无改动 | 按推荐定 | BL-1058 写的「改合同」指改保存的语义；查下来没有动作或导出要动。调用方只有设置页的两张表单（连接页、对话里准备的接入请求页）和原处的连接卡（#1901，见「留给 #1901」）；插件、工作流程、MCP、Skill 都不经这两条路由 |
+| 哪些密钥会查 | 能单独查的才查：目录服务、GitHub、Gmail（与 §13.2「保存后自动检查」同一份名单，挪到保存前）；模型、图像、TypeSafe、MCP Bearer 和插件声明的令牌服务照旧不查，存下后写「请在用它的地方检查」。能查的服务一律先查，不看宿主有没有 MCP 目录（11-06 评审台退回后去掉了这个条件：没有目录时，没查过的密钥会被直接存下） | 按推荐定 | 调用次数（N42～N56）不变：每次保存最多一次请求。原来页面在宿主没查时会再补调一次 `/verify`，这次去掉（那些服务的 `/verify` 必然失败，只会把刚存的密钥标成失败） |
+| 检查记录的口径（§13.2） | **通过**：这次检查记成刚写下的这一版连接的第一次检查（带时间和读到的账号），与 OAuth 回来时读到的账号当第一次检查同一做法，页面立刻显示连得上和时间。**没通过**：不记。第一次填的没有连接可记；换密钥时旧密钥还在用，这次查的是没存下的候选密钥，记成这条连接的「检查失败」会把照常能用的旧密钥显示成失败。被拒的结果只随这次答复回给页面 | 按推荐定，请统筹确认 | BL-1063 里模型设置那条「保存前检查没通过时，这次检查不记进上次检查」若是要求记下，两边要一起定；这里先按「不记」做，理由同上 |
+| 被拒时什么都不留 | 候选密钥不进连接库、密钥文件、调用记录、日志和检查记录；答复不带服务原话（服务可能把收到的密钥原样写回错误里），只带码和宿主的话；用例把整个临时 Home 的文件逐个读一遍，确认里面没有被拒的候选密钥 | 按推荐定 | S-12「密钥只给引用」对没存下的密钥同样成立 |
+| 对话里准备的接入请求 | 先核对、再查、查过才开始：路由先核对请求（服务、方式、原连接与版本），再查密钥，通过了才把请求从「已准备」推进；没通过时请求仍是「已准备」，人可以再填一把，不必让助理重新准备。暂不提交（`awaiting_intent`）的照旧：查过后才暂存，之后确认保留时由接入动作再查一次 | 按推荐定 | 原来先开始再存再查，查失败时密钥已存下、请求记成已连上 |
+| 取消与版本（11-06 评审台退回后补） | **检查是一次会被取消的调用**：路由照 `plugin-consent-settings-http.ts` 的做法，用请求的 `aborted` 与答复的 `close`（答复还没写完时）做一个取消信号，传给两处 `checkCandidateKey`，查完、写之前再看一次；页面走开后检查停下，什么都不写（AGENTS.md「被取消的调用不再写业务记录」）。换密钥的版本比两次：查的过程中每次发出与收到答复时比（`checkCandidateKey` 的 `current`），写入时再比（`connector-activation.ts`）；用例在替身服务答复时改掉这条连接的名字，断言 400 `connector.connection.invalid`、什么都没写；把两处比较都拿掉，这条用例变红（变异检查，11-06 做过） | 评审台 11-06 退回、按要求改 | 不取消的话，页面关掉后宿主仍会把查过的密钥存下，人以为没存 |
+| 只发往连接绑定的站点（S-connector-candidate-key） | 换密钥时，按站点区分的服务（Jira、Confluence、Salesforce，BL-595）的候选密钥里写的站点必须是原连接绑定的那个，不同就在发出任何请求之前拒（`connector.connection.service_mismatch`），读不出站点也拒；第一次填的没有绑定，发往密钥里写的站点；其余服务的地址由目录、GitHub、Gmail 固定。与取模型列表（ASC-56）「已存密钥只发往它绑定的地址，绑了别的地址就在读密钥前拒绝」同一条规则 | 按推荐定 | 原来换密钥先写、写时比站点，比不过就不写；改成先查后，若不提前比，候选密钥会先被送到另一个站点去「检查」 |
+| 页面 | 拒绝写在密钥字段下（组件板已有的 `mw-field__error`），字段标 `aria-invalid`，焦点回到密钥框；结果框只写存没存（第一次「还没保存，填的还在。」，换密钥「新密钥没有换上，旧密钥照常在用。」）；限流写服务那边的原因和几点再查，到点没改过就自己再提交一次；「高级」里的换密钥是一行表单，拒绝的话单独占一行，在字段和按钮下面。删掉「密钥存好了，但没通过检查」「新密钥换上了，但没通过检查」两类说法。只用组件板已有的控件，没有新部件 | 按推荐定 | §13.1 定样的「被拒·还没保存」「旧密钥照常在用」 |
+| 留给 #1901 | 原处的连接卡（`apps/local-host/src/plugin-connection-need-http.ts`，在审的 #1901）上的图像密钥这一片不动：图像密钥本来只能在用它的地方查，卡上要不要也先查等 #1901 合入后另做 | 统筹 11-06 | 不和在审的 PR 冲突 |

@@ -250,6 +250,10 @@
       "types": "./dist/platform/plugin-integrations.d.ts",
       "import": "./dist/platform/plugin-integrations.js"
     },
+    "./platform/project-materials": {
+      "types": "./dist/platform/project-materials.d.ts",
+      "import": "./dist/platform/project-materials.js"
+    },
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",
       "import": "./dist/platform/plugin-attention.js"

@@ -6,6 +6,7 @@
     ".gitignore": "ignore rules",
     ".impeccable": "design references and in-repo review screenshots; a gate keeps their number falling (scripts/gates/impeccable-files.mjs)",
     ".npmrc": "pnpm registry and auth settings only",
+    ".nvmrc": "the one exact Node patch version CI and local development share (the desktop runtime joins when its prepare script is moved to it): the SQLite that plugin statements are checked against comes with Node, so a different patch can refuse every plugin statement (PLUGIN_STATEMENT_SQLITE_VERSION). nvm, fnm, asdf and setup-node read this name from the root",
     "AGENTS.md": "the working rules and reading order for agents and people (CLAUDE.md imports it)",
     "CLAUDE.md": "Claude Code entry that imports AGENTS.md",
     "DESIGN.md": "design norms the UI follows (AGENTS.md reading order)",

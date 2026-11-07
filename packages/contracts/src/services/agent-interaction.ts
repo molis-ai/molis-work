@@ -11,9 +11,9 @@ import type { ContractDescriptor } from "../platform/package.js";
  * every interface that shows questions can render); a type not offered never reaches the model.
  */
 export const servicesAgentInteractionContract = {
-  contractId: "io.molis.work.service.agent-interaction.v1",
+  contractId: /* @version contract.io.molis.work.service.agent-interaction "io.molis.work.service.agent-interaction.v{version}" */ "io.molis.work.service.agent-interaction.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.agent-interaction */ 1,
   maturity: "partial",
   ssot: "specs/ai-interaction-experience/spec.md",
 } as const satisfies ContractDescriptor;

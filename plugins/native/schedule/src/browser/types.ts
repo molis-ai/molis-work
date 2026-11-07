@@ -11,8 +11,18 @@ export interface ScheduleHost extends Pick<UiPluginClientHost<HTMLElement, HTMLD
 /** Which kind of row is open: a conversation task, or an alarm another plugin registered (and the operations on it). */
 export type RowKind = "task" | "job";
 
-/** What the new-task dialog hints at: a `false` says that is not set up yet. */
+/** What the new-task form and a task's detail hint at: a `false` says that is not set up yet. */
 export type Readiness = Partial<Record<"model" | "workspace", boolean>>;
+
+/** One task's reads as `/grants` answers them: counts of its categories by state (the categories' own words are the platform's). */
+export interface TaskReads {
+  readonly task_id: string;
+  readonly categories: number;
+  readonly granted: number;
+  readonly needs_confirmation: number;
+  readonly unavailable: number;
+  readonly removed: number;
+}
 
 export interface TaskAnswer { readonly task: { readonly task_id: string } }
 

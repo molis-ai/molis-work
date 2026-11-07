@@ -41,7 +41,7 @@ const source = { capability_id: code, version: { type: "integer", minimum: 1 }, 
 const connectionId = { type: "string", minLength: 1, maxLength: 160 };
 
 export const connectorUsagesSwitchAction: ActionDefinition<{ from_connection_id: string; to_connection_id: string }, ConnectorUsagesSwitchReport> = {
-  capability_id: "connectors.usages.switch", version: 1, operation: "command", action: {
+  capability_id: "connectors.usages.switch", version: /* @version action.connectors.usages.switch */ 1, operation: "command", action: {
     title: "换用同一服务的另一个账号", description: "把用到一个账号的模型、插件连接槽等，换成同一服务的另一个已连通账号；逐个使用方办理，换过去的与没换的分开列出。两个账号本身都不动。",
     kind: "operation", effect: "write", scope: "home", scheduling: "concurrent", audiences: ["user"], permissions: ["connectors:management:write"], subject_kinds: ["connector"],
     input_schema: { type: "object", properties: { from_connection_id: connectionId, to_connection_id: connectionId }, required: ["from_connection_id", "to_connection_id"], additionalProperties: false },

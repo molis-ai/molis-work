@@ -86,7 +86,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       { appendEvent: event => database.appendEvent(event), eventCursor: id => database.eventCursor(id) });
     try {
       const bundle = replication(store).read(fixed.confirmed.artifact_id)!;
-      assert.equal(bundle.versions[0]!.schema_version, 2);
+      assert.equal(bundle.versions[0]!.schema_version, 1);
       assert.deepEqual(bundle.versions[0]!.payload, fixed);
       assert.equal(JSON.stringify(bundle).includes(home), false, "the owner's fixed bytes contain no original directory");
       replication(targetStore).apply(bundle);
@@ -102,14 +102,14 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       assert.equal(starts.length, 0, "a synced plan and a guessed continuation cannot start a Run");
     } finally { await releaseProjectPlugins(targetStore, DEMO_PROJECT_ID); store = originalStore; activeHome = home; targetStore.close(); }
     const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
-    for (const [revision, schema_version] of [[900, 1], [901, 2]] as const) {
+    for (const [revision, schema_version] of [[900, 2], [901, 1]] as const) {
       const reference = { artifact_id: `coding-plan:app:${revision}`, version: 1 };
       processItems.commands.registerVersion({ project_id: DEMO_PROJECT_ID, ...reference, schema_version,
         artifact_type_id: "coding.plan.v1", actor_id: "web-user", producer: { plugin_id: "io.molis.work.coding", plugin_version: "0.3.0", binding_signature: "official-coding-binding" },
         content: { kind: "inline", payload: { ...localFixed, revision, confirmed: reference } } });
       const refused=await request(`/plan?revision=${revision}`);
       assert.equal(refused.status,400,JSON.stringify(refused.body));
-      if(schema_version===1)assert.equal(refused.body.code,"artifacts.plugin_incompatible");
+      if(schema_version===2)assert.equal(refused.body.code,"artifacts.plugin_incompatible");
       else assert.match(refused.body.error,/计划来源与当前会话不一致/);
       assert.equal(Object.hasOwn(refused.body,"plan"),false,"old schema and native-path-shaped fixed plans are not portable facts");
     }

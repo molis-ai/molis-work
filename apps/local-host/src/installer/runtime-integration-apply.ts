@@ -65,7 +65,7 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
       const inspection = prepared.adapter.inspectConfig(prepared.nextConfigText,
         prepared.adapter.desiredConnection(prepared.artifacts, ports.homeDirectory));
       if (!inspection.entryFingerprint) throw new Error("无法生成 Molis Work 配置所有权指纹");
-      await ports.writeReceipt({ schema_version: 1, owner: INTEGRATION_OWNER, runtime_id: plan.runtime_id,
+      await ports.writeReceipt({ schema_version: /* @version format.runtime.integration.receipt */ 1, owner: INTEGRATION_OWNER, runtime_id: plan.runtime_id,
         config_path: configPath, config_entry_fingerprint: inspection.entryFingerprint,
         skill_path: skillPath, skill_target: prepared.artifacts.skillSourcePath, connected_at: new Date().toISOString() });
       return integrationResult("connected", plan.runtime_id, plan.plan_id, plan.backup_path, ports.receiptPath,

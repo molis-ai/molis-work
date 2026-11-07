@@ -20,6 +20,8 @@ const reminder = object({ text, plugin_id: id, plugin_title: text, needs_confirm
 // Jobs belong to other plugins' wakeups; their recurrence and last result stay owned by the scheduler service.
 const job = { type: "object", properties: { job_id: id, plugin_id: id, capability_id: id, object_ref: text, title: text, next_due_at: text, enabled: { type: "boolean" },
   created_at: text, updated_at: text, reminder }, required: ["job_id", "plugin_id", "capability_id", "object_ref", "title", "next_due_at", "enabled"] };
+// One reminder as another plugin's background task may read it: what it says, whose it is and when; no installation or wakeup target.
+const reminderItem = object({ job_id: id, text, plugin_id: id, plugin_title: text, next_due_at: text, enabled: { type: "boolean" }, needs_confirmation: { type: "boolean" } });
 const occurrence = object({ projectId: id, operationId: id, dueAt: text, state: { enum: ["pending", "running", "succeeded", "failed", "unknown", "skipped"] },
   detail: nullableText, startedAt: nullableText, finishedAt: nullableText,
   decisions: { type: "array", items: object({ decision: { enum: ["retry", "skip"] }, at: text, previousDetail: nullableText }) } },
@@ -37,41 +39,46 @@ const fields = { title: { type: "string", maxLength: 200, description: "1 到 80
 const read = ["schedule:read"], write = ["schedule:write"];
 
 // `schedule.register/list/...` are the platform wakeup capabilities other plugins consume; the plugin's own tasks live beside them.
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
+function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], options: { plugin?: false } = {}): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(`schedule.${name}`, operation, { title, description,
     audiences: ["user", "workflow", "agent", "mcp"],
-    permissions, subject_kinds: ["schedule_task"], input_schema: input, output_schema: output, ...options });
+    permissions, subject_kinds: ["schedule_task"], input_schema: input, output_schema: output, ...options }, version);
 }
 
+/** A reminder of this project, without the operations other plugins scheduled or their input (`schedule.reminders.list`). */
+export interface ScheduleReminderItem { job_id: string; text: string; plugin_id: string; plugin_title: string; next_due_at: string; enabled: boolean; needs_confirmation: boolean }
 export interface ScheduleTaskInput { title: string; instructions: string; time: string; notify_important?: boolean }
 /** What a due task still needs from the Host: a configured text model, and a verified workspace bound to the project. */
 export interface ScheduleTaskReadiness { model: boolean; workspace: boolean }
 export const scheduleActions = {
-  list: define<Record<string, never>, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[] }>("tasks.list", "定时任务列表",
+  list: define<Record<string, never>, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[] }>("tasks.list", /* @version action.schedule.tasks.list */ 1, "定时任务列表",
     "读取当前项目的每日对话任务与其他插件登记的闹钟；已归档任务不在列表中", "query", object({}),
     object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView } }), read),
-  readiness: define<Record<string, never>, ScheduleTaskReadiness>("tasks.readiness", "定时任务就绪情况",
+  reminders: define<Record<string, never>, { reminders: ScheduleReminderItem[] }>("reminders.list", /* @version action.schedule.reminders.list */ 1, "提醒列表",
+    "只读取当前项目的提醒：内容、来自哪个插件、下一次时间与是否启用；不含定时任务与其他插件登记的定时操作", "query", object({}),
+    object({ reminders: { type: "array", items: reminderItem } }), read),
+  readiness: define<Record<string, never>, ScheduleTaskReadiness>("tasks.readiness", /* @version action.schedule.tasks.readiness */ 1, "定时任务就绪情况",
     "读取对话任务到点执行需要的条件：已配置的文字模型、项目绑定的工作区；缺任何一项都仍可创建任务，到点时才会叫醒失败", "query", object({}),
     object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read),
-  createTask: define<ScheduleTaskInput, { task: ScheduleConversationTaskView }>("tasks.create", "新建定时任务",
+  createTask: define<ScheduleTaskInput, { task: ScheduleConversationTaskView }>("tasks.create", /* @version action.schedule.tasks.create */ 1, "新建定时任务",
     "新建每天定时运行的对话任务并登记下一次唤醒；到点后由项目 Agent 按说明执行", "command",
     object(fields, ["title", "instructions", "time"]), object({ task }), write),
-  updateTask: define<ScheduleTaskInput & { task_id: string }, { task: ScheduleConversationTaskView }>("tasks.update", "修改定时任务",
+  updateTask: define<ScheduleTaskInput & { task_id: string }, { task: ScheduleConversationTaskView }>("tasks.update", /* @version action.schedule.tasks.update */ 1, "修改定时任务",
     "修改任务标题、说明与时间；启用中的任务按新时间重新排期，保留原对话记录", "command",
     object({ task_id: id, ...fields }, ["task_id", "title", "instructions", "time"]), object({ task }), write),
-  archiveTask: define<{ task_id: string }, { archived: true }>("tasks.archive", "归档定时任务",
+  archiveTask: define<{ task_id: string }, { archived: true }>("tasks.archive", /* @version action.schedule.tasks.archive */ 1, "归档定时任务",
     "停止任务并移出列表，取消尚未到点的唤醒；保留原对话记录", "command", object({ task_id: id }), object({ archived: { const: true } }), write),
-  setTaskEnabled: define<{ task_id: string; enabled: boolean }, { task: ScheduleConversationTaskView }>("tasks.enabled", "暂停或恢复定时任务",
+  setTaskEnabled: define<{ task_id: string; enabled: boolean }, { task: ScheduleConversationTaskView }>("tasks.enabled", /* @version action.schedule.tasks.enabled */ 1, "暂停或恢复定时任务",
     "暂停时不再唤醒；恢复时从现在起计算下一次运行时间", "command", object({ task_id: id, enabled: { type: "boolean" } }), object({ task }), write),
-  openTask: define<{ task_id: string }, { task: ScheduleConversationTaskView }>("tasks.open", "标记定时任务已读",
+  openTask: define<{ task_id: string }, { task: ScheduleConversationTaskView }>("tasks.open", /* @version action.schedule.tasks.open */ 1, "标记定时任务已读",
     "打开任务时清除未读标记，不改变排期", "command", object({ task_id: id }), object({ task }), write),
-  setJobEnabled: define<{ job_id: string; enabled: boolean }, { job: ScheduleJobRecord }>("jobs.enabled", "暂停或恢复闹钟",
+  setJobEnabled: define<{ job_id: string; enabled: boolean }, { job: ScheduleJobRecord }>("jobs.enabled", /* @version action.schedule.jobs.enabled */ 1, "暂停或恢复闹钟",
     "暂停或恢复其他插件登记的闹钟；对话任务使用自己的开关", "command", object({ job_id: id, enabled: { type: "boolean" } }), object({ job }), write),
-  recoverReminder: define<RecoverScheduleReminderInput, { job: ScheduleJobView }>("reminders.recover", "确认并恢复旧提醒",
+  recoverReminder: define<RecoverScheduleReminderInput, { job: ScheduleJobView }>("reminders.recover", /* @version action.schedule.reminders.recover */ 1, "确认并恢复旧提醒",
     "查看提醒内容和当前安装后，明确将旧提醒交给当前安装并恢复原排期；过期时补提醒一次。预期安装 ID 和世代仅用于拒绝过期确认，不能授权任意安装", "command",
     object({ job_id: id, expected_installation_id: id, expected_generation: id }), object({ job }), write, { plugin: false }),
-  recoverOperation: define<RecoverScheduledOperationInput, { operation: ScheduledOperationView }>("operations.recover", "核对并恢复定时操作",
+  recoverOperation: define<RecoverScheduledOperationInput, { operation: ScheduledOperationView }>("operations.recover", /* @version action.schedule.operations.recover */ 1, "核对并恢复定时操作",
     "先读取原功能、输入、当前安装与执行记录，再决定恢复、重试最早的未知结果（可能重复副作用）或跳过该次。预期版本与 revision 拒绝过期确认；不会直接执行插件代码，保留原排期与历史", "command",
     object({ operation_id: id, decision: { enum: ["resume", "retry", "skip"] }, expected_revision: id, expected_installation_id: id, expected_generation: id, expected_version: id }),
     object({ operation: operationView }), write, { plugin: false }),
@@ -94,6 +101,8 @@ export interface ScheduleActionPorts {
   createTask(input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
   updateTask(taskId: string, input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
   archiveTask(taskId: string): void;
+  /** After an archive has committed: the task's read grants go with it (the platform's; Schedule only asks it to clear them). */
+  archived?(taskId: string): Promise<void>;
   setTaskEnabled(taskId: string, enabled: boolean): ScheduleConversationTaskView;
   openTask(taskId: string): ScheduleConversationTaskView;
 }
@@ -103,28 +112,38 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
   const project = (caller: ActionCallContext) => {
     if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请求项目与定时任务所在项目不一致");
   };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
+  // `after` runs once the write has committed, outside its transaction: what it calls is another owner's, not part of this write.
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>,
+    after?: (input: I) => Promise<void>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     // The scheduler service's refusals leave Schedule as Schedule's own declared failures.
     handle: async (caller, input) => { try {
       project(caller);
-      if (definition.operation === "command") {
+      const run = async () => {
+        if (definition.operation !== "command") return await handle(input as I, caller);
         if (write) return await write(caller, () => handle(input as I, caller));
         await caller.beforeEffect();
-      }
-      return await handle(input as I, caller);
+        return await handle(input as I, caller);
+      };
+      const output = await run();
+      await after?.(input as I);
+      return output;
     } catch (error) { throw scheduleFailure(error); } },
   });
   const editable = (input: ScheduleTaskInput) => ({ title: input.title, instructions: input.instructions, ...parseClockTime(input.time), notify_important: input.notify_important !== false });
   return [
     bind(scheduleActions.list, () => ({ jobs: [...ports.listJobs()], tasks: [...ports.listTasks()], operations: ports.listOperations?.() ?? [] })),
+    bind(scheduleActions.reminders, () => ({ reminders: ports.listJobs().flatMap(job => job.reminder ? [{ job_id: job.job_id, text: job.reminder.text,
+      plugin_id: job.reminder.plugin_id, plugin_title: job.reminder.plugin_title, next_due_at: job.next_due_at, enabled: job.enabled,
+      needs_confirmation: job.reminder.needs_confirmation }] : []) })),
     bind(scheduleActions.readiness, () => {
       if (!ports.readiness) throw new ActionError("actions.unredeemed", "当前宿主未提供定时任务就绪检查");
       return ports.readiness();
     }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
     bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input)) })),
-    bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; }),
+    bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; },
+      async input => { await ports.archived?.(input.task_id); }),
     bind(scheduleActions.setTaskEnabled, input => ({ task: ports.setTaskEnabled(input.task_id, input.enabled) })),
     bind(scheduleActions.openTask, input => ({ task: ports.openTask(input.task_id) })),
     bind(scheduleActions.setJobEnabled, input => ({ job: ports.setEnabled(input.job_id, input.enabled) })),

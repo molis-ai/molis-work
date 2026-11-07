@@ -72,7 +72,7 @@ const GITHUB_ATTENTION_REASONS = new Set([
 ]);
 
 interface GithubNotificationCursor {
-  v: 1;
+  v: /* @version format.cursor.github.notifications */ 1;
   provider: "github";
   mode: "live";
   account_login?: string;
@@ -426,14 +426,14 @@ function githubCursor(value: unknown): GithubNotificationCursor | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const cursor = value as Partial<GithubNotificationCursor>;
   if (
-    cursor.v !== 1
+    cursor.v !== /* @version format.cursor.github.notifications */ 1
     || cursor.provider !== "github"
     || cursor.mode !== "live"
     || typeof cursor.next_poll_at !== "string"
     || !Number.isFinite(Date.parse(cursor.next_poll_at))
   ) return null;
   return {
-    v: 1,
+    v: /* @version format.cursor.github.notifications */ 1,
     provider: "github",
     mode: "live",
     ...(typeof cursor.account_login === "string" ? { account_login: cursor.account_login } : {}),
@@ -526,7 +526,7 @@ async function liveSyncNotifications(
   const lastModified = first!.headers.get("last-modified") ?? previous?.last_modified;
   const providerTime = latestProviderTime(items, previous?.last_provider_updated_at);
   return { items, cursor: {
-    v: 1, provider: "github", mode: "live", granted_scopes: previous?.granted_scopes ?? [],
+    v: /* @version format.cursor.github.notifications */ 1, provider: "github", mode: "live", granted_scopes: previous?.granted_scopes ?? [],
     authorization_kind: previous?.authorization_kind ?? "unknown",
     poll_interval_seconds: pollSeconds, next_poll_at: new Date(at.getTime() + pollSeconds * 1_000).toISOString(), synced_at: syncedAt,
     ...(previous?.account_login ? { account_login: previous.account_login } : {}),
@@ -581,7 +581,7 @@ function notificationItems(raw: unknown[], syncedAt: string, status: number): Co
     if (!threadId || !repositoryName || !subjectTitle) throw new GithubLiveError("provider", status);
     const occurredAt = safeProviderTime(notification.updated_at, syncedAt);
     const attention = GITHUB_ATTENTION_REASONS.has(reason)
-      ? { reason: "source_rule" as const, detail: { provider_reason: reason, repository: repositoryName, rule: "github_direct_attention_v1" } }
+      ? { reason: "source_rule" as const, detail: { provider_reason: reason, repository: repositoryName, rule: /* @version policy.github.direct-attention "github_direct_attention_v{version}" */ "github_direct_attention_v1" } }
       : false;
     const isPullRequest = subjectType === "PullRequest";
     const isMention = reason === "mention" || reason === "team_mention";

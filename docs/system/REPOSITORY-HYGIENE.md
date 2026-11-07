@@ -28,7 +28,7 @@ git grep -n -i "sidecar" -- '*DESIGN.md'
 
 **新截图默认不入库。** 测试截图写进已被忽略的 `.impeccable/qa/review/`（AGENTS.md「构建与测试」）。`MOLIS_WORK_REVIEW_EVIDENCE=1` 只用来覆盖已入库的同名图，不增加文件。
 
-**门禁**：`pnpm health:check` 的 `impeccable`（`scripts/gates/impeccable-files.mjs`，接在 `scripts/check-health-gates.mjs` 的 `METRICS` 里）数全部 `.impeccable/` 下入库的文件，含嵌套的，按评审组计数：组是 `.impeccable/` 往下第二层的目录（`.impeccable/review/<组>`、`.impeccable/mocks/<组>`），直接放在 `review/`、`surfaces/` 里的文件算那一层，组里更深的文件算组里。每个组只许减少，没有记录的组从 0 开始。所以：覆盖同名图、组内改名、删文件都通过；新增一张图、新增一个评审组、把文件从一组挪到另一组都不通过，在别处删文件也抵不掉（总数是减了，挪进去的那组变多了）。真有一组该入库，要改门禁本身，那要过评审。CI 用 `--base` 与合并基点比较，改 `tooling/gates/baseline.json` 绕不过去；`tests/health-gates-impeccable.test.ts` 在小仓库里验证每条规则（多一个文件就失败、`--update` 不能洗掉、不带 `--base` 的快查对已提交的基线同样拦、被忽略的 QA 目录和名字相近的目录不算、名为 `.impeccable` 的文件不算目录、删文件通过、`--report` 的排序与 `--top`），并用与 `vendored-provenance` 同样的办法检查过：把脚本里的 `&&`、`||` 逐个换成反的，每一处都有用例变红。门禁只管数量，「是不是被点名」靠上面的方法，评审时查。
+**门禁**：`pnpm health:check` 的 `impeccable`（`scripts/gates/impeccable-files.mjs`，接在 `scripts/check-health-gates.mjs` 的 `METRICS` 里）数全部 `.impeccable/` 下入库的文件，含嵌套的，按评审组计数：组是 `.impeccable/` 往下第二层的目录（`.impeccable/review/<组>`、`.impeccable/mocks/<组>`），直接放在 `review/`、`surfaces/` 里的文件算那一层，组里更深的文件算组里。每个组只许减少，没有记录的组从 0 开始。所以：覆盖同名图、组内改名、删文件都通过；新增一张图、新增一个评审组、把文件从一组挪到另一组都不通过，在别处删文件也抵不掉（总数是减了，挪进去的那组变多了）。真有一组该入库，要改门禁本身，那要过评审。CI 用 `--base` 与合并基点比较，改 工作树 Git 元数据里的本地快查 绕不过去；`tests/health-gates-impeccable.test.ts` 在小仓库里验证每条规则（多一个文件就失败、`--update` 不能洗掉、不带 `--base` 的快查对已提交的基线同样拦、被忽略的 QA 目录和名字相近的目录不算、名为 `.impeccable` 的文件不算目录、删文件通过、`--report` 的排序与 `--top`），并用与 `vendored-provenance` 同样的办法检查过：把脚本里的 `&&`、`||` 逐个换成反的，每一处都有用例变红。门禁只管数量，「是不是被点名」靠上面的方法，评审时查。
 
 **2026-10-08 的清理**：1,104 个文件（根目录 1,085 个、嵌套 19 个，约 112 MiB）清到 318 个（约 21 MiB）：
 

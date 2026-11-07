@@ -10,7 +10,7 @@ import { pageText } from "./fixtures/page-text.js";
 import { diffPageText } from "./fixtures/diff-page-text.js";
 
 // specs/visual-ui-experience VUX-40 (English coverage): the sentences Diff and Git write once, in Chinese, with a path, a name or a
-// count inside (the path a round didn't change, a rename, a unified diff that can't be read; a remote's host, the files a merge
+// count inside (the path a turn didn't change, a rename, a unified diff that can't be read; a remote's host, the files a merge
 // stopped on, a branch that already exists) are said again in the page's language. What an Agent reads is unchanged.
 
 const HAN = /[一-鿿]/;
@@ -23,7 +23,7 @@ const shown = (locale: "zh" | "en", view: Parameters<typeof renderDiff>[0]["view
 test("VUX-40: Diff's path, rename and unified-diff sentences read in English on the English page and are unchanged for an Agent", () => {
   const input = (diff: string) => ({ content: run(diff), source_plugin_id: "io.molis.work.coding", content_version: 1 });
   const cases: Array<[view: ReturnType<typeof compareRunChangeSet>, zh: string, en: string]> = [
-    [compareRunChangeSet(input("@@ -1 +1 @@\n-a\n+b\n"), "src/missing.ts"), "这一轮没有改动 src/missing.ts", "This round didn't change src/missing.ts"],
+    [compareRunChangeSet(input("@@ -1 +1 @@\n-a\n+b\n"), "src/missing.ts"), "这一轮没有改动 src/missing.ts", "This turn didn't change src/missing.ts"],
     [compareRunChangeSet(input("@@ -1,5 +1,5 @@\n a\n")), "hunk 行数与 @@ 头不一致：声明 5/5，实际 1/1", "A hunk's line counts don't match its @@ header: declared 5/5, found 1/1"],
     [compareRunChangeSet(input("@@ nonsense @@\n+x\n")), "读不懂的 hunk 头：@@ nonsense @@", "Can't read this hunk header: @@ nonsense @@"],
     [compareRunChangeSet(input("not a diff\n")), "这段 diff 里没有可读的 hunk", "There is no readable hunk in this diff"],

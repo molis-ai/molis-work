@@ -10,7 +10,7 @@ import type {
   ShelfSettingsPatch,
   ShelfShortcutAction,
 } from "./contract.js";
-import { defaultShelfHotKeys, normalizeHotKeys, parseHotkeysPatch } from "./hotkeys.js";
+import { defaultShelfHotKeys, normalizeHotKeys, parseHotkeysPatch, SHELF_HOTKEY_SLOTS } from "./hotkeys.js";
 import { SHELF_RECIPE_ORDER } from "./recipes.js";
 import { SHELF_ENGINES } from "./runtimes.js";
 
@@ -143,6 +143,23 @@ export function normalizeShelfSettings(raw: unknown): ShelfDeviceSettings {
     action_order: normalizeOrder(record.action_order, shortcuts),
     hidden_actions: normalizeStrings(record.hidden_actions),
   };
+}
+
+/**
+ * Whether stored settings have the current shape: every field and key slot, nothing else, each passing the checks a
+ * write passes. Only the shape: an engine or recipe slot this build no longer offers is not a format change, and
+ * normalizeShelfSettings still settles it on read.
+ */
+export function isCurrentShelfSettings(raw: unknown): raw is ShelfDeviceSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const record = raw as Record<string, unknown>;
+  const exactly = (value: unknown, keys: readonly string[]) => Boolean(value) && typeof value === "object"
+    && Object.keys(value as object).length === keys.length && keys.every(key => Object.hasOwn(value as object, key));
+  const texts = (value: unknown) => Array.isArray(value) && value.every(item => typeof item === "string");
+  return exactly(record, Object.keys(defaultShelfDeviceSettings()))
+    && exactly(record.hotkeys, SHELF_HOTKEY_SLOTS) && exactly(record.panel_keys, SHELF_PANEL_KEY_SLOTS)
+    && typeof record.engine === "string" && texts(record.action_order) && texts(record.hidden_actions)
+    && "ok" in parseSettingsWriteBody({ ...record, engine: "auto" });
 }
 
 export function mergeShelfSettings(current: ShelfDeviceSettings, patch: ShelfSettingsPatch): ShelfDeviceSettings {

@@ -72,7 +72,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `demo-plugin-seed.ts`（`palette.ts`、`icons.ts`、`catalog.ts` 三处按插件手写的名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`）已随 PG-075 删除，现在是 2026-10-25 起的 9 个：插件的图标是视图的 `icon`，tab 组的颜色是视图的 `hue`，两者都写在 Manifest 里，设计系统不再保留插件名单。）（原来还有 `coding-surface.ts`，宿主里写死的伙伴页渲染分支，PG-036 C9 已删）。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
 
-**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整 v2 安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 已不靠宿主里手写的文件接上 Home 数据：它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的（`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住），S4 删了 `shelf-actions.ts`，演示数据的示例由宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回；按第 1 节同一条命令换成 shelf，包外仍有 17 个源码或配置文件点名它。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
+**个人（Home 级）插件**：在目录的实际 runtime 声明上由唯一 `HomePluginHost` 装配，Issue 已在这条路径；Home 与项目执行器共用 `services.database`、`services.model`、指令与可信提供方规则，Home 私有 KV 在完整的安装库。现有 Form、Todo 等仍未迁移，不能把平台接线当成消费者迁移完成。现有样本 Shelf 已不靠宿主里手写的文件接上 Home 数据：它的动作与模型调用从 Shelf S2 起是 Runtime 实例，路由从 S3 起是插件自己的（`shelf-native-plugin-http.ts` 已删；这类 `*-native-plugin-http.ts` 新文件已被门禁拦住），S4 删了 `shelf-actions.ts`，演示数据的示例由宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回；按第 1 节同一条命令换成 shelf，包外仍有 17 个源码或配置文件点名它。Characters 原来也是这样的样本；2026-10-08 已定它不再是 Runtime 插件、并进宿主（[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 第 5.4 节），所以不再作为新插件的样本（CHR-1 已做，2026-10-22）。Home 当前接线与工程证据按防腐 spec §10.2 核对；后续迁移仍逐插件推进。
 
 **历史目标推演：1（另需 SSOT 文档一行）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，另需 SSOT 的 owner 文档一行；门禁名单从生成登记读取，不手加。其余由声明产生，下面五项都做到才是 1：
 
@@ -261,7 +261,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **F2 Coding 质量保证**（`specs/coding-quality-assurance/spec.md`：自检、交叉评审、对抗评审，设置放在 Coding，结论写回关联 Goal 的事件）。
 
-- 现在：2。一是 `apps/local-host/src/project-database-schema.ts`（评审结果若要建表，`CODING_SCHEMA_SQL` 来自 Coding 包，但基线总版本号 `version: 7` 在宿主文件里，改表要升版本）；二是 `apps/local-host/src/project-plugins.ts` 的 `codingPorts`（评审子运行需要的新端口）。设置页由 Coding 包自己的 `codingSettingsContribution` 提供，结论写回 Goal 走 Goals 的公开动作并在 Manifest `capabilities.consumes` 声明，提示词追加到 `CODING_INSTRUCTIONS`，都是包内。
+- 现在：2。一是 `apps/local-host/src/project-database-schema.ts`（评审结果若要建表，`CODING_SCHEMA_SQL` 来自 Coding 包，但基线总版本号在宿主文件里，改表要升版本）；二是 `apps/local-host/src/project-plugins.ts` 的 `codingPorts`（评审子运行需要的新端口）。设置页由 Coding 包自己的 `codingSettingsContribution` 提供，结论写回 Goal 走 Goals 的公开动作并在 Manifest `capabilities.consumes` 声明，提示词追加到 `CODING_INSTRUCTIONS`，都是包内。
 - 补什么：X-5 让项目库基线由各 owner 包声明的 SQL 汇总、版本由声明推出；端口走 W3-06 的平台服务。**再推演：0。**
 
 **F3 新的外部服务（自带 OAuth，GitHub、Gmail 形）**（来源：BL-060、BL-061）。

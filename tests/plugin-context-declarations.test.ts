@@ -84,9 +84,9 @@ test("W1-04: the places an offer applies in are the places that exist, without r
   assert.deepEqual(fragments, [wrong]);
 });
 
-const reader = defineSubjectContextAction("example.doc.read", "example_doc", "读文档", []);
-const itemReader = defineSubjectContextAction("example.item.read", "example_item", "读事项", []);
-const prepare = defineFragmentOffersAction("example.prepare", ["example_item"], "Prepare", [], [{ offer_id: "item", title: "记成待办", intent: "capture", apply: "record", hint: "h", action: { capability_id: "example.create", version: 1 } }]);
+const reader = defineSubjectContextAction("example.doc.read", 1, "example_doc", "读文档", []);
+const itemReader = defineSubjectContextAction("example.item.read", 1, "example_item", "读事项", []);
+const prepare = defineFragmentOffersAction("example.prepare", 1, ["example_item"], "Prepare", [], [{ offer_id: "item", title: "记成待办", intent: "capture", apply: "record", hint: "h", action: { capability_id: "example.create", version: 1 } }]);
 const view = (over: Part = {}) => ({ view_id: "cell", slot: "side", title: "Cell", ...over });
 const manifest = (actions: Part[], views: Part[] = []) => declarationManifest({
   actions, ui: { contributions: views.map(entry => `${DECLARATION_PLUGIN_ID}.${String(entry.view_id)}`), views },

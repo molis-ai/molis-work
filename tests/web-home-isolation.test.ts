@@ -28,6 +28,10 @@ test("RAC-212: Web resolves environment Home once for Catalog, control token and
   Object.assign(process.env, { MOLIS_WORK_HOME: envHome, MOLIS_WORK_SECRET_BACKEND: "file", NODE_ENV: "test" });
   delete process.env.MOLIS_WORK_GITHUB_TOKEN;
   delete process.env.MOLIS_WORK_GMAIL_ACCESS_TOKEN;
+  // The key is checked with GitHub before it is saved (§13.6 ④d): a stand-in GitHub accepts it, and nothing leaves the machine.
+  const realFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => String(input) === "https://api.github.com/user"
+    ? Response.json({ login: "fixture-octocat", id: 7 }) : realFetch(input, init));
   let server: Server | undefined;
   try {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: envHome });

@@ -10,7 +10,7 @@ import type { ActionSubject } from "./action-subjects.js";
  * it shows (`MaterialOrigin`), so a revoked or deleted material cannot answer from an old copy.
  */
 export type MaterialPin =
-  /** The file as it is now; `read_revision` is the revision read, for telling the person it has moved on since. */
+  /** The file as it is now; `read_revision` is the revision read, for telling the person it has moved on since. For a local file that is the sha256 of its bytes or `size:<bytes>`, which `assertMaterialRef` checks. */
   | { mode: "current"; read_revision: string }
   /** A fixed version in the 成果库. */
   | { mode: "fixed"; version: ArtifactReference }
@@ -62,7 +62,7 @@ const closed = (properties: Record<string, unknown>, required = Object.keys(prop
 const version = closed({ artifact_id: text(MATERIAL_REF_LIMITS.artifact_id), version: positive });
 const roles = ["input", "output"] satisfies DirectoryRole[];
 
-/** The JSON shape only. A workspace file id's path also has to stay inside its folder, so an owner runs `assertMaterialRef` on what it accepts. */
+/** The JSON shape only. A workspace file id's path also has to stay inside its folder, and its `read_revision` has to be the sha256 of its bytes or `size:<bytes>`, so an owner runs `assertMaterialRef` on what it accepts. */
 export const MATERIAL_REF_SCHEMA: ActionSchema = closed({
   subject: closed({ kind: text(MATERIAL_REF_LIMITS.subject_kind), id: text(MATERIAL_REF_LIMITS.subject_id) }),
   pin: { oneOf: [

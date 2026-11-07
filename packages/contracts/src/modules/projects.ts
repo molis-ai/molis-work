@@ -155,7 +155,7 @@ export interface ProjectDirectories {
   project_id: string;
   /** Exactly one carries `output`, also in a project with no local input (the default location the owner creates with the project). */
   directories: ProjectDirectory[];
-  /** Ids only, no paths. */
+  /** Ids only, no paths. Kept on this device alone and never synced. */
   source_links: { source_workspace_id: string; workspace_id: string }[];
   /** Where changes commit from, as `expected_revision`. */
   revision: string;
@@ -390,8 +390,8 @@ const expectedRevision = { type: "string", minLength: 1, maxLength: 200 };
 const closedInput = (properties: Record<string, unknown>): ActionSchema => ({ type: "object", properties: { ...properties, expected_revision: expectedRevision },
   required: [...Object.keys(properties), "expected_revision"], additionalProperties: false });
 /** A change to this project's directories: the local user's, who stands for the confirmation, committed from the revision they read. */
-const directoryCommand = <Input>(id: string, title: string, description: string, input_schema: ActionSchema, details: Pick<ActionMetadata, "effect"> = {}): ActionDefinition<Input & { expected_revision: string }, ProjectDirectories> => ({
-  capability_id: id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
+const directoryCommand = <Input>(id: string, version: number, title: string, description: string, input_schema: ActionSchema, details: Pick<ActionMetadata, "effect"> = {}): ActionDefinition<Input & { expected_revision: string }, ProjectDirectories> => ({
+  capability_id: id, version, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
     subject_kinds: ["project"], input_schema, output_schema: PROJECT_DIRECTORIES_SCHEMA, output_type: "project.directories", ...details },
 });
 
@@ -399,30 +399,30 @@ const directoryCommand = <Input>(id: string, title: string, description: string,
 export const projectDirectoryActions = {
   get: {
     capability_id: "projects.directories.get",
-    version: 1,
+    version: /* @version action.projects.directories.get */ 1,
     operation: "query",
     action: { title: "项目目录", description: "读取当前项目的输入目录与输出目录；只读", kind: "query", scope: "project", audiences: ["user", "plugin", "agent", "mcp"],
       permissions: [], subject_kinds: ["project"], input_schema: { type: "object", properties: {}, additionalProperties: false },
       output_schema: PROJECT_DIRECTORIES_SCHEMA, output_type: "project.directories" },
   } as ActionDefinition<Record<string, never>, ProjectDirectories>,
-  addInput: directoryCommand<{ workspace_path: string }>("projects.directories.add_input", "添加输入目录", "把本机一个文件夹加为当前项目的输入目录；路径核实不了时拒绝",
+  addInput: directoryCommand<{ workspace_path: string }>("projects.directories.add_input", /* @version action.projects.directories.add_input */ 1, "添加输入目录", "把本机一个文件夹加为当前项目的输入目录；路径核实不了时拒绝",
     closedInput({ workspace_path: folderPath })),
   // The folder stays on disk and can be added again, so the `remove` in the id does not make this irreversible.
-  removeInput: directoryCommand<{ workspace_id: string }>("projects.directories.remove_input", "移除输入目录", "让一个文件夹不再是当前项目的输入目录；磁盘上的文件不动",
+  removeInput: directoryCommand<{ workspace_id: string }>("projects.directories.remove_input", /* @version action.projects.directories.remove_input */ 1, "移除输入目录", "让一个文件夹不再是当前项目的输入目录；磁盘上的文件不动",
     closedInput({ workspace_id: folderId }), { effect: "write" }),
-  setOutput: directoryCommand<DirectoryTarget>("projects.directories.set_output", "设置输出目录",
+  setOutput: directoryCommand<DirectoryTarget>("projects.directories.set_output", /* @version action.projects.directories.set_output */ 1, "设置输出目录",
     "设或改当前项目的输出目录，也可以把一个输入目录设为输出，或设回默认位置；旧文件不搬移、不删除、不覆盖",
     { ...closedInput({ workspace_id: folderId, workspace_path: folderPath, default_output: { const: true } }),
       required: ["expected_revision"],
       oneOf: [{ required: ["workspace_id"] }, { required: ["workspace_path"] }, { required: ["default_output"] }] }),
-  repair: directoryCommand<{ workspace_id: string; workspace_path: string }>("projects.directories.repair", "修复目录路径", "文件夹换了位置以后重新找到它：只在它失效时允许，目录的身份不变，关联它的每个项目一起跟着走",
+  repair: directoryCommand<{ workspace_id: string; workspace_path: string }>("projects.directories.repair", /* @version action.projects.directories.repair */ 1, "修复目录路径", "文件夹换了位置以后重新找到它：只在它失效时允许，目录的身份不变，关联它的每个项目一起跟着走",
     closedInput({ workspace_id: folderId, workspace_path: folderPath })),
-  mapSource: directoryCommand<{ source_workspace_id: string } & DirectoryTarget>("projects.directories.map_source", "指定对应的文件夹",
+  mapSource: directoryCommand<{ source_workspace_id: string } & DirectoryTarget>("projects.directories.map_source", /* @version action.projects.directories.map_source */ 1, "指定对应的文件夹",
     "把另一台设备或已换走的一个目录对应到当前项目的文件夹；已有对应就换掉；读的时候换算，引用不变",
     { ...closedInput({ source_workspace_id: folderId, workspace_id: folderId, workspace_path: folderPath, default_output: { const: true } }),
       required: ["source_workspace_id", "expected_revision"],
       oneOf: [{ required: ["workspace_id"] }, { required: ["workspace_path"] }, { required: ["default_output"] }] }),
-  unmapSource: directoryCommand<{ source_workspace_id: string }>("projects.directories.unmap_source", "取消对应的文件夹",
+  unmapSource: directoryCommand<{ source_workspace_id: string }>("projects.directories.unmap_source", /* @version action.projects.directories.unmap_source */ 1, "取消对应的文件夹",
     "取消对应；文件夹还是当前项目的目录，磁盘上的文件不动",
     closedInput({ source_workspace_id: folderId }), { effect: "write" }),
 };
@@ -432,7 +432,7 @@ export const materialRecentActions = {
   /** To a plugin, only what it can read this moment: a material it cannot read is not named, and not counted. */
   read: {
     capability_id: "materials.recent",
-    version: 1,
+    version: /* @version action.materials.recent */ 1,
     operation: "query",
     action: { title: "最近用过的资料", description: "按调用方和当前项目读取最近用过的资料，新的在前，出处是现读的", kind: "query", scope: "project", audiences: ["user", "plugin"],
       permissions: [], subject_kinds: ["project"], input_schema: { type: "object", properties: {}, additionalProperties: false },
@@ -443,7 +443,7 @@ export const materialRecentActions = {
   /** Answers nothing about what it kept: a reference the caller cannot read is dropped silently, so a call here cannot probe for one. */
   record: {
     capability_id: "materials.recent.record",
-    version: 1,
+    version: /* @version action.materials.recent.record */ 1,
     operation: "command",
     action: { title: "记下用过的资料", description: "在引用、加入任务或打开资料这件事提交成功之后调用；只记引用不记正文，调用方此刻读不了的引用不记", kind: "operation", scope: "project", audiences: ["user", "plugin"],
       permissions: [], subject_kinds: ["project"], input_schema: { type: "object", properties: { refs: { type: "array", items: MATERIAL_REF_SCHEMA, minItems: 1, maxItems: MATERIAL_RECENT_RECORD_MAX } }, required: ["refs"], additionalProperties: false },

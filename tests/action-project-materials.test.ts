@@ -11,7 +11,7 @@ import { MATERIAL_RECENT_KEEP, MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_LIMITS, 
 
 // specs/shared-sources-and-surfaces §2, §2.1, §3, §7 (C-1): the contract alone. Nothing registers these actions in the product yet, so the
 // provider here is a stand-in that answers what each test gives it; the refusals are the schema's and the SDK's own, and the behaviour behind
-// the actions (SSC-02, SSC-04, SSC-05, the rest of SSC-03, SSC-12 and SSC-16) waits for the implementation.
+// the actions (SSC-02, SSC-04, SSC-05, SSC-16, and the rest of SSC-03, SSC-12 and SSC-25 to SSC-28) waits for the implementation.
 const declared = [...Object.values(projectDirectoryActions), ...Object.values(materialRecentActions)] as ActionDefinition[];
 const context = (audience: ActionCallContext["audience"], permissions: string[] = []): ActionCallContext => ({ actor_id: `${audience}:someone`, project_id: "p", audience, permissions });
 const person = context("user", ["projects:settings"]);
@@ -86,7 +86,7 @@ test("SSC-01: a workspace file id has to name a path inside its folder, which th
   assert.doesNotThrow(() => assertMaterialRef({ ...currentFile, subject: { kind: "pages.page", id: "../not-a-path" } }));
 });
 
-test("SSC-01: a local file's current pin carries its content's sha256 or its size; any other kind's revision stays its owner's", () => {
+test("SSC-28: a local file's current pin carries its content's sha256 or its size; any other kind's revision stays its owner's", () => {
   const pinned = (kind: string, id: string, read_revision: string) => ({ subject: { kind, id }, pin: { mode: "current", read_revision } });
   for (const revision of ["a".repeat(64), "0123456789abcdef".repeat(4), "size:0", "size:12"]) assert.doesNotThrow(() => assertMaterialRef(pinned(WORKSPACE_FILE_SUBJECT_KIND, "ws1:a.md", revision)), revision);
   for (const revision of ["sha:1", "a".repeat(63), "a".repeat(65), "A".repeat(64), `sha256:${"a".repeat(64)}`, "size:", "size:-1", "size:1.5"]) {
@@ -156,6 +156,17 @@ test("a plugin cannot change a project's directories, even with a legal input an
   assert.equal(calls.length, changes.length);
 });
 
+test("SSC-27: plugin, agent and mcp callers are refused map_source itself, whatever they hold", async () => {
+  const { service, calls } = serving(() => noDirectories);
+  const input = { source_workspace_id: "s", workspace_id: "w", expected_revision: "r" };
+  for (const audience of ["plugin", "agent", "mcp"] as const) {
+    await assert.rejects(service.invoke(context(audience, ["projects:settings"]), reference(projectDirectoryActions.mapSource), input), code("actions.forbidden"), audience);
+  }
+  assert.deepEqual(calls, []);
+  await service.invoke(person, reference(projectDirectoryActions.mapSource), input);
+  assert.deepEqual(calls, ["projects.directories.map_source"]);
+});
+
 test("WMD-02: removing an input or a mapping leaves the folder on disk, so neither is irreversible", () => {
   for (const { capability_id, action } of [projectDirectoryActions.removeInput, projectDirectoryActions.unmapSource]) assert.equal(actionEffect(action, capability_id), "write", capability_id);
 });
@@ -183,7 +194,7 @@ for (const [name, definition, extra] of [
   ["set_output", projectDirectoryActions.setOutput, {}],
   ["map_source", projectDirectoryActions.mapSource, { source_workspace_id: "s" }],
 ] as const) {
-  test(`SSC-03: ${name} names one folder, by id, by path or as the default location, never both or neither`, async () => {
+  test(`SSC-03, SSC-26, SSC-27: ${name} names one folder, by id, by path or as the default location, never both or neither`, async () => {
     const { service, calls } = serving(() => noDirectories);
     const send = (input: Record<string, unknown>) => service.invoke(person, reference(definition), { ...extra, ...input, expected_revision: "r1" });
     await send({ workspace_id: "w" });
@@ -199,7 +210,7 @@ for (const [name, definition, extra] of [
   });
 }
 
-test("SSC-03: map_source says which source it maps", async () => {
+test("SSC-26: map_source says which source it maps", async () => {
   const { service, calls } = serving(() => noDirectories);
   await assert.rejects(service.invoke(person, reference(projectDirectoryActions.mapSource), { workspace_id: "w", expected_revision: "r1" }), invalid);
   assert.deepEqual(calls, []);
@@ -226,7 +237,7 @@ test("SSC-03: a directory has at least one role, none repeated, and a known stat
   await assert.rejects(answer([{ ...directory, roles: ["output"], state: "ok", is_default: true }]));
 });
 
-test("SSC-03: the answer always lists the source links, and a link holds two ids and no path", async () => {
+test("SSC-26: the answer always lists the source links, and a link holds two ids and no path", async () => {
   const links = (source_links: unknown) => serving(() => ({ ...noDirectories, source_links })).service.invoke(person, reference(projectDirectoryActions.get), {});
   await links([{ source_workspace_id: "s", workspace_id: "w" }]);
   await assert.rejects(links(undefined));
@@ -246,7 +257,7 @@ test("SSC-12: one record call takes 1 to 10 references, and its answer cannot sa
   await assert.rejects(counting.invoke(person, reference(materialRecentActions.record), { refs: [currentFile] }));
 });
 
-test("SSC-12: recent materials come back with an origin read just now, at most 20 of them", async () => {
+test("SSC-12, SSC-25: recent materials come back with an origin read just now, at most 20 of them", async () => {
   const origin: MaterialOrigin = { source: "directory", owner: { kind: "system", id: PROJECT_WORKSPACE_PROVIDER_ID, title: "项目工作目录" },
     directory: { workspace_id: "ws1", display_name: "docs", roles: ["input"] }, state: "ok" };
   const read = (items: unknown[]) => serving(() => ({ items })).service.invoke(person, reference(materialRecentActions.read), {});

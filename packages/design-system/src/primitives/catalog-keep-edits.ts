@@ -15,7 +15,7 @@ export const KEEP_EDITS_BOARD_STYLES = `
   .mw-alert > :is(strong, p) { min-width: 0; overflow-wrap: anywhere; }
   .mw-alert__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   /* An action's words are never cut (DESIGN): only a label that cannot fit the row wraps, and only that button grows. */
-  .mw-alert__actions > .mw-btn { max-width: 100%; height: auto; white-space: normal; text-align: start; padding-block: 4px; }
+  .mw-alert__actions > .mw-btn { max-width: 100%; height: auto; white-space: normal; text-align: start; padding-block: 4px; line-height: 1.35; }
   .mw-alert__title { display: flex; align-items: flex-start; gap: 6px; }
   .mw-alert__mark { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; }
   .mw-alert[tabindex="-1"]:focus { outline: none; }

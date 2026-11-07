@@ -179,6 +179,8 @@ test("N14: the board's four parts are named, in both languages and themes, insid
   await open("zh", 1440);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await evaluate("document.documentElement.removeAttribute('data-craft-still')");
+  // The loading button's 1ms animations are still waiting for their first frame right after load; the clicks below still count in full.
+  await evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
   const quiet = await evaluate<{ running: string[]; focus: string; box: string | null; who: string }>(`(() => { document.querySelector('[data-keep-replay-rise]').click(); document.querySelector('[data-keep-replay-group]').click(); document.querySelector('[data-keep-press]').click(); document.querySelector('[data-keep-replay-wash]').click();
     const focus = document.activeElement.textContent.trim(); const pair = ${pair}; pair.querySelector('[data-keep-swap]').click();
     const running = [...document.querySelectorAll('${SCOPE}')].flatMap((s) => [s, ...s.querySelectorAll('*')]).flatMap((el) => el.getAnimations({ subtree: false })).filter((a) => a.playState === 'running' && !/ring|state/i.test(a.animationName ?? '')).map((a) => a.effect.target.tagName + '.' + a.effect.target.getAttribute('class') + ' ' + (a.animationName ?? a.transitionProperty));

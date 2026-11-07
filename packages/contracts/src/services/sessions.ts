@@ -510,8 +510,8 @@ const decision = { kind: "operation" as const, scope: "home" as const, effect: "
  * caller reads is narrowed by the handler, to the current project's filed sessions and only with that project's permit on. The
  * person's own decisions are theirs alone, so no Agent, workflow, MCP client or plugin can widen what it may read or file a session.
  * The search source and its reader name only `user`, which answers a direct `search.query` by another caller and nothing more: the
- * Host also reads as the person on others' behalf, so the reader is not registered until those paths are closed (contract-design
- * §10.2). All are Home actions and take the current project from the call's context, as `search.query` does.
+ * Host also reads as the person on others' behalf, so the reader is not registered until those paths are closed or handled
+ * (contract-design §10.2). All are Home actions and take the current project from the call's context, as `search.query` does.
  */
 export const sessionsActions = {
   list: { capability_id: "sessions.list", version: 1, operation: "query", action: { ...query, audiences: everyAudience, permissions: [SESSIONS_READ_PERMISSION],

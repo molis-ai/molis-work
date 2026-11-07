@@ -46,7 +46,7 @@ function head(model) {
 **词表每个主人一张，不合成一张。** 三个理由：
 - 插件独立安装、卸载，第三方写不进中央表。
 - 合成一张会互相覆盖：Pages 把「复制」译成 Duplicate，盖掉了助理的 Copy（[需求书](spec.md) §6.1 第 4 条）。
-- 合成一张就得整张发：实测英文页每次多发 1.9 MB（`resource-budget.md` 第 4.2 节，2,573,362 B 对 666,388 B）。
+- 合成一张就得整张发：英文页再次打开多发 1.9 MB（`resource-budget.md` 第 4.2 节，实测 2,573,362 B，拆开后计算值 667,040 B）。
 
 #### 验收：真实代码改前改后
 
@@ -91,7 +91,7 @@ function renderFeedSourceRail(model: FeedUiModel): string {
 
 改了 99 行：加 1 行 import，98 行换键。
 
-**`src/stage-ui.ts` 把翻译函数当参数传**（`buildFeedModel({ L: model.primitives.text }, …)`，内部 `text.L("…")`）：脚本换成 `t("…")` 后参数没人读了，第一遍留着，由主人之后清理。这样的文件有多少，第 16 批开工前数（第 14 节）。
+**`src/stage-ui.ts` 把翻译函数当参数传**（`buildFeedModel({ L: model.primitives.text }, …)`，内部 `text.L("…")`）：脚本换成 `t("…")` 后参数没人读了，同一片删掉（决定 27：这一片让什么变多余就在这一片删）。这样的文件有多少，第 16 批开工前数（第 14 节）。
 
 `p.text`、`host.translate` 在 C 段删掉，所以第 16 批要连这两个名字一起换（第 14 节），不留第二条路。
 
@@ -128,7 +128,7 @@ function renderFeedSourceRail(model: FeedUiModel): string {
 
 ### 1.3 管理：一张统一资源登记表
 
-随产品发行、有包内路径的东西（字体、皮肤、字体方案、共同规格、平台语言目录）只登记在 `packages/design-system/resources/registry.json`，字段见第 3.6 节。这张表不收别的：插件的语言文件唯一声明是 Manifest，报告从内置目录投影，不抄第二份名单；隐藏文档、内联块、启动 JSON 不是发行文件，第一屏清单放在门禁自己的文件里（`tooling/gates/` 下，第 16 批前的门禁 PR 新建，A 段不建）。
+随产品发行、有包内路径的东西（字体、皮肤、字体方案、共同规格、平台语言目录）只登记在 `packages/design-system/resources/registry.json`，字段见第 3.6 节。这张表不收别的：插件的语言文件唯一声明是 Manifest，报告从内置目录投影，不抄第二份名单；隐藏文档、内联块、启动 JSON 不是发行文件，进第一屏清单 `tooling/gates/first-screen.json`（第 16 批前的门禁 PR 创建，A 段不建）。
 
 | 问题 | 答案 |
 | --- | --- |
@@ -478,7 +478,7 @@ export interface UiResourceRegistry {
 - **不存 `bytes`，JSON 不存 `sha256`。** 这些是文件事实的第二份：第 16 批工作台词典进语言文件后，每个改字的 PR 都要改登记表同一行，并行 PR 必然冲突；数字又是从文件算出来的，证明不了什么。预算要字节，报告现算。
 - **`license` 只对 `font`、`asset` 必填。** 自家 JSON 写 spdx 和来源纯属样板。
 - **`route` 有两个读者。** `fontFaceRules` 从它写 `src: url(…)`；宿主的路由仍写在 `apps/local-host/src/web-assets.ts` 的字符串字面量里，因为 `scripts/gates/page-assets-measure.mjs` 读的就是这些字面量，改成查表它会拒绝。测试核对两边一致。
-- **`kind` 不为门禁变多。** 这张表只收有包内路径、随产品发行的文件（第 1.3 节）。第一屏的样式、脚本、内联块、启动 JSON 没有包内路径，也按页面才有意义，记在门禁自己的文件里（第 9 节）。这张表不进 Home。
+- **`kind` 不为门禁变多。** 这张表只收有包内路径、随产品发行的文件（第 1.3 节）。第一屏的样式、脚本、内联块、启动 JSON 没有包内路径，也按页面才有意义，进第一屏清单 `tooling/gates/first-screen.json`（第 9 节），门禁 PR 不给 `kind` 加值。这张表不进 Home。
 
 ## 4. 展示快照与解析
 
@@ -529,7 +529,7 @@ A 段什么都不改：令牌仍在基础 CSS 里，没有选择，快照由基�
 | 快照 | HTML 里一段 `<script type="application/json" id="ui-environment">`，不执行 | 几百字节，要同步可得；CSP 已允许内联 |
 | Soft Workbench | 不多发请求，令牌就在基础 CSS | 默认路径零成本 |
 | 其他皮肤 | `<head>` 里一个 `<link rel="stylesheet" href="/assets/ui-skin/<id>-<revision>.css">`，排在基础 CSS 之后，选用时下发的 `@font-face` 也写在这张表里；明暗仍是 `html[data-resolved-theme]` 两个分支 | 阻塞首绘，不闪默认皮肤；引导脚本不用改 |
-| 语言（用户定：工作台一份，插件按需） | `clientI18nScript`（`apps/workbench/src/i18n.ts:154`）换成工作台的词一个阻塞 `<script src="/assets/locale/workbench.<语言>.<摘要>.js">`；插件的词在挂载之前取，同一屏合成一次批量请求（N52）。第一屏就要同步读的主人（隐藏的问题收集文档要 `issues.*`，主文档 `LFor("io.molis.work.goals")`）由页面模板写明，随工作台脚本同一批阻塞取，几个等 `resource-budget.md` 实测（#1922） | 字节搬到量得到、可缓存的地方。实测：再次打开英文工作台从 2,573,362 B 降到 666,388 B（`resource-budget.md` 第 4.2 节） |
+| 语言（用户定：工作台一份，插件按需） | `clientI18nScript`（`apps/workbench/src/i18n.ts:154`）换成工作台的词一个阻塞 `<script src="/assets/locale/workbench.<语言>.<摘要>.js">`；插件的词在挂载之前取，同一屏合成一次批量请求（N52）。两个例外，怎样拿到留给第 16 批：Issues 第一屏就要（隐藏文档把整本目录交给框架）；英文工作台的 Goals 要同步可得（`LF`、`LFor` 同步读 2～3 条） | 字节搬到量得到、可缓存的地方。再次打开英文工作台从 2,573,362 B 降到 667,040 B（计算值，`resource-budget.md` 第 4.2 节） |
 
 皮肤、语言的路由不是字面量，第 16 批前的门禁 PR 一起教给 `page-assets`。
 
@@ -930,9 +930,9 @@ apps/workbench/
 
 实测与预算方案在 `specs/font-and-skin-system/resource-budget.md`（分支 `claude/14-resource-budget`，#1922），本文不写，只定怎样接。字段以本文为准，那边第 6 节写明了「字段名以合同定稿为准」，那边也按这里的说法改。
 
-**用户 2026-11-07 选了方案二：** 每次改代码，自动起一个真实服务（不开浏览器），算主要页面第一次和再次打开共下载多少，只许变少，**不设绝对上限**；第一屏资源都要登记。这是改门禁，**第 16 批开工前单开门禁 PR 落地，不和功能混，A 段不做**。
+**用户 2026-11-07 选了方案二：** 每次改代码，自动起一个真实服务（不开浏览器），算主要页面第一次和再次打开共下载多少，只许变少，**不设绝对上限**；第一屏资源都要记账，分两处放：随产品发行的文件在 `registry.json`，门禁要算的第一屏在 `tooling/gates/first-screen.json`。这是改门禁，**第 16 批开工前单开门禁 PR 落地，不和功能混，A 段不做**。
 
-**统一说法（统筹定）：** `registry.json` 只收随产品发行、有包内路径的东西。隐藏文档、内联块、启动 JSON 进门禁自己的第一屏清单（`tooling/gates/` 下，门禁 PR 新建），放进 `registry.json` 的话每个加启动请求的 PR 都要改 D 轨的发行文件。
+**统一说法（统筹定）：** `registry.json` 只收随产品发行、有包内路径的东西。隐藏文档、内联块、启动 JSON 进第一屏清单 `tooling/gates/first-screen.json`（门禁 PR 创建），放进 `registry.json` 的话每个加启动请求的 PR 都要改 D 轨的发行文件。
 
 | 预算方案的字段 | 这里怎样接 |
 | --- | --- |
@@ -941,7 +941,7 @@ apps/workbench/
 | `path`、`source` | `route`、`package`＋`path` |
 | `bytes`、`gzip` | 不存，报告从文件现算。方案二比的是真实响应对 merge-base，不需要存下来的数 |
 | `gated` | 不要。报告对照 `page-assets` 的路由算 |
-| `style`、`script`、`inline`、`startup-json` | 不进这张表，进门禁自己的第一屏清单 |
+| `style`、`script`、`inline`、`startup-json` | 不进这张表，`kind` 不加这些值，进第一屏清单 `tooling/gates/first-screen.json` |
 | `locale.<插件>` | 不进这张表。插件语言文件的声明只有 Manifest |
 
 - **插件语言文件**由报告从内置 Manifest 投影，和两张表合起来出同一张账，不抄进表。
@@ -986,6 +986,8 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 
 **先后：** T1 → T2 → T4 → T5 → T6；T1 → T3 → T7（T4 也要）；T6、T7 → T8 → T9a、T9b；T6 → T8b，和 T8 只错开 browser 槽位；T10 随时可开，T9b 里提到它的两句等它。同一时间最多 3 个写手，T1 与 T3 同归 C1 但快照不同：T3 要 `LOCALE_TAG`，所以 T1 先合；T4、T5 同一快照串行。T4 前置 T2，是因为 `t`、`say` 的类型在 T2。
 
+**按决定 27（#1927）写：** T1 起每一片都答开工前检查的第 15 项「全局最优」；有更好的方案可以换，批次文件写明原来怎样、现在怎样、为什么更好、影响谁，再告诉用户；这一片让什么变多余就在这一片删；每批全部合入后评审台做一次收尾检查。
+
 **给别批的。** 合同都只等 T1 或 T3 的类型；校验等 T4；**实现里要调 `say` 的片等 T8**（`ui-text-provider.ts`、`plugin-text.ts`），没装时开发路径和测试抛错，正式运行显示默认语言。
 
 | 片 | 合同等 | SDK 校验等 | 用来 |
@@ -1006,6 +1008,8 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 验证：每片 `node scripts/affected-tests.mjs` 挑用例，`node scripts/run-tests.mjs --jobs 1`，走机器槽位；全量由统筹加。T4、T5、T7 碰共享核心。
 
 ## 11. 开工前检查
+
+下表是本稿开 PR 时的 14 项。决定 27 加的第 15 项「全局最优」，已开的 PR 不回头补；T1 起每一片都要答。
 
 | # | 项 | 回答 |
 | --- | --- | --- |
@@ -1050,7 +1054,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 
 | # | 事 | 选了 | 否掉 | 在本文 |
 | --- | --- | --- | --- | --- |
-| 1 | 页面下载量的检查（决策第 23 项其余部分） | 真打开一遍算总数（预算方案二）：起真实服务、不开浏览器，算主要页面第一次和再次打开共下载多少，只许变少，不设绝对上限，第一屏资源都登记。第 16 批开工前单开门禁 PR，不和功能混，A 段不做 | 只在代码里查名单（查不出网页本身变大）；每次真开浏览器（慢、易误报） | 第 9 节 |
+| 1 | 页面下载量的检查（决策第 23 项其余部分） | 真打开一遍算总数（预算方案二）：起真实服务、不开浏览器，算主要页面第一次和再次打开共下载多少，只许变少，不设绝对上限，第一屏资源都记账（`registry.json` 和 `tooling/gates/first-screen.json` 两处，第 9 节）。第 16 批开工前单开门禁 PR，不和功能混，A 段不做 | 只在代码里查名单（查不出网页本身变大）；每次真开浏览器（慢、易误报） | 第 9 节 |
 | 2 | 语言目录 | 工作台一份，插件按需；第 16 批带实测按类一次批准，不逐个问 | 每种语言一个大文件（每页仍下发全部插件的词） | 第 4.4 节 |
 | 3 | 候选字体 | 批准下载实测，结果写进 `resource-budget.md`，本文不写字节 | | 第 3.4 节 |
 | 4 | 新旧写法并存（决定 20） | 并存到第 16 批，不算违反：一个插件只能写一种，只有样例用新写法，现有插件不动；断言 C 段之前内置插件不写新写法。**多一类（主会话裁定，由主会话告诉用户）：** 第 08 批内容包在第 16 批前就写 `ui.locales`，比用户同意的「只有样例」多一类，理由是内容包是新东西，不算现有插件，也不是逐插件切换 | | 第 6.1、8.3 节 |
@@ -1220,7 +1224,7 @@ A 段新写法只有开发路径走得通，带 `ui.locales` 的沙箱包装不�
 | `skills/molis-plugin-dev/SKILL.md` | 「读哪份」加一行入口 | T9b |
 | `skills/molis-plugin-dev/ui.md`「文案与 i18n」 | 不抄第二份，加一句指向新章，写明这一节是内置插件第 16 批之前的写法。`CHAPTERS` 只挂 `ui.md` 的「质量线」一节（`plugin-builder/skill.ts:17-20`），这里不在挂载范围 | T9b |
 | `docs/platform/PLUGIN-DEVELOPMENT.md` | 加一节：怎样声明 `ui.locales`、`validate` 的错误怎么读、现在哪条路走得通 | T9b |
-| `development-workflow.md` 第 4 节 | **并入第 12 项，改名「页面、外壳与文字」（主会话裁定）。** 不加第 15 项：`reference/` 下写死「14 项」的有 88 个文件 192 行，不值得为一项去改。加的内容：新文字归谁、新代码不依赖译文、不存译文、颜色字体只用语义变量、给模型的内容跟语言；按第 16.1 节标「今天」和「第 16 批起」 | T9b |
+| `development-workflow.md` 第 4 节 | **并入第 12 项，改名「页面、外壳与文字」（主会话裁定），不为文字加项。** 加的内容：新文字归谁、新代码不依赖译文、不存译文、颜色字体只用语义变量、给模型的内容跟语言；按第 16.1 节标「今天」和「第 16 批起」 | T9b |
 | `development-workflow.md` 第 10.1 节 | 第 3 行或第 6 行加一句评审要点，指向第 4 节第 12 项；保持六行，不加第七行 | T9b |
 | `docs/prompts/repository-systematic-review.md` | 第 9 节（前端质感）加一条：文字、语言、外观变量；指向新章 | T9b |
 | `docs/system/DEVELOPMENT-REQUIREMENTS.md` | 不改。它只管包 README「开发要求」的写法，文字规矩不在那一层 | |
@@ -1247,7 +1251,7 @@ A 段新写法只有开发路径走得通，带 `ui.locales` 的沙箱包装不�
 
 | 批 | 要写什么 |
 | --- | --- |
-| `batches/14.md` | 交付项加 T9b、T10；「TextRef 先于 05② C-3」改成 C-2、P-1、C-3（第 15、32 行） |
+| `batches/14.md` | 交付项加 T9b、T10；「TextRef 先于 05② C-3」改成 C-2、P-1、C-3（第 15、32 行）。「交付与前置」写三条偏离：T8b 放本批；T10 回复语言提前到本批；手册和流程从第 70 批提前 |
 | `batches/05.md` | 第 22、76 行还只说 C-3 等 `TextRef`，加 C-2 |
 | `batches/20.md` | 第 135 行同上，加 P-1、P-3b |
 | `batches/16.md` | 第 14 节的清单：迁移三类、盘点、首屏写法、脚手架、`generated-*.md` 与 `CHAPTERS`（要 `pnpm studio:replay`）、手册删旧写法、`translations.mjs` 适配（改门禁，先问用户）、内容翻译；第 5.4 节验收在真实首屏 |

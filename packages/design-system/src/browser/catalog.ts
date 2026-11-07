@@ -2,6 +2,7 @@
 // The component board's own behaviour (`/__ui/catalog`): opening the overlay specimens, the motion and craft demos, the
 // composition menus, and the small toggles that make a specimen feel real. Presentation only; nothing here is a product control.
 import { wireCatalogPatterns } from "./catalog-patterns.js";
+import { wireCatalogSplit } from "./catalog-skill-packs.js";
 type Craft = { land(element: Element): void; celebrate(element: Element): void };
 const craft = () => (globalThis as typeof globalThis & { molisCraft?: Craft }).molisCraft;
 const all = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => [...scope.querySelectorAll<T>(selector)];
@@ -185,3 +186,4 @@ all(".mw-catalog .is-yield [data-slot=directory-row]").forEach((row) => {
   });
 });
 wireCatalogPatterns();
+wireCatalogSplit();

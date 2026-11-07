@@ -1,6 +1,6 @@
 import { join, relative } from "node:path";
 import { lstatSync, readdirSync } from "node:fs";
-import { CATALOG_VERSION_ACCESS, LocalSqliteStorage, openHomeSqliteFile, openSqliteConnection, SECRET_STORE_FILE, type HomeStore } from "@molis-ai/molis-work-storage";
+import { CATALOG_VERSION_ACCESS, catalogOwner, openHomeSqliteFile, openSqliteConnection, readUpgradeStore, SECRET_STORE_FILE, type HomeStore } from "@molis-ai/molis-work-storage";
 import { SHELF_CATALOG_FILE } from "@molis-ai/molis-work-module-shelf";
 import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
 import { COMPUTER_RECORD_FILE, COMPUTER_RECORD_ID } from "./computer/computer-records.js";
@@ -9,8 +9,8 @@ import { MCP_TOOL_PREFERENCE_FILE } from "./mcp-settings-store.js";
 import { MODEL_PREFERENCE_FILE } from "./model-configuration.js";
 import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
-import { listCatalogProjectsForUninstall } from "@molis-ai/molis-work-module-projects";
-import { assertOwnedCatalog, CATALOG_BASELINE } from "./catalog-schema.js";
+import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
+import { assertCatalogOwner, CATALOG_BASELINE } from "./catalog-schema.js";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -19,16 +19,17 @@ const CATALOG = join("projects", "catalog.db");
 
 /**
  * Every project, recycled ones too, since they can come back: `listProjects` leaves those out (§2.3). Read only, at whatever version the
- * catalog is, because this runs before the catalog is upgraded. Nothing here reads a path from the catalog: each is worked out from the project's id.
+ * catalog is, because this runs before the catalog is upgraded, and without leaving side files on a closed one, because this also runs with no lock.
+ * A catalog too new for this build is not read any further: it reports itself. Nothing here reads a path from the catalog: each is worked out from the project's id.
  */
 function projectDatabases(home: string): readonly string[] {
   const file = join(home, CATALOG);
   if (!lstatSync(file, { throwIfNoEntry: false })) return [];
-  const storage = new LocalSqliteStorage(file, { readonly: true });
-  try {
-    assertOwnedCatalog(storage, file);
-    return listCatalogProjectsForUninstall(storage.db, join(home, "projects")).map(project => relative(home, project.database_path));
-  } finally { storage.close(); }
+  return readUpgradeStore(file, db => {
+    if (CATALOG_VERSION_ACCESS.read(db) > CATALOG_BASELINE.version) return [];
+    assertCatalogOwner(catalogOwner(db), file);
+    return listProjectDatabasePaths(db, join(home, "projects")).map(database => relative(home, database));
+  });
 }
 
 /** A library partitioned by project has one file per project. No built-in plugin declares one today; the code it would use does. */

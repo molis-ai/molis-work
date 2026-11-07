@@ -100,7 +100,7 @@ export interface SqliteBaseline {
 | 内置插件的 Home 库 | 13 个 | `user_version` | Manifest `databases.home`，随 `homeStores()` 带入；`home-stores.ts:61-63` 现在只取 `version`、`schema`，U1-f 要把 `upgrades` 也带上；`partition: "project"` 的库按 `homeSqlitePartitionDirectory` 枚举（内置目前没有，代码支持，按实际枚举） |
 | `server/server.sqlite` | 1 | `user_version` | `DISCUSSION_HOME_STORE` |
 | 目录库 `projects/catalog.db` | 1 | `catalog_meta.schema_version` | 同一个跑法，换一个版本读写适配（`CATALOG_VERSION_ACCESS`），`assertOwnedCatalog`、`assertCurrentCatalog` 收成分类同 §2.1。**第一个升**，因为要从它枚举项目 |
-| 项目库 `projects/<id>/molis-work.db` | 每项目 1 | `user_version` | `PROJECT_DATABASE_BASELINE` 带段，按目录库枚举；连接用项目库的同一驱动（S-46）。基线里只比基线的表，插件表另算。**枚举要带上回收站里的项目：** 用 `listCatalogProjectsForUninstall` 那条读法（`installation-inspection.ts:14`），不用 `listProjects`（`project-records-repository.ts:12` 滤掉回收的）。回收的项目还能恢复，漏升了恢复后就打不开 |
+| 项目库 `projects/<id>/molis-work.db` | 每项目 1 | `user_version` | `PROJECT_DATABASE_BASELINE` 带段，按目录库枚举；连接用项目库的同一驱动（S-46）。基线里只比基线的表，插件表另算。**枚举要带上回收站里的项目：** 用 `listProjectDatabasePaths`（`database-paths.ts:5`，不过滤），不用 `listProjects`（`project-records-repository.ts:12` 滤掉回收的）；经 `readUpgradeStore` 读，不持锁也不在关着的 WAL 库旁边留旁路文件，目录库比程序新就不再往下读。回收的项目还能恢复，漏升了恢复后就打不开 |
 | 项目库里内置插件的表 | 5 组 | `plugin_project_databases.version` 记账 | 紧接平台段之后，每个插件一个事务，见 §2.4 |
 | 项目库里装上的插件的表、装上的插件的 Home 库 | 不定 | 记账 | **开关归 U4**（§2.4）。U1 只读版本：不符时现状不变（只停这个插件），不执行声明 |
 | Alchemist `studio.sqlite` | 每项目 0～1 | `user_version` | **不进链**（用户 2026-11-08 定）：不接描述符，版本留在 1，保持它自己打开时的拒绝；升级扫描「全部已是当前」的判断里不算它。重做 Alchemist 时再定（`specs/backlog/BL-377.md`、批次 81）。**不变量不变：同一个进程里，同一个文件不同时被两份 SQLite 开着**，这条路没有接，所以这里不产生第二份 |

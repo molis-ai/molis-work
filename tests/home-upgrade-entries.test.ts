@@ -2,14 +2,14 @@
 // (specs/upgrade-continuity/upgrade-chain-design.md §4.3). The refusals themselves are in tests/security-invariants-home-upgrade.test.ts.
 // Every action URL here is a closed local port.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createDesktopUninstallService, inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  acquireUpgradedHomeOwner, createHomeSnapshot, createMolisWorkLocalHost, homeStores, LocalMcpServer, MolisWorkWebServiceManager, PROJECT_DATABASE_BASELINE, restoreHomeSnapshot, runHomeUpgrade, runLocalCli, runV1Cli, RuntimeIntegrationService,
+  acquireUpgradedHomeOwner, createHomeSnapshot, createMolisWorkLocalHost, homeStores, LocalMcpServer, MolisWorkWebServiceManager, PROJECT_DATABASE_BASELINE, restoreHomeSnapshot, pendingUpgradeUnits, runHomeUpgrade, runLocalCli, runV1Cli, RuntimeIntegrationService,
 } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, ensureStorageSpace, HOME_RESTORE_JOURNAL, homeSqlitePath, MEMORY_LEDGER_STORE, personalStorageSpace } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -133,8 +133,16 @@ test("UPG1-13: a project store outside this Home is not this Home's to upgrade: 
   await assert.rejects(runV1Cli(snapshotArgs(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_pending" });
   assert.equal(sha256(external), before);
   assert.equal(versionOf(external), 1);
-  assert.equal(versionOf(f.project.database_path), 2, "the Home's own project store was upgraded by the same command's lock");
+  assert.equal(versionOf(f.project.database_path), 1, "this command took no lock on the Home, so its own store waits for the next start");
   assertLockFree(f.lock);
+});
+
+test("S-upgrade-lock-only: listing a Home's projects with no lock leaves no side files on a closed catalog", async t => {
+  const f = await catalogHome(t), before = readdirSync(dirname(f.catalog)).sort();
+  assert.equal(before.some(name => name.endsWith("-wal") || name.endsWith("-shm")), false);
+  raiseProjectBaseline(t);
+  assert.equal(pendingUpgradeUnits(f.home), 1);
+  assert.deepEqual(readdirSync(dirname(f.catalog)).sort(), before);
 });
 
 test("UPG1-16: a project in the recycle bin is upgraded with the rest, and opens once it is back", async t => {

@@ -47,12 +47,15 @@ export function readUpgradeStoreVersion(path: string, access: SqliteVersionAcces
   } finally { db.close(); }
 }
 
-/** Who the store says it belongs to, read only: `openHomeSqliteDatabase` would write the binding, and no write comes before the snapshot (§2.1). */
-export function readUpgradeStoreSpace(path: string): StorageSpace | null {
+/** Reads a store on the same terms: no writing, and no side files left behind on a closed WAL store. */
+export function readUpgradeStore<T>(path: string, read: (db: DatabaseSync) => T): T {
   const db = readOnlyConnection(path);
-  try { return readDatabaseSpace(db); }
+  try { return read(db); }
   finally { db.close(); }
 }
+
+/** Who the store says it belongs to, read only: `openHomeSqliteDatabase` would write the binding, and no write comes before the snapshot (§2.1). */
+export const readUpgradeStoreSpace = (path: string): StorageSpace | null => readUpgradeStore(path, readDatabaseSpace);
 
 /** The Home's lock is taken and a store of it is not current: its holder is upgrading it, or will when it opens the store. */
 export const upgradeInProgressRefusal = () =>

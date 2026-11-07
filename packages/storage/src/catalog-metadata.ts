@@ -8,7 +8,7 @@ import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions'
 
 interface CatalogReader {prepare(sql:string):{get():unknown}}
 const probeErrors=defineErrorCodes('storage',{catalog_probe_busy:'conflict'});
-function catalogOwner(db:CatalogReader):string|null {
+export function catalogOwner(db:CatalogReader):string|null {
   if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'catalog_meta'").get())return null;
   const row=db.prepare("SELECT value FROM catalog_meta WHERE key = 'owner'").get() as {value:unknown}|undefined;
   return typeof row?.value==='string'?row.value:null;

@@ -3,7 +3,7 @@ export { openSqliteConnection } from "./sqlite-connection.js";
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
-export { CATALOG_VERSION_ACCESS,LocalCatalogMetadata,inspectCatalogFile } from "./catalog-metadata.js";
+export { CATALOG_VERSION_ACCESS,LocalCatalogMetadata,catalogOwner,inspectCatalogFile } from "./catalog-metadata.js";
 
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
 export { createAtomicFileDocument } from './adapters/file-document.js';
@@ -21,7 +21,7 @@ export {
   openReadOnlyHomeSqlite,
 } from "./home-sqlite.js";
 export { runSqliteUpgrade, upgradeStepsProblem, type SqliteUpgradeResult } from "./sqlite-upgrade.js";
-export { readUpgradeStoreSpace, readUpgradeStoreVersion, upgradeFailedRefusal, upgradeInProgressRefusal, upgradeNoSpaceRefusal, type UpgradeStoreVersion } from "./upgrade-inspection.js";
+export { readUpgradeStore, readUpgradeStoreSpace, readUpgradeStoreVersion, upgradeFailedRefusal, upgradeInProgressRefusal, upgradeNoSpaceRefusal, type UpgradeStoreVersion } from "./upgrade-inspection.js";
 export {
   assertUpgradeDiskSpace,
   captureUpgradeFileSnapshot,

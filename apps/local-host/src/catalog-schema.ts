@@ -48,7 +48,7 @@ export const CATALOG_BASELINE = { version: CATALOG_SCHEMA_VERSION, upgrades: CAT
 export function assertOwnedCatalog(storage: LocalSqliteStorage, databasePath: string): void {
   assertCatalogOwner(new LocalCatalogMetadata(storage.db).owner(),databasePath);
 }
-function assertCatalogOwner(owner:string|null,databasePath:string):void {
+export function assertCatalogOwner(owner:string|null,databasePath:string):void {
   if (!isOwnedCatalogOwner(owner)) {
     throw catalogErrors.unknown_database(`不会复用未知项目目录数据库: ${databasePath}`);
   }

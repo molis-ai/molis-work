@@ -12,7 +12,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
-import { L, pageLocale } from "../web-locale.js";
+import { L, pageLocale, type WebLocale } from "../web-locale.js";
 import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -63,6 +63,17 @@ export interface AssistantHttpPorts {
   projectReference?(projectId: string): Promise<LocalHostProjectReference>;
   /** The page ids installed in this Home's projects, which an attention rule may name (PG-036). */
   pages(): Promise<readonly string[]>;
+}
+
+/**
+ * The language of a round the page itself starts (a message, an answer, a card prepared again): the page's own, whatever
+ * the record says, and using it moves the record (FSS-71). A request with no page language leaves the round to the record.
+ */
+function pageRoundLanguage(ports: Pick<AssistantHttpPorts, "homeDirectory">): { reply_locale?: WebLocale } {
+  const reply_locale = pageLocale();
+  if (!reply_locale) return {};
+  rememberUiLocale(ports.homeDirectory, reply_locale);
+  return { reply_locale };
 }
 
 /** Half-written answers to a work's questions, kept with the work. */
@@ -273,9 +284,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         // session's inputs names nothing, and the receipt shows 「更早的一条」.
         if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
         // Sending is using the language: the page's own, read here at the entry and carried down, so nothing below looks at the request again.
-        const reply_locale = pageLocale();
-        if (reply_locale) rememberUiLocale(ports.homeDirectory, reply_locale);
-        return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...(reply_locale ? { reply_locale } : {}), ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
+        return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...pageRoundLanguage(ports), ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
           ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
             input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
           } } : {}) }) };
@@ -366,7 +375,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
       if (threadWork) return threadWork;
       if (parts.length === 3 && parts[2] === "control") return { status: 200, body: await service.control(workId, body as never) };
-      const interaction = await interactionRoute(workId, parts, body, service, store, ports.projectRef);
+      const interaction = await interactionRoute(workId, parts, body, service, store, ports);
       if (interaction) return interaction;
       if (parts.length === 3 && parts[2] === "draft") return { status: 200, body: { work: service.saveDraft(workId, body.draft as string) } };
       if (parts.length === 3 && parts[2] === "rename") return { status: 200, body: { work: await service.rename(workId, Number(body.revision), String(body.title ?? "")) } };
@@ -425,15 +434,15 @@ function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result:
  * fields hold it, a half-written answer kept with the work, a card run, set aside or asked to be prepared again.
  */
 async function interactionRoute(workId: string, parts: string[], body: Record<string, unknown>, service: AssistantService, store: AssistantStore,
-  projectRef: LocalHostProjectReference | undefined): Promise<NativePluginJsonResult | null> {
-  const drafts = questionDrafts(store);
+  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<NativePluginJsonResult | null> {
+  const drafts = questionDrafts(store), projectRef = ports.projectRef;
   // The card sends what its fields hold; it becomes the Runtime's answer here, and its draft goes once the answer is taken.
   if (parts.length === 3 && parts[2] === "answer") {
     const answer = body.values === undefined ? {} : questionAnswer(body.values);
     if (!answer) throw assistantErrors.invalid("请先回答再提交");
     const view = await service.outcomes.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
       ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }, projectRef ? { project_ref: projectRef } : {}).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
+      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
       // Read back with the questions it answered, so each line can name the limit it crossed.
@@ -454,5 +463,5 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
   if (parts[4] !== "redo") return null;
   const card = service.offers.card(workId, parts[3]!);
   return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: L("建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
-    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, projectRef ? { project_ref: projectRef } : {}, "page") };
+    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }, "page") };
 }

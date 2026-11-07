@@ -19,8 +19,11 @@ export interface ModelStandIn {
   close(): Promise<void>;
 }
 
-/** `throttledKey`: a key the stand-in answers with 429, the way a throttled or out-of-credit account is answered. */
-export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK", options: { throttledKey?: string } = {}): Promise<ModelStandIn> {
+/**
+ * `throttledKey`: a key the stand-in answers with 429, the way a throttled or out-of-credit account is answered.
+ * `tool`: asked on each foreground request; a tool it names is called instead of replying, so a round can ask a question.
+ */
+export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK", options: { throttledKey?: string; tool?: () => { name: string; input: unknown } | undefined } = {}): Promise<ModelStandIn> {
   const requests: ModelStandIn["requests"] = [], bodies: string[] = [];
   let revoked = false;
   const server: Server = createServer(async (request, response) => {
@@ -47,6 +50,13 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK",
     if (payload.stream) {
       response.writeHead(200, { "content-type": "text/event-stream" });
       const send = (value: unknown) => response.write(`data: ${JSON.stringify(value)}\n\n`);
+      const tool = aside === undefined ? options.tool?.() : undefined;
+      if (tool) {
+        send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: "stand-in-call", type: "function", function: { name: tool.name, arguments: JSON.stringify(tool.input) } }] }, finish_reason: null }] });
+        send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage });
+        response.end("data: [DONE]\n\n");
+        return;
+      }
       send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: null }] });
       send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage });
       response.end("data: [DONE]\n\n");

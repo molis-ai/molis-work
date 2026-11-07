@@ -144,9 +144,12 @@ argument_hint: "<周期，可选>"
   - **两张新表的建表步骤**：同意。`skill_settings`、`skill_uses` 按本批前置等 05 的 U1／U2 与 SQLite 切换，在 U1 升级链里加一步只建这两张空表，不动已有数据。08-7 那一片在同一个 PR 里把这一步写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」。否掉的：到时再问（多停一次）；赶在重建前写进第 1 版（要推翻本批「动表等 05」的前置）。
   - **Coding 旧路的存量**：删 `agent.skills.discover.v1`／`install.v1` 与 Prologue 存储里的 `molis-coding-method`（第 09 批 9-4、9-5）时不认也不迁，不写迁移、不留读取兜底；真实 Home 里万一有旧数据，用「从本机导入」重新导一次。否掉的：写迁移搬进新目录（新增迁移逻辑，要长期维护）。
 
+- **2026-11-07 用户定**：「发布者撤销」那种用不了的状态字保留定样的「已撤销」，英文先用产品词典已有的 Retracted；第 16 批换成稳定键以后再单独译成 Revoked。否掉的：改成「发布者已撤销」（改了已定的样里的一个词）。
+- **2026-11-07 第 08 批主会话定**：C-1 的 frontmatter 转声明照写手的做法——`name` 兼作 Skill 的 id 与名称；没写 `summary` 时取 `description` 开头 300 个 UTF-16 单元；`version` 先取调用方给的，其次取 frontmatter 的，都没有就是 1。只有声明的插件写 `requires` 不要求同时列进 `capabilities.consumes`（它自己不调用动作，`consumes` 必须为空）。`connector_categories` 先只查格式，类别表由助理统一接入服务的主人给出。
+
 ## 10. 开工前检查（第 08 批主会话，2026-11-06）
 
-按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)第 4 节逐项答。依据：本 spec、[合同稿](contract-design.md)、main `cf21c8d67`。档位：大需求；类型：横向能力（主），兼产品线（助理、Coding）。决策标记：直接做；第 6、7 项里两张新表与 Coding 旧路的存量，用户 2026-11-06 已定（§9）；C-3 落在 02③ 之后时的存量另问（第 7 项）。
+按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)第 4 节逐项答（第 15 项随决定 27 于 2026-11-07 补）。依据：本 spec、[合同稿](contract-design.md)、main `cf21c8d67`。档位：大需求；类型：横向能力（主），兼产品线（助理、Coding）。决策标记：直接做；第 6、7 项里两张新表与 Coding 旧路的存量，用户 2026-11-06 已定（§9）；C-3 落在 02③ 之后时的存量另问（第 7 项）。
 
 本批只交合同、Plugin Runtime、安装、Skill 目录与设置、导入、界面和设计与无障碍内容包。助理与 Coding 两个消费方在[第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)（9-2～9-5），见 §11 末尾。
 
@@ -166,6 +169,7 @@ argument_hint: "<周期，可选>"
 | 12 | 页面与外壳 | 安装预览是在现有「设置 → 插件」的安装审阅里加一节；「技能」是设置里「插件」旁边的一节，不是插件自己的整页。新的 DOM 事件按 `dom-events.ts` 登记。页面资源有增长要写明；单个资源一次涨超过 10 KB，或新增资源，先问用户 |
 | 13 | 错误 | 坏包沿用 `plugin.declaration_invalid`，加 `problems` 明细；新码用 `defineErrorCodes`，不写 Error 子类。新文件要在 `tooling/gates/error-owners.json` 加主人的，开片前先问 |
 | 14 | 冲突面 | 见下表。借 E 轨（08-3）、D 轨（08-2、08-9）的文件，按轨道规则 7 在认领板认领后单开一片，需求方的片叠在后面 |
+| 15 | 全局最优 | 逐个场景看：**插件**——只有声明的插件、沙箱包、内置插件、创作台生成的包用同一份方法声明、同一个校验函数和同一条安装路径（C-1、C-3），第三方作者只学一种写法；**平台**——Skill 目录扩展已有的 Agent 定义登记，Plugin Runtime 只多一种「已声明、不启动」，不另起服务、不另设注册表；**助理**——和 Coding 读同一个 `skills.catalog.list@1`，一轮开头的多个正文一次请求读完（`skills.body.read@1` 收引用数组），接入在 09；**各类平台能力**——授权、审查、动作目录不变，Skill 不授予权限；第 20 批的场景包沿用 `kind: "content"` 的白名单与 `SkillRef`，第 72 批的导出导入沿用内容包格式；**后续开发**——再加一种只有声明的内容，只在白名单加键、在检查函数加一条。比较过三种做法：单设 `SkillPackRegistry`（2026-10-19 否，第二条安装与信任路径）；目录放进新的 `horizontal/` 服务包（否：方法定义的主人已是 Agent 定义登记，新包会复制登记）；启用并进安装动作（否：同意权限与让 AI 用混成一步，定样也否了）。多付代价的：宿主 Agent 定义登记多两张表；Coding 失去自有的发现与安装路径，由 09 的 9-4 删旧路、改读目录时付；`SignedAgentReference` 的方法引用改 `SkillRef` 随 09 的 9-2 付（见本批文件偏离记录） |
 
 | 文件 | 轨道 | 本批哪片 | 在途的别批 PR |
 | --- | --- | --- | --- |
@@ -192,12 +196,12 @@ argument_hint: "<周期，可选>"
 | 08-6 Runtime 与安装 | 「已声明、不启动」装配；内容包的解析接进安装服务；启用时从已验证包登记方法；安装预览的 `skills`、`requires`，以及按 Skill 的升级差异 | 08-4、08-5（预览要给沙箱包方法列 `description`／`applies_to`，宿主不替它编） | SKC-02、SKC-03、SKC-04，SKP-01、SKP-08 |
 | 08-7 Skill 目录、设置与用量 | `system.skills` 的四个动作；两张新表（U1 里加一步建表）；冻结点名；SSOT、HOME-DATA、库版本清单 | 08-4、08-6；05 的 U1／U2 与 SQLite 切换 | SKC-05、SKC-06、SKC-08、SKC-09、SKC-12，SKC-07 的目录一侧 |
 | 08-8 外部 Skills 导入 | `skills.import.*`、CLI `pack-content`、用本机发布身份签名 | 08-4、08-6（不动表）。和 08-7 改同一份 `system.skills` 登记或 `host-actions.tsv` 时，同一时间一个写手，先准备好的先落 | SKC-10 |
-| 08-9 界面 | 照 §9 定样：安装预览一节、启用步骤、「技能」目录、从本机导入 | 08-2、08-6、08-7、08-8；D 轨文件按 §10 第 14 项 | SKP-01、SKP-08、SKP-10 的界面部分；本人验收 |
+| 08-9 界面 | 照 §9 定样：安装预览一节、启用步骤、「技能」目录、从本机导入；技能名称与说明的英文走提供它的插件的 `ui.translations`，在这一片读取时补齐（含 Todo、Issues、Pages 的四个方法） | 08-2、08-6、08-7、08-8；D 轨文件按 §10 第 14 项 | SKP-01、SKP-08、SKP-10 的界面部分；本人验收 |
 | 08-10 设计与无障碍内容包（BL-165） | 写成只有声明的插件；随安装包带上，加 `plugins.bundled.list@1` | 08-6；官方签名等 26-1 | 能装上、过校验、进 Skill 目录；本人验收 |
 
 **不在本批的验收编号：**
 
-- **消费方，在第 09 批**：助理的 `methods()` 改读目录（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。
+- **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。
 - **SKP-09（`scripts/` 只在权限岛和沙箱里跑）**：本批只管声明一侧：`role: "script"`、`runs_scripts` 标注、只能按声明路径读，宿主不执行脚本。执行发生在会跑脚本的 Agent 里（Coding），随 09 的 9-4、9-5 验；09 第七节已加一行。
 - **SKP-11（从对话生成技能包）**：在[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)。
 

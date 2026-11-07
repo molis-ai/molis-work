@@ -40,7 +40,7 @@ test("DRT-20 Coding: back from the model settings, the prompt is the composer's 
   await waitFor("document.querySelector('[data-coding-model-setup]')?.hidden === false", 15_000);
   await click("[data-coding-model-setup]");
   await owner.waitFor("document.querySelector('[data-settings-return-bar]')?.dataset.returnBarState === 'waiting'", 15_000);
-  assert.equal(await owner.evaluate("document.querySelector('[data-return-bar-body]').textContent"), "配好模型后自动回去，你写的都还在。", "the draft went with the trip");
+  assert.equal(await owner.evaluate("document.querySelector('[data-return-bar-body]').textContent"), "配好模型后自动回去。你写的都还在。", "the draft went with the trip");
   await saveFirstModel(owner, standIn.baseUrl);
   await owner.waitFor("document.body.dataset.desktopSurface === 'coding'", 20_000);
   await waitFor("document.querySelectorAll('[data-coding-resume]').length === 1", 20_000);

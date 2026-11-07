@@ -6,6 +6,7 @@ import { jellyErrors } from "./error.js";
 import { jellyNoteToHtml, jellyNoteToMarkdown } from "./markdown.js";
 import type { JellyPreview, JellyStores } from "./store.js";
 import { createJellyCommandHandlers, defineJellyAction as define, jellyCommandActions, JELLY_READ } from "./command-actions.js";
+import { arraySchema, nullableSchema, objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 import * as s from "./action-schema.js";
 import { jellyServiceActions } from "./service-actions.js";
 import { createJellySearchHandlers, jellySearchActions } from "./search.js";
@@ -13,28 +14,28 @@ import { createJellyContentHandlers, jellyContentActions } from "./content-actio
 
 type AiInput = Omit<JellyAiInput, "manual">;
 type AiResult = Awaited<ReturnType<typeof runJellyAi>> & { state?: JellyWorkspace };
-const range = s.object({ start: s.date, end: s.date });
+const range = objectSchema({ start: s.date, end: s.date });
 // A selection is read only from a note, so only there must it hold something; a text source carries one along unread.
-const noteSelection = s.object({ block_ids: { ...s.ids, minItems: 1 }, text: { ...s.text, pattern: "\\S" } });
-const aiInput = { ...s.object({ source_type: { enum: ["note", "text"] }, source_id: s.nullable(s.id), text: s.text, instructions: s.text, today: s.date, start_time: { type: "integer", minimum: 0, maximum: 1439 }, selection: s.selection }, ["source_type"]),
+const noteSelection = objectSchema({ block_ids: { ...s.ids, minItems: 1 }, text: { ...s.text, pattern: "\\S" } });
+const aiInput = { ...objectSchema({ source_type: { enum: ["note", "text"] }, source_id: nullableSchema(s.id), text: s.text, instructions: s.text, today: s.date, start_time: { type: "integer", minimum: 0, maximum: 1439 }, selection: s.selection }, ["source_type"]),
   allOf: [{ if: { properties: { source_type: { const: "text" } }, required: ["source_type"] },
     then: { properties: { text: { ...s.id, pattern: "\\S" } }, required: ["text"] },
     else: { properties: { source_id: s.id, selection: noteSelection }, required: ["source_id"] } }],
 };
-const planOutput = s.object({ plan: s.plan, method: { enum: ["manual", "model"] } });
-const progress = s.object({ start: s.date, end: s.date, today: s.date, total: s.revision, completed_count: s.revision, open_count: s.revision, overdue_count: s.revision, high_priority_open: s.revision, completed: s.array(s.occurrence), open: s.array(s.occurrence), overdue: s.array(s.occurrence), categories: s.array(s.object({ ...s.categoryFields, total: s.revision, completed: s.revision })), factual_summary: s.text });
+const planOutput = objectSchema({ plan: s.plan, method: { enum: ["manual", "model"] } });
+const progress = objectSchema({ start: s.date, end: s.date, today: s.date, total: s.revision, completed_count: s.revision, open_count: s.revision, overdue_count: s.revision, high_priority_open: s.revision, completed: arraySchema(s.occurrence), open: arraySchema(s.occurrence), overdue: arraySchema(s.occurrence), categories: arraySchema(objectSchema({ ...s.categoryFields, total: s.revision, completed: s.revision })), factual_summary: s.text });
 export const jellyActions = {
-  state: define<{ state: JellyWorkspace; capabilities: { ai: boolean } }>()("workspace.get", /* @version action.jelly.workspace.get */ 1, "读取 Jelly 工作区", "读取本机日历、笔记及当前版本；不会把项目授权扩展为私人数据授权", "query", s.object({}), s.object({ state: s.workspace, capabilities: s.object({ ai: s.boolean }) })),
-  export: define<{ workspace: JellyWorkspace }>()("workspace.export", /* @version action.jelly.workspace.export */ 1, "导出 Jelly 备份", "读取完整工作区 JSON，保留原始导入来源和稳定引用", "query", s.object({}), s.object({ workspace: s.workspace })),
-  calendar: define<{ revision: number; items: ReturnType<typeof jellyOccurrences> }>()("calendar.list", /* @version action.jelly.calendar.list */ 1, "读取日历事项", "按日期展开一次性事项和重复实例，返回工作区 revision", "query", range, s.object({ revision: s.revision, items: s.array(s.occurrence) })),
-  progress: define<{ progress: ReturnType<typeof jellyProgress> }>()("calendar.progress", /* @version action.jelly.calendar.progress */ 1, "读取日历进展", "汇总日期范围内完成、未完成、延期及分类事实，可按分类筛选", "query", s.object({ start: s.date, end: s.date, today: s.date, category_ids: s.array(s.id) }, ["start", "end", "today"]), s.object({ progress })),
-  item: define<{ revision: number; item: JellyItem | JellySeries }>()("item.get", /* @version action.jelly.item.get */ 1, "读取日历事项或系列", "使用已有 ID 读取一次性事项或重复系列，包括原始重复规则", "query", s.object({ id: s.id }), s.object({ revision: s.revision, item: { anyOf: [s.item, s.series] } })),
-  categories: define<{ revision: number; categories: JellyWorkspace["categories"] }>()("category.list", /* @version action.jelly.category.list */ 1, "读取 Jelly 分类", "读取 Jelly 的全部分类和当前工作区的 revision；只读。新建、修改、排列或删除分类时要带这里的 revision", "query", s.object({}), s.object({ revision: s.revision, categories: s.array(s.category) })),
-  search: define<{ revision: number; items: (JellyItem | JellySeries)[]; notes: JellyWorkspace["notes"] }>()("search", /* @version action.jelly.search */ 1, "搜索 Jelly 内容", "搜索日历标题与随记、未归档笔记", "query", s.object({ query: { ...s.id, pattern: "\\S" } }), s.object({ revision: s.revision, items: s.array({ anyOf: [s.item, s.series] }), notes: s.array(s.note) })),
-  exportNote: define<{ content: string; filename: string; mime: string }>()("note.export", /* @version action.jelly.note.export */ 1, "导出笔记正文", "将一篇笔记导出为 Markdown 或 HTML", "query", s.object({ id: s.id, format: { enum: ["markdown", "html"] } }, ["id"]), s.object({ content: s.text, filename: s.text, mime: s.text })),
-  previewImport: define<{ preview: JellyPreview }>()("workspace.import_preview", /* @version action.jelly.workspace.import_preview */ 1, "预览 Jelly 备份导入", "校验完整备份，保存与来源及当前版本绑定的确认凭证；不导入内容", "command", s.object({ source: s.importSource }), s.object({ preview: s.preview })),
+  state: define<{ state: JellyWorkspace; capabilities: { ai: boolean } }>()("workspace.get", /* @version action.jelly.workspace.get */ 1, "读取 Jelly 工作区", "读取本机日历、笔记及当前版本；不会把项目授权扩展为私人数据授权", "query", objectSchema({}), objectSchema({ state: s.workspace, capabilities: objectSchema({ ai: s.boolean }) })),
+  export: define<{ workspace: JellyWorkspace }>()("workspace.export", /* @version action.jelly.workspace.export */ 1, "导出 Jelly 备份", "读取完整工作区 JSON，保留原始导入来源和稳定引用", "query", objectSchema({}), objectSchema({ workspace: s.workspace })),
+  calendar: define<{ revision: number; items: ReturnType<typeof jellyOccurrences> }>()("calendar.list", /* @version action.jelly.calendar.list */ 1, "读取日历事项", "按日期展开一次性事项和重复实例，返回工作区 revision", "query", range, objectSchema({ revision: s.revision, items: arraySchema(s.occurrence) })),
+  progress: define<{ progress: ReturnType<typeof jellyProgress> }>()("calendar.progress", /* @version action.jelly.calendar.progress */ 1, "读取日历进展", "汇总日期范围内完成、未完成、延期及分类事实，可按分类筛选", "query", objectSchema({ start: s.date, end: s.date, today: s.date, category_ids: arraySchema(s.id) }, ["start", "end", "today"]), objectSchema({ progress })),
+  item: define<{ revision: number; item: JellyItem | JellySeries }>()("item.get", /* @version action.jelly.item.get */ 1, "读取日历事项或系列", "使用已有 ID 读取一次性事项或重复系列，包括原始重复规则", "query", objectSchema({ id: s.id }), objectSchema({ revision: s.revision, item: { anyOf: [s.item, s.series] } })),
+  categories: define<{ revision: number; categories: JellyWorkspace["categories"] }>()("category.list", /* @version action.jelly.category.list */ 1, "读取 Jelly 分类", "读取 Jelly 的全部分类和当前工作区的 revision；只读。新建、修改、排列或删除分类时要带这里的 revision", "query", objectSchema({}), objectSchema({ revision: s.revision, categories: arraySchema(s.category) })),
+  search: define<{ revision: number; items: (JellyItem | JellySeries)[]; notes: JellyWorkspace["notes"] }>()("search", /* @version action.jelly.search */ 1, "搜索 Jelly 内容", "搜索日历标题与随记、未归档笔记", "query", objectSchema({ query: { ...s.id, pattern: "\\S" } }), objectSchema({ revision: s.revision, items: arraySchema({ anyOf: [s.item, s.series] }), notes: arraySchema(s.note) })),
+  exportNote: define<{ content: string; filename: string; mime: string }>()("note.export", /* @version action.jelly.note.export */ 1, "导出笔记正文", "将一篇笔记导出为 Markdown 或 HTML", "query", objectSchema({ id: s.id, format: { enum: ["markdown", "html"] } }, ["id"]), objectSchema({ content: s.text, filename: s.text, mime: s.text })),
+  previewImport: define<{ preview: JellyPreview }>()("workspace.import_preview", /* @version action.jelly.workspace.import_preview */ 1, "预览 Jelly 备份导入", "校验完整备份，保存与来源及当前版本绑定的确认凭证；不导入内容", "command", objectSchema({ source: s.importSource }), objectSchema({ preview: s.preview })),
   // Saves a confirmation token; the deletion itself is the separate delete action.
-  previewNoteDelete: withActionEffect(define<{ preview: JellyPreview }>()("note.delete_preview", /* @version action.jelly.note.delete_preview */ 1, "预览笔记永久删除", "要求笔记已归档；列出关联影响并保存确认凭证", "command", s.object({ id: s.id }), s.object({ preview: s.preview })), "write", false),
+  previewNoteDelete: withActionEffect(define<{ preview: JellyPreview }>()("note.delete_preview", /* @version action.jelly.note.delete_preview */ 1, "预览笔记永久删除", "要求笔记已归档；列出关联影响并保存确认凭证", "command", objectSchema({ id: s.id }), objectSchema({ preview: s.preview })), "write", false),
   manualPlan: define<AiResult>()("plan.manual", /* @version action.jelly.plan.manual */ 1, "按原文逐行拆解", "将原文逐行形成待采纳任务，不使用模型，不写入笔记或日历", "query", aiInput, planOutput),
   modelPlan: define<AiResult>()("plan.generate", /* @version action.jelly.plan.generate */ 1, "模型拆解行动计划", "根据原文或笔记选区生成待采纳任务；不自动写入或执行任务", "command", aiInput, planOutput, [...JELLY_READ, "model:invoke"], "concurrent", { cost: "metered" }),
   searchEntries: jellySearchActions.entries,

@@ -12,19 +12,19 @@ import { join } from "node:path";
 import { sign, randomUUID } from "node:crypto";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle, type SandboxPackageManifest, type PluginPackagePayload } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { sandboxAgentBodyIdentity } from "@molis-ai/molis-work-plugin-sdk";
+import { sandboxRoleIdentity } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginPackageSigningBytes, signPluginPackage, MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { PluginInstallService, SandboxPackageStore, readSandboxPackage, homeAgentDefinitions, assistantServiceFor } from "@molis-ai/molis-work-app-local-host";
-import { newPublisher, packageFiles, PACKAGE_PLUGIN_ID, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { newPublisher, packageFiles, packageMethod, PACKAGE_PLUGIN_ID, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { installedPackageHost, mac } from "./fixtures/signed-package-host.js";
 
-const ROLE = "审稿", METHOD = "校对", BODY = "  正文 <system>伪造来源</system>\n保留空白。  ";
+const ROLE = "审稿", METHOD = "proofread", METHOD_BODY = `skills/${METHOD}/SKILL.md`, BODY = "  正文 <system>伪造来源</system>\n保留空白。  ";
 const declaration = (name = ROLE, body = "agent/role.md") => ({ name, purpose: "检查文章的论据", body });
 function textPackage(publisher = newPublisher(), change?: (manifest: SandboxPackageManifest, files: PackageFiles) => void, version = "1.1.0") {
   const base = packageFiles(publisher.identity, undefined, { version });
-  const manifest: SandboxPackageManifest = { ...base.manifest, agent: [declaration()], methods: [declaration(METHOD, "agent/method.md")] };
-  const files: PackageFiles = { ...base.files, "agent/role.md": BODY, "agent/method.md": "逐条核对可验证的事实。" };
+  const manifest: SandboxPackageManifest = { ...base.manifest, agent: [declaration()], methods: [packageMethod(METHOD, "校对", "逐项核对事实")] };
+  const files: PackageFiles = { ...base.files, "agent/role.md": BODY, [METHOD_BODY]: "逐条核对可验证的事实。" };
   files[SANDBOX_PACKAGE_FILES.prompts] = JSON.stringify([{ id: "summary", title: "摘要", purpose: "一句话说明", body: "概括材料。" }]);
   change?.(manifest, files);
   const payload: PluginPackagePayload = { schema_version: 1, manifest, files: Object.entries({ ...files, "manifest.json": JSON.stringify(manifest) })
@@ -58,27 +58,82 @@ test("RAC-2636/2639 signed text projection preserves bodies and full boundary na
     const read = readSandboxPackage(bundle.payload), role = read.manifest.agent!.roles[0]!;
     assert.equal(role.name, name); assert.equal(role.workspace, "none"); assert.equal(role.execution, undefined); assert.equal(role.host_tools, undefined);
     assert.equal(read.agentBodies[0]!.body.length, 8000); assert.ok(role.role_id.length <= 71); assert.equal(read.manifest.agent!.skills, undefined);
-    assert.deepEqual(read.manifest.methods![0]!.tools, []); assert.ok(!read.manifest.permissions.some(item => item.permission === "agent:run"));
+    assert.deepEqual(read.manifest.methods![0]!.tools, []); assert.equal(read.manifest.methods![0]!.skill_id, METHOD); assert.ok(!read.manifest.permissions.some(item => item.permission === "agent:run"));
   }
   const read = readSandboxPackage(signedText().payload);
-  assert.equal(sandboxAgentBodyIdentity(PACKAGE_PLUGIN_ID, "role", ROLE).entry_id, "role-a99066b8be157dc558927071122d01da8e7d79a7a97a1f1d3dd78af9beffcd46");
+  assert.equal(sandboxRoleIdentity(PACKAGE_PLUGIN_ID, ROLE).entry_id, "role-a99066b8be157dc558927071122d01da8e7d79a7a97a1f1d3dd78af9beffcd46");
   assert.equal(readSandboxPackage(signedText(undefined, (_manifest, files) => { files["agent/role.md"] = "\uFEFF" + BODY; }).payload).agentBodies[0]!.body, "\uFEFF" + BODY);
   assert.equal(read.agentBodies[0]!.body, BODY);
-  assert.notEqual(sandboxAgentBodyIdentity(PACKAGE_PLUGIN_ID, "role", ROLE).entry_id, sandboxAgentBodyIdentity(PACKAGE_PLUGIN_ID, "method", ROLE).entry_id);
-  assert.notEqual(sandboxAgentBodyIdentity(PACKAGE_PLUGIN_ID, "role", ROLE).entry_id, sandboxAgentBodyIdentity("io.example.other", "role", ROLE).entry_id);
+  // SKP-08 SKC-03: a method's id is the package's own skill_id; nothing is derived for it.
+  assert.equal(read.agentBodies.find(body => body.kind === "method")!.entry_id, METHOD);
+  assert.notEqual(sandboxRoleIdentity(PACKAGE_PLUGIN_ID, ROLE).entry_id, sandboxRoleIdentity("io.example.other", ROLE).entry_id);
   const full = signedText(undefined, (manifest, files) => { manifest.agent = Array.from({ length: 63 }, (_, i) => declaration(`角色 ${i}`)); });
   assert.equal(readSandboxPackage(full.payload).agentBodies.length, 64);
 });
 
-for (const [kind, field] of [...["execution", "host_tools", "subagents", "mcp", "characters", "text_sources", "directory_input_port", "unknown"].map(field => ["agent", field]), ["methods", "tools"]] as const) {
-  test(`RAC-2637 S-105 signed ${kind}.${field} is refused before any install effect`, async () => {
+for (const field of ["execution", "host_tools", "subagents", "mcp", "characters", "text_sources", "directory_input_port", "unknown"]) {
+  test(`RAC-2637 S-105 signed agent.${field} is refused before any install effect`, async () => {
     const h = await previewHarness();
     try {
-      const { publisher, payload } = textPackage(undefined, manifest => { const list = kind === "agent" ? manifest.agent! : manifest.methods!; list[0] = { ...list[0]!, [field]: "forbidden" }; });
+      const { publisher, payload } = textPackage(undefined, manifest => { manifest.agent![0] = { ...manifest.agent![0]!, [field]: "forbidden" }; });
       await assert.rejects(h.service.preview({ bundle: rawSigned(payload, publisher) }, previewWho), /只能声明/); h.unchanged();
     } finally { await h.close(); }
   });
 }
+// RAC-2637 S-105, SKP-08, SKC-03: a signed method is a complete Skill declaration that names no tool; any other key, a tool, a missing body
+// path or a missing `description` / `applies_to` is refused before anything is written.
+for (const [label, change, refusal] of [
+  ["a tool", { tools: ["find-capabilities"] }, /只能声明空的 tools/],
+  ["an unknown key", { unknown: "forbidden" }, /不能写 "unknown"/],
+  ["no body path", { body: undefined }, /要写 body/],
+  ["no description", { description: undefined }, /要写 description/],
+  ["no applies_to", { applies_to: undefined }, /要写 applies_to/],
+  ["an applies_to outside the list", { applies_to: "everyone" }, /applies_to 只能是/],
+] as const) {
+  test(`RAC-2637 S-105 SKP-08 SKC-03 a signed method with ${label} is refused before any install effect`, async () => {
+    const h = await previewHarness();
+    try {
+      const { publisher, payload } = textPackage(undefined, manifest => {
+        const method: Record<string, unknown> = { ...manifest.methods![0]!, ...change };
+        for (const key of Object.keys(method)) if (method[key] === undefined) delete method[key];
+        Object.assign(manifest, { methods: [method] });
+      });
+      await assert.rejects(h.service.preview({ bundle: rawSigned(payload, publisher) }, previewWho), refusal); h.unchanged();
+    } finally { await h.close(); }
+  });
+}
+
+test("SKP-08 SKC-03 the three-key method of the earlier package format is refused, not read or converted", async () => {
+  const h = await previewHarness();
+  try {
+    const { publisher, payload } = textPackage(undefined, (manifest, files) => {
+      Object.assign(manifest, { methods: [{ name: "校对", purpose: "逐项核对事实", body: "agent/method.md" }] });
+      files["agent/method.md"] = "逐条核对可验证的事实。"; delete files[METHOD_BODY];
+    });
+    await assert.rejects(h.service.preview({ bundle: rawSigned(payload, publisher) }, previewWho), (error: unknown) => {
+      assert.equal((error as { code?: string }).code, "plugin.declaration_invalid"); assert.match(String((error as Error).message), /方法声明不合法/); return true;
+    });
+    h.unchanged();
+    assert.throws(() => readSandboxPackage(payload), /方法声明不合法/);
+  } finally { await h.close(); }
+});
+
+/** The refusal a package check throws, as the install preview reads it: the message and the problems it lists. */
+function refusalOf(run: () => unknown): { message: string; problems: unknown } {
+  try { run(); } catch (error) {
+    assert.equal((error as { code?: string }).code, "plugin.declaration_invalid");
+    return { message: (error as Error).message, problems: (error as { details?: { problems?: unknown } }).details?.problems };
+  }
+  assert.fail("the package was read");
+}
+
+test("SKP-08 SKC-03 a signed method whose body file is missing is refused naming the Skill and the quoted path", () => {
+  const { payload } = textPackage(undefined, (_manifest, files) => { delete files[METHOD_BODY]; });
+  assert.deepEqual(refusalOf(() => readSandboxPackage(payload)), {
+    message: `${JSON.stringify(METHOD_BODY)}：包里找不到`,
+    problems: [{ skill_id: METHOD, path: METHOD_BODY, reason: "包里找不到" }],
+  });
+});
 for (const path of ["/tmp/secret", "agent/../secret", "agent/./body", "C:/secret", "agent\\body", "agent//body", "agent/missing"]) {
   test(`RAC-2638 S-105 refuses body path ${path}`, async () => {
     const h = await previewHarness();

@@ -15,7 +15,7 @@ import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
-import { readSandboxAgentBodies } from './sandbox-agent-bodies.js';
+import { readSandboxAgentBodies, sandboxAgentBodyPaths } from './sandbox-agent-bodies.js';
 import { assertPluginHomeSchema } from '@molis-ai/molis-work-plugin-runtime';
 
 
@@ -84,7 +84,7 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   if (wire.kind !== 'app' || (wire.agent !== undefined && !Array.isArray(wire.agent))) refuse('文字正文只用于 app 包');
   refuseLocales(wire);
   const manifest = wire as SandboxPackageManifest;
-  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...(manifest.agent ?? []).map(item => item.body), ...(manifest.methods ?? []).map(item => item.body)];
+  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...sandboxAgentBodyPaths(manifest)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
   if (files.size !== payload.files.length) refuse('包内文件路径重复');
   for (const path of files.keys()) if (!wanted.includes(path)) refuse('包里有格式之外的文件：' + path);

@@ -1,4 +1,4 @@
-import { BUSINESS_HOST_TOOLS, type AgentManifest, type AgentPromptText, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { BUSINESS_HOST_TOOLS, type AgentManifest, type AgentPromptText, type PluginMethodDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 export const TODO_ORGANIZER_ROLE = "organizer";
 
@@ -35,7 +35,7 @@ export const todoPrompts: readonly AgentPromptText[] = [
  * applies_to; the Host registers the body from here. `applies_to` is "assistant" because both methods work through the business
  * tools (read-capability, change-capability), which Coding's roles do not have and a method's tools never widen.
  */
-export const todoSkills: readonly AgentSkillDefinition[] = [
+export const todoSkills: readonly PluginMethodDefinition[] = [
   {
     skill_id: "todo-organize", version: /* @version method.todo-organize */ 1, name: "整理待办",
     summary: "从用户给的材料里找出要用户推进的事，与已有待办比对，存成等用户确认的整理结果；也用于“看看有没有遗漏的待办”（读最近新来的材料，不只看已有待办）和“这封邮件影响哪些安排”。",

@@ -6,7 +6,7 @@ import type { ContractDescriptor } from "./package.js";
 import type { UiContribution } from "./ui.js";
 import type { PluginEventRecord, PluginEventDeliveryContext, PluginEventType } from "./plugin-events.js";
 import type { PluginInputDeliveryContext, PluginUpstreamReadyInputs, PluginUpstreamUnavailableReason } from "./plugin-wiring.js";
-import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
+import type { AgentPromptText, AgentSkillDefinition, PluginMethodDefinition } from "./plugin-agent.js";
 import type { InstructionPrompt } from "./model-prompts.js";
 export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "./plugin-materials.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
@@ -185,11 +185,11 @@ export interface PluginDefinition {
    */
   instructions?: readonly InstructionPrompt[];
   /**
-   * Bodies of the Manifest's `methods`, matched by id and version, for a plugin the catalog registers nothing for. Signed
-   * sandbox packages carry only the verified text-only projection: registered while it runs, as the catalog's are when the Host starts, and withdrawn when it stops (disabled,
+   * Bodies of the Manifest's `methods`, matched by id and version, for a plugin the catalog registers nothing for. A signed
+   * sandbox package's are its own declarations with the bodies it ships, checked again at start: registered while it runs, as the catalog's are when the Host starts, and withdrawn when it stops (disabled,
    * uninstalled, upgraded). A declared method without a body here is not registered; the developer diagnostics say so.
    */
-  methods?: readonly AgentSkillDefinition[];
+  methods?: readonly PluginMethodDefinition[];
   start(context: PluginStartContext): Promise<PluginContribution>;
   stop?(context: PluginStartContext): Promise<void>;
   health?(context: PluginStartContext): Promise<{ ok: boolean; message: string }>;

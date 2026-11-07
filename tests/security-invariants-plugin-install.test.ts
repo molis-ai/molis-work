@@ -1,5 +1,5 @@
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
-import { signedAgentPackage } from "./fixtures/sandbox-package.js";
+import { packageMethod, signedAgentPackage } from "./fixtures/sandbox-package.js";
 import { homeAgentDefinitions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 type PluginInstallPreviewResult = Awaited<ReturnType<PluginInstallService["preview"]>>;
 import assert from "node:assert/strict";
@@ -439,7 +439,7 @@ test("RAC-382 S-84 confirming in a real Host installs the package under pinned t
 
 test("RAC-2640/2643 S-84 preview exposes each signed body and compares the complete installed text before confirmation", { skip: process.platform !== "darwin", timeout: 90_000 }, async () => {
   const h = await installedPackageHost(), publisher = newPublisher(), prefix = "😀".repeat(200);
-  const base = { version: "1.1.0", roles: [{ name: "共享名称", purpose: "审阅", body: "agent/role.md" }], methods: [{ name: "将被移除", purpose: "核对", body: "agent/method.md" }], bodies: { "agent/role.md": prefix + "旧尾部" } };
+  const base = { version: "1.1.0", roles: [{ name: "共享名称", purpose: "审阅", body: "agent/role.md" }], methods: [packageMethod("removed-method", "将被移除", "核对")], bodies: { "agent/role.md": prefix + "旧尾部" } };
   try {
     const first = signedAgentPackage(publisher, base);
     const peek = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle: first }) as PluginInstallPreviewResult;
@@ -450,7 +450,7 @@ test("RAC-2640/2643 S-84 preview exposes each signed body and compares the compl
     await assert.rejects(h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 3 }, { bundle: first }));
     await assert.rejects(h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 4 }, { bundle: first }));
     await h.install(first);
-    const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], methods: [{ name: "新增方法", purpose: "整理", body: "agent/new.md" }], bodies: { "agent/role.md": prefix + "新尾部", "agent/new.md": "<script>仅为文本</script>" } });
+    const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], methods: [packageMethod("new-method", "新增方法", "整理")], bodies: { "agent/role.md": prefix + "新尾部", "skills/new-method/SKILL.md": "<script>仅为文本</script>" } });
     const preview = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle: next }) as PluginInstallPreviewResult;
     // RAC-2643: a changed tail beyond the displayed 200 code points still changes the upgrade preview.
     assert.deepEqual(preview.agent_bodies?.map(item => [item.kind, item.name, item.change]), [["role", "共享名称", "changed"], ["method", "新增方法", "added"], ["method", "将被移除", "removed"]]);

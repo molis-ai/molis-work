@@ -13,7 +13,10 @@ export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContributio
 export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { inspectContentPlugin } from "./content-plugin.js";
-export { parseContentPackage, type ContentPackage, type ContentPackageSkill } from "./content-package.js";
+export { parseContentPackage, type ContentPackage } from "./content-package.js";
+export { readPackagedSkills, type PackagedSkillBody, type PackagedSkills } from "./skill-files.js";
+/** The one refusal of a declaration or package check (`plugin.declaration_invalid`): outside paths quoted and cut short, at most 30 problems listed. */
+export { refuseDeclarations } from "./declaration-problems.js";
 export { skillDeclarationFromFrontmatter, type SkillFrontmatterOptions } from "./skill-frontmatter.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
@@ -21,7 +24,7 @@ export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type Syn
 export { syncTupleLocation } from './sync-location.js';
 export { createSyncConflictState } from './sync-conflict.js';
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxAgentBodyIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
+export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxRoleIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */

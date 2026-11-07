@@ -277,8 +277,29 @@ describe("a generated golden Home", { concurrency: false }, () => {
     }, entry => seeded.test(readFileSync(path.join(golden, `stores/${entry.path}.sql`), "utf8")));
     const result = run(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 1);
-    assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 rows \S+#todo\S* golden\.rows_decreased$/mu);
+    assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 rows-after-upgrade \S+#todo\S* golden\.rows_decreased$/mu);
     assert.doesNotMatch(result.output, new RegExp(GENERATED_TEXT, "u"));
+  }, { timeout: 600_000 });
+
+  test("UPG2-03: a knowledge card an upgrade lost is caught before any read, because the wait for the index would bring it back", () => {
+    const card = /^INSERT INTO "knowledge_cards"\(.*$/mu;
+    const parent = tampered("card", sql => {
+      assert.match(sql, card);
+      return sql.replace(card, "");
+    }, entry => entry.path === "knowledge/knowledge.db");
+    const result = run(REPLAY_SCRIPT, "--dir", parent);
+    assert.equal(result.status, 1);
+    assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 rows-after-upgrade knowledge\/knowledge\.db#knowledge_cards golden\.rows_decreased$/mu);
+  }, { timeout: 600_000 });
+
+  test("UPG2-06: the account Home's sync library at another version fails the structure check, though nothing else opens it", () => {
+    const parent = tampered("sync", sql => {
+      assert.match(sql, /PRAGMA user_version=\d+;/u);
+      return sql.replace(/PRAGMA user_version=\d+;/u, "PRAGMA user_version=999;");
+    }, entry => entry.path.endsWith("/sync/sync.db"));
+    const result = run(REPLAY_SCRIPT, "--dir", parent);
+    assert.equal(result.status, 1);
+    assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 structure \S+ storage\.schema_version_mismatch$/mu, result.output);
   }, { timeout: 600_000 });
 
   test("a payload that does not match the manifest is reported as a damaged golden, not as a finding about the code", () => {

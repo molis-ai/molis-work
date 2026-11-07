@@ -90,6 +90,7 @@ function createAccountSyncLibrary(home) {
  * A card's number is the order the organizer's timers happened to fire in, across projects, and a contentless index holds that number, so nothing
  * after the fact can make it stable. The cards hold nothing the catalog does not (no model, no edits), and with the search index complete the owner
  * rebuilds them in one pass, project by project: the library is removed and the Host lists each project that had cards. Recorded in the manifest's `imports`.
+ * This runs after the owners' write cases, so a case under tests/golden-writes/ that writes to this library would be removed here and still run on replay.
  */
 async function cardsInOneOrder(home, account, projects, named) {
   const directory = path.join(home, "knowledge"), db = new DatabaseSync(path.join(directory, "knowledge.db"), { readOnly: true });

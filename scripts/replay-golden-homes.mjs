@@ -9,7 +9,7 @@
 //
 // "Upgrade to current" has no call of its own: the Host brings a Home up to date when it starts (U1 design §3, §4), and until U1 lands every
 // library has to already be at this build's version, which opening it enforces. So the first step below is the upgrade, today and after U1.
-import { mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -25,7 +25,8 @@ const directory = path.resolve(option("--dir") ?? path.join(root, "tests/fixture
 const { createTemporaryHome, goldenFailure, GOLDEN_TEST_KEY, readManifest, restoreGolden } = await import("./golden/layout.mjs");
 const { enterHome, goldenActions, loadGoldenWrites, openGoldenHost, refuseNetwork, refusedNetwork } = await import("./golden/session.mjs");
 const local = await import("@molis-ai/molis-work-app-local-host");
-const { countSqliteRows } = await import("@molis-ai/molis-work-storage");
+const { countSqliteRows, openBaselineHomeSqlite } = await import("@molis-ai/molis-work-storage");
+const { SYNC_STORE_BASELINE } = await import("@molis-ai/molis-work-module-sync-replication");
 const { readEveryParameterlessAction, unavailableInFixture } = await import(new URL("../tests/fixtures/parameterless-reads.ts", import.meta.url).href);
 const { expectAnswer, installedPluginSession } = await import("./replay-plugins/signed-session.mjs");
 const { thirdPartySample } = await import("./golden/populate.mjs");
@@ -73,6 +74,8 @@ async function assertStructure(homes) {
     const scratch = realpathSync(mkdtempSync(path.join(tmpdir(), "golden-structure-")));
     try { await local.createHomeSnapshot({ homeDirectory: item.at, destination: path.join(scratch, "snapshot") }); }
     finally { rmSync(scratch, { recursive: true, force: true }); }
+    // The snapshot leaves the sync library out and only a signed-in sync service opens it, so here its owner's baseline checks it.
+    if (existsSync(path.join(item.at, "sync/sync.db"))) openBaselineHomeSqlite(item.at, "sync", SYNC_STORE_BASELINE).close();
   }
 }
 
@@ -93,9 +96,10 @@ function readsFailed(where, broken) {
 }
 
 /**
- * A golden holds no search index (the snapshot leaves it out as rebuildable), and knowledge cards are reconciled against that index: the first
- * listing drops a card whose piece is not indexed yet, and the card comes back when the index has caught up. So the row check of §4 step 5 is
- * only meaningful once it has, and it stays exactly as strict: when the deadline passes the recorded number is simply not there and that check fails.
+ * This waits on a known defect, BL-knowledge-restore-partial-catalog; delete it when that is fixed. A golden holds no search index (the snapshot
+ * leaves it out as rebuildable), and knowledge cards are reconciled against that index: the first listing drops a card whose piece is not indexed
+ * yet, and the card comes back when the index has caught up. A row count after this wait proves only that the number came back: what an upgrade
+ * lost is caught by the count taken before any read ("rows-after-upgrade"), and a rebuilt card's model-written content is not seen by any count.
  */
 async function letKnowledgeCardsCatchUp(manifest, session, item) {
   const file = path.join(item.path, "knowledge/knowledge.db");
@@ -181,6 +185,7 @@ async function replayGolden(name) {
     restoreGolden(source, manifest, restored.home);
     const homes = homesOf(manifest, restored.home);
     step = "upgrade"; await openEveryProject(homes);
+    step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home);
     step = "structure"; await assertStructure(homes);
     step = "read"; steps.reads = await readEverything(manifest, homes);
     step = "rows"; assertRowsKept(manifest, restored.home);

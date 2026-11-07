@@ -11,7 +11,7 @@ import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-
 
 const NOTE = { kind: "note", id: "n1", project_id: "q4" };
 const FIVE: readonly PlacementRelationRole[] = ["list", "bind", "release", "candidates", "create"];
-const READ = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
+const READ = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", ["notes:read"]);
 interface RelationOwner { provider: string; prefix: string; roles?: readonly PlacementRelationRole[]; unavailable?: readonly PlacementRelationRole[]; disabled?: boolean; project?: string }
 interface ToolOwner { provider: string; prefix: string; kind: "move" | "copy"; disabled?: boolean; home?: boolean; project?: string }
 interface Note { title: string; body: string; project: string }
@@ -74,8 +74,8 @@ function fixture(t: TestContext, options: { relations?: RelationOwner[]; tools?:
     });
   }
   for (const owner of options.tools ?? []) {
-    const move = defineObjectMoveAction(`${owner.prefix}.move`, ["note"], "笔记", ["notes:write"], owner.home ? "home" : "project");
-    const copy = defineObjectCopyAction(`${owner.prefix}.copy`, ["note"], "笔记", ["notes:write"]);
+    const move = defineObjectMoveAction(`${owner.prefix}.move`, 1, ["note"], "笔记", ["notes:write"], owner.home ? "home" : "project");
+    const copy = defineObjectCopyAction(`${owner.prefix}.copy`, 1, ["note"], "笔记", ["notes:write"]);
     const moveNote = (input: { subject: { kind: string; id: string }; to_project_id: string }) => {
       effects.push(`${owner.provider}:move`);
       notes.get(input.subject.id)!.project = input.to_project_id;

@@ -28,8 +28,8 @@ test("RAC-2373 a nonempty current memory schema at another version refuses befor
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const db = new DatabaseSync(file); db.exec(sql); db.exec("INSERT INTO memory_markers VALUES ('owner','retained','time','{}'); PRAGMA user_version = 2"); db.close(); chmodSync(file, 0o600);
     const before = readFileSync(file);
-    assert.throws(() => openMemoryLedger({ homeDirectory: home }), (error: { code?: string; found?: number; expected?: number }) =>
-      error.code === "storage.schema_version_mismatch" && error.found === 2 && error.expected === 1);
+    assert.throws(() => openMemoryLedger({ homeDirectory: home }), (error: { code?: string; details?: { found?: number; expected?: number } }) =>
+      error.code === "storage.store_too_new" && error.details?.found === 2 && error.details?.expected === 1);
     assert.deepEqual(readFileSync(file), before);
     const kept = new DatabaseSync(file, { readOnly: true });
     try { assert.equal(kept.prepare("SELECT count(*) AS n FROM memory_markers").get()!.n, 1); assert.deepEqual(describeSqliteSchema(kept), shape()); }

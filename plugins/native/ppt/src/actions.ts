@@ -25,42 +25,42 @@ type Identity = { id: string; expected_version?: number };
 /** Exactly one source: pasted text, or a Pages document read with the caller's own authority. */
 type OutlineInput = Identity & { text?: string; page_id?: string; replace?: boolean };
 type Edit = Identity & { title?: string; description?: string; color_primary?: string; color_background?: string; color_text?: string; slides?: readonly PptSlideInput[] };
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
+function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   // An action that waits on a model discloses the cost and runs beside the serial queue, like Forms' AI drafting.
-  return createActionDefinition<I, O>(`ppt.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: [PPT_SUBJECT_KIND], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) });
+  return createActionDefinition<I, O>(`ppt.${name}`, operation, { title, description, ...(execution ? { execution } : {}), audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: [PPT_SUBJECT_KIND], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) }, version);
 }
 export const pptActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: pptArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: defineArtifactPinAction("ppt.artifacts.pin", PPT_SUBJECT_KIND, "演示稿", [...write, "artifact:write"]),
+  artifactPin: defineArtifactPinAction("ppt.artifacts.pin", /* @version action.ppt.artifacts.pin */ 1, PPT_SUBJECT_KIND, "演示稿", [...write, "artifact:write"]),
   /** Whether a pinned version still matches the ppt object it came from (A4b, 「原文已改」); compares content, not revisions. */
-  artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", "演示稿", read),
+  artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", /* @version action.ppt.artifacts.compare */ 1, "演示稿", read),
   /** 「从这一版继续」 (A4b): a new 演示稿 with the content of a pinned version; the version itself is unchanged. */
-  artifactContinue: defineArtifactContinueAction("ppt.artifacts.continue", "演示稿", write),
-  list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
+  artifactContinue: defineArtifactContinueAction("ppt.artifacts.continue", /* @version action.ppt.artifacts.continue */ 1, "演示稿", write),
+  list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", /* @version action.ppt.list */ 1, "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
     object({ presentations: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
-  get: define<{ id: string }, { presentation: PptRecord }>("get", "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),
-  create: define<{ title?: string }, { presentation: PptRecord }>("create", "新建演示稿", "创建带一页空白幻灯片的演示稿", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
-  update: define<Edit, { presentation: PptRecord }>("update", "编辑演示稿", "替换指定字段或整组幻灯片；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, color_primary: color, color_background: color, color_text: color,
+  get: define<{ id: string }, { presentation: PptRecord }>("get", /* @version action.ppt.get */ 1, "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),
+  create: define<{ title?: string }, { presentation: PptRecord }>("create", /* @version action.ppt.create */ 1, "新建演示稿", "创建带一页空白幻灯片的演示稿", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
+  update: define<Edit, { presentation: PptRecord }>("update", /* @version action.ppt.update */ 1, "编辑演示稿", "替换指定字段或整组幻灯片；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, color_primary: color, color_background: color, color_text: color,
     slides: { ...array(object(slideFields, [])), minItems: 1, maxItems: 40 } }, ["id"]), changed),
-  delete: define<Identity, { ok: true }>("delete", "删除演示稿", "删除当前项目演示稿，待恢复的成果发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
-  export: define<Identity, { filename: string; mime_type: "application/json"; content: string }>("export", "导出演示稿 JSON", "返回已保存演示稿的完整 JSON、文件名和 MIME 类型；不是 PPTX", "query", object(identity, ["id"]), object({ filename: text, mime_type: { const: "application/json" }, content: text })),
-  promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "演示稿存为成果", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
-  pptx: define<Identity, { filename: string; mime_type: typeof PPTX_MIME_TYPE; content_base64: string; slide_count: number }>("pptx", "导出 PowerPoint 文件",
+  delete: define<Identity, { ok: true }>("delete", /* @version action.ppt.delete */ 1, "删除演示稿", "删除当前项目演示稿，待恢复的成果发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
+  export: define<Identity, { filename: string; mime_type: "application/json"; content: string }>("export", /* @version action.ppt.export */ 1, "导出演示稿 JSON", "返回已保存演示稿的完整 JSON、文件名和 MIME 类型；不是 PPTX", "query", object(identity, ["id"]), object({ filename: text, mime_type: { const: "application/json" }, content: text })),
+  promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.ppt.promote */ 1, "演示稿存为成果", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  pptx: define<Identity, { filename: string; mime_type: typeof PPTX_MIME_TYPE; content_base64: string; slide_count: number }>("pptx", /* @version action.ppt.pptx */ 1, "导出 PowerPoint 文件",
     "按已保存的版本生成 .pptx（每页标题、要点、讲者备注与配色），PowerPoint、Keynote、WPS 可直接打开和放映；不含图片与图表", "query", object(identity, ["id"]),
     object({ filename: text, mime_type: { const: PPTX_MIME_TYPE }, content_base64: text, slide_count: { type: "integer", minimum: 1 } })),
-  outline: define<OutlineInput, { presentation: PptRecord; slide_count: number }>("outline", "按文字生成大纲",
+  outline: define<OutlineInput, { presentation: PptRecord; slide_count: number }>("outline", /* @version action.ppt.outline */ 1, "按文字生成大纲",
     "把一段要点或 Markdown 变成幻灯片：`#` 是演示稿标题，`##` 分页，列表成为要点，`>` 成为讲者备注；没有标题时每 6 条要点一页。也可以给 page_id 用一篇 Pages 文档的正文（以调用者自己的权限读取）。追加到现有页之后（演示稿最多 40 页，已满时需要替换现有页），或替换现有页；本地处理，不调用模型", "command",
     outlineInput, object({ presentation: record, slide_count: { type: "integer", minimum: 1 } })),
-  outlineAi: define<OutlineInput, { presentation: PptRecord; slide_count: number }>("outline_ai", "AI 整理成大纲",
+  outlineAi: define<OutlineInput, { presentation: PptRecord; slide_count: number }>("outline_ai", /* @version action.ppt.outline_ai */ 1, "AI 整理成大纲",
     "让当前文字模型把一段文字或一篇 Pages 文档整理成幻灯片大纲，再按标题分页；演示稿已满 40 页又不替换时，不调用模型；模型失败、返回空或演示稿已变化时不写入", "command",
     outlineInput, object({ presentation: record, slide_count: { type: "integer", minimum: 1 } }), [...write, "model:invoke"], { cost: "metered" }),
-  outlinePages: define<Record<string, never>, { documents: Array<{ id: string; title: string; updated_at: string | null }> }>("outline_pages", "可做成大纲的文档",
+  outlinePages: define<Record<string, never>, { documents: Array<{ id: string; title: string; updated_at: string | null }> }>("outline_pages", /* @version action.ppt.outline_pages */ 1, "可做成大纲的文档",
     "列出当前项目里可以拿来生成大纲的 Pages 文档（以调用者自己的权限读取）；Pages 未启用或无权读取时返回空列表与原因", "query", object({}),
     object({ documents: array(object({ id, title: text, updated_at: { type: ["string", "null"] } })), unavailable_reason: { type: ["string", "null"] } }, ["documents"]), [...read, "pages:read"]),
-  move: defineObjectMoveAction("ppt.placement.move", [PPT_SUBJECT_KIND], "演示稿", write),
-  copy: defineObjectCopyAction("ppt.placement.copy", [PPT_SUBJECT_KIND], "演示稿", write),
+  move: defineObjectMoveAction("ppt.placement.move", /* @version action.ppt.placement.move */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
+  copy: defineObjectCopyAction("ppt.placement.copy", /* @version action.ppt.placement.copy */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
   searchEntries: pptSearchActions.entries,
   files: pptSearchActions.files,
   subject: pptSearchActions.subject,

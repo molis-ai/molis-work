@@ -72,7 +72,7 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
   assert.ok(generate);
   const open = async () => {
     adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
-      memory: { ...memoryRuntimePolicy(() => policy, memoryExtractor(home, () => generate)), sources, promotion: { policy: "memory.write-gate", version: 3,
+      memory: { ...memoryRuntimePolicy(() => policy, memoryExtractor(home, () => generate)), sources, promotion: { policy: "memory.write-gate", version: 1,
         decide: (caller, request) => service.promotion.decide(caller, request), undo: {
           prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: model.base + "/v1/messages", model: "fixture", credential_ref: "fixture",

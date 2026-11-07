@@ -114,7 +114,7 @@ export interface PluginManifest {
   /** Portable collections; requires an authorized owner adapter. */
   sync?: import("./plugin-sync.js").PluginSyncDeclaration;
   /** The current Manifest format; all plugins declare version 1. */
-  schema_version: 1;
+  schema_version: /* @version manifest.schema */ 1;
   plugin_id: string;
   version: string;
   name: string;
@@ -130,7 +130,7 @@ export interface PluginManifest {
     /** Signature identity. A changed value creates a different Plugin identity. */
     signature: string;
   };
-  host_api_version: 1;
+  host_api_version: /* @version host.api */ 1;
   /**
    * 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
    * market, the Dock, a project's plugin settings), so it cannot be removed. Only a plugin that ships with the Host may

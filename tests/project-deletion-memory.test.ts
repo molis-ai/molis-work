@@ -22,7 +22,7 @@ async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async id => projects.has(id), deletingProject: () => undefined };
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"),
-    memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: "memory.write-gate", version: 3,
+    memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: "memory.write-gate", version: 1,
       decide: (caller, request) => service.promotion.decide(caller, request),
       undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
     modelConfiguration: async () => { throw new Error("Project deletion must not call a model"); } });

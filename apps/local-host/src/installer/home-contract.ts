@@ -1,12 +1,12 @@
 /** App-owned installation API and release-format types. No project facts. */
 
-export const INSTALLER_ID = "molis-work-home-install-v1";
+export const INSTALLER_ID = /* @version type.molis-work-home-install "molis-work-home-install-v{version}" */ "molis-work-home-install-v1";
 
 export function isOwnedInstaller(installer: unknown): boolean {
   return installer === INSTALLER_ID;
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = /* @version format.home.installation */ 1;
 
 /** Skills that must exist in the install source and every owned release. */
 export const REQUIRED_RELEASE_SKILL_FILES = [

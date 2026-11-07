@@ -8,7 +8,7 @@
 //   errorOwnerTable       tooling/gates/error-owners.json: its own rules (no baseline) and "only stricter" against the merge-base
 //
 // A file with no record starts at 0, so new code has to arrive clean; a moved file keeps its record. Nothing here is written into
-// tooling/gates/baseline.json except the four counts (and their totals), exactly like the other per-file metrics.
+// the checkout-local health baseline except the four counts (and their totals), exactly like the other per-file metrics.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ERROR_OWNERS_FILE, errorOwnerProblems, errorOwnersWantsText, looserOwnership, measureOwners, ownerAssignment, readOwnerTable } from "./error-owners.mjs";

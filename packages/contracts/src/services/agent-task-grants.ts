@@ -12,9 +12,9 @@ import type { ActionDefinition } from "../platform/actions.js";
  * adds or changes later is not granted until the person allows it again, and `list` says so.
  */
 export const servicesAgentTaskGrantsContract = {
-  contractId: "io.molis.work.service.agent-task-grants.v1",
+  contractId: /* @version contract.io.molis.work.service.agent-task-grants "io.molis.work.service.agent-task-grants.v{version}" */ "io.molis.work.service.agent-task-grants.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.agent-task-grants */ 1,
   maturity: "partial",
   ssot: "specs/proactive-assistant/schedule-task-reads.md",
 } as const satisfies ContractDescriptor;
@@ -116,7 +116,7 @@ const subject = { type: "object", required: ["plugin_install_id", "key", "revisi
  */
 export const agentTaskGrantActions = {
   set: {
-    capability_id: "agent.task_grants.set", version: 1, operation: "command",
+    capability_id: "agent.task_grants.set", version: /* @version action.agent.task_grants.set */ 1, operation: "command",
     action: { title: "设置任务能读的数据", description: "把一个后台任务能读的类别换成这些：按此刻目录里每一类的只读动作记下授权；空列表就是全部撤回。只有本人能设。", kind: "operation", scope: "project", effect: "write",
       audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
       input_schema: { type: "object", required: ["plugin_install_id", "key", "categories", "expected_revision"], additionalProperties: false, properties: {
@@ -124,14 +124,14 @@ export const agentTaskGrantActions = {
       output_schema: subject },
   } as ActionDefinition<TaskGrantSetRequest, TaskGrantSubject>,
   clear: {
-    capability_id: "agent.task_grants.clear", version: 1, operation: "command",
+    capability_id: "agent.task_grants.clear", version: /* @version action.agent.task_grants.clear */ 1, operation: "command",
     action: { title: "清除任务的读取授权", description: "撤回一个后台任务能读的全部类别。插件只能清自己安装下的任务。", kind: "operation", scope: "project", effect: "write",
       audiences: ["user", "plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["key"], additionalProperties: false, properties: { plugin_install_id: id, key } },
       output_schema: { type: "object", required: ["cleared"], additionalProperties: false, properties: { cleared: { type: "boolean" } } } },
   } as ActionDefinition<TaskGrantClearRequest, TaskGrantClearResult>,
   list: {
-    capability_id: "agent.task_grants.list", version: 1, operation: "query",
+    capability_id: "agent.task_grants.list", version: /* @version action.agent.task_grants.list */ 1, operation: "query",
     action: { title: "列出任务的读取授权", description: "一次列出本项目里各后台任务能读的类别和状态（已授权、需要重新确认、暂时读不到）。插件只看到自己安装下的任务。", kind: "query", scope: "project",
       audiences: ["user", "plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", additionalProperties: false, properties: { plugin_install_id: id } },

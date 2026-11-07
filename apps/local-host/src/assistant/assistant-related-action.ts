@@ -18,7 +18,7 @@ const text = (maxLength: number) => ({ type: "string", minLength: 1, maxLength }
  * Manifest reads back (a subject reader it is granted); the person's own surfaces ask for any object. Both read in the call's project.
  */
 export const assistantRelatedAction: ActionDefinition<RelatedInput, { works: readonly RelatedWork[] }> = {
-  capability_id: "assistant.works.related", provider_id: "io.molis.work.assistant.rules", version: 1, operation: "query",
+  capability_id: "assistant.works.related", provider_id: "io.molis.work.assistant.rules", version: /* @version action.assistant.works.related */ 1, operation: "query",
   action: { title: "相关的助理工作", description: "列出与一个对象相关的助理工作：状态与结果链接，不含对话与材料", kind: "query", effect: "read",
     scope: "project", audiences: ["user", "plugin"], permissions: [], subject_kinds: [],
     input_schema: { type: "object", properties: { kind: text(120), id: text(256) }, required: ["kind", "id"], additionalProperties: false },

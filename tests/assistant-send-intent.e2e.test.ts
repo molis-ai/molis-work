@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openWork, putInput, readWork, seedWork, sendBarrier, sendBrowser, waitWork } from "./fixtures/assistant-send-journey.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 // W2-18-SEND-01: a real draft HTTP request holds Send while the person chooses B and prepares B's next message.
 test("W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's selection, draft and materials", { timeout: 90_000 }, async t => {
@@ -26,7 +27,7 @@ test("W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's se
     assert.deepEqual(body.materials.map((item: { title: string }) => item.title), ["A 的材料"]);
     await barrier.release(sent);
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b);
+    assert.equal(await browser.evaluate(CURRENT_WORK), b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 的下一条输入");
     assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /B 的材料/);
     const afterA = await readWork(browser, a), afterB = await readWork(browser, b);
@@ -35,7 +36,7 @@ test("W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's se
     await waitWork(browser, b, view => view.work.draft === "B 的下一条输入");
     await browser.reloadPage();
     await browser.waitFor("document.querySelector('[data-assistant-input]').value === 'B 的下一条输入'");
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b, "the preserved draft and choice survive a reload");
+    assert.equal(await browser.evaluate(CURRENT_WORK), b, "the preserved draft and choice survive a reload");
   } finally { await barrier.close(); }
 });
 
@@ -55,7 +56,7 @@ test("W2-18-SEND-01: a late Host refusal belongs to A and leaves B's input and m
     await putInput(browser, "B 留下的输入", "B 的材料");
     await barrier.release(sent);
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b);
+    assert.equal(await browser.evaluate(CURRENT_WORK), b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 留下的输入");
     assert.equal(await browser.evaluate("document.querySelector('.assistant-problem')"), null);
     assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /B 的材料/);
@@ -82,7 +83,7 @@ test("W2-18-SEND-01: text written after Send survives in A while B remains curre
     const afterA = await waitWork(browser, a, view => view.work.draft === "A 还没发送的新输入");
     assert.equal(afterA.rounds.at(-1)?.text, "A 发出的内容");
     assert.equal(afterA.rounds.length, 2);
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b);
+    assert.equal(await browser.evaluate(CURRENT_WORK), b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 的输入");
     const afterB = await waitWork(browser, b, view => view.work.draft === "B 的输入");
     assert.equal(afterB.rounds.length, 1);
@@ -126,7 +127,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
       await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     } finally { clearTimeout(timer); stopResponse(); stopFinished(); }
     await browser.click(`[data-assistant-works] [data-work-id="${a}"]`);
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), a);
+    assert.equal(await browser.evaluate(CURRENT_WORK), a);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "A 等回执期间写下的 X", "loadDraft must use A's later input before the receipt arrives");
     await barrier.release(sent);
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
@@ -136,7 +137,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
     const afterB = await waitWork(browser, b, view => view.work.draft === "B 自己的 Y"); assert.equal(afterB.rounds.length, 1);
     await browser.reloadPage();
     await browser.waitFor("document.querySelector('[data-assistant-input]').value === 'A 等回执期间写下的 X'");
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), a);
+    assert.equal(await browser.evaluate(CURRENT_WORK), a);
     await openWork(browser, b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 自己的 Y");
     // B's later edit alone is not an edit of A: returning without typing in A must still clear only A's sent text.
@@ -187,7 +188,7 @@ test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope
     await barrier.release(retry);
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
     assert.equal(await browser.evaluate("document.querySelector('.chooser').dataset.selected"), "personal");
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), null);
+    assert.equal(await browser.evaluate(CURRENT_WORK), null);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "项目 A 的新工作");
     assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /后来选择的材料/);
     const persisted = await waitWork(browser, newId, view => view.work.state === "completed");

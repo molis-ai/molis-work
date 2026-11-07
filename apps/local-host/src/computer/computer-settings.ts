@@ -46,7 +46,7 @@ export class ComputerSettings {
   private write(next: Saved): void {
     fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
     const temp = `${this.file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify({ version: 1, ...next }, null, 2), { mode: 0o600 });
+    fs.writeFileSync(temp, JSON.stringify({ version: /* @version format.computer.settings */ 1, ...next }, null, 2), { mode: 0o600 });
     fs.renameSync(temp, this.file);
     this.saved = next;
   }

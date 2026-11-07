@@ -80,7 +80,7 @@ export function parseCodingFileChanged(payload: unknown): CodingFileChanged {
 
 const codingFileChangedType: PluginEventType<CodingFileChanged> = {
   event_type_id: CODING_FILE_CHANGED_EVENT,
-  type_version: 1,
+  type_version: /* @version event.io.molis.work.coding.file-changed */ 1,
   validate: parseCodingFileChanged,
 };
 
@@ -111,7 +111,7 @@ export function parseCodingWorkspaceInvalidated(payload: unknown): CodingWorkspa
 
 const codingWorkspaceInvalidatedType: PluginEventType<CodingWorkspaceInvalidated> = {
   event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT,
-  type_version: 1,
+  type_version: /* @version event.io.molis.work.coding.workspace-invalidated */ 1,
   validate: parseCodingWorkspaceInvalidated,
 };
 
@@ -142,14 +142,14 @@ export function parseCodingPreference(payload: unknown): CodingPreference {
 
 const codingPreferenceType: PluginEventType<CodingPreference> = {
   event_type_id: CODING_PREFERENCE_EVENT,
-  type_version: 1,
+  type_version: /* @version event.io.molis.work.coding.preference */ 1,
   validate: parseCodingPreference,
 };
 
 /** A stopped or uncertain Run may have changed its workspace; this hint never claims success. */
 const codingRunUpdatedType: PluginEventType = {
   event_type_id: CODING_RUN_UPDATED_EVENT,
-  type_version: 1,
+  type_version: /* @version event.io.molis.work.coding.run-updated */ 1,
   validate(payload: unknown) {
     if (!isRecord(payload)) throw new Error("run-updated 不是对象");
     if (typeof payload.phase !== "string" || !["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(payload.phase)) throw new Error("phase 不是停止或待核对状态");

@@ -22,3 +22,9 @@ node docs/design/soft-workbench/server.mjs
 采用 macOS 系统字体 / 苹方，Inter 后备；视频的确切字体名称尚未确认。动效提供按压、选项反馈、浮层进出、密度预览和引导转场，尊重减少动态效果设置。
 
 需求：`specs/archive/soft-workbench-ui/spec.md`。验证结果见同目录 `verification.md`。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+用户认可的 Soft Workbench 高保真原型（首页、目标、信息流、新手引导）
+
+当前视觉语言的**参考原型**；已按 [specs/archive/soft-workbench-rollout](../../../specs/archive/soft-workbench-rollout/spec.md) 落到生产。原型里的数据、AI 回复和 localStorage 都是演示

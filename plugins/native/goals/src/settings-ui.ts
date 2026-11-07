@@ -52,7 +52,7 @@ function renderSettingsContent(surface: string, model: StagePageModel<GoalsSetti
   throw new Error(`Goals settings surface ${surface} 不存在`);
 }
 
-export const GOALS_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.goals.settings.v1";
+export const GOALS_SETTINGS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.goals.settings "io.molis.work.goals.settings.v{version}" */ "io.molis.work.goals.settings.v1";
 
 /**
  * Directory placement for the personal planning library.

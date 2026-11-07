@@ -143,7 +143,7 @@ test("ISSUE-01 ISSUE-05 persistence survives reopening, another Home is empty, w
   reopened.close(); isolated.close();
   const path = join(home, "issues", "issues.db"), raw = new DatabaseSync(path);
   raw.exec("PRAGMA user_version = 9"); raw.close();
-  assert.throws(() => openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" }), { code: "storage.schema_version_mismatch" });
+  assert.throws(() => openPluginDatabase(home, ISSUES_DATABASE, () => {}, { install_id: "issues-test", installation_generation: "1" }), { code: "storage.store_too_new" });
   const check = new DatabaseSync(path, { readOnly: true });
   assert.equal(check.prepare("PRAGMA user_version").get()!.user_version, 9);
   assert.equal(check.prepare("SELECT description FROM issues WHERE id=?").get(saved.id)!.description, original.description);

@@ -2,15 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { initialVersionProblems, sourceVersionProblems } from "../scripts/gates/initial-versions.mjs";
 
-test("U0-03: an active registration cannot hide a later action, manifest, role or prompt version", () => {
+test("U0-03: an active registration cannot hide a later action, manifest, role, prompt, instruction or method version", () => {
   const agent = {
     roles: [{ role_id: "parent", version: 1 }], prompts: [{ prompt_id: "base", version: 1 }],
     subagents: { roles: [{ role_id: "child", version: 1 }] },
   };
-  const manifest = { plugin_id: "notes", schema_version: 1, host_api_version: 1, agent, actions: [{ capability_id: "notes.read", version: 1 }] };
+  const manifest = { plugin_id: "notes", schema_version: 1, host_api_version: 1, agent, actions: [{ capability_id: "notes.read", version: 1 }], methods: [{ skill_id: "notes-tidy", version: 1 }] };
   const view = { provider: { provider_id: "system.home" }, capability_id: "home.read", version: 1 };
   const registration = { owner_id: "assistant", prompts: [{ prompt_id: "work", version: 1 }], roles: [{ role_id: "system", version: 1 }] };
-  const inspect = () => initialVersionProblems({ manifests: [manifest], hostViews: [view], registrations: [registration] });
+  const versionEntries = { "prompt.notes.summarize": 1, "method.goals.work-build-change": 1, "action.notes.read": 1 };
+  const inspect = () => initialVersionProblems({ manifests: [manifest], hostViews: [view], registrations: [registration], versionEntries });
   assert.deepEqual(inspect(), []);
   const mutations: Array<[string, (version: number) => void]> = [
     ["schema_version", value => { manifest.schema_version = value; }],
@@ -22,6 +23,9 @@ test("U0-03: an active registration cannot hide a later action, manifest, role o
     ["child", value => { agent.subagents.roles[0]!.version = value; }],
     ["work", value => { registration.prompts[0]!.version = value; }],
     ["system", value => { registration.roles[0]!.version = value; }],
+    ["notes-tidy", value => { manifest.methods[0]!.version = value; }],
+    ["prompt.notes.summarize", value => { versionEntries["prompt.notes.summarize"] = value; }],
+    ["method.goals.work-build-change", value => { versionEntries["method.goals.work-build-change"] = value; }],
   ];
   for (const [name, setVersion] of mutations) {
     setVersion(2);

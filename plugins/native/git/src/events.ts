@@ -48,7 +48,7 @@ export function parseGitFileChanged(payload: unknown): GitFileChanged {
 export const gitEventTypes: readonly PluginEventType[] = [
   {
     event_type_id: GIT_OPERATION_UPDATED_EVENT,
-    type_version: 1,
+    type_version: /* @version event.io.molis.work.git.operation-updated */ 1,
     validate(payload: unknown): GitOperationUpdate {
       if (!isRecord(payload) || typeof payload.outcome !== "string" || !["succeeded", "failed", "unknown"].includes(payload.outcome)) throw new Error("operation-updated 无效");
       return { workspace_id: requireText(payload.workspace_id, "workspace_id"), operation_id: requireText(payload.operation_id, "operation_id"), outcome: payload.outcome as GitOperationUpdate["outcome"] };
@@ -56,7 +56,7 @@ export const gitEventTypes: readonly PluginEventType[] = [
   },
   {
     event_type_id: GIT_FILE_CHANGED_EVENT,
-    type_version: 1,
+    type_version: /* @version event.io.molis.work.git.file-changed */ 1,
     validate: (payload: unknown) => parseGitFileChanged(payload),
   },
 ];

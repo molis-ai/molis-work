@@ -5,7 +5,7 @@ import { JELLY_UNCATEGORIZED_ID, jellyAddDays, jellyDate, jellyDaysBetween, jell
 export { JELLY_UNCATEGORIZED_ID, validateJellyWorkspace } from "./calendar-validation.js";
 
 export function emptyJellyWorkspace(): JellyWorkspace {
-  return { schema_version: 1, revision: 0, categories: [{ id: JELLY_UNCATEGORIZED_ID, name: "未分类", color: "#8E8E93", sort_index: 0 }], items: [], series: [], notes: [], relations: [], relation_overrides: [], task_links: [], applied_plan_ids: [] };
+  return { schema_version: /* @version format.jelly.workspace */ 1, revision: 0, categories: [{ id: JELLY_UNCATEGORIZED_ID, name: "未分类", color: "#8E8E93", sort_index: 0 }], items: [], series: [], notes: [], relations: [], relation_overrides: [], task_links: [], applied_plan_ids: [] };
 }
 export function makeJellyItem(input: Partial<JellyItem>, now: string): JellyItem {
   const start = jellyDate(input.start_date);

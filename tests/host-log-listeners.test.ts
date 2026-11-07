@@ -184,10 +184,10 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   const local = newLocalHost();
   t.after(() => local.close());
   let eventsBroken = true, remindersBroken = true;
-  const events = defineHomeEventsAction("fixture.material.events", ["note"], "事项", []);
+  const events = defineHomeEventsAction("fixture.material.events", 1, ["note"], "事项", []);
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.material", kind: "plugin", title: "Material" }, definitions: [events],
     handlers: [{ ...events, handle: () => { if (eventsBroken) throw failure("fixture.events_down"); return { source: { surface: "notes", title: "Notes", icon: "note" }, events: [] }; } }] });
-  const reminders = defineDueRemindersAction("fixture.material.reminders", ["note"], "提醒", []);
+  const reminders = defineDueRemindersAction("fixture.material.reminders", 1, ["note"], "提醒", []);
   local.actionRegistry().registerProvider({ provider: { provider_id: "fixture.reminders", kind: "plugin", title: "Reminders" }, definitions: [reminders],
     handlers: [{ ...reminders, handle: () => { if (remindersBroken) throw failure("fixture.reminders_down"); return { source: { surface: "notes", title: "Notes" }, reminders: [] }; } }] });
   const inHome: ActionCallContext = { ...person, project_id: null };

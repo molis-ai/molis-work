@@ -1,7 +1,7 @@
 import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-export const TODO_UI_CONTRIBUTION_ID = "io.molis.work.native.todo.ui.v1";
+export const TODO_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.todo.ui "io.molis.work.native.todo.ui.v{version}" */ "io.molis.work.native.todo.ui.v1";
 
 export type TodoUiSurface = "directory" | "workbench";
 

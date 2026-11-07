@@ -17,18 +17,18 @@
   CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
 
 
-    CREATE TABLE IF NOT EXISTS sync_61ffa9a1eff04d26724ffd3c958d_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS sync_61ffa9a1eff04d26724ffd3c958d_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS sync_61ffa9a1eff04d26724ffd3c958d_replica_changes_key ON sync_61ffa9a1eff04d26724ffd3c958d_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS sync_61ffa9a1eff04d26724ffd3c958d_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS sync_61ffa9a1eff04d26724ffd3c958d_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS sync_61ffa9a1eff04d26724ffd3c958d_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS sync_61ffa9a1eff04d26724ffd3c958d_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS sync_3a28c22289ed28c8fdbe3056c102_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS sync_3a28c22289ed28c8fdbe3056c102_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS sync_3a28c22289ed28c8fdbe3056c102_replica_changes_key ON sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS sync_3a28c22289ed28c8fdbe3056c102_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS sync_3a28c22289ed28c8fdbe3056c102_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 
-CREATE TABLE sync_61ffa9a1eff04d26724ffd3c958d_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
-CREATE TABLE sync_61ffa9a1eff04d26724ffd3c958d_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
-INSERT INTO sync_61ffa9a1eff04d26724ffd3c958d_context(id,project_id) VALUES(1,NULL);
-INSERT INTO sync_61ffa9a1eff04d26724ffd3c958d_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
-CREATE TRIGGER "sync_61ffa9a1eff04d26724ffd3c958d_track_0_insert" AFTER INSERT ON "jobs" BEGIN INSERT INTO sync_61ffa9a1eff04d26724ffd3c958d_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_61ffa9a1eff04d26724ffd3c958d_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_61ffa9a1eff04d26724ffd3c958d_track_0_update" AFTER UPDATE ON "jobs" BEGIN INSERT INTO sync_61ffa9a1eff04d26724ffd3c958d_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_61ffa9a1eff04d26724ffd3c958d_replica_state WHERE id=1)=0;INSERT INTO sync_61ffa9a1eff04d26724ffd3c958d_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'image',OLD."id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_61ffa9a1eff04d26724ffd3c958d_replica_state WHERE id=1)=0; END;
-CREATE TRIGGER "sync_61ffa9a1eff04d26724ffd3c958d_track_0_delete" AFTER DELETE ON "jobs" BEGIN INSERT INTO sync_61ffa9a1eff04d26724ffd3c958d_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'image',OLD."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_61ffa9a1eff04d26724ffd3c958d_replica_state WHERE id=1)=0; END;
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);
+CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_context (id INTEGER PRIMARY KEY CHECK(id=1), project_id TEXT);
+INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_context(id,project_id) VALUES(1,NULL);
+INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_insert" AFTER INSERT ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_update" AFTER UPDATE ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0;INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'image',OLD."id") AS key WHERE 1=1 EXCEPT SELECT json_array(NEW."project_id",'image',NEW."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER "sync_3a28c22289ed28c8fdbe3056c102_track_0_delete" AFTER DELETE ON "jobs" BEGIN INSERT INTO sync_3a28c22289ed28c8fdbe3056c102_replica_changes(key) SELECT key FROM (SELECT json_array(OLD."project_id",'image',OLD."id") AS key WHERE 1=1) WHERE (SELECT applying FROM sync_3a28c22289ed28c8fdbe3056c102_replica_state WHERE id=1)=0; END;

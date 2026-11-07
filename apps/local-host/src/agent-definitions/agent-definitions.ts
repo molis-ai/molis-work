@@ -20,7 +20,7 @@ const AGENT_DEFINITIONS_STORE = "agent-definitions";
 const USES_KEPT = 200;
 
 /** The agent definitions store's one current schema (repository-anti-corruption §4.1). */
-export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 1, schema: `
 CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL, default_ref TEXT
 );
@@ -158,7 +158,7 @@ export class AgentDefinitions {
       const source = owner.source;
       if (!offering(owner) || source.kind !== "plugin" || !source.publisher_signature) return [];
       const signedSource = { kind: "plugin" as const, plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature };
-      const entries = [...owner.roles.map(role => ({ skill_id: role.role_id, version: 1, name: role.name, summary: role.purpose, tools: [] as string[], kind: "role" as const })),
+      const entries = [...owner.roles.map(role => ({ skill_id: role.role_id, version: role.version, name: role.name, summary: role.purpose, tools: [] as string[], kind: "role" as const })),
         ...(owner.methods ?? []).map(method => ({ ...method, kind: "method" as const }))];
       return entries.map(entry => ({ key: `signed/${entry.skill_id}`, owner_id: owner.owner_id, source: structuredClone(source), skill_id: entry.skill_id,
         version: entry.version, name: entry.name, summary: entry.summary, tools: [...entry.tools], kind: entry.kind, install_id,
@@ -195,7 +195,7 @@ export class AgentDefinitions {
     if (material.default_ref.kind !== "role") return;
     const ref = material.default_ref;
     this.recordUse({ key: keyOf(ref.source.plugin_id, `prompt-${ref.entry_id.slice("role-".length)}`), source_ref: ref,
-      version: 1, user_revision: material.user_revision, caller, at: this.now().toISOString() });
+      version: /* @version format.sandbox.agent-prompt */ 1, user_revision: material.user_revision, caller, at: this.now().toISOString() });
   }
 
   roles(): AgentRoleView[] {

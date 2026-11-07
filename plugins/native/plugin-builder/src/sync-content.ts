@@ -7,7 +7,7 @@ import {object,builderSyncInvalid,validateBuilderUnit} from './sync-shape.js';
 function envelope(key:string,value:unknown){
  const parts:unknown=JSON.parse(key);if(!Array.isArray(parts)||parts.length!==3||parts[1]!==BUILDER_CONTENT_REPLICA_ID||typeof parts[0]!=='string'||typeof parts[2]!=='string')return builderSyncInvalid();
  const wire=object(value),project=object(wire.project);
- if(wire.format!==1||project.id!==parts[0])builderSyncInvalid();return {wire,projectId:parts[0],itemId:parts[2]};
+ if(wire.format!==/* @version format.builder.portable */ 1||project.id!==parts[0])builderSyncInvalid();return {wire,projectId:parts[0],itemId:parts[2]};
 }
 /** Only explicitly selected author files become byte blobs. The common SDK handles chunking and account binding. */
 export const builderSyncProjection={

@@ -1,6 +1,6 @@
 ---
 method_id: work-migrate-refactor
-version: 2
+version: 1
 kind: work_type
 name: "迁移与重构"
 summary: "先建立兼容和回退边界，再分段替换并验证。"

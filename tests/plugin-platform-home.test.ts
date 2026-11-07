@@ -88,7 +88,7 @@ test("BFTC-02 BFTC-03 a project's database closed on its own leaves the shared a
     const items = projects.map((reference, index) => {
       const parts = platformParts(directory, reference), pluginId = index === 0 ? PROBE : SECOND;
       const typeId = `example.project-${index}`, action = hello(pluginId);
-      const preview = defineArtifactPreviewAction(`${pluginId}.preview`, "预览", []);
+      const preview = defineArtifactPreviewAction(`${pluginId}.preview`, 1, "预览", []);
       const original = probe({ pluginId });
       const definition: PluginDefinition = { ...original,
         manifest: { ...original.manifest, actions: [action, preview],

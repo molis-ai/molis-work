@@ -188,7 +188,7 @@ export function createLocalArtifactHttp() {
       if (route.kind === "file") {
         // A download (S7 exception list): an imported version's original file, or the text it was read into (A3).
         const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
-          supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
+          supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1 }] });
         const file = importedFileOf(view.selected);
         const stream = file?.stored ? await openArtifactOriginal(context.homeDirectory, context.projectId, file.stored) : null;
         if (!file || (file.stored && !stream)) throw artifactsErrors.file_missing("这个版本没有可取回的文件");
@@ -209,7 +209,7 @@ export function createLocalArtifactHttp() {
         return true;
       }
       const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
-        supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
+        supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1 }] });
       // Read first, so a disabled or forbidden 成果 surface answers as before. A direct visit (address bar, refresh, a link
       // from elsewhere) then opens the workbench on the 成果 surface and, for a version, that version; only the workbench's
       // own fragment requests get the surface's HTML.

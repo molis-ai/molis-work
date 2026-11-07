@@ -6,7 +6,7 @@ import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotC
 export * from "./ui-connections.js";
 
 /** A renderer contract requirement, not a callable business capability. */
-export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: 1 } as const;
+export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;
 
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 
@@ -163,9 +163,9 @@ export interface UiPageFiles<Element = unknown> {
 }
 
 export const platformUiContract = {
-  contractId: "io.molis.work.platform.ui.v1",
+  contractId: /* @version contract.io.molis.work.platform.ui "io.molis.work.platform.ui.v{version}" */ "io.molis.work.platform.ui.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.ui */ 1,
   maturity: "partial",
   ssot: "docs/platform/UI-PLATFORM.md",
 } as const satisfies ContractDescriptor;

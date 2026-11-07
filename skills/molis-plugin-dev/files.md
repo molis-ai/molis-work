@@ -11,7 +11,7 @@
    ```ts
    import { bindFileEntriesHandler, defineFileEntriesAction } from "@molis-ai/molis-work-plugin-sdk";
 
-   export const notesFiles = defineFileEntriesAction("notes.files.entries",
+   export const notesFiles = defineFileEntriesAction("notes.files.entries", 1,
      [{ kind: "note", title: "笔记", surface: "notes" }], "笔记", ["notes:read"]);
 
    bindFileEntriesHandler(notesFiles, caller => store.list(caller.project_id!).map(note => ({
@@ -27,7 +27,7 @@
 
 2. **预览**，二选一：
    - 已有对象读取器（`<plugin>.subject.read`，见 [continuity.md](continuity.md)）：什么都不用加，侧栏用它的正文按条目的 `media_type` 显示。
-   - 要预览原文件（图片、PDF、完整文本）：再声明 `defineFileContentAction("<plugin>.files.content", kinds, title, permissions)`，处理器用 `fileContentOf({ subject, revision, title, media_type, text | bytes })` 返回，上限 8 MB；文本超过部分截断并标 `truncated`。
+   - 要预览原文件（图片、PDF、完整文本）：再声明 `defineFileContentAction("<plugin>.files.content", 1, kinds, title, permissions)`，处理器用 `fileContentOf({ subject, revision, title, media_type, text | bytes })` 返回，上限 8 MB；文本超过部分截断并标 `truncated`。
 
 3. **能按 id 打开**：`open.surface` 与搜索相同，工作台经 `openPluginRecord` 打开（支持 `molis-work:select-item`，或在工作台插件表里声明 `searchRow`）。
 

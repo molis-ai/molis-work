@@ -1,4 +1,4 @@
-export const SERVICE_OWNER = "molis-work-web-service-v1";
+export const SERVICE_OWNER = /* @version type.molis-work-web-service "molis-work-web-service-v{version}" */ "molis-work-web-service-v1";
 export const SERVICE_LABEL = "com.molis.work.web";
 
 export function isOwnedWebServiceReceipt(receipt: { owner?: string; label?: string } | null | undefined): boolean {
@@ -51,7 +51,7 @@ export interface MolisWorkWebServiceManagerOptions {
 }
 
 export interface WebServiceReceipt {
-  schema_version: 1;
+  schema_version: /* @version format.web.service.receipt */ 1;
   owner: string;
   label: string;
   plist_path: string;

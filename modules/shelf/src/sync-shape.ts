@@ -9,7 +9,7 @@ export type ShelfPortableRecord = Omit<ShelfItemRecord, 'relative_path' | 'artif
 export type ShelfPortableJob = Omit<ShelfJobRecord, 'runtime' | 'isolation' | 'execution' | 'error'>;
 export interface ShelfPortableFile { relative: string; digest: string; size: number; data: string | SyncBlobReference }
 export interface ShelfPortableItem { record: ShelfPortableRecord; files: ShelfPortableFile[] }
-export interface ShelfPortableContent { format: 1; spaceId: string; items: ShelfPortableItem[]; jobs: ShelfPortableJob[] }
+export interface ShelfPortableContent { format: /* @version format.shelf.portable */ 1; spaceId: string; items: ShelfPortableItem[]; jobs: ShelfPortableJob[] }
 
 export const SHELF_PORTABLE_ITEM_FIELDS = ['item_id','group','kind','name','mime','size_bytes','origin_hash','copy_hash','hidden','created_at',
   'source_item_id','source_item_ids','job_id','preview_text','status','failure_reason','children'] as const;
@@ -84,7 +84,7 @@ function validateJob(input: unknown): ShelfPortableJob {
 export function validateShelfPortable(input: unknown, spaceId: string, key:string, representation: 'bytes' | 'references' = 'bytes'): ShelfPortableContent {
   const identity=shelfSyncKey(key);
   const value = shelfSyncObject(input,['format','spaceId','items','jobs']);
-  if (value.format !== 1 || value.spaceId !== spaceId || !Array.isArray(value.items) || !Array.isArray(value.jobs)
+  if (value.format !== /* @version format.shelf.portable */ 1 || value.spaceId !== spaceId || !Array.isArray(value.items) || !Array.isArray(value.jobs)
     || value.items.length !== (identity.kind==='item'?1:0) || value.jobs.length !== (identity.kind==='job'?1:0)) return invalid();
   const seen = new Set<string>(), jobs = new Set<string>(); let total = 0;
   for (const input of value.items) {
@@ -109,5 +109,5 @@ export function validateShelfPortable(input: unknown, spaceId: string, key:strin
   }
   if (total > 100000000) throw shelfErrors.too_large('Shelf 可携带文件超过个人空间内容上限，原内容已保留');
   for (const input of value.jobs) { const job = validateJob(input); if (job.job_id!==identity.id||jobs.has(job.job_id)) return invalid(); jobs.add(job.job_id); }
-  return {format:1,spaceId,items:value.items as ShelfPortableItem[],jobs:value.jobs as ShelfPortableJob[]};
+  return {format:/* @version format.shelf.portable */ 1,spaceId,items:value.items as ShelfPortableItem[],jobs:value.jobs as ShelfPortableJob[]};
 }

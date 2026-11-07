@@ -9,9 +9,9 @@ import type {
 import type { ContractDescriptor } from "./package.js";
 
 export const platformPluginWiringContract = {
-  contractId: "io.molis.work.platform.plugin-wiring.v1",
+  contractId: /* @version contract.io.molis.work.platform.plugin-wiring "io.molis.work.platform.plugin-wiring.v{version}" */ "io.molis.work.platform.plugin-wiring.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.plugin-wiring */ 1,
   maturity: "partial",
   ssot: "docs/platform/PLUGIN-PLATFORM.md",
 } as const satisfies ContractDescriptor;

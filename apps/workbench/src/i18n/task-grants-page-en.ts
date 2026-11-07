@@ -19,6 +19,6 @@ export const TASK_GRANTS_PAGE_EN: Record<string, string> = {
   "「{task}」下一次运行起不再读任何插件的数据；要再读，到任务里重新打开。":
     "From its next run, “{task}” reads no plugin's data. To let it read again, turn categories on in the task.",
   "已撤回「{task}」能读的全部数据": "Everything “{task}” may read is withdrawn",
-  "已允许{name}的新读取能力；不想要可以撤回这一类": "{name} may read its new data; you can withdraw this category if you do not want that",
-  "已撤回{name}；要再读它，到任务的「能读的数据」里重新打开": "{name} withdrawn; to read it again, turn it on in the task's “Data it can read”",
+  "已允许 {name} 的新读取能力；不想要可以撤回这一类": "{name} may read its new data; you can withdraw this category if you do not want that",
+  "已撤回 {name}；要再读它，到任务的「能读的数据」里重新打开": "{name} withdrawn; to read it again, turn it on in the task's “Data it can read”",
 };

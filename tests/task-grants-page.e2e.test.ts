@@ -226,7 +226,7 @@ test("TGA-25 TGA-26 a category in each state has its own action, sent with the r
   await browser.waitFor(`(${p.row("install-a\nmorning", "plugin.notes\npages")})?.dataset.status === "granted"`);
   assert.deepEqual((await p.sent()).slice(mark), [{ mode: "set", plugin_install_id: "install-a", key: "morning", expected_revision: "r1",
     categories: [{ provider_id: "plugin.todo" }, { provider_id: "plugin.notes", group_id: "pages", confirm: true }, { provider_id: "plugin.inbox" }, { provider_id: "plugin.feed" }] }]);
-  assert.equal(await p.toast(), "已允许笔记的新读取能力；不想要可以撤回这一类", "what it did, in the page's own words: there is no switch here to point to");
+  assert.equal(await p.toast(), "已允许 笔记 的新读取能力；不想要可以撤回这一类", "what it did, in the page's own words: there is no switch here to point to");
   // 移除 takes the removed one off and keeps the rest as they are now, with the revision the answer gave.
   const mark2 = (await p.sent()).length;
   await p.pressIn(p.row("install-a\nmorning", "plugin.feed\n"), "[data-task-grants-act=remove]");

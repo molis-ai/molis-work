@@ -37,6 +37,8 @@ const OBSERVE = `(() => {
       window.tgaSent.push({ body, page: headers.get("x-molis-context-page") });
       // A test may hold a write on its way, to press again while it is in flight.
       if (body && body.mode === "set" && window.tgaHold) { const args = arguments; return window.tgaHold.then(() => fetch.apply(this, args)); }
+      // Or hold a read's answer, already given by the Host, so the area gets it only after something has changed since.
+      if (body && body.mode === "read" && window.tgaHoldRead) { const hold = window.tgaHoldRead; return fetch.apply(this, arguments).then(response => hold.then(() => response)); }
     }
     return fetch.apply(this, arguments);
   };
@@ -137,6 +139,12 @@ test("S-task-grants-area TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is t
     control.dispatchEvent(new MouseEvent("click", { ...at, detail: 1, button: 0 })); control.click(); })()`);
   await p.settle(200);
   assert.deepEqual(await p.sets(), [], "TGA-06 a click that is not trusted does not write");
+  // A scripted click that cannot be cancelled (`cancelable` is false by default) still flips a checkbox in the browser; the refused press
+  // puts the switch back to what the records say, so the area never shows a grant that is not there (walkthrough D2).
+  await browser.evaluate(`document.querySelector(${JSON.stringify(p.control("switch", target))}).dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+  await p.settle(200);
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(p.control("switch", target))}).checked`), false, "TGA-06 the switch shows the records, not the scripted click");
+  assert.deepEqual(await p.sets(), [], "nor does it write");
 
   // TGA-07: made-up messages from the frame: a write, an open that names categories, a bad key, a bad id, a fifth area.
   await child.evaluate(`(() => { const port = window.tgaPort;
@@ -368,6 +376,36 @@ test("S-task-grants-area TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19
   await p.settle(250);
   assert.equal(await writes(), 1, "TGA-19 crossing areas do not act");
   assert.equal(await p.records(), granted, "nothing but the one deliberate press wrote");
+
+  // TGA-10, §3.6 「框重新可见：重读一次」 (walkthrough O1): back in view, the area reads once more even when a read is still on its way,
+  // since that read may have been answered before what changed while the page was hidden. Here the read that the first return into
+  // view starts is answered while the reminders are still granted, and held; the page is hidden again, the task's grants are taken
+  // back on the settings route, and the page shown again before the held answer arrives. The area ends showing the records.
+  const surface = (hidden: boolean) => browser.evaluate(`document.querySelector("[data-work-surface=schedule]").hidden = ${hidden}`);
+  const reads = async () => (await p.sent()).filter(item => item.body?.mode === "read" && item.body.key === "daily").length;
+  const settings = async <T>(body: unknown) => {
+    const response = await fetch(browser.origin + p.prefix + "/api/settings/task-grants", { method: "POST", body: JSON.stringify(body), headers: { origin: browser.origin,
+      "content-type": "application/json", "x-molis-work-control-token": browser.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    assert.equal(response.status, 200, await response.clone().text());
+    return await response.json() as T;
+  };
+  const before = await reads();
+  await surface(true);
+  await browser.waitFor(`document.querySelector("[data-framed-area]").hidden`);
+  await browser.evaluate("window.tgaHoldRead = new Promise(resolve => { window.tgaReleaseRead = resolve; }); true");
+  await surface(false);
+  await browser.waitFor(`window.tgaSent.filter(item => item.body && item.body.mode === "read" && item.body.key === "daily").length === ${before + 1}`);
+  await surface(true);
+  await browser.waitFor(`document.querySelector("[data-framed-area]").hidden`);
+  const listed = await settings<{ subjects: Array<{ plugin_install_id: string; key: string }> }>({ mode: "list" });
+  const daily = listed.subjects.find(subject => subject.key === "daily")!;
+  await settings({ mode: "clear", plugin_install_id: daily.plugin_install_id, key: "daily" });
+  await surface(false);
+  await browser.evaluate("window.tgaHoldRead = null; window.tgaReleaseRead(); true");
+  await browser.waitFor(`document.querySelectorAll(${JSON.stringify(AREA + " [data-task-grants-row]")})[${target}]?.dataset.status === "off"`);
+  await p.settle(400);
+  assert.equal(await reads(), before + 2, "one read on each return into view, no more");
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(toggle)}).checked`), false, "the switch shows the grant taken back while the page was hidden");
 });
 
 test("S-task-grants-area TGA-12 TGA-13 TGA-14 TGA-17 a change sends every category the task holds as recorded, allows and removes only on the person's word, and a changed key or a closed page writes nothing", { timeout: 150_000 }, async t => {

@@ -100,15 +100,16 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
  */
 function doneLine(t: Translate, change: Change): TaskGrantsLine {
   const { kind, row } = change, status = row.status;
-  return { text: t(kind === "undo" ? "已撤销刚才的改动" : kind === "on" ? "已允许读{name}，下一次运行起能读到"
-    : kind === "allow" ? "已允许{name}的新读取能力；不想要就关掉这一类" : kind === "remove" ? "已移除{name}，这一类已不再提供"
-    : status === "needs_confirmation" ? "已撤回{name}；要再读它，重新打开开关，会按它现在的读取能力允许"
-    : status === "unavailable" ? "已撤回{name}；它的插件回来之后，重新打开开关才能再读" : "已撤回{name}，下一次运行起读不到", { name: row.title }),
+  return { text: t(kind === "undo" ? "已撤销刚才的改动" : kind === "on" ? "已允许读 {name}，下一次运行起能读到"
+    : kind === "allow" ? "已允许 {name} 的新读取能力；不想要就关掉这一类" : kind === "remove" ? "已移除 {name}，这一类已不再提供"
+    : status === "needs_confirmation" ? "已撤回 {name}；要再读它，重新打开开关，会按它现在的读取能力允许"
+    : status === "unavailable" ? "已撤回 {name}；它的插件回来之后，重新打开开关才能再读" : "已撤回 {name}，下一次运行起读不到", { name: row.title }),
   act: change.undo ? "undo" : undefined };
 }
 
 interface Entry { readonly id: number; readonly key: string; readonly area: FramedArea; reads: Reads | null; line: TaskGrantsLine; busy: boolean;
-  /** The last change, kept for its undo or for a retry after it failed. */ last: Change | null; drawn?: string }
+  /** The last change, kept for its undo or for a retry after it failed. */ last: Change | null; drawn?: string;
+  /** The page came back into view since this area last read: it reads once more, now or when what is under way ends (§3.6). */ stale?: boolean }
 
 /**
  * The trusted half (§2–§3). `owner` is the installation's name as the shell lists it. Every write is the person's own `set`
@@ -156,7 +157,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
         entry.line = { text: t("没能保存，原来的授权没变"), act: change.kind === "undo" ? undefined : "retry", tone: "danger" };
       }
     } finally {
-      if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); }
+      if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); catchUp(entry); }
     }
   };
 
@@ -164,11 +165,12 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   const press = (entry: Entry, event: MouseEvent) => {
     const control = (event.target as Element).closest<HTMLElement>("[data-framed-control]");
     if (!control || !entry.area.surface.contains(control)) return;
-    // A switch shows the answer, not the press: the browser does not flip it.
+    // A switch shows the answer, not the press: the browser does not flip it. A scripted click that cannot be cancelled flips it
+    // anyway, so a refused press draws the area again from what the task holds (an area already closed is drawn to nothing seen).
     event.preventDefault();
     const refusal: FramedAreaRefusal | null = entry.area.gate(event, control);
     // ①⑤⑥ are said nowhere: a scripted press, a press while a write is under way, a page that has moved on.
-    if (refusal?.reason === "silent" || entry.busy || !scope.alive || entries.get(entry.id) !== entry || !entry.reads) return;
+    if (refusal?.reason === "silent" || entry.busy || !scope.alive || entries.get(entry.id) !== entry || !entry.reads) { draw(entry); return; }
     if (refusal) {
       entry.line = { text: t(refusal.reason === "moved" ? "刚移动过，请再拨一次" : "请先让这一块完整显示") };
       if (refusal.reason === "partial") {
@@ -192,14 +194,16 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     void write(entry, taskGrantChange(switched ? (row.status === "off" ? "on" : "off") : act as "allow" | "remove", row, subject));
   };
   const reread = async (entry: Entry) => {
-    entry.busy = true; draw(entry);
+    entry.busy = true; entry.stale = false; draw(entry);
     try { await read(entry); entry.line = idle(); }
     catch { if (entries.get(entry.id) === entry) entry.line = unread(); }
-    finally { if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); } }
+    finally { if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); catchUp(entry); } }
   };
-  // Back in view, each area reads once (§3.6); nothing is read while the page is hidden.
-  let shownOnce = false;
-  scope.whenVisible(() => { if (shownOnce) for (const entry of entries.values()) if (entry.reads && !entry.busy) void reread(entry); shownOnce = true; });
+  /** The one read again a return into view asks for, once nothing is under way (for an area still open); none while hidden. */
+  const catchUp = (entry: Entry) => { if (entry.stale && entry.reads && !entry.busy && scope.visible) void reread(entry); };
+  // Back in view, each area reads once (§3.6): a read or a write under way may have started before what changed while it was hidden,
+  // so it reads after that one ends. Every area here was opened in view, so this runs only after the page was hidden.
+  scope.whenVisible(() => { for (const entry of entries.values()) { entry.stale = true; catchUp(entry); } });
 
   /** Opens asked for while the page is out of sight (a tab opened behind, say), by id: each draws once the page shows. */
   const waiting = new Map<number, () => void>();
@@ -237,7 +241,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     try {
       await read(entry);
       if (entries.get(entry.id) !== entry) return;
-      draw(entry); send({ type: "task-grants-shown", id: entry.id });
+      draw(entry); send({ type: "task-grants-shown", id: entry.id }); catchUp(entry);
     } catch {
       close(entry.id); unshown(entry.id);
     }

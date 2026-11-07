@@ -82,9 +82,9 @@ const rowHtml = (row: Row) => taskGrantRowHtml(L, row, (row.status === "needs_co
  * What a change did, in the page's words: the area's line points at its switch, which this page does not have, so a category
  * taken back that cannot simply be turned on again says where to turn it on (the task's 「能读的数据」).
  */
-const doneText = (act: "off" | "allow" | "remove", row: Row) => L(act === "allow" ? "已允许{name}的新读取能力；不想要可以撤回这一类"
-  : act === "remove" ? "已移除{name}，这一类已不再提供"
-  : row.status === "granted" ? "已撤回{name}，下一次运行起读不到" : "已撤回{name}；要再读它，到任务的「能读的数据」里重新打开", { name: row.title });
+const doneText = (act: "off" | "allow" | "remove", row: Row) => L(act === "allow" ? "已允许 {name} 的新读取能力；不想要可以撤回这一类"
+  : act === "remove" ? "已移除 {name}，这一类已不再提供"
+  : row.status === "granted" ? "已撤回 {name}，下一次运行起读不到" : "已撤回 {name}；要再读它，到任务的「能读的数据」里重新打开", { name: row.title });
 
 export function bindTaskGrantsSettings(root: HTMLElement): void {
   if (root.dataset.taskGrantsBound === "1") return;

@@ -2,6 +2,9 @@
 export const KNOWLEDGE_EN: Record<string, string> = {
   "取消选择": "Clear selection",
   "项目资料": "Project knowledge",
+  // What 项目资料 holds as a category a background task can be given: the Host joins its readable actions' titles in catalog order (task-grant-categories.ts; tests/security-invariants-task-grants-page.test.ts pins it).
+  "按路径找工作目录里的文件、在资料里逐行查找、列出项目资料、按问题选资料分节、查看资料结构、读取资料原文、查找项目资料":
+    "Find workspace files by path, search the lines of a piece, list project knowledge, choose sections for a question, see a piece's outline, read its text, find project knowledge",
   "项目里的 Agent 能找到、能读的全部资料。每份资料由项目的文字模型整理出一张卡片（标题、简介、关键词，长文还有分节摘要），Agent 先看卡片再读原文。卡片只用来找资料，不是资料的内容。": "Everything the agents in this project can find and read. The project's text model writes a card for each piece (title, brief, keywords, and section notes for long ones); agents look at the card first, then read the original. A card is for finding a piece, not its content.",
   "还没有可用的文字模型，资料先按标题和开头的文字就能找到；配好模型后会自动整理。": "No text model is available yet. Pieces can still be found by their titles and opening text; once a model is set up they are organized automatically.",
   "去设置模型": "Set up a model",

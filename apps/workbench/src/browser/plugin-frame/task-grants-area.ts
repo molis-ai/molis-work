@@ -191,10 +191,24 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   let shownOnce = false;
   scope.whenVisible(() => { if (shownOnce) for (const entry of entries.values()) if (entry.reads && !entry.busy) void reread(entry); shownOnce = true; });
 
+  /** Opens asked for while the page is out of sight (a tab opened behind, say), by id: each draws once the page shows. */
+  const waiting = new Map<number, () => void>();
+  const untilVisible = (id: number) => new Promise<boolean>(resolve => {
+    let stop: (() => void) | undefined;
+    const end = (shown: boolean) => { waiting.delete(id); queueMicrotask(() => stop?.()); resolve(shown); };
+    waiting.set(id, () => end(false));
+    stop = scope.whenVisible(() => end(true));
+  });
+  scope.own(() => { for (const end of [...waiting.values()]) end(); });
   const open = async (message: Extract<TaskGrantsUp, { type: "task-grants-open" }>) => {
     // An open names an id and a key, nothing more: a category list, a state, an installation is not the page's to give.
-    const valid = Object.keys(message).length === 3 && Number.isSafeInteger(message.id) && message.id > 0 && !entries.has(message.id)
-      && typeof message.key === "string" && pattern.test(message.key) && scope.visible;
+    const shaped = Object.keys(message).length === 3 && Number.isSafeInteger(message.id) && message.id > 0 && !entries.has(message.id)
+      && !waiting.has(message.id) && typeof message.key === "string" && pattern.test(message.key);
+    // A page out of sight is not refused: its area waits and is drawn when the page shows, so a plugin need not try again. A close
+    // in the meantime ends the wait.
+    const visible = shaped && (scope.visible || await untilVisible(message.id));
+    if (shaped && !visible) return;
+    const valid = visible && scope.alive && scope.visible && !entries.has(message.id);
     const area = valid ? areas.open({ heights: TASK_GRANTS_AREA_HEIGHTS, onHeight: height => send({ type: "task-grants-size", id: message.id, height }) }) : null;
     if (!area) { if (Number.isSafeInteger(message.id) && !entries.has(message.id)) send({ type: "task-grants-shown", id: message.id, error: TASK_GRANTS_UNAVAILABLE }); return; }
     area.surface.className = "mw-platform-area task-grants-area";
@@ -214,7 +228,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   return (message: TaskGrantsUp) => {
     if (!message || !Number.isSafeInteger(message.id) || message.id < 1) return;
     if (message.type === "task-grants-open") { void open(message); return; }
-    if (message.type === "task-grants-close") { close(message.id); return; }
+    if (message.type === "task-grants-close") { waiting.get(message.id)?.(); close(message.id); return; }
     if (message.type === "task-grants-layout") entries.get(message.id)?.area.layout(message.box);
   };
 }

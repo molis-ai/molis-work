@@ -10,7 +10,7 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-wo
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-const READER = "io.molis.work.example.areareader", NEIGHBOUR = "io.molis.work.example.areaneighbour";
+const READER = "io.molis.work.example.areareader", NEIGHBOUR = "io.molis.work.example.areaneighbour", SCHEDULE = "io.molis.work.schedule";
 const empty = { type: "object", properties: {}, additionalProperties: false } as const;
 const notesOf = (name: string): ActionDefinition => ({ capability_id: `${name}.notes.list`, version: 1, operation: "query", action: { title: "Notes", description: "What a task reads",
   kind: "query", scope: "project", audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: empty, output_schema: { type: "object" } } });
@@ -94,4 +94,20 @@ test("S-task-grants-area TGA-08 TGA-09 TGA-17 the reads area's route is the trus
   assert.equal(late.status, 403, await late.clone().text());
   assert.equal((await post(a.endpoint, a.trusted, { mode: "read", key: "daily" })).status, 403);
   assert.equal(await records(), written, "a closed page wrote nothing");
+
+  // TGA-17, the plugin-disabled half: a catalog plugin's page (the fixtures above are not in the catalog, so cannot be taken off) is
+  // open in the second project; the person takes the plugin off that project, and the page's own outer header no longer reads or
+  // writes there. Its category is the reader's group, which stays offered, so the refusal is the page's, not the category's.
+  const opened = await f.request(b.prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: SCHEDULE } });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  const scheduled = { "x-molis-context-page": ((await opened.json()) as { page_id: string }).page_id };
+  const offered = await post(b.endpoint, scheduled, { mode: "read", key: "daily" });
+  assert.equal(offered.status, 200, await offered.clone().text());
+  const before = await records();
+  const disabled = await f.request(`/api/settings/projects/${b.project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "schedule" } });
+  assert.equal(disabled.status, 200, await disabled.clone().text());
+  const off = await post(b.endpoint, scheduled, set);
+  assert.equal(off.status, 403, await off.clone().text());
+  assert.equal((await post(b.endpoint, scheduled, { mode: "read", key: "daily" })).status, 403);
+  assert.equal(await records(), before, "a page of a plugin taken off wrote nothing");
 });

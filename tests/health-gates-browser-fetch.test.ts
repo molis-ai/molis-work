@@ -17,7 +17,8 @@ const gate = (...args: string[]) => {
   const result = spawnSync(process.execPath, [script, "--root", repo, ...args], { encoding: "utf8" });
   return { code: result.status, out: result.stdout + result.stderr };
 };
-const reset = () => { git("checkout", "-q", "-f", "main"); git("clean", "-fdq"); git("checkout", "-q", "-B", "candidate"); };
+const reset = () => { git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0); git("clean", "-fdq"); git("checkout", "-q", "-B", "candidate"); };
 
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-browser-fetch-gate-"));
@@ -46,11 +47,11 @@ const violations: Array<{ name: string; file: string; code: string }> = [
 ];
 for (const scenario of violations) test(`W3-10-5-01: a new ${scenario.name} fetch is refused and update leaves the baseline untouched`, () => {
   reset(); put(scenario.file, `export const CLIENT_SCRIPT = ${JSON.stringify(scenario.code)};\n`); commit(scenario.name);
-  const before = read("tooling/gates/baseline.json"), result = gate("--base", "main");
+  const before = read(".git/molis-health-baseline.json"), result = gate("--base", "main");
   assert.equal(result.code, 1, result.out);
   assert.match(result.out, /raw fetch calls in a browser program.*0 → 1/);
   assert.equal(gate("--update", "--base", "main").code, 1);
-  assert.equal(read("tooling/gates/baseline.json"), before);
+  assert.equal(read(".git/molis-health-baseline.json"), before);
 });
 
 test("W3-10-5-01: rewriting the baseline cannot hide growth in an old plugin file", () => {
@@ -63,11 +64,11 @@ test("W3-10-5-01: rewriting the baseline cannot hide growth in an old plugin fil
 
 test("W3-10-5-01: Workbench is zero even when base and baseline contain the same call", () => {
   reset(); put("apps/workbench/src/client.ts", "export const CLIENT_SCRIPT = `fetch('/x');`;\n"); commit("bad base");
-  const before = read("tooling/gates/baseline.json");
+  const before = read(".git/molis-health-baseline.json");
   for (const args of [["--base", "HEAD"], ["--update"], ["--update", "--base", "HEAD"]]) {
     const result = gate(...args); assert.equal(result.code, 1, result.out); assert.match(result.out, /Workbench raw fetch must be zero/);
   }
-  assert.equal(read("tooling/gates/baseline.json"), before);
+  assert.equal(read(".git/molis-health-baseline.json"), before);
 });
 
 test("W3-10-5-01: a call assembled across files is attributed to its original fragment", () => {
@@ -122,9 +123,9 @@ test("W3-10-5-01: typed browser dependencies follow actual package subpaths", ()
 test("W3-10-5-01: an unexpandable or unparsable recognized program refuses update", () => {
   for (const code of ["makeProgram()", "`if ( {`"]) {
     reset(); put("plugins/native/alpha/src/broken.ts", `export const CLIENT_SCRIPT = ${code};\n`); commit("broken");
-    const before = read("tooling/gates/baseline.json"), result = gate("--update", "--base", "main");
+    const before = read(".git/molis-health-baseline.json"), result = gate("--update", "--base", "main");
     assert.equal(result.code, 1, result.out); assert.match(result.out, /rawFetchInScripts:.*(?:cannot statically expand|parse failed)/);
-    assert.equal(read("tooling/gates/baseline.json"), before);
+    assert.equal(read(".git/molis-health-baseline.json"), before);
   }
 });
 
@@ -135,9 +136,9 @@ for (const [name, source] of [
   ["formatter body", "function script(source){return \"noop('/x');\".replace('noop','fetch');} export const CLIENT_SCRIPT=script('void 0;');"],
 ]) test(`W3-10-5-01: the ${name} program transformation cannot silently count zero`, () => {
   reset(); put("plugins/native/alpha/src/transform.ts", source + "\n"); commit(name);
-  const before = read("tooling/gates/baseline.json"), result = gate("--base", "main");
+  const before = read(".git/molis-health-baseline.json"), result = gate("--base", "main");
   assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls in a browser program.*0 → 1/);
-  assert.equal(gate("--update", "--base", "main").code, 1); assert.equal(read("tooling/gates/baseline.json"), before);
+  assert.equal(gate("--update", "--base", "main").code, 1); assert.equal(read(".git/molis-health-baseline.json"), before);
 });
 
 for (const edge of ["import './effect.js';", "export {start} from './effect.js';", "export * from './effect.js';"]) {
@@ -157,9 +158,9 @@ test("W3-10-5-01: type-only browser edges do not execute server fetch", () => {
 
 test("W3-10-5-01: a data formatter used as a whole executable program is refused", () => {
   reset(); put("plugins/native/alpha/src/data.ts", "export const CLIENT_SCRIPT = L(\"fetch('/x');\");\n"); commit("data formatter");
-  const before = read("tooling/gates/baseline.json"), result = gate("--update", "--base", "main");
+  const before = read(".git/molis-health-baseline.json"), result = gate("--update", "--base", "main");
   assert.equal(result.code, 1, result.out); assert.match(result.out, /data formatter cannot be treated as executable program text/);
-  assert.equal(read("tooling/gates/baseline.json"), before);
+  assert.equal(read(".git/molis-health-baseline.json"), before);
 });
 
 test("W3-10-5-01: a shared formatter keeps each input owner and cannot deduplicate a new fragment", () => {
@@ -170,10 +171,10 @@ test("W3-10-5-01: a shared formatter keeps each input owner and cannot deduplica
   assert.equal(gate("--update").code, 0); commit("formatter base"); git("branch", "-f", "format-base", "HEAD");
   put("plugins/native/alpha/src/b.ts", "export const B_SCRIPT = `fetch('/b');`;\n");
   put("plugins/native/alpha/src/joined.ts", "import {A_SCRIPT} from './a.js';import {B_SCRIPT} from './b.js';import {format} from './format.js';export const CLIENT_SCRIPT = [format(A_SCRIPT),format(B_SCRIPT)].join(';');\n");
-  commit("second input"); const before = read("tooling/gates/baseline.json"), result = gate("--base", "format-base");
+  commit("second input"); const before = read(".git/molis-health-baseline.json"), result = gate("--base", "format-base");
   assert.equal(result.code, 1, result.out);
   assert.match(result.out, /raw fetch calls in a browser program in plugins\/native\/alpha\/src\/b\.ts 0 → 1/);
-  assert.equal(gate("--update", "--base", "format-base").code, 1); assert.equal(read("tooling/gates/baseline.json"), before);
+  assert.equal(gate("--update", "--base", "format-base").code, 1); assert.equal(read(".git/molis-health-baseline.json"), before);
 });
 
 test("W3-10-5-01: a serialized literal computed property still identifies fetch", () => {
@@ -191,9 +192,9 @@ test("BROWSER-FORMAT-01/02: the current line compactor expands joined fragments 
   put("plugins/native/alpha/src/joined.ts", "import {compactScript} from './format.js';import {OPEN_SCRIPT} from './open.js';import {CLOSE_SCRIPT} from './close.js';export const CLIENT_SCRIPT = compactScript([OPEN_SCRIPT,CLOSE_SCRIPT].join(''));\n");
   assert.equal(gate("--update").code, 0); commit("compacted base"); git("branch", "-f", "compact-base", "HEAD");
   put("plugins/native/alpha/src/close.ts", "export const CLOSE_SCRIPT = `  fetch('/new');\n})();`;\n"); commit("new raw fetch");
-  const before = read("tooling/gates/baseline.json"), result = gate("--update", "--base", "compact-base");
+  const before = read(".git/molis-health-baseline.json"), result = gate("--update", "--base", "compact-base");
   assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*close\.ts 0 → 1/);
-  assert.doesNotMatch(result.out, /browser program parse failed/); assert.equal(read("tooling/gates/baseline.json"), before);
+  assert.doesNotMatch(result.out, /browser program parse failed/); assert.equal(read(".git/molis-health-baseline.json"), before);
 });
 
 test("BROWSER-FORMAT-02: whitespace inside the compactor's string argument is syntax data and cannot identify another formatter", () => {

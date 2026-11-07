@@ -329,7 +329,7 @@ test("handing a work to a plugin carries what its documents say now, read from t
   const exec = fakeExecutor();
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const host = { adapter: () => ({ readSession: async () => ({}), read: async () => null }), reviews: { list: () => [] } };
-  const reader = defineSubjectContextAction("pages.subject.read", "pages_document", "Pages", ["pages:read"]);
+  const reader = defineSubjectContextAction("pages.subject.read", 1, "pages_document", "Pages", ["pages:read"]);
   const view: ActionView = { capability_id: reader.capability_id, version: reader.version, operation: reader.operation, provider: { provider_id: "io.molis.work.pages", kind: "plugin", title: "Pages" },
     action: reader.action, availability: { available: true } };
   const pages = { discover: async () => [view], invoke: async (_reference: unknown, input: unknown) => {

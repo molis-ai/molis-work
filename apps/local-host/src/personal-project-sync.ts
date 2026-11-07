@@ -42,7 +42,7 @@ export function createPersonalProjectRegistrations(home:string,spaceId:string,_u
     check();const id=projectId(event.key);project(id);if(event.value===null)return;
     if(binding.scope==='project-private-values')validatePrivateValueReplication(event.value,binding.owner({verifyDistribution:verifySyncPluginDistribution}),{spaceId,projectId:id,title:'validation',authorize:()=>{project(id);}},event.key);
     const value=event.value as {format?:unknown;spaceId?:unknown;project?:{id?:unknown;title?:unknown}};
-    if(value?.format!==1||value.spaceId!==spaceId||value.project?.id!==id||typeof value.project.title!=='string'||!value.project.title.trim()||value.project.title.length>120)throw replicaError('replica_project_invalid');
+    if(value?.format!==/* @version format.project.portable */ 1||value.spaceId!==spaceId||value.project?.id!==id||typeof value.project.title!=='string'||!value.project.title.trim()||value.project.title.length>120)throw replicaError('replica_project_invalid');
     // Receiving content cannot install or grant a plugin, including after an asynchronous catalog operation.
     await withCatalog({homeDirectory:home},c=>{check();c.getProject(id);if(projectPluginJudge(c,id,home)(entry.manifest.plugin_id)!==true)throw replicaError('replica_project_unavailable');});project(id);
    },

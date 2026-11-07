@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": {
+      "kind": "cohesive-unit",
+      "reason": "炼金台本机运行时的装配根：逐个创建依赖并接成处理器，每个 FirstStatement 都是一次接线；装配根的职责就是把全部依赖放在一处，拆开会让接线分散。",
+      "size": 203
+    }
+  }
+}

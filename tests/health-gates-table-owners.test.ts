@@ -148,7 +148,7 @@ expectFailure("a package in a folder with its own package.json is its own owner"
 }, [/modules\/alpha\/tools\/src\/peek\.ts:\d+ reads table "alpha_items", which modules\/alpha creates/]);
 expectFailure("the rule needs no baseline: rewriting baseline.json does not help", () => {
   reads("SELECT id FROM alpha_items");
-  put("tooling/gates/baseline.json", "{}\n");
+  put(".git/molis-health-baseline.json", "{}\n");
 }, [/reads table "alpha_items"/]);
 
 // ---- what is not a finding ----------------------------------------------------------------------------------------------

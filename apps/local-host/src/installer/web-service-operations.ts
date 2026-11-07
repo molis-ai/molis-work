@@ -32,7 +32,7 @@ export class WebServiceOperations {
       await writeAtomic(this.environment.plistPath, plist);
       filesMutated = true;
       await writeAtomic(this.environment.receiptPath, `${JSON.stringify({
-        schema_version: 1,
+        schema_version: /* @version format.web.service.receipt */ 1,
         owner: SERVICE_OWNER,
         label: SERVICE_LABEL,
         plist_path: this.environment.plistPath,

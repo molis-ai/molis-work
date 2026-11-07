@@ -18,12 +18,12 @@ interface ProjectArrivalRecord {
 }
 
 interface ProjectArrivalState {
-  schema_version: 1;
+  schema_version: /* @version format.project.arrival */ 1;
   last_project_id: string | null;
   projects: Record<string, ProjectArrivalRecord>;
 }
 
-const EMPTY: ProjectArrivalState = Object.freeze({ schema_version: 1, last_project_id: null, projects: {} });
+const EMPTY: ProjectArrivalState = Object.freeze({ schema_version: /* @version format.project.arrival */ 1, last_project_id: null, projects: {} });
 /** A reload of the project page is not a new visit: opens closer together than this keep the first stamp. */
 const REOPEN_WINDOW_MS = 5_000;
 const MAX_DESCRIPTION = 240;
@@ -49,7 +49,7 @@ function normalize(value: unknown): ProjectArrivalState {
       projects[id] = { last_opened_at: instant(item.last_opened_at), description };
     }
   }
-  return { schema_version: 1, last_project_id: typeof record.last_project_id === "string" && record.last_project_id ? record.last_project_id : null, projects };
+  return { schema_version: /* @version format.project.arrival */ 1, last_project_id: typeof record.last_project_id === "string" && record.last_project_id ? record.last_project_id : null, projects };
 }
 
 export function readProjectArrival(homeDirectory?: string): ProjectArrivalState {

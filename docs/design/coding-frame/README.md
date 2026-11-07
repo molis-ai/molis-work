@@ -35,3 +35,9 @@
 ```bash
 python3 -m http.server 4416 --bind 127.0.0.1 --directory docs/design
 ```
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+Coding 样张共用框架 `coding-proto.js`／`.css`：原型控制条、Coding 外壳、恢复框架和「标出组件板新增」开关，叠在 kit 和 12 的布局层上
+
+现行；B 轨维护，33、35-2 在用

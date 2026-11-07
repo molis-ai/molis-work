@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function plugins/native/goals/src/module/lifecycle-archive.ts#setTrashed": {
+      "kind": "cohesive-unit",
+      "reason": "目标进回收站与恢复：一个事务内改状态、联动子目标、写事件与提醒，成败必须一起；超 150 行 5 行。",
+      "size": 155
+    }
+  }
+}

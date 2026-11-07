@@ -179,7 +179,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     { ...knowledgeManageActions.organize, handle: async (caller, input) => { await caller.beforeEffect(); return cards.organize(caller, input as KnowledgeOrganizeRequest); } },
   ];
   return {
-    // Project knowledge reads only this project's own materials, never across plugins: a task may be given it (S-141).
+    // Project knowledge reads only this project's own materials, never across plugins: a task may be given it (S-task-grant-subjects).
     registration: { provider: { provider_id: KNOWLEDGE_PROVIDER_ID, title: "项目资料", kind: "system", task_readable: true },
       definitions: [...Object.values(knowledgeActions), ...Object.values(knowledgeManageActions)], handlers },
     organizer,

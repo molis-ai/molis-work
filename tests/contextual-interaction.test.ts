@@ -37,7 +37,7 @@ const pages = provider("io.molis.work.pages", "Pages"), goals = provider("io.mol
 const choice = (offer_id: string, intent: FragmentOfferChoice["intent"], capability_id: string, extra: Partial<FragmentOfferChoice> = {}): FragmentOfferChoice =>
   ({ offer_id, title: offer_id, intent, apply: "result", hint: `${offer_id} hint`, action: { capability_id, version: 1 }, ...extra });
 const offers = (p: ActionView["provider"], id: string, choices: FragmentOfferChoice[]) => view(p, id, {
-  ...defineFragmentOffersAction(id, ["doc"], id, [], choices).action });
+  ...defineFragmentOffersAction(id, 1, ["doc"], id, [], choices).action });
 function directory(goalsAvailable = true): ActionView[] {
   return [
     offers(pages, "pages.fragment.offers", [
@@ -62,9 +62,9 @@ const keyOf = (candidates: readonly ContextualCandidate[], offer: string) => can
 // ---- contract ----------------------------------------------------------------------------------------------------
 test("fragment offers: declarations are checked at registration; the real Pages declaration passes", () => {
   assert.deepEqual(inspectActionDeclarations([pagesActions.fragmentOffers], undefined), []);
-  const bad = defineFragmentOffersAction("x.fragment.offers", ["doc"], "x", [], [choice("a", "understand", "x.run"), choice("a", "question", "x.run")]);
+  const bad = defineFragmentOffersAction("x.fragment.offers", 1, ["doc"], "x", [], [choice("a", "understand", "x.run"), choice("a", "question", "x.run")]);
   assert.match(inspectActionDeclarations([bad], undefined).join("\n"), /片段动作选项/);
-  const unknownIntent = defineFragmentOffersAction("y.fragment.offers", ["doc"], "y", [], [{ ...choice("b", "understand", "y.run"), intent: "invent" as never }]);
+  const unknownIntent = defineFragmentOffersAction("y.fragment.offers", 1, ["doc"], "y", [], [{ ...choice("b", "understand", "y.run"), intent: "invent" as never }]);
   assert.match(inspectActionDeclarations([unknownIntent], undefined).join("\n"), /片段动作选项/);
   assert.equal(new Set(PAGES_FRAGMENT_CHOICES.map(item => item.offer_id)).size, PAGES_FRAGMENT_CHOICES.length);
 });
@@ -502,7 +502,7 @@ test("the judgment is asked about at most sixteen candidates, the rule-ranked fi
 // ---- P2: platform-wide offers ------------------------------------------------------------------------------------
 test("a platform provider's offers fit a fragment of any object; object-bound offers still only fit their own kinds", () => {
   const anywhere = view(provider("system.search", "搜索"), "search.fragment.offers", {
-    ...defineFragmentOffersAction("search.fragment.offers", [FRAGMENT_ANY_OBJECT], "搜索", [], [choice("find", "understand", "search.query", { granularities: ["word"] })]).action });
+    ...defineFragmentOffersAction("search.fragment.offers", 1, [FRAGMENT_ANY_OBJECT], "搜索", [], [choice("find", "understand", "search.query", { granularities: ["word"] })]).action });
   const directoryWithSearch = [...directory(), anywhere, view(provider("system.search", "搜索"), "search.query")];
   const inFeed = fragmentCandidates(directoryWithSearch, focus({ granularity: "word", object: { kind: "feed_item", id: "f1" } }));
   assert.deepEqual(inFeed.map(item => item.offer_id), ["find"], "a Feed item has no Pages or Goals offers, but can be searched");
@@ -731,7 +731,7 @@ const FEED_CHOICES = [
   { offer_id: "summary", title: "看摘要", action: { capability_id: "feed.items.summary", version: 1 } },
 ];
 const subjectDirectory = (available = true): ActionView[] => [
-  view(feed, "feed.subject.offers", { ...defineSubjectOffersAction("feed.subject.offers", ["feed_item"], "Feed 事项动作", [], FEED_CHOICES).action }),
+  view(feed, "feed.subject.offers", { ...defineSubjectOffersAction("feed.subject.offers", 1, ["feed_item"], "Feed 事项动作", [], FEED_CHOICES).action }),
   view(feed, "feed.items.todo", { kind: "operation", subject_kinds: ["feed_item"],
     input_schema: { type: "object", properties: { item_id: { type: "string" } }, required: ["item_id"], additionalProperties: false } } as Partial<ActionView["action"]>, available),
   view(feed, "feed.items.summary", { kind: "query", subject_kinds: ["feed_item"] }),

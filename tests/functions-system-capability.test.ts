@@ -223,7 +223,7 @@ test("authoring names the owning plugin by its plugin id, never by the installat
   const read: ActionView = { ...catalogAction("notes.read"), provider: notes };
   const finishAction = { ...read.action, kind: "operation" as const, audiences: ["user" as const], subject_kinds: ["note"] };
   const finish: ActionView = { ...read, capability_id: "notes.finish", operation: "command", action: finishAction };
-  const offerDefinition = defineSubjectOffersAction("notes.offers", ["note"], "Offer next steps", [],
+  const offerDefinition = defineSubjectOffersAction("notes.offers", 1, ["note"], "Offer next steps", [],
     [{ offer_id: "notes.finish", title: "Finish note", action: { capability_id: "notes.finish", version: 1 } }]);
   const offers: ActionView = { capability_id: offerDefinition.capability_id, version: offerDefinition.version, operation: "query", provider: notes,
     availability: { available: true }, action: { ...offerDefinition.action, audiences: ["user"] } };

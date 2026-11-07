@@ -8,7 +8,7 @@ export const EXECUTOR_MODES = [{ id: "discuss", title: "讨论" }, { id: "plan",
 
 /** The six role declarations under `<prefix>.<role>` (a prefix is also the provider id of `roleViews`), for subject kind `kind`. */
 export function roleDefinitions(prefix: string, kind: string, permissions: readonly string[] = []): ActionDefinition[] {
-  const options = (role: WorkExecutorRole) => ({ capability_id: `${prefix}.${role}`, title: role, description: `${prefix} ${role}`, permissions, subject_kinds: [kind] });
+  const options = (role: WorkExecutorRole) => ({ capability_id: `${prefix}.${role}`, version: 1, title: role, description: `${prefix} ${role}`, permissions, subject_kinds: [kind] });
   const defined = defineWorkExecutorActions(Object.fromEntries(WORK_EXECUTOR_ROLES.map(role => [role, options(role)])) as Parameters<typeof defineWorkExecutorActions>[0]);
   return WORK_EXECUTOR_ROLES.map(role => defined[role] as ActionDefinition);
 }

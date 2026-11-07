@@ -400,7 +400,7 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
     const completed = todo.batches.length;
     if (total > completed) {
       const firstActions = ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
-      const extract = await shipped<TodoExtract, { batch: OnboardingTodoBatch }>(firstActions, "todo.organize.extract", 1, TODO_PLUGIN_ID);
+      const extract = await shipped<TodoExtract, { batch: OnboardingTodoBatch }>(firstActions, "todo.organize.extract", /* @version action.todo.organize.extract */ 1, TODO_PLUGIN_ID);
       let index = 0;
       for await (const materials of todoBatches(home, journey.id, references)) {
         if (++index <= completed) continue;
@@ -479,8 +479,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       {
         // Pages' own public actions: it turns the markdown into its body, and an import with the same request id and hash returns the
         // documents it made the first time on a retry.
-        const fromMarkdown = await shipped<{ markdown: string }, { body: ProseDocument }>(actions, "pages.documents.body_from_markdown", 1, PAGES_PLUGIN_ID);
-        const importDocuments = await shipped<PagesImport, { documents: { id: string }[] }>(actions, "pages.documents.import", 1, PAGES_PLUGIN_ID);
+        const fromMarkdown = await shipped<{ markdown: string }, { body: ProseDocument }>(actions, "pages.documents.body_from_markdown", /* @version action.pages.documents.body_from_markdown */ 1, PAGES_PLUGIN_ID);
+        const importDocuments = await shipped<PagesImport, { documents: { id: string }[] }>(actions, "pages.documents.import", /* @version action.pages.documents.import */ 1, PAGES_PLUGIN_ID);
         const pageBody: PageBody = async markdown => (await actions.invoke(fromMarkdown, { markdown })).body;
         const refs = journey.adoption!.blank ? [] : journey.summary?.references ?? journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
         if (!journey.summary) refs.forEach((ref, index) => { ref.label = "S" + (index + 1); });
@@ -543,8 +543,8 @@ async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClie
   if (!journey.todo?.batches.length || !selected.size || journey.todo.added) return;
   const relation = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" } as const;
   const batches: OnboardingTodoBatch[] = [];
-  const get = await shipped<{ id: string }, { batch: OnboardingTodoBatch }>(actions, "todo.organize.get", 1, TODO_PLUGIN_ID);
-  const apply = await shipped<{ id: string; expected_revision: number; decisions: TodoDecision[] }, { batch: OnboardingTodoBatch }>(actions, "todo.organize.apply", 1, TODO_PLUGIN_ID);
+  const get = await shipped<{ id: string }, { batch: OnboardingTodoBatch }>(actions, "todo.organize.get", /* @version action.todo.organize.get */ 1, TODO_PLUGIN_ID);
+  const apply = await shipped<{ id: string; expected_revision: number; decisions: TodoDecision[] }, { batch: OnboardingTodoBatch }>(actions, "todo.organize.apply", /* @version action.todo.organize.apply */ 1, TODO_PLUGIN_ID);
   for (const kept of journey.todo.batches) {
     let { batch } = await actions.invoke(get, { id: kept.batch_id });
     const decisions = batch.candidates.filter(candidate => selected.has(candidate.candidate_id) && !candidate.decision)

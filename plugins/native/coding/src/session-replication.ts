@@ -86,4 +86,4 @@ export const codingTracking:readonly SyncTrackedTable[] = ['coding_sessions','co
  table,key:[{column:'project_id'},{literal:CODING_CONTENT_REPLICA_ID},{column:'project_id'}],
  ...(table==='coding_sessions'?{updateAny:[{changed:['title','archived','goal_id']},{changed:['state'],where:[{column:'state',op:'in' as const,values:['done','failed','stopped','cancelled']},{column:'runtime_session_id',op:'not-null' as const}]}]}:{}),
 }));
-export const codingSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'sessions',title:'编码会话与草稿',schema_version: 2,requires:[],tracking:codingTracking,sections:syncSectionsDeclaration(codingSections()),database:'project'}]};
+export const codingSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'sessions',title:'编码会话与草稿',schema_version: /* @version sync.collection.coding.sessions */ 1,requires:[],tracking:codingTracking,sections:syncSectionsDeclaration(codingSections()),database:'project'}]};

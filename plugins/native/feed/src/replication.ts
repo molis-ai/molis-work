@@ -69,7 +69,7 @@ export function feedRuleCollection(projectId: string): PluginSyncCollectionDefin
       const row = db.prepare("SELECT * FROM feed_out_rules WHERE project_id=? AND rule_id=?").get(projectId, id);
       if (!row) return null;
       validateRule(row, projectId, id);
-      const value = { format: 1, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, rule: row };
+      const value = { format: /* @version format.feed.portable */ 1, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, rule: row };
       size(value);
       return value;
     },
@@ -87,7 +87,7 @@ export function feedRuleCollection(projectId: string): PluginSyncCollectionDefin
       exact(wire, ["format", "spaceId", "project", "rule"]);
       const project = object(wire.project);
       exact(project, ["id", "title"]);
-      if (wire.format !== 1 || wire.spaceId !== context.spaceId || project.id !== projectId ||
+      if (wire.format !== /* @version format.feed.portable */ 1 || wire.spaceId !== context.spaceId || project.id !== projectId ||
         typeof project.title !== "string" || !project.title.trim() || project.title.length > 120) invalid();
       const rule = validateRule(wire.rule, projectId, id);
       // Restored rules are intentionally disabled until explicitly enabled on this device.
@@ -102,6 +102,6 @@ export function feedRuleCollection(projectId: string): PluginSyncCollectionDefin
 }
 
 export const feedSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "capture_rules", database: "project", tracking: feedRuleTracking, title: "消息捕捉规则", schema_version: 1, requires: [] },{id:'source_descriptions',database:'project',title:'来源描述与历史',schema_version:2,requires:[],sections:sourceSectionsDeclaration,tracking:sourceSectionsTracking},{id:'messages',database:'project',title:'消息、材料与固定历史',schema_version:2,requires:['source_descriptions'],sections:messageSectionsDeclaration,tracking:messageSectionsTracking}],
+  protocol_version: /* @version sync.protocol */ 1,
+  collections: [{ id: "capture_rules", database: "project", tracking: feedRuleTracking, title: "消息捕捉规则", schema_version: /* @version sync.collection.feed.capture_rules */ 1, requires: [] },{id:'source_descriptions',database:'project',title:'来源描述与历史',schema_version:/* @version sync.collection.feed.source_descriptions */ 1,requires:[],sections:sourceSectionsDeclaration,tracking:sourceSectionsTracking},{id:'messages',database:'project',title:'消息、材料与固定历史',schema_version:/* @version sync.collection.feed.messages */ 1,requires:['source_descriptions'],sections:messageSectionsDeclaration,tracking:messageSectionsTracking}],
 };

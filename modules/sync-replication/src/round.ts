@@ -8,7 +8,7 @@ import { syncError } from './sync-errors.js';
 export function parseSyncRound(value: unknown, spaceId: string) {
   const invalid = () => syncError('invalid', 'Invalid sync round summary');
   if (!value || typeof value !== 'object' || Array.isArray(value)
-    || Object.keys(value).length !== 4 || !('format' in value) || value.format !== 1
+    || Object.keys(value).length !== 4 || !('format' in value) || value.format !== /* @version format.sync.round */ 1
     || !('policy' in value) || !('quota' in value) || !('heads' in value) || !Array.isArray(value.heads)) throw invalid();
   const policy = parseSpaceSyncPolicy(value.policy, spaceId), quota = parseSyncQuota(value.quota);
   const selected = new Set(policy.selections.map(syncNamespace)), heads = new Map<string, number>();
@@ -19,6 +19,6 @@ export function parseSyncRound(value: unknown, spaceId: string) {
       || !Number.isSafeInteger(head.revision) || head.revision < 0) throw invalid();
     heads.set(head.namespace, head.revision);
   }
-  const wire: SyncRoundSummary = { format: 1, policy, quota, heads: [...heads].map(([namespace, revision]) => ({ namespace, revision })) };
+  const wire: SyncRoundSummary = { format: /* @version format.sync.round */ 1, policy, quota, heads: [...heads].map(([namespace, revision]) => ({ namespace, revision })) };
   return { ...wire, heads };
 }

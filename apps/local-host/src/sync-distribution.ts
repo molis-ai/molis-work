@@ -22,7 +22,7 @@ export const verifySyncPluginDistribution: PluginDistributionVerifier = (release
     if(!required.delete(member.path)||!original)throw invalid();
     if(member.path===SANDBOX_PACKAGE_FILES.manifest){
       const value:unknown=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(original));
-      if(!isDeepStrictEqual(value,{version:1,pluginId:contract.pluginId,revision:contract.revision,effects:effectsFromContract(contract)}))throw invalid();
+      if(!isDeepStrictEqual(value,{version:/* @version format.builder.build-manifest */ 1,pluginId:contract.pluginId,revision:contract.revision,effects:effectsFromContract(contract)}))throw invalid();
     }else if(!Buffer.from(member.content_base64,'base64').equals(original))throw invalid();
   }
 };

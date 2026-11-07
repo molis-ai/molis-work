@@ -104,14 +104,14 @@ test("W3-02-G1-03/04 real platform routes reject JSON and UTF-8 byte overflow be
 test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner details, trusted recorded numbers and unknown failure messages", { timeout: 60_000 }, async t => {
   const { host, origin, controlToken, createProject } = await openTestHome(t);
   const project = await createProject("Platform owner failures"), target = await createProject("Move target");
-  const reader = defineSubjectContextAction("example.platform.subject", "example_note", "Example note", []);
-  const mover = defineObjectMoveAction("example.platform.move", ["example_note"], "Example note", []);
+  const reader = defineSubjectContextAction("example.platform.subject", 1, "example_note", "Example note", []);
+  const mover = defineObjectMoveAction("example.platform.move", 1, ["example_note"], "Example note", []);
   const write: ActionDefinition<{ id: string }, null> = { ...command, capability_id: "example.platform.write", action: {
     ...command.action, audiences: ["user"], subject_kinds: ["example_note"], input_schema: {
       type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false,
     },
   } };
-  const offers = defineFragmentOffersAction("example.platform.fragment", ["example_note"], "Example note", [], [{
+  const offers = defineFragmentOffersAction("example.platform.fragment", 1, ["example_note"], "Example note", [], [{
     offer_id: "check", title: "检查", intent: "understand", apply: "result", hint: "检查这段内容", granularities: ["range"],
     action: { capability_id: write.capability_id, version: 1 },
   }]);

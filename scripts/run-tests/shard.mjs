@@ -27,21 +27,49 @@ const median = (numbers) => {
   return sorted[Math.floor(sorted.length / 2)];
 };
 
-/** The files of shard `index` (0-based) out of `count`, in the order they were given. `fileOf` names the file of an item. */
-export function pickShard(items, { index, count }, weights = {}, fileOf = (item) => item) {
-  const known = items.map((item) => weights[fileOf(item)]).filter((seconds) => seconds !== undefined);
+/** Predict the limiting worker pool, including the longest indivisible file. Product runs its browser phase first. */
+function completion(load, { jobs, browserJobs, separateBrowser }) {
+  const browsers = Math.max(load.browser / browserJobs, load.longestBrowser);
+  const others = Math.max((load.total - load.browser) / jobs, load.longestOther);
+  return separateBrowser ? browsers + others : Math.max(load.total / jobs, browsers, load.longestOther);
+}
+
+/** Deterministic LPT allocation; only the committed table decides ownership, never a runner's private cache. */
+export function planShards(items, { count, jobs = 1, browserJobs = 1, separateBrowser = false }, weights = {}, fileOf = (item) => item, browserOf = () => false) {
+  const known = items.map((item) => weights[fileOf(item)]).filter((seconds) => Number.isFinite(seconds) && seconds > 0);
   const unknown = median(known);
   const weight = (item) => weights[fileOf(item)] ?? unknown;
-  // Longest first, ties by name, so the deal does not depend on the order the list happens to be in.
   const order = items.map((item, position) => ({ item, position }))
     .sort((a, b) => weight(b.item) - weight(a.item) || (fileOf(a.item) < fileOf(b.item) ? -1 : fileOf(a.item) > fileOf(b.item) ? 1 : 0));
-  const load = new Array(count).fill(0);
-  const mine = new Set();
+  const loads = Array.from({ length: count }, () => ({ total: 0, browser: 0, longestBrowser: 0, longestOther: 0, seconds: 0, files: 0 }));
+  const assigned = new Map();
+  const capacity = { jobs, browserJobs: Math.min(jobs, browserJobs), separateBrowser };
   for (const { item, position } of order) {
+    const seconds = weight(item), browser = browserOf(item);
+    const candidates = loads.map((load) => {
+      const next = { ...load, total: load.total + seconds, browser: load.browser + (browser ? seconds : 0), files: load.files + 1,
+        longestBrowser: Math.max(load.longestBrowser, browser ? seconds : 0), longestOther: Math.max(load.longestOther, browser ? 0 : seconds) };
+      next.seconds = completion(next, capacity);
+      return next;
+    });
     let lightest = 0;
-    for (let shard = 1; shard < count; shard += 1) if (load[shard] < load[lightest]) lightest = shard;
-    load[lightest] += weight(item);
-    if (lightest === index) mine.add(position);
+    for (let shard = 1; shard < count; shard++) {
+      if (candidates[shard].seconds < candidates[lightest].seconds
+        || (candidates[shard].seconds === candidates[lightest].seconds && loads[shard].total < loads[lightest].total)) lightest = shard;
+    }
+    loads[lightest] = candidates[lightest];
+    assigned.set(position, lightest);
   }
-  return items.filter((_, position) => mine.has(position));
+  return { shards: loads.map((_, shard) => items.filter((_, position) => assigned.get(position) === shard)), loads };
+}
+
+/** The files of shard index (0-based), preserving their input order. */
+export function pickShard(items, options, weights = {}, fileOf = (item) => item, browserOf = () => false) {
+  return planShards(items, options, weights, fileOf, browserOf).shards[options.index];
+}
+
+export function describeShards(loads) {
+  const times = loads.map((load) => load.seconds);
+  const average = times.reduce((sum, seconds) => sum + seconds, 0) / times.length;
+  return `predicted shard seconds: ${times.map((seconds) => Math.round(seconds)).join(", ")}; max/mean ${(average ? Math.max(...times) / average : 1).toFixed(2)}`;
 }

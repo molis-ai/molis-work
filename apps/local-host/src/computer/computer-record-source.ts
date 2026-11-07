@@ -27,8 +27,8 @@ export function recordsOwnedBy(records: readonly ComputerRecord[], projectId: st
 const kinds = [{ kind: COMPUTER_RECORD_KIND, title: "电脑操作记录", surface: "computer" }];
 
 const computerRecordActions = {
-  entries: defineFileEntriesAction("computer.records.entries", kinds, "电脑操作记录", [], "home"),
-  content: defineFileContentAction("computer.records.content", kinds, "电脑操作记录", [], "home"),
+  entries: defineFileEntriesAction("computer.records.entries", /* @version action.computer.records.entries */ 1, kinds, "电脑操作记录", [], "home"),
+  content: defineFileContentAction("computer.records.content", /* @version action.computer.records.content */ 1, kinds, "电脑操作记录", [], "home"),
 } as const;
 
 const STEP_LABEL: Record<string, string> = { look: "看", act: "做", asked: "问", allowed: "已允许", declined: "被拒绝", refused: "拒绝", failed: "失败", note: "记" };
@@ -82,7 +82,7 @@ export function computerRecordFileSource(homeDirectory: string): { definitions: 
   }));
   const handlers: ActionHandlerBinding[] = [
     bindFileEntriesHandler(computerRecordActions.entries, entries),
-    { capability_id: computerRecordActions.content.capability_id, version: 1, handle: async (caller, input) => {
+    { capability_id: computerRecordActions.content.capability_id, version: computerRecordActions.content.version, handle: async (caller, input) => {
       const subject = (input as FileContentInput).subject;
       const record = records.get(subject.id);
       if (!record || record.project_id !== caller.project_id) throw computerErrors.not_found("这份电脑操作记录不在了");

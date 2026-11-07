@@ -160,8 +160,9 @@ test('local document deletion retains an unfrozen original atomically and can un
  const missing=fixture();missing.edit('one','irreplaceable');missing.unavailable(true);const before=missing.raw();assert.throws(()=>missing.edit('one',null));assert.equal(missing.raw(),before,'failure to freeze unique bytes must roll back deletion');
 });
 
-test('actual prior SDK document v1 is refused without rewriting its original bytes',()=>{
- const bytes=readFileSync(new URL('./fixtures/sync-document-v1.json',import.meta.url),'utf8');const f=fixture();f.setRaw(bytes);assert.throws(()=>f.doc.read(),{code:'plugin.sync_invalid'});assert.equal(f.raw(),bytes);
+test('an SDK document at any version but the current one is refused without rewriting its original bytes',()=>{
+ const current=readFileSync(new URL('./fixtures/sync-document-v1.json',import.meta.url),'utf8');const accepted=fixture();accepted.setRaw(current);accepted.doc.read();
+ const bytes=JSON.stringify({...JSON.parse(current),version:2});const f=fixture();f.setRaw(bytes);assert.throws(()=>f.doc.read(),{code:'plugin.sync_invalid'});assert.equal(f.raw(),bytes);
 });
 
 test('S-137 SDK documents require explicit pure key authority and retain historical project scope',()=>{

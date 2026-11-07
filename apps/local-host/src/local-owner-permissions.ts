@@ -55,7 +55,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],
     [PLACEMENT_PROVIDER_ID, PLACEMENT_PERMISSIONS],
     [MEMORY_PROVIDER_ID, MEMORY_PERMISSIONS],
-    // The person sets a task's grants (`set` is offered to `user` alone; S-141 ⑤).
+    // The person sets a task's grants (`set` is offered to `user` alone; S-task-grant-subjects ⑤).
     [TASK_GRANTS_PROVIDER_ID, asks(Object.values(agentTaskGrantActions))],
   ];
   const providers = new Map<string, readonly string[]>();

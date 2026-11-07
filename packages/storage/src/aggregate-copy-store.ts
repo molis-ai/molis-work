@@ -3,7 +3,7 @@ import {dirname} from 'node:path';
 import type {DatabaseSync} from 'node:sqlite';
 import type {ProjectCopyOwner} from '@molis-ai/molis-work-contracts/services/placement';
 import {homeSqlitePath,openReadOnlyHomeSqlite} from './home-sqlite.js';
-import {SqliteSchemaVersionError,type SqliteBaseline} from './sqlite-baseline.js';
+import {sqliteVersionRefusal,type SqliteBaseline} from './sqlite-baseline.js';
 import {readStorageSpace,readDatabaseSpace} from './space.js';
 import {createAggregateCopy,scopeAggregateCopyContext,type AggregateCopyContext} from './aggregate-copy.js';
 import {initializeAggregateReplication,type AggregateDefinition} from './aggregate-replica.js';
@@ -25,7 +25,7 @@ export function openOwnerCopyStore(home:string,storeName:string,baseline:SqliteB
  const db=context.direction==='source'?openReadOnlyHomeSqlite(home,storeName):openTarget!();
  try{
   if(JSON.stringify(readDatabaseSpace(db))!==JSON.stringify(space))throw syncError('scope','复制连接不属于当前 owner 空间');
-  const found=Number(db.prepare('PRAGMA user_version').get()!.user_version);if(found!==baseline.version)throw new SqliteSchemaVersionError(filename,found,baseline.version);
+  const found=Number(db.prepare('PRAGMA user_version').get()!.user_version);if(found!==baseline.version)throw sqliteVersionRefusal(filename,found,baseline.version,home);
   let alive=true;const check=()=>{if(!alive)throw syncError('unavailable','原复制接口已关闭');context.authorize();};
   const owner=create(db,{...context,authorize:check});check();return {owner,close(){if(!alive)return;alive=false;db.close();}};
  }catch(error){db.close();throw error;}

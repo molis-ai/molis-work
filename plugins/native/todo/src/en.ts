@@ -7,6 +7,7 @@
 export const TODO_EN: Readonly<Record<string, string>> = {
   "放在这个项目里的待办": "Todos placed in this project",
   "待办": "Todo",
+  "待办事项、它们的日期与到期提醒": "To-dos, their dates and due reminders",
   "放在": "Put in",
   "要做什么": "What to do",
   "状态": "Status",

@@ -21,7 +21,7 @@ import { directScheduleActions } from "./schedule-direct-actions.js";
 import { scheduleHost, zh } from "./fixtures/schedule-host.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
 
-// W2-18 decision 3: creating a scheduled task without a model or a bound workspace shows a hint in the dialog and still
+// W2-18 decision 3: creating a scheduled task without a model or a bound workspace shows a hint in the form and still
 // allows creation. The workspace is what the runner checks when it wakes up; the model is read from the model catalog as a
 // stand-in for the Prologue runtime the runner needs (the hint is advice, not a guarantee).
 
@@ -99,21 +99,23 @@ test("a Host that gives no readiness check answers the way other missing host po
   assert.deepEqual([answered?.status, (answered?.body as { code: string }).code], [503, "actions.unredeemed"]);
 });
 
-test("the create dialog carries two hidden hints, one per missing thing, and nothing in it blocks creating", () => {
+test("the new-task form carries two hidden hints, one per missing thing, and nothing in it blocks creating", () => {
   const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: zh, formatDate: value => value };
   const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", shown_plugins: ["schedule"], data: { jobs: [], tasks: [] }, primitives: p } });
-  const dialog = html.slice(html.indexOf("data-schedule-create-dialog"), html.indexOf("</dialog>", html.indexOf("data-schedule-create-dialog")));
+  // The form is written in the detail pane (batch 18, decided 2026-11-04: no dialog).
+  assert.doesNotMatch(html, /data-schedule-create-dialog|<dialog[^>]*data-schedule-create/, "creating opens no dialog");
+  const form = html.slice(html.indexOf("data-schedule-create-pane"), html.indexOf("</section>", html.indexOf("data-schedule-create-pane")));
   for (const kind of ["model", "workspace"]) {
-    const hint = new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>`).exec(dialog)?.[0];
+    const hint = new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>`).exec(form)?.[0];
     assert.ok(hint, `a hint for ${kind}`);
     assert.match(hint, /\bhidden\b/, "shown only once the Host says it is missing");
     assert.match(hint, /role="status"/);
   }
-  assert.match(dialog, /还没有配置文字模型/);
-  assert.match(dialog, /还没有绑定工作区/);
-  assert.match(dialog, /仍可以创建/, "says the task can still be created");
-  assert.match(dialog, /<button class="mw-btn mw-btn--primary" type="submit">/);
-  assert.doesNotMatch(dialog, /type="submit"[^>]*disabled/);
+  assert.match(form, /还没有配置文字模型/);
+  assert.match(form, /还没有绑定工作区/);
+  assert.match(form, /仍可以创建/, "says the task can still be created");
+  assert.match(form, /<button class="mw-btn mw-btn--primary" type="submit">/);
+  assert.doesNotMatch(form, /type="submit"[^>]*disabled/);
 });
 
 test("each hint says where to fix it with a plain link: the model settings, and the project's workspace settings", () => {
@@ -128,17 +130,17 @@ test("each hint says where to fix it with a plain link: the model settings, and 
   // A <p> is no alert box either: its default margins add to the grid gap and push the two hints apart (the design system's alert is a div).
   for (const kind of ["model", "workspace"]) {
     assert.match(hint(kind), /^<span>[^<]*<a [^>]*>[^<]*<\/a><\/span>$/, `${kind}: the sentence and its link are one grid item`);
-    assert.match(hint(kind), /<a [^>]*style="white-space:nowrap"/, `${kind}: a narrow dialog moves the whole link to the next line instead of breaking its words`);
+    assert.match(hint(kind), /<a [^>]*style="white-space:nowrap"/, `${kind}: a narrow form moves the whole link to the next line instead of breaking its words`);
   }
   assert.doesNotMatch(html, /<p[^>]*data-schedule-hint/, "the hints are divs, like the design system's alert");
 });
 
-test("the client reads readiness when the dialog opens, and a failed read stays silent (the behaviour itself is in plugin-small-ux.e2e.test.ts)", () => {
+test("the client reads readiness when the form opens, and a failed read stays silent (the behaviour itself is in plugin-small-ux.e2e.test.ts)", () => {
   assert.match(readFileSync("plugins/native/schedule/src/browser/form.ts", "utf8"), /read<Readiness>\(page\.host, "\/readiness"\)[\s\S]{0,300}\.catch\(/);
 });
 
-// The dialog asks the Host each time it opens for a new task. The answer belongs to that opening: if the person has since closed the
-// dialog and opened an edit, or opened the new-task dialog again, an earlier answer that lands late must not speak for it.
+// The form asks the Host each time it opens for a new task. The answer belongs to that opening: if the person has since left the
+// form and opened an edit, or opened the new-task form again, an earlier answer that lands late must not speak for it.
 type Listener = (event: unknown) => void | Promise<void>;
 interface FakeNode {
   hidden: boolean; open: boolean; value: string; textContent: string; checked: boolean; disabled: boolean; inert: boolean; scrollTop: number; tabIndex: number;
@@ -169,7 +171,8 @@ async function scheduleDialog() {
   const hints = new Map([["model", fakeNode({ scheduleHint: "model" })], ["workspace", fakeNode({ scheduleHint: "workspace" })]]);
   for (const hint of hints.values()) hint.hidden = true;
   workbench.querySelectorAll = selector => selector === "[data-schedule-hint]" ? [...hints.values()] : [];
-  const dialog = workbench.querySelector("[data-schedule-create-dialog]"), newButton = workbench.querySelector("[data-schedule-new]");
+  const pane = workbench.querySelector("[data-schedule-create-pane]"), newButton = workbench.querySelector("[data-schedule-new]");
+  pane.hidden = true;
   const asked: Array<(answer: { model: boolean; workspace: boolean }) => Promise<void>> = [];
   const documentListeners: Record<string, Listener[]> = {};
   const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, storage: Object.getOwnPropertyDescriptor(globalThis, "sessionStorage") };
@@ -179,6 +182,8 @@ async function scheduleDialog() {
   } });
   Object.defineProperty(globalThis, "sessionStorage", { value: { getItem: () => null, removeItem() {} }, configurable: true, writable: true });
   globalThis.fetch = (async (url: string) => {
+    // What each task reads is read once when the page starts; this page has no task rows to mark, so its answer does not matter.
+    if (/\/grants$/.test(String(url))) return new Response(JSON.stringify({ tasks: [] }), { status: 200, headers: { "content-type": "application/json" } });
     assert.match(String(url), /\/api\/plugins\/io\.molis\.work\.schedule\/readiness$/);
     return new Promise<Response>(resolve => {
       asked.push(async answer => { resolve(new Response(JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } })); await flush(); });
@@ -191,11 +196,15 @@ async function scheduleDialog() {
   detail.querySelector("[data-schedule-task-notify]").value = "true";
   const edit = { dataset: { scheduleTaskEdit: "T1" }, closest: (selector: string) => selector === "[data-schedule-detail]" ? detail : null };
   return {
-    asked, dialog,
+    asked, form: { get open() { return !pane.hidden; } },
     shown: () => [...hints].filter(([, hint]) => !hint.hidden).map(([kind]) => kind),
     openNew: async () => { await newButton.listeners.click![0]!({}); await flush(); },
-    openEdit: async () => { await workbench.listeners.click![0]!({ target: { closest: (selector: string) => selector === "[data-schedule-task-edit]" ? edit : null } }); await flush(); },
-    close: () => dialog.close(),
+    openEdit: async () => {
+      // Every click listener on the workbench sees the click and picks out its own target, as in a browser.
+      for (const listener of workbench.listeners.click ?? []) await listener({ target: { closest: (selector: string) => selector === "[data-schedule-task-edit]" ? edit : null } });
+      await flush();
+    },
+    close: () => { pane.hidden = true; },
     modelReady: async () => { for (const listener of documentListeners["molis-work:model-ready"] ?? []) await listener({}); await flush(); },
     clickHint: async (kind: string, link: boolean) => {
       for (const listener of hints.get(kind)!.listeners.click ?? []) await listener({ target: { closest: (selector: string) => link && selector === "a" ? {} : null } });
@@ -206,24 +215,24 @@ async function scheduleDialog() {
     },
   };
 }
-test("a readiness answer that lands late does not speak for the edit dialog or for a later opening of the new-task dialog", async () => {
+test("a readiness answer that lands late does not speak for the edit form or for a later opening of the new-task form", async () => {
   const page = await scheduleDialog();
   try {
     await page.openNew();
-    assert.equal(page.asked.length, 1, "asked when the new-task dialog opened");
+    assert.equal(page.asked.length, 1, "asked when the new-task form opened");
     assert.deepEqual(page.shown(), [], "nothing is claimed until the Host answers");
     await page.asked[0]!({ model: false, workspace: false });
     assert.deepEqual(page.shown(), ["model", "workspace"], "an answer for the opening that asked is shown");
 
-    // New, closed before the answer comes, then an edit: the edit dialog shows no hints, whatever lands.
+    // New, closed before the answer comes, then an edit: the edit form shows no hints, whatever lands.
     page.close();
     await page.openNew();
     page.close();
     await page.openEdit();
-    assert.equal(page.dialog.open, true);
+    assert.equal(page.form.open, true);
     assert.deepEqual(page.shown(), [], "an edit shows none");
     await page.asked[1]!({ model: false, workspace: false });
-    assert.deepEqual(page.shown(), [], "and the new-task dialog's late answer does not unhide them");
+    assert.deepEqual(page.shown(), [], "and the new-task form's late answer does not unhide them");
 
     // New, closed, new again: only the answer to the latest opening counts, in whatever order they arrive.
     page.close();
@@ -241,22 +250,22 @@ test("a readiness answer that lands late does not speak for the edit dialog or f
 });
 
 // The page that showed "no model" listens for molis-work:model-ready (skills/molis-prologue-ai/SKILL.md step 6). The browser journey is in
-// model-ready-surfaces.e2e.test.ts; here the rules of the dialog around it.
-test("a model that becomes ready takes its hint away from the new-task dialog that is open, and from no other dialog", async () => {
+// model-ready-surfaces.e2e.test.ts; here the rules of the form around it.
+test("a model that becomes ready takes its hint away from the new-task form that is open, and from no other form", async () => {
   const page = await scheduleDialog();
   try {
     await page.modelReady();
-    assert.equal(page.asked.length, 0, "no dialog on screen: the next opening reads for itself");
+    assert.equal(page.asked.length, 0, "no form on screen: the next opening reads for itself");
 
     await page.openNew();
     await page.asked[0]!({ model: false, workspace: false });
     assert.deepEqual(page.shown(), ["model", "workspace"]);
     await page.modelReady();
-    assert.equal(page.asked.length, 2, "the dialog on screen reads again");
+    assert.equal(page.asked.length, 2, "the form on screen reads again");
     assert.deepEqual(page.shown(), ["model", "workspace"], "what was shown stays until the new answer comes, nothing blinks");
     await page.asked[1]!({ model: true, workspace: false });
     assert.deepEqual(page.shown(), ["workspace"], "the model is there now; the folder is another matter");
-    assert.equal(page.dialog.open, true, "and the person's dialog is not touched");
+    assert.equal(page.form.open, true, "and the person's form is not touched");
 
     // The answer is numbered like an opening: one read before the event, landing after the one that followed it, is out of date.
     page.close();
@@ -267,27 +276,23 @@ test("a model that becomes ready takes its hint away from the new-task dialog th
     await page.asked[2]!({ model: false, workspace: false });
     assert.deepEqual(page.shown(), ["workspace"], "the older read does not bring the model hint back");
 
-    // Neither a closed dialog nor an edit shows hints, so the event has nothing to take away there.
+    // Neither a closed form nor an edit shows hints, so the event has nothing to take away there.
     page.close();
     await page.modelReady();
     await page.openEdit();
     await page.modelReady();
-    assert.equal(page.asked.length, 4, "no read for a closed dialog or an edit");
+    assert.equal(page.asked.length, 4, "no read for a closed form or an edit");
     assert.deepEqual(page.shown(), [], "and an edit still shows no hint");
   } finally { page.restore(); }
 });
 
-test("a link in a hint leaves the modal dialog first, because the settings it opens would sit under it", async () => {
+test("a link in a hint leaves the form where it is: the settings open over the page, and the draft is still there after them", async () => {
   const page = await scheduleDialog();
   try {
     await page.openNew();
     await page.asked[0]!({ model: false, workspace: false });
-    await page.clickHint("model", false);
-    assert.equal(page.dialog.open, true, "a click on the words stays in the dialog");
     await page.clickHint("model", true);
-    assert.equal(page.dialog.open, false, "the model link leaves it");
-    await page.openNew();
     await page.clickHint("workspace", true);
-    assert.equal(page.dialog.open, false, "so does the workspace link");
+    assert.equal(page.form.open, true, "nothing to leave first: the form is part of the page, not a dialog over it");
   } finally { page.restore(); }
 });

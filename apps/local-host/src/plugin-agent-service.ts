@@ -3,7 +3,9 @@ import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/a
 import type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult, PluginInstanceRecord, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isTerminalAgentPhase, type AgentRunHandle, type AgentRunView, type AgentRuntimeAdapter, type AgentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, markPluginActionChecked, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import type { AgentRoleDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import { taskGrantSubjectId } from "./task-grant-subjects.js";
 import { PROLOGUE_RUNTIME_ID } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { pluginAgentRuntime, type PluginPlatformHome } from "./home-side.js";
@@ -32,6 +34,7 @@ export function pluginAgentsFor(home: PluginPlatformHome | null | undefined, man
         || input.timeout_ms !== undefined && (!Number.isSafeInteger(input.timeout_ms) || input.timeout_ms <= 0 || input.timeout_ms > 600_000)) {
         throw new ActionError("actions.input_invalid", "Agent 任务、标题、工作区或时限无效");
       }
+      const subject = grantSubjectOf(input, role, caller);
       const check = () => {
         caller.assertActive(); context.requireGrant(permission);
         const current = record();
@@ -54,7 +57,7 @@ export function pluginAgentsFor(home: PluginPlatformHome | null | undefined, man
         const runtime = pluginAgentRuntime(home);
         if (!runtime) throw new ActionError("actions.connection_required", "此 Home 的 Agent 服务尚未接通");
         await beforeEffect(); await lifetime.wait(runtime.ready); assertCurrent();
-        const prepared = await lifetime.wait(runtime.preparePlugin(caller)); assertCurrent();
+        const prepared = await lifetime.wait(runtime.preparePlugin(caller, subject)); assertCurrent();
         let workspace: AgentWorkspace;
         if (role.workspace === "none" || role.workspace === "business") {
           if (input.workspace_id !== undefined) throw new ActionError("actions.input_invalid", "此角色不接收工作区");
@@ -64,15 +67,26 @@ export function pluginAgentsFor(home: PluginPlatformHome | null | undefined, man
           if (!chosen?.realpath_verified) throw new ActionError("actions.forbidden", "这个项目没有授权的工作区");
           workspace = { directory: { canonical_path: chosen.canonical_path, realpath_verified: true } };
         }
-        return await runPreparedAgent(runtime, caller, input, workspace, { ...prepared.authority, beforeStart: beforeEffect, assertBeforeStart: assertCurrent, beforeDispatch: beforeEffect }, lifetime.signal, assertCurrent);
+        return await runPreparedAgent(runtime, caller, input, workspace, { ...prepared.authority, beforeStart: beforeEffect, assertBeforeStart: assertCurrent, beforeDispatch: beforeEffect }, lifetime.signal, assertCurrent, subject !== undefined);
       } finally { controllers.delete(controller); lifetime.dispose(); }
     },
   });
   return { client, dispose() { active = false; for (const controller of controllers) controller.abort(new ActionError("actions.forbidden", "插件已停止")); controllers.clear(); } };
 }
 
+/**
+ * The task grant subject a round reads as (specs/proactive-assistant/schedule-task-reads.md §3.3): only a business role that runs
+ * read-only takes one, and the plugin gives only the key; the project and the installation are its issued caller's. Without one a
+ * business role is given no actions at all: a plugin's round never borrows the grants of the built-in Agent (`agent:<runtime>`).
+ */
+function grantSubjectOf(input: PluginAgentRunInput, role: AgentRoleDeclaration, caller: HostPluginCaller): string | undefined {
+  if (input.grant_subject === undefined) return undefined;
+  if (role.workspace !== "business" || role.execution !== "read-only") throw new ActionError("actions.input_invalid", "只有只读的业务角色能按任务授权读取数据");
+  return taskGrantSubjectId(caller.project_id, caller.install_id, input.grant_subject);
+}
+
 async function runPreparedAgent(runtime: AgentHostComposition, caller: HostPluginCaller, input: PluginAgentRunInput, workspace: AgentWorkspace,
-  authority: Awaited<ReturnType<AgentHostComposition["preparePlugin"]>>["authority"], signal: AbortSignal, check: () => void): Promise<PluginAgentRunResult> {
+  authority: Awaited<ReturnType<AgentHostComposition["preparePlugin"]>>["authority"], signal: AbortSignal, check: () => void, gateway: boolean): Promise<PluginAgentRunResult> {
   const adapter = runtime.agentHost.adapter(PROLOGUE_RUNTIME_ID);
   const owner = { project_id: caller.project_id!, plugin_id: caller.plugin_id, install_id: caller.install_id, actor_id: caller.actor_id, role_id: input.role_id, ...workspace };
   const effect = <T>(operation: () => Promise<T>) => adapter.withEffect ? adapter.withEffect({ beforeEffect: async () => { await authority.beforeStart?.(); }, assert_current: check }, operation) : operation();
@@ -80,7 +94,7 @@ async function runPreparedAgent(runtime: AgentHostComposition, caller: HostPlugi
   try {
     const session = await effect(() => runtime.agentHost.createSession(PROLOGUE_RUNTIME_ID, { ...owner, title: input.title }, authority));
     check();
-    handle = await effect(() => runtime.agentHost.start(PROLOGUE_RUNTIME_ID, { ...owner, session, task: input.task }, authority));
+    handle = await effect(() => runtime.agentHost.start(PROLOGUE_RUNTIME_ID, { ...owner, session, task: input.task, ...(gateway ? { action_gateway: true } : {}) }, authority));
     check();
     const view = await awaitAgentResult(adapter, handle, signal, check);
     check();

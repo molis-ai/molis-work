@@ -9,7 +9,6 @@ import { rememberConnectorCheck } from "./connector-observations.js";
 import { refreshRefused } from "./connector-refresh-refusals.js";
 import { ApiOAuthError } from "./connector-api-oauth.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
-import { isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import type { StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 
 interface ConnectorCheckControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
@@ -58,14 +57,3 @@ export async function verifyEnabledConnection(home: string, id: string, remember
   }
 }
 
-/**
- * Right after a key is saved (ASC-45, PF-A04) the connection is checked once and the result kept with its time, so the page shows whether
- * it works without another click. A key only the place that uses it can test (a model, image or MCP bearer key: `inspectApiConnection`
- * cannot read an account with it) is left unchecked rather than shown as failed. The save is already committed; a failed check is the
- * answer the page shows, not the save's failure.
- */
-export async function checkSavedConnection(home: string, id: string, remember: ConnectorMcpDirectory["remember"], control: ConnectorCheckControl = {}) {
-  const row = withConnectorConnections(home, store => store.get(id));
-  const checkable = row?.auth_method === "token" && (isCatalogConnectorId(row.service_id) || row.service_id === "github" || row.service_id === "gmail");
-  return checkable ? verifyEnabledConnection(home, id, remember, control) : undefined;
-}

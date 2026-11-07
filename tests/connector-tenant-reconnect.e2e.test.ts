@@ -39,6 +39,14 @@ test("S-57 S-69 RAC-654 RAC-657 a visible old tenant account reconnects through 
   assert.ok(localHost);
   const { install } = await grantConnections(localHost, probe), network = await transport(t, home);
   const port = createPluginConnectionsPort(home, network.options);
+  // A new key is checked with its site before it goes in (§13.6 ④d): a stand-in site accepts it, and nothing leaves the machine.
+  const realFetch = globalThis.fetch, checked: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (!url.startsWith("https://")) return realFetch(input, init);
+    checked.push(url);
+    return url === "https://acme.atlassian.net/rest/api/3/myself" ? Response.json({ displayName: "Person" }) : Response.json({}, { status: 404 });
+  });
   const saved = withConnectorConnections(home, store => ({ old: store.createToken({ serviceId: "jira", displayName: "旧站点账号", token: `acme.atlassian.net|person@example.com|${originalSecret}` }),
     spare: store.createToken({ serviceId: "jira", displayName: "另一个旧账号", token: `acme.atlassian.net|person@example.com|${originalSecret}` }) }));
   const slot = { plugin_id: probe.id, install_id: install.install_id, slot_id: "github", service_id: "jira" };
@@ -99,6 +107,7 @@ test("S-57 S-69 RAC-654 RAC-657 a visible old tenant account reconnects through 
   assert.deepEqual(withConnectorConnections(home, store => store.require(saved.old.connection_id)), before);
   assert.equal(withConnectorConnections(home, store => store.resolveToken(saved.old.connection_id, "jira")), `acme.atlassian.net|person@example.com|${renewedSecret}`);
   assert.equal(network.seen.length, 1, "cross-tenant request and reauthorization sent nothing");
+  assert.deepEqual(checked, ["https://acme.atlassian.net/rest/api/3/myself"], "the renewed key was checked on its own site once; the other site's key was refused before it was sent (S-connector-candidate-key)");
   assert.match(await evaluate<string>(`document.querySelector('${select} + [data-mw-select-trigger]').textContent`), /旧站点账号/);
   assert.doesNotMatch(await evaluate<string>(`document.querySelector('${select} + [data-mw-select-trigger]').textContent`), /需要重新连接/);
   assert.deepEqual(await port.describe(slot), { bound: true, display_name: "旧站点账号", state: "connected", origin: "https://acme.atlassian.net" });

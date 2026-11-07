@@ -215,6 +215,7 @@ export { assertMcpStartInput } from "./mcp-start-preflight.js";
 export { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
 export { runtimeConnectionIdentity } from "./mcp-event-identity.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";
+export { taskGrantActionProvider, type TaskGrantPorts } from "./task-grant-actions.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";

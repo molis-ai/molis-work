@@ -794,7 +794,7 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 
 **过渡计数（用户 2026-11-08 定，[决定 29](../post-anticorruption-roadmap/reference/decisions.md#decision-29)）：** 拆分后新旧写法要并存到第 56 批之前，所以提前加一道只许减少的计数。它是第 05 批的一片，单独一个 PR，排在 #1926 之后（两边都改 `scripts/check-health-gates.mjs`、`tooling/gates/README.md`）。
 
-- 数什么：处理器输入上的 `as`，范围和下面 N22-G 第一条相同。定义处手写的输入类型（`createActionDefinition` 第一个类型参数不是 `InferActionInput` 的）能查准才一起数，查不准就只数前一项。
+- 数什么，两项：处理器输入上的 `as`，范围和下面 N22-G 第一条相同；定义处手写的输入类型，即 `createActionDefinition` 的第一个类型参数，或转交给它的包装函数的类型参数，不是 `InferActionInput` 的（用户 2026-11-08 定）。包装的判定、数字和看不到的写法在 [`tooling/gates/README.md`](../../tooling/gates/README.md#按文件计数只许减少的项)。
 - 按文件计数，对照 merge-base 只许减少，新文件从 0 开始，测试不数。
 - N22-G 开绝对门禁时删掉。
 
@@ -893,4 +893,4 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | AIC-17 | 每个 T 片：`pnpm actions:update`、`pnpm api:update` 无差异，运行时检查和错误码没动，PR 带 S 清单。N22-02、N22-03 的 `api:update` 除外：只改 §8.2 写明的 5 份快照，差异只是字面量变窄，PR 写明对调用方兼容 |
 | AIC-18 | N22-Z：全仓处理器的输入参数上只剩 `bindActionHandler` 一处 `as` 和 §4.4 名单里的例外；公开合同的定义要么包了 `inputSchemaFor`，要么在 §4.4 名单里带理由；`defineAction` 的手写写法只剩 `input: unknown`；手写 `I` 被 N22-G 拦下；Skill 用新写法（`examples/plugin-sample`、`tooling/plugin-cli` 的模板是 JS，定义从 manifest 取，不用改）；读动作输入的 `text`、`optionalText` 只剩有理由的 |
 | AIC-19 | N22-G：新写一处处理器输入参数上的 `as`，门禁失败（变异用例），`bindOwnerPluginAction` 的输入参数上写 `as` 也失败；定义处写 `createActionDefinition<X, …>`、标 `ActionDefinition<X, …>` 时门禁失败（变异用例），合同包、SDK 和 §4.4 名单通过；类型参数化的帮手（`Object.entries<ActionDefinition<…>>`、`<I, O>(definition: ActionDefinition<I, O>)`）也通过，N22-G 只查定义处；基线为 0；`bindActionHandler` 和 §4.4 名单里的例外通过，名单每条有理由；测试文件不查 |
-| AIC-20 | 过渡计数：新文件写一处处理器输入上的 `as`、已有文件多写一处，门禁失败（变异用例）；`bindOwnerPluginAction` 的输入参数上写也算；减少时通过；测试文件不数；基点上的数字由同一份脚本量，改不大。定义处手写类型那一项查得准才有，同样带变异用例 |
+| AIC-20 | 过渡计数：新文件写一处处理器输入上的 `as`、已有文件多写一处，门禁失败（变异用例）；`bindOwnerPluginAction` 的输入参数上写也算；减少时通过；测试文件不数；基点上的数字由同一份脚本量，改不大。定义处手写的输入类型同样：新文件、已有文件多写一处、经导出的包装写一处，门禁失败（变异用例）；`InferActionInput<…>`、不带类型参数、`define<O>()(…)`、只是同名的函数不算 |

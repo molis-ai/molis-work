@@ -6,10 +6,11 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { countHandlerInputCasts } from "../scripts/gates/handler-input-casts.mjs";
+import { countHandlerInputCasts, countHandwrittenInputs } from "../scripts/gates/action-input-counts.mjs";
 
-// AIC-20 (specs/action-input-contracts, roadmap decision 29): `as` on an action handler's input, counted per file, may only fall
-// while the N22 slices migrate; N22-G deletes this count and this file. The definitions are in scripts/gates/handler-input-casts.mjs.
+// AIC-20 (specs/action-input-contracts, roadmap decision 29): `as` on an action handler's input and input types written by hand at a
+// definition, counted per file, may only fall while the N22 slices migrate; N22-G deletes both counts and this file. The definitions
+// are in scripts/gates/action-input-counts.mjs.
 // The mutations run the real gate on a scratch repository, as tests/health-gates-source-counts.test.ts does: one violation on a
 // branch makes `--base main` fail, and `--update` neither hides it nor is accepted when it is given the merge-base.
 const script = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
@@ -63,6 +64,34 @@ for (const [name, text] of notCounted) {
   test(`AIC-20 definition, not counted: ${name}`, () => assert.equal(countHandlerInputCasts("snippet.ts", text), 0));
 }
 
+// Each case is a set of files; the expected counts are per file, and a file left out counts 0.
+const WRAPPER = "export function define<I, O>(id: string) { return createActionDefinition<I, O>(id); }\n";
+const inputs: Array<[string, Record<string, string>, Record<string, number>]> = [
+  ["createActionDefinition written directly", { "a.ts": "export const a = createActionDefinition<{ id: string }, O>('a'); export const b = createActionDefinition<Input, O>('b');" }, { "a.ts": 2 }],
+  ["createActionDefinition as a member call", { "a.ts": "export const a = sdk.createActionDefinition<Input, O>('a');" }, { "a.ts": 1 }],
+  ["createActionDefinition imported under another name", { "a.ts": "import { createActionDefinition as make } from 'sdk';\nexport const a = make<Input, O>('a');" }, { "a.ts": 1 }],
+  ["a wrapper written as a function", { "a.ts": `${WRAPPER}export const a = define<{ id: string }, O>('a');` }, { "a.ts": 1 }],
+  ["a wrapper written as an arrow function", { "a.ts": "const define = <I, O>(id: string) => createActionDefinition<I, O>(id);\nexport const a = define<Input, O>('a');" }, { "a.ts": 1 }],
+  ["a curried wrapper that passes on its own type parameter", { "a.ts": "const define = <I, O>() => (id: string) => createActionDefinition<I, O>(id);\nexport const a = define<Input, O>()('a');" }, { "a.ts": 1 }],
+  ["a wrapper whose input is not its first type parameter", { "a.ts": "const define = <O, I>(id: string) => createActionDefinition<I, O>(id);\nexport const a = define<O, Input>('a'); export const b = define<O>('b');" }, { "a.ts": 1 }],
+  ["a helper that builds the literal itself and declares the return type", { "a.ts": "function define<I, O>(id: string): ActionDefinition<I, O> { return { capability_id: id }; }\nexport const a = define<Input, O>('a');" }, { "a.ts": 1 }],
+  ["an exported wrapper through a named import, renamed or not", { "w.ts": WRAPPER, "a.ts": "import { define } from './w.js';\nexport const a = define<Input, O>('a');", "b.ts": "import { define as action } from './barrel.js';\nexport const b = action<Input, O>('b');" }, { "a.ts": 1, "b.ts": 1 }],
+  ["a wrapper exported in an export list", { "w.ts": "function make<I, O>(id: string) { return createActionDefinition<I, O>(id); }\nexport { make as define };\n", "a.ts": "import { define } from './w.js';\nexport const a = define<Input, O>('a');" }, { "a.ts": 1 }],
+  ["InferActionInput, directly and through a wrapper", { "a.ts": `${WRAPPER}export const a = createActionDefinition<InferActionInput<typeof s>, O>('a'); export const b = define<InferActionInput<typeof s>, O>('b');` }, {}],
+  ["no type arguments", { "a.ts": `${WRAPPER}export const a = createActionDefinition('a'); export const b = define('b');` }, {}],
+  ["the curried form of the design: define<O>()(…)", { "a.ts": "const define = <O>() => <const S>(id: string, input: S) => createActionDefinition<InferActionInput<S>, O>(id, input);\nexport const a = define<Output>()('a', s);" }, {}],
+  ["a function of the same name that passes on nothing", { "a.ts": "function define<I, O>(id: string) { return register<I, O>(id); }\nexport const a = define<Input, O>('a');" }, {}],
+  ["the same name as a wrapper in another file, not imported", { "w.ts": WRAPPER, "a.ts": "declare function define<I, O>(id: string): void;\nexport const a = define<Input, O>('a');" }, {}],
+  ["a type parameter of the enclosing function is the wrapper, not a hand-written type", { "a.ts": WRAPPER }, {}],
+  ["not seen, in tooling/gates/README.md: a namespace import of a wrapper", { "w.ts": WRAPPER, "a.ts": "import * as ns from './w.js';\nexport const a = ns.define<Input, O>('a');" }, {}],
+  ["not seen, in tooling/gates/README.md: a wrapper on an object", { "a.ts": "const kit = { define: <I, O>(id: string) => createActionDefinition<I, O>(id) };\nexport const a = kit.define<Input, O>('a');" }, {}],
+  ["not seen, in tooling/gates/README.md: a wrapper of a wrapper", { "a.ts": `${WRAPPER}const outer = <I, O>(id: string) => define<I, O>(id);\nexport const a = outer<Input, O>('a');` }, {}],
+  ["not seen, in tooling/gates/README.md: a variable annotated ActionDefinition<X>", { "a.ts": "export const a: ActionDefinition<Input, O> = { capability_id: 'a' };" }, {}],
+];
+for (const [name, files, expected] of inputs) {
+  test(`AIC-20 definition, hand-written input: ${name}`, () => assert.deepEqual(countHandwrittenInputs(new Map(Object.entries(files))), expected));
+}
+
 const ONE_HANDLER = "export const one = { handle: (context: unknown, input: unknown) => input as { id: string } };\n";
 
 before(() => {
@@ -71,6 +100,8 @@ before(() => {
   put("tooling/gates/limits.json", JSON.stringify({ file: 400, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
   put("plugins/native/alpha/src/actions.ts", ONE_HANDLER);
   put("plugins/native/alpha/src/clean.ts", "export const clean = bindActionHandler(definition, (input) => input);\n");
+  put("plugins/native/alpha/src/definitions.ts", `${WRAPPER}export const one = define<{ id: string }, void>('one');\n`);
+  put("plugins/native/alpha/src/literal.ts", "function define<I, O>(id: string): ActionDefinition<I, O> { return { capability_id: id }; }\nexport const one = define<{ id: string }, void>('one');\n");
   put("specs/demo/spec.md", "# Demo\n\n状态：进行中\n");
   gitAt(repo, "add", "-A");
   assert.equal(gate("--update").code, 0);
@@ -95,6 +126,12 @@ const violations: Array<{ name: string; mutate: () => void; expect: RegExp }> = 
     expect: /`as` on an action handler's input in plugins\/native\/alpha\/src\/clean\.ts 0 → 1/ },
   { name: "a cast on the input of a function given to bindActionHandler, in an example", mutate: () => put("examples/sample/plugin.ts", "export const sample = bindActionHandler(definition, input => input as { id: string });\n"),
     expect: /`as` on an action handler's input in examples\/sample\/plugin\.ts 0 → 1/ },
+  { name: "a new file that writes an input type into createActionDefinition", mutate: () => put("plugins/native/beta/src/definitions.ts", "export const one = createActionDefinition<{ id: string }, void>('one');\n"),
+    expect: /input types written by hand where an action is defined in plugins\/native\/beta\/src\/definitions\.ts 0 → 1/ },
+  { name: "one more hand-written input through a wrapper in a file that has one", mutate: () => put("plugins/native/alpha/src/definitions.ts", `${read("plugins/native/alpha/src/definitions.ts")}export const two = define<{ name: string }, void>('two');\n`),
+    expect: /input types written by hand where an action is defined in plugins\/native\/alpha\/src\/definitions\.ts 1 → 2/ },
+  { name: "a hand-written input through a wrapper exported from another file", mutate: () => put("plugins/native/alpha/src/importer.ts", "import { define } from './definitions.js';\nexport const three = define<{ name: string }, void>('three');\n"),
+    expect: /input types written by hand where an action is defined in plugins\/native\/alpha\/src\/importer\.ts 0 → 1/ },
 ];
 for (const scenario of violations) {
   test(`AIC-20 mutation: ${scenario.name} fails against the merge-base, and --update does not hide it`, () => {
@@ -121,10 +158,35 @@ test("AIC-20 mutation: tests are not counted", () => {
     put("tests/fixtures/handler.ts", ONE_HANDLER);
     put("plugins/native/alpha/tests/handler.ts", ONE_HANDLER);
     put("plugins/native/alpha/src/handler.test.ts", ONE_HANDLER);
+    put("tests/definition.test.ts", "export const one = createActionDefinition<{ id: string }, void>('one');\n");
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
   assert.doesNotMatch(run.out, /Lower than/, "nothing went down either");
+});
+
+test("AIC-20 mutation: what is not hand-written, and a public contract's interface, pass", () => {
+  branch("not-handwritten", () => {
+    put("plugins/native/beta/src/definitions.ts", "export const one = createActionDefinition<InferActionInput<typeof s>, void>('one');\nexport const two = createActionDefinition('two');\n");
+    put("packages/contracts/src/services/thing.ts", "export const one = createActionDefinition<ThingInput, void>('one');\n");
+  });
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+});
+
+// #1933 moves the two helpers of modules/judgment-rules from a literal to createActionDefinition: the same hand-written inputs, not new ones.
+test("AIC-20 mutation: a helper that moves from its own literal to createActionDefinition keeps its count", () => {
+  branch("moves", () => put("plugins/native/alpha/src/literal.ts", `${WRAPPER}export const one = define<{ id: string }, void>('one');\n`));
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  assert.doesNotMatch(run.out, /handwrittenActionInputs/);
+});
+
+test("AIC-20 mutation: fewer hand-written inputs pass", () => {
+  branch("fewer-inputs", () => put("plugins/native/alpha/src/definitions.ts", `${WRAPPER}export const one = define<InferActionInput<typeof s>, void>('one');\n`));
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  assert.match(run.out, /Lower than the merge-base: handwrittenActionInputs/);
 });
 
 test("AIC-20 mutation: fewer casts pass and --update accepts them; a moved file keeps its record", () => {
@@ -146,4 +208,7 @@ test("AIC-20 the report lists the count per file, next to the merge-base's", () 
   const json = JSON.parse(gate("--report", "--json", "--base", "main").out);
   assert.deepEqual(json.head.handlerInputCasts, { "plugins/native/alpha/src/actions.ts": 1 });
   assert.deepEqual(json.base.handlerInputCasts, json.head.handlerInputCasts);
+  assert.match(text, /Action input types written by hand at the definition \(interim, until N22-G\): 2 in 2 files/);
+  assert.deepEqual(json.head.handwrittenActionInputs, { "plugins/native/alpha/src/definitions.ts": 1, "plugins/native/alpha/src/literal.ts": 1 });
+  assert.deepEqual(json.base.handwrittenActionInputs, json.head.handwrittenActionInputs);
 });

@@ -61,7 +61,7 @@ import { measureSchemaPatches, schemaPatchesWantText } from "./gates/schema-patc
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
-import { handlerInputCasts } from "./gates/handler-input-casts.mjs";
+import { actionInputMetrics } from "./gates/action-input-counts.mjs";
 import { errorOwnersWantsText } from "./gates/error-owners.mjs";
 import { pluginRegistryProblems } from "./generate-plugin-registry.mjs";
 
@@ -405,8 +405,8 @@ METRICS.push(testImportSplits({ perFile }));
 // 9. The error model (W3-02-B): Error subclasses, code shape, statuses chosen by a test of an error, the owner of a code; the rules live in
 // scripts/gates/error-*.mjs and the owner table in tooling/gates/error-owners.json (the repository this script belongs to must have it).
 METRICS.push(...createErrorMetrics({ root, required: isOwnRepository(root, import.meta.url), isSource: isStructureSource, perFile, rekey, rekeyFile, sumOf }));
-// 10. `as` on an action handler's input, interim until N22-G turns it into an absolute rule (scripts/gates/handler-input-casts.mjs).
-METRICS.push(handlerInputCasts({ perFile }));
+// 10. `as` on an action handler's input and input types written by hand at a definition, interim until N22-G turns them into absolute rules (scripts/gates/action-input-counts.mjs).
+METRICS.push(...actionInputMetrics({ perFile }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

@@ -221,6 +221,8 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 | TGA-18 | 框宽小于 280 px（极窄的侧栏） | 区域藏起、不响应，空元素高度回 0 | 先不判框宽，红 |
 | TGA-19 | 一页放两块区域，报成相交的位置（A 的标头压着 B 的开关） | 两块都藏起、不响应，分开后恢复 | 先不判相交，红 |
 
+**按下时现量位置**（P3-1 评审小修 1，2026-11-07）：`gate()` 不用上一帧记下的矩形，按下那一刻重新量区域，用它判整块可见、与 `pointerdown` 时的位置比较；量到的和上一帧不同就从这一刻重新计稳定期（键盘按下也一样）。这一条没有先红的用例：`pointerdown` 的捕获处理器本来就会重新量并更新位置，只剩「同一帧里、按下与松开之间挪动」这一种，靠 CDP 的普通输入排不出这个时序。
+
 **代码位置**（表的第三列，落地时写实）：`apps/workbench/src/browser/plugin-frame/task-grants-area.ts`（外层的画与六条检查、框里的报位置）；`parent.ts`、`child.ts`、`types.ts` 的接线；`apps/local-host/src/plugin-page-authority.ts` 的新一项与 `plugin-page-http.ts` 的路由。
 
 **残余风险（评审台确认接受）**：

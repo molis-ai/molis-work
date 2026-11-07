@@ -106,10 +106,12 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const paintAim = () => {
     const work = getWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
     if (work) {
-      // A work opened from the list or a notice keeps where it belongs; the chip names it, before the title, when that is not this page.
-      const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
-      targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : (isLive(work.state) ? L("补充到") : L("继续")) + "：" + (where ? where + " · " : "") + work.title;
-      target.title = work.reply_target ? L("请回到原评论继续回复") : L("下一次发送进入这项工作；点 × 改为开始新工作");
+      // A work opened from the list or a notice keeps where it belongs. When that is not this page the chip opens with the place, because a narrow
+      // bar has room for a few characters only; the tooltip keeps the whole line.
+      const elsewhere = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) + " · " + work.title : "";
+      const verb = (isLive(work.state) ? L("补充到") : L("继续")) + "：";
+      targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : elsewhere || verb + work.title;
+      target.title = work.reply_target ? L("请回到原评论继续回复") : (elsewhere && verb + elsewhere + "\n") + L("下一次发送进入这项工作；点 × 改为开始新工作");
       if (targetClear) targetClear.hidden = false;
       if (targetWrap) { targetWrap.dataset.mode = "work"; targetWrap.hidden = false; }
     } else {

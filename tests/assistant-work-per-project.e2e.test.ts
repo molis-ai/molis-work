@@ -47,12 +47,20 @@ test("§12.1: each project keeps its own work in the bar, and a work opened from
   await waitFor(`${CURRENT_WORK} === ${JSON.stringify(work)} && document.querySelector('[data-assistant-target-label]').textContent.includes(${JSON.stringify(TITLE)})`);
   assert.equal(await chip(), `继续：${TITLE}`);
 
-  // Opening A's work from B on purpose is allowed, and the bar says where the next line goes: before the title, which may be cut off.
+  // Opening A's work from B on purpose is allowed, and the bar opens with where the next line goes, because little of it fits; the tooltip has it all.
   await visit(other);
   await openWork(browser, work);
   const place = (await readWork(browser, work)).work.scope_title;
   assert.ok(place);
-  await waitFor(`document.querySelector('[data-assistant-target-label]').textContent === ${JSON.stringify(`继续：${place} · ${TITLE}`)}`);
+  await waitFor(`document.querySelector('[data-assistant-target-label]').textContent === ${JSON.stringify(`${place} · ${TITLE}`)}`);
+  assert.match(await evaluate<string>("document.querySelector('[data-assistant-target]').title"), new RegExp(`^继续：${place} · ${TITLE}\\n`));
+  // The panel, which says the same, hides the chip; once it is closed the chip is there at phone width too.
+  await click("[data-assistant-panel-close]");
+  await waitFor("document.querySelector('[data-assistant-panel]').hidden");
+  await evaluate("document.activeElement?.blur?.()");
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 780, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await waitFor("document.querySelector('[data-assistant-target-label]').getBoundingClientRect().width > 0");
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate("document.querySelector('[data-assistant-target-clear]').click()");
   await waitFor("document.querySelector('[data-assistant-target-wrap]').dataset.mode === 'new'");
 
@@ -84,7 +92,7 @@ test("§12.1: a personal work started on a project page stays that project's, an
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}` }, sessionId));
   await waitFor("!!document.querySelector('[data-assistant-island]') && !!document.querySelector('.workbench-bar')", 20_000);
   await openWork(browser, work);
-  await waitFor(`document.querySelector('[data-assistant-target-label]').textContent === '继续：个人 · 我个人的一件事'`);
+  await waitFor(`document.querySelector('[data-assistant-target-label]').textContent === '个人 · 我个人的一件事'`);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}` }, sessionId));
   await waitFor("!!document.querySelector('[data-assistant-island]')", 20_000);
   assert.equal(await evaluate(CURRENT_WORK), work, "a reload keeps it in front");

@@ -56,6 +56,7 @@ import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
+import { versionOriginProblems } from "./gates/initial-versions.mjs";
 import { measureSchemaPatches, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
@@ -501,6 +502,8 @@ const storeVersions = () => {
     throw error;
   }
 };
+// The half of the unified-origin check that needs no build (scripts/gates/initial-versions.mjs, user 2026-11-07): not a number, every version is 1 or has its chain.
+const versionOrigin = () => versionOriginProblems(workingTree(), { readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
@@ -544,7 +547,7 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const api = apiSnapshots();
-const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...api.errors];
+const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...versionOrigin(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   process.exit(1);

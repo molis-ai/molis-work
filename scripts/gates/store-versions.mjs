@@ -234,7 +234,7 @@ export function storeVersionProblems({ read, readBase }) {
       // that points somewhere says more about what is wrong than an old one that does not.
       const pointing = found.filter((entry) => UPGRADE_POINTER.test(entry.maintenance));
       const checked = (pointing.length > 0 ? pointing : found).map((entry) => upgradePointerProblems(entry, definitions.get(cell), read));
-      if (!checked.some((rowProblems) => rowProblems.length === 0)) problems.push(...checked.at(-1));
+      problems.push(...(pointing.length > 0 ? checked.flat() : checked.at(-1)));
     }
   }
   return problems;

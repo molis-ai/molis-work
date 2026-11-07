@@ -1,5 +1,7 @@
 // N41: inspect the live first-party declarations used by this build. The unified origin is not a date inferred from this check.
-// Not part of `pnpm health:check`: it needs a build. The rebuild window runs it by hand (docs/releases/CHECKLIST.md §4.1); tooling/gates/README.md has the rules.
+// Two halves. The source constants and the tooling/versions.json entries need no build and are an absolute rule of `pnpm health:check`
+// (versionOriginProblems, user 2026-11-07). The registered actions, Manifests, prompts and roles need a build, so only this script checks
+// them, and only when someone runs it: the rebuild window does (docs/releases/CHECKLIST.md §4.1). tooling/gates/README.md has the rules.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -11,9 +13,9 @@ import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-
 // go up through the upgrade chain instead of staying at 1. Above 1 each needs a registered chain with consecutive steps and a replay
 // that passed. Everything else (actions, Manifests, prompts, roles, methods, any other first-party constant) stays at 1.
 // A constant is `file#NAME`, because the same name elsewhere (CATALOG_VERSION in the plugin builder) is not a persistent format.
-// Not on the list, so above 1 they fail with or without a chain: versions of a payload kept in a row rather than of a library or file.
-// A fixed version (CODING_PLAN, FEED_CAPTURE and the *_ARTIFACT_SCHEMA_VERSION of Dataset, Form, Pages, PPT) is immutable and a step cannot
-// rewrite it; GMAIL_LIVE_CURSOR is sync progress the Source rebuilds, so it needs no step.
+// Not on the list, so above 1 they fail with or without a chain: a fixed version (CODING_PLAN, FEED_CAPTURE and the *_ARTIFACT_SCHEMA_VERSION
+// of Dataset, Form, Pages, PPT) must not change after it is written, by contract and by its content_digest, not by anything in the
+// database, so a step should not rewrite it; GMAIL_LIVE_CURSOR is sync progress a full sync rebuilds, so it needs no step.
 const PERSISTENT_CONSTANTS = new Set([
   "apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION",
   "packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION",
@@ -24,7 +26,9 @@ const PERSISTENT_CONSTANTS = new Set([
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
-// The last five are the files §2.6 of the design puts in the chain and §11.1 did not name: the user agreed to them on 2026-11-07.
+// format.jelly.workspace is the JSON in jelly_workspace.body, a row, not jelly/preferences.json: it is here because that row changes, a step
+// can rewrite it and nothing rebuilds it. The last six are the files §2.6 of the design puts in the chain and §11.1 did not name, the
+// last of them jelly/preferences.json: the user agreed to them on 2026-11-07.
 const PERSISTENT_ENTRIES = new Map([
   ["database.ledger_baseline", "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE"],
   ["database.memory_ledger_baseline", "packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE"],
@@ -34,8 +38,10 @@ const PERSISTENT_ENTRIES = new Map([
   ["format.browser.site-decisions", "apps/local-host/src/browser/browser-surfaces.ts#version"],
   ["format.computer.settings", "apps/local-host/src/computer/computer-settings.ts#version"],
   ["format.computer.record", "apps/local-host/src/computer/computer-records.ts#version"],
+  ["format.model.preference", "apps/local-host/src/model-configuration.ts#schema_version"],
 ]);
 export const PERSISTENT_DEFINITIONS = Object.freeze([...PERSISTENT_CONSTANTS, ...PERSISTENT_ENTRIES.values()]);
+export const PERSISTENT_ENTRY_KEYS = Object.freeze(Object.fromEntries(PERSISTENT_ENTRIES));
 
 /** Whether `froms` are the steps a chain to `version` needs: 1 to version - 1, each once. Empty when they are. */
 export function upgradeStepProblems(version, froms) {
@@ -94,10 +100,11 @@ export function initialVersionProblems({ manifests, hostViews, registrations, ve
 
 // Versions chosen by an upstream provider or the bundled SQLite binary are listed with their reason in one place; the product
 // version carries its own marker, and a pattern (a RegExp named VERSION) is not a version at all.
-const outsideUniformOrigin = new Set(JSON.parse(readFileSync(new URL("../../tooling/gates/version-exceptions.json", import.meta.url), "utf8"))
-  .filter(entry => entry.file && entry.name).map(entry => `${entry.file}#${entry.name}`));
+const exceptionNames = (text) => new Set(JSON.parse(text).filter(entry => entry.file && entry.name).map(entry => `${entry.file}#${entry.name}`));
+let thisRepository;
+const repositoryExceptions = () => (thisRepository ??= exceptionNames(readFileSync(new URL("../../tooling/gates/version-exceptions.json", import.meta.url), "utf8")));
 
-export function sourceVersionProblems(file, source, chains = new Map()) {
+export function sourceVersionProblems(file, source, chains = new Map(), exceptions = repositoryExceptions()) {
   if (!/\b[A-Z_\d]*VERSION\b/.test(source)) return [];
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest);
   const problems = [];
@@ -105,7 +112,7 @@ export function sourceVersionProblems(file, source, chains = new Map()) {
     if (ts.isVariableDeclarationList(node) && (node.flags & ts.NodeFlags.Const)) {
       for (const declaration of node.declarations) {
         const name = declaration.name.getText(tree);
-        if (!/^[A-Z_\d]*VERSION$/.test(name) || outsideUniformOrigin.has(`${file}#${name}`)) continue;
+        if (!/^[A-Z_\d]*VERSION$/.test(name) || exceptions.has(`${file}#${name}`)) continue;
         let value = declaration.initializer;
         while (value && (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value))) value = value.expression;
         if (value && (ts.isRegularExpressionLiteral(value) || /@version product\./.test(source.slice(value.pos, value.getStart(tree))))) continue;
@@ -122,11 +129,36 @@ export function sourceVersionProblems(file, source, chains = new Map()) {
   return problems;
 }
 
+const SOURCE_AREAS = /^(?:apps|packages|plugins|modules|server|horizontal)\//;
+const isCheckedSource = (file) => SOURCE_AREAS.test(file) && /\.(?:[cm]?[jt]s|[jt]sx)$/.test(file) && !/(?:^|\/)(?:tests|fixtures)\//.test(file);
+
+/**
+ * The half with no build, over a snapshot (`files`, `read`): the version constants in source and the entries of tooling/versions.json.
+ * A repository with neither table is not this one (the gates' scratch repositories); losing a table this one had, or one that cannot be
+ * read, is a problem and not a pass. `chains` arrives with U1-d, here and in check() below: until then nothing above 1 can pass.
+ */
+export function versionOriginProblems({ files, read }, { readBase, chains = new Map() } = {}) {
+  const problems = [];
+  const table = (file, parse, empty) => {
+    const text = read(file);
+    if (text === null || text === undefined) {
+      if (readBase?.(file)) problems.push(`${file} is gone, so the versions it holds cannot be checked`);
+      return empty;
+    }
+    try { return parse(text); } catch (error) { problems.push(`${file} cannot be read: ${error.message}`); return empty; }
+  };
+  const versionEntries = table("tooling/versions.json", text => JSON.parse(text).versions ?? {}, {});
+  const exceptions = table("tooling/gates/version-exceptions.json", exceptionNames, new Set());
+  problems.push(...initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, chains }));
+  for (const file of files.filter(isCheckedSource)) problems.push(...sourceVersionProblems(file, read(file) ?? "", chains, exceptions));
+  return problems;
+}
+
 async function check() {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const files = execFileSync("git", ["ls-files", "-z", "--", "apps", "packages", "plugins", "modules", "server", "horizontal"],
     { cwd: root, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }).split("\0").filter(Boolean);
-  // The register of upgrade chains and the replay that proves them arrive with U1-d and U2: nothing is registered yet, so a persistent
+  // The register of upgrade chains and the replay that proves them arrive with U1-d and U2 (versionOriginProblems takes it too): nothing is registered yet, so a persistent
   // format above 1 fails here as it always did, and while everything is at 1 (the rebuild window) this is never consulted.
   const chains = new Map();
   const problems = await withIsolatedHome(async home => {

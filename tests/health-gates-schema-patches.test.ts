@@ -115,10 +115,17 @@ test("UPG1-i-patches-07: ordinary text is not a patch", () => {
   ]) assert.equal(count(source), 0, source);
 });
 
-test("UPG1-i-patches-08: it reads the source files and the .sql files of the source areas, nothing else", () => {
+test("UPG1-i-patches-09: the words cut apart still count unless both are cut, which is the gap the README lists", () => {
+  assert.equal(countSchemaPatches("packages/alpha/src/a.ts", 'export const a = "ALT" + "ER TABLE t";'), 1);
+  assert.equal(countSchemaPatches("packages/alpha/src/a.ts", 'export const a = "ALTER TA" + "BLE t";'), 1);
+  assert.equal(countSchemaPatches("packages/alpha/src/a.ts", 'export const a = "ALT" + "ER TA" + "BLE t";'), 0);
+});
+
+test("UPG1-i-patches-08: it reads the source files and the .sql files of the source areas, nothing else, and D1 migrations are not Home libraries", () => {
   assert.equal(schemaPatchesWantText("packages/alpha/src/a.ts"), true);
   assert.equal(schemaPatchesWantText("packages/alpha/src/a.sql"), true);
-  assert.equal(schemaPatchesWantText("server/migrations/sync/0001_sync.sql"), true);
+  assert.equal(schemaPatchesWantText("server/migrations/sync/0001_sync.sql"), false);
+  assert.equal(schemaPatchesWantText("server/src/a.sql"), true);
   assert.equal(schemaPatchesWantText("tests/fixtures/goals-home-v1.sql"), false);
   assert.equal(schemaPatchesWantText("apps/sync-worker/fixtures/baseline-v4.sql"), false);
   assert.equal(schemaPatchesWantText("packages/alpha/tests/a.sql"), false);

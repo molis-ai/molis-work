@@ -305,14 +305,37 @@ test("UPG1-i-verify-01: a baseline's upgrades do not change the version read fro
 });
 
 test("UPG1-i-verify-02: the upgrade entry takes what a descriptor carries, not a baseline written at the call", () => {
-  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, store.baseline);\nrunSqliteUpgrade(db, path, baseline, home);\n");
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, store.baseline);\nrunSqliteUpgrade(db, path, store.library.baseline, home);\n");
   assert.equal(run().code, 0, run().out);
+  put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, nobody);\n");
+  failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with nobody, which no package declares as a SqliteBaseline");
   put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { version: 2, schema: `CREATE TABLE t (a TEXT);`, upgrades: [] });\n");
   failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
   put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path, { ...BASE, version: 2 } as SqliteBaseline);\n");
   failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called with an inline baseline");
   put("apps/alpha/src/upgrade.ts", "runSqliteUpgrade(db, path);\n");
   failsWith(run(), "apps/alpha/src/upgrade.ts: runSqliteUpgrade is called without a baseline");
+});
+
+test("UPG1-i-verify-03: the two aggregate copy openers take a declared baseline like the other entries, their own file aside", () => {
+  for (const opener of ["openOwnerCopyStore", "openAggregateCopyOwner"]) {
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", nobody, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with nobody, which no package declares as a SqliteBaseline`);
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", { version: 1, schema: "" }, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+    put("apps/alpha/src/copy.ts", `${opener}(home, "alpha", store.baseline, context);\n`);
+    failsWith(run(), `apps/alpha/src/copy.ts: ${opener} is called with an inline baseline`);
+  }
+  rmSync(path.join(root, "apps/alpha/src/copy.ts"));
+  put("packages/storage/src/aggregate-copy-store.ts", "export function openAggregateCopyOwner(home: string, name: string, baseline: SqliteBaseline) { return openOwnerCopyStore(home, name, baseline); }\n");
+  assert.equal(run().code, 0, run().out);
+  rmSync(path.join(root, "packages/storage/src/aggregate-copy-store.ts"));
+});
+
+test("UPG1-i-verify-04: a typed baseline inside a function is still a baseline the table has to list", () => {
+  put("apps/alpha/src/local.ts", "export function open() { const LOCAL_DB: SqliteBaseline = { version: 1, schema: ``, upgrades: [{ from: 1, sql: `ALTER TABLE t ADD COLUMN c TEXT` }] }; return LOCAL_DB; }\n");
+  failsWith(run(), "LOCAL_DB");
+  rmSync(path.join(root, "apps/alpha/src/local.ts"));
 });
 
 // The detection and the version reader agree on every spelling: a baseline that has to be listed can be listed and checked.

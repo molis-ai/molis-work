@@ -8,20 +8,22 @@
 //
 // Two spellings the regex could not see count now, so moving the words is not a way past this: an expression that folds to the
 // words (`"ALTER " + "TABLE"`, a template, an array join, or a string that ends on the verb, for the noun to come from elsewhere),
-// and a tracked `.sql` file in the source areas.
+// and a tracked `.sql` file in the source areas. Not server/migrations/: those are D1 migrations, not Home libraries, and D1 has no
+// `upgrades` literal to move them to.
 //
-// KNOWN GAP. It reads where the text is, not what runs it: `db.exec(PAGES_DATABASE.upgrades[0].sql)` on a read path is not seen.
+// KNOWN GAP. It reads where the text is, not what runs it: `db.exec(PAGES_DATABASE.upgrades[0].sql)` on a read path is not seen. Other
+// spellings it does not see, all of which take intent to write, are listed in tooling/gates/README.md「就地补表」.
 import ts from "typescript";
 import { isSource } from "./giant-units.mjs";
 
 const ALTER_TABLE = /ALTER\s+TABLE/gi;
 const ENSURE_COLUMN = /ensureSqliteColumn\(/g;
 const ENDS_ON_VERB = /(?:^|\s)ALTER\s*$/;
-// No file without this can hold any of the spellings counted here, and most files can skip the parse.
-const WORTH_PARSING = /ALTER|TER\s+TABLE/i;
+// A file with neither word can only spell them by cutting both apart, which is not counted anyway, so it can skip the parse.
+const WORTH_PARSING = /ALTER|TABLE/i;
 const BASELINE_TYPES = new Set(["SqliteBaseline", "PluginDatabaseDeclaration", "HomePluginDatabaseDeclaration"]);
 
-const isPatchSql = (file) => file.endsWith(".sql") && isSource(`${file.slice(0, -".sql".length)}.ts`);
+const isPatchSql = (file) => file.endsWith(".sql") && !file.startsWith("server/migrations/") && isSource(`${file.slice(0, -".sql".length)}.ts`);
 export const schemaPatchesWantText = (file) => isSource(file) || isPatchSql(file);
 
 const isWrapper = (node) => ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node);

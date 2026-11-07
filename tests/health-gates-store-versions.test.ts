@@ -186,6 +186,14 @@ expectAfterOrigin("UPG1-i-store-05: an older row in prose does not excuse a poin
   raiseTo(3, 'upgrades: [{ from: 1, sql: "A" }]', pointer(2, 3));
   put(SPEC, spec([PROJECT_ROW, rowFor(2, 3, "已被干净重建取代"), rowFor(2, 3, pointer(2, 3))]));
 }, 1, [/has no upgrade step with `from: 2`/]);
+expectAfterOrigin("UPG1-i-store-05: every row written as a pointer has to hold up, in either order", () => {
+  raiseTo(3, STEPS_TO_3, pointer(2, 3));
+  put(SPEC, spec([PROJECT_ROW, rowFor(2, 3, pointer(2, 3)), rowFor(2, 3, `\`plugins/native/other/src/database.ts#OTHER_DATABASE#2→3\``)]));
+}, 1, [/in its 维护 cell|OTHER_DATABASE/]);
+expectAfterOrigin("UPG1-i-store-05: every row written as a pointer has to hold up, the wrong one last or first", () => {
+  raiseTo(3, STEPS_TO_3, pointer(2, 3));
+  put(SPEC, spec([PROJECT_ROW, rowFor(2, 3, `\`plugins/native/other/src/database.ts#OTHER_DATABASE#2→3\``), rowFor(2, 3, pointer(2, 3))]));
+}, 1, [/in its 维护 cell|OTHER_DATABASE/]);
 expectAfterOrigin("UPG1-i-store-04: going down fails even with a row for it", () => {
   put(CHECKLIST, checklist(1, "", REGISTERED));
   put(SPEC, spec([PROJECT_ROW, rowFor(2, 1, pointer(2, 1))]));

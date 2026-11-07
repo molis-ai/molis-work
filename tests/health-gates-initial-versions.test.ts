@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { PERSISTENT_DEFINITIONS, initialVersionProblems, sourceVersionProblems, upgradeStepProblems } from "../scripts/gates/initial-versions.mjs";
+import { PERSISTENT_DEFINITIONS, PERSISTENT_ENTRY_KEYS, initialVersionProblems, sourceVersionProblems, upgradeStepProblems, versionOriginProblems } from "../scripts/gates/initial-versions.mjs";
 
 test("U0-03: an active registration cannot hide a later action, manifest, role, prompt, instruction or method version", () => {
   const agent = {
@@ -124,7 +125,11 @@ test("UPG1-i-initial-08: every persistent format named here is still where it sa
     const [file, name] = definition.split("#") as [string, string];
     assert.match(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), new RegExp(`\\b${name}\\b`), definition);
   }
-  assert.equal(PERSISTENT_DEFINITIONS.length, 14);
+  for (const [key, definition] of Object.entries(PERSISTENT_ENTRY_KEYS)) {
+    const [file] = definition.split("#") as [string];
+    assert.ok(readFileSync(new URL(`../${file}`, import.meta.url), "utf8").includes(`/* @version ${key} */`), `${file} carries ${key}`);
+  }
+  assert.equal(PERSISTENT_DEFINITIONS.length, 15);
 });
 
 test("UPG1-i-initial-10: a payload version kept in a row is no persistent format, so a chain does not let it above 1", () => {
@@ -147,11 +152,12 @@ const CHAIN_FILES = [
   ["format.browser.site-decisions", "apps/local-host/src/browser/browser-surfaces.ts#version"],
   ["format.computer.settings", "apps/local-host/src/computer/computer-settings.ts#version"],
   ["format.computer.record", "apps/local-host/src/computer/computer-records.ts#version"],
+  ["format.model.preference", "apps/local-host/src/model-configuration.ts#schema_version"],
 ] as const;
 const inspectEntries = (versionEntries: Record<string, number>, chains?: Map<string, unknown>) =>
   initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, ...(chains ? { chains } : {}) });
 
-test("UPG1-i-initial-11: the five files of design §2.6 at 2 fail with no chain and pass only with a consecutive chain and a passed replay", () => {
+test("UPG1-i-initial-11: the six files of design §2.6 at 2 fail with no chain and pass only with a consecutive chain and a passed replay", () => {
   for (const [key, definition] of CHAIN_FILES) {
     assert.deepEqual(inspectEntries({ [key]: 1 }), [], `${key} at 1 needs no chain`);
     assert.deepEqual(inspectEntries({ [key]: 2 }), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
@@ -166,6 +172,37 @@ test("UPG1-i-initial-12: the machine receipt stays out of the list, as design §
   const definitions = new Set<string>(PERSISTENT_DEFINITIONS);
   assert.ok(!definitions.has("apps/local-host/src/installer/web-service-contract.ts#schema_version"));
   assert.deepEqual(inspectEntries({ "format.web.service.receipt": 2 }), []);
+});
+
+const snapshotOf = (texts: Record<string, string>) => ({ files: Object.keys(texts), read: (file: string) => texts[file] ?? null });
+
+test("UPG1-i-initial-13: the half with no build passes on this repository as it stands", () => {
+  const root = new URL("../", import.meta.url);
+  const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);
+  const read = (file: string) => { try { return readFileSync(new URL(file, root), "utf8"); } catch { return null; } };
+  assert.deepEqual(versionOriginProblems({ files, read }), []);
+});
+
+test("UPG1-i-initial-14: the half with no build finds a constant, an entry, a persistent format and an exception, and passes a chain", () => {
+  const versions = (entries: Record<string, number>) => JSON.stringify({ versions: entries });
+  const inspect = (texts: Record<string, string>, options?: Parameters<typeof versionOriginProblems>[1]) => versionOriginProblems(snapshotOf(texts), options);
+  assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 1;" }), [], "a repository with no tables");
+  assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 2;" }), ["packages/a/src/a.ts: A_VERSION = 2 (expected 1)"]);
+  assert.deepEqual(inspect({ "packages/a/tests/a.ts": "const A_VERSION = 2;", "docs/a.ts": "const A_VERSION = 2;" }), [], "outside the checked source");
+  assert.equal(inspect({ "tooling/versions.json": versions({ "prompt.a.b": 2 }) }).length, 1);
+  const onboarding = "apps/local-host/src/onboarding.ts#schema_version";
+  const raised = { "tooling/versions.json": versions({ "format.home.onboarding": 2 }) };
+  assert.match(inspect(raised)[0]!, /onboarding\.ts#schema_version = 2 .*registered upgrade chain/);
+  assert.deepEqual(inspect(raised, { chains: new Map([[onboarding, { version: 2, froms: [1], replay_passed: true }]]) }), []);
+  const excepted = JSON.stringify([{ file: "packages/a/src/a.ts", name: "A_VERSION", reason: "x" }]);
+  assert.deepEqual(inspect({ "packages/a/src/a.ts": "const A_VERSION = 2;", "tooling/gates/version-exceptions.json": excepted }), [], "the exceptions of the repository it reads, not of this one");
+});
+
+test("UPG1-i-initial-15: a table it cannot read, or one this repository had and lost, is a problem and not a pass", () => {
+  assert.match(versionOriginProblems(snapshotOf({ "tooling/versions.json": "{" }))[0]!, /tooling\/versions\.json cannot be read/);
+  assert.match(versionOriginProblems(snapshotOf({ "tooling/gates/version-exceptions.json": "{" }))[0]!, /version-exceptions\.json cannot be read/);
+  const hadIt = (file: string) => (file === "tooling/versions.json" ? "{}" : "");
+  assert.deepEqual(versionOriginProblems(snapshotOf({}), { readBase: hadIt }), ["tooling/versions.json is gone, so the versions it holds cannot be checked"]);
 });
 
 test("UPG1-i-initial-09: the step rule is from 1 to version - 1, each once", () => {

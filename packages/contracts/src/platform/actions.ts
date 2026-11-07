@@ -1,5 +1,6 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
+export * from "./action-input.js";
 export * from "./action-execution.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";

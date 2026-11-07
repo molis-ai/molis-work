@@ -84,3 +84,46 @@ test("ASC-63 Images: choose a service and get its model and sizes; the technical
   assert.match(english.offer, /^Generates with gpt-image-1\.5; sizes: 1024x1024/);
   await shot("4-openai-1024-dark-en");
 });
+
+// ASC-70, §13.5: a service saved without a key can still be pressed; the key is asked for in the generate area, on the platform's
+// connection card for this service's address only. Cancelled, nothing is saved and the words stay. Nothing here calls a provider.
+test("ASC-70 Images: generating with a service that has no key shows the connection card in the generate area; cancelling keeps the words", { timeout: 90_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "images");
+  const CARD = "[data-connection-need-area]";
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
+  await browser.waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=images]')");
+  await browser.click('[data-plugin-strip] [data-plugin-id="images"]');
+  await browser.waitFor("document.body.dataset.desktopSurface === 'images'");
+  await waitFor("document.querySelector('[data-images-new]')");
+  await click("[data-images-new]");
+  await click("[data-images-connections]");
+  await waitFor("document.querySelector('[data-images-dialog]').open");
+  await click("[data-images-save-connection]");
+  await waitFor("!document.querySelector('[data-images-dialog]').open");
+  // What the outer document sends from here: the card's route and the settings routes it could write through.
+  await browser.evaluate(`(() => { window.ascSent = []; const fetch = window.fetch;
+    window.fetch = function (input, init) { const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("/api/host/plugin-page-connection") || url.includes("/api/settings/connectors/") || url.includes("/jobs")) {
+        let body = null; try { body = JSON.parse(init.body); } catch { body = null; } window.ascSent.push({ url, method: (init && init.method) || "GET", body }); }
+      return fetch.apply(this, arguments); }; })()`);
+  await evaluate(`(() => { const prompt = document.querySelector("[data-images-prompt]"); prompt.value = "a lighthouse at dusk"; prompt.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+  await waitFor("!document.querySelector('[data-images-generate]').disabled");
+  await click("[data-images-generate]");
+  await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "paste"`);
+  assert.equal(await evaluate("document.querySelector('[data-images-connection-need]').hidden"), false, "the card's place is the generate area");
+  assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(CARD)}).textContent`), /api\.openai\.com/u, "the card names the one address the key will go to");
+  // As a person would: the card scrolled wholly into view, and held still there before the press.
+  await evaluate("document.querySelector('[data-images-connection-need]').scrollIntoView({ block: 'center' })");
+  await new Promise(resolve => setTimeout(resolve, 650));
+  await browser.waitFor(`!document.querySelector(${JSON.stringify(CARD)}).hasAttribute("data-unready")`);
+  await browser.click(`${CARD} [data-framed-control="cancel"]`);
+  await waitFor("document.querySelector('[data-images-connection-need]').hidden");
+  assert.equal(await evaluate("document.querySelector('[data-images-note]').textContent"), "没有连上图像服务，提示词还在；准备好了再点生成。");
+  assert.equal(await evaluate("document.querySelector('[data-images-prompt]').value"), "a lighthouse at dusk", "the words stay");
+  const sent = await browser.evaluate<Array<{ url: string; method: string; body: { operation?: string } | null }>>("window.ascSent");
+  assert.deepEqual(sent.filter(item => item.method !== "GET" && item.body?.operation !== "read" && item.body?.operation !== "prepare"), [], "cancelling saves no key and starts no job: " + JSON.stringify(sent));
+});

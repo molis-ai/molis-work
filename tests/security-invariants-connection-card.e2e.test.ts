@@ -28,7 +28,7 @@ const OBSERVE = `(() => {
   const fetch = window.fetch;
   window.fetch = function (input, init) {
     const url = String(input instanceof Request ? input.url : input);
-    if (url.includes("/api/host/plugin-page-connection") || url.includes("/api/settings/connectors/")) {
+    if (url.includes("/api/host/plugin-page-connection") || url.includes("/api/settings/connectors/") || url.includes("/sources/") && url.endsWith("/sync")) {
       let body = null; try { body = JSON.parse(init.body); } catch { body = null; }
       window.cnSent.push({ url, method: (init && init.method) || "GET", body });
     }
@@ -52,8 +52,8 @@ async function open(t: TestContext) {
   await child.waitFor("window.pageHost");
   const target = { kind: "slot", slot_id: "github", record_key: source };
   const account = (name: string) => withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "github", displayName: name, token: "fixture-value-" + name }));
-  const bound = async () => (await client.get<{ connection: { connection_id: string } | null }>("/api/settings/connectors/plugin-slots/record?"
-    + new URLSearchParams({ project: projectId!, plugin_id: "io.molis.work.feed", slot_id: "github", record_key: source }))).connection;
+  const bound = async (record = source) => (await client.get<{ connection: { connection_id: string } | null }>("/api/settings/connectors/plugin-slots/record?"
+    + new URLSearchParams({ project: projectId!, plugin_id: "io.molis.work.feed", slot_id: "github", record_key: record }))).connection;
   /** An empty element in the plugin's document at a fixed place, and the card asked for on it. */
   const ask = async (id: string, style: string, asked: unknown = target) => {
     await child.evaluate(`(() => {
@@ -216,4 +216,47 @@ test("S-plugin-connection-card ASC-68 C3-4 C3-8 C3-9 ASC-67 a press counts only 
   await p.settle(250);
   assert.deepEqual(await p.writes(), [], "C3-8 a press after the page left writes nothing");
   assert.equal(await p.bound(), null, "C3-8 nothing is on the source");
+});
+
+test("ASC-70 S-plugin-connection-card a source the person adds without an account gets the card in its row and is pulled once; the picker with no account shows the card, not a dialog", { timeout: 150_000 }, async t => {
+  const p = await open(t); if (!p) return;
+  const { browser, child } = p;
+  const config = (id: string) => `[data-feed-task-config="${id}"]`;
+  const picker = (id: string) => `${config(id)} [data-feed-account-picker]`;
+  const DIALOG = 'dialog[aria-label="请选择账号连接"]';
+
+  // A source added before, with no account anywhere: its settings keep the picker; the picker shows the card after itself, not a dialog.
+  await child.evaluate(`pageHost.openView({ surface: "workbench", id: ${JSON.stringify(p.source)}, panel: "settings", intent: "open" })`);
+  await child.waitFor(`!!document.querySelector(${JSON.stringify(picker(p.source) + ":not(:disabled)")})`);
+  await p.settle(300);
+  assert.equal(await browser.evaluate(`document.querySelectorAll(${JSON.stringify(CARD)}).length`), 0, "an older source without an account keeps its picker");
+  await child.click(picker(p.source));
+  await p.shown("cancel");
+  assert.equal(await p.stage(), "ask", "with no account the card asks to connect one");
+  assert.equal(await browser.evaluate(`document.querySelectorAll(${JSON.stringify(DIALOG)}).length`), 0, "no account dialog opens");
+  await p.ready();
+  await p.press(p.control("cancel"));
+  await browser.waitFor(`!document.querySelector(${JSON.stringify(CARD)})`);
+  await child.waitFor(`!document.querySelector(${JSON.stringify(picker(p.source))}).disabled`);
+  assert.deepEqual(await p.writes(), [], "cancelling the picker's card writes nothing");
+
+  // A GitHub source the person adds here, with an account to choose: the card in the new source's row; chosen, one first pull.
+  const account = p.account("Feed account");
+  await child.evaluate(`(() => { const form = document.querySelector('form[data-feed-add-account="github"]');
+    form.querySelector("[data-feed-account-name]").value = "Added source"; form.requestSubmit(); })()`);
+  await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "choose"`);
+  const added = await child.evaluate<string>("document.querySelector('[data-feed-workbench]').dataset.selectedSource");
+  assert.notEqual(added, p.source);
+  assert.equal(await child.evaluate(`!!document.querySelector(${JSON.stringify(config(added) + " [data-feed-connection-need]")})`), true, "the card's place is in the new source's row");
+  assert.equal(await child.evaluate(`document.querySelector(${JSON.stringify(picker(added))}).hidden`), true, "the picker steps aside while the card shows");
+  await p.ready();
+  await p.press(p.control("use:" + account.connection_id));
+  // The page's requests to its own routes are carried by the outer document, so the pull is recorded there.
+  await browser.waitFor(`window.cnSent.some(item => item.url.endsWith("/sources/" + ${JSON.stringify(added)} + "/sync"))`);
+  assert.equal((await p.bound(added))?.connection_id, account.connection_id, "the chosen account is on the new source");
+  assert.equal(await p.bound(), null, "the older source is untouched");
+  await p.settle(500);
+  const pulls = (await p.sent()).filter(item => item.url.endsWith("/sync"));
+  assert.equal(pulls.length, 1, "connected, the new source is pulled once: " + JSON.stringify(pulls));
+  assert.equal((await p.writes()).filter(item => item.body?.operation === "bind").length, 1);
 });

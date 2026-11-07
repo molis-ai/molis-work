@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, actionEffect, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole, AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { capabilityInput, GATEWAY_TOOLS, offerWords } from "./prologue-action-gateway.js";
@@ -28,8 +29,8 @@ const SUGGEST_RESULT_BYTES = 32 * 1024;
  * more tool offers the person one of these same actions as a button: only an action frozen here, checked as it is now.
  */
 export function prologueActionTools(actions: AgentFrozenRole["actions"], timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, suggest = false) {
-  const tools = [...(actions?.tools ?? [])].sort((a, b) => JSON.stringify([a.capability_id, a.version, a.provider.provider_id])
-    .localeCompare(JSON.stringify([b.capability_id, b.version, b.provider.provider_id])));
+  const tools = [...(actions?.tools ?? [])].sort((a, b) => compareCodeUnits(JSON.stringify([a.capability_id, a.version, a.provider.provider_id]),
+    JSON.stringify([b.capability_id, b.version, b.provider.provider_id])));
   // A pack owns its tool names in the SDK's shared catalog, which keeps the first declaration under an id for the whole
   // process. So the id covers everything the pack declares: overlapping choices need distinct names, a round that may
   // suggest declares one more tool than one that may not, and the provider's title is in each description. Reordering
@@ -75,7 +76,7 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
   // Every round's pack also carries its after-write check, answered only where the round provides the executor; never offered to the model.
   const check = afterWriteTool(scope);
   const pack: ScenarioPack = { id: "molis-actions-" + scope,
-    version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
+    version: /* @version protocol.prologue.pack.action-tools */ "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
     permissions: { tools: [...names, check.registration.name], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "action-user", skills: [], writes: contributions.some(row => row.registration.effectKind !== "safe-read") }],
     planning: { plannedBy: "action-user", planFirst: false }, config: {}, tools: [...contributions, check] };
@@ -112,7 +113,7 @@ function suggestTool(actions: NonNullable<AgentFrozenRole["actions"]>, byName: R
     if (Buffer.byteLength(result) > SUGGEST_RESULT_BYTES) throw new ActionError("actions.input_too_large", `The suggestion is over ${SUGGEST_RESULT_BYTES / 1024} KiB; nothing was suggested.`);
     return result;
   };
-  return { executor: name, registration: { name, version: "1",
+  return { executor: name, registration: { name, version: /* @version protocol.prologue.action-tool "{version}" */ "1",
     description: "Offer the person one of this round's action tools as a button, with its prepared input, when you suggest something they may want done but have not asked you to do. Nothing runs until they click it.",
     parameters: { type: "object", additionalProperties: false, required: ["action", "title", "summary", "input"], properties: {
       action: { type: "string", enum: [...byName.keys()], description: "The name of the action tool to offer." },

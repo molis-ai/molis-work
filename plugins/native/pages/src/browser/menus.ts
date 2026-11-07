@@ -100,7 +100,7 @@ interface GoalsAnswer { readonly goals?: readonly { readonly goal?: { readonly g
 
 export async function loadGoals(page: PagesPage) {
   try {
-    const payload = await page.host.invokeAction<GoalsAnswer>({ capability_id: "goals.collection.read", version: 1 }, {});
+    const payload = await page.host.invokeAction<GoalsAnswer>({ capability_id: "goals.collection.read", version: /* @version action.goals.collection.read */ 1 }, {});
     page.goals = (payload.goals || []).map((item) => ({
       id: item.goal?.goal_id || item.goal_id || "",
       title: item.goal?.title || item.title || "",

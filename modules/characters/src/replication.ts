@@ -96,7 +96,7 @@ export function createCharactersReplica(db: DatabaseSync, actorId: string, conte
       if (!row) return null;
       if (row.owner_actor_id !== actorId) throw syncError("scope", "角色标识已属于另一位用户");
       const record = parseDraft(JSON.parse(row.record), id, actorId);
-      const value = { format: 1, spaceId: context.spaceId, record };
+      const value = { format: /* @version format.characters.portable */ 1, spaceId: context.spaceId, record };
       limit(value);
       return value;
     },
@@ -113,7 +113,7 @@ export function createCharactersReplica(db: DatabaseSync, actorId: string, conte
       limit(value);
       const wire = object(value);
       exactOptional(wire, ["format", "spaceId", "record"]);
-      if (wire.format !== 1 || wire.spaceId !== context.spaceId) invalid();
+      if (wire.format !== /* @version format.characters.portable */ 1 || wire.spaceId !== context.spaceId) invalid();
       const record = parseDraft(wire.record, id, actorId);
       const revision = Math.max(record.revision, (current?.revision ?? 0) + 1);
       const updated = new Date(Math.max(Date.now(), Date.parse(record.updated_at), current ? Date.parse(current.updated_at) + 1 : 0)).toISOString();

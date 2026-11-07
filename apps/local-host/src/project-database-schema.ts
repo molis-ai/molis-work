@@ -30,7 +30,7 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * Listener Host tables along with its out rules.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 17,
+  version: /* @version database.project_database_baseline */ 1,
   schema: ([
     STORAGE_SPACE_SCHEMA_SQL,
     PROJECT_ROOT_SCHEMA_SQL,

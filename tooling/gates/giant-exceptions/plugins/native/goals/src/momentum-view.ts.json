@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": {
+      "kind": "cohesive-unit",
+      "reason": "动量视图的构建：按依赖关系把目标分组、定层、排序并算边，是一条前后相接的图算法流水线（每一步吃上一步的结果），拆开没有可独立使用的中间产物。",
+      "size": 245
+    }
+  }
+}

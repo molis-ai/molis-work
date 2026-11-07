@@ -56,7 +56,7 @@ export function savedGoalContext(context: PluginStartContext, sessionId: string)
 }
 function readGoalSnapshot(context: PluginStartContext, reference: ArtifactReference) {
   const record = codingArtifacts(context).read(reference);
-  if (!record || record.artifact_type_id !== CODING_GOAL_CONTEXT_TYPE || record.schema_version !== 1
+  if (!record || record.artifact_type_id !== CODING_GOAL_CONTEXT_TYPE || record.schema_version !== /* @version type.coding.goal-context */ 1
     || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定目标版本不可读，请重新关联；历史执行不会被替换");
   const snapshot = record.payload as unknown as GoalContextSnapshot;
   if (snapshot?.goal?.project_id !== context.project_id || identity(snapshot).artifact_id !== reference.artifact_id) throw new Error("固定目标版本与来源不一致");
@@ -70,7 +70,7 @@ export function saveGoalContext(context: PluginStartContext, sessionId: string, 
   const { snapshot, reference } = value;
   const previous = codingArtifacts(context).read(reference);
   if (previous) readGoalContext(context, reference);
-  else context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1,
+  else context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: /* @version type.coding.goal-context */ 1,
     content: { kind: "inline", payload: JSON.parse(JSON.stringify(snapshot)) },
     metadata: { title: value.material.title, goal_id: snapshot.goal.goal_id } });
   context.services!.storage!.set(`goal-context:${sessionId}`, JSON.stringify(reference));

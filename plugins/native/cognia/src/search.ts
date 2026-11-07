@@ -4,10 +4,10 @@ import { cogniaErrors, type Material } from "./types.js";
 
 /** Cognia's part in the system search: the person's imported knowledge (not attachments), in their own Home. */
 export const cogniaSearchActions = {
-  entries: defineSearchEntriesAction("cognia.search.entries", [{ kind: "cognia_material", title: "资料", surface: "cognia" }], "Cognia 资料", ["cognia:read"], "home"),
-  subject: defineSubjectContextAction("cognia.subject.read", "cognia_material", "Cognia 资料", ["cognia:read"], "home"),
+  entries: defineSearchEntriesAction("cognia.search.entries", /* @version action.cognia.search.entries */ 1, [{ kind: "cognia_material", title: "资料", surface: "cognia" }], "Cognia 资料", ["cognia:read"], "home"),
+  subject: defineSubjectContextAction("cognia.subject.read", /* @version action.cognia.subject.read */ 1, "cognia_material", "Cognia 资料", ["cognia:read"], "home"),
   /** The side panel's file tab (specs/archive/side-panel): the person's knowledge by folder; previews read `subject`. */
-  files: defineFileEntriesAction("cognia.files.entries", [{ kind: "cognia_material", title: "资料", surface: "cognia" }], "Cognia 资料", ["cognia:read"], "home"),
+  files: defineFileEntriesAction("cognia.files.entries", /* @version action.cognia.files.entries */ 1, [{ kind: "cognia_material", title: "资料", surface: "cognia" }], "Cognia 资料", ["cognia:read"], "home"),
 };
 const revisionOf = (material: Material) => `${material.revision}:${material.hash}`;
 const titleOf = (material: Material) => material.title || material.path.split("/").at(-1) || material.id;

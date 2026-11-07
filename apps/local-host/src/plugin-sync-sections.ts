@@ -40,14 +40,14 @@ function owner(db:ReplicaDatabase,context:Context,projectId:string,definition:Sy
     read(input:string){
       check(input);const facts=Object.fromEntries(parts.map((d,i)=>[d.id,sections[i]!.read()]));definition.validate?.(facts);
       if(!Object.values(facts).some(part=>Object.values(part).some(rows=>rows.length)))return null;
-      const history=journal?.read();return {format:1,spaceId:context.spaceId,project:{id:projectId,title:context.project(projectId).title},
+      const history=journal?.read();return {format:/* @version format.project.sections */ 1,spaceId:context.spaceId,project:{id:projectId,title:context.project(projectId).title},
         facts:history?mapReplicaSequences(facts,fields,history.encode):facts,...(history?{journal:history.value}:{})};
     },
     apply(input:string,value:unknown){
       check(input);db.exec('PRAGMA defer_foreign_keys=ON');
       if(value===null){if(journal)throw replicaError('replica_invalid');[...sections].reverse().forEach(s=>s.clear(true));return;}
       const wire=exact(value,['format','spaceId','project','facts',...(journal?['journal']:[])]),project=exact(wire.project,['id','title']);
-      if(wire.format!==1||wire.spaceId!==context.spaceId||project.id!==projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)throw replicaError('replica_scope_mismatch');
+      if(wire.format!==/* @version format.project.sections */ 1||wire.spaceId!==context.spaceId||project.id!==projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)throw replicaError('replica_scope_mismatch');
       const facts=exact(wire.facts,parts.map(d=>d.id));
       if(Buffer.byteLength(JSON.stringify(wire))>100000000)throw replicaError('replica_limit');
       // Stable event anchors are decoded before owner validation, then verified again against the committed journal sequence.

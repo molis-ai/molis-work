@@ -24,14 +24,14 @@
       }
     },
     "prompts": {
-      "experience": "experience/1.2.0",
-      "review": "ui-review/2.0.0",
-      "ui": "ui/1.4.0",
-      "designer": "designer/3.7.0",
-      "implement": "implement/3.0.0",
-      "repair": "repair/3.0.0",
-      "revise": "revise/3.0.0",
-      "acceptance": "acceptance/2.0.0"
+      "experience": "experience/1",
+      "review": "ui-review/1",
+      "ui": "ui/1",
+      "designer": "designer/1",
+      "implement": "implement/1",
+      "repair": "repair/1",
+      "revise": "revise/1",
+      "acceptance": "acceptance/1"
     }
   },
   "entries": {

@@ -60,10 +60,10 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     const writer = createActionMcpPorts({ service: client, serverInfo: { name: "shelf", version: "1" },
       context: () => ({ actor_id: "runtime:writer", project_id: null, audience: "mcp", permissions: SHELF_ACTION_PERMISSIONS }) });
     const writerTools = await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: {} }, writer) as { result: { tools: { name: string }[] } };
-    assert.ok(writerTools.result.tools.some(tool => tool.name === "shelf.items.edit__v2"));
-    assert.ok(!writerTools.result.tools.some(tool => tool.name === "shelf.items.edit__v1"));
+    assert.ok(writerTools.result.tools.some(tool => tool.name === "shelf.items.edit__v1"));
+    assert.ok(!writerTools.result.tools.some(tool => tool.name === "shelf.items.edit__v2"));
     const staleWrite = await handleMcpMessage({ jsonrpc: "2.0", id: 4, method: "tools/call", params: {
-      name: "shelf.items.edit__v2", arguments: { item_id: item.item_id, text: "stale MCP draft", expected_content_hash: initial.content_hash } } }, writer);
+      name: "shelf.items.edit__v1", arguments: { item_id: item.item_id, text: "stale MCP draft", expected_content_hash: initial.content_hash } } }, writer);
     assert.match(JSON.stringify(staleWrite), /shelf.conflict/);
     assert.equal(openTestShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
 

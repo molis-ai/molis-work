@@ -82,7 +82,7 @@ jobs:
   # and here together, with the new measurement.
   gates:
     name: Gates
-    needs: [queue-check]
+    needs: [test-selection, queue-check]
     # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
     # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
@@ -132,8 +132,8 @@ jobs:
       # every spec, the document and repository-shape rules (scripts/gates/README.md), and a list that never changes silently: the
       # public API of the contracts package and the plugin SDK against tooling/gates/api (specs/archive/repository-anti-corruption §5a).
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
-      # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the gate
-      # itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json admits nothing new.
+      # a checkout-local quick baseline cannot hide growth, and nothing in a PR can raise a number except changing the gate
+      # itself (script, limits.json, this step), which is reviewed. giant exceptions remain reviewed records with exact measured sizes.
       # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
       # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip; in the merge
       # queue it is the queue's base (merge_group.base_sha, passed as PUSH_BEFORE).
@@ -164,6 +164,7 @@ jobs:
         run: node scripts/check-spec-coverage.mjs
 
       - name: Test durations
+        if: ${{ !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
         uses: actions/cache@v4
         with:
           path: node_modules/.cache/molis-work-tests
@@ -180,19 +181,19 @@ jobs:
       # (scripts/ci-queue-verified.mjs, `queue-check`), and so does the parallel test runner every step here uses
       # (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill links hold.
       - name: Gate rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/ci-test-selection.test.ts tests/ci-queue-verified.test.ts tests/ci-timeouts.test.ts tests/run-tests-pool.test.ts tests/run-tests-shard.test.ts tests/cursor-skill-links.test.ts
+        if: ${{ !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-install.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/ci-test-selection.test.ts tests/ci-queue-verified.test.ts tests/ci-timeouts.test.ts tests/run-tests-pool.test.ts tests/run-tests-shard.test.ts tests/ci-check-selection.test.ts tests/ci-shard-weights.test.ts tests/cursor-skill-links.test.ts
 
   # The health gates' own rules (scripts/check-health-gates.mjs and scripts/gates/): each one is broken once on a scratch repository
   # and must go red, and so must the same branch after `--update` rewrote the baseline. The glob takes every
   # tests/health-gates-*.test.ts, so a new gate's test needs no edit here. Together they are the longest set, and each file already
   # keeps more than one core busy (Biome, the TypeScript program of the API snapshot), so they are spread over two runners: each leg
-  # takes every second file of the same list (`--shard`), which gives every file to exactly one leg.
+  # uses the same committed weights and capacities (`--shard`), which gives every file to exactly one leg.
   health-gate-rules:
     name: Health gate rules (${{ matrix.shard }}/2)
-    needs: [queue-check]
-    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
-    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
+    needs: [test-selection, queue-check]
+    # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -246,11 +247,13 @@ jobs:
         run: node scripts/run-tests.mjs --shard ${{ matrix.shard }}/2 tests/health-gates-*.test.ts
 
   architecture-boundaries:
+    permissions:
+      contents: read
+      actions: read
     name: Package boundaries
-    needs: [queue-check]
-    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
-    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
+    needs: [test-selection, queue-check]
+    # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -299,21 +302,23 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
-      # Page resource budget (specs/archive/repository-anti-corruption §4.8/§4.13, decision #17): every asset the host sends under
-      # /assets/ (the three stylesheets, the workbench client scripts, the Pages editor, the plugin client packs, the fonts)
-      # is frozen at its current size and may only fall. It is measured from the build the step above just made, so it must
-      # come after it. tooling/gates/page-assets.json is compared with the merge-base's copy (the one the health gates
-      # use): a PR cannot raise a number, add an asset or delete the entry of an asset the host still sends by editing that
-      # file, only by changing the gate, which is reviewed. The routes are read from web-assets.ts, and every path either
-      # budget names is also asked of the built host, so a refactor that hides a route from the reading cannot unmeasure it.
+      # Actual base and candidate bytes, with one-use change allowances. No shared absolute budget.
       - name: Page asset budgets (against the merge-base)
+        id: page-assets
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
         run: |
           base="$(node scripts/ci-health-base.mjs)"
-          node scripts/gates/page-assets.mjs --base "$base"
+          node scripts/gates/page-assets.mjs --base "$base" --output "$RUNNER_TEMP/page-assets/measurement.json"
+      - name: Save measured page assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.page-assets.outputs.artifact }}
+          path: ${{ runner.temp }}/page-assets/measurement.json
+          retention-days: 30
 
       # Plugin style budget (PG-070, RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts,
       # per plugin, the rule blocks still there although an on-demand sheet could carry them (the first slice's splitter, read
@@ -376,13 +381,12 @@ jobs:
   # of their own (the same packages `pnpm workspace:verify` builds), beside `architecture-boundaries` so neither waits for the other.
   # Several of these files start real hosts and MCP servers under a per-test time limit (tests/action-mcp-stdio.test.ts: three servers
   # in 20 seconds, 5.5 s alone), and four at a time on one 4-core runner pushed that past its limit. So two legs, two files at a time
-  # each: every second file of the list (`--shard`), each file in exactly one leg. The full product suite still runs locally.
+  # each: weighted shards of the same list (`--shard`), each file in exactly one leg. Full has its own CI workflow.
   action-contracts:
     name: Action and plugin contracts (${{ matrix.shard }}/2)
-    needs: [queue-check]
-    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
-    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
+    needs: [test-selection, queue-check]
+    # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -546,10 +550,9 @@ jobs:
 
   shell-checks:
     name: Shell and Python checks
-    needs: [queue-check]
-    # Skipped only on a push to main that `queue-check` found verified by the merge queue: it succeeded and said true. On any other
-    # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
+    needs: [test-selection, queue-check]
+    # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.shell_mode == 'none') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -610,53 +613,46 @@ jobs:
           SECURITY_MODE: ${{ needs.test-selection.outputs.security_mode }}
           PRODUCT_MODE: ${{ needs.test-selection.outputs.product_mode }}
           NATIVE_MODE: ${{ needs.test-selection.outputs.native_mode }}
+          DOCUMENTATION_MODE: ${{ needs.test-selection.outputs.documentation_mode }}
+          GATE_RULES_MODE: ${{ needs.test-selection.outputs.gate_rules_mode }}
+          SHELL_MODE: ${{ needs.test-selection.outputs.shell_mode }}
           QUEUE_CHECK_RESULT: ${{ needs.queue-check.result }}
           QUEUE_VERIFIED: ${{ needs.queue-check.outputs.verified }}
           QUEUE_RUN_URL: ${{ needs.queue-check.outputs.run_url }}
-        # Reuse only the trusted push the queue verified. Otherwise all nine actual results must succeed, except a PR job
-        # skipped after its own successful none selection (and the Rust and Swift checks, also on a merge queue entry). The selector is evidence, not a required test result; failed or
-        # stale selection outputs cannot waive a skipped security or product job.
+        # Reuse only the trusted push the queue verified. Otherwise each actual result must succeed or have an explicit
+        # successful scope decision authorizing its skip. Failed or stale selector outputs never waive an actual check.
         run: |
           if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$QUEUE_CHECK_RESULT" = "success" ] && [ "$QUEUE_VERIFIED" = "true" ]; then
             echo "This commit passed Verify in the merge queue ($QUEUE_RUN_URL); the blocking jobs were not run again."
             exit 0
           fi
+          # CIP-03: a failure or cancellation is never a permitted skip.
+          selected_skip() {
+            test "$GITHUB_EVENT_NAME" = "pull_request" || test "$GITHUB_EVENT_NAME" = "merge_group" || return 1
+            test "$TEST_SELECTION_RESULT" = "success" && test "$1" = "$2" && test "$3" = "skipped"
+          }
           test "$GATES_RESULT" = "success"
-          test "$HEALTH_GATE_RULES_RESULT" = "success"
-          test "$PACKAGE_BOUNDARIES_RESULT" = "success"
-          test "$ACTION_CONTRACTS_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
-          test "$SHELL_CHECKS_RESULT" = "success"
-          if [ "$NATIVE_CHECKS_RESULT" != "success" ]; then
-            test "$GITHUB_EVENT_NAME" = "pull_request" || test "$GITHUB_EVENT_NAME" = "merge_group"
-            test "$TEST_SELECTION_RESULT" = "success"
-            test "$NATIVE_MODE" = "none"
-            test "$NATIVE_CHECKS_RESULT" = "skipped"
-          fi
+          test "$HEALTH_GATE_RULES_RESULT" = "success" || selected_skip "$GATE_RULES_MODE" none "$HEALTH_GATE_RULES_RESULT"
+          test "$PACKAGE_BOUNDARIES_RESULT" = "success" || selected_skip "$DOCUMENTATION_MODE" only "$PACKAGE_BOUNDARIES_RESULT"
+          test "$ACTION_CONTRACTS_RESULT" = "success" || selected_skip "$DOCUMENTATION_MODE" only "$ACTION_CONTRACTS_RESULT"
+          test "$SHELL_CHECKS_RESULT" = "success" || selected_skip "$SHELL_MODE" none "$SHELL_CHECKS_RESULT"
+          test "$NATIVE_CHECKS_RESULT" = "success" || selected_skip "$NATIVE_MODE" none "$NATIVE_CHECKS_RESULT"
           if [ "$SECURITY_INVARIANTS_RESULT" != "success" ]; then
-            test "$GITHUB_EVENT_NAME" = "pull_request"
-            test "$TEST_SELECTION_RESULT" = "success"
-            test "$SECURITY_MODE" = "none"
-            test "$SECURITY_INVARIANTS_RESULT" = "skipped"
+            test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
+            selected_skip "$SECURITY_MODE" none "$SECURITY_INVARIANTS_RESULT"
           fi
           if [ "$PRODUCT_SUBSET_RESULT" != "success" ]; then
-            test "$GITHUB_EVENT_NAME" = "pull_request"
-            test "$TEST_SELECTION_RESULT" = "success"
-            test "$PRODUCT_MODE" = "none"
-            test "$PRODUCT_SUBSET_RESULT" = "skipped"
+            test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
+            selected_skip "$PRODUCT_MODE" none "$PRODUCT_SUBSET_RESULT"
           fi
-          echo "Gates, health gate rules, package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift, shell, security invariant and product subset verification passed."
+          echo "All required checks passed; any skipped checks were authorized by this change selection."
 
-  # PR selection (T-130): some runs the selected files, whole runs the full list, and only successful none skips a job.
-  # Selector failure/cancellation/empty or unknown modes fall back to all complete shards; no stale file/shard output is used.
-  # The merge queue, a direct push, nightly and manual runs run both whole. A trusted queue-verified push reuses its result.
-  # The same selection also decides `native-checks` (the macOS Rust and Swift checks), on a pull request and in the merge queue: only a
-  # successful `native_mode` of none skips it; a failed selector runs it. The queue's two test jobs ignore the selection and run whole.
-  # Verify directly needs this job to judge per-job PR skips, but a failed selector is not a failed required test: both jobs
-  # run whole instead. Only success + some on a PR may supply selected files and shards.
+  # CIP-01/02: one selector for PRs and whole merge groups; failures retain complete checks.
+  # Only successful explicit output permits a skip. Non-document merge groups still run the complete runtime lists.
   test-selection:
-    name: PR test selection
-    # A pull request, and the merge queue for `native-checks` alone: the queue's security and product jobs read nothing from it and run whole.
+    name: Change and test selection
+    # PR and the entire merge group. Only ordinary-document groups skip runtime checks.
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -668,6 +664,9 @@ jobs:
       product_shards: ${{ steps.select.outputs.product_shards }}
       product_only: ${{ steps.select.outputs.product_only }}
       native_mode: ${{ steps.select.outputs.native_mode }}
+      documentation_mode: ${{ steps.select.outputs.documentation_mode }}
+      gate_rules_mode: ${{ steps.select.outputs.gate_rules_mode }}
+      shell_mode: ${{ steps.select.outputs.shell_mode }}
     steps:
       # The merge commit GitHub builds and its two parents: HEAD^1 is the base branch as merged, so the change is exactly the pull request's.
       - uses: actions/checkout@v6
@@ -682,7 +681,13 @@ jobs:
       # what it wrote and run the whole list, so a broken selection runs more, never less.
       - name: Select the files this change touches
         id: select
-        run: node scripts/ci-test-selection.mjs --base HEAD^1
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.merge_group.base_sha }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          node scripts/ci-test-selection.mjs --base "$base"
 
   # Security invariants (docs/system/SECURITY-INVARIANTS.md; specs/archive/repository-anti-corruption §4.18): each one has a test that asserts the
   # refusal itself: a foreign Host, Origin, token or key; a socket without the token; an
@@ -690,27 +695,20 @@ jobs:
   # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
   # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates.
   # Blocking (decision #14): after its observation period, one of Verify's required test results.
-  # Four legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
-  # limit, and four at a time on one 4-core runner pushed tests/mcp-scene-effect-authority.test.ts from about 20 s to 22-36 s against
-  # its 30 s limit (half the runs on main failed). The files are dealt out to the legs by how long they take (`--shard`,
-  # tests/ci-shard-weights.json, scripts/run-tests/shard.mjs), each file in exactly one leg. Two legs with every second file took
-  # 1348 s and 2704 s of test time in merge queue run 42023765782, and the merge waited 25 minutes for the second. Three balanced legs
-  # then took 15.3 minutes at the slowest; four, since the organization's Team plan (2026-11-06) raised the 20 concurrent jobs, leave
-  # about 1000 s of test time on each.
-  # The merge queue runs the whole list on four legs. PR some runs selected files; whole or an untrusted selector runs all
-  # four complete shards. Only successful none skips the job. Direct pushes, nightly and manual runs run the complete list too.
+  # CIP-06: eight independent runners, two workers each. PR selections can use fewer runners.
+  # Whole lists and failed selections use all eight; only successful documentation-only groups skip runtime checks.
   security-invariants:
     name: Security invariants (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [test-selection, queue-check]
-    # A push skips only when the queue verified it. Otherwise only a PR's successful none is a permitted skip.
+    # A push skips only when the queue verified it. PR none and pure-document merge groups may skip after a successful selection.
     # !cancelled() lets this job run when the auxiliary jobs were skipped or failed.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.security_mode != 'none') }}
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2, 3, 4]') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2, 3, 4, 5, 6, 7, 8]') }}
     env:
       MOLIS_WORK_TEST_JOBS: 2
     steps:
@@ -854,10 +852,10 @@ jobs:
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
   # much of each budget was used and which files are slowest. This workflow cancels a run when a newer push arrives; the runner
   # writes its report on that signal, and the upload below is `if: always()`.
-  # Three disjoint shards cover the same full list once, dealt out by how long the files take (tests/ci-shard-weights.json; with every
+  # Six disjoint shards cover the same full list once, dealt out by duration and serial browser capacity (tests/ci-shard-weights.json; with every
   # second file the legs took 2527 s and 1336 s of test time in run 42023765782); each keeps the phase/attempt limits above.
   # fail-fast is off so one failed shard does not hide the other shard's results.
-  # The merge queue runs the full list on three shards. PR some runs selected files, while whole or a selector fault runs
+  # Non-document merge groups run the full list on six shards. PR some runs selected files; whole or a selector fault runs
   # all complete shards; only successful none skips. Direct pushes, nightly and manual runs also run the full list.
   # A trusted queue-verified push reuses that result, as the other required jobs do.
   product-subset:
@@ -866,9 +864,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2, 3]') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2, 3, 4, 5, 6]') }}
     # The same condition as `security-invariants`, with this job's mode.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.product_mode != 'none') }}
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:

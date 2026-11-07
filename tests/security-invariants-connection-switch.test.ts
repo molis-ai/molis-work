@@ -15,7 +15,7 @@ import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { LocalHostHttpClient, isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openTestHome } from "./fixtures/test-home.js";
 
-const switchAction = defineConnectorUsagesSwitchAction("example.connection.switch", "换用账号", ["connectors:management:write"], "home");
+const switchAction = defineConnectorUsagesSwitchAction("example.connection.switch", 1, "换用账号", ["connectors:management:write"], "home");
 
 test("S-108 RAC-2940 only the person reaches a consumer's switch: Agent, MCP, workflow and plugin callers are refused", () => {
   const others: ActionAudience[] = ["agent", "mcp", "workflow", "plugin"];

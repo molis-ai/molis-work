@@ -5,7 +5,7 @@ import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis
  * S1). The reply is one JSON object; the request and any answers are the data (the form's own questions are not sent).
  */
 export const FORM_DRAFT_QUESTIONS = defineInstructionPrompt({
-  owner_id: "io.molis.work.form", prompt_id: "form.draft-questions", version: 1, title: "生成题目",
+  owner_id: "io.molis.work.form", prompt_id: "form.draft-questions", version: /* @version prompt.form.draft-questions */ 1, title: "生成题目",
   purpose: "按用户的要求为问卷拟几道题；不清楚给谁填、要多少题或用来做什么时，先问几个选择题", used_by: ["Form 生成题目"],
   body: [
     "按用户的要求为问卷拟 3 到 8 道题。只输出一个 JSON 对象，不输出解释或代码块。",

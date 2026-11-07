@@ -92,3 +92,9 @@ node docs/design/project-arrival-flow/prototype/serve.mjs
 ## 验证
 
 `prototype/verify.mjs` 在隔离的无头 Chrome 里走完整动线并断言，72 项全部通过、零脚本异常（`prototype/verification.json`）：预选与预览、按项目保留草稿、方向键与 ⌘K、搜索与无结果、进入与返回、没有描述 / 没有目标 / 个人空间 / 还没有项目 / 读取失败、新建的每一步（来源、范围、取消勾选、未连接模型、命名错误、创建）、空白开始、首次使用路径、后台继续与回来命名，以及上面那几条动效稳定性。截图脚本在 1440×900、1024×720、390×844 三个尺寸下检查了水平溢出和底栏是否在视口内。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+打开 Molis Work：项目选择页、Welcome 与新建项目引导的高保真设计、可交互原型、状态与深色/窄屏图、三段动效录屏
+
+当前的**参考原型**（2026-10-01 用户认可），生产实现见 [specs/archive/project-arrival-flow](../../../specs/archive/project-arrival-flow/spec.md)。原型里的项目、材料、整理结果都是示例数据

@@ -16,7 +16,7 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { buildInboxUiEntries, isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
 
-export const INBOX_UI_CONTRIBUTION_ID = "io.molis.work.native.inbox.ui.v1";
+export const INBOX_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.inbox.ui "io.molis.work.native.inbox.ui.v{version}" */ "io.molis.work.native.inbox.ui.v1";
 
 export type InboxUiSurface = "directory" | "workbench";
 

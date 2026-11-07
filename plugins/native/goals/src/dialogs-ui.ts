@@ -80,7 +80,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
     return { renderGoalTrashDialog, renderCreateDialog };
 }
 export type GoalsDialogsRenderer = ReturnType<typeof createDialogsRenderer>;
-export const GOALS_DIALOGS_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.dialogs.v1";
+export const GOALS_DIALOGS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.dialogs "io.molis.work.native.goals.dialogs.v{version}" */ "io.molis.work.native.goals.dialogs.v1";
 export type GoalsDialogsUiModel = {
     primitives: GoalsDialogPrimitives;
 } & ({

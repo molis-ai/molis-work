@@ -296,11 +296,11 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
 }
 
 function checkPack(): ScenarioPack {
-  return { id: 'molis-plugin-checks', version: '1.0.0', source: { kind: 'app-embedded' },
+  return { id: 'molis-plugin-checks', version: /* @version protocol.prologue.pack.plugin-checks */ "1.0.0", source: { kind: 'app-embedded' },
     needs: { hostCapabilities: [], executors: ['plugin-checks'] }, permissions: { tools: ['plugin-checks'], paths: [], network: [] },
     memory: { scope: 'session', write: 'deny' }, roster: [{ role: 'builder-code', skills: [], writes: true }],
     planning: { plannedBy: 'builder-code', planFirst: false }, config: {}, tools: [{ executor: 'plugin-checks', registration: {
-      name: 'plugin-checks', version: '1', description: 'Run host-owned type, bundle, contract, tests and sandbox checks for the current operation. Read the exact failure and repair implementation or tests. The host rechecks after your run.',
+      name: 'plugin-checks', version: /* @version protocol.prologue.plugin-check-tool "{version}" */ "1", description: 'Run host-owned type, bundle, contract, tests and sandbox checks for the current operation. Read the exact failure and repair implementation or tests. The host rechecks after your run.',
       parameters: { type: 'object', properties: { operations: { type: 'array', items: { type: 'string' } } }, additionalProperties: false },
       effectKind: 'mutate-local', gate: 'broker', timeoutMs: 300_000, idempotency: 'none' } }] };
 }

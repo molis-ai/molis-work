@@ -219,7 +219,7 @@ export class PublicSourceSync {
         empty: result.materials.length === 0,
         error_code: errorCode,
         receipt: withReceiptContentRefs({
-          schema: "molis-work-feed-collection-receipt-v1",
+          schema: /* @version type.molis-work-feed-collection-receipt "molis-work-feed-collection-receipt-v{version}" */ "molis-work-feed-collection-receipt-v1",
           intent_fingerprint: result.intentFingerprint,
           requirement_met: result.requirementMet,
           receipts: structuredClone(result.receipts),

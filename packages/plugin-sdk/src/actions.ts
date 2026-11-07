@@ -6,7 +6,7 @@ export function createActionDefinition<Input = unknown, Output = unknown>(
   capability_id: string,
   operation: ActionDefinition["operation"],
   metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>,
-  version = 1,
+  version: number,
 ): ActionDefinition<Input, Output> {
   return {
     capability_id, version, operation,

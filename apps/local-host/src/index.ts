@@ -35,6 +35,7 @@ export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts, exposedO
 export { createStudioPublisher, readStudioDistribution } from "./plugin-builder/studio-release.js";
 export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";
+export { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";

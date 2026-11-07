@@ -23,7 +23,7 @@ import {
   pluginManifestDigest,
   type PluginSupervisorReport,
 } from "@molis-ai/molis-work-plugin-runtime";
-import { nativePluginReleaseArtifact } from "../apps/local-host/dist/native-plugin-release-artifact.js";
+import { nativePluginReleaseArtifact } from "@molis-ai/molis-work-app-local-host";
 
 const PLUGIN_ID = "io.molis.work.release-fixture";
 const SIGNATURE = "release-fixture-publisher";

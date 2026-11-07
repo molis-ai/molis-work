@@ -2,6 +2,7 @@ import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/ac
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
+import { childTaskGrants } from "./task-grants-area.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -73,9 +74,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
-  // Neither the platform's reads area (specs/proactive-assistant/task-grants-platform-area.md) nor the connection card
-  // (specs/assistant-service-connections/spec.md §13.5) is drawn yet: every `taskGrants.place` and `connectionNeed` is refused with
-  // one fixed error and nothing reaches the shell. P3-1 and the ④c shell slice replace them with the frame halves that report the place.
+  // The connection card (specs/assistant-service-connections/spec.md §13.5) is not drawn yet: every `connectionNeed` is refused
+  // with one fixed error and nothing reaches the shell. The ④c shell slice replaces it with the frame half that reports the place.
   const unavailable = () => Promise.reject(new Error("Unavailable"));
   const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
     mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: unavailable,
@@ -83,7 +83,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
-    taskGrants: { place: unavailable },
+    taskGrants: childTaskGrants(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,

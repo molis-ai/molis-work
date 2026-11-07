@@ -10,6 +10,8 @@ export interface PluginDevelopmentInput {
   project_id: string;
   grants: string[];
   allow_unsigned_development: true;
+  /** The language this run renders in: left out, `ui.locales.default`; one outside `ui.locales.available` is refused. The run reads it from slice T8 (specs/font-and-skin-system/a-section-contract.md §8.3). */
+  locale?: string;
 }
 export interface PluginDevelopmentResult {
   installation: PluginInstanceRecord;

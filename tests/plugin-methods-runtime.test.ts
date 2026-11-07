@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { PluginMethodDeclaration, PluginMethodDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ensureStorageSpace, readStorageSpace, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -26,10 +26,11 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
  */
 
 const PLUGIN_ID = "io.molis.work.example.methodprobe";
-const declared = (skill_id: string, version = 1): AgentSkillDeclaration => ({ skill_id, version, name: `方法 ${skill_id}`, summary: `何时用 ${skill_id}`, tools: ["read-capability"] });
-const body = (skill_id: string, version = 1, text = `${skill_id} 第 ${version} 版的做法`): AgentSkillDefinition => ({ ...declared(skill_id, version), body: text });
+const declared = (skill_id: string, version = 1): PluginMethodDeclaration => ({ skill_id, version, name: `方法 ${skill_id}`, summary: `何时用 ${skill_id}`, tools: ["read-capability"],
+  description: `用户要 ${skill_id} 时使用。`, applies_to: "assistant" });
+const body = (skill_id: string, version = 1, text = `${skill_id} 第 ${version} 版的做法`): PluginMethodDefinition => ({ ...declared(skill_id, version), body: text });
 
-function probe(options: { pluginId?: string; version?: string; methods?: AgentSkillDeclaration[]; bodies?: AgentSkillDefinition[]; execution?: "sandbox"; signature?: string } = {}) {
+function probe(options: { pluginId?: string; version?: string; methods?: PluginMethodDeclaration[]; bodies?: PluginMethodDefinition[]; execution?: "sandbox"; signature?: string } = {}) {
   const { pluginId = PLUGIN_ID, version = "1.0.0", methods = [declared("triage")], bodies = [body("triage")], execution, signature = "probe-methods" } = options;
   const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version, name: "方法探针", kind: "app",
     publisher: { publisher_id: "molis", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],

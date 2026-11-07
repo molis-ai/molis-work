@@ -1,4 +1,4 @@
-import type { AgentSkillDeclaration, SkillResourceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { AgentSkillDeclaration, PluginMethodDeclaration, SkillResourceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { pluginErrors, type PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { inspectSkillDeclarations, skillBodyPath } from "./skill-declarations.js";
 import { cutHead } from "./whole-units.js";
@@ -27,9 +27,9 @@ export interface SkillFrontmatterOptions {
  * `tools` and `connector_categories` are taken as written; `body` is always `skills/<id>/SKILL.md`. Other keys are left to the tools
  * that wrote them. The frontmatter is the flat subset Skills folders use: per line `key: value`, where a value is plain text, a quoted
  * string, `true`/`false`, a whole number or a one-line `[a, b]` list; a nested or multi-line value is refused, not guessed. The result
- * passes the same check as Manifest `methods`, or the call is refused with `plugin.declaration_invalid` and its `details.problems`.
+ * passes the same check as Manifest `methods` (so `description` and `applies_to` must be written), or the call is refused with `plugin.declaration_invalid` and its `details.problems`.
  */
-export function skillDeclarationFromFrontmatter(markdown: string, options: SkillFrontmatterOptions = {}): AgentSkillDeclaration {
+export function skillDeclarationFromFrontmatter(markdown: string, options: SkillFrontmatterOptions = {}): PluginMethodDeclaration {
   const fields = frontmatterFields(markdown);
   const skill_id = fields.get("name");
   if (typeof skill_id !== "string") refuse([{ reason: "SKILL.md 的 frontmatter 要有 name（Skill 的标识）" }]);
@@ -47,7 +47,8 @@ export function skillDeclarationFromFrontmatter(markdown: string, options: Skill
   };
   const problems = inspectSkillDeclarations([declaration]);
   if (problems.length) refuse(problems.map(problem => ({ ...problem, path: problem.path ?? skillBodyPath(skill_id) })));
-  return declaration;
+  // The check above refuses a declaration without `description` or `applies_to`.
+  return declaration as PluginMethodDeclaration;
 }
 
 function optional<K extends string, V>(key: K, value: V | undefined): Partial<Record<K, V>> {

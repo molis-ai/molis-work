@@ -1,6 +1,6 @@
 import {
   SKILL_APPLIES_TO, SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, SKILL_TOOLS,
-  type AgentSkillDeclaration, type SkillResourceDeclaration,
+  type AgentSkillDeclaration, type PluginMethodDeclaration, type SkillResourceDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -14,11 +14,20 @@ const MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/iu;
 const RESOURCE_ROLES = Object.keys(SKILL_RESOURCE_FOLDERS) as Array<keyof typeof SKILL_RESOURCE_FOLDERS>;
 /** Only a method offered to other Agents says who may pick it and how a person names it; the Plugin's own Agent picks its own. */
 const METHODS_ONLY = ["applies_to", "user_invocable", "argument_hint"] as const;
+/** Every key a method in Manifest `methods` may write; any other is refused by name, so a signed package carries nothing unread. */
+const METHOD_KEYS: ReadonlySet<string> = new Set<keyof PluginMethodDeclaration>([
+  "skill_id", "version", "name", "summary", "tools", "description", "when_to_use", "when_not_to_use", "applies_to", "user_invocable",
+  "argument_hint", "body", "resources", "connector_categories",
+]);
 
 type Where = "methods" | "agent";
 
 function validToken(value: unknown): value is string {
   return typeof value === "string" && TOKEN.test(value);
+}
+
+function validSkillId(value: unknown): value is string {
+  return validToken(value) && value.length <= SKILL_LIMITS.skillIdChars;
 }
 
 function validVersion(value: unknown): value is number {
@@ -44,14 +53,17 @@ export function packagePathProblem(path: unknown): string | null {
   return null;
 }
 
-/** A Plugin's methods for other Agents (Manifest `methods`): each a declared, versioned Skill for business work. */
+/**
+ * A Plugin's methods for other Agents (Manifest `methods`): each a declared, versioned Skill for business work, saying when to pick it
+ * (`description`) and which built-in Agent may (`applies_to`). Both are required here and in no other place (SKP-08, SKC-03).
+ */
 export function inspectSkillDeclarations(methods: unknown): PluginDeclarationProblem[] {
   if (methods === undefined) return [];
   if (!Array.isArray(methods)) return [{ reason: "方法声明必须是列表" }];
   const problems: PluginDeclarationProblem[] = [], seen = new Set<string>();
   if (methods.length > SKILL_LIMITS.skillsPerPackage) problems.push({ reason: `一个插件至多声明 ${SKILL_LIMITS.skillsPerPackage} 个方法` });
-  for (const method of methods as AgentSkillDeclaration[]) {
-    if (!method || !validToken(method.skill_id) || !validVersion(method.version)) { problems.push({ reason: "方法声明不合法" }); continue; }
+  for (const method of methods as PluginMethodDeclaration[]) {
+    if (!method || typeof method !== "object" || !validSkillId(method.skill_id) || !validVersion(method.version)) { problems.push({ reason: "方法声明不合法" }); continue; }
     const skill_id = method.skill_id;
     if (seen.has(skill_id)) problems.push({ skill_id, reason: `方法重复：${skill_id}` });
     seen.add(skill_id);
@@ -60,6 +72,9 @@ export function inspectSkillDeclarations(methods: unknown): PluginDeclarationPro
     if (!Array.isArray(method.tools) || method.tools.some(tool => !(SKILL_TOOLS as readonly string[]).includes(tool))) {
       problems.push({ skill_id, reason: `方法 ${skill_id} 只能使用业务工具：${SKILL_TOOLS.join("、")}` });
     }
+    for (const key of Object.keys(method)) if (!METHOD_KEYS.has(key)) problems.push({ skill_id, reason: `方法 ${skill_id} 不能写 ${key}` });
+    if (method.description === undefined) problems.push({ skill_id, reason: `方法 ${skill_id} 要写 description：什么时候用它` });
+    if (method.applies_to === undefined) problems.push({ skill_id, reason: `方法 ${skill_id} 要写 applies_to：${SKILL_APPLIES_TO.join("、")}` });
     problems.push(...skillFieldProblems(method, "methods"));
   }
   return problems;

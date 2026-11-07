@@ -2818,7 +2818,7 @@ export interface PluginDefinition {
     }>>;
     agent_skills?: readonly AgentSkillDefinition[];
     instructions?: readonly InstructionPrompt[];
-    methods?: readonly AgentSkillDefinition[];
+    methods?: readonly PluginMethodDefinition[];
     start(context: PluginStartContext): Promise<PluginContribution>;
     stop?(context: PluginStartContext): Promise<void>;
     health?(context: PluginStartContext): Promise<{
@@ -3480,7 +3480,7 @@ export interface PluginManifest {
     routes?: PluginRouteDeclaration[];
     requires?: PluginRequirementDeclaration[];
     agent?: AgentManifest;
-    methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
+    methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").PluginMethodDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
@@ -3533,6 +3533,15 @@ export type PluginMessagesDeclaration = Readonly<Record<string, {
     readonly zh: string;
     readonly en: string;
 }>>;
+
+export interface PluginMethodDeclaration extends AgentSkillDeclaration {
+    description: string;
+    applies_to: SkillAppliesTo;
+}
+
+export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body"> {
+    body: string;
+}
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
@@ -4580,6 +4589,7 @@ export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
 
 export declare const SKILL_LIMITS: {
+    readonly skillIdChars: 64;
     readonly descriptionChars: 1024;
     readonly whenChars: 500;
     readonly argumentHintChars: 80;
@@ -4944,9 +4954,8 @@ export interface SandboxPackageInterface {
     acceptance?: SandboxJson[];
 }
 
-export type SandboxPackageManifest = Omit<PluginManifest, "agent" | "methods"> & {
+export type SandboxPackageManifest = Omit<PluginManifest, "agent"> & {
     agent?: SandboxAgentBodyDeclaration[];
-    methods?: SandboxAgentBodyDeclaration[];
 };
 
 export interface SandboxPackagePrompt {

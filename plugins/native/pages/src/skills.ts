@@ -1,11 +1,11 @@
-import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { PluginMethodDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 /**
  * Methods Pages offers to other Agents (the Assistant, a Character) for business work. Each is declared in the
  * Manifest's `methods` with the same id, version, name, summary, tools, description, when_to_use, when_not_to_use and applies_to;
  * the Host registers the body from here. `applies_to` is "assistant": it works through the business tools Coding's roles lack.
  */
-export const pagesSkills: readonly AgentSkillDefinition[] = [
+export const pagesSkills: readonly PluginMethodDefinition[] = [
   {
     skill_id: "meeting-notes",
     version: 2,

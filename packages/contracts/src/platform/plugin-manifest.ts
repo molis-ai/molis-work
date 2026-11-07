@@ -213,7 +213,7 @@ export interface PluginManifest {
    * in its domain with the capability gateway. Bodies ship in the package; the Host registers them with the Plugin and
    * gives them to a round only by id and version. `agent.skills` is the Plugin's own Agent's; this is for others.
    */
-  methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
+  methods?: import("./plugin-agent.js").PluginMethodDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/archive/plugin-project-database). */

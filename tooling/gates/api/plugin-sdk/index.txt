@@ -118,13 +118,7 @@ export interface CardStore<Card extends ActionCard = ActionCard> {
 
 export interface ContentPackage {
     manifest: PluginManifest;
-    skills: ContentPackageSkill[];
-}
-
-export interface ContentPackageSkill {
-    skill_id: string;
-    version: number;
-    body: string;
+    skills: PackagedSkillBody[];
 }
 
 export declare const DIFF_STEP_BUDGET = 200000;
@@ -257,6 +251,18 @@ export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     lines: 10000;
     progress_bytes: 1048576;
 }>;
+
+export interface PackagedSkillBody {
+    skill_id: string;
+    version: number;
+    body: string;
+}
+
+export interface PackagedSkills {
+    paths: ReadonlySet<string>;
+    bodies: PackagedSkillBody[];
+    problems: PluginDeclarationProblem[];
+}
 
 export interface PageRouteMatch {
     readonly route_id: string;
@@ -727,6 +733,8 @@ export declare function questionProblems(questions: readonly AgentQuestion[], an
 
 export declare function questionSetFlaw(questions: readonly AgentQuestion[]): string | null;
 
+export declare function readPackagedSkills(methods: readonly AgentSkillDeclaration[], files: ReadonlyMap<string, Uint8Array>): PackagedSkills;
+
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;
     after: string;
@@ -745,11 +753,6 @@ export declare function runActionCard<Card extends ActionCard>(card: Card, input
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const sandboxActionId: (buildId: string, operationId: string) => string;
-
-export declare function sandboxAgentBodyIdentity(pluginId: string, kind: "role" | "method", name: string): {
-    entry_id: string;
-    prompt_id: string;
-};
 
 export declare function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods">;
 
@@ -777,6 +780,11 @@ export declare function sandboxPluginManifest(input: SandboxManifestInput): Plug
 
 export declare function sandboxRequestedPermissions(effects: DerivedEffects | undefined): string[];
 
+export declare function sandboxRoleIdentity(pluginId: string, name: string): {
+    entry_id: string;
+    prompt_id: string;
+};
+
 export declare const sandboxUiContribution: (pluginId: string) => string;
 
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -784,7 +792,7 @@ export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actio
 export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export declare function skillDeclarationFromFrontmatter(markdown: string, options?: SkillFrontmatterOptions): AgentSkillDeclaration;
+export declare function skillDeclarationFromFrontmatter(markdown: string, options?: SkillFrontmatterOptions): PluginMethodDeclaration;
 
 export declare function splitLines(text: string): DiffLine[];
 

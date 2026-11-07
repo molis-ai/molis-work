@@ -309,7 +309,7 @@ Skill 指导助理读取规格/文件、保留约束、选择真实字体、输�
 49. **FSS-49** 快照不含令牌值和译文；服务端 `device` 是 `null`，`withDevicePreferences` 合并后才有；优先级链四层各有用例；换皮肤不改语言，换语言不改皮肤和选定字体。
 50. **FSS-50** `/ui` 打包到浏览器不含 Node 内建模块；只装 contracts 与 SDK 能跑；现有插件包字节不因此变大。
 51. **FSS-51** `inspectLocaleSet` 查出缺键、多余键、参数不一致、缺复数形式、`hidden_number`；CLI 和平台载入用同一函数，`blocking` 的拒绝。
-52. **FSS-52** Manifest 的 `ui.locales`：语言标记形状不对、`default` 不在 `available`、语言重复被拒；与 `ui.messages`、`ui.translations` 同写被拒。
+52. **FSS-52** Manifest 的 `ui.locales`：语言标记形状不对、`default` 不在 `available`、语言重复、有未知键、`available` 超过 32 种被拒；与 `ui.messages`、`ui.translations` 同写被拒；写了 `ui.locales` 而 `plugin_id` 最后一段不能当键的第一段（不以字母开头，或是 `common`）被拒。`plugin_id` 超过 200 个字符被拒，不论写没写 `ui.locales`。
 53. **FSS-53** `pack` 不用作者写 `files` 就带上声明的语言文件；包内缺文件被拒；`pack.owner`、`pack.locale` 与声明不符被拒；写了 `ui.locales` 的沙箱包被拒并说明；C 段之前没有内置 Manifest 写 `ui.locales`；运行时没用到的语言不读，开发路径的符号链接跑出项目目录被拒。
 54. **FSS-54** 基线文件解析通过；规格的角色全集和改动之前冻结的 194 个令牌名逐个相同，夹具不从渲染结果取；明暗分支 114 个；`locked` 10 个。
 55. **FSS-55** 在 merge-base 和头上分别渲染 `renderShellTokens` 两种主题、`renderPaletteTokens` 两种主题、`renderShapeTokens`、`renderControlMetrics`、`TYPEFACE_STYLES`、`FONT_STACK`、`MONO_FONT_STACK`、三份下发 CSS、`IM_STYLES`，sha256 全部相同，全表贴进 PR；`scripts/gates/page-assets.mjs --base origin/main` 通过。

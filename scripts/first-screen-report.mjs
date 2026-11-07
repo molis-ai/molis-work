@@ -97,6 +97,7 @@ async function startHost(home, port) {
   const host = spawn(process.execPath, [SERVER, "--home", home, "--port", String(port)], {
     cwd: ROOT, stdio: "ignore", env: { ...process.env, MOLIS_WORK_HOME: home },
   });
+  running.host = host;
   const origin = `http://127.0.0.1:${port}`;
   for (let attempt = 0; attempt < 150; attempt += 1) {
     if (host.exitCode !== null) throw new Error(`the Host exited with ${host.exitCode}`);
@@ -420,7 +421,6 @@ async function main() {
     const port = await freePort(options.port);
     const projects = await seed(home);
     const started = await startHost(home, port);
-    running.host = started.host;
     const pages = [
       { id: "arrival-empty", path: "/onboarding" },
       { id: "chooser", path: "/" },

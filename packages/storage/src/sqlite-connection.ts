@@ -14,11 +14,18 @@ export interface SqliteDatabase {
     immediate(...args: Args): Result;
   };
   function<Args extends unknown[]>(name: string, invoke: (...args: Args) => unknown): this;
-  backup(destination: string, options?: { progress(info: { totalPages: number; remainingPages: number }): number }): Promise<{ totalPages: number; remainingPages: number }>;
+  /** `rate` is how many pages go in each step. `progress` is told after each one; throwing from it stops the backup with that error. */
+  backup(destination: string, options?: { rate?: number; progress?(info: { totalPages: number; remainingPages: number }): void }): Promise<unknown>;
   close(): this;
 }
 
-interface SqliteStatement<Args extends unknown[], Row> {
+export interface SqliteOpenOptions {
+  readonly?: boolean;
+  fileMustExist?: boolean;
+  timeout?: number;
+}
+
+export interface SqliteStatement<Args extends unknown[], Row> {
   get(...args: Args): Row | undefined;
   all(...args: Args): Row[];
   iterate(...args: Args): IterableIterator<Row>;
@@ -43,6 +50,6 @@ export function sqliteErrorName(error: unknown): string | undefined {
 }
 
 /** Opens only the connection. Schema setup, WAL and foreign-key policy belong to the store using it. */
-export function openSqliteConnection(path: string, options?: { readonly?: boolean; fileMustExist?: boolean; timeout?: number }): SqliteDatabase {
+export function openSqliteConnection(path: string, options?: SqliteOpenOptions): SqliteDatabase {
   return new Database(path, options) as unknown as SqliteDatabase;
 }

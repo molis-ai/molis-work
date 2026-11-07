@@ -146,7 +146,8 @@ class ProjectConnection implements SqliteDatabase {
   private savepoints = 0;
 
   constructor(private readonly database: DatabaseSync, readonly name: string, readonly readonly: boolean) {
-    // Not in the Node 22 types the repository compiles against; the Node it runs on has had it since v24.
+    // Not in the Node 22 types the repository compiles against. Node has it from v24.12.0 and turns it on by default from v24.14.0,
+    // so on the locked Node this only says so; it keeps a connection from writing to the schema or corrupting the file by pragma.
     (database as DatabaseSync & { enableDefensive(active: boolean): void }).enableDefensive(true);
   }
 

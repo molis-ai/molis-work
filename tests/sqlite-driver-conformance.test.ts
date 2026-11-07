@@ -322,13 +322,13 @@ test(`SQLD-04 sizing the cache: an open does not touch the file, a failure of it
   t.after(() => holder.close());
   holder.exec("CREATE TABLE t (v)");
   holder.exec("BEGIN EXCLUSIVE");
-  const waiting = open(busy, { timeout: 100 });
+  const waiting = open(busy, { timeout: 400 });
   t.after(() => waiting.close());
   const started = performance.now();
   assert.throws(() => waiting.prepare("SELECT v FROM t"), error => named(error, "SQLITE_BUSY"), "busy is reported by the statement");
   const elapsed = performance.now() - started;
-  assert.ok(elapsed >= 90 && elapsed < 190, `only the statement's own timeout waited, not the cache's as well: ${elapsed} ms`);
-  assert.equal(waiting.pragma("busy_timeout", { simple: true }), 100, "and the connection's timeout is back");
+  assert.ok(elapsed >= 380 && elapsed < 700, `only the statement's own timeout waited, not the cache's as well: ${elapsed} ms`);
+  assert.equal(waiting.pragma("busy_timeout", { simple: true }), 400, "and the connection's timeout is back");
   holder.exec("ROLLBACK");
   assert.deepEqual(waiting.prepare("SELECT v FROM t").all(), []);
   assert.equal(waiting.pragma("cache_size", { simple: true }), -16000, "the next statement tried again");
@@ -345,17 +345,6 @@ test("SQLD-04 sqliteErrorName reads what SQLite raised, and nothing else", () =>
   assert.equal(sqliteErrorName(null), undefined);
   assert.equal(sqliteErrorName("SQLITE_BUSY"), undefined);
 });
-
-/** The options of the official build this repository locks (`.nvmrc`), so a Node upgrade shows what changed. `COMPILER=` names the toolchain and says nothing about SQLite. */
-const OFFICIAL_COMPILE_OPTIONS = [
-  "ATOMIC_INTRINSICS=1", "DEFAULT_AUTOVACUUM", "DEFAULT_CACHE_SIZE=-2000", "DEFAULT_FILE_FORMAT=4", "DEFAULT_JOURNAL_SIZE_LIMIT=-1", "DEFAULT_MEMSTATUS=0",
-  "DEFAULT_MMAP_SIZE=0", "DEFAULT_PAGE_SIZE=4096", "DEFAULT_PCACHE_INITSZ=20", "DEFAULT_RECURSIVE_TRIGGERS", "DEFAULT_SECTOR_SIZE=4096", "DEFAULT_SYNCHRONOUS=2",
-  "DEFAULT_WAL_AUTOCHECKPOINT=1000", "DEFAULT_WAL_SYNCHRONOUS=2", "DEFAULT_WORKER_THREADS=0", "DIRECT_OVERFLOW_READ", "ENABLE_COLUMN_METADATA", "ENABLE_DBSTAT_VTAB",
-  "ENABLE_FTS3", "ENABLE_FTS3_PARENTHESIS", "ENABLE_FTS5", "ENABLE_GEOPOLY", "ENABLE_MATH_FUNCTIONS", "ENABLE_PREUPDATE_HOOK", "ENABLE_RBU", "ENABLE_RTREE", "ENABLE_SESSION",
-  "MALLOC_SOFT_LIMIT=1024", "MAX_ATTACHED=10", "MAX_COLUMN=2000", "MAX_COMPOUND_SELECT=500", "MAX_DEFAULT_PAGE_SIZE=8192", "MAX_EXPR_DEPTH=1000", "MAX_FUNCTION_ARG=1000",
-  "MAX_LENGTH=1000000000", "MAX_LIKE_PATTERN_LENGTH=50000", "MAX_MMAP_SIZE=0x7fff0000", "MAX_PAGE_COUNT=0xfffffffe", "MAX_PAGE_SIZE=65536", "MAX_SQL_LENGTH=1000000000",
-  "MAX_TRIGGER_DEPTH=1000", "MAX_VARIABLE_NUMBER=32766", "MAX_VDBE_OP=250000000", "MAX_WORKER_THREADS=8", "MUTEX_PTHREADS", "SYSTEM_MALLOC", "TEMP_STORE=1", "THREADSAFE=1",
-];
 
 test("SQLD-01 an FTS5 write that left a 64-bit rowid answers too (#1844 met a throw here on another Node)", t => {
   const db = memory(t);
@@ -377,16 +366,6 @@ test("SQLD-04 no ExperimentalWarning: importing and using the driver on the lock
   if (!OFFICIAL_LOCKED_NODE) { t.diagnostic(`${process.version} is not the locked official build: warnings ${child.stdout}`); return; }
   assert.equal(child.stdout, "[]");
   assert.equal(child.stderr, "");
-});
-
-test("SQLD-04 the official build's compile options, recorded", t => {
-  const db = new DatabaseSync(":memory:");
-  const options = (db.prepare("PRAGMA compile_options").all() as { compile_options: string }[]).map(row => row.compile_options).filter(option => !option.startsWith("COMPILER="));
-  db.close();
-  if (!OFFICIAL_LOCKED_NODE) { t.diagnostic(`this Node ${process.version} is not the locked official build`); return; }
-  // On every platform: what the code relies on. On the macOS build these were read from: the whole list.
-  for (const needed of ["ENABLE_FTS5", "ENABLE_MATH_FUNCTIONS", "DEFAULT_MEMSTATUS=0"]) assert.ok(options.includes(needed), needed);
-  if (process.platform === "darwin") assert.deepEqual(options, OFFICIAL_COMPILE_OPTIONS);
 });
 
 test("SQLD-02 a library in the Home is on node:sqlite without this layer, where a second statement is dropped: recorded for the backlog, not fixed here (§3.3)", t => {

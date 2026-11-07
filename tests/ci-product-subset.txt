@@ -497,3 +497,5 @@ tests/view-placement-declarations.test.ts
 tests/workbench-entry-exports.test.ts
 # SQLD-06 (SQLD-b): .nvmrc, the workflows and engines name one Node patch; on that Node the SQLite is the one the plugin statement check was read against.
 tests/sqlite-version-notice.test.ts
+# SQLD-01..04: what the project connection promises its callers, on the driver underneath it (the macOS-only compile list is in sqlite-build-options).
+tests/sqlite-driver-conformance.test.ts

@@ -110,7 +110,7 @@ async function startHost(home, port) {
 }
 
 async function stopHost(host) {
-  if (host.exitCode !== null) return;
+  if (host.exitCode !== null || host.signalCode !== null) return;
   const gone = once(host, "exit");
   host.kill("SIGTERM");
   await gone;

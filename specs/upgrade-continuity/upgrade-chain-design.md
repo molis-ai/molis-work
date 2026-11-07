@@ -57,7 +57,7 @@ export interface SqliteBaseline {
 }
 ```
 
-**段不拿 Home（合同台定）。** 项目的存储位置不存绝对路径（S-102、W5-17），所以段没有理由知道 Home。`project_deletions.staged_directory` 存的是绝对路径，但它是删除途中的记录，段不碰。05② 的默认输出目录存的是由 `project_id` 推导的写法，那一段只读写库，见 [05②](../shared-sources-and-surfaces/spec.md) 第 3 节。
+**段不拿 Home（合同台定）。** 项目的存储位置不存绝对路径（S-102、W5-17），所以段没有理由知道 Home。`project_deletions.staged_directory` 存的是绝对路径，但它是删除途中的记录，段不碰。05② 的默认输出目录存的是由 `project_id` 推导的写法，id 由库里已有的列算出来，那一段只读写库，见 [05②](../shared-sources-and-surfaces/spec.md) 第 3 节。
 
 `checkSqliteBaselineVersion` 只负责分类，**永远不升级**：
 
@@ -619,7 +619,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 
 第一段真实升级要同时满足：U1-a～e、g、h 合入；U1-i（门禁）合入；统一起点已做；第一份金样（U2-c）已在。从那时起，§8.1 的规则生效，段随基线走。
 
-**第一批段是资料目录那几张表（用户 2026-11-06 定）。** 真实 Home 不等 05② C-1：#1837 合入就按检查单重建。所以 `workspaces.is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses` 都不再进第 1 版，走本机制的升级段；这几段用户已同意，写的时候不用再问。它们由 05② 的实现片写，那一片排在 U1 和 U2-c 之后，等上面这些条件都满足。`modules/projects` 现在没有升级段（#1805 第 6 条），这一片先给它登记第一段。组合服务的纠正表属第 15 批，到时同样走升级段，同样不再问。
+**第一批段是资料目录那几张表（用户 2026-11-06 定）。** 真实 Home 不等 05② C-1：#1837 合入就按检查单重建。所以 `workspaces.is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses` 都不再进第 1 版，走本机制的升级段；这几段用户已同意，写的时候不用再问。它们由 05② 的实现片写，那一片排在 U1 和 U2-c 之后，等上面这些条件都满足。`modules/projects` 现在没有升级段（#1805 第 6 条），这一片先给它登记第一段。指定文件夹的 `workspace_source_links`（用户 2026-11-07 定，05② 第 3 节）也走升级段，排在这几段之后。组合服务的纠正表属第 15 批，到时同样走升级段，同样不再问。
 
 这也是机制的第一次实战，U1、U2 和四份门禁接不接得上，从这几段就能看出来。
 

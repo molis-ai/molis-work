@@ -233,6 +233,8 @@ export interface StageTerminalPaneModel {
     icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }
 
+export declare const UI_CONNECTION_NEED_REASON_MAX = 80;
+
 export declare const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
 
 export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
@@ -260,6 +262,23 @@ export interface UiClientScope extends UiRequestScope {
 }
 
 export type UiClientTranslate = (key: string, values?: Record<string, string | number>) => string;
+
+export type UiConnectionNeedOutcome = {
+    readonly status: "connected";
+    readonly account: {
+        readonly label: string;
+    };
+} | {
+    readonly status: "cancelled";
+};
+
+export type UiConnectionNeedTarget = {
+    readonly kind: "slot";
+    readonly slot_id: string;
+    readonly record_key?: string;
+} | ({
+    readonly kind: "image";
+} & PluginImageTarget);
 
 export interface UiConnectionSlotChoice {
     readonly connection_id: string;
@@ -463,6 +482,9 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
     openView(selection: UiViewSelection): void;
     invalidateView(): void;
     connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
+    connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: {
+        signal?: AbortSignal;
+    }): Promise<UiConnectionNeedOutcome>;
     openItem(surface: string, itemId: string, title?: string): void;
     openBeside(surface: string, itemId: string, title?: string): void;
     openPlugin(surface: string, view?: string, panel?: string): void;

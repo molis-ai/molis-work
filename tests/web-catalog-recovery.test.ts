@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog, desktopWorkbenchRendererPorts,
   isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
-import { createLocalWebServerFactory } from "@molis-ai/molis-work-app-local-host";
+import { createLocalWebCoreFactory } from "@molis-ai/molis-work-app-local-host";
 import { LocalHostHttpClient, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { captureHostLog, type HostLogEntry, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -103,7 +103,8 @@ test("SYS-39 an unhandled HTTP failure has a safe localized answer and a matchin
 test("RAC-2918: a Web factory without openCatalog reuses its actual Host owner for HTTP Catalog operations", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-web-bound-fallback-"));
   const token = "catalog-fallback-test-control-token-0123456789";
-  const create = createLocalWebServerFactory({
+  // This exercises the already selected Home's real Catalog owner, without an installation login wrapper.
+  const create = createLocalWebCoreFactory({
     withCatalog: withMolisWorkProjectCatalog, desktopRenderer: desktopWorkbenchRendererPorts,
     cliAvailability: () => ({}), isDesktopShellRequest, nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT,
     renderDesktopCapsuleShell, ptyClientFilePath: () => "unused.js",

@@ -12,7 +12,7 @@ import { createPersonalAccountHttp } from './personal-http.js';
 import { createPersonalNativeSession } from './personal-native-session.js';
 import { personalCloudConfig } from './personal-auth.js';
 import { resolveWebControlToken, sendWebHealth } from './web-control-token.js';
-import { authorizeLocalWebRequest, refuseForeignRequest, refuseLocalWebRequest, requestHost, sendLocalWebJson, type LocalMutationState } from './web-http.js';
+import { authorizeLocalWebRequest, refuseForeignRequest, refuseLocalWebRequest, requestHost, sendLocalWebJson, respondLocalWebRefusal, type LocalMutationState } from './web-http.js';
 import type { WebServerOptions } from './web-types.js';
 import { ACCOUNT_CONNECT_PATH } from './resident-account-connection.js';
 import { MCP_CONTEXT_PATH } from './mcp-context-envelope.js';
@@ -25,6 +25,7 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { closeHostResourceSteps, ensureHomeStorageOwner, retainInitializationCleanup } from './home-storage-lifetime.js';
 import { agentRuntimeDirectory } from './agent-runtime-paths.js';
 import { trackHostListener } from './host-endpoints.js';
+import { serviceProcessId } from './web-runtime-settings.js';
 
 interface Surface {
   home:string; space:StorageSpace; token:string; server:SpaceWebSurface;
@@ -90,8 +91,12 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
   function isAccountReady(id:string):boolean{
     try{activeLease?.assertCurrent();return !!activeLease&&activeSpaceId===id&&!transition&&!transitionError;}catch{return false;}
   }
-  async function releaseRetired():Promise<void>{
-    await closeHostResourceSteps(new Set(),[...retiring.entries()].map(([id,entry])=>[id,()=>entry.disposed] as const));
+  async function releaseRetired(disposeCurrent=false):Promise<void>{
+    if(disposeCurrent){
+      for(const entry of [...surfaces.values()])retire(entry,true);
+      for(const entry of [...retiring.values()])entry.retry?.();
+    }
+    await closeHostResourceSteps(new Set(),[...retiring.entries()].map(([id,entry])=>[id,()=>entry.disposed] as const),disposeCurrent);
     if(initializationFailure){await initializationFailure.close();initializationFailure=undefined;}
   }
   async function settleAccount(retry=false):Promise<void> {
@@ -176,7 +181,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     const initialLease=personalSurfaceLease(space,selected.session);
     const coreOptions=space.kind==='local'?{...options,homeDirectory:directory}:{homeDirectory:directory};
     const token=tokenFor(selected);
-    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,accountRegistration:true}));
+    const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token,accountRegistration:true,runtimeIntegrationService:options.runtimeIntegrationService,webServiceManager:options.webServiceManager,installationDiagnostics:options.installationDiagnostics,...(initialLease?{assertAccountCurrent:()=>{if(stopping)throw new ActionError("actions.unavailable","服务正在关闭。");initialLease.assertCurrent();}}:{})}));
     core.address=address;
     result={home:directory,space,token,server:core,users:new Map(),connections:new Map(),responses:new Map()};
     if(space.kind==='personal'){
@@ -192,20 +197,20 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     surfaces.set(space.spaceId,result);
     return result;
   };
-  const disconnect=(entry:Surface)=>{
-    for(const response of entry.responses.keys())response.destroy();
+  const disconnect=(entry:Surface,graceful=false)=>{
+    for(const response of entry.responses.keys())if(!graceful||response.headersSent&&!response.writableEnded)response.destroy();
     for(const socket of entry.connections.keys())socket.destroy();
   };
-  const retire=(entry:Surface)=>{
+  const retire=(entry:Surface,graceful=false)=>{
     entry.releaseAuthority?.();
     surfaces.delete(entry.space.spaceId);
-    disconnect(entry);
+    disconnect(entry,graceful);
     const disposed=closeSpaceSurface(entry.server);
     const retirement:{disposed:Promise<void>;token:string;retry?:()=>void}={disposed,token:entry.token};
     retiring.set(entry.space.spaceId,retirement);
     void disposed.then(()=>{if(retiring.get(entry.space.spaceId)===retirement)retiring.delete(entry.space.spaceId);},()=>{retirement.retry=()=>retire(entry);});
   };
-  const sweep=()=>{
+  const sweep=()=>{if(stopping)return; // Shutdown owns transport-first cleanup; account-switch sweeps must not close the Host early.
     for(const [id,entry] of syncs)if(!entry.active()){entry.service?.close();syncs.delete(id);}
     for(const entry of surfaces.values()){
       for(const [response,active] of entry.responses)if(!active())response.destroy();
@@ -234,14 +239,9 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
   const stop=()=>{
     stopping=true;account.close();
     for(const entry of syncs.values())entry.service?.close();
-    for(const entry of [...retiring.values()])entry.retry?.();
     for(const entry of [...surfaces.values()]){
-      if(entry.space.kind==='personal')retire(entry);
-      else {
-        // Let in-flight actions deliver the Host's cancellation result; only streams need forced closure.
-        for(const response of entry.responses.keys())if(response.headersSent&&!response.writableEnded)response.destroy();
-        for(const socket of entry.connections.keys())socket.destroy();
-      }
+      entry.releaseAuthority?.();
+      disconnect(entry,true);
     }
   };
   const resume=async(request:IncomingMessage)=>{
@@ -282,14 +282,16 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if(url.pathname==='/health'){
           const entry=[...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome&&isAccountReady(item.space.spaceId));
           const scoped=gatewayHome&&gatewayHome!==actionGatewayHomeId(home);
-          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,desktop_tui:true,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
+          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
         }
         if(url.pathname===ACCOUNT_CONNECT_PATH){
           if(!native(request)){refuseLocalWebRequest(response);return;}
           if(!authorizeLocalWebRequest(request,response,url,rootToken,mutations))return;
           if(request.method!=='POST'){sendLocalWebJson(response,405,{error:'不支持此操作。'});return;}
           if(account.preparing()){sendLocalWebJson(response,409,{error:'账号操作进行中，请稍后显式重连。'});return;}
-          await settleAccount();const session=account.current();
+          // This native attachment is an explicit retry; ordinary business traffic never retries a failed handoff.
+          try{await settleAccount(true);}catch(error){respondLocalWebRefusal({respond:(status,body)=>sendLocalWebJson(response,status,body)},error);return;}
+          const session=account.current();
           if(!session){sendLocalWebJson(response,401,{error:'请先登录当前安装的账号。'});return;}
           const selected=selection(request),entry=surfaces.get(selected.space.spaceId);
           if(!entry||!isAccountReady(entry.space.spaceId)){sendLocalWebJson(response,503,{error:'当前账号尚未就绪。'});return;}
@@ -383,7 +385,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   });
   timer=setInterval(sweep,1000);timer.unref();
   shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);stop();},
-    releaseRetired);
+    ()=>releaseRetired(true));
   return server;
   } catch(error){
     throw retainInitializationCleanup(error,async()=>{

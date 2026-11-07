@@ -1,3 +1,5 @@
+import { serializeRuntimeConfirmation } from "./runtime-integration-apply.js";
+import { type ConfirmationAuthority } from "./confirmation-authority.js";
 import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import { type MolisWorkWebServiceManagerOptions, type MolisWorkWebServiceDetection, type MolisWorkWebServiceAction, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceRestartPending, type PreparedServicePlan } from "./web-service-contract.js";
@@ -58,52 +60,70 @@ export class MolisWorkWebServiceManager {
     return plan;
   }
 
-  async confirm(input: { plan_id: string; decision: "confirmed" | "declined" }): Promise<MolisWorkWebServiceResult> {
-    const prepared = await this.consumePlan(input);
-    return this.applyPlan(prepared, input.decision);
+  async confirm(input: { plan_id: string; decision: "confirmed" | "declined" }, assertCurrent: () => void = () => {}): Promise<MolisWorkWebServiceResult> {
+    return serializeRuntimeConfirmation(this.plistPath, async () => {
+      const { prepared, authority } = await this.confirmation(input, assertCurrent);
+      const result = await this.applyPlan(prepared, input.decision, authority);
+      authority.current(); authority.effect();
+      return result;
+    });
   }
 
   /** A Web server cannot bootout itself and then run the following start command. */
-  async confirmFromWeb(input: { plan_id: string; decision: "confirmed" | "declined" }, servingProcessId: number): Promise<{
-    result: MolisWorkWebServiceResult | MolisWorkWebServiceRestartPending;
-    afterResponse?: () => Promise<void>;
-  }> {
-    const prepared = await this.consumePlan(input);
+  async confirmFromWeb(input: { plan_id: string; decision: "confirmed" | "declined" }, servingProcessId: number,
+    assertCurrent: () => void = () => {}): Promise<{ result: MolisWorkWebServiceResult | MolisWorkWebServiceRestartPending; afterResponse?: () => Promise<void> }> {
+    return serializeRuntimeConfirmation(this.plistPath, async () => {
+    const { prepared, authority } = await this.confirmation(input, assertCurrent);
     if (input.decision === "confirmed" && prepared.publicPlan.action === "restart" && prepared.publicPlan.status === "ready") {
-      const detection = await this.detect();
-      if (detection.owned && detection.running && await this.process.isRunningProcess(servingProcessId)) {
+      const detection = await this.detect(); authority.current();
+      const running = detection.owned && detection.running && await this.process.isRunningProcess(servingProcessId);
+      authority.current();
+      if (running) {
+        authority.effect(); // Acceptance reserves the existing one-shot plan; the deferred OS act still checks this request.
         let dispatched = false;
         return {
           result: { status: "restarting", action: "restart", previous_process_id: servingProcessId, message: "正在重启常驻服务，等待新进程就绪…" },
-          afterResponse: async () => {
+          afterResponse: () => serializeRuntimeConfirmation(this.plistPath, async () => {
             if (dispatched) return;
+            authority.current();
             dispatched = true;
-            // Keep the launchd job loaded: launchd, not the exiting Web process,
-            // owns bringing up its replacement. Do not claim readiness here.
-            await this.process.restartLoaded();
-          },
+            await this.process.restartLoaded(authority);
+          }),
         };
       }
     }
-    return { result: await this.applyPlan(prepared, input.decision) };
+    const result = await this.applyPlan(prepared, input.decision, authority);
+    authority.current(); authority.effect();
+    return { result };
+    });
   }
 
-  private async consumePlan(input: { plan_id: string; decision: "confirmed" | "declined" }): Promise<PreparedServicePlan> {
+  /** Keep an unstarted plan with its shared owner; a withdrawn waiter must not consume it. */
+  private async confirmation(input: { plan_id: string; decision: "confirmed" | "declined" }, assertCurrent: () => void) {
+    assertCurrent();
     const prepared = this.plans.get(input.plan_id);
     if (!prepared) throw installerErrors["installer.service.plan_missing"]("常驻服务预览不存在或已失效，请重新预览");
-    this.plans.delete(input.plan_id);
-    if (input.decision === "declined") {
-      return prepared;
+    if (input.decision !== "declined") {
+      if (prepared.publicPlan.status === "unsupported") throw installerErrors["installer.service.unsupported"](prepared.publicPlan.message);
+      if (prepared.publicPlan.status === "conflict") throw installerErrors["installer.service.conflict"](prepared.publicPlan.message);
+      const snapshot = await this.snapshotHash(); assertCurrent();
+      if (snapshot !== prepared.snapshotHash) throw installerErrors["installer.service.plan_stale"]("LaunchAgent 状态在预览后发生变化，请重新预览");
     }
-    if (prepared.publicPlan.status === "unsupported") throw installerErrors["installer.service.unsupported"](prepared.publicPlan.message);
-    if (prepared.publicPlan.status === "conflict") throw installerErrors["installer.service.conflict"](prepared.publicPlan.message);
-    if (await this.snapshotHash() !== prepared.snapshotHash) {
-      throw installerErrors["installer.service.plan_stale"]("LaunchAgent 状态在预览后发生变化，请重新预览");
-    }
-    return prepared;
+    let claimed = false;
+    const authority: ConfirmationAuthority = {
+      current: assertCurrent,
+      effect: () => {
+        assertCurrent();
+        if (claimed) return;
+        if (this.plans.get(input.plan_id) !== prepared) throw installerErrors["installer.service.plan_missing"]("常驻服务预览不存在或已失效，请重新预览");
+        this.plans.delete(input.plan_id); claimed = true;
+      },
+    };
+    return { prepared, authority };
   }
 
-  private async applyPlan(prepared: PreparedServicePlan, decision: "confirmed" | "declined"): Promise<MolisWorkWebServiceResult> {
+  private async applyPlan(prepared: PreparedServicePlan, decision: "confirmed" | "declined", authority: ConfirmationAuthority): Promise<MolisWorkWebServiceResult> {
+    authority.current();
     if (decision === "declined") {
       return { status: "declined", action: prepared.publicPlan.action, detection: await this.detect(), message: "已取消，没有修改常驻服务" };
     }
@@ -112,19 +132,20 @@ export class MolisWorkWebServiceManager {
     }
     const action = prepared.publicPlan.action;
     let finalDetection: MolisWorkWebServiceDetection | null = null;
-    if (action === "install") finalDetection = await this.operations.install(prepared.expectedPlist);
+    if (action === "install") finalDetection = await this.operations.install(prepared.expectedPlist, authority);
     if (action === "start") {
       finalDetection = prepared.publicPlan.detection.state === "unhealthy"
-        ? await this.operations.restart()
-        : await this.operations.startPreservingState(prepared.publicPlan.detection.running);
+        ? await this.operations.restart(authority)
+        : await this.operations.startPreservingState(prepared.publicPlan.detection.running, authority);
     }
-    if (action === "stop") await this.process.stop();
-    if (action === "restart") finalDetection = await this.operations.restart();
-    if (action === "remove") await this.operations.remove();
+    if (action === "stop") await this.process.stop(authority);
+    if (action === "restart") finalDetection = await this.operations.restart(authority);
+    if (action === "remove") await this.operations.remove(authority);
     finalDetection ??= await this.detect();
     if (["install", "start", "restart"].includes(action) && finalDetection.state !== "running") {
       throw installerErrors["installer.service.command_failed"](`Molis Work Web 操作后没有保持当前受管实例的运行状态：${finalDetection.message}`);
     }
+    authority.current();
     const status = ({ install: "installed", start: "started", stop: "stopped", restart: "restarted", remove: "removed" } as const)[action];
     return { status, action, detection: finalDetection, message: resultMessage(action) };
   }

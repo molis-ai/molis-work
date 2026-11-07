@@ -6,6 +6,7 @@
 //   node scripts/first-screen-report.mjs [--out <dir>] [--port <n>] [--runs <n>] [--pages <id,id>] [--http-only | --reads-only]
 //   node scripts/first-screen-report.mjs --summarize <dir>     prints a saved run, median of the runs, without a Host or a browser
 //
+// Measures the business screen after Home selection; installation login and account switching are outside this report.
 // Build first (`pnpm build`). It serves a temporary Home on a free port (never 4207/4208, never ~/.molis-work), stops only
 // the Host and Chrome it started, and removes that Home when it ends. The browser half drives test Chrome over the
 // DevTools protocol, so wrap a full run in the machine's browser slot:
@@ -32,7 +33,7 @@ import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const SERVER = join(ROOT, "dist/web/server.js");
+const SERVER = join(ROOT, "scripts/visual/selected-home-server.mjs");
 const LOCALES = ["zh", "en"];
 const COOKIE = "molis_work_locale";
 const RESERVED_PORTS = new Set([4207, 4208]);
@@ -94,7 +95,7 @@ async function seed(home) {
 }
 
 async function startHost(home, port) {
-  const host = spawn(process.execPath, [SERVER, "--home", home, "--port", String(port)], {
+  const host = spawn(process.execPath, [SERVER, home, String(port)], {
     cwd: ROOT, stdio: "ignore", env: { ...process.env, MOLIS_WORK_HOME: home },
   });
   running.host = host;
@@ -421,7 +422,7 @@ async function stopRun() {
 async function main() {
   const options = parse(process.argv.slice(2));
   if (options.summarize) { summarize(options.summarize); return; }
-  if (!existsSync(SERVER)) throw new Error("dist/web/server.js is missing; run pnpm build first");
+  if (!existsSync(join(ROOT, 'dist/web/server.js'))) throw new Error("dist/web/server.js is missing; run pnpm build first");
   const home = mkdtempSync(join(tmpdir(), "molis-first-screen-"));
   if (resolve(home) === join(homedir(), ".molis-work")) throw new Error("refusing the real Home");
   running.home = home;

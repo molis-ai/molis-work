@@ -48,6 +48,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { closeHostResourceSteps, retainHomeStorageResources, retainInitializationCleanup } from "./home-storage-lifetime.js";
 import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
+import { installationDiagnostics } from "./web-project-presentation.js";
 import { awaitWebServerShutdown } from "./web-server-close.js";
 
 function loopbackWebOrigin(server: http.Server): string {
@@ -118,7 +119,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
     const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({ homeDirectory: storageHome });
     const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
-    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome,serverOptions.accountRegistration??false);
+    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome,serverOptions.accountRegistration??false,serverOptions.installationDiagnostics);
     const { serveWorkbenchAsset } = composition;
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
@@ -196,7 +197,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           );
         });
       } catch (error) {
-        runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error));
+        runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error, request));
       }
     }))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
@@ -229,9 +230,17 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   const createMolisWorkWebServer=createLocalWebCoreFactory(platform);
   const entryAssets=createLocalWebAssets({ptyClientFilePath:platform.ptyClientFilePath,renderer:createLocalHostWorkbenchRenderer(platform.desktopRenderer)});
-  return (options: WebServerOptions = {}) => createSpaceWebServer(options, createMolisWorkWebServer, platform.withCatalog,{
+  return (options: WebServerOptions = {}) => {
+    const homeDirectory=resolveConfiguredHome(options.homeDirectory);
+    const installation:WebServerOptions={...options,
+      runtimeIntegrationService:options.runtimeIntegrationService??new RuntimeIntegrationService({homeDirectory}),
+      webServiceManager:options.webServiceManager??new MolisWorkWebServiceManager({homeDirectory}),
+      installationDiagnostics:options.installationDiagnostics??(projectCount=>installationDiagnostics(homeDirectory,projectCount)),
+    };
+    return createSpaceWebServer(installation, createMolisWorkWebServer, platform.withCatalog,{
     render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{L,htmlLang,clientI18nScript},platform.nativeDesktopBootstrapScript)),
     asset:(request,response,url)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>entryAssets.serveWorkbenchAsset(request,response,url.pathname)),
-  });
+    });
+  };
 
 }

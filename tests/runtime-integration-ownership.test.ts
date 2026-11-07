@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import { promises as filesystem } from "node:fs";
+import { mkdtemp, mkdir, readFile, readdir, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -127,5 +128,101 @@ for (const before of ['[mcp_servers."molis-work"]\ncommand = "user-command"\n',
     assert.equal((await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" })).status, "conflict");
     assert.equal(await readFile(f.config, "utf8"), before);
     await assert.rejects(readlink(f.skill), { code: "ENOENT" });
+  });
+}
+
+
+test("ASR installation confirmation waiting in the real target queue cannot write after withdrawal", async t => {
+  const f = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const first = f.service(async () => { entered.resolve(); await release.promise; return true; }), second = f.service();
+  const firstPlan = await first.prepare("codex", "connect"), secondPlan = await second.prepare("codex", "connect");
+  const firstPending = first.confirm({ runtime_id: "codex", plan_id: firstPlan.plan_id, decision: "confirmed" });
+  t.after(async () => { release.resolve(); await firstPending.catch(() => undefined); });
+  await entered.promise;
+  let withdrawn = false;
+  const cancelled = new Error("old installation confirmation withdrawn");
+  const pending = second.confirm({ runtime_id: "codex", plan_id: secondPlan.plan_id, decision: "confirmed" }, () => { if (withdrawn) throw cancelled; });
+  const rejected = assert.rejects(pending, error => error === cancelled);
+  withdrawn = true; release.resolve();
+  assert.equal((await firstPending).status, "connected");
+  await rejected;
+  assert.equal((await second.detect("codex")).connection_state, "connected", "the legitimate first owner stays intact");
+  await assert.rejects(readFile(join(f.home, "runtime-config-backups", "codex", secondPlan.plan_id + ".bak")), { code: "ENOENT" });
+  assert.equal((await readdir(f.home)).includes("runtime-integration-attempts"), false, "a never-started cancelled confirmation records no new attempt");
+});
+
+test("ASR installation withdrawal after validation restores only its own config and Skill and writes no receipt or attempt", async t => {
+  const f = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const runtime = f.service(async () => { entered.resolve(); await release.promise; return true; });
+  const plan = await runtime.prepare("codex", "connect");
+  let withdrawn = false;
+  const cancelled = new Error("original installation cancellation");
+  const pending = runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" }, () => { if (withdrawn) throw cancelled; });
+  const rejected = assert.rejects(pending, error => error === cancelled);
+  t.after(async () => { release.resolve(); await pending.catch(() => undefined); });
+  await entered.promise;
+  assert.notEqual(await readFile(f.config, "utf8"), f.before, "validation is after the real config effect");
+  assert.equal(await readlink(f.skill), f.skillSource);
+  const backup = await readFile(join(f.home, "runtime-config-backups", "codex", plan.plan_id + ".bak"));
+  withdrawn = true; release.resolve(); await rejected;
+  assert.equal(await readFile(f.config, "utf8"), f.before);
+  await assert.rejects(readlink(f.skill), { code: "ENOENT" });
+  await assert.rejects(readFile(join(f.home, "runtime-integrations", "codex.json")), { code: "ENOENT" });
+  assert.equal((await readdir(f.home)).includes("runtime-integration-attempts"), false);
+  assert.deepEqual(await readFile(join(f.home, "runtime-config-backups", "codex", plan.plan_id + ".bak")), backup, "the authorized earlier backup is not rewritten after withdrawal");
+  const current = f.service(), retry = await current.prepare("codex", "connect");
+  assert.equal((await current.confirm({ runtime_id: "codex", plan_id: retry.plan_id, decision: "confirmed" })).status, "connected");
+});
+
+
+for (const action of ["connect", "remove"] as const) for (const replacement of [false, true]) {
+  test(`ASR withdrawal after final Runtime ${action} receipt effect ${replacement ? "preserves an identical replacement inode" : "restores the original receipt and mode"}`, async t => {
+    const f = await fixture(t), runtime = f.service();
+    const initial = await runtime.prepare("codex", "connect");
+    assert.equal((await runtime.confirm({ runtime_id: "codex", plan_id: initial.plan_id, decision: "confirmed" })).status, "connected");
+    const receipt = join(f.home, "runtime-integrations", "codex.json");
+    await filesystem.chmod(receipt, 0o600);
+    if (action === "connect") { await writeFile(f.config, f.before); await rm(f.skill); }
+    const beforeConfig = await readFile(f.config, "utf8"), beforeReceipt = await readFile(receipt);
+    const plan = await runtime.prepare("codex", action); assert.equal(plan.status, "ready");
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let held = false, withdrawn = false;
+    const cancelled = new Error("the original account ended during the final receipt effect");
+    const realRename = filesystem.rename.bind(filesystem), realRemove = filesystem.rm.bind(filesystem);
+    t.mock.method(filesystem, "rename", async (source, target) => {
+      await realRename(source, target);
+      if (action === "connect" && String(target) === receipt && !held) {
+        held = true; entered.resolve(); await release.promise;
+      }
+    });
+    t.mock.method(filesystem, "rm", async (target, options) => {
+      await realRemove(target, options);
+      if (action === "remove" && String(target) === receipt && !held) {
+        held = true; entered.resolve(); await release.promise;
+      }
+    });
+    const pending = runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" }, () => { if (withdrawn) throw cancelled; });
+    const rejected = assert.rejects(pending, error => error === cancelled);
+    t.after(async () => { release.resolve(); await pending.catch(() => undefined); });
+    await entered.promise;
+    const effectReceipt = action === "connect" ? await readFile(receipt) : beforeReceipt;
+    let replacementIdentity: Awaited<ReturnType<typeof filesystem.lstat>> | undefined;
+    if (replacement) {
+      const temporary = receipt + ".user-replacement";
+      await writeFile(temporary, effectReceipt, { mode: 0o640 });
+      await realRename(temporary, receipt);
+      replacementIdentity = await filesystem.lstat(receipt);
+    }
+    withdrawn = true; release.resolve(); await rejected;
+    assert.equal(await readFile(f.config, "utf8"), beforeConfig, "only this confirmation's config effect is restored");
+    if (action === "connect") await assert.rejects(readlink(f.skill), { code: "ENOENT" });
+    else assert.equal(await readlink(f.skill), f.skillSource);
+    assert.deepEqual(await readFile(receipt), replacement ? effectReceipt : beforeReceipt);
+    const finalReceipt = await filesystem.lstat(receipt);
+    if (replacementIdentity) {
+      assert.equal(finalReceipt.ino, replacementIdentity.ino, "CAS rollback cannot replace a later writer's identical receipt");
+      assert.equal(finalReceipt.dev, replacementIdentity.dev); assert.equal(finalReceipt.mode, replacementIdentity.mode);
+    } else assert.equal(finalReceipt.mode & 0o777, 0o600, "rollback preserves the prior receipt's permissions");
+    assert.equal((await readdir(f.home)).includes("runtime-integration-attempts"), false, "a withdrawn confirmation records no new attempt");
   });
 }

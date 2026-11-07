@@ -201,6 +201,8 @@ FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）�
 
 **这条不变量把 U1 算进去。** U1 的升级过程会在宿主里用 `better-sqlite3` 开 `studio.sqlite`（U1 设计 §2.3）。别的业务库开着没有关系，§7 里宿主和 Alchemist 本来就并存。U1-d 的用例查：升级过程开 `studio.sqlite` 时，读版本用的通用连接已经关了。
 
+Home 插件库同理：U1-f 的段用 `openSqliteConnection` 开 Home 库（U1 设计 §2.4），而 `home-sqlite.ts` 平时用 `node:sqlite` 开同一个文件。SQLD-d 之前这是两份 SQLite 碰同一个文件。U1-f 的用例查：段开这个文件时，这个文件上 `node:sqlite` 的连接都已经关了。
+
 ## 5. 沙箱子进程
 
 `project-statement-sql-worker.ts` 在专属子进程的 Worker 里跑（S-59），用 `LocalSqliteStorage`，跟着切，不用单独改驱动。要核：

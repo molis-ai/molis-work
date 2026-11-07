@@ -734,6 +734,23 @@ test('ONB-LIM-09 staging of a round left for 30 days or already finished is remo
   assert.ok((await stat(stranger)).isDirectory(), 'a directory that is no round is not this cleanup\'s');
 });
 
+// A round whose staging went asks to choose again: neither a start nor an adoption goes on, and what the round recorded stays as it was.
+test('ONB-LIM-09 a round whose staging was removed refuses a start and keeps its record', async t => {
+  const dir = await home(t), id = randomUUID();
+  withContextJourneys(dir, s => { const j = s.create(id); j.staging_removed = true; s.save(j); });
+  const kept = withContextJourneys(dir, s => s.get(id));
+  assert.throws(() => startContextJourney(dir, id, pagesPorts(dir)), /重新选择/);
+  assert.deepEqual(withContextJourneys(dir, s => s.get(id)), kept, 'the refused start changed nothing');
+});
+
+test('ONB-LIM-09 a round whose staging was removed refuses an adoption and keeps its record', async t => {
+  const dir = await home(t), id = randomUUID();
+  withContextJourneys(dir, s => { const j = s.create(id); j.staging_removed = true; j.phase = 'review'; j.summary = { title: 'Kept', body: 'Fact.', references: [] }; s.save(j); });
+  const kept = withContextJourneys(dir, s => s.get(id));
+  await assert.rejects(adoptContextJourney(dir, id, { title: 'Unsafe adoption' }, pagesPorts(dir)), /重新选择/);
+  assert.deepEqual(withContextJourneys(dir, s => s.get(id)), kept, 'the refused adoption changed nothing');
+});
+
 // What a failed round keeps of the error is the first 600 whole characters of its message (a 🙂 is one character, though two UTF-16 units).
 const ROUND_CUTS = [
   { name: "the 600th character is a 🙂: kept whole", message: "x".repeat(599) + "🙂" + "tail", kept: "x".repeat(599) + "🙂" },

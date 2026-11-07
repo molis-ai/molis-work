@@ -47,13 +47,13 @@ export const CHANGE_SET: CodingChangeSet = {
   scope: "run-frozen", run_id: "run-1", applied: true, coverage: "text-reviews",
   origin: { session_id: "session-a", runtime_session_id: "runtime-1", workspace_id: "workspace-1", workspace_name: "demo" },
   files: [
-    { path: "src/a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "@@ -1 +1 @@\n-old\n+new",
+    { path: "src/a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
       review: { review_id: "review-1", before_text: "const a = 1;\n", after_text: "const a = 2; // `tick`\n", decision: "approved", execution: "applied" } },
-    { path: "src/b.md", kind: "added", added_lines: 2, removed_lines: 0, diff: "@@ -0,0 +1,2 @@\n+# B\n+```\n",
+    { path: "src/b.md", kind: "added", added_lines: 2, removed_lines: 0, diff: "",
       review: { review_id: "review-2", before_text: null, after_text: "# B\n```ts\nlet b;\n```\n", decision: "approved", execution: "applied" } },
-    { path: "src/c.ts", kind: "modified", added_lines: 1, removed_lines: 0, diff: "@@ @@",
+    { path: "src/c.ts", kind: "modified", added_lines: 1, removed_lines: 0, diff: "",
       review: { review_id: "review-3", before_text: "", after_text: "c", decision: "rejected", execution: "not-applied" } },
-    { path: "src/d.ts", kind: "modified", added_lines: 1, removed_lines: 0, diff: "@@ @@",
+    { path: "src/d.ts", kind: "modified", added_lines: 1, removed_lines: 0, diff: "",
       review: { review_id: "review-4", before_text: "d", after_text: "dd", decision: "approved", execution: "unknown" } },
   ],
 };

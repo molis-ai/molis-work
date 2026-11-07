@@ -15,7 +15,7 @@ export interface CodingResultDocument { reference: ArtifactReference; title: str
  */
 export const CODING_RESULT_DOCUMENT_ID = "coding.results.document";
 export const codingResultDocument: ActionDefinition<{ reference: ArtifactReference }, CodingResultDocument> = {
-  capability_id: CODING_RESULT_DOCUMENT_ID, version: 1, operation: "query",
+  capability_id: CODING_RESULT_DOCUMENT_ID, version: /* @version action.coding.results.document */ 1, operation: "query",
   action: {
     title: "读取 Coding 固定成果的正文", description: "把本项目一份固定的 Coding 成果转成可复制的 Markdown 正文；只读", kind: "query", scope: "project",
     audiences: ["plugin"], permissions: ["artifact:read"], subject_kinds: [],

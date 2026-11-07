@@ -83,16 +83,16 @@ function sdkArtifactActions(installId: string) {
   const providerId = `sdk.artifacts.${installId}`;
   const titles = { read: "读取插件成果", head: "读取插件成果线的最新版本", own: "读取插件自己固定的版本", publish: "发布插件成果", record: "记下插件过程项",
     "process-head": "读取插件过程项的最新版本", "process-own": "读取插件自己的过程项", list: "列出插件可消费的固定版本" };
-  const define = (operation: keyof typeof pluginArtifactContracts): ActionDefinition => {
+  const define = (operation: keyof typeof pluginArtifactContracts, version: number): ActionDefinition => {
     const read = operation !== "publish" && operation !== "record";
     const contract = pluginArtifactContracts[operation];
     const definition = createActionDefinition(`${providerId}.${operation}`, read ? "query" : "command", {
       title: titles[operation], description: "使用当前安装实例的类型合同和生产者身份访问成果",
       audiences: ["plugin"], permissions: [read ? "artifact:read" : "artifact:write"], subject_kinds: ["artifact"],
       input_schema: contract.input, output_schema: contract.output,
-    });
+    }, version);
     return { ...definition, provider_id: providerId };
   };
-  return { providerId, read: define("read"), head: define("head"), own: define("own"), publish: define("publish"), recordItem: define("record"),
-    processHead: define("process-head"), processOwn: define("process-own"), list: define("list") };
+  return { providerId, read: define("read", /* @version action-family.sdk.artifacts.read */ 1), head: define("head", /* @version action-family.sdk.artifacts.head */ 1), own: define("own", /* @version action-family.sdk.artifacts.own */ 1), publish: define("publish", /* @version action-family.sdk.artifacts.publish */ 1), recordItem: define("record", /* @version action-family.sdk.artifacts.record */ 1),
+    processHead: define("process-head", /* @version action-family.sdk.artifacts.process-head */ 1), processOwn: define("process-own", /* @version action-family.sdk.artifacts.process-own */ 1), list: define("list", /* @version action-family.sdk.artifacts.list */ 1) };
 }

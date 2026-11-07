@@ -10,7 +10,7 @@ const errors = defineErrorCodes("connector.setup", { unsupported: "unavailable",
 const id = { type: "string", pattern: "^[a-z0-9-]{1,100}$" };
 
 export const connectorSetupAction: ActionDefinition = {
-  capability_id: "connectors.setup.prepare", version: 1, operation: "command", action: {
+  capability_id: "connectors.setup.prepare", version: /* @version action.connectors.setup.prepare */ 1, operation: "command", action: {
     title: "准备服务接入", description: "根据明确选定的服务和已有方式准备接入，在同一授权记录中保存非敏感方案并给出受保护表单入口。先查看已有连接；候选只表示可能重复，不自动合并账号。凭据只能由本人在表单填写，禁止作为工具参数或聊天内容。准备完成不代表连接成功。",
     scope: "home", audiences: ["user", "agent", "mcp"], subject_kinds: ["connector"], kind: "operation", effect: "write", permissions: ["connectors:management:write"],
     input_schema: { type: "object", properties: {
@@ -21,7 +21,8 @@ export const connectorSetupAction: ActionDefinition = {
     output_schema: { type: "object", properties: { authorization_id: { type: "string", format: "uuid" }, status: { type: "string" },
       setup: { type: "object" }, url: { type: "string" }, possible_duplicates: { type: "array", items: { type: "object" } } },
       required: ["authorization_id", "status", "setup", "url", "possible_duplicates"], additionalProperties: false },
-    result_view: { summary: "接入方案已准备", title_pointer: "/setup/display_name", link: { label: "继续接入", href_template: "/capabilities/connections?setup={/authorization_id}" } },
+    result_view: { summary: "接入方案已准备", title_pointer: "/setup/display_name", link: { label: "继续接入", href_template: "/capabilities/connections?setup={/authorization_id}" },
+      pending_connection: { authorization_pointer: "/authorization_id" } },
   },
 };
 
@@ -51,7 +52,7 @@ async function selectedPlan(home: string, input: ConnectorSetupInput): Promise<C
 }
 
 export function connectorSetupHandler(home: string): ActionHandlerBinding {
-  return { capability_id: connectorSetupAction.capability_id, version: 1, handle: async (caller, input) => {
+  return { capability_id: connectorSetupAction.capability_id, version: connectorSetupAction.version, handle: async (caller, input) => {
     const plan = await selectedPlan(home, input as ConnectorSetupInput);
     await caller.beforeEffect();
     const request = prepareConnectorAuthorization(home, plan, { actor_id: caller.actor_id, project_id: caller.project_id,

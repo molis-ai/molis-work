@@ -101,11 +101,11 @@ export async function installBuildDependencies(options: BuildDependencyOptions):
   if (!requested || typeof requested !== 'object' || Array.isArray(requested)) throw new Error('dependencies must be an object');
   for (const [name, range] of Object.entries(requested)) validRequirement(name, range);
   const packageBytes = options.packageBytes ?? 16 * 1024 * 1024, totalBytes = options.totalBytes ?? 64 * 1024 * 1024, archiveBytes = options.archiveBytes ?? 8 * 1024 * 1024, maxPackages = options.maxPackages ?? 64;
-  const lock: BuildDependencyLock = { version: 1, registry: REGISTRY, requested: { ...requested }, packages: [] };
+  const lock: BuildDependencyLock = { version: /* @version format.plugin.build-lock */ 1, registry: REGISTRY, requested: { ...requested }, packages: [] };
   let previous: BuildDependencyLock | undefined;
   try {
     const candidate = JSON.parse((await readBuildFile(root, 'dependency-lock.json', 4 * 1024 * 1024)).toString()) as BuildDependencyLock;
-    if (candidate.version !== 1 || candidate.registry !== REGISTRY || !Array.isArray(candidate.packages)) throw new Error('Invalid dependency lock');
+    if (candidate.version !== /* @version format.plugin.build-lock */ 1 || candidate.registry !== REGISTRY || !Array.isArray(candidate.packages)) throw new Error('Invalid dependency lock');
     if (isDeepStrictEqual(candidate.requested, requested)) previous = candidate;
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   const stage = await mkdtemp(join(dirname(root), '.plugin-dependencies-'));

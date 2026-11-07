@@ -74,7 +74,7 @@ test("W1-05: places narrow where something is offered, for destinations and for 
   assert.deepEqual(titles(contextualCandidates(only(["side", "assistant"]), hand({ place: "side" })), "intake"), ["记成only"]);
   assert.deepEqual(titles(contextualCandidates(only(["main"]), hand({ place: undefined })), "intake"), ["记成only"], "no claim is the work area");
   const fragments = (places?: string[]) => [
-    view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], [
+    view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", 1, ["shelf_item"], "t", [], [
       { offer_id: "explain", title: "解释", intent: "understand", apply: "result", hint: "h", action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"], ...(places ? { places } : {}) } as FragmentOfferChoice]).action }, "query"),
     view(pages, "pages.ai"),
   ];
@@ -82,7 +82,7 @@ test("W1-05: places narrow where something is offered, for destinations and for 
   assert.deepEqual(titles(contextualCandidates(fragments(["main"]), hand({ place: "side" }))), []);
   assert.deepEqual(titles(contextualCandidates(fragments(["main"]), hand({ place: "main" }))), ["解释"]);
   const offers = (places?: string[]) => [
-    view(todo, "todo.offers", { ...defineSubjectOffersAction("todo.offers", ["todo_item"], "t", [], [{ offer_id: "done", title: "完成", action: { capability_id: "todo.finish", version: 1 }, ...(places ? { places } : {}) }]).action }, "query"),
+    view(todo, "todo.offers", { ...defineSubjectOffersAction("todo.offers", 1, ["todo_item"], "t", [], [{ offer_id: "done", title: "完成", action: { capability_id: "todo.finish", version: 1 }, ...(places ? { places } : {}) }]).action }, "query"),
     view(todo, "todo.finish", { subject_kinds: ["todo_item"] }),
   ];
   const object = (place?: SurfaceFocus["place"]) => hand({ granularity: "object", object: { kind: "todo_item", id: "t1" }, ...(place ? { place } : {}) });
@@ -99,7 +99,7 @@ test("W1-05: a disabled provider's destination is unavailable, and an irreversib
 test("W1-05: destinations only take recommended slots: never in more, and listed in the plan only when they hold one", () => {
   const many = Array.from({ length: 6 }, (_, index) => view(todo, `todo.make${index}`, { intake: intake(`d${index}`) }));
   const fragment = (id: string, intent: FragmentOfferChoice["intent"]): FragmentOfferChoice => ({ offer_id: id, title: id, intent, apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
-  const offers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], [fragment("a", "understand"), fragment("b", "question"), fragment("c", "expand"), fragment("d", "organize")]).action }, "query"), view(pages, "pages.ai")];
+  const offers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", 1, ["shelf_item"], "t", [], [fragment("a", "understand"), fragment("b", "question"), fragment("c", "expand"), fragment("d", "organize")]).action }, "query"), view(pages, "pages.ai")];
   const candidates = contextualCandidates([...offers, ...many], hand());
   const plan = planContextualLayout({ focus: hand(), candidates });
   assert.equal(plan.primary.length, 3);
@@ -113,7 +113,7 @@ test("W1-05: destinations only take recommended slots: never in more, and listed
   assert.equal(plan.emphasis, null);
   // A word is not a passage to put anywhere: with actions of its own, the rules give it no destination.
   const wordChoice = (id: string): FragmentOfferChoice => ({ ...fragment(id, "understand"), granularities: ["word"] });
-  const wordOffers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], [wordChoice("w1"), wordChoice("w2"), wordChoice("w3")]).action }, "query"), view(pages, "pages.ai")];
+  const wordOffers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", 1, ["shelf_item"], "t", [], [wordChoice("w1"), wordChoice("w2"), wordChoice("w3")]).action }, "query"), view(pages, "pages.ai")];
   const word = planContextualLayout({ focus: hand({ granularity: "word" }), candidates: contextualCandidates([...wordOffers, ...many], hand({ granularity: "word" })) });
   assert.equal(word.primary.length, 3);
   assert.equal(word.primary.some(key => word.candidates.find(item => item.key === key)?.origin === "intake"), false, "a word keeps its slots for its own actions");
@@ -126,7 +126,7 @@ test("W1-05: destinations only take recommended slots: never in more, and listed
 
 test("W4-1 §6.1: the rules pick their one destination by directory order alone, and a judgment leaves the rule out", () => {
   const fragment = (id: string): FragmentOfferChoice => ({ offer_id: id, title: id, intent: "understand", apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
-  const offers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], ["a", "b", "c", "d"].map(fragment)).action }, "query"), view(pages, "pages.ai")];
+  const offers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", 1, ["shelf_item"], "t", [], ["a", "b", "c", "d"].map(fragment)).action }, "query"), view(pages, "pages.ai")];
   const entries = Array.from({ length: 3 }, (_, index) => view(todo, `notes.make${index}`, { intake: intake(`n${index}`) }));
   const pick = (directory: readonly ActionView[]) => {
     const candidates = contextualCandidates(directory, hand()), plan = planContextualLayout({ focus: hand(), candidates });
@@ -145,7 +145,7 @@ test("W4-1 §6.1: the rules pick their one destination by directory order alone,
 /** W4-2 (context-program §21.10, decision D-1): an entry that always needs a card is for the judgment to name, never the rules' pick. */
 const ownFragments = (count: number) => {
   const fragment = (id: string): FragmentOfferChoice => ({ offer_id: id, title: id, intent: "understand", apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
-  return [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], ["a", "b", "c", "d"].slice(0, count).map(fragment)).action }, "query"), view(pages, "pages.ai")];
+  return [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", 1, ["shelf_item"], "t", [], ["a", "b", "c", "d"].slice(0, count).map(fragment)).action }, "query"), view(pages, "pages.ai")];
 };
 const proposing = view(todo, "goals.tree.submit", { intake: intake("breakdown", { effect: "proposes" }) });
 const batching = view(todo, "notes.extract", { intake: intake("extract", { multiple: true }) });
@@ -195,7 +195,7 @@ test("W4-2-02: when the directory holds only proposal-type and batch entries, th
 const spreadFragments = () => {
   const intents = ["understand", "question", "expand", "organize", "rewrite"] as const;
   const choice = (intent: FragmentOfferChoice["intent"]): FragmentOfferChoice => ({ offer_id: intent, title: intent, intent, apply: "result", hint: intent, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
-  return [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], intents.map(choice)).action }, "query"), view(pages, "pages.ai")];
+  return [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", 1, ["shelf_item"], "t", [], intents.map(choice)).action }, "query"), view(pages, "pages.ai")];
 };
 
 /** W4-2 (context-program §21.10, decision D-4): an entry that always needs a card and has no slot waits under 更多, with or without a judgment. */
@@ -312,14 +312,14 @@ test("W4-2-10: with rules only, the one destination pushed for a passage is anot
 test("W1-05: at most eight destinations go to the judgment; the actions on the thing keep the rest of the budget", () => {
   const many = Array.from({ length: 12 }, (_, index) => view(todo, `todo.make${index}`, { intake: intake(`d${index}`) }));
   const fragment = (id: string): FragmentOfferChoice => ({ offer_id: id, title: id, intent: "question", apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
-  const offers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], ["a", "b", "c"].map(fragment)).action }, "query"), view(pages, "pages.ai")];
+  const offers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", 1, ["shelf_item"], "t", [], ["a", "b", "c"].map(fragment)).action }, "query"), view(pages, "pages.ai")];
   const asked = judgedCandidates(contextualCandidates([...offers, ...many], hand()), hand());
   assert.equal(asked.filter(item => item.origin === "intake").length, MAX_JUDGED_DESTINATIONS);
   assert.equal(asked.filter(item => item.origin !== "intake").length, 3);
   assert.deepEqual(asked.filter(item => item.origin === "intake").map(item => item.offer_id), Array.from({ length: MAX_JUDGED_DESTINATIONS }, (_, index) => `d${index}`), "the first eight, in declared order");
 });
 
-const reader = (p: ActionView["provider"], kind: string, scope: "home" | "project") => view(p, `${p.title.toLowerCase()}.read`, { ...defineSubjectContextAction(`${p.title.toLowerCase()}.read`, kind, "读", [], scope).action }, "query");
+const reader = (p: ActionView["provider"], kind: string, scope: "home" | "project") => view(p, `${p.title.toLowerCase()}.read`, { ...defineSubjectContextAction(`${p.title.toLowerCase()}.read`, 1, kind, "读", [], scope).action }, "query");
 
 test("W1-05: a kind read at Home scope is a person's own space, found from the directory and not from a name", () => {
   const found = privateObjectKinds([reader(shelf, "shelf_item", "home"), reader(pages, "pages_document", "project"), reader(todo, "todo_item", "project")]);
@@ -339,7 +339,7 @@ test("W1-05 AC-P05: what is in a person's own space reaches the judgment as shap
 });
 
 test("W1-05 AC-P05: the service keeps a person's own space out of the model and out of recall, and says so in the receipt", async () => {
-  const dir = [reader(shelf, "shelf_item", "home"), view(shelf, "shelf.fragment.offers", { ...defineFragmentOffersAction("shelf.fragment.offers", ["shelf_item"], "t", [], [
+  const dir = [reader(shelf, "shelf_item", "home"), view(shelf, "shelf.fragment.offers", { ...defineFragmentOffersAction("shelf.fragment.offers", 1, ["shelf_item"], "t", [], [
     { offer_id: "explain", title: "解释", intent: "understand", apply: "result", hint: "h", action: { capability_id: "shelf.ai", version: 1 }, granularities: ["block"] }]).action }, "query"), view(shelf, "shelf.ai")];
   const states: string[] = []; let recalls = 0;
   const key = contextualCandidates(dir, hand())[0]!.key;

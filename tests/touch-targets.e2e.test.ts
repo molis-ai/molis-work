@@ -566,7 +566,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     await fetch(api + "/send", { method: "POST", headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json" },
       body: JSON.stringify({ text: "整理一下本周的待办", request_id: "touch-targets-1" }) });
     const { works } = await fetch(api + "/works").then(response => response.json());
-    localStorage.setItem("molis.assistant.current", works[0].work_id);
+    localStorage.setItem(${JSON.stringify(`molis.assistant.current:${projectId}`)}, works[0].work_id);
   })()`);
 
   /** The rows of the "+" menu, as a person who opens it sees them. */

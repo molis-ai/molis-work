@@ -33,10 +33,7 @@ import {
 } from "@molis-ai/molis-work-storage";
 
 const APP_ID = "molis-work";
-// v2 intentionally leaves the old opaque v1 ledger untouched. Some migrated
-// project databases contain v1 control state without the matching local
-// SecretStore key, which must not make public Feed sync permanently unusable.
-const KEY_NAMESPACE = "feed-intent-v2";
+const KEY_NAMESPACE = "feed-intent-v1";
 const TENANT_ID = "solo";
 const PRINCIPAL_REF = "molis-work:local";
 

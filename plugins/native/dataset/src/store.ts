@@ -59,14 +59,13 @@ export class DatasetStore {
   }
 
   list(projectId: string): DatasetRecord[] {
-    const project_id = normalizeProjectId(projectId);
-    return this.rows("SELECT * FROM datasets WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [project_id]).map(fromRow);
+    return this.rows("SELECT * FROM datasets WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [projectId]).map(fromRow);
   }
 
   get(id: string, projectId?: string): DatasetRecord {
     const row = this.rows("SELECT * FROM datasets WHERE id = ?", [id])[0];
     if (!row) throw datasetErrors.not_found("找不到这张表");
-    if (projectId && row.project_id !== normalizeProjectId(projectId)) {
+    if (projectId && row.project_id !== projectId) {
       throw datasetErrors.not_found("找不到这张表");
     }
     return fromRow(row);
@@ -76,7 +75,7 @@ export class DatasetStore {
     const now = new Date().toISOString();
     const record: DatasetRecord = {
       id: crypto.randomUUID(),
-      project_id: normalizeProjectId(input.project_id),
+      project_id: input.project_id,
       title: normalizeTitle(input.title ?? "未命名数据表"),
       description: "",
       status: "draft",
@@ -119,20 +118,19 @@ export class DatasetStore {
 
   /** Move to another partition; the id and saved versions go with it. Fixed versions already published stay with the old place. */
   relocate(id: string, from: string, to: string): DatasetRecord {
-    const target = normalizeProjectId(to);
     return this.atomically(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw datasetErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.run("UPDATE datasets SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [target, id, current.version]);
+      const result = this.db.run("UPDATE datasets SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [to, id, current.version]);
       if (result.changes !== 1) throw datasetErrors.conflict("数据表刚被修改，请重新读取后再移动");
-      return this.get(id, target);
+      return this.get(id, to);
     });
   }
 
   /** An independent copy of the current table (not its saved versions) in another partition; the same request returns the same copy. */
   duplicate(id: string, from: string, to: string, requestId: string): DatasetRecord {
-    return this.once(normalizeProjectId(to), "copy:" + requestId, () => {
+    return this.once(to, "copy:" + requestId, () => {
       const source = this.get(id, from);
       const created = this.create({ title: source.title, project_id: to });
       return this.update(created.id, { description: source.description, columns: source.columns, rows: source.rows, expected_version: created.version }, to);
@@ -141,7 +139,7 @@ export class DatasetStore {
 
   /** A table made from CSV another plugin hands over (a form's responses); one delivery makes one table. */
   receiveCsv(projectId: string, requestId: string, title: string, csv: string): DatasetRecord {
-    return this.once(normalizeProjectId(projectId), "receive:" + requestId, () => {
+    return this.once(projectId, "receive:" + requestId, () => {
       const parsed = parseCsv(csv);
       if (parsed.columns.length === 0) throw datasetErrors.invalid("收到的内容不是带表头的 CSV");
       const created = this.create({ title: [...title].slice(0, 80).join("") || "未命名数据表", project_id: projectId });
@@ -372,13 +370,6 @@ function fromRow(row: DatasetRowDb): DatasetRecord {
     artifact_version: Number(row.artifact_version) || 0,
     ...(pending ? { publication_pending: { version: pending.version, source_version: pending.source_version } } : {}),
   };
-}
-
-function normalizeProjectId(value: string): string {
-  const id = value.trim();
-  if (!id) throw datasetErrors.invalid("缺少项目");
-  if (id.length > 80) throw datasetErrors.invalid("项目标识过长");
-  return id;
 }
 
 function normalizeTitle(value: string): string {

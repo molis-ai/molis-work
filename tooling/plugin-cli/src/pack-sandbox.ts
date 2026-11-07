@@ -66,7 +66,7 @@ export async function packSandboxProject(directory: string, output: string, opti
     files.push({ path: name, content_base64: bytes.toString('base64') });
   }
   files.push({ path: SANDBOX_PACKAGE_FILES.manifest, content_base64: Buffer.from(JSON.stringify(manifest)).toString('base64') });
-  const bundle = parsePluginPackage({ payload: { schema_version: 1, manifest, files }, signature: null, publisher_key: null });
+  const bundle = parsePluginPackage({ payload: { schema_version: /* @version format.plugin.package */ 1, manifest, files }, signature: null, publisher_key: null });
   await writePluginPackageFile(output, bundle);
   return bundle;
 }

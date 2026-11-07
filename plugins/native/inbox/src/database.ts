@@ -19,7 +19,7 @@ export const INBOX_SCENE_BINDINGS_SCHEMA_SQL = `
  */
 export const INBOX_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "inbox",
-  version: 2,
+  version: /* @version database.inbox_project_database */ 1,
   schema: INBOX_SCENE_BINDINGS_SCHEMA_SQL,
   read_permission: "storage:private",
   write_permission: "storage:private",

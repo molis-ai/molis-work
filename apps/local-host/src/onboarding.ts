@@ -8,7 +8,7 @@ export const ONBOARDING_STATE_RELATIVE_PATH = path.join("config", "onboarding.js
 export type FirstRunJourneyState = "pending" | "completed" | "dismissed";
 
 export interface MolisWorkOnboardingState {
-  schema_version: 1;
+  schema_version: /* @version format.home.onboarding */ 1;
   first_run: FirstRunJourneyState;
   completed_project_id: string | null;
   last_presented_step: number;
@@ -27,7 +27,7 @@ export interface MolisWorkOnboardingStatus {
 }
 
 const DEFAULT_ONBOARDING_STATE: MolisWorkOnboardingState = Object.freeze({
-  schema_version: 1,
+  schema_version: /* @version format.home.onboarding */ 1,
   first_run: "pending",
   completed_project_id: null,
   last_presented_step: 0,
@@ -55,7 +55,7 @@ function normalizeState(value: unknown): MolisWorkOnboardingState {
   const record = value as Record<string, unknown>;
   const rawStep = Number(record.last_presented_step ?? 0);
   return {
-    schema_version: 1,
+    schema_version: /* @version format.home.onboarding */ 1,
     first_run: validFirstRun(record.first_run),
     completed_project_id: optionalString(record.completed_project_id),
     last_presented_step: Number.isInteger(rawStep) && rawStep >= 0 && rawStep <= 8 ? rawStep : 0,

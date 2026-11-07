@@ -20,10 +20,10 @@ const SEPARATOR = "；";
 const TYPE_ID = "example.note";
 const KEY = `${TYPE_ID}@1`;
 
-const preview = defineArtifactPreviewAction(`${ID}.preview`, "笔记", []);
-const pin = defineArtifactPinAction(`${ID}.pin`, "note", "笔记", []);
-const compare = defineArtifactCompareAction(`${ID}.compare`, "笔记", []);
-const resume = defineArtifactContinueAction(`${ID}.continue`, "笔记", []);
+const preview = defineArtifactPreviewAction(`${ID}.preview`, 1, "笔记", []);
+const pin = defineArtifactPinAction(`${ID}.pin`, 1, "note", "笔记", []);
+const compare = defineArtifactCompareAction(`${ID}.compare`, 1, "笔记", []);
+const resume = defineArtifactContinueAction(`${ID}.continue`, 1, "笔记", []);
 const reference = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
 const ref = (action: { capability_id: string; version: number }) => `${action.capability_id}@${action.version}`;
 /** A copy of an action definition with fields of its `action` replaced. */

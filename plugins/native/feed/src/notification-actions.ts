@@ -12,7 +12,7 @@ import type { FeedApplication } from "./application.js";
 const text = (maxLength: number) => ({ type: "string", maxLength });
 
 export const feedNotificationActions = {
-  receive: { capability_id: "feed.notifications.receive", version: 1, operation: "command", action: {
+  receive: { capability_id: "feed.notifications.receive", version: /* @version action.feed.notifications.receive */ 1, operation: "command", action: {
     title: "接收平台通知", description: "把插件发给平台的通知收进 Feed 的「插件发送的通知」来源，并按当前规则判断；判断失败时消息照样留下，回执只带失败的码；只由平台的通知服务调用",
     kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["workflow"], permissions: ["feed:read", "feed:write", "inbox:write"], subject_kinds: [],
     // The capture rules and the Inbox's next-step judgment of what it keeps may ask a model.

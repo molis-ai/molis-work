@@ -6,7 +6,7 @@ import { readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, de
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
-  version: 4,
+  version: /* @version database.home_plugin_runtime_baseline */ 1,
   schema: PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL + PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL + PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL + PLUGIN_TRUST_SCHEMA_SQL,
 };
 
@@ -15,9 +15,19 @@ const homeStoreRefusal = Symbol("Home plugin store refusal");
 const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, { [homeStoreRefusal]: true });
 export const isHomePluginStoreRefusal = (error: unknown): error is ActionError | SqliteSchemaVersionError =>
   error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
-const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v4 基线不一致，请保留故障库并检查其来源"));
-// The shape the baseline describes never changes: built once (it runs the whole baseline in a scratch database). The store's own shape is read every time.
-const expectedHomeStoreShape = (db: Parameters<typeof readDatabaseSpace>[0]) => JSON.stringify(describeSqliteBaseline({ ...HOME_PLUGIN_RUNTIME_BASELINE, schema: (readDatabaseSpace(db) ? STORAGE_SPACE_SCHEMA_SQL : "") + HOME_PLUGIN_RUNTIME_BASELINE.schema }));
+const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源"));
+// Only the two immutable reference shapes are cached. Space metadata and the store's actual structure are read on every open.
+const expectedHomeStoreShapes = new Map<boolean, string>();
+function expectedHomeStoreShape(db: Parameters<typeof readDatabaseSpace>[0]): string {
+  const bound = Boolean(readDatabaseSpace(db));
+  let shape = expectedHomeStoreShapes.get(bound);
+  if (shape === undefined) {
+    shape = JSON.stringify(describeSqliteBaseline({ ...HOME_PLUGIN_RUNTIME_BASELINE,
+      schema: (bound ? STORAGE_SPACE_SCHEMA_SQL : "") + HOME_PLUGIN_RUNTIME_BASELINE.schema }));
+    expectedHomeStoreShapes.set(bound, shape);
+  }
+  return shape;
+}
 
 function openWritableHomePluginDatabase(home: string) {
   try { return openBaselineHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE); }

@@ -41,7 +41,7 @@ export interface PlacementHost {
  * reaches plugins only through the shared directory. Nothing about any plugin is known here.
  */
 /** The placement store's one current schema (repository-anti-corruption §4.1): the context ledger's tables and the titles last seen. */
-export const PLACEMENT_BASELINE: SqliteBaseline = { version: 1, schema: `${CONTEXT_LEDGER_SCHEMA}
+export const PLACEMENT_BASELINE: SqliteBaseline = { version: /* @version database.placement_baseline */ 1, schema: `${CONTEXT_LEDGER_SCHEMA}
   CREATE TABLE placement_titles (kind TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, seen_at TEXT NOT NULL, PRIMARY KEY (kind, id));
 ` };
 

@@ -46,10 +46,8 @@
 //                       counts like code. Not seen, so a return would not be caught (a known limit, not a decision): the kebab
 //                       spelling `board-id` (the CLI flag before #287) and every file that is not one of the sources above
 //                       (JSON examples, shell and Rust files). Closing it needs a rule per file type, not a regex.
-//                       What the baseline keeps today (tooling/gates/baseline.json, oldNames): the key-derivation
-//                       salt `goalboard-feed-secretstore-v1` in packages/storage/src/adapters/file-secret-store.ts (its code
-//                       comment: changing the string would invalidate existing ciphertext). The two unused `_boardId` names that
-//                       plugins/native/goals/src once had are gone (W5-14). That count stays in the baseline like any other; it can only fall.
+//                       What the baseline keeps today (tooling/gates/baseline.json, oldNames): nothing. The count is 0 and can
+//                       only stay there.
 import ts from "typescript";
 import { browserFetchScan, browserFetchProblems } from "./browser-fetch.mjs";
 

@@ -2,7 +2,7 @@ import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord, FormSubmissionRecord } from "./contract.js";
 
 /** What an exported fill page writes and `form.answers.import` reads back. */
-export const FORM_ANSWER_FORMAT = "molis.form.answer.v1";
+export const FORM_ANSWER_FORMAT = /* @version type.molis.form.answer "molis.form.answer.v{version}" */ "molis.form.answer.v1";
 export const FORM_ANSWER_LIMIT = 4000;
 
 /** JSON that can sit inside a <script> element without ending it. */

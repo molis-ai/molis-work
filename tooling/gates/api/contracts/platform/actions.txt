@@ -613,6 +613,9 @@ export interface ActionResultPresentation {
         readonly label: string;
         readonly href: string;
     };
+    readonly pending_connection?: {
+        readonly authorization_id: string;
+    };
 }
 
 export interface ActionResultView {
@@ -622,6 +625,9 @@ export interface ActionResultView {
     readonly link?: {
         readonly label: string;
         readonly href_template: string;
+    };
+    readonly pending_connection?: {
+        readonly authorization_pointer: string;
     };
 }
 
@@ -2967,7 +2973,7 @@ export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "se
 
 export interface WorkExecutorActionOptions {
     readonly capability_id: string;
-    readonly version?: number;
+    readonly version: number;
     readonly title: string;
     readonly description: string;
     readonly permissions: readonly string[];
@@ -3225,47 +3231,47 @@ export declare function bindSearchEntriesHandler(definition: ActionDefinition<Se
 
 export declare function bindWorkflowContentHandlers(definitions: WorkflowContentActions | WorkflowSourceContentActions, handlers: WorkflowContentHandlers): ActionHandlerBinding[];
 
-export declare function defineActionUsagesAction(capabilityId: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<ActionUsagesInput, {
+export declare function defineActionUsagesAction(capabilityId: string, version: number, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<ActionUsagesInput, {
     usages: ActionUsage[];
 }>;
 
-export declare function defineArtifactCompareAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>;
+export declare function defineArtifactCompareAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>;
 
-export declare function defineArtifactContinueAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>;
+export declare function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>;
 
-export declare function defineArtifactLinkSubjectsAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult>;
+export declare function defineArtifactLinkSubjectsAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult>;
 
-export declare function defineArtifactPinAction(capabilityId: string, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult>;
+export declare function defineArtifactPinAction(capabilityId: string, version: number, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult>;
 
-export declare function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent>;
+export declare function defineArtifactPreviewAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent>;
 
-export declare function defineArtifactReferrersAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult>;
+export declare function defineArtifactReferrersAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult>;
 
-export declare function defineDueRemindersAction(capabilityId: string, kinds: string[], title: string, permissions: string[]): ActionDefinition<DueReminderWindow, DueReminderCollection>;
+export declare function defineDueRemindersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<DueReminderWindow, DueReminderCollection>;
 
 export declare function defineErrorCodes<const Reasons extends Readonly<Record<string, ActionErrorKind>>>(prefix: string, reasons: Reasons): ErrorCodeRaisers<Reasons>;
 
-export declare function defineFileContentAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<FileContentInput, FileContent>;
+export declare function defineFileContentAction(capabilityId: string, version: number, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<FileContentInput, FileContent>;
 
-export declare function defineFileEntriesAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<FileEntriesInput, FileEntriesPage>;
+export declare function defineFileEntriesAction(capabilityId: string, version: number, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<FileEntriesInput, FileEntriesPage>;
 
-export declare function defineFragmentOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], choices: readonly FragmentOfferChoice[], scope?: "project" | "home"): ActionDefinition<FragmentOffersInput, {
+export declare function defineFragmentOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[], choices: readonly FragmentOfferChoice[], scope?: "project" | "home"): ActionDefinition<FragmentOffersInput, {
     offers: FragmentActionOffer[];
 }>;
 
-export declare function defineHomeBackgroundTasksAction(capabilityId: string, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection>;
+export declare function defineHomeBackgroundTasksAction(capabilityId: string, version: number, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection>;
 
-export declare function defineHomeEventsAction(capabilityId: string, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection>;
+export declare function defineHomeEventsAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection>;
 
-export declare function defineObjectCopyAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
+export declare function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
 
-export declare function defineObjectMoveAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
+export declare function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
 
-export declare function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<SearchEntriesInput, SearchEntriesPage>;
+export declare function defineSearchEntriesAction(capabilityId: string, version: number, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<SearchEntriesInput, SearchEntriesPage>;
 
-export declare function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<SubjectContextRequest, ActionSubjectContext>;
+export declare function defineSubjectContextAction(capabilityId: string, version: number, kind: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<SubjectContextRequest, ActionSubjectContext>;
 
-export declare function defineSubjectOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
+export declare function defineSubjectOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
     offers: SubjectActionOffer[];
 }>;
 

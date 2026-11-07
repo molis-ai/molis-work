@@ -23,7 +23,7 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
   const destinations = scenes.map(({ definition, provider, availability }) => {
     const properties = definition.result_schema.properties as Record<string, { items?: { enum?: unknown } }> | undefined;
     const values = properties?.suggested_behavior_ids?.items?.enum;
-    const supported = definition.result_type === "molis.behavior-recommendation.v1"
+    const supported = definition.result_type === /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1"
       && (definition.recommendation_source === "subject-offers" || Array.isArray(values) && values.every(value => typeof value === "string"));
     const available = !supported ? { available: false as const, code: "actions.scene_incompatible", reason: "此场景需要不同的结果合同，当前规则编辑器不能直接映射" } : availability;
     const offered = definition.recommendation_source === "subject-offers"

@@ -2,7 +2,7 @@ import type { GoalPolicy } from "./contract/goals.js";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mergeGoalPolicyFormValues, type GoalsPolicyBinding, type GoalsPolicyItem, type GoalsPolicyUiPrimitives } from "./policy-ui-model.js";
 
-export const GOALS_POLICY_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.policy.v1";
+export const GOALS_POLICY_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.policy "io.molis.work.native.goals.policy.v{version}" */ "io.molis.work.native.goals.policy.v1";
 
 function createPolicyRenderer(primitives: GoalsPolicyUiPrimitives) {
   const { translate: L, escapeHtml, formatDate, icon, defaultPolicy: DEFAULT_GOAL_POLICY } = primitives;

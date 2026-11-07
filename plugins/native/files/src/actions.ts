@@ -9,8 +9,8 @@ import type { ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modul
 import { parseReadingPosition, serializeReadingPosition, READING_POSITION_KEY, type ReadingPosition } from "./position.js";
 import { filesErrors } from "./errors.js";
 
-const define = <Input, Output>(capability_id: string, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => createActionDefinition<Input, Output>(capability_id, "command", { title, description,
-    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema });
+const define = <Input, Output>(capability_id: string, version: number, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => createActionDefinition<Input, Output>(capability_id, "command", { title, description,
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema }, version);
 /**
  * An action that cannot work without reading the linked folder says so: it needs the one workspace read action, and the
  * callers of the action hold `workspace:read` for it (a declaration never grants what the dependency needs).
@@ -23,16 +23,16 @@ interface FileRead { workspace: FileWorkspace; result: WorkspaceFileResult }
 export interface FileInput { workspace_id: string; path: readonly string[] }
 export interface FileCaptureInput extends FileInput { port: "before" | "after" | "selection"; fingerprint: string; start?: number; end?: number }
 export const filesActions = {
-  state: define<Record<string, never>, { workspace: FileWorkspace; position: ReadingPosition | null }>("files.state", "同步文件浏览状态", "读取当前浏览目录和阅读位置；切换目录时使旧快照输出失效", object({}), object({ workspace, position: nullable(object({ workspace_id: id, path })) })),
-  directory: readingFolder(define<FileInput, FileRead>("files.directory", "浏览目录", "列出当前授权目录下的内容；工作区切换时同步失效原输出", object({ workspace_id: id, path: rootPath }), object({ workspace, result: fileResult }))),
-  open: readingFolder(define<FileInput, FileRead & { path: readonly string[] }>("files.open", "打开文件", "有界读取当前工作区的文本，保存阅读位置并更新文件集合输出", object({ workspace_id: id, path }), object({ workspace, result: fileResult, path }))),
-  capture: readingFolder(define<FileCaptureInput, { saved: ArtifactVersionResult; port: "before" | "after" | "selection"; snapshot: FileSnapshot }>("files.capture", "固定文件快照", "重新读取并核对已查看的指纹，保存固定全文或选区；不改写原文件", object({ workspace_id: id, path, port: { enum: ["before", "after", "selection"] }, fingerprint: id, start: integer, end: integer }, ["workspace_id", "path", "port", "fingerprint"]), object({ saved: publication, port: { enum: ["before", "after", "selection"] }, snapshot }))),
+  state: define<Record<string, never>, { workspace: FileWorkspace; position: ReadingPosition | null }>("files.state", /* @version action.files.state */ 1, "同步文件浏览状态", "读取当前浏览目录和阅读位置；切换目录时使旧快照输出失效", object({}), object({ workspace, position: nullable(object({ workspace_id: id, path })) })),
+  directory: readingFolder(define<FileInput, FileRead>("files.directory", /* @version action.files.directory */ 1, "浏览目录", "列出当前授权目录下的内容；工作区切换时同步失效原输出", object({ workspace_id: id, path: rootPath }), object({ workspace, result: fileResult }))),
+  open: readingFolder(define<FileInput, FileRead & { path: readonly string[] }>("files.open", /* @version action.files.open */ 1, "打开文件", "有界读取当前工作区的文本，保存阅读位置并更新文件集合输出", object({ workspace_id: id, path }), object({ workspace, result: fileResult, path }))),
+  capture: readingFolder(define<FileCaptureInput, { saved: ArtifactVersionResult; port: "before" | "after" | "selection"; snapshot: FileSnapshot }>("files.capture", /* @version action.files.capture */ 1, "固定文件快照", "重新读取并核对已查看的指纹，保存固定全文或选区；不改写原文件", object({ workspace_id: id, path, port: { enum: ["before", "after", "selection"] }, fingerprint: id, start: integer, end: integer }, ["workspace_id", "path", "port", "fingerprint"]), object({ saved: publication, port: { enum: ["before", "after", "selection"] }, snapshot }))),
 };
 /** Workspace files in the side panel (specs/archive/side-panel): listed through the same browsing grant, previewed as text. */
 const workspaceFileKinds: FileSourceKind[] = [{ kind: WORKSPACE_FILE_SUBJECT_KIND, title: "工作区文件", surface: "files" }];
 const filesSideActions = {
-  entries: readingFolder(defineFileEntriesAction("files.side.entries", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
-  content: readingFolder(defineFileContentAction("files.side.content", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
+  entries: readingFolder(defineFileEntriesAction("files.side.entries", /* @version action.files.side.entries */ 1, workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
+  content: readingFolder(defineFileContentAction("files.side.content", /* @version action.files.side.content */ 1, workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
 };
 export const FILES_ACTIONS = [...Object.values(filesActions), ...Object.values(filesSideActions)];
 /** A tree walk stops here: the side panel lists what a person browses, not a whole dependency cache. */

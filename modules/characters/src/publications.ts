@@ -24,7 +24,7 @@ export function ownedPublications(scope: CharacterPublicationScope): ArtifactVer
     const record = scope.read(ref);
     if (!record || !("origin" in record) || record.project_id !== scope.projectId || record.owner_actor_id !== scope.actorId
       || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE
-      || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== 1) return [];
+      || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== /* @version type.character.definition */ 1) return [];
     const content = parseCharacterContent(record.payload);
     if (content.source.owner_actor_id !== scope.actorId || record.artifact_id !== characterArtifactId(scope.projectId, content.character_id)) throw characterErrors.invalid("角色发布的来源或身份不一致");
     return [record];
@@ -79,7 +79,7 @@ export function pinCharacter(scope: CharacterPublicationScope, artifacts: Pick<P
     && JSON.stringify(parseCharacterContent(record.payload)) === JSON.stringify(content));
   if (same) return { artifact: same, replayed: true };
   const previous = existing[0];
-  return artifacts.publish({ artifact_id, version: (previous?.version ?? 0) + 1, artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
+  return artifacts.publish({ artifact_id, version: (previous?.version ?? 0) + 1, artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: /* @version type.character.definition */ 1,
     content: { kind: "inline", payload: JSON.parse(JSON.stringify(content)) }, ...characterOrigin(content),
     ...(previous ? { supersedes_version: previous.version } : {}),
   });

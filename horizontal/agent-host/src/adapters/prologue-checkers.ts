@@ -13,8 +13,8 @@ import { ownedConditionChecks, type OwnedConditionChecker } from "./prologue-own
  * that registered the wait: its own check (its plugin instance, its Character), its actions through the action service,
  * its directory. What the round could not do now is refused, and the SDK stops looking and holds the step for a person.
  */
-export const ACTION_QUERY_CHECKER = { id: "molis.action-query", version: "1" } as const;
-const FILE_PRESENT_CHECKER = { id: "molis.file-present", version: "1" } as const;
+export const ACTION_QUERY_CHECKER = { id: "molis.action-query", version: /* @version checker.molis.action-query "{version}" */ "1" } as const;
+const FILE_PRESENT_CHECKER = { id: "molis.file-present", version: /* @version checker.molis.file-present "{version}" */ "1" } as const;
 
 const REFUSED = agentErrors.collaboration_check_refused("").code;
 const NOT_READ = agentErrors.collaboration_check_not_read("").code;
@@ -289,7 +289,8 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
   const checkers: ConditionCheckers = {
     list: () => [ACTION_QUERY_CHECKER, FILE_PRESENT_CHECKER, ...[...owned.entries.values()].map(({ id, version }) => ({ id, version }))],
     describe(id, version) {
-      const problem = version === "1" ? problems.get(id) : undefined;
+      const expectedVersion = owned.entries.get(id)?.version ?? [ACTION_QUERY_CHECKER, FILE_PRESENT_CHECKER].find(checker => checker.id === id)?.version;
+      const problem = version === expectedVersion ? problems.get(id) : undefined;
       return problem && { readOnly: true, params: owned.entries.get(id)?.params ?? PARAMS.get(id), checkParams: params => problem(params as unknown) };
     },
     async check(request, signal) {

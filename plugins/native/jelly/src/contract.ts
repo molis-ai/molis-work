@@ -25,7 +25,7 @@ export interface JellyNote {
 export interface JellyRelation { owner_id: string; original_date: string | null; note_id: string; role: "primary" | "reference" }
 export interface JellyTaskLink { item_id: string; note_id: string; block_id: string }
 export interface JellyWorkspace {
-  schema_version: 1; revision: number; categories: JellyCategory[];
+  schema_version: /* @version format.jelly.workspace */ 1; revision: number; categories: JellyCategory[];
   items: JellyItem[]; series: JellySeries[]; notes: JellyNote[];
   relations: JellyRelation[]; relation_overrides?: { owner_id: string; original_date: string; primary: "inherit" | "clear" | string; added_reference_ids: string[]; removed_reference_ids: string[] }[]; task_links: JellyTaskLink[]; applied_plan_ids: string[];
   imported_sources?: { sha256: string; schema_version: number; source: unknown; imported_at: string }[];

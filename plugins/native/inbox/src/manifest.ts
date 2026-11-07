@@ -31,10 +31,10 @@ const PLATFORM_PERMISSIONS = [
  * Runtime (`createInboxPlugin`, one instance per project).
  */
 export const inboxManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: INBOX_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "Inbox",
   summary: "只看需要你介入的事项。",
   kind: "native",
@@ -59,7 +59,7 @@ export const inboxManifest: PluginManifest = {
   databases: { project: INBOX_PROJECT_DATABASE },
   capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content", INBOX_STAGE_GOAL_READ.capability_id] },
   artifacts: { produces: [], consumes: [] },
-  sync:{protocol_version:1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:2,requires:[],sections:attentionSections}]},
+  sync:{protocol_version:/* @version sync.protocol */ 1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:/* @version sync.collection.inbox.attention */ 1,requires:[],sections:attentionSections}]},
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [

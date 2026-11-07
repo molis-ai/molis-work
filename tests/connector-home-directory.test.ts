@@ -88,11 +88,11 @@ test("RAC-2469 none of the readers keeps the built-in list or reads the built-in
 test("RAC-2470 the connections page offers a package's service while it is attached", async t => {
   const home = await openTestHome(t);
   const page = async () => { const response = await fetch(`${home.origin}/capabilities/connections`); assert.equal(response.status, 200); return response.text(); };
-  assert.doesNotMatch(await page(), new RegExp(`data-connector-open="${SERVICE}"`, "u"));
+  assert.doesNotMatch(await page(), new RegExp(`data-connector-item="${SERVICE}"`, "u"));
   await attach(home);
-  assert.match(await page(), new RegExp(`data-connector-open="${SERVICE}"`, "u"));
+  assert.match(await page(), new RegExp(`data-connector-item="${SERVICE}"`, "u"));
   await detach(home);
-  assert.doesNotMatch(await page(), new RegExp(`data-connector-open="${SERVICE}"`, "u"));
+  assert.doesNotMatch(await page(), new RegExp(`data-connector-item="${SERVICE}"`, "u"));
 });
 
 // RAC-2471 to RAC-2475 (BL-740, T-119 fix): a package author chooses the service id, and a package can go while the person's connection stays.
@@ -103,19 +103,19 @@ const connectionsPage = async (home: TestHome) => {
 };
 const connect = async (home: TestHome) => (await home.web.post<{ connection: { connection_id: string } }>("/api/settings/connectors/connections",
   { service_id: SERVICE, display_name: "Probe account", token: probeToken(3) })).connection.connection_id;
-/** The "my connections" row of one connection: from its first appearance to the next row, or to the end of the section that lists them. */
+/** A connection whose service is no longer declared is a row of its own: from it to the next row, or to the end of the page. */
 const listedRow = (page: string, connectionId: string) => {
-  const from = page.indexOf(`data-connection-row="${connectionId}"`);
+  const from = page.indexOf(`data-connector-orphan="${connectionId}"`);
   assert.ok(from >= 0, "the connection is listed");
-  const ends = [page.indexOf('data-connection-row="', from + 1), page.indexOf("</section>", from)].filter(index => index >= 0);
-  return page.slice(from, Math.min(...ends));
+  const next = page.indexOf('data-connection-item', from + 1);
+  return page.slice(from, next >= 0 ? next : undefined);
 };
 
 test("RAC-2471 a package whose service id is an Object.prototype member still gets its card and a placeholder mark, and the connections page renders", async t => {
   const home = await openTestHome(t);
   assert.equal(await attach(home, "constructor"), true);
   const page = await connectionsPage(home);
-  assert.match(page, /data-connector-open="constructor"/u);
+  assert.match(page, /data-connector-item="constructor"/u);
   assert.match(page, /Example feed fixture/u, "the card says what the package declared");
   assert.doesNotMatch(page, /native code/u, "nothing inherited from Object.prototype is shown as the card's text");
   assert.match(page, /settings-connector-mark--fallback" data-connector-mark="constructor"[^>]*>CO</u, "its mark is the two-letter placeholder");
@@ -126,7 +126,7 @@ test("RAC-2472 that page still offers the built-in services next to it", async t
   const home = await openTestHome(t);
   await attach(home, "constructor");
   const page = await connectionsPage(home);
-  for (const id of ["gmail", "github"]) assert.match(page, new RegExp(`data-connector-open="${id}"`, "u"), id);
+  for (const id of ["gmail", "github"]) assert.match(page, new RegExp(`data-connector-item="${id}"`, "u"), id);
 });
 
 test("RAC-2473 a connection whose package was removed can still be removed from the page, and the removal works", async t => {
@@ -156,19 +156,19 @@ test("RAC-2474 that row lets the person replace the token, points to no detail p
   await detach(home);
   const page = await connectionsPage(home);
   assert.match(listedRow(page, connectionId), new RegExp(`data-connection-replace="${connectionId}"`, "u"));
-  assert.doesNotMatch(page, new RegExp(`data-connector-open="${SERVICE}"`, "u"), "nothing opens the service's panel");
+  assert.doesNotMatch(page, new RegExp(`data-connector-item="${SERVICE}"`, "u"), "nothing opens the service's panel");
   const oauthRow = listedRow(page, oauthId);
   assert.match(oauthRow, /data-connection-manage="remove"/u, "an authorized connection can still be removed");
   assert.doesNotMatch(oauthRow, /data-connection-reauthorize/u, "but there is no authorization to start for a service that is no longer declared");
 });
 
-test("RAC-2475 while the package is attached the listed row is unchanged: it opens the service panel, whose row carries the controls", async t => {
+test("RAC-2475 while the package is attached the account is listed under its service's row, which carries the controls", async t => {
   const home = await openTestHome(t);
   await attach(home);
   const connectionId = await connect(home);
   const page = await connectionsPage(home);
-  const row = listedRow(page, connectionId);
-  assert.match(row, new RegExp(`data-connector-open="${SERVICE}"`, "u"));
-  assert.doesNotMatch(row, /data-connection-manage/u);
-  assert.equal(page.match(/data-connection-manage="remove"/gu)?.length, 1, "the remove control is in the service panel only");
+  assert.doesNotMatch(page, new RegExp(`data-connector-orphan="${connectionId}"`, "u"), "it is not listed as a service no longer declared");
+  const service = page.indexOf(`data-connector-item="${SERVICE}"`), account = page.indexOf(`data-connection-row="${connectionId}"`);
+  assert.ok(service >= 0 && account > service && !page.slice(service + 1, account).includes("data-connector-item="), "the account is in its service's row");
+  assert.equal(page.match(/data-connection-manage="remove"/gu)?.length, 1, "the remove control is in the service's 高级 only");
 });

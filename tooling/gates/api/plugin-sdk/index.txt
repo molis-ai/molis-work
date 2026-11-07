@@ -442,6 +442,8 @@ export type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform
 export type { SyncTrackedTable } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiConnectionNeedOutcome } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -539,13 +541,15 @@ export declare function checkedSourcePresentation(value: unknown): SourcePresent
 
 export declare function checkedSourcePresentationInput(value: unknown): SourcePresentationInput;
 
+export declare function compareCodeUnits(left: string, right: string): number;
+
 export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function compareTexts(before: string, after: string): TextDiff;
 
 export declare function controlledConnectorFetch<Input>(fetchImpl: (input: Input, init?: RequestInit) => Promise<Response>, control: ConnectorCallControl): (this: unknown, input: Input, init?: RequestInit) => Promise<Response>;
 
-export declare function createActionDefinition<Input = unknown, Output = unknown>(capability_id: string, operation: ActionDefinition["operation"], metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>, version?: number): ActionDefinition<Input, Output>;
+export declare function createActionDefinition<Input = unknown, Output = unknown>(capability_id: string, operation: ActionDefinition["operation"], metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>, version: number): ActionDefinition<Input, Output>;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 

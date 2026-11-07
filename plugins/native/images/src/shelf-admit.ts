@@ -9,7 +9,7 @@ export const SHELF_ADMIT_ID = "shelf.items.admit";
  * schemas and permissions, and the permissions below are the ones Images asks its user to grant for the save.
  */
 export const shelfAdmit: ActionDefinition<{ filename: string; mime: string; bytes_base64: string }, { item: { item_id: string; name: string } }> = {
-  capability_id: SHELF_ADMIT_ID, version: 1, operation: "command",
+  capability_id: SHELF_ADMIT_ID, version: /* @version action.shelf.items.admit */ 1, operation: "command",
   action: {
     title: "放进 Shelf", description: "把一个文件副本放进置物架", kind: "operation", scope: "home", scheduling: "concurrent",
     audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read"], subject_kinds: ["shelf_item"],

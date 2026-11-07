@@ -114,7 +114,7 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
     const outcome = store.pluginDatabases.get(GOALS_PLUGIN_ID);
     assert.ok(outcome && "record" in outcome, "Goals' tables were opened, not refused");
     assert.equal(outcome.record.store_name, "goals");
-    assert.equal(outcome.record.version, 2);
+    assert.equal(outcome.record.version, 1);
   } finally { store.close(); }
   const open = await directory(home, projectId, databasePath);
   assert.deepEqual([...open.plugins].sort(), [GOALS_PLUGIN_ID, ...OTHERS].sort());
@@ -124,7 +124,7 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
 });
 
 const cases = [
-  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 1 WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
+  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
   { change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.publisher_mismatch" },
   { change: "one of its tables gained a column", sql: "ALTER TABLE goals ADD COLUMN added_by_hand TEXT", code: "plugin.project_database.shape_mismatch" },
   { change: "its board has the name column version 7 gave it", sql: "ALTER TABLE boards ADD COLUMN title TEXT", code: "plugin.project_database.shape_mismatch" },
@@ -165,7 +165,7 @@ for(const personal of [false,true]) for (const { change, sql, code } of cases) {
 
 test("PLIB-14: only the platform's own refusal stops one plugin; a temporary SQLite error surfaces instead of being recorded as a refusal", () => {
   const db: PluginRuntimeDatabase = { exec: () => undefined, prepare: () => ({ get: () => undefined, all: () => [], run: () => undefined }) };
-  const record: PluginProjectDatabaseRecord = { plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature, store_name: "goals", version: 2, objects: [], created_at: "2026-10-23T00:00:00.000Z" };
+  const record: PluginProjectDatabaseRecord = { plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature, store_name: "goals", version: 1, objects: [], created_at: "2026-10-23T00:00:00.000Z" };
   const refused = openProjectPluginDatabases(db, "/tmp/probe.db", [goalsManifest], () => { throw new ActionError("plugin.project_database.version_mismatch", "another version"); });
   const refusal = refused.get(GOALS_PLUGIN_ID);
   assert.ok(refusal && "error" in refusal, "the declaration's own refusal is recorded against that plugin only");

@@ -2,7 +2,7 @@ import { ActionError, type ActionCallContext, type ActionReference } from "@moli
 import type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** The Inbox's own action that judges the next step of entries: the Inbox's, not Feed's. */
-export const INBOX_JUDGMENT_EVALUATE = { capability_id: "inbox.judgment.evaluate", version: 1 } as const satisfies ActionReference;
+export const INBOX_JUDGMENT_EVALUATE = { capability_id: "inbox.judgment.evaluate", version: /* @version action.inbox.judgment.evaluate */ 1 } as const satisfies ActionReference;
 
 /** What says the entry or the rule moved while the judgment ran: nothing to record, and not a failure of the Inbox entry that was saved. */
 const TOLERATED_CODES: readonly string[] = ["actions.binding_changed", "actions.binding_missing", "actions.provider_changed", "actions.subject_changed", "actions.subject_unavailable"];

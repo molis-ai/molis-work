@@ -26,13 +26,13 @@ interface LingguangMaterial { text: string; title?: string; file_name?: string; 
 /** What the Host's reader returns; only the text and what it says about its coverage are kept. */
 interface LingguangHostMaterial { text: string; title?: string; file_name?: string; source_url?: string; coverage?: string | { status?: string; issues?: string[] } }
 const material = object({ text, title: text, file_name: text, source_url: text, partial: { type: "boolean" }, issues: { type: "array", items: text } }, ["text"]);
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
+function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   return createActionDefinition<I, O>(`lingguang.${name}`, operation, { title, description, ...(execution ? { execution } : {}),
     audiences: ["user", "workflow", "agent", "mcp"],
     permissions, subject_kinds: ["lingguang_spark"], input_schema: input, output_schema: output,
     // A reply waits on a model, and reading a file or page on its source: neither holds the project's queue.
-    ...(CONCURRENT.has(name) ? { scheduling: "concurrent" as const } : {}) });
+    ...(CONCURRENT.has(name) ? { scheduling: "concurrent" as const } : {}) }, version);
 }
 const declaring = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<ActionDefinition["action"]>): ActionDefinition<I, O> =>
   ({ ...definition, action: { ...definition.action, ...extra } });
@@ -42,35 +42,35 @@ const declaring = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<Acti
  */
 const LINGGUANG_INTAKE = { intake_id: "capture", item_kind: "lingguang_spark", title: "灵光", verb: "记下灵光", material_field: "body",
   describe: "一个想法或一闪而过的念头，先记下、稍后再想；不是要去做的事，也不是要留存的资料",
-  examples: ["也许可以让新人先看一遍历史讨论", "周报能不能自动生成", "试试把评审改到周四"], prepare: { capability_id: "lingguang.fragment.offers", version: 1 } } as const;
+  examples: ["也许可以让新人先看一遍历史讨论", "周报能不能自动生成", "试试把评审改到周四"], prepare: { capability_id: "lingguang.fragment.offers", version: /* @version action.lingguang.fragment.offers */ 1 } } as const;
 
 export const lingguangActions = {
-  list: define<Record<string, never>, { sparks: LingguangSpark[] }>("list", "灵光列表", "读取当前项目尚未丢弃的全部灵光", "query", object({}), object({ sparks: { type: "array", items: spark } }), read),
-  get: define<{ id: string }, { spark: LingguangSpark }>("get", "读取灵光", "读取当前项目的一条灵光，包括已丢弃记录", "query", object({ id }), object({ spark }), read),
+  list: define<Record<string, never>, { sparks: LingguangSpark[] }>("list", /* @version action.lingguang.list */ 1, "灵光列表", "读取当前项目尚未丢弃的全部灵光", "query", object({}), object({ sparks: { type: "array", items: spark } }), read),
+  get: define<{ id: string }, { spark: LingguangSpark }>("get", /* @version action.lingguang.get */ 1, "读取灵光", "读取当前项目的一条灵光，包括已丢弃记录", "query", object({ id }), object({ spark }), read),
   // Noting a spark is taken back by discarding it (kept as a discarded record, not erased), only while it is as it was noted:
   // A replay keeps created_at even after edits, so it cannot bless a later revision for undo.
-  create: declaring(define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试同样的内容时返回第一次保存的那条，同一 request_id 换了内容会被拒绝", "command",
+  create: declaring(define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", /* @version action.lingguang.create */ 1, "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试同样的内容时返回第一次保存的那条，同一 request_id 换了内容会被拒绝", "command",
     object({ ...fields, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ spark }), write), { intake: LINGGUANG_INTAKE,
-    undo: { capability_id: "lingguang.revert", version: 1, input: { id: "spark.id", expected_updated_at: "spark.created_at" } } }),
-  update: define<{ id: string; title?: string; body?: string; expected_updated_at?: string }, { spark: LingguangSpark }>("update", "修改灵光", "修改当前项目灵光；提供读取时的 updated_at 可防止覆盖其他编辑", "command",
+    undo: { capability_id: "lingguang.revert", version: /* @version action.lingguang.revert */ 1, input: { id: "spark.id", expected_updated_at: "spark.created_at" } } }),
+  update: define<{ id: string; title?: string; body?: string; expected_updated_at?: string }, { spark: LingguangSpark }>("update", /* @version action.lingguang.update */ 1, "修改灵光", "修改当前项目灵光；提供读取时的 updated_at 可防止覆盖其他编辑", "command",
     object({ id, ...fields, expected_updated_at: text }, ["id"]), object({ spark }), write),
-  discard: define<{ ids: string[]; expected_updated_at?: Record<string, string> }, { ok: true }>("discard", "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据；按灵光 id 提供读取时的 updated_at 可防止丢掉别处刚写了字的那条，其中任何一条已变化则整批不丢",
+  discard: define<{ ids: string[]; expected_updated_at?: Record<string, string> }, { ok: true }>("discard", /* @version action.lingguang.discard */ 1, "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据；按灵光 id 提供读取时的 updated_at 可防止丢掉别处刚写了字的那条，其中任何一条已变化则整批不丢",
     "command", object({ ids, expected_updated_at: { type: "object", additionalProperties: text } }, ["ids"]), object({ ok: { const: true } }), write),
-  revert: define<{ id: string; expected_updated_at: string }, { ok: true }>("revert", "撤销记下灵光", "撤销刚记下的一条灵光：移出列表、保留原数据；记下之后在别处改过就拒绝，不丢也不改", "command",
+  revert: define<{ id: string; expected_updated_at: string }, { ok: true }>("revert", /* @version action.lingguang.revert */ 1, "撤销记下灵光", "撤销刚记下的一条灵光：移出列表、保留原数据；记下之后在别处改过就拒绝，不丢也不改", "command",
     object({ id, expected_updated_at: text }), object({ ok: { const: true } }), write),
-  openConversation: define<{ spark_ids: string[] }, LingguangConversationState>("conversation.open", "打开灵光对话", "为所选灵光打开或恢复原有对话与历史，不调用模型", "command", object({ spark_ids: ids }), conversationState, [...read, ...write]),
-  getConversation: define<{ id: string }, LingguangConversationState>("conversation.get", "读取灵光对话", "读取当前项目的一场对话、关联灵光和历史消息", "query", object({ id }), conversationState, read),
-  message: define<{ id: string; body: string }, LingguangConversationState>("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
+  openConversation: define<{ spark_ids: string[] }, LingguangConversationState>("conversation.open", /* @version action.lingguang.conversation.open */ 1, "打开灵光对话", "为所选灵光打开或恢复原有对话与历史，不调用模型", "command", object({ spark_ids: ids }), conversationState, [...read, ...write]),
+  getConversation: define<{ id: string }, LingguangConversationState>("conversation.get", /* @version action.lingguang.conversation.get */ 1, "读取灵光对话", "读取当前项目的一场对话、关联灵光和历史消息", "query", object({ id }), conversationState, read),
+  message: define<{ id: string; body: string }, LingguangConversationState>("conversation.message", /* @version action.lingguang.conversation.message */ 1, "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
     object({ id, body: { type: "string", minLength: 1, maxLength: 2000, pattern: "\\S" } }), conversationState, [...read, ...write, "model:invoke"], { cost: "metered" }),
   searchEntries: lingguangSearchActions.entries,
   subject: lingguangSearchActions.subject,
-  move: defineObjectMoveAction("lingguang.placement.move", ["lingguang_spark"], "灵光", [...read, ...write]),
-  copy: defineObjectCopyAction("lingguang.placement.copy", ["lingguang_spark"], "灵光", [...read, ...write]),
-  readFile: define<MaterialUpload, LingguangMaterial>("material.read", "读取文件内容", "提取上传文件的文字（含图片识别与音视频转写），不保存灵光；需要下载本机识别模型时先得到同意", "command",
+  move: defineObjectMoveAction("lingguang.placement.move", /* @version action.lingguang.placement.move */ 1, ["lingguang_spark"], "灵光", [...read, ...write]),
+  copy: defineObjectCopyAction("lingguang.placement.copy", /* @version action.lingguang.placement.copy */ 1, ["lingguang_spark"], "灵光", [...read, ...write]),
+  readFile: define<MaterialUpload, LingguangMaterial>("material.read", /* @version action.lingguang.material.read */ 1, "读取文件内容", "提取上传文件的文字（含图片识别与音视频转写），不保存灵光；需要下载本机识别模型时先得到同意", "command",
     object({ file_name: { type: "string", minLength: 1, maxLength: 240 }, data_base64: { type: "string", minLength: 1 }, allow_model_download: { type: "boolean" } }, ["file_name", "data_base64"]), material, [...write, "materials:read"]),
-  readSource: define<MaterialSource, LingguangMaterial>("source.read", "读取链接内容", "读取公开网页、视频字幕或播客音频的文字，不保存灵光；遵守原来源的边界", "command",
+  readSource: define<MaterialSource, LingguangMaterial>("source.read", /* @version action.lingguang.source.read */ 1, "读取链接内容", "读取公开网页、视频字幕或播客音频的文字，不保存灵光；遵守原来源的边界", "command",
     object({ url: { type: "string", minLength: 1, maxLength: 2000 }, allow_model_download: { type: "boolean" } }, ["url"]), material, [...write, "materials:fetch"]),
-  fragmentOffers: defineFragmentOffersAction("lingguang.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记下", read, []),
+  fragmentOffers: defineFragmentOffersAction("lingguang.fragment.offers", /* @version action.lingguang.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的内容可以记下", read, []),
 };
 /** The complete `lingguang.create` input for a fragment; pure. The same request id saves it once. */
 export function prepareLingguangFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
@@ -80,7 +80,7 @@ export function prepareLingguangFragmentOffers(input: FragmentOffersInput): Frag
   const title = [...first].length > 40 ? [...first].slice(0, 39).join("") + "…" : first;
   const from = input.fragment.object.title ? `\n\n出自：${input.fragment.object.title}` : "";
   const body = cutCharacters(text + from, LINGGUANG_BODY_LIMIT);
-  return [{ offer_id: "capture", title: "记下灵光", action: { capability_id: "lingguang.create", version: 1 },
+  return [{ offer_id: "capture", title: "记下灵光", action: { capability_id: "lingguang.create", version: /* @version action.lingguang.create */ 1 },
     input: { title, body, request_id: cutHead(input.request_id, 160) }, summary: `在灵光里记下一条：「${title}」`, editable: ["title", "body"] }];
 }
 

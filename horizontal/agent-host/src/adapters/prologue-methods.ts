@@ -16,7 +16,7 @@ function metadata(value: Readonly<Record<string, unknown>>): MethodMeta {
   for (const key of ["project_id", "plugin_id", "skill_id", "name", "summary", "source_label"]) {
     if (typeof value[key] !== "string") throw new Error("已安装方法的记录损坏，不能作为可用方法执行");
   }
-  if (value.version !== 1) throw new Error("已安装方法版本不可读");
+  if (value.version !== /* @version format.prologue.installed-method */ 1) throw new Error("已安装方法版本不可读");
   return value as unknown as MethodMeta;
 }
 function assemble(pack: FetchedPackage) {
@@ -93,7 +93,7 @@ export function createPrologueSkillLibrary(runtime: Runtime): AgentSkillLibrary 
         const assembled = assemble(pack);
         const candidate_id = randomUUID();
         const skill_id = "installed-" + createHash("sha256").update(JSON.stringify([key, name])).digest("hex").slice(0, 40);
-        const meta: MethodMeta = { ...owner, skill_id, version: 1, name, summary: summary(candidate.summary), source_label: folder };
+        const meta: MethodMeta = { ...owner, skill_id, version: /* @version format.prologue.installed-method */ 1, name, summary: summary(candidate.summary), source_label: folder };
         captured.set(candidate_id, { owner: { ...owner }, meta, pack });
         result.push({ candidate_id, name, summary: meta.summary, source_label: folder, ...assembled });
       }

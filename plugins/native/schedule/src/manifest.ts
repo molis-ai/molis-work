@@ -17,10 +17,10 @@ export const SCHEDULE_PLUGIN_ID = "io.molis.work.schedule";
 export const SCHEDULE_PROJECT_PLUGIN_ID = "schedule";
 
 export const scheduleManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: SCHEDULE_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "Schedule",
   summary: "定时跑对话任务，也替插件准时提醒。",
   kind: "native",
@@ -57,7 +57,7 @@ export const scheduleManifest: PluginManifest = {
   ],
   artifacts: { produces: [], consumes: [] },
   agent: scheduleAgentManifest,
-  sync: { protocol_version: 1, collections: [{ id: "conversation_tasks", tracking: scheduleTracking, title: "定时对话任务", schema_version: 2, requires: [] }] },
+  sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: "conversation_tasks", tracking: scheduleTracking, title: "定时对话任务", schema_version: /* @version sync.collection.schedule.conversation_tasks */ 1, requires: [] }] },
   databases: { project: SCHEDULE_PROJECT_DATABASE },
   ui: {
     messages: SCHEDULE_MESSAGES,

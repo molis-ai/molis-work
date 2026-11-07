@@ -20,10 +20,10 @@ import { SearchService } from "@molis-ai/molis-work-service-search";
  * subject reader, behind a real action service and search index (specs/ai-interaction-experience H3).
  */
 export type Doc = { id: string; title: string; body: string; version: number; refuse?: boolean };
-const goalReader = defineSubjectContextAction("goals.subject.read", "goal", "Goal", ["goals:read"]);
-const goalEntries = defineSearchEntriesAction("goals.search.entries", [{ kind: "goal", title: "Goal", surface: "goals" }], "Goal", ["goals:read"]);
-const pageReader = defineSubjectContextAction("pages.subject.read", "page", "文档", ["pages:read"]);
-const pageEntries = defineSearchEntriesAction("pages.search.entries", [{ kind: "page", title: "文档", surface: "pages" }], "文档", ["pages:read"]);
+const goalReader = defineSubjectContextAction("goals.subject.read", 1, "goal", "Goal", ["goals:read"]);
+const goalEntries = defineSearchEntriesAction("goals.search.entries", 1, [{ kind: "goal", title: "Goal", surface: "goals" }], "Goal", ["goals:read"]);
+const pageReader = defineSubjectContextAction("pages.subject.read", 1, "page", "文档", ["pages:read"]);
+const pageEntries = defineSearchEntriesAction("pages.search.entries", 1, [{ kind: "page", title: "文档", surface: "pages" }], "文档", ["pages:read"]);
 
 /** `paged`: the reader reads past its first page from the `offset` it is given, as a long-text owner does (project-knowledge §4.4). */
 function owner(rows: Map<string, Doc>, kind: string, reader: typeof goalReader, entries: typeof goalEntries, paged = false) {

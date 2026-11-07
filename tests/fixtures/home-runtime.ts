@@ -4,7 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { createDesktopWebHost, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createSingleHomeTestWebServer } from "./local-web-core.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -25,7 +26,7 @@ async function within(name: string, operation: Promise<unknown>) {
 /** An isolated Host behind the actual desktop HTTP composition, with the Catalog's directory list. No store writes or grant shortcuts. */
 export async function serveHomeRuntime(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}, webOptions: Pick<WebServerOptions, "chooseDirectory"> = {}) {
   const home = options.homeDirectory ?? await mkdtemp(join(tmpdir(), "home-runtime-"));
-  let host: MolisWorkLocalHost | undefined, server: ReturnType<ReturnType<typeof createDesktopWebHost>> | undefined;
+  let host: MolisWorkLocalHost | undefined, server: ReturnType<typeof createSingleHomeTestWebServer> | undefined;
   t.after(async () => {
     const failures: unknown[] = [];
     const closeServer = () => {
@@ -49,7 +50,7 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
   });
   const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const token = randomUUID();
-  server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token, ...webOptions });
+  server = createSingleHomeTestWebServer({ homeDirectory: home, localHost: host, controlToken: token, ...webOptions });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`, web = new LocalHostHttpClient({ origin, controlToken: token });

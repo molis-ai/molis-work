@@ -9,7 +9,7 @@ import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contract
 import { openMemoryLedger, openHomeSqliteDatabase, homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { MemoryService, isCompletePrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend, hostTextGeneration, ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost, MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore, MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { homeBusinessTree, homeStorageTree } from "./fixtures/home-storage-files.js";
 
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -201,7 +201,7 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
     const directories = readdirSync(home).sort();
     const refused = { code: shape === "wrong-version" ? "storage.store_too_new" : "memory.unavailable" };
     assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), refused);
-    assert.throws(() => createDesktopWebHost({ ptyClientFilePath: () => "unused.js" })({ homeDirectory: home }), refused);
+    assert.throws(() => createDesktopWebCore({ ptyClientFilePath: () => "unused.js" })({ homeDirectory: home }), refused);
     assert.throws(() => new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "test", host_declares_stable: true } }), refused);
     const unbound = new MolisWorkLocalHost({ completeText: null });
     try {
@@ -222,7 +222,7 @@ test("a refused Web startup leaves no polling task that writes to the Home later
   mkdirSync(join(home, "agent-runtime")); writeFileSync(join(home, "agent-runtime", "existing"), "keep SDK bytes");
   const before = files(home);
   t.mock.timers.enable({ apis: ["setInterval"] });
-  assert.throws(() => createDesktopWebHost({ ptyClientFilePath: () => "unused.js" })({ homeDirectory: home }), { code: "memory.unavailable" });
+  assert.throws(() => createDesktopWebCore({ ptyClientFilePath: () => "unused.js" })({ homeDirectory: home }), { code: "memory.unavailable" });
   t.mock.timers.tick(1999);
   assert.deepEqual(files(home), before);
   t.mock.timers.tick(2);

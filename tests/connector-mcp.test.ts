@@ -23,7 +23,7 @@ import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/dist/connector-mcp-actions.js";
 import { MolisWorkLocalHost, connectorDirectory, homeIntegrationRegistry, connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
@@ -343,7 +343,7 @@ for (const mode of ["callback", "manual"] as const) test(`ASC-09 MCP ${mode} pub
   });
   const localHost = new MolisWorkLocalHost({ homeDirectory: temp, completeText: null });
   const controlToken = randomUUID();
-  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: temp, localHost, controlToken });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: temp, localHost, controlToken });
   try {
     server.listen(0, "127.0.0.1"); await once(server, "listening");
     const address = server.address(); assert.ok(address && typeof address !== "string");

@@ -5,13 +5,13 @@ import path from "node:path";
 import { isDeepStrictEqual, promisify } from "node:util";
 
 const { HomeConsentLedger, MolisWorkLocalHost, runningProjectPlatform } = await import("@molis-ai/molis-work-app-local-host");
-const { createDesktopWebHost } = await import("@molis-ai/molis-work-app-desktop");
+const { createDesktopWebCore } = await import("@molis-ai/molis-work-app-desktop");
 const runFile = promisify(execFile);
 
-/** The same resident web/CLI entry used by package installation; closing it releases this Home's Host before reopening. */
+/** An already selected synthetic Home uses the production business core and real installation CLI; no account login or anonymous installation fallback. */
 export async function residentHost(root, home, secretEnvironment, hostOptions = {}) {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...hostOptions });
-  const server = createDesktopWebHost({ ptyClientFilePath: () => path.join(root, "dist/web/pty-client.js") })({ homeDirectory: home, localHost: host });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => path.join(root, "dist/web/pty-client.js") })({ homeDirectory: home, localHost: host });
   const close = async () => {
     try {
       server.closeAllConnections();

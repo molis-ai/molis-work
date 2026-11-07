@@ -14,7 +14,7 @@ import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 

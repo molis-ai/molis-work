@@ -4,8 +4,8 @@
       "kind": "cohesive-unit",
       "reason": "项目目录的门面及连接寿命：现行结构检查、同 Home owner 持有与释放都围绕目录连接，其余方法多为转发；按资源拆出更多门面只会增加转发层，不改善这一职责边界。",
       "size": {
-        "lines": 237,
-        "methods": 34
+        "lines": 245,
+        "methods": 35
       }
     }
   }

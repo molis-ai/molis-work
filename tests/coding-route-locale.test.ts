@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // specs/visual-ui-experience VUX-40 (user decision 2026-10-20): what a plugin's route sends back follows the page's language.
 // The Host resolves the language from the request (the page's language cookie, else Accept-Language) and puts it on the

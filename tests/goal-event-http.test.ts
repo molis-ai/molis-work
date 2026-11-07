@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";

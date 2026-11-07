@@ -12,7 +12,7 @@ import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/pl
 import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import {
   FEED_CAPTURE_ARTIFACT_TYPE_ID,
   feedCaptureArtifactId,

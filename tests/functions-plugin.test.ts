@@ -16,7 +16,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { INTERACTION_TEXTURE_STYLES } from "@molis-ai/molis-work-design-system";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
 import {

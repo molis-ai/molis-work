@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promi
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 const exec = promisify(execFile);
 
 test("Coding formal worktree preparation requires the original review, grants only the created directory and retains results across restart", async () => {

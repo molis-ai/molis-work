@@ -21,7 +21,7 @@ interface McpV1ToolCaller {
   audience: "runtime" | "management";
   /** The Runtime's bound project; null for the management audience. */
   runtimeConnection: MolisWorkRuntimeConnection | null;
-  resident?: { home: string; origin: string; signal?: AbortSignal; ensureResident?(): Promise<void> };
+  resident?: { home: string; origin: string; controlToken?:string; signal?: AbortSignal; ensureResident?(): Promise<void> };
 }
 
 /**
@@ -42,7 +42,7 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
   }
   if (audience === "management" && caller.resident?.ensureResident) {
     // The production MCP forwards even validation to this Home; it never prepares or opens a local project/catalog.
-    return dispatchMcpProjectTool(residentManagementActions({ home: caller.resident.home, origin: caller.resident.origin, signal: caller.resident.signal,
+    return dispatchMcpProjectTool(residentManagementActions({ home: caller.resident.home, origin: caller.resident.origin, controlToken:caller.resident.controlToken, signal: caller.resident.signal,
       ensureResident: caller.resident.ensureResident, databasePath: path.resolve(location),
       projectId: String(arguments_.project_id), fallback: () => { throw new ActionError("actions.service_unavailable", "生产 MCP 不在本地执行管理操作"); } }),
       name, arguments_, { audience, createError: createPresentationError });
@@ -68,7 +68,7 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
   if (!owned && name === "molis_work_v1_initialize" && audience === "management") await ensureStandaloneProjectRoot(caller.localHost, reference);
   if (!owned) await caller.localHost.client(reference).withScope(() => undefined);
   const actions = audience !== "management" ? null : owned && caller.resident ? residentManagementActions({
-    home: caller.resident.home, origin: caller.resident.origin, signal: caller.resident.signal,
+    home: caller.resident.home, origin: caller.resident.origin, controlToken:caller.resident.controlToken, signal: caller.resident.signal,
     databasePath: owned.database_path, projectId: owned.project_id, fallback }) : fallback();
 
   return dispatchMcpProjectTool(actions, name, arguments_, {

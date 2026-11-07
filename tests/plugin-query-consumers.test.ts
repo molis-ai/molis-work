@@ -11,7 +11,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedD
 import { cachedMolisWorkWebView, declaredStageData } from "@molis-ai/molis-work-app-local-host";
 import { informationActions } from "../apps/local-host/dist/information-actions.js";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("Feed reads and warm Web projections use each owner's current authority, retain exact content, and recover without altering original records", { timeout: 30_000 }, async () => {

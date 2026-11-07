@@ -17,11 +17,58 @@ import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/char
 import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { bindLocalWebAction, bindLocalWebActions, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
-import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { deferred, serveHomeRuntime, homeProbe, grantHomeProbe } from "./fixtures/home-runtime.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+
+test("ASR-12 local caller construction reads declarations without evaluating discarded availability; real dispatch still enforces current policy and grants", async t => {
+  const probe = homeProbe("metadataread"), counts = { action: 0, scene: 0 };
+  let blocked = false;
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] },
+    actionAvailability: (_caller, action) => {
+      counts.action++;
+      return blocked && action.capability_id === probe.state.capability_id
+        ? { available: false, code: "actions.forbidden", reason: "current policy refused" } : { available: true };
+    },
+    sceneAvailability: () => { counts.scene++; return { available: true }; },
+  });
+  await grantHomeProbe(f.host, probe);
+  const project = await f.project("metadata declarations");
+  await localWebActionContext(f.host, project.reference, []);
+  counts.action = 0; counts.scene = 0;
+  const caller = await localWebActionContext(f.host, project.reference, []);
+  assert.deepEqual(counts, { action: 0, scene: 0 }, "constructing a caller does not compute availability for every action and scene");
+  assert.equal(caller.actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(caller.audience, "user"); assert.equal(caller.project_id, project.project_id);
+  assert.ok(caller.permissions.includes("metadataread:read"));
+  assert.ok(caller.allowed_actions?.some(action => action.capability_id === probe.state.capability_id));
+  assert.equal(probe.seen.length, 0, "declaration inspection never runs the provider");
+  const scenes = f.host.inspectSceneMetadata(caller, project.reference).filter(scene => scene.provider.plugin_id === probe.id);
+  assert.equal(scenes.length, probe.scenes.length);
+  assert.ok(scenes.every(scene => !("availability" in scene) && !("configuration_availability" in scene)), "declarations never pretend to be an execution grant");
+  assert.equal(f.host.inspectSceneMetadata({ ...caller, permissions: [] }, project.reference).some(scene => scene.provider.plugin_id === probe.id), false, "the original scene visibility rule still filters missing grants");
+  assert.deepEqual(f.host.inspectSceneMetadata({ ...caller, actor_id: "" }, project.reference), []);
+  assert.throws(() => f.host.inspectSceneMetadata({ ...caller, project_id: "other-project" }, project.reference), { code: "actions.scope_mismatch" });
+  const cancelled = new AbortController(); cancelled.abort(new Error("metadata request ended"));
+  assert.throws(() => f.host.inspectSceneMetadata({ ...caller, signal: cancelled.signal }, project.reference), /metadata request ended/u);
+  Reflect.set(scenes[0]!.definition, "title", "changed clone"); Reflect.set(scenes[0]!.provider, "title", "changed provider clone");
+  const again = f.host.inspectSceneMetadata(caller, project.reference).find(scene => scene.definition.scene_id === scenes[0]!.definition.scene_id)!;
+  assert.notEqual(again.definition.title, "changed clone"); assert.notEqual(again.provider.title, "changed provider clone");
+  assert.deepEqual(counts, { action: 0, scene: 0 });
+
+  blocked = true;
+  await assert.rejects(f.host.actionClient(project.reference).invoke(caller, probe.state, {}), { code: "actions.forbidden" });
+  assert.ok(counts.action > 0, "the actual invocation evaluates live policy"); assert.equal(probe.seen.length, 0);
+  blocked = false;
+  await f.host.actionClient(project.reference).invoke(caller, probe.state, {});
+  assert.equal(probe.seen.length, 1);
+  await grantHomeProbe(f.host, probe, probe.permissions.filter(permission => permission !== "metadataread:read"));
+  await assert.rejects(f.host.actionClient(project.reference).invoke(caller, probe.state, {}), { code: "actions.forbidden" });
+  const later = await localWebActionContext(f.host, project.reference, []);
+  assert.ok(!later.allowed_actions?.some(action => action.capability_id === probe.state.capability_id));
+  assert.equal(probe.seen.length, 1, "neither an old caller nor a new declaration can revive a withdrawn grant");
+});
 
 test("real Home HTTP and capability library use installed plugin grants without a Host permission list", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "home-local-grants-"));
@@ -539,7 +586,7 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   await assert.rejects(bound.invoke(entry, { mode: "metadata-directory" }), { code: "actions.dependency_missing" }, "the original delegated executable directory cannot see the metadata-only target");
   assert.equal(counts.write, 0); assert.equal(counts.metered, 0);
   // The original person's snapshot still decides which precise child references may enter it.
-  const inspect = host.inspectActions.bind(host), mock = t.mock.method(host, "inspectActions", async (...args: Parameters<typeof inspect>) => (await inspect(...args)).filter(view => view.capability_id !== source.capability_id));
+  const inspect = host.inspectPreparedActionMetadata.bind(host), mock = t.mock.method(host, "inspectPreparedActionMetadata", async (...args: Parameters<typeof inspect>) => (await inspect(...args)).filter(view => view.capability_id !== source.capability_id));
   try { await assert.rejects(bind().invoke(entry, {})); assert.equal(counts.source, 1); } finally { mock.mock.restore(); }
   hold = { entered: deferred(), release: deferred() }; const wait = hold;
   const pending = bound.invoke(entry, {}), refused = assert.rejects(pending);

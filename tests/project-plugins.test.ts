@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 async function catalogWebHost(homeDirectory: string) {
   let withCatalog = withMolisWorkProjectCatalog;

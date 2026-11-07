@@ -1,13 +1,18 @@
 // A Host on a golden Home, for both directions: generating one and replaying one. Everything a write or a read goes through is here, so the two
 // cannot drift, and the same guard refuses the network in both (UPG2-06: no cloud, no real model, no credentials).
 import { readdirSync, readFileSync } from "node:fs";
+import { Socket } from "node:net";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
-import { assertTemporaryHome, goldenEnvironment, goldenFailure } from "./layout.mjs";
+import { goldenFailure } from "./failure.mjs";
+import { assertTemporaryHome, goldenEnvironment } from "./layout.mjs";
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const WRITES = path.join(root, "tests/golden-writes");
+const SCRIPTED_MODEL_URL = "http://127.0.0.1:9/v1/chat/completions", SCRIPTED_ANSWER = "金样回答";
+/** What a case asks the scripted model; anything else is not this conversation. */
+const SCRIPTED_QUESTION = "金样对话";
 
 const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
 const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
@@ -17,16 +22,43 @@ const { residentHost } = await import("../replay-plugins/signed-session.mjs");
 const refused = [];
 export function refusedNetwork() { return [...refused]; }
 
-/** Install once per process, before the Host starts. A model or service the golden Home never configured has no reason to be reached. */
+/** Where a socket is about to go, in any form `connect` takes; undefined for a local pipe and for the default, which is loopback. */
+function connectionHost([first, second]) {
+  const options = Array.isArray(first) ? first[0] : first;
+  if (typeof options === "object" && options !== null) return options.path ? undefined : options.host;
+  return typeof second === "string" ? second : undefined;
+}
+
+/**
+ * Install once per process, before the Host starts. A model or service the golden Home never configured has no reason to be reached. Every client in
+ * the process comes down to this one call (fetch, `node:http`, `node:https`, `node:tls`, a WebSocket); a child process is out of its reach, and the
+ * only child here is the CLI that installs the signed sample. Returns how to take it off again.
+ */
 export function refuseNetwork() {
-  const real = globalThis.fetch;
-  globalThis.fetch = (input, init) => {
-    const target = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
-    if (!isLoopbackHostname(target.hostname)) {
-      refused.push(target.hostname);
-      return Promise.reject(goldenFailure("golden.network_refused", target.hostname));
+  const real = Socket.prototype.connect;
+  Socket.prototype.connect = function connect(...args) {
+    const host = connectionHost(args);
+    if (host !== undefined && !isLoopbackHostname(host)) {
+      refused.push(host);
+      throw goldenFailure("golden.network_refused", host);
     }
-    return real(input, init);
+    return real.apply(this, args);
+  };
+  return () => { Socket.prototype.connect = real; };
+}
+
+/**
+ * The model a golden Home has configured, at the loopback discard port where nothing listens. It answers the one conversation a case starts, and only
+ * that: a background call (the ending review, the knowledge organizer) stays refused, since its timer could write model text in any order.
+ */
+export function scriptModel() {
+  const real = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    if (String(input?.url ?? input) !== SCRIPTED_MODEL_URL) return real(input, init);
+    const request = JSON.parse(new TextDecoder().decode(init.body));
+    if (!request.tools?.length || !JSON.stringify(request.messages).includes(SCRIPTED_QUESTION)) return new Response("{}", { status: 503, headers: { "content-type": "application/json" } });
+    const chunk = delta => `data: ${JSON.stringify({ id: "golden", object: "chat.completion.chunk", model: request.model, choices: [{ index: 0, ...delta }], usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 } })}\n\n`;
+    return new Response(`${chunk({ delta: { role: "assistant", content: SCRIPTED_ANSWER }, finish_reason: null })}${chunk({ delta: {}, finish_reason: "stop" })}data: [DONE]\n\n`, { status: 200, headers: { "content-type": "text/event-stream" } });
   };
 }
 
@@ -38,7 +70,7 @@ export function enterHome(home) {
 }
 
 function respond(response, text, where) {
-  if (response.ok) return text ? JSON.parse(text) : null;
+  if (response.ok) return text && response.headers.get("content-type")?.includes("json") ? JSON.parse(text) : text || null;
   throw goldenFailure(`golden.http_${response.status}`, where);
 }
 
@@ -56,10 +88,13 @@ export async function openGoldenHost(home, { web = true } = {}) {
   }
   const resident = await residentHost(root, real, env);
   const { origin } = resident;
+  // The discussion panel knows its member by a cookie, and this client keeps it the way the person's browser would.
+  let cookie;
   const http = async (route, { method = "POST", body } = {}) => {
     const token = readFileSync(path.join(real, "config/web-control-token"), "utf8").trim();
-    const response = await fetch(origin + route, { method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() },
+    const response = await fetch(origin + route, { method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    cookie = response.headers.get("set-cookie")?.split(";")[0] ?? cookie;
     return respond(response, await response.text(), route);
   };
   return { ...resident, home: real, http };
@@ -89,6 +124,6 @@ export async function loadGoldenWrites() {
   const names = readdirSync(WRITES).filter(name => name.endsWith(".ts")).sort();
   return Promise.all(names.map(async name => {
     const module = await import(pathToFileURL(path.join(WRITES, name)).href);
-    return { owner: name.slice(0, -3), run: module.default, webSurface: module.webSurface === true };
+    return { owner: name.slice(0, -3), run: module.default, webSurface: module.webSurface === true, afterKnowledgeRebuild: module.afterKnowledgeRebuild === true };
   }));
 }

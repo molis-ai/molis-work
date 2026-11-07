@@ -1,7 +1,7 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import {
   RETURN_TRIP_RULES, createReturnOwner, leaveReturnWindow, needOfAddress, placeOf, returnFrom, returnLink, returnNeed, startReturnWindow,
-  type ReturnFrom, type ReturnNeed, type ReturnPlace, type ReturnStatus, type ReturnTrip,
+  type ReturnNeed, type ReturnPlace, type ReturnStatus, type ReturnTrip,
 } from "./return-trips.js";
 
 /**
@@ -59,9 +59,10 @@ const detailOf = (event: Event): Detail | null => {
   const detail = (event as CustomEvent<unknown>).detail;
   return detail && typeof detail === "object" ? detail as Detail : null;
 };
-const announceEnded = (id: unknown) => {
-  if (typeof id === "string" && id.length <= 64) document.dispatchEvent(new CustomEvent("molis-work:return-settled", { detail: { return_id: id, status: "ended" } }));
-};
+const announce = (id: string, status: ReturnStatus | "ended") => document.dispatchEvent(new CustomEvent("molis-work:return-settled", { detail: { return_id: id, status } }));
+const announceEnded = (id: unknown) => { if (typeof id === "string" && id.length <= 64) announce(id, "ended"); };
+/** Said on the bar and in the toast when the place the person came from was closed. */
+const GONE = "原来的页面已经关了，配好的设置都在。";
 const IDLE: SettingsReturn = { open: detail => announceEnded((detail as Detail | null)?.return_id), refuse: announceEnded, link() {}, saved: async () => {}, paint() {} };
 
 function sessionStore(): Storage | null {
@@ -77,36 +78,15 @@ function landingPage(): boolean {
   return ["connected", "connection_error", "setup"].some(key => asked.has(key));
 }
 
-/**
- * A link in the Assistant's thread (§2.3, 平台界面): the work it shows and, for 继续接入, the authorization the host named on the link
- * when it drew the card (`data-return-setup`, assistant-card-view.ts). The work is the one the Assistant marks current in its list.
- * Without a current work it is an ordinary link's place (the cover closes onto the Assistant), the need kept.
- */
-function assistantSource(anchor: Element): { from: ReturnFrom; need?: ReturnNeed } | null {
-  if (!anchor.closest("[data-assistant-thread]")) return null;
-  const island = anchor.closest("[data-assistant-island]") ?? document;
-  const work = island.querySelector<HTMLElement>("[data-work-id][aria-current=\"true\"]")?.dataset.workId || "";
-  const from = returnFrom({ kind: "assistant", work_id: work }) ?? { kind: "under-cover" as const, place: null };
-  const setup = anchor instanceof HTMLElement ? anchor.dataset.returnSetup : undefined;
-  const need = setup ? returnNeed({ kind: "setup", authorization_id: setup }) : null;
-  return { from, ...(need ? { need } : {}) };
-}
-
 /** Reads a need back from its owner, as the person, through the routes the settings already use (§3.4). */
 async function readNeed(need: ReturnNeed, fallback: string): Promise<boolean> {
-  if (need.kind === "model") {
-    const result = await molisWorkRequest<{ health?: { status?: string }[] }>("/api/settings/models", { fallback });
-    return (result.health || []).some(entry => entry?.status === "ready");
-  }
-  if (need.kind === "connection") {
-    const result = await molisWorkRequest<{ connections?: { state?: string }[] }>("/api/settings/connectors/connections?service_id=" + encodeURIComponent(need.service_id), { fallback });
-    return (result.connections || []).some(row => row?.state === "connected");
-  }
-  if (need.kind === "setup") {
-    const result = await molisWorkRequest<{ status?: string }>("/api/settings/connectors/authorizations/" + encodeURIComponent(need.authorization_id), { fallback });
-    return result?.status === "connected";
-  }
-  return false;
+  type Read = { health?: { status?: string }[]; connections?: { state?: string }[]; status?: string };
+  const path = need.kind === "model" ? "/api/settings/models" : need.kind === "connection" ? "/api/settings/connectors/connections?service_id=" + encodeURIComponent(need.service_id)
+    : need.kind === "setup" ? "/api/settings/connectors/authorizations/" + encodeURIComponent(need.authorization_id) : "";
+  if (!path) return false;
+  const read = await molisWorkRequest<Read>(path, { fallback });
+  return need.kind === "model" ? (read.health || []).some(entry => entry?.status === "ready")
+    : need.kind === "connection" ? (read.connections || []).some(row => row?.state === "connected") : read?.status === "connected";
 }
 
 /** The layout's answer for a place (`molis-work:layout-holds`, tab-workspace-places.ts); undefined when nobody answered. */
@@ -142,7 +122,7 @@ function paintReturnBar(L: SettingsReturnHost["translate"], kind: string | null,
   bar.dataset.returnBarState = state;
   bar.classList.toggle("mw-alert--success", state === "ready");
   bar.classList.toggle("mw-alert--info", state !== "ready");
-  const body = state === "gone" ? L("原来的页面已经关了，配好的设置都在。") : state === "ready" ? L("已经好了，可以回去了。")
+  const body = state === "gone" ? L(GONE) : state === "ready" ? L("已经好了，可以回去了。")
     : state === "look" ? L("看完点「回去」，回到原来的地方。")
     : trip.need.kind === "model" ? L("配好模型后自动回去，你写的都还在。") : L("连好后自动回去，你写的都还在。");
   setText(bar.querySelector("[data-return-bar-title]"), L("从「{name}」来", { name: view.name }));
@@ -165,7 +145,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     setTimer: (run, ms) => setTimeout(run, ms), clearTimer: handle => clearTimeout(handle as ReturnType<typeof setTimeout>), read, holds,
     settled: (id: string, status: ReturnStatus | "ended") => {
       ready.delete(id);
-      document.dispatchEvent(new CustomEvent("molis-work:return-settled", { detail: { return_id: id, status } }));
+      announce(id, status);
     },
     changed: () => paint(),
   });
@@ -204,7 +184,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     const status: ReturnStatus = met === true || await owner.met(trip.need) ? "ready" : "not_ready";
     const landed = travel(trip);
     owner.settle(trip.id, status);
-    if (landed === "gone") host.showToast?.(L("原来的页面已经关了，配好的设置都在。"));
+    if (landed === "gone") host.showToast?.(L(GONE));
     else if (status === "ready" && trip.need.kind === "model") host.showToast?.(L("模型已连接，回到「{name}」接着做。", { name: nameOf(trip) }));
     else if (status === "ready" && trip.need.kind !== "none") host.showToast?.(L("已经连上，回到「{name}」。", { name: nameOf(trip) }));
   };
@@ -245,10 +225,8 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     refuse: announceEnded,
     link(anchor, href, cover, wasOpen) {
       if (wasOpen) return;
-      const assistant = assistantSource(anchor);
       const surface = anchor.closest<HTMLElement>("[data-work-surface]")?.dataset.workSurface || "";
-      const from = assistant?.from ?? { kind: "under-cover" as const, place: placeOf(anchor, surface) };
-      owner.open({ from, need: assistant?.need ?? needOfAddress(href, location.origin, prefix), claim: false, cover });
+      owner.open({ from: { kind: "under-cover", place: placeOf(anchor, surface) }, need: needOfAddress(href, location.origin, prefix), claim: false, cover });
       paint();
     },
     async saved(kind, known) {

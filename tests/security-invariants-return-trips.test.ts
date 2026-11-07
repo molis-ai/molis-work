@@ -96,6 +96,12 @@ test("S-return-trip-destination the way back is the workbench's own object link,
   for (const bad of [{ ...good, href: "https://evil.example" }, { ...good, url: "javascript:alert(1)" }, { ...good, v: 2 }, { ...good, from: { ...pageFrom(), href: "/x" } },
     Object.fromEntries(Object.entries(good).filter(([key]) => key !== "cover")), { ...good, claim: true, from: { kind: "under-cover", place: null } }])
     assert.equal(returnTrip(bad), null, JSON.stringify(bad));
+  // The next write of the trips drops an entry of no trip's shape from storage, and keeps another window's trip as it is.
+  const kept = owner();
+  const other = { ...good, id: "t-other", window: "window-2", project: "project-1", expires_at: 9_000_000 };
+  kept.storage.setItem(KEYS.trips, JSON.stringify({ "project-1": [{ ...good, project: "project-1", window: "window-1", href: "https://evil.example" }, other] }));
+  goTrip(kept);
+  assert.deepEqual(JSON.parse(kept.storage.getItem(KEYS.trips)!)["project-1"].map((trip: ReturnTrip) => trip.id), ["t-other", "go-1"]);
   // An ordinary link's need comes from its address alone and is never the platform's `setup`.
   assert.deepEqual(needOfAddress("/settings/models", "http://h", ""), { kind: "model" });
   assert.deepEqual(needOfAddress("/projects/p/settings/models", "http://h", "/projects/p"), { kind: "model" });

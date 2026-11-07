@@ -8,10 +8,13 @@
 export const RETURN_TRIP_RULES = {
   keys: { trips: "molis-work:return-trips", window: "molis-work:return-window", handoff: "molis-work:return-window-handoff" },
   openMs: 24 * 60 * 60 * 1000, settledMs: 60 * 60 * 1000, perProject: 8, handoffMs: 10 * 1000,
-  surface: "^[a-z][a-z0-9-]{0,100}$", step: "^[A-Za-z0-9._:-]{1,128}$", id: "^[A-Za-z0-9-]{1,64}$",
-  service: "^[a-z0-9][a-z0-9._-]{0,127}$", slot: "^[a-z][a-z0-9-]{0,63}$", record: "^[A-Za-z0-9._:-]{1,200}$",
+  surface: /^[a-z][a-z0-9-]{0,100}$/u, step: /^[A-Za-z0-9._:-]{1,128}$/u, id: /^[A-Za-z0-9-]{1,64}$/u,
+  service: /^[a-z0-9][a-z0-9._-]{0,127}$/u, slot: /^[a-z][a-z0-9-]{0,63}$/u, record: /^[A-Za-z0-9._:-]{1,200}$/u,
   draftKey: 256, objectId: 256, objectKind: 64, text: 300, cover: 2000,
 } as const;
+
+/** A string the pattern matches (the patterns are anchored and have no global flag, so `test` keeps no state). */
+const fits = (value: unknown, pattern: RegExp): value is string => typeof value === "string" && pattern.test(value);
 
 export type ReturnPlace = { pane: string; surface: string };
 export type ReturnFrom =
@@ -23,21 +26,26 @@ export type ReturnNeed = { kind: "model" } | { kind: "connection"; service_id: s
 export type ReturnCarry = { draft_key?: string; step?: string; object?: { kind: string; id: string } };
 export type ReturnStatus = "ready" | "not_ready";
 export interface ReturnTrip {
-  v: 1; id: string; window: string; project: string; from: ReturnFrom; claim: boolean; need: ReturnNeed; met_at_open: boolean;
+  v: /* @version format.workbench.return-trip */ 1; id: string; window: string; project: string; from: ReturnFrom; claim: boolean; need: ReturnNeed; met_at_open: boolean;
   carry?: ReturnCarry; cover: string; opened_at: number; expires_at: number; outcome?: { status: ReturnStatus; at: number };
 }
 export type ReturnClaimAnswer = { status: ReturnStatus; carry: ReturnCarry } | { open: string } | null;
 export interface ReturnStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void }
 
 /**
- * A plain object whose keys are all among `allowed` (and, when given, include every one of `required`). A pane document's objects
- * come from another realm, so the test is the object's tag, never its prototype.
+ * A plain object of exactly the shape `"name name? …"`: every key is one of the names, and each name without `?` is there. A pane
+ * document's objects come from another realm, so the test is the object's tag, never its prototype.
  */
-export function returnRecord(value: unknown, allowed: readonly string[], required: readonly string[] = []): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.prototype.toString.call(value) !== "[object Object]") return null;
-  const keys = Object.keys(value);
-  return keys.every(key => allowed.includes(key)) && required.every(key => keys.includes(key)) ? value as Record<string, unknown> : null;
+export function returnRecord(value: unknown, shape: string): Record<string, unknown> | null {
+  // The tag alone rules out null, arrays, functions and every primitive, from any realm.
+  if (Object.prototype.toString.call(value) !== "[object Object]") return null;
+  const names = shape.split(" "), keys = Object.keys(value as object);
+  return keys.every(key => names.includes(key) || names.includes(key + "?")) && names.every(name => name.endsWith("?") || keys.includes(name))
+    ? value as Record<string, unknown> : null;
 }
+
+/** The `kind` of an object (what to check it as), before its shape is checked. */
+const kindOf = (value: unknown): unknown => value && typeof value === "object" ? (value as { kind?: unknown }).kind : undefined;
 
 /** Text of at most `max` characters with no control characters. */
 export function returnText(value: unknown, max: number): value is string {
@@ -47,13 +55,13 @@ export function returnText(value: unknown, max: number): value is string {
 /** The carry exactly as `UiReturnCarry` has it (missing is empty); a name more, a value too long or of other characters, is null. */
 export function returnCarry(value: unknown): ReturnCarry | null {
   if (value === undefined) return {};
-  const carry = returnRecord(value, ["draft_key", "step", "object"]);
+  const carry = returnRecord(value, "draft_key? step? object?");
   if (!carry) return null;
   const out: ReturnCarry = {};
   if (carry.draft_key !== undefined) { if (!returnText(carry.draft_key, RETURN_TRIP_RULES.draftKey)) return null; out.draft_key = carry.draft_key; }
-  if (carry.step !== undefined) { if (typeof carry.step !== "string" || !new RegExp(RETURN_TRIP_RULES.step, "u").test(carry.step)) return null; out.step = carry.step; }
+  if (carry.step !== undefined) { if (!fits(carry.step, RETURN_TRIP_RULES.step)) return null; out.step = carry.step; }
   if (carry.object !== undefined) {
-    const object = returnRecord(carry.object, ["kind", "id"], ["kind", "id"]);
+    const object = returnRecord(carry.object, "kind id");
     if (!object || !returnText(object.kind, RETURN_TRIP_RULES.objectKind) || !returnText(object.id, RETURN_TRIP_RULES.objectId)) return null;
     out.object = { kind: object.kind, id: object.id };
   }
@@ -62,37 +70,37 @@ export function returnCarry(value: unknown): ReturnCarry | null {
 
 /** A page's `return-go` over its port: an id, the need (a text model only) and the carry. Any other name refuses the whole message. */
 export function returnGo(message: unknown): { id: number; need: { kind: "model" }; carry: ReturnCarry } | null {
-  const go = returnRecord(message, ["type", "id", "need", "carry"], ["type", "id", "need"]);
+  const go = returnRecord(message, "type id need carry?");
   if (!go || go.type !== "return-go" || !Number.isSafeInteger(go.id) || (go.id as number) <= 0) return null;
-  const need = returnRecord(go.need, ["kind"], ["kind"]), carry = returnCarry(go.carry);
+  const need = returnRecord(go.need, "kind"), carry = returnCarry(go.carry);
   return need?.kind === "model" && carry ? { id: go.id as number, need: { kind: "model" }, carry } : null;
 }
 
 /** A place as the shell computed it: a pane id and the surface the page is on. */
 export function returnPlace(value: unknown): ReturnPlace | null | undefined {
   if (value === null) return null;
-  const place = returnRecord(value, ["pane", "surface"], ["pane", "surface"]);
-  return place && returnText(place.pane, 100) && typeof place.surface === "string" && new RegExp(RETURN_TRIP_RULES.surface, "u").test(place.surface)
+  const place = returnRecord(value, "pane surface");
+  return place && returnText(place.pane, 100) && fits(place.surface, RETURN_TRIP_RULES.surface)
     ? { pane: place.pane, surface: place.surface } : undefined;
 }
 
 /** Where a trip came from, as the shell wrote it. */
 export function returnFrom(value: unknown): ReturnFrom | null {
-  const kind = returnRecord(value, ["kind", "mount", "scope", "plugin", "surface", "place", "work_id"])?.kind;
+  const kind = kindOf(value);
   if (kind === "page") {
-    const from = returnRecord(value, ["kind", "mount", "scope", "plugin", "surface", "place"], ["kind", "mount", "scope", "plugin", "surface", "place"]);
+    const from = returnRecord(value, "kind mount scope plugin surface place");
     const place = returnPlace(from?.place);
-    if (!from || place === undefined || typeof from.mount !== "string" || !new RegExp(RETURN_TRIP_RULES.id, "u").test(from.mount)
+    if (!from || place === undefined || !fits(from.mount, RETURN_TRIP_RULES.id)
       || !returnText(from.scope, RETURN_TRIP_RULES.text) || !returnText(from.plugin, RETURN_TRIP_RULES.text)
-      || typeof from.surface !== "string" || !new RegExp(RETURN_TRIP_RULES.surface, "u").test(from.surface) || place && place.surface !== from.surface) return null;
+      || !fits(from.surface, RETURN_TRIP_RULES.surface) || place && place.surface !== from.surface) return null;
     return { kind, mount: from.mount, scope: from.scope, plugin: from.plugin, surface: from.surface, place };
   }
   if (kind === "assistant") {
-    const from = returnRecord(value, ["kind", "work_id"], ["kind", "work_id"]);
+    const from = returnRecord(value, "kind work_id");
     return from && returnText(from.work_id, 200) ? { kind, work_id: from.work_id } : null;
   }
   if (kind === "under-cover") {
-    const from = returnRecord(value, ["kind", "place"], ["kind"]);
+    const from = returnRecord(value, "kind place?");
     const place = from?.place === undefined ? null : returnPlace(from.place);
     return from && place !== undefined ? { kind, place } : null;
   }
@@ -101,37 +109,37 @@ export function returnFrom(value: unknown): ReturnFrom | null {
 
 /** What the settings had to make true, from the closed set (§2.1). */
 export function returnNeed(value: unknown): ReturnNeed | null {
-  const kind = returnRecord(value, ["kind", "service_id", "slot", "authorization_id"])?.kind;
-  if (kind === "model" || kind === "none") return returnRecord(value, ["kind"]) ? { kind } : null;
+  const kind = kindOf(value);
+  if (kind === "model" || kind === "none") return returnRecord(value, "kind?") ? { kind } : null;
   if (kind === "setup") {
-    const need = returnRecord(value, ["kind", "authorization_id"], ["kind", "authorization_id"]);
-    return need && typeof need.authorization_id === "string" && new RegExp(RETURN_TRIP_RULES.record, "u").test(need.authorization_id) ? { kind, authorization_id: need.authorization_id } : null;
+    const need = returnRecord(value, "kind authorization_id");
+    return need && fits(need.authorization_id, RETURN_TRIP_RULES.record) ? { kind, authorization_id: need.authorization_id } : null;
   }
   if (kind !== "connection") return null;
-  const need = returnRecord(value, ["kind", "service_id", "slot"], ["kind", "service_id"]);
-  if (!need || typeof need.service_id !== "string" || !new RegExp(RETURN_TRIP_RULES.service, "u").test(need.service_id)) return null;
+  const need = returnRecord(value, "kind service_id slot?");
+  if (!need || !fits(need.service_id, RETURN_TRIP_RULES.service)) return null;
   if (need.slot === undefined) return { kind, service_id: need.service_id };
-  const slot = returnRecord(need.slot, ["slot_id", "record_key"], ["slot_id"]);
-  if (!slot || typeof slot.slot_id !== "string" || !new RegExp(RETURN_TRIP_RULES.slot, "u").test(slot.slot_id)
-    || slot.record_key !== undefined && (typeof slot.record_key !== "string" || !new RegExp(RETURN_TRIP_RULES.record, "u").test(slot.record_key))) return null;
+  const slot = returnRecord(need.slot, "slot_id record_key?");
+  if (!slot || !fits(slot.slot_id, RETURN_TRIP_RULES.slot)
+    || slot.record_key !== undefined && (!fits(slot.record_key, RETURN_TRIP_RULES.record))) return null;
   return { kind, service_id: need.service_id, slot: { slot_id: slot.slot_id, ...(slot.record_key === undefined ? {} : { record_key: slot.record_key as string }) } };
 }
 
 /** A stored trip exactly in its version-1 shape; anything else (another version, a name more, an address) is dropped whole. */
 export function returnTrip(value: unknown): ReturnTrip | null {
-  const trip = returnRecord(value, ["v", "id", "window", "project", "from", "claim", "need", "met_at_open", "carry", "cover", "opened_at", "expires_at", "outcome"],
-    ["v", "id", "window", "project", "from", "claim", "need", "met_at_open", "cover", "opened_at", "expires_at"]);
-  if (!trip || trip.v !== 1) return null;
+  const trip = returnRecord(value, "v id window project from claim need met_at_open carry? cover opened_at expires_at outcome?");
+  if (!trip || trip.v !== /* @version format.workbench.return-trip */ 1) return null;
   const from = returnFrom(trip.from), need = returnNeed(trip.need), carry = returnCarry(trip.carry);
-  const outcome = trip.outcome === undefined ? undefined : returnRecord(trip.outcome, ["status", "at"], ["status", "at"]);
-  const id = new RegExp(RETURN_TRIP_RULES.id, "u");
+  const outcome = trip.outcome === undefined ? undefined : returnRecord(trip.outcome, "status at");
+  const id = RETURN_TRIP_RULES.id;
   if (!from || !need || !carry || outcome === null || outcome && (outcome.status !== "ready" && outcome.status !== "not_ready" || !Number.isFinite(outcome.at))
-    || typeof trip.id !== "string" || !id.test(trip.id) || typeof trip.window !== "string" || !id.test(trip.window) || !returnText(trip.project, 200)
+    || !fits(trip.id, id) || !fits(trip.window, id) || !returnText(trip.project, 200)
     || typeof trip.claim !== "boolean" || typeof trip.met_at_open !== "boolean" || typeof trip.cover !== "string" || trip.cover.length > RETURN_TRIP_RULES.cover
     || !Number.isFinite(trip.opened_at) || !Number.isFinite(trip.expires_at) || trip.claim && from.kind !== "page") return null;
-  return { v: 1, id: trip.id, window: trip.window, project: trip.project, from, claim: trip.claim, need, met_at_open: trip.met_at_open,
-    ...(Object.keys(carry).length ? { carry } : {}), cover: trip.cover, opened_at: trip.opened_at as number, expires_at: trip.expires_at as number,
-    ...(outcome ? { outcome: { status: outcome.status as ReturnStatus, at: outcome.at as number } } : {}) };
+  // Every name is checked above; what came from another document (the source, the need, the carry) is the checked copy.
+  const out = { ...trip, from, need, carry } as ReturnTrip;
+  if (!Object.keys(carry).length) delete out.carry;
+  return out;
 }
 
 export interface ReturnPlaceRoot {
@@ -148,7 +156,7 @@ export function placeOf(root: ReturnPlaceRoot, surface: string): ReturnPlace | n
   let frame: { getAttribute(name: string): string | null } | null = null;
   try { frame = root.ownerDocument?.defaultView?.frameElement ?? null; } catch { return null; }
   const pane = frame ? frame.getAttribute("data-pane-owner") : root.closest("[data-tab-pane]")?.getAttribute("data-tab-pane") ?? null;
-  return pane && returnText(pane, 100) && new RegExp(RETURN_TRIP_RULES.surface, "u").test(surface) ? { pane, surface } : null;
+  return pane && returnText(pane, 100) && RETURN_TRIP_RULES.surface.test(surface) ? { pane, surface } : null;
 }
 
 /** Two places are the same place (both none, or the same pane and surface). */
@@ -158,7 +166,7 @@ export function samePlace(a: ReturnPlace | null | undefined, b: ReturnPlace | nu
 
 /** The workbench's own object link for a surface (and an object on it); null when either does not pass (§2.3). */
 export function returnLink(prefix: string, surface: string, objectId?: string): string | null {
-  if (!new RegExp(RETURN_TRIP_RULES.surface, "u").test(surface) || objectId !== undefined && !returnText(objectId, RETURN_TRIP_RULES.objectId)) return null;
+  if (!RETURN_TRIP_RULES.surface.test(surface) || objectId !== undefined && !returnText(objectId, RETURN_TRIP_RULES.objectId)) return null;
   return prefix + "/?openPlugin=" + encodeURIComponent(surface) + (objectId === undefined ? "" : "&openItem=" + encodeURIComponent(objectId));
 }
 
@@ -170,7 +178,7 @@ export function needOfAddress(href: string, origin: string, prefix: string): Ret
   const path = (prefix && url.pathname.startsWith(prefix + "/") ? url.pathname.slice(prefix.length) : url.pathname).replace(/\/+$/u, "");
   if (path === "/settings/models") return { kind: "model" };
   const service = url.searchParams.get("connector") ?? "";
-  if ((path === "/settings/connectors" || path === "/capabilities/connections") && new RegExp(RETURN_TRIP_RULES.service, "u").test(service)) return { kind: "connection", service_id: service };
+  if ((path === "/settings/connectors" || path === "/capabilities/connections") && RETURN_TRIP_RULES.service.test(service)) return { kind: "connection", service_id: service };
   return { kind: "none" };
 }
 
@@ -184,9 +192,9 @@ export function startReturnWindow(storage: ReturnStorage, now: number, landing: 
   let handoff: unknown = null, id: string | null = null;
   try { handoff = JSON.parse(storage.getItem(keys.handoff) || "null"); } catch { handoff = null; }
   try { storage.removeItem(keys.handoff); id = storage.getItem(keys.window); } catch { return newId(); }
-  const left = returnRecord(handoff, ["id", "at"], ["id", "at"]);
+  const left = returnRecord(handoff, "id at");
   const fresh = left && typeof left.at === "number" && now - left.at >= 0 && now - left.at <= RETURN_TRIP_RULES.handoffMs;
-  if (!landing && id && fresh && left?.id === id && new RegExp(RETURN_TRIP_RULES.id, "u").test(id)) return id;
+  if (!landing && id && fresh && left?.id === id && RETURN_TRIP_RULES.id.test(id)) return id;
   const next = newId();
   try { storage.setItem(keys.window, next); storage.removeItem(keys.trips); } catch { /* No storage: the window keeps no trips. */ }
   return next;
@@ -197,19 +205,22 @@ export function leaveReturnWindow(storage: ReturnStorage, id: string, now: numbe
   try { storage.setItem(RETURN_TRIP_RULES.keys.handoff, JSON.stringify({ id, at: now })); } catch { /* No storage, no trips to keep. */ }
 }
 
+/** Every project's stored entries; nothing readable is none. */
+function readAll(storage: ReturnStorage): Record<string, unknown> {
+  try { const all: unknown = JSON.parse(storage.getItem(RETURN_TRIP_RULES.keys.trips) || "null"); return Object.prototype.toString.call(all) === "[object Object]" ? all as Record<string, unknown> : {}; }
+  catch { return {}; }
+}
+
 /** The trips of this window in this project, read from storage each time (another document of the tab may have changed them). */
 export function readReturnTrips(storage: ReturnStorage, window: string, project: string): ReturnTrip[] {
-  let all: unknown = null;
-  try { all = JSON.parse(storage.getItem(RETURN_TRIP_RULES.keys.trips) || "null"); } catch { all = null; }
-  const list = all && typeof all === "object" && !Array.isArray(all) ? (all as Record<string, unknown>)[project] : null;
+  const list = readAll(storage)[project];
   return Array.isArray(list) ? list.map(returnTrip).filter((trip): trip is ReturnTrip => Boolean(trip && trip.window === window && trip.project === project)) : [];
 }
 
-/** Writes this window's trips of a project; other windows' and other projects' entries are left as they are. */
+/** Writes this window's trips of a project; other windows' trips and other projects' entries are left as they are, an entry of no trip's shape is dropped. */
 export function writeReturnTrips(storage: ReturnStorage, window: string, project: string, trips: ReturnTrip[]): void {
-  let all: Record<string, unknown> = {};
-  try { const read = JSON.parse(storage.getItem(RETURN_TRIP_RULES.keys.trips) || "null"); if (read && typeof read === "object" && !Array.isArray(read)) all = read; } catch { all = {}; }
-  const others = Array.isArray(all[project]) ? (all[project] as unknown[]).filter(entry => returnTrip(entry)?.window !== window) : [];
+  const all = readAll(storage);
+  const others = Array.isArray(all[project]) ? (all[project] as unknown[]).filter(entry => { const trip = returnTrip(entry); return trip !== null && trip.window !== window; }) : [];
   const next = [...others, ...trips];
   if (next.length) all[project] = next; else delete all[project];
   try { if (Object.keys(all).length) storage.setItem(RETURN_TRIP_RULES.keys.trips, JSON.stringify(all)); else storage.removeItem(RETURN_TRIP_RULES.keys.trips); }
@@ -225,7 +236,7 @@ export function returnSource(from: ReturnFrom): string {
 
 /** A claim's origin matches the trip's source (installation scope, surface and place); an empty place matches only a trip with none. */
 export function returnMatches(trip: ReturnTrip, origin: unknown): boolean {
-  const asked = returnRecord(origin, ["scope", "surface", "place"], ["scope", "surface", "place"]);
+  const asked = returnRecord(origin, "scope surface place");
   const place = returnPlace(asked?.place);
   return Boolean(asked && place !== undefined && trip.claim && trip.from.kind === "page" && trip.from.scope === asked.scope
     && trip.from.surface === asked.surface && samePlace(trip.from.place, place));
@@ -282,7 +293,7 @@ export function createReturnOwner(env: ReturnOwnerEnv) {
   /** Opens a trip, replacing one from the same place; the ninth of a project pushes out the oldest. */
   const open = (input: { id?: string; from: unknown; need: unknown; carry?: unknown; claim: boolean; cover: string }): ReturnTrip | null => {
     const now = env.now();
-    const trip = returnTrip({ v: 1, id: input.id ?? env.newId(), window: env.window, project: env.project, from: input.from, claim: input.claim,
+    const trip = returnTrip({ v: /* @version format.workbench.return-trip */ 1, id: input.id ?? env.newId(), window: env.window, project: env.project, from: input.from, claim: input.claim,
       need: input.need, met_at_open: true, ...(input.carry === undefined ? {} : { carry: input.carry }), cover: input.cover, opened_at: now, expires_at: now + RETURN_TRIP_RULES.openMs });
     if (!trip) return null;
     const source = returnSource(trip.from), before = list();
@@ -319,7 +330,7 @@ export function createReturnOwner(env: ReturnOwnerEnv) {
   };
   /** `molis-work:return-claim`: hands a settled trip to the page it came from, once, and removes it (§2.6 ⑤). */
   const claim = (detail: unknown): ReturnClaimAnswer => {
-    const ask = returnRecord(detail, ["return_id", "origin", "drop", "answer"]);
+    const ask = returnRecord(detail, "return_id? origin? drop? answer?");
     if (!ask) return null;
     const trips = list(), named = typeof ask.return_id === "string";
     const matching = (named ? trips.filter(trip => trip.id === ask.return_id) : trips.filter(trip => trip.from.kind === "page" && trip.from.place))

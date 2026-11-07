@@ -54,7 +54,8 @@ export function pageReturns(port: MessagePort, scope: FrameScope, root: HTMLElem
     if (scope.alive) port.postMessage({ type: "return-result", id, ...result } satisfies FrameDown);
   };
   const outcome = (got: Claimed): UiReturnOutcome | null => got && "status" in got ? { status: got.status, carry: got.carry ?? {} } : null;
-  const goes = new Map<string, { id: number; carry: UiReturnCarry }>();
+  type Going = { id: number; carry: UiReturnCarry; finish(result: { outcome?: UiReturnOutcome | null; error?: string }): void };
+  const goes = new Map<string, Going>();
   let arrived: { id: number; trip?: string } | null = null, asked = false;
   const finishArrived = (result: UiReturnOutcome | null) => { if (!arrived) return; answer(arrived.id, { outcome: result }); arrived = null; };
   /** `arrived()` claims for this place as it is now, and only while shown: hidden in the pool the page has no place to compare. */
@@ -65,13 +66,13 @@ export function pageReturns(port: MessagePort, scope: FrameScope, root: HTMLElem
   };
   const tryGo = (returnId: string) => {
     const waiting = goes.get(returnId), got = waiting ? claim({ return_id: returnId }) : null;
-    if (waiting && got && "status" in got) { goes.delete(returnId); answer(waiting.id, { outcome: outcome(got) }); }
+    if (waiting && got && "status" in got) { goes.delete(returnId); waiting.finish({ outcome: outcome(got) }); }
   };
   scope.listen(outer, "molis-work:return-settled", event => {
     const detail = (event as CustomEvent<{ return_id?: unknown; status?: unknown }>).detail, returnId = detail?.return_id;
     if (typeof returnId !== "string") return;
     const waiting = goes.get(returnId);
-    if (waiting && detail?.status === "ended") { goes.delete(returnId); answer(waiting.id, { outcome: { status: "not_ready", carry: waiting.carry } }); }
+    if (waiting && detail?.status === "ended") { goes.delete(returnId); waiting.finish({ outcome: { status: "not_ready", carry: waiting.carry } }); }
     else if (waiting) tryGo(returnId);
     else if (arrived && detail?.status === "ended" && arrived.trip === returnId) finishArrived(null);
     else tryArrived();
@@ -85,19 +86,29 @@ export function pageReturns(port: MessagePort, scope: FrameScope, root: HTMLElem
   const go = (message: Extract<FrameUp, { type: "return-go" }>) => {
     const request = returnGo(message), id = Number.isSafeInteger(message.id) ? message.id : 0;
     if (!request || !visible() || !scope.alive) { if (id > 0) answer(id, { error: RETURNS_UNAVAILABLE }); return; }
+    trip("/settings/models", request.need, { id: request.id, carry: request.carry, finish: result => answer(request.id, result) });
+  };
+  /** Opens a trip this page claims; in the outer document it is open by now, a pane's opens after the relay and a refusal ends it. */
+  const trip = (path: string, need: Record<string, unknown>, going: Going) => {
     const returnId = crypto.randomUUID();
-    goes.set(returnId, { id: request.id, carry: request.carry });
-    openSettings(new URL("/settings/models", location.origin), { return_id: returnId, need: request.need, from: from(), carry: request.carry });
-    // In the outer document the trip is open by now; a pane's opens after the relay, and a refusal there ends it (`ended`).
-    if (!inPane && goes.has(returnId) && !claim({ return_id: returnId })) { goes.delete(returnId); answer(request.id, { error: RETURNS_UNAVAILABLE }); }
+    goes.set(returnId, going);
+    openSettings(new URL(path, location.origin), { return_id: returnId, need, from: from(), ...(going.id ? { carry: going.carry } : {}) });
+    if (!inPane && goes.has(returnId) && !claim({ return_id: returnId })) { goes.delete(returnId); going.finish({ error: RETURNS_UNAVAILABLE }); }
   };
   return {
     /** An ordinary settings link of the page: the settings open with this page as where the person came from, and nothing is handed back. */
     link: (url: URL) => openSettings(url, { from: from() }),
+    /**
+     * The in-place connection card's 「还不能一键连接」 (R4): the connections page for the service, as a trip of this page with the
+     * card's slot; however it ends, `back` runs once, here and shown, and the card reads its target again.
+     */
+    connection(service_id: string, slot: { slot_id: string; record_key?: string } | null, back: () => void) {
+      trip("/settings/connectors?connector=" + encodeURIComponent(service_id), { kind: "connection", service_id, ...(slot ? { slot } : {}) }, { id: 0, carry: {}, finish: back });
+    },
     receive(message: Extract<FrameUp, { type: "return-go" | "return-arrived" | "return-abort" }>) {
       if (message.type === "return-go") { go(message); return; }
       if (message.type === "return-abort") {
-        for (const [returnId, waiting] of goes) if (waiting.id === message.id) { goes.delete(returnId); claim({ return_id: returnId, drop: true }); }
+        for (const [returnId, waiting] of goes) if (waiting.id && waiting.id === message.id) { goes.delete(returnId); claim({ return_id: returnId, drop: true }); }
         return;
       }
       if (!Number.isSafeInteger(message.id) || message.id <= 0) return;

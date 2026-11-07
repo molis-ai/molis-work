@@ -260,3 +260,35 @@ test("ASC-70 S-plugin-connection-card a source the person adds without an accoun
   assert.equal(pulls.length, 1, "connected, the new source is pulled once: " + JSON.stringify(pulls));
   assert.equal((await p.writes()).filter(item => item.body?.operation === "bind").length, 1);
 });
+
+test("DRT-13 S-plugin-connection-card 还不能一键连接 opens the connections page as the page's return trip; back on the page the card reads its target once more and goes on", { timeout: 150_000 }, async t => {
+  const p = await open(t); if (!p) return;
+  const { browser } = p;
+  // This service cannot be connected in the card here: the Host says so when the login is prepared.
+  await browser.evaluate(`(() => { const fetch = window.fetch; window.fetch = function (input, init) {
+    let body = null; try { body = JSON.parse(init && init.body); } catch { body = null; }
+    if (body && body.operation === "prepare") return Promise.resolve(new Response(JSON.stringify({ error: "unsupported", code: "connector.setup.unsupported" }), { status: 422, headers: { "content-type": "application/json" } }));
+    return fetch.apply(this, arguments); }; })()`);
+  await p.ask("card", "left:24px;top:24px;width:560px");
+  await p.shown("connect");
+  await p.ready();
+  await p.press(p.control("connect"));
+  await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "unsupported"`, 10_000);
+  await p.shown("settings");
+  await p.ready();
+  await p.press(p.control("settings"));
+  await browser.waitFor("document.body.dataset.desktopSurface === 'settings' && document.querySelector('[data-settings-return-bar]')", 15_000);
+  const trip = await browser.evaluate<{ need: unknown; claim: boolean }>(`Object.values(JSON.parse(sessionStorage.getItem("molis-work:return-trips")))[0][0]`);
+  assert.deepEqual({ need: trip.need, claim: trip.claim }, { need: { kind: "connection", service_id: "github", slot: { slot_id: "github", record_key: p.source } }, claim: true },
+    "the trip is the page's, with the card's slot");
+  // An account is connected while the person is on the connections page; going back, the owner reads it back and the card reads again.
+  p.account("Connected meanwhile");
+  const reads = async () => (await p.sent()).filter(item => item.body?.operation === "read").length;
+  const before = await reads();
+  await browser.click("[data-settings-return-bar] [data-return-bar-back]");
+  await browser.waitFor("document.body.dataset.desktopSurface === 'feed'", 15_000);
+  await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "choose"`, 15_000);
+  assert.equal(await reads(), before + 1, "the card reads its target once more");
+  assert.deepEqual(await p.writes(), [], "nothing is put on the place for the person");
+  assert.equal(await browser.evaluate(`sessionStorage.getItem("molis-work:return-trips")`), null, "the trip is claimed and gone");
+});

@@ -128,7 +128,10 @@ function loginSteps(c: Card) {
  * The trusted half. `owner` is the installation's name as the shell lists it. The installation, project and person are the page's
  * authority (the Host route reads them from the outer header), never anything here.
  */
-export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, t: Translate, owner: string) {
+/** How the card's 「还不能一键连接」 goes to the connections page and back (plugin-frame/returns.ts `connection`). */
+export type ConnectionNeedTrip = (service_id: string, slot: { slot_id: string; record_key?: string } | null, back: () => void) => void;
+
+export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, t: Translate, owner: string, trip: ConnectionNeedTrip) {
   const entries = new Map<string, Entry>(), refused = new Set<string>();
   const send = (kind: string, id: number, more: object = {}) => { if (scope.alive) port.postMessage({ type: "connection-need-" + kind, id, ...more } as ConnectionNeedDown); };
   const ask = <T>(target: UiConnectionNeedTarget, body: Record<string, unknown>) => molisWorkRequest<T>(route("/api/host/plugin-page-connection"),
@@ -208,7 +211,10 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     switch: entry => { const other = entry.other; if (other) void c.act(entry, () => c.put(entry, other.connection_id)); },
     reopen: entry => { if (entry.auth?.url) window.open(entry.auth.url, "_blank", "noopener,noreferrer"); },
     retry: entry => void c.act(entry, () => begin(entry)),
-    settings: entry => document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: location.origin + "/settings/connectors?connector=" + encodeURIComponent(entry.read!.service_id) } })),
+    // The connections page as a return trip of this page with the card's slot (specs/draft-and-return §4, R4): back here, the card reads
+    // its target again and goes on from what it finds.
+    settings: entry => trip(entry.read!.service_id, entry.target.kind === "slot" ? { slot_id: entry.target.slot_id, ...(entry.target.record_key ? { record_key: entry.target.record_key } : {}) } : null,
+      () => { if (live(entry)) steps.retry!(entry); }),
   };
   /** A press on one of the card's controls: the six checks of §3.3 (18 P3), then at most one step. */
   const press = (entry: Entry, event: MouseEvent) => {

@@ -4,7 +4,8 @@
  * as whoever prepared it. Logging in and a pasted key go through the person's own connections routes with the prepared request, exactly as
  * the 「继续接入」 page does; the work goes on through its registered wait, once. Not drawn (another session's request, expired, a way
  * the card does not take), the result's own link stays. The login window is reserved during the press, so a browser that blocks a
- * later window does not; a desktop shell opens the system browser instead. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place.
+ * later window does not; a desktop shell opens the system browser instead. The result's own 「继续接入」 link opens the connections page as
+ * a return trip of the work shown (specs/draft-and-return §2.3). A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place.
  */
 export const ASSISTANT_CONNECTION_PART = String.raw`  const connectionCard = (mount, work, card) => {
     if (mount.dataset.bound !== undefined) return; mount.dataset.bound = "";
@@ -53,4 +54,12 @@ export const ASSISTANT_CONNECTION_PART = String.raw`  const connectionCard = (mo
     window.addEventListener("focus", () => { if (state && state.state === "pending" && mount.isConnected) read(); });
     read();
   };
+  // 继续接入 opens the connections page for the work shown here and waits for the authorization the host named on the link
+  // (specs/draft-and-return §2.3): the settings close onto this work once it is connected.
+  thread.addEventListener("click", (event) => {
+    const link = event.target.closest && event.target.closest("a[href][data-return-setup]");
+    if (!link || !curId || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: link.href, from: { kind: "assistant", work_id: curId }, need: { kind: "setup", authorization_id: link.dataset.returnSetup } } }));
+  });
 `;

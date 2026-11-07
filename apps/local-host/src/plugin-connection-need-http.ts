@@ -2,7 +2,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import { ActionError, defineErrorCodes, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginImageTarget } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isPluginConnectionRecordKey, PLUGIN_CONNECTIONS_PERMISSION, type PluginConnectionSlotDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
-import type { UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_CONNECTION_NEED_REASON_MAX, type UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { activateConnectorConnection } from "./connector-activation.js";
 import { lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
@@ -161,7 +161,7 @@ async function respond(home: string, client: BoundActionClient, target: Resolved
   const connection = await bound(home, client, target), service_id = target.kind === "slot" ? target.slot.service_id : "image-api";
   const title = target.kind === "slot" ? (await listConnectorSettingsCards(home)).find(row => row.connector_id === service_id)?.title ?? service_id : "图像模型";
   const disabled = connection && withConnectorConnections(home, store => store.get(connection.connection_id)?.enabled === false);
-  return { service_id, service_title: title, ...(target.kind === "slot" && target.slot.reason ? { reason: target.slot.reason } : {}),
+  return { service_id, service_title: title, ...(target.kind === "slot" && target.slot.reason ? { reason: [...target.slot.reason].slice(0, UI_CONNECTION_NEED_REASON_MAX).join("") } : {}),
     ...(target.kind === "image" ? { origin: target.origin } : {}), connection: connectionChoice(connection), ...(disabled ? { disabled: true } : {}), ...extra };
 }
 

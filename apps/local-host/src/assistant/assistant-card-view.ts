@@ -53,6 +53,9 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
   const actions = open ? [{ id: "run", label: card.status === "failed" ? `${say("再试一次")}：${card.title}` : card.title, variant: "primary" as const }, { id: "dismiss", label: say("忽略") }] : [];
   const origin = card.from ? say("来自「{title}」页面", { title: card.from.title || card.from.surface })
     + (card.source_object?.title ? ` · ${say("选中自《{title}》", { title: card.source_object.title })}` : "") : "";
+  // A result that left a connection to finish gets the platform's connection card under it (ASC-69); the page fills it from the
+  // request's real state, and until then, or when it cannot be drawn, the result's own 「继续接入」 link stays the way on.
+  const pending = result?.pending_connection ? '<div class="mw-platform-area connection-need-area assistant-connection-need" data-assistant-connection hidden></div>' : "";
   return renderInteractionOperation({
     id: card.card_id, kicker: open ? say("可以执行") : say("操作"), state: CARD_RING[card.status], title: card.title,
     badge: { label: say(EFFECT[card.effect]), tone: card.effect === "irreversible" ? "failed" : "quiet", state: null },
@@ -68,5 +71,5 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
         // 继续接入 names what the settings must make true, so the way back waits for it (specs/draft-and-return §4, R4): never read from the address.
         ...(result.pending_connection ? { "data-return-setup": result.pending_connection.authorization_id } : {}) } }] } : {}) } } : {}),
     ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("请助理按最新状态重新准备") }] } : {}),
-  });
+  }) + pending;
 }

@@ -124,7 +124,7 @@ export type FrameUp =
   | { type: "storage"; area: "localStorage" | "sessionStorage"; key: string; value: string | null };
 export type FrameDown =
   | { type: "frame-asset-source"; handle: string }
-  | { type: "connection-slot"; id: number; value?: UiConnectionSlotChoice | null; error?: string }
+  | { type: "connection-slot"; id: number; value?: UiConnectionSlotChoice | null; error?: string; need?: true }
   | { type: "placement-label"; id: number; html: string }
   | { type: "review-size"; id: number; height: number }
   | { type: "review-shown"; id: number; error?: string }

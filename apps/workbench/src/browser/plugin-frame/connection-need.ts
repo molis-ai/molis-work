@@ -1,6 +1,6 @@
 import { type UiConnectionNeedOutcome, type UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { connectionNeedHtml, type ConnectionNeedStage, type ConnectionNeedView } from "../../connection-need-card.js";
+import { CONNECTION_NEED_HEIGHTS, connectionNeedHtml, isConnectionLoginUrl, sayNamed, type ConnectionNeedStage, type ConnectionNeedView } from "../../connection-need-card.js";
 import type { FramedArea, PageFramedAreas } from "./framed-area.js";
 import { childPlaces } from "./over-frame.js";
 import type { ConnectionNeedDown, ConnectionNeedUp, FrameScope, Translate } from "./types.js";
@@ -14,8 +14,6 @@ import type { ConnectionNeedDown, ConnectionNeedUp, FrameScope, Translate } from
 
 /** The one thing the page hears when a card cannot be drawn, whatever the reason. */
 export const CONNECTION_NEED_UNAVAILABLE = "Unavailable";
-/** The card's heights by width alone (§13.5 三第 2 条, the same steps as the platform area), and the one line it folds into. */
-export const CONNECTION_NEED_HEIGHTS = { narrow: 432, wide: 344, line: 48 } as const;
 
 type Choice = { connection_id: string; label: string; auth_method: string; state: string };
 type Read = { service_id: string; service_title: string; reason?: string; origin?: string; connection: Choice | null; disabled?: true;
@@ -25,7 +23,7 @@ interface Entry extends ConnectionNeedView { id: number; readonly key: string; r
   read: Read | null; auth?: Auth; other?: Choice }
 
 const closed = () => new DOMException("Card closed", "AbortError");
-const LOGIN_URL = /^(https:\/\/|http:\/\/(127\.0\.0\.1|localhost)[:/])/u, SLOT = /^[a-z][a-z0-9-]{0,63}$/u, RECORD = /^[A-Za-z0-9._:-]{1,200}$/u, KEY = "[data-connection-need-key]";
+const SLOT = /^[a-z][a-z0-9-]{0,63}$/u, RECORD = /^[A-Za-z0-9._:-]{1,200}$/u, KEY = "[data-connection-need-key]";
 /** A target exactly as `UiConnectionNeedTarget` has it; a name more, or a value of another shape, is no target. */
 export function needTarget(value: unknown): UiConnectionNeedTarget | null {
   const target = (value && typeof value === "object" && !Array.isArray(value) ? value : {}) as Record<string, unknown>;
@@ -98,7 +96,7 @@ function loginSteps(c: Card) {
       const started = await settings<{ authorization_url: string; authorization_id?: string }>("methods/oauth/start", { service_id: prepared.service_id, display_name: prepared.service_title, setup_id: setup.authorization_id, ...again });
       // Only a web page goes into the window: https, or the login's own callback on this computer.
       const url = started.authorization_url;
-      if (!LOGIN_URL.test(url)) throw new Error(t("服务返回的授权地址无效，请重试。"));
+      if (!isConnectionLoginUrl(url)) throw new Error(t("服务返回的授权地址无效，请重试。"));
       if (!live(entry)) throw closed();
       const auth: Auth = entry.auth = { id: started.authorization_id ?? setup.authorization_id, url, relogin };
       if (external) await external(url); else if (popup && !popup.closed) popup.location.replace(url);
@@ -131,7 +129,8 @@ function loginSteps(c: Card) {
 /** How the card's 「还不能一键连接」 goes to the connections page and back (plugin-frame/returns.ts `connection`). */
 export type ConnectionNeedTrip = (service_id: string, slot: { slot_id: string; record_key?: string } | null, back: () => void) => void;
 
-export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, t: Translate, owner: string, trip: ConnectionNeedTrip) {
+export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, translate: Translate, owner: string, trip: ConnectionNeedTrip) {
+  const t: (text: string, values?: Record<string, string | number>) => string = sayNamed(translate);
   const entries = new Map<string, Entry>(), refused = new Set<string>();
   const send = (kind: string, id: number, more: object = {}) => { if (scope.alive) port.postMessage({ type: "connection-need-" + kind, id, ...more } as ConnectionNeedDown); };
   const ask = <T>(target: UiConnectionNeedTarget, body: Record<string, unknown>) => molisWorkRequest<T>(route("/api/host/plugin-page-connection"),
@@ -144,7 +143,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     if (!live(entry)) return;
     const surface = entry.area.surface, typed = surface.querySelector<HTMLInputElement>(KEY)?.value ?? "";
     surface.dataset.stage = entry.stage;
-    entry.area.redraw(connectionNeedHtml(t, owner, entry as ConnectionNeedView & { read: Read }));
+    entry.area.redraw(connectionNeedHtml(translate, owner, entry as ConnectionNeedView & { read: Read }));
     const key = surface.querySelector<HTMLInputElement>(KEY); if (key) key.value = typed;
   };
   /** Folds the card into its one line, after the page has its answer; the focus, if it was in the card, lands on the line. */
@@ -256,7 +255,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     area.surface.addEventListener("click", event => press(entry, event));
     send("shown", entry.id, { service: read.service_title });
     // Cancelled once on this page: asked again, only the folded line shows, opened by the person (§13.5 三第 1 条).
-    if (refused.has(key)) { heights.narrow = heights.wide = CONNECTION_NEED_HEIGHTS.line; entry.stage = "line"; entry.line = t("没有连上 · 再连一次"); draw(entry); return; }
+    if (refused.has(key)) { heights.narrow = heights.wide = CONNECTION_NEED_HEIGHTS.line; entry.stage = "line"; entry.line = t("没有连上"); draw(entry); return; }
     try { await begin(entry); } catch { if (live(entry)) { close(key); fail(); } }
   };
   return (message: ConnectionNeedUp) => {
@@ -278,6 +277,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
   const made = childNeeds.get(port);
   if (made) return made;
   let sequence = 0;
+  const named: (text: string, values?: Record<string, string | number>) => string = (text, values) => sayNamed(L)(text, values);
   type Waiting = { element: HTMLElement; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
   const entries = new Map<number, Waiting>(), up = (message: ConnectionNeedUp) => port.postMessage(message);
   const close = (id: number, error: Error = closed()) => {
@@ -295,7 +295,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
     if (kind === "size") element.style.height = Math.max(0, Number(said.height) || 0) + "px";
     else if (kind === "reveal") element.scrollIntoView({ block: "nearest" });
     // Shown: the place is reported again, since a report made while the shell was still reading the target had no card to go to.
-    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", L("这里需要连接 {name}，连接卡在页面上", { name: String(said.service) })); }
+    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", named("这里需要连接 {name}，连接卡在页面上", { name: String(said.service) })); }
     else if (kind !== "done") return;
     else if (said.error) close(message.id, said.error === "AbortError" ? closed() : new Error(CONNECTION_NEED_UNAVAILABLE));
     else if (said.outcome) { const settle = entry.settle, outcome = said.outcome; entry.settle = undefined; entry.stop?.(); settle?.resolve(outcome.status === "connected" ? { status: "connected", account: { label: String(outcome.account.label) } } : { status: "cancelled" }); }

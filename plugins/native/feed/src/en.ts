@@ -82,8 +82,6 @@ export const FEED_EN: Record<string, string> = {
   "无法读取账号连接，请重试。": "Could not load account connections. Please retry.",
   "原连接已不可用，请重新选择或前往 Connectors": "The previous connection is unavailable. Choose another or open Connectors.",
   "请选择账号连接": "Choose an account connection",
-  "没有连上账号；这个来源先不拉取。": "No account connected; this source is not pulled for now.",
-  "已连上 {account}，正在拉第一次…": "Connected {account}; pulling for the first time…",
   "这个来源已经选好账号。要换账号，先断开来源。": "This source has an account. To use another, disconnect the source first.",
   "为这个来源选一个账号，选好就保存。": "Choose an account for this source. It saves at once.",
   "账号已保存。": "Account saved.",

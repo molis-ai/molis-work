@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
+import { LOGIN_URLS_OPENED, LOGIN_URLS_REFUSED } from "./fixtures/connection-login-urls.js";
 
 // The bottom bar's client script is one template string: a single slip (a name declared twice, an unescaped newline)
 // stops the whole Assistant, search and plugin switching with it, and only a browser run would show it otherwise.
@@ -99,4 +100,15 @@ test("RAC-2571: the bottom-bar script is twelve String.raw parts joined in place
     assert.ok(source.split("\n").length < 800, `${file} has ${source.split("\n").length} lines`);
     assert.equal(main.split("\n").filter(line => line === "${" + name + "}").length, 1, `the main file joins ${name} once, on a line of its own`);
   }
+});
+
+// S-plugin-connection-card B1: the Assistant's connection card checks the login address with the card's own function, written into
+// the script from it (on the one loopback spelling); the same addresses are opened and refused as by the shell's card.
+test("S-plugin-connection-card B1 the Assistant's card opens only an https login or one on this computer, never one with a user name in it", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT, start = script.indexOf("const isLoopbackHostname = "), end = script.indexOf("let state = null", start);
+  assert.ok(start > 0 && end > start, "the card writes the check in");
+  assert.equal(/127\\\.0\\\.0\\\.1\|localhost\)\[:\/\]/u.test(script), false, "no second spelling of this computer is left");
+  const check = new Function(`${script.slice(start, end)}; return isConnectionLoginUrl;`)() as (value: string) => boolean;
+  for (const url of LOGIN_URLS_OPENED) assert.equal(check(url), true, url);
+  for (const url of LOGIN_URLS_REFUSED) assert.equal(check(url), false, url);
 });

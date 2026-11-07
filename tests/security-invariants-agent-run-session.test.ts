@@ -207,7 +207,17 @@ test("S-17 a tool input that names a session or an author (RCPT-393)", { timeout
   assert.deepEqual(await w.proposals(round), [], "no proposal was written");
 });
 
-test("S-17 a round's session grants nothing (RCPT-394)", { timeout: 180_000 }, async t => {
+test("S-ui-locale-memory a plugin's start of a round cannot name a reply language: the schema refuses it and no round starts (FSS-71)", { timeout: 180_000 }, async t => {
+  const w = await world(t);
+  for (const field of ["reply_locale", "reply_language", "locale"]) {
+    await assert.rejects(w.start("s", w.tools, { [field]: field === "reply_language" ? { prompt_id: "reply-language", version: 1, body: "Reply in French" } : "en" }), { code: "actions.input_invalid" }, field);
+  }
+  assert.equal(w.rounds.length, 0, "no round was started");
+  await w.start("s", w.tools);
+  assert.equal(w.rounds.length, 1, "the same start without it goes through, so the refusals were about the field");
+});
+
+test("S-17 a round's session grants nothing (RCPT-394)",{ timeout: 180_000 }, async t => {
   const w = await world(t);
   await w.start("s", w.tools);
   const round = w.last();

@@ -9,6 +9,7 @@ import type { AgentSessionRef, AgentTextMaterial } from "@molis-ai/molis-work-co
 import type { ActionSubjectContext, ActionView, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantCharacterChoice, AssistantWorkObject } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { WebLocale } from "../web-locale.js";
 import type { AssistantRoundFactPorts } from "./assistant-directory.js";
 import { withinTime } from "./assistant-material-scan.js";
 import type { AgentSkillRegistration, AgentSkillView, SignedAgentReference, SignedAgentInstallation, SignedAgentMaterial } from "@molis-ai/molis-work-contracts/services/agent-definitions";
@@ -32,6 +33,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   setupMaterial?(work: StoredWork, offered: readonly ActionView[], previousWaitWithdrawn: boolean): AgentTextMaterial | undefined;
   /** The Home's Agent Host, ready to run. */
   host(): Promise<AgentHost>;
+  /** The language the person last used, read when a round no page started begins. Absent: such a round is told no language. */
+  lastLocale?(): WebLocale;
   authority(work: StoredWork, origin?: { source: "card" }): Promise<AgentStartAuthority>;
   /** How the person names a project, for the round's own description of where it runs. */
   projectTitle?(projectId: string): Promise<string | null>;
@@ -65,6 +68,8 @@ export interface AssistantCaller {
   /** Attested by the protected send owner, never read from a business input. */
   original_input?: Omit<HostOfferedOriginalInput, "action">;
   project_ref?: LocalHostProjectReference;
+  /** The language of the page that sends, read at the Host's entry and never from the input. Absent: the round follows the language last used. */
+  reply_locale?: WebLocale;
   /** Set by the discussion controller, never read from HTTP input. */
   thread_request?: string;
   beforeStart?: () => Promise<void>;

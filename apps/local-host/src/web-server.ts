@@ -32,6 +32,7 @@ import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
 import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
+import { rememberUiLocale } from "./ui-locale-memory.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions } from "./web-types.js";
@@ -65,6 +66,21 @@ function nativeTerminal() {
     return terminal.host.spawn(request);
   } };
   return terminal;
+}
+
+/** The language switch. This is a GET a foreign page's <img> reaches too: the browser's Cookie goes as ever, but only the page itself moves the Home's remembered language (S-ui-locale-memory). */
+function switchLocale(request: http.IncomingMessage, response: http.ServerResponse, url: URL, home: string): void {
+  const requested = url.searchParams.get("lang");
+  if (request.headers["sec-fetch-site"] === "same-origin") rememberUiLocale(home, requested);
+  const nextLocale = isWebLocale(requested)
+    ? requested
+    : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
+  response.writeHead(302, {
+    location: safeNextPath(url.searchParams.get("next")),
+    "set-cookie": localeSetCookie(nextLocale),
+    "cache-control": "no-store",
+  });
+  response.end();
 }
 
 function webWorkspaceFor(projectId: string, options: WebServerOptions, fixture: ReturnType<typeof fixtureWebBoardOptions>, home: string, withCatalog: LocalWebCatalogRunner) {
@@ -137,19 +153,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       try { await demoSeeding;
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
-        if (request.method === "GET" && url.pathname === "/locale") {
-          const requested = url.searchParams.get("lang");
-          const nextLocale = isWebLocale(requested)
-            ? requested
-            : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
-          response.writeHead(302, {
-            location: safeNextPath(url.searchParams.get("next")),
-            "set-cookie": localeSetCookie(nextLocale),
-            "cache-control": "no-store",
-          });
-          response.end();
-          return;
-        }
+        if (request.method === "GET" && url.pathname === "/locale") { switchLocale(request, response, url, storageHome); return; }
         const capsuleLocale = request.method === "GET" && (
           url.pathname === "/desktop/capsule" ||
           /^\/projects\/[^/]+\/api\/capsule$/.test(url.pathname)

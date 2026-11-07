@@ -26,21 +26,37 @@ const RECORD_PATH = `${SLOTS_PATH}/record`;
 // The record path takes exactly these: a name more (an `install_id` the page made up, say) is refused, not ignored.
 const RECORD_QUERY = ["project", "plugin_id", "slot_id", "record_key"], RECORD_BODY = ["plugin_id", "slot_id", "service_id", "record_key", "connection_id"];
 
-/** Trusted Host picker only: same owner actions as the person's record-slot UI, fenced by the current page. */
-export async function pageConnectionSlot(context: WebRequestContext, project: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
+type TrustedPage = NonNullable<ReturnType<typeof pluginPageRequest>>;
+
+/**
+ * The current page, for a request only the trusted shell makes: the outer document's `x-molis-context-page`, in the page's own project.
+ * The child's fetch bridge drops that header, and the transport guard refuses it beside the child's `x-molis-plugin-page`.
+ */
+export function trustedPluginPage(context: WebRequestContext, project: LocalHostProjectReference | undefined): { page: TrustedPage; project: LocalHostProjectReference } {
   const page = pluginPageRequest(context.request);
   if (!page || !context.request.headers["x-molis-context-page"] || !project || project.project_id !== page.project_id)
     throw new ActionError("actions.forbidden", "账号选择需要当前项目的可信控件");
+  return { page, project };
+}
+
+/** The person's own action client, fenced by the page: every call's authority check asks the page again, and its effect boundary too. */
+export async function pageOwnerClient(context: WebRequestContext, project: LocalHostProjectReference, page: TrustedPage) {
+  const original = await localWebActionContext(context.localHost, project, LOCAL_OWNER_PERMISSIONS, page.signal);
+  const caller: ActionCallContext = { ...original,
+    validate_authority: async (...args) => { await original.validate_authority?.(...args); await page.beforeEffect(); },
+    assert_authority_current: (...args) => { original.assert_authority_current?.(...args); page.assertCurrent(); } };
+  return bindActionClient(context.localHost.actionClient(project), () => caller);
+}
+
+/** Trusted Host picker only: same owner actions as the person's record-slot UI, fenced by the current page. */
+export async function pageConnectionSlot(context: WebRequestContext, reference: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
+  const { page, project } = trustedPluginPage(context, reference);
   if (!body || !["read", "bind"].includes(String(body.mode)) || typeof body.slot_id !== "string" || typeof body.record_key !== "string"
     || Object.keys(body).some(key => !["mode", "slot_id", "record_key", ...(body.mode === "bind" ? ["connection_id"] : [])].includes(key)))
     throw new ActionError("actions.input_invalid", "连接槽请求无效");
   const { install_id, plugin_id, slot } = page.connectionSlot(body.slot_id);
   await page.beforeEffect();
-  const original = await localWebActionContext(context.localHost, project, LOCAL_OWNER_PERMISSIONS, page.signal);
-  const caller: ActionCallContext = { ...original,
-    validate_authority: async (...args) => { await original.validate_authority?.(...args); await page.beforeEffect(); },
-    assert_authority_current: (...args) => { original.assert_authority_current?.(...args); page.assertCurrent(); } };
-  const client = bindActionClient(context.localHost.actionClient(project), () => caller), record = { install_id, plugin_id, slot_id: slot.slot_id, record_key: body.record_key };
+  const client = await pageOwnerClient(context, project, page), record = { install_id, plugin_id, slot_id: slot.slot_id, record_key: body.record_key };
   const current = await client.invoke(connectorPluginSlotActions.readRecord, record);
   await page.beforeEffect();
   if (body.mode === "bind") {
@@ -53,7 +69,7 @@ export async function pageConnectionSlot(context: WebRequestContext, project: Lo
   return { service_id: slot.service_id, connection: connectionChoice(current.connection) };
 }
 
-function connectionChoice(connection: import("@molis-ai/molis-work-contracts/services/connector-host").ConnectorConnectionView | null) {
+export function connectionChoice(connection: import("@molis-ai/molis-work-contracts/services/connector-host").ConnectorConnectionView | null) {
   return connection ? { connection_id: connection.connection_id, label: connection.account_label || connection.display_name,
     auth_method: connection.auth_method, state: connection.state } : null;
 }

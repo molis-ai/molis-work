@@ -12,7 +12,6 @@ export interface JellyAiPorts {
   onProgress?: (progress: { stage: string; progress: number }) => void;
 }
 export interface JellyAiInput {
-  kind: "decompose";
   source_type: "note" | "text";
   source_id?: string | null; text?: string; instructions?: string; today?: string; start_time?: number; manual?: boolean;
   selection?: { block_ids: string[]; text: string };
@@ -23,7 +22,6 @@ function sourceText(state: JellyWorkspace, input: JellyAiInput): string {
     if (!note) throw jellyErrors.not_found("找不到原笔记");
     if (input.selection) {
       const ids = input.selection.block_ids;
-      if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length || typeof input.selection.text !== "string" || !input.selection.text.trim()) throw jellyErrors.invalid("请选择笔记中的连续正文");
       const selected = note.blocks.filter(block => ids.includes(block.id));
       const indices = selected.map(block => note.blocks.indexOf(block));
       if (selected.length !== ids.length || selected.some((block, index) => block.id !== ids[index]) || indices.some((index, n) => n > 0 && index !== indices[n - 1]! + 1) || !selected.map(block => block.text).join("\n").includes(input.selection.text)) throw jellyErrors.source_changed("选区已变化，请重新选择正文");
@@ -66,10 +64,8 @@ async function complete(ports: JellyAiPorts, prompt: InstructedPrompt): Promise<
   finally { cancelled(ports); }
 }
 export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, ports: JellyAiPorts): Promise<{ plan: JellyPlan; method: "model" | "manual" }> {
-  if (!["note", "text"].includes(input.source_type)) throw jellyErrors.invalid("请选择原文");
   const text = sourceText(state, input);
   const sourceHash = jellySourceHash(state, input.source_type, input.source_id ?? null, text);
-  if (input.kind !== "decompose") throw jellyErrors.invalid("未知的整理操作");
   // Lengths count whole characters (a two-unit character such as an emoji is one). A string over twice the limit is too long without being spread; a cut spreads at most twice the limit.
   if (!text.trim() || text.length > 160_000 || [...text].length > 80_000) throw jellyErrors.invalid("需要一段不超过 8 万字的原文");
   let entries: unknown[]; let questions: string[] = [];

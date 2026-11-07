@@ -1,6 +1,6 @@
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
-import { withActionEffect, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler, withActionEffect, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JellyItem, JellyNote, JellySeries, JellyWorkspace } from "./contract.js";
 import type { JellyStores } from "./store.js";
 import * as s from "./action-schema.js";
@@ -9,13 +9,19 @@ import { JELLY_ITEM_SUBJECT_KIND, JELLY_NOTE_SUBJECT_KIND } from "./search.js";
 export const JELLY_READ = ["jelly:read"];
 // Every command returns the workspace, so write permission alone cannot disclose Home data.
 export const JELLY_WRITE = ["jelly:read", "jelly:write"];
-export function defineJellyAction<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = operation === "query" ? JELLY_READ : JELLY_WRITE, scheduling?: "concurrent", execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return createActionDefinition<I, O>(`jelly.${name}`, operation, { title, description, ...(execution ? { execution } : {}), scope: "home", ...(scheduling ? { scheduling } : {}), audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["jelly_workspace"], input_schema: input, output_schema: output }, version);
-}
-export type JellyCommandInput = { expected_revision: number; [key: string]: unknown };
-const commandInput = (fields: Record<string, unknown>, required: string[]) => s.object({ ...fields, expected_revision: s.revision }, [...required, "expected_revision"]);
+/** `define<Output>()("name", …)`: the input type comes from the schema. Curried because TypeScript cannot infer `S` while `Output` is written. */
+export const defineJellyAction = <O>() => <const S extends ActionSchema>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: S, output: ActionSchema, permissions = operation === "query" ? JELLY_READ : JELLY_WRITE, scheduling?: "concurrent", execution?: ActionDefinition["action"]["execution"]) =>
+  createActionDefinition<InferActionInput<S>, O>(`jelly.${name}`, operation, { title, description, ...(execution ? { execution } : {}), scope: "home", ...(scheduling ? { scheduling } : {}), audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["jelly_workspace"], input_schema: input, output_schema: output }, version);
+type Fields = Readonly<Record<string, unknown>>;
+type Keys<F> = readonly (keyof F & string)[];
+/** What the one handler below reads from every command. The rest goes to the store by name; each command's own type is checked where it meets this one, in `createJellyCommandHandlers`. */
+type CommandFields = { readonly item?: Fields; readonly series?: Fields; readonly [key: string]: unknown };
+export type JellyCommandInput = CommandFields & { readonly expected_revision: number };
+/** Every field is required unless the command names which, and the revision always is. `as R` is the default's one claim: with no list, `R` is every key. */
+const commandInput = <const F extends Fields, const R extends Keys<F> = Keys<F>>(fields: F, required?: R) =>
+  s.object({ ...fields, expected_revision: s.revision }, [...(required ?? Object.keys(fields)) as R, "expected_revision"]);
 const describe = (title: string) => `${title}；作用于本机 Jelly 工作区，使用最近读取的 revision，保留原撤销历史。`;
-const command = (name: string, version: number, title: string, fields: Record<string, unknown>, required = Object.keys(fields)) => defineJellyAction<JellyCommandInput, { state: JellyWorkspace }>(name, version, title, describe(title), "command", commandInput(fields, required), s.stateResult);
+const command = <const F extends Fields, const R extends Keys<F> = Keys<F>>(name: string, version: number, title: string, fields: F, required?: R) => defineJellyAction<{ state: JellyWorkspace }>()(name, version, title, describe(title), "command", commandInput(fields, required), s.stateResult);
 type JellyEntries = { item: JellyItem; series: JellySeries; note: JellyNote };
 type JellyEntryKey = keyof JellyEntries;
 export type JellyEntryOutput<K extends JellyEntryKey> = { state: JellyWorkspace } & { [P in K]: JellyEntries[P] };
@@ -31,14 +37,14 @@ const entryKinds = {
  * back by its kind's `subject.read`. Commands on several entries or on the workspace stay workspace commands, and so do
  * archiving and deletion: the readers treat an archived entry as gone, so the work would show its own result as missing.
  */
-const entry = <K extends JellyEntryKey>(key: K, name: string, version: number, title: string, fields: Record<string, unknown>, required = Object.keys(fields), described: string = entryKinds[key].described) => {
-  const definition = defineJellyAction<JellyCommandInput, JellyEntryOutput<K>>(name, version, title, `${describe(title)}结果附带${described}。`,
+const entry = <K extends JellyEntryKey, const F extends Fields, const R extends Keys<F> = Keys<F>>(key: K, name: string, version: number, title: string, fields: F, required?: R, described: string = entryKinds[key].described) => {
+  const definition = defineJellyAction<JellyEntryOutput<K>>()(name, version, title, `${describe(title)}结果附带${described}。`,
     "command", commandInput(fields, required), s.object({ state: s.workspace, [key]: s[key] }));
   return { ...definition, action: { ...definition.action, subject_kinds: [entryKinds[key].kind], result_subject: { id: `${key}.id`, revision: `${key}.${entryKinds[key].revision}` } } };
 };
-const completed = { id: s.id, completed: s.boolean, completion_description: s.text };
-const occurrence = { id: s.id, original_date: s.date, scope: { enum: ["onlyThis", "thisAndFuture"] } };
-const task = { note_id: s.id, block_id: s.id };
+const completed = { id: s.id, completed: s.boolean, completion_description: s.text } as const;
+const occurrence = { id: s.id, original_date: s.date, scope: { enum: ["onlyThis", "thisAndFuture"] } } as const;
+const task = { note_id: s.id, block_id: s.id } as const;
 export const jellyCommandActions = {
   "item.create": entry("item", "item.create", /* @version action.jelly.item.create */ 1, "新建日历事项", { item: s.itemInput }),
   "item.update": entry("item", "item.update", /* @version action.jelly.item.update */ 1, "修改日历事项", { id: s.id, patch: s.itemPatch }),
@@ -75,18 +81,17 @@ export const jellyCommandActions = {
   "redo": command("redo", /* @version action.jelly.redo */ 1, "重做 Jelly 修改", {}),
   "workspace.import": command("workspace.import", /* @version action.jelly.workspace.import */ 1, "确认导入 Jelly 备份", { source: s.importSource, confirmation_token: s.id }),
 };
-type Fields = Record<string, unknown>;
-type EntryTarget = { key: JellyEntryKey; prepare?: (fields: Fields) => Fields; id: (fields: Fields, state: JellyWorkspace) => unknown };
+type EntryTarget = { key: JellyEntryKey; prepare?: (fields: CommandFields) => CommandFields; id: (fields: CommandFields, state: JellyWorkspace) => unknown };
 const byId = (key: JellyEntryKey): EntryTarget => ({ key, id: fields => fields.id });
 const created = (key: "note"): EntryTarget => ({ key, prepare: fields => ({ ...fields, id: randomUUID() }), id: fields => fields.id });
 /** Which entry each entry command touched. Ids Jelly would generate are chosen here first, so the result can name them. */
 const entries: Partial<Record<keyof typeof jellyCommandActions, EntryTarget>> = {
-  "item.create": { key: "item", prepare: fields => ({ ...fields, item: { id: randomUUID(), ...fields.item as Fields } }), id: fields => (fields.item as Fields).id },
+  "item.create": { key: "item", prepare: fields => ({ ...fields, item: { id: randomUUID(), ...fields.item } }), id: fields => fields.item?.id },
   "item.update": byId("item"),
   "item.complete": byId("item"),
   "item.move": byId("item"),
   "task.schedule": { key: "item", id: (fields, state) => state.task_links.find(link => link.note_id === fields.note_id && link.block_id === fields.block_id)?.item_id },
-  "series.create": { key: "series", prepare: fields => ({ ...fields, series: { id: randomUUID(), ...fields.series as Fields } }), id: fields => (fields.series as Fields).id },
+  "series.create": { key: "series", prepare: fields => ({ ...fields, series: { id: randomUUID(), ...fields.series } }), id: fields => fields.series?.id },
   // Changing this and later occurrences splits off a new series: that new series is what changed.
   "series.update": { key: "series", prepare: fields => fields.scope === "thisAndFuture" ? { ...fields, new_series_id: randomUUID() } : fields, id: fields => fields.new_series_id ?? fields.id },
   "series.complete": byId("series"),
@@ -98,17 +103,14 @@ const entries: Partial<Record<keyof typeof jellyCommandActions, EntryTarget>> = 
 };
 const pools: Record<JellyEntryKey, (state: JellyWorkspace) => readonly { id: string }[]> = { item: state => state.items, series: state => state.series, note: state => state.notes };
 export function createJellyCommandHandlers(stores: JellyStores): ActionHandlerBinding[] {
-  return Object.entries(jellyCommandActions).map(([type, definition]) => ({ capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, raw) => {
-      caller.signal?.throwIfAborted();
-      const { expected_revision, ...input } = raw as JellyCommandInput;
-      const target = entries[type as keyof typeof jellyCommandActions], fields = target?.prepare?.(input) ?? input;
-      return stores.write(caller, store => {
-        const state = store.execute({ type, ...fields }, expected_revision);
-        if (!target) return { state };
-        const id = target.id(fields, state);
-        return { state, [target.key]: pools[target.key](state).find(value => value.id === id) };
-      });
-    },
+  return Object.entries<ActionDefinition<JellyCommandInput>>(jellyCommandActions).map(([type, definition]) => bindActionHandler(definition, ({ expected_revision, ...input }, caller) => {
+    caller.signal?.throwIfAborted();
+    const target = entries[type as keyof typeof jellyCommandActions], fields = target?.prepare?.(input) ?? input;
+    return stores.write(caller, store => {
+      const state = store.execute({ type, ...fields }, expected_revision);
+      if (!target) return { state };
+      const id = target.id(fields, state);
+      return { state, [target.key]: pools[target.key](state).find(value => value.id === id) };
+    });
   }));
 }

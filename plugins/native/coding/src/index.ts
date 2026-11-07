@@ -122,18 +122,6 @@ export type { CodingExecution } from "./routes.js";
 export type { CodingModelChoice } from "./models.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE, planContinuesAfterTalk } from "./routes.js";
 export {
-  projectMcp,
-  projectSkills,
-  type CodingMcpView,
-  type CodingSkillsView,
-  type McpProjectionInput,
-  type McpServerRow,
-  type McpToolRow,
-  type SelectionFrame,
-  type SkillRow,
-  type SkillsProjectionInput,
-} from "./selection.js";
-export {
   projectCheckpoints,
   projectSubagents,
   type ChildAcceptance,

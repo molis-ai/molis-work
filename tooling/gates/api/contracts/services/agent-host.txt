@@ -343,13 +343,6 @@ export interface AgentMcpCallResult {
     truncated: boolean;
 }
 
-export interface AgentMcpCapability {
-    catalog(session: AgentSessionRef): Promise<{
-        servers: AgentMcpServerHealth[];
-        tools: AgentMcpToolRef[];
-    }>;
-}
-
 export interface AgentMcpLibrary {
     catalog?(): Promise<Array<{
         owner: AgentSkillOwner;
@@ -379,11 +372,6 @@ export interface AgentMcpReviewDocument {
     server: string;
     tool: string;
     arguments_json: string;
-}
-
-export interface AgentMcpServerHealth {
-    server: string;
-    status: "ready" | "failed" | "unknown";
 }
 
 export interface AgentMcpServerInput {
@@ -438,7 +426,7 @@ export interface AgentMcpToolRef {
     tool: string;
     version: string;
     server_label?: string;
-    configuration_version?: number;
+    configuration_version: number;
 }
 
 export interface AgentMemoryCaller {
@@ -1384,7 +1372,6 @@ export interface AgentRuntimeAdapter {
     readonly skills?: AgentSkillsCapability;
     readonly skillLibrary?: AgentSkillLibrary;
     readonly mcpLibrary?: AgentMcpLibrary;
-    readonly mcp?: AgentMcpCapability;
     readonly subagents?: AgentSubagentsCapability;
 }
 

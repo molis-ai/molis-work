@@ -350,7 +350,6 @@
  "tests/coding-run-control-contract.test.ts": 1,
  "tests/coding-runtime-declarations.test.ts": 9,
  "tests/coding-runtime-regressions.test.ts": 62,
- "tests/coding-selection.test.ts": 1,
  "tests/coding-session-effect-control.test.ts": 6,
  "tests/coding-session-first-read.e2e.test.ts": 114,
  "tests/coding-session-follow.test.ts": 36,

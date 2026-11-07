@@ -45,13 +45,13 @@ export interface CodingChangeSet {
     run_id: string;
     files: CodingFileChange[];
     applied: boolean;
-    origin?: {
+    origin: {
         session_id: string;
         runtime_session_id: string;
         workspace_id: string;
         workspace_name: string;
     };
-    coverage?: "text-reviews";
+    coverage: "text-reviews";
 }
 
 export interface CodingFileChange {
@@ -60,7 +60,7 @@ export interface CodingFileChange {
     added_lines: number;
     removed_lines: number;
     diff: string;
-    review?: {
+    review: {
         review_id: string;
         before_text: string | null;
         after_text: string;

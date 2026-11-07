@@ -39,6 +39,7 @@ function settings(stage: Stage, oldName: string): MolisWorkSettingsView {
 
 interface Held { method: string | undefined; url: string; body: string; response: ServerResponse }
 
+// RAR-08: each real-click scenario starts after the page's initial navigation has settled.
 async function openConnections(t: TestContext, oldName = "旧 Notion") {
   const executable = locateTestChrome();
   if (!executable) { t.skip("Chrome is required for the connections page"); return null; }

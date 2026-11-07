@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
-import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -89,7 +89,7 @@ test("a stable project commit timeout retains the promoted database and a retry 
     const writer = openTestSqlite(catalog.databasePath); writer.exec("BEGIN IMMEDIATE");
     const id = `project-onboarding-${randomUUID()}`, input = { project_id: id, display_name: "超时后恢复", actor_id: "user" };
     try {
-      await assert.rejects(catalog.createProject(input), { code: "SQLITE_BUSY" });
+      await assert.rejects(catalog.createProject(input), error => sqliteErrorName(error) === "SQLITE_BUSY");
       assert.equal(catalog.listProjects().length, 0);
       assert.ok((await fs.stat(join(home, "projects", id, "molis-work.db"))).isFile());
       writer.exec("ROLLBACK");
@@ -110,7 +110,7 @@ test("demo reset lock timeout restores the original body and catalog record, and
       const project = (await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true })).project;
       const before = mark(project);
       writer = openTestSqlite(catalog.databasePath); writer.exec("BEGIN IMMEDIATE");
-      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), { code: "SQLITE_BUSY" });
+      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), error => sqliteErrorName(error) === "SQLITE_BUSY");
       assert.deepEqual(catalog.getProject(project.project_id), project);
       assert.deepEqual(snapshot(project), before);
       writer.exec("ROLLBACK");

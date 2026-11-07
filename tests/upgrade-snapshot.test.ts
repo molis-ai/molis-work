@@ -40,7 +40,7 @@ const FAILING: Readonly<Record<string, SqliteBaseline>> = {
   // The step commits on its own: this part cannot be rolled back, so only the restore can undo it.
   transaction_ended: { version: 2, schema: V2, upgrades: [{ from: 1, sql: `${addTag}; UPDATE notes SET body = 'rewritten'; COMMIT;` }] },
 };
-const DRIVERS = { "node:sqlite": openNode, "better-sqlite3": (path: string) => openSqliteConnection(path, { fileMustExist: true, timeout: 0 }) } as const;
+const DRIVERS = { "node:sqlite": openNode, "project connection": (path: string) => openSqliteConnection(path, { fileMustExist: true, timeout: 0 }) } as const;
 const failed = (reason: string) => (error: Error & { code?: string; details?: { reason?: string } }) =>
   error.code === "storage.upgrade_failed" && error.details?.reason === reason;
 

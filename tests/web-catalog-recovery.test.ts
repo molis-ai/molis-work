@@ -21,7 +21,7 @@ test("health becomes ready after a transient catalog lock without a business req
   // The first preparation meets a lock another process holds; the catalog itself is current.
   let locked = true;
   localHost.ensureWebCatalog(home, async options => {
-    if (locked) { locked = false; throw Object.assign(new Error("database is locked"), { code: "SQLITE_BUSY" }); }
+    if (locked) { locked = false; throw Object.assign(new Error("database is locked"), { code: "ERR_SQLITE_ERROR", errcode: 5 }); }
     return openMolisWorkProjectCatalog(options);
   });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost, controlToken: "catalog-recovery-control-token-0123456789" });
@@ -44,11 +44,12 @@ test("health becomes ready after a transient catalog lock without a business req
 test("permanent catalog refusal is not retried, and closing cancels a queued transient retry", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-web-retry-lifecycle-"));
   try {
-    for (const code of ["catalog.reader_too_old", "catalog.unknown_database", "SQLITE_BUSY"]) {
+    for (const failure of [{ code: "catalog.reader_too_old" }, { code: "catalog.unknown_database" }, { code: "ERR_SQLITE_ERROR", errcode: 5 }]) {
+      const { code } = failure;
       let opens = 0;
-      const access = createWebCatalogAccess(home, async () => { opens++; throw Object.assign(new Error(code), { code }); });
+      const access = createWebCatalogAccess(home, async () => { opens++; throw Object.assign(new Error(code), failure); });
       await assert.rejects(access.warm(), { code });
-      if (code === "SQLITE_BUSY") await access.close();
+      if ("errcode" in failure) await access.close();
       await delay(160);
       assert.equal(opens, 1, code);
       assert.equal(access.ready, false);
@@ -61,7 +62,7 @@ test("concurrent borrowers share preparation and a transient retry never replays
   const home = await mkdtemp(join(tmpdir(), "molis-web-preparation-retry-"));
   let opens = 0, effects = 0;
   const access = createWebCatalogAccess(home, options => {
-    if (++opens === 1) return Promise.reject(Object.assign(new Error("held lock"), { code: "SQLITE_BUSY" }));
+    if (++opens === 1) return Promise.reject(Object.assign(new Error("held lock"), { code: "ERR_SQLITE_ERROR", errcode: 5 }));
     return openMolisWorkProjectCatalog(options);
   });
   try {

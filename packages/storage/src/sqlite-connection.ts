@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { openNodeSqliteConnection } from "./sqlite-node-connection.js";
 
 /** The synchronous project connection. Callers share the owner’s handle instead of opening the file with another SQLite engine. */
 export interface SqliteDatabase {
@@ -51,5 +51,5 @@ export function sqliteErrorName(error: unknown): string | undefined {
 
 /** Opens only the connection. Schema setup, WAL and foreign-key policy belong to the store using it. */
 export function openSqliteConnection(path: string, options?: SqliteOpenOptions): SqliteDatabase {
-  return new Database(path, options) as unknown as SqliteDatabase;
+  return openNodeSqliteConnection(path, options);
 }

@@ -164,12 +164,7 @@ export async function backupSnapshotSqlite(
     database = openSqliteConnection(source, { readonly: true, fileMustExist: true, timeout: 0 });
     options.signal?.throwIfAborted();
     const original = inspect(database, source, options);
-    await database.backup(destination, {
-      progress: () => {
-        options.signal?.throwIfAborted();
-        return 128;
-      },
-    });
+    await database.backup(destination, { rate: 128, progress: () => options.signal?.throwIfAborted() });
     options.signal?.throwIfAborted();
     const current = lstatSync(source);
     if (

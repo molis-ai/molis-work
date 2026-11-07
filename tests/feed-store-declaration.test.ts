@@ -18,7 +18,7 @@ import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 const ROOT = new URL("..", import.meta.url).pathname;
 const STORE = join(ROOT, "plugins", "native", "feed", "src", "store");
 
-/** A `FeedSql` over `node:sqlite`, not over better-sqlite3: the interface is the whole of what the store needs of a driver. It counts its calls. */
+/** A `FeedSql` over a bare `node:sqlite` connection: the interface is the whole of what the store needs of a driver. It counts its calls. */
 function sqlOver(db: DatabaseSync): FeedSql & { calls: number } {
   const counted = { calls: 0 };
   return {

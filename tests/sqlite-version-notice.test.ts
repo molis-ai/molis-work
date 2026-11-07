@@ -32,8 +32,9 @@ test("SQLD-06 a Host on another SQLite says so once: both versions, what follows
     assert.ok(result.includes("v24.22.2"), "names the Node it is running on");
     assert.ok(result.includes(running), "names the SQLite it has");
     assert.ok(result.includes(PLUGIN_STATEMENT_SQLITE_VERSION), "names the reviewed SQLite");
-    assert.match(result, /拒绝项目库里的全部插件语句/, "says what would follow");
-    assert.match(result, /项目库现在仍用随包的 SQLite/, "says what is true of this build today");
+    assert.match(result, /项目库里的插件语句都会被拒绝/, "says what follows");
+    assert.match(result, /数据不受影响/, "and that nothing is lost");
+    assert.doesNotMatch(result, /不受影响；|随包/, "not what was true while project libraries had their own SQLite");
     assert.ok(result.includes(`Node ${LOCKED}`), "says which Node to use");
     assert.doesNotMatch(result, /[!！]|错误|失败|警告/, "calm: a note, not an alarm");
     assert.equal(entries.length, 1);

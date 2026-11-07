@@ -3,7 +3,7 @@ import ts from "typescript";
 import { extractImportSpecifiers } from "@molis-ai/molis-work-test-kit";
 
 const isDriver = (name) => name === "better-sqlite3" || name.startsWith("better-sqlite3/");
-const ownsDriver = (file) => file.startsWith("packages/storage/") || file.startsWith("plugins/native/alchemist/");
+const ownsDriver = (file) => file === "packages/storage/src/sqlite-connection.ts" || file.startsWith("plugins/native/alchemist/");
 
 /** Node -e programs in lock tests and installation probes are callers too. Inspect literal programs, not prose or patterns in tests. */
 function evalPrograms(source, file) {

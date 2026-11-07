@@ -60,6 +60,8 @@ export const CONNECTOR_EXPERIENCE_STYLES = `${SERVICE_CONNECTION_ITEM_STYLES}
   [data-connectors-settings] form.settings-connection-inline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin: 0; color: inherit; font-size: 13px; }
   form.settings-connection-inline > .settings-connector-field { flex: 1 1 200px; }
   form.settings-connection-inline > .mw-btn { flex: none; }
+  /* A key the check refused says so on its own line under the field and its button. */
+  form.settings-connection-inline > .mw-field__error { flex: 1 0 100%; }
   .settings-connection-scopes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
   .settings-connector-add.mw-collapsible { border-top: 1px solid var(--line); }
   .settings-connector-draft { display: grid; gap: 8px; }

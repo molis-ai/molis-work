@@ -14,7 +14,7 @@ import test, { after, before, describe } from "node:test";
 import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants } from "node:zlib";
 import { countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
-import { assertTemporaryHome, compareGoldens, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
+import { assertTemporaryHome, compareGoldens, filePayload, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
 import { MODULE_SOURCES_DIRECTORY, RELEASE_MANIFESTS_DIRECTORY, releasePayloadReader, withoutReleasePayloads, withReleasePayloads, writeReleasePayloads } from "../scripts/golden/release-payloads.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -183,6 +183,11 @@ describe("what a dump holds in place of what cannot stay in it", () => {
     assert.notDeepEqual(readFileSync(best.file), readFileSync(fast.file));
     assert.deepEqual(compareGoldens(best.at, fast.at), []);
     assert.deepEqual((compareGoldens(best.at, generation("other", 11, `${source} `).at) as { reason: string }[]).map(item => item.reason), ["differs"]);
+  });
+
+  test("an installed package's code goes in as data, and everything else under its own name", () => {
+    for (const code of ["plugin-packages/a/plugin.mjs", "x/a.js", "x/a.cjs", "x/a.ts", "x/a.tsx"]) assert.equal(filePayload(code), `files/${code}.data`);
+    for (const other of ["plugin-packages/a/manifest.json", "config/onboarding.json", "shelf/files/a/note.md"]) assert.equal(filePayload(other), `files/${other}`);
   });
 
   test("the sample's sandbox entries get fixed fields in their own row, and the same text in any other row stays", () => {

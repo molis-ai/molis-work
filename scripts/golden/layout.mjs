@@ -68,8 +68,14 @@ function dumpInto(storage, source, relative, out, owner, mode, tree) {
   return { path: relative, owner, mode, payload, schema_version: dump.version, tables: dump.tables, sha256: sha256(sql), ...(sql === full ? {} : { expanded_sha256: sha256(full) }) };
 }
 
+/**
+ * Where a Home's file sits in a golden. An installed package's code is data here, the bytes a publisher signed, so it does not go in under a name that says it is this
+ * repository's code: tools that read code would hold the repository to what someone else's package does. A restore puts it back under its own name (`path`).
+ */
+export const filePayload = relative => `files/${relative}${/\.[cm]?[jt]sx?$/u.test(relative) ? ".data" : ""}`;
+
 function copyInto(source, relative, out, owner, mode) {
-  const payload = `files/${relative}`, file = path.join(out, payload);
+  const payload = filePayload(relative), file = path.join(out, payload);
   mkdirSync(path.dirname(file), { recursive: true });
   copyFileSync(source, file);
   const bytes = readFileSync(file);

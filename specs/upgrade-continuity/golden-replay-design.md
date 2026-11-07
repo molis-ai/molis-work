@@ -29,7 +29,7 @@
 tests/fixtures/golden-homes/<版本>/
   manifest.json          生成它的提交、产品版本、每个库与文件的路径、结构版本、逐表行数、摘要
   stores/<库的相对路径>.sql   每个 SQLite 库的文本转储（稳定排序，转储器自写，见下）
-  files/<文件的相对路径>     带版本的 JSON 文件、加密文件的密文，原样保存
+  files/<文件的相对路径>     带版本的 JSON 文件、加密文件的密文，原样保存；装上的包里的代码文件名后加 `.data`，还原时回到原名：那是别人签过的字节，不算这个仓库的代码
   files/module-sources/<摘要>.br      内置插件的代码，每种一份，压缩（§6）
   files/release-manifests/<摘要>.br   内置插件的 Manifest，每种一份，压缩（§6）
   README.md              这份金样怎么来的、用哪个命令重新生成、不含真实内容的说明

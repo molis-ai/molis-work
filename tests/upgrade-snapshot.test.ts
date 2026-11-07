@@ -336,7 +336,7 @@ test("§5.4: snapshots stay until the next successful upgrade, and older ones go
   writeFileSync(join(outside, "kept"), "not ours");
   symlinkSync(outside, join(home, "upgrade", "run-link"));
   writeFileSync(join(home, "upgrade", "ledger.json"), "{}");
-  pruneUpgradeSnapshots(owner, home, "run-2");
+  pruneUpgradeSnapshots({ owner, lockDirectory: home, home }, "run-2");
   assert.equal(present(join(home, "upgrade", "run-1")), false);
   assert.equal(present(join(home, "upgrade", "run-link")), false, "the link goes, not what it points at");
   assert.equal(readFileSync(join(outside, "kept"), "utf8"), "not ours");

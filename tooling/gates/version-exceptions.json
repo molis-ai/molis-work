@@ -422,6 +422,42 @@
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
   {
+    "entry": "action.materials.recent",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.materials.recent.record",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.projects.directories.add_input",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.projects.directories.get",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.projects.directories.map_source",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.projects.directories.remove_input",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.projects.directories.repair",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.projects.directories.set_output",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
+    "entry": "action.projects.directories.unmap_source",
+    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+  },
+  {
     "row": "functions.published.system_admit_inbox",
     "reason": "内置判断规则发布后的动作，版本是规则记录自身的发布修订号，运行时才有，不是自有版本。"
   },

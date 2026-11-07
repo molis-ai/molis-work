@@ -302,15 +302,15 @@ export const TEXT_REF_SCHEMA: SandboxSchema = {
 | 规则 | 内容与理由 |
 | --- | --- |
 | 版本 | `format_version` 是格式版本，`id`＋`revision` 是定义身份，互不代替。外观的准确引用是 `UiDefinitionRef = { id: string; revision: number }` |
-| 取值 | `id` 匹配 `^[a-z][a-z0-9-]{0,63}$`；`revision` 是正整数 |
+| 取值 | `id` 匹配 `^[a-z][a-z0-9-]{0,63}$`；`revision` 是正整数。`id`、角色名、色值、字体名、`unicode_range`、资源 id、`route` 的正则在 `UI_FILE_PATTERNS`，只列允许的字符：会写进 CSS 的字符串不收分号、括号、引号、换行、反斜杠，`url(` 进不来；`route` 只收 `/assets/` 下的路径。角色类型、资源种类等取值表在 `UI_ROLE_TYPES`、`UI_RESOURCE_KINDS` 等常量，解析器从这里取，不另写一份 |
 | 未知字段 | 拒绝，不忽略（需求 §3.1） |
 | 重复属性名 | 进入 `JSON.parse` 之前拒绝，只有 SDK 的 `parseStrictJson` 一份实现：扫描器按路径记键，报 `$.light.ink` 和行列。普通解析器会让后值静默覆盖前值，看不出来 |
 | 危险属性名 | `__proto__`、`constructor`、`prototype` 一律拒绝 |
-| 大小 | `UI_FILE_LIMITS = { spec: 256 KiB, skin: 64 KiB, font: 64 KiB, locale: 1 MiB, depth: 12 }`，先比字节再解析 |
+| 大小 | `UI_FILE_LIMITS = { spec: 256 KiB, skin: 64 KiB, font: 64 KiB, locale: 1 MiB, registry: 64 KiB, depth: 12 }`，先比字节再解析 |
 | 不收的东西 | CSS 文本、选择器、函数、外部 URL、任意属性名。不靠黑名单：取值只有下面的结构，文字位置只有名字和译文，译文只当文本输出（FSS-16） |
 | 错误 | 新错误码写 `defineErrorCodes("ui", …)`，不写 Error 子类。`tooling/gates/error-owners.json` 加一条 `ui`，路径是这些新文件；现有 `plugin` 那行仍管 `packages/plugin-sdk/` 其余部分 |
-| 结果 | `parse*` 返回 `{ ok: true; value } | { ok: false; problems: UiFileProblem[] }`。`UiFileProblem = { file: string; path: string; code: string; reason: string; fix: string; line?: number; column?: number }`，`file` 是哪个文件，`fix` 写下一步怎么改。作者工具和平台看到同一份问题，CLI 直接打印就能看懂 |
-| 版本字面量 | `tooling/versions.json` 加 `format.ui.spec`、`format.ui.skin`、`format.ui.font`、`format.ui.locale`、`format.ui.registry`，代码写 `/* @version format.ui.skin */ 1`。JSON 文件不走 `carriers`（第 1.4 节） |
+| 结果 | `parse*` 返回 `UiFileResult<T>`，即 `{ ok: true; value } | { ok: false; problems: UiFileProblem[] }`。`UiFileProblem = { file: string; path: string; code: string; reason: string; fix: string; line?: number; column?: number }`，`file` 是哪个文件，`fix` 写下一步怎么改。作者工具和平台看到同一份问题，CLI 直接打印就能看懂 |
+| 版本字面量 | `tooling/versions.json` 加 `format.ui.spec`、`format.ui.skin`、`format.ui.font`、`format.ui.locale`、`format.ui.registry`，代码只在 `UI_FORMAT_VERSIONS` 写一次（`skin: /* @version format.ui.skin */ 1`），接口的 `format_version` 写 `typeof UI_FORMAT_VERSIONS.skin`，解析器比同一个常量。JSON 文件不走 `carriers`（第 1.4 节） |
 
 ### 3.2 令牌取值
 
@@ -319,7 +319,7 @@ export const TEXT_REF_SCHEMA: SandboxSchema = {
 ```ts
 export type UiTokenValue =
   | string                                                  // 只收 #rrggbb、#rrggbbaa、transparent，大小写原样保留
-  | { readonly rgba: readonly [number, number, number, number] }   // rgba(255, 255, 255, .05)
+  | { readonly rgba: UiRgba }                               // rgba(255, 255, 255, .05)；UiRgba 是四个数的元组
   | { readonly role: string; readonly fallback?: string }   // var(--accent)、var(--hue-green-fill, #4cb782)
   | { readonly mix: { readonly role: string; readonly percent: number; readonly with: "transparent" } } // color-mix(in srgb, var(--ink) 7%, transparent)
   | { readonly shadow: readonly UiShadowLayer[] }
@@ -329,7 +329,7 @@ export type UiTokenValue =
 
 export interface UiShadowLayer {
   readonly x: number; readonly y: number; readonly blur: number; readonly spread?: number;
-  readonly color: string | { readonly rgba: readonly [number, number, number, number] } | { readonly role: string };
+  readonly color: string | { readonly rgba: UiRgba } | { readonly role: string };
 }
 ```
 
@@ -347,7 +347,7 @@ export interface UiShadowLayer {
 
 ```ts
 export interface UiSpecFile {
-  readonly format_version: /* @version format.ui.spec */ 1;
+  readonly format_version: typeof UI_FORMAT_VERSIONS.spec;
   readonly id: string;                         // "molis-interface"
   readonly revision: number;
   readonly baseline_skin: UiDefinitionRef;     // 省略角色只从这一个基线补，不做多级继承（实现方案 §1）
@@ -376,20 +376,20 @@ A 段只放令牌和字体角色。`PLUGIN_COMPONENTS` 的组件描述（FSS-05�
 
 ```ts
 export interface UiSkinFile {
-  readonly format_version: /* @version format.ui.skin */ 1;
+  readonly format_version: typeof UI_FORMAT_VERSIONS.skin;
   readonly id: string;
   readonly revision: number;
   readonly spec: UiDefinitionRef;              // 只认这一份规格
   readonly name: TextRef;                      // 内置写键，用户起的写 literal
   readonly recommended_font: UiDefinitionRef;
-  readonly light: Readonly<Record<string, UiTokenValue>>;
-  readonly dark: Readonly<Record<string, UiTokenValue>>;
-  readonly shared: Readonly<Record<string, UiTokenValue>>;
+  readonly light: UiTokenMap;                  // UiTokenMap = Readonly<Record<string, UiTokenValue>>
+  readonly dark: UiTokenMap;
+  readonly shared: UiTokenMap;
   readonly terminal: { readonly unset?: UiTokenMap; readonly light?: UiTokenMap; readonly dark?: UiTokenMap };
 }
 
 export interface UiFontSchemeFile {
-  readonly format_version: /* @version format.ui.font */ 1;
+  readonly format_version: typeof UI_FORMAT_VERSIONS.font;
   readonly id: string;
   readonly revision: number;
   readonly name: TextRef;
@@ -401,7 +401,7 @@ export interface UiFontRole {
   readonly weight?: number;
   readonly tracking_em?: number;
 }
-export type UiFontFamily = { readonly system: string } | { readonly face: string };  // system 只收字母、数字、空格、连字符
+export type UiFontFamily = { readonly system: string } | { readonly face: string };  // 都按 UI_FILE_PATTERNS.font_name：字母、数字、空格、连字符
 export interface UiFontFace {
   readonly family: string; readonly weight: number | readonly [number, number];
   readonly unicode_range: readonly string[]; readonly resource: string;   // 登记表的资源 id，不是路径
@@ -416,20 +416,21 @@ export interface UiFontFace {
 
 ```ts
 export interface UiLocalePack {
-  readonly format_version: /* @version format.ui.locale */ 1;
+  readonly format_version: typeof UI_FORMAT_VERSIONS.locale;
   readonly owner: string;                      // 文件自述，只用于核对和导入导出
   readonly locale: string;                     // zh、en、zh-CN；形状 LOCALE_TAG（第 2.1 节）
   readonly direction?: "ltr" | "rtl";          // 省略是 ltr
   readonly revision?: number;                  // 随包文件不写；Home 受管副本（D 段）才由主人递增
   readonly messages: Readonly<Record<string, UiMessage>>;
 }
-export type UiMessage = string | { readonly plural_arg: string; readonly forms: Readonly<Partial<Record<Intl.LDMLPluralRule, string>>> };
+// 写在 ui-text.ts：文字工具要它，ui-files.ts 要 TextRef，放那边依赖只有一个方向。
+export type UiMessage = string | { readonly plural_arg: string; readonly forms: Readonly<Partial<Record<Intl.LDMLPluralRule, string>>> & { readonly other: string } };
 ```
 
 - **`owner` 是自述，不是身份。** 需求 §3.1 要语言包文件表达文案主人（导入导出要用），AGENTS 要主人取自可信目录。两边都守住：载入时 `pack.owner` 必须等于目录给的主人，不等就拒绝，它从不授予身份。
 - **`revision` 随包不写。** 必填的话作者每个文件都要写一个没人读的数字；随包文件的身份由发行版本决定，缓存键用宿主算的内容摘要。
 - **消息值直接写字符串。** 比实现方案 §4.1 的 `{ "text": … }` 少一层；工作台有几千条，这一层每条都占字节，也没带来别的信息。实现方案已同步改。
-- **复数规则。** 必须有 `other`；其余形式按 `new Intl.PluralRules(locale).resolvedOptions().pluralCategories` 查缺。中文只有 `other`，直接写字符串。
+- **复数规则。** 必须有 `other`，类型上也写明，解析之后不用再判；其余形式按 `new Intl.PluralRules(locale).resolvedOptions().pluralCategories` 查缺。中文只有 `other`，直接写字符串。
 - **文字里不许有 `<`、`>`、`&`、`"`、`'`。** 这是 `${t()}` 直接可用的前提，理由和今天的存量见第 5.3 节。
 
 **实现：** `formatMessage(message, args, locale, now?)` 先按 `Intl.PluralRules` 选形式，把参数格式化成文字，最后交给现有的 `fillMessage` 替换。替换仍只有一份写法。新语言包不收 `{n|a|b}`（解析器拒绝），旧词典到 C 段继续用它，C 段连同这个分支一起删。A 段不动 `fillMessage` 和 `tests/fill-message.test.ts`。
@@ -451,7 +452,7 @@ export type UiMessage = string | { readonly plural_arg: string; readonly forms: 
 ### 3.6 资源引用与登记表
 
 ```ts
-export type UiResourceKind = "spec" | "skin" | "font-scheme" | "locale" | "font" | "asset";   // 不叫 material：仓库里 material 是「资料」
+export type UiResourceKind = (typeof UI_RESOURCE_KINDS)[number];   // spec、skin、font-scheme、locale、font、asset。不叫 material：仓库里 material 是「资料」
 export type UiResourceLoad =
   | "startup"        // 进程启动读一次，不下发浏览器
   | "first-screen"   // 每个页面第一屏都下发
@@ -459,19 +460,20 @@ export type UiResourceLoad =
   | "on-open"        // 打开某个界面时才下发（插件的词）
   | "on-select"      // 选用这个方案才下发（Folio 圆润字体）
   | "tool";          // 只有开发工具页用
-export interface UiResourceRow {
+interface UiResourceFields {
   readonly id: string;                    // font.inter-latin-variable；字体方案、预算都引用它
-  readonly kind: UiResourceKind;
   readonly owner: string;                 // 主人：design-system、workbench、…
   readonly package: string;               // 所在包名
   readonly path: string;                  // 包内相对路径；kind 为 locale 时是语言目录
   readonly load: UiResourceLoad;
   readonly route?: string;                // 直接下发的文件的路径；fontFaceRules 的 src: url(…) 从这里读
-  readonly sha256?: string;               // 只有 font、asset 必填：第三方二进制，换了要看得出
-  readonly license?: { readonly spdx: string; readonly source: string; readonly notice_path?: string };  // 只有 font、asset 必填
 }
+export type UiResourceRow =
+  | (UiResourceFields & { readonly kind: Exclude<UiResourceKind, "font" | "asset"> })
+  // 只有 font、asset 带这两项，也必须带：第三方二进制，换了要看得出
+  | (UiResourceFields & { readonly kind: "font" | "asset"; readonly sha256: string; readonly license: UiResourceLicense });
 export interface UiResourceRegistry {
-  readonly format_version: /* @version format.ui.registry */ 1;
+  readonly format_version: typeof UI_FORMAT_VERSIONS.registry;
   readonly resources: readonly UiResourceRow[];
 }
 ```
@@ -502,12 +504,12 @@ export interface UiEnvironmentSnapshot {
   readonly skin: UiDefinitionRef;
   readonly font: { readonly scheme: UiDefinitionRef; readonly policy: "follow-skin" | "pinned"; readonly mono: UiDefinitionRef };
   readonly locale: {
-    readonly tag: string; readonly direction: "ltr" | "rtl";
+    readonly tag: string; readonly direction: UiTextDirection;   // "ltr" | "rtl"，语言包同一个类型
     readonly source: "explicit" | "system" | "default";
     readonly formatting: string;          // 给 Intl 用的完整标记，en-US、zh-CN
   };
   readonly device: UiDevicePreferences | null;   // 服务端读不到，是 null；浏览器合并后才有
-  readonly problems: readonly { readonly code: string; readonly subject: string; readonly detail?: string }[];
+  readonly problems: readonly UiEnvironmentProblem[];   // { code; subject; detail? }
 }
 ```
 
@@ -563,6 +565,7 @@ A 段什么都不改：令牌仍在基础 CSS 里，没有选择，快照由基�
 | `createTextReader({ packs, locale })` | `ui/text-reader.ts` | 纯函数，给定语言包查词。还没装的包的预览、测试、`installTextForTest` |
 | `parseStrictJson` | `ui/strict-json.ts` | 下面三个 `parse*`；`parseLocalePack`；CLI |
 | `parseUiSpecFile`、`parseSkinFile`、`parseFontScheme` | `ui/appearance-files.ts` | `packages/design-system` 基线加载；组件板 |
+| `parseResourceRegistry` | `ui/appearance-files.ts` | 宿主资源适配器、`packages/design-system` 的基线加载与 `fontFaceRules`、资源报告、`tests/ui-resources.test.ts`（第 1.3 节）。解析和拒绝照第 3.1 节（FSS-46），`UI_RESOURCE_KINDS`、`UI_RESOURCE_LOADS`、`format.ui.registry`、`UI_FILE_LIMITS.registry` 的读者就是它 |
 | `resolveSkin`、`skinTokenDeclarations` | `ui/appearance-resolve.ts` | `palette.ts` 等 |
 | `resolveFontScheme`、`fontTokenDeclarations`、`fontFaceRules` | `ui/appearance-resolve.ts` | `typeface.ts` |
 | `resolveUiEnvironment`、`withDevicePreferences` | `ui/environment.ts` | 组件板；第 16 批的首屏 |
@@ -573,13 +576,13 @@ A 段什么都不改：令牌仍在基础 CSS 里，没有选择，快照由基�
 
 ### 5.1 工具的形状
 
-类型在 `platform/ui-text.ts`（T2 加，T1 不用等它）：
+类型在 `platform/ui-text.ts`（T2 加，T1 不用等它）。`TEXT_NUMBER_STYLES`、`TEXT_DATE_STYLES` 同时导出（不叫 `NUMBER_STYLES`：design-system 已有同名的 CSS 字符串），T4 的 `textRefProblems` 查 `style` 和 `kind` 配不配；`TextNumberStyle` 是前者的类型，与 `TextDateStyle` 对称：
 
 ```ts
 /** 业务写的参数值。按分支展开写，不用 Omit<TextArg, "name">：那样会压扁联合（tsc --strict 实测，{ kind: "number" } 缺值也能过）。 */
 export type TextArgValue =
   | string | number                          // 普通数字不分组
-  | { readonly kind: "number"; readonly number: number; readonly style?: "decimal" | "percent" | "compact" }
+  | { readonly kind: "number"; readonly number: number; readonly style?: TextNumberStyle }
   | { readonly kind: "date"; readonly at: string; readonly style: TextDateStyle };
 export type TextArgs = Readonly<Record<string, TextArgValue>>;
 
@@ -600,7 +603,7 @@ export interface UiSayOptions {
 }
 export interface UiFormatTool {
   date(at: string, style: TextDateStyle): string;
-  number(value: number, style?: "decimal" | "percent" | "compact"): string;   // 没写 style 按 decimal，分组
+  number(value: number, style?: TextNumberStyle): string;   // 没写 style 按 decimal，分组
 }
 
 /** 平台装进来的上下文。SDK 不存语言和译文。 */

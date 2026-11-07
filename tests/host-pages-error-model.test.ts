@@ -164,8 +164,8 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
     (error: unknown) => { expect(error, "catalog.project_terminal_live", 409); return true; });
   const tooOld = hostModule.catalogSchemaCompatibilityError(9, 8);
   assert.ok(tooOld instanceof ActionError);
-  assert.equal(tooOld.code, "catalog.reader_too_old");
-  assert.equal(actionHttpStatus(tooOld), 400);
+  assert.equal(tooOld.code, "storage.store_too_new");
+  assert.equal(actionHttpStatus(tooOld), 503);
   assert.deepEqual(tooOld.details, { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" });
 });
 

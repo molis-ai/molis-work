@@ -5,7 +5,12 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ensureHomeUpgraded, homeUpgradeLooksPending, watchHomeUpgradePending } from "./home-upgrade.js";
 import { hostErrors } from "./host-errors.js";
+import { registerHomeUpgradeDescriptors } from "./home-upgrade-stores.js";
 import { hostLog } from "./host-log.js";
+import { platformUpgradeDescriptors } from "./platform-upgrade-stores.js";
+
+// Here, because every way to take the lock for business comes through this file: a process that reached it knows its stores.
+registerHomeUpgradeDescriptors(platformUpgradeDescriptors);
 
 /** A synchronous failed initializer still hands its caller the actual resource cleanup attempt. */
 export interface HomeInitializationFailure extends Error { close(): Promise<void> }

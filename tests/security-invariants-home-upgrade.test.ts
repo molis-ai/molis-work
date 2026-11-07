@@ -6,12 +6,12 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createDesktopUninstallService, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  acquireUpgradedHomeOwner, catalogManagementProject, heldInstalls, MolisWorkWebServiceManager, runHomeUpgrade, runV1Cli, RuntimeIntegrationService,
+  acquireUpgradedHomeOwner, catalogManagementProject, configuredModelChoices, heldInstalls, MolisWorkWebServiceManager, runHomeUpgrade, runV1Cli, RuntimeIntegrationService,
 } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
 import {
-  BASELINE_V2, catalogAtBaseline, catalogDescriptor, catalogHome, failingBaseline, ledgerFile, ledgerOf, notesDescriptor, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, versionOf, writeLedger, type LedgerOnDisk,
+  BASELINE_V2, catalogHome, failingBaseline, ledgerFile, ledgerOf, notesDescriptor, raiseCatalogBaseline, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, versionOf, writeLedger, type LedgerOnDisk,
 } from "./fixtures/home-upgrade-home.js";
 
 const CLOSED_PORT = "http://127.0.0.1:9";
@@ -52,7 +52,7 @@ test("S-upgrade-lock-only: this process holding the lock itself: a plain busy, a
 
 test("S-upgrade-lock-only: entries that upgrade report `storage.upgrade_in_progress` while held; their files stay as they were", async t => {
   const f = await catalogHome(t), before = sha256(f.catalog);
-  catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+  raiseCatalogBaseline(t);
   await withPeer(t, f.lock, async () => {
     await assert.rejects(runV1Cli(["snapshot", "--db", f.project.database_path, "--json", JSON.stringify({ project_id: f.project.project_id })], { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_in_progress" });
     await assert.rejects(withMolisWorkProjectCatalog({ homeDirectory: f.home }, async () => 0), { code: "storage.upgrade_in_progress" });
@@ -63,13 +63,13 @@ test("S-upgrade-lock-only: entries that upgrade report `storage.upgrade_in_progr
 
 test("S-upgrade-lock-only: readers with no lock read or refuse, write nothing, and leave the stamp where it is", async t => {
   const f = await catalogHome(t);
-  useDescriptors(t, catalogDescriptor({ baseline: { version: 1, schema: "", upgrades: [] } }));
   assert.equal(runHomeUpgrade(f.home).stamped, true);
   const stamp = readFileSync(stampFile(f.home));
   // The catalog is at 1, and from here the baseline it is read by is 2: to these readers it is one version older.
-  catalogAtBaseline(t);
+  raiseCatalogBaseline(t);
   const before = sha256(f.catalog);
   assert.throws(() => catalogManagementProject(f.home, f.project.database_path), { code: "storage.upgrade_pending" });
+  assert.throws(() => configuredModelChoices(f.home), { code: "storage.upgrade_pending" });
   assert.equal(heldInstalls(f.home).length, 0);
   assert.equal((await uninstallInspect(f.home, f.area)).status, "no_change", "the preview reads the catalog and finds no conflict");
   assert.equal(sha256(f.catalog), before);

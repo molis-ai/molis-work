@@ -44,7 +44,7 @@ test("health becomes ready after a transient catalog lock without a business req
 test("permanent catalog refusal is not retried, and closing cancels a queued transient retry", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-web-retry-lifecycle-"));
   try {
-    for (const code of ["catalog.reader_too_old", "catalog.unknown_database", "SQLITE_BUSY"]) {
+    for (const code of ["storage.store_too_new", "catalog.unknown_database", "SQLITE_BUSY"]) {
       let opens = 0;
       const access = createWebCatalogAccess(home, async () => { opens++; throw Object.assign(new Error(code), { code }); });
       await assert.rejects(access.warm(), { code });

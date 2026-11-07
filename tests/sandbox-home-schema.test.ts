@@ -169,7 +169,7 @@ test("RAC2867 an existing owner never replays DDL into a missing or empty busine
   (await open(directory)).close();
   const before = installedLibrarySnapshots(directory, homeStores());
   writeFileSync(file, "");
-  await assert.rejects(open(directory), { code: "plugin.home_database.version_mismatch" });
+  await assert.rejects(open(directory), { code: "storage.schema_version_mismatch" });
   assert.equal(statSync(file).size, 0, "the empty recorded file was not initialized again");
   unlinkSync(file);
   await assert.rejects(open(directory), { code: "plugin.home_database.shape_mismatch" });

@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
-  acquireStorageOwner, assertNoPendingHomeRestore, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
-  pruneUpgradeSnapshots, readStorageSpace, readUpgradeStoreSpace, readUpgradeStoreVersion, restoreUpgradeSnapshot, runSqliteUpgrade, upgradeFailedRefusal, upgradeNoSpaceRefusal, upgradeStepsProblem,
+  acquireStorageOwner, assertNoPendingHomeRestore, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeFileSnapshot, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
+  pruneUpgradeSnapshots, readStorageSpace, readUpgradeStoreSpace, readUpgradeStoreVersion, readVersionedFileVersion, restoreUpgradeSnapshot, runSqliteUpgrade, upgradeFailedRefusal, upgradeNoSpaceRefusal, upgradeStepsProblem,
+  upgradeVersionedFile, USER_VERSION_ACCESS, versionedFileStepsProblem,
   type StorageOwner, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -12,7 +13,7 @@ import {
   homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeStamp,
   type UpgradeLedger, type UpgradeUnit, type UpgradeUnitError,
 } from "./home-upgrade-ledger.js";
-import { homeUpgradeDescriptors, upgradeFingerprint, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
+import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
 
 /** What this call did. Nothing to do reads `ran: false`; a store that failed is in `units`, not an exception (§5.2). */
 export interface HomeUpgradeReport {
@@ -39,6 +40,7 @@ interface Round {
   ledger: UpgradeLedger | undefined;
   /** From an earlier build's record: stores whose snapshot did not check out. They wait for U3 whatever the version (§5.2). */
   waiting: readonly UpgradeUnit[];
+  readonly onUnitDone: (() => void) | undefined;
 }
 
 const NOTHING: HomeUpgradeReport = Object.freeze({ ran: false, stamped: false, units: Object.freeze([]) });
@@ -90,10 +92,11 @@ function ordinaryFile(root: string, relativePath: string): "absent" | "ordinary"
 
 /** The version, by reading only. A hot journal is the one thing that needs more: unless the store is too new for this build, the holder of the lock recovers it. */
 function storeVersion({ descriptor }: Store, file: string, holdsLock: boolean): number {
-  const seen = readUpgradeStoreVersion(file);
+  if ("file" in descriptor) return readVersionedFileVersion(descriptor.file, file);
+  const access = descriptor.version ?? USER_VERSION_ACCESS, seen = readUpgradeStoreVersion(file, access);
   if (!seen.hot_journal || !holdsLock || seen.version > descriptor.baseline.version) return seen.version;
   const db = descriptor.open(file);
-  try { return Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version); }
+  try { return access.read(db); }
   finally { db.close(); }
 }
 
@@ -105,14 +108,14 @@ function lookAt(root: string, store: Store, holdsLock: boolean): Look {
   let found: number;
   try { found = storeVersion(store, join(root, store.relative_path), holdsLock); }
   catch (error) { if (lockLost(error)) throw error; return { kind: "refused", reason: "unreadable" }; }
-  const { version } = store.descriptor.baseline;
+  const version = upgradeTarget(store.descriptor);
   if (found === version) return { kind: "current" };
   if (found === 0) return { kind: "unversioned" };
   return { kind: found > version ? "too_new" : "older", found };
 }
 
 const newUnit = (store: Store, from: number, state: UpgradeUnit["state"], error: UpgradeUnitError | null = null): UpgradeUnit => ({
-  kind: "sqlite", owner: store.descriptor.owner, relative_path: store.relative_path, group: null, from, to: store.descriptor.baseline.version, state, error,
+  kind: "file" in store.descriptor ? "file" : "sqlite", owner: store.descriptor.owner, relative_path: store.relative_path, group: store.descriptor.group ?? null, from, to: upgradeTarget(store.descriptor), state, error,
 });
 
 function record(round: Round, relativePath: string, change: Pick<UpgradeUnit, "state"> & Partial<UpgradeUnit>): void {
@@ -141,9 +144,9 @@ function restore(round: Round, relativePath: string, cause: UpgradeUnitError): v
 
 /** Whether to put the snapshot back is decided by the store's version, not by what failed: only a store at the target was really upgraded (§5.2). */
 function recoverFromFailure(round: Round, store: Store, failure: unknown): void {
-  const { relative_path } = store, target = store.descriptor.baseline.version;
+  const { relative_path, descriptor } = store, target = upgradeTarget(descriptor), file = join(round.root, relative_path);
   let found: number | undefined;
-  try { found = readUpgradeStoreVersion(join(round.root, relative_path)).version; }
+  try { found = "file" in descriptor ? readVersionedFileVersion(descriptor.file, file) : readUpgradeStoreVersion(file, descriptor.version).version; }
   catch { found = undefined; }
   if (found === target) {
     hostLog.warn("host", "home_upgrade_failed_after_commit", failure);
@@ -182,11 +185,12 @@ function advance(round: Round, store: Store): void {
   }
   if (!started) {
     // Before the snapshot, and before anything opens the store to write: the checkpoint is already a write (§2.1, §2.2 step 1).
-    const problem = upgradeStepsProblem(descriptor.baseline, look.found) ?? spaceProblem(round, file);
+    const problem = "file" in descriptor ? versionedFileStepsProblem(descriptor.file, look.found) : upgradeStepsProblem(descriptor.baseline, look.found) ?? spaceProblem(round, file);
     if (problem) { record(round, relative_path, { state: "failed", error: ownReason(problem) }); return; }
   }
   try {
-    captureUpgradeSnapshot(snapshotUnit(round, relative_path), descriptor.open);
+    if ("file" in descriptor) captureUpgradeFileSnapshot(snapshotUnit(round, relative_path));
+    else captureUpgradeSnapshot(snapshotUnit(round, relative_path), descriptor.open);
     if (!started) record(round, relative_path, { state: "snapshotted" });
   } catch (error) {
     if (lockLost(error)) throw error;
@@ -197,13 +201,33 @@ function advance(round: Round, store: Store): void {
   }
   let failure: unknown, failed = false;
   try {
-    const db = descriptor.open(file);
-    try { runSqliteUpgrade(db, file, descriptor.baseline, round.root); }
-    finally { db.close(); }
+    if ("file" in descriptor) upgradeVersionedFile(descriptor.file, file, round.root);
+    else {
+      const db = descriptor.open(file);
+      try { runSqliteUpgrade(db, file, descriptor.baseline, round.root, descriptor.version); }
+      finally { db.close(); }
+    }
   } catch (error) { failure = error; failed = true; }
   // The connection is closed, and no await can come between here and the restore: a promise a step left behind has no way to write.
   if (failed) { if (lockLost(failure)) throw failure; recoverFromFailure(round, store, failure); return; }
   record(round, relative_path, { state: "committed" });
+}
+
+/**
+ * §8.2: a group is one unit as far as anyone reading it can tell. Once a member has failed the others go back too, committed ones included, and
+ * those not yet tried stay as they are. Called again after a kill, so a group that stopped half way back finishes the way back.
+ */
+function holdGroupsTogether(round: Round): void {
+  const broken = new Set(round.ledger!.units.filter(unit => unit.group !== null && (unit.state === "failed" || unit.state === "too_new" || unit.state === "restoring")).map(unit => unit.group));
+  if (broken.size === 0) return;
+  for (const unit of round.ledger!.units) {
+    if (!broken.has(unit.group)) continue;
+    if (unit.state === "planned") record(round, unit.relative_path, { state: "failed", error: ownReason("group_failed") });
+    else if (unit.state === "snapshotted" || unit.state === "committed") {
+      record(round, unit.relative_path, { state: "restoring", error: ownReason("group_failed") });
+      restore(round, unit.relative_path, ownReason("group_failed"));
+    } else if (unit.state === "restoring") restore(round, unit.relative_path, unit.error ?? ownReason("group_failed"));
+  }
 }
 
 function assertUnitsFit(round: Round, units: readonly UpgradeUnit[]): void {
@@ -216,8 +240,8 @@ function assertUnitsFit(round: Round, units: readonly UpgradeUnit[]): void {
 function assertUnfinishedUnitsFit(round: Round, units: readonly UpgradeUnit[]): void {
   assertUnitsFit(round, units);
   for (const unit of units) {
-    const { baseline } = round.stores.get(unit.relative_path)!.descriptor;
-    if (unit.to !== baseline.version || unit.from < 1 || unit.from >= baseline.version) throw upgradeFailedRefusal(`${UPGRADE_DIRECTORY}/ledger.json`, "ledger_invalid", "升级记录里的版本和这个程序对不上，没有照着它做，也没有改动任何库。");
+    const version = upgradeTarget(round.stores.get(unit.relative_path)!.descriptor);
+    if (unit.to !== version || unit.from < 1 || unit.from >= version) throw upgradeFailedRefusal(`${UPGRADE_DIRECTORY}/ledger.json`, "ledger_invalid", "升级记录里的版本和这个程序对不上，没有照着它做，也没有改动任何库。");
   }
 }
 
@@ -236,7 +260,9 @@ function finishInterrupted(round: Round, previous: UpgradeLedger | undefined): b
       const store = round.stores.get(relative_path)!;
       if (state === "restoring") restore(round, relative_path, error ?? ownReason("run_failed"));
       else advance(round, store);
+      round.onUnitDone?.();
     }
+    holdGroupsTogether(round);
     return unfinished.length > 0;
   }
   const restoring = previous.units.filter(unit => unit.state === "restoring");
@@ -290,7 +316,14 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
     writeUpgradeLedger(round.root, round.ledger);
     return;
   }
-  for (const { relative_path } of planned) advance(round, round.stores.get(relative_path)!);
+  holdGroupsTogether(round);
+  for (const { relative_path, group } of planned) {
+    // A member the group has already given up on is no longer planned.
+    if (unitOf(round, relative_path).state !== "planned") continue;
+    advance(round, round.stores.get(relative_path)!);
+    if (group !== null) holdGroupsTogether(round);
+    round.onUnitDone?.();
+  }
 }
 
 /**
@@ -299,16 +332,15 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
  * store that fails is put back and stays alone. All of it is synchronous. Only what is wrong with the whole Home throws: a record that
  * does not check out, a record that cannot be written, or the lock going away.
  */
-export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: { readonly expectedSpace?: StorageSpace } = {}): HomeUpgradeReport {
+export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: { readonly expectedSpace?: StorageSpace; readonly onUnitDone?: () => void } = {}): HomeUpgradeReport {
   const lockDirectory = agentRuntimeDirectory(home);
   assertStorageOwner(lockDirectory, owner);
   const root = realpathSync(home), descriptors = homeUpgradeDescriptors();
-  if (descriptors.length === 0 && !lstatSync(join(root, UPGRADE_DIRECTORY), { throwIfNoEntry: false })) return NOTHING;
   const fingerprint = upgradeFingerprint(descriptors), identity = homeIdentity(root), stamp = readUpgradeStamp(root, identity);
   if (stamp === fingerprint) return NOTHING;
   const previous = readUpgradeLedger(root);
   removeUpgradeTemporaries(root);
-  const round: Round = { root, lockDirectory, owner, identity, fingerprint, expectedSpace: options.expectedSpace, stores: listStores(descriptors, root), ledger: undefined, waiting: [] };
+  const round: Round = { root, lockDirectory, owner, identity, fingerprint, expectedSpace: options.expectedSpace, stores: listStores(descriptors, root), ledger: undefined, waiting: [], onUnitDone: options.onUnitDone };
   const resumed = finishInterrupted(round, previous);
   if (round.ledger?.units.some(unfinishedUnit)) return { ran: true, stamped: false, units: round.ledger.units };
   const { planned, settled, present, unversioned } = scan(round);
@@ -341,31 +373,40 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
 }
 
 /** Takes the lock, runs the process, gives the lock back. `storage.owner.busy` means another process has this Home, and nothing was touched. */
-export function runHomeUpgrade(home: string): HomeUpgradeReport {
+export function runHomeUpgrade(home: string, options: { readonly onUnitDone?: () => void } = {}): HomeUpgradeReport {
   const lockDirectory = agentRuntimeDirectory(home);
   assertNoPendingHomeRestore(lockDirectory);
   const owner = acquireStorageOwner(lockDirectory);
-  try { return ensureHomeUpgraded(home, owner); }
+  try { return ensureHomeUpgraded(home, owner, options); }
   finally { owner.release(); }
 }
 
 /**
- * The lock is taken. Is someone upgrading this Home, or will they have to? Reads only, and never removes the stamp (S-upgrade-lock-only).
- * A read that fails while the other process is at work counts as yes: all this decides is which refusal the caller sees.
+ * How much this Home has waiting, by reading only: what a round left unfinished, or else what is older and has not already been given its
+ * answer under this build. It takes no lock and never removes the stamp (S-upgrade-lock-only). A read that fails counts as some, so the caller
+ * finds out with the lock in hand.
  */
-export function homeUpgradeLooksPending(home: string): boolean {
+export function pendingUpgradeUnits(home: string): number {
   const descriptors = homeUpgradeDescriptors();
-  if (descriptors.length === 0) return false;
   let root: string;
-  try { root = realpathSync(home); } catch { return false; }
+  try { root = realpathSync(home); } catch { return 0; }
   try {
     const identity = homeIdentity(root), fingerprint = upgradeFingerprint(descriptors);
-    if (readUpgradeStamp(root, identity) === fingerprint) return false;
-    if (readUpgradeLedger(root)?.units.some(unfinishedUnit)) return true;
-    for (const store of listStores(descriptors, root).values()) if (lookAt(root, store, false).kind === "older") return true;
-    return false;
-  } catch { return true; }
+    if (readUpgradeStamp(root, identity) === fingerprint) return 0;
+    const ledger = readUpgradeLedger(root), unfinished = ledger?.units.filter(unfinishedUnit).length ?? 0;
+    if (unfinished > 0) return unfinished;
+    const earlier = new Map((ledger?.to === fingerprint ? ledger.units : []).map(unit => [unit.relative_path, unit]));
+    let older = 0;
+    for (const store of listStores(descriptors, root).values()) {
+      const before = earlier.get(store.relative_path);
+      if (lookAt(root, store, false).kind === "older" && !(before?.state === "failed" && !retriedNextStart(before))) older += 1;
+    }
+    return older;
+  } catch { return 1; }
 }
+
+/** The lock is taken. Is someone upgrading this Home, or will they have to? All this decides is which refusal the caller sees. */
+export const homeUpgradeLooksPending = (home: string): boolean => pendingUpgradeUnits(home) > 0;
 
 function insideHome(root: string, path: string): string | undefined {
   try {

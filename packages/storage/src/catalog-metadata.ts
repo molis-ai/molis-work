@@ -1,4 +1,5 @@
 import type { SqliteDatabase } from "./sqlite.js";
+import type { SqliteVersionAccess } from "./sqlite-baseline.js";
 import {DatabaseSync} from 'node:sqlite';
 import Database from 'better-sqlite3';
 import {existsSync,statSync} from 'node:fs';
@@ -16,6 +17,15 @@ function catalogVersion(db:CatalogReader):number {
   const row=db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as {value:unknown}|undefined;
   return Number(row?.value);
 }
+/** The upgrade run's way to the catalog's version. No catalog table, or no version in it, reads as 0: no version at all, which only an open can judge. */
+export const CATALOG_VERSION_ACCESS:SqliteVersionAccess={
+  read:db=>{
+    if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'catalog_meta'").get())return 0;
+    const version=catalogVersion(db);
+    return Number.isInteger(version)?version:0;
+  },
+  write:(db,version)=>{db.exec(`UPDATE catalog_meta SET value = '${version}' WHERE key = 'schema_version'`);},
+};
 function fileState(filename:string){
   const stat=statSync(filename,{bigint:true});
   return {stamp:[stat.dev,stat.ino,stat.size,stat.mtimeNs,stat.ctimeNs].join(':'),wal:existsSync(filename+'-wal'),shm:existsSync(filename+'-shm'),journal:existsSync(filename+'-journal')};

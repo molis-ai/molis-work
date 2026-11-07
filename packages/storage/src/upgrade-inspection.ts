@@ -2,7 +2,7 @@ import { closeSync, lstatSync, openSync, readSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { readDatabaseSpace, type StorageSpace } from "./space.js";
-import { storageErrors } from "./sqlite-baseline.js";
+import { storageErrors, USER_VERSION_ACCESS, type SqliteVersionAccess } from "./sqlite-baseline.js";
 
 /** Where SQLite keeps `user_version` in a database's header. */
 const USER_VERSION_OFFSET = 60;
@@ -34,14 +34,15 @@ function userVersionInHeader(path: string): number {
 /**
  * The version a store is at, read only. A hot journal refuses a read-only connection (SQLITE_READONLY_ROLLBACK), so the header gives the
  * version instead: enough to leave alone a store too new for this build, whose journal only its own build may recover. The caller holds
- * the lock before it opens anything else on such a store.
+ * the lock before it opens anything else on such a store. A store that keeps its version elsewhere has no header to fall back on, so it
+ * reads as 0 here and only the holder learns the version, by recovering it: the catalog is a WAL store, which has no such journal in use.
  */
-export function readUpgradeStoreVersion(path: string): UpgradeStoreVersion {
+export function readUpgradeStoreVersion(path: string, access: SqliteVersionAccess = USER_VERSION_ACCESS): UpgradeStoreVersion {
   const db = readOnlyConnection(path);
   try {
-    return { version: Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version), hot_journal: false };
+    return { version: access.read(db), hot_journal: false };
   } catch (error) {
-    if ((error as { errcode?: unknown }).errcode === 776) return { version: userVersionInHeader(path), hot_journal: true };
+    if ((error as { errcode?: unknown }).errcode === 776) return { version: access === USER_VERSION_ACCESS ? userVersionInHeader(path) : 0, hot_journal: true };
     throw error;
   } finally { db.close(); }
 }

@@ -25,7 +25,7 @@ export interface UpgradeUnitError {
 }
 
 export interface UpgradeUnit {
-  readonly kind: "sqlite";
+  readonly kind: "sqlite" | "file";
   readonly owner: string;
   /** Only names the unit, to match it with a descriptor. The real path is always worked out from the Home and the descriptor (S-upgrade-ledger-verified). */
   readonly relative_path: string;
@@ -76,7 +76,7 @@ const fingerprint = (value: unknown): value is string => typeof value === "strin
 function parseUnit(value: unknown): UpgradeUnit {
   const unit = object(value, ["kind", "owner", "relative_path", "group", "from", "to", "state", "error"]);
   const { kind, owner, relative_path, group, from, to, state } = unit;
-  if (kind !== "sqlite" || typeof owner !== "string" || typeof relative_path !== "string" || (group !== null && typeof group !== "string")
+  if ((kind !== "sqlite" && kind !== "file") || typeof owner !== "string" || typeof relative_path !== "string" || (group !== null && typeof group !== "string")
     || !count(from) || !count(to) || typeof state !== "string" || !STATES.includes(state)) throw refused();
   let error: UpgradeUnitError | null = null;
   if (unit.error !== null) {

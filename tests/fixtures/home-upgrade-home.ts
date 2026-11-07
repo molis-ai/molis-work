@@ -7,8 +7,8 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { registerHomeUpgradeDescriptors, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
-import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, LocalCatalogMetadata, sqliteVersionRefusal, type SqliteBaseline, type SqliteBaselineDatabase, type StorageSpace } from "@molis-ai/molis-work-storage";
+import { CATALOG_BASELINE, registerHomeUpgradeDescriptors, type HomeUpgradeDescriptor, type HomeUpgradeStoreDescriptor } from "@molis-ai/molis-work-app-local-host";
+import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, type SqliteBaseline, type SqliteUpgradeStep, type StorageSpace } from "@molis-ai/molis-work-storage";
 
 export const V1 = "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);";
 export const V2 = "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT NOT NULL DEFAULT '');";
@@ -48,7 +48,7 @@ export function upgradeTestHome(t: TestContext) {
   return { area, home, outside, lock: join(home, "agent-runtime") };
 }
 
-export const notesDescriptor = (name: string, overrides: Partial<HomeUpgradeDescriptor> = {}): HomeUpgradeDescriptor =>
+export const notesDescriptor = (name: string, overrides: Partial<HomeUpgradeStoreDescriptor> = {}): HomeUpgradeStoreDescriptor =>
   ({ owner: "tests/notes", pattern: relativeStore(name), baseline: BASELINE_V2, open: openNode, ...overrides });
 
 /** A step that does its change and then fails, so only a rollback or a restore can undo it. */
@@ -73,29 +73,24 @@ export const writeLedger = (home: string, ledger: LedgerOnDisk) => writeFileSync
 
 export const catalogFile = (home: string) => join(home, "projects", "catalog.db");
 export const PROBE_TABLE = "CREATE TABLE upgrade_probe (id INTEGER)";
-export const catalogDescriptor = (overrides: Partial<HomeUpgradeDescriptor> = {}): HomeUpgradeDescriptor =>
-  ({ owner: "tests/catalog", pattern: "projects/catalog.db", baseline: { version: 2, schema: PROBE_TABLE, upgrades: [{ from: 1, sql: PROBE_TABLE }] }, open: openNode, ...overrides });
+export const catalogVersionOf = (file: string) => onStore(file, db => Number((db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as { value: string }).value));
 
-/** A Home with a real project in its real catalog, marked as one version older for `catalogAtBaseline`. */
+/** A Home with a real project in its real catalog, at `version`, which is one older once `raiseCatalogBaseline` has run. */
 export async function catalogHome(t: TestContext, version = 1) {
   const f = upgradeTestHome(t);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
   const project = await catalog.createProject({ display_name: "Kept project", actor_id: "fixture" });
   catalog.close();
-  onStore(catalogFile(f.home), db => db.exec(`PRAGMA user_version = ${version}`));
+  onStore(catalogFile(f.home), db => db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(version)));
   return { ...f, project, catalog: catalogFile(f.home) };
 }
 
 /**
- * The real catalog's version is not on a baseline until U1-d, so an entry cannot yet see a low one on its own. This makes the catalog's one
- * version read refuse the way a baseline will, with the public refusal, and every path around it stays real.
+ * Every real store is at its first version, so nothing real is ever older. This raises what this build reads the real catalog by, for one
+ * test, with the steps to get there; every open path and the upgrade process read the same object. The step only adds a table, which the
+ * comparison with the baseline lets through.
  */
-export function catalogAtBaseline(t: TestContext, expected = 2): void {
-  const real = LocalCatalogMetadata.prototype.version;
-  t.mock.method(LocalCatalogMetadata.prototype, "version", function (this: LocalCatalogMetadata) {
-    const db: SqliteBaselineDatabase = Reflect.get(this, "db");
-    const found = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
-    if (found !== expected) throw sqliteVersionRefusal("projects/catalog.db", found, expected);
-    return real.call(this);
-  });
+export function raiseCatalogBaseline(t: TestContext, upgrades: readonly SqliteUpgradeStep[] = [{ from: 1, sql: PROBE_TABLE }]): void {
+  t.mock.property(CATALOG_BASELINE, "version", 2);
+  t.mock.property(CATALOG_BASELINE, "upgrades", upgrades);
 }

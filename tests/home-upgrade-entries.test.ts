@@ -1,22 +1,22 @@
 // UPG1-13, UPG1-15 (the `bootstrapSpace` half): every entry that takes the Home's lock, and what each does with an older store
 // (specs/upgrade-continuity/upgrade-chain-design.md §4.3). The refusals themselves are in tests/security-invariants-home-upgrade.test.ts.
-// `catalogAtBaseline` stands in for the catalog's baseline until U1-d. Every action URL here is a closed local port.
+// Every action URL here is a closed local port.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createDesktopUninstallService, inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  acquireUpgradedHomeOwner, createHomeSnapshot, createMolisWorkLocalHost, homeStores, LocalMcpServer, MolisWorkWebServiceManager, restoreHomeSnapshot, runLocalCli, runV1Cli, RuntimeIntegrationService,
+  acquireUpgradedHomeOwner, createHomeSnapshot, createMolisWorkLocalHost, homeStores, LocalMcpServer, MolisWorkWebServiceManager, PROJECT_DATABASE_BASELINE, restoreHomeSnapshot, runHomeUpgrade, runLocalCli, runV1Cli, RuntimeIntegrationService,
 } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, ensureStorageSpace, HOME_RESTORE_JOURNAL, homeSqlitePath, MEMORY_LEDGER_STORE, personalStorageSpace } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { assertSnapshotRefused, smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
 import {
-  ADD_TAG, catalogAtBaseline, catalogDescriptor, catalogFile, catalogHome, failingBaseline, ledgerFile, notesDescriptor, onStore, present, PROBE_TABLE, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, V2, versionOf,
+  ADD_TAG, catalogFile, catalogHome, catalogVersionOf, failingBaseline, ledgerFile, notesDescriptor, onStore, present, PROBE_TABLE, raiseCatalogBaseline, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, V2, versionOf,
 } from "./fixtures/home-upgrade-home.js";
 
 const CLOSED_PORT = "http://127.0.0.1:9";
@@ -47,11 +47,11 @@ const uninstaller = (home: string, area: string) => createDesktopUninstallServic
 
 test("UPG1-13: the CLI upgrades an older catalog in place, says so on one line of stderr, and finishes the command", async t => {
   const f = await catalogHome(t);
-  catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+  raiseCatalogBaseline(t);
   const output = captureLog(t), stderr = captureStderr(t);
   assert.equal(await runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
   assert.equal(JSON.parse(output.at(-1)!).board.project_id, f.project.project_id);
-  assert.equal(versionOf(f.catalog), 2);
+  assert.equal(catalogVersionOf(f.catalog), 2);
   assert.equal(present(stampFile(f.home)), true);
   assert.equal(stderr.filter(line => line.includes("升级")).length, 1);
   assertLockFree(f.lock);
@@ -59,7 +59,7 @@ test("UPG1-13: the CLI upgrades an older catalog in place, says so on one line o
 
 test("UPG1-13: the CLI on a Home someone else holds says it is upgrading, and changes nothing", async t => {
   const f = await catalogHome(t), before = sha256(f.catalog);
-  catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+  raiseCatalogBaseline(t);
   await withPeer(t, f.lock, () => assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_in_progress" }));
   assert.equal(sha256(f.catalog), before);
   assert.equal(present(ledgerFile(f.home)), false);
@@ -70,14 +70,13 @@ test("UPG1-13: a catalog newer than the program goes straight back through the C
     const f = await catalogHome(t);
     onStore(f.catalog, db => db.prepare("UPDATE catalog_meta SET value = '99' WHERE key = 'schema_version'").run());
     const before = sha256(f.catalog);
-    useDescriptors(t, catalogDescriptor());
-    await withPeer(t, f.lock, () => assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "catalog.reader_too_old" }));
+    await withPeer(t, f.lock, () => assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.store_too_new" }));
     assert.equal(sha256(f.catalog), before);
     assert.equal(present(ledgerFile(f.home)), false);
   });
   await t.test("the baseline's number", async t => {
     const f = await catalogHome(t, 3), before = sha256(f.catalog);
-    catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+    raiseCatalogBaseline(t);
     await withPeer(t, f.lock, () => assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.store_too_new" }));
     assert.equal(sha256(f.catalog), before);
     assert.equal(present(ledgerFile(f.home)), false);
@@ -86,11 +85,11 @@ test("UPG1-13: a catalog newer than the program goes straight back through the C
 
 test("UPG1-13: when the catalog's upgrade fails the CLI says this store failed, not that an upgrade is still to come", async t => {
   const f = await catalogHome(t), before = sha256(f.catalog);
-  catalogAtBaseline(t); useDescriptors(t, catalogDescriptor({ baseline: { ...failingBaseline(), schema: PROBE_TABLE } }));
+  raiseCatalogBaseline(t, failingBaseline().upgrades);
   captureLog(t);
   await assert.rejects(runV1Cli(snapshotArgs(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), (error: Error & { code?: string; details?: { reason?: string } }) => {
     assert.equal(error.code, "storage.upgrade_failed");
-    assert.equal(error.details?.reason, "still_pending");
+    assert.equal(error.details?.reason, "step_failed", "what the record says went wrong, now that the catalog has one");
     return true;
   });
   assert.equal(sha256(f.catalog), before, "put back byte for byte");
@@ -111,21 +110,59 @@ test("UPG1-13: a project outside the Home with an older catalog still upgrades: 
   const f = await catalogHome(t), external = join(f.outside, "project.db");
   const output = captureLog(t);
   assert.equal(await runV1Cli(["init", "--db", external, "--json", JSON.stringify({ project_id: "external", idempotency_key: "initialize" })], { homeDirectory: f.home }), 0);
-  catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+  raiseCatalogBaseline(t);
   assert.equal(await runV1Cli(snapshotArgs(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
   assert.equal(JSON.parse(output.at(-1)!).board.project_id, "external");
-  assert.equal(versionOf(f.catalog), 2);
+  assert.equal(catalogVersionOf(f.catalog), 2);
   assertLockFree(f.lock);
+});
+
+/** The project baseline has no `upgrades` of its own yet, so there is nothing for `t.mock.property` to replace. */
+function raiseProjectBaseline(t: TestContext): void {
+  t.mock.property(PROJECT_DATABASE_BASELINE, "version", 2);
+  Object.defineProperty(PROJECT_DATABASE_BASELINE, "upgrades", { value: [{ from: 1, sql: PROBE_TABLE }], configurable: true });
+  t.after(() => { Reflect.deleteProperty(PROJECT_DATABASE_BASELINE, "upgrades"); });
+}
+
+test("UPG1-13: a project store outside this Home is not this Home's to upgrade: it is refused and left alone", async t => {
+  const f = await catalogHome(t), external = join(f.outside, "project.db");
+  captureLog(t);
+  assert.equal(await runV1Cli(["init", "--db", external, "--json", JSON.stringify({ project_id: "external", idempotency_key: "initialize" })], { homeDirectory: f.home }), 0);
+  raiseProjectBaseline(t);
+  const before = sha256(external);
+  await assert.rejects(runV1Cli(snapshotArgs(external, "external"), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_pending" });
+  assert.equal(sha256(external), before);
+  assert.equal(versionOf(external), 1);
+  assert.equal(versionOf(f.project.database_path), 2, "the Home's own project store was upgraded by the same command's lock");
+  assertLockFree(f.lock);
+});
+
+test("UPG1-16: a project in the recycle bin is upgraded with the rest, and opens once it is back", async t => {
+  const f = await catalogHome(t), id = f.project.project_id;
+  captureLog(t);
+  const change = async (operation_id: string, recycled: boolean) => {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
+    try { await catalog.commit(() => catalog.recycle.change({ project_id: id, actor_id: "fixture", operation_id, expected_state: catalog.recycle.inspect(id).state, recycled, confirmed: true }, () => {})); }
+    finally { catalog.close(); }
+  };
+  await change("to-the-bin", true);
+  raiseProjectBaseline(t);
+  assert.equal(versionOf(f.project.database_path), 1);
+  const report = runHomeUpgrade(f.home);
+  assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [[relative(f.home, f.project.database_path), "committed"]]);
+  assert.equal(versionOf(f.project.database_path), 2);
+  await change("back-again", false);
+  assert.equal(await runV1Cli(snapshotArgs(f.project.database_path, id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), 0);
 });
 
 test("UPG1-13: `demo` from cli-project-maintenance upgrades and finishes", async t => {
   const f = await catalogHome(t);
-  catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+  raiseCatalogBaseline(t);
   const output = captureLog(t);
   const options = { defaultSourceDirectory: () => f.outside, withCatalog: withMolisWorkProjectCatalog, runPlugin: () => Promise.reject(new Error("no plugin command here")) };
   assert.equal(await runLocalCli(["demo", "create", "--home", f.home, "--json"], options), 0);
   assert.equal(JSON.parse(output.at(-1)!).status, "ready");
-  assert.equal(versionOf(f.catalog), 2);
+  assert.equal(catalogVersionOf(f.catalog), 2);
 });
 
 const mcpCall = (database_path: string, project_id: string) => ({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
@@ -141,16 +178,16 @@ async function withMcp<T>(home: string, use: (mcp: LocalMcpServer) => Promise<T>
 
 test("UPG1-13: the management MCP with nothing to start upgrades through its own Host and answers", async t => {
   const f = await catalogHome(t);
-  catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+  raiseCatalogBaseline(t);
   const reply = await withMcp(f.home, mcp => mcp.handleMessage(mcpCall(f.project.database_path, f.project.project_id))) as { result: { isError?: boolean } };
   assert.notEqual(reply.result.isError, true, JSON.stringify(reply.result));
-  assert.equal(versionOf(f.catalog), 2);
+  assert.equal(catalogVersionOf(f.catalog), 2);
   assert.equal(present(stampFile(f.home)), true);
 });
 
 test("UPG1-13: the management MCP on a Home someone else holds says it is upgrading, and changes nothing", async t => {
   const f = await catalogHome(t), before = sha256(f.catalog);
-  catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+  raiseCatalogBaseline(t);
   const reply = await withPeer(t, f.lock, () => withMcp(f.home, mcp => mcp.handleMessage(mcpCall(f.project.database_path, f.project.project_id))));
   assert.match(JSON.stringify(reply), /storage\.upgrade_in_progress/);
   assert.equal(sha256(f.catalog), before);
@@ -159,19 +196,19 @@ test("UPG1-13: the management MCP on a Home someone else holds says it is upgrad
 test("UPG1-13: the catalog entry upgrades before it opens, unless it was handed a lock, whose holder has already", async t => {
   await t.test("no lock given", async t => {
     const f = await catalogHome(t);
-    catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+    raiseCatalogBaseline(t);
     assert.equal(await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => catalog.listProjects().length), 1);
-    assert.equal(versionOf(f.catalog), 2);
+    assert.equal(catalogVersionOf(f.catalog), 2);
   });
   await t.test("the open form", async t => {
     const f = await catalogHome(t);
-    catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+    raiseCatalogBaseline(t);
     (await openMolisWorkProjectCatalog({ homeDirectory: f.home })).close();
-    assert.equal(versionOf(f.catalog), 2);
+    assert.equal(catalogVersionOf(f.catalog), 2);
   });
   await t.test("a lock given: refused, not upgraded", async t => {
     const f = await catalogHome(t), before = sha256(f.catalog);
-    catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+    raiseCatalogBaseline(t);
     const owner = acquireStorageOwner(f.lock);
     try { await assert.rejects(withMolisWorkProjectCatalog({ homeDirectory: f.home, storageOwner: owner }, async () => 0), { code: "storage.upgrade_pending" }); }
     finally { owner.release(); }
@@ -180,7 +217,7 @@ test("UPG1-13: the catalog entry upgrades before it opens, unless it was handed 
   });
   await t.test("the lock held elsewhere", async t => {
     const f = await catalogHome(t), before = sha256(f.catalog);
-    catalogAtBaseline(t); useDescriptors(t, catalogDescriptor());
+    raiseCatalogBaseline(t);
     await withPeer(t, f.lock, () => assert.rejects(withMolisWorkProjectCatalog({ homeDirectory: f.home }, async () => 0), { code: "storage.upgrade_in_progress" }));
     assert.equal(sha256(f.catalog), before);
   });
@@ -329,12 +366,10 @@ test("UPG1-13: purge goes through an older catalog with a demo project: no step 
   const demo = (await catalog.ensureDemoProject({ actor_id: "fixture", user_confirmed: true })).project;
   catalog.close();
   assert.equal(demo.data_class, "regenerable_demo");
-  onStore(catalogFile(f.home), db => db.exec("PRAGMA user_version = 1"));
   mkdirSync(join(f.home, "bin"), { recursive: true });
   writeFileSync(join(f.home, "bin", "molis-work"), LAUNCHER);
-  catalogAtBaseline(t);
   let steps = 0;
-  useDescriptors(t, catalogDescriptor({ baseline: { version: 2, schema: PROBE_TABLE, upgrades: [{ from: 1, run: () => { steps += 1; } }] } }));
+  raiseCatalogBaseline(t, [{ from: 1, run: () => { steps += 1; } }]);
   const held = acquireStorageOwner(f.lock);
   try { await assert.rejects(withMolisWorkProjectCatalog({ homeDirectory: f.home, storageOwner: held }, async () => 0), { code: "storage.upgrade_pending" }, "without the skip, removing the demo would stop here"); }
   finally { held.release(); }

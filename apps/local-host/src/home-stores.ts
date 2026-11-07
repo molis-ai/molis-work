@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { readStorageSpace } from "@molis-ai/molis-work-storage";
 import { installedSnapshotOptions } from "./installed-library-snapshot.js";
 import { NATIVE_SESSION_FILE } from "./personal-native-session.js";
@@ -38,6 +39,12 @@ import {SYNC_HOME_STORE} from '@molis-ai/molis-work-module-sync-replication';
  * declares, `databases.home`). `uninstall --purge-user-data` removes all of them (decision #20); a plugin may be given a library only if the
  * library is registered here as its own. Built on first use: the stores are declared in modules that may import this one.
  */
+/** Where the plugins this build ships keep their model choice (`model_configuration.preference`), for the upgrade process. */
+export const platformModelPreferences = (): readonly { readonly owner: string; readonly path: string }[] => PLATFORM_PLUGIN_REGISTRATIONS.flatMap(({ manifest }) => {
+  const preference = manifest.model_configuration?.preference;
+  return preference ? [{ owner: manifest.plugin_id, path: join(preference.store_name, preference.file_name) }] : [];
+});
+
 export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
   const registered = registry ??= Object.assign(homeStoreRegistry([
     ...owned("apps/local-host", { path: "projects", snapshot: projectSnapshot }, { path: "logs", snapshot: omittedSnapshot("Diagnostic logs", "preserve") }),

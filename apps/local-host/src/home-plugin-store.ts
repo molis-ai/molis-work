@@ -2,8 +2,7 @@ import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
   SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
-  type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { checkSqliteBaselineVersion, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
   version: /* @version database.home_plugin_runtime_baseline */ 1,
@@ -61,8 +60,8 @@ export function openReadOnlyHomePluginStore(home: string) {
   const db = openReadOnlyHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path);
   try {
     db.exec("BEGIN");
-    const found = db.prepare("PRAGMA user_version").get()!.user_version as number;
-    if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw refusedHomeStore(sqliteVersionRefusal(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version, home));
+    try { checkSqliteBaselineVersion(db, file, HOME_PLUGIN_RUNTIME_BASELINE, home); }
+    catch (error) { throw isSqliteVersionRefusal(error) ? refusedHomeStore(error) : error; }
     if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomeStoreShape(db)) {
       throw invalidHomeStoreShape();
     }

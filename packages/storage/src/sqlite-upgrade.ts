@@ -3,9 +3,11 @@ import {
   sqliteVersionRefusal,
   storageErrors,
   upgradedShapeMatches,
+  USER_VERSION_ACCESS,
   type SqliteBaseline,
   type SqliteBaselineDatabase,
   type SqliteUpgradeStep,
+  type SqliteVersionAccess,
 } from "./sqlite-baseline.js";
 
 export interface SqliteUpgradeResult {
@@ -31,7 +33,6 @@ const FAILURES = {
 } as const;
 type UpgradeFailure = (reason: keyof typeof FAILURES, options?: { readonly step?: number; readonly cause?: unknown }) => Error;
 
-const readVersion = (db: SqliteBaselineDatabase) => Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
 const readForeignKeys = (db: SqliteBaselineDatabase) => Number((db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys);
 
 /** The steps from `found` to the baseline's version, in order. Every declared step is checked, so a bad declaration fails whichever older version the store is at. */
@@ -115,14 +116,14 @@ function verifyUpgrade(db: SqliteBaselineDatabase, baseline: SqliteBaseline, ste
   }
 }
 
-function upgradeInOneTransaction(db: SqliteBaselineDatabase, baseline: SqliteBaseline, found: number, steps: readonly SqliteUpgradeStep[], fail: UpgradeFailure): void {
+function upgradeInOneTransaction(db: SqliteBaselineDatabase, baseline: SqliteBaseline, found: number, steps: readonly SqliteUpgradeStep[], fail: UpgradeFailure, access: SqliteVersionAccess): void {
   try { db.exec("BEGIN IMMEDIATE"); }
   catch (cause) { throw fail("begin_failed", { cause }); }
   try {
-    if (readVersion(db) !== found) throw fail("version_changed");
+    if (access.read(db) !== found) throw fail("version_changed");
     const rowsBefore = tableRowCounts(db);
     runSteps(db, steps, fail);
-    db.exec(`PRAGMA user_version = ${baseline.version}`);
+    access.write(db, baseline.version);
     verifyUpgrade(db, baseline, steps, rowsBefore, fail);
     db.exec("COMMIT");
   } catch (error) {
@@ -139,8 +140,8 @@ function upgradeInOneTransaction(db: SqliteBaselineDatabase, baseline: SqliteBas
  * that returned a promise still land in the store. Every failure rolls back and raises `storage.upgrade_failed`; a store at the current
  * version is left alone, and one this build cannot start from is refused by what it is, without a write.
  */
-export function runSqliteUpgrade(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, home?: string): SqliteUpgradeResult {
-  const to = baseline.version, found = readVersion(db);
+export function runSqliteUpgrade(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, home?: string, access: SqliteVersionAccess = USER_VERSION_ACCESS): SqliteUpgradeResult {
+  const to = baseline.version, found = access.read(db);
   if (found === to) return { from: to, to };
   if (found < 1 || found > to) throw sqliteVersionRefusal(path, found, to, home);
   const store = sqliteStoreLabel(path, home);
@@ -154,12 +155,12 @@ export function runSqliteUpgrade(db: SqliteBaselineDatabase, path: string, basel
   };
   const steps = stepsToRun(baseline, found, fail);
   if (!steps.some(step => step.rebuilds_tables)) {
-    upgradeInOneTransaction(db, baseline, found, steps, fail);
+    upgradeInOneTransaction(db, baseline, found, steps, fail, access);
     return { from: found, to };
   }
   const foreignKeysBefore = readForeignKeys(db);
   switchForeignKeys(db, 0, fail);
-  try { upgradeInOneTransaction(db, baseline, found, steps, fail); }
+  try { upgradeInOneTransaction(db, baseline, found, steps, fail, access); }
   finally { switchForeignKeys(db, foreignKeysBefore, fail); }
   return { from: found, to };
 }

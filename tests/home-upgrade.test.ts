@@ -210,9 +210,9 @@ test("UPG1-08: no stamp while anything is not current; an empty Home keeps no up
   assert.equal(present(stampFile(home)), false);
 });
 
-test("UPG1-08: with nothing registered a Home is never touched", t => {
+test("UPG1-08: a Home with no store in it is never touched", t => {
   const { home } = upgradeTestHome(t);
-  assert.deepEqual(runHomeUpgrade(home), { ran: false, stamped: false, units: [] });
+  assert.deepEqual(runHomeUpgrade(home), { ran: true, stamped: false, units: [] });
   assert.equal(present(join(home, "upgrade")), false);
 });
 

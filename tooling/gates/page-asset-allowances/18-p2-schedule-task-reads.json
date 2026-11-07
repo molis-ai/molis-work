@@ -1,0 +1,8 @@
+{
+  "reason": "第 18 批 P2：Schedule 任务里「这条任务能读什么」的类别选择、状态与重新确认（specs/proactive-assistant/schedule-task-reads.md §3.4、§3.6），用现有的 mw-status 与开关控件，没有新控件；实测 schedule.js 12561 → 14866、schedule.css 1122 → 2509（对照 origin/main 8d8aa76a6）",
+  "review": "PR #1879 合同台合审第 5 项审过这段页面资源增长（https://github.com/molis-ai/molis-work/pull/1879#issuecomment-6699984185），统筹按评审通过放行入队（https://github.com/molis-ai/molis-work/pull/1879#issuecomment-6700680595）",
+  "assets": {
+    "/assets/molis-work-plugins/schedule.js": 2305,
+    "/assets/molis-work-plugins/schedule.css": 1387
+  }
+}

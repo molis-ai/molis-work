@@ -2,6 +2,8 @@ import { type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-w
 import type { SchedulePluginRouteHandler, SchedulePluginRouteResponse } from "./routes.js";
 import { scheduleActions, type ScheduleTaskInput } from "./actions.js";
 import { scheduleErrors } from "./error.js";
+import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { scheduleTaskReads } from "./task-grants.js";
 
 export interface ScheduleRouteHandlerPorts {
   readonly actions: BoundActionClient;
@@ -25,6 +27,8 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
   return {
     "schedule.list": () => run(scheduleActions.list, {}),
     "schedule.readiness": () => run(scheduleActions.readiness, {}),
+    // One read of the platform's grants for the whole list; the page shows each task's kind and what needs the person again.
+    "schedule.grants": async () => ({ status: 200, body: { tasks: scheduleTaskReads(await options.actions.invoke(agentTaskGrantActions.list, {})) } }),
     "schedule.job.enabled": ({ params, request }) => {
       const value = enabled(request.body);
       if (value === null) throw scheduleErrors.job_invalid("请指定是否启用");

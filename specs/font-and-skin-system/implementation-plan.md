@@ -10,7 +10,9 @@
 
 采用 **JSON 定义文件 + 单份解析校验 + 现有组件渲染器 + Host 管理配置 + 每个文档的展示控制器**。
 
-文件承载字体方案、皮肤值、组件外观规格和语言文案。控件行为、业务布局、身份、授权与可靠写入仍由代码负责。不把程序序列化进 JSON，不生成任意 CSS/JS，也不引入新的通用配置框架、数据库或 workspace 包。
+A 段（路线书第 14 批）的合同写到字段级，在 [A 段合同设计稿](a-section-contract.md)；它和本文的字段、文件名不一致时，以它为准。
+
+文件承载字体方案、皮肤值、组件外观规格和语言文案。控件行为、业务布局、身份、授权与可靠写入仍由代码负责。不把程序序列化进 JSON，不生成任意 CSS/JS，也不引入新的通用配置框架或数据库；A 段不加 workspace 包，B 段的外观主人按下面第 3 节的说明进 `horizontal/`。
 
 三个明确取舍：
 
@@ -52,9 +54,9 @@ flowchart TD
 | 位置（新增位置均为提案） | 职责及禁止承担的事 |
 | --- | --- |
 | `packages/contracts` 的现有 `platform/ui`、`platform/plugin` 等子路径 | UI 中定义文件形状、资源/版本引用、`TextRef` 与展示快照，Plugin 中只补实际需要的资源声明；纯类型/声明式 schema，不做 I/O 或运行解析，不预先增加另一套合同子路径 |
-| `packages/plugin-sdk/src/ui/` | 共享文件解析、有限 resolver、消息工具与浏览器绑定，公开为可在 Node/浏览器使用的 `@molis-ai/molis-work-plugin-sdk/ui` 入口。只依赖 contracts，无 Node 内建模块、私有 Design System、Home 或模型依赖 |
+| `packages/plugin-sdk/src/ui/` | 共享文件解析、有限 resolver、消息工具与浏览器绑定，加在现有的 `@molis-ai/molis-work-plugin-sdk/ui` 入口里（这个入口已存在，不新开），Node 与浏览器都能用。只依赖 contracts，无 Node 内建模块、私有 Design System、Home 或模型依赖 |
 | `packages/design-system` | 保留 render helper、组件行为、固定选择器/状态映射、一次结构样式；内置规格/皮肤/字体资源置于包的 `resources/`，由公开资源描述交给 Host；不读用户配置文件 |
-| `apps/local-host/src/interface/` | `files` 管版本文件与原子提交，`assets` 管导入/路径/实际字体，`selection` 管选择/撤销/幂等，`snapshots` 管可重建投影，`actions` 管授权接缝，`preview` 管可信验收。使用函数与小组合对象，文件 owner 不导出私人存储实现 |
+| `horizontal/` 下的新包（2026-11-07 改：用户 2026-11-01 定新的平台服务放 `horizontal/`，原写 `apps/local-host/src/interface/`，B 段照此落） | `files` 管版本文件与原子提交，`assets` 管导入/路径/实际字体，`selection` 管选择/撤销/幂等，`snapshots` 管可重建投影，`actions` 管授权接缝，`preview` 管可信验收。使用函数与小组合对象，文件 owner 不导出私人存储实现 |
 | `apps/workbench` | 设置与标准板入口、首屏快照、设备偏好、文字绑定、显示状态；不直接写 Home、SQL 或调用私有模型客户端 |
 | `apps/desktop` | WebView 与菜单栏胶囊接入同一展示客户端；原生菜单/连接提示接收可信文字投影。Rust 不另建皮肤引擎、译文表或模型入口 |
 | `packages/ui-host` | 注入已准备的展示客户端/快照，挂载释放、嵌入的来源与版本校验；不解释皮肤业务或保存第二份选择 |
@@ -137,7 +139,7 @@ Host 中的 `interface/` 是平台配置的现有 App 边界内模块，不是�
   "direction": "ltr",
   "revision": 1,
   "messages": {
-    "common.cancel": { "text": "Cancel" },
+    "common.cancel": "Cancel",
     "common.items": {
       "plural_arg": "count",
       "forms": { "one": "{count} item", "other": "{count} items" }
@@ -297,8 +299,8 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 **⑥ 语言文件怎样随插件走**
 
 - Manifest 为每种语言声明一个包内路径（如 `resources/locales/en.json`），校验与入口文件同一份 `assertPluginPackagePath`（[package-verification.ts](../../packages/plugin-runtime/src/package-verification.ts)），包里缺文件即拒装。现行 Manifest 唯一的文件字段是 `entrypoints[].entrypoint`，这是合同改动，按 [合同变化规则](../../docs/system/CONTRACT-CHANGES.md) 刷新 API 与动作快照。
-- 现行发行物只存 `{manifest, module_source}`（[release-artifacts.ts](../../packages/plugin-runtime/src/release-artifacts.ts) 的 `createPluginRuntimeReleaseArtifact`），装好后包里的别的文件读不到。语言文件要进发行物（解析后的内容随发行物签名与指纹走），内置插件的发行物构建（[native-plugin-release-artifact.ts](../../apps/local-host/src/native-plugin-release-artifact.ts)）同样读各插件的 `resources/locales/`。内置插件现在的 `PluginRegistration.messages` 与工作台 `*_EN` 词典是另一条路，切换后删掉，不留两份。
-- 键由能力 id 导出（`action.<capability_id>.title|description|summary`），不另起名字；声明里的原文仍是默认语言，模型、MCP 工具说明与回执用它。
+- 现行发行物只存 `{manifest, module_source}`（[release-artifacts.ts](../../packages/plugin-runtime/src/release-artifacts.ts) 的 `createPluginRuntimeReleaseArtifact`），装好后包里的别的文件读不到。语言文件要进发行物（解析后的内容随发行物签名与指纹走），内置插件的发行物构建（[native-plugin-release-artifact.ts](../../apps/local-host/src/native-plugin-release-artifact.ts)）同样读各插件声明的语言文件，内容放在发行物的 `locale_packs`，形状见 [A 段合同设计稿](a-section-contract.md)第 6 节。内置插件现在的 Manifest `ui.messages`、`ui.translations` 与工作台 `*_EN` 词典是另一条路，切换后删掉，不留两份（`PluginRegistration.messages` 已经删了，见 [plugin-registration.ts](../../packages/contracts/src/platform/plugin-registration.ts)）。
+- 键由能力 id 导出，不另起名字；声明里的原文仍是默认语言，模型、MCP 工具说明与回执用它。2026-11-07 改：原写 `action.<capability_id>.title|description|summary`，这样的键过不了 `STABLE_KEY`（最多 5 段、开头是主人名），写法改成 `<主人名>.action.<能力 id 去掉插件前缀，点换连字符>.<部分>`，见 [A 段合同设计稿](a-section-contract.md)第 2.4 节。
 - 宿主按（插件、语言）解析一次，缓存键带语言；语言来自入口：页面请求用 `pageLocale()`（[web-locale.ts](../../apps/local-host/src/web-locale.ts)），动作里用执行上下文的 `locale`。助理步骤行的目标名现在在 `presentActivity`（[assistant-service.ts](../../apps/local-host/src/assistant/assistant-service.ts)）里按动作标题取，缓存不分语言，要改成按轮次的语言取。
 - 要换成按语言取的表面：助理步骤行与结果卡（[assistant-result-card.ts](../../apps/local-host/src/assistant/assistant-result-card.ts)）、助理的能力目录说明（[assistant-directory.ts](../../apps/local-host/src/assistant/assistant-directory.ts) 给模型的那份不换）、设置 › 助理的能力列表、能力库（[capabilities.ts](../../apps/workbench/src/capabilities.ts)）、对外授权的工具标题与调用记录。逐处列清单后在英文实走里断言（§6.1 的检查盲区）。
 
@@ -405,7 +407,7 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 具体决定点：
 
-- 新增可加载的资源/字体路径会触及决定 #17；不能直接在 `page-assets.json` 加条目或改上限。先给出统一资源登记/预算方案与实测节省，确需改门禁再由用户决定，本轮不修改门禁。
+- 新增可加载的资源/字体路径按[页面资源体积](../../docs/cli-and-development.md#页面资源体积)的现行规则：对照 `origin/main` 的 merge-base 只许变小，必要增长的许可按任务放在 `tooling/gates/page-asset-allowances/`，新增资源或一次涨超过 10 KB 先问用户（2026-11-07 改：原文的「决定 #17」和 `page-assets.json` 都已过时）。先给出统一资源登记/预算方案与实测节省，确需改门禁再由用户决定，本轮不修改门禁。
 - 新的系统动作 provider、资源声明、JSON 词典根与原生文字绑定可能触及注册/依赖/静态门禁。沿真实接点登记并验证，不能通过别名调用、分散文件或隐藏路由绕过计数，也不能塞进现存巨大类以求数字不增长。必要门禁调整单列评审决定。
 - 真实 Home 的现行生成插件发布文案转换需要维护授权；Folio 的实际圆润字体和分发依据、额外首批语种还需明确（2026-11-04 用户已定：Folio 中英文都随产品带开源圆润字体、只在选用时加载；首批只做中英文，见[需求书 §12](spec.md#12-决策记录)；具体字体与字节随 A 段资源登记测出）。它们不阻止写本方案，但不能在交付时假称完成。
 

@@ -21,6 +21,17 @@ export {
   openReadOnlyHomeSqlite,
 } from "./home-sqlite.js";
 export { runSqliteUpgrade, type SqliteUpgradeResult } from "./sqlite-upgrade.js";
+export {
+  assertUpgradeDiskSpace,
+  captureUpgradeSnapshot,
+  pruneUpgradeSnapshots,
+  restoreUpgradeSnapshot,
+  verifyUpgradeSnapshot,
+  type UpgradeSnapshotEntry,
+  type UpgradeSnapshotKeyDependency,
+  type UpgradeSnapshotUnit,
+  type UpgradeSqliteConnection,
+} from "./upgrade-snapshot.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
   isSqliteSchemaStructureMismatch,

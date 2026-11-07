@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { finishMcpWebStartup, hostLog, reportMcpWebStartupFailure, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { finishMcpWebStartup, hostLog, reportMcpWebStartupFailure, reportSqliteVersion, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -104,6 +104,9 @@ if (isMain) {
       const host = bound && typeof bound === "object" ? (bound.family === "IPv6" ? `[${bound.address}]` : bound.address) : "127.0.0.1";
       console.log(`Molis Work Web: http://${host}:${bound && typeof bound === "object" ? bound.port : port}`);
       console.log("项目列表（网页不会修改 Runtime Session 绑定）");
+      // Said beside the start lines, once; it does not change what the Host does (the plugin statement check refuses on its own).
+      const sqliteNotice = reportSqliteVersion();
+      if (sqliteNotice) console.log(sqliteNotice);
     });
     } catch (error) {
       if (!reportMcpWebStartupFailure(error)) throw error;

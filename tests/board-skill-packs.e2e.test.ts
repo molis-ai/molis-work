@@ -24,7 +24,8 @@ const SEEN = `(() => {
   const spills = sections.flatMap((section) => { const edge = section.getBoundingClientRect().right;
     return [...section.querySelectorAll('*')].filter((el) => visible(el) && el.getBoundingClientRect().right > Math.min(edge, W) + 1).slice(0, 3)
       .map((el) => section.id + ' ' + el.tagName.toLowerCase() + '.' + String(el.className).split(' ')[0] + ' ' + Math.round(el.getBoundingClientRect().right) + '>' + Math.round(edge)); });
-  // One line: status marks, an item row's name, the pack a list entry lives in (cut, with its whole name on hover).
+  // One line: status marks and the pack a list entry lives in (cut, with its whole name on hover). An item row's name wraps
+  // instead, so a finger can read all of it; nothing of it is clipped.
   const lines = (selector, max) => [...document.querySelectorAll(selector)].filter(visible).filter((el) => el.getBoundingClientRect().height > max)
     .map((el) => el.textContent.trim().slice(0, 24) + ' ' + Math.round(el.getBoundingClientRect().height));
   return {
@@ -35,7 +36,11 @@ const SEEN = `(() => {
     // The sections that run past the board's edge (older sections do on a phone; the five new ones must not).
     overflowing: (() => { const r = document.querySelector('.mw-catalog').getBoundingClientRect().right; return [...document.querySelectorAll('.mw-catalog *')].filter((el) => el.getBoundingClientRect().width && el.getBoundingClientRect().right > r + 1).map((el) => el.closest('.mw-catalog__section')?.id ?? '-').filter((id, i, all) => all.indexOf(id) === i); })(),
     spills,
-    wrapped: [...lines('${SCOPE.split(", ").map((id) => `${id} .mw-status`).join(", ")}', 22), ...lines('.mw-item--stack > span > strong, .mw-pick__text small', 22)],
+    wrapped: [...lines('${SCOPE.split(", ").map((id) => `${id} .mw-status`).join(", ")}', 22), ...lines('.mw-pick__text small', 22)],
+    clippedNames: [...document.querySelectorAll('.mw-item--stack > span > strong')].filter(visible).filter((el) => el.scrollWidth > el.clientWidth + 0.5 || el.scrollHeight > el.clientHeight + 0.5).map((el) => el.textContent.slice(0, 24)),
+    // The three-way choice stays inside its own item row.
+    underSpills: [...document.querySelectorAll('.mw-item__under')].filter(visible).flatMap((under) => { const right = under.closest('li').getBoundingClientRect().right;
+      return [under, ...under.querySelectorAll('*')].filter((el) => visible(el) && el.getBoundingClientRect().right > right + 0.5).slice(0, 1).map((el) => el.className + ' ' + Math.round(el.getBoundingClientRect().right) + '>' + Math.round(right)); }),
     packTitles: [...document.querySelectorAll('.mw-pick__text small')].every((small) => small.title === small.textContent),
     folds: [...document.querySelectorAll('#item-details summary')].map((s) => s.textContent.trim() + '|' + s.getAttribute('aria-label')),
   };
@@ -61,14 +66,16 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
   };
   for (const lang of ["zh", "en"] as const) for (const width of WIDTHS) {
     await open(lang, width);
-    const seen = await evaluate<{ sections: string[]; words: string; unnamed: number; pageScroll: number; overflowing: string[]; spills: string[]; wrapped: string[]; packTitles: boolean; folds: string[] }>(SEEN);
+    const seen = await evaluate<{ sections: string[]; words: string; unnamed: number; pageScroll: number; overflowing: string[]; spills: string[]; wrapped: string[]; clippedNames: string[]; underSpills: string[]; packTitles: boolean; folds: string[] }>(SEEN);
     assert.deepEqual(seen.sections, SECTIONS, "every new part has its section, in order");
     if (lang === "en") assert.equal(seen.words.match(/[㐀-鿿]+/g)?.join(" ") ?? "", "", "no Chinese is left in English");
     assert.equal(seen.unnamed, 0, "every button, fold and group has a name");
     assert.equal(seen.pageScroll, 0, `${lang} ${width}px: the page does not scroll sideways`);
     assert.deepEqual(seen.overflowing.filter((id) => SECTIONS.includes(id)), [], `${lang} ${width}px: none of the five sections runs past the board`);
     assert.deepEqual(seen.spills, [], `${lang} ${width}px: nothing runs past its section`);
-    assert.deepEqual(seen.wrapped, [], `${lang} ${width}px: status marks, item names and an entry's pack stay on one line`);
+    assert.deepEqual(seen.wrapped, [], `${lang} ${width}px: status marks and an entry's pack stay on one line`);
+    assert.deepEqual(seen.clippedNames, [], `${lang} ${width}px: an item row's name is never cut`);
+    assert.deepEqual(seen.underSpills, [], `${lang} ${width}px: the three-way choice stays inside its item row`);
     assert.ok(seen.packTitles, "an entry's pack carries its whole name on hover");
     // The fold's summary still reads 看详情; its readable name carries the item's name.
     assert.match(seen.folds[0] ?? "", lang === "zh" ? /^看详情\|看详情：写周度复盘$/ : /^Details\|Details: Write the weekly review$/);

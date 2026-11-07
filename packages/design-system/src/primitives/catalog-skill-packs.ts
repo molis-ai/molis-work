@@ -13,13 +13,16 @@ import type { Say } from "./catalog-composer.js";
 
 export const SKILL_PACK_BOARD_STYLES = `
   /* 1 · An item row whose words stack (name, what it is for, its marks) with the three-way choice under them, not at the row's end:
-     the choice is the row's one control, and under the words it keeps the same place whatever the name's length. */
+     the choice is the row's one control, and under the words it keeps the same place whatever the name's length. The name wraps
+     instead of being cut: a finger has no hover to read a cut name by. */
   .mw-item.mw-item--stack { align-items: flex-start; flex-wrap: wrap; row-gap: 0; padding-block: 10px; }
   .mw-item--stack > .mw-mark { margin-top: 2px; }
   .mw-item.mw-item--stack > span:nth-child(2) { display: grid; gap: 4px; flex: 1 1 0; align-items: start; }
   .mw-item--stack > span:nth-child(2) > small { white-space: normal; text-wrap: pretty; }
+  .mw-item.mw-item--stack > span:nth-child(2) > strong { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: break-word; line-height: 1.45; }
   .mw-item--stack[data-off] strong { color: var(--muted); }
-  .mw-item__under { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; min-width: 0; }
+  /* The choice's own row in the item, indented to the words where there is room. */
+  .mw-item > .mw-item__under { display: flex; flex: 1 0 100%; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; margin-top: 8px; padding-left: 44px; }
   .mw-item__under > .mw-alert { flex: 1 1 100%; }
   .mw-item__under .mw-toggle { white-space: nowrap; }
 
@@ -96,7 +99,11 @@ export const SKILL_PACK_BOARD_STYLES = `
   }
   /* A phone or a finger: each of these is a 44px target, the link by its padding (it sits in a sentence). */
   @media (max-width: 600px), (pointer: coarse) {
-    .mw-item__under .mw-toggle { min-height: 44px; padding-inline: 10px; }
+    /* On a phone the choice takes the row from the glyph's edge and its three settings share it equally, so a longer word in
+       another language narrows the others instead of running past the row. */
+    .mw-item > .mw-item__under { padding-left: 0; }
+    .mw-item__under > .mw-toggle-group { display: flex; flex: 1 1 100%; min-width: 0; }
+    .mw-item__under .mw-toggle { flex: 1 1 0; min-width: 0; min-height: 44px; padding-inline: 6px; }
     .mw-item__more > summary { min-height: 44px; padding-block: 0; }
     .mw-status-line > .mw-btn--link { --reach: 12px; }
     .mw-alert__actions .mw-btn, .mw-split__back { min-height: 44px; }
@@ -204,7 +211,7 @@ function choiceRow(say: Say, skill: Skill, options: { locked?: Unavailable; fail
   const locked = options.locked;
   const under = `${choice(say, skill, Boolean(locked))}${options.failed ? saveFailed(say, skill) : ""}`;
   const why = locked ? statusLine(renderStatusMark({ label: locked.word, tone: locked.onlyRemove ? "blocked" : "hold", state: locked.onlyRemove ? "blocked" : "unavailable" }), locked.why, locked.fix) : "";
-  return `<li class="mw-item mw-item--stack"${locked ? " data-off" : ""}>${mark("book")}<span><strong title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</strong><small>${escapeHtml(skill.what)}</small>${why}<span class="mw-item__under">${under}</span></span></li>`;
+  return `<li class="mw-item mw-item--stack"${locked ? " data-off" : ""}>${mark("book")}<span><strong>${escapeHtml(skill.name)}</strong><small>${escapeHtml(skill.what)}</small>${why}</span><div class="mw-item__under">${under}</div></li>`;
 }
 
 export function itemChoiceSection(say: Say): string {
@@ -235,7 +242,7 @@ function facts(say: Say, skill: Skill, withExcerpt: boolean): string {
 function moreRow(say: Say, skill: Skill, open = false): string {
   const fold = renderCollapsible({ summary: say("看详情"), body: facts(say, skill, true), open, className: "mw-item__more" })
     .replace("<summary>", `<summary aria-label="${escapeHtml(say("看详情：{name}", { name: skill.name }))}">`);
-  return `<li class="mw-item mw-item--stack">${mark("book")}<span><strong title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</strong><small>${escapeHtml(skill.what)}</small></span>${fold}</li>`;
+  return `<li class="mw-item mw-item--stack">${mark("book")}<span><strong>${escapeHtml(skill.name)}</strong><small>${escapeHtml(skill.what)}</small></span>${fold}</li>`;
 }
 
 export function itemDetailsSection(say: Say): string {

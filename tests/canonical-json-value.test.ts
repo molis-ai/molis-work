@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { canonicalJsonText, canonicalJsonValue } from "@molis-ai/molis-work-plugin-sdk";
 import { servicesImContract } from "@molis-ai/molis-work-contracts/services/im";
 import { servicesMemoryContract } from "@molis-ai/molis-work-contracts/services/memory";
+import { previewProjectCopy } from "@molis-ai/molis-work-service-placement";
 import { buildSync } from "esbuild";
 
 test("CLN-06 canonical JSON keeps existing request comparison and fingerprint inputs", () => {
@@ -50,6 +51,15 @@ test("N4 SDK byte output remains identical in fresh en-US and zh-CN processes", 
     '{"10":{"😀":4,"":5},"2":3,"e":2,"é":1}',
     '{"10":{"😀":4,"":5},"2":3,"e":2,"é":1}',
   ]);
+});
+
+test("the copy preview's fingerprint and saved bytes stay what they were before it took its text from canonicalJsonText, integer-shaped keys included", () => {
+  const value = { "2": 1, "10": 2, a: 3, nested: [{ "é": 1, e: 2, "😀": null, "\ue000": true }] };
+  const { view } = previewProjectCopy({ sourceSpaceId: "space", projectIds: ["project"], authorize() {}, sources: [{ ownerId: "owner",
+    owner: { kinds: ["owner:thing"], snapshot: () => [{ key: "thing", value }], references: () => [], read: () => null } }] });
+  // Taken from the handwritten serializer this replaced, run over the same input.
+  assert.equal(view.fingerprint, "cad3f5ad5c37c2e22fafdd812eab5536234fa83d5b42a74ff4d26aee8b8b1742");
+  assert.equal(view.savedBytes, 69);
 });
 
 test("N30 IM and Memory descriptors publish the current first-version identities", () => {

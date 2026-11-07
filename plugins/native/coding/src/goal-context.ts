@@ -1,3 +1,4 @@
+import { canonicalJsonValue } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { GOALS_ACTIONS, type GoalContextSnapshot } from "./goals-actions.js";
 import { codingArtifacts } from "./artifacts.js";
@@ -11,9 +12,9 @@ import { CODING_GOAL_CONTEXT_TYPE } from "./artifacts.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { codingZh } from "./words.js";
 const PREFIX = "coding-goal-context:";
+/** Not `canonicalJsonText`: the digest of this text is the stored artifact id, and a Goal's open fields can hold integer-shaped keys, which it orders differently. */
 function serialize(value: unknown, indent?: number): string {
-  return JSON.stringify(value, (_key, entry) => entry && typeof entry === "object" && !Array.isArray(entry)
-    ? Object.fromEntries(Object.keys(entry).sort().map(key => [key, entry[key]])) : entry, indent);
+  return JSON.stringify(canonicalJsonValue(value), undefined, indent);
 }
 function identity(snapshot: GoalContextSnapshot): ArtifactReference {
   const digest = createHash("sha256").update(serialize(snapshot)).digest("hex");

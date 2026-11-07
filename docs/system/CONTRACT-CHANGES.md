@@ -69,7 +69,7 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
-| `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表；真实统一起点未生效。旧Home完整备份、搬开后新建，错版和不符所属结构仍拒绝，不就地升级；实际维护未执行。 |
+| `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
 | `projects/<project_id>/molis-work.db#goals` | 2 → 1 | 同上 | 同上 |
 | `projects/<project_id>/molis-work.db#inbox` | 2 → 1 | 同上 | 同上 |

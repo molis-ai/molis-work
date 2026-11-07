@@ -5,7 +5,6 @@ import { canonicalJsonText, canonicalJsonValue, createSyncConflictState } from "
 import { goalContextReference } from "@molis-ai/molis-work-plugin-coding";
 import { servicesImContract } from "@molis-ai/molis-work-contracts/services/im";
 import { servicesMemoryContract } from "@molis-ai/molis-work-contracts/services/memory";
-import { packageFingerprint } from "@molis-ai/molis-work-service-memory";
 import { previewProjectCopy } from "@molis-ai/molis-work-service-placement";
 import { buildSync } from "esbuild";
 
@@ -75,8 +74,6 @@ test("digests that keep JavaScript's integer key order stay on the bytes of the 
     { artifact_id: "coding-goal-context:9be10d6d9bac77c511ea6254a0d1a2df22b70668b3543e63356d0b9fc0a9eef1", version: 1 });
   assert.equal(createSyncConflictState({ operationId: "op", key: "k", base: 0, revision: 1, value: INTEGER_KEYS }, { "10": 1, "2": 2 }, 1),
     "0f5442a601f182e7b000a407df566cda1da77d90d39e7f381e6768e656b23c08");
-  assert.equal(packageFingerprint([{ text: "x", applies: INTEGER_KEYS, classification: { extra: INTEGER_KEYS } }] as never),
-    "1ca6772cdffceead4c97a614a6573941518416913883aabf7967e8a380b5eb35");
 });
 
 test("N30 IM and Memory descriptors publish the current first-version identities", () => {

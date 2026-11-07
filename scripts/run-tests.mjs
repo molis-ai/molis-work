@@ -87,7 +87,8 @@ if (options.shard) {
   }
 }
 
-if (targets.length > 1) {
+// A one-file shard still needs the coordinator's timeout, retries and timed summary.
+if (targets.length > 1 || options.shard) {
   const { runParallel } = await import("./run-tests/pool.mjs");
   process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries, bail: options.bail });
 } else {

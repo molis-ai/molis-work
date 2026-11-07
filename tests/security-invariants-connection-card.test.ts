@@ -4,11 +4,17 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { activateConnectorConnection, connectorManagementActions, pluginSlotScope, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { activateConnectorConnection, connectorManagementActions, pluginInstallActions, pluginPagesFor, pluginSlotScope, sandboxImageNamespace, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { effectsFromContract, sandboxPluginManifest, SANDBOX_IMAGE_PERMISSIONS } from "@molis-ai/molis-work-plugin-sdk";
+import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { connectionsProbe, grantConnections } from "./fixtures/connections-runtime.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { mac, person as installer, ref } from "./fixtures/home-sandbox.js";
+import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
 // S-143 (docs/system/SECURITY-INVARIANTS.md), the Host's half of the in-place connection card (specs/assistant-service-connections/spec.md
 // §13.5 C2, C3; ASC-68): the trusted shell writes through `POST /api/host/plugin-page-connection` with the outer document's page header.
@@ -117,7 +123,9 @@ test("S-143 ASC-68 C3-1 a target the installation does not declare, or holds no 
     [pages.ungranted, slot(), "host.connection_need.not_granted"],
     [pages.imagesUngranted, image, "host.connection_need.not_granted"],
   ] as const) {
-    for (const body of [{ operation: "read", target }, { operation: "bind", target, connection_id: account.connection_id }, { operation: "prepare", target }]) {
+    // Every operation, so a check later moved into one operation still refuses the others before they read or write anything.
+    for (const body of [{ operation: "read", target }, { operation: "bind", target, connection_id: account.connection_id }, { operation: "prepare", target },
+      { operation: "switch", target, connection_id: account.connection_id }, { operation: "enable", target }, { operation: "save_key", target, api_key: IMAGE_KEY }]) {
       await refusedWith(await c.card(page, body), 403, code);
     }
   }
@@ -232,6 +240,82 @@ test("S-143 ASC-68 C3-8 after the page is closed or its plugin restarted, the pe
   assert.ok(late.connection_id);
   assert.equal(c.bound(c.recordScope("source-1"), c.probes.records.id), null);
   assert.deepEqual(withConnectorConnections(c.f.home, store => store.pluginBindings(late.connection_id)), []);
+});
+
+/**
+ * Ends the page while a card request is under way: at the person's action client the route builds after its last read of the page's
+ * authority (`pageOwnerClient`, after `localWebActionContext` has checked the page for the last time), once. What the route does
+ * after that is fenced only by its own `beforeEffect` / `assertCurrent` before each write.
+ */
+function endPageMidRequest(c: Awaited<ReturnType<typeof cardHome>>, page_id: string): () => void {
+  const host = c.f.host, original = host.actionClient.bind(host);
+  let ended = false;
+  host.actionClient = (...args: Parameters<typeof original>) => {
+    if (!ended) { ended = true; pluginPagesFor(c.f.home).close(page_id); }
+    return original(...args);
+  };
+  return () => { host.actionClient = original; };
+}
+
+test("S-143 ASC-68 C3-8 a page that ends while the request is under way writes nothing: an image key, an image account or a slot's account", { timeout: 120_000 }, async t => {
+  const c = await cardHome(t), account = c.token("Work GitHub");
+  const image = { kind: "image", slot_id: "cover", base_url: "https://images.example.test/v1" };
+  const pinned = withConnectorConnections(c.f.home, store => store.createToken({ serviceId: "image-api", displayName: "Images key", token: `${IMAGE_KEY}-existing` }));
+  const before = records(c.f.home);
+  for (const [plugin_id, body] of [
+    [c.probes.images.id, { operation: "save_key", target: image, api_key: IMAGE_KEY }],
+    [c.probes.images.id, { operation: "bind", target: image, connection_id: pinned.connection_id }],
+    [c.probes.records.id, { operation: "bind", target: { kind: "slot", slot_id: "github", record_key: "source-1" }, connection_id: account.connection_id }],
+  ] as const) {
+    const page = await c.open(plugin_id), restore = endPageMidRequest(c, page);
+    try {
+      const response = await c.card(page, body);
+      assert.equal(response.status, 403, `${body.operation}: ${await response.text()}`);
+    } finally { restore(); }
+    assert.equal(records(c.f.home), before, `${body.operation}: no key, pin or binding was written`);
+  }
+  assert.equal(c.bound("home", c.probes.images.declaration.store_name, "cover"), null);
+  assert.equal(withConnectorConnections(c.f.home, store => store.targetOrigin(pinned.connection_id)), null, "the existing key was not pinned");
+});
+
+/** A signed package installed in the Home that asks for image connections (S-91), in its contract's effects only. */
+function imagePackage() {
+  return signedPackage(newPublisher(), (files, manifest) => {
+    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+    contract.operations.find(operation => operation.id === "notes.add")!.effects = { storage: ["read", "write"], imageGeneration: ["read", "bind"], networkDomains: ["images.example.com"] };
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+    Object.assign(manifest, sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher, presentation: false,
+      runtime: { scope: "home" }, effects: effectsFromContract(contract) }));
+  });
+}
+
+test("S-143 ASC-68 C3-1 S-91 a sandboxed package's card binds under the namespace the Host derives, and only once the person granted its image write", mac, async t => {
+  const h = await openTestHome(t), project = await h.createProject("Sandbox connection card");
+  const client = h.host.actionClient(project.reference);
+  const preview = await client.invoke(installer(project.project_id), ref(pluginInstallActions.preview), { bundle: imagePackage() }) as { preview_id: string };
+  await client.invoke(installer(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+  const install_id = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id, prefix = `/projects/${project.project_id}`;
+  const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(h.origin + prefix + path, { method: "POST", body: JSON.stringify(body),
+    headers: { origin: h.origin, "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID(), "x-molis-work-control-token": h.controlToken, ...headers } });
+  const open = async () => {
+    const opened = await post("/api/host/plugin-pages", { plugin_id: PACKAGE_PLUGIN_ID });
+    assert.equal(opened.status, 200, await opened.clone().text());
+    return (await opened.json() as { page_id: string }).page_id;
+  };
+  const save = (page: string) => post(PATH, { operation: "save_key", target: { kind: "image", slot_id: "main", base_url: "https://images.example.com/v1" }, api_key: IMAGE_KEY },
+    { "x-molis-context-page": page });
+  const bound = () => withConnectorConnections(h.home, store => store.binding("home", sandboxImageNamespace(install_id), "main")?.connection_id ?? null);
+  // Installed, not yet approved: the derived write permission is declared and not granted, so no card.
+  const before = records(h.home);
+  await refusedWith(await save(await open()), 403, "host.connection_need.not_granted");
+  assert.equal(records(h.home), before);
+  const platform = await h.host.homePlugins!.ready();
+  await platform.runtime.regrant(install_id, SANDBOX_IMAGE_PERMISSIONS.write, true);
+  const saved = await save(await open());
+  assert.equal(saved.status, 200, await saved.clone().text());
+  const id = bound();
+  assert.ok(id, "bound under the namespace derived from the installation, not any name the package gave");
+  assert.equal(withConnectorConnections(h.home, store => store.targetOrigin(id)), "https://images.example.com", "pinned to the origin the card showed");
 });
 
 test("S-143 ASC-68 C3-9 asking for a card writes nothing, and a cancelled login leaves no binding", { timeout: 120_000 }, async t => {

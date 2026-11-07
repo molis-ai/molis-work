@@ -967,7 +967,7 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 | --- | --- | --- |
 | 没有这个服务的账号 | 「连接 GitHub」：登录类不填字段。图像目标只问一把密钥，卡上醒目写「这把密钥只发往 `<origin>`」（origin 由外壳从 `base_url` 规范化得出，不由插件写字），写清去哪里拿、加密存在这台电脑（#1881 的说法）；存密钥、钉地址、接到这个目标由 C2 一次做完。密钥只在外壳文档里输入 | 连好并接到这个目标后 `connected` |
 | 已有账号、没接到这里 | 选账号卡：列出已连上的账号（目录只在外壳里读，列表在卡内滚动），写明作用范围——按安装的槽「Feed 在所有项目都用它」，按记录的槽「只这一个来源用它」；可「再加一个账号」。**只有一个可用账号也出这张卡**，一次点击（用户 11-06 定，见六第 2 项）。图像目标只列没钉地址、或钉在同一 origin 的连接，并写明「接上后这把密钥从此只发往 `<origin>`」 | 选定并接好后 `connected` |
-| 接着的账号登录失效 | 「用原账号重新登录」：经 `connectors.setup.prepare@1` 带原连接与修订号，仍只回原账号。回来的是另一个账号时（新建了一条连接），照 §13.2 给「把它用在这里」，经 S-108 的 `connectors.plugin_slot.switch@1` 按这一处的 `usage_id` 只换这一处，别的使用处不动 | 重新登录成功或换过去后 `connected` |
+| 接着的账号登录失效 | 「用原账号重新登录」：经 C2 以本人身份调 `connectors.setup.prepare@1`，带原连接与宿主读到的修订号，只许这里正在用的账号，仍只回原账号。回来的是另一个账号时（新建了一条连接），照 §13.2 给「把它用在这里」，经 C2 只换这一处：按安装的槽调 S-108 的 `connectors.plugin_slot.switch@1`，`usage_id` 由宿主按（安装、插件、槽、null）算出；按记录的槽调 `connectors.plugin_slot.record.bind@1`，只重绑这一条记录。别的使用处（别的安装、同一个槽的别的记录）不动 | 重新登录成功或换过去后 `connected` |
 | 接着的账号被人停用 | 写明「这个账号你停用了；启用后所有用它的地方都恢复」，给「启用」（`connectors.connection.control@1`）或换一个；不自动启用 | 启用或换好后 `connected` |
 | 图像目标接着的密钥被拒 | 写明被拒，填一把新的：C2 把新密钥存成一条钉在同一 origin 的新连接并把这个目标换过去，旧的留着（§13.2「旧密钥留着、当场指出」） | 换好后 `connected` |
 | 还不能一键连接（ASC-47） | 如实写原因和能走的路；只有这一种给去连接页（④a）的入口，离开原处 | 人关掉卡时 `cancelled` |
@@ -982,12 +982,12 @@ Molis 第 86 轮新增 ASC-11/ASC-26/ASC-34 三条真实资源到 Pages 的业�
 | --- | --- | --- | --- |
 | 读目标的现状（有没有接着、可不可用） | C2 | 读绑定与连接状态；按记录的经 `connectors.plugin_slot.record.read@1`，按安装的经 `connectors.plugin_slot.read@1` | 是 |
 | 读这个服务的账号（选账号卡） | 设置路由（连接页同一条，`/api/settings/connectors/connections?service_id=…`） | `connectors.connections.read@1`；只在外壳里读，不进框 | 否（只读本人的连接，不进插件） |
-| 开始登录、重新登录 | 动作 | `connectors.setup.prepare@1` | 否：建连接是本人的事，页面撤了连接照样留着 |
+| 开始登录、重新登录 | C2 | `connectors.setup.prepare@1`，以本人身份；服务取自 Manifest，登录方式由宿主按目录选；重新登录只许这里正在用的账号 | 是，写前 `beforeEffect`（页面撤了，已建的连接照样留着，但不能再从这张卡开始新的登录） |
 | 读授权进度、取消 | 动作 | `connectors.authorization.read@1`、`connectors.authorization.cancel@1` | 否 |
 | 存密钥（服务连接的密钥类） | 设置路由（连接页同一条 `/api/settings/connectors/*`） | 连接主人的保存与检查（§13.2「保存后自动检查」） | 否 |
 | 图像目标：存密钥、钉地址、接到目标 | C2，一次做完 | 连接主人的保存，加图像绑定自己的那份写入与地址核对 | 是：页面授权不是当前的就整次不做，什么都不存 |
 | 接到这个位置（选账号、连好后接上） | C2 | 按安装的 `connectors.plugin_slot.bind@1`，按记录的 `connectors.plugin_slot.record.bind@1` | 是，写前 `beforeEffect` |
-| 换用（失效后回来是别的账号） | C2 | `connectors.plugin_slot.switch@1`（S-108），`usage_id` 由宿主按（安装、槽、记录）算出，不从输入读 | 是，写前 `beforeEffect` |
+| 换用（失效后回来是别的账号） | C2 | 按安装的槽：`connectors.plugin_slot.switch@1`（S-108），`usage_id` 由宿主按（安装、插件、槽、null）算出，不从输入读；按记录的槽：`connectors.plugin_slot.record.bind@1`，只重绑这一条记录（`switch@1` 的一处使用涵盖这个项目里这个槽的全部记录） | 是，写前 `beforeEffect` |
 | 启用 | C2 | `connectors.connection.control@1` | 是，写前 `beforeEffect` |
 
 C2 调这些动作都以本人身份（页面授权里的 actor），和现在的 `pageConnectionSlot` 一样；插件的取数桥调不到 C2。
@@ -1022,7 +1022,7 @@ C2 调这些动作都以本人身份（页面授权里的 actor），和现在�
 
 - **新开一条路由** `POST /api/host/plugin-page-connection`，不扩 `/api/host/plugin-page-slot`：后者只认按记录的槽、`mode` 只有 `read` 与 `bind`、记录键必填；连接卡的目标多了按安装的槽与图像两种，操作多了五种，合在一起要么放宽它的形状核对、要么让一条路由按 `mode` 分出两套规则。两条路由共用同一份「只认外层页面头、在页面自己的项目里」的核对（`trustedPluginPage`）与以本人身份、每次调用都再核页面的动作客户端（`pageOwnerClient`），传输守卫里同一个 `slotChoice` 放行这两条，不另开一种头。代码在 `apps/local-host/src/plugin-connection-need-http.ts`（主人 `host`，错误码 `host.connection_need.*`）。
 - **请求体**：`{ operation, target, connection_id? | api_key? }`，`operation` 是 `read`（读目标现状）、`prepare`（就地连或用原账号重新登录，经 `connectors.setup.prepare@1`）、`bind`（选账号接上）、`switch`（换用）、`enable`（启用这里接着的那条）、`save_key`（图像目标存密钥、钉地址、接上）。每种操作只收自己的那几个字段，多一个就 `actions.input_invalid`。答复只给可信外壳：服务、图像目标的 origin、这里接着的账号（`connection_id`、显示名、方式、状态，和 `connectionSlot` 同一种形状）；`prepare` 另给授权号与受保护表单的入口。外壳不把它们原样交给框，框只拿 `UiConnectionNeedOutcome`。
-- **开始登录也经 C2**：第三节第 4 条的表把「开始登录、重新登录」写成外壳直接调动作；这里改由 C2 以本人身份调同一个 `connectors.setup.prepare@1`，好处是服务由宿主从 Manifest 取、外壳不必自己写服务 id，重新登录只许这里正在用的那个账号（页面给的 `connection_id` 与绑定的不同即拒）。代价是页面授权撤了之后不能再从这张卡开始新的登录——卡已经收起，本来也不该再开始。读授权进度、取消仍照表直接调动作，授权记录的发起人是本人、本项目，`requireConnectorInitiator` 照旧兜住。登录方式由宿主按目录选：可在应用内登录的 OAuth 优先，其次可粘贴的密钥。
+- **开始登录也经 C2**：设计稿第三节第 4 条的表原把「开始登录、重新登录」写成外壳直接调动作（表已随 ④c-1 改正）；现在由 C2 以本人身份调同一个 `connectors.setup.prepare@1`，好处是服务由宿主从 Manifest 取、外壳不必自己写服务 id，重新登录只许这里正在用的那个账号（页面给的 `connection_id` 与绑定的不同即拒）。代价是页面授权撤了之后不能再从这张卡开始新的登录——卡已经收起，本来也不该再开始。读授权进度、取消仍照表直接调动作，授权记录的发起人是本人、本项目，`requireConnectorInitiator` 照旧兜住。登录方式由宿主按目录选：可在应用内登录的 OAuth 优先，其次可粘贴的密钥。
 - **按记录的槽换用只重绑这一条记录**：`connectors.plugin_slot.switch@1` 的 `usage_id` 是（安装、插件、槽、项目），一处按记录的使用代表这个项目里这个槽的全部记录，按它换会把同一个槽的别的记录一起换走，与「只换这一处」不符。所以按安装的槽经 `switch@1`（`usage_id` 由宿主按安装、插件、槽算出），按记录的槽经 `connectors.plugin_slot.record.bind@1` 只重绑这一条记录；两条路都先核要换成的账号是这个服务的、连通的、不是为别的包的安装建的（T-134）。要不要给 `switch@1` 加精确到记录的使用处，交统筹另定。
 - **不出卡的情况在宿主就拒**：目标没声明、按记录与按安装的形状不合、没获授予 `connections:use` 或图像写权限，连 `read` 都拒（`host.connection_need.target_undeclared`、`host.connection_need.not_granted`），外壳据此不画卡。`connectionSlot` 的选账号路由同样补上授予核对（传输守卫给的 `connectionSlot` 里查 `connections:use`）。图像目标的命名空间取实例自己拿到的图片生成服务：原生插件是 Manifest 的 `image_generation.store_name`，沙箱包是 `sandboxImageDeclaration` 推导出的（S-91）；实例没拿到这项服务就是没声明。
 - **图像的密钥现在不先验证**：存、钉、接一次做完，和连接页「先存再查」一致；「用候选密钥检查、不存」的入口是 ④d（BL-1058），落地后 C2 的 `save_key` 改成先查后存。还能用的密钥不在卡里替换（`host.connection_need.account_bound`），被拒的才填一把新的。

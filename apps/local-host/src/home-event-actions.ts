@@ -9,9 +9,9 @@ export interface HomeEventOpenInput { window: HomeEventWindow; source: ActionRef
 const metadata = { scope: "project" as const, scheduling: "concurrent" as const, audiences: ["user", "agent", "workflow", "mcp"] as const, permissions: ["home:read"], subject_kinds: [] };
 const eventSchema = { ...HOME_EVENT_SCHEMA, properties: { ...HOME_EVENT_SCHEMA.properties, id: { type: "string" }, source: ACTION_REFERENCE_SCHEMA, origin: HOME_EVENT_SOURCE_SCHEMA, suggested_behavior_ids: { type: "array", items: { type: "string" } } }, required: [...HOME_EVENT_SCHEMA.required, "id", "source", "origin", "suggested_behavior_ids"] };
 export const homeEventActions = {
-  events: { capability_id: "home.events.read", version: 1, operation: "query", action: { ...metadata, title: "首页事项", description: "从已授权插件查询当前窗口的事项，保留各自对象与提供方身份。", kind: "query", input_schema: HOME_EVENT_WINDOW_SCHEMA,
+  events: { capability_id: "home.events.read", version: /* @version action.home.events.read */ 1, operation: "query", action: { ...metadata, title: "首页事项", description: "从已授权插件查询当前窗口的事项，保留各自对象与提供方身份。", kind: "query", input_schema: HOME_EVENT_WINDOW_SCHEMA,
     output_schema: { type: "object", properties: { events: { type: "array", items: eventSchema }, issues: { type: "array", items: { type: "string" } } }, required: ["events", "issues"], additionalProperties: false } } } as ActionDefinition<HomeEventWindow, HomeEventsResult>,
-  openEvent: { capability_id: "home.events.open", version: 1, operation: "query", action: { ...metadata, title: "打开首页事项", description: "重新读取原提供方并核对显示的目标，返回可由界面打开的当前对象或分组；不修改业务数据。", kind: "query",
+  openEvent: { capability_id: "home.events.open", version: /* @version action.home.events.open */ 1, operation: "query", action: { ...metadata, title: "打开首页事项", description: "重新读取原提供方并核对显示的目标，返回可由界面打开的当前对象或分组；不修改业务数据。", kind: "query",
     input_schema: { type: "object", properties: { window: HOME_EVENT_WINDOW_SCHEMA, source: ACTION_REFERENCE_SCHEMA, event_id: { type: "string", minLength: 1 }, target: HOME_OPEN_TARGET_SCHEMA }, required: ["window", "source", "event_id", "target"], additionalProperties: false },
     output_schema: { type: "object", properties: { target: HOME_OPEN_TARGET_SCHEMA }, required: ["target"], additionalProperties: false } } } as ActionDefinition<HomeEventOpenInput, { target: HomeOpenTarget }>,
 };

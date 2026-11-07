@@ -49,26 +49,26 @@ const reachView = { type: "object", additionalProperties: false,
     consent: { anyOf: [consentView, { type: "null" }] }, error: { type: ["string", "null"] } } };
 const reachSelection = { type: "object", additionalProperties: false, required: ["plugin_id", "snapshot"],
   properties: { plugin_id: { type: "string", pattern: PLUGIN_ID, maxLength: 160 }, snapshot: { type: "string", minLength: 1, maxLength: 1000 } } };
-const reachAction = (name: "list" | "grant" | "revoke", title: string): ActionDefinition => createActionDefinition("plugins.project_reach." + name, name === "list" ? "query" : "command", { ...metadata, scope: "project", title,
+const reachAction = (name: "list" | "grant" | "revoke", version: number, title: string): ActionDefinition => createActionDefinition("plugins.project_reach." + name, name === "list" ? "query" : "command", { ...metadata, scope: "project", title,
     description: "本人在当前项目设置里管理一个 Home 签名包读写此项目的同意。", kind: name === "list" ? "query" : "operation",
     effect: name === "list" ? "read" : "write", permissions: [name === "list" ? PLUGIN_CONSENT_READ : PLUGIN_CONSENT_WRITE],
     input_schema: name === "list" ? { type: "object", properties: {}, additionalProperties: false } : reachSelection,
     output_schema: name === "list" ? { type: "object", additionalProperties: false, required: ["plugins", "project_name", "capabilities"], properties: {
       plugins: { type: "array", items: reachView }, project_name: { type: "string" }, capabilities: { type: "array", items: reachCapability } } }
-      : { type: "object", additionalProperties: false, required: ["plugin"], properties: { plugin: reachView } } });
+      : { type: "object", additionalProperties: false, required: ["plugin"], properties: { plugin: reachView } } }, version);
 export const projectReachActions = {
-  list: reachAction("list", "查看 Home 插件对当前项目的同意") as ActionDefinition<Record<string, never>, ReachOverview>,
-  grant: reachAction("grant", "同意 Home 插件读写当前项目") as ActionDefinition<ProjectReachSelection, { plugin: ProjectReachView }>,
-  revoke: reachAction("revoke", "撤回 Home 插件对当前项目的同意") as ActionDefinition<ProjectReachSelection, { plugin: ProjectReachView }>,
+  list: reachAction("list", /* @version action.plugins.project_reach.list */ 1, "查看 Home 插件对当前项目的同意") as ActionDefinition<Record<string, never>, ReachOverview>,
+  grant: reachAction("grant", /* @version action.plugins.project_reach.grant */ 1, "同意 Home 插件读写当前项目") as ActionDefinition<ProjectReachSelection, { plugin: ProjectReachView }>,
+  revoke: reachAction("revoke", /* @version action.plugins.project_reach.revoke */ 1, "撤回 Home 插件对当前项目的同意") as ActionDefinition<ProjectReachSelection, { plugin: ProjectReachView }>,
 };
 
 export const pluginConsentActions = {
-  list: { capability_id: "plugins.consents.list", version: 1, operation: "query", action: { ...metadata,
+  list: { capability_id: "plugins.consents.list", version: /* @version action.plugins.consents.list */ 1, operation: "query", action: { ...metadata,
     title: "查看插件的同意", description: "列出一个插件在本机的同意记录：常开、默认连线、默认输入组，含已撤回的；每一行说明是谁同意的（本人，或宿主为自己随带的插件代为同意）。",
     kind: "query", effect: "read", permissions: [PLUGIN_CONSENT_READ],
     input_schema: { type: "object", properties: { plugin_id: { type: "string", pattern: PLUGIN_ID, maxLength: 160 } }, required: ["plugin_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { consents: { type: "array", items: consentView } }, required: ["consents"], additionalProperties: false } } } as ActionDefinition<{ plugin_id: string }, { consents: PluginConsentRecord[] }>,
-  revoke: { capability_id: "plugins.consents.revoke", version: 1, operation: "command", action: { ...metadata,
+  revoke: { capability_id: "plugins.consents.revoke", version: /* @version action.plugins.consents.revoke */ 1, operation: "command", action: { ...metadata,
     title: "撤回插件的同意", description: "撤回一条同意：常开的插件从此可以隐藏、移除、停用；默认连线下次评估时解开（人自己选的来源不动）。撤回后宿主不会为同一个插件再次代为同意；要恢复得由本人重新同意。",
     kind: "operation", effect: "write", permissions: [PLUGIN_CONSENT_WRITE],
     input_schema: { type: "object", properties: { consent_id: { type: "string", minLength: 1, maxLength: 80 } }, required: ["consent_id"], additionalProperties: false },

@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "./package.js";
 
 export const platformDomEventsContract = {
-  contractId: "io.molis.work.platform.dom-events.v1",
+  contractId: /* @version contract.io.molis.work.platform.dom-events "io.molis.work.platform.dom-events.v{version}" */ "io.molis.work.platform.dom-events.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.dom-events */ 1,
   maturity: "partial",
   ssot: "docs/platform/UI-PLATFORM.md",
 } as const satisfies ContractDescriptor;

@@ -8,7 +8,8 @@ export interface McpLauncherValidationContext {
   plan_id: string;
 }
 
-const MCP_VALIDATION_TIMEOUT_MS = 10_000;
+// Includes the launcher handshake and the resident's existing 20-second cold start budget.
+const MCP_VALIDATION_TIMEOUT_MS = 30_000;
 
 export async function validateMolisWorkMcpLauncher(context: McpLauncherValidationContext): Promise<boolean> {
   return new Promise((resolve) => {

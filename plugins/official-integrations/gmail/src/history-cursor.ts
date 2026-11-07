@@ -17,7 +17,7 @@ import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { parseGmailScope, type GmailScope } from "./scope.js";
 
 /** Live cursor schema version; a cursor of any other version is refused and its Source rebuilds the cursor. */
-export const GMAIL_LIVE_CURSOR_VERSION = 1 as const;
+export const GMAIL_LIVE_CURSOR_VERSION = /* @version format.gmail.gmail_live_cursor */ 1;
 
 /**
  * Max history.list pages per incremental run.

@@ -4,7 +4,7 @@ import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/p
  * The Cognia store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const COGNIA_DATABASE: PluginDatabaseDeclaration = { store_name: "cognia", read_permission: "cognia:read", write_permission: "cognia:write", version: 3, schema: `
+export const COGNIA_DATABASE: PluginDatabaseDeclaration = { store_name: "cognia", read_permission: "cognia:read", write_permission: "cognia:write", version: /* @version database.cognia_database */ 1, schema: `
   CREATE TABLE cognia_domains (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
   CREATE TABLE cognia_sources (id TEXT PRIMARY KEY,body TEXT NOT NULL);
   CREATE TABLE cognia_materials (id TEXT PRIMARY KEY,source_id TEXT NOT NULL,path TEXT NOT NULL,updated_at TEXT NOT NULL,body TEXT NOT NULL,UNIQUE(source_id,path));

@@ -39,7 +39,7 @@ export interface SpaceSyncProgress {
 
 /** Authenticated round hint. Revisions never acknowledge local mutations or advance download cursors. */
 export interface SyncRoundSummary {
-  readonly format: 1;
+  readonly format: /* @version format.sync.round */ 1;
   readonly policy: SpaceSyncPolicy;
   readonly quota: SyncQuotaStatus;
   readonly heads: readonly { readonly namespace: string; readonly revision: number }[];
@@ -49,9 +49,9 @@ export interface SyncRoundSummary {
 export type SyncCollectionAvailability = "available" | "adapter_missing" | "schema_unsupported" | "publisher_changed";
 
 export const modulesSyncReplicationContract = {
-  contractId: "io.molis.work.module.sync-replication.v1",
+  contractId: /* @version contract.io.molis.work.module.sync-replication "io.molis.work.module.sync-replication.v{version}" */ "io.molis.work.module.sync-replication.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.sync-replication */ 1,
   maturity: "partial",
   ssot: "docs/modules/sync-replication.md",
 } as const satisfies ContractDescriptor;

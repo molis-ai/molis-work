@@ -16,7 +16,7 @@ import { runningProjectPlatform, type ProjectPluginPorts } from "./project-plugi
 export async function announceWorkspaceSettingsChange(store: LocalProjectDatabase, projectId: string, workspaceId: string): Promise<void> {
   try {
     const platform = await runningProjectPlatform(store, projectId);
-    platform?.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, payload: { workspace_id: workspaceId, cause: "workspace-settings" } });
+    platform?.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, payload: { workspace_id: workspaceId, cause: "workspace-settings" } });
   } catch (error) { hostLog.warn("workspace-settings", "announce_failed", error, { project_id: projectId, workspace_id: workspaceId }); }
 }
 
@@ -40,7 +40,7 @@ export function announceProjectOpened(platform: PluginPlatform, ports: Pick<Proj
   if (earlier) return earlier;
   const announcing: Promise<void> = Promise.resolve().then(async () => {
     const selected = await ports.actions.client.invoke(projectCallCaller(ports.projectId, () => ({})), projectSettingsCapabilities.browsingWorkspace, []) as ProjectWorkspaceRef | null;
-    platform.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, payload: { workspace_id: selected?.workspace_id ?? "", cause: "project-opened" } });
+    platform.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, payload: { workspace_id: selected?.workspace_id ?? "", cause: "project-opened" } });
     await platform.hostEvents.drain();
   }).catch(error => {
     if (opened.get(platform) === announcing) opened.delete(platform);

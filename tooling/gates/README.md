@@ -29,7 +29,7 @@
 | `emptyCatches` | TypeScript 代码里的空 `catch`：块里既没有语句也没有注释，如 `catch {}`、`catch (error) { }`。块里写了注释的不算（那是写明了的取舍），有任何语句的也不算。不算 promise 的 `.catch(() => {})`（那是回调，不是 catch 子句）和 `finally`。**由静态检查数**（Biome 插件 `tooling/gates/lint/no-empty-catch.grit`，见下面「静态检查」），键和逐文件数字与 W1-04 的语法树计数一致 |
 | `emptyCatchesInScripts` | 同一个形状（`catch`、可选的 `( … )`、`{`、只有空白、`}`），在**源码**文件的**字符串和模板字符串**文本里找（测试里的字符串是夹具，不数）。宿主把浏览器程序（工作台、插件的 client 脚本）写成模板字符串，TypeScript 和 lint 都不看里面，普查找到的 141 处空 catch 里有 137 处在这里。**这类算在内**，单独一个计数：把脚本从模板字符串搬进真正的 TypeScript 时，数字从这一项挪到上一项 |
 | `unknownCasts` | 经 `unknown` 的双重断言：`value as unknown as T`、`(value as unknown) as T`、`<T><unknown>value`。单独的 `as unknown` 和 `as any as T` 不算。**含测试**（规格 §9.3 的 R-12 口径是含测试的）。**由静态检查数**（`tooling/gates/lint/no-double-cast.grit`），口径是 W1-04 的超集（见「静态检查」表里的混合写法），原有文件的逐文件数字相同；扫描范围比 W1-04 的语法树计数多了 `scripts/`（见「静态检查」的扫描范围），所以总数从 199 变成 202（`scripts/contextual-slice/client.ts` 2 处、`scripts/preview-contextual-interaction.mts` 1 处），其余文件的数字没变 |
-| `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOALS_BOARDS_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在保留的例外：派生密钥的盐 `goalboard-feed-secretstore-v1`（`packages/storage/src/adapters/file-secret-store.ts`，那里的注释写明改了字符串会让已有密文失效）、`plugins/native/goals/src` 里两处没用到的 `_boardId`（`document-collection.ts` 的解构改名、`goal-tree-materialization-order.ts` 的参数）。它们和别的计数一样，只能减少 |
+| `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOALS_BOARDS_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在没有例外，计数是 0，和别的计数一样只能减少 |
 | `scriptConstants` | 只数源码。名字以 `_SCRIPT` 结尾、值是字符串或模板字符串（含括号、`as const`、用 `+` 连起来的几段）的变量：写成文本、没有类型检查读它的浏览器程序（规格 §3 R-07，路线图 W4-04；普查时 130 个，散在 100 个文件）。把程序改成 TypeScript 再由打包生成（样例是 Forms：`plugins/native/form/src/browser/`，`package.json` 的 build 里 esbuild 带 banner/footer 直接生成 `(host) => {…}` 工厂，常量只是 `readFileSync(new URL("./form-client.js", import.meta.url), "utf8")`），这一项就少一个。**看不到的**：不叫 `*_SCRIPT` 的程序文本（`CLIENT`、`*_CLIENT`、`*_SCRIPT_FACTORY` 一类名字 `rawFetchInScripts` 会展开、这里不数），以及用函数调用拼出来的文本；它们只能在改到时顺手迁 |
 | `floatingPromises`、`explicitAny`、`consoleCalls`、`debuggerStatements`、`lintParseErrors`、`lintSuppressions`、`lintPolicy` | 静态检查新增的几项，见下面「静态检查」 |
 | `errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner` | 错误模型的四项，见下面「错误模型」；`errorOwnerTable` 是错误码主人表本身（不进 `baseline.json`） |
@@ -58,6 +58,26 @@
 ## 包清单（`scripts/gates/package-inventory.mjs`，W1-18）
 
 唯一现行表在 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，包登记仍来自 `scripts/workspace-packages.mjs`。门禁按首个完全匹配的 11 列表头读取，守包的行集合、层、代码判定的状态、人工列词汇及数字写法；缺文档或缺表就失败。不比较数字列的当前实测值，也不根据默认生成值覆盖人工审查。`--table` 供核对机器列；原包的计划深度、审查及证据须保留。`--check` 和健康门禁只读新表，不回读历史 spec。完整负例在 `tests/package-inventory-gate.test.ts`。
+
+## 自有版本的声明（`scripts/gates/version-declarations.mjs`，N34-VS）
+
+`tooling/versions.json` 是自有版本唯一手改的地方，`scripts/generate-versions.mjs` 把值写到用它的地方（规则见 [POLICY.md 第 1 节](../../docs/releases/POLICY.md#1-一个产品版本和它的载体)）。这条门禁看没有经过这张表的声明，由 `node scripts/verify-release-versions.mjs` 调用，也可以单独跑 `node scripts/gates/version-declarations.mjs`。它不比数字，出现一条就失败。
+
+| 查什么 | 口径 |
+| --- | --- |
+| 没有标记的当前版本 | 属性 `version`、`*_version`、`*Version`、`format`、`schema`、`v`、`protocol` 取数字或像版本的字符串（含 `as const`、接口里的字面量类型）；这些名字与数字的相等比较；`*VERSION` 变量的字面量；名为 version 的参数的默认值；带 `.vN`、`/N` 的公开标识字符串。0 表示「还没有」，不算 |
+| 用错条目 | `capability_id`、`prompt_id`、`role_id`、`scene_id` 或工厂的 id 字面量旁边，标记的 key 不是这个 id 的条目 |
+| 按位置引用的动作 | 表里有的动作 id 后面直接跟裸数字 |
+| 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取；`.rs`、`.sql`、`.toml` 里写了 `@version` 标记（生成器不读这些文件，标记不会生效，要改走 `carriers`） |
+| 动作与场景的对账 | `tooling/gates/actions/` 的每一行与 `action.*`、`scene.*`、`action-family.*`、`protocol.workflow-content.*` 条目双向一致 |
+
+**扫描范围。** `scripts/generate-versions.mjs` 的 `SOURCE_ROOTS` 下的代码文件，跳过真正的测试与夹具（`isTestFile`）；`src/fixtures/` 随产品发出，照样扫。
+
+**例外。** 只有 `tooling/gates/version-exceptions.json` 一处，按文件（可再写名字）、条目或快照行登记，每条理由至少 20 字；不再需要的例外本身也失败。依赖与上游协议的版本、运行时递增的修订号、盐和固定身份写在这里，不进版本表。
+
+**读不到的（已知限制）。** 这是字面量的形状检查，版本放进变量再用、计算出来的值、不叫上面这些名字的属性都看不到；是否该进表由评审判断。
+
+验证：`node scripts/run-tests.mjs tests/version-source.test.ts tests/verify-release-versions.test.ts`。
 
 ## 库的版本与维护清单（`scripts/gates/store-versions.mjs`，BL-157）
 

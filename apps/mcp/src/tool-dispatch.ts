@@ -3,9 +3,9 @@ import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
 /** The three Goals actions the management tools call, by the id and version Goals registers them under. */
 export const MANAGEMENT_GOAL_ACTIONS = {
-  initialize: { capability_id: "goals.board.initialize", version: 1 },
-  decide: { capability_id: "goals.decisions.record", version: 1 },
-  treeDecide: { capability_id: "goals.tree.decide", version: 1 },
+  initialize: { capability_id: "goals.board.initialize", version: /* @version action.goals.board.initialize */ 1 },
+  decide: { capability_id: "goals.decisions.record", version: /* @version action.goals.decisions.record */ 1 },
+  treeDecide: { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 },
 } as const;
 type McpGoalActionReference = { readonly capability_id: string; readonly version: number };
 

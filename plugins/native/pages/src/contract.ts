@@ -1,7 +1,7 @@
 export const PAGES_PLUGIN_ID = "io.molis.work.pages";
 export const PAGES_PROJECT_PLUGIN_ID = "pages";
 export const PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document";
-export const PAGES_ARTIFACT_SCHEMA_VERSION = 1;
+export const PAGES_ARTIFACT_SCHEMA_VERSION = /* @version artifact.io.molis.work.pages.document */ 1;
 
 /** ProseMirror document JSON. The plugin store does not interpret node types. */
 export interface PagesBody {

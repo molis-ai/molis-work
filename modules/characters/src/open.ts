@@ -17,7 +17,7 @@ import { CharacterRunsRepository, type CharacterRuns } from "./runs.js";
  * The current schema includes `character_runs`, the native runs Characters records itself (Sessions cleanup SC-2, D3).
  * Clean Homes start at the current baseline; an existing file at another version is not upgraded on open.
  */
-export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 4, schema: (`CREATE TABLE character_drafts (
+export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: /* @version database.characters_store_baseline */ 1, schema: (`CREATE TABLE character_drafts (
   character_id TEXT PRIMARY KEY,
   owner_actor_id TEXT NOT NULL,
   revision INTEGER NOT NULL,

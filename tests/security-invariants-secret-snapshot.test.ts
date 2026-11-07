@@ -77,7 +77,7 @@ test("S-12 RAC-104: a missing or wrong key and invalid snapshots fail before any
     if (fault === "symlink-feed") { renameSync(join(f.home, "feed"), join(f.home, "feed-original")); symlinkSync(join(f.home, "feed-original"), join(f.home, "feed")); }
     if (fault === "version") parsed.version = 3;
     if (fault === "backend") parsed.backend = "unregistered";
-    if (fault === "ciphertext") parsed.entries["snapshot-test"] = Buffer.from('{"v":2,"alg":"aes-256-gcm","ct":"altered"}').toString("base64");
+    if (fault === "ciphertext") parsed.entries["snapshot-test"] = Buffer.from('{"v":1,"alg":"aes-256-gcm","ct":"altered"}').toString("base64");
     const before = unchanged(f.home);
     assert.throws(() => inspect(f.home, JSON.stringify(parsed)));
     assert.deepEqual(unchanged(f.home), before);
@@ -93,9 +93,9 @@ test("S-12 RAC-104: an empty sealed vault has no key dependency and does not cre
   assert.equal(existsSync(home), false);
 });
 
-test("S-12 RAC-2377: version 1 snapshot entries still require sealV2 authentication and reject plaintext without writes", t => {
+test("S-12 RAC-2377: version 1 snapshot entries still require AES-GCM authentication and reject plaintext without writes", t => {
   const f = fixture(t), inspect = inspector();
-  for (const entry of ["plaintext-entry", Buffer.from(JSON.stringify({ v: 1, alg: "aes-256-gcm", ct: "not-sealV2" })).toString("base64")]) {
+  for (const entry of ["plaintext-entry", Buffer.from(JSON.stringify({ v: 1, alg: "aes-256-gcm", ct: "not-sealed" })).toString("base64")]) {
     const parsed = JSON.parse(f.contents);
     assert.equal(parsed.version, 1);
     parsed.entries["snapshot-test"] = entry;

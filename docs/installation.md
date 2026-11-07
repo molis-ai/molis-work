@@ -6,7 +6,7 @@
 
 安装实现已迁至 Local Host；从源码安装前需运行整体 `pnpm build`：workspace 包按构建记录增量重建，根入口与安装指纹重新生成；需要强制整体重建时用 `pnpm build:clean`。旧构建会被拒绝，已有安装不受这次拒绝影响。当前分发验收、实际 App 升级/恢复和独立 npm 消费证据集中在 [DV4 验收报告](../specs/molis-work-architecture-reorganization/dv4-validation.md)。本机内部包验证不代表 Apple 公证、Intel 实机或公开发布资格。
 
-截至 2026-11-03，v0.3.0 安装包仍是未公开的发布草稿，最新公开正式版 v0.2.0 只有源码。当前试用走下面的仓库构建路径；发布范围与缺口见 [v0.3.0 发布记录](releases/v0.3.0.md)。公开安装包发布后，再从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 按实际附件下载 `macos-arm64`（Apple Silicon）或 `macos-x64`（Intel）DMG，把 Molis Work 拖入 Applications 后启动。App 内含匹配架构的 Node、Molis Work Core 和生产依赖；首次打开才调用同一套 `molis-work install` 服务写入 `~/.molis-work`，随后启动本地 Web。它不会在首次启动时创建项目、接入 Runtime、创建 demo 或修改用户项目。
+截至 2026-11-06，产品与内置插件版本已复位为 0.1.0，作为新的开发起点；这个候选尚未发布，真实 Home 也未重建。原 v0.3.0 候选只作历史记录，已发布的 GoalBoard v0.2.0 只有源码。当前试用走下面的仓库构建路径；发布范围与缺口见 [0.1.0 候选记录](releases/v0.1.0.md)。公开安装包发布后，再从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 按实际附件下载 `macos-arm64`（Apple Silicon）或 `macos-x64`（Intel）DMG，把 Molis Work 拖入 Applications 后启动。App 内含匹配架构的 Node、Molis Work Core 和生产依赖；首次打开才调用同一套 `molis-work install` 服务写入 `~/.molis-work`，随后启动本地 Web。它不会在首次启动时创建项目、接入 Runtime、创建 demo 或修改用户项目。
 
 开发者可以从仓库运行：
 

@@ -71,17 +71,17 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
 // The current snapshot independently fixes the complete platform/Module schema at the clean Home's first version.
-test("RAC-2360 the project database baseline is version 17 and the platform's and Modules' current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 17);
+test("RAC-2360 the project database baseline is version 1 and the platform's and Modules' current tables", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 1);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql")));
 });
 
-test("RAC-2360 an existing empty file initializes the complete current library at 17", () => {
+test("RAC-2360 an existing empty file initializes the complete current library at 1", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-empty-file-")), file = join(directory, "project.db");
   try {
     writeFileSync(file, "");
     const current = new LocalProjectDatabase(file);
-    try { assert.equal(current.db.pragma("user_version", { simple: true }), 17); } finally { current.close(); }
+    try { assert.equal(current.db.pragma("user_version", { simple: true }), 1); } finally { current.close(); }
     assert.deepEqual(shapeOf(file), opened);
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -99,7 +99,7 @@ test("RAC-2361 ATTN-OWNER-07 a noncurrent project with legal namespace-shaped id
     const before = { schema: describeSqliteSchema(old), rows: old.prepare("SELECT * FROM inbox_entries").all() };
     old.close();
     const bytes = readFileSync(file);
-    assert.throws(() => new LocalProjectDatabase(file), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 17);
+    assert.throws(() => new LocalProjectDatabase(file), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 1);
     assert.deepEqual(readFileSync(file), bytes);
     const after = new DatabaseSync(file, { readOnly: true });
     try {

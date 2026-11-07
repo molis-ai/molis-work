@@ -15,7 +15,7 @@ export function createApp(dependencies?: ApiDependencies, actions?: AlchemistAct
     context.json({
       ok: true,
       service: "alchemist",
-      apiVersion: 1,
+      apiVersion: /* @version protocol.alchemist.http */ 1,
     }),
   );
 

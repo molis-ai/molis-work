@@ -22,7 +22,7 @@ const DELIVERY_TYPE = {
 };
 
 /** One Goals action, asked as the demo's author: its capability id and the business input (the caller says who acts). */
-type DemoAct = <Result = unknown>(capability: string, input: object, version?: number) => Promise<Result>;
+type DemoAct = <Result = unknown>(capability: string, version: number, input: object) => Promise<Result>;
 
 /** What the sample asks of the actions it calls: reading and writing Goals, the Context Ledger write and the artifact read a deliverable needs. */
 const DEMO_PERMISSIONS = ["goals:read", "goals:write", "context-ledger:write", "artifacts:read"];
@@ -30,7 +30,7 @@ const DEMO_PERMISSIONS = ["goals:read", "goals:write", "context-ledger:write", "
 const DEMO_DECIDE = "goals.decisions.record";
 
 async function versions(act: DemoAct, goalId: string) {
-  const state = await act<{ config: { version: number }; agreement: { version: number } }>("goals.state.read", { goal_id: goalId });
+  const state = await act<{ config: { version: number }; agreement: { version: number } }>("goals.state.read", /* @version action.goals.state.read */ 1, { goal_id: goalId });
   return {
     expected_config_version: state.config.version,
     expected_agreement_version: state.agreement.version,
@@ -42,7 +42,7 @@ function writeContext(goalId: string, key: string) {
 }
 
 async function ensureConfigured(act: DemoAct, goalId: string, key: string) {
-  await act("goals.events.configure", {
+  await act("goals.events.configure", /* @version action.goals.events.configure */ 1, {
     ...writeContext(goalId, `${key}-configure`),
     expected_version: 0,
     types: [DELIVERY_TYPE],
@@ -58,7 +58,7 @@ async function reportProgress(
   nextStep: string,
   requirementId?: string,
 ) {
-  await act("goals.events.report", {
+  await act("goals.events.report", /* @version action.goals.events.report */ 1, {
     ...writeContext(goalId, `${key}-report`),
     events: [{
       type_id: "lifecycle",
@@ -80,13 +80,13 @@ async function reportProgress(
  * meets nothing, PWA-144), then it is closed.
  */
 async function closeComplete(act: DemoAct, goalId: string, key: string, result: string, reason: string, requirementIds: string[]) {
-  await act("goals.decisions.record", {
+  await act("goals.decisions.record", /* @version action.goals.decisions.record */ 1, {
     ...writeContext(goalId, `${key}-accept`),
     conclusion: "看过报告，认可这些要求已经满足",
     effects: [{ kind: "accept_requirements" }],
     scope: { requirement_ids: requirementIds },
   });
-  await act("goals.closure.submit", {
+  await act("goals.closure.submit", /* @version action.goals.closure.submit */ 1, {
     ...writeContext(goalId, `${key}-close`),
     kind: "complete",
     result,
@@ -126,7 +126,7 @@ async function withDemoGoals(databasePath: string, projectId: string, body: (act
     // The person's own decision comes through a protected entry that says where it came from; the sample's stands in for the web page.
     const person = (key: string) => ({ ...caller, permissions: [...DEMO_PERMISSIONS, "goals:decide"],
       user_action: { source: "web", conversation_ref: "demo:goals", message_ref: `demo:${key}` } });
-    await body(async (capability, input, version = 1) => await client.invoke(
+    await body(async (capability, version, input) => await client.invoke(
       capability === DEMO_DECIDE ? person(String((input as { idempotency_key?: unknown }).idempotency_key)) : caller,
       { capability_id: capability, version },
       input,
@@ -505,7 +505,7 @@ const DEMO_DEPENDENCIES: Record<string, string[]> = {
 /** Makes the sample Goals, parents before the children that name them. */
 async function createDemoGoals(act: DemoAct): Promise<void> {
   for (const goal of DEMO_GOALS) {
-    await act("goals.create", {
+    await act("goals.create", /* @version action.goals.create */ 1, {
       goal_id: goal.goal_id,
       title: goal.title,
       outcome: goal.outcome,
@@ -528,13 +528,13 @@ async function createDemoGoals(act: DemoAct): Promise<void> {
 
 /** The finished Goal of the sample: its notes, report, closing and deliverable. */
 async function seedDemoLifecycle(act: DemoAct): Promise<void> {
-  await act("goals.note", {
+  await act("goals.note", /* @version action.goals.note */ 1, {
     goal_id: "RELEASE",
     body: "接入 Runtime 后必须新开会话；继续使用接入前的会话会让人误以为安装失败。",
     idempotency_key: "demo-release-note",
   });
 
-  await act("goals.trash.set", {
+  await act("goals.trash.set", /* @version action.goals.trash.set */ 1, {
     goal_id: "AUTO-CONNECT",
     trashed: true,
     user_confirmed: true,
@@ -542,12 +542,12 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
     idempotency_key: "demo-trash-auto-connect",
   });
 
-  await act("goals.events.configure", {
+  await act("goals.events.configure", /* @version action.goals.events.configure */ 1, {
     ...writeContext("CORE", "demo-core-configure"),
     expected_version: 0,
     types: [DELIVERY_TYPE],
   });
-  await act("goals.agreement.set", {
+  await act("goals.agreement.set", /* @version action.goals.agreement.set */ 1, {
     ...writeContext("CORE", "demo-core-agree"),
     ...await versions(act, "CORE"),
     outcome: "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
@@ -557,7 +557,7 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
       bound_type_id: "lifecycle",
     }],
   });
-  await act("goals.events.report", {
+  await act("goals.events.report", /* @version action.goals.events.report */ 1, {
     ...writeContext("CORE", "demo-core-report"),
     events: [{
       type_id: "lifecycle",
@@ -572,15 +572,15 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
       next_actor: "当前用户",
     },
   });
-  await act("goals.note", {
+  await act("goals.note", /* @version action.goals.note */ 1, {
     goal_id: "CORE",
     body: "演示项目用当前事件记录说明这项工作为什么可以算完成。",
     idempotency_key: "demo-core-note",
   });
   await closeComplete(act, "CORE", "demo-core", "可用的生命周期记录", "约定要求已有支持事实，演示收尾", ["CORE-C1"]);
   // CORE's deliverable (specs/artifact-positioning A5): the second version of the record registered above, handed in through Goals.
-  await act("goals.deliverables.add", { goal_id: "CORE", reference: { artifact_id: DEMO_CORE_ARTIFACT_ID, version: 2 } });
-  await act("goals.note", {
+  await act("goals.deliverables.add", /* @version action.goals.deliverables.add */ 1, { goal_id: "CORE", reference: { artifact_id: DEMO_CORE_ARTIFACT_ID, version: 2 } });
+  await act("goals.note", /* @version action.goals.note */ 1, {
     goal_id: "INTERFACES",
     body: "升级前应先看到安全说明：能保留的旧数据明确列出，不能可靠迁移的内容提示重新整理。",
     idempotency_key: "demo-interfaces-note",
@@ -612,7 +612,7 @@ async function seedDemoOpenWork(act: DemoAct): Promise<void> {
   );
 
   await ensureConfigured(act, "DECIDE", "demo-decide");
-  await act("goals.decisions.request", {
+  await act("goals.decisions.request", /* @version action.goals.decisions.request */ 1, {
     ...writeContext("DECIDE", "demo-decide-ask"),
     question: "第一次打开项目时，默认落在 Goal 列表还是默认打开一条 Session？",
     options: [
@@ -624,7 +624,7 @@ async function seedDemoOpenWork(act: DemoAct): Promise<void> {
   });
 
   await ensureConfigured(act, "RISK", "demo-risk");
-  await act("goals.concerns.apply", {
+  await act("goals.concerns.apply", /* @version action.goals.concerns.apply */ 1, {
     ...writeContext("RISK", "demo-risk-open"),
     action: "open",
     title: "README 仍指向已撤掉的启动命令",
@@ -644,7 +644,7 @@ async function seedDemoOpenWork(act: DemoAct): Promise<void> {
     "GRAPH-C1",
   );
   await closeComplete(act, "GRAPH", "demo-graph", "画布关系已经可扫", "演示收尾，把已完成关系图移出日常列表", ["GRAPH-C1"]);
-  await act("goals.archive.set", {
+  await act("goals.archive.set", /* @version action.goals.archive.set */ 1, {
     goal_id: "GRAPH",
     archived: true,
     reason: "画布关系已经可扫，退出日常工作列表",
@@ -652,14 +652,14 @@ async function seedDemoOpenWork(act: DemoAct): Promise<void> {
   });
 
   await ensureConfigured(act, "DROPPED", "demo-dropped");
-  await act("goals.closure.submit", {
+  await act("goals.closure.submit", /* @version action.goals.closure.submit */ 1, {
     ...writeContext("DROPPED", "demo-dropped-cancel"),
     kind: "cancel",
     reason: "旧会话读不到新接入，会让人误以为安装失败",
     ...await versions(act, "DROPPED"),
   });
 
-  await act("goals.active.set", { goal_id: "V1", reason: "演示项目从第一个目标开始", idempotency_key: "demo-active-goal" });
+  await act("goals.active.set", /* @version action.goals.active.set */ 1, { goal_id: "V1", reason: "演示项目从第一个目标开始", idempotency_key: "demo-active-goal" });
 }
 
 /** Seeds the demo goals into a new project database under the project's own id, by Goals' actions. */

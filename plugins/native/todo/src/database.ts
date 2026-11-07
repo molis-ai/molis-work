@@ -21,7 +21,7 @@ const TODO_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "放在这个�
  * created from it, existing ones must already be at its version. The Runtime opens it for the plugin; tests and the project's
  * deletion open the same file with their own connection.
  */
-export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO_PROJECT_ROWS, store_name: "todo", version: 4, read_permission: "todo:read", write_permission: "todo:write", schema: `
+export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO_PROJECT_ROWS, store_name: "todo", version: /* @version database.todo_database */ 1, read_permission: "todo:read", write_permission: "todo:write", schema: `
   CREATE TABLE todo_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

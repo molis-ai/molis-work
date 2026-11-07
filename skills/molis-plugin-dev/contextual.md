@@ -13,7 +13,7 @@
 **选区动作**：用 `defineFragmentOffersAction` 登记一个查询动作，声明有限的选项（`FragmentOfferChoice`）。目录里每个选项成为一个候选，由规则和判断排序，系统不替你编造动作。
 
 ```ts
-defineFragmentOffersAction("<plugin>.fragment.offers", ["<对象种类>"], "选中的内容可以…", ["<plugin>:read"], [
+defineFragmentOffersAction("<plugin>.fragment.offers", 1, ["<对象种类>"], "选中的内容可以…", ["<plugin>:read"], [
   { offer_id: "concise", title: "改得更简洁", intent: "rewrite", apply: "replace", hint: "把选中的文字改得更短、更直接。",
     action: { capability_id: "<plugin>.ai", version: 1 }, granularities: ["range", "block"], places: ["main"] },
 ]);

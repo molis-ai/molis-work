@@ -14,10 +14,10 @@ export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID };
 const TODO_BODY_BYTES = 1_000_000;
 
 export const todoManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: TODO_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "待办",
   name_en: "Todo",
   summary: "记下要做的事，分清今天、在等谁。",

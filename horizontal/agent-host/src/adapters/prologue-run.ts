@@ -359,7 +359,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     if (!children.roots.length && (role.execution !== "workspace-write" || !children.root || !input.root_path)) return;
     const granted = children.roots.length ? children.roots.find(root => root.id === observed.workspace!.id)! : { rootRef: children.root!.ref, path: input.root_path! };
     const childRun = { session_id: observed.childSession.ref.id, run_id: observed.run.ref.id };
-    await deps.index.save({ schema: 1, ref: observed.childSession.ref, title: role.name, owner: index.owner,
+    await deps.index.save({ schema: /* @version format.prologue.session-metadata */ 1, ref: observed.childSession.ref, title: role.name, owner: index.owner,
       parent_run: { session_id: observed.parentSession.id, run_id: observed.parentRun.id },
       attempts: [{ started_at: new Date().toISOString(), task: "", run_id: childRun.run_id, root_ref: granted.rootRef,
         frozen: { ...input.provenance.frozen, role_id: role.role_id, role_version: role.version, execution: role.execution,

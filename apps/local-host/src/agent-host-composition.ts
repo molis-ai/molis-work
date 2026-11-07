@@ -246,7 +246,7 @@ async function startAuthority(
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
   const manifest = caller?.declaration.manifest ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
-  const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
+  const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === /* @version type.character.definition */ 1);
   const original = currentOriginalInput(caller);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];

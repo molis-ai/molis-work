@@ -5,7 +5,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-export const FORM_UI_CONTRIBUTION_ID = "io.molis.work.native.form.ui.v1";
+export const FORM_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.form.ui "io.molis.work.native.form.ui.v{version}" */ "io.molis.work.native.form.ui.v1";
 
 export type FormUiSurface = "directory" | "workbench";
 

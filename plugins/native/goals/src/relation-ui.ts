@@ -4,7 +4,7 @@ import { GOALS_RELATION_LABELS as RELATION_LABELS, GOALS_RELATION_TYPES as RELAT
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
 import type { GoalsRelationItem, GoalsRelationView, GoalsRelationUiPrimitives } from "./relation-ui-model.js";
 
-export const GOALS_RELATION_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.relations.v1";
+export const GOALS_RELATION_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.goals.relations "io.molis.work.native.goals.relations.v{version}" */ "io.molis.work.native.goals.relations.v1";
 function createRelationRenderer(primitives: GoalsRelationUiPrimitives) {
   const { translate: L, escapeHtml, icon } = primitives;
 function relationRow(

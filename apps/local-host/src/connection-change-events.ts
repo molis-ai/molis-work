@@ -13,7 +13,7 @@ import { runningProjectPlatforms } from "./running-project-platforms.js";
 export async function announceConnectionChanged(homeDirectory: string, connectionId: string): Promise<void> {
   try {
     for (const { projectId, platform } of await runningProjectPlatforms(homeDirectory)) {
-      try { platform.hostEvents.broadcast({ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1, payload: { connection_id: connectionId } }); }
+      try { platform.hostEvents.broadcast({ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1, payload: { connection_id: connectionId } }); }
       catch (error) { hostLog.warn("connections", "announce_failed", error, { project_id: projectId, connection_id: connectionId }); }
     }
   } catch (error) { hostLog.warn("connections", "announce_failed", error, { connection_id: connectionId }); }

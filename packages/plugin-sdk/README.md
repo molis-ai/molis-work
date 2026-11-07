@@ -66,7 +66,7 @@ Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导�
 
 后台 launcher 的 `background_job` 只指本包实际 query 的 operation id。`sandboxBackgroundProblems` 校验必需的业务 id、输入和状态路径及互斥终态；`sandboxOperationActions` 统一派生静态动作、同包 status 的精确引用与目标资源权限，`sandboxPluginManifest({ contract, ... })` 把投影放进签名清单。运行环境的实际依赖权限、费用和提供方绑定由 Host 的同一次遍历解析，不改已验签清单；调用者权限和安装 grant 分别检查。`sandboxActionId` 与 `sandboxPackageBuildId` 是这些动作现用的身份算法。
 
-schema/API 2 的 Integration Manifest 用 `source_presentations` 声明纯展示；`definePollingIntegrationPlugin` 的 `presentSource(id, input)` 只收展示 id 与普通数据，不接收启动 context 或来源 binding。输入只含可选 cursor，返回只含可选 `scope_options`、`conditional_request`、`home_url`（可为 null），由同一 `checkedSourcePresentationInput` / `checkedSourcePresentation` 检查。沙箱展示固定 query、`effects: {}`，不取得拉取的连接效果。回归：`tests/integration-registry.test.ts`、`tests/sandbox-integration.test.ts`。
+Integration Manifest 用 `source_presentations` 声明纯展示；`definePollingIntegrationPlugin` 的 `presentSource(id, input)` 只收展示 id 与普通数据，不接收启动 context 或来源 binding。输入只含可选 cursor，返回只含可选 `scope_options`、`conditional_request`、`home_url`（可为 null），由同一 `checkedSourcePresentationInput` / `checkedSourcePresentation` 检查。沙箱展示固定 query、`effects: {}`，不取得拉取的连接效果。回归：`tests/integration-registry.test.ts`、`tests/sandbox-integration.test.ts`。
 
 签名 app 包的原始清单使用 `parsePluginPackageManifest` 校验；验签后由 `sandboxAgentDeclarations` 唯一派生纯文字角色与空工具方法，启动时用 `assertSandboxAgentDefinition` 核对同一限制。`sandboxAgentBodyIdentity` 保留完整 plugin/kind/name 身份；派生数字版本不代替签名包的完整版本。包内正文格式与上限见[插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。这些文字只作为有来源的不可信材料，不授予执行权限。
 
@@ -143,7 +143,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 ### 为事项提供上下文
 
-需要让首页或其他消费者围绕插件对象发消息时，用 `defineSubjectContextAction(capabilityId, subjectKind, title, permissions)` 声明查询，把定义放入 Manifest 的 `actions`，并在 `start()` 返回对应处理器。处理器从插件自己的数据读取当前对象，以 `subjectContext({ subject: { kind, id }, revision, title, content, goal_ids })` 返回正文快照和真实关联。`goal_ids` 只填实际关联，不能猜测。正文超过上限会标记节选；转述其他对象时传入原 `truncated`，不要丢掉节选标记。
+需要让首页或其他消费者围绕插件对象发消息时，用 `defineSubjectContextAction(capabilityId, version, subjectKind, title, permissions)` 声明查询，把定义放入 Manifest 的 `actions`，并在 `start()` 返回对应处理器。处理器从插件自己的数据读取当前对象，以 `subjectContext({ subject: { kind, id }, revision, title, content, goal_ids })` 返回正文快照和真实关联。`goal_ids` 只填实际关联，不能猜测。正文超过上限会标记节选；转述其他对象时传入原 `truncated`，不要丢掉节选标记。
 
 消费者使用 `resolveActionSubject(client, caller, subject)`，从同一个能力目录按语义类型与对象类型发现查询，并以原调用者、固定提供方调用。无需在 Home 增加插件白名单；合同不一致会在注册时拒绝，多个可用提供方则要求消除歧义。权限、安装 grant、停用及升级仍走共同服务。对象查询只提供事实，不授予消息发送权限；首页随后从 Work 目录选择关联会话，没有关联时要求用户明确选择。
 
@@ -153,13 +153,13 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 ### 为事项提供可执行动作
 
-用 `defineSubjectOffersAction(capabilityId, subjectKinds, title, permissions)` 声明查询，将定义与处理器按常规方式注册。查询接收 `{ subject: { kind, id }, request_id }`，从自己的数据读取当前状态，返回 `{ offers: [{ offer_id, title, action: { capability_id, version }, input }] }`。`action` 指向本插件已经注册的能力，`input` 必须完整且符合该能力的输入合同；例如 Inbox 返回原状态动作和当前 `expected_revision`。已经完成或不适用时返回空数组，读取失败应报错，不能用空数组掩盖故障。
+用 `defineSubjectOffersAction(capabilityId, version, subjectKinds, title, permissions)` 声明查询，将定义与处理器按常规方式注册。查询接收 `{ subject: { kind, id }, request_id }`，从自己的数据读取当前状态，返回 `{ offers: [{ offer_id, title, action: { capability_id, version }, input }] }`。`action` 指向本插件已经注册的能力，`input` 必须完整且符合该能力的输入合同；例如 Inbox 返回原状态动作和当前 `expected_revision`。已经完成或不适用时返回空数组，读取失败应报错，不能用空数组掩盖故障。
 
 Home 从同一个能力目录发现查询，无需修改首页按钮名单。它固定查询与目标动作的提供方，检查输入和实际权限；点击后重新读取原查询，核对标题、动作和完整参数再调用。输入变化要求用户重新选择，不能悄悄执行新参数。查询不能借用另一个插件的能力；跨插件编排应由自己的组合能力通过共同服务明确实现。来源撤权、停用或目标缺失时拒绝执行。
 
 准备查询不得写业务数据。原执行能力继续负责版本冲突、事务、幂等和恢复，可将 `request_id` 纳入自身幂等合同；Home 不会自动为任意业务操作实现去重。响应未知时首页保留原请求并禁止直接重发，重新读取只核对当前事项。对象变化或原动作消失并不证明上次执行成功；调用者仍须查看原业务结果。此协议不自动创建首页事件，也不替代对象上下文合同。
 
-为规则声明候选动作时，给 `defineSubjectOffersAction` 的第五个参数传入 `[{ offer_id, title, action: { capability_id, version }, subject_kinds? }]`。选项 ID 在该查询内唯一；目标属于本提供方，不能声明别人的 `provider_id`。可省略 `subject_kinds` 以继承查询的对象类型，填写时必须是非空子集。实际返回同一个 offer_id 时必须兑现声明的目标版本和对象类型，不能临时换成另一项操作。
+为规则声明候选动作时，给 `defineSubjectOffersAction` 的第六个参数传入 `[{ offer_id, title, action: { capability_id, version }, subject_kinds? }]`。选项 ID 在该查询内唯一；目标属于本提供方，不能声明别人的 `provider_id`。可省略 `subject_kinds` 以继承查询的对象类型，填写时必须是非空子集。实际返回同一个 offer_id 时必须兑现声明的目标版本和对象类型，不能临时换成另一项操作。
 
 `home.actions.choices` 从当前授权目录派生这些声明，不调用对象查询、不执行操作；返回名称、来源、适用对象、固定 `key` 与能力可用状态。`home.actions.prepare` 在真实事项上准备输入，已声明选项附带相同的 `recommendation_key`。身份包括提供方、原查询与版本、offer_id、目标与版本；显示名称和当前输入不属于身份。更换提供方会产生新 key，同名不能继承。目录可用仅说明能力当前可访问，具体对象参数仍须通过 prepare 和执行前检查。该 key 可作为规则映射中的稳定值，不能把裸 offer_id 当成跨插件身份。
 
@@ -186,7 +186,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
-动作声明可用公开入口的 `createActionDefinition`。调用方给出 id、操作、输入输出、权限与受众。默认是项目范围，查询的种类为 query，命令为 operation；需要 Home 范围、判断、导航或并发调度时显式声明。`objectSchema` 默认所有字段必填，第二个参数可指定必填字段；`arraySchema` 和 `nullableSchema` 分别声明数组和可空值。`isRecord` 排除 null 与数组，接受非数组对象。`/browser` 的 `messageOf` 保留 Error 的消息，其余抛出值按字符串呈现。
+动作声明可用公开入口的 `createActionDefinition`。调用方给出 id、操作、输入输出、权限、受众和版本。默认是项目范围，查询的种类为 query，命令为 operation；需要 Home 范围、判断、导航或并发调度时显式声明。`objectSchema` 默认所有字段必填，第二个参数可指定必填字段；`arraySchema` 和 `nullableSchema` 分别声明数组和可空值。`isRecord` 排除 null 与数组，接受非数组对象。`/browser` 的 `messageOf` 保留 Error 的消息，其余抛出值按字符串呈现。
 
 ## 开发要求
 
@@ -232,13 +232,13 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 ### 使用位置
 
-插件若保存了对其他能力的引用（例如自己的配置、角色或规则），用 `defineActionUsagesAction(capabilityId, title, permissions)` 声明一个只读查询：接收 `{ action: { capability_id, version, provider_id } }`，用 `referencesAction(saved, action)` 比较，返回 `{ usages: [{ usage_id, title, detail?, enabled, href? }] }`。能力库的「已用在哪」、Agent 与 MCP 共用的 `actions.usages.read` 会按合同类型自动发现这些查询，不需要 Host 名单；工作流程（动作步骤、判断交接、内容站）、角色范围和对外 MCP 授权都已这样上报。`title` 用使用方自己的说法，`enabled` 表示那里现在会不会调用；读不到的来源在结果的 `issues` 中列出，而不是当作没有使用。
+插件若保存了对其他能力的引用（例如自己的配置、角色或规则），用 `defineActionUsagesAction(capabilityId, version, title, permissions)` 声明一个只读查询：接收 `{ action: { capability_id, version, provider_id } }`，用 `referencesAction(saved, action)` 比较，返回 `{ usages: [{ usage_id, title, detail?, enabled, href? }] }`。能力库的「已用在哪」、Agent 与 MCP 共用的 `actions.usages.read` 会按合同类型自动发现这些查询，不需要 Host 名单；工作流程（动作步骤、判断交接、内容站）、角色范围和对外 MCP 授权都已这样上报。`title` 用使用方自己的说法，`enabled` 表示那里现在会不会调用；读不到的来源在结果的 `issues` 中列出，而不是当作没有使用。
 
 可信动作上下文可携带 `runtime_session_id`，用于保留由 Host 识别的原会话来源；它不属于插件业务输入，也不授予权限。`user_action` 的整组确认与主体引用由受保护用户入口提供，不能从模型自报的确认字段生成。目标树审批与事件用户决定都走 Goals 的现行动作合同，普通插件通过目录只发现获准调用的能力，独立用户权限仍由 Host 强制。
 
 ### 首页事项
 
-用 `defineHomeEventsAction(capabilityId, subjectKinds, title, permissions)` 声明事项查询，并把定义与处理器注册到同一套 `actions`。查询接收 `{ from, to, now }`，均为带时区的时间字符串；窗口含 `from`、不含 `to`，`now` 位于窗口内。处理器先调用 `assertHomeEventWindow` 检查窗口顺序，再用 `withinHomeEventWindow` 筛选普通事项。处理器读取插件自己的原记录，返回 `{ source: { surface, title, icon }, events }`，不要另存一份首页数据。
+用 `defineHomeEventsAction(capabilityId, version, subjectKinds, title, permissions)` 声明事项查询，并把定义与处理器注册到同一套 `actions`。查询接收 `{ from, to, now }`，均为带时区的时间字符串；窗口含 `from`、不含 `to`，`now` 位于窗口内。处理器先调用 `assertHomeEventWindow` 检查窗口顺序，再用 `withinHomeEventWindow` 筛选普通事项。处理器读取插件自己的原记录，返回 `{ source: { surface, title, icon }, events }`，不要另存一份首页数据。
 
 每条事项包含稳定的 `event_id`、原对象 `subject: { kind, id }`、`occurred_at`、标题/摘要/正文、`facts` 二元字符串数组、`category`（`personal` 或 `organization`）和 `needs_attention`。`placement: occurred` 按发生日显示；`active` 把窗口外仍未处理的旧事项放到今天；`today` 始终放到今天。处理完成的记录应由提供方撤回。对象类型须在声明中列出，同一查询不能返回重复 `event_id`；Home 会再按提供方与查询能力隔离身份，避免不同插件互相覆盖。
 
@@ -288,12 +288,14 @@ result_view: {
 
 共同同步文档支持 owner 的 `belongsToProject(data,key,projectId,retained)`，检查当前变化、冻结上传和等待/保留冲突；缺少声明必须拒绝。跨项目独立的 Home 内容可以由 owner 明确返回 false，项目引用本身不自动取得所有权。
 
-共同同步文档现行技术格式为 v2，实际 v1 夹具原样拒绝，不做读取转换。正常 `update` 移除稳定键时，在同一次 CAS 保留 owner 返回的完整原件（`local_delete`），未曾冻结上传也可离线撤销；已有新内容、冻结上传、冲突或修订变化时拒绝。owner 的 `read` 必须自包含完整字节，不能只给可删除路径；读取失败或 CAS 失败保留原目录和原件。不依据设备时钟自动丢弃这些唯一原件。
+共同同步文档只认现行技术格式，旧格式原样拒绝，不做读取转换。正常 `update` 移除稳定键时，在同一次 CAS 保留 owner 返回的完整原件（`local_delete`），未曾冻结上传也可离线撤销；已有新内容、冻结上传、冲突或修订变化时拒绝。owner 的 `read` 必须自包含完整字节，不能只给可删除路径；读取失败或 CAS 失败保留原目录和原件。不依据设备时钟自动丢弃这些唯一原件。
 
 文件 owner 可选使用 `SyncDocumentStorage.withReadLock` 与 `compareAndSetChecked`，两者必须共用同一跨进程互斥锁。暂存清理在读锁内按当前 owner 事实确定引用；复用旧暂存文件的提交须在 checked CAS 的最终锁内再次验证字节，缺失则拒绝旧提交。只实现普通 CAS 的作者不会因此获得文件清理能力。
 `canonicalJsonValue(value)` 返回一份按原始 UTF-16 码元递归排序对象键的值，保留字段值和数组顺序，不修改输入。值为 `undefined` 的对象字段仍保留在返回值中；它不验证输入或序列化非 JSON 类型。JavaScript 枚举对象时会把整数形态的键重新按数值排序，因此摘要和签名应使用 `canonicalJsonText(value)` 直接生成稳定文本。
 
 `canonicalJsonText` 对嵌套及整数形态的键都按原始 UTF-16 码元排序，数组保序。默认先沿用 `JSON.stringify(canonicalJsonValue(value))` 的非 JSON 规则：省略值为 `undefined`、函数或 Symbol 的对象字段，数组中的这些值写成 `null`，顶层返回 `undefined`，BigInt 抛错；对象自有的 `toJSON` 仍按该路径调用。已有字节协议可明确传入 `"null"`，把不支持的标量写成 `null`；传 `"literal"` 则保留原文本序列化边界（对象字段插入 `undefined`、数组元素为空），结果不保证是合法 JSON。这两个显式选项不调用对象的 `toJSON`。这些选项只保留调用方原有规则，不为输入补做校验。
+
+`compareCodeUnits(left, right)` 是这两个函数排键用的比较：原始 UTF-16 码元顺序，不随宿主语言变化。进摘要、签名或持久比较的列表排序都用它；`localeCompare` 只用于排给人看的内容。
 
 `@molis-ai/molis-work-plugin-sdk/browser` 的 `jsonComparisonText(value)` 用于两次读取的 JSON 等价比较。它沿原生 JSON replacer 排键，保留 `toJSON`、空数组槽和不支持值的原生处理；整数形态键仍按 JavaScript 对象枚举顺序输出。Coding 直接使用这个纯比较工具，持久化摘要和签名使用主入口的 `canonicalJsonText`。
 

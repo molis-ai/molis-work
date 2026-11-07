@@ -16,7 +16,7 @@ const cases = [
   { name: "assistant", version: 1, file: "assistant/assistant.db", table: "assistant_settings",
     seed: "INSERT INTO assistant_settings VALUES ('owner', 'setting', 1, 'retained')",
     open: (home: string) => { const db = openBaselineHomeSqlite(home, "assistant", ASSISTANT_STORE_BASELINE); try { new AssistantStore(db); return () => db.close(); } catch (error) { db.close(); throw error; } } },
-  { name: "characters", version: 4, file: "characters/characters.sqlite", table: "character_drafts",
+  { name: "characters", version: 1, file: "characters/characters.sqlite", table: "character_drafts",
     seed: "INSERT INTO character_drafts VALUES ('draft', 'owner', 1, 'time', '{}')",
     open: (home: string) => { const store = openCharacters(home, "owner"); return () => store.close(); } },
 ];

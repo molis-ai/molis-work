@@ -6,7 +6,7 @@ import type { SearchHostTransportCall, SearchHostTransportPort } from "@adeptify
 import { resolveModelHostname } from "@molis-ai/molis-work-service-agent-host";
 
 /** The binding id the search runtime gives AnySearch's provider; the transport accepts only calls bound to it. */
-export const ANYSEARCH_TRANSPORT_PROFILE_ID = "anysearch-mcp-v1";
+export const ANYSEARCH_TRANSPORT_PROFILE_ID = /* @version type.anysearch-mcp "anysearch-mcp-v{version}" */ "anysearch-mcp-v1";
 const HOST = "api.anysearch.com";
 const MAX_REQUEST = 65_536, MAX_RESPONSE = 1_048_576;
 // Match SEL's public-address boundary. IPv4-mapped IPv6 is rejected rather

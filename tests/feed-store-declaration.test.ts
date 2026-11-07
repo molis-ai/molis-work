@@ -99,7 +99,7 @@ test("RAC-2360 RAC-2362 RAC-496 Feed's first declaration owns the complete curre
     assert.deepEqual(Object.keys(is).sort(), [...MOVED_TABLES, ...MOVED_INDEXES, "feed_out_rules", "feed_out_rules_project_enabled_idx"].sort(), "and the declaration holds the out rules and nothing else");
     const shapeBefore = describeSqliteSchema(before as never), shapeDeclared = describeSqliteSchema(declared as never);
     assert.deepEqual(shapeDeclared, { tables: Object.fromEntries([...MOVED_TABLES, "feed_out_rules"].map(table => [table, shapeBefore.tables[table]])) }, "complete independent Feed schema: columns, checks, keys and indexes");
-    assert.equal(FEED_PROJECT_DATABASE.version, 2);
+    assert.equal(FEED_PROJECT_DATABASE.version, 1);
     assert.equal(FEED_PROJECT_DATABASE.store_name, "feed");
   } finally { before.close(); declared.close(); baseline.close(); }
 });
@@ -114,7 +114,7 @@ const ledger = (file: string) => {
   try { return db.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json FROM plugin_project_databases ORDER BY plugin_id").all().map(row => ({ ...row })) as Array<{ plugin_id: string; version: number; tables_json: string }>; } finally { db.close(); }
 };
 
-test("RAC-2360 RAC-496 a new library uses the current baseline, creates Feed's twelve declared tables and records declaration 2", t => {
+test("RAC-2360 RAC-496 a new library uses the current baseline, creates Feed's twelve declared tables and records declaration 1", t => {
   const file = scratch(t);
   const bare = new DatabaseSync(file); bare.exec(PROJECT_DATABASE_BASELINE.schema); bare.exec(`PRAGMA user_version = ${PROJECT_DATABASE_BASELINE.version}`);
   assert.deepEqual(MOVED_TABLES.filter(name => name in statementsOf(bare)), [], "the baseline alone has none");
@@ -126,7 +126,7 @@ test("RAC-2360 RAC-496 a new library uses the current baseline, creates Feed's t
     assert.ok(feed && "record" in feed, "Feed's tables are opened with the library");
   } finally { opened.close(); }
   const row = ledger(file).find(entry => entry.plugin_id === FEED_PLUGIN_ID)!;
-  assert.equal(row.version, 2);
+  assert.equal(row.version, 1);
   const expected = new DatabaseSync(":memory:");
   try {
     expected.exec(pluginSyncDatabaseDeclaration(feedManifest, FEED_PROJECT_DATABASE).schema);

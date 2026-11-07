@@ -21,17 +21,17 @@ for (const { declaration, manifest, table, seed } of cases) {
   const baseline = pluginSyncDatabaseDeclaration(manifest, declaration);
   const open = (home: string, authorize: (permission: string) => void) => openPluginDatabase(home, baseline, authorize, instance, undefined, manifest);
   const name = declaration.store_name, sql = readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8");
-  test(`RAC-2368 ${name} opens and reopens its current complete declared schema at 4`, () => {
+  test(`RAC-2368 ${name} opens and reopens its current complete declared schema at 1`, () => {
     const home = mkdtempSync(join(tmpdir(), `clean-home-${name}-`)), file = join(home, name, `${name}.db`), permissions: string[] = [];
     try {
-      assert.equal(declaration.version, 4);
+      assert.equal(declaration.version, 1);
       assert.equal(declaration.read_permission, `${name}:read`); assert.equal(declaration.write_permission, `${name}:write`);
       open(home, permission => { permissions.push(permission); }).close();
       open(home, permission => { permissions.push(permission); }).close();
       assert.deepEqual(permissions, ["storage:private", "storage:private"]);
       const db = new DatabaseSync(file, { readOnly: true });
       try {
-        assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 4);
+        assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
         assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
         assert.deepEqual(describeSqliteSchema(db), shape(STORAGE_SPACE_SCHEMA_SQL + sql));
         const triggers = db.prepare("SELECT name,sql FROM sqlite_schema WHERE type='trigger'").all();
@@ -48,7 +48,7 @@ for (const { declaration, manifest, table, seed } of cases) {
       const raw = new DatabaseSync(file); raw.exec(sql); bindDatabaseSpace(raw,ensureStorageSpace(home)); raw.exec(seed); raw.exec("PRAGMA user_version = 2"); raw.close(); chmodSync(file, 0o600);
       const before = readFileSync(file), filesBefore = readdirSync(dirname(file)).sort();
       assert.throws(() => open(home, () => {}), (error: { code?: string; found?: number; expected?: number }) =>
-        error.code === "storage.schema_version_mismatch" && error.found === 2 && error.expected === 4);
+        error.code === "storage.schema_version_mismatch" && error.found === 2 && error.expected === 1);
       assert.deepEqual(readFileSync(file), before);
       assert.deepEqual(readdirSync(dirname(file)).sort(), filesBefore, "the refusal creates no journal, WAL or SHM sidecar");
       const kept = new DatabaseSync(file, { readOnly: true });

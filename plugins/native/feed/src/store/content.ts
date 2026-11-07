@@ -1,3 +1,4 @@
+import {canonicalJsonText, isRecord as isObject} from "@molis-ai/molis-work-plugin-sdk";
 import {createHash} from 'node:crypto';
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 import type {SignalDraft} from '../contract/signals.js';
@@ -10,9 +11,6 @@ export function signalContentHash(draft:SignalDraft):string{
  return signalDigest(stableSignalJson({kind:draft.kind,occurred_at:draft.occurred_at,payload:draft.payload,content_refs:draft.content_refs??[],adapter:draft.adapter,provenance:draft.provenance}));
 }
 export function stableSignalJson(value:unknown):string{
- if(Array.isArray(value))return '['+value.map(stableSignalJson).join(',')+']';
- if(isObject(value))return '{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+stableSignalJson(value[key])).join(',')+'}';
- return JSON.stringify(value);
+ return canonicalJsonText(value,"literal")!;
 }
-function isObject(value:unknown):value is Record<string,unknown>{return !!value&&typeof value==='object'&&!Array.isArray(value);}
 export function signalDigest(value:string):string{return createHash('sha256').update(value).digest('hex');}

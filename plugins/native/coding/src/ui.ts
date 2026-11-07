@@ -20,8 +20,8 @@ import {
   type CodingToolAvailability,
 } from "./projection.js";
 
-export const CODING_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.ui.v1";
-export const CODING_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.settings.v1";
+export const CODING_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.coding.ui "io.molis.work.native.coding.ui.v{version}" */ "io.molis.work.native.coding.ui.v1";
+export const CODING_SETTINGS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.coding.settings "io.molis.work.native.coding.settings.v{version}" */ "io.molis.work.native.coding.settings.v1";
 
 /**
  * The two places Coding's page opens for the plugins it embeds (`ui.embedded_plugins`): their browsers' lists go in the directory
@@ -75,8 +75,8 @@ export const codingUiDescriptor: UiContributionDeclaration = {
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [
-    { slot_id: CODING_COMPANION_DIRECTORY_SLOT, version: 1, accepts: ["declarative-html"] },
-    { slot_id: CODING_COMPANION_RESULT_SLOT, version: 1, accepts: ["declarative-html"] },
+    { slot_id: CODING_COMPANION_DIRECTORY_SLOT, version: /* @version slot.coding.companion-directory */ 1, accepts: ["declarative-html"] },
+    { slot_id: CODING_COMPANION_RESULT_SLOT, version: /* @version slot.coding.companion-result */ 1, accepts: ["declarative-html"] },
   ],
 };
 

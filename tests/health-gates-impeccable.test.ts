@@ -48,6 +48,7 @@ after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 
 const branch = (name: string, mutate: () => void) => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", name);
   mutate();
@@ -181,15 +182,16 @@ test("removing files passes, is reported as lower, and --update --base lowers th
   assert.match(run.out, new RegExp(`${BASE_COUNT - 3} \\.impeccable files`));
   assert.equal(gate("--update", "--base", "main").code, 0);
   assert.equal(gate().code, 0, "the lowered baseline agrees with the head");
-  assert.equal(JSON.parse(git("show", "HEAD:tooling/gates/baseline.json")).impeccableFiles, BASE_COUNT, "the committed baseline is still the old one until the update is committed");
+  assert.equal(git("ls-files", ".git/molis-health-baseline.json").trim(), "", "the quick baseline is never committed");
   commit("lower the baseline");
-  const written = JSON.parse(git("show", "HEAD:tooling/gates/baseline.json"));
+  const written = JSON.parse(readFileSync(path.join(repo, ".git/molis-health-baseline.json"), "utf8"));
   assert.equal(written.impeccableFiles, BASE_COUNT - 3);
   assert.deepEqual(written.impeccableGroups, { ".impeccable": 1, ".impeccable/review/set-a": 1, ".impeccable/surfaces": 1 });
 });
 
 test("the report prints the count and the groups the files are in", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   const text = gate("--report").out;
   assert.match(text, new RegExp(`Tracked \\.impeccable files: ${BASE_COUNT} in 5 groups`));
   assert.match(text, /\s+2\s+\.impeccable\/review\/set-a/);
@@ -226,9 +228,9 @@ test("a baseline.json without the per-group record is an old shape for the quick
   // The committed baseline is a full current one (the base commit wrote it with `--update`); only the key under test is taken out,
   // so no other rule that reads the baseline (the keys sibling gates added) is the first to call it an old shape.
   branch("old-baseline", () => {
-    const { impeccableGroups, ...withoutGroups } = JSON.parse(readFileSync(path.join(repo, "tooling/gates/baseline.json"), "utf8"));
+    const { impeccableGroups, ...withoutGroups } = JSON.parse(readFileSync(path.join(repo, ".git/molis-health-baseline.json"), "utf8"));
     assert.ok(impeccableGroups, "the base baseline has the per-group record");
-    put("tooling/gates/baseline.json", `${JSON.stringify(withoutGroups, null, 2)}\n`);
+    put(".git/molis-health-baseline.json", `${JSON.stringify(withoutGroups, null, 2)}\n`);
   });
   const quick = gate();
   assert.equal(quick.code, 2, quick.out);

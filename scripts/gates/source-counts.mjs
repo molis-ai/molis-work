@@ -46,7 +46,7 @@
 //                       counts like code. Not seen, so a return would not be caught (a known limit, not a decision): the kebab
 //                       spelling `board-id` (the CLI flag before #287) and every file that is not one of the sources above
 //                       (JSON examples, shell and Rust files). Closing it needs a rule per file type, not a regex.
-//                       What the baseline keeps today (tooling/gates/baseline.json, oldNames): nothing. The count is 0 and can
+//                       What the baseline keeps today (the checkout-local health baseline, oldNames): nothing. The count is 0 and can
 //                       only stay there.
 import ts from "typescript";
 import { browserFetchScan, browserFetchProblems } from "./browser-fetch.mjs";

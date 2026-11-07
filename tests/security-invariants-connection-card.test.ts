@@ -16,7 +16,7 @@ import { mac, person as installer, ref } from "./fixtures/home-sandbox.js";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// S-143 (docs/system/SECURITY-INVARIANTS.md), the Host's half of the in-place connection card (specs/assistant-service-connections/spec.md
+// S-plugin-connection-card (docs/system/security-invariants/S-plugin-connection-card.md), the Host's half of the in-place connection card (specs/assistant-service-connections/spec.md
 // §13.5 C2, C3; ASC-68): the trusted shell writes through `POST /api/host/plugin-page-connection` with the outer document's page header.
 // The body names one target of the page's own installation and the person's choice; the installation, plugin, project, person and
 // service come from the page's authority and the Manifest. Every refusal below asserts that the bindings, the connections (with their
@@ -106,7 +106,7 @@ async function refusedWith(response: Response, status: number, code: string) {
   assert.equal((JSON.parse(text) as { code?: string }).code, code, text);
 }
 
-test("S-143 ASC-68 C3-1 a target the installation does not declare, or holds no grant for, draws no card and writes nothing", { timeout: 120_000 }, async t => {
+test("S-plugin-connection-card ASC-68 C3-1 a target the installation does not declare, or holds no grant for, draws no card and writes nothing", { timeout: 120_000 }, async t => {
   const c = await cardHome(t), account = c.token("Work GitHub");
   const pages = { records: await c.open(c.probes.records.id), whole: await c.open(c.probes.whole.id), ungranted: await c.open(c.probes.ungranted.id),
     ungrantedRecords: await c.open(c.probes.ungrantedRecords.id), imagesUngranted: await c.open(c.probes.imagesUngranted.id) };
@@ -139,7 +139,7 @@ test("S-143 ASC-68 C3-1 a target the installation does not declare, or holds no 
   assert.equal(records(c.f.home), before, "no binding, connection, pin or authorization was written");
 });
 
-test("S-143 ASC-68 C3-3 only the outer document's page header reaches the card route, and its input names only the target and the person's choice", { timeout: 120_000 }, async t => {
+test("S-plugin-connection-card ASC-68 C3-3 only the outer document's page header reaches the card route, and its input names only the target and the person's choice", { timeout: 120_000 }, async t => {
   const c = await cardHome(t), account = c.token("Work GitHub"), page = await c.open(c.probes.records.id);
   const target = { kind: "slot", slot_id: "github", record_key: "source-1" }, bind = { operation: "bind", target, connection_id: account.connection_id };
   const before = records(c.f.home);
@@ -162,7 +162,7 @@ test("S-143 ASC-68 C3-3 only the outer document's page header reaches the card r
   assert.equal(records(c.f.home), before, "nothing was written by any refused request");
 });
 
-test("S-143 ASC-68 C3-6 a key saved on the card goes only to the origin the card showed", { timeout: 120_000 }, async t => {
+test("S-plugin-connection-card ASC-68 C3-6 a key saved on the card goes only to the origin the card showed", { timeout: 120_000 }, async t => {
   const c = await cardHome(t), page = await c.open(c.probes.images.id);
   const target = { kind: "image", slot_id: "cover", base_url: "https://images.example.test/v1" };
   const before = records(c.f.home);
@@ -195,7 +195,7 @@ test("S-143 ASC-68 C3-6 a key saved on the card goes only to the origin the card
   assert.equal(records(c.f.home), pinned);
 });
 
-test("S-143 ASC-68 C3-7 S-108 switching moves only this place to the other account; the page cannot ask for it", { timeout: 120_000 }, async t => {
+test("S-plugin-connection-card ASC-68 C3-7 S-108 switching moves only this place to the other account; the page cannot ask for it", { timeout: 120_000 }, async t => {
   const c = await cardHome(t), first = c.token("First"), second = c.token("Second"), mail = c.token("Mail", "gmail");
   const wholePage = await c.open(c.probes.whole.id), recordsPage = await c.open(c.probes.records.id);
   const whole = { kind: "slot", slot_id: "github" }, record = (record_key: string) => ({ kind: "slot", slot_id: "github", record_key });
@@ -223,7 +223,7 @@ test("S-143 ASC-68 C3-7 S-108 switching moves only this place to the other accou
   assert.deepEqual(uses(), [second.connection_id, first.connection_id, second.connection_id, first.connection_id]);
 });
 
-test("S-143 ASC-68 C3-8 after the page is closed or its plugin restarted, the person's click binds nothing; a late login only leaves the connection", { timeout: 120_000 }, async t => {
+test("S-plugin-connection-card ASC-68 C3-8 after the page is closed or its plugin restarted, the person's click binds nothing; a late login only leaves the connection", { timeout: 120_000 }, async t => {
   const c = await cardHome(t), account = c.token("Work GitHub");
   const target = { kind: "slot", slot_id: "github", record_key: "source-1" }, bind = { operation: "bind", target, connection_id: account.connection_id };
   const closed = await c.open(c.probes.records.id);
@@ -257,7 +257,7 @@ function endPageMidRequest(c: Awaited<ReturnType<typeof cardHome>>, page_id: str
   return () => { host.actionClient = original; };
 }
 
-test("S-143 ASC-68 C3-8 a page that ends while the request is under way writes nothing: an image key, an image account or a slot's account", { timeout: 120_000 }, async t => {
+test("S-plugin-connection-card ASC-68 C3-8 a page that ends while the request is under way writes nothing: an image key, an image account or a slot's account", { timeout: 120_000 }, async t => {
   const c = await cardHome(t), account = c.token("Work GitHub");
   const image = { kind: "image", slot_id: "cover", base_url: "https://images.example.test/v1" };
   const pinned = withConnectorConnections(c.f.home, store => store.createToken({ serviceId: "image-api", displayName: "Images key", token: `${IMAGE_KEY}-existing` }));
@@ -289,7 +289,7 @@ function imagePackage() {
   });
 }
 
-test("S-143 ASC-68 C3-1 S-91 a sandboxed package's card binds under the namespace the Host derives, and only once the person granted its image write", mac, async t => {
+test("S-plugin-connection-card ASC-68 C3-1 S-91 a sandboxed package's card binds under the namespace the Host derives, and only once the person granted its image write", mac, async t => {
   const h = await openTestHome(t), project = await h.createProject("Sandbox connection card");
   const client = h.host.actionClient(project.reference);
   const preview = await client.invoke(installer(project.project_id), ref(pluginInstallActions.preview), { bundle: imagePackage() }) as { preview_id: string };
@@ -318,7 +318,7 @@ test("S-143 ASC-68 C3-1 S-91 a sandboxed package's card binds under the namespac
   assert.equal(withConnectorConnections(h.home, store => store.targetOrigin(id)), "https://images.example.com", "pinned to the origin the card showed");
 });
 
-test("S-143 ASC-68 C3-9 asking for a card writes nothing, and a cancelled login leaves no binding", { timeout: 120_000 }, async t => {
+test("S-plugin-connection-card ASC-68 C3-9 asking for a card writes nothing, and a cancelled login leaves no binding", { timeout: 120_000 }, async t => {
   const c = await cardHome(t), page = await c.open(c.probes.records.id);
   const target = { kind: "slot", slot_id: "github", record_key: "source-1" };
   const before = records(c.f.home);
@@ -338,7 +338,7 @@ test("S-143 ASC-68 C3-9 asking for a card writes nothing, and a cancelled login 
   assert.deepEqual(withConnectorConnections(c.f.home, store => store.pluginBindings()), [], "no binding anywhere");
 });
 
-test("S-143 ASC-68 C3-10 connecting, choosing, logging in again and enabling each write once", { timeout: 120_000 }, async t => {
+test("S-plugin-connection-card ASC-68 C3-10 connecting, choosing, logging in again and enabling each write once", { timeout: 120_000 }, async t => {
   const c = await cardHome(t), first = c.token("First"), second = c.token("Second");
   const recordsPage = await c.open(c.probes.records.id), imagesPage = await c.open(c.probes.images.id);
   const target = { kind: "slot", slot_id: "github", record_key: "source-1" };

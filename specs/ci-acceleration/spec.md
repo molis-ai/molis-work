@@ -35,7 +35,7 @@ P2（共享构建产物、夜间 probe 合并、发布优化）、产品源码/�
 
 ## 文件边界、依赖与实施顺序
 
-唯一需求来源是本 spec。实现位于 `.github/workflows/ci.yml`、`.github/workflows/full-suite.yml`、`scripts/ci-test-selection.mjs` 及小型选择/汇总辅助模块、`scripts/run-tests/shard.mjs`、`scripts/ci-shard-weights.mjs` 和必要的调用点。验证修改现有 `tests/ci-*.test.ts`、`tests/run-tests-shard.test.ts`、工作流夹具，并新增能证明新边界的回归。权重事实仍在 `tests/ci-shard-weights.json`。
+唯一需求来源是本 spec。实现位于 `.github/workflows/ci.yml`、`.github/workflows/full-suite.yml`、`scripts/ci-test-selection.mjs` 及小型选择/汇总辅助模块、`scripts/run-tests/shard.mjs`、`scripts/ci-shard-weights.mjs` 和必要的调用点。验证修改现有 `tests/ci-*.test.ts`、`tests/run-tests-shard.test.ts`、工作流夹具，并新增能证明新边界的回归。云端发现且已复现的测试准备缺陷可在对应测试内修复（本次为 `tests/connections-page.e2e.test.ts` 的 OAuth 后返回设置页）；不放宽断言、超时或产品语义。权重事实仍在 `tests/ci-shard-weights.json`。
 
 先实现 P0 的选择与 Verify，再增加分片和平衡算法，随后刷新实测权重、同步 `docs/system/PARALLEL-DEVELOPMENT.md`、`docs/system/PACKAGE-BOUNDARIES.md` 的现行说明。`specs/README.md` 只增加本任务索引。独立工作树 `feature/ci-acceleration-p0-p1`，主检出不改；本机测试经机器槽、`--jobs 1`。
 
@@ -90,3 +90,7 @@ P2（共享构建产物、夜间 probe 合并、发布优化）、产品源码/�
 - 本机按 `--jobs 1` 隔离复核该文件：专用测试 Chrome 引擎、独立资料目录下 3/3 通过，60.3 秒。默认 `molis-test-browser` 的 clean 包装另使重启恢复项失败；改用同一个专用测试浏览器的保留目录入口后通过。未修改产品代码、测试断言或超时。
 
 CIP-10 的纯文档 PR / 合并队列耗时仍需工作流采用后采样；这次基础设施 PR 走完整核心路径，不能作为文档路径耗时证据。
+
+Full 第二轮中，首轮的分栏文件已 3/3 通过（107 秒），但第 11 片的服务连接页面测试两次卡在 OAuth 取消后的点击，Node 在 20 秒里几乎完全空闲。本机使用独立 Chrome for Testing 复现相同位置：登录新标签页使设置页进入后台，点击助手的动画帧等待不返回。测试补上用户回到设置页的 `Page.bringToFront`；保留真实鼠标操作、所有断言与原超时，不改公共点击助手或产品代码。后续用仓库已有集成分支 Full 模式收齐所有分片耗时和失败，PR 的 fail-fast 规则不变；逐轮验证结果继续维护在 PR 验证段。
+
+对照证据：干净基线 `585ae7afcb` 整体构建后，经机器槽、同一独立 Chrome for Testing 和 `--jobs 1` 运行该文件，在同一 OAuth 后点击处失败；候选修复前亦可复现。仅补上返回前台操作后，该文件 9/9 通过（28.7 秒），原用例仍覆盖取消不写入、密钥拒绝反馈及页面展示。

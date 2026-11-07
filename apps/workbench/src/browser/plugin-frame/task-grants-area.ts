@@ -67,18 +67,24 @@ const summary = (subject: Reads["subject"]): UiTaskGrantsAreaState => ({
   attention: subject.categories.some(category => category.status === "needs_confirmation" || category.status === "removed"),
 });
 
+/** A row's note by its status, when it reads less than it is on for; translated where it is drawn. */
+const NOTES: Partial<Record<Status, string>> = { needs_confirmation: "有新的读取能力，允许之前读不到", unavailable: "暂时读不到，授权还在", removed: "这一类已不再提供" };
+
+/**
+ * One category, one row (§3.5; the 授权与放行 page draws its rows with it too, §5): its name, what it is, and a note when it reads
+ * less than it is on for. `end` is the row's controls, the area's switch or the page's buttons, already escaped.
+ */
+export function taskGrantRowHtml(t: Translate, row: Row, end: string): string {
+  const note = NOTES[row.status];
+  return `<li class="mw-item task-grants-area__row" data-task-grants-row="${escape(row.name)}" data-status="${row.status}"><span><strong title="${escape(row.title)}">${escape(row.title)}</strong><small title="${escape(row.description)}">${escape(row.description)}</small>${note ? `<em class="task-grants-area__note">${escape(t(note))}</em>` : ""}</span><span class="mw-item__end">${end}</span></li>`;
+}
+
 /** The area's markup: the platform's header, one row per category, and the one line that says what just happened. */
 export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly Row[], line: TaskGrantsLine, busy: boolean, fresh = false): string {
   const control = (name: string, label: string, act: string, extra = "") =>
     `<button type="button" class="mw-btn mw-btn--sm mw-btn--secondary" data-framed-control="${escape(act + ":" + name)}"${extra}>${escape(label)}</button>`;
-  const status = (row: Row) => row.status === "needs_confirmation" ? t("有新的读取能力，允许之前读不到")
-    : row.status === "unavailable" ? t("暂时读不到，授权还在") : row.status === "removed" ? t("这一类已不再提供") : "";
-  const item = (row: Row) => {
-    const note = status(row), on = row.status !== "off";
-    const end = row.status === "removed" ? control(row.name, t("移除"), "remove")
-      : `${row.status === "needs_confirmation" ? control(row.name, t("允许"), "allow") : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${on ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}"><span class="mw-switch__track" aria-hidden="true"></span></span>`;
-    return `<li class="mw-item task-grants-area__row" data-task-grants-row="${escape(row.name)}" data-status="${row.status}"><span><strong title="${escape(row.title)}">${escape(row.title)}</strong><small title="${escape(row.description)}">${escape(row.description)}</small>${note ? `<em class="task-grants-area__note">${escape(note)}</em>` : ""}</span><span class="mw-item__end">${end}</span></li>`;
-  };
+  const item = (row: Row) => taskGrantRowHtml(t, row, row.status === "removed" ? control(row.name, t("移除"), "remove")
+    : `${row.status === "needs_confirmation" ? control(row.name, t("允许"), "allow") : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${row.status !== "off" ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}"><span class="mw-switch__track" aria-hidden="true"></span></span>`);
   const list = rows.length ? `<ul class="mw-items task-grants-area__rows">${rows.map(item).join("")}</ul>`
     : `<p class="task-grants-area__empty">${escape(t("这个项目里还没有能读的插件数据。装了待办、日程、笔记一类的插件后，它们会出现在这里。"))}</p>`;
   const act = line.act ? `<button type="button" class="mw-toast__action" data-framed-control="${line.act}">${escape(line.act === "undo" ? t("撤销") : t("重试"))}</button>` : "";
@@ -88,8 +94,8 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
     + `<footer class="mw-platform-area__foot" data-framed-area-foot><div class="mw-toast${line.tone === "danger" ? " is-error" : ""}${fresh ? " is-fresh" : ""}" role="status"><span title="${escape(line.text)}">${escape(line.text)}</span>${act}</div></footer>`;
 }
 
-/** What the line says after a write, by what the person did (§3.6), and whether it offers undo. */
-function doneLine(t: Translate, change: Change): TaskGrantsLine {
+/** What the line says after a write, by what the person did (§3.6), and whether it offers undo; the 授权与放行 page says the same. */
+export function doneLine(t: Translate, change: Change): TaskGrantsLine {
   const name = { name: change.row.title };
   if (change.kind === "undo") return { text: t("已撤销刚才的改动") };
   if (change.kind === "on") return { text: t("已允许读{name}，下一次运行起能读到", name), act: "undo" };
@@ -191,10 +197,24 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   let shownOnce = false;
   scope.whenVisible(() => { if (shownOnce) for (const entry of entries.values()) if (entry.reads && !entry.busy) void reread(entry); shownOnce = true; });
 
+  /** Opens asked for while the page is out of sight (a tab opened behind, say), by id: each draws once the page shows. */
+  const waiting = new Map<number, () => void>();
+  const untilVisible = (id: number) => new Promise<boolean>(resolve => {
+    let stop: (() => void) | undefined;
+    const end = (shown: boolean) => { waiting.delete(id); queueMicrotask(() => stop?.()); resolve(shown); };
+    waiting.set(id, () => end(false));
+    stop = scope.whenVisible(() => end(true));
+  });
+  scope.own(() => { for (const end of [...waiting.values()]) end(); });
   const open = async (message: Extract<TaskGrantsUp, { type: "task-grants-open" }>) => {
     // An open names an id and a key, nothing more: a category list, a state, an installation is not the page's to give.
-    const valid = Object.keys(message).length === 3 && Number.isSafeInteger(message.id) && message.id > 0 && !entries.has(message.id)
-      && typeof message.key === "string" && pattern.test(message.key) && scope.visible;
+    const shaped = Object.keys(message).length === 3 && Number.isSafeInteger(message.id) && message.id > 0 && !entries.has(message.id)
+      && !waiting.has(message.id) && typeof message.key === "string" && pattern.test(message.key);
+    // A page out of sight is not refused: its area waits and is drawn when the page shows, so a plugin need not try again. A close
+    // in the meantime ends the wait.
+    const visible = shaped && (scope.visible || await untilVisible(message.id));
+    if (shaped && !visible) return;
+    const valid = visible && scope.alive && scope.visible && !entries.has(message.id);
     const area = valid ? areas.open({ heights: TASK_GRANTS_AREA_HEIGHTS, onHeight: height => send({ type: "task-grants-size", id: message.id, height }) }) : null;
     if (!area) { if (Number.isSafeInteger(message.id) && !entries.has(message.id)) send({ type: "task-grants-shown", id: message.id, error: TASK_GRANTS_UNAVAILABLE }); return; }
     area.surface.className = "mw-platform-area task-grants-area";
@@ -214,7 +234,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   return (message: TaskGrantsUp) => {
     if (!message || !Number.isSafeInteger(message.id) || message.id < 1) return;
     if (message.type === "task-grants-open") { void open(message); return; }
-    if (message.type === "task-grants-close") { close(message.id); return; }
+    if (message.type === "task-grants-close") { waiting.get(message.id)?.(); close(message.id); return; }
     if (message.type === "task-grants-layout") entries.get(message.id)?.area.layout(message.box);
   };
 }

@@ -1,5 +1,6 @@
 import { required } from "./dom.js";
-import type { OperationReview, ReminderReview, ScheduleHost, Translate } from "./types.js";
+import type { UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OperationReview, Readiness, ReminderReview, ScheduleHost, Translate } from "./types.js";
 
 /** Everything the Schedule client shares between its parts: the page's elements and what is open on it. */
 export interface SchedulePage {
@@ -30,6 +31,12 @@ export interface SchedulePage {
   reading: number;
   /** The task just created: its detail says once that what it reads is chosen there. */
   created: string;
+  /** Whether the project has a workspace, once read: a task that reads files only needs one. */
+  ready?: Readiness;
+  /** The platform's reads area in the open task's detail (area.ts): its element, and what closes it. */
+  area: { readonly element: HTMLElement; readonly control: AbortController } | null;
+  /** What the person last changed in the area, by task, with the read of the list under way then (newer than that read's answer). */
+  readonly changes: Map<string, { readonly state: UiTaskGrantsAreaState; readonly during: number }>;
 }
 
 /** The page of a mounted Schedule client, or null when this root has no Schedule workbench. */
@@ -47,5 +54,6 @@ export function createPage(host: ScheduleHost): SchedulePage | null {
     operationDialog: required<HTMLDialogElement>(workbench, "[data-schedule-operation-dialog]"),
     operationForm: required<HTMLFormElement>(workbench, "[data-schedule-operation-form]"),
     editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, hinting: 0, reading: 0, created: "",
+    area: null, changes: new Map(),
   };
 }

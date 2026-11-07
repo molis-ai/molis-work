@@ -4,7 +4,7 @@
  */
 export const TASK_GRANTS_AREA_EN: Record<string, string> = {
   "Molis Work · 只有你能改": "Molis Work · only you can change this",
-  "只能读，不能改；只给这个任务；随时可以撤回": "Read only, never change; for this task alone; take it back any time",
+  "只能读，不能改；只给这个任务；随时可以撤回": "Read only, never change; for this task alone; withdraw it any time",
   "允许": "Allow",
   "有新的读取能力，允许之前读不到": "Reads more now; not readable until you allow it",
   "暂时读不到，授权还在": "Not readable for now; the permission stays",
@@ -13,9 +13,9 @@ export const TASK_GRANTS_AREA_EN: Record<string, string> = {
     "Nothing in this project can be read yet. Plugins such as to-dos, calendars or notes show up here once added.",
   "拨一下即生效，下一次运行起按新的范围读": "A switch takes effect at once; the next run reads what is on",
   "已允许读{name}，下一次运行起能读到": "{name} allowed; the next run can read it",
-  "已撤回{name}，下一次运行起读不到": "{name} taken back; the next run cannot read it",
-  "已撤回{name}；要再读它，重新打开开关，会按它现在的读取能力允许": "{name} taken back; to read it again, turn it on, which allows what it reads now",
-  "已撤回{name}；它的插件回来之后，重新打开开关才能再读": "{name} taken back; once its plugin is back, turn it on to read it again",
+  "已撤回{name}，下一次运行起读不到": "{name} withdrawn; the next run cannot read it",
+  "已撤回{name}；要再读它，重新打开开关，会按它现在的读取能力允许": "{name} withdrawn; to read it again, turn it on, which allows what it reads now",
+  "已撤回{name}；它的插件回来之后，重新打开开关才能再读": "{name} withdrawn; once its plugin is back, turn it on to read it again",
   "已允许{name}的新读取能力；不想要就关掉这一类": "{name} may read its new data; turn it off if you do not want that",
   "已移除{name}，这一类已不再提供": "{name} removed; it is no longer offered",
   "已撤销刚才的改动": "Change undone",

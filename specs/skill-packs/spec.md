@@ -170,7 +170,7 @@ argument_hint: "<周期，可选>"
 | 11 | 成果与过程项 | 不涉及：技能包不产出成果或过程项，只有声明的插件的 Manifest 不许声明 `artifacts`、`process_items` |
 | 12 | 页面与外壳 | 安装预览是在现有「设置 → 插件」的安装审阅里加一节；「技能」是设置里「插件」旁边的一节，不是插件自己的整页。新的 DOM 事件按 `dom-events.ts` 登记。页面资源有增长要写明；单个资源一次涨超过 10 KB，或新增资源，先问用户 |
 | 13 | 错误 | 坏包沿用 `plugin.declaration_invalid`，加 `problems` 明细；新码用 `defineErrorCodes`，不写 Error 子类。新文件要在 `tooling/gates/error-owners.json` 加主人的，开片前先问 |
-| 14 | 冲突面 | 见下表。借 E 轨（08-3）、D 轨（08-2、08-9）的文件，按轨道规则 7 在认领板认领后单开一片，需求方的片叠在后面 |
+| 14 | 冲突面 | 见下表。借 D 轨（08-2、08-9）的文件，按轨道规则 7 在认领板认领后单开一片，需求方的片叠在后面。借 E 轨的三个文件（08-3）按[第 8.4 节](../post-anticorruption-roadmap/reference/development-workflow.md#84-同批的小任务合成一组)第 5 条接力（2026-11-07 改，原来也是单开一片）：在认领板认领这三个文件；08-3 在 08-5 的分支上单独一个提交，同一时间只有这一个写手改它们（写手由本批派，决定 26），就是规则 7 的「交给正在改这批文件的写手」；评审时按 E 轨的标准单独看这个提交：三个插件照常装配，只补取值、不改行为，结论在 PR 评论里单列。开 PR 前再查一次在途 PR，有别的片要改这三个文件，就把 08-3 切出去单独先落（第 8.4 节第 5 步的掉队）。11-07 查过：没有在途 PR 改它们 |
 | 15 | 全局最优 | 逐个场景看：**插件**——只有声明的插件、沙箱包、内置插件、创作台生成的包用同一份方法声明、同一个校验函数和同一条安装路径（C-1、C-3），第三方作者只学一种写法；**平台**——Skill 目录扩展已有的 Agent 定义登记，Plugin Runtime 只多一种「已声明、不启动」，不另起服务、不另设注册表；**助理**——和 Coding 读同一个 `skills.catalog.list@1`，一轮开头的多个正文一次请求读完（`skills.body.read@1` 收引用数组），接入在 09；没有界面时，助理能读目录、用 `auto` 的和本轮点名的；启用、导入只给本人，故意不开给 Agent（防提示注入）；**各类平台能力**——授权、审查、动作目录不变，Skill 不授予权限；连接器经 `requires` 与 `connector_categories` 相接（类别表由助理统一接入服务的主人给，§9）；统一输入的 `/` 点名在 09 的 9-2／9-4，和第 10 批同改 `assistant-composer.ts`；第 20 批的场景包沿用 `kind: "content"` 的白名单与 `SkillRef`，第 72 批的导出导入沿用内容包格式；**后续开发**——再加一种只有声明的内容，只在白名单加键、在检查函数加一条。比较过三种做法：单设 `SkillPackRegistry`（2026-10-19 否，第二条安装与信任路径）；目录放进新的 `horizontal/` 服务包（否：方法定义的主人已是 Agent 定义登记，新包会复制登记）；启用并进安装动作（否：同意权限与让 AI 用混成一步，定样也否了）。多付代价的：宿主 Agent 定义登记多两张表；Coding 失去自有的发现与安装路径，由 09 的 9-4 删旧路、改读目录时付；`SignedAgentReference` 的方法引用改 `SkillRef` 随 09 的 9-2 付（见本批文件偏离记录） |
 
 | 文件 | 轨道 | 本批哪片 | 在途的别批 PR |
@@ -182,11 +182,11 @@ argument_hint: "<周期，可选>"
 | `apps/local-host/src/agent-definitions/`（C 轨，09 第八节第 4 条） | C | 08-7 | #1837 改其中几个文件（版本标记），08-7 本来就排在它之后 |
 | `packages/design-system/`（组件板） | D | 08-2 | #1872（10 K0c）改 `primitives/catalog.ts`、`styles/primitives.ts`；标本放新文件，#1872 合入后开 PR（11-07 曾先开 #1935，碰了独占文件，用户定关掉等 #1872） |
 | `apps/workbench/src/settings-plugins.ts`（安装审阅）、设置里新加的「技能」一节、`apps/workbench/src/i18n/`、页面样式表（`mw-item` 从组件板搬进来） | D | 08-9 | 开片前查；由 D 落或认领后单开一片，D 轨审 |
-| `plugins/native/todo/src/roles.ts`、`plugins/native/issues/src/skills.ts`、`plugins/native/pages/src/skills.ts` | E | 08-3 | 开片前查 |
+| `plugins/native/todo/src/roles.ts`、`plugins/native/issues/src/skills.ts`、`plugins/native/pages/src/skills.ts` | E | 08-3（并进 08-5 的 PR，单独一个提交，按第 14 项接力） | 开 PR 前查；11-07 查过没有在途 PR |
 
 ## 11. 拆片与先后（第 08 批主会话，2026-11-06）
 
-合同先行，服务接着，界面最后。下表每片一个提交起步；按[决定 28](../post-anticorruption-roadmap/reference/decisions.md#decision-28)（第 8.4 节）合组开 PR：08-3 并进 08-5 的 PR；08-1、08-4 各自单独（第 09、20 批要用）；08-6、08-7、08-8 一组，08-7 等不到第 05 批的前置就掉队单走；08-9、08-10 开工时再定。同一组的后续步骤叠在同一分支。
+合同先行，服务接着，界面最后。下表每片一个提交起步；按[决定 28](../post-anticorruption-roadmap/reference/decisions.md#decision-28)（第 8.4 节）合组开 PR：08-3 并进 08-5 的 PR（E 轨三个文件按 §10 第 14 项接力）；08-1、08-4 各自单独（第 09、20 批要用）；08-6、08-7、08-8 一组，08-7 等不到第 05 批的前置就掉队单走；08-9、08-10 开工时再定。同一组的后续步骤叠在同一分支。
 
 | 片 | 内容 | 前置 | 验收 |
 | --- | --- | --- | --- |

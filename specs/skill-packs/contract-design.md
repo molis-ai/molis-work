@@ -350,7 +350,7 @@ interface SkillCatalogEntry {
 
 **用量**：Skill 的正文交给一轮、并拿到接受回执后，宿主在 `agent-definitions` 库里记一行，写法照 `prompt_uses`，表名 `skill_uses`。被拒或取消的轮次不记。历史行保留当时的 `SkillRef` 和名称，卸载后仍可读（SKP-07）。
 
-**消费方怎么改**（实现时做，这里先写明去向）：
+**消费方怎么改**（第 09 批 9-2～9-5 做，这里先写明去向）：
 
 - **个人助理**：`methods()` 改成从目录取：已安装、在本范围启用，且 `applies_to` 含 `assistant`（修 G1）。读正文改走 `skills.body.read@1`。`assistant.methods.read@2` 只留角色资料，它改不改名由 A 轨定。
 - **Coding**：取 `applies_to` 含 `coding` 的项，起跑时把精确的 `SkillRef` 冻结进 `agent.skills`。原来那条路删掉：`agent.skills.discover.v1`、`agent.skills.install.v1`，以及 Prologue 存储里 `molis-coding-method` 这种类型；SSOT 里「装进项目的 Skill」一行同时删。Coding 自己 Agent 的 `agent.skills`（`codingSkills`）不变，仍是插件自己的。
@@ -407,7 +407,8 @@ interface SkillCatalogEntry {
 | C-1 声明合同 | contracts：`PluginKind` 的 `"content"`、`AgentSkillDeclaration` 的新字段、`SkillResourceDeclaration`、`SkillRef`、内容包的文件常量。SDK：`inspectContentPlugin`、扩展后的 `inspectSkillDeclarations`、`skillDeclarationFromFrontmatter`、内容包的解析。GLOSSARY 加一行；刷新 api 快照。新字段先是可选；E 轨随后补上 Todo、Issues、Pages 的取值，改成必填随 C-3 一起做（第 4.2 节）。给第 09 批 9-1 留位：委派协议的「本轮技能」用 `SkillRef` | 02 交接；#1762 合入 |
 | C-2 目录、设置与导入的动作合同 | `services/skills.ts`：第 6、7、8 节的六个动作声明、`SkillCatalogEntry` 与 `SkillUnavailableReason`；`plugins.install.preview` 的 `skills` 与 `requires`；`plugins.bundled.list@1`；刷新动作快照 | C-1；E 轨定样定下 |
 | C-3 方法写法合一（统筹 2026-11-04 定：做） | 沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明；`applies_to`、`description` 在同一片改成必填；跑 `pnpm studio:replay`；已有数据按第 11 节同一条 02③ 分界 | C-1；E 轨补好三个内置插件的取值 |
-| 实现 | Plugin Runtime 的「已声明、不启动」装配；随安装包带上的官方包与 `plugins.bundled.list@1`；宿主的目录、设置和用量；导入服务与 CLI `pack-content`；助理与 Coding 两个消费方，以及删掉 Coding 的旧路；BL-165 设计与无障碍内容包 | C-1、C-2 合入；E 轨定样 |
+| 实现 | Plugin Runtime 的「已声明、不启动」装配；随安装包带上的官方包与 `plugins.bundled.list@1`；宿主的目录、设置和用量；导入服务与 CLI `pack-content`；BL-165 设计与无障碍内容包 | C-1、C-2 合入；E 轨定样 |
+| 消费方（第 09 批） | 助理与 Coding 两个消费方，以及删掉 Coding 的旧路：09 的 9-2～9-5 | C-2 与目录服务合入；09 的 9-1 |
 
 ## 13. 统筹裁定（2026-11-04，见 #1794 上的统筹评论）
 

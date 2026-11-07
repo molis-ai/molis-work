@@ -88,6 +88,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 | 任务停用 | 不再到点运行，授权留着；再启用照旧能读 | Schedule 现有逻辑 |
 | 任务归档 | 授权清除 | Schedule 归档时调 `clear`；宿主另在读取时核对：插件的 `list` 结果里找不到对应任务的主体，由 Schedule 在对账作业里清（防止漏清） |
 | Schedule 停用 | 插件 Agent 服务拒绝启动（安装不是运行中、`agent:run` 不在授权里，`plugin-agent-service.ts:35` 的 `check`）；授权留着，再启用照旧能读 | 现有 |
+| Schedule 从项目移除 | 等同停用：授权留着；安装编号不变，加回来后照旧能读。要收回授权，在「能读的数据」或「授权与放行」里撤回 | 现有（移除不清授权，只有卸载清） |
 | Schedule 卸载 | 这个安装下全部任务主体的授权清除 | 宿主卸载插件的动作（`plugins.installed.uninstall@1`，`apps/local-host/src/plugin-install-actions.ts:123`）按 `agent:task:<project>:<install>:` 前缀清 |
 | 删项目 | 这个项目的任务主体授权清除 | `ProjectDeletionService`（`apps/local-host/src/project-deletion-service.ts`）按 `agent:task:<project>:` 前缀清 |
 | 提供方停用或卸载 | 那一类的动作不在目录里，调用被拒；记录留着，提供方回来、形状没变就恢复 | 现有目录与授权规矩 |
@@ -241,7 +242,7 @@ P0 合同（#1841）评审时，合同台与评审台留给 P2 的几条，加�
 
 | # | 事项 | 现状与做法 |
 | --- | --- | --- |
-| C1 | 提供方删掉一个读取分组后，已勾这一类的任务显示什么 | **用户 2026-11-05 定**：那一行写「这一类已不再提供」，给「移除」，任务从此读不到这一类。合同加第 4 个状态 `removed`（`agent.task_grants.list`，随本节同一个合同 PR）。没声明分组的提供方开始声明分组时，原来「整个提供方」那一类同样是 `removed`。这一类自己的名字已经不在，行上显示提供方的名字。宿主要知道一条授权当初是勾哪一类得来的：授权记录本身不带分组，P2 设计时定在哪里记（记在授权记录旁，或读取时按「动作已不在任何组里」判断），写进 P2 的开工前检查第 6 项 |
+| C1 | 提供方删掉一个读取分组后，已勾这一类的任务显示什么 | **用户 2026-11-05 定**：那一行写「这一类已不再提供」，给「移除」，任务从此读不到这一类。合同加第 4 个状态 `removed`（`agent.task_grants.list`，随本节同一个合同 PR）。没声明分组的提供方开始声明分组时，原有记录按动作归入新的组，不扩大；不在任何组里的显示「这一类已不再提供」（用户 2026-11-06 改定，取代原来「整个提供方那一类同样是 `removed`」的说法，见 [spec.md §5.4.1](spec.md) 决策记录）。这一类自己的名字已经不在，行上显示提供方的名字。宿主要知道一条授权当初是勾哪一类得来的：授权记录本身不带分组，P2 设计时定在哪里记（记在授权记录旁，或读取时按「动作已不在任何组里」判断），写进 P2 的开工前检查第 6 项 |
 | C2 | `scope: "home"` 的查询怎样归组：`todo.items.list` 带 `all_projects` 会跨项目读（第 9 节 O1） | **不用另定**：`all_projects` 要 `readable_project_ids`，宿主只把它给本人的调用（`project_reach: "person"`，PG-014）；任务主体是 `agent` 受众，Todo 按 `actions.forbidden` 拒绝（`plugins/native/todo/src/actions.ts` 的 `todoAccess`）。所以任务只读得到本项目的待办。S-108 加一条拒绝用例钉住：给任务主体授权「待办」后带 `all_projects: true` 调，被拒、不写记录。另要在 P2 核实：项目里的任务主体能否被授权 Home 级插件（Todo）的 `home` 范围查询——「对外接入」一页现在按调用的范围筛目录（`mcp-action-access.ts` 的 `catalog`），按任务授权不能照搬这一筛法 |
 | C3 | 省略 `group_id` 只对没声明分组的提供方有效 | 合同注释已写（#1841）；S-108 加一条：对声明了分组的提供方省略 `group_id`，`set` 整次被拒。**2026-11-06 收窄**（[P3 设计稿 §3.6](task-grants-platform-area.md) R1，#1860 复审，统筹定）：这条与「组不存在」的校验只对请求里**新加入**的类生效；这个主体原本就有记录的类按原记录认、不再校验（`removed` 的类可能带已不再声明的 `group_id`，或不带 `group_id`），否则任务上有一个 `removed` 的类时拨任何开关都会被拒。P2a 改合同注释时同步写一句 |
 | C4 | GLOSSARY 加「读取分组」「任务主体」 | 随 P2 加（`docs/system/GLOSSARY.md`） |

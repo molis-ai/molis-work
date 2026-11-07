@@ -31,15 +31,15 @@ const TEXT_LIMIT = 2000;
 const words = (value: string) => value.length > TEXT_LIMIT ? value.slice(0, TEXT_LIMIT) : value;
 
 /**
- * A task can be given only a plugin's actions (a provider with a Manifest) or those of a provider that declared, where the Host
- * registers it, that a task may read it (`task_readable`); only what an agent may call; and only what reads: a query whose effect is
+ * A task can be given only a plugin's actions (a provider with a Manifest) or those of a provider of the Host's own that declared,
+ * where the Host registers it, that a task may read it (`task_readable`; an external MCP source never counts); only what an agent may call; and only what reads: a query whose effect is
  * `read` (G3, as for the Home's aggregates). Any other provider of the Host's own (`system.*`: search, placement, memory…) or an
  * external MCP source declares no read groups and may read across plugins, so a category of theirs would get round the per-plugin
  * grouping the person turns on: none is offered, `list` names none, `set` naming one is refused as a whole call, and a task's round
  * does not find them. The Host names no provider here: the declaration is the provider's own (batch 18 P2, decided 2026-11-06).
  */
 export function readableByTask(view: ActionView): boolean {
-  return (view.provider.kind === "plugin" || view.provider.task_readable === true) && view.action.audiences.includes("agent")
+  return (view.provider.kind === "plugin" || view.provider.kind === "system" && view.provider.task_readable === true) && view.action.audiences.includes("agent")
     && view.operation === "query" && actionEffect(view.action, view.capability_id) === "read";
 }
 
@@ -105,13 +105,21 @@ export const categoryKey = (reference: TaskGrantCategoryReference): string => JS
  * their provider with no group, as `list` names that row (a provider with groups has no whole category, so the key is never another's).
  */
 export function recordedCategories(records: readonly McpActionGrant[], views: readonly ActionView[], declarationOf: DeclarationOf): Map<string, McpActionGrant[]> {
-  const providers = byProvider(views), held = new Map<string, McpActionGrant[]>();
+  const keyOf = recordCategoryKey(views, declarationOf), held = new Map<string, McpActionGrant[]>();
   for (const grant of records) {
-    const group = groupOf(grant.capability_id, declarationOf(providers.get(grant.provider_id)?.[0]?.provider ?? { provider_id: grant.provider_id }));
-    const key = JSON.stringify([grant.provider_id, group ?? ""]);
+    const key = keyOf(grant);
     held.set(key, [...held.get(key) ?? [], grant]);
   }
   return held;
+}
+
+/** The category key (`categoryKey`) a record stands for now, under its provider's declaration as it is at this moment. */
+function recordCategoryKey(views: readonly ActionView[], declarationOf: DeclarationOf): (grant: McpActionGrant) => string {
+  const providers = byProvider(views);
+  return grant => {
+    const group = groupOf(grant.capability_id, declarationOf(providers.get(grant.provider_id)?.[0]?.provider ?? { provider_id: grant.provider_id }));
+    return categoryKey({ provider_id: grant.provider_id, group_id: group || undefined });
+  };
 }
 
 const samePermissions = (grant: McpActionGrant, view: ActionView) => grant.permissions.length === new Set(view.action.permissions).size
@@ -152,10 +160,16 @@ export function subjectCategories(records: readonly McpActionGrant[], views: rea
   return states;
 }
 
-/** Opaque, from the subject's records as written (with their generations); `""` for a subject without records. */
-export function subjectRevision(preference: McpToolPreference, clientId: string): string {
+/**
+ * Opaque, from the subject's records as written (with their generations) and the category each one stands for now (`recordedCategories`);
+ * `""` for a subject without records. The category is in it because it is not stored: a provider that changes its read groups changes
+ * which category a record is in without changing the record, and a `set` built on what the person saw before must then be a conflict,
+ * never a write that keeps or drops records under categories they did not touch (R1, R4).
+ */
+export function subjectRevision(preference: McpToolPreference, clientId: string, views: readonly ActionView[], declarationOf: DeclarationOf): string {
+  const keyOf = recordCategoryKey(views, declarationOf);
   const rows = preference.action_grants.filter(grant => grant.client_id === clientId)
-    .map(grant => JSON.stringify([grant.capability_id, grant.version, grant.provider_id, grant.project_id, grant.enabled, [...grant.permissions].sort(), grant.generation]))
+    .map(grant => JSON.stringify([grant.capability_id, grant.version, grant.provider_id, grant.project_id, grant.enabled, [...grant.permissions].sort(), grant.generation, keyOf(grant)]))
     .sort();
   return rows.length ? createHash("sha256").update(rows.join("\n")).digest("hex").slice(0, 32) : "";
 }

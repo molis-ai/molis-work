@@ -25,8 +25,9 @@ export const TASK_GRANT_SUBJECT_KEY_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}
 /**
  * One read category: a provider's read group, or (`group_id` left out) a whole provider that declares no groups. For a category new to
  * the subject, leaving it out for a provider that declares groups, or naming a group the provider does not declare now, names nothing,
- * and `set` refuses the whole call. A category the subject already holds is taken by its records as the Host holds them, without these
- * checks: a `removed` one, one with a group the provider no longer declares, one with no group for a provider that started declaring some.
+ * and `set` refuses the whole call. A category the subject already holds is named as `list` shows it now (a `removed` one by its
+ * provider with no group) and taken by its records as the Host holds them. A reference that is neither, of a provider the subject holds
+ * records of, comes from before the provider changed its groups: `set` refuses the whole call with `actions.conflict`.
  */
 export interface TaskGrantCategoryReference {
   provider_id: string;
@@ -58,10 +59,12 @@ export interface TaskGrantCategory extends TaskGrantCategoryReference {
  * A category a subject was granted. `granted`: every recorded action still matches and nothing in the category is unconfirmed.
  * `needs_confirmation`: the provider added an action to it, or changed the version or permissions of one, since the person allowed it;
  * what changed is not readable until they allow the category again. `unavailable`: the provider is off or gone; the grant is kept
- * and reads again when it is back unchanged. `removed`: the provider is there but no longer declares this category (it dropped the
- * group, or a provider without groups started declaring some); nothing in it is readable, and the person can only take it off
- * (decided 2026-11-05: the row says the category is no longer offered). Such a row shows the provider's `title` and
- * `description`, since the provider no longer declares the category's own.
+ * and reads again when it is back unchanged. Which category a record is in is read from the provider's groups now, never stored: when
+ * a provider without groups starts declaring some, the records go to the new groups by their actions, reading nothing more than before.
+ * `removed`: recorded actions the provider now puts in no group (it dropped the group, or left them out of the groups it started
+ * declaring); nothing in it is readable, and the person can only take it off (decided 2026-11-05: the row says the category is no
+ * longer offered; 2026-11-06: records move to the new groups by action). Such a row shows the provider's `title` and `description`,
+ * since the provider declares no category of its own for them.
  */
 export interface TaskGrantCategoryState extends TaskGrantCategory {
   status: "granted" | "needs_confirmation" | "unavailable" | "removed";
@@ -70,14 +73,17 @@ export interface TaskGrantCategoryState extends TaskGrantCategory {
 export interface TaskGrantSubject {
   plugin_install_id: string;
   key: string;
-  /** Opaque, derived from the subject's grant records; `set` takes it back. A subject without records has revision `""`. */
+  /**
+   * Opaque, derived from the subject's grant records and the category each one is in now; `set` takes it back, so a provider that
+   * changed its groups since the person read it makes the `set` a conflict. A subject without records has revision `""`.
+   */
   revision: string;
   categories: TaskGrantCategoryState[];
 }
 
 /**
  * Replaces the subject's categories with exactly these (an empty list removes them all; a held category left out loses its records);
- * `actions.conflict` when `expected_revision` is stale. A category the subject already holds keeps its records as they are, whatever its
+ * `actions.conflict` when `expected_revision` is stale, which includes the provider having changed its groups since. A category the subject already holds keeps its records as they are, whatever its
  * status, so what its provider added since stays unreadable and an unavailable provider's records wait for it. A category new to the
  * subject, or one with `confirm`, records its read-only actions as the catalog has them now; one that records nothing now (its provider
  * is off, or no longer declares it) refuses the whole call with `actions.input_invalid`.

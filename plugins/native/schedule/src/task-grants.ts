@@ -59,12 +59,14 @@ export function createScheduleTaskGrants(actions: GrantClient) {
       await clear(key).catch(() => pending.add(key));
     },
     /**
-     * Called by the reconcile job with the tasks that are still live; lists the platform only until one sweep has gone through. Says
-     * whether it did: one that did not is tried again on the job's next pass, and Schedule's own work does not wait on it.
+     * Called by the reconcile job with a reader of the tasks that are still live; lists the platform only until one sweep has gone
+     * through. The live tasks are read after the platform's list, so a task made and granted between the two is live, never cleared.
+     * Says whether it went through: one that did not is tried again on the job's next pass, and Schedule's own work does not wait on it.
      */
-    async reconcile(live: ReadonlySet<string>): Promise<boolean> {
+    async reconcile(liveTasks: () => ReadonlySet<string>): Promise<boolean> {
       try {
         const keys = swept ? [...pending] : (await list()).subjects.map(subject => subject.key);
+        const live = liveTasks();
         for (const key of keys) {
           if (live.has(key)) pending.delete(key);
           else await clear(key);

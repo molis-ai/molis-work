@@ -124,19 +124,20 @@ function installationOf(asked: Answering, named: string | undefined, required: b
 function subjectView(preference: McpToolPreference, subject: TaskGrantSubjectIdentity, catalog: readonly ActionView[], declarations: DeclarationOf): TaskGrantSubject {
   const clientId = taskGrantSubjectId(subject.project_id, subject.plugin_install_id, subject.key);
   const records = preference.action_grants.filter(grant => grant.client_id === clientId);
-  return { plugin_install_id: subject.plugin_install_id, key: subject.key, revision: subjectRevision(preference, clientId),
+  return { plugin_install_id: subject.plugin_install_id, key: subject.key, revision: subjectRevision(preference, clientId, catalog, declarations),
     categories: subjectCategories(records, catalog, declarations, subject.project_id) };
 }
 
 /**
  * The records `set` writes (`specs/proactive-assistant/task-grants-platform-area.md` §3.6, R1–R5), from the subject's records as the
- * Host holds them at the call (the revision says they are the ones the person saw). A category the subject holds keeps its records
- * exactly, whatever its status (R1; PWA-152, §3.4): what its provider added since stays unconfirmed, and the records of a provider that
- * is off now wait for it. A reference the catalog no longer offers (a group the provider dropped, no group for a provider that started
- * declaring some) still names what the subject holds of that provider, kept as it is; only a category new to the subject is checked
- * against what is offered now. A new category (R2), or a held one the person allowed again (`confirm`, R3), records what the catalog
- * offers now; one that records nothing callable now refuses the whole call (R5), and so does `confirm` on a category the subject does not
- * hold. A held category left out loses its records (R4).
+ * Host holds them at the call (the revision says they, and the category each stands for now, are the ones the person saw). A category
+ * the subject holds keeps its records exactly, whatever its status (R1; PWA-152, §3.4): what its provider added since stays unconfirmed,
+ * and the records of a provider that is off now wait for it. A held category is named by its key now, as `list` shows it (a removed
+ * one under its provider with no group). A reference that is neither a held category nor one offered now, of a provider the subject
+ * holds records of, is a stale one from before the provider changed its groups: the whole call is a conflict, so the person reads
+ * again; of any other provider it names nothing (`actions.input_invalid`, as below). A new category (R2), or a held one the
+ * person allowed again (`confirm`, R3), records what the catalog offers now; one that records nothing callable now refuses the whole
+ * call (R5), and so does `confirm` on a category the subject does not hold. A held category left out loses its records (R4).
  */
 function chosenGrants(categories: readonly TaskGrantSetCategory[], records: readonly McpActionGrant[], catalog: readonly ActionView[], declarationOf: DeclarationOf,
   grant: (view: ActionView) => McpActionGrant): McpActionGrant[] {
@@ -152,9 +153,9 @@ function chosenGrants(categories: readonly TaskGrantSetCategory[], records: read
     const kept = held.get(categoryKey(reference)), found = namedCategory(offered, reference);
     if (reference.confirm && !kept) throw new ActionError("actions.input_invalid", "这个任务原来没有这一类，不能重新允许");
     if (kept && !reference.confirm) { keep(kept); continue; }
-    if (!found && !reference.confirm) {
-      const provider = records.filter(record => record.provider_id === reference.provider_id);
-      if (provider.length) { keep(provider); continue; }
+    // Neither held nor offered, of a provider the subject holds records of: a category of before its provider changed its groups.
+    if (!kept && !found && records.some(record => record.provider_id === reference.provider_id)) {
+      throw new ActionError("actions.conflict", "这一类的分组已经变了，请刷新后再改");
     }
     if (!found || !found.members.some(view => view.availability.available)) {
       throw new ActionError("actions.input_invalid", "所选的类别此刻不提供或读不到，请刷新后重选");
@@ -176,7 +177,7 @@ async function setCategories(ports: TaskGrantPorts, caller: ActionExecutionConte
   const { catalog, declarations } = await readCatalog(ports, asked, caller.signal);
   if (!declarations.installed(input.plugin_install_id)) throw new ActionError("actions.input_invalid", "这个项目里没有这个插件安装");
   const stale = (current: McpToolPreference) => {
-    if (subjectRevision(current, clientId) !== input.expected_revision) throw new ActionError("actions.conflict", "这个任务的授权已在别处改过，请刷新后再改");
+    if (subjectRevision(current, clientId, catalog, declarations.of) !== input.expected_revision) throw new ActionError("actions.conflict", "这个任务的授权已在别处改过，请刷新后再改");
   };
   const preference = await readMcpToolPreference(ports.homeDirectory);
   stale(preference);

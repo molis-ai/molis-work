@@ -19,7 +19,7 @@ export async function reconcileSchedule(runtime: ScheduleRuntime, projectId: str
         rescheduleEnabledConversationTasks(runtime.db, runtime.schedule);
       });
       // Grants of archived or vanished tasks: the platform keeps them, so they are cleared there, after Schedule's own write.
-      await grants.reconcile(new Set(listScheduleConversationTasks(runtime.db).map(task => task.task_id)));
+      await grants.reconcile(() => new Set(listScheduleConversationTasks(runtime.db).map(task => task.task_id)));
       report(null);
     } catch (error) {
       control.assert_authority_current();

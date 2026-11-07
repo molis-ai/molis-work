@@ -658,7 +658,7 @@ export interface UiTextProvider {
 **后台不继承请求的语言。** `AsyncLocalStorage` 会被定时器和懒打开的对象继承，`web-server.ts:138-156` 又给每个请求语言，所以从页面请求的 async 链上起的工作会一直用那个页面的语言（实测：en 请求里起的定时器一直是 en）。现成的路：`assistant-dispatch.ts:245` 的 `continuations.watch`，之后 `assistant-service.ts:81` 以 `byHost` 开下一轮；`activation-jobs.ts:97` 的定时器和作业（`outsidePluginAction` 只退出插件范围，不退出语言）；`host.withProject` 懒打开的 Runtime。平台两层解决，业务不写：
 
 1. **语言随范围结束作废。** 结束标记放进开范围的函数本身（`runWithLocale`、`runBackgroundWork`），不只 `web-server.ts:156`：`fn` 同步返回的当场标上（`web-catalog-board.ts`），返回 promise 的等它结束。`locale()` 读到作废的当没有。不靠入口名单，请求里嵌套的范围（`plugin-interaction.ts:82`）和后台范围里起的定时器都读不到旧语言（原型实测：范围内 en，结束后 null；4 个并发不串）。`pageLocale()` 本身不动，这一层只给 provider。不等流结束的路由（`plugin-builder/agent-surface.ts:286`，今天不译文字）第 16 批在打开时取下语言。T8 做。
-2. **平台的后台入口给语言。** `runBackgroundWork(fn)`（`web-locale.ts`）：每次开始运行时读「最后用的语言」（第 15.1 节），在新的范围里跑 `fn`，结束同样作废。入口是上面三处、`periodic-tasks.ts` 的 tick 和定时任务。`plugin-runtime` 不依赖 `local-host`，经 `gate.operation`（`activation-jobs.ts:100`）这一层由宿主传入，写手核。T10 做助理的入口，其余第 16 批接第一处后台 `t` 时做。T8 和 T10 先后不定：范围类型只写一份，后合的那片负责 FSS-69 的后台范围用例。
+2. **平台的后台入口给语言。** `runBackgroundWork(locale, fn)`（`web-locale.ts`）：入口每次开始运行时读「最后用的语言」（第 15.1 节）传进来，在新的范围里跑 `fn`，结束同样作废；范围里的语言由 `activeLocale()` 读，`pageLocale()` 和 `L` 不受影响。不做无参的 `runBackgroundWork(fn)`：记录按 Home 存，`web-locale.ts` 不知道是哪个 Home，一个进程又常开多个宿主，存一个进程级的 Home 就会串。第 16 批入口多了，再加 `backgroundWorkIn(home, fn)`，把读记录和开范围合在一处。入口是上面三处、`periodic-tasks.ts` 的 tick 和定时任务。`plugin-runtime` 不依赖 `local-host`，经 `gate.operation`（`activation-jobs.ts:100`）这一层由宿主传入，写手核。T10 做助理的入口，其余第 16 批接第一处后台 `t` 时做。T8 和 T10 先后不定：范围类型只写一份，后合的那片负责 FSS-69 的后台范围用例。
 
 今天的 `pageLocale()`、`L` 同样继承（`web-locale.ts:8` 的注释说定时器里没有，不准确）。A 段不改（决定 20），主会话登待办。
 
@@ -1013,7 +1013,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 | 20 P-3b | T1 | T4（`inspectBlueprint`） | `Blueprint.title`；第 15.4 节 |
 | 08 C-1 | 不互等 T3（排队表） | T4 | 内容包白名单、第 15.3 节 |
 | 08 C-2 | T1 | T4 | `skills.body.read@1` 的 `locale`、`fell_back`；实现等 T8 |
-| 09 第 9-1 项 | T10 | | 委派协议带上冻结的 `reply_locale`（第 15.3 节） |
+| 09 第 9-1 项 | T10 | | 交给外部执行方时当场算语言；要读冻结值由 09 的合同 PR 加 `frozen.reply_locale`（第 15.3 节） |
 
 路线书的 `dependencies.md` 第 192、199 行已在本 PR 改；批次文件由主会话改（第 16.4 节）。
 
@@ -1140,12 +1140,12 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 
 定时任务、后台轮次、MCP 没有入口。
 
-- **什么时候更新：** 用户在页面上切语言，或发起一轮助理工作。只是打开页面不算，后台开着的旧窗口不会改掉它。
+- **什么时候更新：** 用户在页面上切语言，或在页面上用助理：发消息、回答问题、重新准备操作卡。只是打开页面不算，后台开着的旧窗口不会改掉它。
 - **什么时候读：** 定时任务每次开始运行时读，已有日报从下一次起跟着变，不用逐个改。**一轮之内不变。**
 - **和「界面语言只在这个浏览器」：** 不冲突。界面语言仍是每个浏览器各选各的，Cookie 不变；这项记录不决定任何页面显示，只给没有页面的工作用。两个浏览器语言不同时，没有页面的工作跟最后动的那个。
 - **主人与存放：** 主人是宿主，新文件 `apps/local-host/src/ui-locale-memory.ts`；存在 `<Home>/config/ui-locale.json`，算带版本文件（`home-stores.ts` 加一行，版本条目 `format.ui.last-locale`，第 1 版不用升级步骤）；不存在就用默认，不算新增兼容逻辑。不加表，别的包不碰文件。B 段的外观主人进 `horizontal/` 时连同文件一起搬。
 - **读写函数：** `rememberUiLocale(home, locale)`：取值校验过才写，和内存里相同就不写，写失败只记一条问题，不挡请求。`readUiLocale(home)`：第一次读文件，之后走内存；没有记录或读不了时是 `null`，调用方用 `resolveWebLocale` 的默认。
-- **写的入口：** `assistant-http.ts:272`，和 `/locale`（`web-server.ts:134`）。`/locale` 是 GET：`web-server.ts:133` 的 `refuseForeignRequest` 拒掉非回环的 `Host` 和跨站 iframe，`authorizeLocalWebRequest` 本来就放行所有 GET（`web-http.ts:152`），所以跨站 `<img>` 还能到。Cookie 照旧，写 Home 记录只认 `Sec-Fetch-Site: same-origin`，别的和没有这个头都跳过。第 16 批原地切语言后改走写偏好的动作。
+- **写的入口：** `assistant-http.ts` 的 `pageRoundLanguage`（发消息、回答问题、重新准备操作卡共用），和 `/locale`（`web-server.ts:134`）。`/locale` 是 GET：`web-server.ts:133` 的 `refuseForeignRequest` 拒掉非回环的 `Host` 和跨站 iframe，`authorizeLocalWebRequest` 本来就放行所有 GET（`web-http.ts:152`），所以跨站 `<img>` 还能到。Cookie 照旧，写 Home 记录只认 `Sec-Fetch-Site: same-origin`，别的和没有这个头都跳过。别的网页让浏览器顶层跳到 `/locale` 仍能改 Cookie（`SameSite=Lax`），用户接着发送时回复语言和记录跟着页面走；页面语言变了用户看得见，害处小，不堵（`S-ui-locale-memory` 写进「看不到的部分」）。第 16 批原地切语言后改走写偏好的动作。
 
 否掉：**记下发起时的语言**，切语言之后旧日报不变，要逐个改；**用主人默认语言**，英文用户也会收到中文日报，不满足用户的要求。
 
@@ -1154,11 +1154,11 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 **不动公开合同：** 走 `AgentStartAuthority`（`horizontal/agent-host/src/index.ts:122`），和 `call_id` 一样只有宿主给，请求里什么都不读。`AgentStartRequest` 和 `startInput`（`agent-host.ts:382`，`agent.run.start` 给插件的输入）都不碰，所以插件传不了。
 
 - **路径：** `assistant-http.ts:272` → `assistant-service.ts:205` → `assistant-dispatch.ts:230` 的 `host.start`（`assistant-round-start.ts:32`）。`assistant-executor.ts:106` 是外部执行方的，不走这里。
-- **有页面的一轮：** 在 `assistant-http.ts:272` 这个入口读 `pageLocale()`，记第 15.1 节的记录，作为参数经 `send`、`dispatch` 进 authority，后面不再碰全局。
+- **有页面的一轮：** 发消息、回答重启前搁置的问题（`assistant-outcomes.ts`）、重新准备操作卡，这三处都由 `assistant-http.ts` 的 `pageRoundLanguage` 读 `pageLocale()`、记第 15.1 节的记录，作为参数经 `send` 或 `answer`、`dispatch` 进 authority，后面不再碰全局。一轮跟发起它的页面走，不读记录：两个浏览器语言不同时，各自发起的一轮用各自的语言。讨论串的回复第 16 批之前读记录。
 - **宿主发起的一轮**（定时安排、续轮等，开轮的入口不止 `assistant-service.ts:81,95`）：`dispatch` 没收到语言就读第 15.1 节的记录，放在这一处，不靠入口名单，也不继承当初页面的语言。长期任务的入口包 `runBackgroundWork`（第 5.2 节）。
-- **固定文字：** 取值校验（`isWebLocale`）后映射到固定的一段话，不把字符串拼进提示词。不用 `LOCALE_TAG`，所以 T10 不等 T1。
+- **固定文字：** 取值校验（`isWebLocale`）后映射到固定的一段话，不把字符串拼进提示词。不用 `LOCALE_TAG`，所以 T10 不等 T1。按 `fencedMaterials` 的做法算代码里的固定文字，不登记、不进「提示词」设置页（`docs/platform/PROLOGUE-AI.md` 第 14 节「回复语言」一行）。
 - **版本记得下：** 放进 `composeRolePrompts`（`run-start.ts:71`，调用在 `index.ts:351`），一条带 `prompt_id`、`version`（`prompt.reply-language`，走 `tooling/versions.json`）的提示词，`freezeRunStart` 就记下了。`prologue-run-start.ts:87` 只拼字符串，记不下。`ASSISTANT_BASE` 那句改成「回复语言见本轮说明；本轮没有说明时，用用户使用的语言」，`prompt.assistant-base` 升一版。
-- **它不是最后一段：** `roundCharacter` 之后还接 `childInstructions`、方法正文、界面说明、步骤板；方法正文今天是中文，最可能把回复带回中文。FSS-71 的真实模型验证带一个方法一起试。
+- **它不是最后一段：** `roundCharacter`（`prologue-run.ts`）在 `character.instructions` 之后还接子角色说明、侧栏浏览器和桌面说明、步骤板，今天都是中文，都可能把回复带回中文。助理开轮时 `skills: []`（`assistant-round-start.ts`），方法正文不进系统提示，走材料（`compose`）或 `assistant.methods.read@2` 的工具结果，以用户消息或工具结果的身份到模型那边。FSS-71 的真实模型验证用两个用例：带一个点名的中文方法，和一轮有侧栏浏览器的。
 - **T10 只接个人助理。** Coding、创作台第 16 批接同一个字段，宿主从 `caller.locale` 补。压缩和结尾复核的提示词不动。
 
 T10 不依赖其余各片，也不碰文字工具。
@@ -1174,8 +1174,8 @@ T10 不依赖其余各片，也不碰文字工具。
 | 正文路径 | §4.2 `body` | 仍是 `skills/<id>/SKILL.md`。声明加可选 `locales?: string[]`，列这个 Skill 有哪些译文，是 `ui.locales.available` 的子集；不写就只有默认语言。**`locales` 只列译文，写了默认语言就拒绝；没有 `ui.locales` 却写 `locales` 也拒绝**，否则「不多不少」的清单会算出 `SKILL.zh.md` |
 | 文件清单 | §3「不多不少」 | 由声明算出每种语言的路径。默认语言必须有；声明了的译文缺文件算坏包 |
 | 版本 | §4.3 | **所有语言共用一个 `version`**，摘要算全部语言。修一个英文错字也要升版本。理由：`SkillRef` 要精确，一份规则。代价：升级差异会多，加字段 `changed_locales` 写明改了哪种语言（`change` 是枚举，不动） |
-| 读正文 | §8 `skills.body.read@1` | 语言不进输入。user、plugin 用调用上下文的 `locale`；agent 用这一轮冻结的 `reply_locale`，第 16 批之前到不了 `ActionCallContext.locale` 时读默认语言。输出加 `locale`（实际用的，单文件包是 `null`）和 `fell_back: boolean`，默认语言未知时 `fell_back` 是 `false`。回退不算「悄悄换版本」，版本没变，结果也写明了 |
-| 轮次 | §5、§7 | 开轮时 `reply_locale` 和 `SkillRef` 名单一起冻结，不另起字段，第 09 批委派协议带上 |
+| 读正文 | §8 `skills.body.read@1` | 语言不进输入。user、plugin 用调用上下文的 `locale`；agent 用这一轮的语言（见下面「轮次」一行），第 16 批之前到不了 `ActionCallContext.locale` 时读默认语言。输出加 `locale`（实际用的，单文件包是 `null`）和 `fell_back: boolean`，默认语言未知时 `fell_back` 是 `false`。回退不算「悄悄换版本」，版本没变，结果也写明了 |
+| 轮次 | §5、§7 | 开轮时 `SkillRef` 名单照旧冻结。回复语言今天只是一段提示词，记在 `frozen.prompts`（`prompt_id`、`version`），冻结记录里没有语言字段。交给外部执行方时当场算语言；要读冻结值，由第 09 批合同 PR 照 `call_id` 的路加 `frozen.reply_locale`（`frozenOutput` 不许多字段，属动作合同） |
 | 元数据 | §4.1、§4.2、§8 | **宿主只读词表，不读 frontmatter**（08 §4.1）。`pack-content` 把译文文件 frontmatter 的 `name`、`description`、`when_to_use`、`summary`、`when_not_to_use`、`argument_hint` 转进语言文件，键是 `<主人>.skill-<skill_id>.<字段>`。所以这要求有 `ui.locales`；没有它却有 `SKILL.en.md` 的包，元数据只有默认语言。给模型选 Skill 的 `description` 也跟语言，不进 MCP。`excerpt` 从所用语言的正文取。译文文件写 `tools`、`applies_to` 就拒绝 |
 | 键的形状 | §4.2 | `skill_id`（`AGENT_TOKEN`）可以数字开头，`STABLE_KEY` 第二段起要字母开头，所以写成一段 `skill-<skill_id>`。导入包算 `plugin_id` 时最后一段以字母开头，否则主人名过不了；前缀也必须是 `io.molis.work.`，否则 `parsePluginManifest` 拒绝 |
 | 外部导入 | §6 | 不要语言标记，单文件当默认语言。`ui.locales` 对内容包可选 |

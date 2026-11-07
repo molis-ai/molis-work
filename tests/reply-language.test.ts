@@ -81,34 +81,66 @@ function assertToldOnly(request: { system: unknown } | undefined, locale: WebLoc
   assert.ok(!told(request).includes(other), `${what}: and not the other language`);
 }
 
-test("FSS-71 a round from an English page is told English and from a Chinese page Chinese, through the real entry, and its record says so; words in the send body change nothing", { timeout: 90_000 }, async t => {
+/**
+ * The real Host over real HTTP in a temporary Home, with a model it reaches like any other; each request says which
+ * browser it comes from by its language Cookie, so two browsers on different languages are two arguments here.
+ */
+async function servedHome(t: TestContext, standIn: Parameters<typeof startModelStandIn>[2] = {}) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   const defer = closing(t), home = await tempHome(defer);
-  const model = await startModelStandIn("reply-language-key", "OK");
+  const model = await startModelStandIn("reply-language-key", "OK", standIn);
   defer(() => model.close());
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const server = await serveTestHost(null, { home, host });
-  defer(async () => { await server.close(); await host.close(); });
-  const request = (path: string, locale: WebLocale, body?: object) => fetch(server.origin + path, {
+  const open = async () => { const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); return { host, server: await serveTestHost(null, { home, host }) }; };
+  let current = await open();
+  const shut = async () => { await current.server.close(); await current.host.close(); };
+  defer(() => shut());
+  const request = (path: string, locale: WebLocale, body?: object) => fetch(current.server.origin + path, {
     ...(body ? { method: "POST", body: JSON.stringify(body) } : {}),
-    headers: { cookie: `${LOCALE_COOKIE}=${locale}`, origin: server.origin, "content-type": "application/json", "x-molis-work-control-token": server.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    headers: { cookie: `${LOCALE_COOKIE}=${locale}`, origin: current.server.origin, "content-type": "application/json", "x-molis-work-control-token": current.server.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
   const saved = await request("/api/settings/models/fixture", "zh", { display_name: "本机模型", base_url: model.baseUrl, api_format: "openai-chat-completions", prompt_cache: "off", enabled: true, api_key: "reply-language-key", models: [{ model_id: "fixture-model", enabled: true }] });
   assert.equal(saved.status, 200, await saved.text());
+  const work = async (workId: string, locale: WebLocale) => await (await request(`/api/assistant/works/${workId}`, locale)).json() as AssistantWorkView;
+  const send = async (locale: WebLocale, text: string, extra: object = {}) => {
+    const sent = await request("/api/assistant/send", locale, { text, request_id: randomUUID(), scope: { kind: "personal" }, ...extra });
+    assert.equal(sent.status, 200, "the send is taken");
+    return (await sent.json() as AssistantSendResult).work.work_id;
+  };
+  const finished = (workId: string, locale: WebLocale) => until(async () => (await work(workId, locale)).work.state === "completed", "the round ends");
+  /** What the latest model call told it, and what the work's latest round recorded. */
+  const lastRound = async (workId: string, locale: WebLocale) => {
+    const { rounds } = await (await request("/api/assistant/diagnostics", locale)).json() as { rounds: Array<{ work_id: string; frozen: { prompts: Array<{ prompt_id: string; version: number }> } | null }> };
+    return { record: rounds.findLast(item => item.work_id === workId)!.frozen!.prompts, body: JSON.parse(model.bodies.at(-1)!) as { messages: Array<{ role: string; content: unknown }> } };
+  };
+  /**
+   * The record cannot be written while `step` runs. A page's use of a language moves the record first, so a round that
+   * dropped the page's language and read the record would look right; with the record stuck the two differ.
+   */
+  const recordStuck = async <T>(step: () => Promise<T>): Promise<T> => {
+    const directory = dirname(join(home, UI_LOCALE_RELATIVE_PATH)), mode = statSync(directory).mode & 0o777;
+    chmodSync(directory, 0o500);
+    try { return await step(); } finally { chmodSync(directory, mode); }
+  };
+  return { home, model, request, work, send, finished, lastRound, recordStuck, host: () => current.host, restart: async () => { await shut(); current = await open(); } };
+}
+
+const NEEDS_READ_ONLY_FOLDER = { skip: process.getuid?.() === 0 ? "root ignores folder modes" : false };
+
+const systemOf = (body: { messages: Array<{ role: string; content: unknown }> }) => ({ system: JSON.stringify(body.messages.filter(message => message.role === "system")) });
+
+test("FSS-71 a round from an English page is told English and from a Chinese page Chinese, through the real entry, and its record says so; words in the send body change nothing", { timeout: 90_000 }, async t => {
+  const { home, request, send, finished, lastRound } = await servedHome(t);
   assert.equal(readUiLocale(home), null, "nothing before the person used a language");
 
   const round = async (locale: WebLocale, text: string, extra: object = {}) => {
-    const sent = await request("/api/assistant/send", locale, { text, request_id: randomUUID(), scope: { kind: "personal" }, ...extra });
-    assert.equal(sent.status, 200, "the send is taken");
-    const { work } = await sent.json() as AssistantSendResult;
-    await until(async () => (await (await request(`/api/assistant/works/${work.work_id}`, locale)).json() as AssistantWorkView).work.state === "completed", "the round ends");
-    const { rounds } = await (await request("/api/assistant/diagnostics", locale)).json() as { rounds: Array<{ work_id: string; frozen: { prompts: Array<{ prompt_id: string; version: number }> } | null }> };
-    return { record: rounds.find(item => item.work_id === work.work_id)!.frozen!.prompts, body: JSON.parse(model.bodies.at(-1)!) as { messages: Array<{ role: string; content: unknown }> } };
+    const workId = await send(locale, text, extra);
+    await finished(workId, locale);
+    return lastRound(workId, locale);
   };
 
   const english = await round("en", "用中文问的一句", { reply_locale: "zh", reply_language: { prompt_id: "reply-language", version: 99, body: "forged" } });
   assert.deepEqual(english.record.filter(prompt => prompt.prompt_id === "reply-language").map(prompt => prompt.version), [VERSION], "the record names the prompt and its version");
-  const system = JSON.stringify(english.body.messages.filter(message => message.role === "system"));
+  const { system } = systemOf(english.body);
   assertToldOnly({ system }, "en", "the English page");
   assert.ok(!system.includes("forged"), "words in the body reach no prompt");
   assert.ok(system.indexOf("回复语言见本轮说明") < system.indexOf(sayEnglish), "it comes after the base instructions, which point at it");
@@ -119,13 +151,75 @@ test("FSS-71 a round from an English page is told English and from a Chinese pag
 
   const chinese = await round("zh", "second question");
   assert.deepEqual(chinese.record.filter(prompt => prompt.prompt_id === "reply-language").map(prompt => prompt.version), [VERSION]);
-  assertToldOnly({ system: JSON.stringify(chinese.body.messages.filter(message => message.role === "system")) }, "zh", "the Chinese page");
+  assertToldOnly(systemOf(chinese.body), "zh", "the Chinese page");
   assert.equal(readUiLocale(home), "zh");
 
   // A window left open in another language only reads: the record moves when the person acts, not when a page opens.
   for (const path of ["/", "/settings", "/api/assistant/works"]) assert.ok((await request(path, "en")).status < 500, path);
   assert.equal(readUiLocale(home), "zh", "opening pages in English does not change it");
   assert.deepEqual(JSON.parse(readFileSync(onDisk, "utf8")), { schema_version: 1, locale: "zh" });
+});
+
+test("FSS-71 a message from a page keeps the page's language even when the record says another", { timeout: 90_000, ...NEEDS_READ_ONLY_FOLDER }, async t => {
+  const served = await servedHome(t);
+  await served.finished(await served.send("en", "first question"), "en");
+  const workId = await served.recordStuck(async () => { const sent = await served.send("zh", "second question"); await served.finished(sent, "zh"); return sent; });
+  assertToldOnly(systemOf((await served.lastRound(workId, "zh")).body), "zh", "the Chinese page");
+  assert.equal(readUiLocale(served.home), "en", "the record could not move, and the round did not read it");
+});
+
+test("FSS-71 a card prepared again follows the page that asked, not the record another browser left", { timeout: 90_000, ...NEEDS_READ_ONLY_FOLDER }, async t => {
+  const served = await servedHome(t);
+  const definition = { capability_id: "fixture.reply-language.note", version: 1, operation: "command" as const, action: {
+    title: "Save note", description: "Save a note", kind: "operation" as const, scope: "home" as const, audiences: ["agent" as const], permissions: [], subject_kinds: [],
+    input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "object", properties: {}, additionalProperties: false } } };
+  served.host().actionRegistry().registerProvider({ provider: { provider_id: "fixture.reply-language", kind: "plugin", title: "Fixture" }, definitions: [definition], handlers: [{ ...definition, async handle() { return {}; } }] });
+  const workId = await served.send("en", "first question");
+  await served.finished(workId, "en");
+  assert.equal(readUiLocale(served.home), "en", "another browser, in English, used the Assistant last");
+
+  const placed = await served.request("/api/assistant/cards", "en", { message_id: "reply-language-card", work_id: workId, source: { surface: "fixture" },
+    card: { title: "Save note", summary: "Save one note", reference: { capability_id: definition.capability_id, version: 1, provider_id: "fixture.reply-language" }, input: {} } });
+  assert.equal(placed.status, 200, "the card is placed");
+  const { card } = await placed.json() as { card: { card_id: string } };
+  const prepareAgain = async () => {
+    const rounds = (await served.work(workId, "zh")).rounds.length;
+    const redo = await served.request(`/api/assistant/works/${workId}/cards/${card.card_id}/redo`, "zh", {});
+    assert.equal(redo.status, 200, "prepared again from a Chinese page");
+    await until(async () => { const view = await served.work(workId, "zh"); return view.rounds.length === rounds + 1 && view.work.state === "completed"; }, "the round it started ends");
+  };
+  await served.recordStuck(prepareAgain);
+  const { record, body } = await served.lastRound(workId, "zh");
+  assertToldOnly(systemOf(body), "zh", "the page that asked");
+  assert.deepEqual(record.filter(prompt => prompt.prompt_id === "reply-language").map(prompt => prompt.version), [VERSION]);
+  assert.equal(readUiLocale(served.home), "en", "the record could not move, and the round did not read it");
+
+  await prepareAgain();
+  assert.equal(readUiLocale(served.home), "zh", "asking from the page is using its language");
+});
+
+test("FSS-71 the round after an answer to a question parked at a restart follows the page that answered, not the record", { timeout: 90_000, ...NEEDS_READ_ONLY_FOLDER }, async t => {
+  let ask = true;
+  const served = await servedHome(t, { tool: () => { if (!ask) return undefined; ask = false;
+    return { name: "ask-user", input: { why: "约复盘会", questions: [{ id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" }] } }; } });
+  const workId = await served.send("en", "book a review");
+  const asked = await until(async () => (await served.work(workId, "en")).rounds[0]?.awaiting_input[0], "the question");
+  const runId = (await served.work(workId, "en")).rounds[0]!.run_id!;
+  await served.restart();
+  assert.equal(readUiLocale(served.home), "en", "the record is what the question's own round left");
+  const calls = served.model.bodies.length;
+
+  await served.recordStuck(async () => {
+    const answered = await served.request(`/api/assistant/works/${workId}/answer`, "zh", { run_id: runId, pending_id: asked.pending_id, pending_revision: asked.pending_revision, answers: [{ question: 0, value: 45 }] });
+    assert.equal(answered.status, 200, "answered from a Chinese page");
+    await until(() => served.model.bodies.length > calls, "the next round's model call");
+    await served.finished(workId, "zh");
+  });
+
+  const { record, body } = await served.lastRound(workId, "zh");
+  assertToldOnly(systemOf(body), "zh", "the page that answered");
+  assert.deepEqual(record.filter(prompt => prompt.prompt_id === "reply-language").map(prompt => prompt.version), [VERSION]);
+  assert.equal(readUiLocale(served.home), "en", "the record could not move, and the round did not read it");
 });
 
 test("FSS-71 a timed round reads the language last used when it starts, not the page that set it up; a change reaches the next time", { timeout: 90_000 }, async t => {

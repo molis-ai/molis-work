@@ -217,7 +217,7 @@ test("S-ui-locale-memory a plugin's start of a round cannot name a reply languag
   assert.equal(w.rounds.length, 1, "the same start without it goes through, so the refusals were about the field");
 });
 
-test("S-17 a round's session grants nothing (RCPT-394)",{ timeout: 180_000 }, async t => {
+test("S-17 a round's session grants nothing (RCPT-394)", { timeout: 180_000 }, async t => {
   const w = await world(t);
   await w.start("s", w.tools);
   const round = w.last();

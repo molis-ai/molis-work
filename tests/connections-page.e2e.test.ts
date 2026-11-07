@@ -92,7 +92,7 @@ async function openPage(t: TestContext) {
     receive = request => { clearTimeout(timer); resolve(request); };
   });
   const answer = (request: Held, body: unknown, status = 200) => { request.response.writeHead(status, { "content-type": "application/json" }); request.response.end(JSON.stringify(body)); };
-  return { page, origin, open, next, answer, reads, usages, rows, exceptions, setLocale: (value: "zh" | "en") => { locale = value; } };
+  return { page, origin, open, next, answer, reads, usages, rows, exceptions, pending: () => held.length, setLocale: (value: "zh" | "en") => { locale = value; } };
 }
 
 const text = (page: ChromePage, expression: string) => page.evaluate<string>(`((${expression})?.textContent ?? '').replace(/\\s+/g, ' ').trim()`);
@@ -257,9 +257,9 @@ test("ASC-73: a row opens in place to its natural height on the chevron's clock,
 });
 
 // RAR-07 also verifies returning from the OAuth tab before the next real click.
-test("ASC-78: a login shows its steps and, when cancelled, changes nothing; a key the service refuses is said as such", { timeout: 120_000 }, async t => {
+test("ASC-78 ASC-80: a login shows its steps and, when cancelled, changes nothing; a key is checked before it is saved", { timeout: 120_000 }, async t => {
   const browser = await openPage(t); if (!browser) return;
-  const { page, open, next, answer, rows, origin, exceptions } = browser;
+  const { page, open, next, answer, rows, origin, exceptions, pending } = browser;
   await open("gitlab");
   // One more account: the login is behind 再加一个账号, and the row runs while the browser login is under way.
   await page.click("[data-connector-item='gitlab'] [data-connector-add] > summary");
@@ -280,9 +280,10 @@ test("ASC-78: a login shows its steps and, when cancelled, changes nothing; a ke
 
   // Return from the OAuth tab as a person does; background Chrome pages may suspend the click helper's animation frames.
   await page.command("Page.bringToFront");
-  // A key: step 2 (验证密钥) while the Host saves and checks it, then what the check said.
+  // A key: step 2 (验证密钥) while the Host checks it; it is saved only once the service accepts it (§13.6 ④d).
   await page.click("[data-connector-item='wechat'] [data-connection-toggle]");
   await page.wait("document.querySelector('[data-connector-item=wechat]').dataset.open === 'true' && !document.querySelector('[data-connector-item=wechat]').getAnimations({ subtree: true }).some(motion => motion.playState === 'running' && motion.effect?.getComputedTiming().iterations !== Infinity)");
+  const before = await text(page, stateOf("wechat"));
   await page.fill("[data-connector-auth='wechat'] input[type=text]", "ww-fixture-corp");
   await page.fill("[data-connector-auth='wechat'] input[type=password]", "fixture-only-wechat-secret");
   await page.click("[data-connector-auth='wechat'] button[type=submit]");
@@ -291,12 +292,90 @@ test("ASC-78: a login shows its steps and, when cancelled, changes nothing; a ke
   assert.equal((JSON.parse(save.body) as { token?: string }).token, "ww-fixture-corp:fixture-only-wechat-secret");
   const keyProgress = "document.querySelector(\"[data-connector-auth='wechat'] [data-connection-progress]\")";
   assert.match(await text(page, keyProgress), /第 2 步，共 3 步：验证密钥/);
+  assert.equal(await text(page, stateOf("wechat")), "连接中");
+  // ASC-80: refused, nothing is saved: said under the key's field, the steps stop at 验证密钥, the row is put back, what was typed stays.
+  answer(save, { error: "服务拒绝了这把密钥，没有保存", code: "connector.read.refused", saved: false }, 502);
+  const form = "document.querySelector(\"[data-connector-auth='wechat']\")", keyError = `${form}?.querySelector('[data-connector-key-error]')`;
+  const result = `${form}.querySelector('[data-protocol-result]')`;
+  await page.wait(`${keyError}?.textContent.includes('拒绝了这把密钥')`);
+  assert.equal(await text(page, keyError), "微信拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。");
+  assert.equal(await page.evaluate(`${keyError}.getAttribute('role')`), "alert");
+  assert.equal(await page.evaluate(`${keyProgress}.dataset.state`), "failed");
+  assert.equal(await text(page, result), "还没保存，填的还在。");
+  assert.equal(await page.evaluate(`${form}.querySelector('input[type=password]').value`), "fixture-only-wechat-secret", "what was typed is still there");
+  assert.equal(await page.evaluate(`${form}.querySelector('input[type=password]').getAttribute('aria-invalid')`), "true");
+  assert.equal(await text(page, stateOf("wechat")), before, "the row is put back as it was");
+  assert.equal(await page.evaluate(`Boolean(document.querySelector('${row(KEY)}'))`), false, "nothing was saved");
+
+  // The service asks to wait: said as the service's. A key the person has typed in since is not sent again by itself.
+  const limitedAnswer = () => ({ error: "服务那边请求太多，密钥没有保存", code: "connector.check.rate_limited", saved: false, details: { retry_at: new Date(Date.now() + 1500).toISOString() } });
+  await page.click("[data-connector-auth='wechat'] button[type=submit]");
+  const edited = await next();
+  assert.equal(await page.evaluate(`Boolean(${keyError})`), false, "another try clears the last refusal");
+  answer(edited, limitedAnswer(), 429);
+  await page.wait(`${keyProgress}?.dataset.state === 'hold'`);
+  assert.match(await text(page, result), /^微信说请求太多，这是服务那边的原因，不是你填错了。\d\d:\d\d 自动再查一次。还没保存，填的还在。$/);
+  await page.fill("[data-connector-auth='wechat'] input[type=password]", "fixture-only-wechat-secret");
+  await new Promise(resolve => setTimeout(resolve, 2500));
+  assert.equal(pending(), 0, "the person changed the key, so it is not sent again by itself");
+  // Left as it was, the same key is asked again by itself at the time the service gave.
+  await page.click("[data-connector-auth='wechat'] button[type=submit]");
+  answer(await next(), limitedAnswer(), 429);
+  await page.wait(`${keyProgress}?.dataset.state === 'hold'`);
+  const again = await next();
+  assert.equal(again.url, "/api/settings/connectors/connections");
+  assert.equal((JSON.parse(again.body) as { token?: string }).token, "ww-fixture-corp:fixture-only-wechat-secret");
   rows.push(account(KEY, "wechat", "微信", null, "token"));
-  answer(save, { connection: rows.at(-1), verification: { available: false, reason: "refused" } }, 201);
+  answer(again, { connection: rows.at(-1), verification: { available: true, result: { connection_id: KEY, ok: true, checked_at: new Date().toISOString() } } }, 201);
   const feedback = "document.querySelector('[data-connector-detail=wechat] [data-connector-feedback]')";
-  await page.wait(`${feedback}?.textContent.includes('没通过检查')`);
-  assert.match(await text(page, feedback), /密钥存好了，但没通过检查：服务拒绝了它，或暂时连不上/);
+  await page.wait(`${feedback}?.textContent.includes('密钥检查通过')`);
+  assert.equal(await text(page, feedback), "密钥检查通过，已经存好。");
   assert.equal(await page.evaluate(`Boolean(document.querySelector('${row(KEY)}'))`), true);
+  assert.deepEqual(exceptions, []);
+});
+
+test("ASC-81 ASC-82: a new key the service refuses leaves the old one in use, said under its field in both languages, themes and three widths", { timeout: 180_000 }, async t => {
+  const browser = await openPage(t); if (!browser) return;
+  const { page, open, next, answer, rows, setLocale, exceptions } = browser;
+  rows.push(account(KEY, "wechat", "微信", null, "token"));
+  const shots = reviewEvidenceUrl("connections-page/"); await mkdir(shots, { recursive: true });
+  const replace = `[data-connection-replace="${KEY}"]`, form = `document.querySelector('${replace}')`;
+  for (const locale of ["zh", "en"] as const) {
+    setLocale(locale);
+    for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
+      await page.viewport(width, 960);
+      await open("wechat");
+      await page.evaluate(`localStorage.setItem('molis-work:theme', '${theme}')`);
+      await open("wechat");
+      assert.equal(await page.evaluate("document.documentElement.dataset.theme"), theme);
+      await page.click(`[data-connection-replace-open="${KEY}"]`);
+      await page.wait(`${form}?.closest('details')?.open === true && (body => body.clientHeight >= body.scrollHeight - 1)(${form}.closest('.mw-collapsible__body'))`);
+      await page.fill(`${replace} input[type=text]`, "ww-fixture-corp");
+      await page.fill(`${replace} input[type=password]`, "fixture-only-new-wechat-secret");
+      await page.click(`${replace} button[type=submit]`);
+      const swap = await next();
+      assert.equal(swap.method, "PATCH");
+      assert.equal(swap.url, `/api/settings/connectors/connections/${KEY}`);
+      answer(swap, { error: "服务拒绝了这把密钥，没有保存", code: "connector.read.refused", saved: false }, 502);
+      const note = `${form}.querySelector('[data-connector-key-error]')`;
+      await page.wait(note);
+      const result = `${form}.closest('[data-connection-scope]').querySelector('[data-connection-result]')`;
+      if (locale === "zh") {
+        assert.equal(await text(page, note), "微信拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。");
+        assert.equal(await text(page, result), "新密钥没有换上，旧密钥照常在用。");
+      } else {
+        assert.match(await text(page, note), /refused the new key\. The current key keeps working/);
+        assert.equal(await text(page, result), "The new key wasn't put in; the current key keeps working.");
+      }
+      assert.equal(await page.evaluate(`${form}.querySelector('input[type=password]').value`), "fixture-only-new-wechat-secret");
+      assert.equal(await page.evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `${locale}/${theme}/${width}: no horizontal overflow`);
+      // The refusal is a line of its own under the fields and the button, inside the form.
+      const fit = await page.evaluate<{ top: number; below: number; right: number; edge: number }>(`(() => { const note = ${form}.querySelector('[data-connector-key-error]').getBoundingClientRect(), button = ${form}.querySelector('button').getBoundingClientRect(), box = ${form}.getBoundingClientRect(); return { top: note.top, below: button.bottom, right: note.right, edge: box.right }; })()`);
+      assert.ok(fit.top >= fit.below - 1 && fit.right <= fit.edge + 1, `${locale}/${theme}/${width}: the refusal sits under the fields and the button, inside the form: ${JSON.stringify(fit)}`);
+      await page.evaluate(`${form}.closest('.settings-connection-manage').scrollIntoView({ block: 'center', behavior: 'instant' })`);
+      await page.screenshot(fileURLToPath(new URL(`replace-refused-${locale}-${theme}-${width}.png`, shots)));
+    }
+  }
   assert.deepEqual(exceptions, []);
 });
 

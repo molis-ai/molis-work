@@ -84,7 +84,7 @@ export { createProjectContentReplicaFactory, validateProjectContentReplication }
 export { createProjectReplicaJournal, validateProjectReplicaJournal } from './project-replica-journal.js';
 export { mapReplicaSequences } from './replica-sequences.js';
 
-export {retainLocalReplicaSnapshot} from './replica.js';
+export {canonicalReplicaText,retainLocalReplicaSnapshot} from './replica.js';
 
 export {createAggregateCopy} from './aggregate-copy.js';
 export type {AggregateCopyContext} from './aggregate-copy.js';

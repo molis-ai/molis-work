@@ -16,7 +16,7 @@ const PREFIX = "coding-goal-context:";
 function serialize(value: unknown, indent?: number): string {
   return JSON.stringify(canonicalJsonValue(value), undefined, indent);
 }
-function identity(snapshot: GoalContextSnapshot): ArtifactReference {
+export function goalContextReference(snapshot: GoalContextSnapshot): ArtifactReference {
   const digest = createHash("sha256").update(serialize(snapshot)).digest("hex");
   return { artifact_id: PREFIX + digest, version: 1 };
 }
@@ -45,7 +45,7 @@ export async function readCurrentGoalSnapshot(context: PluginStartContext, goalI
 }
 export async function currentGoalContext(context: PluginStartContext, goalId: string, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
   const snapshot = await readCurrentGoalSnapshot(context, goalId, control);
-  const reference = identity(snapshot);
+  const reference = goalContextReference(snapshot);
   return { snapshot, reference, material: material(snapshot, reference) };
 }
 export function savedGoalContext(context: PluginStartContext, sessionId: string) {
@@ -60,7 +60,7 @@ function readGoalSnapshot(context: PluginStartContext, reference: ArtifactRefere
   if (!record || record.artifact_type_id !== CODING_GOAL_CONTEXT_TYPE || record.schema_version !== /* @version type.coding.goal-context */ 1
     || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定目标版本不可读，请重新关联；历史执行不会被替换");
   const snapshot = record.payload as unknown as GoalContextSnapshot;
-  if (snapshot?.goal?.project_id !== context.project_id || identity(snapshot).artifact_id !== reference.artifact_id) throw new Error("固定目标版本与来源不一致");
+  if (snapshot?.goal?.project_id !== context.project_id || goalContextReference(snapshot).artifact_id !== reference.artifact_id) throw new Error("固定目标版本与来源不一致");
   return { snapshot, reference };
 }
 function readGoalContext(context: PluginStartContext, reference: ArtifactReference) {

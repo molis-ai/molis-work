@@ -7,11 +7,12 @@ import os from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { LOCALE_COOKIE, readUiLocale, UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+// The production single-Home core: the installation's front door shows sign-in until an account is chosen, then hands each request to the chosen Home's core, so this is where `/locale` runs.
+import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
 
 async function startHost(t: TestContext) {
   const home = await mkdtemp(join(os.tmpdir(), "security-invariants-ui-locale-"));
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: "ui-locale-control-token-0123456789" });
+  const server = createSingleHomeTestWebServer({ homeDirectory: home, controlToken: "ui-locale-control-token-0123456789" });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   t.after(async () => {
     server.closeAllConnections();

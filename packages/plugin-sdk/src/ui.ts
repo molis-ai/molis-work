@@ -13,6 +13,7 @@ export * from "./ui/plugin-stage-shell.js";
 export * from "./ui/button.js";
 export * from "./ui/feedback.js";
 export * from "./ui/return-trip.js";
+export * from "./ui/resume-prompt.js";
 export * from "./ui/field.js";
 export * from "./ui/calendar.js";
 export * from "./ui/directory.js";

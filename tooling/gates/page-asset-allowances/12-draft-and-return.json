@@ -1,0 +1,14 @@
+{
+  "reason": "第 12 批第 3 项草稿与返回（specs/draft-and-return/spec.md，R0～R4）。对照 origin/main f12df790 的隔离构建，在第 13 批④c-2 与第 18 批 P3-1～3 各自许可之外实测：workbench.js +18264：回程主人 settings-return（src/browser/settings-return.ts 打成 dist/settings-return-client.js，15604 字节，其中形状检查、窗口号、期限与认领 return-trips.ts 约 9.2 KB，接线与返回条约 6.4 KB），加设置目录、标签工作区的接线；plugin-frame.js +5037：框架宿主的 host.returns（plugin-frame/returns.ts、子框的 childReturns）与它用到的形状检查；coding.js +2145、cognia.js +1452、workflows.js +810：三个消费者接 host.returns 与「接着做」共用件；workbench.css +1012、settings.css +755、arrival.css +633：返回条、接着做共用件（design-system primitives）与设置里返回条的位置、连接页「连好以后」让位。已缩过：接着做共用件不再经 renderButton 带上图标集（cognia.js 从 +7881 降到 +1452，coding.js 从 +8527 降到 +2145）。workbench.js 一项超过 10 KB，按要求先停下回报，等用户定",
+  "review": "第 13 批统筹审第 12 批第 3 项时核对；与④c 合成一个 PR 统一验收（用户 2026-11-07 定）",
+  "assets": {
+    "/assets/molis-work-workbench.js": 18264,
+    "/assets/molis-work-plugin-frame.js": 5037,
+    "/assets/molis-work-plugins/coding.js": 2145,
+    "/assets/molis-work-plugins/cognia.js": 1452,
+    "/assets/molis-work-plugins/workflows.js": 810,
+    "/assets/molis-work-workbench.css": 1012,
+    "/assets/molis-work-settings.css": 755,
+    "/assets/molis-work-arrival.css": 633
+  }
+}

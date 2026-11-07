@@ -33,6 +33,8 @@ export const SKILL_PACK_BOARD_EN: Readonly<Record<string, string>> = {
   "「{name}」怎么用": "How to use “{name}”",
   "怎么用": "How to use",
   "全部技能": "All skills",
+  "技能列表": "Skills",
+  "技能列表（窄处标本）": "Skills (narrow specimen)",
   "看详情": "Details",
   "看详情：{name}": "Details: {name}",
   "什么时候用": "When to use",

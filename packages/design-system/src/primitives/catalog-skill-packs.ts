@@ -57,49 +57,49 @@ export const SKILL_PACK_BOARD_STYLES = `
 
   /* 3 · List and detail: the list on the left keeps each entry a list item (a screen reader says "3 of 5") and a real button fills
      it; the detail on the right is everything about one entry. Where the room is narrow it is one side at a time. */
-  .mw-split { container: mw-split / inline-size; min-width: 0; }
-  .mw-split__body { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; min-width: 0; }
-  .mw-split__list { min-width: 0; }
-  .mw-split__list > .mw-items { width: 100%; }
+  .mw-list-detail { container: mw-list-detail / inline-size; min-width: 0; }
+  .mw-list-detail__body { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; min-width: 0; }
+  .mw-list-detail__list { min-width: 0; }
+  .mw-list-detail__list > .mw-items { width: 100%; }
   .mw-item.mw-item--pick { min-height: 0; padding: 0; }
   .mw-item--pick:is(:hover, :focus-within) { background: transparent; }
-  .mw-pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 8px 6px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
-  .mw-pick:hover { background: var(--nav-hover); }
-  .mw-pick[aria-current="true"] { background: var(--nav-active); }
-  .mw-pick:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
-  .mw-pick__text { display: grid; gap: 1px; flex: 1 1 0; min-width: 0; }
+  .mw-item__pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 8px 6px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-item__pick:hover { background: var(--nav-hover); }
+  .mw-item__pick[aria-current="true"] { background: var(--nav-active); }
+  .mw-item__pick:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-item__pick > span:nth-child(2) { display: grid; gap: 1px; flex: 1 1 0; min-width: 0; }
   /* The name wraps as it is; the pack it lives in takes one line, cut where room runs out, its whole name on hover. */
-  .mw-item .mw-pick__text strong { overflow: visible; white-space: normal; overflow-wrap: break-word; line-height: 1.4; }
-  .mw-item .mw-pick__text small { flex: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .mw-pick__end { display: flex; flex: none; }
-  .mw-split__detail { display: grid; gap: 14px; align-content: start; min-width: 0; padding: 4px 4px 4px 20px; border-left: 1px solid var(--line); }
-  .mw-split__detail[hidden] { display: none; }
+  .mw-item__pick > span:nth-child(2) > strong { overflow: visible; white-space: normal; overflow-wrap: break-word; line-height: 1.4; }
+  .mw-item__pick > span:nth-child(2) > small { flex: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mw-item__pick > .mw-item__end { color: inherit; }
+  .mw-list-detail__detail { display: grid; gap: 14px; align-content: start; min-width: 0; padding: 4px 4px 4px 20px; border-left: 1px solid var(--line); }
+  .mw-list-detail__detail[hidden] { display: none; }
   /* Only when another entry is chosen; the first view and a reload show the detail at once. */
-  .mw-split__detail.is-entering { animation: craft-rise var(--dur-move) var(--ease-quint); }
-  .mw-split__detail > header { display: grid; gap: 6px; }
-  .mw-split__detail h3 { margin: 0; color: var(--ink); font-size: 16px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: anywhere; }
-  .mw-split__detail h3:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
-  .mw-split__detail[data-off] h3 { color: var(--muted); }
-  .mw-split__detail > header > p { margin: 0; max-width: 640px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
-  .mw-split__detail .mw-radio-group:disabled { opacity: .5; }
-  .mw-split__used { margin: 0; color: var(--muted); font-size: 12px; }
-  .mw-split__detail > .mw-split__back { display: none; justify-self: start; }
-  @container mw-split (max-width: 640px) {
-    .mw-split__body { grid-template-columns: minmax(0, 1fr); }
-    .mw-split__detail { padding: 0; border-left: 0; }
-    .mw-split:not([data-detail]) .mw-split__detail { display: none; }
-    .mw-split[data-detail] .mw-split__list { display: none; }
-    .mw-split__detail > .mw-split__back { display: inline-flex; }
+  .mw-list-detail__detail.is-entering { animation: craft-rise var(--dur-move) var(--ease-quint); }
+  .mw-list-detail__detail > header { display: grid; gap: 6px; }
+  .mw-list-detail__detail h3 { margin: 0; color: var(--ink); font-size: 16px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: anywhere; }
+  .mw-list-detail__detail h3:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+  .mw-list-detail__detail[data-off] h3 { color: var(--muted); }
+  .mw-list-detail__detail > header > p { margin: 0; max-width: 640px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
+  .mw-list-detail__detail .mw-radio-group:disabled { opacity: .5; }
+  .mw-list-detail__used { margin: 0; color: var(--muted); font-size: 12px; }
+  .mw-list-detail__detail > .mw-list-detail__back { display: none; justify-self: start; }
+  @container mw-list-detail (max-width: 640px) {
+    .mw-list-detail__body { grid-template-columns: minmax(0, 1fr); }
+    .mw-list-detail__detail { padding: 0; border-left: 0; }
+    .mw-list-detail:not([data-detail]) .mw-list-detail__detail { display: none; }
+    .mw-list-detail[data-detail] .mw-list-detail__list { display: none; }
+    .mw-list-detail__detail > .mw-list-detail__back { display: inline-flex; }
   }
   /* A phone's list keeps its room for the names: the glyph, the same for every entry, gives way. */
-  @container mw-split (max-width: 480px) {
-    .mw-pick > .mw-mark { display: none; }
+  @container mw-list-detail (max-width: 480px) {
+    .mw-item__pick > .mw-mark { display: none; }
     /* Only here may the status word be cut (its whole word on hover, and in the detail one tap away). */
-    .mw-pick__end { min-width: 0; max-width: 45%; }
+    .mw-item__pick > .mw-item__end { min-width: 0; max-width: 45%; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .mw-split__detail.is-entering { animation: none; }
-    .mw-pick { transition: none; }
+    .mw-list-detail__detail.is-entering { animation: none; }
+    .mw-item__pick { transition: none; }
   }
   /* A phone or a finger: each of these is a 44px target, the link by its padding (it sits in a sentence). */
   @media (max-width: 600px), (pointer: coarse) {
@@ -110,14 +110,14 @@ export const SKILL_PACK_BOARD_STYLES = `
     .mw-item__under .mw-toggle { flex: 1 1 0; min-width: 0; min-height: 44px; padding-inline: 6px; }
     .mw-item__more > summary { min-height: 44px; padding-block: 0; }
     .mw-status-line > .mw-btn--link { --reach: 12px; }
-    .mw-alert__actions .mw-btn, .mw-split__back { min-height: 44px; }
+    .mw-alert__actions .mw-btn, .mw-list-detail__back { min-height: 44px; }
   }
 
   .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"], [data-primitive="alert-actions"], [data-primitive="status-link"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
   .mw-catalog :is([data-primitive="item-choice"], [data-primitive="item-details"]) .mw-items { width: 100%; }
   .mw-catalog [data-primitive="list-detail"] .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
   .mw-catalog [data-primitive="list-detail"] .mw-catalog__row { display: block; }
-  .mw-catalog [data-split-narrow] { width: min(390px, 100%); padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
+  .mw-catalog [data-list-detail-narrow] { width: min(390px, 100%); padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-catalog [data-primitive="status-link"] .mw-catalog__row { display: grid; gap: 10px; justify-items: start; }
 `;
 
@@ -259,8 +259,8 @@ export function itemDetailsSection(say: Say): string {
 
 /** 3 · One entry of the list: the list item stays, a real button fills it. */
 function pick(say: Say, skill: Skill, key: string, current: boolean): string {
-  return `<li class="mw-item mw-item--pick"><button type="button" class="mw-pick" data-split-pick="${key}"${current ? ' aria-current="true"' : ""}>${mark("book")}<span class="mw-pick__text"><strong>${
-    escapeHtml(skill.name)}</strong><small title="${escapeHtml(skill.pack)}">${escapeHtml(skill.pack)}</small></span><span class="mw-pick__end">${statusOf(say, skill)}</span></button></li>`;
+  return `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick" data-list-pick="${key}"${current ? ' aria-current="true"' : ""}>${mark("book")}<span><strong>${
+    escapeHtml(skill.name)}</strong><small title="${escapeHtml(skill.pack)}">${escapeHtml(skill.pack)}</small></span><span class="mw-item__end">${statusOf(say, skill)}</span></button></li>`;
 }
 
 /** 3 · Everything about one entry; the choice is the three radios, each with what it means. */
@@ -269,26 +269,26 @@ function detail(say: Say, skill: Skill, key: string, shown: boolean): string {
   const disabled = Boolean(u?.onlyRemove || u?.locked);
   const radios = renderRadioGroup({ legend: say("怎么用"), name: `${key}-mode`, items: (["off", "auto", "manual"] as const).map((mode) => ({ value: mode, label: say(MODE_SAYS[mode]), checked: skill.mode === mode })) });
   const why = u ? statusLine(statusOf(say, skill), u.why, u.fix) : "";
-  return `<section class="mw-split__detail" data-split-detail="${key}" aria-labelledby="${key}-title"${shown ? "" : " hidden"}${disabled ? " data-off" : ""}>
-    ${renderButton({ label: say("全部技能"), variant: "ghost", size: "sm", icon: "chevron-left", className: "mw-split__back", attrs: { "data-split-back": "" } })}
+  return `<section class="mw-list-detail__detail" data-list-panel="${key}" aria-labelledby="${key}-title"${shown ? "" : " hidden"}${disabled ? " data-off" : ""}>
+    ${renderButton({ label: say("全部技能"), variant: "ghost", size: "sm", icon: "chevron-left", className: "mw-list-detail__back", attrs: { "data-list-back": "" } })}
     <header><h3 id="${key}-title" tabindex="-1">${escapeHtml(skill.name)}</h3><p>${escapeHtml(skill.what)}</p></header>
-    ${why}${disabled ? radios.replace("<fieldset ", "<fieldset disabled ") : radios}${facts(say, skill, false)}<p class="mw-split__used">${escapeHtml(skill.used)}</p>
+    ${why}${disabled ? radios.replace("<fieldset ", "<fieldset disabled ") : radios}${facts(say, skill, false)}<p class="mw-list-detail__used">${escapeHtml(skill.used)}</p>
   </section>`;
 }
 
-function split(say: Say, id: string, narrow: boolean): string {
+function listDetail(say: Say, id: string, narrow: boolean): string {
   const list = Object.values(skills(say));
   const picks = list.map((skill, index) => pick(say, skill, `${id}-${skill.id}`, index === 0)).join("");
   const details = list.map((skill, index) => detail(say, skill, `${id}-${skill.id}`, index === 0)).join("");
-  return `<div class="mw-split" data-split${narrow ? " data-split-narrow" : ""}><div class="mw-split__body"><nav class="mw-split__list" aria-label="${escapeHtml(say("全部技能"))}"><ul class="mw-items">${picks}</ul></nav>${details}</div></div>`;
+  return `<div class="mw-list-detail" data-list-detail${narrow ? " data-list-detail-narrow" : ""}><div class="mw-list-detail__body"><div class="mw-list-detail__list" role="region" aria-label="${escapeHtml(narrow ? say("技能列表（窄处标本）") : say("技能列表"))}"><ul class="mw-items">${picks}</ul></div>${details}</div></div>`;
 }
 
 export function listDetailSection(say: Say): string {
   const empty = renderEmpty({ icon: "book", title: say("还没有技能"), body: say("技能是一套做法，比如怎么写周报、怎么审合同。装一个技能包，或者把本机 Agent 里已有的技能导进来。"),
     action: `<div class="mw-empty__actions">${renderButton({ label: say("从本机导入"), variant: "secondary", icon: "download" })}${renderButton({ label: say("去插件市场"), variant: "primary" })}</div>` });
   return section("list-detail", say("列表与详情 / List and Detail"), `<div class="mw-catalog__specimens">
-    ${specimen(say("左边列表、右边详情：只在选中另一项时进场"), split(say, "split-wide", false))}
-    ${specimen(say("窄处一次一边：选中后焦点到详情标题，「全部技能」回到列表"), split(say, "split-narrow", true))}
+    ${specimen(say("左边列表、右边详情：只在选中另一项时进场"), listDetail(say, "list-wide", false))}
+    ${specimen(say("窄处一次一边：选中后焦点到详情标题，「全部技能」回到列表"), listDetail(say, "list-narrow", true))}
     ${specimen(say("还没有技能"), empty)}
   </div>`);
 }

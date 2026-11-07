@@ -129,7 +129,7 @@ test("RAR-02 cached expectations keep both space shapes and still refuse changed
     const home = join(root, damage), directory = join(home, "plugin-runtime"), file = join(directory, "plugin-runtime.db");
     mkdirSync(directory, { recursive: true });
     const fixture = new DatabaseSync(file);
-    try { fixture.exec(schema + " PRAGMA user_version=4;"); } finally { fixture.close(); }
+    try { fixture.exec(schema); } finally { fixture.close(); }
     const ledger = new HomeConsentLedger(home);
     assert.equal(ledger.revokeProjectReach({ project_id: "missing" }, "now"), 0);
     assert.deepEqual(ledger.publishers(), []);
@@ -147,7 +147,7 @@ test("RAR-02 cached expectations keep both space shapes and still refuse changed
     const bytes = readFileSync(file), files = readdirSync(directory);
     const operation = damage === "owner" ? () => ledger.publishers() : () => ledger.revokeProjectReach({ project_id: "missing" }, "now");
     assert.throws(operation, damage === "owner" ? /SPACE_OWNERSHIP_MISMATCH/u
-      : damage === "version" ? /结构版本是 99/u : /结构与当前 v4 基线不一致/u);
+      : damage === "version" ? /结构版本是 99/u : /结构与当前 v1 基线不一致/u);
     assert.deepEqual(readFileSync(file), bytes, `${damage}: refusal must leave the store unchanged`);
     assert.deepEqual(readdirSync(directory), files, `${damage}: refusal must leave no new sidecar`);
   }

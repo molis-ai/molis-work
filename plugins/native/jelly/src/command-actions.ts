@@ -13,14 +13,15 @@ export const JELLY_WRITE = ["jelly:read", "jelly:write"];
 export const defineJellyAction = <O>() => <const S extends ActionSchema>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: S, output: ActionSchema, permissions = operation === "query" ? JELLY_READ : JELLY_WRITE, scheduling?: "concurrent", execution?: ActionDefinition["action"]["execution"]) =>
   createActionDefinition<InferActionInput<S>, O>(`jelly.${name}`, operation, { title, description, ...(execution ? { execution } : {}), scope: "home", ...(scheduling ? { scheduling } : {}), audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["jelly_workspace"], input_schema: input, output_schema: output }, version);
 type Fields = Readonly<Record<string, unknown>>;
+type Keys<F> = readonly (keyof F & string)[];
 /** What the one handler below reads from every command. The rest goes to the store by name; each command's own type is checked where it meets this one, in `createJellyCommandHandlers`. */
 type CommandFields = { readonly item?: Fields; readonly series?: Fields; readonly [key: string]: unknown };
 export type JellyCommandInput = CommandFields & { readonly expected_revision: number };
 /** Every field is required unless the command names which, and the revision always is. `as R` is the default's one claim: with no list, `R` is every key. */
-const commandInput = <const F extends Fields, const R extends readonly (keyof F & string)[] = readonly (keyof F & string)[]>(fields: F, required?: R) =>
+const commandInput = <const F extends Fields, const R extends Keys<F> = Keys<F>>(fields: F, required?: R) =>
   s.object({ ...fields, expected_revision: s.revision }, [...(required ?? Object.keys(fields)) as R, "expected_revision"]);
 const describe = (title: string) => `${title}；作用于本机 Jelly 工作区，使用最近读取的 revision，保留原撤销历史。`;
-const command = <const F extends Fields, const R extends readonly (keyof F & string)[] = readonly (keyof F & string)[]>(name: string, version: number, title: string, fields: F, required?: R) => defineJellyAction<{ state: JellyWorkspace }>()(name, version, title, describe(title), "command", commandInput(fields, required), s.stateResult);
+const command = <const F extends Fields, const R extends Keys<F> = Keys<F>>(name: string, version: number, title: string, fields: F, required?: R) => defineJellyAction<{ state: JellyWorkspace }>()(name, version, title, describe(title), "command", commandInput(fields, required), s.stateResult);
 type JellyEntries = { item: JellyItem; series: JellySeries; note: JellyNote };
 type JellyEntryKey = keyof JellyEntries;
 export type JellyEntryOutput<K extends JellyEntryKey> = { state: JellyWorkspace } & { [P in K]: JellyEntries[P] };
@@ -36,7 +37,7 @@ const entryKinds = {
  * back by its kind's `subject.read`. Commands on several entries or on the workspace stay workspace commands, and so do
  * archiving and deletion: the readers treat an archived entry as gone, so the work would show its own result as missing.
  */
-const entry = <K extends JellyEntryKey, const F extends Fields, const R extends readonly (keyof F & string)[] = readonly (keyof F & string)[]>(key: K, name: string, version: number, title: string, fields: F, required?: R, described: string = entryKinds[key].described) => {
+const entry = <K extends JellyEntryKey, const F extends Fields, const R extends Keys<F> = Keys<F>>(key: K, name: string, version: number, title: string, fields: F, required?: R, described: string = entryKinds[key].described) => {
   const definition = defineJellyAction<JellyEntryOutput<K>>()(name, version, title, `${describe(title)}结果附带${described}。`,
     "command", commandInput(fields, required), s.object({ state: s.workspace, [key]: s[key] }));
   return { ...definition, action: { ...definition.action, subject_kinds: [entryKinds[key].kind], result_subject: { id: `${key}.id`, revision: `${key}.${entryKinds[key].revision}` } } };

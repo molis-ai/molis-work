@@ -436,7 +436,7 @@ export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "
 export interface AgentMcpToolRef {
     server: string;
     tool: string;
-    version?: string;
+    version: string;
     server_label?: string;
     configuration_version?: number;
 }

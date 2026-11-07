@@ -76,8 +76,8 @@ export interface AgentSkillRef {
 export interface AgentMcpToolRef {
   server: string;
   tool: string;
-  /** Required for execution; older unversioned selections must be reselected. */
-  version?: string;
+  /** The tool's shape as chosen: execution refuses it once the service offers another shape, and the person chooses again. */
+  version: string;
   server_label?: string;
   /** Pins the endpoint, credentials and launch configuration, independently of tool schema. */
   configuration_version?: number;

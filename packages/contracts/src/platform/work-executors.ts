@@ -99,7 +99,7 @@ export const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecu
   "session.read": role("session.read", "query", closed({ session_id: id, window: { type: "integer", minimum: 1, maximum: 50 } }, ["session_id"]),
     closed({ session_id: id, title: { type: "string", maxLength: 200 }, mode: nullable(MODE), runs: list({ type: "object", required: ["ref", "phase", "turns"] }, 50),
       runtime_session_id: nullable(id), recovery: nullable(closed({ message: words(2000) })), workspace_id: nullable(id),
-      mcp_tools: list({ type: "object", required: ["server", "tool"] }) }, ["session_id", "title", "mode", "runs", "runtime_session_id", "recovery"])),
+      mcp_tools: list({ type: "object", required: ["server", "tool", "version"] }) }, ["session_id", "title", "mode", "runs", "runtime_session_id", "recovery"])),
   "session.update": role("session.update", "command", closed({ session_id: id, mode: MODE }), closed({ session_id: id, mode: MODE })),
   "run.start": role("run.start", "command", closed({ session_id: id, task: words(100_000) }), closed({ run_id: id })),
   // A questionnaire answer's items are the Agent Host's answer shape; the executor checks them against the question it asked.

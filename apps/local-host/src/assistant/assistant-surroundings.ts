@@ -117,7 +117,7 @@ function mcpBlocked(ref: AgentMcpToolRef, servers: readonly AgentMcpServerView[]
   if (server.health === "disconnected") return "服务未连接";
   if (server.health === "unavailable") return "服务连接不可用";
   if (server.health === "not-reattached") return "服务需要重新连接";
-  return server.tools.some(tool => tool.tool === ref.tool && (!ref.version || tool.version === ref.version)) ? "" : "服务里已没有这个工具";
+  return server.tools.some(tool => tool.tool === ref.tool && tool.version === ref.version) ? "" : "服务里已没有这个工具";
 }
 
 async function executorTools(setup: Promise<ExecutorSetup>): Promise<AssistantWorkSurroundings["tools"]> {

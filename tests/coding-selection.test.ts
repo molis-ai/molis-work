@@ -58,8 +58,8 @@ const servers: AgentMcpServerHealth[] = [
   { server: "db", status: "failed" },
 ];
 const tools: AgentMcpToolRef[] = [
-  { server: "docs", tool: "search" },
-  { server: "db", tool: "query" },
+  { server: "docs", tool: "search", version: "1" },
+  { server: "db", tool: "query", version: "1" },
 ];
 
 test("服务挂了的工具仍然列出并标明，而不是藏起来", () => {
@@ -74,7 +74,7 @@ test("服务挂了的工具仍然列出并标明，而不是藏起来", () => {
 test("选过但目录里已经没有的工具，单独列为失效而不是悄悄丢掉", () => {
   const view = projectMcp({
     support: "supported", servers, tools,
-    selected: [{ server: "docs", tool: "gone" }, { server: "ghost", tool: "x" }],
+    selected: [{ server: "docs", tool: "gone", version: "1" }, { server: "ghost", tool: "x", version: "1" }],
     frozen: null,
   });
   assert.equal(view.stale.length, 2);
@@ -84,10 +84,10 @@ test("选过但目录里已经没有的工具，单独列为失效而不是悄�
 });
 
 test("MCP 同样区分选择与本轮冻结", () => {
-  const frozen = [{ server: "docs", tool: "search" }];
+  const frozen = [{ server: "docs", tool: "search", version: "1" }];
   const view = projectMcp({
     support: "supported", servers, tools,
-    selected: [{ server: "db", tool: "query" }], frozen,
+    selected: [{ server: "db", tool: "query", version: "1" }], frozen,
   });
   assert.equal(view.applies_next_task, true);
   assert.deepEqual(view.this_run, frozen);

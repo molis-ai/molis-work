@@ -401,7 +401,7 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   image_materials: { type: "array", maxItems: 50, items: { type: "object", required: ["material_id", "title", "resource", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
     resource: { type: "object", required: ["id", "revision"], additionalProperties: false, properties: { id: entryId, revision: count } }, media_type: entryId } } },
   skills: { type: "array", maxItems: 200, items: { type: "object", required: ["skill_id", "version"], additionalProperties: false, properties: { skill_id: entryId, version: count } } },
-  mcp_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["server", "tool"], additionalProperties: false, properties: { ...mcpRef, tool: entryId, version: entryId } } },
+  mcp_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["server", "tool", "version"], additionalProperties: false, properties: { ...mcpRef, tool: entryId, version: entryId } } },
   mcp_sources: { type: "array", maxItems: 200, items: { type: "object", required: ["server"], additionalProperties: false, properties: mcpRef } },
   budget: { type: "object", additionalProperties: false, properties: { max_turns: count, max_output_tokens: count, max_total_tokens: count, max_duration_ms: { type: "integer", minimum: 1, maximum: 2_147_483_647 } } },
   workspace: workspaceKind, directory: directoryInput } } as const;

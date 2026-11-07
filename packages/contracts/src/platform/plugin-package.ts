@@ -31,7 +31,7 @@ export interface SandboxAgentBody {
 }
 
 export interface PluginPackagePayload {
-  schema_version: 1;
+  schema_version: /* @version format.plugin.package */ 1;
   manifest: PluginPackageManifest;
   files: PluginPackageFile[];
 }

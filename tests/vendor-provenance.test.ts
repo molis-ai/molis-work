@@ -285,6 +285,6 @@ describe("the records of this repository", () => {
     // the source commits are pushed (merged upstream as PR #3), the network-dispatch hash was recorded.
     assert.doesNotMatch(readme, /暂未推到|没有推到 molis-ai\/prologue|当时没有记录|未记录/);
     assert.doesNotMatch(readme, /最后一次含有它们的提交/);
-    assert.doesNotMatch(file("specs/BACKLOG.md"), /^\| BL-024 \|/m);
+    assert.equal(existsSync(path.join(repoRoot, "specs/backlog/BL-024.md")), false, "the completed item must not remain in the independent backlog records");
   });
 });

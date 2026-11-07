@@ -6,7 +6,7 @@
 
 安装实现已迁至 Local Host；从源码安装前需运行整体 `pnpm build`：workspace 包按构建记录增量重建，根入口与安装指纹重新生成；需要强制整体重建时用 `pnpm build:clean`。旧构建会被拒绝，已有安装不受这次拒绝影响。当前分发验收、实际 App 升级/恢复和独立 npm 消费证据集中在 [DV4 验收报告](../specs/molis-work-architecture-reorganization/dv4-validation.md)。本机内部包验证不代表 Apple 公证、Intel 实机或公开发布资格。
 
-截至 2026-11-03，v0.3.0 安装包仍是未公开的发布草稿，最新公开正式版 v0.2.0 只有源码。当前试用走下面的仓库构建路径；发布范围与缺口见 [v0.3.0 发布记录](releases/v0.3.0.md)。公开安装包发布后，再从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 按实际附件下载 `macos-arm64`（Apple Silicon）或 `macos-x64`（Intel）DMG，把 Molis Work 拖入 Applications 后启动。App 内含匹配架构的 Node、Molis Work Core 和生产依赖；首次打开才调用同一套 `molis-work install` 服务写入 `~/.molis-work`，随后启动本地 Web。它不会在首次启动时创建项目、接入 Runtime、创建 demo 或修改用户项目。
+截至 2026-11-07，产品与内置插件版本已复位为 0.1.0，作为新的开发起点；开发机的真实 Home 已按这个起点干净重建，这个候选仍未发布。原 v0.3.0 候选只作历史记录，已发布的 GoalBoard v0.2.0 只有源码。当前试用走下面的仓库构建路径；发布范围与缺口见 [0.1.0 候选记录](releases/v0.1.0.md)。公开安装包发布后，再从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 按实际附件下载 `macos-arm64`（Apple Silicon）或 `macos-x64`（Intel）DMG，把 Molis Work 拖入 Applications 后启动。App 内含匹配架构的 Node、Molis Work Core 和生产依赖；首次打开才调用同一套 `molis-work install` 服务写入 `~/.molis-work`，随后启动本地 Web。它不会在首次启动时创建项目、接入 Runtime、创建 demo 或修改用户项目。
 
 开发者可以从仓库运行：
 
@@ -24,7 +24,7 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 ## 安装边界
 
-开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24+，会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`。飞书/Lark MCP 连接器的包 `@larksuiteoapi/lark-mcp` 在归档里是固定版本的注册表依赖，由 `npm install` 从注册表取，随之有两件已知的事，用户 2026-10-10 决定接受并如实写明（见本节末尾的小节）。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
+开发者分发 npm 安装包时，先在仓库执行 `pnpm package:npm`，产物在 `release/npm/`。消费者在自己的目录运行 `npm install /absolute/adeptify-molis-work-版本.tgz`，然后使用 `npx --no-install molis-work --help` 或 `npx --no-install molis-work install`。npm 路径要求已有 Node 24.15.x（`engines` 为 `>=24.15.0 <24.16.0`），会正常安装当前平台的原生依赖；不要使用 `--ignore-scripts`。飞书/Lark MCP 连接器的包 `@larksuiteoapi/lark-mcp` 在归档里是固定版本的注册表依赖，由 `npm install` 从注册表取，随之有两件已知的事，用户 2026-10-10 决定接受并如实写明（见本节末尾的小节）。它不依赖源码仓库，也不要求单独发布私有 workspace 子包。安装 npm 包本身不会启动服务或连接 Runtime；`molis-work install` 才写入下面说明的 Home。
 
 `molis-work install` 只维护 `~/.molis-work`：版本化程序与共享 Skill、MCP/Web/CLI 启动入口、项目 DB 根目录、日志和安装清单。它不会创建或启动项目，不会写入用户项目，也不会修改任何 Runtime 的用户级配置。之后若要把 MCP 入口注册到某个 Runtime，必须走用户确认的 Runtime 集成流程。
 
@@ -51,7 +51,7 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 操作任何离线副本前，退出 App，并按服务的所有权检查停止 Molis Work 服务及其他写入进程；仅退出窗口不保证后台停止。Catalog、全部项目/插件库、加密正文和原密钥依赖必须保持同一时点。外部工作区文件需单独备份。Keychain 或环境变量提供的原 key 不随 Home 文件复制，不能用新 key 替换丢失的旧 key；缺 key 必须明确拒绝，不能生成空数据冒充恢复。
 
-恢复只适用于原 Home 绝对路径和原 key。隔离 Home 下的[恢复 CLI 用例](../tests/home-restore-cli.test.ts)与[中断恢复用例](../tests/security-invariants-home-restore-recovery.test.ts)覆盖恢复、回滚与续接。真实 Home 的可恢复备份和干净重建仍由[BL-928](../specs/BACKLOG.md)跟踪。
+恢复只适用于原 Home 绝对路径和原 key。隔离 Home 下的[恢复 CLI 用例](../tests/home-restore-cli.test.ts)与[中断恢复用例](../tests/security-invariants-home-restore-recovery.test.ts)覆盖恢复、回滚与续接。真实 Home 的可恢复备份和干净重建已于 2026-11-07 完成，记录见[发布检查单第 4 节](releases/CHECKLIST.md#4-真实-home搬开后干净重建)。
 
 已经从仓库安装过时，先拉取新内容，再走同一个安装入口。即使版本号没有变化，安装器也会比较实际内容并刷新程序和 Skill；用户项目、Runtime 配置和 demo 都不会被自动改写：
 

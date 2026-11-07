@@ -453,6 +453,7 @@ tests/typesafe-inference-port.test.ts
 tests/ui-audit-2026-09-22.test.ts
 tests/uninstall-catalog.test.ts
 tests/uninstall-receipt.test.ts
+tests/upgrade-chain.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
 tests/web-mutation-key-settle.test.ts
@@ -494,3 +495,5 @@ tests/declared-stages.test.ts
 tests/view-placement-declarations.test.ts
 # BL-635 RAC-1115: every name the workbench entry gives out has an importer outside the workbench, or a listed reason to stay.
 tests/workbench-entry-exports.test.ts
+# SQLD-06 (SQLD-b): .nvmrc, the workflows and engines name one Node patch; on that Node the SQLite is the one the plugin statement check was read against.
+tests/sqlite-version-notice.test.ts

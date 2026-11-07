@@ -18,11 +18,11 @@ export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 const PPT_BODY_BYTES = 1_000_000;
 
 export const pptManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: PPT_PLUGIN_ID,
   sync: pptSync,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "PPT",
   summary: "写大纲，放映或导出 PowerPoint。",
   kind: "native",
@@ -53,8 +53,8 @@ export const pptManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["pages.content.read", "pages.content.list"] },
   artifacts: {
     produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿",
-      preview: { capability_id: "ppt.artifacts.preview", version: 1 }, pin: { capability_id: "ppt.artifacts.pin", version: 1 },
-      compare: { capability_id: "ppt.artifacts.compare", version: 1 }, continue: { capability_id: "ppt.artifacts.continue", version: 1 } }],
+      preview: { capability_id: "ppt.artifacts.preview", version: /* @version action.ppt.artifacts.preview */ 1 }, pin: { capability_id: "ppt.artifacts.pin", version: /* @version action.ppt.artifacts.pin */ 1 },
+      compare: { capability_id: "ppt.artifacts.compare", version: /* @version action.ppt.artifacts.compare */ 1 }, continue: { capability_id: "ppt.artifacts.continue", version: /* @version action.ppt.artifacts.continue */ 1 } }],
     consumes: [],
   },
   ui: {

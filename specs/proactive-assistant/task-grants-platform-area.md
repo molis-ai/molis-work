@@ -150,7 +150,7 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 | # | 规则 |
 | --- | --- |
-| R1 | 请求里列出、而这个主体**原本就有记录**的类，原记录**原样保留**，不按此刻的目录重新展开，不论它现在是 `granted`、`needs_confirmation`、`unavailable` 还是 `removed`。这样的类按原记录认，**不再校验**：「组不存在」、以及对声明了分组的提供方省略 `group_id` 就拒（实施方案 §10 C3）这两类校验只对 R2 里新加入的类生效——`removed` 的类可能带一个已不再声明的 `group_id`，也可能是提供方原来不分组、后来开始分组而不带 `group_id`，两种都照收。「原本就有记录」以**宿主执行 `set` 时**这个主体的记录为准，不看请求里写的状态；区域读到的底与宿主的记录靠 `expected_revision` 对齐，对不上就是 `actions.conflict` |
+| R1 | 请求里列出、而这个主体**原本就有记录**的类，原记录**原样保留**，不按此刻的目录重新展开，不论它现在是 `granted`、`needs_confirmation`、`unavailable` 还是 `removed`。这样的类按 `list` 此刻的写法点名、按原记录认：`removed` 的那一行是不带 `group_id` 的提供方（记录里的动作此刻不在任何组里）。「原本就有记录」以**宿主执行 `set` 时**这个主体的记录、以及每条记录此刻所属的类为准，不看请求里写的状态；区域读到的底与宿主的记录靠 `expected_revision` 对齐，revision 把两者一起算进去，所以提供方在区域读过之后改了分组，`set` 就是 `actions.conflict`，区域重读再拨。既不是原有的类、也不是此刻提供的类，而主体有这个提供方的记录的引用，是分组改动之前的旧引用，同样整次 `actions.conflict`（#1879 评审，2026-11-06）。「组不存在」、对声明了分组的提供方省略 `group_id` 就拒（实施方案 §10 C3）对新加入的类照旧 |
 | R2 | 请求里**新加入**的类（原来没有记录），按此刻的目录展开记下 |
 | R3 | 本人点「允许」时要能重新展开一个已有的类：请求里这一类带 `confirm: true`，就按此刻的目录重新记下这一类（只用于 `needs_confirmation`）。统筹 2026-11-06 裁定两种边界：`confirm: true` 的类此刻展开为空（提供方停用或不再声明）时**整次拒绝**，原记录不动；`confirm` 用在原本没有记录的类上**整次拒绝**（`actions.input_invalid`），不当作 R2。这一项改 `set` 的输入形状（`TaskGrantCategoryReference` 加可选的 `confirm`），会变 `tooling/gates/actions/` 的快照，随 P2a 的合同改动一起落 |
 | R4 | 原本有记录、请求里没列的类，记录删掉 |
@@ -175,7 +175,8 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 - 带 `confirm: true` 的类此刻展开为空：整次拒绝，这个主体的全部记录不变。
 - `confirm` 用在原本没有记录的类上：`actions.input_invalid`，不写任何记录。
-- 底里有 `removed` 的类（带已不再声明的 `group_id`，或提供方开始分组后不带 `group_id`），同时新加入一类 Y：被接受，`removed` 那一类的记录原样保留。
+- 底里有 `removed` 的类（按 `list` 的写法，不带 `group_id` 的提供方），同时新加入一类 Y：被接受，`removed` 那一类的记录原样保留。
+- 区域读过之后提供方改了分组（开始分组、或删掉一组），拿读到的 revision 发的 `set`：`actions.conflict`，记录不变；带已不再声明的 `group_id`、而主体有这个提供方记录的引用，用此刻的 revision 也是 `actions.conflict`。
 - 新加入的类对声明了分组的提供方省略 `group_id`、或指向不存在的组：整次拒绝（C3 对新加入的类照旧）。
 - 请求里写的状态与宿主记录不符、`expected_revision` 过期：`actions.conflict`，不写。
 - 每个请求都带读到的 `revision`；回来的主体就是新状态，不再读。

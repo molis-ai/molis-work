@@ -17,7 +17,7 @@ test("unknown SDK plugin prepares real actions, Home revalidates exact input and
     title: "替换笔记", description: "按原版本写入本插件笔记", kind: "operation", scope: "project", audiences: ["user", "mcp"], permissions: ["note:write"], subject_kinds: ["note"],
     input_schema: { type: "object", properties: { id: { type: "string" }, expected_revision: { type: "integer" }, text: { type: "string" }, request_id: { type: "string" } }, required: ["id", "expected_revision", "text", "request_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { revision: { type: "integer" }, text: { type: "string" } }, required: ["revision", "text"] } } };
-  const offers = defineSubjectOffersAction("unknown.note.offers", ["note"], "笔记可用动作", ["note:read"], [
+  const offers = defineSubjectOffersAction("unknown.note.offers", 1, ["note"], "笔记可用动作", ["note:read"], [
     { offer_id: "notes.replace", title: "整理笔记", action: { capability_id: write.capability_id, version: 1 } },
   ]);
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.offer-notes", version: "1.0.0", name: "Notes",

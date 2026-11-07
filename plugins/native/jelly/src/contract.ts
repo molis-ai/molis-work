@@ -25,12 +25,12 @@ export interface JellyNote {
 export interface JellyRelation { owner_id: string; original_date: string | null; note_id: string; role: "primary" | "reference" }
 export interface JellyTaskLink { item_id: string; note_id: string; block_id: string }
 export interface JellyWorkspace {
-  schema_version: 1; revision: number; categories: JellyCategory[];
+  schema_version: /* @version format.jelly.workspace */ 1; revision: number; categories: JellyCategory[];
   items: JellyItem[]; series: JellySeries[]; notes: JellyNote[];
   relations: JellyRelation[]; relation_overrides?: { owner_id: string; original_date: string; primary: "inherit" | "clear" | string; added_reference_ids: string[]; removed_reference_ids: string[] }[]; task_links: JellyTaskLink[]; applied_plan_ids: string[];
   imported_sources?: { sha256: string; schema_version: number; source: unknown; imported_at: string }[];
 }
-/** Commands are validated by the plugin before its atomic revisioned write. */
+/** One handler serves every command, so the values are `unknown` here: the action schema has checked their shape, and the store checks what needs the workspace. */
 export interface JellyCommand { type: string; [key: string]: unknown }
 export interface JellyPlanAction { id: string; title: string; notes: string; duration_minutes?: 15 | 30 | 45 | 60 | 90; schedule: JellySchedule | null; category_id: string; priority: JellyPriority }
 export interface JellyPlan { id: string; title: string; source_type: "note" | "text"; source_id: string | null; source_hash: string; source_text: string; selection?: { block_ids: string[]; text: string }; clarification_questions?: string[]; actions: JellyPlanAction[]; created_at: string }

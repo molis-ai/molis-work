@@ -6,7 +6,9 @@
 
 | 路径 | 是什么 | 谁改 |
 | --- | --- | --- |
-| `baseline.json` | 各项数字的本地快查基线；CI 不读它，只对照 merge-base 比 | `node scripts/check-health-gates.mjs --update --base origin/main`（数字变小时） |
+| 工作树 Git 元数据中的本地快查 | CI 不读，不入库；没有时默认对照 origin/main | `node scripts/check-health-gates.mjs --update --base origin/main` |
+| `page-asset-allowances/*.json` | 每项任务必要增长的独立一次性许可；不写绝对预算 | 经审阅后记录 reason、review、assets；大额或新资源加用户批准出处，见开发手册 |
+| `giant-exceptions/**/*.json` | 按源码文件分开的巨大单元登记；重复 key 拒绝 | 保留 kind、reason、精确 size，仍须评审 |
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
@@ -16,7 +18,7 @@
 
 ## 按文件计数、只许减少的项
 
-每一项是 `{ 文件: 个数 }`；没有记录的文件从 0 开始，所以新文件不许带。CI 用同一份脚本量当前树和 merge-base 再比，改 `baseline.json` 放不过变大的。文件改名后记录跟着走。
+每一项是 `{ 文件: 个数 }`；没有记录的文件从 0 开始，所以新文件不许带。CI 用同一份脚本量当前树和 merge-base 再比，改 本地快查 放不过变大的。文件改名后记录跟着走。
 
 `rawFetchInScripts`（W3-10-5）也使用这一份比较，另要求 Workbench 始终为零：即使与 base 相等，或执行 `--update`，仍拒绝写基线。实现分为 [模块与绑定图](../../scripts/gates/browser-graph.mjs)、[浏览器程序展开](../../scripts/gates/browser-programs.mjs)、[fetch 调用检查](../../scripts/gates/browser-fetch.mjs)，接在 `SOURCE_COUNT_RULES` 中。按实际程序 AST 数裸、成员、静态计算属性、局部别名、赋值/解构/bind、call/apply；普通字符串、注释、HTML 文本及 JSON 数据脚本不算。计数仍归原文件，同一片段多次装配不重复计；插件现存计数随 W5-04 只降。打包生成的程序（W4-04）：常量写成 `readFileSync(new URL("./<名>.js", import.meta.url), "utf8")`，所在包 `package.json` 的 build 里有 `esbuild <入口>.ts … --outfile=dist/<名>.js` 时，入口和它 import 的文件按类型源码数（计数记在各自文件上）；对不上任何构建步骤的读取不能展开，直接失败。
 
@@ -24,15 +26,15 @@
 
 这是静态检查的边界：动态属性/反射、任意运行期程序生成、新的非 terminal-client/browser-client TypeScript 构建入口不是已证明的识别能力；同名端口字段按声明候选保守展开，别名赋值按可能取值保守检查，不做通用跨过程运行分析。增加新的浏览器装配方式时须同步扩识别与对抗用例。验证 [health-gates-browser-fetch.test.ts](../../tests/health-gates-browser-fetch.test.ts) 通过真实临时 Git 与 CLI 制造增长、新文件、跨片段、toString、精确例外、typed subpath 和基线篡改；不只验证计数函数。
 
-| 项（baseline.json 的键） | 口径 |
+| 项（本地快查的键） | 口径 |
 | --- | --- |
 | `emptyCatches` | TypeScript 代码里的空 `catch`：块里既没有语句也没有注释，如 `catch {}`、`catch (error) { }`。块里写了注释的不算（那是写明了的取舍），有任何语句的也不算。不算 promise 的 `.catch(() => {})`（那是回调，不是 catch 子句）和 `finally`。**由静态检查数**（Biome 插件 `tooling/gates/lint/no-empty-catch.grit`，见下面「静态检查」），键和逐文件数字与 W1-04 的语法树计数一致 |
 | `emptyCatchesInScripts` | 同一个形状（`catch`、可选的 `( … )`、`{`、只有空白、`}`），在**源码**文件的**字符串和模板字符串**文本里找（测试里的字符串是夹具，不数）。宿主把浏览器程序（工作台、插件的 client 脚本）写成模板字符串，TypeScript 和 lint 都不看里面，普查找到的 141 处空 catch 里有 137 处在这里。**这类算在内**，单独一个计数：把脚本从模板字符串搬进真正的 TypeScript 时，数字从这一项挪到上一项 |
 | `unknownCasts` | 经 `unknown` 的双重断言：`value as unknown as T`、`(value as unknown) as T`、`<T><unknown>value`。单独的 `as unknown` 和 `as any as T` 不算。**含测试**（规格 §9.3 的 R-12 口径是含测试的）。**由静态检查数**（`tooling/gates/lint/no-double-cast.grit`），口径是 W1-04 的超集（见「静态检查」表里的混合写法），原有文件的逐文件数字相同；扫描范围比 W1-04 的语法树计数多了 `scripts/`（见「静态检查」的扫描范围），所以总数从 199 变成 202（`scripts/contextual-slice/client.ts` 2 处、`scripts/preview-contextual-interaction.mts` 1 处），其余文件的数字没变 |
-| `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOALS_BOARDS_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在保留的例外：派生密钥的盐 `goalboard-feed-secretstore-v1`（`packages/storage/src/adapters/file-secret-store.ts`，那里的注释写明改了字符串会让已有密文失效）、`plugins/native/goals/src` 里两处没用到的 `_boardId`（`document-collection.ts` 的解构改名、`goal-tree-materialization-order.ts` 的参数）。它们和别的计数一样，只能减少 |
+| `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOALS_BOARDS_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在没有例外，计数是 0，和别的计数一样只能减少 |
 | `scriptConstants` | 只数源码。名字以 `_SCRIPT` 结尾、值是字符串或模板字符串（含括号、`as const`、用 `+` 连起来的几段）的变量：写成文本、没有类型检查读它的浏览器程序（规格 §3 R-07，路线图 W4-04；普查时 130 个，散在 100 个文件）。把程序改成 TypeScript 再由打包生成（样例是 Forms：`plugins/native/form/src/browser/`，`package.json` 的 build 里 esbuild 带 banner/footer 直接生成 `(host) => {…}` 工厂，常量只是 `readFileSync(new URL("./form-client.js", import.meta.url), "utf8")`），这一项就少一个。**看不到的**：不叫 `*_SCRIPT` 的程序文本（`CLIENT`、`*_CLIENT`、`*_SCRIPT_FACTORY` 一类名字 `rawFetchInScripts` 会展开、这里不数），以及用函数调用拼出来的文本；它们只能在改到时顺手迁 |
 | `floatingPromises`、`explicitAny`、`consoleCalls`、`debuggerStatements`、`lintParseErrors`、`lintSuppressions`、`lintPolicy` | 静态检查新增的几项，见下面「静态检查」 |
-| `errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner` | 错误模型的四项，见下面「错误模型」；`errorOwnerTable` 是错误码主人表本身（不进 `baseline.json`） |
+| `errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner` | 错误模型的四项，见下面「错误模型」；`errorOwnerTable` 是错误码主人表本身（不进 本地快查） |
 | `compatMarkers`、`testImports`、`giant` | 见 `AGENTS.md` 与 `scripts/check-health-gates.mjs` |
 | `testImportSplits` | 每个测试文件（一个测试进程），以及每个没有测试读它、由测试起成子进程的 `tests/` 文件（夹具）里，既从源码（`../P/src/…`，tsx 直接跑）又从构建（包名、`../P/dist/…`）加载的包的个数。绝对零规则（W2-10-E），口径与办法见下面「测试进程里的两份包」 |
 
@@ -59,6 +61,26 @@
 
 唯一现行表在 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，包登记仍来自 `scripts/workspace-packages.mjs`。门禁按首个完全匹配的 11 列表头读取，守包的行集合、层、代码判定的状态、人工列词汇及数字写法；缺文档或缺表就失败。不比较数字列的当前实测值，也不根据默认生成值覆盖人工审查。`--table` 供核对机器列；原包的计划深度、审查及证据须保留。`--check` 和健康门禁只读新表，不回读历史 spec。完整负例在 `tests/package-inventory-gate.test.ts`。
 
+## 自有版本的声明（`scripts/gates/version-declarations.mjs`，N34-VS）
+
+`tooling/versions.json` 是自有版本唯一手改的地方，`scripts/generate-versions.mjs` 把值写到用它的地方（规则见 [POLICY.md 第 1 节](../../docs/releases/POLICY.md#1-一个产品版本和它的载体)）。这条门禁看没有经过这张表的声明，由 `node scripts/verify-release-versions.mjs` 调用，也可以单独跑 `node scripts/gates/version-declarations.mjs`。它不比数字，出现一条就失败。
+
+| 查什么 | 口径 |
+| --- | --- |
+| 没有标记的当前版本 | 属性 `version`、`*_version`、`*Version`、`format`、`schema`、`v`、`protocol` 取数字或像版本的字符串（含 `as const`、接口里的字面量类型）；这些名字与数字的相等比较；`*VERSION` 变量的字面量；名为 version 的参数的默认值；带 `.vN`、`/N` 的公开标识字符串。0 表示「还没有」，不算 |
+| 用错条目 | `capability_id`、`prompt_id`、`role_id`、`scene_id` 或工厂的 id 字面量旁边，标记的 key 不是这个 id 的条目 |
+| 按位置引用的动作 | 表里有的动作 id 后面直接跟裸数字 |
+| 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取；`.rs`、`.sql`、`.toml` 里写了 `@version` 标记（生成器不读这些文件，标记不会生效，要改走 `carriers`） |
+| 动作与场景的对账 | `tooling/gates/actions/` 的每一行与 `action.*`、`scene.*`、`action-family.*`、`protocol.workflow-content.*` 条目双向一致 |
+
+**扫描范围。** `scripts/generate-versions.mjs` 的 `SOURCE_ROOTS` 下的代码文件，跳过真正的测试与夹具（`isTestFile`）；`src/fixtures/` 随产品发出，照样扫。
+
+**例外。** 只有 `tooling/gates/version-exceptions.json` 一处，按文件（可再写名字）、条目或快照行登记，每条理由至少 20 字；不再需要的例外本身也失败。依赖与上游协议的版本、运行时递增的修订号、盐和固定身份写在这里，不进版本表。
+
+**读不到的（已知限制）。** 这是字面量的形状检查，版本放进变量再用、计算出来的值、不叫上面这些名字的属性都看不到；是否该进表由评审判断。
+
+验证：`node scripts/run-tests.mjs tests/version-source.test.ts tests/verify-release-versions.test.ts`。
+
 ## 库的版本与维护清单（`scripts/gates/store-versions.mjs`，BL-157）
 
 每个权威 Home 库只认当前版本，错版拒绝；派生库按既有重建合同处理（`docs/releases/CHECKLIST.md` 第 3 节）。一个 PR 改了某个库的版本，必须记录变更及处置。2026-10-30 旧迁移已取消，当前干净重建和真实 Home 的边界归 `docs/system/HOME-DATA.md`；登记不代表已做维护或授权旧转换。10-13 Pages 由 1 升到 2，没有人写维护步骤，直到 10-17 只读核对真实 Home 才发现。这道门禁把它变成规则；它只会变严，不用基线。
@@ -67,10 +89,34 @@
 | --- | --- |
 | 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `docs/system/CONTRACT-CHANGES.md`「存储版本变更登记」内的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑） |
 | 条目的写法 | 只认「存储版本变更登记」里（从固定标题「### 存储版本变更登记」到下一个一至三级标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，该节之外的同样一张表也不算 |
-| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，都以退出码 2 结束，不会当作通过。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
-| 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。它也不检查清单里写的维护有没有做 |
+| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，以及 head 上没有「统一起点登记：」那一行、有两行、写法不对，都以退出码 2 结束，不会当作通过（merge-base 上没有这一行算未登记，它是这道规则之前的提交）。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
+| 统一起点之后 | 检查清单第 4 节有一行固定以「统一起点登记：」开头，值是「未登记」或形如「2026-11-08，main 提交 `abc1234`」。2026-11-07 已登记（#1914）。还没登记时只有上面几条，版本可以复位，「维护」一格是自由文字（两种状态都有用例）。head 或 merge-base 任一边登记了就生效：版本不许降（清单写了也不行）；升版本的那一行，「维护」一格要写成 `` `定义处#旧→新` ``，定义处和检查清单同一行的「定义处」完全相同，两个数字和「版本」一格相同（清单留历史，同样数字的旧行写着文字不碍事；写成指针的每一行都要站得住）；该文件的升级段字面量里要有从旧到新减一的每个 `from: n`。定义处是基线常量时只看那个对象的 `upgrades`；是普通版本常量（JSON 文件、目录库）时看文件里每个 `upgrades` 数组。`upgrades` 写成展开、常量引用，`from` 不是数字字面量，都算读不懂，失败。已登记的不能改回「未登记」 |
+| 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过；统一起点之后也一样，所以改名顺带升版本过得去，靠评审。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。段有没有它查，段写得对不对它不查（用例和金样管），不查从 1 起的整条链连续（`tests/upgrade-chain-registry.test.ts` 在真实登记上查，那个文件由 U1-d 带来） |
+| 可重建的库 | `search/search.db` 不进链（设计 §2.3），U1-d 之后 Alchemist 的 `search.sqlite` 也一样，但这道规则同样管它们：升到 2 不写指针、写文字、写指针没有段都失败，统一起点的版本检查也过不了。**第一次要升时不要写假的 `upgrades` 来过门禁，先问用户。** 重建型的库怎么升，第一次要升时再定，现在不加例外 |
 
-验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。
+验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。真实数据的用例：这个仓库现在的表和清单直接通过；表里每一个版本是 1 的库，升到 2 带段、带指针就过，缺指针、缺段、版本降都失败；这条用的是合成的段，只证明规则读得懂每一行，不是说这些库都该这样升（上面「可重建的库」）。统一起点的用例：未登记时版本照旧能升能降；登记后版本降、「维护」一格还是文字、指向别的定义处、箭头数字对不上、基线字面量里没有 `from: 旧`、别的基线有但这个没有、跨两版缺中间一段、`upgrades` 写成常量引用或展开、登记后改回未登记都失败；写对就通过；普通版本常量看文件里的 `upgrades`。
+
+## 统一起点的版本检查（`scripts/gates/initial-versions.mjs`，N41）
+
+分两半，每一项都要是 1，差一个就失败。产品代码里的 `*VERSION` 常量和 `tooling/versions.json` 里下面那些持久化格式的条目不用构建，是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定）：CI 里跑，不比 merge-base，干净的树上 0 个问题。动作、Manifest、提示词、方法、角色只有 `node scripts/gates/initial-versions.mjs` 查，只在有人跑时才查，现在是重建窗口手跑（检查清单 §4.1）。提示词和方法不进 CI 这半：它们的文字一变就要升版本（`tests/prompt-registration.test.ts`），不是数据文件。
+
+持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，按 `文件#名字` 认，别处的同名常量不算；还有九项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`），以及设计稿 §2.6 说进链、用户 2026-11-07 单独同意加上的六个文件：`format.home.onboarding`、`format.project.arrival`、`format.browser.site-decisions`、`format.computer.settings`、`format.computer.record`、`format.model.preference`（`jelly/preferences.json`）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记和回放现在都没有（`chains` 由 U1-d 接进这两半），所以它们也只能是 1；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
+
+不在名单上的常量给了链也只能是 1。Coding 计划、Feed 捕获、Dataset、Form、Pages、PPT 的 `schema_version` 是固定版本，写下之后不该再变：靠合同和 `content_digest`，库本身不拦，所以也不该让升级段改写。Gmail 的 `GMAIL_LIVE_CURSOR_VERSION` 是同步进度，版本不符时同步失败，跑一次全量就重建，用不着段。`workspace-artifacts.ts` 的六个 `*_SCHEMA_VERSION` 也不在名单上，它们的读取方没有查过。`format.jelly.workspace` 同样是行里的内容（`jelly_workspace.body`），留在名单上是因为那一行会变，丢了也重建不回来。现在的段改写不了它：这一行带 `checksum`（sha256），读的时候校验，内置插件的段只有 SQL，SQLite 算不出 sha256。第一次要升时再定。它和 `jelly/preferences.json` 的 `format.model.preference` 是两个版本。这道检查只看 `*VERSION` 常量和上面九个条目（手跑那半多看提示词、方法的条目），其余写成行内字面量的 `format.*` 它看不到；`format.web.service.receipt` 是机器收据，§2.6 说不做，也不在内。
+
+验证：`node scripts/run-tests.mjs tests/health-gates-initial-versions.test.ts`。没有链、缺段、重复段、段超出范围、链的版本不同、回放没过或没有结果都失败；别的文件里的同名常量和普通常量，给了链也失败。不用构建的那一半直接读这个仓库，还测了读不了版本表、丢了版本表都算问题。
+
+## 就地补表（`scripts/gates/schema-patches.mjs`，本地快查的键 `schemaPatches`）
+
+全仓一个数，对照 merge-base 只许减少，现在是 0。数的是源码（`isSource`）里 `ALTER TABLE`（不分大小写，中间任意空白）和 `ensureSqliteColumn(` 的每一处，注释也算。
+
+| 项 | 说明 |
+| --- | --- |
+| 不算的地方 | 只有一处：基线常量（`const X: SqliteBaseline`、`PluginDatabaseDeclaration`、`HomePluginDatabaseDeclaration`，或 `satisfies`、`as` 这三种）的 `upgrades` 数组字面量里，某一段 `sql` 的字符串或模板文字，和这一段 `run` 函数体里的字符串。它们只在持主人锁的升级过程里跑。同一个数组里别的位置（`verify`、模块加载时就求值的调用、`${}` 里的表达式、注释）照算；段写在基线外面再引用也算；`ensureSqliteColumn(` 没有例外 |
+| 比旧口径多数的 | 旧口径只有正则。现在拼出来的也算（`"ALTER " + "TABLE"`、模板、数组 `join`、字符串以大写 `ALTER` 结尾），源码目录里入库的 `.sql` 也算，`server/migrations/` 除外（D1 迁移不是 Home 的库，也没有 `upgrades` 字面量可写）。同一棵树上这两项今天都是 0，所以新旧口径的数字相同 |
+| 看不到的 | 只看文字在哪，不看谁执行它：读路径上写 `db.exec(X.upgrades[0].sql)` 看不出来（基线写在函数里时 `verify-release-versions.mjs` 会要求列进检查单，写在顶层不会）。另外这些写法也数不到：常量拼接跨了变量又不以大写 `ALTER` 结尾（`"ALTER " + noun + " t"`）；小写动词结尾（`"alter " + noun`）；两个词都被切开（`"ALT" + "ER TA" + "BLE"`）；SQL 注释夹在两词中间（`"ALTER/**/TABLE"`）；`replace`、`String.fromCharCode` 拼的；本地 `type SqliteBaseline = any`；不读的后缀（`.SQL`、`.ddl`、`.txt`、`.json`、`.js`、`.mjs`、`.cjs`、`.tsx`、`.cts`）和目录（`fixtures/`、`scripts/`、`examples/`、`vendor/`）。这些都得存心绕才写得出来，靠评审 |
+
+验证：`node scripts/run-tests.mjs tests/health-gates-schema-patches.test.ts`，以及 `tests/health-gates-merge-base.test.ts` 里的「an in-place schema patch」。
 
 ## 错误模型（`scripts/gates/error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
 
@@ -85,7 +131,7 @@
 
 **主人表**（`tooling/gates/error-owners.json`）：`owners.<名字>.paths` 是目录（以 `/` 结尾）、一个路径段内的 glob（`apps/local-host/src/jelly-*`，`*` 不跨 `/`）或单个文件；最具体的赢：文件 > glob > 目录，同类里更长的赢。`plugins/native/<目录>/` 下的文件不用登记，主人是目录名（`text-stats` → `text_stats`），表里可以写更长的路径盖过它；`apps/local-host/src/` 兜底归 `host`。`errorCodeOwner` 用工作树里的表量当前树和 merge-base **两边**，所以改表不会让数字变小。表自己的规则没有基线，出现一处就失败：不是合法的 JSON 或形状；主人名不是一个小写词、叫 `actions`、没有至少 20 个字符的理由；一个路径在两个主人名下，或不匹配任何被跟踪的文件；两个主人对同一个文件有同样具体的路径；`ACTION_ERROR_KINDS` 里有行的前缀不在 `platform.prefixes` 里（主人的码用 `defineErrorCodes` 声明，不进平台表），或 `platform.prefixes` 里的前缀没有行。**表只许变严**（对照 merge-base 的表，指标 `errorOwnerTable`，逐个仍在仓库里的源文件比）：一个文件在 merge-base 的表里有主人，现在换了主人失败，**现在没有主人也失败**（删掉一个主人的条目，或把一条路径改窄，使仍在仓库里的文件变成无主的）；新增平台前缀失败。文件改名搬家不算，由它自己的 `errorCodeOwner` 数字说话。没有主人是最松的一种改法，而且数字看不出来：`errorCodeOwner` 用工作树里的表量两边，文件一旦无主，它里面每个不是平台码的代码在两边都算，没有哪个数变大，只有这条比较能拦下；所以拿走主人和换主人一样失败。自由的：给新文件加主人、给原本没人要的文件加路径、条目随它的文件一起离开（文件已删除或搬走；路径不匹配任何被跟踪的文件的条目本来就必须删）。`--report` 在 `errorOwnerTable.assignment` 里列出每个仍在的源文件的主人（`files`）和没有主人的源文件（`unowned`）。更正一个给错的主人，走对门禁本身的评审改动，不在功能 PR 里。
 
-**读不到的（已知限制，不是决定）**：**最大的一类是写成属性的代码**：对象字面量里的 `code: "plugin_revoked"`（结果对象、响应体、`Object.assign(new Error(…), { code })`），和参数是一个选项对象的构造函数（`new SearchError({ code: "provider_unavailable", … })`）。门禁只从错误类构造函数的位置参数、`defineErrorCodes` 和四个工厂里读代码，所以这一类一处也看不到（`plugin_revoked`、`provider_unavailable` 各 0 个站点，源码里分别有 4 处和 3 处属性字面量）。测于本 PR 的头、同样的扫描范围：`code: "…"` 属性字面量 298 处、101 个文件，其中 145 处不是点连接的写法，另有一部分根本不是错误码（键盘码 `KeyA`、`Escape`），所以不能直接数 `code:`，要先分清对象是不是一个错误。**同一类里还有两组**（测于同一个头、同样的扫描范围）：（一）**传给四个工厂、但不带点的代码。** 工厂里的代码要先过「像代码」的检查（至少一个点，用来和说明文字区分），所以工厂里写得不对的码恰好读不到，不进 `errorCodeShape`：实测 19 处、1 个文件，`plugins/native/alchemist/src/work-reuse/service.ts` 的 19 处 `fail("REUSE_HOST_UNAVAILABLE", …)` 一类（文件里的 `fail` 是本地的箭头函数，抛 `AlchemistOperationError`）；`plugins/official-integrations/catalog/src/document-import.ts` 的 30 处 `fail("invalid_url" | "needs_auth" | …, …)` 原来是另一处，W3-02-G2 起本地的 `fail` 抛的是 `externalDocumentErrors` 声明的 `catalog_integration.<原因>`，码由那份声明读到，不再是读不到的码；（二）**类字段 `code = "…"`。** 门禁只在构造函数里参数名叫 `code` 的位置读，字段初始化不读：4 处、4 个文件，`apps/local-host/src/project-deleted-deferred.ts`（`project_deleted.deferred`）、`packages/plugin-runtime/src/services.ts`（`plugin.capability_denied`）、`packages/storage/src/sqlite-baseline.ts`（`storage.schema_version_mismatch`）、`packages/ui-host/src/plugin-client.ts`（`plugin_ui_denied`）。其余读不到的：不是字面量的代码（变量、带替换的模板字符串、`prefix + "." + reason`）；别名下的错误工厂（`requireCognia(…)`）；名字不以 `Error` 结尾的错误类；基类不在仓库里声明的类；两个同名的类构造函数不同（取有 `code` 参数的第一个）；经 `error.kind` 或 `error.status` 选出的状态（`kind`、`status` 作为属性名太常见，不能当作「错误」）；先放进变量的数字（`const notFound = 404`）；模板字符串里的浏览器程序。Goals 的错误工厂注入（`errorFactory(code, …)` 的 `code` 是变量）在 PR-I 换成 `defineErrorCodes` 声明之前看不到。
+**读不到的（已知限制，不是决定）**：**最大的一类是写成属性的代码**：对象字面量里的 `code: "plugin_revoked"`（结果对象、响应体、`Object.assign(new Error(…), { code })`），和参数是一个选项对象的构造函数（`new SearchError({ code: "provider_unavailable", … })`）。门禁只从错误类构造函数的位置参数、`defineErrorCodes` 和四个工厂里读代码，所以这一类一处也看不到（`plugin_revoked`、`provider_unavailable` 各 0 个站点，源码里分别有 4 处和 3 处属性字面量）。测于本 PR 的头、同样的扫描范围：`code: "…"` 属性字面量 298 处、101 个文件，其中 145 处不是点连接的写法，另有一部分根本不是错误码（键盘码 `KeyA`、`Escape`），所以不能直接数 `code:`，要先分清对象是不是一个错误。**同一类里还有两组**（测于同一个头、同样的扫描范围）：（一）**传给四个工厂、但不带点的代码。** 工厂里的代码要先过「像代码」的检查（至少一个点，用来和说明文字区分），所以工厂里写得不对的码恰好读不到，不进 `errorCodeShape`：实测 19 处、1 个文件，`plugins/native/alchemist/src/work-reuse/service.ts` 的 19 处 `fail("REUSE_HOST_UNAVAILABLE", …)` 一类（文件里的 `fail` 是本地的箭头函数，抛 `AlchemistOperationError`）；`plugins/official-integrations/catalog/src/document-import.ts` 的 30 处 `fail("invalid_url" | "needs_auth" | …, …)` 原来是另一处，W3-02-G2 起本地的 `fail` 抛的是 `externalDocumentErrors` 声明的 `catalog_integration.<原因>`，码由那份声明读到，不再是读不到的码；（二）**类字段 `code = "…"`。** 门禁只在构造函数里参数名叫 `code` 的位置读，字段初始化不读：3 处、3 个文件，`apps/local-host/src/project-deleted-deferred.ts`（`project_deleted.deferred`）、`packages/plugin-runtime/src/services.ts`（`plugin.capability_denied`）、`packages/ui-host/src/plugin-client.ts`（`plugin_ui_denied`）。其余读不到的：不是字面量的代码（变量、带替换的模板字符串、`prefix + "." + reason`）；别名下的错误工厂（`requireCognia(…)`）；名字不以 `Error` 结尾的错误类；基类不在仓库里声明的类；两个同名的类构造函数不同（取有 `code` 参数的第一个）；经 `error.kind` 或 `error.status` 选出的状态（`kind`、`status` 作为属性名太常见，不能当作「错误」）；先放进变量的数字（`const notFound = 404`）；模板字符串里的浏览器程序。Goals 的错误工厂注入（`errorFactory(code, …)` 的 `code` 是变量）在 PR-I 换成 `defineErrorCodes` 声明之前看不到。
 
 **第一天的数字**（在 A 片 `feat/action-error-model` 之后；A 合入 `origin/main` 之前，与 `origin/main` 的合并基点上的数字是 110 / 543 / 226 / 1538，因为 A 的 Todo 转换和平台表还没进去）：`errorSubclasses` 108、`errorCodeShape` 543（82 个文件）、`errorStatusDecisions` 222（56 个文件）、`errorCodeOwner` 1162（181 个文件）。改名 PR（W3-02 R1–R6、J1–J7）每改一处就让后两项变小。**这两项归零不等于码都改好了**：它们只数上面读得到的写法，写成 `code:` 属性的那约 300 处和选项对象构造函数、历史工厂里不带点的 49 处（Alchemist 复用码在 J5C 迁为现行点码；官方集成目录 `catalog_integration` 的文档导入此前已收口）、类字段 `code = "…"` 的 4 处，归零与否它们都不知道。所以 W3-02 的收尾要另外清点这三类（在源码里找 `code: "`、工厂调用里不带点的第一个参数、`code = "`，分清错误码和键盘码等别的 `code`），或者先加一项数它们的新数字再说做完；把这两项换成没有基线的规则，要等那之后，由评审决定。
 
@@ -97,7 +143,7 @@
 | --- | --- |
 | 缺英文（翻译调用里的中文字面量，在所有词典里都没有） | 失败；头上必须为零 |
 | 词典没接上（某本 `*_EN` 没被 `src/i18n/en.ts` 的 `EN` 引用） | 失败；头上必须为零 |
-| 冲突（同一句中文有两条译文不同的条目） | 冻结在 `tooling/gates/baseline.json` 的 `translationConflicts`，只许减少 |
+| 冲突（同一句中文有两条译文不同的条目） | CI 对照 merge-base 实测，`translationConflicts` 只许减少；本地快查仅作加速 |
 | 无用键（词典里的键，源码里没有字面量出现） | 只报告，不挡 |
 
 **看不到的（已知盲区，#958 → #990）**：服务端固定 prompt 里的中文常量。它经模型往返后是运行时的动态字符串（页面用 `L(动态值)` 显示），门禁只按字面量认翻译调用，所以删掉它的英文条目时「缺英文」仍是零。#958 删掉 Issue 的固定追问句（`plugins/native/issues/src/prompts.ts` 的 `ISSUE_ASK`）的英文后门禁放行，由 `tests/issue-naming.test.ts` 的 `PRR-08` 断言拦下，#990 恢复。补偿是给每一条这类固定句子钉一条测试：断言英文词典含该确切字符串（`PRR-08` 的写法）。要自动扫这类常量，得先定「哪些服务端常量算用户可见文案、从哪些文件读」，那属于改门禁本身，先问用户。
@@ -158,7 +204,7 @@
 **宿主那一半从不碰真实 Home。** `withIsolatedHome` 在运行期间把 `HOME`、`MOLIS_WORK_HOME` 指向新建的临时目录、`MOLIS_WORK_SECRET_BACKEND` 设成 `file`、清空 `MOLIS_WORK_ENCRYPTION_KEY`；`collectHost` 第一步调 `assertThrowawayHome`，找不到恰好这个环境就拒绝启动：Home 在（解开符号链接后的）临时目录里、`MOLIS_WORK_HOME` 与 `HOME` 解开后都指向它、后端是 `file`、没有加密密钥，缺哪一项都拒绝（后端没设时，非测试环境的 macOS 会选全机共用的钥匙串）。`tests/action-contract-snapshot.test.ts` 逐项试过：另一个存在的临时目录、变量没设、后端 `env`/`keychain`/没设、设了密钥、临时目录之外、指向临时目录之外的符号链接。在别处直接启动一个宿主列目录，没有设 `MOLIS_WORK_HOME` 时有的代码路径会解析到默认的 `~/.molis-work`（`resolveMolisWorkHome`），所以要列动作目录就走这两个函数，或者用 `scripts/run-tests.mjs`。
 
 **看不到的。**
-- 函数体与行为，以及动作的 `title`、`description`、`result_view` 的文字。
+- 函数体与行为，以及动作的 `title`、`description`、`result_view` 的文字。`result_view` 整个不入哈希，连同决定助理画不画连接卡的 `pending_connection`：它的形状由注册时的声明检查（`validActionResultView`）核，`connectors.setup.prepare@1` 声明了它、指针落在输出的必填字符串上，由 `tests/security-invariants-connector-scope.test.ts` 的 ASC-69 用例钉住。
 - 每类受众此刻能不能在目录里看到它：那取决于授权、生命周期和连接，是宿主动态给出的；快照只记声明的 `audiences`。步骤一的快照记过这个矩阵。
 - MCP 默认工具（`apps/mcp` 的 `MCP_TOOLS`、`RUNTIME_MCP_TOOLS`，步骤一记了 12 个）的名字与参数；运行时才有的动作（用户发布的判断函数，即 `functions.published.*` 里除下面三个以外的；外部 MCP 与服务连接的工具、创作台生成的插件、有配置的 Coding 外部 MCP）：空 Home 里没有它们。系统自己发布的三个判断函数（`functions.published.system_admit_inbox`、`system_pick_home_dock`、`system_pick_inbox_next`）空 Home 里就有，已在 `host-actions.tsv` 里。
 - 场景目录只列给持有场景所要权限的调用者（内核 `sceneVisible`：场景的 `permissions` 全持有，或持有它的 `configuration_permissions` 且有可配置的目标）。列场景用的调用者持有三处权限的并集：本机用户持有的（`LOCAL_OWNER_PERMISSIONS`）、宿主列出的每个动作所要的、每个 Manifest 场景所要的。只取 Manifest 场景所要的不够：首页的 `home.dock@1` 要 `home:read`，没有一个 Manifest 场景要它。没盖到的：某个场景若要这三处都没有的权限，没有人能在目录里看到它，快照也就看不到。`tests/action-contract-snapshot.test.ts` 把 `home.dock@1` 的权限和代码里的 `homeDockScene` 对着核，宿主场景目录不再列它时会红。
@@ -174,11 +220,11 @@
 
 ## 静态检查（Biome）
 
-W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 devDependency）；门禁是 `scripts/gates/lint.mjs`，随 `pnpm health:check` 跑，对照 merge-base，口径与上面的「按文件计数」完全一样：每个文件每条规则一个数，新文件从 0 开始，只许减少，PR 里改 `baseline.json`、`--update` 都放不过变大的。只做检查：不开格式化，也不整理 import，所以不会有整仓重排。
+W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 devDependency）；门禁是 `scripts/gates/lint.mjs`，随 `pnpm health:check` 跑，对照 merge-base，口径与上面的「按文件计数」完全一样：每个文件每条规则一个数，新文件从 0 开始，只许减少，PR 里改 本地快查、`--update` 都放不过变大的。只做检查：不开格式化，也不整理 import，所以不会有整仓重排。
 
 **为什么是 Biome，不是 ESLint**：一个二进制，锁文件只多一个包（ESLint 要 eslint、typescript-eslint、解析器一整棵树）；整仓约 2 秒（ESLint 要类型信息的规则得先给七十多个 tsconfig 建程序，还要先 build）；merge-base 没有检出目录可以跑，Biome 能在一个只放被跟踪文件的临时目录里跑，两边用同一份配置量，ESLint 的类型感知规则做不到；仓库自己的两条规则用 GritQL 插件写（`tooling/gates/lint/`），不需要写 JS 插件。代价：没有浮动 promise 的类型检查器级别精度，见「看不到的」。
 
-| 键（baseline.json） | 规则 | 口径 | 关掉的地方 |
+| 键（本地快查） | 规则 | 口径 | 关掉的地方 |
 | --- | --- | --- | --- |
 | `emptyCatches` | 插件 `molis/no-empty-catch` | 块里既没有语句也没有注释的 `catch` 子句。Biome 自带的 `noEmptyBlockStatements` 不用：它还报每个空函数（481 处对 4 处），是另一件事 | 无 |
 | `unknownCasts` | 插件 `molis/no-double-cast` | `x as unknown as T`、`(x as unknown) as T`（括号层数不限）、`<T><unknown>x`，也包括混合写法 `<T>(x as unknown)`、`(<unknown>x) as T`（W1-04 的语法树计数不数这两种，现有文件里一处也没有，所以那些文件的逐文件数字不变）；单独的 `as unknown`、`as any as T` 不算 | 无 |

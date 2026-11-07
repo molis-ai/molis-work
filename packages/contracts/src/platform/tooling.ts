@@ -20,9 +20,9 @@ export interface PluginDevelopmentResult {
 }
 
 export const platformToolingContract = {
-  contractId: "io.molis.work.platform.tooling.v1",
+  contractId: /* @version contract.io.molis.work.platform.tooling "io.molis.work.platform.tooling.v{version}" */ "io.molis.work.platform.tooling.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.tooling */ 1,
   maturity: "contract-only",
   ssot: "docs/platform/CONTRACTS-AND-OPERATIONS.md",
 } as const satisfies ContractDescriptor;

@@ -129,7 +129,7 @@ function assertContractEnvelope(contract: unknown, proposal: boolean): asserts c
   assertJson(contract);
   const c = contract as unknown as SandboxPluginContract;
   const id = (v: unknown): v is string => typeof v === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(v);
-  if (!c || c.version !== 1 || !id(c.pluginId) || !id(c.revision) || !Array.isArray(c.operations) || !c.operations.length || c.operations.length > 128 || !Array.isArray(c.entities) || !Array.isArray(c.pages) || !Array.isArray(c.acceptance)) throw new SandboxError('sandbox.invalid_contract', 'Invalid contract envelope');
+  if (!c || c.version !== /* @version format.sandbox.contract */ 1 || !id(c.pluginId) || !id(c.revision) || !Array.isArray(c.operations) || !c.operations.length || c.operations.length > 128 || !Array.isArray(c.entities) || !Array.isArray(c.pages) || !Array.isArray(c.acceptance)) throw new SandboxError('sandbox.invalid_contract', 'Invalid contract envelope');
   const unique = (values: string[]) => new Set(values).size === values.length;
   if (!unique(c.operations.map(o => o.id))) throw new SandboxError('sandbox.invalid_contract', 'Duplicate operations');
   for (const op of c.operations) {

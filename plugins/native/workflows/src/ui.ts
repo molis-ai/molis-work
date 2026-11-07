@@ -5,7 +5,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-export const WORKFLOWS_UI_CONTRIBUTION_ID = "io.molis.work.workflows.ui.v1";
+export const WORKFLOWS_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.workflows.ui "io.molis.work.workflows.ui.v{version}" */ "io.molis.work.workflows.ui.v1";
 
 export type WorkflowsUiSurface = "directory" | "workbench";
 

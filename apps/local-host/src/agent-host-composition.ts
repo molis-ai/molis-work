@@ -5,6 +5,7 @@ import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
+import { taskReadableHost } from "./task-grant-actions.js";
 import { assertActionInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import {
   AgentHost,
@@ -58,8 +59,11 @@ export interface AgentHostCompositionOptions {
 }
 
 export interface AgentHostComposition {
-  /** Resolves only this live installation's declarations and the project's verified workspaces. */
-  preparePlugin(caller: HostPluginCaller): Promise<{ authority: AgentStartAuthority; workspaces: readonly ProjectWorkspaceRef[] }>;
+  /**
+   * Resolves only this live installation's declarations and the project's verified workspaces. `subject` is the task grant subject the
+   * Host composed for this round (`agent:task:…`): its action calls are that subject's, reading only what the person allowed the task.
+   */
+  preparePlugin(caller: HostPluginCaller, subject?: string): Promise<{ authority: AgentStartAuthority; workspaces: readonly ProjectWorkspaceRef[] }>;
   readonly inference: PrologueInferenceClient;
   readonly savedHistory: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["savedHistory"];
   mcpLibrary(): Promise<AgentMcpLibrary | undefined>;
@@ -166,7 +170,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { preparePlugin: caller => preparePluginAgent(options, caller), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}},  createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { preparePlugin: (caller, subject) => preparePluginAgent(options, caller, subject), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}},  createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -212,13 +216,13 @@ async function workspaceGrants(options: Pick<AgentHostCompositionOptions, "works
   return options.workspacesFor ? await options.workspacesFor(projectId) : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
 }
 
-async function preparePluginAgent(options: AgentHostCompositionOptions, caller: HostPluginCaller) {
+async function preparePluginAgent(options: AgentHostCompositionOptions, caller: HostPluginCaller, subject?: string) {
   caller.assertActive();
   if (!caller.project_id || !options.projectReference) throw new ActionError("actions.connection_required", "Agent 需要项目连接目录");
   const reference = await options.projectReference(caller.project_id);
   caller.assertActive();
   const authority = await options.localHost.withProject(reference, runtime =>
-    startAuthority(runtime, caller.plugin_id, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller));
+    startAuthority(runtime, caller.plugin_id, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller, subject));
   const workspaces = await workspaceGrants(options, caller.project_id);
   caller.assertActive();
   return { authority, workspaces };
@@ -241,12 +245,13 @@ async function startAuthority(
   workspacesFor?: AgentHostCompositionOptions["workspacesFor"],
   homeDirectory?: string,
   caller?: HostPluginCaller,
+  subject?: string,
 ): Promise<AgentStartAuthority> {
   // A plugin's Agent declarations come only from its running activation (PG-051 RAC-195). A call without one (the Characters host
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
   const manifest = caller?.declaration.manifest ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
-  const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
+  const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === /* @version type.character.definition */ 1);
   const original = currentOriginalInput(caller);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
@@ -263,9 +268,12 @@ async function startAuthority(
     skill_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     actions: async (runtimeId, validate, session) => {
       const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-      // `actor_id` stays the grant's client id (`agent:<runtime>`). The session is the one the Host checked against the Runtime's own record
-      // when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is recorded as author.
-      const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
+      // `actor_id` stays the grant's client id: `agent:<runtime>`, or the task grant subject the Host composed for a plugin's round, whose
+      // catalog holds only the categories its provider offers a task now. The session is the one the Host checked against the Runtime's own
+      // record when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is
+      // recorded as author (`agent:<runtime>:<session>`, a task's round as well).
+      const source = subject ? taskReadableHost(localHost) : localHost;
+      const current = (signal?: AbortSignal) => authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
         project_id: runtime.project_id, audience: "agent", permissions: [], ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
           caller?.assertActive(); signal?.throwIfAborted();
           if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");

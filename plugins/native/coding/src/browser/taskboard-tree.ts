@@ -67,7 +67,7 @@ function childRow({ translate: L, words, ports }: TreeInput, run: BoardRun, { ch
   return {
     key: "child-" + child.subagent_id, label: L("coding.board.subtask"), title: oneLine(child.task), hint: child.task, state, progress: null,
     note: own ? L("coding.board.own-directory", { path: own }) : "",
-    executor: { name: role, detail: L("coding.board.subagent", { role }) + (child.error ? " · " + child.error : "") },
+    executor: { name: role, detail: L("coding.board.by-role", { role }) + (child.error ? " · " + child.error : "") },
     time: Number.isFinite(at) ? when(at) : null, target: { kind: "child", run_id, child_id: child.subagent_id }, children: [],
   };
 }
@@ -80,7 +80,7 @@ function doerOf({ input: { translate: L, ports }, executor }: StepScope, holder:
   if (!holder) return executor;
   const label = stepActorText(L, holder), expired = holder.expired ? { expired: true } : {};
   if (holder.kind === "session") return { name: executor.name, detail: L("coding.board.holder", { holder: label }) + " · " + executor.detail, ...expired };
-  if (holder.kind === "subtask") return { name: label, detail: L("coding.board.holder", { holder: label }) + (held ? " · " + L("coding.board.held-subagent", { role: ports.roleName(held.role_id) || held.role_name || "" }) : "") };
+  if (holder.kind === "subtask") return { name: label, detail: L("coding.board.holder", { holder: label }) + (held ? " · " + L("coding.board.by-role", { role: ports.roleName(held.role_id) || held.role_name || "" }) : "") };
   if (holder.kind === "person") return { name: L("coding.board.you"), detail: L("coding.board.holder-you"), person: true };
   if (holder.kind === "none") return { name: L("coding.board.unclaimed"), detail: L("coding.board.no-holder"), none: true };
   return { name: label, detail: L("coding.board.holder", { holder: label }), ...expired };

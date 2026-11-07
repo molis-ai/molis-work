@@ -81,7 +81,7 @@ export class WorkspaceExportService {
       )
       .get(this.options.workspaceId);
     const payload = {
-      exportVersion: 1,
+      exportVersion: /* @version format.alchemist.workspace-export */ 1,
       product: "alchemist",
       workspaceId: this.options.workspaceId,
       generatedAt,

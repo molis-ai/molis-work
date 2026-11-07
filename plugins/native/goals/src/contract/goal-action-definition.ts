@@ -3,11 +3,11 @@ import type { ActionAudience, ActionDefinition, ActionSchema, PlacementRelationR
 
 /** `plugins` opens one action to installed plugins too (still under the plugin's own granted permissions).
  * Every Goals write is authored by a Session when a Runtime makes it. */
-export function goalAction<Input, Output>(id: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, plugins = false): ActionDefinition<Input, Output> {
+export function goalAction<Input, Output>(id: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, plugins = false): ActionDefinition<Input, Output> {
   const audiences: ActionAudience[] = ["user", "agent", "workflow", "mcp", ...(plugins ? ["plugin" as const] : [])];
   return createActionDefinition<Input, Output>(id, operation, { title, description,
     audiences, ...(operation === "command" ? { authorship: "session" as const } : {}),
-    permissions: [operation === "query" ? "goals:read" : "goals:write"], subject_kinds: ["goal"], input_schema: input, output_schema: output });
+    permissions: [operation === "query" ? "goals:read" : "goals:write"], subject_kinds: ["goal"], input_schema: input, output_schema: output }, version);
 }
 
 /**

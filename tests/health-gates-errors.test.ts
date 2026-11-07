@@ -115,6 +115,7 @@ after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 
 const branch = (name: string, mutate: () => void) => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", name);
   mutate();
@@ -320,6 +321,7 @@ test("an entry that leaves with its files, and a file that moves out of its owne
 
 test("giving a file that nobody owned an owner of its own changes no number: the table is the same on both sides of the count", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", "stray-base");
   put("tooling/other/src/stray.ts", `${IMPORT_ACTION.replace("../../../", "../../../../")}export const stray = () => new ActionError("other.stray", "无主");\n`);
@@ -337,6 +339,7 @@ test("giving a file that nobody owned an owner of its own changes no number: the
 
 test("the change that introduces the table passes against a merge-base that does not have it, and from then on it is compared", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", "predates");
   git("rm", "-q", TABLE);
@@ -354,6 +357,7 @@ test("the change that introduces the table passes against a merge-base that does
 
 test("a repository without the table counts no owners and has no table problems", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", "no-table");
   git("rm", "-q", TABLE);
@@ -364,6 +368,7 @@ test("a repository without the table counts no owners and has no table problems"
 
 test("the report prints the four numbers and the table", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   const report = JSON.parse(gate("--report", "--json", "--base", "main").out);
   assert.deepEqual(report.head.errorSubclasses, { "modules/alpha/src/errors.ts": 3, "modules/alpha/src/legacy.ts": 1 }, "ActionError in the contracts is the model, not a subclass");
@@ -384,8 +389,9 @@ test("the report prints the four numbers and the table", () => {
 
 test("the baseline holds the four counts with their totals, and nothing of the table", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
-  const baseline = JSON.parse(read("tooling/gates/baseline.json"));
+  const baseline = JSON.parse(read(".git/molis-health-baseline.json"));
   assert.deepEqual([baseline.errorSubclassTotal, baseline.errorCodeShapeTotal, baseline.errorStatusDecisionTotal, baseline.errorCodeOwnerTotal], [4, 1, 2, 1]);
   assert.deepEqual(baseline.errorSubclasses, { "modules/alpha/src/errors.ts": 3, "modules/alpha/src/legacy.ts": 1 });
   assert.deepEqual(baseline.errorCodeShape, { "modules/alpha/src/legacy.ts": 1 });

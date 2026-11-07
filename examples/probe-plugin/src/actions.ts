@@ -25,8 +25,8 @@ export const probeActions = {
   remove: { capability_id: "probe.notes.remove", version: 1, operation: "command", action: { ...base, kind: "operation", effect: "write",
     title: "删掉探针笔记", description: "删掉一条笔记；它在记下之后改过就不删", permissions: [PROBE_WRITE],
     input_schema: object({ id, expected_updated_at: text }), output_schema: object({ ok: { const: true } }) } } as ActionDefinition<{ id: string; expected_updated_at: string }, { ok: true }>,
-  search: defineSearchEntriesAction("probe.search.entries", [{ kind: PROBE_SUBJECT_KIND, title: "探针笔记", surface: SURFACE }], "探针笔记", [PROBE_READ]),
-  files: defineFileEntriesAction("probe.files.entries", [{ kind: PROBE_SUBJECT_KIND, title: "探针笔记", surface: SURFACE }], "探针笔记", [PROBE_READ]),
+  search: defineSearchEntriesAction("probe.search.entries", 1, [{ kind: PROBE_SUBJECT_KIND, title: "探针笔记", surface: SURFACE }], "探针笔记", [PROBE_READ]),
+  files: defineFileEntriesAction("probe.files.entries", 1, [{ kind: PROBE_SUBJECT_KIND, title: "探针笔记", surface: SURFACE }], "探针笔记", [PROBE_READ]),
 };
 export const PROBE_ACTIONS: readonly ActionDefinition[] = Object.values(probeActions) as ActionDefinition[];
 

@@ -85,7 +85,7 @@ export function buildExactRequest(source: FeedSourceRecord, operationId: string,
   if (source.kind === "web_query") {
     const query = normalizeQuery(String(source.config.query ?? ""));
     return validateSearchIntentExactV1({
-      schema: "search-intent-v1",
+      schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1",
       operationId,
       goal: `同步网页查询来源「${source.name}」到 Molis Work Feed`,
       taskProfile: "latest_monitoring",
@@ -128,7 +128,7 @@ export function buildExactRequest(source: FeedSourceRecord, operationId: string,
       ? providers.customRss.host(feedUrl)
       : new URL(feedUrl).hostname.toLowerCase();
   return validateSearchIntentExactV1({
-    schema: "search-intent-v1",
+    schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1",
     operationId,
     goal: `同步公开来源「${source.name}」到 Molis Work Feed`,
     taskProfile: "exact_rss_ingest",

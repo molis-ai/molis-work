@@ -1,6 +1,6 @@
 # 服务与模型连接：可点的定样（路线书第 13 批）
 
-状态：用户已选定（2026-11-04）：三块都是 **A**——直接连接用按用途分组的一列、就地展开；高级配置放在服务详情最下面收起的「高级」；从别处发现缺连接时在原处就地连。B、C 留在原型里作对照，不再实施。决定记在[服务接入需求 §13.1](../../../specs/assistant-service-connections/spec.md#131-服务与模型连接的界面定样第-13-批2026-11-04)。同日按新规则（[开发流程 §5](../../../specs/post-anticorruption-roadmap/reference/development-workflow.md)：定样先用组件板）把整份原型改到组件板控件与真实「服务连接」设置页上，选项没变，外观变了；用户同日重看后确认，照这份进组件板。产品代码未写。
+状态：用户已选定（2026-11-04）：三块都是 **A**——直接连接用按用途分组的一列、就地展开；高级配置放在服务详情最下面收起的「高级」；从别处发现缺连接时在原处就地连。B、C 留在原型里作对照，不再实施。决定记在[服务接入需求 §13.1](../../../specs/assistant-service-connections/spec.md#131-服务与模型连接的界面定样第-13-批2026-11-04)。同日按新规则（[开发流程 §5](../../../specs/post-anticorruption-roadmap/reference/development-workflow.md)：定样先用组件板）把整份原型改到组件板控件与真实「服务连接」设置页上，选项没变，外观变了；用户同日重看后确认，照这份进组件板。第 13 批④a（2026-11-06）按块 ①、② 的方案 A 改了设置里的「服务连接」页，用的是组件板「服务连接」一节的实件，实现中的决定和没做到的一处（密钥先查后存）记在[服务接入需求 §13.6](../../../specs/assistant-service-connections/spec.md)；块 ③（原处的连接卡）不在这一片。
 
 这是参考原型，不是产品界面。需求来源是[个人助理统一接入和管理外部服务](../../../specs/assistant-service-connections/spec.md)（§4.6.1、§4.7、§5、§7、§8.1，ASC-45～53）和[全平台治理](../../../specs/product-flow-governance/spec.md)的 PF-A03～07（细则在 [audit-2026-10-27.md](../../../specs/product-flow-governance/audit-2026-10-27.md)）；排期见[第 13 批](../../../specs/post-anticorruption-roadmap/reference/batches/13.md)，现状核账也写在那里。界面按[组件板](../../../DESIGN.md#component-board)（`/__ui/catalog`）和现在的「服务连接」设置页（`apps/workbench/src/settings-connectors.ts`）搭：样式是产品样式表的只读快照，控件是组件板上已有的，新做的只有下面「组件板新增」里列的几处，各写了理由；定下后先补成组件板标本，再进产品。
 
@@ -137,3 +137,9 @@ python3 -m http.server 4419 --bind 127.0.0.1 --directory docs/design/service-con
 - 选了哪个块、方案、状态存在浏览器的 `localStorage`（`molis-proto.service-connections.v2`），不代表产品的持久化、授权或恢复已经做好。
 - `window.protoJump` 只用于截图时直接跳到某个状态，不是产品接口。
 - M1 的范围还没定（路线书[决定第 18 项](../../../specs/post-anticorruption-roadmap/reference/decisions.md)），其中包括哪几家服务；这里的服务名单只为演示各种情况，不代表范围。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒
+
+用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据

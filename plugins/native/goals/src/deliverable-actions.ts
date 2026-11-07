@@ -41,33 +41,33 @@ const reason = { type: "string", minLength: 1, maxLength: 300 };
  * Only the person records deliverables; anyone else's call records a `goal.output.proposal` they confirm or turn down.
  */
 export const goalsDeliverableActions = {
-  add: linking(goalAction<{ goal_id: string; reference: ArtifactReference; reason?: string }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.add",
+  add: linking(goalAction<{ goal_id: string; reference: ArtifactReference; reason?: string }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.add", /* @version action.goals.deliverables.add */ 1,
     "记下目标的交付物", "把成果库里的一版记为目标的交付物；不复制、不改动这一版，重复记录返回原记录。由助理、Coding、工作流或 MCP 调用时只记为提议（附理由），等用户在收尾时确认", "command",
     object({ goal_id: identifier, reference, reason }, ["goal_id", "reference"]), object({ deliverable, replayed: boolean }))),
-  remove: linking(goalAction<{ goal_id: string; reference: ArtifactReference }, { removed: boolean }>("goals.deliverables.remove",
+  remove: linking(goalAction<{ goal_id: string; reference: ArtifactReference }, { removed: boolean }>("goals.deliverables.remove", /* @version action.goals.deliverables.remove */ 1,
     "移除目标的交付物", "不再把这一版算作目标的交付物，或撤回、拒绝对它的提议；成果本身不受影响，记录保留为历史。只有用户能移除已确认的交付物", "command",
     object({ goal_id: identifier, reference }), object({ removed: boolean }))),
-  list: reading(goalAction<{ goal_id: string }, { deliverables: GoalDeliverable[] }>("goals.deliverables.list",
+  list: reading(goalAction<{ goal_id: string }, { deliverables: GoalDeliverable[] }>("goals.deliverables.list", /* @version action.goals.deliverables.list */ 1,
     "目标的交付物", "列出目标交付的成果版本，以及还在等用户确认的提议（proposed）", "query", object({ goal_id: identifier }), object({ deliverables: array(deliverable) }))),
-  pin: linking(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.pin",
+  pin: linking(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.pin", /* @version action.goals.deliverables.pin */ 1,
     "固定并交付", "把一份资料（文档、问卷、演示稿、数据表）的当前内容固定为成果库里的一版，并记为目标的交付物；每次固定都是新的一版，原对象之后仍可修改。由助理等调用时只记为提议", "command",
     object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ deliverable, replayed: boolean }))),
-  candidates: goalAction<{ goal_id: string }, { objects: Array<{ subject: { kind: string; id: string }; title: string }> }>("goals.deliverables.candidates",
+  candidates: goalAction<{ goal_id: string }, { objects: Array<{ subject: { kind: string; id: string }; title: string }> }>("goals.deliverables.candidates", /* @version action.goals.deliverables.candidates */ 1,
     "可以当场固定的资料", "列出目标绑定的资料里，能当场固定为成果的那些", "query", object({ goal_id: identifier }), object({ objects: array(object({ subject, title: text })) })),
 } as const;
 
 /** A version in the 成果库 a Goal takes as an input (A4b, 「作为 Goal 的输入」); same rules as deliverables. */
 export const goalsArtifactInputActions = {
-  add: linking(goalAction<{ goal_id: string; reference: ArtifactReference; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.add",
+  add: linking(goalAction<{ goal_id: string; reference: ArtifactReference; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.add", /* @version action.goals.artifact_inputs.add */ 1,
     "把成果作为目标的输入", "把成果库里的一版记为目标的输入；不复制、不改动这一版，重复记录返回原记录。由助理、Coding、工作流或 MCP 调用时只记为提议（附理由），等用户确认", "command",
     object({ goal_id: identifier, reference, reason }, ["goal_id", "reference"]), object({ input: deliverable, replayed: boolean }))),
-  remove: linking(goalAction<{ goal_id: string; reference: ArtifactReference }, { removed: boolean }>("goals.artifact_inputs.remove",
+  remove: linking(goalAction<{ goal_id: string; reference: ArtifactReference }, { removed: boolean }>("goals.artifact_inputs.remove", /* @version action.goals.artifact_inputs.remove */ 1,
     "移除目标的成果输入", "不再把这一版算作目标的输入，或撤回、拒绝对它的提议；成果本身不受影响。只有用户能移除已确认的输入", "command",
     object({ goal_id: identifier, reference }), object({ removed: boolean }))),
-  list: reading(goalAction<{ goal_id: string }, { inputs: GoalDeliverable[] }>("goals.artifact_inputs.list",
+  list: reading(goalAction<{ goal_id: string }, { inputs: GoalDeliverable[] }>("goals.artifact_inputs.list", /* @version action.goals.artifact_inputs.list */ 1,
     "目标的成果输入", "列出目标作为输入的成果版本，以及还在等用户确认的提议（proposed）", "query", object({ goal_id: identifier }), object({ inputs: array(deliverable) }))),
   /** 「固定这一版」 when a Goal takes an object as input (one entry for both kinds, artifact-positioning 五.1). */
-  pin: linking(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.pin",
+  pin: linking(goalAction<{ goal_id: string; subject: { kind: string; id: string }; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.pin", /* @version action.goals.artifact_inputs.pin */ 1,
     "固定这一版作为输入", "把一份资料（文档、问卷、演示稿、数据表）的当前内容固定为成果库里的一版，并记为目标的输入；目标认的是这一版，原对象之后仍可修改。由助理等调用时只记为提议", "command",
     object({ goal_id: identifier, subject, reason }, ["goal_id", "subject"]), object({ input: deliverable, replayed: boolean }))),
 } as const;

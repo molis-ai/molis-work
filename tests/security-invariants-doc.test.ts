@@ -1,56 +1,55 @@
-// Security invariant S-20 (docs/system/SECURITY-INVARIANTS.md): the table of invariants is true. The rule is
-// scripts/gates/security-invariants.mjs (a problem rule of `pnpm health:check`); this test shows that it holds on the repository as it
-// is, and that each way the table can stop being true makes it fail: a missing document, a row with no test, a test file that is
-// gone, a test title that was renamed (any title a row lists, not only the first after a file), a "runs in CI" test that CI does not run, ids out of order, and a security-invariants test file
-// that no row names.
+// S-20 / CCR-08: independent records retain every test reference and refusal check.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { SECURITY_DOC, securityInvariantProblems } from "../scripts/gates/security-invariants.mjs";
+import { SECURITY_DOC, SECURITY_RECORDS, securityInvariantProblems } from "../scripts/gates/security-invariants.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const FILES = [...readdirSync(`${root}tests`).map(name => `tests/${name}`), SECURITY_DOC, "package.json", ".github/workflows/ci.yml"];
-const read = (file: string): string | null => { try { return readFileSync(`${root}${file}`, "utf8"); } catch { return null; } };
+const records = readdirSync(`${root}${SECURITY_RECORDS}`).filter(name => /^S-.*\.md$/.test(name)).map(name => SECURITY_RECORDS + name);
+const FILES = [...readdirSync(`${root}tests`).map(name => `tests/${name}`), ...records, SECURITY_DOC, "package.json", ".github/workflows/ci.yml"];
+const sourceCache = new Map<string, string | null>();
+const read = (file: string): string | null => {
+  if (!sourceCache.has(file)) { try { sourceCache.set(file, readFileSync(`${root}${file}`, "utf8")); } catch { sourceCache.set(file, null); } }
+  return sourceCache.get(file)!;
+};
 const real = { files: FILES, read };
-/** The repository as it is, with some of its files read differently. */
 const altered = (changes: Record<string, string | null>, extraFiles: string[] = []) => ({
   files: [...FILES.filter(file => changes[file] !== null), ...extraFiles],
   read: (file: string) => file in changes ? changes[file]! : read(file),
 });
-const doc = read(SECURITY_DOC)!;
 const packageJson = JSON.parse(read("package.json")!) as { scripts: Record<string, string> };
 
 test("S-20 the table is checked: each way it can stop being true is caught", () => {
   assert.deepEqual(securityInvariantProblems(real), [], "the repository as it is");
-  assert.ok(doc.split("\n").filter(line => /^\| S-\d+ \|/.test(line)).length >= 20, "the document has its rows");
-
+  assert.ok(records.length >= 20, "the document has its records");
   const expectProblem = (what: string, snapshot: ReturnType<typeof altered>, pattern: RegExp) => {
     const problems = securityInvariantProblems(snapshot);
     assert.ok(problems.some(problem => pattern.test(problem)), `${what}: ${JSON.stringify(problems)}`);
   };
+  const extra = `${SECURITY_RECORDS}S-extra.md`;
+  const row = (cells: string) => altered({ [extra]: `| S-extra | ${cells} |\n` }, [extra]);
   expectProblem("the document is gone", altered({ [SECURITY_DOC]: null }), /is missing/);
-  expectProblem("a row names no test", altered({ [SECURITY_DOC]: `${doc}\n| S-21 | an invariant with nothing behind it | somewhere | | |\n` }), /S-21 names no test/);
-  expectProblem("a row names a test file that does not exist", altered({ [SECURITY_DOC]: `${doc}\n| S-21 | x | y | \`tests/no-such-file.test.ts\` | |\n` }), /tests\/no-such-file\.test\.ts, which does not exist/);
-  expectProblem("a test title was renamed", altered({ [SECURITY_DOC]: doc.replace("「S-06 the control token is long and random」", "「S-06 a title nobody wrote」") }), /a title nobody wrote/);
-  // A row lists several titles after one file (S-03, S-16 and others): the ones after the first are checked too.
-  expectProblem("the second title of a file was renamed", altered({ [SECURITY_DOC]: doc.replace("「S-03 the IM mount (/im)」", "「S-03 a title nobody wrote」") }), /S-03 names 「S-03 a title nobody wrote」/);
-  expectProblem("the last title of a file was renamed", altered({ [SECURITY_DOC]: doc.replace("「turning the Assistant's browser off stops a round that already holds the page」", "「a title nobody wrote」") }), /S-16 names 「a title nobody wrote」/);
-  // And all of them: every 「title」 in the table, renamed on its own, is reported by name (the table has 60 at the time of writing).
-  const fragments = [...doc.split("\n").filter(line => /^\| S-\d+ \|/.test(line)).join("\n").matchAll(/「([^」]+)」/g)].map(match => match[1]!);
-  assert.ok(fragments.length >= 50, `the table lists its test titles (${fragments.length})`);
-  // The replacement is built at run time: this file is itself one of the files the table names (S-20), and its own source must not contain it.
+  expectProblem("a row names no test", row("an invariant with nothing behind it | somewhere | |"), /S-extra names no test/);
+  expectProblem("a row names a missing test", row("x | y | `tests/no-such-file.test.ts` |"), /tests\/no-such-file\.test\.ts, which does not exist/);
   const nobodyWrote = ["a", "title", "nobody", "wrote", "twice"].join(" ");
-  for (const fragment of fragments) {
-    const renamed = doc.replace(`「${fragment}」`, `「${nobodyWrote}」`);
-    assert.notEqual(renamed, doc, `the table has 「${fragment}」`);
-    expectProblem(`「${fragment}」 was renamed`, altered({ [SECURITY_DOC]: renamed }), new RegExp(`names 「${nobodyWrote}」`));
+  let count = 0;
+  for (const file of records) {
+    const text = read(file)!;
+    for (const match of text.split("\n").filter(line => /^\| S-/.test(line)).join("\n").matchAll(/「([^」]+)」/g)) {
+      count++;
+      expectProblem(`「${match[1]}」 was renamed`, altered({ [file]: text.replace(match[0], `「${nobodyWrote}」`) }), new RegExp(`names 「${nobodyWrote}」`));
+    }
   }
-  expectProblem("a CI test that CI does not run", altered({ [SECURITY_DOC]: `${doc}\n| S-21 | x | y | \`tests/rss-custom-feeds.test.ts\` | |\n`, "tests/rss-custom-feeds.test.ts": "" }, ["tests/rss-custom-feeds.test.ts"]), /do not run it/);
-  expectProblem("the ids run out of order", altered({ [SECURITY_DOC]: doc.replace("| S-05 |", "| S-04 |") }), /they run S-01, S-02/);
-  expectProblem("an id is used twice", altered({ [SECURITY_DOC]: doc.replace(/\| S-07 \|/, "| S-06 |") }), /S-06 is on two rows/);
-  expectProblem("an invariant test file that no row names", altered({ "tests/security-invariants-extra.test.ts": "" }, ["tests/security-invariants-extra.test.ts"]), /security-invariants-extra\.test\.ts is named by no row/);
-  // CI runs what the script says: take a test out of `test:security` and its row, which lists it as run by CI, is wrong.
+  assert.ok(count >= 50, "all title fragments retain mutation coverage");
+  expectProblem("a CI test that CI does not run", altered({ [extra]: "| S-extra | x | y | `tests/rss-custom-feeds.test.ts` | |\n", "tests/rss-custom-feeds.test.ts": "" }, [extra, "tests/rss-custom-feeds.test.ts"]), /do not run it/);
+  const duplicate = `${SECURITY_RECORDS}S-duplicate.md`;
+  expectProblem("an ID is used twice", altered({ [duplicate]: read(`${SECURITY_RECORDS}S-06.md`)! }, [duplicate]), /S-06 is on two rows/);
+  expectProblem("filename and ID differ", altered({ [`${SECURITY_RECORDS}S-07.md`]: read(`${SECURITY_RECORDS}S-06.md`)! }), /must match its filename/);
+  expectProblem("empty record", altered({ [`${SECURITY_RECORDS}S-07.md`]: "# S-07\n" }), /expected exactly one/);
+  expectProblem("an unmapped invariant test", altered({ "tests/security-invariants-extra.test.ts": "" }, ["tests/security-invariants-extra.test.ts"]), /security-invariants-extra\.test\.ts is named by no row/);
   const trimmed = { ...packageJson, scripts: { ...packageJson.scripts, "test:security": packageJson.scripts["test:security"]!.replace(" tests/memory-service.test.ts", "") } };
-  expectProblem("a test taken out of test:security", altered({ "package.json": JSON.stringify(trimmed) }), /tests\/memory-service\.test\.ts as run by CI/);
+  expectProblem("a test removed from test:security", altered({ "package.json": JSON.stringify(trimmed) }), /tests\/memory-service\.test\.ts as run by CI/);
+  const independent = row("new boundary | code | `tests/security-invariants-local-entry.test.ts` |");
+  assert.deepEqual(securityInvariantProblems(independent), [], "semantic IDs need no shared sequence");
 });

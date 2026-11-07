@@ -14,7 +14,7 @@ export interface McpActionGrant {
   readonly enabled: boolean;
 }
 
-const MCP_TOOL_PREFERENCE_VERSION = 1;
+const MCP_TOOL_PREFERENCE_VERSION = /* @version format.mcp.tool-preference */ 1;
 const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
 
 /** Which actions each MCP client may use; nothing else switches an MCP tool on or off. */
@@ -116,15 +116,49 @@ export async function writeMcpActionGrant(homeDirectory: string, grant: McpActio
 
 /** Several grants in one atomic write: an action and the actions it depends on are saved together or not at all. */
 export async function writeMcpActionGrants(homeDirectory: string, grants: readonly McpActionGrant[]): Promise<McpToolPreference> {
-  if (!grants.every(grant => isMcpActionGrant(grant))) throw new Error("动作授权无效");
-  const snapshots = grants.map(grant => structuredClone(grant));
+  const snapshots = validGrants(grants);
   const keys = new Set(snapshots.map(actionGrantKey));
   return updateMcpToolPreference(homeDirectory, current => ({ ...current,
-    action_grants: [...current.action_grants.filter(row => !keys.has(actionGrantKey(row))), ...snapshots.map(grant => {
-      const previous = current.action_grants.find(row => actionGrantKey(row) === actionGrantKey(grant));
-      const samePermissions = previous && new Set(previous.permissions).size === new Set(grant.permissions).size
-        && previous.permissions.every(permission => grant.permissions.includes(permission));
-      return { ...grant, generation: previous && previous.enabled === grant.enabled && samePermissions ? previous.generation : randomUUID() };
-    })],
-  }));
+    action_grants: [...current.action_grants.filter(row => !keys.has(actionGrantKey(row))), ...withGenerations(current, snapshots)] }));
+}
+
+/**
+ * Replaces every grant of one client with exactly these, in one atomic write (a task's categories, set as a whole). `check` sees the
+ * file as it is inside that write, before anything changes, and refuses by throwing: a stale revision changes nothing.
+ */
+export async function replaceMcpClientGrants(homeDirectory: string, clientId: string, grants: readonly McpActionGrant[],
+  check: (current: McpToolPreference) => void): Promise<McpToolPreference> {
+  const snapshots = validGrants(grants);
+  if (snapshots.some(grant => grant.client_id !== clientId)) throw new Error("动作授权无效");
+  return updateMcpToolPreference(homeDirectory, current => {
+    check(current);
+    return { ...current, action_grants: [...current.action_grants.filter(row => row.client_id !== clientId), ...withGenerations(current, snapshots)] };
+  });
+}
+
+/** Takes the grants `remove` picks, in one atomic write; answers how many went. A Home without such a grant (or without the file) is not written. */
+export async function removeMcpActionGrants(homeDirectory: string, remove: (grant: McpActionGrant) => boolean): Promise<number> {
+  if (!(await readMcpToolPreference(homeDirectory)).action_grants.some(remove)) return 0;
+  let removed = 0;
+  await updateMcpToolPreference(homeDirectory, current => {
+    const kept = current.action_grants.filter(row => !remove(row));
+    removed = current.action_grants.length - kept.length;
+    return { ...current, action_grants: kept };
+  });
+  return removed;
+}
+
+function validGrants(grants: readonly McpActionGrant[]): McpActionGrant[] {
+  if (!grants.every(grant => isMcpActionGrant(grant))) throw new Error("动作授权无效");
+  return grants.map(grant => structuredClone(grant));
+}
+
+/** A grant written again unchanged (same switch, same permissions) keeps its generation; any other gets a new one. */
+function withGenerations(current: McpToolPreference, grants: readonly McpActionGrant[]): McpToolPreference["action_grants"] {
+  return grants.map(grant => {
+    const previous = current.action_grants.find(row => actionGrantKey(row) === actionGrantKey(grant));
+    const samePermissions = previous && new Set(previous.permissions).size === new Set(grant.permissions).size
+      && previous.permissions.every(permission => grant.permissions.includes(permission));
+    return { ...grant, generation: previous && previous.enabled === grant.enabled && samePermissions ? previous.generation : randomUUID() };
+  });
 }

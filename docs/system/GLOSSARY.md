@@ -22,6 +22,8 @@
 | 动作服务 | 注册、发现、授权、调用动作的共用服务 | 能力服务 | 统一动作服务（全称，可用） |
 | 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准；「设置 › 诊断」、「能力 › 调用记录」和经共用请求助手显示的错误详情里已出现：装了助手的内联页面，和工作台主程序里已迁到助手的部分（设置一组、项目设置）；工作台的导航、Feed、插件挂载、助理底栏、放置、搜索和插件客户端的错误详情还没有，随 W3-10-2～4、W5-04） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它）；助理与 Agent 工具活动的 `call_id`（一行活动的标识，不是它） |
 | 调用记录 | Home 里近期调用的诊断记录：谁调了什么、怎样结束，不写输入与结果 | 调用记录 | 动作调用日志（`docs/system/SECURITY-INVARIANTS.md` S-12 的写法） |
+| 读取分组 | 插件在 Manifest `read_groups` 里声明的一组自己的只读动作，带显示名和一句「包含什么」；是本人让后台任务读数据时的一个开关（一「类」） | 能读的数据里的一类（如「日历」「待办」） | 读取类别（指声明时）、按插件授权（没声明分组的插件才整个算一类） |
+| 任务主体 | 一个后台任务在动作授权里的身份 `agent:task:<项目>:<安装>:<key>`：项目与安装由宿主从调用上下文填，插件只给 key；没有默认放开的动作，只读本人为这个任务打开的类别 | 无（界面上是任务的「能读的数据」） | 任务客户端、任务授权（指主体时） |
 | 宿主能力（typed capability） | 已删除（R8「删 typed 通道」）：注册表里曾经不带 `action` 的条目；宿主的服务现在都登记成动作 | 无 | 裸写的「能力」「Capability」 |
 | 插件私有文件（`ownerFiles` / `owner_files`） | 插件在自己 Manifest 的 `owner_files` 里声明、放在 Home 的文件树（顶层条目、读写权限），只经 `services.ownerFiles` 读写；只有这一套 | 无 | `files`（旧的启动条目声明与 `services.files`，PG-022 P2b 已删，现在只叫 `ownerFiles`）、`initialize_owner_files`（启动钩子，已删，由插件在自己的 `start` 里写） |
 | 判断规则 | 已发布、版本不可变的判断：给一段内容，返回选择、是非概率或分数 | 判断规则 | 判断函数、Function、Functions |
@@ -102,6 +104,19 @@
 
 - 定义：Home 里 `logs/action-calls.jsonl` 的近期记录（`ActionCallLog`，`apps/local-host/src/action-call-log.ts`）：谁在哪个项目调了哪个能力、怎样结束（错误码；只有处理器跑过又失败的命令另存前 200 字的错误信息）、属于哪次操作（每行带调用编号），不写内容（输入与返回）。它是诊断记录，不是业务数据，所以「被取消、撤权、停用的调用不再写任何业务记录」不管它。界面在「能力 › 调用记录」。
 - 现状（W3-01 B）：每个命令一行（含宿主自己的 typed 命令），读取只在失败时记，`wait` 不记；处理器之前就被拒绝的调用（取消、撤权、停用、无权、输入不合、限流）也记一行，界面写「未执行」，只记谁、什么动作、结果与错误码，不记内容（用户 2026-10-10 决定：诊断行可以记、硬规则只管业务数据）。页面自己找项目没有的插件的区域（Feed、Inbox、Schedule、Artifacts）时得到的「未启用」是它要的答案，不记行。连续相同的结果只和最后一行合并，同一个调用者连续试不存在的能力 id 是一行；文件按类整理（执行过的命令最近 1000 行，其余最近 200 行）；没有编号的旧行不读（用户 2026-10-10 决定：只认新行）。「能力 › 调用记录」每行显示诊断编号并可复制，「设置 › 诊断」按诊断编号查（W3-01 F）；经共用请求助手显示的错误提示里也有编号按钮（装了助手的内联页面，W3-10-1a；工作台主程序里已迁的设置一组和项目设置，W3-10-1b），工作台的导航、Feed、插件挂载、助理底栏、放置、搜索和插件客户端的还没有（W3-10-2～4、W5-04）。
+
+**读取分组**
+
+- 定义：提供方在自己 Manifest 的 `read_groups` 里声明的一组动作（`PluginReadGroupDeclaration`，`packages/contracts/src/platform/plugin-read-groups.ts`）：组 id、显示名、一句「包含什么」、本插件自己的几个动作。组里只能放对 `agent` 开放的只读查询（`operation` 为 `query`、`actionEffect` 为 `read`），一个动作至多在一组里；不符的 Manifest 读入时被拒（`packages/plugin-sdk/src/read-group-declarations.ts`）。
+- 一组就是本人给后台任务打开的一「类」。没声明分组的提供方（含宿主自己的提供方，如项目资料）整个算一类；声明了分组的，不在任何组里的动作不给任务。
+- 授权仍按动作逐条记（与 MCP 客户端的授权同一份记录，形状不变）；一条记录属于哪一类，按提供方此刻的分组读出，不另存（`apps/local-host/src/task-grant-categories.ts`）。分组被删、或原来不分组的提供方开始分组，原来那一类显示「已不再提供」（`removed`），读不到。
+- 不是：动作的类别（`ActionMetadata.kind`）。
+
+**任务主体**
+
+- 定义：一个后台任务在动作授权里的客户端身份，`agent:task:<project_id>:<plugin_install_id>:<key>`（`apps/local-host/src/task-grant-subjects.ts`）。项目与安装由宿主从当次调用上下文取，插件只给 `key`（合同 `TASK_GRANT_SUBJECT_KEY_PATTERN`，不含 `:`）；同一个 key 在别的安装或项目里是另一个主体。前缀 `agent:` 让它用 Agent 受众，动作网关拒绝任何转发进程自称它（S-08）。
+- 只有本人经 `agent.task_grants.set@1` 为它写授权；它没有默认放开的动作（项目资料也要打开），只读、只在自己的项目里；插件的只读业务角色带 `grant_subject` 起跑时，这一轮的动作身份就是它（`docs/system/security-invariants/S-task-grant-subjects.md`）。
+- 不是：内置 Agent 的 `agent:<runtime>`，也不是外部 Runtime 的 `runtime:<id>`；「对外接入」一页不列它。
 
 **宿主能力（typed capability）与 Capability**
 

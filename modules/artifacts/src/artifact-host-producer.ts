@@ -16,7 +16,7 @@ export const ARTIFACTS_HOST_PRODUCER: {
   readonly actions: readonly ActionDefinition[];
 } = {
   plugin_id: ARTIFACTS_PLUGIN_ID, name: ARTIFACTS_PROVIDER_TITLE,
-  produces: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1, title: "导入的文件",
+  produces: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1, title: "导入的文件",
     preview: { capability_id: artifactsActions.preview.capability_id, version: artifactsActions.preview.version } }],
   actions: [artifactsActions.preview],
 };

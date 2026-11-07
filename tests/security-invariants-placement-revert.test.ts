@@ -13,8 +13,8 @@ import { PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "
 // S-35: after a plugin has committed a cross-partition move and the round is then refused, the platform may put the object back
 // (user decision 2026-10-17). The move-back goes only to where the object was, and not after the placement service has closed.
 
-const reader = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
-const mover = defineObjectMoveAction("notes.placement.move", ["note"], "笔记", ["notes:write"]);
+const reader = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", ["notes:read"]);
+const mover = defineObjectMoveAction("notes.placement.move", 1, ["note"], "笔记", ["notes:write"]);
 const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "notes:write"] });
 const old = { kind: "note", id: "n1", project_id: "personal" };
 

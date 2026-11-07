@@ -19,7 +19,7 @@ export function specIndexProblems(snapshot) {
     const parts = file.split("/");
     if (parts.length === 2) {
       if (parts[1] !== "README.md" && parts[1] !== "BACKLOG.md") problems.push(`${file}: specs/ holds README.md, BACKLOG.md, archive/ and spec directories at its root; move this into a spec directory or archive/`);
-    } else if (parts[1] !== "archive") directories.add(parts[1]);
+    } else if (parts[1] !== "archive" && parts[1] !== "backlog") directories.add(parts[1]);
   }
 
   const readme = snapshot.read(INDEX);

@@ -149,7 +149,8 @@ test("S-37 ASC-34: malformed held credentials are rejected before any completion
     const request = await prepare(home); hold(home.home, `invalid-${token.length}`);
     await assert.rejects(home.web.post("/api/settings/connectors/connections", { service_id: "model-api", display_name: "Intent account", token, setup_id: request.authorization_id }));
     assert.equal(secret(home.home, request.authorization_id), null);
-    assert.equal((await read(home, request.authorization_id)).status, "failed");
+    // Refused before the request begins (a key is read and checked before anything starts, §13.6 ④d): it stays open for another key.
+    assert.equal((await read(home, request.authorization_id)).status, "prepared");
     assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
   }
   const original = withConnectorConnections(home.home, store => store.createToken({ serviceId: "model-api", displayName: "Original", token: "fixture-original-secret" }));

@@ -85,4 +85,5 @@ export { createCollectionCopy } from './collection-copy.js';
 
 export { nativeSqliteOwnerBoundary, type PluginSqlExecution } from './sqlite-owner-boundary.js';
 export { sqliteBaselineTriggers, assertSqliteBaselineTriggers } from './sqlite-baseline-inspection.js';
+export { dumpSqliteText, countSqliteRows, SQLITE_DUMP_NORMALIZED_COLUMNS, type SqliteTextDump } from './sqlite-text-dump.js';
 export { inspectEvidenceContentSnapshot } from "./evidence-snapshot.js";

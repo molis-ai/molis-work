@@ -52,6 +52,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
+| `projects/.deleting-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-deletion.ts:43-44`：永久删除项目时，先把项目目录改名到这里，清理时删掉（`:128`）。路径由 `modules/projects/src/project-paths.ts` 推导；目录库回执 `project_deletions.staged_directory` 记的路径只认最后一段（S-102） | 目录 | 临时（进程在中途被杀时，这里是用户已确认删除的项目数据，下次清理按未完成的回执删掉） | purge（在 `projects/` 内） |
 
 
 

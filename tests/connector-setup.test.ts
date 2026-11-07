@@ -61,6 +61,10 @@ test("ASC-18 ASC-20: the Host expires private protocol material while completed 
 
 test("ASC-03 ASC-07 ASC-08 ASC-19 ASC-37: prepare before any project, reuse this session's request, then save through the protected form exactly once", async t => {
   const home = await openTestHome(t);
+  // The key is checked with GitHub before it is saved (§13.6 ④d): a stand-in GitHub accepts it, and nothing leaves the machine.
+  const realFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => String(input) === "https://api.github.com/user"
+    ? Response.json({ login: "fixture-octocat", id: 7 }) : realFetch(input, init));
   const existing = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Personal", token: "fixture-personal-setup" }));
   const [first, repeated] = await Promise.all([prepare(home), prepare(home)]);
   assert.equal(first.authorization_id, repeated.authorization_id);

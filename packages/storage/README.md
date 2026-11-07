@@ -135,6 +135,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 - 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/upgrade-chain.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts`
 
 - 空间归属改动另跑：`node scripts/run-tests.mjs tests/space-ownership.test.ts tests/web-home-isolation.test.ts`。
+- 文本转储（`src/sqlite-text-dump.ts`，金样 Home 用，设计见 `specs/upgrade-continuity/golden-replay-design.md` §2）：同样的已提交行写出同样的字节，只走窄接口 `SqliteBaselineDatabase` 与 SQLite 的 `quote()`。要归一的随机列只写进 `SQLITE_DUMP_NORMALIZED_COLUMNS` 这张短表，不做通配。改它另跑：`node scripts/run-tests.mjs tests/golden-home.test.ts`。
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

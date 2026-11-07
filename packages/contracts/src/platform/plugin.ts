@@ -11,7 +11,7 @@ import type { InstructionPrompt } from "./model-prompts.js";
 export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "./plugin-materials.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackageManifest, SandboxPackageManifest, SandboxAgentBodyDeclaration, SandboxAgentBody, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner, SandboxPackageInterface, SandboxPackagePrompt } from "./plugin-package.js";
-export { SANDBOX_PACKAGE_FILES } from "./plugin-package.js";
+export { CONTENT_PACKAGE_FILES, SANDBOX_PACKAGE_FILES } from "./plugin-package.js";
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
@@ -328,7 +328,7 @@ export interface IntegrationProviderPort {
   }, control: import("../services/connector-host.js").ConnectorCallControl): Promise<IntegrationProviderSyncResult>;
 }
 
-export { pluginErrors } from "./plugin-errors.js";
+export { pluginErrors, type PluginDeclarationProblem } from "./plugin-errors.js";
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "./plugin-agents.js";
 export type { PluginReadGroupDeclaration } from "./plugin-read-groups.js";

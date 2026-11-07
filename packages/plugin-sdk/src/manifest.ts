@@ -1,11 +1,13 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginSyncDeclaration } from "./plugin-sync.js";
-import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SURFACE_BROWSER_PERMISSION, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
-import { inspectAgentDeclaration, inspectSkillDeclarations } from "./agent-declarations.js";
+import { inspectAgentDeclaration } from "./agent-declarations.js";
+import { inspectContentPlugin } from "./content-plugin.js";
+import { inspectSkillDeclarations } from "./skill-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
@@ -41,14 +43,16 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   if (!text(manifest.plugin_id) || !PLUGIN_ID.test(manifest.plugin_id)
     || !text(manifest.version) || !SEMVER.test(manifest.version)
     || !text(manifest.name) || !text(publisher.publisher_id) || !text(publisher.signature)
-    || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app")) {
+    || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app" && manifest.kind !== "content")) {
     throw pluginErrors.manifest_invalid("Plugin Manifest 身份、名称、类型或版本不合法");
   }
+  // A plugin with only declarations is held to its own list of keys first, so a key it may not write is refused by name.
+  if (manifest.kind === "content") assertNoDeclarationProblems(inspectContentPlugin(manifest));
   inspectOptionalDeclarations(manifest);
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
   if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
-  if (!Array.isArray(manifest.entrypoints) || manifest.entrypoints.length === 0) {
+  if (!Array.isArray(manifest.entrypoints) || (manifest.entrypoints.length === 0 && manifest.kind !== "content")) {
     throw pluginErrors.entrypoint_missing("Plugin 至少需要一个 entrypoint");
   }
   const deployments = new Set<string>();
@@ -196,13 +200,18 @@ export function comparePluginVersions(left: string, right: string): number {
   return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length < b.prerelease.length ? -1 : 1;
 }
 
-/** The one place a list of declaration problems becomes the refusal (the error-code gates count each literal of a code). */
-function assertNoDeclarationProblems(problems: readonly string[]): void {
-  if (problems.length > 0) throw pluginErrors.declaration_invalid(problems.join("；"));
+/**
+ * The one place a list of declaration problems becomes the refusal (the error-code gates count each literal of a code). The message
+ * joins the reasons; `details.problems` keeps each with the Skill and package file it points at.
+ */
+function assertNoDeclarationProblems(problems: ReadonlyArray<string | PluginDeclarationProblem>): void {
+  if (problems.length === 0) return;
+  const listed = problems.map(problem => typeof problem === "string" ? { reason: problem } : problem);
+  throw pluginErrors.declaration_invalid(listed.map(problem => problem.reason).join("；"), { problems: listed });
 }
 
 function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>): void {
-  const problems: string[] = [];
+  const problems: Array<string | PluginDeclarationProblem> = [];
   problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes), ...inspectActionCrossReferences(parsed.actions));
   const declaredPermissions = new Set(parsed.permissions.map(p => p.permission));
   for (const action of Array.isArray(parsed.actions) ? parsed.actions : []) {

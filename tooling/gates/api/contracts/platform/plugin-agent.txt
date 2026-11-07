@@ -71,9 +71,18 @@ export interface AgentSkillDeclaration {
     name: string;
     summary: string;
     tools: string[];
+    description?: string;
+    when_to_use?: string;
+    when_not_to_use?: string;
+    applies_to?: SkillAppliesTo;
+    user_invocable?: boolean;
+    argument_hint?: string;
+    body?: string;
+    resources?: SkillResourceDeclaration[];
+    connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends AgentSkillDeclaration {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
     body: string;
 }
 
@@ -100,7 +109,42 @@ export interface AgentTextSourceDeclaration {
 
 export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
+export declare const MAX_SKILL_BODY_CHARS = 20000;
+
+export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
+
+export declare const SKILL_LIMITS: {
+    readonly descriptionChars: 1024;
+    readonly whenChars: 500;
+    readonly argumentHintChars: 80;
+    readonly bodyLines: 500;
+    readonly bodyChars: 20000;
+    readonly resourcesPerSkill: 300;
+    readonly skillsPerPackage: 128;
+    readonly filesPerPackage: 4000;
+    readonly fileBytes: number;
+    readonly packageBytes: number;
+};
+
+export declare const SKILL_RESOURCE_FOLDERS: {
+    readonly reference: "references";
+    readonly script: "scripts";
+    readonly asset: "assets";
+};
+
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
+
+export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
+
+export interface SkillResourceDeclaration {
+    path: string;
+    role: SkillResourceRole;
+    media_type: string;
+    bytes: number;
+    sha256: string;
+}
+
+export type SkillResourceRole = keyof typeof SKILL_RESOURCE_FOLDERS;
 
 export declare function orderPromptsByLayer<T extends {
     layer?: AgentPromptLayer;

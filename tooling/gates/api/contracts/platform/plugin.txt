@@ -880,9 +880,18 @@ export interface AgentSkillDeclaration {
     name: string;
     summary: string;
     tools: string[];
+    description?: string;
+    when_to_use?: string;
+    when_not_to_use?: string;
+    applies_to?: SkillAppliesTo;
+    user_invocable?: boolean;
+    argument_hint?: string;
+    body?: string;
+    resources?: SkillResourceDeclaration[];
+    connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends AgentSkillDeclaration {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
     body: string;
 }
 
@@ -1001,6 +1010,12 @@ export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
     invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
 }
+
+export declare const CONTENT_PACKAGE_FILES: {
+    readonly manifest: "manifest.json";
+    readonly skills: "skills";
+    readonly body: "SKILL.md";
+};
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
 
@@ -2418,6 +2433,8 @@ export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
+export declare const MAX_SKILL_BODY_CHARS = 20000;
+
 export interface MaterialSourceContent {
     text: string;
     title?: string;
@@ -2782,6 +2799,12 @@ export interface PluginDatabaseTransaction extends PluginDatabaseReader {
         readonly keep: boolean;
         readonly value: T;
     }): T;
+}
+
+export interface PluginDeclarationProblem {
+    skill_id?: string;
+    path?: string;
+    reason: string;
 }
 
 export interface PluginDefinition {
@@ -3343,7 +3366,7 @@ export interface PluginKeptJob {
     cancel(): void;
 }
 
-export type PluginKind = "native" | "integration" | "app";
+export type PluginKind = "native" | "integration" | "app" | "content";
 
 export interface PluginLifecycleReceipt {
     receipt_id: string;
@@ -4554,6 +4577,27 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 
+export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
+
+export declare const SKILL_LIMITS: {
+    readonly descriptionChars: 1024;
+    readonly whenChars: 500;
+    readonly argumentHintChars: 80;
+    readonly bodyLines: 500;
+    readonly bodyChars: 20000;
+    readonly resourcesPerSkill: 300;
+    readonly skillsPerPackage: 128;
+    readonly filesPerPackage: 4000;
+    readonly fileBytes: number;
+    readonly packageBytes: number;
+};
+
+export declare const SKILL_RESOURCE_FOLDERS: {
+    readonly reference: "references";
+    readonly script: "scripts";
+    readonly asset: "assets";
+};
+
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
@@ -4955,6 +4999,18 @@ export interface SearchSourceKind {
     title: string;
     surface: string;
 }
+
+export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
+
+export interface SkillResourceDeclaration {
+    path: string;
+    role: SkillResourceRole;
+    media_type: string;
+    bytes: number;
+    sha256: string;
+}
+
+export type SkillResourceRole = keyof typeof SKILL_RESOURCE_FOLDERS;
 
 export interface StageSceneMetadataAuthority {
     readonly actor_id: string;

@@ -99,9 +99,9 @@
 
 重建窗口手跑（检查清单 §4.1），要构建产物，不在 `pnpm health:check` 里。动作、Manifest、提示词、角色、方法和产品代码里的 `*VERSION` 常量都要是 1，差一个就失败。
 
-持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，按 `文件#名字` 认，别处的同名常量不算；还有三项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记和回放现在都没有，所以它们也只能是 1；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
+持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，按 `文件#名字` 认，别处的同名常量不算；还有八项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`），以及设计稿 §2.6 说进链、用户 2026-11-07 单独同意加上的五个文件：`format.home.onboarding`、`format.project.arrival`、`format.browser.site-decisions`、`format.computer.settings`、`format.computer.record`。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记和回放现在都没有，所以它们也只能是 1；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
 
-不在名单上的常量给了链也只能是 1。存在行里的内容版本就是这样：固定版本（Coding 计划、Feed 捕获、Dataset、Form、Pages、PPT 的 `schema_version`）不可变，升级段不能改写；Gmail 的 `GMAIL_LIVE_CURSOR_VERSION` 是同步进度，版本不符时重建，用不着段。这道检查只看 `*VERSION` 常量和上面三个条目，写成行内字面量的 `format.*` 它看不到。
+不在名单上的常量给了链也只能是 1。存在行里的内容版本就是这样：固定版本（Coding 计划、Feed 捕获、Dataset、Form、Pages、PPT 的 `schema_version`）不可变，升级段不能改写；Gmail 的 `GMAIL_LIVE_CURSOR_VERSION` 是同步进度，版本不符时重建，用不着段。这道检查只看 `*VERSION` 常量和上面八个条目，其余写成行内字面量的 `format.*` 它看不到；`format.web.service.receipt` 是机器收据，§2.6 说不做，也不在内。
 
 验证：`node scripts/run-tests.mjs tests/health-gates-initial-versions.test.ts`。没有链、缺段、重复段、段超出范围、链的版本不同、回放没过或没有结果都失败；别的文件里的同名常量和普通常量，给了链也失败。
 

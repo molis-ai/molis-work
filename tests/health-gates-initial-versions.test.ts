@@ -124,7 +124,7 @@ test("UPG1-i-initial-08: every persistent format named here is still where it sa
     const [file, name] = definition.split("#") as [string, string];
     assert.match(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), new RegExp(`\\b${name}\\b`), definition);
   }
-  assert.equal(PERSISTENT_DEFINITIONS.length, 9);
+  assert.equal(PERSISTENT_DEFINITIONS.length, 14);
 });
 
 test("UPG1-i-initial-10: a payload version kept in a row is no persistent format, so a chain does not let it above 1", () => {
@@ -139,6 +139,33 @@ test("UPG1-i-initial-10: a payload version kept in a row is no persistent format
     const problems = sourceVersionProblems(file!, `const ${name} = 2;`, chain);
     assert.deepEqual(problems, [`${file}: ${name} = 2 (expected 1)`]);
   }
+});
+
+const CHAIN_FILES = [
+  ["format.home.onboarding", "apps/local-host/src/onboarding.ts#schema_version"],
+  ["format.project.arrival", "apps/local-host/src/project-arrival.ts#schema_version"],
+  ["format.browser.site-decisions", "apps/local-host/src/browser/browser-surfaces.ts#version"],
+  ["format.computer.settings", "apps/local-host/src/computer/computer-settings.ts#version"],
+  ["format.computer.record", "apps/local-host/src/computer/computer-records.ts#version"],
+] as const;
+const inspectEntries = (versionEntries: Record<string, number>, chains?: Map<string, unknown>) =>
+  initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, ...(chains ? { chains } : {}) });
+
+test("UPG1-i-initial-11: the five files of design §2.6 at 2 fail with no chain and pass only with a consecutive chain and a passed replay", () => {
+  for (const [key, definition] of CHAIN_FILES) {
+    assert.deepEqual(inspectEntries({ [key]: 1 }), [], `${key} at 1 needs no chain`);
+    assert.deepEqual(inspectEntries({ [key]: 2 }), [`${definition} = 2 (expected 1; above 1 it needs a registered upgrade chain and a replay that passed)`]);
+    const withChain = (froms: number[], replay_passed: boolean) => inspectEntries({ [key]: 2 }, new Map([[definition, { version: 2, froms, replay_passed }]]));
+    assert.deepEqual(withChain([1], true), [], `${key}: a consecutive chain with a passed replay`);
+    assert.equal(withChain([], true).length, 1, `${key}: a chain with a gap`);
+    assert.equal(withChain([1], false).length, 1, `${key}: a replay that did not pass`);
+  }
+});
+
+test("UPG1-i-initial-12: the machine receipt stays out of the list, as design §2.6 says", () => {
+  const definitions = new Set<string>(PERSISTENT_DEFINITIONS);
+  assert.ok(!definitions.has("apps/local-host/src/installer/web-service-contract.ts#schema_version"));
+  assert.deepEqual(inspectEntries({ "format.web.service.receipt": 2 }), []);
 });
 
 test("UPG1-i-initial-09: the step rule is from 1 to version - 1, each once", () => {

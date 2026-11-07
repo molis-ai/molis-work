@@ -24,10 +24,16 @@ const PERSISTENT_CONSTANTS = new Set([
 ]);
 // The persistent formats that are no `*VERSION` constant reach this check through their tooling/versions.json entry. The code calls
 // two stores a ledger (账本) and the design's §2.5 names both, so both are here; a chain is what any library needs to go above 1 anyway.
+// The last five are the files §2.6 of the design puts in the chain and §11.1 did not name: the user agreed to them on 2026-11-07.
 const PERSISTENT_ENTRIES = new Map([
   ["database.ledger_baseline", "apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE"],
   ["database.memory_ledger_baseline", "packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE"],
   ["format.jelly.workspace", "plugins/native/jelly/src/contract.ts#schema_version"],
+  ["format.home.onboarding", "apps/local-host/src/onboarding.ts#schema_version"],
+  ["format.project.arrival", "apps/local-host/src/project-arrival.ts#schema_version"],
+  ["format.browser.site-decisions", "apps/local-host/src/browser/browser-surfaces.ts#version"],
+  ["format.computer.settings", "apps/local-host/src/computer/computer-settings.ts#version"],
+  ["format.computer.record", "apps/local-host/src/computer/computer-records.ts#version"],
 ]);
 export const PERSISTENT_DEFINITIONS = Object.freeze([...PERSISTENT_CONSTANTS, ...PERSISTENT_ENTRIES.values()]);
 

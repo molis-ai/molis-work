@@ -2,7 +2,7 @@ import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
   SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, openBaselineHomeSqlite, openReadOnlyHomeSqlite, SqliteSchemaVersionError,
+import { readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, isSqliteSchemaStructureMismatch, isSqliteVersionRefusal, openBaselineHomeSqlite, openReadOnlyHomeSqlite, sqliteVersionRefusal,
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
@@ -13,7 +13,7 @@ const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
 // Only this store can identify its own refusals. A page must not mistake another database's version error or an arbitrary action failure for these.
 const homeStoreRefusal = Symbol("Home plugin store refusal");
 const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, { [homeStoreRefusal]: true });
-export const isHomePluginStoreRefusal = (error: unknown): error is ActionError | SqliteSchemaVersionError =>
+export const isHomePluginStoreRefusal = (error: unknown): error is ActionError =>
   error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
 const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源"));
 // Only the two immutable reference shapes are cached. Space metadata and the store's actual structure are read on every open.
@@ -34,7 +34,7 @@ function openWritableHomePluginDatabase(home: string) {
   catch (error) {
     // The storage baseline refuses a same-version changed structure before opening writable; this store names that refusal itself.
     if (isSqliteSchemaStructureMismatch(error)) throw invalidHomeStoreShape();
-    if (error instanceof SqliteSchemaVersionError) throw refusedHomeStore(error);
+    if (isSqliteVersionRefusal(error)) throw refusedHomeStore(error);
     throw error;
   }
 }
@@ -62,7 +62,7 @@ export function openReadOnlyHomePluginStore(home: string) {
   try {
     db.exec("BEGIN");
     const found = db.prepare("PRAGMA user_version").get()!.user_version as number;
-    if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw refusedHomeStore(new SqliteSchemaVersionError(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version));
+    if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw refusedHomeStore(sqliteVersionRefusal(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version, home));
     if (JSON.stringify(describeSqliteSchema(db)) !== expectedHomeStoreShape(db)) {
       throw invalidHomeStoreShape();
     }

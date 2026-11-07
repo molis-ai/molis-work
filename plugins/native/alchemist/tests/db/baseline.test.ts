@@ -2,7 +2,6 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
-import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { createTempDatabase, type TempDatabase } from "./helpers/temp-database.js";
 
@@ -90,7 +89,7 @@ describe("SQLite baseline", () => {
 
     for (const version of [2, 3, 4]) {
       database.pragma(`user_version = ${version}`);
-      expect(() => applyStudioBaseline(database!, temporary!.path)).toThrow(SqliteSchemaVersionError);
+      expect(() => applyStudioBaseline(database!, temporary!.path)).toThrow(expect.objectContaining({ code: "storage.store_too_new", details: expect.objectContaining({ found: version, expected: 1 }) }));
       expect(database.pragma("user_version", { simple: true })).toBe(version);
     }
   });

@@ -17,7 +17,7 @@
 
 ## 一次典型调用
 
-LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 用 `openBaselineHomeSqlite` 打开一个 Home 库：**这个 wrapper** 先只读核对版本与结构（同版本也必须有基线的每张表；热日志库的只读预检报 SQLITE_READONLY_ROLLBACK 时交给可写打开的 SQLite 崩溃恢复，恢复后再完整核对），再开可写连接并调用 `applySqliteBaseline`。公开的 `applySqliteBaseline` 处理的是**已有连接**：只在该连接上核对版本与基线表结构、给空库建基线，本身不做只读预检，也不负责其他 owner 的路径、密钥或 JSON 检查；直接 `openHomeSqliteDatabase` 后再 apply 的调用点保留各自顺序。版本不符（`storage.schema_version_mismatch`）或同版本基线表缺失/形状不同（`storage.schema_structure_mismatch`）都拒绝，不就地升级；runWithMolisWorkHome 将文件适配限定到当前 Home。
+LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 用 `openBaselineHomeSqlite` 打开一个 Home 库：**这个 wrapper** 先只读核对版本与结构（同版本也必须有基线的每张表；热日志库的只读预检报 SQLITE_READONLY_ROLLBACK 时交给可写打开的 SQLite 崩溃恢复，恢复后再完整核对），再开可写连接并调用 `applySqliteBaseline`。公开的 `applySqliteBaseline` 处理的是**已有连接**：只在该连接上核对版本与基线表结构、给空库建基线，本身不做只读预检，也不负责其他 owner 的路径、密钥或 JSON 检查；直接 `openHomeSqliteDatabase` 后再 apply 的调用点保留各自顺序。低版本（`storage.upgrade_pending`）、高版本（`storage.store_too_new`）、有表无版本（`storage.schema_version_mismatch`）或同版本基线表缺失/形状不同（`storage.schema_structure_mismatch`）都拒绝，打开路径不升级；runWithMolisWorkHome 将文件适配限定到当前 Home。
 
 `describeSqliteBaseline` 用内存 SQLite 描述当前基线的完整 DDL，连接在返回前关闭，不碰 Home 库。Host 用它与 `describeSqliteSchema` 的实测结果比较，确认完整结构后才构造可能创建表的 Repository；SQLite 连接技术留在 storage。
 
@@ -113,6 +113,8 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 快照技术拒绝沿共同 `ActionError`：静态不合法为平台 `actions.input_invalid`，开始复制后观察到改变为 `actions.conflict`；源库原 `storage.schema_version_mismatch`、取消和 I/O 原样传播。Home 编排把这两类转为自己的快照码，不依赖消息文本。当前库由owner的基线/元数据检查与完整性验证共同决定可捕获范围，公开拒绝及源零写证明见 `tests/home-snapshot-errors.test.ts`。退役Sessions的metadata端口已按2026-10-30用户决定删除，未知目录不被读取。
 
+升级链的单库跑法在 `sqlite-upgrade.ts`（`runSqliteUpgrade`，[设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.2）：调用方持存储主人锁、这个文件上没有别的连接，自己开好连接交进来，跑法校验段连续，在一个写事务里依次跑段、写版本，提交前查完整性、外键、结构（含 Home 空间表）、各表行数和主人的检查；任何一步失败都回滚并报 `storage.upgrade_failed`，段抛出的原始错误只放在 `cause`，不进消息和 `details`。事务不能等，`run`、`verify` 返回 Promise 或别的 thenable 一律按失败算；这时函数可能还没跑完，所以 `runSqliteUpgrade` 抛出后调用方要同步关掉连接，中间不能有 `await`，否则这个函数后面的写还会落进库。段带 `rebuilds_tables` 时外键在事务外关掉，结束后恢复原状并读回确认。快照与放回不在这里（U1-b）。版本拒绝的 `details` 带 `found`、`expected` 和 `path`：`path` 与消息里的位置只写相对 Home 的路径，没有 Home 时只写文件名，因为动作错误原样给调用方。
+
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
 - 不负责：Module schema 的业务含义、跨 Module 查询；搜索来源的发现、同步与权限（归 `horizontal/search`）。
 - 公开入口：`@molis-ai/molis-work-storage`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/storage`。
@@ -130,7 +132,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
   - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。
 - 知识卡与搜索索引适配器的 SQLite 语句读取整数使用 BigInt，避免全文索引遗留的 64 位内部行号使已成功的写入在返回结果时抛错；对外卡片、用量和回执仍沿原合同。回归：`tests/knowledge-cards.test.ts` 的 K01-01 与 `tests/model-first-setup.e2e.test.ts`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/upgrade-chain.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts`
 
 - 空间归属改动另跑：`node scripts/run-tests.mjs tests/space-ownership.test.ts tests/web-home-isolation.test.ts`。
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

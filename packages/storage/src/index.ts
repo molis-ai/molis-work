@@ -20,10 +20,12 @@ export {
   openHomeSqliteFile,
   openReadOnlyHomeSqlite,
 } from "./home-sqlite.js";
+export { runSqliteUpgrade, type SqliteUpgradeResult } from "./sqlite-upgrade.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
   isSqliteSchemaStructureMismatch,
-  SqliteSchemaVersionError,
+  isSqliteVersionRefusal,
+  sqliteVersionRefusal,
   checkSqliteBaselineVersion,
   applySqliteBaseline,
   clearInExistingHomeSqlite,
@@ -34,6 +36,7 @@ export {
   type SqliteBaseline,
   type SqliteBaselineDatabase,
   type SqliteSchemaObject,
+  type SqliteUpgradeStep,
   type SqliteSchemaShape,
 } from "./sqlite-baseline.js";
 

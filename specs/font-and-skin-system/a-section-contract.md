@@ -217,14 +217,14 @@ export const OWNED_TEXT_REF_SCHEMA: SandboxSchema = /* TEXT_REF_SCHEMA 加可选
 ### 2.3 键、参数与上限
 
 - **键的规则复用 `STABLE_KEY`**（`packages/plugin-sdk/src/message-declarations.ts:9`）：它和 `messageOwnerOf`（`:16`）都改成模块内 `export`，不进公开出口，`ui/text-ref.ts` 从那里取，不另写一份。门禁脚本 `scripts/gates/translations.mjs` 自己那份不动。
-- **键的前缀决定能不能用**：`ownedTextRef(ref, owner)` 里，`common.*` 绑到平台主人 `workbench`（共有词有唯一主人，引用要显式）；否则前缀必须等于主人名（`messageOwnerOf(plugin_id)`，即 `plugin_id` 最后一段；平台主人就是它自己的名字）；别的前缀拒绝。这条是防冒充：插件不能把字显示成别人的。`common` 作插件最后一段继续拒绝：现在由 `messageProblems` 管（`message-declarations.ts:32`），`parseLocalePack` 同样拒绝，C 段删 `messageProblems` 时这条留在 `parseLocalePack` 里。
+- **键的前缀决定能不能用**：`ownedTextRef(ref, owner)` 里，`common.*` 绑到平台主人 `workbench`（共有词有唯一主人，引用要显式）；否则前缀必须等于主人名（`messageOwnerOf(plugin_id)`，即 `plugin_id` 最后一段；平台主人就是它自己的名字）；别的前缀拒绝。这条是防冒充：插件不能把字显示成别人的。Manifest 只保证最后一段能开头，没管长度：键最短是 `<名字>.x`，所以最后一段长于 118 就写不出 120 以内的键，`ownedTextRef`、`parseLocalePack` 直接说这一句，不逐个键报错。`common` 作插件最后一段继续拒绝：现在由 `messageProblems` 管（`message-declarations.ts:32`），`parseLocalePack` 同样拒绝，C 段删 `messageProblems` 时这条留在 `parseLocalePack` 里。
 - **查词按（完整主人，键）**，不再合成一张平面表（实现方案 §4.1）。`OwnedTextRef.owner` 是完整 `plugin_id`（平台主人是它的名字），`io.molis.work.a.notes`、`io.molis.work.b.notes` 不互相覆盖，也不因同名被拒。`t` 从键算主人，那张索引的范围见第 5.2 节。
 - **参数名**是 `[A-Za-z_]\w*`，和 `message-declarations.ts` 的 `PLACEHOLDER` 一致。`{标题}` 这种中文占位符新语言包不收，旧的 `fillMessage` 到 C 段都还认（第 3.5 节）。
 - **日期**：`at` 是 ISO 8601。带时区的按当前设置显示；只有日期（`2026-11-07`）的按字面显示，不换算时区，避免因时区差一天。`relative` 用 `Intl.RelativeTimeFormat`，`now` 由格式化工具传入，测试可固定。周几、年月、月日几种样式现在就有，第 16 批的首屏要用（全仓 `weekday:`、`month: "long"` 共 12 行）；业务绕开 `format`，切语言时就认不出。**坏日期不抛：** `Intl.DateTimeFormat` 会抛 `RangeError`（今天 `toLocaleString` 显示 `Invalid Date`，不抛），这里接住，显示 `at` 原文并记一条问题，一条坏数据不让整页 `render` 失败。
 - **数字**：普通数字（`{ y: 2026 }`）不分组，显示 `2026`；`Intl.NumberFormat` 默认会写成 `2,026`，年份、端口、版本号、退出码都不能这样。要分组写 `numberArg(n, "decimal")`。`plural_arg` 只看数值。
 - **上限**是 `TEXT_REF_LIMITS`，`PLUGIN_MESSAGE_LIMITS` 的 `keyLength`、`textLength` 改成取它，不留两个数。
 
-**谁拒绝坏引用。** `TEXT_REF_SCHEMA` 挡不住 `{}`、`{ key, literal }`、只有 `fallback`、`{ literal, args }`、`{ name, kind: "number" }`（缺值）：`SandboxSchema` 没有联合，也没有最少属性数。所以由 `textRefProblems` 查，它有三个开关：`literal: false`（这个位置不收 `literal`）、`key: false`（草稿没有主人，不收键）、`owned: true`（这个位置是绑过的，`owner` 必须有；默认是声明，写了 `owner` 就拒绝）。
+**谁拒绝坏引用。** `TEXT_REF_SCHEMA` 挡不住 `{}`、`{ key, literal }`、只有 `fallback`、`{ literal, args }`、`{ name, kind: "number" }`（缺值）：`SandboxSchema` 没有联合，也没有最少属性数。所以由 `textRefProblems` 查（`{ literal: "" }`、空 `fallback`、`{ owner, literal }`、参数字段和 `kind` 不配也在内，如 `{ kind: "number", style: "weekday" }`，schema 都放得过），它有三个开关：`literal: false`（这个位置不收 `literal`）、`key: false`（草稿没有主人，不收键）、`owned: true`（这个位置是绑过的，`owner` 必须有；默认是声明，写了 `owner` 就拒绝）。
 
 | 入口 | 闸口 | 遇到坏引用 |
 | --- | --- | --- |
@@ -302,14 +302,14 @@ export const TEXT_REF_SCHEMA: SandboxSchema = {
 | 规则 | 内容与理由 |
 | --- | --- |
 | 版本 | `format_version` 是格式版本，`id`＋`revision` 是定义身份，互不代替。外观的准确引用是 `UiDefinitionRef = { id: string; revision: number }` |
-| 取值 | `id` 匹配 `^[a-z][a-z0-9-]{0,63}$`；`revision` 是正整数。`id`、角色名、色值、字体名、`unicode_range`、资源 id、`route` 的正则在 `UI_FILE_PATTERNS`，只列允许的字符：会写进 CSS 的字符串不收分号、括号、引号、换行、反斜杠，`url(` 进不来；`route` 只收 `/assets/` 下的路径。角色类型、资源种类等取值表在 `UI_ROLE_TYPES`、`UI_RESOURCE_KINDS` 等常量，解析器从这里取，不另写一份 |
+| 取值 | `id` 匹配 `^[a-z][a-z0-9-]{0,63}$`；`revision` 是正整数。`id`、角色名、色值、字体名、`unicode_range`、资源 id、`route` 的正则在 `UI_FILE_PATTERNS`，只列允许的字符：会写进 CSS 的字符串不收分号、括号、引号、换行、反斜杠，`url(` 进不来；`route` 只收 `/assets/` 下的路径。正则只管形状：`inherit` 当字体名、`U+FFFFFF` 这种正则看不出的，和 `sha256`、包内路径这些不进 CSS 的，由 SDK 的解析器查。角色类型、资源种类等取值表在 `UI_ROLE_TYPES`、`UI_RESOURCE_KINDS` 等常量，解析器从这里取，不另写一份 |
 | 未知字段 | 拒绝，不忽略（需求 §3.1） |
 | 重复属性名 | 进入 `JSON.parse` 之前拒绝，只有 SDK 的 `parseStrictJson` 一份实现：扫描器按路径记键，报 `$.light.ink` 和行列。普通解析器会让后值静默覆盖前值，看不出来 |
 | 危险属性名 | `__proto__`、`constructor`、`prototype` 一律拒绝 |
 | 大小 | `UI_FILE_LIMITS = { spec: 256 KiB, skin: 64 KiB, font: 64 KiB, locale: 1 MiB, registry: 64 KiB, depth: 12 }`，先比字节再解析 |
 | 不收的东西 | CSS 文本、选择器、函数、外部 URL、任意属性名。不靠黑名单：取值只有下面的结构，文字位置只有名字和译文，译文只当文本输出（FSS-16） |
 | 错误 | 新错误码写 `defineErrorCodes("ui", …)`，不写 Error 子类。`tooling/gates/error-owners.json` 加一条 `ui`，路径是这些新文件；现有 `plugin` 那行仍管 `packages/plugin-sdk/` 其余部分 |
-| 结果 | `parse*` 返回 `UiFileResult<T>`，即 `{ ok: true; value } | { ok: false; problems: UiFileProblem[] }`。`UiFileProblem = { file: string; path: string; code: string; reason: string; fix: string; line?: number; column?: number }`，`file` 是哪个文件，`fix` 写下一步怎么改。作者工具和平台看到同一份问题，CLI 直接打印就能看懂 |
+| 结果 | `parse*(source, options?)`（`parseSkinFile(source, spec, options?)`：能写哪些角色由规格定）返回 `UiFileResult<T>`，即 `{ ok: true; value } | { ok: false; problems: UiFileProblem[] }`。`UiFileProblem = { file: string; path: string; code: string; reason: string; fix: string; line?: number; column?: number }`，`file` 是哪个文件，`fix` 写下一步怎么改。作者工具和平台看到同一份问题，CLI 直接打印就能看懂 |
 | 版本字面量 | `tooling/versions.json` 加 `format.ui.spec`、`format.ui.skin`、`format.ui.font`、`format.ui.locale`、`format.ui.registry`，代码只在 `UI_FORMAT_VERSIONS` 写一次（`skin: /* @version format.ui.skin */ 1`），接口的 `format_version` 写 `typeof UI_FORMAT_VERSIONS.skin`，解析器比同一个常量。JSON 文件不走 `carriers`（第 1.4 节） |
 
 ### 3.2 令牌取值
@@ -338,7 +338,8 @@ export interface UiShadowLayer {
 - 十六进制色值按文件里的写法原样输出，不统一大小写：`--content-tty`、`--mark-*` 共 22 个值是大写，改成小写内容就变了。
 - 小数不写前导零（`.05`、`-.011em`）；`0` 不带单位；`spread` 省略时只写三段。
 - 每个令牌输出 `--name: value;`，令牌之间一个空格。`renderShellTokens` 现在就是这个样子，浅深两份顺序相同（已核对 53 个）。
-- 字体栈：名字带空格才加双引号，逗号加一个空格。`FONT_STACK`、`MONO_FONT_STACK` 现有文字都符合。
+- 字体栈：系统字体名带空格才加双引号，方案自带的字体（`face`）一律加（不加的话，叫 `serif` 的文件会被读成通用字体族），逗号加一个空格。`FONT_STACK`、`MONO_FONT_STACK` 现有文字都符合。`inherit`、`initial`、`unset`、`revert`、`revert-layer`、`default` 不带引号时整条 `font-family` 失效，当字体名拒绝。
+- `0` 不带单位只对长度：时间写 `0ms`，CSS 里光写 `0` 不是合法的时间。
 - `role` 必须是规格里有的角色，引用成环拒绝。
 
 ### 3.3 共同规格文件 `resources/ui-spec.json`
@@ -431,7 +432,7 @@ export type UiMessage = string | { readonly plural_arg: string; readonly forms: 
 - **`revision` 随包不写。** 必填的话作者每个文件都要写一个没人读的数字；随包文件的身份由发行版本决定，缓存键用宿主算的内容摘要。
 - **消息值直接写字符串。** 比实现方案 §4.1 的 `{ "text": … }` 少一层；工作台有几千条，这一层每条都占字节，也没带来别的信息。实现方案已同步改。
 - **复数规则。** 必须有 `other`，类型上也写明，解析之后不用再判；其余形式按 `new Intl.PluralRules(locale).resolvedOptions().pluralCategories` 查缺。中文只有 `other`，直接写字符串。
-- **文字里不许有 `<`、`>`、`&`、`"`、`'`。** 这是 `${t()}` 直接可用的前提，理由和今天的存量见第 5.3 节。
+- **文字里不许有 `<`、`>`、`&`、`"`、`'`，只有内容包例外。** 这是 `${t()}` 直接可用的前提，理由、例外和今天的存量见第 5.3 节。
 
 **实现：** `formatMessage(message, args, locale, now?)` 先按 `Intl.PluralRules` 选形式，把参数格式化成文字，最后交给现有的 `fillMessage` 替换。替换仍只有一份写法。新语言包不收 `{n|a|b}`（解析器拒绝），旧词典到 C 段继续用它，C 段连同这个分支一起删。A 段不动 `fillMessage` 和 `tests/fill-message.test.ts`。
 
@@ -515,6 +516,9 @@ export interface UiEnvironmentSnapshot {
 
 快照只有身份和问题，**不带令牌值和译文**。理由：它要进首屏 HTML 和 iframe 配置，带字节就把 CSS 和词典搬到量不到的地方（第 9 节）。令牌在样式表里，译文走语言资源。预计 300～600 字节。
 
+- **`problems` 有上限：** `UI_ENVIRONMENT_PROBLEM_LIMITS` 是 8 条、每个字段 200 字符，多出来的合成最后一条 `ui.environment_problems_more`。一个 Home 里坏了多少东西不该决定首屏多大。
+- **`font.mono` 没单独选时填当前字体方案。** 方案的 `code` 角色已经说明代码用什么字体，所以这不是空值，也不用让读的人判断。以后单独选等宽字体时才不同，`policy` 不管它。
+
 ### 4.2 优先级链
 
 固定四层，和实现方案 §5.1 相同：共同规格（`locked` 与 `follows`）→ 所选皮肤 → 所选或推荐字体 → 入口的明暗、密度、语言与硬性可访问性规则。皮肤的完整值由 `resolveSkin(spec, baseline, skin?)` 算出：**皮肤自己的值 → `follows` 指向的角色已解析的值 → 基线皮肤的值**；皮肤写了 `locked` 角色就拒绝（FSS-57）。语言只影响文字和字形后备，不改皮肤或字体的选择。
@@ -556,23 +560,26 @@ A 段什么都不改：令牌仍在基础 CSS 里，没有选择，快照由基�
 | `t`、`say`、`format` | `ui/text.ts` | 样例、组件板。业务代码只用 `t`、`format`；`say` 给拿到 `OwnedTextRef` 的地方 |
 | `installUiText`、`installTextForTest` | `ui/text.ts` | 宿主、开发路径、组件板浏览器脚本（第 5.2 节）；测试和两包样例 |
 | `dateArg`、`numberArg` | `ui/text-ref.ts` | 样例、组件板。字符串和普通数字不用它们，`t(key, { title: "x", count: 3 })` 直接写 |
+| `textArgs` | `ui/text-ref.ts` | 把业务写的 `{ count: 3 }` 转成存下来的数组；`t`、组件板 |
 | `textRefProblems(value, { literal?, key?, owned? })` | `ui/text-ref.ts` | `ownedTextRef`；`say`；CLI；之后的 05② `validatePresentationDeclaration`、`assertSurfaceDescription`，20 `validateSettingsDeclaration`、`inspectBlueprint` |
 | `ownedTextRef(ref, owner)`、`tryOwnedTextRef(ref, owner)` | `ui/text-ref.ts` | 宿主；之后的 15 组合服务。`try` 那个不抛，坏了返回 `null`，给 05② 页面读值（第 2.3 节） |
-| `formatMessage`、`formatNumber`、`formatDate` | `ui/message-format.ts` | `t`、`format`；组件板 |
-| `parseLocalePack` | `ui/locale-pack.ts` | `pluginLocaleReader`（plugin-runtime）；工作台语言文件；CLI |
-| `inspectLocaleSet(packs, { default })` | `ui/locale-pack.ts` | CLI `validate`；安装与打包；组件板标本的问题列表 |
+| `formatMessage(message, args, locale, { now?, problem? })`、`formatNumber`、`formatDate` | `ui/message-format.ts` | `t`、`format`；组件板。都只出纯文本，转义由调用方对全文做一次 |
+| `parseLocalePack(source, { file?, contentPack? })` | `ui/locale-pack.ts` | `pluginLocaleReader`（plugin-runtime）；工作台语言文件；CLI |
+| `inspectLocaleSet(packs, { default, contentPack?, directory? })` | `ui/locale-pack.ts` | CLI `validate`；安装与打包；组件板标本的问题列表 |
 | `matchLocale(requested, available, fallback)` | `ui/locale-pack.ts` | 查词；组件板 |
-| `createTextReader({ packs, locale })` | `ui/text-reader.ts` | 纯函数，给定语言包查词。还没装的包的预览、测试、`installTextForTest` |
+| `createTextReader({ packs, locale })` | `ui/text-reader.ts` | 纯函数，给定语言包查词，返回和 `say` 一样的工具：调用本身转义全文，`.text` 给纯文本（第 5.3 节）。收绑过主人的引用，声明先用 `tryOwnedTextRef` 和包的 `plugin_id` 绑。还没装的包的预览、`plugins.bundled.list@1`、测试。每个主人的第一个语言包算默认语言 |
 | `parseStrictJson` | `ui/strict-json.ts` | 下面三个 `parse*`；`parseLocalePack`；CLI |
-| `parseUiSpecFile`、`parseSkinFile`、`parseFontScheme` | `ui/appearance-files.ts` | `packages/design-system` 基线加载；组件板 |
+| `parseUiSpecFile`、`parseSkinFile(source, spec)`、`parseFontScheme` | `ui/appearance-files.ts` | `packages/design-system` 基线加载；组件板 |
 | `parseResourceRegistry` | `ui/appearance-files.ts` | 宿主资源适配器、`packages/design-system` 的基线加载与 `fontFaceRules`、资源报告、`tests/ui-resources.test.ts`（第 1.3 节）。解析和拒绝照第 3.1 节（FSS-46），`UI_RESOURCE_KINDS`、`UI_RESOURCE_LOADS`、`format.ui.registry`、`UI_FILE_LIMITS.registry` 的读者就是它 |
-| `resolveSkin`、`skinTokenDeclarations` | `ui/appearance-resolve.ts` | `palette.ts` 等 |
-| `resolveFontScheme`、`fontTokenDeclarations`、`fontFaceRules` | `ui/appearance-resolve.ts` | `typeface.ts` |
-| `resolveUiEnvironment`、`withDevicePreferences` | `ui/environment.ts` | 组件板；第 16 批的首屏 |
+| `resolveSkin(spec, baseline, skin?)`、`skinTokenDeclarations(resolved, { theme?, terminal?, groups?, names? })` | `ui/appearance-resolve.ts` | `palette.ts` 等。引用成环可能跨皮肤和基线两个文件，所以 `resolveSkin` 也返回 `UiFileResult`；`names` 指定哪几个角色、什么顺序，给 `foundation.ts` 这种令牌分散写的模板 |
+| `resolveFontScheme(spec, baseline, scheme?)`、`fontTokenDeclarations(resolved, names?)`、`fontFaceRules(resolved, registry)` | `ui/appearance-resolve.ts` | `typeface.ts`。`resolved.tokens.font` 就是字体栈文字 |
+| `resolveUiEnvironment`、`withDevicePreferences`、`UI_ENVIRONMENT_PROBLEM_LIMITS` | `ui/environment.ts` | 组件板；第 16 批的首屏 |
+
+`ui/text-lookup.ts`、`ui/text-errors.ts`、`ui/file-reader.ts`、`ui/token-values.ts` 是这些工具共用的内部文件，不进 `ui.ts`。
 
 **不在 A 段导出的**（没有消费者）：`formatList`（`listJoin` 到 C 段才换）、按声明查引用的 `inspectTextRefs`（15、20 的第一片带上）、动作文字键的拼法（FSS-40 暂不实现，只定写法）。
 
-**作者工具与平台共用：** `inspectLocaleSet` 查缺键、多余键、参数不一致、缺复数形式、`hidden_number`、标记字符（第 5.3 节），返回 `{ file, code, locale, key, reason, fix, blocking }[]`。默认语言缺键、参数不一致、标记字符算 `blocking`，平台拒绝；别的语言缺键不阻断，算覆盖率（FSS-34 可观察，FSS-37）。CLI 的 `validate` 调同一个函数，作者和平台看到一样的结果。
+**作者工具与平台共用：** `inspectLocaleSet` 查缺键、多余键、参数不一致、缺复数形式、`hidden_number`、标记字符（第 5.3 节，内容包不查），返回 `{ file, code, locale, key, reason, fix, blocking }[]`。默认语言缺键（别的语言有、默认语言没有）、参数不一致、标记字符算 `blocking`，平台拒绝；别的语言缺键不阻断，算覆盖率（FSS-34 可观察，FSS-37）。缺复数形式会回到 `other`，`hidden_number` 读得通但不好，都只报告。CLI 的 `validate` 调同一个函数，作者和平台看到一样的结果。
 
 ### 5.1 工具的形状
 
@@ -662,7 +669,7 @@ export interface UiTextProvider {
 
 今天的 `pageLocale()`、`L` 同样继承（`web-locale.ts:8` 的注释说定时器里没有，不准确）。A 段不改（决定 20），主会话登待办。
 
-**没有语言时（主会话裁定）：** 正式运行用主人默认语言，记一条可观察的问题，不抛；开发路径和测试抛 `ui.text_no_context`，错误里点名键。模式由装上下文的平台给。`t`、`say`、`format` 在正式运行里一律不抛（语言包读不了、坏日期同理），**错误路径上的文字绝不能盖掉原错误。** 理由是抛错的真实代价：
+**没有语言时（主会话裁定）：** 正式运行用主人默认语言，记一条可观察的问题，不抛；开发路径和测试抛 `ui.text_no_context`，错误里点名键。模式由装上下文的平台给。**进程里还没装 provider** 时没有模式可读，算接线错误，按开发路径抛（`literal` 不用查词，照常显示）：宿主启动时就装，所以它第一次运行就暴露，不会等到正式运行里某个定时器才碰到。`t`、`say`、`format` 在正式运行里一律不抛（语言包读不了、坏日期同理），**错误路径上的文字绝不能盖掉原错误。** 理由是抛错的真实代价：
 
 | 位置 | 如果抛 | 依据 |
 | --- | --- | --- |
@@ -681,22 +688,28 @@ export interface UiTextProvider {
 
 **`${t("key", args)}` 直接可用且安全，靠两条：**
 
-1. **语言包的文字里不许有 `<`、`>`、`&`、`"`、`'`。** `parseLocalePack` 拒绝，`fix` 给出替换（`’`、`“ ”`、`and`、`›`）。
-2. **字符串参数转义；数字和日期经 `Intl` 输出后同样过一遍。** `say` 的 `literal`、`fallback` 也转义。
+1. **语言包的文字里不许有 `<`、`>`、`&`、`"`、`'`。** `parseLocalePack`、`inspectLocaleSet` 默认拒绝，`fix` 给出替换（`’`、`“ ”`、`and`、`›`）。
+2. **算出全文之后，把全文转义一次。** 先用原始参数算，再转义，所以不会有 `&amp;amp;`。数字和日期经 `Intl` 输出后也在全文里。严格的词表没有这些字符，所以对 `t` 来说，转义全文和只转义参数结果相同，只留一种写法。
 
-结果：不带字符串参数的调用，结果就是纯文字，拼进 HTML、赋给 `textContent`、再过一次 `esc`，三种都对。带字符串参数时分不出下游（`${obj}` 和 `el.textContent = obj` 都调 `toString()`），所以默认选安全的一边：
+**只有内容包不查这五个字符（统筹裁定）。** 判断只有一个：已解析的 `manifest.kind === "content"`，由 `inspectPluginLocales`、`pluginLocaleReader` 决定（`contentPack: true`），不让语言文件自己说，也不让各调用方各传一份。理由：Skill frontmatter 和用户 `literal` 转的词可能有 `don't`、`<file>`、`R&D`；内容包的词不进 `t` 的索引（第 5.2 节），只经 `say` 和 `createTextReader` 读，这两个一律转义全文。**外部沙箱插件照样查：** 它的 `t` 在自己的沙箱和 iframe 里，索引里有它自己的词，放宽了第三方的 `${t()}` 就不安全。
+
+结果：`t` 不带字符串参数的调用，结果就是纯文字，拼进 HTML、赋给 `textContent`、再过一次 `esc`，三种都对。带字符串参数时分不出下游（`${obj}` 和 `el.textContent = obj` 都调 `toString()`），所以默认选安全的一边。`say` 没有这个「三种都对」：内容包的词、`literal`、`fallback` 都可能带这些字符。`format` 没有 `.text`，结果也转义：坏日期显示 `at` 原文，它可能来自存下来的数据。
 
 | 位置 | 写 | 写错的后果 |
 | --- | --- | --- |
-| 拼进 HTML 文本或属性（`title="${…}"`） | `t(key, args)` | 没有错 |
-| `textContent`、`el.title =`（DOM 属性）、`new Option`、`showToast`、`renderButton({ label })`，这些自己当文字用或自己转义 | `t.text(key, args)` | 写成 `t`：值里有这些字符时显示成 `A&amp;B`、`O&#39;Brien`。纯字母的测试数据看不出，所以 FSS-70 和手册实走都带一个含 `'` 和 `&` 的参数 |
-| HTML 属性或文本写成 `t.text` | 不许 | **注入。** 这是唯一的注入方向。可以静态查（`t.text` 出现在模板插值里），新门禁要先问用户，这里只给建议 |
+| 拼进 HTML 文本或属性（`title="${…}"`） | `t(key, args)`、`say(ref)` | 没有错 |
+| `textContent`、`el.title =`（DOM 属性）、`new Option`、`showToast`、`renderButton({ label })`，这些自己当文字用或自己转义 | `t.text(key, args)`、`say.text(ref)` | 写成 `t`：值里有这些字符时显示成 `A&amp;B`、`O&#039;Brien`。纯字母的测试数据看不出，所以 FSS-70 和手册实走都带一个含 `'` 和 `&` 的参数。写成 `say` 同样显示 `R&amp;D`，而且不限于参数：词本身就可能带。`esc(say(ref))` 转义两次 |
+| HTML 属性或文本写成 `t.text`、`say.text` | 不许 | **注入。** `say.text` 比 `t.text` 更要紧：第三方内容包的词可以带 `<img onerror=…>`。可以静态查（`.text` 出现在模板插值里），新门禁要先问用户，这里只给建议 |
+
+`createTextReader` 和 `say` 一样分两种形式（`plugins.bundled.list@1`、预览会用）：内容包的词从这里出来，同样不能少了这一层。
+
+`UiTextProvider.produced` 记的是纯文本：第 5.4 节拿它和 DOM 里的文字节点比，那里已经解过实体。
 
 **迁移不能一刀切。** 实测（AST，不含内联脚本和 `-en.ts`）：5,557 处里 4,846 处没有参数，164 处只有数字，547 处有字符串或看不出类型的参数；内联 2,271 处没有按位置分。无参的字面量键可以批量，547 处默认 `t.text` 可以批量，**但预转义和 HTML 参数、`L(变量)`、内联脚本的局部变量 `t` 这三类要先挑出来**（第 14 节）。今天 15,554 个译文里含 `'` 682 个、`&` 18 个、`"` 13 个、`<>` 9 个，前三种脚本替换；`<>` 里 7 个是冲突标记，改成字符串参数，2 个是 `<li>` 整段，要拆。
 
 **冒充：** `t` 用别人的前缀不拒绝。同一进程里 `t("todo.x")` 能查到 Todo 的词，但这不是权限，插件本来就能在自己页面上写任何字；iframe 和沙箱里查不到，走 `common.text.unavailable`。防冒充要成立的地方是显示在平台位置上的字，比如插件的 `summary` 显示在别人的卡片上：那里只认 `OwnedTextRef`，由 `ownedTextRef` 按前缀绑主人（第 2.3 节，FSS-42、43）。
 
-**存字符串的例外**只有 20 的 `RoleTemplate` 的 `title`、`materials`、`outputs`：采用时写进用户自己的草稿，归用户所有，之后不随语言变（场景设计稿已定 `title`，后两个同样处理）。
+**存字符串的例外**只有 20 的 `RoleTemplate` 的 `title`、`materials`、`outputs`：采用时写进用户自己的草稿，归用户所有，之后不随语言变（场景设计稿已定 `title`，后两个同样处理）。写法是 `say.text`，所以存下的是可能带标记的原文（第三方内容包的词），**读的地方要按用户文字转义**，`characters.from_template@1` 的 `title` 也一样。
 
 ### 5.4 切语言时的原地更新（FSS-35，第 16 批的方案）
 
@@ -760,7 +773,7 @@ export function pluginLocaleReader(manifest: PluginManifest, read: (path: string
 
 **一份规则，两个时机：**
 
-- **`inspectPluginLocales(manifest, read)`：安装、`validate`、`pack` 时读全部语言一次。** 逐个 `parseLocalePack`；`pack.locale` 不等于文件名、`pack.owner` 不等于 `manifest.plugin_id` 就拒绝；`inspectLocaleSet` 有 `blocking` 就拒绝。
+- **`inspectPluginLocales(manifest, read)`：安装、`validate`、`pack` 时读全部语言一次。** 逐个 `parseLocalePack`，`contentPack` 按 `manifest.kind === "content"` 给（第 5.3 节）；`pack.locale` 不等于文件名、`pack.owner` 不等于 `manifest.plugin_id` 就拒绝；`inspectLocaleSet` 有 `blocking` 就拒绝。
 - **`pluginLocaleReader(manifest, read)`：运行时。** 每种语言第一次用到才读和解析，之后走内存，没用到的语言不读（第 11 节）。沙箱包 `load` 时虽然验签要读整个包，语言文件也只在第一次用到时才解析。
 
 `read` 由来源给，这样只有一套规则：
@@ -980,8 +993,8 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 | T1 合同① `TextRef` | 第 2 节的类型与 schema | `platform/ui-text.ts`（新）；`ui.ts` 一行 `export *`（D 文件，D 评）；`api/contracts/platform/ui.txt` | 本设计稿合入 | FSS-42、FSS-45 | Opus 5.5 high |
 | T2 合同② 文件与快照 | 第 3、4 节的类型；第 5.1 节的文字工具类型；`versions.json` 五个条目，`POLICY.md` 记 `carriers` 例外（第 1.4 节）。**`UiContribution` 不改** | `platform/ui-files.ts`、`ui-environment.ts`（新）；`ui-text.ts`；`ui.ts` 只加 `export *`；`tooling/versions.json`；`docs/releases/POLICY.md`；`api/contracts/platform/ui.txt` | T1 | FSS-46（类型部分） | Opus 5.5 high |
 | T3 合同③ Manifest | `ui.locales` 类型与解析；开发路径的可选 `locale`（第 8.3 节） | `plugin-manifest.ts`；`packages/plugin-sdk/src/manifest.ts`；`platform/tooling.ts`；`api/contracts/platform/plugin.txt`、`tooling.txt` | T1（`LOCALE_TAG`）；见排队表 | FSS-52 | Opus 5.5 high |
-| T4 SDK 文字工具 | `text`、`text-ref`、`message-format`、`locale-pack`、`text-reader`；`message-declarations.ts` 改模块内 `export`；`error-owners.json` 加 `ui`，只写这片的文件（门禁对匹配不到文件的路径直接失败） | `packages/plugin-sdk/src/ui/*`、`ui.ts`、`message-declarations.ts`；`tooling/gates/error-owners.json`；`api/plugin-sdk/ui.txt` | T1、T2（文字工具类型）；排队表 | FSS-43、44、47、48、50、51、69、70 | Opus 5.5 high（SDK 共享核心，统筹加全量） |
-| T5 SDK 文件工具 | `strict-json`、`appearance-*`、`environment`；新文件有错误码才改 `error-owners.json` | 同上快照 | T2、T4 | FSS-46、48、49、57 | Opus 5.5 high |
+| T4 SDK 文字工具 | `text`、`text-ref`、`message-format`、`locale-pack`、`text-reader`，以及 `strict-json`（`parseLocalePack` 要用，从 T5 提前）；`message-declarations.ts` 改模块内 `export`；`error-owners.json` 加 `ui`，只写这片的文件（门禁对匹配不到文件的路径直接失败） | `packages/plugin-sdk/src/ui/*`、`ui.ts`、`message-declarations.ts`；`tooling/gates/error-owners.json`；`api/plugin-sdk/ui.txt` | T1、T2（文字工具类型）；排队表 | FSS-43、44、47、48、50、51、69、70 | Opus 5.5 high（SDK 共享核心，统筹加全量） |
+| T5 SDK 文件工具 | `appearance-*`、`environment`；新文件有错误码才改 `error-owners.json` | 同上快照 | T2、T4 | FSS-46、48、49、57 | Opus 5.5 high |
 | T6 基线与字体路径 | 第 7 节全部、第 8.1、8.5 节；同一 PR 改 `docs/SSOT-MATRIX.md` 的「`palette.ts` 唯一来源」、design-system README 的「开发要求」和 `page-clients.ts` 头部，否则文档到 T9 之前都是错的 | `packages/design-system/{resources,src/baseline.ts,src/palette.ts,src/typeface.ts,src/styles/foundation.ts,src/styles/craft-finish-bar.ts,package.json,README.md}`；`tooling/gates/error-owners.json`（`baseline.ts` 抛 `ui.baseline_invalid`，这个包今天没有主人）；`apps/local-host/src/web-assets.ts`；`docs/SSOT-MATRIX.md`；测试与夹具 | T5；排队表 | FSS-54、55、56、58、59（design-system 那些行） | Opus 5.5 medium；占 build 槽位 |
 | T7 语言文件读取 | 第 6.2 节 A 段那两行和沙箱包的专门拒绝；CLI `validate`、`pack` | `packages/plugin-runtime/src/{locale-packs,package-verification,development-loader}.ts`；`apps/local-host/src/sandbox-package.ts`；`tooling/plugin-cli` | T3、T4 | FSS-53 | Opus 5.5 high |
 | T8 消费者 | 第 8.2、8.3、8.4 节，第 5.2 节第 1 层（语言随范围结束作废），第 5.4 节的合并代码 | `apps/local-host/src/{ui-text-provider,web-locale,web-server,plugin-executor,plugin-host-services,home-plugin-executor,plugin-development,local-plugin-development}.ts`；`tooling/plugin-cli/src/{cli,create}.ts`；`apps/workbench/{src/plugin-text.ts,src/browser/locale-switch.ts,src/browser/board/environment-section.ts,src/primitive-catalog.ts,resources,package.json}`（`files`，`dist/board-environment-section.js` 的构建脚本）；`packages/design-system/resources/registry.json` 工作台那行（D 文件，D 评）；`examples/plugin-sample`；`tests/plugin-sample.e2e.test.ts`。现有插件、`render` 和画页的地方不动；若 `tsc` 或测试显示要动，**停下交回主会话**（第 12 节第 4 条） | T6、T7 | FSS-58、59（工作台那行）、60、61、62、63、64，69 的副本和定时器那两条 | Opus 5.5 medium；占 browser 槽位 |
@@ -1002,7 +1015,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 - **T10：** 文件清单加 `docs/system/HOME-DATA.md` 一行，不变量正文在 `docs/system/security-invariants/`，`SECURITY-INVARIANTS.md:56` 提到 `/locale` 现在写 Home，看不到的部分写本机非浏览器进程能自带这个头。拒绝测试覆盖 `cross-site`、`same-site`、`none`、没有头。只在 `lang` 合法时写（`web-server.ts:136-138` 的推算不算切语言）。同步写，临时文件改名，权限 0600（同 `project-arrival.ts`）；写成功才改内存，失败下次还能重试。比程序新的文件：`readUiLocale` 返回 `null`，`rememberUiLocale` 不盖。
 - **T10 的提醒给统筹：** `prompt.assistant-base` 升到 2 后 `scripts/gates/initial-versions.mjs` 会报它不是 1。这个脚本不在 CI 里，发布检查单点名（`CHECKLIST.md:129,158`），统一起点已登记，属于预期。
 
-**给别批的。** 合同都只等 T1 或 T3 的类型；校验等 T4；**实现里要调 `say` 的片等 T8**（`ui-text-provider.ts`、`plugin-text.ts`），没装时开发路径和测试抛错，正式运行显示默认语言。
+**给别批的。** 合同都只等 T1 或 T3 的类型；校验等 T4；**实现里要调 `say` 的片等 T8**（`ui-text-provider.ts`、`plugin-text.ts`），没装时抛 `ui.text_no_context`（第 5.2 节）。
 
 | 片 | 合同等 | SDK 校验等 | 用来 |
 | --- | --- | --- | --- |
@@ -1034,7 +1047,7 @@ C1 独占合同文件和 `tooling/gates/api/`；D 独占 `packages/design-system
 | 5 | 放在哪个包 | 合同在 contracts；工具在 SDK `/ui`（只依赖 contracts，无 Node 内建）；基线在 design-system（读文件）；语言文件读取在 plugin-runtime；A 段不加新包。**B 段的外观主人按用户 11-01 的规定进 `horizontal/` 新包，不进实现方案写的 `apps/local-host/src/interface/`**，方案已加注 |
 | 6 | 表与存储 | 不加表，不改库结构，不碰发行物（`artifact_json` 不变）。T10 加一个 Home 文件 `config/ui-locale.json`（第 15.1 节）。第 16 批外部包走已签名的包文件（第 6.3 节），同样不用新表 |
 | 7 | 兼容与迁移 | 不加。`ui.locales` 与 `ui.messages` 同写拒绝，没有翻译器读两种。`literal` 是语义不是兼容 |
-| 8 | 安全边界 | 不碰令牌、动作网关、MCP、桌面 IPC。相关的四点：① 文字冒充（主人不从声明读、前缀规则），FSS-42、43 断言拒绝；② 不可信文件（重复键、危险属性名、CSS、外部 URL、语言包里的标记字符），FSS-46、70 断言拒绝；③ `t` 的字符串参数转义，合并代码不用 `innerHTML`，FSS-61、70 断言；④ `/locale` 是 GET，跨站 `<img>` 能到（`refuseForeignRequest` 拒非回环和跨站 iframe，`authorizeLocalWebRequest` 放行所有 GET），写 Home 记录只认 `Sec-Fetch-Site: same-origin`，T10 加一行不变量和拒绝测试。切语言的请求头只选语言、不授予任何东西。文字工具是否进 `SECURITY-INVARIANTS.md` 由 T4 写手按该文件规则加一行，评审确认 |
+| 8 | 安全边界 | 不碰令牌、动作网关、MCP、桌面 IPC。相关的四点：① 文字冒充（主人不从声明读、前缀规则），FSS-42、43 断言拒绝；② 不可信文件（重复键、危险属性名、CSS、外部 URL、语言包里的标记字符，内容包的词不查这一项），FSS-46、70 断言拒绝；③ `t` 的字符串参数和 `say`、`createTextReader` 的全文转义（内容包的词只靠这一层），合并代码不用 `innerHTML`，FSS-61、70 断言；④ `/locale` 是 GET，跨站 `<img>` 能到（`refuseForeignRequest` 拒非回环和跨站 iframe，`authorizeLocalWebRequest` 放行所有 GET），写 Home 记录只认 `Sec-Fetch-Site: same-origin`，T10 加一行不变量和拒绝测试。切语言的请求头只选语言、不授予任何东西。文字工具进 `SECURITY-INVARIANTS.md`：T4 写手加了 `S-ui-text-markup`，评审确认 |
 | 9 | 调用次数 | 见下表 |
 | 10 | 升级与数据 | A 段只有 T10 写 Home：一个新的带版本文件，进 `home-stores.ts`，第 1 版不用升级步骤；不存在就用默认，这是初始状态，不算新增兼容逻辑。没有改库或已有带版本文件的结构。`format.ui.*` 进 Home 是 D 段的事，到时按 `VersionedFile` 走升级链 |
 | 11 | 成果与过程项 | 配置不进成果库（需求 §3.1） |
@@ -1176,7 +1189,7 @@ T10 不依赖其余各片，也不碰文字工具。
 | 版本 | §4.3 | **所有语言共用一个 `version`**，摘要算全部语言。修一个英文错字也要升版本。理由：`SkillRef` 要精确，一份规则。代价：升级差异会多，加字段 `changed_locales` 写明改了哪种语言（`change` 是枚举，不动） |
 | 读正文 | §8 `skills.body.read@1` | 语言不进输入。user、plugin 用调用上下文的 `locale`；agent 用这一轮的语言（见下面「轮次」一行），第 16 批之前到不了 `ActionCallContext.locale` 时读默认语言。输出加 `locale`（实际用的，单文件包是 `null`）和 `fell_back: boolean`，默认语言未知时 `fell_back` 是 `false`。回退不算「悄悄换版本」，版本没变，结果也写明了 |
 | 轮次 | §5、§7 | 开轮时 `SkillRef` 名单照旧冻结。回复语言今天只是一段提示词，记在 `frozen.prompts`（`prompt_id`、`version`），冻结记录里没有语言字段。交给外部执行方时当场算语言；要读冻结值，由第 09 批合同 PR 照 `call_id` 的路加 `frozen.reply_locale`（`frozenOutput` 不许多字段，属动作合同） |
-| 元数据 | §4.1、§4.2、§8 | **宿主只读词表，不读 frontmatter**（08 §4.1）。`pack-content` 把译文文件 frontmatter 的 `name`、`description`、`when_to_use`、`summary`、`when_not_to_use`、`argument_hint` 转进语言文件，键是 `<主人>.skill-<skill_id>.<字段>`。所以这要求有 `ui.locales`；没有它却有 `SKILL.en.md` 的包，元数据只有默认语言。给模型选 Skill 的 `description` 也跟语言，不进 MCP。`excerpt` 从所用语言的正文取。译文文件写 `tools`、`applies_to` 就拒绝 |
+| 元数据 | §4.1、§4.2、§8 | **宿主只读词表，不读 frontmatter**（08 §4.1）。`pack-content` 把译文文件 frontmatter 的 `name`、`description`、`when_to_use`、`summary`、`when_not_to_use`、`argument_hint` 转进语言文件，键是 `<主人>.skill-<skill_id>.<字段>`。所以这要求有 `ui.locales`；没有它却有 `SKILL.en.md` 的包，元数据只有默认语言。给模型选 Skill 的 `description` 也跟语言，不进 MCP。这些词可能有 `don't`、`<file>`，内容包的语言文件不查这五个字符，页面上只经 `say`、`createTextReader` 读（第 5.3 节）。`excerpt` 从所用语言的正文取。译文文件写 `tools`、`applies_to` 就拒绝 |
 | 键的形状 | §4.2 | `skill_id`（`AGENT_TOKEN`）可以数字开头，`STABLE_KEY` 第二段起要字母开头，所以写成一段 `skill-<skill_id>`。导入包算 `plugin_id` 时最后一段以字母开头，否则主人名过不了；前缀也必须是 `io.molis.work.`，否则 `parsePluginManifest` 拒绝 |
 | 外部导入 | §6 | 不要语言标记，单文件当默认语言。`ui.locales` 对内容包可选 |
 | 资源 | §4.2 | `SkillResourceDeclaration` 加可选 `locale`。`scripts/`、`assets/` 不分语言。上限不变（按全部语言计） |
@@ -1193,8 +1206,8 @@ T10 不依赖其余各片，也不碰文字工具。
 | 正文写在声明里 | §3 `content.body`、§5 `RoleTemplate.instructions` | **整份场景包一个文件。** 内容包里是 `blueprint.json`（默认语言）和 `blueprint.<语言>.json`，形状都是 `Blueprint`。Manifest 的 `blueprint` 键写 `{ locales: string[] }`，是 `ui.locales.available` 的子集，「不多不少」和「至少一项」由它判；有场景包时 `ui.locales` 必填（标题要键）。`locales` 只列译文，写了默认语言就拒绝；没有 `ui.locales` 却写 `locales` 也拒绝，否则清单会算出 `blueprint.zh.json`。草稿仍是一行 JSON、一种语言 |
 | 静态检查 | §3 `inspectBlueprint(blueprint)` | 加 `{ source: "package" \| "draft" }`：包拒 `literal`，草稿拒 `key`。新函数 `inspectBlueprintLocales(default, others)`：除 `body`、`instructions` 和 `TextRef` 外全等。`schema` 按每种语言核放到 `adoption.preview` 的主人检查里，静态检查不看目录 |
 | 采用 | §5、§7 | `instructions`、`body`、`title`、`materials`、`outputs` 都按采用当时的语言取。`adoptions` 加 `locale`。撤销和升级差异按这个语言比 |
-| 另存 | §7 `packs.save@1` | 草稿记 `locale`。存包时 `literal` 转成键，加单语言 `locales/<语言>.json`，`blueprint.json` 就是草稿的语言 |
-| 没装的包 | 08 `plugins.bundled.list@1`、预览 | 从包文件用 `createTextReader` 按语言读（第 6.2 节） |
+| 另存 | §7 `packs.save@1` | 草稿记 `locale`。存包时 `literal` 转成键，加单语言 `locales/<语言>.json`，`blueprint.json` 就是草稿的语言。转过去的词可能有 `R&D`，所以这条路也按内容包不查标记字符 |
+| 没装的包 | 08 `plugins.bundled.list@1`、预览 | 从包文件用 `createTextReader` 按语言读（第 6.2 节）。调用本身转义全文，`.text` 给纯文本；写进 HTML 不许用 `.text`（第 5.3 节） |
 | 接得上的，不改 | §8 `adopt` 的 `schema`、§3 `skill` 建议、§6 生成页面 | 平台选好语言再交给主人，主人不用知道语言文件 |
 
 第 44 批的官方场景包和第 20 批第 2 项跟同一规则。

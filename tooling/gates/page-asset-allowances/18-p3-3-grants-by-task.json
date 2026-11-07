@@ -1,0 +1,9 @@
+{
+  "reason": "第 18 批 P3-3：项目设置里的「授权与放行」一页按任务列出后台任务能读的数据（specs/proactive-assistant/task-grants-platform-area.md §5、§5.3，S-task-grants-page）。workbench.js 895162 → 904559（+9397）：这一页的浏览器脚本 task-grants-page.ts（按安装分组、每个任务一张卡、类别行与状态、撤回一类、全部撤回的确认、允许与移除、冲突时重读、按插件自己的搜索条目取任务标题），请求的组成与类别行的模型取自 P3-1 的 task-grants-area.ts，不另写一份；内联在工作台脚本里，没有新资源。settings.css 761699 → 765625（+3926）与 workbench.css 增长中属于本片的 +2828（P3-1 的 +4898 由 18-p3-1-task-grants-area.json 放行）：这一页的卡、分组与行样式，以及设置表里补上的共用条目行样式（ITEM_ROW_STYLES）；没有新关键帧。实测对照 origin/main 8bd73418",
+  "review": "第 18 批整批合审（#1929）时由统筹核对这段增长；三项都不到 10 KB，没有新增资源",
+  "assets": {
+    "/assets/molis-work-workbench.js": 9397,
+    "/assets/molis-work-settings.css": 3926,
+    "/assets/molis-work-workbench.css": 2828
+  }
+}

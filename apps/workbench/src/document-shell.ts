@@ -47,3 +47,14 @@ ${request.body_html}
 </body>
 </html>`;
 }
+
+/** Compose the document's initial account-registration barrier at its shell owner. */
+export function createWorkbenchDocumentRenderer(accountRegistration = false): typeof renderWorkbenchDocument {
+  return request => renderWorkbenchDocument({
+    ...request,
+    body_attributes: {
+      ...request.body_attributes,
+      ...(accountRegistration ? { inert: true, 'data-account-registering': true } : {}),
+    },
+  });
+}

@@ -15,7 +15,7 @@ import { controlTokenMeta, createRendererHelpers, type RendererLocale } from "./
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
 import { createWorkbenchStageRenderers } from "./stage-renderers.js";
-import { renderWorkbenchDocument } from "./ui-composition.js";
+import { createWorkbenchDocumentRenderer } from "./document-shell.js";
 import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
 export interface WorkbenchRendererPorts {
   locale: RendererLocale;
@@ -60,7 +60,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { renderMolisWorkWeb } =
     createWorkbenchGoalsPageRenderer<MolisWorkWebView>({
       L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
-      renderIconSprite, clientI18nScript, prefixLocalLinks, renderWorkbenchDocument: request => renderWorkbenchDocument({...request,body_attributes:{...request.body_attributes,...(accountRegistration?{inert:true,'data-account-registering':true}:{})}}),
+      renderIconSprite, clientI18nScript, prefixLocalLinks, renderWorkbenchDocument: createWorkbenchDocumentRenderer(accountRegistration),
       renderDesktopProjectChrome, renderProjectSwitcher,
       stageModel: stages.declaredStageModel,
     });

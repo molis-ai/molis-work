@@ -221,17 +221,6 @@ test("key surfaces settle to the same picture at every width, light and dark (W4
   await mkdir(out, { recursive: true });
   await command("Emulation.setTimezoneOverride", { timezoneId: "Asia/Shanghai" }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: CLOCK }, sessionId);
-  // Compare selected-Home business layouts with the same explicit unconfigured account facts on both trees.
-  // Installation Auth is covered by ASR HTTP/E2E and manual acceptance; this capture does not test that composition.
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `{
-    const original = window.fetch.bind(window);
-    window.fetch = (input, init) => {
-      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-      if (url.pathname === '/api/personal/status') return Promise.resolve(Response.json({ configured: false, identity: null, ready: true, space: 'local', syncEnabled: false }));
-      if (url.pathname === '/api/sync') return Promise.resolve(Response.json({ available: false }));
-      return original(input, init);
-    };
-  }` }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `addEventListener('DOMContentLoaded', () => { const style = document.createElement('style'); style.dataset.visualMask = ''; style.textContent = ${JSON.stringify(MASK)}; document.head.append(style); });` }, sessionId);
   const pictures: string[] = [], styles: string[] = [];
   // A subtest per surface, each with its own limit: a slow runner fails the surface it was on, by name, not the whole run.

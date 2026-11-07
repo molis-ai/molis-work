@@ -140,6 +140,22 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   // The product shows tool names by default; these journeys measure content at a given width, so they
   // start from the icon rail unless a test chooses otherwise.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "try { if (localStorage.getItem('molis-work-navigation-labels') === null) localStorage.setItem('molis-work-navigation-labels', 'false'); } catch {}" }, sessionId);
+  // This fixture selects one business Home, without an installation account owner. Supply its explicit unconfigured
+  // account/sync facts instead of mistaking absent installation routes for a production account failure.
+  // Real Auth tests navigate to a different installation origin; those requests keep their actual transport and authority.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `{
+    const original = window.fetch.bind(window), fixtureOrigin = ${JSON.stringify(origin)};
+    window.fetch = (input, init) => {
+      const request = input instanceof Request ? input : null;
+      const url = new URL(request ? request.url : String(input), location.href);
+      const method = String(init?.method ?? request?.method ?? 'GET').toUpperCase();
+      if (url.origin === fixtureOrigin && method === 'GET') {
+        if (url.pathname === '/api/personal/status') return Promise.resolve(Response.json({ configured: false, identity: null, ready: true, space: 'local', syncEnabled: false }));
+        if (url.pathname === '/api/sync') return Promise.resolve(Response.json({ available: false }));
+      }
+      return original(input, init);
+    };
+  }` }, sessionId);
   async function evaluate<T = unknown>(expression: string): Promise<T> {
     const result = await command<{ result: { value: T }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId);
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));

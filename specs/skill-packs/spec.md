@@ -146,6 +146,7 @@ argument_hint: "<周期，可选>"
 
 - **2026-11-07 用户定**：「发布者撤销」那种用不了的状态字保留定样的「已撤销」，英文先用产品词典已有的 Retracted；第 16 批换成稳定键以后再单独译成 Revoked。否掉的：改成「发布者已撤销」（改了已定的样里的一个词）。
 - **2026-11-07 第 08 批主会话定**：C-1 的 frontmatter 转声明照写手的做法——`name` 兼作 Skill 的 id 与名称；没写 `summary` 时取 `description` 开头 300 个 UTF-16 单元；`version` 先取调用方给的，其次取 frontmatter 的，都没有就是 1。只有声明的插件写 `requires` 不要求同时列进 `capabilities.consumes`（它自己不调用动作，`consumes` 必须为空）。`connector_categories` 先只查格式，类别表由助理统一接入服务的主人给出。
+- **2026-11-07 用户定（C-3 与第 20 批的先后）**：C-3 先落，不等第 20 批的 P-3b／P-3c。C-3 排在 C-1 之后，和共用 `platform/plugin.txt` 快照的片（05② C-2、P-1 和在途的 #1939）先准备好的先落，同一时间一个 PR。场景合同第 10 节先后表、第 20 批文件和依赖表已经照改。否掉的：照原表排在 P-3b／P-3c 之后（两边没有语义依赖，C-3 已经写完，要空等 20 批还没开工的两片）。
 
 ## 10. 开工前检查（第 08 批主会话，2026-11-06）
 
@@ -184,7 +185,7 @@ argument_hint: "<周期，可选>"
 
 ## 11. 拆片与先后（第 08 批主会话，2026-11-06）
 
-合同先行，服务接着，界面最后。下表每片开一个 PR，同一片的后续步骤叠在同一分支。
+合同先行，服务接着，界面最后。下表每片一个提交起步；按[决定 28](../post-anticorruption-roadmap/reference/decisions.md#decision-28)（第 8.4 节）合组开 PR：08-3 并进 08-5 的 PR；08-1、08-4 各自单独（第 09、20 批要用）；08-6、08-7、08-8 一组，08-7 等不到第 05 批的前置就掉队单走；08-9、08-10 开工时再定。同一组的后续步骤叠在同一分支。
 
 | 片 | 内容 | 前置 | 验收 |
 | --- | --- | --- | --- |
@@ -205,4 +206,4 @@ argument_hint: "<周期，可选>"
 - **SKP-09（`scripts/` 只在权限岛和沙箱里跑）**：本批只管声明一侧：`role: "script"`、`runs_scripts` 标注、只能按声明路径读，宿主不执行脚本。执行发生在会跑脚本的 Agent 里（Coding），随 09 的 9-4、9-5 验；09 第七节已加一行。
 - **SKP-11（从对话生成技能包）**：在[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)。
 
-**C-3 与第 20 批的先后**：[场景合同](../scene-and-page-contract/spec.md)第 10 节的先后表把 08 C-3 排在 20 批的 P-3b／P-3c 之后。两者没有语义依赖：P-3b 只要 08 C-1，P-3c 只要 08 C-2；C-3 动 `plugin-package`，它们动 `plugin-manifest`／`blueprints`，只共用 `platform/plugin.txt` 这一份快照。08-5 准备好时，若 P-3b／P-3c 还没开 PR，本批主会话按「先准备好的先落，同一时间一个 PR」（同 [05 批裁定第 6 条](../post-anticorruption-roadmap/reference/batches/05.md#batch-05-rulings)的写法）请用户定，定了再同一个 PR 改 20 批文件、依赖表和场景合同。在那之前不改这三处。
+**C-3 与第 20 批的先后**：两者没有语义依赖：P-3b 只要 08 C-1，P-3c 只要 08 C-2；C-3 动 `plugin-package`，它们动 `plugin-manifest`／`blueprints`，只共用 `platform/plugin.txt` 这一份快照。用户 2026-11-07 定 C-3 先落（§9），[场景合同](../scene-and-page-contract/spec.md)第 10 节先后表、第 20 批文件和依赖表已照改。原定随 C-3 的 PR 一起改，按[第 8.4 节](../post-anticorruption-roadmap/reference/development-workflow.md#84-同批的小任务合成一组)第 7 步「影响别的批的决定要立刻入库」提前单开文档 PR。

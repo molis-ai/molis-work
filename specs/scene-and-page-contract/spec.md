@@ -379,12 +379,13 @@ interface HomePageVersion {
 | P-3c 采用动作与签名入口 | 第 7 节八个动作的声明与类型（`adoption.preview` 是 command／write）；`needs_install`、`needs_approval` 步骤状态；「采用不转交本人的同意」不变量与拒绝测试；第 6.6 节的 `plugins.local_packages.sign@1` 与安装预览里的来源字段 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（安装预览的类型在这里） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；动作：`host-actions.tsv`（`system.blueprints`、`plugin-install` 的签名入口） | P-3a、P-3b；08 的 C-2（`skills.*`） |
 | P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-111～S-113 三条不变量与拒绝测试。实现跟着改框架送文件的一段（第 6.4 节：`plugin-frame/document.ts`、`parent.ts`，宿主页面网关） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
 
-**先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；同一份快照一次一个 PR，全部在 02 交接之后）：
+**先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；08 C-3 的位置由用户 2026-11-07 改，见[技能包需求第 9 节](../skill-packs/spec.md#9-决策记录)；同一份快照一次一个 PR，全部在 02 交接之后）：
 
 | 顺序 | 片 | 动到的快照 |
 | --- | --- | --- |
 | 1 | 05② C-1 | `modules/projects`、新的 `platform/project-materials` |
 | 2 | 08 C-1 | `plugin-manifest`（`kind: "content"`）、`plugin-agent` |
+| 2′ | 08 C-3（不等 P-3b／P-3c；和 3、4 同一份快照，先准备好的先落） | `plugin-package`（沙箱方法写法） |
 | 3 | 05② C-2 | `plugin-manifest`（`presentation`）、`platform/presentation` |
 | 4 | P-1 设置 | `plugin-manifest`（`settings_entries`）、新的 `platform/settings` |
 | 4′ | 08 C-2、#1791 K0（可与 P-1 并行，不动 `plugin-manifest`） | `services/skills`、`host-actions`；`platform/actions`、`platform/composer` |
@@ -392,11 +393,10 @@ interface HomePageVersion {
 | 6 | P-2 角色模板（36 的层次合同之后） | `modules/characters`、`host-actions` |
 | 7 | 05② C-3（第 14 批 `TextRef` 之后） | `services/surface-composition`、`host-actions` |
 | 8 | P-3b、P-3c | `plugin-manifest`（`adopts`）、新的 `platform/blueprints`、`services/blueprints`、`host-actions` |
-| 9 | 08 C-3 | `plugin-package`（沙箱方法写法） |
-| 10 | P-4 | 新的 `services/home`、`platform/actions`（页面主体，排在 #1791 K0 之后）、`host-actions` |
+| 9 | P-4 | 新的 `services/home`、`platform/actions`（页面主体，排在 #1791 K0 之后）、`host-actions` |
 
 - 快照文件名：`plugin-manifest.ts`、`plugin-package.ts` 没有自己的子路径，经 `platform/plugin` 导出，所以它们的改动都落在 api 快照 `contracts/platform/plugin.txt` 上；表里按源文件写，排序时视为同一份快照。
-- 按快照看：`plugin-manifest` 是 08 C-1 → 05② C-2 → P-1 → P-3b；`modules/projects` 是 05② C-1 → P-3a；`plugin-package` 只有 08 C-3（本稿不动）；`platform/actions` 是 #1791 K0 → P-4；`host-actions.tsv` 按上表依次落，同一时间只有一片在途。
+- 按快照看：`plugin-manifest` 是 08 C-1 → 05② C-2 → P-1 → P-3b，08 C-3 插在 08 C-1 之后、P-3b 之前，和 05② C-2、P-1 先准备好的先落（共用 `platform/plugin.txt`，见下一条）；`modules/projects` 是 05② C-1 → P-3a；`plugin-package` 只有 08 C-3（本稿不动）；`platform/actions` 是 #1791 K0 → P-4；`host-actions.tsv` 按上表依次落，同一时间只有一片在途。
 - 全部在 M1 之前落，按 N35 一个 PR 改完所有消费者，不留兼容期。
 - 错误码用 `defineErrorCodes`：`blueprints.part_unsupported`（主人没声明）、`blueprints.step_conflict`（主人的 revision 变了）、`blueprints.dependency_unmet`、`blueprints.preview_expired`；设置的拒绝由主人给 `<主人>.setting_invalid`、`<主人>.setting_conflict`，SDK 的 bind 帮主人按主人名生成，不新增平台码。P-1 落时按 `tooling/gates/error-owners.json` 核主人名。
 

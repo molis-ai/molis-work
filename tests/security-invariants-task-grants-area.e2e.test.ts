@@ -10,6 +10,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
@@ -51,9 +52,13 @@ async function open(t: TestContext) {
     set(target,key,value){target[key]=key==='schedule'?host=>{window.pageHost=host;return value(host)}:value;return true}
   });${OBSERVE}`);
   const prefix = `/projects/${browser.projectId}`;
-  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + prefix + "/?openPlugin=schedule" }, browser.sessionId));
-  await browser.surfaceReady("schedule");
-  await child.waitFor("window.pageHost");
+  /** Opens Schedule's page in a project, this test's own or another. */
+  const visit = async (projectId: string) => {
+    await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + projectId + "/?openPlugin=schedule" }, browser.sessionId));
+    await browser.surfaceReady("schedule");
+    await child.waitFor("window.pageHost");
+  };
+  await visit(browser.projectId!);
 
   /** An empty element in the plugin's document at a fixed place, and the area placed on it with this key. */
   const place = async (id: string, key: string, style: string) => {
@@ -91,7 +96,7 @@ async function open(t: TestContext) {
   const ready = async () => { await settle(); await browser.waitFor(`![...document.querySelectorAll(${JSON.stringify(AREA)})].some(area => area.hasAttribute("data-unready"))`); };
   /** The first row's switch in the nth area, or a row's by its category name. */
   const control = (kind: "switch" | "allow" | "remove", row = 0) => `${AREA} [data-task-grants-row]:nth-child(${row + 1}) [data-framed-control^="${kind}:"]`;
-  return { browser, child, prefix, place, placed, shown, sent, sets, down, records, line, centre, press, key, settle, ready, control };
+  return { browser, child, prefix, visit, place, placed, shown, sent, sets, down, records, line, centre, press, key, settle, ready, control };
 }
 
 test("S-142 TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is the shell's: the page's styles, made-up messages and scripted clicks change nothing, and the person's own press writes once", { timeout: 120_000 }, async t => {
@@ -182,18 +187,37 @@ test("S-142 TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is the shell's: t
   assert.deepEqual((await p.sets()).at(-1)!.body.categories, []);
   assert.equal(await p.records(), none, "undo restored the records as they were");
 
-  // TGA-11: everything the frame heard is a height step, a shown answer, two flags or a reveal; nothing names a category.
-  const messages = await p.down();
-  for (const message of messages) {
-    assert.ok(["task-grants-size", "task-grants-shown", "task-grants-changed", "task-grants-reveal"].includes(String(message.type)), JSON.stringify(message));
-    if (message.type === "task-grants-size") assert.ok([0, WIDE, NARROW].includes(Number(message.height)), JSON.stringify(message));
-    if (message.type === "task-grants-changed") assert.deepEqual(Object.keys(message.state as object).sort(), ["attention", "granted"]);
-    if (message.type === "task-grants-shown") assert.deepEqual(Object.keys(message).filter(name => !["type", "id", "error"].includes(name)), []);
-  }
-  const text = JSON.stringify(messages);
-  for (const row of rows) assert.equal(text.includes(row.name.split("\n")[0]!), false, "no provider is named downward");
-  assert.equal(/revision|categor|capability/u.test(text), false);
+  // TGA-11: everything the frame heard is a height step, a shown answer, two flags or a reveal; nothing names a category. The
+  // heights the first area (id 1, 560 px wide) was given are the steps for its width alone.
+  const heard = (messages: Array<Record<string, unknown>>, offered: ReadonlyArray<{ name: string }>) => {
+    for (const message of messages) {
+      assert.ok(["task-grants-size", "task-grants-shown", "task-grants-changed", "task-grants-reveal"].includes(String(message.type)), JSON.stringify(message));
+      if (message.type === "task-grants-size") assert.ok([0, WIDE, NARROW].includes(Number(message.height)), JSON.stringify(message));
+      if (message.type === "task-grants-changed") assert.deepEqual(Object.keys(message.state as object).sort(), ["attention", "granted"]);
+      if (message.type === "task-grants-shown") assert.deepEqual(Object.keys(message).filter(name => !["type", "id", "error"].includes(name)), []);
+    }
+    const text = JSON.stringify(messages);
+    for (const row of offered) assert.equal(text.includes(row.name.split("\n")[0]!), false, "no provider is named downward");
+    assert.equal(/revision|categor|capability/u.test(text), false);
+    return messages.filter(message => message.type === "task-grants-size" && message.id === 1).map(message => message.height);
+  };
+  const heights = heard(await p.down(), rows);
   assert.deepEqual(await child.evaluate("window.tgaStates.tga"), [{ granted: true, attention: false }, { granted: false, attention: false }]);
+
+  // TGA-11, across projects: another project offers other categories (another number of them, with other words) and holds no grant
+  // for the task; an area of the same width there is told the same height, and its frame hears nothing more.
+  const other = await createProject(browser.web, "TGA-11 另一项目");
+  assert.ok((await addProjectPlugin(browser.web, other.project_id, "schedule")).includes("schedule"));
+  await p.visit(other.project_id);
+  await p.place("tga", "daily", "left:24px;top:24px;width:560px");
+  assert.equal(await p.placed("tga"), "shown");
+  await browser.waitFor(`document.querySelector(${JSON.stringify(AREA + " [data-task-grants-row], " + AREA + " .task-grants-area__empty")})`);
+  const elsewhere = await browser.evaluate<Array<{ name: string; status: string }>>(`[...document.querySelectorAll("${AREA} [data-task-grants-row]")].map(row => ({ name: row.dataset.taskGrantsRow, status: row.dataset.status }))`);
+  t.diagnostic("categories offered in the other project: " + JSON.stringify(elsewhere));
+  assert.notEqual(elsewhere.length, rows.length, "the two projects offer a different number of categories");
+  assert.deepEqual(heard(await p.down(), [...rows, ...elsewhere]), heights, "TGA-11 the same width is told the same height in both projects");
+  assert.deepEqual(heights, [WIDE], "one step, the wide one, for 560 px");
+  assert.equal(await child.evaluate("document.getElementById('tga').getBoundingClientRect().height"), WIDE);
 });
 
 test("S-142 TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19 a press counts only on an area that has held still, shown whole and on top, for long enough", { timeout: 150_000 }, async t => {
@@ -275,17 +299,25 @@ test("S-142 TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19 a press coun
   await child.evaluate(`document.getElementById("tga").style.top = "24px"`);
   await p.ready();
 
-  // TGA-05: the area lies above what the page can ask for (reviews and embeds, z-index 1); something laid over its header anyway stops it.
-  assert.equal(await browser.evaluate(`getComputedStyle(document.querySelector("[data-framed-area]")).zIndex`), "2");
-  await browser.evaluate(`(() => { const head = document.querySelector("${AREA} [data-framed-area-head]").getBoundingClientRect();
-    const cover = document.body.appendChild(document.createElement("div")); cover.id = "tga-cover";
-    cover.style.cssText = "position:fixed;z-index:2147483647;left:" + head.left + "px;top:" + head.top + "px;width:" + head.width + "px;height:" + head.height + "px"; })()`);
+  // TGA-05: the page asks for an embedded view over the area's header. The area lies above it (embeds and reviews are z-index 1);
+  // raised over the header anyway, the embed stops the area.
+  await child.evaluate(`(() => { const slot = document.body.appendChild(document.createElement("div")); slot.id = "tga-embed";
+    slot.style.cssText = "position:fixed;left:24px;top:24px;width:560px;height:96px";
+    window.tgaEmbed = pageHost.view.embed(slot, { surface: "goals", itemId: "CORE", title: "TGA-05" }); return window.tgaEmbed.ready.then(() => true); })()`);
+  const embedHolder = `document.querySelector("iframe[data-plugin-embedded]").parentElement`;
+  await browser.waitFor(`document.querySelector("iframe[data-plugin-embedded]") && !${embedHolder}.hidden && ${embedHolder}.getBoundingClientRect().height > 90`);
+  const onHeader = `(() => { const head = document.querySelector("${AREA} [data-framed-area-head]").getBoundingClientRect();
+    return document.elementFromPoint(head.left + head.width / 2, head.top + head.height / 2)?.closest("[data-framed-area], [data-plugin-embedded], iframe")?.matches("[data-framed-area]") ?? false; })()`;
+  assert.equal(await browser.evaluate(onHeader), true, "TGA-05 the area lies above the embed the page asked for");
+  await browser.evaluate(`${embedHolder}.style.zIndex = "3"`);
+  assert.equal(await browser.evaluate(onHeader), false, "the raised embed now lies over the header");
   await p.ready();
   await p.press(toggle);
   await p.settle(250);
-  assert.equal(await writes(), 1, "TGA-05 a press on an area whose header is covered does not write");
+  assert.equal(await writes(), 1, "TGA-05 a press on an area whose header an embed covers does not write");
   assert.equal(await p.line(), "请先让这一块完整显示");
-  await browser.evaluate(`document.getElementById("tga-cover").remove()`);
+  await child.evaluate(`window.tgaEmbed.dispose(); document.getElementById("tga-embed").remove()`);
+  await browser.waitFor(`!document.querySelector("iframe[data-plugin-embedded]")`);
 
   // An outer ancestor clipping the header off has the same effect (the hit check finds the header is not the area's there).
   await browser.evaluate(`(() => { const root = document.querySelector("[data-framed-area]").parentElement, head = document.querySelector("${AREA} [data-framed-area-head]").getBoundingClientRect();

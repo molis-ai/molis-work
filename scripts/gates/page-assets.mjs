@@ -365,10 +365,22 @@ const headErrors = (measured, budget, base) => {
 // list open, the kind marks and the 「需要重新确认」 badge, the reads section's lines and the in-pane form. Keyed on merge-base
 // 585ae7af (main after #1892; the sheets were minified since the first measurement, 1269 → 2841). Tried: the form reuses the board's .mw-form and .mw-btn, the two kind icons share one kept slot shown by one attribute,
 // the area's own drawing is left to the platform (P3).
+// Batch 18 P3-1 (the task reads area drawn by the shell outside a plugin's frame, specs/proactive-assistant/task-grants-platform-area.md;
+// plugin-frame.js over 10 KB, approved by the user on 2026-11-06 as "shrink first, then admit"; workbench.css admitted by the batch 18
+// coordinator): plugin-frame.js +14490 (188432 -> 202922) B: the shared outer-area registry (framed-area.ts: placement, crossing,
+// the steady time, the whole-in-view and hit checks, the keyboard dwell) and the reads area (task-grants-area.ts: rows, the switch,
+// allow and remove, the change line with undo and retry, the frame half). workbench.css +4980 (1108657 -> 1113637) B: the platform
+// area's header, rows, change line, not-ready and busy states (platform-area.ts), the row styles shared with the board. Keyed on
+// merge-base c3c42913 (main after #1885; the ④a, ASC-64 C1 and P3-0a entries for these two are spent there and replaced). Tried,
+// from a first cut of +15822 (on 188418): the controls carry one name (`data-framed-control`) instead of a second act attribute,
+// the HTML escape is the SDK's (`escapeHtml`, also taken by the frame document) instead of two local copies, and the placement over
+// the frame and the page's place reporting are one helper each (over-frame.ts) that reviews and embeds now use too instead of
+// their own copies; the English words were already outside the frame script (the shell's dictionary). +38 B of it is a
+// category's words looked up in the shell's dictionary too, so a built-in plugin's summary shows in English. No new asset, no lazy load.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [761321, 761636],
-  "/assets/molis-work-workbench.css": [1108342, 1108657],
-  "/assets/molis-work-plugin-frame.js": [188418, 188432],
+  "/assets/molis-work-workbench.css": [1108657, 1113637],
+  "/assets/molis-work-plugin-frame.js": [188432, 202922],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
   "/assets/molis-work-plugins/cognia.js": [22157, 22189],

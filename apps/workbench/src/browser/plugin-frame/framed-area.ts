@@ -1,3 +1,4 @@
+import { overFrame } from "./over-frame.js";
 import type { FrameBox, FrameScope } from "./types.js";
 
 /**
@@ -72,19 +73,15 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
 
   /** Where the frame shows on screen, for one entry: its box clamped to the frame, and whether the frame is wide enough at all. */
   const place = (entry: Entry) => {
-    const { holder, surface } = entry.area, box = entry.box, owner = frame.getBoundingClientRect(), bounds = root.getBoundingClientRect();
+    const { holder, surface } = entry.area, box = entry.box, owner = frame.getBoundingClientRect();
     const fits = owner.width >= FRAMED_AREA_MIN_WIDTH;
     const width = box ? Math.min(owner.width, Math.max(FRAMED_AREA_MIN_WIDTH, box.width)) : 0;
     // The step follows the width the area is drawn at; without a box the element keeps the height it has.
     const height = !fits ? 0 : box ? (width >= FRAMED_AREA_WIDE_FROM ? entry.options.heights.wide : entry.options.heights.narrow) : entry.height;
     if (height !== entry.height) { entry.height = height; entry.options.onHeight(height); }
     if (!box || !fits || !visible() || !scope.visible) { hide(entry); return; }
-    const x = Math.min(box.x, owner.width - width);
-    const left = Math.max(0, x), top = Math.max(0, box.y), right = Math.min(owner.width, x + width), bottom = Math.min(owner.height, box.y + height);
-    if (right <= left || bottom <= top) { hide(entry); return; }
-    Object.assign(holder.style, { left: owner.left - bounds.left + left + "px", top: owner.top - bounds.top + top + "px", width: right - left + "px", height: bottom - top + "px" });
-    Object.assign(surface.style, { left: x - left + "px", top: box.y - top + "px", width: width + "px", height: height + "px" });
-    holder.hidden = false;
+    if (overFrame(root, owner, holder, surface, { x: Math.min(box.x, owner.width - width), y: box.y, width, height })) holder.hidden = false;
+    else hide(entry);
   };
   const hide = (entry: Entry) => { entry.area.holder.hidden = true; entry.shown = null; };
 
@@ -205,30 +202,3 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
   };
 }
 export type PageFramedAreas = ReturnType<typeof pageFramedAreas>;
-
-/**
- * The page's half: reports, every frame while it has places, where each empty element is, in the frame's coordinates. A hidden
- * document, an open dialog, an element that is not rendered or has no width reports `null`; an element that left the document
- * calls `gone`.
- */
-export function childFramedPlaces(scope: FrameScope, report: (id: number, box: FrameBox | null) => void, gone: (id: number) => void) {
-  const places = new Map<number, { element: HTMLElement; last: string }>();
-  let scheduled = 0;
-  const frame = () => {
-    scheduled = 0;
-    for (const [id, place] of places) {
-      if (!place.element.isConnected) { places.delete(id); gone(id); continue; }
-      const box = place.element.getBoundingClientRect();
-      const value = document.body.hidden || document.querySelector("dialog[open]") || !place.element.checkVisibility() || !box.width ? null
-        : { x: box.x, y: box.y, width: box.width, height: box.height };
-      const text = JSON.stringify(value);
-      if (text !== place.last) { place.last = text; report(id, value); }
-    }
-    if (places.size) scheduled = requestAnimationFrame(frame);
-  };
-  scope.own(() => cancelAnimationFrame(scheduled));
-  return {
-    track(id: number, element: HTMLElement) { places.set(id, { element, last: "" }); if (!scheduled) scheduled = requestAnimationFrame(frame); },
-    untrack(id: number) { places.delete(id); },
-  };
-}

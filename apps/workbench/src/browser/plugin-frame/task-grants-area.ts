@@ -2,7 +2,9 @@ import type { UiPageTaskGrants, UiTaskGrantsAreaState } from "@molis-ai/molis-wo
 import {
   TASK_GRANT_SUBJECT_KEY_PATTERN, type TaskGrantCategory, type TaskGrantCategoryReference, type TaskGrantCategoryState, type TaskGrantSetCategory,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { childFramedPlaces, type FramedArea, type FramedAreaRefusal, type PageFramedAreas } from "./framed-area.js";
+import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { FramedArea, FramedAreaRefusal, PageFramedAreas } from "./framed-area.js";
+import { childPlaces } from "./over-frame.js";
 import type { FrameScope, TaskGrantsDown, TaskGrantsUp, Translate } from "./types.js";
 
 /**
@@ -26,11 +28,13 @@ export type TaskGrantsLine = { readonly text: string; readonly act?: "undo" | "r
 
 const nameOf = (ref: TaskGrantCategoryReference) => ref.provider_id + "\n" + (ref.group_id ?? "");
 const refOf = (ref: TaskGrantCategoryReference): TaskGrantSetCategory => ref.group_id === undefined ? { provider_id: ref.provider_id } : { provider_id: ref.provider_id, group_id: ref.group_id };
-const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 
-/** A provider's own words, in its own English when the page is English (`ui.translations`), never the Host's. */
+/**
+ * A provider's words in the page's language, looked up as `LF` does: the shell's dictionary (where a built-in plugin's summary
+ * and the platform's own categories have their English), then the plugin's own English (`ui.translations`), else as written.
+ */
 function providerWords(category: TaskGrantCategory, text: string): string {
-  return (category.plugin_id ? globalThis.MOLIS_WORK_PLUGIN_WORDS?.[category.plugin_id]?.[text] : undefined) ?? text;
+  return globalThis.MOLIS_WORK_MESSAGES?.[text] ?? (category.plugin_id ? globalThis.MOLIS_WORK_PLUGIN_WORDS?.[category.plugin_id]?.[text] : undefined) ?? text;
 }
 
 /** One row per category: what this project offers, then what the task holds that is no longer offered (unavailable or removed). */
@@ -66,18 +70,18 @@ const summary = (subject: Reads["subject"]): UiTaskGrantsAreaState => ({
 /** The area's markup: the platform's header, one row per category, and the one line that says what just happened. */
 export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly Row[], line: TaskGrantsLine, busy: boolean, fresh = false): string {
   const control = (name: string, label: string, act: string, extra = "") =>
-    `<button type="button" class="mw-btn mw-btn--sm mw-btn--secondary" data-framed-control="${escape(act + ":" + name)}" data-task-grants-act="${act}"${extra}>${escape(label)}</button>`;
+    `<button type="button" class="mw-btn mw-btn--sm mw-btn--secondary" data-framed-control="${escape(act + ":" + name)}"${extra}>${escape(label)}</button>`;
   const status = (row: Row) => row.status === "needs_confirmation" ? t("有新的读取能力，允许之前读不到")
     : row.status === "unavailable" ? t("暂时读不到，授权还在") : row.status === "removed" ? t("这一类已不再提供") : "";
   const item = (row: Row) => {
     const note = status(row), on = row.status !== "off";
     const end = row.status === "removed" ? control(row.name, t("移除"), "remove")
-      : `${row.status === "needs_confirmation" ? control(row.name, t("允许"), "allow") : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${on ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}" data-task-grants-act="${on ? "off" : "on"}"><span class="mw-switch__track" aria-hidden="true"></span></span>`;
+      : `${row.status === "needs_confirmation" ? control(row.name, t("允许"), "allow") : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${on ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}"><span class="mw-switch__track" aria-hidden="true"></span></span>`;
     return `<li class="mw-item task-grants-area__row" data-task-grants-row="${escape(row.name)}" data-status="${row.status}"><span><strong title="${escape(row.title)}">${escape(row.title)}</strong><small title="${escape(row.description)}">${escape(row.description)}</small>${note ? `<em class="task-grants-area__note">${escape(note)}</em>` : ""}</span><span class="mw-item__end">${end}</span></li>`;
   };
   const list = rows.length ? `<ul class="mw-items task-grants-area__rows">${rows.map(item).join("")}</ul>`
     : `<p class="task-grants-area__empty">${escape(t("这个项目里还没有能读的插件数据。装了待办、日程、笔记一类的插件后，它们会出现在这里。"))}</p>`;
-  const act = line.act ? `<button type="button" class="mw-toast__action" data-framed-control="${line.act}" data-task-grants-act="${line.act}">${escape(line.act === "undo" ? t("撤销") : t("重试"))}</button>` : "";
+  const act = line.act ? `<button type="button" class="mw-toast__action" data-framed-control="${line.act}">${escape(line.act === "undo" ? t("撤销") : t("重试"))}</button>` : "";
   return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-shield"></use></svg>${escape(t("Molis Work · 只有你能改"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
     + `<p class="mw-platform-area__lead">${escape(t("只能读，不能改；只给这个任务；随时可以撤回"))}</p></header>`
     + `<div class="mw-platform-area__body" data-framed-scroll${busy ? ' aria-busy="true"' : ""}>${list}</div>`
@@ -150,7 +154,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
 
   /** A press on one of the area's controls: the six checks of §3.3, then at most one write. */
   const press = (entry: Entry, event: MouseEvent) => {
-    const control = (event.target as Element).closest<HTMLElement>("[data-task-grants-act]");
+    const control = (event.target as Element).closest<HTMLElement>("[data-framed-control]");
     if (!control || !entry.area.surface.contains(control)) return;
     // A switch shows the answer, not the press: the browser does not flip it.
     event.preventDefault();
@@ -163,7 +167,8 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       if (refusal.reason === "partial" && !refusal.reveal) control.closest("li")?.scrollIntoView({ block: "nearest", inline: "nearest" });
       draw(entry); return;
     }
-    const act = control.dataset.taskGrantsAct, subject = entry.reads.subject;
+    // A control's name is its act, then the category it is for: `switch:`, `allow:` or `remove:` and the row's name.
+    const name = control.dataset.framedControl!, act = name.split(":", 1)[0], subject = entry.reads.subject;
     if (act === "read") { void reread(entry); return; }
     if (act === "undo" || act === "retry") {
       const last = entry.last; if (!last) return;
@@ -171,7 +176,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       return;
     }
     // A switch turns its category the other way from what the task holds now; the drawn markup does not decide it.
-    const switched = act === "on" || act === "off", row = taskGrantRows(entry.reads).find(item => control.dataset.framedControl === (switched ? "switch" : act) + ":" + item.name);
+    const switched = act === "switch", row = taskGrantRows(entry.reads).find(item => name === act + ":" + item.name);
     const fits = switched ? row?.status !== "removed" : act === "allow" ? row?.status === "needs_confirmation" : act === "remove" && row?.status === "removed";
     if (!row || !fits) return;
     void write(entry, taskGrantChange(switched ? (row.status === "off" ? "on" : "off") : act as "allow" | "remove", row, subject));
@@ -225,7 +230,7 @@ export function childTaskGrants(port: MessagePort, scope: FrameScope): UiPageTas
     entries.delete(id); places.untrack(id); entry.stop?.(); entry.pending?.reject(error);
     entry.element.style.removeProperty("height"); send({ type: "task-grants-close", id });
   };
-  const places = childFramedPlaces(scope, (id, box) => send({ type: "task-grants-layout", id, box }), id => close(id));
+  const places = childPlaces(scope, (id, box) => send({ type: "task-grants-layout", id, box }), id => close(id));
   scope.own(() => { for (const id of [...entries.keys()]) close(id); });
   port.addEventListener("message", (event: MessageEvent<TaskGrantsDown>) => {
     const message = event.data, entry = entries.get(message.id);

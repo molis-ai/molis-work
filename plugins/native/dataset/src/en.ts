@@ -14,7 +14,6 @@ export const DATASET_EN: Record<string, string> = {
   "草稿": "Draft",
   "已就绪": "Ready",
   "回滚": "Roll back",
-  "缺少项目": "Missing project",
   "删列": "Remove column",
   "删行": "Remove row",
   "还没有说明": "No description yet",

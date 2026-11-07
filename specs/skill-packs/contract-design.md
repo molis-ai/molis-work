@@ -198,7 +198,7 @@ interface SkillRef {
 }
 ```
 
-`SignedAgentReference` 的 `kind: "method"` 改成用 `SkillRef`；角色资料仍用 `kind: "role"`。官方包、第三方包、本机导入的包都是签名包，都有 `publisher_signature`；随宿主构建、带 Manifest `methods` 的内置插件也有构建的签名身份。所以引用的写法只有一种。
+`SignedAgentReference` 的 `kind: "method"` 改成用 `SkillRef`；角色资料仍用 `kind: "role"`。官方包、第三方包、本机导入的包都是签名包，都有 `publisher_signature`；随宿主构建、带 Manifest `methods` 的内置插件也有构建的签名身份。所以引用的写法只有一种。`SignedAgentReference` 的方法引用随第 09 批改（合同部分并进 9-1，9-2 只做读取与消费），C-1 只加 `SkillRef` 类型，见 08 偏离记录。
 
 ## 5. 安装与升级
 

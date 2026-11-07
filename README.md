@@ -182,7 +182,7 @@ pnpm desktop:install:macos
 pnpm desktop:start:macos
 ```
 
-Each architecture ships separately because Molis Work's SQLite and PTY native addons must match both the bundled Node runtime and the Mac CPU. The release workflow is currently manual-only (the automatic `v*` tag trigger is paused); it builds Apple Silicon and Intel DMGs separately, and the public Release is published only after signing and notarization succeed. Credentials are read only from GitHub Secrets and never committed to the repository.
+Each architecture ships separately because Molis Work's PTY and Alchemist SQLite native addons must match both the bundled Node runtime and the Mac CPU. The release workflow is currently manual-only (the automatic `v*` tag trigger is paused); it builds Apple Silicon and Intel DMGs separately, and the public Release is published only after signing and notarization succeed. Credentials are read only from GitHub Secrets and never committed to the repository.
 
 ## Product boundaries
 

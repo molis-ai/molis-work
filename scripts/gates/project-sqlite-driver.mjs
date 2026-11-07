@@ -1,9 +1,9 @@
-// The project database uses exactly the driver that owns its lock. Alchemist has its own approved private driver.
+// better-sqlite3 is Alchemist's own, until it is rebuilt (BL-377). Everything else is on node:sqlite through packages/storage: two SQLite libraries on one file in one process drop each other's locks (S-46).
 import ts from "typescript";
 import { extractImportSpecifiers } from "@molis-ai/molis-work-test-kit";
 
 const isDriver = (name) => name === "better-sqlite3" || name.startsWith("better-sqlite3/");
-const ownsDriver = (file) => file === "packages/storage/src/sqlite-connection.ts" || file.startsWith("plugins/native/alchemist/");
+const ownsDriver = (file) => file.startsWith("plugins/native/alchemist/");
 
 /** Node -e programs in lock tests and installation probes are callers too. Inspect literal programs, not prose or patterns in tests. */
 function evalPrograms(source, file) {

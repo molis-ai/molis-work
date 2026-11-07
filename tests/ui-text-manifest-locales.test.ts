@@ -98,7 +98,7 @@ test("FSS-52 with ui.locales, a plugin_id whose last segment cannot start a key 
   }
 });
 
-test("a plugin_id longer than a text reference's owner is refused by its own message", () => {
+test("FSS-52 a plugin_id longer than a text reference's owner is refused by its own message", () => {
   const prefix = "io.molis.work.";
   const longest = prefix + "a".repeat(TEXT_REF_LIMITS.owner - prefix.length);
   assert.equal(longest.length, 200);

@@ -62,13 +62,14 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 - 一个页面同时最多 4 块（外层拒绝更多，同审查卡的 8、嵌入的 4）；同一个元素再调一次是换 key，旧的那块关掉。
 - `signal` 中止、元素离开文档、页面关闭都关掉这一块。
+- 页面不可见时（比如在后台打开的标签）放的区域不拒绝：外层等页面可见了再读、再画，`place` 到那时才结束，插件不用重试；等的时候 `signal` 中止或元素离开文档就不再等（P3-1 评审小修 3，2026-11-07）。
 - `onChange` 只在本人拨动、撤销、允许、移除成功之后来一次，带的是新的摘要；插件要更多就自己调 `agent.task_grants.list`（插件受众，只看到自己安装的）。
 
 ### 2.2 框通道的消息（工作台内部，`types.ts`，不是公开合同）
 
 | 方向 | 类型 | 内容 | 外层怎样核对 |
 | --- | --- | --- | --- |
-| 上 | `task-grants-open` | `id`、`key` | `id` 是正的安全整数；`key` 合 `TASK_GRANT_SUBJECT_KEY_PATTERN`；本页不超过 4 块；页面可见 |
+| 上 | `task-grants-open` | `id`、`key` | `id` 是正的安全整数；`key` 合 `TASK_GRANT_SUBJECT_KEY_PATTERN`；本页不超过 4 块；页面不可见时等到可见再开（2.1） |
 | 上 | `task-grants-layout` | `id`、`box`（`x/y/width/height` 或 `null`） | 四个数都是有限数；`null`、宽为 0、页面不可见时区域藏起并且不响应 |
 | 上 | `task-grants-close` | `id` | — |
 | 下 | `task-grants-size` | `id`、`height` | 只给高度，框把空元素撑高；高度只取按宽度定的两档（3.1），与类别多少无关 |
@@ -366,3 +367,9 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 | P3-1 区域与路由 | 外层画区域与六条检查（含 D1 的原因提示与 `task-grants-reveal`、D2 的常驻变化行）、框里的报位置、宿主路由、不变量记录 `S-task-grants-area` 与 TGA-01～19、高度两档的常量、组件板标本（平台区域外框与标头）、中英文词条 | D | P3-0a、P2 的三个平台动作已在宿主可调且 `set` 按 3.6 R1～R5 |
 | P3-2 Schedule 接入 | 任务详情里放空元素、`place`、用 `onChange` 更新列表标记；Manifest 加 `task_subjects: { kind: "schedule_task" }` | E（规则 7） | P3-1、P3-0b |
 | P3-3 「授权与放行」按任务列出 | 第 5 节（含 5.2 取标题） | D | P2、P3-0b |
+
+**P3-2 的验收**（不属于第 4 节的安全不变量，测试名里写编号）：
+
+- `TGA-21` Schedule 只经 `host.taskGrants.place` 放区域：打开一个任务的详情，就在详情「能读的数据」一段里留好的空元素上放一块，key 是这个任务的 `task_id`；换到另一个任务、点返回、新建表单占了这一栏，都中止上一块（区域消失、空元素的高度还回去）；区域显示后，Schedule 自己按类别计的那一行让位，说明仍留着。页面在后台时打开的详情不被拒，页面显示后画出（`tests/schedule-task-grants-area.e2e.test.ts`）。
+- `TGA-22` 本人在区域里改动之后，列表里这个任务的标记（读数据／读文件、需要重新确认）按框收到的两个布尔改，不再读一次授权（同上）。两个布尔分不出的一种（没有已授权的、也没有要本人看的，但还留着一类插件已停用的）先显示成读文件，下一次读列表时更正。
+- `TGA-23` Schedule 的 Manifest 声明 `task_subjects: { kind: "schedule_task" }`，经 SDK 的检查照原样读出；列出这个 kind 的只有它已有的 `schedule.search.entries`，对 `user` 开放（`tests/schedule-task-grants.test.ts`）。

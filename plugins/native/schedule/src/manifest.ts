@@ -49,6 +49,9 @@ export const scheduleManifest: PluginManifest = {
   read_groups: [{ group_id: "reminders", title: "提醒", description: "本项目的提醒：内容（含其他插件登记的提醒的文字）、来自哪个插件和下一次时间",
     actions: [scheduleActions.reminders.capability_id] }, { group_id: "operations", title: "定时操作", description: "本项目的定时任务、提醒，以及其他插件登记的定时操作和它们的原输入",
     actions: [scheduleActions.list.capability_id, scheduleActions.searchEntries.capability_id, scheduleActions.subject.capability_id] }],
+  // A task grant subject's key is a conversation task's id: the grants page names it through `schedule.search.entries`, which lists
+  // this kind (specs/proactive-assistant/task-grants-platform-area.md §5.1).
+  task_subjects: { kind: "schedule_task" },
   background: { jobs: [{ job_id: SCHEDULE_RECONCILE_JOB, reason: "恢复未完成的排期并标记中断的执行", permissions: ["storage:private", "schedule:read", "schedule:write", "plugins:read"] }],
     wakeups: Object.values(scheduleWakeupActions).map(({ capability_id, version, action }) => ({ action: { capability_id, version }, reason: action.title })) },
   routes: [

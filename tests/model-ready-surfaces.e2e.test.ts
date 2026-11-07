@@ -198,7 +198,7 @@ async function openScheduleDialog({ waitFor, click }: Pick<Awaited<ReturnType<ty
   await waitFor(`${shown("model")} && ${shown("workspace")}`, 20_000);
 }
 
-test("schedule: the new-task dialog's model hint goes when the first model is ready, and its links lead to where each is fixed", { timeout: 90_000 }, async t => {
+test("schedule: the new-task form's model hint goes when the first model is ready, and its links lead to where each is fixed", { timeout: 90_000 }, async t => {
   const browser = await open(t, "schedule");
   if (!browser) return;
   const {projectId}=browser;
@@ -221,27 +221,28 @@ test("schedule: the new-task dialog's model hint goes when the first model is re
   }
   // Two hints one under the other sit a form-gap apart (12px): a paragraph's default margins would add 26px to it.
   assert.ok(await evaluate<number>(`(() => { const top = document.querySelector('[data-schedule-hint=model]').getBoundingClientRect(), next = document.querySelector('[data-schedule-hint=workspace]').getBoundingClientRect(); return Math.round(next.top - top.bottom); })()`) <= 16, "the hints are a form-gap apart");
-  // The model is set up somewhere else (another pane, another tab) while the dialog stays open.
+  // The model is set up somewhere else (another pane, another tab) while the form stays open.
   await firstModelIsReady(browser);
   await waitFor("document.querySelector('[data-schedule-hint=model]').hidden", 10_000);
-  assert.equal(await evaluate("!document.querySelector('[data-schedule-hint=workspace]').hidden && document.querySelector('[data-schedule-create-dialog]').open"), true, "the folder is still missing, and the person's dialog is still there");
+  assert.equal(await evaluate("!document.querySelector('[data-schedule-hint=workspace]').hidden && !document.querySelector('[data-schedule-create-pane]').hidden"), true, "the folder is still missing, and the person's form is still there");
   assert.equal(await evaluate("document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), false, "and creating was never blocked");
-  // The project settings open over the page; the modal dialog would sit over them, so the link leaves it first.
+  // The project settings open over the page. The form is part of the page, not a dialog over it (batch 18: no dialog), so it stays
+  // where it is, with what the person wrote, under the settings.
   await evaluate("document.querySelector('[data-schedule-hint=workspace] a').click()");
-  await waitFor("!document.querySelector('[data-schedule-create-dialog]').open",10_000);
   await browser.waitFor("document.body.dataset.desktopSurface === 'project-settings'",10_000);
-  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is left over the settings");
+  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is over the settings");
+  assert.equal(await evaluate("!document.querySelector('[data-schedule-create-pane]').hidden"), true, "and the form waits under them");
 });
 
-test("schedule: the model link leaves the modal dialog for the model settings", { timeout: 90_000 }, async t => {
+test("schedule: the model link opens the model settings with nothing modal over them, and the form waits under them", { timeout: 90_000 }, async t => {
   const browser = await open(t, "schedule");
   if (!browser) return;
   const { evaluate, waitFor } = browser.child;
   await openScheduleDialog(browser.child);
   await evaluate("document.querySelector('[data-schedule-hint=model] a').click()");
   await browser.waitFor("document.body.dataset.desktopSurface === 'settings'",10_000);
-  await waitFor("!document.querySelector('[data-schedule-create-dialog]').open",10_000);
-  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is left over the settings");
+  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is over the settings");
+  assert.equal(await evaluate("!document.querySelector('[data-schedule-create-pane]').hidden"), true, "and the form waits under them");
 });
 
 test("plugin builder studio: the empty model list and the link to the settings are read again", { timeout: 90_000 }, async t => {

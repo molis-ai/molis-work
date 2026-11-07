@@ -32,6 +32,9 @@ export const todoManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["assistant.works.related"] },
   artifacts: { produces: [], consumes: [] },
   actions: [...TODO_ACTIONS], sync:todoSync,
+  // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
+  read_groups: [{ group_id: "todo", title: "待办", description: "待办事项、它们的日期与到期提醒",
+    actions: ["todo.items.list", "todo.items.get", "todo.item.subject.read", "todo.search.project_entries", "todo.reminders.due", "todo.home.events"] }],
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
   runtime: { scope: "home" },
   databases: { home: TODO_DATABASE },

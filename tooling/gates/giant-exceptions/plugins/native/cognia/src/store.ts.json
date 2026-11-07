@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class plugins/native/cognia/src/store.ts#CogniaStore": {
+      "kind": "cohesive-unit",
+      "reason": "Cognia 的数据访问对象：27 个方法共 120 行（均值 4 行），每个是对 cognia_* 表的一两条语句加输入校验，类只超方法数 2 个；调用方每次读或每个事务得到一个新建的 CogniaStore（plugin.ts 的 read、write 两处 `run(new CogniaStore(…))`），在同一个事务里跨素材、版本、预览、草稿读写，拆成几个类就要每次构造并传一组，事务边界反而散开。",
+      "size": {
+        "lines": 120,
+        "methods": 26
+      }
+    }
+  }
+}

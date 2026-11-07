@@ -132,8 +132,8 @@ jobs:
       # every spec, the document and repository-shape rules (scripts/gates/README.md), and a list that never changes silently: the
       # public API of the contracts package and the plugin SDK against tooling/gates/api (specs/archive/repository-anti-corruption §5a).
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
-      # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the gate
-      # itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json admits nothing new.
+      # a checkout-local quick baseline cannot hide growth, and nothing in a PR can raise a number except changing the gate
+      # itself (script, limits.json, this step), which is reviewed. giant exceptions remain reviewed records with exact measured sizes.
       # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
       # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip; in the merge
       # queue it is the queue's base (merge_group.base_sha, passed as PUSH_BEFORE).
@@ -247,6 +247,9 @@ jobs:
         run: node scripts/run-tests.mjs --shard ${{ matrix.shard }}/2 tests/health-gates-*.test.ts
 
   architecture-boundaries:
+    permissions:
+      contents: read
+      actions: read
     name: Package boundaries
     needs: [test-selection, queue-check]
     # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
@@ -299,21 +302,23 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
-      # Page resource budget (specs/archive/repository-anti-corruption §4.8/§4.13, decision #17): every asset the host sends under
-      # /assets/ (the three stylesheets, the workbench client scripts, the Pages editor, the plugin client packs, the fonts)
-      # is frozen at its current size and may only fall. It is measured from the build the step above just made, so it must
-      # come after it. tooling/gates/page-assets.json is compared with the merge-base's copy (the one the health gates
-      # use): a PR cannot raise a number, add an asset or delete the entry of an asset the host still sends by editing that
-      # file, only by changing the gate, which is reviewed. The routes are read from web-assets.ts, and every path either
-      # budget names is also asked of the built host, so a refactor that hides a route from the reading cannot unmeasure it.
+      # Actual base and candidate bytes, with one-use change allowances. No shared absolute budget.
       - name: Page asset budgets (against the merge-base)
+        id: page-assets
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
         run: |
           base="$(node scripts/ci-health-base.mjs)"
-          node scripts/gates/page-assets.mjs --base "$base"
+          node scripts/gates/page-assets.mjs --base "$base" --output "$RUNNER_TEMP/page-assets/measurement.json"
+      - name: Save measured page assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.page-assets.outputs.artifact }}
+          path: ${{ runner.temp }}/page-assets/measurement.json
+          retention-days: 30
 
       # Plugin style budget (PG-070, RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts,
       # per plugin, the rule blocks still there although an on-demand sheet could carry them (the first slice's splitter, read

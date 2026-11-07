@@ -61,6 +61,8 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   // A rename counts by its old path too.
   whole("security", affected({ tests: someTests, changes: [{ path: "tests/elsewhere.test.ts", from: "tests/security-invariants-host.test.ts" }] }), /security-invariants-host/);
   whole("security", affected({ tests: someTests, changes: [{ path: "docs/system/SECURITY-INVARIANTS.md" }] }), /SECURITY-INVARIANTS\.md/);
+  // CCR-08: independent security records retain the protected-document selection boundary.
+  whole("security", affected({ tests: someTests, changes: [{ path: "docs/system/security-invariants/S-new-rule.md" }] }), /security-invariants/);
   whole("product", affected({ tests: someTests, changes: [{ path: "tests/quarantine.json" }] }), /quarantine\.json/, PRODUCT);
   whole("product", affected({ tests: someTests, changes: [{ path: "scripts/ci-linux-probe/select.mjs" }] }), /ci-linux-probe/, PRODUCT);
   whole("security", affected({ tests: someTests, changes: [{ path: "biome.jsonc" }] }), /biome\.jsonc/);

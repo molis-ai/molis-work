@@ -203,7 +203,7 @@ test("health:check on a clean kernel passes", () => {
 test("health:check fails when the kernel core imports contextual ranking, and rewriting baseline.json does not help", () => {
   branch("core-imports-contextual", () => {
     put(SERVICE, 'import { planContextualLayout } from "./contextual.js";\nexport const registry = () => planContextualLayout("x");\n');
-    put("tooling/gates/baseline.json", "{}\n");
+    put(".git/molis-health-baseline.json", "{}\n");
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 1, run.out);

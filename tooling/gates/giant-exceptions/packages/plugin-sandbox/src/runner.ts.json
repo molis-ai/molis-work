@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": {
+      "kind": "cohesive-unit",
+      "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",
+      "size": 192
+    }
+  }
+}

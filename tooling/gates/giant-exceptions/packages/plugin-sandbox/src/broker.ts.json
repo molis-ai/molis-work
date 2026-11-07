@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
+      "kind": "cohesive-unit",
+      "reason": "沙箱 SDK 请求的统一授权与派发边界：队列、执行生命周期、效果检查和动作退出校验共享同一调用上下文；模型请求只隔离正常 RPC 清理且保留真实取消转发，拆散会把同一安全边界的开始与结束分离。",
+      "size": {
+        "lines": 315,
+        "methods": 9
+      }
+    }
+  }
+}

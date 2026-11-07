@@ -2,7 +2,7 @@
 // bare `@ts-expect-error` here would prove nothing unless something compiles it, and would accept any error at all. Each rejection instead
 // ends with a "rejects" comment naming its words: the test asserts that exact line is refused with those words, and that no other line has an error.
 import { bindActionHandler, inputSchemaFor, withActionEffect, type ActionDefinition, type ActionSchema, type FlatUnion, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createActionDefinition, defineAction } from "@molis-ai/molis-work-plugin-sdk";
+import { arraySchema, createActionDefinition, defineAction, nullableSchema, objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 const same = <_T extends true>(): void => undefined;
@@ -150,25 +150,40 @@ bindActionHandler(withActionEffect(definition, "read"), input => ({ ok: input.id
 
 /* ---------- The writing a package migrates to (§4.5), held here so the pilot starts from something that compiles ---------- */
 
-const object = <const P extends Readonly<Record<string, unknown>>, const R extends readonly string[] = readonly (keyof P & string)[]>(properties: P, required?: R) =>
-  ({ type: "object", properties, required: (required ?? Object.keys(properties)) as R, additionalProperties: false }) as const;
-const nullable = <const S>(schema: S) => ({ anyOf: [schema, { type: "null" }] }) as const;
 const text = { type: "string" } as const;
 const define = <O>() => <const S extends ActionSchema>(suffix: string, version: number, input_schema: S) =>
   createActionDefinition<InferActionInput<S>, O>(`fixture.${suffix}`, "query", { title: "t", description: "d", audiences: ["user"], permissions: [], subject_kinds: [], input_schema }, version);
-same<Equal<Infer<ReturnType<typeof object<{ readonly a: { readonly type: "string" } }>>>, { readonly a: string }>>();
-const migrated = define<{ readonly ok: boolean }>()("get", 1, object({ id: text, note: nullable(text), limit: { type: "integer" } }, ["id", "note"]));
+const migrated = define<{ readonly ok: boolean }>()("get", 1, objectSchema({ id: text, note: nullableSchema(text), limit: { type: "integer" } }, ["id", "note"]));
 same<Equal<typeof migrated, ActionDefinition<{ readonly id: string; readonly note: string | null; readonly limit?: number }, { readonly ok: boolean }>>>();
 bindActionHandler(migrated, input => ({ ok: input.id.length > 0 && input.note !== "" && (input.limit ?? 0) >= 0 }));
 bindActionHandler(migrated, input => ({ ok: input.missing })); // rejects: Property 'missing' does not exist
 // An object with every field required is the default, and an empty list makes them all optional.
-const allRequired = define<unknown>()("all", 1, object({ id: text, note: text }));
+const allRequired = define<unknown>()("all", 1, objectSchema({ id: text, note: text }));
 same<Equal<typeof allRequired, ActionDefinition<{ readonly id: string; readonly note: string }, unknown>>>();
-const noneRequired = define<unknown>()("none", 1, object({ id: text }, []));
+const noneRequired = define<unknown>()("none", 1, objectSchema({ id: text }, []));
 same<Equal<typeof noneRequired, ActionDefinition<{ readonly id?: string }, unknown>>>();
 // An action that takes nothing.
-const nothing = define<unknown>()("nothing", 1, object({}));
+const nothing = define<unknown>()("nothing", 1, objectSchema({}));
 same<Equal<typeof nothing, ActionDefinition<{}, unknown>>>();
+// The SDK's three helpers keep what they are handed: nested, as arrays, and through a spread the way plugins extend a fragment.
+const nested = define<unknown>()("nested", 1, objectSchema({ tags: arraySchema(text), owner: objectSchema({ id: text }), parent: nullableSchema(objectSchema({ id: text })), kind: { enum: ["a", "b"] } }, ["tags", "owner"]));
+same<Equal<typeof nested, ActionDefinition<{ readonly tags: string[]; readonly owner: { readonly id: string }; readonly parent?: { readonly id: string } | null; readonly kind?: "a" | "b" }, unknown>>>();
+const extended = define<unknown>()("extended", 1, objectSchema({ ids: { ...arraySchema(text), uniqueItems: true } }));
+same<Equal<typeof extended, ActionDefinition<{ readonly ids: string[] }, unknown>>>();
+// What the helpers build is held to an interface like a schema written out, and each way of being wrong is refused.
+inputSchemaFor<{ tags: string[]; note?: string | null }>()(objectSchema({ tags: arraySchema(text), note: nullableSchema(text) }, ["tags"]));
+inputSchemaFor<{ a: number }>()(objectSchema({ a: text })); // rejects: schema 比接口松
+inputSchemaFor<{ a: string }>()(objectSchema({ a: text }, [])); // rejects: schema 比接口松
+inputSchemaFor<{ a?: string }>()(objectSchema({ a: text })); // rejects: 接口比 schema 宽
+inputSchemaFor<{ a: string[]; extra?: string }>()(objectSchema({ a: arraySchema(text) }, ["a"])); // rejects: 接口有 schema 不认识的键
+inputSchemaFor<{ a: string }>()(objectSchema({ a: text, extra: text }, ["a"])); // rejects: schema 有接口没写的键
+inputSchemaFor<{ a: number[] }>()(objectSchema({ a: arraySchema(text) })); // rejects: schema 比接口松
+inputSchemaFor<{ a: string }>()(objectSchema({ a: nullableSchema(text) })); // rejects: schema 比接口松
+bindActionHandler(nested, input => input.missing); // rejects: Property 'missing' does not exist
+// Properties only known at run time: no literal to read, so nothing is required and a field reads as unknown, never as `any`.
+declare const runtimeProperties: Record<string, unknown>;
+const dynamic = define<unknown>()("dynamic", 1, objectSchema(runtimeProperties));
+bindActionHandler(dynamic, input => { const id: string | undefined = input.id; return id; }); // rejects: Type 'unknown' is not assignable
 // A fragment that lost its literals gives `unknown`, and using it is an error, never a silent `any`.
 const widened = define<unknown>()("widened", 1, { type: "object", properties: { id: { type: "string" } as Record<string, unknown> } });
 bindActionHandler(widened, input => { const id: string | undefined = input.id; return id; }); // rejects: Type 'unknown' is not assignable

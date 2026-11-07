@@ -499,9 +499,9 @@ export declare function actionHttpStatus(error: unknown): number;
 
 export declare function alignSplitRows(rows: readonly TextDiffRow[]): SplitPair[];
 
-export declare function arraySchema(items: unknown): {
+export declare function arraySchema<const I>(items: I): {
     type: "array";
-    items: unknown;
+    items: I;
 };
 
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -658,16 +658,18 @@ export declare function messageDeclarationProblems(parsed: Pick<PluginManifest, 
 
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export declare function nullableSchema(schema: unknown): {
-    anyOf: unknown[];
+export declare function nullableSchema<const S>(schema: S): {
+    anyOf: readonly [S, {
+        readonly type: "null";
+    }];
 };
 
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export declare function objectSchema(properties: Record<string, unknown>, required?: readonly string[]): {
+export declare function objectSchema<const P extends Readonly<Record<string, unknown>>, const R extends readonly string[] = readonly (keyof P & string)[]>(properties: P, required?: R): {
     type: "object";
-    properties: Record<string, unknown>;
-    required: readonly string[];
+    properties: P;
+    required: R;
     additionalProperties: false;
 };
 

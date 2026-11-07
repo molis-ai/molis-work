@@ -4,7 +4,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { bindActionHandler, inputSchemaFor, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindActionHandler as sdkBindActionHandler, defineAction, inputSchemaFor as sdkInputSchemaFor } from "@molis-ai/molis-work-plugin-sdk";
+import { arraySchema, bindActionHandler as sdkBindActionHandler, defineAction, inputSchemaFor as sdkInputSchemaFor, nullableSchema, objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 
 const FIXTURE = fileURLToPath(new URL("./fixtures/action-input-types.ts", import.meta.url));
 const REJECTS = /\/\/ rejects: (.+)$/u;
@@ -86,4 +86,14 @@ test("AIC-10: defineAction built from a schema alone runs the handler with (cont
 test("AIC-11: a plugin author gets the same tools from the SDK, not a second copy", () => {
   assert.equal(sdkBindActionHandler, bindActionHandler);
   assert.equal(sdkInputSchemaFor, inputSchemaFor);
+});
+
+test("AIC-10: making the SDK's schema helpers generic left their values as they were, so no action's hash moves", () => {
+  const properties = { a: { type: "string" }, b: { type: "integer" } };
+  assert.deepEqual(objectSchema(properties), { type: "object", properties, required: ["a", "b"], additionalProperties: false });
+  assert.deepEqual(objectSchema(properties, ["a"]), { type: "object", properties, required: ["a"], additionalProperties: false });
+  assert.deepEqual(objectSchema(properties, []), { type: "object", properties, required: [], additionalProperties: false });
+  assert.deepEqual(objectSchema({}), { type: "object", properties: {}, required: [], additionalProperties: false });
+  assert.deepEqual(arraySchema({ type: "string" }), { type: "array", items: { type: "string" } });
+  assert.deepEqual(nullableSchema({ type: "string" }), { anyOf: [{ type: "string" }, { type: "null" }] });
 });

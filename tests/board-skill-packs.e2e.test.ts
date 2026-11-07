@@ -136,8 +136,9 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
   await evaluate("new Promise((resolve) => setTimeout(resolve, 400))");
   assert.equal(await evaluate<number>(`(() => { const split = ${wide}; split.querySelectorAll('[data-list-pick]')[1].click(); return split.querySelector('[data-list-panel]:not([hidden])').getAnimations().length; })()`), 0,
     "choosing the same entry again plays nothing");
-  // Wide, with two columns, the list cuts no status word (cutting is only for a narrow list).
-  for (const width of [1440, 1024]) for (const lang of ["zh", "en"]) {
+  // Wide, with two columns, the list cuts no status word (cutting is only for a narrow list). At 1024 the board's column is under
+  // the 640px where list and detail go one at a time, so the two-column case is the 1440 board.
+  for (const width of [1440]) for (const lang of ["zh", "en"]) {
     await open(lang, width);
     const cut = await evaluate<{ columns: number; cut: string[] }>(`(() => { const split = ${wide};
       return { columns: getComputedStyle(split.querySelector('.mw-list-detail__body')).gridTemplateColumns.split(' ').length,

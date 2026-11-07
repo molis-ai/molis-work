@@ -130,6 +130,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [52-3](batches/52.md#batch-52-item-3) | 主线第二片 | A | 是 | D、E |
 | [55-1](batches/55.md#batch-55-item-1) | Attention 唤醒、角标与系统通知 | F | 是 | C3 |
 | [55-2](batches/55.md#batch-55-item-2) | 切换后新入口文字与翻译复核 | D | 否 | — |
+| [55-3](batches/55.md#batch-55-item-3) | N22 全量迁移与收口 | 不属于任何轨道 | 否 | A、B、C1、E |
 | [63-1](batches/63.md#batch-63-item-1) | 主动发现、持续工作与周期报告 | A | 是 | C3、F |
 | [63-2](batches/63.md#batch-63-item-2) | 智能组合第三片 | C3 | 是 | A、C2、E |
 | [63-3](batches/63.md#batch-63-item-3) | 主线建议与跨项目个人视图 | A | 是 | C3 |

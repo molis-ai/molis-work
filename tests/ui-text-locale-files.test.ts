@@ -1,0 +1,232 @@
+import assert from "node:assert/strict";
+import { lstatSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { readSandboxIntegrationPackage, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+import { packPluginProject, runPluginCli, validatePluginManifestFile } from "@molis-ai/molis-work-plugin-cli";
+import { assertPluginLocales, inspectPluginLocales, loadDevelopmentLocalePacks, parsePluginPackage, pluginLocaleFilePaths, pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { createTextReader, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { declarationManifest } from "./fixtures/declaration-manifest.js";
+
+// A plugin's language files: one reading function for every source (specs/font-and-skin-system/a-section-contract.md §6.2). `T7` in §10.
+
+const PLUGIN_ID = "io.molis.work.notes";
+const LOCALES = { default: "en", available: ["en", "zh"] };
+
+const manifestOf = (parts: Record<string, unknown> = {}, locales: unknown = LOCALES) =>
+  declarationManifest({ plugin_id: PLUGIN_ID, ui: { contributions: [], locales }, ...parts }) as PluginManifest;
+const packText = (locale: string, messages: Record<string, unknown>, parts: Record<string, unknown> = {}) =>
+  JSON.stringify({ format_version: 1, owner: PLUGIN_ID, locale, messages, ...parts });
+const GOOD: Record<string, string> = {
+  "locales/en.json": packText("en", { "notes.main.saved": "Saved {count}" }),
+  "locales/zh.json": packText("zh", { "notes.main.saved": "已保存 {count}" }),
+};
+const reader = (files: Record<string, string>) => (name: string) => files[name] ?? null;
+const codes = (manifest: PluginManifest, files: Record<string, string>) => inspectPluginLocales(manifest, reader(files)).map((problem) => problem.code);
+
+test("FSS-53 a good set of files has nothing to say, and a Manifest without ui.locales reads nothing", () => {
+  assert.deepEqual(inspectPluginLocales(manifestOf(), reader(GOOD)), []);
+  const read = () => assert.fail("nothing is declared, so nothing is read");
+  assert.deepEqual(inspectPluginLocales(declarationManifest({ plugin_id: PLUGIN_ID }) as PluginManifest, read), []);
+  assert.equal(pluginLocaleReader(declarationManifest({ plugin_id: PLUGIN_ID }) as PluginManifest, read), null);
+  assert.deepEqual(pluginLocaleFilePaths(manifestOf()), ["locales/en.json", "locales/zh.json"]);
+});
+
+test("FSS-53 a declared language without its file is refused, and says which", () => {
+  const [problem] = inspectPluginLocales(manifestOf(), reader({ "locales/en.json": GOOD["locales/en.json"]! }));
+  assert.equal(problem!.code, "ui.locale_file_missing");
+  assert.equal(problem!.file, "locales/zh.json");
+  assert.equal(problem!.blocking, true);
+  assert.throws(() => assertPluginLocales(manifestOf(), reader({ "locales/en.json": GOOD["locales/en.json"]! })), { code: "plugin.package_invalid", message: /locales\/zh\.json/u });
+});
+
+test("FSS-53 pack.owner and pack.locale have to match the declaration: a file says nothing of its own", () => {
+  assert.deepEqual(codes(manifestOf(), { ...GOOD, "locales/zh.json": packText("zh", { "todo.main.saved": "x" }, { owner: "io.molis.work.todo" }) }), ["ui.locale_owner"]);
+  assert.deepEqual(codes(manifestOf(), { ...GOOD, "locales/zh.json": packText("en", { "notes.main.saved": "x {count}" }) }), ["ui.locale_file_mismatch"]);
+});
+
+test("FSS-53 the languages are compared with each other: the default short of a key and differing arguments block, a language short of one only tells", () => {
+  assert.deepEqual(codes(manifestOf(), { ...GOOD, "locales/zh.json": packText("zh", { "notes.main.saved": "已保存 {total}" }) }), ["ui.locale_args"]);
+  assert.deepEqual(codes(manifestOf(), { ...GOOD, "locales/zh.json": packText("zh", { "notes.main.saved": "已保存 {count}", "notes.main.extra": "多" }) }), ["ui.locale_extra_key"]);
+  const short = inspectPluginLocales(manifestOf(), reader({ "locales/en.json": packText("en", { "notes.main.saved": "Saved {count}", "notes.main.more": "More" }), "locales/zh.json": GOOD["locales/zh.json"]! }));
+  assert.deepEqual(short.map(({ code, blocking }) => [code, blocking]), [["ui.locale_missing_key", false]]);
+});
+
+test("FSS-53 a language nobody asks for is not read, and one that was read is not read again", () => {
+  const reads: string[] = [];
+  const locales = pluginLocaleReader(manifestOf(), (name) => { reads.push(name); return GOOD[name] ?? null; })!;
+  assert.equal(locales.owner, PLUGIN_ID);
+  assert.equal(locales.default, "en");
+  assert.deepEqual(reads, [], "making the reader reads nothing");
+  assert.equal(locales.pack("en")!.messages["notes.main.saved"], "Saved {count}");
+  assert.equal(locales.pack("en")!.locale, "en");
+  assert.deepEqual(reads, ["locales/en.json"]);
+  assert.equal(locales.pack("fr"), null, "not declared, so not looked for");
+  assert.deepEqual(reads, ["locales/en.json"]);
+});
+
+test("FSS-53 reading a bad file while running does not throw: no pack, and the problem is there to see", () => {
+  const locales = pluginLocaleReader(manifestOf(), reader({ ...GOOD, "locales/zh.json": "{" }))!;
+  assert.equal(locales.pack("zh"), null);
+  assert.equal(locales.pack("zh"), null, "and it is not read twice");
+  assert.deepEqual(locales.problems().map((problem) => problem.code), ["ui.json_syntax"]);
+  assert.ok(locales.pack("en"));
+});
+
+test("FSS-70 a plugin's words are strict unless its parsed Manifest is a content pack: the language file has no say, and neither does a caller", () => {
+  const withMarkup = { ...GOOD, "locales/en.json": packText("en", { "notes.main.saved": "R&D {count}" }) };
+  for (const kind of ["app", "integration", "native"]) assert.deepEqual(codes(manifestOf({ kind }), withMarkup), ["ui.locale_markup"], kind);
+  const marked = { ...GOOD, "locales/en.json": packText("en", { "notes.main.saved": "R&D {count}" }, { contentPack: true }) };
+  assert.deepEqual(codes(manifestOf(), marked), ["ui.file_unknown_field", "ui.locale_markup"], "a language file cannot claim to be one, and its words are still looked at");
+  assert.deepEqual(codes(manifestOf({ kind: "content" }), withMarkup), [], "the manifest of a content pack");
+  assert.equal(pluginLocaleReader(manifestOf(), reader(withMarkup))!.pack("en"), null, "the running side has the same rule");
+  assert.ok(pluginLocaleReader(manifestOf({ kind: "content" }), reader(withMarkup))!.pack("en"));
+});
+
+test("FSS-70 a content pack's word goes through createTextReader escaped once, and .text gives it as written", () => {
+  const files = { ...GOOD, "locales/en.json": packText("en", { "notes.main.saved": "R&D {count}", "notes.main.pic": "<img onerror=x>" }), "locales/zh.json": packText("zh", { "notes.main.saved": "研发 {count}", "notes.main.pic": "图" }) };
+  const pack = pluginLocaleReader(manifestOf({ kind: "content" }), reader(files))!.pack("en")!;
+  const say = createTextReader({ packs: [pack], locale: "en" });
+  const picture = tryOwnedTextRef({ key: "notes.main.pic" }, PLUGIN_ID)!;
+  assert.equal(say(picture), "&lt;img onerror=x&gt;");
+  assert.equal(say.text(picture), "<img onerror=x>");
+});
+
+test("FSS-70 a package with a placeholder that is no name is refused for a content pack too", () => {
+  assert.deepEqual(codes(manifestOf({ kind: "content" }), { ...GOOD, "locales/zh.json": packText("zh", { "notes.main.saved": "{foo bar}" }) }), ["ui.locale_placeholder"]);
+});
+
+// Everything below reads a real project directory.
+function withProject(run: (directory: string) => void | Promise<void>): () => Promise<void> {
+  return async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "molis-locale-files-"));
+    try { await run(directory); } finally { rmSync(directory, { recursive: true, force: true }); }
+  };
+}
+
+function writeProject(directory: string, manifest: PluginManifest, files: Record<string, string> = GOOD): void {
+  writeFileSync(path.join(directory, "manifest.json"), JSON.stringify(manifest, null, 2));
+  writeFileSync(path.join(directory, "package.json"), JSON.stringify({ name: "notes", files: ["manifest.json", "entry.mjs"] }));
+  writeFileSync(path.join(directory, "entry.mjs"), "export default {};\n");
+  mkdirSync(path.join(directory, "locales"), { recursive: true });
+  for (const [name, text] of Object.entries(files)) writeFileSync(path.join(directory, name), text);
+}
+
+const outputOf = () => { const lines: string[] = []; return { lines, stdout: (line: string) => lines.push(line), stderr: (line: string) => lines.push(line) }; };
+
+test("FSS-53 pack brings the declared language files without the author listing them, and parsePluginPackage holds it to them", withProject(async (directory) => {
+  writeProject(directory, manifestOf());
+  const bundle = await packPluginProject(directory, path.join(directory, "out.json"));
+  const packed = bundle.payload.files.map((file) => file.path);
+  assert.ok(packed.includes("locales/en.json") && packed.includes("locales/zh.json"), packed.join());
+  const withoutOne = { ...bundle.payload, files: bundle.payload.files.filter((file) => file.path !== "locales/zh.json") };
+  assert.throws(() => parsePluginPackage({ payload: withoutOne, signature: null, publisher_key: null }), { code: "plugin.package_invalid", message: /locales\/zh\.json/u });
+}));
+
+test("FSS-53 pack listing a language file in files as well packs it once", withProject(async (directory) => {
+  writeProject(directory, manifestOf());
+  writeFileSync(path.join(directory, "package.json"), JSON.stringify({ name: "notes", files: ["manifest.json", "entry.mjs", "locales/en.json"] }));
+  const bundle = await packPluginProject(directory, path.join(directory, "out.json"));
+  assert.equal(bundle.payload.files.filter((file) => file.path === "locales/en.json").length, 1);
+}));
+
+test("FSS-53 pack refuses a missing file, a wrong owner and a wrong language, and writes nothing", withProject(async (directory) => {
+  const output = path.join(directory, "out.json");
+  writeProject(directory, manifestOf(), { "locales/en.json": GOOD["locales/en.json"]! });
+  await assert.rejects(packPluginProject(directory, output), { code: "plugin.package_invalid", message: /locales\/zh\.json/u });
+  writeProject(directory, manifestOf(), { ...GOOD, "locales/zh.json": packText("zh", { "todo.a": "x" }, { owner: "io.molis.work.todo" }) });
+  await assert.rejects(packPluginProject(directory, output), { message: /owner 是 io\.molis\.work\.todo/u });
+  writeProject(directory, manifestOf(), { ...GOOD, "locales/zh.json": packText("en", { "notes.main.saved": "x {count}" }) });
+  await assert.rejects(packPluginProject(directory, output), { message: /文件里写的 locale 是 en/u });
+  assert.throws(() => lstatSync(output), { code: "ENOENT" });
+}));
+
+test("FSS-53 pack does not follow a symbolic link out of the project", withProject(async (directory) => {
+  const outside = path.join(directory, "outside");
+  const project = path.join(directory, "project");
+  mkdirSync(outside);
+  mkdirSync(project);
+  writeProject(project, manifestOf());
+  rmSync(path.join(project, "locales/zh.json"));
+  writeFileSync(path.join(outside, "secret.json"), GOOD["locales/zh.json"]!);
+  symlinkSync(path.join(outside, "secret.json"), path.join(project, "locales/zh.json"));
+  await assert.rejects(packPluginProject(project, path.join(directory, "out.json")), { code: "plugin.package_invalid", message: /symlink/u });
+}));
+
+test("FSS-53 the CLI's validate reads the language files beside the Manifest: a bad placeholder fails it, a language short of a word only tells", withProject(async (directory) => {
+  const file = path.join(directory, "manifest.json");
+  writeProject(directory, manifestOf());
+  let output = outputOf();
+  assert.equal(await runPluginCli(["validate", file], output), 0, output.lines.join());
+  assert.equal(JSON.parse(output.lines[0]!).valid, true);
+  writeFileSync(path.join(directory, "locales/zh.json"), packText("zh", { "notes.main.saved": "已保存 {标题}" }));
+  output = outputOf();
+  assert.equal(await runPluginCli(["validate", file], output), 1);
+  const refused = JSON.parse(output.lines[0]!);
+  assert.equal(refused.valid, false);
+  assert.match(refused.message, /locales\/zh\.json/u);
+  assert.match(refused.message, /\{标题\}/u);
+  writeFileSync(path.join(directory, "locales/en.json"), packText("en", { "notes.main.saved": "Saved {count}", "notes.main.more": "More" }));
+  writeFileSync(path.join(directory, "locales/zh.json"), GOOD["locales/zh.json"]!);
+  output = outputOf();
+  assert.equal(await runPluginCli(["validate", file], output), 0, output.lines.join());
+  assert.deepEqual(JSON.parse(output.lines[0]!).locale_notes.map((note: { code: string; locale: string }) => [note.code, note.locale]), [["ui.locale_missing_key", "zh"]]);
+  // Validation only reads data.
+  assert.equal((await validatePluginManifestFile(file)).plugin_id, PLUGIN_ID);
+}));
+
+test("FSS-53 a development project's languages read from its directory, a language not used is not read even when it is broken", withProject(async (directory) => {
+  writeProject(directory, manifestOf(), { ...GOOD, "locales/zh.json": "{ not read" });
+  const locales = await loadDevelopmentLocalePacks(directory, manifestOf());
+  assert.equal(locales!.pack("en")!.messages["notes.main.saved"], "Saved {count}");
+  assert.deepEqual(locales!.problems(), []);
+  assert.equal(await loadDevelopmentLocalePacks(directory, declarationManifest({ plugin_id: PLUGIN_ID }) as PluginManifest), null);
+}));
+
+test("FSS-53 a development project's language file that is a symbolic link out of the project is refused, and one that is not there says so", withProject(async (directory) => {
+  const outside = path.join(directory, "outside");
+  const project = path.join(directory, "project");
+  mkdirSync(outside);
+  mkdirSync(project);
+  writeProject(project, manifestOf());
+  writeFileSync(path.join(outside, "zh.json"), GOOD["locales/zh.json"]!);
+  rmSync(path.join(project, "locales/zh.json"));
+  await assert.rejects(loadDevelopmentLocalePacks(project, manifestOf()), { code: "plugin.package_invalid", message: /locales\/zh\.json/u });
+  symlinkSync(path.join(outside, "zh.json"), path.join(project, "locales/zh.json"));
+  await assert.rejects(loadDevelopmentLocalePacks(project, manifestOf()), { code: "plugin.package_invalid", message: /逃逸/u });
+  // A link inside the project is the author's own layout.
+  rmSync(path.join(project, "locales/zh.json"));
+  writeFileSync(path.join(project, "zh-source.json"), GOOD["locales/zh.json"]!);
+  symlinkSync(path.join(project, "zh-source.json"), path.join(project, "locales/zh.json"));
+  assert.ok((await loadDevelopmentLocalePacks(project, manifestOf()))!.pack("zh"));
+}));
+
+test("FSS-53 FSS-70 a sandbox package that declares ui.locales is refused with its own reason, with or without language files, whatever its kind", () => {
+  const manifest = { ...manifestOf(), kind: "app" } as PluginManifest;
+  const file = (name: string, text: string) => ({ path: name, content_base64: Buffer.from(text).toString("base64") });
+  const bare = { schema_version: 1 as const, manifest, files: [file("manifest.json", JSON.stringify(manifest))] };
+  const withFiles = { ...bare, files: [...bare.files, file("locales/en.json", GOOD["locales/en.json"]!), file("locales/zh.json", packText("zh", { "notes.main.saved": "R&D <b> {count}" }))] };
+  const reason = /沙箱包：.*ui\.locales.*第 16 批.*molis-work plugin dev/u;
+  for (const payload of [bare, withFiles]) {
+    assert.throws(() => readSandboxPackage(payload), { code: "plugin.declaration_invalid", message: reason });
+    assert.throws(() => readSandboxPackage(payload), (error: Error) => !/ui\.messages/u.test(error.message));
+    const integration = { ...payload, manifest: { ...manifest, kind: "integration" } as PluginManifest };
+    assert.throws(() => readSandboxIntegrationPackage(integration), { code: "plugin.declaration_invalid", message: reason });
+  }
+});
+
+test("FSS-53 no built-in Manifest writes ui.locales before part C moves them all at once", () => {
+  assert.ok(BUILTIN_PLUGIN_CATALOG.length > 0);
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter((entry) => entry.manifest.ui.locales !== undefined).map((entry) => entry.manifest.plugin_id), []);
+});
+
+test("FSS-53 a package with no ui.locales is what it always was: no language file is asked for", withProject(async (directory) => {
+  const manifest = declarationManifest({ plugin_id: PLUGIN_ID }) as PluginManifest;
+  writeProject(directory, manifest, {});
+  const bundle = await packPluginProject(directory, path.join(directory, "out.json"));
+  assert.deepEqual(bundle.payload.files.map((one) => one.path).sort(), ["entry.mjs", "manifest.json", "package.json"]);
+  assert.equal(readFileSync(path.join(directory, "out.json"), "utf8").includes("locales/"), false);
+}));

@@ -1,5 +1,5 @@
 import { browserSiteDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { validatePluginManifestFile } from "./validate.js";
+import { validatePluginLocaleFiles, validatePluginManifestFile } from "./validate.js";
 import { createPluginProject } from "./create.js";
 import { packPluginProject } from "./package-files.js";
 import { packSandboxProject, sandboxPackOptions } from "./pack-sandbox.js";
@@ -76,7 +76,9 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
     const manifest = await validatePluginManifestFile(args[1]!);
     // The websites it says it uses in the side panel browser, for the author to check what people will read.
     const sites = browserSiteDeclarations(manifest);
-    output.stdout(`${JSON.stringify({ valid: true, plugin_id: manifest.plugin_id, version: manifest.version, ...(sites.length ? { browser_sites: sites } : {}) })}\n`);
+    // A language short of a word does not stop anything, and shows the default's word until someone adds it.
+    const localeNotes = await validatePluginLocaleFiles(args[1]!, manifest);
+    output.stdout(`${JSON.stringify({ valid: true, plugin_id: manifest.plugin_id, version: manifest.version, ...(sites.length ? { browser_sites: sites } : {}), ...(localeNotes.length ? { locale_notes: localeNotes } : {}) })}\n`);
     return 0;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : "plugin.manifest_invalid";

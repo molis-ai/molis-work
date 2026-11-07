@@ -8,7 +8,7 @@
 
 ## 一次典型调用
 
-runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，pack 生成显式文件列表的 JSON bundle，签名和验证使用 Plugin Runtime 的公开包验证接口。dev 通过注入的 PluginCliHost 使用真实 Local Host。
+runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，并按 Plugin Runtime 的规则读 Manifest 旁边声明的语言文件（`blocking` 的失败，只缺译文的放进输出的 `locale_notes`）；pack 生成显式文件列表的 JSON bundle，声明的语言文件自动带上、不用写进 `files`，同一套规则不过就不写输出，签名和验证使用 Plugin Runtime 的公开包验证接口。dev 通过注入的 PluginCliHost 使用真实 Local Host。
 
 ## 从哪里读代码
 

@@ -29,7 +29,7 @@ export function candidateCheckable(serviceId: string): boolean {
 }
 
 /**
- * Where a replacement key may go (S-144): a tenant's service is pinned to the site its connection was made for (BL-595), and a candidate
+ * Where a replacement key may go (S-connector-candidate-key): a tenant's service is pinned to the site its connection was made for (BL-595), and a candidate
  * naming another site is refused here, before any request carries it. Read before the check sends anything.
  */
 function assertCandidateDestination(home: string, serviceId: string, token: string, target: CandidateTarget | undefined): void {

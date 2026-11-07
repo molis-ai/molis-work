@@ -70,7 +70,7 @@ async function connectivity(home: TestHome, id: string): Promise<string | undefi
 
 const caller: ActionCallContext = { actor_id: "assistant:setup", runtime_session_id: "candidate-session", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE] };
 
-test("ASC-80 S-144 a first key the service refuses is not saved: no connection, no check, the key in no file of the Home", async t => {
+test("ASC-80 S-connector-candidate-key a first key the service refuses is not saved: no connection, no check, the key in no file of the Home", async t => {
   const home = await openTestHome(t);
   const output = captureOutput(t);
   let answer = github(401);
@@ -107,7 +107,7 @@ test("ASC-80 S-144 a first key the service refuses is not saved: no connection, 
   assert.equal(sent.length, 3, "one request per save, none after it");
 });
 
-test("ASC-81 S-144 a replacement the service refuses leaves the old key in use and the connection as it was; one it accepts goes in", async t => {
+test("ASC-81 S-connector-candidate-key a replacement the service refuses leaves the old key in use and the connection as it was; one it accepts goes in", async t => {
   const home = await openTestHome(t);
   const old = `fixture-old-${randomUUID()}`, candidate = `fixture-new-${randomUUID()}`;
   const original = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work", token: old }));
@@ -131,7 +131,7 @@ test("ASC-81 S-144 a replacement the service refuses leaves the old key in use a
   assert.equal(withConnectorConnections(home.home, store => store.resolveToken(original.connection_id, "github")), candidate);
 });
 
-test("S-144 a replacement key naming another site than its connection's is refused before any request carries it", async t => {
+test("S-connector-candidate-key a replacement key naming another site than its connection's is refused before any request carries it", async t => {
   const home = await openTestHome(t);
   const old = "a-site.atlassian.net|me@example.com|fixture-old-jira";
   const original = withConnectorConnections(home.home, store => {
@@ -150,7 +150,7 @@ test("S-144 a replacement key naming another site than its connection's is refus
   assert.equal(withConnectorConnections(home.home, store => store.require(original.connection_id)).updated_at, original.updated_at);
 });
 
-test("ASC-81 S-144 a replacement whose connection changes while the service answers is stopped: 400, and nothing is written", async t => {
+test("ASC-81 S-connector-candidate-key a replacement whose connection changes while the service answers is stopped: 400, and nothing is written", async t => {
   const home = await openTestHome(t);
   const old = `fixture-old-${randomUUID()}`, candidate = `fixture-new-${randomUUID()}`;
   const original = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work", token: old }));
@@ -168,7 +168,7 @@ test("ASC-81 S-144 a replacement whose connection changes while the service answ
   assert.deepEqual(await homeHolds(home.home, candidate), []);
 });
 
-test("ASC-80 S-144 a service that cannot be reached is said as such, and nothing is written", async t => {
+test("ASC-80 S-connector-candidate-key a service that cannot be reached is said as such, and nothing is written", async t => {
   const home = await openTestHome(t);
   services(t, home, () => { throw new TypeError("fetch failed"); });
   const candidate = `fixture-candidate-${randomUUID()}`;
@@ -181,7 +181,7 @@ test("ASC-80 S-144 a service that cannot be reached is said as such, and nothing
   assert.deepEqual(await homeHolds(home.home, candidate), []);
 });
 
-test("ASC-80 S-144 a page that goes away while its key is checked cancels the check, and nothing is written after it", async t => {
+test("ASC-80 S-connector-candidate-key a page that goes away while its key is checked cancels the check, and nothing is written after it", async t => {
   const home = await openTestHome(t);
   let reached!: () => void, stopped!: () => void;
   const asked = new Promise<void>(resolve => { reached = resolve; }), aborted = new Promise<void>(resolve => { stopped = resolve; });
@@ -206,7 +206,7 @@ test("ASC-80 S-144 a page that goes away while its key is checked cancels the ch
   assert.deepEqual(await homeHolds(home.home, candidate), []);
 });
 
-test("ASC-80 S-144 a prepared request cancelled while its key is checked is not begun, and nothing is written", async t => {
+test("ASC-80 S-connector-candidate-key a prepared request cancelled while its key is checked is not begun, and nothing is written", async t => {
   const home = await openTestHome(t), actions = home.host.homeActionClient();
   const request = await actions.invoke(caller, connectorSetupAction, { service_id: "github", method: "token", display_name: "Work account", expected_revision: null }) as { authorization_id: string };
   // The request is cancelled in the conversation while the service is being asked; the service then accepts the key.

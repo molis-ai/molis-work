@@ -25,56 +25,56 @@
 
 ## 3. 各库版本表
 
-每个库只认一个当前版本，不符时的处理在最后一列。表里有两类东西：Home 里的 SQLite 库，和需要在重建时核对的 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`、`shelf/catalog.json` 与安装/发行清单均由各 owner 拒绝错误格式）。其他带版本字段的小 JSON 文件（`browser/sites.json`、`jelly/preferences.json`、`config/` 下未列入本表的文件）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
+每个库只认一个当前版本，不符时的处理在最后一列。最后一列写的是升级链接好之后的行为（[U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §4.3）；在那之前，低版本的库打开时报 `storage.upgrade_pending`，只拒绝，还没有升级过程来升它。表里有两类东西：Home 里的 SQLite 库，和需要在重建时核对的 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`、`shelf/catalog.json` 与安装/发行清单均由各 owner 拒绝错误格式）。其他带版本字段的小 JSON 文件（`browser/sites.json`、`jelly/preferences.json`、`config/` 下未列入本表的文件）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
 
-`scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite` 收到的不是一个已声明的常量（内联对象不行）；标「无」的库的定义处文件加上了版本标记。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
+`scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite` 收到的不是一个已声明的常量（内联对象不行）；`runSqliteUpgrade` 收到内联对象（它转交描述符带的基线，名字或属性都可以）；标「无」的库的定义处文件加上了版本标记。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
 
 插件自有库的 `PluginDatabaseDeclaration` 也按同一规则检查：必须具名、写出数字版本并列入下表。可信 Host 的连接服务仅转发这份声明；这一个类型化转发调用被单独识别，其余内联或未声明基线仍拒绝。
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
-| 安装与发行清单 | `config/installation.json`、`releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 安装、启动器与卸载共用现行清单校验；不支持的版本在修改前拒绝，保留文件 |
-| 项目库 | `projects/<project_id>/molis-work.db` | 1 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
-| 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 拒绝（只停 Coding） |
-| 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 拒绝（只停 Feed） |
-| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 拒绝（只停 Goals） |
-| 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 拒绝（只停 Inbox） |
-| 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 拒绝（只停 Schedule） |
-| 目录库 | `projects/catalog.db` | 1 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
-| Functions | `functions/functions.db` | 1 | `user_version` | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
-| 助理 | `assistant/assistant.db` | 1 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
-| 个人同步队列 | `spaces/<spaceId>/sync/sync.db` | 1 | `user_version` | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE` | 拒绝 |
-| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 1 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
-| 装进来的插件的 Home 库账本 | `plugin-libraries/plugin-libraries.db` | 1 | `user_version` | `apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE` | 拒绝 |
-| 插件的本机目录授权 | `plugin-directories/plugin-directories.db` | 1 | `user_version` | `apps/local-host/src/plugin-directory-store.ts#DIRECTORY_GRANTS_BASELINE` | 拒绝 |
-| 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 拒绝 |
-| Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 拒绝 |
-| Goals 的个人方法 | `goals/goals.db` | 1 | `user_version` | `plugins/native/goals/src/home-database.ts#GOALS_HOME_DATABASE` | 拒绝；旧数据搬迁已取消，干净Home创建当前库 |
-| Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 拒绝 |
-| 记忆 | `memory/memory.db` | 1 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝；旧采用路线取消，新Home创建完整reviewed偏好，不重设已有设置 |
-| 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 拒绝 |
-| Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 拒绝 |
-| 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 拒绝 |
-| Agent 定义 | `agent-definitions/agent-definitions.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 拒绝 |
-| 插件的 Agent 声明 | `agent-declarations/agent-declarations.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-declarations.ts#AGENT_DECLARATIONS_BASELINE` | 拒绝 |
-| 连接 | `connectors/connectors.db` | 1 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 拒绝 |
-| 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 拒绝 |
-| Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/database.ts#COGNIA_DATABASE` | 拒绝 |
-| Dataset | `dataset/dataset.db` | 1 | `user_version` | `plugins/native/dataset/src/database.ts#DATASET_DATABASE` | 拒绝 |
-| Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/database.ts#IMAGES_DATABASE` | 拒绝 |
-| Jelly | `jelly/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/database.ts#JELLY_DATABASE` | 拒绝 |
-| 灵光 | `lingguang/lingguang.db` | 1 | `user_version` | `plugins/native/lingguang/src/database.ts#LINGGUANG_DATABASE` | 拒绝 |
-| Pages | `pages/pages.db` | 1 | `user_version` | `plugins/native/pages/src/database.ts#PAGES_DATABASE` | 拒绝 |
-| PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 拒绝 |
-| Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 拒绝 |
-| Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 拒绝 |
-| 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
-| server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
-| 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
+| 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 1 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
+| 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
+| 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
+| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Goals） |
+| 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Inbox） |
+| 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |
+| 目录库 | `projects/catalog.db` | 1 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 低版本升级，高版本拒绝 |
+| Functions | `functions/functions.db` | 1 | `user_version` | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
+| 助理 | `assistant/assistant.db` | 1 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 低版本升级，高版本拒绝 |
+| 个人同步队列 | `spaces/<spaceId>/sync/sync.db` | 1 | `user_version` | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE` | 低版本升级，高版本拒绝 |
+| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 1 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 低版本升级，高版本拒绝 |
+| 装进来的插件的 Home 库账本 | `plugin-libraries/plugin-libraries.db` | 1 | `user_version` | `apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE` | 低版本升级，高版本拒绝 |
+| 插件的本机目录授权 | `plugin-directories/plugin-directories.db` | 1 | `user_version` | `apps/local-host/src/plugin-directory-store.ts#DIRECTORY_GRANTS_BASELINE` | 低版本升级，高版本拒绝 |
+| 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 低版本升级，高版本拒绝 |
+| Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 低版本升级，高版本拒绝 |
+| Goals 的个人方法 | `goals/goals.db` | 1 | `user_version` | `plugins/native/goals/src/home-database.ts#GOALS_HOME_DATABASE` | 低版本升级，高版本拒绝；旧数据搬迁已取消，干净Home创建当前库 |
+| Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
+| 记忆 | `memory/memory.db` | 1 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级，高版本拒绝；旧采用路线取消，新Home创建完整reviewed偏好，不重设已有设置 |
+| 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |
+| Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 低版本升级，高版本拒绝 |
+| 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 低版本升级，高版本拒绝 |
+| Agent 定义 | `agent-definitions/agent-definitions.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级，高版本拒绝 |
+| 插件的 Agent 声明 | `agent-declarations/agent-declarations.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-declarations.ts#AGENT_DECLARATIONS_BASELINE` | 低版本升级，高版本拒绝 |
+| 连接 | `connectors/connectors.db` | 1 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 低版本升级，高版本拒绝 |
+| 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 低版本升级，高版本拒绝 |
+| Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/database.ts#COGNIA_DATABASE` | 低版本升级，高版本拒绝 |
+| Dataset | `dataset/dataset.db` | 1 | `user_version` | `plugins/native/dataset/src/database.ts#DATASET_DATABASE` | 低版本升级，高版本拒绝 |
+| Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/database.ts#IMAGES_DATABASE` | 低版本升级，高版本拒绝 |
+| Jelly | `jelly/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/database.ts#JELLY_DATABASE` | 低版本升级，高版本拒绝 |
+| 灵光 | `lingguang/lingguang.db` | 1 | `user_version` | `plugins/native/lingguang/src/database.ts#LINGGUANG_DATABASE` | 低版本升级，高版本拒绝 |
+| Pages | `pages/pages.db` | 1 | `user_version` | `plugins/native/pages/src/database.ts#PAGES_DATABASE` | 低版本升级，高版本拒绝 |
+| PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 低版本升级，高版本拒绝 |
+| Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 低版本升级，高版本拒绝 |
+| Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 低版本升级，高版本拒绝 |
+| 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 低版本升级，高版本拒绝 |
+| server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
+| 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 1 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
-| 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
-| MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 1 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取并报告配置错误；保留原文件，明确修复后恢复 |
-| Shelf 目录（JSON 文件，不是库） | `shelf/catalog.json` | 1 | `version` | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION` | 拒绝 |
+| 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取高版本（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出；低版本升级 |
+| MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 1 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取高版本并报告配置错误，保留原文件，明确修复后恢复；低版本升级 |
+| Shelf 目录（JSON 文件，不是库） | `shelf/catalog.json` | 1 | `version` | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION` | 低版本升级，高版本拒绝 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
 Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-30干净重建取代。实现历史见 [Pages与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
@@ -82,7 +82,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 版本号相同、结构不同的库**不一律拒绝**：`openBaselineHomeSqlite` 的只读结构核对只要求当前基线的每张表都在、且形状与基线一致，**允许额外的表**（项目库会带内置插件自己的表）；缺表或基线表形状不同才报 `storage.schema_structure_mismatch`；有表无版本报 `storage.schema_version_mismatch`，低版本报 `storage.upgrade_pending`，高版本报 `storage.store_too_new`。所以「同号旧形状」既不能推成必拒，也不能推成必收：已知旧同号形状（旧角色库为1但没有 `character_runs`；#661之前的连接库为1；记忆账本旧1带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1）里，带额外表的不一定被这套结构核对拒掉；其他 owner 自己的路径、权限、密钥与 JSON 检查也不是这个函数的保证，仍由各自入口负责；数字重新从1起算不证明这些旧形状会被接受。重建前不要用新构建打开旧 Home。这里只引用既有记录，没有重新读取真实Home。
 
-版本不符仍整体拒绝，不做历史读取转换、不自动升级。旧版本的逐段维护、采用、搬迁和残留清理计划全部取消；历史记录从Git查，不再作为安装步骤。待删的其他维护入口由[干净Home分片](../../specs/archive/repository-anti-corruption/slices/home-maintenance-window.md)收口。
+统一起点之前版本不符仍整体拒绝，不做历史读取转换、不自动升级；读路径任何时候都不转换，升级只由升级过程做。旧版本的逐段维护、采用、搬迁和残留清理计划全部取消；历史记录从Git查，不再作为安装步骤。待删的其他维护入口由[干净Home分片](../../specs/archive/repository-anti-corruption/slices/home-maintenance-window.md)收口。
 - 角色当前结构1保留character_runs原生执行记录、草稿与同步日志；既有检查记录的旧1没有character_runs，本单未重新读取旧Home；现行基线仍检查同号库的所属表是否齐全且形状一致；旧Home整体搬开后新建，不从Sessions或旧角色库迁移，原SQL与演练删除。
 - 「拒绝」在已有连接上是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本；版本相同且基线表齐全才放行；版本不符、有表无版本、同号缺表或基线表形状不同都报错并说明路径；版本错误另带找到的版本和期望的版本，结构错误说明与当前基线结构不符，不就地升级。**先只读核对再开可写连接**只是 `openBaselineHomeSqlite` 这个 wrapper 的顺序，公开 `applySqliteBaseline` 本身不做只读预检。目录库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`）。
 - Home Plugin Runtime当前结构1保留项目访问同意范围、批准能力及publisher_trust、plugin_consents与plugin_publishers；新Home启动按Manifest幂等登记常开同意，撤销不复活。旧项目/Runtime升级路线已取消，相关片删除工具。
@@ -92,6 +92,8 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 ## 4. 真实 Home：搬开后干净重建
 
 **统一起点的记录**由维护者在本节各项实操通过后填写：日期、提交、构建版本、各库与带版本文件的实际版本，以及可恢复备份的验证结果。记录生效后，各库与带版本文件改结构须带逐版升级步骤。首次外部安装的日期另记在[合同变更流程](../system/CONTRACT-CHANGES.md)。
+
+下面这一行是门禁读的（`scripts/gates/store-versions.mjs`），写法不能改，也改不回去。登记之后，第 3 节的版本只许升不许降，升版本要指向升级段。
 
 统一起点登记：2026-11-07，main 提交 `1b69dcb222`
 

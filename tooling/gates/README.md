@@ -89,10 +89,33 @@
 | --- | --- |
 | 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `docs/system/CONTRACT-CHANGES.md`「存储版本变更登记」内的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑） |
 | 条目的写法 | 只认「存储版本变更登记」里（从固定标题「### 存储版本变更登记」到下一个一至三级标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，该节之外的同样一张表也不算 |
-| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，都以退出码 2 结束，不会当作通过。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
-| 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。它也不检查清单里写的维护有没有做 |
+| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，以及 head 上没有「统一起点登记：」那一行、有两行、写法不对，都以退出码 2 结束，不会当作通过（merge-base 上没有这一行算未登记，它是这道规则之前的提交）。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
+| 统一起点之后 | 检查清单第 4 节有一行固定以「统一起点登记：」开头，值是「未登记」或形如「2026-11-08，main 提交 `abc1234`」。2026-11-07 已登记（#1914）。还没登记时只有上面几条，版本可以复位，「维护」一格是自由文字（两种状态都有用例）。head 或 merge-base 任一边登记了就生效：版本不许降（清单写了也不行）；升版本的那一行，「维护」一格要写成 `` `定义处#旧→新` ``，定义处和检查清单同一行的「定义处」完全相同，两个数字和「版本」一格相同（清单留历史，同样数字的旧行写着文字不碍事，有一行站得住就行）；该文件的升级段字面量里要有从旧到新减一的每个 `from: n`。定义处是基线常量时只看那个对象的 `upgrades`；是普通版本常量（JSON 文件、目录库）时看文件里每个 `upgrades` 数组。`upgrades` 写成展开、常量引用，`from` 不是数字字面量，都算读不懂，失败。已登记的不能改回「未登记」 |
+| 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过；统一起点之后也一样，所以改名顺带升版本过得去，靠评审。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。它也不检查清单里写的维护有没有做，不检查升级段写得对不对（用例和金样管），不查从 1 起的整条链连续（`tests/upgrade-chain-registry.test.ts` 在真实登记上查，那个文件由 U1-d 带来） |
 
-验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。
+验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。真实数据的用例：这个仓库现在的表和清单直接通过；表里每一个版本是 1 的库，升到 2 带段、带指针就过，缺指针、缺段、版本降都失败。统一起点的用例：未登记时版本照旧能升能降；登记后版本降、「维护」一格还是文字、指向别的定义处、箭头数字对不上、基线字面量里没有 `from: 旧`、别的基线有但这个没有、跨两版缺中间一段、`upgrades` 写成常量引用或展开、登记后改回未登记都失败；写对就通过；普通版本常量看文件里的 `upgrades`。
+
+## 统一起点的版本检查（`scripts/gates/initial-versions.mjs`，N41）
+
+重建窗口手跑（检查清单 §4.1），要构建产物，不在 `pnpm health:check` 里。动作、Manifest、提示词、角色、方法和产品代码里的 `*VERSION` 常量都要是 1，差一个就失败。
+
+持久化格式另算：`CATALOG_SCHEMA_VERSION`、`FORMAT_VERSION`（密钥文件）、`MCP_TOOL_PREFERENCE_VERSION`、`CATALOG_VERSION`（Shelf）、`home-contract` 的 `SCHEMA_VERSION`、`text-search` 的 `SCHEMA_VERSION`，按 `文件#名字` 认，别处的同名常量不算；还有三项不是常量，从 `tooling/versions.json` 的条目读：`database.ledger_baseline`（插件 Home 库账本）、`database.memory_ledger_baseline`（记忆账本）、`format.jelly.workspace`（Jelly 的 `schema_version`）。它们大于 1 时，要有登记的升级链，版本相同、`from` 从 1 到版本减 1 各一次，回放通过（`{ version, froms, replay_passed }`），缺一样就失败。登记和回放现在都没有，所以它们也只能是 1；全部是 1 时用不到登记，窗口照常通过。其余基线的 `version:` 不归它查，归 `verify-release-versions.mjs` 和上一节。
+
+不在名单上的常量给了链也只能是 1。存在行里的内容版本就是这样：固定版本（Coding 计划、Feed 捕获、Dataset、Form、Pages、PPT 的 `schema_version`）不可变，升级段不能改写；Gmail 的 `GMAIL_LIVE_CURSOR_VERSION` 是同步进度，版本不符时重建，用不着段。这道检查只看 `*VERSION` 常量和上面三个条目，写成行内字面量的 `format.*` 它看不到。
+
+验证：`node scripts/run-tests.mjs tests/health-gates-initial-versions.test.ts`。没有链、缺段、重复段、段超出范围、链的版本不同、回放没过或没有结果都失败；别的文件里的同名常量和普通常量，给了链也失败。
+
+## 就地补表（`scripts/gates/schema-patches.mjs`，本地快查的键 `schemaPatches`）
+
+全仓一个数，对照 merge-base 只许减少，现在是 0。数的是源码（`isSource`）里 `ALTER TABLE`（不分大小写，中间任意空白）和 `ensureSqliteColumn(` 的每一处，注释也算。
+
+| 项 | 说明 |
+| --- | --- |
+| 不算的地方 | 只有一处：基线常量（`const X: SqliteBaseline`、`PluginDatabaseDeclaration`、`HomePluginDatabaseDeclaration`，或 `satisfies`、`as` 这三种）的 `upgrades` 数组字面量里，某一段 `sql` 的字符串或模板文字，和这一段 `run` 函数体里的字符串。它们只在持主人锁的升级过程里跑。同一个数组里别的位置（`verify`、模块加载时就求值的调用、`${}` 里的表达式、注释）照算；段写在基线外面再引用也算；`ensureSqliteColumn(` 没有例外 |
+| 比旧口径多数的 | 旧口径只有正则。现在拼出来的也算（`"ALTER " + "TABLE"`、模板、数组 `join`、字符串以 `ALTER` 结尾），源码目录里入库的 `.sql` 也算。同一棵树上这两项今天都是 0，所以新旧口径的数字相同 |
+| 看不到的 | 只看文字在哪，不看谁执行它：读路径上写 `db.exec(X.upgrades[0].sql)` 看不出来；常量拼接跨了变量又不以 `ALTER` 结尾的也看不出来。这两种靠评审 |
+
+验证：`node scripts/run-tests.mjs tests/health-gates-schema-patches.test.ts`，以及 `tests/health-gates-merge-base.test.ts` 里的「an in-place schema patch」。
 
 ## 错误模型（`scripts/gates/error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
 

@@ -40,7 +40,7 @@ const init = () => {
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('molis-work-account') : null;
   const originalTransport = window.molisWorkUiTransport;
   window.molisWorkUiTransport = (input, options) => {
-    if (transition.preparing && !new URL(String(input), location.href).pathname.startsWith('/api/personal/')) return Promise.reject(new Error(L('账号正在切换，请稍候')));
+    if (transition.preparing && !new URL(input, location.href).pathname.startsWith('/api/personal/')) return Promise.reject(new Error(L('账号正在切换，请稍候')));
     return originalTransport?.(input, options) ?? null;
   };
   const leaveOldPage = () => {
@@ -152,7 +152,7 @@ const init = () => {
       identity = state.identity; space = state.space || 'local'; configured = state.configured; loaded = true; paint();
       if(!changed)void syncConsent.update(space);
       if (changed) {
-        closeLoginWindow(); location.assign(destination); return;
+        transition.invalidate(); closeLoginWindow(); location.assign(destination); return;
       }
       registration.complete();
       if (requiredElement(menu,'[role=status]').textContent === L('正在读取账号状态…')) feedback('');
@@ -167,7 +167,7 @@ const init = () => {
   let timer = setInterval(tick, 3000);
   addEventListener('focus', () => void update());
   channel?.addEventListener('message', () => {void update(true);});
-  addEventListener('pagehide', () => { clearInterval(timer); channel?.close(); cohort.close(); transition.invalidate(); });
+  addEventListener('pagehide', event => { clearInterval(timer); channel?.close(); cohort.close(); if (event.persisted) transition.invalidate(); }); // Ordinary navigation retains the scope owner's closing actions.
   addEventListener('pageshow', event => { if (event.persisted) leaveOldPage(); });
 };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();

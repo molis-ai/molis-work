@@ -1,6 +1,6 @@
 import { ActionError, retainActionAuthority, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "./actions.js";
 import { bindActionHandler, inputSchemaFor } from "./action-input.js";
-import type { ActionSubject } from "./action-subjects.js";
+import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 import type { ArtifactOrigin, ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
 
 /**
@@ -150,7 +150,6 @@ export interface ArtifactContinueInput { artifact: ArtifactVersionRecord }
 export interface ArtifactContinueResult { open: { surface: string; id: string; title: string } }
 
 export function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult> {
-  const id = { type: "string", minLength: 1 };
   return { capability_id: capabilityId, version: version, operation: "command", action: {
     title: `从这一版新建${objectTitle}`, description: `用成果库里的一版新建一份${objectTitle}继续编辑；这一版本身不变。`,
     kind: "operation", scope: "project", audiences: ["user"], plugin: false, permissions: [...permissions], subject_kinds: [],
@@ -185,15 +184,13 @@ export interface ArtifactReferrer { subject: { kind: string; id: string }; title
 export interface ArtifactReferrersResult { referrers: ArtifactReferrer[] }
 
 export function defineArtifactReferrersAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult> {
-  const id = { type: "string", minLength: 1 } as const;
-  const pair = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
   return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `引用这一版的${objectTitle}`, description: `列出链接到成果库里这一版的${objectTitle}；不修改数据。`,
     kind: "query", scope: "project", audiences: ["user", "agent"], permissions: [...permissions], subject_kinds: [],
     input_type: ARTIFACT_REFERRERS_INPUT_TYPE, output_type: ARTIFACT_REFERRERS_OUTPUT_TYPE,
     input_schema: inputSchemaFor<ArtifactReferrersInput>()({ type: "object", properties: { reference: { type: "object", properties: { artifact_id: id, version: { type: "integer", minimum: 1 } },
       required: ["artifact_id", "version"], additionalProperties: false } }, required: ["reference"], additionalProperties: false }),
-    output_schema: { type: "object", properties: { referrers: { type: "array", items: { type: "object", properties: { subject: pair, title: { type: "string" },
+    output_schema: { type: "object", properties: { referrers: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, title: { type: "string" },
       open: { type: "object", properties: { surface: id, id }, required: ["surface", "id"], additionalProperties: false } }, required: ["subject", "title", "open"], additionalProperties: false } } },
       required: ["referrers"], additionalProperties: false } } };
 }
@@ -216,7 +213,6 @@ export interface ArtifactLinkSubject { id: string; title: string; open: { surfac
 export interface ArtifactLinkSubjectsResult { objects: ArtifactLinkSubject[] }
 
 export function defineArtifactLinkSubjectsAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult> {
-  const id = { type: "string", minLength: 1 } as const;
   return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `链接到成果的${objectTitle}`, description: `按 id 读出链接到成果库版本的${objectTitle}的名字和打开位置；读不到的不返回，不修改数据。`,
     kind: "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [],

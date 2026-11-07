@@ -1,4 +1,5 @@
 import { inputSchemaFor } from "./action-input.js";
+import { ACTION_REFERENCE_SCHEMA } from "./action-offers.js";
 import type { ActionDefinition, ActionReference } from "./actions.js";
 import type { SurfacePlace } from "../services/contextual.js";
 
@@ -109,10 +110,11 @@ export interface FragmentOfferChoice {
 
 const id = { type: "string", minLength: 1 } as const;
 const text = { type: "string", maxLength: 4000 } as const;
+const OBJECT_REF_SCHEMA = { type: "object", properties: { kind: id, id, version: { type: ["string", "integer"] }, title: { type: "string", maxLength: 200 } }, required: ["kind", "id"], additionalProperties: false } as const;
 const TARGET_SCHEMA = {
   type: "object",
   properties: { kind: { enum: ["text_range", "block", "object"] }, role: { enum: [...FRAGMENT_ROLES] }, text, truncated: { type: "boolean" },
-    ref: { type: "object", properties: { kind: id, id, version: { type: ["string", "integer"] }, title: { type: "string", maxLength: 200 } }, required: ["kind", "id"], additionalProperties: false } },
+    ref: OBJECT_REF_SCHEMA },
   required: ["kind", "text"], additionalProperties: false,
 } as const;
 export const FRAGMENT_OFFERS_INPUT_SCHEMA = {
@@ -121,7 +123,7 @@ export const FRAGMENT_OFFERS_INPUT_SCHEMA = {
     fragment: {
       type: "object",
       properties: {
-        object: { type: "object", properties: { kind: id, id, version: { type: ["string", "integer"] }, title: { type: "string", maxLength: 200 } }, required: ["kind", "id"], additionalProperties: false },
+        object: OBJECT_REF_SCHEMA,
         granularity: { enum: [...FRAGMENT_GRANULARITIES] },
         targets: { type: "array", minItems: 1, maxItems: 8, items: TARGET_SCHEMA },
         heading_path: { type: "array", maxItems: 6, items: { type: "string", maxLength: 200 } },
@@ -142,7 +144,7 @@ export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
         type: "object",
         properties: {
           offer_id: id, title: { ...id, maxLength: 120 },
-          action: { type: "object", properties: { capability_id: id, version: { type: "integer", minimum: 1 }, provider_id: id }, required: ["capability_id", "version"], additionalProperties: false },
+          action: ACTION_REFERENCE_SCHEMA,
           input: {},
           summary: { type: "string", maxLength: 600 },
           editable: { type: "array", maxItems: 20, items: id },

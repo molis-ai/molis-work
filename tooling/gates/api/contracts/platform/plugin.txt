@@ -1664,23 +1664,23 @@ export declare const FRAGMENT_OFFERS_OUTPUT_SCHEMA: {
                         minLength: 1;
                     };
                     action: {
-                        type: string;
-                        properties: {
-                            capability_id: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly capability_id: {
                                 readonly type: "string";
                                 readonly minLength: 1;
                             };
-                            version: {
-                                type: string;
-                                minimum: number;
+                            readonly version: {
+                                readonly type: "integer";
+                                readonly minimum: 1;
                             };
-                            provider_id: {
+                            readonly provider_id: {
                                 readonly type: "string";
                                 readonly minLength: 1;
                             };
                         };
-                        required: string[];
-                        additionalProperties: boolean;
+                        readonly required: readonly ["capability_id", "version"];
+                        readonly additionalProperties: false;
                     };
                     input: {};
                     summary: {

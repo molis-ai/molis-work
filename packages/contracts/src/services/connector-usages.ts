@@ -12,7 +12,8 @@ export interface ConnectorUsage {
   actions: Array<{ action: ActionReference; input: Record<string, unknown> }>;
 }
 const text = { type: "string", minLength: 1, maxLength: 1000 } as const;
-export const CONNECTOR_USAGES_INPUT_SCHEMA = { type: "object", properties: { connection_id: { ...text, maxLength: 160 } }, required: ["connection_id"], additionalProperties: false } as const;
+const connectionId = { ...text, maxLength: 160 } as const;
+export const CONNECTOR_USAGES_INPUT_SCHEMA = { type: "object", properties: { connection_id: connectionId }, required: ["connection_id"], additionalProperties: false } as const;
 export const CONNECTOR_USAGE_SCHEMA = { type: "object", properties: { usage_id: text, title: text, detail: text, enabled: { type: "boolean" },
   actions: { type: "array", items: { type: "object", properties: { action: ACTION_REFERENCE_SCHEMA, input: { type: "object" } }, required: ["action", "input"], additionalProperties: false } } },
   required: ["usage_id", "title", "enabled", "actions"], additionalProperties: false };
@@ -41,7 +42,6 @@ export interface ConnectorUsagesSwitchResult {
   /** `code` is a stable `<owner>.<reason>` error code (`ACTION_ERROR_CODE`) the page words; never free text. */
   refused: Array<{ usage_id: string; code: string }>;
 }
-const connectionId = { ...text, maxLength: 160 } as const;
 export const CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA = { type: "object", properties: { from_connection_id: connectionId, to_connection_id: connectionId,
   usage_ids: { type: "array", items: text, minItems: 1, maxItems: 1000 } }, required: ["from_connection_id", "to_connection_id"], additionalProperties: false } as const;
 export const CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA = { type: "object", properties: { switched: { type: "array", items: text },

@@ -150,7 +150,7 @@ test("ASC-69 S-37 the Assistant's connection card reads and cancels only the req
   const card = { status: "done", presentation: { summary: "接入方案已准备", pending_connection: { authorization_id: prepared.authorization_id } } } as AssistantCard;
   const work = (session: string) => ({ project_ref: undefined, session_id: session }) as CardWork;
   const say = (text: string, values: Record<string, string | number> = {}) => text.replace(/\{(\w+)\}/gu, (_, name: string) => String(values[name] ?? ""));
-  const state = async () => (await actions.invoke(assistant, connectorManagementActions.authorization, prepared) as { status: string }).status;
+  const state = async () => (await actions.invoke(assistant, connectorManagementActions.authorization, { authorization_id: prepared.authorization_id }) as { status: string }).status;
   assert.deepEqual(await assistantConnectionCard(home.host, home.home, work("another-session"), card, "read", say), { state: "link" },
     "another session's work draws no card, only the link");
   await assert.rejects(assistantConnectionCard(home.host, home.home, work("another-session"), card, "cancel", say), { code: "connector.setup.foreign_request" },

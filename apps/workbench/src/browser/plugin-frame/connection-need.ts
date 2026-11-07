@@ -288,7 +288,8 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
     const element = entry.element, said = message as { height?: number; service?: string; error?: string; outcome?: UiConnectionNeedOutcome };
     if (kind === "size") element.style.height = Math.max(0, Number(said.height) || 0) + "px";
     else if (kind === "reveal") element.scrollIntoView({ block: "nearest" });
-    else if (kind === "shown") { element.setAttribute("role", "note"); element.setAttribute("aria-label", L("这里需要连接 {name}，连接卡在页面上", { name: String(said.service) })); }
+    // Shown: the place is reported again, since a report made while the shell was still reading the target had no card to go to.
+    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", L("这里需要连接 {name}，连接卡在页面上", { name: String(said.service) })); }
     else if (kind !== "done") return;
     else if (said.error) close(message.id, said.error === "AbortError" ? closed() : new Error(CONNECTION_NEED_UNAVAILABLE));
     else if (said.outcome) { const settle = entry.settle, outcome = said.outcome; entry.settle = undefined; entry.stop?.(); settle?.resolve(outcome.status === "connected" ? { status: "connected", account: { label: String(outcome.account.label) } } : { status: "cancelled" }); }

@@ -87,10 +87,19 @@ export interface WorkExecutorRoleContract {
   readonly input_schema: ActionSchema;
   readonly output_schema: ActionSchema;
 }
+/** The version each role's two types are at. The Assistant compares the whole type: a new shape raises its number here, and the Assistant follows in the same change (CONTRACT-CHANGES §3). */
+const ROLE_TYPE_VERSIONS: Readonly<Record<WorkExecutorRole, { readonly input: number; readonly output: number }>> = {
+  state: { input: /* @version type.molis.work-executor.state.input */ 1, output: /* @version type.molis.work-executor.state.output */ 1 },
+  "session.open": { input: /* @version type.molis.work-executor.session.open.input */ 1, output: /* @version type.molis.work-executor.session.open.output */ 1 },
+  "session.read": { input: /* @version type.molis.work-executor.session.read.input */ 1, output: /* @version type.molis.work-executor.session.read.output */ 1 },
+  "session.update": { input: /* @version type.molis.work-executor.session.update.input */ 1, output: /* @version type.molis.work-executor.session.update.output */ 1 },
+  "run.start": { input: /* @version type.molis.work-executor.run.start.input */ 1, output: /* @version type.molis.work-executor.run.start.output */ 1 },
+  "run.control": { input: /* @version type.molis.work-executor.run.control.input */ 1, output: /* @version type.molis.work-executor.run.control.output */ 1 },
+};
 const role = (name: WorkExecutorRole, operation: "query" | "command", input_schema: ActionSchema, output_schema: ActionSchema): WorkExecutorRoleContract =>
-  ({ operation, input_type: `molis.work-executor.${name}.input.v1`, output_type: `molis.work-executor.${name}.output.v1`, input_schema, output_schema });
+  ({ operation, input_type: `molis.work-executor.${name}.input.v${ROLE_TYPE_VERSIONS[name].input}`, output_type: `molis.work-executor.${name}.output.v${ROLE_TYPE_VERSIONS[name].output}`, input_schema, output_schema });
 
-/** Version 1 of each role. A new shape is a `.v2` type, and the Assistant follows in the same change (CONTRACT-CHANGES §3). */
+/** Each role at its version above. */
 export const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecutorRoleContract>> = {
   state: role("state", "query", closed({}), closed({ modes: { ...list(closed({ id: MODE, title: words(40) }), 20), minItems: 1 }, default_mode: MODE, images: { type: "boolean" },
     workspace_id: nullable(id), workspaces: list(closed({ workspace_id: id, name: words(200), path: words(4096) })), mcp: list({ type: "object" }) }, ["modes", "default_mode", "images"])),

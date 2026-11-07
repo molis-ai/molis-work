@@ -874,18 +874,6 @@
     "reason": "页面 HTML 注释里提到的设计稿名字，不进页面行为，不是版本。"
   },
   {
-    "file": "packages/contracts/src/platform/work-executors.ts",
-    "name": "molis.work-executor.X.input.v1",
-    "values": { "molis.work-executor.X.input.v1": 1 },
-    "reason": "待修的绕过：工作执行器协议的类型名，读时按整串比较却写死 v1，新形状要手改；没有表条目，要加条目并改产品代码才能去掉，已报告（02 版本门禁片）。"
-  },
-  {
-    "file": "packages/contracts/src/platform/work-executors.ts",
-    "name": "molis.work-executor.X.output.v1",
-    "values": { "molis.work-executor.X.output.v1": 1 },
-    "reason": "待修的绕过：工作执行器协议的类型名，读时按整串比较却写死 v1，新形状要手改；没有表条目，要加条目并改产品代码才能去掉，已报告（02 版本门禁片）。"
-  },
-  {
     "file": "packages/design-system/src/plugin-presentation-example.ts",
     "name": "reading-v1",
     "values": { "reading-v1": 1 },
@@ -904,28 +892,10 @@
     "reason": "写进已封存数据的固定绑定串：解封时一起校验，改它就解不开，是这份密文的一部分，不是会单独升的版本号。"
   },
   {
-    "file": "packages/storage/src/adapters/local-payload-protection.ts",
-    "name": "molis-work-local-payload-v1",
-    "values": { "molis-work-local-payload-v1": 1 },
-    "reason": "本机密文信封的固定前缀，和算法绑在一起：解封时按整串比较，不解析数字；换算法由主人另起前缀，不是表里的版本。"
-  },
-  {
-    "file": "packages/storage/src/adapters/search-storage.ts",
-    "name": "molis-work-feed-aead-v1",
-    "values": { "molis-work-feed-aead-v1": 1 },
-    "reason": "本机密文信封的固定前缀，和算法绑在一起：解封时按整串比较，不解析数字；换算法由主人另起前缀，不是表里的版本。"
-  },
-  {
     "file": "packages/storage/src/adapters/search-storage.ts",
     "name": "molis-work-feed-cas-v1.X",
     "values": { "molis-work-feed-cas-v1.X": 1 },
     "reason": "乐观并发令牌的固定前缀，后面是随机数；令牌只按整串相等比较，不解析版本。"
-  },
-  {
-    "file": "plugins/native/alchemist/src/client-views.ts",
-    "name": "discovery.pulse.v1",
-    "values": { "discovery.pulse.v1": 1 },
-    "reason": "待修的绕过：Alchemist 页面脚本里手写的 type.discovery.pulse，表里升版本时这里不会跟着动。要改产品代码才能去掉，已报告（02 版本门禁片）。"
   },
   {
     "file": "plugins/native/alchemist/src/studio/server/db/idea-repository.ts",
@@ -962,18 +932,6 @@
     "name": "adeptify-official-signature-v1",
     "values": { "adeptify-official-signature-v1": 1 },
     "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
-  },
-  {
-    "file": "plugins/official-integrations/catalog/src/index.ts",
-    "name": "connector.driver.X.v1",
-    "values": { "connector.driver.X.v1": 1 },
-    "reason": "待修的绕过：目录里每个连接器各拼一个 id，版本写死 v1；同插件 Manifest 的 type.connector.driver.catalog 升版本时这里不会跟着动。要改产品代码才能去掉，已报告（02 版本门禁片）。"
-  },
-  {
-    "file": "plugins/official-integrations/catalog/src/index.ts",
-    "name": "signal.adapter.X.v1",
-    "values": { "signal.adapter.X.v1": 1 },
-    "reason": "待修的绕过：目录里每个连接器各拼一个 id，版本写死 v1；同插件 Manifest 的 type.signal.adapter.catalog 升版本时这里不会跟着动。要改产品代码才能去掉，已报告（02 版本门禁片）。"
   },
   {
     "file": "plugins/official-integrations/github/src/index.ts",

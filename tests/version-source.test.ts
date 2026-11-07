@@ -738,3 +738,30 @@ test("VG-16 a version in a UI contribution id gets told to drop it", () => {
   assert.deepEqual(findings(FILE, 'export const a = { contribution_id: "a.b.ui.v1" };'), [`unmanaged current version a.b.ui.v1 = "a.b.ui.v1": ${hint}`]);
   assert.deepEqual(findings(FILE, 'export const TODO_UI_CONTRIBUTION_ID = "io.molis.work.native.todo.ui";'), []);
 });
+
+test("VG-19 the MCP tool namespace is one literal prefix, and the rest of the name is still read", () => {
+  for (const text of ['export const a = "molis_work_v1_context_bind";', 'export const a = "molis_work_v1_";', "export const a = `molis_work_v1_action_${name}`;"]) assert.deepEqual(findings(FILE, text), [], text);
+  for (const name of ["molis_work_v2_context_bind", "other_molis_work_v1_context_bind", "molis_work_v1_context_bind_v2", "molis_work_v1_context_bind__v2"]) {
+    assert.deepEqual(findings(FILE, `export const a = "${name}";`), [`unmanaged current version ${name} = "${name}"`], name);
+  }
+});
+
+test("VG-20 what the exceptions used to hold moves with the table, and no exception is left waiting to be fixed", () => {
+  const exceptions: Array<{ name?: string; reason: string }> = JSON.parse(readFileSync(path.join(repository, "tooling/gates/version-exceptions.json"), "utf8"));
+  assert.deepEqual(exceptions.filter(entry => /待修/.test(entry.reason)).map(entry => entry.name), []);
+  const executor = "packages/contracts/src/platform/work-executors.ts", catalog = "plugins/official-integrations/catalog/src/index.ts";
+  const roles = ["state", "session.open", "session.read", "session.update", "run.start", "run.control"];
+  const moved: Array<[string, string, string]> = [
+    ...roles.flatMap((role): Array<[string, string, string]> => ["input", "output"].map(side => [`type.molis.work-executor.${role}.${side}`, executor, `/* @version type.molis.work-executor.${role}.${side} */ 2`])),
+    ["type.connector.driver.catalog", catalog, "/* @version type.connector.driver.catalog */ 2"],
+    ["type.signal.adapter.catalog", catalog, "/* @version type.signal.adapter.catalog */ 2"],
+    ["type.discovery.pulse", "plugins/native/alchemist/src/client-views.ts", '"discovery.pulse.v{version}" */ "discovery.pulse.v2"'],
+    ["type.molis-work-local-payload", "packages/storage/src/adapters/local-payload-protection.ts", '"molis-work-local-payload-v{version}" */ "molis-work-local-payload-v2"'],
+    ["type.molis-work-feed-aead", "packages/storage/src/adapters/search-storage.ts", '"molis-work-feed-aead-v{version}" */ "molis-work-feed-aead-v2"'],
+  ];
+  const real = versionSource(repository);
+  const raised = { ...real, versions: { ...real.versions, ...Object.fromEntries(moved.map(([key]) => [key, 2])) } };
+  const { outputs, problems } = computeVersions(raised, readVersionInputs(repository, real));
+  assert.deepEqual(problems, []);
+  for (const [key, file, written] of moved) assert.ok(outputs.get(file)?.includes(written), `${key} does not reach ${file}`);
+});

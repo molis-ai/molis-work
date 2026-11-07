@@ -116,6 +116,8 @@
 
 ## 梳理记录
 
+- 2026-11-07：[单机构建与测试各三个槽位](archive/machine-slots-three/spec.md)归档（已实现，负责人 Codex）；#1953 经 PR CI 与合并队列通过后合入 main，本机主检出已同步并确认两个三槽池。
+
 - 2026-11-07：[路线书审查复核与修复](archive/roadmap-audit-repair/spec.md)归档（已实现，负责人 Codex）；#1898、#1899、追加授权的 #1897 已合入 main，#1900 已合入 gh-pages 并部署；最终 CI、Full 与队列成功，保留首次失败和验证边界。
 
 - 2026-11-06：[Frame 相机同步修复](archive/frame-camera-pointer-sync/spec.md)归档（已实现，负责人 Codex D 轨）；#1859 已合入 main，真实回归、普通 CI 与保护队列通过，02 组合 Full 的其它首败另由原负责人结算。

@@ -82,6 +82,11 @@ const pages: Record<string, Draw> = {
 // The 26 changed records were derived from those pages by only the reviewed personal-shell additions:
 // sync indicator/settings links, active account label/local-space status, and the observed project-name attribute
 // (plus its settings whitespace). The derived markup matched every candidate byte; no Goals content was re-recorded.
+// PR #1929 (batch 18 P3-3): the project settings gained the 「授权与放行」 section, so the shell's settings directory row
+// (`data-settings-section="grants"`, 361 / 391 characters in zh / en) is in the 16 records of the 8 project pages and the settings
+// link (120 / 135 characters with its line) in the 12 records of the 6 settings and planning pages. Each of those 28 records (14 pages
+// in two languages), drawn with only that row or link taken out, had its old hash and length exactly; they were then recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1. The other 38 records (19 pages in two languages) did not change.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

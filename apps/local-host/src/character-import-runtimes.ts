@@ -26,7 +26,7 @@ function sharedSkills(scan: CharacterScan, { home, manualRoot }: RuntimeSources)
   if (!manualRoot) scan.scanSkills(join(home, ".agents/skills"));
 }
 
-function scanCodex(scan: CharacterScan, sources: RuntimeSources) {
+function scanCodex(scan: CharacterScan, sources: RuntimeSources): boolean {
   const { home, root, manualRoot, projectRoot } = sources;
   scan.allow(root);
   if (!manualRoot) { scan.allow(join(home, ".agents/skills")); scan.allow(join(home, ".agents/skills/.system")); }
@@ -35,9 +35,10 @@ function scanCodex(scan: CharacterScan, sources: RuntimeSources) {
   scan.scanSkills(join(root, "skills"));
   sharedSkills(scan, sources);
   project(scan, sources, [projectRoot && existsSync(join(projectRoot, "AGENTS.override.md")) ? "AGENTS.override.md" : "AGENTS.md"], [".agents", ".codex"], []);
+  return true;
 }
 
-function scanClaudeCode(scan: CharacterScan, sources: RuntimeSources) {
+function scanClaudeCode(scan: CharacterScan, sources: RuntimeSources): boolean {
   const { root, projectRoot } = sources;
   scan.allow(root);
   if (projectRoot) scan.allow(projectRoot);
@@ -45,9 +46,10 @@ function scanClaudeCode(scan: CharacterScan, sources: RuntimeSources) {
   scan.walkRules(join(root, "rules"), "global", [".md"]);
   scan.scanSkills(join(root, "skills"));
   project(scan, sources, ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"], [".claude"], [[".claude/rules", ".md"]]);
+  return false;
 }
 
-function scanCursor(scan: CharacterScan, sources: RuntimeSources) {
+function scanCursor(scan: CharacterScan, sources: RuntimeSources): boolean {
   const { home, root, manualRoot, projectRoot } = sources;
   scan.allow(root);
   if (!manualRoot) scan.allow(join(home, ".agents/skills"));
@@ -57,9 +59,10 @@ function scanCursor(scan: CharacterScan, sources: RuntimeSources) {
   scan.scanSkills(join(root, "skills"));
   sharedSkills(scan, sources);
   project(scan, sources, ["AGENTS.md", "CLAUDE.md"], [".cursor", ".agents"], [[".cursor/rules", ".mdc"]]);
+  return false;
 }
 
-function scanOpencode(scan: CharacterScan, sources: RuntimeSources) {
+function scanOpencode(scan: CharacterScan, sources: RuntimeSources): boolean {
   const { home, root, manualRoot, projectRoot } = sources;
   scan.allow(root);
   if (!manualRoot) { scan.allow(join(home, ".agents/skills")); scan.allow(join(home, ".claude/skills")); scan.allow(join(home, ".claude")); }
@@ -70,11 +73,12 @@ function scanOpencode(scan: CharacterScan, sources: RuntimeSources) {
   sharedSkills(scan, sources);
   if (!manualRoot) scan.scanSkills(join(home, ".claude/skills"));
   project(scan, sources, [projectRoot && existsSync(join(projectRoot, "AGENTS.md")) ? "AGENTS.md" : "CLAUDE.md"], [".opencode", ".claude", ".agents"], []);
+  return true;
 }
 
 const GROK_RULE_FILES = ["GROK.md", "AGENTS.md", "Agents.md", "AGENT.md", "CLAUDE.md", "Claude.md", "CLAUDE.local.md"];
 
-function scanGrokBuild(scan: CharacterScan, sources: RuntimeSources) {
+function scanGrokBuild(scan: CharacterScan, sources: RuntimeSources): boolean {
   const { root, projectRoot } = sources;
   scan.allow(root);
   if (projectRoot) scan.allow(projectRoot);
@@ -82,24 +86,24 @@ function scanGrokBuild(scan: CharacterScan, sources: RuntimeSources) {
   scan.walkRules(join(root, "rules"), "global", [".md"]);
   scan.scanSkills(join(root, "skills"));
   project(scan, sources, GROK_RULE_FILES, [".grok"], [[".grok/rules", ".md"], [".claude/rules", ".md"], [".cursor/rules", ".md"]]);
+  return true;
 }
 
 /**
- * One scan per runtime. `fixedPathsOnly`: what the runtime's own configuration can add (instructions, extra Skills paths, disabled
- * entries) is not read, which the person is told at the preview.
+ * One scan per runtime. Each answers whether it read fixed paths only: what the runtime's own configuration can add (instructions, extra
+ * Skills paths, disabled entries) is then not read, which the person is told at the preview.
  */
-const RUNTIME_SCANS: Record<CharacterImportRuntimeId, { scan: (scan: CharacterScan, sources: RuntimeSources) => void; fixedPathsOnly: boolean }> = {
-  codex: { scan: scanCodex, fixedPathsOnly: true },
-  "claude-code": { scan: scanClaudeCode, fixedPathsOnly: false },
-  cursor: { scan: scanCursor, fixedPathsOnly: false },
-  opencode: { scan: scanOpencode, fixedPathsOnly: true },
-  "grok-build": { scan: scanGrokBuild, fixedPathsOnly: true },
+const RUNTIME_SCANS: Record<CharacterImportRuntimeId, (scan: CharacterScan, sources: RuntimeSources) => boolean> = {
+  codex: scanCodex,
+  "claude-code": scanClaudeCode,
+  cursor: scanCursor,
+  opencode: scanOpencode,
+  "grok-build": scanGrokBuild,
 };
 
 /** Reads one runtime's rules and Skills into `scan`: its own sources, the plugins it has installed, then what could not be read. */
 export function scanRuntime(runtime: CharacterImportRuntimeId, scan: CharacterScan, sources: RuntimeSources, label: string, binary: string | null) {
-  const { scan: read, fixedPathsOnly } = RUNTIME_SCANS[runtime];
-  read(scan, sources);
+  const fixedPathsOnly = RUNTIME_SCANS[runtime](scan, sources);
   const { root, projectRoot } = sources;
   for (const skillRoot of installedPluginSkillRoots({ runtime, root, projectRoot, text: scan.text, entries: scan.entries, warn: scan.warn })) scan.scanSkills(skillRoot);
   if (!binary) scan.warn(`未找到已确认的 ${label} 命令；可以导入配置，原生执行暂不可用。`);

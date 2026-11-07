@@ -66,6 +66,10 @@
       "types": "./dist/platform/dom-events.d.ts",
       "import": "./dist/platform/dom-events.js"
     },
+    "./platform/external-tools": {
+      "types": "./dist/platform/external-tools.d.ts",
+      "import": "./dist/platform/external-tools.js"
+    },
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"

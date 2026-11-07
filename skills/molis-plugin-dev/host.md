@@ -18,7 +18,7 @@ Home 级插件的数据按项目放、删项目时整份一起走时，只在 Ma
 
 `personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。只有可信 bundled 定义对象用插件 ID，其余用安装 ID；Home/项目执行器共用此规则，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
 
-Home 的 `services.storage` 是 v2 Home Runtime 库里的安装隔离 KV；升级校验只读，候选失败恢复原值，停止/撤权/重装后的旧句柄失效。业务数据继续在插件原 SQLite，不迁到 KV。Home 的动作与场景若声明项目 scope，必须经真实项目客户端；Home HTTP 不带项目前缀时没有项目；带真实项目前缀时，Host 核对项目存在且显示该插件，发出的执行控制使动作保留该项目；不得从 body/query 自报项目。通用 operations 保留控制令牌、断开取消、beforeEffect、client_reported 页面上下文与上传限额，不借项目 Files/wiring 钩子。库失败不挡 Goals；普通读取不自行重试，显式 POST retry 共用一次启动。
+Home 的 `services.storage` 是 Home Runtime 库里的安装隔离 KV；升级校验只读，候选失败恢复原值，停止/撤权/重装后的旧句柄失效。业务数据继续在插件原 SQLite，不迁到 KV。Home 的动作与场景若声明项目 scope，必须经真实项目客户端；Home HTTP 不带项目前缀时没有项目；带真实项目前缀时，Host 核对项目存在且显示该插件，发出的执行控制使动作保留该项目；不得从 body/query 自报项目。通用 operations 保留控制令牌、断开取消、beforeEffect、client_reported 页面上下文与上传限额，不借项目 Files/wiring 钩子。库失败不挡 Goals；普通读取不自行重试，显式 POST retry 共用一次启动。
 
 项目里宿主自己运行的内置插件（登记上的 `project_runtime`）要有 Home 里的库，也是同一个 `context.services.database`：在 Manifest 写 `databases.home`（条目上不再有 `database`）；库名由 Manifest 决定，动作入参选不了。登记上的定义对象拿登记里的库，项目没有 Home 时宿主不启动它；不在名单上、由宿主自己运行的插件（开发中的、装进来的）经 `plugin-libraries/` 的账本拿：首次打开记下发布者（取自安装记录）、版本和表，之后换了发布者、版本、表或库名都拒绝启动，库名不能是宿主已有的存储或目录，也不能按项目分开。库必须在 Home 存储登记中归该插件所有、与登记的基线一致，并列入 `docs/releases/CHECKLIST.md` 的各库版本表；Manifest 声明 `storage:private` 和库的读写权限，沙箱插件拿不到。数据由插件自己按项目分区，写入必须 `transaction(caller.beforeEffect, tx => …)`。Dataset、Form、灵光、Pages、PPT、Workflows 已这样装配。
 

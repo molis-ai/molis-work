@@ -9,7 +9,7 @@ Host 的 `stage_scene_metadata` 只供原动作 scope 的 owner 场景服务读�
 
 Home 激活通过 `actions.home` 选择稳定插件 provider，并在启动上下文提供 `provider_id`；项目行为不变。Supervisor 条目的 `enabled: false` 登记工厂但不启动，显式 `enable` 才恢复；Host 正常关闭先 `stop(..., { preserve_enabled: true })`，再撤销监督器引用。真实 Home 生命周期验证：`tests/issue-home-runtime.test.ts`。
 
-Host 的 Home 与项目执行器共用可信定义对象的 provider 规则：bundled 使用 plugin_id，其余 install_id。Home 复用此包的安装、发行物、私有 KV 与模型调用规则；Local Host 在完整 v2 基线核对后才构造 Repository，旧版/坏结构不由 constructor 补表。业务库仍由插件拥有，Home 不造项目 artifacts、端口或事件。公开 Host 的组合回归是 `tests/home-plugin-platform.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/home-plugin-model-lifecycle.test.ts`；模型与 KV 的原独立回归仍须保留。
+Host 的 Home 与项目执行器共用可信定义对象的 provider 规则：bundled 使用 plugin_id，其余 install_id。Home 复用此包的安装、发行物、私有 KV 与模型调用规则；Local Host 在完整基线核对后才构造 Repository，旧版/坏结构不由 constructor 补表。业务库仍由插件拥有，Home 不造项目 artifacts、端口或事件。公开 Host 的组合回归是 `tests/home-plugin-platform.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/home-plugin-model-lifecycle.test.ts`；模型与 KV 的原独立回归仍须保留。
 
 `readPluginRuntimeRecords` 只读已验证库中的安装事实，与 Repository 的 `list` 使用同一读取；不构造 Repository、不建表、不启动/恢复实例或修改停用意图。Host 项目设置用这份观察识别已安装的独立插件，不能把同步来的依赖清单当作安装记录。只读连接与缺表拒绝由 `tests/plugin-runtime-integration.test.ts` 验证。
 

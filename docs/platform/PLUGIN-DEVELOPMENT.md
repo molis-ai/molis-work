@@ -151,7 +151,7 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 装进 Home 的包在哪里出现、页面怎样给（BL-713）：运行中的包进到达页和项目标题栏的 Home 工具位，排在内置 Home 工具之后、按名字排；点开是它的 stage 视图（沙箱包只有 stage 视图、没有 `side` 视图，所以不出侧栏页签），图标取 stage 视图的 `icon`，不写画 `package`。停用的不出现；启动时没起来的（有恢复错误）照列，点开是一页写明原因的页面，页上没有「启用」按钮（它没被停用）；卸载、发布者被撤销、发布记录读不到的不出现。工具位是本人的页面：Home 工具不随项目隐藏，数据由服务端渲染进页面（`HomePluginHost.navigation()`，到达页走 `home_plugins`，项目页走 `home_plugin_nav`），不出现在任何动作、MCP、工作流步骤或插件读得到的输出里。包的页面是 `/plugins/<id>`（Home 插件页，里面框一个 iframe）与 `?frame=workbench`（框内页面本身，只给在跑的包），框内页面与项目里生成插件的页面是同一个渲染器（`renderPluginDocumentShell` 的 installed 模式），调用走 Home 自己的 `/api/plugins/<id>/call`；进程刚启动时的第一个请求先等 Home 起来再查，仍没有才是 404。Home 一侧的框内页面带 Home 页面的内容安全策略（`frame-ancestors 'self'`）和 `X-Frame-Options: SAMEORIGIN`，`<iframe>` 标记不写 `sandbox`，被隔离的是包自己的沙箱进程。回归见 `tests/home-plugin-stage-navigation.test.ts`（RAC-2620～2626，只在 macOS 上跑）。
 
-一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目给 `trust: HOST_BUILD_TRUST` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
+一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db`，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目给 `trust: HOST_BUILD_TRUST` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
 Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），库与分区由宿主从 Manifest 生成（`apps/local-host/src/home-stores.ts`），登记上不写库：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，删项目时整份删掉，确认框写「{插件名} 在这个项目里的数据」（PG-024）。位置与闲置关闭见 [HOME-DATA 3.3](../system/HOME-DATA.md)。规则：
 
@@ -545,7 +545,7 @@ Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstr
 
 Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来自后台 Run 的停止/待核对状态，后者来自 Prologue 已核对的 Effect/dispatch 回执。失败和 unknown 保留原语义，不宣称文件修改成功。恢复历史不产生新执行通知；Files/Git 订阅后只让 Host 视图 revision 失效，页面重新读取原接口。提示丢失靠首次进入、重新连接时读当前事实恢复，不能据此自动重跑模型或 Git；可靠业务提交仍须其 owner 的事务/持久协议。
 
-Coding 固定计划 `coding.plan.v1` 现行 schema 为 2，保存原任务、计划与会话/轮次引用，不保存本机目录。目录仍留在本机草稿和原规划 Run；实际执行通过当前授权读取本机已完成的 planner Run，核对同一目录，不从可携带来源取得权限。同步的固定版本可只读引用，没有原执行时须重新规划。旧 schema 1 不作读取回退，真实 Home 维护仍须另行批准；这不包括 Coding 私有草稿同步。
+Coding 固定计划 `coding.plan.v1` 保存原任务、计划与会话/轮次引用，不保存本机目录。目录仍留在本机草稿和原规划 Run；实际执行通过当前授权读取本机已完成的 planner Run，核对同一目录，不从可携带来源取得权限。同步的固定版本可只读引用，没有原执行时须重新规划。旧 schema 不作读取回退，真实 Home 维护仍须另行批准；这不包括 Coding 私有草稿同步。
 
 同步轮次开始时，精确身份下已选择但不可用的集合使整轮保持未完成，不更新上次成功时间；其他健康集合继续。停用或格式改变不会被冒充空成功，也不会自动选择新版。
 
@@ -595,7 +595,7 @@ Builder 的截图评审把 presentation、design、host、unverified 问题分�
 
 本机保护提供方可复用 Storage `createLocalPayloadProtection`，显式绑定原 SecretStore、密钥引用、空间/集合作用域和完整已存数据检查。它与 Search 复用同一个内部 AEAD 实现，保留 Search 原密文格式；指纹仍在或仍有保护数据时，密钥丢失或替换拒绝读写。只有密钥、指纹均不存在且没有任何保护数据时，才可作为全新状态初始化。读取不创建 key，实际业务 owner 仍须接线和验证。
 
-私密 SQLite owner 的本机技术记录可经 `SyncLocalProtection` 保护；`createSqliteReplica({..}, {protection,..})` 对待发送、冲突及恢复正文使用同一个稳定键/用途绑定序列化器。端口仅来自可信组合根，不进入网络或携带密钥，提供方另须绑定 Home/空间/集合。可信 Host 同时在 `SyncRegistration.protection` 提供该端口，共同协调器在本机 v5 库按集合固定模式，下载分块和延迟事件密封且不降级；`hasProtectedSyncPayloads` 供密钥 owner 只读检查缓存，不创建缺失库。当前格式不是旧库转换器，也不表示 Work 会话已接入。
+私密 SQLite owner 的本机技术记录可经 `SyncLocalProtection` 保护；`createSqliteReplica({..}, {protection,..})` 对待发送、冲突及恢复正文使用同一个稳定键/用途绑定序列化器。端口仅来自可信组合根，不进入网络或携带密钥，提供方另须绑定 Home/空间/集合。可信 Host 同时在 `SyncRegistration.protection` 提供该端口，共同协调器在本机库按集合固定模式，下载分块和延迟事件密封且不降级；`hasProtectedSyncPayloads` 供密钥 owner 只读检查缓存，不创建缺失库。当前格式不是旧库转换器，也不表示 Work 会话已接入。
 
 跨对象关系的被动历史通过 contracts `ContextHistoryReplication` 交给 Ledger 的公开 `createContextHistoryReplication`，可信 owner 明确来源模块、分区及关系/目标类型。完整历史的替换和尾检在同连接事务执行，拒绝跨来源键占用、非连续修订和未知字段；不经正常绑定命令重放，不授予内容访问或执行权限。上层 replica 仍须负责冲突确认与未采用分支保留，不向页面或插件直接暴露该可信端口。
 
@@ -625,7 +625,7 @@ Module 项目内容的 `ProjectReplicaDefinition` 明确声明 `assetKind`、可
 
 Goal 项目一致性单元也消费该接口：超过 64 KiB 的完整事实按 1 MiB 字节块表示，D1 保留绑定空间/项目的摘要清单。所有引用、块与全体摘要验证完成，再还原原格式并交给 Goals/Governance/ContextLedger 的既有校验与同一事务。最大完整聚合 100000000 字节，不等于可绕过账号额度；并发冲突仍是整项目，不按块合并。现行 inline 与块表示不接受未知格式，不包含执行授权；其他插件不因此自动获得大对象或本地文件同步。
 
-实际消费者是 Artifact 的导入原文件、较大版本正文及 Goal 项目聚合。其他插件、外部内容引用和独立 Runtime 自动装配尚未接入，不因合同存在宣称支持。D1 v3 的结构化记录及 R2 字节/预留共用 100 MB；暂存到期与 30 天引用清理待后续。设备开关和手动单轮行为不变，部署与真实 Home 维护单独批准。
+实际消费者是 Artifact 的导入原文件、较大版本正文及 Goal 项目聚合。其他插件、外部内容引用和独立 Runtime 自动装配尚未接入，不因合同存在宣称支持。D1 的结构化记录及 R2 字节/预留共用 100 MB；暂存到期与 30 天引用清理待后续。设备开关和手动单轮行为不变，部署与真实 Home 维护单独批准。
 
 Host 生命周期接纳使用 `SyncRegistration.withMutation(scope, commit)`：普通接收、自动/显式重试、冲突选择和本机历史恢复共用异步预留边界，预留内只能调用一次同步提交。等待后的实际 adapter 仍重检 CAS；预留结束后保存的回调已关闭，不能迟到写入。`prepare` 只能做非破坏性准备，不得提前回收/删除。此端口属于可信 Host 装配，不增加插件权限。
 

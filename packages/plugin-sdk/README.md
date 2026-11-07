@@ -66,7 +66,7 @@ Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导�
 
 后台 launcher 的 `background_job` 只指本包实际 query 的 operation id。`sandboxBackgroundProblems` 校验必需的业务 id、输入和状态路径及互斥终态；`sandboxOperationActions` 统一派生静态动作、同包 status 的精确引用与目标资源权限，`sandboxPluginManifest({ contract, ... })` 把投影放进签名清单。运行环境的实际依赖权限、费用和提供方绑定由 Host 的同一次遍历解析，不改已验签清单；调用者权限和安装 grant 分别检查。`sandboxActionId` 与 `sandboxPackageBuildId` 是这些动作现用的身份算法。
 
-schema/API 2 的 Integration Manifest 用 `source_presentations` 声明纯展示；`definePollingIntegrationPlugin` 的 `presentSource(id, input)` 只收展示 id 与普通数据，不接收启动 context 或来源 binding。输入只含可选 cursor，返回只含可选 `scope_options`、`conditional_request`、`home_url`（可为 null），由同一 `checkedSourcePresentationInput` / `checkedSourcePresentation` 检查。沙箱展示固定 query、`effects: {}`，不取得拉取的连接效果。回归：`tests/integration-registry.test.ts`、`tests/sandbox-integration.test.ts`。
+Integration Manifest 用 `source_presentations` 声明纯展示；`definePollingIntegrationPlugin` 的 `presentSource(id, input)` 只收展示 id 与普通数据，不接收启动 context 或来源 binding。输入只含可选 cursor，返回只含可选 `scope_options`、`conditional_request`、`home_url`（可为 null），由同一 `checkedSourcePresentationInput` / `checkedSourcePresentation` 检查。沙箱展示固定 query、`effects: {}`，不取得拉取的连接效果。回归：`tests/integration-registry.test.ts`、`tests/sandbox-integration.test.ts`。
 
 签名 app 包的原始清单使用 `parsePluginPackageManifest` 校验；验签后由 `sandboxAgentDeclarations` 唯一派生纯文字角色与空工具方法，启动时用 `assertSandboxAgentDefinition` 核对同一限制。`sandboxAgentBodyIdentity` 保留完整 plugin/kind/name 身份；派生数字版本不代替签名包的完整版本。包内正文格式与上限见[插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。这些文字只作为有来源的不可信材料，不授予执行权限。
 
@@ -288,7 +288,7 @@ result_view: {
 
 共同同步文档支持 owner 的 `belongsToProject(data,key,projectId,retained)`，检查当前变化、冻结上传和等待/保留冲突；缺少声明必须拒绝。跨项目独立的 Home 内容可以由 owner 明确返回 false，项目引用本身不自动取得所有权。
 
-共同同步文档现行技术格式为 v2，实际 v1 夹具原样拒绝，不做读取转换。正常 `update` 移除稳定键时，在同一次 CAS 保留 owner 返回的完整原件（`local_delete`），未曾冻结上传也可离线撤销；已有新内容、冻结上传、冲突或修订变化时拒绝。owner 的 `read` 必须自包含完整字节，不能只给可删除路径；读取失败或 CAS 失败保留原目录和原件。不依据设备时钟自动丢弃这些唯一原件。
+共同同步文档只认现行技术格式，旧格式原样拒绝，不做读取转换。正常 `update` 移除稳定键时，在同一次 CAS 保留 owner 返回的完整原件（`local_delete`），未曾冻结上传也可离线撤销；已有新内容、冻结上传、冲突或修订变化时拒绝。owner 的 `read` 必须自包含完整字节，不能只给可删除路径；读取失败或 CAS 失败保留原目录和原件。不依据设备时钟自动丢弃这些唯一原件。
 
 文件 owner 可选使用 `SyncDocumentStorage.withReadLock` 与 `compareAndSetChecked`，两者必须共用同一跨进程互斥锁。暂存清理在读锁内按当前 owner 事实确定引用；复用旧暂存文件的提交须在 checked CAS 的最终锁内再次验证字节，缺失则拒绝旧提交。只实现普通 CAS 的作者不会因此获得文件清理能力。
 `canonicalJsonValue(value)` 返回一份按原始 UTF-16 码元递归排序对象键的值，保留字段值和数组顺序，不修改输入。值为 `undefined` 的对象字段仍保留在返回值中；它不验证输入或序列化非 JSON 类型。JavaScript 枚举对象时会把整数形态的键重新按数值排序，因此摘要和签名应使用 `canonicalJsonText(value)` 直接生成稳定文本。

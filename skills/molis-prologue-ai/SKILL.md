@@ -130,7 +130,7 @@ Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插�
 
 ### 补充输入的作者边界
 
-`agent.inputs.send` / `coding.runs.control` v8 的业务输入不收 `original`，自报 `source: person` 不授予本人身份。本人 HTTP 发送由 Host 以 `use: supplement` 证明绑定当前安装、动作与 `send.<input_id>`；附材料或选区只改变外层模型 text，raw 原话沿同一 SDK 输入记录保存，不能拆标记推断。无证明的 Action 输入按 Host 处理；初始原件证明与补充证明不能互换。
+`agent.inputs.send` / `coding.runs.control` 的业务输入不收 `original`，自报 `source: person` 不授予本人身份。本人 HTTP 发送由 Host 以 `use: supplement` 证明绑定当前安装、动作与 `send.<input_id>`；附材料或选区只改变外层模型 text，raw 原话沿同一 SDK 输入记录保存，不能拆标记推断。无证明的 Action 输入按 Host 处理；初始原件证明与补充证明不能互换。
 
 普通文字材料只带 `material_id/title/text`；只有实际固定引用才带完整 `source_artifact_id/source_version`。前者 data 头用 `{title, material_id}`，后者保留 `{title, artifact_id, version}`；正文逐字保留，头与正文合计至多 20,000 UTF-16 units，非法或半份来源派发前拒绝。冻结记录只保留实际提供的来源，不用 Work、Session、Question 或实时 Page 标识占位。
 

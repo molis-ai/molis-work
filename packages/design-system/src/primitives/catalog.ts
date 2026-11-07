@@ -12,6 +12,7 @@ import { advancedFieldSection, badgeSection, buttonSection, calendarSection, fee
 import { directorySection, layoutSection } from "./catalog-layout.js";
 import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, writeChinese, type Say } from "./catalog-composer.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
+import { alertActionsSection, itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
   "accordion", "alert", "alert-dialog", "autocomplete", "avatar", "badge", "breadcrumb", "button",
@@ -243,11 +244,16 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${tabsSection()}
     ${directorySection()}
     ${rowsSection()}
+    ${itemChoiceSection(say)}
+    ${itemDetailsSection(say)}
+    ${listDetailSection(say)}
+    ${alertActionsSection(say)}
+    ${statusLinkSection(say)}
     ${layoutSection()}
     ${dataTableSection()}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections)}
-    <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}</style>
+    <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

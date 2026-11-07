@@ -40,6 +40,11 @@ same<Equal<Infer<{ readonly type: "array"; readonly minItems: 2; readonly maxIte
 same<Equal<Infer<{ readonly type: "array"; readonly minItems: 1; readonly items: readonly [{ readonly type: "string" }, { readonly type: "integer" }] }>, [string, number?]>>();
 same<Equal<Infer<{ readonly type: "array"; readonly minItems: 1; readonly maxItems: 1; readonly items: { readonly type: "string" } }>, [string]>>();
 same<Equal<Infer<{ readonly type: "array"; readonly minItems: 3; readonly maxItems: 3; readonly items: { readonly type: "string" } }>, [string, string, string]>>();
+// No `minItems`: the run-time check accepts a short tuple, so the type does not promise the elements. `minItems` written: as it says.
+same<Equal<Infer<{ readonly type: "array"; readonly items: readonly [{ readonly type: "string" }, { readonly type: "integer" }] }>, [string?, number?]>>();
+same<Equal<Infer<{ readonly type: "array"; readonly maxItems: 2; readonly items: readonly [{ readonly type: "string" }, { readonly type: "integer" }] }>, [string?, number?]>>();
+same<Equal<Infer<{ readonly type: "array"; readonly minItems: 0; readonly items: readonly [{ readonly type: "string" }, { readonly type: "integer" }] }>, [string?, number?]>>();
+same<Equal<Infer<{ readonly type: "array"; readonly minItems: 2; readonly items: readonly [{ readonly type: "string" }, { readonly type: "integer" }] }>, [string, number]>>();
 // A fixed length over 8 falls back to an array.
 same<Equal<Infer<{ readonly type: "array"; readonly minItems: 9; readonly maxItems: 9; readonly items: { readonly type: "string" } }>, string[]>>();
 // What cannot be read stays unknown: $ref, conditions without `type`, properties beside a top-level oneOf, the erased upper bound.
@@ -66,6 +71,7 @@ inputSchemaFor<[]>()({ type: "array", maxItems: 0 });
 inputSchemaFor<[id: string, input: { a: string }]>()({ type: "array", minItems: 2, maxItems: 2, items: [{ type: "string" }, { type: "object", properties: { a: { type: "string" } }, required: ["a"] }], additionalItems: false });
 inputSchemaFor<[id: string, input?: { a: string }]>()({ type: "array", minItems: 1, maxItems: 2, items: [{ type: "string" }, { type: "object", properties: { a: { type: "string" } }, required: ["a"] }], additionalItems: false });
 inputSchemaFor<[id: string]>()({ type: "array", minItems: 1, maxItems: 1, items: { type: "string" } });
+inputSchemaFor<[id?: string, limit?: number]>()({ type: "array", items: [{ type: "string" }, { type: "integer" }] });
 
 /* ---------- inputSchemaFor: refused, by the check that should refuse it ---------- */
 
@@ -109,6 +115,9 @@ inputSchemaFor<{ a: Record<string, unknown> }>()({ type: "object", properties: {
 inputSchemaFor<[a: string, b: string]>()({ type: "array", minItems: 1, maxItems: 1, items: { type: "string" } }); // rejects: schema 比接口松
 inputSchemaFor<[a: string]>()({ type: "array", minItems: 2, maxItems: 2, items: { type: "string" } }); // rejects: schema 比接口松
 inputSchemaFor<[a: string]>()({ type: "array", minItems: 1, maxItems: 1, items: { type: "integer" } }); // rejects: schema 比接口松
+// An interface that needs both elements over a schema that does not require them: the schema lets in `[]`.
+inputSchemaFor<[id: string, limit: number]>()({ type: "array", items: [{ type: "string" }, { type: "integer" }] }); // rejects: schema 比接口松
+inputSchemaFor<[id: string, limit: number]>()({ type: "array", maxItems: 2, items: [{ type: "string" }, { type: "integer" }], additionalItems: false }); // rejects: schema 比接口松
 // A schema that lost its literals: there is nothing to compare, and an interface with fields is refused rather than trusted.
 declare const erased: ActionSchema;
 inputSchemaFor<{ a: string }>()(erased); // rejects: schema 比接口松
@@ -145,6 +154,7 @@ bindActionHandler(definition, () => ({ ok: true }), { execution: "sync" });
 bindActionHandler(definition, (input: { readonly other: number }) => ({ ok: input.other > 0 })); // rejects: not assignable
 bindActionHandler(definition, () => ({ ok: "yes" })); // rejects: not assignable
 bindActionHandler(definition, () => ({ ok: true }), { execution: "async" }); // rejects: not assignable
+bindActionHandler(definition, () => ({ ok: true }), { capability_id: "fixture.other" }); // rejects: Object literal may only specify known properties
 // A definition `withActionEffect` wrapped keeps its types.
 bindActionHandler(withActionEffect(definition, "read"), input => ({ ok: input.id.length > 0 }));
 

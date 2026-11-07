@@ -2384,13 +2384,11 @@ export type InferActionInput<S> = S extends {
 } ? [] : S extends {
     readonly type: "array";
     readonly items: infer I extends readonly unknown[];
-} ? (S extends {
-    readonly minItems: infer N extends number;
 } ? OptionalFrom<{
     -readonly [K in keyof I]: InferActionInput<I[K]>;
-}, N> : {
-    -readonly [K in keyof I]: InferActionInput<I[K]>;
-}) : S extends {
+}, S extends {
+    readonly minItems: infer N extends number;
+} ? N : 0> : S extends {
     readonly type: "array";
     readonly minItems: infer N extends number;
     readonly maxItems: infer M extends number;

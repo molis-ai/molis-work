@@ -65,6 +65,16 @@ test("AIC-10: bindActionHandler hands over the input and caller, names the actio
   assert.equal(extra.availability, availability);
 });
 
+test("AIC-10: bindActionHandler keeps the definition's identity and handler whatever extra carries at run time", () => {
+  // Not a literal, so the compiler lets the extra keys through; this is the path that must not rename the action.
+  const carried = { execution: "sync", capability_id: "fixture.other", version: 9, handle: () => "other" } as const;
+  const binding = bindActionHandler(definition, input => input.id, carried);
+  assert.equal(binding.capability_id, "fixture.get");
+  assert.equal(binding.version, 3);
+  assert.equal(binding.handle(caller, { id: "a" }), "a");
+  assert.equal(binding.execution, "sync");
+});
+
 test("AIC-10: inputSchemaFor gives back the schema it was handed, so wrapping a definition cannot change its action hash", () => {
   const schema = { type: "object", properties: { a: { type: "string" } }, required: ["a"] } as const;
   assert.equal(inputSchemaFor<{ a: string }>()(schema), schema);

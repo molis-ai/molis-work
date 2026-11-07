@@ -1,5 +1,8 @@
+import { baselineGroups } from "./baseline.js";
+
 /** Hue ramps: text for 13px copy, fill for 6–8px marks, soft for 11% washes. Plugin identity and status only;
- * Content family is the DropAgent reading-surface set: warm paper + five type marks, no green. */
+ * Content family is the DropAgent reading-surface set: warm paper + five type marks, no green.
+ * Their values are in `resources/skins/soft-workbench.json`; these lists name them for the component board. */
 
 export type MwHueId =
   | "gray"
@@ -23,33 +26,29 @@ export interface MwHueSwatch {
   id: MwHueId;
   label: string;
   role: string;
-  light: { text: string; fill: string; soft: string };
-  dark: { text: string; fill: string; soft: string };
 }
 
 export interface MwContentMark {
   id: MwContentMarkId;
   label: string;
   role: string;
-  light: { text: string; fill: string };
-  dark: { text: string; fill: string };
 }
 
 export const MW_HUES: readonly MwHueSwatch[] = [
-  { id: "gray", label: "Gray", role: "闲置 / Home", light: { text: "#5c6570", fill: "#95a2b3", soft: "#eef0f2" }, dark: { text: "#b3b8c2", fill: "#95a2b3", soft: "#24262a" } },
-  { id: "brown", label: "Brown", role: "Feed", light: { text: "#9c5f1a", fill: "#c4894a", soft: "#f6eee4" }, dark: { text: "#dcab6d", fill: "#c4894a", soft: "#32281c" } },
-  { id: "orange", label: "Orange", role: "注意", light: { text: "#8a5c18", fill: "#f2994a", soft: "#f8f0e2" }, dark: { text: "#d4a15c", fill: "#f2994a", soft: "#342a1c" } },
-  { id: "yellow", label: "Yellow", role: "标记", light: { text: "#8a6d12", fill: "#e2b203", soft: "#f7f3e0" }, dark: { text: "#e0c56a", fill: "#e2b203", soft: "#332e18" } },
-  { id: "green", label: "Green", role: "完成", light: { text: "#2d7a5a", fill: "#4cb782", soft: "#e8f4ee" }, dark: { text: "#6bc49a", fill: "#4cb782", soft: "#173026" } },
-  { id: "mint", label: "Mint", role: "Inbox", light: { text: "#26785f", fill: "#4cb8a5", soft: "#e6f4f0" }, dark: { text: "#86c9b1", fill: "#4cb8a5", soft: "#17302a" } },
-  { id: "cyan", label: "Cyan", role: "等待他人", light: { text: "#3d6f78", fill: "#4db7c9", soft: "#e7f2f3" }, dark: { text: "#86c0c7", fill: "#4db7c9", soft: "#1b2e32" } },
-  { id: "blue", label: "Blue", role: "Goals", light: { text: "#3c6fc6", fill: "#5b8def", soft: "#e8eef9" }, dark: { text: "#8fb2f5", fill: "#5b8def", soft: "#1c2740" } },
-  { id: "indigo", label: "Indigo", role: "accent / 进行中", light: { text: "#5e6ad2", fill: "#5e6ad2", soft: "#eef0fb" }, dark: { text: "#8b93f1", fill: "#8b93f1", soft: "#262848" } },
-  { id: "purple", label: "Purple", role: "Sessions", light: { text: "#7f5eb0", fill: "#a78bda", soft: "#f1ebf7" }, dark: { text: "#c0a0ea", fill: "#a78bda", soft: "#2c2438" } },
-  { id: "pink", label: "Pink", role: "Artifacts", light: { text: "#a15571", fill: "#e39eb6", soft: "#f8eef2" }, dark: { text: "#e39eb6", fill: "#e39eb6", soft: "#3a242c" } },
-  { id: "red", label: "Red", role: "阻塞 / 危险", light: { text: "#b03d45", fill: "#eb5757", soft: "#fbecec" }, dark: { text: "#ee858c", fill: "#eb5757", soft: "#3a2024" } },
-  { id: "steel", label: "Steel", role: "设置", light: { text: "#4f6470", fill: "#7d93a0", soft: "#eef1f3" }, dark: { text: "#9bb0bc", fill: "#7d93a0", soft: "#22282c" } },
-  { id: "slate", label: "Slate", role: "Shelf 主操作", light: { text: "#66709e", fill: "#8b95c4", soft: "#eef0f6" }, dark: { text: "#a6afd5", fill: "#8b95c4", soft: "#242636" } },
+  { id: "gray", label: "Gray", role: "闲置 / Home" },
+  { id: "brown", label: "Brown", role: "Feed" },
+  { id: "orange", label: "Orange", role: "注意" },
+  { id: "yellow", label: "Yellow", role: "标记" },
+  { id: "green", label: "Green", role: "完成" },
+  { id: "mint", label: "Mint", role: "Inbox" },
+  { id: "cyan", label: "Cyan", role: "等待他人" },
+  { id: "blue", label: "Blue", role: "Goals" },
+  { id: "indigo", label: "Indigo", role: "accent / 进行中" },
+  { id: "purple", label: "Purple", role: "Sessions" },
+  { id: "pink", label: "Pink", role: "Artifacts" },
+  { id: "red", label: "Red", role: "阻塞 / 危险" },
+  { id: "steel", label: "Steel", role: "设置" },
+  { id: "slate", label: "Slate", role: "Shelf 主操作" },
 ] as const;
 
 export const MW_SURFACES = [
@@ -85,16 +84,6 @@ export const MW_STATUS_TONES = [
   { token: "--tone-quiet", label: "Quiet", role: "归档", hue: "gray" },
 ] as const;
 
-/**
- * The reading surface is the same Soft Workbench family, not a second skin: Shelf and other reading
- * islands alias the shell tokens through `--content-*` (and Shelf through `--da-*`). Only the terminal
- * canvas keeps values of its own.
- */
-export const MW_CONTENT_THEME = {
-  light: { tty: "#F8F7F4", ttyInk: "#383A43" },
-  dark: { tty: "#222329", ttyInk: "#E2E3E9" },
-} as const;
-
 export const MW_CONTENT_SURFACES = [
   { token: "--content-side", label: "Side", role: "内容栏" },
   { token: "--content-paper", label: "Paper", role: "阅读面" },
@@ -107,62 +96,26 @@ export const MW_CONTENT_SURFACES = [
 
 /** File/action marks on the reading surface. Ink for 16px glyphs, fill for chips. No green. */
 export const MW_CONTENT_MARKS: readonly MwContentMark[] = [
-  { id: "slate", label: "钢蓝", role: "文稿 / 网页", light: { text: "#647DB5", fill: "#E7EAF2" }, dark: { text: "#91A8DC", fill: "#3A4155" } },
-  { id: "blue", label: "雾青", role: "代码 / 链接", light: { text: "#5684AA", fill: "#E6ECF3" }, dark: { text: "#8AB2D5", fill: "#354454" } },
-  { id: "ochre", label: "麦色", role: "文件夹", light: { text: "#A7803E", fill: "#F2EBDF" }, dark: { text: "#C9A566", fill: "#4B4133" } },
-  { id: "plum", label: "灰紫", role: "图片 / 对话", light: { text: "#9270B1", fill: "#EFE6EF" }, dark: { text: "#BC9ADA", fill: "#4C3C4D" } },
-  { id: "clay", label: "陶土", role: "PDF / 错误", light: { text: "#B27460", fill: "#F2E7E1" }, dark: { text: "#D29C87", fill: "#4D3D37" } },
+  { id: "slate", label: "钢蓝", role: "文稿 / 网页" },
+  { id: "blue", label: "雾青", role: "代码 / 链接" },
+  { id: "ochre", label: "麦色", role: "文件夹" },
+  { id: "plum", label: "灰紫", role: "图片 / 对话" },
+  { id: "clay", label: "陶土", role: "PDF / 错误" },
 ] as const;
 
-function hueCustomProperties(theme: "light" | "dark"): string {
-  return MW_HUES.map((hue) => {
-    const step = hue[theme];
-    return `--hue-${hue.id}: ${step.text}; --hue-${hue.id}-fill: ${step.fill}; --hue-${hue.id}-soft: ${step.soft};`;
-  }).join(" ");
-}
-
-function contentCustomProperties(theme: "light" | "dark"): string {
-  const surface = MW_CONTENT_THEME[theme];
-  const planes = [
-    "--content-side: var(--surface-soft)",
-    "--content-paper: var(--paper)",
-    "--content-hover: var(--nav-hover)",
-    "--content-press: var(--nav-press)",
-    "--content-ink: var(--ink)",
-    "--content-muted: var(--muted)",
-    "--content-line: var(--line)",
-    "--content-accent: var(--action)",
-    "--content-accent-press: var(--action-hover)",
-    "--content-on-accent: var(--action-ink)",
-    "--content-select: var(--nav-active)",
-    `--content-tty: ${surface.tty}`,
-    `--content-tty-ink: ${surface.ttyInk}`,
-    "--content-danger: var(--red)",
-    "--content-field: var(--rail)",
-  ].join("; ");
-  const marks = MW_CONTENT_MARKS.map((mark) => {
-    const step = mark[theme];
-    return `--mark-${mark.id}: ${step.text}; --mark-${mark.id}-fill: ${step.fill};`;
-  }).join(" ");
-  return `${planes}; ${marks}`;
-}
-
-function semanticAliases(): string {
-  return [
-    "--tone-idle: var(--hue-gray); --tone-progress: var(--accent); --tone-attention: var(--amber);",
-    "--tone-hold: var(--hue-cyan); --tone-blocked: var(--red); --tone-done: var(--green); --tone-quiet: var(--faint);",
-  ].join(" ");
-}
-
+/**
+ * Hue ramps, status tones and the reading surface. The reading surface is the same Soft Workbench family, not a second skin: Shelf and other reading
+ * islands alias the shell tokens through `--content-*` (and Shelf through `--da-*`). Only the terminal canvas keeps values of its own.
+ */
 export function renderPaletteTokens(theme: "light" | "dark"): string {
-  return `${hueCustomProperties(theme)} ${semanticAliases()} ${contentCustomProperties(theme)}`;
+  return baselineGroups(["hue", "tone", "content", "mark"], theme);
 }
 
 /**
  * Soft Workbench shell: one source for every layer's base tokens — surfaces, type tones,
  * status, the mist-blue accent, depth, corners, motion and focus. Foundation, the Coss
  * overlay, the interaction texture and the workbench base all call this instead of
- * restating values, so no later layer quietly wins with a different number.
+ * restating values, so no later layer quietly wins with a different number. The values are in `resources/skins/soft-workbench.json`.
  *
  * Surfaces: a mist desk tinted toward the accent's blue (`--page`/`--desk`), never a large grey, the continuous near-white work
  * surface (`--paper`, and `--canvas`
@@ -171,61 +124,10 @@ export function renderPaletteTokens(theme: "light" | "dark"): string {
  * (`--nav-bg`) and a wash for local groups (`--rail`).
  * The primary action is the accent's deep shade (ink blue); the accent marks focus, links, selection details and work in
  * progress. Every text tone keeps 4.5:1 on the desk and its wash. `--blue*` are the accent under their historical names.
+ * Dark reads as three layers at a glance: the desk, the work surface a step up, floating things a step above it.
  */
 export function renderShellTokens(theme: "light" | "dark"): string {
-  if (theme === "dark") {
-    return [
-      "--page: #141a20; --desk: #141a20; --nav-bg: #141a20; --canvas: #1b2229;",
-      "--paper: #1b2229; --panel: #1b2229; --surface: #1b2229;",
-      "--surface-soft: #1f272f; --rail: #26303a; --wash: #26303a;",
-      "--ink: #e8eef3; --text: #e8eef3; --ink-soft: #bac6d1;",
-      "--muted: #9aa8b5; --faint: #8e9ba8;",
-      "--line: #2c3640; --line-strong: #3f4b57;",
-      "--nav-hover: color-mix(in srgb, var(--ink) 7%, transparent);",
-      "--nav-active: color-mix(in srgb, var(--ink) 11%, transparent);",
-      "--nav-press: color-mix(in srgb, var(--ink) 15%, transparent);",
-      "--nav-raised: #232c35;",
-      "--accent: #8fb8dc; --accent-strong: #b5d1ea; --accent-soft: #1e2d3b; --status-interruption: #8ea6bb;",
-      "--blue: var(--accent); --blue-dark: var(--accent-strong); --blue-soft: var(--accent-soft); --focus: var(--accent);",
-      "--action: #dbe6ef; --action-ink: #17212b; --action-hover: #f0f5f9;",
-      "--green: #86c0a0; --green-soft: #1a2c24; --amber: #d8b46e; --amber-soft: #30291a; --red: #ec8a90; --red-soft: #36222a;",
-      "--shadow-color: #000000; --edge-highlight: rgba(255, 255, 255, .05);",
-      "--surface-shadow: 0 0 0 1px rgba(255, 255, 255, .035), 0 1px 2px rgba(0, 0, 0, .3);",
-      "--shadow-soft: 0 1px 2px rgba(0, 0, 0, .32), 0 4px 12px -4px rgba(0, 0, 0, .4);",
-      "--shadow-raised: 0 0 0 1px rgba(255, 255, 255, .05), 0 3px 8px rgba(0, 0, 0, .2), 0 14px 42px -12px rgba(0, 0, 0, .45);",
-      "--shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 3px 9px rgba(0, 0, 0, .25), 0 20px 70px -15px rgba(0, 0, 0, .55);",
-      "--control-shadow: var(--shadow);",
-      "--lift-1: var(--shadow-soft); --lift-2: var(--shadow-raised); --lift-3: var(--shadow);",
-      "--scrim: rgba(0, 0, 0, .5);",
-      /* Dark reads as three layers at a glance: the desk, the work surface a step up, floating things a step above it. */
-      "--popover: #232c35; --brand-tile-light: #ffffff; --brand-tile-dark: #11161b; --on-accent: #ffffff;",
-    ].join(" ");
-  }
-  return [
-    "--page: #eef3f7; --desk: #eef3f7; --nav-bg: #eef3f7; --canvas: #fcfdfe;",
-    "--paper: #fcfdfe; --panel: #fcfdfe; --surface: #fcfdfe;",
-    "--surface-soft: #f5f8fb; --rail: #e9f0f6; --wash: #e9f0f6;",
-    "--ink: #1f2b37; --text: #1f2b37; --ink-soft: #45525f;",
-    "--muted: #586574; --faint: #616d7a;",
-    "--line: #e0e8ef; --line-strong: #c9d5e0;",
-    "--nav-hover: color-mix(in srgb, var(--ink) 5%, transparent);",
-    "--nav-active: color-mix(in srgb, var(--ink) 8%, transparent);",
-    "--nav-press: color-mix(in srgb, var(--ink) 11%, transparent);",
-    "--nav-raised: #fcfdfe;",
-    "--accent: #3c6e98; --accent-strong: #2e5778; --accent-soft: #e4eef7; --status-interruption: #6f8aa3;",
-    "--blue: var(--accent); --blue-dark: var(--accent-strong); --blue-soft: var(--accent-soft); --focus: var(--accent);",
-    "--action: #2d4f6c; --action-ink: #ffffff; --action-hover: #3a6283;",
-    "--green: #367556; --green-soft: #e4f1ea; --amber: #8c5f0c; --amber-soft: #f6efdf; --red: #b2454c; --red-soft: #f9eaeb;",
-    "--shadow-color: #1c2a3a; --edge-highlight: transparent;",
-    "--surface-shadow: 0 1px 2px rgba(28, 42, 58, .03), 0 8px 24px -14px rgba(28, 42, 58, .1);",
-    "--shadow-soft: 0 1px 2px rgba(28, 42, 58, .05), 0 4px 12px -4px rgba(28, 42, 58, .08);",
-    "--shadow-raised: 0 3px 8px rgba(28, 42, 58, .035), 0 14px 42px -12px rgba(28, 42, 58, .14);",
-    "--shadow: 0 3px 9px rgba(28, 42, 58, .045), 0 20px 70px -15px rgba(28, 42, 58, .2);",
-    "--control-shadow: var(--shadow);",
-    "--lift-1: var(--shadow-soft); --lift-2: var(--shadow-raised); --lift-3: var(--shadow);",
-    "--scrim: rgba(24, 38, 54, .16);",
-    "--popover: #fcfdfe; --brand-tile-light: #ffffff; --brand-tile-dark: #11161b; --on-accent: #ffffff;",
-  ].join(" ");
+  return baselineGroups(["shell"], theme);
 }
 
 /**
@@ -233,24 +135,12 @@ export function renderShellTokens(theme: "light" | "dark"): string {
  * density and touch rules later in the cascade — 28px compact, 44px on phones and coarse pointers — win.
  */
 export function renderControlMetrics(): string {
-  return "--control-h: 32px; --control-pad-x: 12px;";
+  return baselineGroups(["control"]);
 }
 
 /** Theme-independent shape, motion and focus. Safe to restate in late layers: it carries no metrics. */
 export function renderShapeTokens(): string {
-  return [
-    "--radius-item: 8px; --radius-control: 10px; --radius-surface: 14px;",
-    "--control-border: color-mix(in srgb, var(--ink) 9%, transparent);",
-    "--control-input: color-mix(in srgb, var(--ink) 12%, transparent);",
-    "--control-fill: color-mix(in srgb, var(--ink) 4%, transparent);",
-    "--control-fill-hover: color-mix(in srgb, var(--ink) 7%, transparent);",
-    "--control-ring: var(--focus);",
-    "--hairline: color-mix(in srgb, var(--ink) 11%, transparent);",
-    "--focus-ring: var(--accent); --focus-stroke: 2px solid var(--focus-ring); --focus-stroke-inset: 1px;",
-    "--motion-instant: 130ms; --motion-fast: 130ms; --motion-normal: 250ms; --motion-arrive: 420ms; --dur-hover: 130ms; --dur-press: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms; --dur-reveal: 90ms;",
-    "--ease-quint: cubic-bezier(.22, 1, .36, 1); --ease-spring: cubic-bezier(.2, 1.35, .4, 1); --ease-out: var(--ease-quint); --ease-standard: var(--ease-quint); --ease-reveal: cubic-bezier(.215, .61, .355, 1);",
-    "--icon-xs: 12px; --icon-sm: 14px; --icon-md: 16px; --icon-lg: 20px;",
-  ].join(" ");
+  return baselineGroups(["shape"]);
 }
 
 /**

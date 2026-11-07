@@ -3,7 +3,7 @@
     "function apps/local-host/src/space-web-server.ts#createSpaceContext": {
       "kind": "cohesive-unit",
       "reason": "同一安装活动账号的表面生命周期主人：登录租约、凭据发放、旧环境释放与失败重试共同决定同一次交接，内部操作已有独立函数；拆开共享状态会新增主人和转发接口，破坏关闭后再开放的统一顺序。",
-      "size": 181
+      "size": 180
     }
   }
 }

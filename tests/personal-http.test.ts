@@ -1,3 +1,4 @@
+import {accountRefreshFixture,accountProbeCore} from './fixtures/account-refresh.js';
 import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
 import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
@@ -370,4 +371,30 @@ test('PTR-01 permanent cloud cleanup is refused before opening the sync service'
   }
   assert.equal(existsSync(join(home,'feed','secrets.json')),false,'refusal does not open credentials or a sync service');
  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});}
+});
+
+for(const replacement of ['native','same-browser'] as const)test(`ASR-03 delayed failed A status never returns B identity or credential after ${replacement} account replacement`,async t=>{
+ const f=await accountRefreshFixture(t,accountProbeCore);let release!:()=>void,reached!:()=>void,sequence=0;
+ const gate=new Promise<void>(resolve=>{release=resolve;}),waiting=new Promise<void>(resolve=>{reached=resolve;});
+ const proof=readFileSync(join(f.home,NATIVE_SESSION_FILE),'utf8');
+ const native=(path:string,post=false)=>fetch(f.origin+path,{method:post?'POST':'GET',redirect:'manual',headers:{Origin:f.origin,[NATIVE_SESSION_HEADER]:proof,'content-type':'application/json','x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'status-native-'+(++sequence)},...(post?{body:'{}'}:{})});
+ try{
+  const alice=await f.login('alice');let state:string;
+  if(replacement==='native'){
+   const registered=await native('/api/personal/status?page=native-status-owner');assert.equal(registered.status,200);
+   const start=await native('/api/personal/prepare?action=start&page=native-status-owner&intent=switch',true);assert.equal(start.status,200);const {id}=await start.json();
+   const oldPage=await f.request('/api/personal/prepare?action=ack&page=account-refresh-page&id='+id,'POST');assert.equal(oldPage.status,200);
+   const owner=await native('/api/personal/prepare?action=ack&page=native-status-owner&id='+id,true);assert.equal((await owner.json()).ready,true);
+   f.setAuthUser('bob');const begin=await native('/api/personal/switch?page=native-status-owner&preparation='+id,true);assert.equal(begin.status,200);state=f.loginState;
+  }else state=await f.begin('bob');
+  f.authWaits.identity=async user=>{if(user==='alice'){reached();await gate;throw new Error('synthetic delayed identity network failure');}};
+  const originalCookie=f.cookie,oldStatus=f.request('/api/personal/status');await waiting;
+  const complete=await f.complete(state);assert.equal(complete.status,303);
+  const current=await(await native('/api/personal/status')).json();assert.equal(current.identity.userId,'bob');assert.equal(current.ready,true);assert.notEqual(current.viewToken,alice.viewToken);
+  release();const response=await oldStatus;assert.equal(response.status,200);const refused=await response.json();
+  assert.equal(refused.accountChanged,true);assert.equal(refused.identity,null);assert.equal(refused.ready,false);assert.notEqual(refused.viewToken,current.viewToken);
+  assert.doesNotMatch(JSON.stringify(refused),/"bob"/,'an old authenticated request cannot receive the current installation identity');
+  const stale=await fetch(f.origin+'/api/personal/status',{headers:{Cookie:originalCookie}});assert.equal((await stale.json()).identity,null);
+  assert.equal((await(await native('/api/personal/status')).json()).identity.userId,'bob','rejecting A does not revoke the current native account');
+ }finally{release();await f.close();}
 });

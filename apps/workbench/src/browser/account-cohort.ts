@@ -62,10 +62,12 @@ export function accountCohort(prepare: (signal: AbortSignal) => Promise<boolean>
     source.onerror = () => {if(stream !== source)return;source.close();stream = null;if(current)void cancel().catch(failure);};
   };
   return {pageId,connect,observe,cancel,get revision() { return revision; },
-    async begin(intent: 'switch' | 'logout'): Promise<string> {
+    async begin(intent: 'switch' | 'logout'): Promise<string | null> {
       if(cancellation)await cancellation;
       connect();
-      const answer = await request('start',undefined,intent);
+      const startedRevision = revision;
+      const answer = await request('start',undefined,intent).catch(error => {if (revision === startedRevision) throw error;return null;});
+      if (!answer || revision !== startedRevision && (!('id' in answer) || current?.id !== answer.id)) return null;
       if (!('id' in answer)) throw new Error('Account preparation unavailable');
       if (current?.id !== answer.id) observe(answer);
       if (current?.id === answer.id && current.ready) return answer.id;

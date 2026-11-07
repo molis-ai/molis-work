@@ -25,7 +25,7 @@ export function createPersonalPageHttp(refreshPages:AccountRefreshPages) {
       const intent=url.searchParams.get('intent');if(intent!=='switch'&&intent!=='logout'){sendLocalWebJson(response,400,{error:'准备操作无效。'});return true;}
       preparation=refreshPages.start(page,lease,intent);
     }else if(action==='ack')preparation=refreshPages.acknowledge(page,lease,id);
-    else if(action==='cancel'){refreshPages.cancel(page,lease,id);service.cancelLogin();}
+    else if(action==='cancel')refreshPages.cancel(page,lease,id);
     else if(action==='leave')refreshPages.leave(page,lease);
     else if(action==='status')preparation=refreshPages.snapshot(lease);
     else{sendLocalWebJson(response,400,{error:'准备操作无效。'});return true;}

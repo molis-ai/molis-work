@@ -62,6 +62,16 @@ function createNativeWebAttachment(webSessions:PersonalWebSessions) {
   };
 }
 
+/** A browser status request retains its original lease even if its shared session object is rotated during an await. */
+function browserStatusFence(desktop:boolean,session:WebAccountSession|null,response:ServerResponse,configured:boolean) {
+  const authenticated=!desktop&&!!session?.authenticated,lease=session?.lease,expires=session?.expires??0;
+  return ()=>{
+    if(!authenticated)return true;
+    try{if(lease&&expires>Date.now()){lease.assertCurrent();return true;}}catch{ /* The request's original browser lease was revoked. */ }
+    sendLocalWebJson(response,200,{configured,identity:null,syncEnabled:false,accountChanged:true,ready:false,switching:false});return false;
+  };
+}
+
 /** Construct lazily in the server's Home scope; no credentials/configuration means no network. */
 export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMessage)=>boolean = ()=>false, environment?:{
   ready(retry?:boolean):Promise<void>; status():{ready:boolean;switching:boolean;error?:string;viewToken?:string};
@@ -115,17 +125,22 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     const ownedCallback=callback&&!!pendingState&&pendingState===url.searchParams.get('state');
     try{
       if(request.method==='GET' && url.pathname==='/api/personal/status') {
+        const statusCurrent=browserStatusFence(desktop,session,response,!!service);
         if(desktop && setupError){sendLocalWebJson(response,503,{error:setupError});return true;}
         try {
           const identity=!desktop&&!session?.authenticated?null:await service?.currentIdentity()??null;
+          if(!statusCurrent())return true;
           const page=url.searchParams.get('page');if(identity&&service&&page)refreshPages.register(page,service.accountLease());
           if(identity)await environment?.ready();
+          if(!statusCurrent())return true;
           const browserSessionTicket=desktop&&identity&&service?nativeAttachment.issue(service):undefined;
           const completed=!!identity && (environment?.status().ready??true) && !!navigation?.complete && navigation.expires>Date.now() && url.searchParams.get('attempt')===navigation.id;
           if(completed && desktop)setMode('account');
           sendLocalWebJson(response,200,{configured:!!service,identity,syncEnabled:false,accountGeneration:service?.accountGeneration(),loginPending:service?.loginPending()??false,preparation:service?.identity()&&(desktop||session?.authenticated)?refreshPages.snapshot(service.accountLease()):null,...(identity?environment?.status()??{ready:true,switching:false}:{ready:false,switching:false}),space:(desktop&&service?nativeAttachment.session(service):session)?.space??'local',viewToken:identity?(environment?.status().viewToken??_controlToken):_controlToken,...(browserSessionTicket?{browserSessionTicket}:{}),...(completed?{loginCompleted:true,returnTo:navigation!.returnTo}:{})});
         }catch{
+          if(!statusCurrent())return true;
           if(service?.identity())try{await environment?.ready();}catch{ /* The environment status retains the cleanup or initialization failure. */ }
+          if(!statusCurrent())return true;
           const identity=desktop||session?.authenticated?service?.identity()??null:null;
           sendLocalWebJson(response,200,{configured:!!service,identity,syncEnabled:false,offline:true,accountGeneration:service?.accountGeneration(),loginPending:service?.loginPending()??false,preparation:identity&&service?refreshPages.snapshot(service.accountLease()):null,...(identity?environment?.status()??{ready:true,switching:false}:{ready:false,switching:false}),space:session?.space??'local',viewToken:identity?(environment?.status().viewToken??_controlToken):_controlToken});
         }

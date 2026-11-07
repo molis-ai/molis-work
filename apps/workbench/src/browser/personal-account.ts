@@ -26,6 +26,7 @@ const init = () => {
   const query = new URLSearchParams({returnTo});
   if (desktop) query.set('desktop', '1');
   let loginWindow: Window | null = null;
+  const closeLoginWindow = () => { loginWindow?.close(); loginWindow = null; };
   let identity: AccountIdentity | null = null;
   let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', expires = 0;
   const L = globalThis.L || (text => text);
@@ -43,7 +44,7 @@ const init = () => {
     return originalTransport?.(input, options) ?? null;
   };
   const leaveOldPage = () => {
-    loginWindow?.close(); loginWindow = null;
+    closeLoginWindow();
     transition.invalidate();
     for (const node of document.body.children) if (node instanceof HTMLElement) { node.inert = true; node.hidden = true; }
     location.replace(destination);
@@ -82,7 +83,7 @@ const init = () => {
         location.assign(destination); return;
       }
       if (action === 'login' || action === 'switch') {
-        loginWindow?.close(); loginWindow = null;
+        closeLoginWindow();
         if (!globalThis.molisWorkOpenExternalUrl) {
           // Open synchronously during the click, before awaiting the transaction.
           loginWindow = window.open('about:blank', '_blank');
@@ -91,8 +92,9 @@ const init = () => {
         }
         if (attempt) await cancelAttempt();
       }
-      if (identity) query.set('preparation',await cohort.begin(action === 'logout' ? 'logout' : 'switch'));
-      else if (!await prepare()) { loginWindow?.close(); loginWindow = null; return; }
+      const preparation = identity ? await cohort.begin(action === 'logout' ? 'logout' : 'switch') : undefined;
+      if (preparation === null || preparation === undefined && !await prepare()) { closeLoginWindow(); return; }
+      if (preparation) query.set('preparation',preparation);
       const result = await molisWorkRequest<AccountActionResult>('/api/personal/' + action + '?' + query,{method:'POST',body:{}});
       if (result.loginUrl) {
         attempt = result.loginAttempt ?? ''; expires = Date.now() + 600000;
@@ -102,10 +104,10 @@ const init = () => {
         feedback('请在浏览器完成登录，此页面会自动更新。');
       } else if (result.signedOut) {
         channel?.postMessage('changed'); transition.invalidate();
-        attempt = ''; loginWindow?.close(); loginWindow = null; identity = null; paint();
-        location.assign(desktop ? '/?desktop=1' : '/'); return;
+        attempt = ''; closeLoginWindow(); identity = null; paint();
+        location.assign(destination); return;
       }
-    } catch (error) { await cancelAttempt().catch(() => { /* A revoked account cannot be resumed by this page. */ }); loginWindow?.close(); loginWindow = null; feedback(errorMessage(error, '请求失败，请重试。'), true); }
+    } catch (error) { await cancelAttempt().catch(() => { /* A revoked account cannot be resumed by this page. */ }); closeLoginWindow(); feedback(errorMessage(error, '请求失败，请重试。'), true); }
     finally { setBusy(false); }
   });
   const update = async (force = false) => {
@@ -127,7 +129,7 @@ const init = () => {
       }
       if (state.accountChanged || loaded && generation !== undefined && generation !== state.accountGeneration) { if (attempt) channel?.postMessage('changed'); leaveOldPage(); return; }
       generation = state.accountGeneration;
-      if (attempt && state.loginPending === false && !state.loginCompleted) { await cancelAttempt(); loginWindow?.close(); loginWindow = null; }
+      if (attempt && state.loginPending === false && !state.loginCompleted) { await cancelAttempt(); closeLoginWindow(); }
       if (loaded && identity && !state.identity && !state.offline) { leaveOldPage(); return; }
       if (state.error || state.switching || state.ready === false && state.identity) {
         transition.lock(); feedback(state.error || L('账号正在切换，请稍候'), Boolean(state.error));
@@ -150,7 +152,7 @@ const init = () => {
       identity = state.identity; space = state.space || 'local'; configured = state.configured; loaded = true; paint();
       if(!changed)void syncConsent.update(space);
       if (changed) {
-        loginWindow?.close(); location.assign(desktop ? '/?desktop=1' : '/'); return;
+        closeLoginWindow(); location.assign(destination); return;
       }
       registration.complete();
       if (requiredElement(menu,'[role=status]').textContent === L('正在读取账号状态…')) feedback('');

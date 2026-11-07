@@ -315,3 +315,33 @@ ASR-01～16 的工程证据见下方交付记录；ASR-14 的最终桌面实操�
 - 同步后补验 13 个账号、存储、Keychain 与动作合同文件，版本拒绝错误名修正后失败文件 21/21 复跑通过；另外五份目录/浏览器关键文件全通过：真实首次登记与乱序 2/2、菜单 5/5、草稿 2/2、常开目录 21/21、原 UI audit 1/1。保留原超时预算。
 
 这次同步后的检查不伪装成重新跑过全部 50 文件或桌面人工验收。原 Rust 89 个用例属于前述验证提交；最终 PR head 的 native 与 Full 结果由 GitHub CI 提供。ASR-14 仍待用户实操/验收，PR 是否创建及 CI 状态以 GitHub 为准。
+
+## 12. PR #1932 最终验证接续（2026-11-07）
+
+用户要求重新执行 PR 描述涉及的验证，推进全部失败和未做项；并已确认可在桌面产物准备好后配合两个测试账号实操。原 head 为 `ae4ee62d7`；以下为本轮修复及验证记录，CI 和人工验收须分别闭环，不把待完成任务勾成通过。
+
+### 本轮源码防腐复核与修复
+
+按 `docs/prompts/repository-systematic-review.md` 和开发流程 §10.1，三个 Codex 子代理分别追查 Host/Storage、客户端与 CLI/MCP、kernel 与同步调用链。只审 main `8bd734188` 之后的本 PR 增量；没有声称重审全仓，也未把 ZCode/GLM 记作实际执行者。完整本地切片报告保存在 `/private/tmp/molis-1932-ci/review-{host-storage,owners-clients,kernel-sync}.md`。
+
+- P1：旧 A 浏览器 status 的身份检查延迟失败后，离线回退可能读取共享 Auth 已切换到 B 的身份和 viewToken。修复捕获请求开始的原 lease 与期限，在身份和环境等待后的正常、错误分支均复核；失效仅交付 `identity:null/accountChanged`，不交付 B 凭据。真实 HTTP 回归覆盖 native 切换及同一个 browser session 对象 rotate 两种情况，已并入安全 CI 原本选中的 `personal-http.test.ts`。
+- P2：旧准备 id 的迟到 cancel 对 cohort 是 no-op，却曾无条件撤销新 OAuth。修复取消副作用归回原 cohort 的 onCancel；客户端 start 回复复用 revision 拒绝过期回复，结束旧点击但不取消新准备。真实 HTTP 旧 cancel 重放后新 OAuth 仍成功；浏览器控制 HTTP/SSE 顺序验证旧 start 不复活、不发登录、不误取消新准备。窗口关闭与跳转去重，沿用已有资源许可。
+- 元数据读取没有替换 invoke/admit/current/beforeEffect；只读目录复用没有替换独立实时授权。普通插件、SDK、同步数据协议与业务格式未增加生产差异，没有新增兼容分支或迁移。最终构建、资源数字与 CI 结果仍须核对。
+
+### CI 失败与干净基线对照
+
+原 Verify 运行 `42375246547` 的失败为包边界、安全第 4/5 片及产品第 3 片；Full 运行 `42375323989` 第 6 片的首失败为 Golden Home，其他 Full 分片被 fail-fast 取消。已保留完整日志，不能把取消算作通过。
+
+在干净 main `8bd734188` 的独立工作树构建并运行同批五个文件：CLI 归属、terminal、安全快照入口和视觉基础四个文件通过；Golden Home 19/20，唯一旧断言仍期待 `storage.schema_version_mismatch`，实际现行版本拒绝为 `storage.store_too_new`。修复保留实际拒绝与脱敏输出断言，只更新精确错误码。
+
+本分支其余修复：CLI 归属测试的 canonical 与新账号拒绝结构一致，全部原存储 owner 变异保留并补账号拒绝变异；快照入口用公开显式 Home embedding 端口抵达原归属边界，另外验证真实 shipped CLI 在锁释放后仍不允许匿名业务。terminal 测试复用真实 cached owner，先排空升级 socket 再关闭服务，真实 SQL 故障注入保留。Golden/signed-plugin fixture 及两份合成 Home 测量入口改用同一生产 selected-Home core，安装入口不恢复匿名回退。视觉断言仍精确检查原 body classes 和 desktop 标志，适配新增登记属性。
+
+第一次统一完整构建后，12 个定向文件 11 个通过：Golden 20/20、terminal 15/15、快照入口 21/21、HTTP 11/11、cohort 12/12、边界变异 11/11、视觉基础 31/31，四个浏览器文件通过。剩余 `replay-plugins.test.ts` 在干净 main 上同样 1/4，均为签名插件 entrypoint crashed；已确认本机 Homebrew Node 依赖 sandbox 许可范围外的动态库，疑似本机运行时环境问题；下一步使用与 CI 同版本的 standalone Node 24.14.0 对照确认，不放宽沙箱或断言。
+
+本地完整日志、逐项退出码、资源测量与后续结果保存在 `/private/tmp/molis-1932-ci/`。当前段落保留实际时点；最终 CI Full、最后提交复核和桌面用户验收完成后追加确切提交与运行链接。
+
+后续复验：使用与现有 ABI147 原生依赖匹配、仅依赖系统库的 standalone Node 26.4.0，`replay-plugins.test.ts` **4/4** 通过；不改 sandbox、插件、断言或跳过项。直接使用 Node 24.14.0 的早期尝试因现有 better-sqlite3 编译于 Node26 而报 ABI147/137 不匹配，未把该尝试计为产品验证或修改共享依赖。
+
+迟到 start 的成功与失败回复都经过 revision 判断；当前尚未过期的失败仍传播原请求 owner 的 outcome-unknown 提示。最终构建后的四个浏览器文件 **4/4**：乱序 **3/3**、菜单 **5/5**、登记 **2/2**、草稿 **2/2**，全部无跳过。三组复核已核回代码与实际日志，确认发现的 P1/P2 均已闭环；GitHub 最终 head 和人工桌面验收仍单列。
+
+当前原生与静态检查：36 个 Rust 文件的格式、三个 crate 的 Clippy 及桌面 Rust 测试通过；Swift、Python、8 份 shell 脚本通过（补齐本机 shellcheck 后重跑，未跳过）；健康、包边界、workspace 与公开 API 检查通过。完整构建和真实基线资源比较通过后，最后的迟到失败保护使 workbench 实测为 902,227 B，相对 main 895,162 B 为 +7,065 B，比原已批准 +7,017 B 多 48 B；已准备精确登记补丁并向用户请求批准，批准前不应用或放宽通用阈值。原 frame 仍为 191,536 B（+3,104 B）。

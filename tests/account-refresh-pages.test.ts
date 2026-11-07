@@ -1,12 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AccountRefreshPages } from '@molis-ai/molis-work-app-local-host';
+import {accountRefreshFixture,accountProbeCore} from './fixtures/account-refresh.js';
 
 function account() {
   const controller = new AbortController();
   return { controller, lease: { signal: controller.signal, assertCurrent() { assert.equal(controller.signal.aborted, false, 'old account lease'); } } };
 }
 const forbidden = { code: 'actions.forbidden' };
+
+test('ASR-04 a delayed cancellation for an older preparation cannot cancel a newer real OAuth attempt', async t => {
+  const f=await accountRefreshFixture(t,accountProbeCore);
+  try {
+    await f.login('alice');
+    await f.begin('bob');
+    const old=(await f.status()).preparation.id as string;
+    assert.equal((await f.request('/api/personal/prepare?action=cancel&page=account-refresh-page&id='+old,'POST')).status,200);
+    assert.equal((await f.status()).loginPending,false);
+    const next=await f.begin('carol');
+    const current=(await f.status()).preparation.id as string;
+    assert.notEqual(current,old);
+    assert.equal((await f.request('/api/personal/prepare?action=cancel&page=account-refresh-page&id='+old,'POST')).status,200);
+    const unchanged=await f.status();
+    assert.equal(unchanged.loginPending,true,'stale cancellation cannot revoke the new Auth transaction');
+    assert.equal(unchanged.preparation.id,current,'stale cancellation cannot remove the new preparation');
+    assert.equal((await f.complete(next)).status,303);
+    assert.equal((await f.status()).identity.userId,'carol','the newer real exchange can still complete');
+  } finally { await f.close(); }
+});
 
 test('ASR-04 every current page acknowledges; only the owner may commit the matching intent once', t => {
   const pages = new AccountRefreshPages(), a = account(), outsider = account();

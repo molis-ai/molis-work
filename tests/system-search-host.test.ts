@@ -18,7 +18,7 @@ import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const ids = (response: SearchQueryResponse) => response.hits.map(hit => `${hit.plugin_id}:${hit.subject.kind}`).sort();

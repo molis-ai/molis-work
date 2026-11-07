@@ -41,3 +41,32 @@ for (const [name, mutate] of [
     assert.ok(checkGoalsManagementWiring(changed, "mcp").length > 0, "gate must reject the actual changed route");
   });
 }
+
+const cliSource = readFileSync(new URL("../apps/local-host/src/cli-project.ts", import.meta.url), "utf8");
+test("ASR-02 management CLI preserves the native connection token, fixed origin and anonymous fallback refusal", () => {
+  assert.deepEqual(checkGoalsManagementWiring(cliSource, "cli"), []);
+});
+for (const [mode, name, change] of [
+  ["cli", "tool-supplied token", s => s.replace("controlToken:connected?.controlToken", "controlToken:input.controlToken")],
+  ["cli", "missing captured token", s => s.replace("controlToken:connected?.controlToken,", "")],
+  ["cli", "changed constant origin", s => s.replace('const origin=options.actionServiceUrl??readProductEnv("WEB_URL")??DEFAULT_RESIDENT_HOST_URL;', 'const origin=input.origin;')],
+  ["cli", "mutable origin", s => s.replace("const origin=", "let origin=")],
+  ["cli", "fake account owner", s => s.replace('from "./resident-account-connection.js"', 'from "./forged-account.js"')],
+  ["cli", "connection loses original signal", s => s.replace("connectResidentAccount(home,origin,options.signal,required)", "connectResidentAccount(home,origin,undefined,required)")],
+  ["cli", "connected Home replaced by input", s => s.replace("home=connected.homeDirectory", "home=input.home")],
+  ["cli", "compound fallback reset", s => s.replace("const homeDatabase =", 'allowLocalFallback ||= true; const homeDatabase =')],
+  ["cli", "connection replaced after capture", s => s.replace("const homeDatabase =", 'connected={controlToken:input.controlToken}; const homeDatabase =')],
+  ["cli", "anonymous fallback refusal removed", s => s.replace(/    if\(!allowLocalFallback&&homeDatabase\)throw new ActionError\([^\n]+\);\n/, "")],
+  ["cli", "Home owner acquired before refusal", s => s.replace('    if(!allowLocalFallback&&homeDatabase)', '    ensureHomeStorageOwner(localHost,home); if(!allowLocalFallback&&homeDatabase)')],
+  ["cli", "installation regains local fallback", s => s.replace("if(connected.installation)allowLocalFallback=false;", "if(connected.installation)allowLocalFallback=true;")],
+  ["mcp", "production token from tool input", s => s.replace("controlToken:caller.resident.controlToken", "controlToken:arguments_.controlToken")],
+  ["mcp", "production token reread", s => s.replace("controlToken:caller.resident.controlToken", 'controlToken:readProductEnv("CONTROL_TOKEN")')],
+  ["mcp", "production token absent", s => s.replace("controlToken:caller.resident.controlToken,", "")],
+  ["mcp", "embedded token from tool input", s => { const at=s.lastIndexOf("controlToken:caller.resident.controlToken"); return s.slice(0,at)+s.slice(at).replace("controlToken:caller.resident.controlToken", "controlToken:arguments_.controlToken"); }],
+  ["mcp", "embedded original signal lost", s => { const at=s.lastIndexOf("signal: caller.resident.signal"); return s.slice(0,at)+s.slice(at).replace("signal: caller.resident.signal", "signal: undefined"); }],
+]) test(`ASR-02 management wiring rejects ${mode} ${name}`, () => {
+  const original = mode === "cli" ? cliSource : source, changed = change(original);
+  assert.notEqual(changed, original, "mutation must reach the captured production fixture");
+  assert.deepEqual(ts.createSourceFile(`${mode}.ts`, changed, ts.ScriptTarget.Latest, true).parseDiagnostics, []);
+  assert.ok(checkGoalsManagementWiring(changed, mode).length > 0);
+});

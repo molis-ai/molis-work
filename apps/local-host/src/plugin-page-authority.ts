@@ -1,5 +1,7 @@
 import { matchPluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
+import { readStorageSpace } from "@molis-ai/molis-work-storage";
 import { resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionReference, isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -41,7 +43,8 @@ export function pluginPagesFor(home: string): PluginPageAuthority {
   const key = resolve(home);
   let authority = homes.get(key);
   if (!authority) {
-    homes.set(key, authority = new PluginPageAuthority());
+    const storageScope = createHash("sha256").update(JSON.stringify([realpathSync(key), readStorageSpace(key)?.spaceId ?? null])).digest("hex");
+    homes.set(key, authority = new PluginPageAuthority(storageScope));
     projectDeletedHooksFor(key).register({ id: "plugin-pages", label: null, survivesRebuild: true,
       clear: project => authority!.clearProject(project) });
   }
@@ -51,6 +54,7 @@ export function pluginPagesFor(home: string): PluginPageAuthority {
 export class PluginPageAuthority {
   private readonly activations = new Set<Activation>();
   private readonly pages = new Map<string, Page>();
+  constructor(private readonly storageScope: string = randomUUID()) {}
 
   connect(activation: Activation): () => void {
     this.activations.add(activation);
@@ -75,7 +79,7 @@ export class PluginPageAuthority {
     const id = randomUUID();
     this.pages.set(id, { activation, project_id: projectId, requests: new Set(), expiresAt: Date.now() + 30 * 60_000,
       match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope, selection: selected });
-    return { page_id: id, storage_scope: `${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
+    return { page_id: id, storage_scope: `${this.storageScope}:${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
   }
 
   /** Ends the page and its requests, for `reason`: a withdrawal unless the caller says the person left it (`left`). */

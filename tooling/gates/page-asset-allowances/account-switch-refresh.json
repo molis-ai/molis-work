@@ -1,0 +1,9 @@
+{
+  "reason": "ASR-04/07 账号切换的草稿排空、多页面准备与 frame 注册门禁；复用现有租约、草稿和生命周期，保持压缩构建且不新增运行时依赖，已去掉未使用的 toast 写入并共用菜单/切换 helper。本文件仅迁移本任务已批准的 frame +3104 B、workbench +7017 B 增量，不转换或重复使用 main 已采用的许可。",
+  "review": "用户2026-11-07在本次账号切换与刷新修复会话明确批准这两个一次性增量；批准与职责记录见 specs/account-switch-refresh/spec.md 第9节防腐逐项结论第5项。本任务原两份门禁提交为610f6314f、f5ad569d7，本文件仅迁移其中本任务尚未采用的页面资源许可。",
+  "userApproval": "用户2026-11-07明确同意 plugin-frame.js +3104 B、workbench.js +7017 B；本次仅将本任务既有批准迁移到 main #1904 的独立任务格式，不复用其他PR批准。",
+  "assets": {
+    "/assets/molis-work-plugin-frame.js": 3104,
+    "/assets/molis-work-workbench.js": 7017
+  }
+}

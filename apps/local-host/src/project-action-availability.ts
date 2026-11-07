@@ -1,3 +1,4 @@
+import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PLATFORM_PLUGIN_REGISTRATIONS, availableProjectPluginIds, shownProjectPlugins } from "./plugin-registry.js";
 import type { ActionAvailability, ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -13,9 +14,9 @@ import { homePluginsOutsideBuild } from "./home-registration.js";
  * that passes none reaches none of them.
  */
 export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
-  outsideBuild: readonly string[] = []): ReadonlySet<string> | null {
+  outsideBuild: readonly string[] = [], directory?: () => readonly ProjectPluginId[]): ReadonlySet<string> | null {
   try {
-    const { plugins, hidden } = catalog.projectPluginMembership(projectId);
+    const { plugins, hidden } = catalog.projectPluginMembership(projectId, directory);
     const reachable = new Set(availableProjectPluginIds(shownProjectPlugins(plugins, hidden)));
     for (const key of outsideBuild) if (!hidden.includes(key)) reachable.add(key);
     return reachable;
@@ -75,6 +76,7 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
   const live = (caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability | Promise<ActionAvailability> =>
     entryOf(action) ? read(caller).then(reachable => state(caller, action, reachable)) : { available: true };
   return Object.assign(live, { snapshotForDiscovery: async (caller: ActionCallContext) => {
+    // A later discovery can be the post-await withdrawal check of an aggregate. Never reuse its presentation directory here.
     const reachable = await read(caller);
     return (_caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability => state(caller, action, reachable);
   } });

@@ -38,7 +38,7 @@ import {
 } from "../apps/workbench/dist/plugin-settings-catalog.js";
 import { renderAppearanceSettingsDocument } from "../apps/workbench/dist/settings-appearance.js";
 import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { renderMolisWorkSettings } from "./workbench-renderer-fixture.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
 

@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, bindDatabaseSpace, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return describeSqliteSchema(db); } finally { db.close(); } };
@@ -200,4 +201,48 @@ test('a v14 project refuses unchanged before adding derived saved SDK history',t
  const directory=mkdtempSync(join(tmpdir(),'project-v14-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
  db.exec(readFileSync(new URL('./fixtures/project-database-schema-v14.sql',import.meta.url),'utf8')+'PRAGMA user_version=14');db.close();
  const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
+});
+
+// A binding is not an old business schema; both the standalone and managed bootstrap remain valid.
+test("S-142 PCSYNC-F2 same-Home space-only libraries initialize without changing their binding", t => {
+  const home = mkdtempSync(join(tmpdir(), "project-bound-bootstrap-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const space = ensureStorageSpace(home), directory = join(home, "projects", "p");
+  mkdirSync(directory, { recursive: true });
+  const standalone = join(home, "standalone.db"), managed = join(directory, "molis-work.db");
+  for (const file of [standalone, managed]) {
+    const db = new DatabaseSync(file);
+    try {
+      bindDatabaseSpace(db, space);
+      if (file === standalone) applySqliteBaseline(db, file, PROJECT_DATABASE_BASELINE);
+    } finally { db.close(); }
+  }
+  const opened = new LocalProjectDatabase(managed);
+  try { assert.deepEqual(readDatabaseSpace(opened.db), space); } finally { opened.close(); }
+  for (const file of [standalone, managed]) {
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, PROJECT_DATABASE_BASELINE.version);
+      assert.deepEqual(readDatabaseSpace(db), space);
+    } finally { db.close(); }
+  }
+});
+
+for (const version of [0, PROJECT_DATABASE_BASELINE.version]) test(`S-142 PCSYNC-F2 managed project refuses foreign space at version ${version} before any writable open`, t => {
+  const home = mkdtempSync(join(tmpdir(), "project-foreign-space-")), other = mkdtempSync(join(tmpdir(), "project-foreign-owner-"));
+  t.after(() => { rmSync(home, { recursive: true, force: true }); rmSync(other, { recursive: true, force: true }); });
+  ensureStorageSpace(home);
+  const directory = join(home, "projects", "p"); mkdirSync(directory, { recursive: true });
+  const file = join(directory, "molis-work.db"), db = new DatabaseSync(file);
+  try {
+    bindDatabaseSpace(db, ensureStorageSpace(other));
+    if (version) applySqliteBaseline(db, file, PROJECT_DATABASE_BASELINE);
+  } finally { db.close(); }
+  chmodSync(file, 0o644);
+  const digest = () => createHash("sha256").update(readFileSync(file)).digest("hex");
+  const before = digest(), mode = statSync(file).mode & 0o777, members = readdirSync(directory).sort();
+  assert.throws(() => new LocalProjectDatabase(file), /SPACE_OWNERSHIP_MISMATCH/);
+  assert.equal(digest(), before, "foreign database bytes are preserved");
+  assert.equal(statSync(file).mode & 0o777, mode);
+  assert.deepEqual(readdirSync(directory).sort(), members, "no journal sidecar is created");
 });

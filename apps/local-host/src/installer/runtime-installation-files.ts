@@ -30,18 +30,23 @@ export async function inspectSkillLink(targetPath: string, desiredTarget: string
   };
 }
 
-export async function replaceSkillLink(targetPath: string, sourcePath: string, molisWorkHome: string): Promise<Stats> {
-  const current = await inspectSkillLink(targetPath, sourcePath, molisWorkHome);
+export async function replaceSkillLink(targetPath: string, sourcePath: string, molisWorkHome: string, assertCurrent: () => void = () => {}): Promise<Stats> {
+  assertCurrent();
+  const current = await inspectSkillLink(targetPath, sourcePath, molisWorkHome); assertCurrent();
   if (current.state === "current") return fs.lstat(targetPath);
   if (current.state === "conflict") throw new Error(`不会覆盖未知 Skill: ${targetPath}`);
-  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  assertCurrent();
+  await fs.mkdir(path.dirname(targetPath), { recursive: true }); assertCurrent();
   const temporaryPath = `${targetPath}.tmp-${randomUUID()}`;
+  assertCurrent();
   await fs.symlink(sourcePath, temporaryPath, "dir");
   try {
+    assertCurrent();
     const identity = await fs.lstat(temporaryPath);
     if ((await inspectSkillLink(targetPath, sourcePath, molisWorkHome)).signature !== current.signature) {
       throw new Error(`Skill 已被用户修改，不会覆盖: ${targetPath}`);
     }
+    assertCurrent();
     await fs.rename(temporaryPath, targetPath);
     return identity;
   } finally {
@@ -49,10 +54,13 @@ export async function replaceSkillLink(targetPath: string, sourcePath: string, m
   }
 }
 
-export async function removeExpectedSkillLink(targetPath: string, expectedTarget: string): Promise<void> {
+export async function removeExpectedSkillLink(targetPath: string, expectedTarget: string, assertCurrent: () => void = () => {}): Promise<void> {
+  assertCurrent();
   const snapshot = await inspectSkillLink(targetPath, expectedTarget, path.dirname(path.dirname(expectedTarget)));
+  assertCurrent();
   if (snapshot.state === "absent") return;
   if (snapshot.state !== "current") throw new Error(`Skill 已被用户修改，不会删除: ${targetPath}`);
+  assertCurrent();
   await fs.unlink(targetPath);
 }
 
@@ -67,20 +75,24 @@ export async function restoreSkillSnapshot(targetPath: string, snapshot: SkillSn
   return true;
 }
 
-export async function replaceTextFile(filePath: string, contents: string | null, mode?: number): Promise<Stats | null> {
+export async function replaceTextFile(filePath: string, contents: string | null, mode?: number, assertCurrent: () => void = () => {}): Promise<Stats | null> {
+  assertCurrent();
   if (contents == null) {
     await fs.rm(filePath, { force: true });
     return null;
   }
-  return writeAtomic(filePath, contents, mode);
+  return writeAtomic(filePath, contents, mode, assertCurrent);
 }
 
-export async function writeAtomic(filePath: string, contents: string, mode?: number): Promise<Stats> {
+export async function writeAtomic(filePath: string, contents: string, mode?: number, assertCurrent: () => void = () => {}): Promise<Stats> {
+  assertCurrent();
   await fs.mkdir(path.dirname(filePath), { recursive: true });
+  assertCurrent();
   const temporaryPath = `${filePath}.tmp-${randomUUID()}`;
   await fs.writeFile(temporaryPath, contents, mode == null ? undefined : { mode });
   try {
-    const identity = await fs.lstat(temporaryPath);
+    assertCurrent();
+    const identity = await fs.lstat(temporaryPath); assertCurrent();
     await fs.rename(temporaryPath, filePath);
     return identity;
   } catch (error) {

@@ -3,6 +3,7 @@ import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
 import { childTaskGrants } from "./task-grants-area.js";
+import { childConnectionNeed } from "./connection-need.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -73,11 +74,8 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
-  // The connection card (specs/assistant-service-connections/spec.md §13.5) is not drawn yet: every `connectionNeed` is refused
-  // with one fixed error and nothing reaches the shell. The ④c shell slice replaces it with the frame half that reports the place.
-  const unavailable = () => Promise.reject(new Error("Unavailable"));
   const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
-    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: unavailable,
+    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),

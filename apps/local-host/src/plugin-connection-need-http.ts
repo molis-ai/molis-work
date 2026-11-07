@@ -12,6 +12,7 @@ import { connectorPluginSlotActions, connectorPluginSlotSwitch } from "./connect
 import { pinnedToAnother } from "./connector-plugin-requests.js";
 import { shownState } from "./connector-refresh-refusals.js";
 import { connectorSetupAction } from "./connector-setup.js";
+import { checkCandidateKey, rememberCandidateCheck } from "./connector-candidate-check.js";
 import { connectionChoice, pageOwnerClient, trustedPluginPage } from "./plugin-connection-slots-http.js";
 import { imageBaseUrl, imageConnectionSnapshot, imageConnectionViews } from "./plugin-image-connections.js";
 import { createPluginImageGenerationPort } from "./plugin-image-generation-service.js";
@@ -134,19 +135,42 @@ async function prepare(home: string, client: BoundActionClient, target: Resolved
       return { service_id, method: method?.kind ?? "oauth", display_name: entry?.title ?? service_id, expected_revision: null };
     })();
   const output = await client.invoke(connectorSetupAction, input) as { authorization_id: string; status: string; url: string };
-  return { authorization_id: output.authorization_id, status: output.status, url: output.url };
+  return { authorization_id: output.authorization_id, status: output.status, url: output.url, method: input.method };
 }
 
-/** A key the person typed on the card: saved as the connection owner saves one, pinned to this origin and put on this target, in one pass. */
-function saveImageKey(home: string, target: Resolved & { kind: "image" }, key: string, assertCurrent: () => void): void {
-  assertCurrent();
-  const saved = activateConnectorConnection(home, { kind: "token", input: { serviceId: "image-api", displayName: `图像模型 API · ${new URL(target.origin).host}`, token: key, accountLabel: null } });
+/**
+ * A key the person typed on the card: checked before it is saved, as the connections page saves one (④d, `checkCandidateKey`, BL-1058),
+ * then saved, pinned to this origin and put on this target in one pass. A key the check refuses, a request the page leaves while the
+ * check runs, or a page that is no longer current after it, writes nothing: no connection, no pin, no binding, no check record; the key
+ * the target had stays as it was. (An image key is one the check cannot ask a service about today; it is then checked where it is used,
+ * by the first generation, as on the connections page.)
+ */
+async function saveImageKey(home: string, target: Resolved & { kind: "image" }, key: string, assertCurrent: () => void, signal: AbortSignal): Promise<void> {
+  const token = key.trim(), checked = await checkCandidateKey(home, { serviceId: "image-api", token }, { signal });
+  signal.throwIfAborted(); assertCurrent();
+  const saved = activateConnectorConnection(home, { kind: "token", input: { serviceId: "image-api", displayName: `图像模型 API · ${new URL(target.origin).host}`, token, accountLabel: null } });
   createPluginImageGenerationPort(home, target.namespace).bind(target.image, saved.connection_id);
+  if (checked) rememberCandidateCheck(home, saved.connection_id, checked);
 }
 
+/**
+ * What only the trusted shell reads (never the frame): the service and its name, the slot's Manifest reason the card quotes as the plugin's
+ * words, an image target's origin, and the account here with whether the person disabled it.
+ */
 async function respond(home: string, client: BoundActionClient, target: Resolved, extra: Record<string, unknown> = {}) {
-  const connection = await bound(home, client, target);
-  return { service_id: target.kind === "slot" ? target.slot.service_id : "image-api", ...(target.kind === "image" ? { origin: target.origin } : {}), connection: connectionChoice(connection), ...extra };
+  const connection = await bound(home, client, target), service_id = target.kind === "slot" ? target.slot.service_id : "image-api";
+  const title = target.kind === "slot" ? (await listConnectorSettingsCards(home)).find(row => row.connector_id === service_id)?.title ?? service_id : "图像模型";
+  const disabled = connection && withConnectorConnections(home, store => store.get(connection.connection_id)?.enabled === false);
+  return { service_id, service_title: title, ...(target.kind === "slot" && target.slot.reason ? { reason: target.slot.reason } : {}),
+    ...(target.kind === "image" ? { origin: target.origin } : {}), connection: connectionChoice(connection), ...(disabled ? { disabled: true } : {}), ...extra };
+}
+
+/** A request the page leaves (its connection closes before the answer) is a cancelled call: a check under way stops, nothing is written after it. */
+function requestSignal(context: WebRequestContext): AbortSignal {
+  const controller = new AbortController(), { request, response } = context;
+  const cancel = () => controller.abort(new ActionError("actions.cancelled", "这次设置操作已经结束"));
+  request.once("aborted", cancel); response.once("close", () => { if (!response.writableEnded) cancel(); });
+  return controller.signal;
 }
 
 /** `POST /api/host/plugin-page-connection`: read, connect, choose, switch, enable or key one connection card's target (§13.5 三第 4 条). */
@@ -196,7 +220,7 @@ export async function pageConnectionNeed(context: WebRequestContext, reference: 
       if (target.kind !== "image") throw connectionNeedErrors.operation_unsupported("这个服务不在卡里填密钥");
       if (current?.state === "connected") throw connectionNeedErrors.account_bound("这里的密钥还能用");
       await page.beforeEffect();
-      saveImageKey(home, target, request.api_key!, page.assertCurrent);
+      await saveImageKey(home, target, request.api_key!, page.assertCurrent, requestSignal(context));
       return respond(home, client, target);
     }
   }

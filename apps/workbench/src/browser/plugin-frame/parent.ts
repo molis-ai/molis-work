@@ -4,6 +4,7 @@ import { pageReviews } from "./reviews.js";
 import { pageEmbeds } from "./embed.js";
 import { pageFramedAreas } from "./framed-area.js";
 import { pageTaskGrants } from "./task-grants-area.js";
+import { pageConnectionNeed } from "./connection-need.js";
 import { downloadFrameFile, downloadPageBlob } from "./links.js";
 import { printPageDocument } from "./files.js";
 import { pageMessages } from "./messages.js";
@@ -146,7 +147,10 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       if (!node.checkVisibility({ visibilityProperty: true })) return false;
     return scope.visible;
   };
-  const taskGrants = pageTaskGrants(port, scope, pageFramedAreas(scope, root, frame, visible), grant.page_id, route, host.translate, host.translate(frame.title));
+  // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
+  const areas = pageFramedAreas(scope, root, frame, visible), owner = host.translate(frame.title);
+  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, host.translate, owner);
+  const connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, host.translate, owner);
   const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),
     theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) }); };
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
@@ -202,6 +206,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "workspace") { void workspaces(message); return; }
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "task-grants-open" || message.type === "task-grants-layout" || message.type === "task-grants-close") { taskGrants(message); return; }
+    if (message.type === "connection-need-open" || message.type === "connection-need-layout" || message.type === "connection-need-close") { connectionNeed(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") { void drafts(message); return; }
     if (message.type === "context-intake") { makeIntake(message); return; }

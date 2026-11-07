@@ -126,6 +126,13 @@ const violations: Scenario[] = [
   }, expect: [/tests reach into package internals in tests\/clean\.test\.ts 0 → 1/] },
   { name: "a third vendored SDK package", mutate: () => { vendored("vendor/prologue-sdk/b.tgz", "b"); vendored("vendor/prologue-sdk/c.tgz", "c"); }, expect: [/vendor\/prologue-sdk holds 3 packages/], kind: "absolute" },
   { name: "an in-place schema patch", mutate: () => put("packages/alpha/src/patch.ts", 'export const sql = "ALTER TABLE t ADD COLUMN c TEXT";\n'), expect: [/in-place schema patches 0 → 1/] },
+  { name: "an ALTER TABLE moved out of a baseline's upgrades", mutate: () => put("packages/alpha/src/patch.ts", 'const STEP = { from: 1, sql: "ALTER TABLE t ADD COLUMN c TEXT" };\nexport const TABLES: SqliteBaseline = { version: 2, schema: "", upgrades: [STEP] };\n'), expect: [/in-place schema patches 0 → 1/] },
+  { name: "an in-place patch spelled by joining strings", mutate: () => put("packages/alpha/src/patch.ts", 'export const sql = "ALTER " + "TABLE t ADD COLUMN c TEXT";\n'), expect: [/in-place schema patches 0 → 1/] },
+  { name: "an in-place patch moved to a .sql file", mutate: () => put("packages/alpha/src/patch.sql", "ALTER TABLE t ADD COLUMN c TEXT;\n"), expect: [/in-place schema patches 0 → 1/] },
+  // UPG1-i-initial-16: the half of the unified-origin check with no build is an absolute rule of the gate (user 2026-11-07).
+  { name: "a first-party version constant above 1", mutate: () => put("packages/alpha/src/stored.ts", "export const STORED_VERSION = 2;\n"), expect: [/packages\/alpha\/src\/stored\.ts: STORED_VERSION = 2 \(expected 1\)/], kind: "absolute" },
+  { name: "a persistent format entry above 1", mutate: () => put("tooling/versions.json", JSON.stringify({ versions: { "format.home.onboarding": 2 } })), expect: [/onboarding\.ts#schema_version = 2 \(expected 1; above 1 it needs a registered upgrade chain/], kind: "absolute" },
+  { name: "a version table that cannot be read", mutate: () => put("tooling/versions.json", "{"), expect: [/tooling\/versions\.json cannot be read/], kind: "absolute" },
   { name: "another compatibility marker in a file", mutate: () => put("packages/alpha/src/marked.ts", read("packages/alpha/src/marked.ts") + "// legacy again\n"), expect: [/compatibility markers in packages\/alpha\/src\/marked\.ts 1 → 2/] },
   { name: "a new file with a compatibility marker", mutate: () => put("packages/alpha/src/shim.ts", "// @deprecated\nexport const shim = 1;\n"), expect: [/compatibility markers in packages\/alpha\/src\/shim\.ts 0 → 1/] },
   { name: "a spec without a status line", mutate: () => put("specs/other/spec.md", "# Other\n\nno status here\n"), expect: [/specs\/other: no status line near the top/], kind: "absolute" },

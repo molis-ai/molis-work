@@ -194,7 +194,7 @@ export type OwnedTextRef =
   | { readonly owner: string; readonly key: string; readonly args?: readonly TextArg[]; readonly fallback?: string }
   | { readonly literal: string };
 
-export const TEXT_REF_LIMITS = { key: 120, args: 8, arg_name: 64, arg_text: 2000, literal: 2000, fallback: 2000 } as const;
+export const TEXT_REF_LIMITS = { key: 120, args: 8, arg_name: 64, arg_text: 2000, arg_at: 40, literal: 2000, fallback: 2000, owner: 200 } as const;
 
 /** 语言标记的形状。T3 的 Manifest 解析和 T4 的语言包解析都从这里取，不写第二份。 */
 export const LOCALE_TAG = /^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?$/;
@@ -278,12 +278,12 @@ const TEXT_ARG_SCHEMA: SandboxSchema = {
     kind: { type: "string", enum: ["text", "number", "date"] },
     text: { type: "string", maxLength: TEXT_REF_LIMITS.arg_text },
     number: { type: "number" },
-    at: { type: "string", maxLength: 40 },
+    at: { type: "string", maxLength: TEXT_REF_LIMITS.arg_at },
     style: { type: "string", enum: ["decimal", "percent", "compact", "date", "time", "datetime", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"] },
   },
 };
 export const TEXT_REF_SCHEMA: SandboxSchema = {
-  type: "object", additionalProperties: false,
+  type: "object", additionalProperties: false, required: [],
   properties: {
     key: { type: "string", minLength: 3, maxLength: TEXT_REF_LIMITS.key },
     args: { type: "array", maxItems: TEXT_REF_LIMITS.args, items: TEXT_ARG_SCHEMA },

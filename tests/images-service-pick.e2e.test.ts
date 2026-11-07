@@ -115,6 +115,8 @@ test("ASC-70 Images: generating with a service that has no key shows the connect
   await click("[data-images-generate]");
   await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "paste"`);
   assert.equal(await evaluate("document.querySelector('[data-images-connection-need]').hidden"), false, "the card's place is the generate area");
+  assert.deepEqual(await evaluate("({ primary: document.querySelector('[data-images-generate]').classList.contains('mw-btn--primary'), note: document.querySelector('[data-images-note]').textContent })"),
+    { primary: false, note: "" }, "while the card is there it is the one thing to do: 生成 is not primary and the earlier note is gone");
   assert.match(await browser.evaluate<string>(`document.querySelector(${JSON.stringify(CARD)}).textContent`), /api\.openai\.com/u, "the card names the one address the key will go to");
   // As a person would: the card scrolled wholly into view, and held still there before the press.
   await evaluate("document.querySelector('[data-images-connection-need]').scrollIntoView({ block: 'center' })");
@@ -124,6 +126,7 @@ test("ASC-70 Images: generating with a service that has no key shows the connect
   await waitFor("document.querySelector('[data-images-connection-need]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-images-note]').textContent"), "没有连上图像服务，提示词还在；准备好了再点生成。");
   assert.equal(await evaluate("document.querySelector('[data-images-prompt]').value"), "a lighthouse at dusk", "the words stay");
+  assert.equal(await evaluate("document.querySelector('[data-images-generate]').classList.contains('mw-btn--primary')"), true, "生成 is the primary button again");
   const sent = await browser.evaluate<Array<{ url: string; method: string; body: { operation?: string } | null }>>("window.ascSent");
   assert.deepEqual(sent.filter(item => item.method !== "GET" && item.body?.operation !== "read" && item.body?.operation !== "prepare"), [], "cancelling saves no key and starts no job: " + JSON.stringify(sent));
 });

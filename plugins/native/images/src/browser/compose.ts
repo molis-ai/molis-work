@@ -10,11 +10,15 @@ const unconfirmed = (error: unknown): boolean => statusOf(error) === 0 || ["ui_h
  * The picked service has no usable key: the platform's connection card in the generate area asks for one, only for this service's
  * address (ASC-70, §13.5). Connected, the same generation is submitted once more (the request id of the same
  * words, so it starts one job); cancelled, the words stay as they were. Generating has no confirmation of its own, so none is added.
+ * While the card is there it is the one thing to do: the earlier note goes and 生成 steps back from primary.
  */
 async function needKey(page: ImagesPage, connection: ImageConnection): Promise<void> {
   const place = page.field("connection-need");
   if (!place.hidden) return;
   place.hidden = false;
+  const generate = page.el.generate;
+  page.say("");
+  generate.classList.replace("mw-btn--primary", "mw-btn--secondary");
   try {
     const outcome = await page.host.connectionNeed(place, { kind: "image", slot_id: connection.id, base_url: connection.base_url }, { signal: page.s.viewSignal });
     if (!page.life.alive) return;
@@ -23,7 +27,7 @@ async function needKey(page: ImagesPage, connection: ImageConnection): Promise<v
     if (page.s.cid === connection.id && page.pickedConn()?.available !== false) await submit(page);
   } catch (error) {
     if ((error as Error).name !== "AbortError") page.say(messageOf(error) || page.L("images.error.request"), true);
-  } finally { if (page.life.alive) place.hidden = true; }
+  } finally { generate.classList.replace("mw-btn--secondary", "mw-btn--primary"); if (page.life.alive) place.hidden = true; }
 }
 
 async function submit(page: ImagesPage): Promise<void> {

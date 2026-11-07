@@ -21,8 +21,33 @@ export MOLIS_WORK_MACOS_ARCH="$RELEASE_ARCH"
 # Do not let Tauri auto-select an unrelated local development certificate.
 # A caller-supplied release identity is preserved; local builds are explicitly ad-hoc.
 export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
+
+# A Developer ID build is a release candidate: it must also be notarized, or it is not something to give a person
+# (docs/releases/POLICY.md). Notarization credentials are read by name from the environment only (the release workflow
+# passes them); this script never prints or stores them. Tauri notarizes the .app; the DMG is notarized below.
+# Any other identity (a local stable certificate such as "Tauri Local Development", which keeps the computer helper's
+# macOS permissions across rebuilds, specs/computer-use D08) is a local build: signed, checked, never notarized.
+RELEASE_SIGNING=0
+if [[ "$APPLE_SIGNING_IDENTITY" == "Developer ID Application:"* ]]; then
+  RELEASE_SIGNING=1
+  if [[ -n "${APPLE_API_KEY:-}" && -n "${APPLE_API_ISSUER:-}" && -n "${APPLE_API_KEY_PATH:-}" ]]; then
+    NOTARY_AUTH=(--key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER")
+  elif [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+    NOTARY_AUTH=(--apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID")
+  else
+    echo "APPLE_SIGNING_IDENTITY is set, but notarization credentials are missing." >&2
+    echo "Provide APPLE_API_KEY, APPLE_API_ISSUER and APPLE_API_KEY_PATH, or APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID." >&2
+    exit 1
+  fi
+fi
+
 pnpm --dir "$REPO_ROOT" build
 bash "$SCRIPT_DIR/prepare-macos-runtime.sh"
+
+# Tauri signs the App and the code in its standard places, not the runtime under Contents/Resources. Sign that first,
+# with the same identity (ad-hoc for a local build), so what Tauri copies in is already signed the release way.
+RUNTIME_DIR="$REPO_ROOT/apps/desktop/src-tauri/resources/molis-work-runtime"
+node "$SCRIPT_DIR/sign-macos-runtime.mjs" "$RUNTIME_DIR" "$APPLE_SIGNING_IDENTITY"
 
 (cd "$REPO_ROOT/apps/desktop" && "$REPO_ROOT/node_modules/.bin/tauri" build --bundles app,dmg --ci)
 
@@ -34,6 +59,34 @@ if [[ ! -d "$APP_PATH" || -z "$DMG_PATH" || ! -f "$DMG_PATH" ]]; then
   exit 1
 fi
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+# Every piece of code: valid, hardened runtime, no get-task-allow, Node with its JIT entitlement; for a release also
+# Developer ID, a secure timestamp and one Team ID.
+if [[ "$RELEASE_SIGNING" == 1 ]]; then
+  node "$SCRIPT_DIR/verify-macos-signatures.mjs" "$APP_PATH" --release
+else
+  node "$SCRIPT_DIR/verify-macos-signatures.mjs" "$APP_PATH"
+fi
+
+if [[ "$RELEASE_SIGNING" == 1 ]]; then
+  # Tauri has notarized and stapled the App. The DMG is what people download and may first open offline, so it gets
+  # its own signature, notarization and stapled ticket. Each check below failing means the package is not releasable.
+  xcrun stapler validate "$APP_PATH"
+  codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$DMG_PATH"
+  xcrun notarytool submit "$DMG_PATH" "${NOTARY_AUTH[@]}" --wait
+  xcrun stapler staple "$DMG_PATH"
+  xcrun stapler validate "$DMG_PATH"
+  # spctl also says "accepted" on a machine where Gatekeeper assessment is turned off; only the notarized source counts.
+  APP_ASSESSMENT="$(spctl --assess --type execute --verbose=4 "$APP_PATH" 2>&1)" || { echo "$APP_ASSESSMENT" >&2; exit 1; }
+  DMG_ASSESSMENT="$(spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG_PATH" 2>&1)" || { echo "$DMG_ASSESSMENT" >&2; exit 1; }
+  echo "$APP_ASSESSMENT"
+  echo "$DMG_ASSESSMENT"
+  for result in "$APP_ASSESSMENT" "$DMG_ASSESSMENT"; do
+    if [[ "$result" != *"source=Notarized Developer ID"* ]]; then
+      echo "Gatekeeper did not accept the package as Notarized Developer ID." >&2
+      exit 1
+    fi
+  done
+fi
 
 OUTPUT_DIR="$REPO_ROOT/release/macos"
 mkdir -p "$OUTPUT_DIR"
@@ -48,5 +101,9 @@ ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUTPUT_ZIP"
 echo "Built Molis Work macOS release:"
 echo "  $OUTPUT_DMG"
 echo "  $OUTPUT_ZIP"
-echo "Actual App signature (signature validity is not notarization or Gatekeeper approval):"
+if [[ "$RELEASE_SIGNING" == 1 ]]; then
+  echo "Actual App signature (notarized, stapled and accepted by Gatekeeper above):"
+else
+  echo "Actual App signature (local build: signature validity is not notarization or Gatekeeper approval):"
+fi
 codesign -dv --verbose=2 "$APP_PATH" 2>&1

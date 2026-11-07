@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- 主程序经 /usr/bin/osascript 向 Safari、Chrome 一类浏览器和 Finder 发 Apple Events，取当前页面与选中的文件
+       （adapters/tauri/src/shelf_hotkeys_macos.rs）。hardened runtime 下没有这一项，系统不弹授权、直接拒绝。
+       说明文字是 Info.plist 的 NSAppleEventsUsageDescription。 -->
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
+</dict>
+</plist>

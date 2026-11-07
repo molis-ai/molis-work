@@ -35,4 +35,4 @@
 pnpm --filter @molis-ai/molis-work-app-local-host run computer:build
 ```
 
-macOS 按签名记授权。`MOLIS_HELPER_SIGNING_IDENTITY` 指定证书；不给时用本机的「Tauri Local Development」证书（有就用），否则 ad-hoc 并警告：ad-hoc 每次构建都变，授权会丢。发布签名与公证待定（BL-021，spec D08）。
+macOS 按签名记授权。`MOLIS_HELPER_SIGNING_IDENTITY` 指定证书；不给时用本机的「Tauri Local Development」证书（有就用），否则 ad-hoc 并警告：ad-hoc 每次构建都变，授权会丢。构建一直开 hardened runtime。发布时 `apps/desktop/tooling/sign-macos-runtime.mjs` 用 Developer ID 把助手按 bundle 整体重签并带时间戳；本机不给签名身份的 App 构建保留这里用本机证书签好的助手，授权不丢（步骤见 `docs/releases/APPLE-INDIVIDUAL-ACCOUNT.md`）。改用 Developer ID 后授权要重给一次。

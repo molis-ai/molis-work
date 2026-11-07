@@ -53,6 +53,13 @@ if [[ -z "$IDENTITY" ]]; then
     echo "warning: no stable signing certificate; ad-hoc signed, so macOS will ask for the permissions again after every rebuild." >&2
   fi
 fi
-codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" --timestamp=none "$APP"
+# Hardened runtime always, so a development build fails the same way a notarized one would. Only a Developer ID
+# identity asks for a secure timestamp; the release re-signs the helper with that identity anyway
+# (apps/desktop/tooling/sign-macos-runtime.mjs), so the shipped bundle never keeps this signature.
+TIMESTAMP=(--timestamp=none)
+if [[ "$IDENTITY" == "Developer ID Application:"* ]]; then
+  TIMESTAMP=(--timestamp)
+fi
+codesign --force --options runtime --sign "$IDENTITY" --identifier "$BUNDLE_ID" "${TIMESTAMP[@]}" "$APP"
 codesign --verify --strict "$APP"
 echo "$APP"

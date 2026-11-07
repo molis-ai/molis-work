@@ -9,7 +9,7 @@
 //
 // "Upgrade to current" has no call of its own: the Host brings a Home up to date when it starts (U1 design §3, §4), and until U1 lands every
 // library has to already be at this build's version, which opening it enforces. So the first step below is the upgrade, today and after U1.
-import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";

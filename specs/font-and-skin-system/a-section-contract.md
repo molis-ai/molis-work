@@ -691,7 +691,7 @@ export interface UiTextProvider {
 1. **语言包的文字里不许有 `<`、`>`、`&`、`"`、`'`。** `parseLocalePack`、`inspectLocaleSet` 默认拒绝，`fix` 给出替换（`’`、`“ ”`、`and`、`›`）。
 2. **算出全文之后，把全文转义一次。** 先用原始参数算，再转义，所以不会有 `&amp;amp;`。数字和日期经 `Intl` 输出后也在全文里。严格的词表没有这些字符，所以对 `t` 来说，转义全文和只转义参数结果相同，只留一种写法。
 
-**只有内容包不查这五个字符（统筹裁定）。** 判断只有一个：已解析的 `manifest.kind === "content"`，由 `inspectPluginLocales`、`pluginLocaleReader` 决定（`contentPack: true`），不让语言文件自己说，也不让各调用方各传一份。理由：Skill frontmatter 和用户 `literal` 转的词可能有 `don't`、`<file>`、`R&D`；内容包的词不进 `t` 的索引（第 5.2 节），只经 `say` 和 `createTextReader` 读，这两个一律转义全文。**外部沙箱插件照样查：** 它的 `t` 在自己的沙箱和 iframe 里，索引里有它自己的词，放宽了第三方的 `${t()}` 就不安全。
+**只有内容包不查这五个字符（统筹裁定）。** 判断只有一个：已解析的 `manifest.kind === "content"`，由 `inspectPluginLocales`、`pluginLocaleReader` 决定（`contentPack: true`），不让语言文件自己说，也不让各调用方各传一份。理由：Skill frontmatter 和用户 `literal` 转的词可能有 `don't`、`<file>`、`R&D`；内容包的词不进 `t` 的索引（第 5.2 节），只经 `say` 和 `createTextReader` 读，这两个一律转义全文。`PluginKind` 现在还没有 `content`（08 C-1 加），所以 A 段没有解析过的 Manifest 走到这一支，T7 的用例用手写的 Manifest 证明这一支。`locale-packs.ts` 的函数收 `PluginLocaleManifest`（`plugin_id`、`kind: string`、`ui.locales`）而不是 `PluginManifest`：包里的 Manifest 是 `PluginManifest | SandboxPackageManifest`，这样两种都能传，08 也不用改这里。**外部沙箱插件照样查：** 它的 `t` 在自己的沙箱和 iframe 里，索引里有它自己的词，放宽了第三方的 `${t()}` 就不安全。
 
 结果：`t` 不带字符串参数的调用，结果就是纯文字，拼进 HTML、赋给 `textContent`、再过一次 `esc`，三种都对。带字符串参数时分不出下游（`${obj}` 和 `el.textContent = obj` 都调 `toString()`），所以默认选安全的一边。`say` 没有这个「三种都对」：内容包的词、`literal`、`fallback` 都可能带这些字符。`format` 没有 `.text`，结果也转义：坏日期显示 `at` 原文，它可能来自存下来的数据。
 
@@ -767,21 +767,30 @@ locales?: PluginLocalesDeclaration;
 平台只有一个读取函数，新文件 `packages/plugin-runtime/src/locale-packs.ts`：
 
 ```ts
-export function inspectPluginLocales(manifest: PluginManifest, read: (path: string) => string | null): readonly LocaleSetProblem[];
-export function pluginLocaleReader(manifest: PluginManifest, read: (path: string) => string | null): PluginLocaleReader;
+export function inspectPluginLocales(manifest: PluginLocaleManifest, read: (path: string) => string | null): readonly LocaleSetProblem[];
+export function pluginLocaleReader(manifest: PluginLocaleManifest, read: (path: string) => string | null): PluginLocaleReader | null;  // 没有 ui.locales 是 null
+export function assertPluginLocales(manifest: PluginLocaleManifest, read: (path: string) => string | null): readonly LocaleSetProblem[];  // inspect 的拒绝形式：blocking 就抛 plugin.package_invalid，其余的返回
+export function pluginLocaleFilePaths(manifest: PluginManifest): readonly string[];   // locales/<语言>.json，路径只在这一处写
+export interface PluginLocaleReader {
+  readonly owner: string;                       // manifest.plugin_id，不从文件读
+  readonly default: string;
+  readonly available: readonly string[];
+  pack(locale: string): UiLocalePack | null;    // 第一次用到才读和解析，文件坏了不抛，得 null
+  problems(): readonly LocaleSetProblem[];      // 读过的文件有什么问题，给 T8 记问题或在开发路径抛
+}
 ```
 
 **一份规则，两个时机：**
 
 - **`inspectPluginLocales(manifest, read)`：安装、`validate`、`pack` 时读全部语言一次。** 逐个 `parseLocalePack`，`contentPack` 按 `manifest.kind === "content"` 给（第 5.3 节）；`pack.locale` 不等于文件名、`pack.owner` 不等于 `manifest.plugin_id` 就拒绝；`inspectLocaleSet` 有 `blocking` 就拒绝。
-- **`pluginLocaleReader(manifest, read)`：运行时。** 每种语言第一次用到才读和解析，之后走内存，没用到的语言不读（第 11 节）。沙箱包 `load` 时虽然验签要读整个包，语言文件也只在第一次用到时才解析。
+- **`pluginLocaleReader(manifest, read)`：运行时。** 每种语言第一次用到才读和解析，之后走内存，没用到的语言不读（第 11 节）。沙箱包 `load` 时虽然验签要读整个包，语言文件也只在第一次用到时才解析。单个文件的规则（缺文件、解析、`locale`、`owner`）和 `inspectPluginLocales` 是同一个内部函数。运行时读坏文件不抛（第 5.2 节「语言包读不了」），`pack` 得 `null`，问题留在 `problems()`。
 
 `read` 由来源给，这样只有一套规则：
 
 | 来源 | `read` 从哪来 | 哪一片 |
 | --- | --- | --- |
-| 本地开发（`molis-work plugin dev`，样例走这条） | 新函数 `loadDevelopmentLocalePacks(directory, manifest)`，放在 `development-loader.ts`，读项目目录，沿用那里现有的 `realpath` 加根目录核对，防符号链接跑出去 | A。**这是 A 段唯一真实可走的路** |
-| 打包（`molis-work-plugin pack`、`validate`） | `packPluginProject` 按 Manifest 自动把声明的文件加进 `files`（`packageFileReader` 只收逐个写明的普通文件，这里正好逐个写）；`parsePluginPackage` 核对声明的文件都在，和入口文件同样处理（`package-verification.ts:50-54`） | A。带 `ui.locales` 的包能打、能校验，装不上（见下） |
+| 本地开发（`molis-work plugin dev`，样例走这条） | 新函数 `loadDevelopmentLocalePacks(directory, manifest)`，放在 `development-loader.ts`，读项目目录，沿用那里现有的 `realpath` 加根目录核对，防符号链接跑出去。异步，返回 `PluginLocaleReader | null`；**打开时核全部声明的文件路径**（缺文件、链接跑出项目目录都当场抛 `plugin.package_invalid`），内容仍是第一次用到才读。项目目录里的链接指向项目目录里的文件不算跑出去 | A。**这是 A 段唯一真实可走的路** |
+| 打包（`molis-work-plugin pack`、`validate`） | `packPluginProject` 按 Manifest 自动把声明的文件加进 `files`（`packageFileReader` 只收逐个写明的普通文件，这里正好逐个写），写输出之前调 `assertPluginLocales`；`parsePluginPackage` 只核对声明的文件都在，和入口文件同样处理（`package-verification.ts:50-54`），不解析内容：验签和每次读包都走它，放进去就违反上面「第一次用到才解析」。`validate` 读 Manifest 旁边的语言文件，同样走 `packageFileReader`，`blocking` 的失败，其余的放进输出的 `locale_notes` | A。带 `ui.locales` 的包能打、能校验，装不上（见下） |
 | 外部安装（沙箱包） | 见 6.3 | 第 16 批 |
 | 内置插件 | 登记上的 `package_name` 解析到包目录，包的 `files` 加 `locales` | 第 16 批。A 段没有内置插件声明，写了就是死代码。23 个登记里 `alchemist`、`plugin-builder` 没有 `package_name`（两个批过的构建期例外），它们另给包目录（第 14 节） |
 | 内容包（08） | 保存的已验证包，和 08 的方法正文同一条路 | 08 C-1、C-2。词在安装记录启用时按完整 `plugin_id` 登记进 `say` 的表，停用时撤回，不进 `t` 的索引（第 5.2 节）；随包带上、还没装的，预览和 `plugins.bundled.list@1` 按包读，用 `createTextReader` |
@@ -790,7 +799,7 @@ export function pluginLocaleReader(manifest: PluginManifest, read: (path: string
 
 **20 要改（归第 20 批）：** `blueprints.packs.save@1` 把草稿组成包时，`literal` 转成键，加单语言 `locales/<语言>.json`；草稿记 `locale`（第 15.4 节）。
 
-A 段写了 `ui.locales` 的沙箱包被拒绝，**要有专门的拒绝，由 T7 加**（`apps/local-host/src/sandbox-package.ts`）：`readSandboxPackage` 在比较形状之前，看到 `manifest.ui.locales` 就拒绝，消息说清沙箱包第 16 批才支持，现在先用 `ui.messages`，或走 `molis-work plugin dev`。不能靠现成的错误：不带语言文件时形状比较报「清单不是沙箱插件的形状」，带了语言文件时报「包里有格式之外的文件」，作者都看不出原因，FSS-53 要的是被拒并说明。
+A 段写了 `ui.locales` 的沙箱包被拒绝，**要有专门的拒绝，由 T7 加**（`apps/local-host/src/sandbox-package.ts`）：`readSandboxPackage`、`readSandboxIntegrationPackage` 在比较文件和形状之前，看到 `manifest.ui.locales` 就拒绝，消息说清沙箱包第 16 批才支持，现在要试语言文件走 `molis-work plugin dev`，要安装就先去掉 `ui.locales` 和 `locales/`。不提「先用 `ui.messages`」：沙箱包写 `ui.messages` 同样过不了（`sandbox-package.ts:114-121`，清单的形状不收它）。不能靠现成的错误：不带语言文件时形状比较报「清单不是沙箱插件的形状」，带了语言文件时报「包里有格式之外的文件」，作者都看不出原因，FSS-53 要的是被拒并说明。
 
 **A 段不加 `locale_packs`，也不碰发行物。** `createPluginRuntimeReleaseArtifact` 只有内置插件在用，内置插件 `directlyUsable` 恒真，走当前构建，从不恢复存档；已有行还 `ON CONFLICT DO NOTHING`。外部包不进这张表。所以这个字段没有写入者也没有读取者。
 
@@ -862,7 +871,9 @@ apps/workbench/
 
 共 6 个 JSON。读取写 `new URL("../resources/…", import.meta.url)`：`rootDir` 是 `src`，不能 import JSON；`src/` 和 `dist/` 上一层都是包根，源码和构建都能跑。先例 `packages/design-system/src/page-clients.ts:9`。发行物按包的 `files` 复制（`apps/local-host/src/installer/home-release.ts` 的 `runtimeDependencyReleaseEntries`），加这一项就够。
 
-新文件 `packages/design-system/src/baseline.ts`：模块初始化读 4 个 JSON，走 SDK 解析，得到解析好的基线，错了抛 `ui.baseline_invalid`，带文件和字段。
+新文件 `packages/design-system/src/baseline.ts`：模块初始化读 4 个 JSON，走 SDK 解析，得到解析好的基线，错了抛 `ui.baseline_invalid`，带文件和字段。包入口转出 `BASELINE_SPEC`、`BASELINE_SKIN`、`BASELINE_FONT`、`BASELINE_REGISTRY`（T8b 的样张卡要用真实基线）；写回 CSS 文字的 `baselineGroups(groups, theme?)`、`baselineToken(name | names, theme = "light")`、`baselineTerminal(axis)`、`baselineFontToken(names)`、`baselineFontRoute(id)` 只给本包的样式文件，不转出。
+
+基线皮肤的 `name` 写键 `workbench.skin.soft-workbench`，基线字体的写 `workbench.font.system-sans`。A 段没有语言文件收这两个词，也没有页面显示它们，第 16 批的外观设置页（或先用到它们的片）加进工作台的语言文件。
 
 ## 8. 真实消费者
 
@@ -870,9 +881,9 @@ apps/workbench/
 
 主会话推荐 `palette.ts:157,175,241` 读基线文件、走 SDK 解析器，字节不变，删第二份常量表。方向对，**但只改这三处，还剩 34 个令牌的值写死在别处，等于留了第二份常量表。** 那 34 个是 terminal、danger、`--font` 10 个（`foundation.ts`）、字重字距 7 个（`typeface.ts`）、收尾 17 个（`craft-finish-bar.ts`）。所以范围是全部 194 个：
 
-- `palette.ts`：`renderShellTokens`、`renderPaletteTokens`、`renderShapeTokens`、`renderControlMetrics` 签名不变，改成调 `skinTokenDeclarations`。`MW_HUES`、`MW_CONTENT_MARKS` 留 `id`、`label`、`role`（组件板要），删 `light`、`dark`；`MW_CONTENT_THEME` 删（核过只有 `palette.ts` 和 `index.ts` 在用）。调用方不动（`coss-controls`、`foundation`、`interaction-texture`、`apps/workbench/src/styles/base.ts`、`apps/desktop/src/capsule-shell.ts`、`packages/im-ui/src/styles.ts`、测试）。
+- `palette.ts`：`renderShellTokens`、`renderPaletteTokens`、`renderShapeTokens`、`renderControlMetrics` 签名不变，改成调 `skinTokenDeclarations`（经 `baselineGroups`）。`MW_HUES`、`MW_CONTENT_MARKS` 留 `id`、`label`、`role`（组件板要），删 `light`、`dark`；`MW_CONTENT_THEME` 删（核过只有 `palette.ts` 和 `index.ts` 在用）。调用方不动（`coss-controls`、`foundation`、`interaction-texture`、`apps/workbench/src/styles/base.ts`、`apps/desktop/src/capsule-shell.ts`、`packages/im-ui/src/styles.ts`、测试）。
 - `foundation.ts`、`craft-finish-bar.ts`：模板不动，把写死的值换成 `${baselineToken("danger")}`，终端三份写 `${baselineTerminal("unset" | "light" | "dark")}`，后层重复声明的数值（`--ease-quint`、`--dur-*`）也换，不留第二份数字。别名不动。
-- `typeface.ts`：`FONT_STACK`、`MONO_FONT_STACK` 和 `@font-face` 从 `system-sans.json` 算出来，导出名不变。
+- `typeface.ts`：`FONT_STACK`、`MONO_FONT_STACK` 和 `@font-face` 从 `system-sans.json` 算出来，导出名不变。`INTER_VARIABLE_ASSET_PATH`、`NOTO_SANS_SC_ASSET_PATH` 从登记表的 `route` 取。
 
 **证据是内容比对，不是字节数。** `page-assets` 只比长度（`scripts/gates/page-assets-measure.mjs` 的 `measured[asset] = bytes.length`），色值都是等长的 `#rrggbb`：错一位、明暗写反、两个令牌互换，差都是 0。所以它只留作门禁。T6 这样证明：
 
@@ -943,7 +954,7 @@ apps/workbench/
 
 ### 8.5 字体路径
 
-`apps/local-host/src/web-assets.ts:14-19` 写死 `../../../packages/design-system/fonts/…`。发行物里没有这个相对层级，**读代码判断应是 404（没有起服务实测）**；系统字体排在前面，所以平时看不出。改成 `interVariableFontFilePath()`、`notoSansScFontFilePath()`（`typeface.ts:19,23`，`local-host` 已依赖 design-system）。路由字面量 `"/assets/inter-latin-variable.woff2"` 保留（第 3.6 节）。写进基线那一片，并补干净安装后路由能读到的测试（FSS-59），先把现状跑出来证明确实是 404，再改。
+`apps/local-host/src/web-assets.ts:14-19` 写死 `../../../packages/design-system/fonts/…`。发行物里没有这个相对层级，**实测是 404**（T6：`installMolisWorkHome` 真装到临时 Home，用发行物自己的 `web-assets.js` 起 HTTP，两款字体都是 404，文件其实在 `node_modules/@molis-ai/molis-work-design-system/fonts/`）；系统字体排在前面，所以平时看不出。改成 `interVariableFontFilePath()`、`notoSansScFontFilePath()`（`typeface.ts:19,23`，`local-host` 已依赖 design-system）。路由字面量 `"/assets/inter-latin-variable.woff2"` 保留（第 3.6 节）。写进基线那一片，并补干净安装后路由能读到的测试（FSS-59），先把现状跑出来证明确实是 404，再改。
 
 ## 9. 资源预算的接口
 
@@ -1189,7 +1200,7 @@ T10 不依赖其余各片，也不碰文字工具。
 | 版本 | §4.3 | **所有语言共用一个 `version`**，摘要算全部语言。修一个英文错字也要升版本。理由：`SkillRef` 要精确，一份规则。代价：升级差异会多，加字段 `changed_locales` 写明改了哪种语言（`change` 是枚举，不动） |
 | 读正文 | §8 `skills.body.read@1` | 语言不进输入。user、plugin 用调用上下文的 `locale`；agent 用这一轮的语言（见下面「轮次」一行），第 16 批之前到不了 `ActionCallContext.locale` 时读默认语言。输出加 `locale`（实际用的，单文件包是 `null`）和 `fell_back: boolean`，默认语言未知时 `fell_back` 是 `false`。回退不算「悄悄换版本」，版本没变，结果也写明了 |
 | 轮次 | §5、§7 | 开轮时 `SkillRef` 名单照旧冻结。回复语言今天只是一段提示词，记在 `frozen.prompts`（`prompt_id`、`version`），冻结记录里没有语言字段。交给外部执行方时当场算语言；要读冻结值，由第 09 批合同 PR 照 `call_id` 的路加 `frozen.reply_locale`（`frozenOutput` 不许多字段，属动作合同） |
-| 元数据 | §4.1、§4.2、§8 | **宿主只读词表，不读 frontmatter**（08 §4.1）。`pack-content` 把译文文件 frontmatter 的 `name`、`description`、`when_to_use`、`summary`、`when_not_to_use`、`argument_hint` 转进语言文件，键是 `<主人>.skill-<skill_id>.<字段>`。所以这要求有 `ui.locales`；没有它却有 `SKILL.en.md` 的包，元数据只有默认语言。给模型选 Skill 的 `description` 也跟语言，不进 MCP。这些词可能有 `don't`、`<file>`，内容包的语言文件不查这五个字符，页面上只经 `say`、`createTextReader` 读（第 5.3 节）。`excerpt` 从所用语言的正文取。译文文件写 `tools`、`applies_to` 就拒绝 |
+| 元数据 | §4.1、§4.2、§8 | **宿主只读词表，不读 frontmatter**（08 §4.1）。`pack-content` 把译文文件 frontmatter 的 `name`、`description`、`when_to_use`、`summary`、`when_not_to_use`、`argument_hint` 转进语言文件，键是 `<主人>.skill-<skill_id>.<字段>`。所以这要求有 `ui.locales`；没有它却有 `SKILL.en.md` 的包，元数据只有默认语言。给模型选 Skill 的 `description` 也跟语言，不进 MCP。这些词可能有 `don't`、`<file>`，内容包的语言文件不查这五个字符，页面上只经 `say`、`createTextReader` 读（第 5.3 节）。`excerpt` 从所用语言的正文取。译文文件写 `tools`、`applies_to` 就拒绝。**花括号（T7 定）：** 内容包只放宽这五个字符，占位符规则不放宽，`{foo bar}`、`{pr-number}`、`{n\|a\|b}` 仍报 `ui.locale_placeholder`、`ui.locale_old_plural`。`{file}` 这种像参数名的不算错，`say` 不给这个参数时原样显示（`fillMessage`「A name with no value stays as written」），但各语言要写同样的名字。所以 `pack-content` 转词时遇到不合规的花括号**直接拒绝这个包**，问题写明 Skill、字段和替换写法（`‹foo bar›` 或 `[foo bar]`），不替作者改字。理由：作者手上有文件，改一行；规则只有一份；只有写了 `ui.locales`、由 `pack-content` 转词的包才碰到，外部导入的单文件包不转词，不受影响；以后要放宽容易，放宽了再收紧就拒掉已发的包 |
 | 键的形状 | §4.2 | `skill_id`（`AGENT_TOKEN`）可以数字开头，`STABLE_KEY` 第二段起要字母开头，所以写成一段 `skill-<skill_id>`。导入包算 `plugin_id` 时最后一段以字母开头，否则主人名过不了；前缀也必须是 `io.molis.work.`，否则 `parsePluginManifest` 拒绝 |
 | 外部导入 | §6 | 不要语言标记，单文件当默认语言。`ui.locales` 对内容包可选 |
 | 资源 | §4.2 | `SkillResourceDeclaration` 加可选 `locale`。`scripts/`、`assets/` 不分语言。上限不变（按全部语言计） |
@@ -1206,7 +1217,7 @@ T10 不依赖其余各片，也不碰文字工具。
 | 正文写在声明里 | §3 `content.body`、§5 `RoleTemplate.instructions` | **整份场景包一个文件。** 内容包里是 `blueprint.json`（默认语言）和 `blueprint.<语言>.json`，形状都是 `Blueprint`。Manifest 的 `blueprint` 键写 `{ locales: string[] }`，是 `ui.locales.available` 的子集，「不多不少」和「至少一项」由它判；有场景包时 `ui.locales` 必填（标题要键）。`locales` 只列译文，写了默认语言就拒绝；没有 `ui.locales` 却写 `locales` 也拒绝，否则清单会算出 `blueprint.zh.json`。草稿仍是一行 JSON、一种语言 |
 | 静态检查 | §3 `inspectBlueprint(blueprint)` | 加 `{ source: "package" \| "draft" }`：包拒 `literal`，草稿拒 `key`。新函数 `inspectBlueprintLocales(default, others)`：除 `body`、`instructions` 和 `TextRef` 外全等。`schema` 按每种语言核放到 `adoption.preview` 的主人检查里，静态检查不看目录 |
 | 采用 | §5、§7 | `instructions`、`body`、`title`、`materials`、`outputs` 都按采用当时的语言取。`adoptions` 加 `locale`。撤销和升级差异按这个语言比 |
-| 另存 | §7 `packs.save@1` | 草稿记 `locale`。存包时 `literal` 转成键，加单语言 `locales/<语言>.json`，`blueprint.json` 就是草稿的语言。转过去的词可能有 `R&D`，所以这条路也按内容包不查标记字符 |
+| 另存 | §7 `packs.save@1` | 草稿记 `locale`。存包时 `literal` 转成键，加单语言 `locales/<语言>.json`，`blueprint.json` 就是草稿的语言。转过去的词可能有 `R&D`，所以这条路也按内容包不查标记字符。**花括号同样不放宽（第 15.3 节）：** 这里是用户自己写的字，`{项目名} 周报` 这样的标题会被拒，第 20 批要在保存时把问题说给用户并给下一步，不能让用户看到 `ui.locale_placeholder` |
 | 没装的包 | 08 `plugins.bundled.list@1`、预览 | 从包文件用 `createTextReader` 按语言读（第 6.2 节）。调用本身转义全文，`.text` 给纯文本；写进 HTML 不许用 `.text`（第 5.3 节） |
 | 接得上的，不改 | §8 `adopt` 的 `schema`、§3 `skill` 建议、§6 生成页面 | 平台选好语言再交给主人，主人不用知道语言文件 |
 

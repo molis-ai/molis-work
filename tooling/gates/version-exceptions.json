@@ -439,7 +439,7 @@
   },
   {
     "entry": "action.projects.directories.map_source",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "reason": "C-1 合同片只声明，提供方由「实现（指定文件夹）」片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },
   {
     "entry": "action.projects.directories.remove_input",
@@ -455,7 +455,7 @@
   },
   {
     "entry": "action.projects.directories.unmap_source",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "reason": "C-1 合同片只声明，提供方由「实现（指定文件夹）」片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },
   {
     "row": "functions.published.system_admit_inbox",

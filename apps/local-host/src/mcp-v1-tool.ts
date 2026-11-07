@@ -5,7 +5,9 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpErrorKind, mcpErrors } from "./mcp-errors.js";
-import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
+import { catalogManagementProject, residentManagementActions, upgradeOlderCatalog } from "./management-action-client.js";
+import { ensureHomeStorageOwner } from "./home-storage-lifetime.js";
+import { preflightMemoryHome } from "./memory/memory-initialization.js";
 import { bindGoalsManagementActions } from "./goal-callers.js";
 import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
 import path from "node:path";
@@ -62,6 +64,9 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     projectId,
   });
   const fallback = () => bindGoalsManagementActions(caller.localHost.actionClient(reference), reference, { signal: caller.resident?.signal });
+  // No resident starter on this path, so nothing else can upgrade the catalog: the same as the CLI (upgrade-chain-design §4.3).
+  const home = caller.resident?.home;
+  if (audience === "management" && home !== undefined) upgradeOlderCatalog(home, () => { ensureHomeStorageOwner(caller.localHost, home, preflightMemoryHome); });
   const owned = audience === "management" && caller.resident ? catalogManagementProject(caller.resident.home, databasePath) : undefined;
   if (owned && owned.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
   if (owned) reference = molisWorkHostProjectReference({ databasePath: owned.database_path, projectId: owned.project_id });

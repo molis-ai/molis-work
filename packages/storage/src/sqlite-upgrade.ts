@@ -52,6 +52,12 @@ function stepsToRun(baseline: SqliteBaseline, found: number, fail: UpgradeFailur
   return steps;
 }
 
+/** §2.2 step 1 for a caller that has not touched the store yet: what the run would refuse about these steps, by the same check. */
+export function upgradeStepsProblem(baseline: SqliteBaseline, found: number): "invalid_step" | "missing_step" | undefined {
+  try { stepsToRun(baseline, found, reason => Object.assign(new Error(reason), { reason })); return undefined; }
+  catch (error) { return (error as { reason: "invalid_step" | "missing_step" }).reason; }
+}
+
 /** Foreign keys only switch outside a transaction; SQLite ignores the pragma inside one and says nothing, so it is read back. */
 function switchForeignKeys(db: SqliteBaselineDatabase, value: number, fail: UpgradeFailure): void {
   db.exec(`PRAGMA foreign_keys = ${value}`);

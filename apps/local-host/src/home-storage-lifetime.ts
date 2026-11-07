@@ -1,8 +1,9 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, readStorageSpace, storageOwnerHeldHere, upgradeInProgressRefusal, type StorageOwner, type StorageSpace } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
+import { ensureHomeUpgraded, homeUpgradeLooksPending, watchHomeUpgradePending } from "./home-upgrade.js";
 import { hostErrors } from "./host-errors.js";
 import { hostLog } from "./host-log.js";
 
@@ -48,6 +49,31 @@ export function retainInitializationCleanup(reason: unknown, dispose: () => Prom
 
 const owners = new WeakMap<object, { home: string; owner: StorageOwner; released: boolean; resources: Set<() => Promise<void>> }>();
 
+/**
+ * The one way to take a Home's lock in order to open its stores (upgrade-chain-design §4.1): the Home comes back already upgraded, before
+ * any business store has been opened. A store that fails stays in the record and is not an error here. Only what stops the whole Home
+ * throws, and then the lock is given back. `expected` is compared before anything is upgraded, so another account's directory under this
+ * name is refused, not upgraded and then refused.
+ */
+export function acquireUpgradedHomeOwner(home: string, beforeAcquire?: (home: string) => void, expected?: StorageSpace): StorageOwner {
+  const lockDirectory = agentRuntimeDirectory(home);
+  assertNoPendingHomeRestore(lockDirectory);
+  beforeAcquire?.(home);
+  let owner: StorageOwner;
+  try { owner = acquireStorageOwner(lockDirectory); }
+  catch (error) {
+    if (error instanceof ActionError && error.code === "storage.owner.busy" && !storageOwnerHeldHere(lockDirectory) && homeUpgradeLooksPending(home)) throw upgradeInProgressRefusal();
+    throw error;
+  }
+  try {
+    const stored = expected ? readStorageSpace(home) : null;
+    if (stored && JSON.stringify(stored) !== JSON.stringify(expected)) throw new Error("SPACE_OWNERSHIP_MISMATCH");
+    watchHomeUpgradePending(home, owner);
+    ensureHomeUpgraded(home, owner, { expectedSpace: expected });
+    return owner;
+  } catch (error) { owner.release(); throw error; }
+}
+
 /** A Host acquires strictly once. Later transports and its one Agent can only use that same physical Home. */
 export function ensureHomeStorageOwner(host: object, homeDirectory: string, beforeAcquire?: (home: string) => void): StorageOwner {
   const requested = path.resolve(homeDirectory), held = owners.get(host);
@@ -61,10 +87,8 @@ export function ensureHomeStorageOwner(host: object, homeDirectory: string, befo
     assertNoPendingHomeRestore(agentRuntimeDirectory(held.home));
     return held.owner;
   }
-  assertNoPendingHomeRestore(agentRuntimeDirectory(requested));
   // Product admission precedes only the first acquisition; an existing owner's checks retain their order.
-  beforeAcquire?.(requested);
-  const owner = acquireStorageOwner(agentRuntimeDirectory(requested));
+  const owner = acquireUpgradedHomeOwner(requested, beforeAcquire);
   try {
     const home = realpathSync(requested);
     owners.set(host, { home, owner, released: false, resources: new Set() });

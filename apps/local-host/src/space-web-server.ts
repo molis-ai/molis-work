@@ -7,7 +7,7 @@ import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { Duplex } from 'node:stream';
-import { acquireStorageOwner, ensureStorageSpace, personalStorageSpace, runWithMolisWorkHome, type StorageSpace } from '@molis-ai/molis-work-storage';
+import { ensureStorageSpace, personalStorageSpace, runWithMolisWorkHome, type StorageSpace } from '@molis-ai/molis-work-storage';
 import { createPersonalAccountHttp } from './personal-http.js';
 import { createPersonalNativeSession } from './personal-native-session.js';
 import { personalCloudConfig } from './personal-auth.js';
@@ -19,8 +19,7 @@ import { createPersonalSync } from './personal-sync.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import {serveSpaceSync} from './space-sync-http.js';
 import { resolveConfiguredHome } from "./product-home.js";
-import { ensureHomeStorageOwner, retainInitializationCleanup } from './home-storage-lifetime.js';
-import { agentRuntimeDirectory } from './agent-runtime-paths.js';
+import { acquireUpgradedHomeOwner, ensureHomeStorageOwner, retainInitializationCleanup } from './home-storage-lifetime.js';
 import { trackHostListener } from './host-endpoints.js';
 
 interface Surface {
@@ -53,9 +52,8 @@ function personalSurfaceLease(space: StorageSpace, session: WebAccountSession | 
 
 /** The initial writes, including credentials, must pass the same Home ownership and restore gates as the resident Host. */
 function bootstrapSpace<T>(directory:string, expected:StorageSpace|undefined, host:WebServerOptions['localHost'], open:(space:StorageSpace)=>T):T {
-  if(!host)preflightMemoryHome(directory);
   let owner;
-  try { owner=host ? ensureHomeStorageOwner(host,directory,preflightMemoryHome) : acquireStorageOwner(agentRuntimeDirectory(directory)); }
+  try { owner=host ? ensureHomeStorageOwner(host,directory,preflightMemoryHome) : acquireUpgradedHomeOwner(directory,preflightMemoryHome,expected); }
   catch(error){
     if(host && error instanceof ActionError && error.code==='actions.home_mismatch')throw new ActionError('actions.scope_mismatch','不能把个人规划服务绑定到其他 Home',{cause:error});
     throw error;

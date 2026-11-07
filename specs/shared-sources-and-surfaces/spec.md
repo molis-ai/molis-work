@@ -82,11 +82,17 @@ interface RecentMaterial {
   | --- | --- |
   | 写引用的人怎么得到它 | 读到内容的取 `fingerprint`。文本读回答 `too-large` 的写 `size:<字节数>`。文本读回答 `binary` 或解码失败的 `unsupported` 时内容已经读了（`workspace-files.ts:67,70`），实现片让这两种结果也带 `fingerprint`（`workspace-artifacts.ts:27`），不多花一次读；不是普通文件的 `unsupported`（`:49`）没有内容，也写不成引用 |
   | 平台现读怎么比 | **先核调用方能不能读，核过才开文件**：和读动作同样的判断（`horizontal/knowledge/src/workspace.ts:79-84`），否则 `ok` 和 `changed` 的差别就是绕过授权的旁路。之后不走读动作：文本读只到 256 KB，`bytes` 动作只给宿主运行的插件（`project-capabilities.ts:43`）。宿主工作区服务多一个内部函数 `fingerprintWorkspaceFile`，检查和 `readWorkspaceFile` 相同（根目录的 realpath、逐段 `lstat`、`O_NOFOLLOW`），边读边算，不进内存，不转 base64，上限 8 MB。引用是十六进制时：不一样是 `changed`；现在超过 8 MB 也是 `changed`，因为写引用时没超。引用是 `size:` 时只比 `lstat` 的大小 |
-  | 一次算几份 | 上限放在共用的 `readMaterialOrigins(caller, refs, { compare })` 里，不放在某个动作上：一次只比前 5 份的内容（调用方排好序，最坏读 40 MB），其余只查文件在不在，`note` 写「内容没有核对」。打开时读文件本身就比了。比较有总时限 1 秒，超时停止读，没比完的同样写 `note`，这样网络盘或没下载的 iCloud 文件不会让面板等着（这个数和慢盘的情况都没实测）。不加缓存：这台机器上 5 个 8 MB 算 sha256 约 12 毫秒，加上从系统缓存读约 20 毫秒 |
-  | 谁用它 | `materials.recent@1` 比内容。`materials.recent.record@1` 不比（`compare: false`）：它要分的 `forbidden`、`missing`、`unmapped` 都用不到内容，一次 10 个也不多读，而且它在提交之后的路上。引用、出处行和 Goals 输入也要出处，C-1 只声明了 `materials.recent@1` 回 `origin`，所以实现片在第一个要它们的界面上加只读动作 `materials.origins@1`（受众 user、plugin，一次最多 20 个，走这同一个函数）；这是只加不删，不进 C-1 |
+  | 一次算几份 | 上限放在共用的 `readMaterialOrigins(caller, refs, { compare })` 里，不放在某个动作上：一次只比前 5 份的内容（调用方排好序，最坏读 40 MB），其余只查文件在不在，`note` 写「内容没有核对」。打开时读文件本身就比了。比较有总时限 1 秒，超时不再等，没比完的同样写 `note`，这样网络盘或没下载的 iCloud 文件不会让面板等着。已经发出的读取停不下来，卡住时反复打开面板会占住线程池，所以同一个文件有读取在途时不重复发。这个数、线程池和慢盘的情况都没实测。不加缓存：这台机器上 5 个 8 MB 算 sha256 约 12 毫秒，加上从系统缓存读约 20 毫秒 |
+  | 谁用它 | `materials.recent@1` 比内容。`materials.recent.record@1` 不比（`compare: false`）：它要分的 `forbidden`、`missing`、`unmapped` 都用不到内容，一次 10 个也不多读，而且它在提交之后的路上。引用、出处行和 Goals 输入也要出处，C-1 只声明了 `materials.recent@1` 回 `origin`，所以实现片要加一个读出处的动作，见下面 |
   | 只到界面 | 上面的比较都是给人看的出处。**Agent 读文件不比指纹**：`knowledge.read` 没有比较的参数，只回当前 revision（`horizontal/knowledge/src/workspace.ts:73`），`goals.inputs.list` 也不回指纹（`input-actions.ts:17`）。不改这一点（合同台定）：指纹给了 Agent 也要靠它自己比，比没比没有人知道，算不上保证 |
 
   它分不出是这份文件后来改过，还是另一份文件，所以只说「和引用时不是同一份」。
+
+  **读出处的动作（暂名 `materials.origins@1`）在实现片加之前先定，并过评审（合同台定）。** 现在不定：第一个调用方的定样还没有，插件页面和工作台谁来取也没定，先写了多半要改。它只加不删，不进 C-1。定的时候要回答：
+
+  - **给 plugin 怎么答。** 调用方自己传引用，所以不能照抄 `materials.recent@1`，也不能让它借此探测别人的对象（第 2.1 节 `record` 那条）。`unmapped` 要回，这不泄露什么，`projects.directories.get` 它本来就读得到。`forbidden` 和 `missing` 不区分，`owner`、`directory` 只在读得了时带；`MATERIAL_ORIGIN_SCHEMA` 的 `owner` 必填，所以读不了的项要另定形状。代价是插件页面分不出「没有权限」和「已删除」，要写明这两种说法由谁显示。
+  - **没有指纹时怎么传。** `MaterialRef` 的 `read_revision` 必填，没有指纹的绑定拼不出合法引用。这种只查在不在，`note` 写「内容没有核对」。
+  - **上限和授权。** 走 `readMaterialOrigins`，一次的份数由定的时候给；验收见 SSC-30。
 - **引用不因为换设备而变**（第 3 节「另一台设备上的引用」）：`subject.id` 写的是原设备的目录 id，对应关系在读的时候换算，不改写引用。这样同步回原设备照样能读，换一次对应，这个目录的引用一起跟着走。所以 `MaterialRef` 不加字段；要改的是 `MaterialOrigin`，多一个 `unmapped`。
 
 ### 2.1 最近用过
@@ -257,7 +263,7 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 | `source_workspace_id` 的校验 | 它只作键，不拼路径。形状同 `folderId`。只有这个 id 已经是**这个项目的**目录才拒绝（`projects.directory_duplicate`）：那不是另一台设备的目录。目标就是这一行时（比如给的路径正好哈希到它），只写关联，不写对应。之后这个 id 被加进这个项目时，对应在同一个事务里去掉 |
 | 读的时候怎么跳不出去 | 引用的相对路径过 `parseFilePath`，`..` 进不来（`assertMaterialRef` 也查）。读文件时 `workspace-files.ts` 逐段 `lstat`、`O_NOFOLLOW`、核根目录的 realpath，符号链接不跟。对应到默认输出目录时先过 `prepareWorkspaceDirectory(…, "read")` |
 | 什么时候失效 | 目录从这个项目移除（`remove_input`、改输出目录后这一行没了），对应在同一个事务里去掉，引用回到未指定。`repair` 换路径时 id 不变，对应不动，所以这一行有对应时 `repair` 也过上面「目标和根 Home 不能互相包含」的检查。文件夹找不到时照旧是 `missing`，由 `repair` 修 |
-| 另一台设备的文件夹名字 | 不同步（本机路径不同步这条不变），这台设备只知道 id 和相对路径。代价：原设备上两个目录各有一个 `README.md` 时，这边看到两行一样的，指错了也看不出，所以定样要按 `source_workspace_id` 分组。默认输出目录分两种，都不用同步：`source_workspace_id` 等于这个项目算出来的默认 id，写「这个项目原来的默认输出目录」；其余 `workspace-output-` 前缀的写「另一台设备的默认输出目录」 |
+| 另一台设备的文件夹名字 | 不同步（本机路径不同步这条不变），这台设备只知道 id 和相对路径。代价：原设备上两个目录各有一个 `README.md` 时，这边看到两行一样的，指错了也看不出，所以定样要按 `source_workspace_id` 分组。默认输出目录分两种，都不用同步：`source_workspace_id` 等于这个项目算出来的默认 id，写「这个项目原来的默认输出目录」；其余 `workspace-output-` 前缀的写「另一台设备的默认输出目录」。这两句由平台写进 `origin.note`：`unmapped` 没有 `directory`，页面手里也没有默认 id，不让页面解析 id 的形状 |
 | 两片之间 | 目录实现片合入后、指定文件夹片合入前，不产出 `unmapped`，这些引用照旧是 `missing`，显示「找不到位置」。读取同样被拒，只是还没有入口 |
 
 **这台设备上同路径有同名文件时怎么办。** 分指定之前和指定之后：
@@ -266,7 +272,7 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 - **指定之后读指定的那个文件夹里同路径的文件。** 这是用户说的对应，读到的就算内容不同也不拒绝，但要说出来：有指纹就比，不一样是 `changed`，界面提示「和引用时不是同一份」；比不了的给 `note`，写明「内容没有核对」。同路径没有文件是 `missing`。这些只到界面，Agent 读文件不比（第 2 节）。
 - **`goals.inputs.bind` 带指纹。** 输入多一个可选的 `read_revision`，调用方读到什么传什么，只是提示，传错了最多多报一次 `changed`。处理器是同步的，不自己读文件。十六进制写成 `sha256:<hex>` 存进已有、也同步的 `input_bindings.snapshot_digest`（和 `goals.inputs.confirm` 同一种形状，`goal-entry-actions.ts:32`），比较时去掉前缀；`size:` 放不进这种形状，写 null。不改表，动作快照要跟着改。没有指纹的绑定显示「内容没有核对」。
 
-**还剩一种静默读：脱钩之前建的目录行。** 这种行的 id 是路径的哈希（`normalizeProjectWorkspace`）。同一个同步项目，两台设备都在目录实现片之前关联过同一个绝对路径，id 就相同，引用不用指定就走本机目录这条路。关联不只是手动加，在这个路径开过终端、绑过会话也算（`modules/private-work-context/src/project-binding-commands.ts:171,180`）。只关联别的项目不算，那样是 `unmapped`（下面）。**用户 2026-11-07 定：接受，写明。**
+**还剩一种静默读：脱钩之前建的目录行。** 这种行的 id 是路径的哈希（`normalizeProjectWorkspace`）。同一个同步项目，两台设备都在目录实现片之前关联过同一个绝对路径，id 就相同，引用不用指定就走本机目录这条路。关联不只是手动加，在这个路径开过终端、绑过会话也算（`modules/private-work-context/src/project-binding-commands.ts:171,180`）。只关联别的项目不算，那样是 `unmapped`（下面）。**用户 2026-11-07 定：接受，写明。** 碰上还要先有同步：`modules/sync-replication` 现在只有个人空间本机联调，默认关闭（`docs/SSOT-MATRIX.md`），联网个人同步排在 M1 之后（路线图 SRV-1、SRV-2）。
 
 | 引用 | 人在界面上 | Agent 读 |
 | --- | --- | --- |
@@ -275,8 +281,11 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 | 不带指纹的 `input_bindings`（`bind` 没传，或实现片之前写的，`snapshot_digest` 是 null） | 显示「内容没有核对」 | 同上 |
 | `goal_tree_proposal_items.source_refs_json` | 只存 `kind:id` 字符串，没有页面读，也没有地方按它调读取动作 | Agent 能在提案输出里看到这个字符串，要自己切开才能读，条件同上 |
 
-- **否掉的两个方案。** 旧绑定标成待确认：多一个 Goals 升级段，把没有指纹的旧 `workspace_file` 绑定标成 `proposed`，用户认可一下，代价是一段升级和一次点击，而重建之后这种行预计接近 0，也不改 Agent 读文件不比这一点。目录 id 加每台设备的盐：从源头没有这个窗口，代价是要改 `normalizeProjectWorkspace` 的多处调用方，还要挡 #1837。
-- **接受的代价。** 一条判断（没有指纹就写「内容没有核对」）和一个发布排序条件。
+- **否掉的两个方案。**
+  - **旧绑定标成待确认。** 多一个 Goals 升级段，把没有指纹的旧 `workspace_file` 绑定标成 `proposed`。还要改 `goals.inputs.accept`：它现在只认 `feed_item`（`plugins/native/goals/src/input-actions.ts:108-109`），这种绑定认可不了。用户要逐条认可。重建之后这种行预计接近 0，也不改 Agent 读文件不比这一点。
+  - **目录 id 加每台设备的盐。** 盐是 Home 里只写一次的随机值，放进目录库 `catalog_meta` 的一个新键，不改表结构。`normalizeProjectWorkspace` 多一个参数，改 `workspace.ts:47`、`modules/projects/src/index.ts:144`、`project-catalog.ts:412`，模块级的 `contextBindingValidation` 和 `normalizeRuntimeWorkContext` 要改成按实例取（`project-catalog.ts:411-420`、`project-workspace-actions.ts:12`）。`modules/characters/src/open.ts:37` 这些下游把 id 当不透明字符串存，不用动。#1837 没有改这几个文件，不挡它。**但必须在真实 Home 重建之前合入**：之后已有的行没有盐，同一个路径算出新 id，撞 `canonical_path` 的唯一约束（`repository.ts:67`，`upsertWorkspace` 只处理 `workspace_id` 冲突），就要再补迁移或先按路径查行。重建因此多等这一个 PR。它只填重建到实现片这段窗口，实现片 `add` 发新 id 以后就没用了，算一次性代码。这段窗口里，另一台设备同路径的引用从读到本机文件变成读不了，指定文件夹片之前没有入口。整份 Home 拷贝照样不解决，盐也拷过去了。
+- **接受的后果。** 主要是上表 Agent 那一列：这种引用 Agent 读到的是本机同名文件，不比，不提示，可能不是引用时的内容。另外多一条判断（没有指纹就写「内容没有核对」）和一个发布排序条件。
+
 - **升级段不改这些 id。** 别的库也存着（`modules/characters/src/open.ts:37`、冻结的轮次），要逐库改，改漏了本机的历史就断了。
 - **范围。** 外部用户只有实现片晚于首次外部安装才会碰上：一台设备上的旧行，遇到另一台实现片之后新发的 id，照样是 `unmapped`。这个先后由统筹写进路线图依赖或发版清单（第 9 节）。自己的设备上已经有这种行的，要把这个路径从那台设备的**所有项目**移除，再加一次才发新 id：`removeWorkspaceIfEmpty`（`workspace-repository.ts:146`）只在没有任何关联时才删这一行，还有别的项目关联时加回来认回原来那一行。之后那台的旧引用变成未指定，可以指定。
 
@@ -559,7 +568,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；动表的部分不在这一片，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`（含 `source_links`）、`RunDirectories`，第 3 节的七个动作（`set_output`、`map_source` 的目标三选一）与 `materials.recent@1`、`materials.recent.record@1` 的声明；三个错误码；SDK 新的 `presentation` 子路径放 `assertMaterialRef`；api 快照（`contracts/modules/projects.txt`、新 `contracts/platform/project-materials.txt`、新 `plugin-sdk/presentation.txt`）。**只加不删**：现有动作、字段和端口都不动，不碰 `services/agent-host`。动作只声明、不登记，所以动作快照不变 | 不等 02 收尾（用户定放行，撞了就让路）：排在 #1837 之后入队，合入前补 4 处 `version: 1` 的 `@version` 标记和 `tooling/versions.json` 条目。`material_recent_uses` 表挪到实现片走 U1 升级段（用户 2026-11-06 定重建不等 C-1）；这一片只声明动作 |
 | C-2 呈现声明合同 | `platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind；`validatePresentationDeclaration`、`presentationText`、`presentationFormFields`、`renderPresentationForm` 的签名；api 快照 | 02 交接；D 轨把状态环取值下沉到 contracts 的 `platform/ui.ts` 之后 |
 | C-3 组合服务合同 | `services/surface-composition.ts`、`SurfaceGroup`、`surfaces.compose@1`、`surfaces.correct@1` 的声明；context-ledger 的关系类型表；`assertSurfaceDescription`；actions 快照 | C-2；第 14 批 A 段的 `TextRef` 合入 |
-| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；重写 `workspace-repository.ts` 的查询（`is_default` 换 `roles`）时，保留 `:22,57,69` 三处「回收的项目不算」的过滤（`project_recycle`，#1877 加的）；默认输出目录写在 `register` 里，升级段连回收的项目一起补（第 3 节）；第 3 节的路径到行、碰磁盘的调用方和永久删除；第 2 节的 `fingerprintWorkspaceFile` 和 `binary`、`unsupported` 带指纹（改 `WorkspaceFileResult`）；这一片不产出 `unmapped`；删除确认框多的一问和留下文件夹的提示是新状态，先定样；`goals.inputs.bind` 写指纹不在这一片；`RunDirectories` 随轮次视图和冻结轮次信息的字段加进 `services/agent-host`；收资料引用的地方都调 `assertMaterialRef`，它比 schema 严（查 `workspace_file` 的 id 落在目录内），只靠 schema 会放过 `ws1:../secret`；宿主的 `PROJECT_WORKSPACE_PROVIDER_ID`（`apps/local-host/src/project-workspace-actions.ts:7`）改成从合同取；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节）。**发布排序：合入早于首次外部安装**，否则外部用户也有第 3 节「脱钩之前建的目录行」那个缺口；这条依赖由统筹写进路线图依赖或发版清单，不只留在这里 |
+| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；重写 `workspace-repository.ts` 的查询（`is_default` 换 `roles`）时，保留 `:22,57,69` 三处「回收的项目不算」的过滤（`project_recycle`，#1877 加的）；默认输出目录写在 `register` 里，升级段连回收的项目一起补（第 3 节）；第 3 节的路径到行、碰磁盘的调用方和永久删除；第 2 节的 `fingerprintWorkspaceFile` 和 `binary`、`unsupported` 带指纹（改 `WorkspaceFileResult`）；这一片不产出 `unmapped`；加读出处的动作之前先定第 2 节那几件并过评审；删除确认框多的一问和留下文件夹的提示是新状态，先定样；`goals.inputs.bind` 写指纹不在这一片；`RunDirectories` 随轮次视图和冻结轮次信息的字段加进 `services/agent-host`；收资料引用的地方都调 `assertMaterialRef`，它比 schema 严（查 `workspace_file` 的 id 落在目录内），只靠 schema 会放过 `ws1:../secret`；宿主的 `PROJECT_WORKSPACE_PROVIDER_ID`（`apps/local-host/src/project-workspace-actions.ts:7`）改成从合同取；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节）。**发布排序：合入早于首次外部安装**，否则外部用户也有第 3 节「脱钩之前建的目录行」那个缺口；这条依赖由统筹写进路线图依赖或发版清单，不只留在这里 |
 | 实现（指定文件夹） | 第 3 节「另一台设备上的引用」：`workspace_source_links` 和它的升级段、登记 `map_source`、`unmap_source`、`resolveWorkspaceFileSubject` 和四处读的地方、产出 `unmapped`（从这一片起，解析不出的不再显示「找不到位置」）、`goals.inputs.bind` 多 `read_revision`（动作快照跟着改）、界面（六个状态先定样） | 上一行的目录实现片合入（目录 id 脱钩和默认输出目录都在那一片）；定样；U1 和四份门禁 |
 
 ## 10. D 轨的答复（2026-11-04 共审）
@@ -577,12 +586,12 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | --- | --- |
 | 1 事实主人 | 目录配置与「最近用过」归 `modules/projects`；本机文件读写归宿主工作区服务；跨来源查找读取归 `horizontal/knowledge`；对象与正文归各自插件或 Module；操作面组合与纠正归组合服务（第 15 批）；过程项归 `modules/artifacts`。本合同不新建资料库、不复制正文 |
 | 2 插件同等待遇 | 资料引用、「最近用过」的写读、呈现声明、挂载位，内置、生成、第三方插件都走同一个动作和同一个 `validatePresentationDeclaration`；宿主不按插件名分支 |
-| 3 能力注册 | 第 3 节七个目录动作、`materials.recent@1`、`materials.recent.record@1`（`system.project-workspaces`）；`surfaces.compose@1`、`surfaces.correct@1`（组合服务）；values 动作由各插件在自己的声明里注册。都注册一次，页面、工作流、Agent、MCP 共用 |
+| 3 能力注册 | 第 3 节七个目录动作、`materials.recent@1`、`materials.recent.record@1`（`system.project-workspaces`）；`surfaces.compose@1`、`surfaces.correct@1`（组合服务）；values 动作由各插件在自己的声明里注册。都注册一次，页面、工作流、Agent、MCP 共用。实现片还要加读出处的动作，加之前先定（第 2 节） |
 | 4 合同 | 改。新子路径 `platform/project-materials`、`platform/presentation`、`services/surface-composition`，SDK 的 `presentation`；改 `modules/projects`、`modules/context-ledger`、`services/agent-host`、Manifest、`platform/plugin-events`。按 N35 原地改形状，旧名不留；按第 9 节拆三片，按快照一次一个 PR。C-1 只加不删，旧名和 `services/agent-host` 的改动在实现片 |
 | 5 放在哪个包 | 合同在 contracts；共用校验在 SDK（只依赖 contracts）；状态环取值下沉到 contracts 的 `platform/ui.ts`（D 轨）；组合服务进 `horizontal/`，宿主只装配 |
 | 6 表与存储 | `workspaces` 去掉 `is_default`、改 `roles`；删 `project_browsing_settings`；新增 `material_recent_uses`（项目库，`modules/projects`）和组合服务的纠正表（项目库与它自己的 Home 库）。都登记进 `table-owners.json`，都走升级段（第 8 节）。新目录 `outputs/`：默认输出目录，登记进 `homeStores()`，第 3 节。新表 `workspace_source_links`（目录库，`modules/projects`），第 3 节 |
 | 7 兼容与迁移 | 不加读取兼容。哈希 id 照旧当不透明字符串用，不从路径推，不算兼容路径。重建之后才落的，走 U1 升级链，这几段用户 2026-11-06 已同意（§8），写的时候不用再问 |
-| 8 安全边界 | 碰。只有输出目录可写，有拒绝测试和不变量一行（SSC-15）；撤权、移除后马上拒绝（SSC-04）；`materials.recent` 给 plugin 不泄露无权项（SSC-12），`excluded` 件数只给 user；`record` 先按调用方授权现读、读不了不记；`host.workspace.changed@1` 的载荷改动核 S-54；默认输出目录的路径由可信 Home 推导，读、建、删都先核（SSC-21）；不写回目录库（SSC-22）；MCP、CLI 删不了这些文件，选择由入口给（SSC-23）；指定文件夹只有 user 能改，目标过校验，写入不认原设备的 id（SSC-27） |
+| 8 安全边界 | 碰。只有输出目录可写，有拒绝测试和不变量一行（SSC-15）；撤权、移除后马上拒绝（SSC-04）；`materials.recent` 给 plugin 不泄露无权项（SSC-12），`excluded` 件数只给 user；`record` 先按调用方授权现读、读不了不记；`host.workspace.changed@1` 的载荷改动核 S-54；默认输出目录的路径由可信 Home 推导，读、建、删都先核（SSC-21）；不写回目录库（SSC-22）；MCP、CLI 删不了这些文件，选择由入口给（SSC-23）；指定文件夹只有 user 能改，目标过校验，写入不认原设备的 id（SSC-27）；读出处的动作有 plugin 受众，不能借它探测别人的对象，加之前定形状并过评审（第 2 节，SSC-30） |
 | 9 调用次数 | values 一次最多 50 个对象；授权核对复用 `discover()`；`record` 一次最多 10 个引用；描述可缓存，值另取。`readMaterialOrigins` 一次只比前 5 份的内容，每份最多读 8 MB，边读边算，总时限 1 秒（第 2 节）；其余只 `lstat`；`record` 不比内容 |
 | 10 升级与数据 | 「最近用过」与纠正记录的生命周期写在第 2.1、6 节：裁剪、停用卸载后怎么显示、删项目、Home 快照。默认输出目录不进快照，永久删除时非空才问，用户 2026-11-07 定，否掉的方案和理由在第 3 节（SSC-23）。另一台设备上的引用加指定文件夹，用户 2026-11-07 定，否掉的方案在第 3 节（SSC-25～28）；脱钩之前建的目录行还剩一种静默读，用户 2026-11-07 定接受并写明，否掉「旧绑定标成待确认」和「目录 id 加设备盐」，范围、出路和两个方案的代价在第 3 节（SSC-29）。目录 id 修复后不变，历史引用照读（SSC-16） |
 | 11 成果与过程项 | `pin` 分 current、fixed（成果库）、snapshot（过程项），不把过程项放进成果库 |
@@ -625,3 +634,4 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | SSC-27 | 这些都被拒，有断言拒绝本身的测试和安全不变量一行（S-102 的延伸）：plugin、agent、mcp 调 `map_source`；输入里带操作者或项目；目标 realpath 核实不了、是别的项目的默认位置；目标落在 Home 里、包含 Home（`~`）、在账号 Home 上落在根 Home 或别的账号 Home 里，三种写法都查，路径大小写不同也查；有对应的目录 `repair` 到这些位置；`source_workspace_id` 是这个项目的目录；写动作给原设备的 id；引用路径带 `..` 或经过符号链接 | S-102 |
 | SSC-28 | 指定之后：内容相同是 `ok`，不同是 `changed`，读取不被拒；比不了的有 `note`；`goals.inputs.bind` 传了 `read_revision` 时 `snapshot_digest` 是 `sha256:<hex>`，`size:` 或没传时是 null 并显示「内容没有核对」；`read_revision` 不是这两种格式时 `assertMaterialRef` 拒绝。现读：`bytes` 读到的 300 KB 文本和 PDF 比内容；文本读 `too-large` 和超过 8 MB 的写 `size:`，只比大小，内容变了大小没变时比不出；`materials.recent@1` 一次只比前 5 份的内容，第 6 份起有 `note`；比较超过总时限时有 `note`，面板不等 | 第 2、3 节 |
 | SSC-29 | 脱钩之前建的行，同一个项目、两台设备路径相同：`MaterialRef` 内容不同时界面是 `changed`；没有指纹的绑定显示「内容没有核对」；Agent 经 `knowledge.read` 读到本机文件，不比不提示；这个路径还关联别的项目时，移除再加一次 id 不变；从那台设备的所有项目移除再加一次后 id 不同，变成 `unmapped`。这条用例钉住的是已知缺口，不是要的行为 | 第 3 节 |
+| SSC-30 | 加读出处的动作时：plugin 传别人的引用，分不出 `forbidden` 和 `missing`，也拿不到 `owner`、`directory`；`unmapped` 照回；没有授权时文件没有被打开；没有 `read_revision` 的引用只查在不在，`note` 写「内容没有核对」 | 第 2 节 |

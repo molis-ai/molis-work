@@ -26,7 +26,8 @@
 //   - the row of a version that went up has `定义处#<old>→<new>` in its 维护 cell, in backticks: the checklist row's 定义处 and the
 //     two numbers of the 版本 cell;
 //   - that file's upgrades literal has `from: n` for each n from old to new - 1. When 定义处 is a baseline constant that means the
-//     `upgrades` of that object; when it is a plain version constant (a JSON file, the catalog), any `upgrades` array in the file.
+//     `upgrades` of that object; when it is a plain version constant (a JSON file, the catalog) or the field of a JSON file
+//     (`path#schema_version`, `path#version`: these have no constant to point at), any `upgrades` array in the file.
 // A step list the gate cannot read (a spread, a constant reference, a computed `from`) fails like one that is not there: whether the
 // whole chain from 1 is consecutive is checked on the real values elsewhere (tests/upgrade-chain-registry.test.ts).
 // A registered origin cannot go back to「未登记」.
@@ -42,6 +43,7 @@
 // merge-base, not with the build installed in a Home: several PRs' changes add up, and that comparison is the first item of
 // CHECKLIST §4.3, done by hand before a release. It does not check that the maintenance the row describes was done.
 import ts from "typescript";
+import { VERSION_FIELD } from "../version-source.mjs";
 
 export const CHECKLIST_FILE = "docs/releases/CHECKLIST.md";
 export const SPEC_FILE = "docs/system/CONTRACT-CHANGES.md";
@@ -90,6 +92,7 @@ export function checklistVersions(text, where = CHECKLIST_FILE) {
   for (const row of rows) {
     const key = row.cells[place], value = row.cells[version];
     if (!key || !/^\d+$/.test(value ?? "")) unreadable(`${where}:${row.line}: a row needs a 位置 and a whole-number 版本`);
+    if (versions.has(key)) unreadable(`${where}:${row.line}: the 位置 ${key} is on another row too`);
     versions.set(key, Number(value));
   }
   return versions;
@@ -168,8 +171,9 @@ function declaredSteps(file, source, name) {
     ts.forEachChild(node, visit);
   };
   visit(tree);
-  if (declarations.length !== 1) return { why: `${file} has no one constant ${name}` };
-  const value = unwrap(declarations[0].initializer);
+  // A field of a JSON file (its 定义处 is `path#schema_version`) has no constant; scripts/verify-release-versions.mjs reads its number.
+  if (!VERSION_FIELD.test(name) && declarations.length !== 1) return { why: `${file} has no one constant ${name}` };
+  const value = declarations.length === 1 ? unwrap(declarations[0].initializer) : null;
   const owners = value && ts.isObjectLiteralExpression(value) ? [value] : objects;
   const properties = owners.map(upgradesOf).filter(Boolean);
   if (properties.length === 0) return { why: `${file}#${name} has no upgrades` };

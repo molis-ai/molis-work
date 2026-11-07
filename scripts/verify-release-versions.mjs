@@ -17,7 +17,7 @@ import { versionDeclarationProblems } from "./gates/version-declarations.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkFiles } from "./script-paths.mjs";
-import { withoutMarkers } from "./version-source.mjs";
+import { VERSION_FIELD, withoutMarkers } from "./version-source.mjs";
 
 const USAGE = "usage: verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -124,8 +124,8 @@ function checkReleaseFiles(version) {
 }
 
 // ---- the per-database version table ---------------------------------------------------------------------------------
-// Rows of the table under the heading "各库版本表" (numbered or not) in the checklist, found by their column names: 版本 is a number (or 无
-// for a database that carries none) and 定义处 is `path#NAME` (or just `path` for the databases without a version).
+// Rows of the table under the heading "各库版本表" (numbered or not) in the checklist, found by their column names: 版本 is a whole number
+// and 定义处 is `path#NAME`. scripts/gates/store-versions.mjs reads the same 版本 cells and accepts the same numbers.
 function tableRows(text) {
   const lines = text.split("\n");
   const heading = lines.findIndex(line => /^#{2,4}\s+(?:\d+\.\s+)?各库版本表\s*$/.test(line));
@@ -219,11 +219,16 @@ function baselineVersion(text, name) {
   return close < 0 ? null : objectVersion(text.slice(open, close + 1));
 }
 
-// What the code says about one table row: its version, "无" when the file carries no version marker at all, or null when
-// the declared definition cannot be found.
+// A JSON file's version is the number at every `name:` in the code that writes it; two different numbers read as none.
+function fieldVersion(source, name) {
+  const numbers = new Set([...source.matchAll(new RegExp(`\\b${name}\\s*:\\s*(\\d+)\\b`, "g"))].map(match => match[1]));
+  return numbers.size === 1 ? [...numbers][0] : null;
+}
+
+// What the code says about one table row: its version, or null when the declared definition cannot be found.
 function codeVersion(source, name) {
-  if (name === undefined) return /SqliteBaseline|PluginDatabaseDeclaration|user_version|schema_version/.test(source) ? null : "无";
   if (name === "PRAGMA user_version") return source.match(/PRAGMA user_version = (\d+)/)?.[1] ?? null;
+  if (VERSION_FIELD.test(name)) return fieldVersion(source, name);
   return baselineVersion(source, name) ?? source.match(new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*=\\s*"?(\\d+)"?\\s*;`))?.[1] ?? null;
 }
 
@@ -295,13 +300,13 @@ function checkDatabaseTable(directories) {
   const listed = new Set();
   for (const row of rows) {
     const where = `${CHECKLIST}: ${row.store}`;
-    if (!row.file || !/^(\d+|无)$/.test(row.version ?? "")) { problem(`${where}: needs a number or 无 in 版本 and a file in 定义处`); continue; }
+    if (!row.file || !row.name || !/^\d+$/.test(row.version ?? "")) { problem(`${where}: needs a whole number in 版本 and \`path#NAME\` in 定义处`); continue; }
     const source = readOptional(row.file);
     if (source === null) { problem(`${where}: ${row.file} does not exist`); continue; }
-    listed.add(row.name === undefined ? row.file : `${row.file}#${row.name}`);
+    listed.add(`${row.file}#${row.name}`);
     const actual = codeVersion(source, row.name);
-    if (actual === null) problem(`${where}: ${row.name ? `${row.file} has no ${row.name} with a version` : `${row.file} now carries a version marker; give the table a number`}`);
-    else if (actual !== row.version) problem(`${where}: the table says ${row.version}, the code (${row.file}${row.name ? `#${row.name}` : ""}) says ${actual}`);
+    if (actual === null) problem(`${where}: ${row.file} has no ${row.name} with a version`);
+    else if (actual !== row.version) problem(`${where}: the table says ${row.version}, the code (${row.file}#${row.name}) says ${actual}`);
   }
   const baselines = declaredBaselines(directories);
   for (const definition of baselines) {

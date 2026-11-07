@@ -771,8 +771,7 @@ test("VG-22 no script decides it is the one being run any way but isMainScript: 
   const OLD_WAY = /\bresolve\(process\.argv\[1\]\)|pathToFileURL\(process\.argv\[1\]\)|=== *import\.meta\.url|import\.meta\.url *===|import\.meta\.main|require\.main/;
   const scripts = walkFiles(repository, ["scripts"], (file: string) => CODE_FILE.test(file) && file !== "scripts/script-paths.mjs");
   assert.ok(scripts.length > 100, "the walk found the scripts");
-  // initial-versions.mjs is U1-i's to change; it leaves this list in the change that fixes it.
-  assert.deepEqual(scripts.filter((file: string) => OLD_WAY.test(readFileSync(path.join(repository, file), "utf8"))), ["scripts/gates/initial-versions.mjs"]);
+  assert.deepEqual(scripts.filter((file: string) => OLD_WAY.test(readFileSync(path.join(repository, file), "utf8"))), []);
 
   // And each really runs that way: through a symlink in a path with a space and Chinese it refuses a bad argument, or says what it checked.
   // scripts/memory-evaluation/scale.mts is not run here (it starts an evaluation); the scan above is what covers it.

@@ -65,7 +65,6 @@ const TABLE = [
   "| Server | `server/server.sqlite` | 1 | `user_version` | `server/src/db.ts#SERVER_BASELINE` | 拒绝 |",
   "| Catalog | `catalog.db` | 21 | `catalog_meta` | `apps/alpha/src/store.ts#CATALOG_VERSION` | 拒绝 |",
   "| Characters | `characters.sqlite` | 1 | `user_version` | `apps/alpha/src/characters.ts#PRAGMA user_version` | 只拒绝更高的版本 |",
-  "| Plain | `plain.sqlite` | 无 | 没有版本 | `apps/alpha/src/plain.ts` | 不检查 |",
 ].join("\n");
 
 // A scratch repository that satisfies every rule; the tests break one thing at a time.
@@ -90,7 +89,6 @@ const buildFixture = () => {
     "export const CATALOG_VERSION = 21;",
   ].join("\n"));
   put("apps/alpha/src/characters.ts", "db.exec(`CREATE TABLE IF NOT EXISTS c (id TEXT); PRAGMA user_version = 1;`);\n");
-  put("apps/alpha/src/plain.ts", "export const plain = 'CREATE TABLE IF NOT EXISTS p (id TEXT)';\n");
   put("server/package.json", JSON.stringify({ name: "server", version: "0.0.0", private: true }));
   put("server/src/db.ts", "export const SERVER_BASELINE: SqliteBaseline = {\n  version: 1,\n  schema: ``,\n};\n");
   put("apps/desktop/src-tauri/tauri.conf.json", JSON.stringify({ productName: "Molis Work", version: VERSION }));
@@ -127,7 +125,7 @@ test("a consistent scratch tree passes, and the tag may be v<version>", () => {
   const plain = run();
   assert.equal(plain.code, 0, plain.out);
   assert.match(plain.out, new RegExp(`release version sources agree: ${VERSION}`));
-  assert.match(plain.out, /2 workspace packages are private 0\.0\.0; 5 stores/);
+  assert.match(plain.out, /2 workspace packages are private 0\.0\.0; 4 stores/);
   assert.equal(run("--tag", `v${VERSION}`).code, 0);
   assert.equal(run(`--tag=v${VERSION}`).code, 0);
 });
@@ -393,7 +391,7 @@ test("a baseline written with satisfies or as is listed and read like an annotat
     "apps/alpha/src/more.ts#LAST_BASELINE is a SqliteBaseline the 各库版本表 does not list");
   withRows("4", "2");
   assert.equal(run().code, 0, run().out);
-  assert.match(run().out, /7 stores/);
+  assert.match(run().out, /6 stores/);
   withRows("9", "2");
   failsWith(run(), "More: the table says 9, the code (apps/alpha/src/more.ts#MORE_BASELINE) says 4");
   withRows("4", "3");
@@ -404,15 +402,46 @@ test("a baseline written with satisfies or as is listed and read like an annotat
   failsWith(run(), "More: apps/alpha/src/more.ts has no MORE_BASELINE with a version");
 });
 
-test("a database listed as having no version fails once it gets one", () => {
-  put("apps/alpha/src/plain.ts", "db.exec('PRAGMA user_version = 1');\n");
-  failsWith(run(), "Plain: apps/alpha/src/plain.ts now carries a version marker; give the table a number");
-  buildFixture();
-  put("apps/alpha/src/plain.ts", "const row = db.prepare('SELECT schema_version FROM meta');\n");
-  failsWith(run(), "Plain: apps/alpha/src/plain.ts now carries a version marker");
+const withRow = (row: string) => put("docs/releases/CHECKLIST.md", `# Checklist\n\n## 3. 各库版本表\n\n${TABLE}\n${row}\n`);
+
+test("VG-23 无 and a bare path are refused: no library is without a version, and scripts/gates/store-versions.mjs reads the same cells", () => {
+  put("apps/alpha/src/plain.ts", "export const plain = 'CREATE TABLE IF NOT EXISTS p (id TEXT)';\n");
+  withRow("| Plain | `plain.sqlite` | 无 | 没有版本 | `apps/alpha/src/plain.ts` | 不检查 |");
+  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
+  withRow("| Plain | `plain.sqlite` | 无 | 没有版本 | `apps/alpha/src/plain.ts#plain` | 不检查 |");
+  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
+  withRow("| Plain | `plain.sqlite` | 1 | 没有版本 | `apps/alpha/src/plain.ts` | 不检查 |");
+  failsWith(run(), "Plain: needs a whole number in 版本 and `path#NAME` in 定义处");
 });
 
-test("the table itself must exist, have the columns, and carry a number or 无", () => {
+test("VG-24 a JSON file's row points at the field the code writes, and every spelling of that field has to say the table's number", () => {
+  scratchLiterals("apps/alpha/src/settings.ts");
+  const row = (version: number, name = "schema_version") => withRow(`| Settings | \`settings.json\` | ${version} | \`${name}\` | \`apps/alpha/src/settings.ts#${name}\` | 当没有 |`);
+  put("apps/alpha/src/settings.ts", "export interface Saved { schema_version: 1; }\nexport const write = () => ({ schema_version: 1, name: 'a' });\n");
+  row(1);
+  assert.equal(run().code, 0, run().out);
+  assert.match(run().out, /5 stores/);
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ version: 1, name: 'a' });\n");
+  row(1, "version");
+  assert.equal(run().code, 0, run().out);
+
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ schema_version: 1 });\n");
+  row(2);
+  failsWith(run(), "Settings: the table says 2, the code (apps/alpha/src/settings.ts#schema_version) says 1");
+  row(1);
+  put("apps/alpha/src/settings.ts", "export interface Saved { schema_version: 1; }\nexport const write = () => ({ schema_version: 2 });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
+  put("apps/alpha/src/settings.ts", "export const write = (current: number) => ({ schema_version: current });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ name: 'a' });\n");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no schema_version with a version");
+  // Only the two field names read this way: a constant's row still needs the constant.
+  put("apps/alpha/src/settings.ts", "export const write = () => ({ SETTINGS_VERSION: 1 });\n");
+  row(1, "SETTINGS_VERSION");
+  failsWith(run(), "Settings: apps/alpha/src/settings.ts has no SETTINGS_VERSION with a version");
+});
+
+test("the table itself must exist, have the columns, and carry a whole number", () => {
   put("docs/releases/CHECKLIST.md", "# Checklist\n\nno table\n");
   failsWith(run(), "no section titled 各库版本表");
   put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 |\n| --- | --- |\n| Alpha | 3 |\n");
@@ -420,7 +449,7 @@ test("the table itself must exist, have the columns, and carry a number or 无",
   put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 | 定义处 |\n| --- | --- | --- |\n");
   failsWith(run(), "the 各库版本表 has no rows");
   put("docs/releases/CHECKLIST.md", "## 各库版本表\n\n| 库 | 版本 | 定义处 |\n| --- | --- | --- |\n| Alpha | three | `apps/alpha/src/store.ts#ALPHA_BASELINE` |\n");
-  failsWith(run(), "Alpha: needs a number or 无 in 版本 and a file in 定义处");
+  failsWith(run(), "Alpha: needs a whole number in 版本 and `path#NAME` in 定义处");
   rmSyncFile("docs/releases/CHECKLIST.md");
   failsWith(run(), "docs/releases/CHECKLIST.md: the file is missing");
 });

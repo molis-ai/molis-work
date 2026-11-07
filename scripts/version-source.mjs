@@ -10,6 +10,9 @@ import { CODE_FILE, walkFiles } from "./script-paths.mjs";
 export const REPOSITORY = fileURLToPath(new URL("../", import.meta.url));
 export const VERSIONS_FILE = "tooling/versions.json";
 export const SOURCE_ROOTS = ["apps", "packages", "plugins", "modules", "horizontal", "server", "tooling/plugin-cli"];
+/** The 定义处 of a JSON file has no constant to point at: the field of what the code writes, `path#schema_version` or `path#version`. */
+export const VERSION_FIELD = /^(?:schema_)?version$/;
+export const isUnderSourceRoots = file => SOURCE_ROOTS.some(root => file.startsWith(`${root}/`));
 
 const STRING = String.raw`"(?:[^"\\]|\\.)*"`;
 const MARKER = String.raw`/\* @version ([\w./-]+)(?: (${STRING}))? \*/`;

@@ -57,7 +57,7 @@ import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
 import { versionOriginProblems } from "./gates/initial-versions.mjs";
-import { measureSchemaPatches, schemaPatchesWantText } from "./gates/schema-patches.mjs";
+import { measureSchemaExecs, measureSchemaPatches, schemaExecsWantText, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
@@ -154,7 +154,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
+const needsText = (file) => file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -353,6 +353,18 @@ const schemaPatches = {
   summary: (count) => `${count} schema patches`,
 };
 
+// 4b. Schema text run by hand, beside the baselines (`db.exec(X_SCHEMA_SQL)`, scripts/gates/schema-patches.mjs), counted per file.
+const schemaExecs = {
+  id: "schemaExecs",
+  measure: (snapshot) => measureSchemaExecs(snapshot),
+  toBaseline: (counts) => ({ schemaExecTotal: sumOf(counts), schemaExecs: counts }),
+  fromBaseline: (json) => perFile.fromBaseline(json, "schemaExecs"),
+  grew: perFile.grew("schema text run by hand", "put the tables in a baseline's schema, and a structure change in a step of its `upgrades` literal"),
+  lowered: perFile.lowered,
+  lines: (head, ref, env) => perFile.lines("Schema text run by hand", head, ref, env),
+  summary: (counts) => `${sumOf(counts)} schema execs`,
+};
+
 // 5. Compatibility code coming back (§4.1 "no compat logic"): words that keep an old shape alive, counted per source
 // file. A file may only lose them and a new file starts with none; a kept mechanism is recorded in the spec and stays in
 // the baseline. Scene "compatible" alone is ordinary vocabulary; identifiers built on it (compatibleRun) are counted.
@@ -389,7 +401,7 @@ const sourceCounts = SOURCE_COUNT_RULES.map((rule) => ({
   summary: (counts) => `${sumOf(counts)} ${rule.summary}`,
 }));
 
-const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers, ...sourceCounts];
+const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, schemaExecs, compatMarkers, ...sourceCounts];
 // The structure gates (W1-05) live in scripts/gates/: each module says what to count, this file compares.
 METRICS.push(...structureMetrics({ isSource: isStructureSource, perFile, rekey, rekeyUnit, sumOf }));
 METRICS.push(...docGateMetrics({ perFile }));

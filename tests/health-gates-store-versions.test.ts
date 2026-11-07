@@ -111,6 +111,8 @@ expect("a library gone from Home needs no row", () => edit(CHECKLIST, "| 项目�
 expect("the checklist without its §3 heading exits 2", () => edit(CHECKLIST, "## 3. 各库版本表", "## 3. 库"), 2, [/no heading「## 3\. 各库版本表」/]);
 expect("the checklist's table without a 版本 column exits 2", () => edit(CHECKLIST, "| 库 | 位置 | 版本 | 记在 | 定义处 |", "| 库 | 位置 | 版 | 记在 | 定义处 |"), 2, [/no column 版本/]);
 expect("a version that is not a number exits 2", () => edit(CHECKLIST, "| 7 |", "| 七 |"), 2, [/whole-number 版本/]);
+expect("VG-25 无 in the 版本 cell exits 2, as scripts/verify-release-versions.mjs refuses it", () => edit(CHECKLIST, "| 7 |", "| 无 |"), 2, [/whole-number 版本/]);
+expect("VG-26 a 位置 on two rows exits 2: the later row would otherwise hide the earlier one's version", () => put(CHECKLIST, checklist(2, "| Pages 二 | `pages/pages.db` | 3 | `user_version` | `plugins/native/pages/src/other.ts#OTHER` |")), 2, [/the 位置 `pages\/pages\.db` is on another row too/]);
 expect("the checklist deleted exits 2", () => rmSync(path.join(repo, CHECKLIST)), 2, [/CHECKLIST\.md: missing/]);
 expect("the registration document deleted exits 2", () => rmSync(path.join(repo, SPEC)), 2, [/CONTRACT-CHANGES\.md: missing/]);
 expect("the document without the registration heading exits 2", () => edit(SPEC, "### 存储版本变更登记", "### 别的"), 2, [/no heading「### 存储版本变更登记」/]);
@@ -308,6 +310,26 @@ test("UPG1-i-store-12: every real row at 1 can go to 2 by the rule, and cannot w
     assert.match(gateWith(raised, listed, real(file)).join("\n"), /has no upgrades|no upgrade step with `from: 1`/, `${row.place}: no step`);
     assert.match(gateWith(realChecklist, realSpec, real(file), raised).join("\n"), /went from 2 to 1; after the unified origin a version does not go down/, `${row.place}: going down`);
   }
+});
+
+test("VG-27 a row that points at a field of a JSON file goes up by the `upgrades` of its file; any other name still needs its one constant", () => {
+  const FILE = "apps/x/src/settings.ts", PLACE = "`config/settings.json`";
+  const table = (version: number, name: string) => lines("## 3. 各库版本表", "", "| 库 | 位置 | 版本 | 记在 | 定义处 |", "| --- | --- | --- | --- | --- |",
+    `| Settings | ${PLACE} | ${version} | \`${name}\` | \`${FILE}#${name}\` |`, "", "## 4. 真实 Home", "", REGISTERED);
+  const inspect = (name: string, source: string) => {
+    const pointer = `\`${FILE}#${name}#1→2\``;
+    const specText = spec([`| ${PLACE} | 1 → 2 | 本 PR | ${pointer} |`]);
+    return storeVersionProblems({
+      read: (file: string) => file === CHECKLIST ? table(2, name) : file === SPEC ? specText : file === FILE ? source : null,
+      readBase: (file: string) => file === CHECKLIST ? table(1, name) : null,
+    }) as string[];
+  };
+  const WITH_STEP = 'export const SETTINGS_FILE = { upgrades: [{ from: 1, sql: "SELECT 1" }] };\n';
+  assert.deepEqual(inspect("schema_version", `export const write = () => ({ schema_version: 2 });\n${WITH_STEP}`), []);
+  assert.deepEqual(inspect("version", `export const write = () => ({ version: 2 });\n${WITH_STEP}`), []);
+  assert.match(inspect("schema_version", "export const write = () => ({ schema_version: 2 });\n").join("\n"), /#schema_version has no upgrades/);
+  assert.match(inspect("schema_version", 'export const OTHER = { upgrades: [{ from: 2, sql: "SELECT 1" }] };\n').join("\n"), /no upgrade step with `from: 1`/);
+  assert.match(inspect("SETTINGS_VERSION", `export const write = () => ({ SETTINGS_VERSION: 2 });\n${WITH_STEP}`).join("\n"), /has no one constant SETTINGS_VERSION/);
 });
 
 // ---- the readers on text --------------------------------------------------------------------------------------------------

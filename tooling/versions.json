@@ -998,6 +998,7 @@
     "format.home.snapshot.file-wrapper": 1,
     "format.home.snapshot.manifest": 1,
     "format.home.uninstall.receipt": 1,
+    "format.home.upgrade.snapshot": 1,
     "format.images.portable": 1,
     "format.issues.portable": 1,
     "format.jelly.portable": 1,

@@ -1,9 +1,9 @@
 {
   "reason": "第 12 批第 3 项草稿与返回（specs/draft-and-return/spec.md，R0～R4）。对照 origin/main f12df790 的隔离构建，在第 13 批④c-2 与第 18 批 P3-1～3 各自许可之外实测：workbench.js +16947：回程主人 settings-return（src/browser/settings-return.ts 与 return-trips.ts 打成 dist/settings-return-client.js，13871 字节：形状检查、窗口号、期限与认领，读回需要，返回条），加设置目录、标签工作区与助理岛「继续接入」的接线；plugin-frame.js +5220：框架宿主的 host.returns（plugin-frame/returns.ts、子框的 childReturns，连接卡「还不能一键连接」的回程）与它用到的形状检查；coding.js +2145、cognia.js +1452、workflows.js +810：三个消费者接 host.returns 与「接着做」共用件；workbench.css +1012、settings.css +755、arrival.css +633：返回条、接着做共用件（design-system primitives）与设置里返回条的位置、连接页「连好以后」让位。先缩后放行：形状检查合成一个 returnRecord(value, \"name name? …\")，正则写成字面量共用一个 fits，回程的复制只留来处、需要与 carry 三处，存取共用一次解析，读回需要合成一条请求，重复的文案与事件派发各留一处，助理的来处改由助理岛自己给（回程主人不再读列表）；接着做共用件不再经 renderButton 带上图标集（cognia.js 从 +7881 降到 +1452，coding.js 从 +8527 降到 +2145）。回程主人包从 15604 降到 13871 字节，workbench.js 从 +18264 降到 +16947，仍超过 15 KB，回报后用户 11-07 弹窗批准按此一次性放行。统一评审修复后（设置打不开时 go() 立即拒绝、窗格转发改写与落地页挪成纯函数、上限取合同按码点计、换语言按刷新处理、Cognia 等读回才问、Coding 问话进输入表单、没有草稿或名字时的文案）对照 origin/main f12df790 实测：plugin-frame.js 本项 +5410、coding.js +2187、cognia.js +1505、cognia.css +38（Cognia 问话与列表同样内缩），都在 10 KB 以内，统筹审过即放行；workbench.js 本项实测 +17590（比已批的 +16947 多 643 字节），统筹报用户后一次性放行",
   "review": "第 13 批统筹审第 12 批第 3 项时核对；与④c 合成一个 PR 统一验收（用户 2026-11-07 定）",
-  "userApproval": "用户 2026-11-07 弹窗批准：先缩再一次性放行；workbench.js 一条：用户 2026-11-07 弹窗批准：缩后 +16.9 KB 一次性放行；统一评审修复后 workbench.js 按 +17590 放行（用户 2026-11-07 弹窗批准）",
+  "userApproval": "用户 2026-11-07 弹窗批准：先缩再一次性放行；workbench.js 一条：用户 2026-11-07 弹窗批准：缩后 +16.9 KB 一次性放行；统一评审修复后 workbench.js 按 +17590 放行（用户 2026-11-07 弹窗批准）；合并后实测差 +38 B 由统筹放行（11-07），统一验收时报用户",
   "assets": {
-    "/assets/molis-work-workbench.js": 17590,
+    "/assets/molis-work-workbench.js": 17628,
     "/assets/molis-work-plugin-frame.js": 5410,
     "/assets/molis-work-plugins/coding.js": 2187,
     "/assets/molis-work-plugins/cognia.js": 1505,

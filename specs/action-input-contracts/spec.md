@@ -576,13 +576,13 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | 5 | T03 | T04 | S0 |
 | 6 | T05 | T06 | S7 |
 | 7 | T07 | T13 | S3 |
-| 8 | T08 | S9 | S4 |
-| 9 | T09 | T12 | S2 |
-| 10 | S8 | S5 | T02 |
-| 11 | S6 | | |
+| 8 | T02 | S9 | S4 |
+| 9 | T08 | T09 | S6 |
+| 10 | T12 | S5 | |
+| 11 | S8 | S2 | |
 | 12 | N22-Z | | |
 
-这是一个排得下的例子，不是死规定：约 12 轮，31 片（含 N14），收口之后再加一个门禁小 PR（N22-G）。05② C-1 没合入时 N22-03 往后挪，空位给下一个 T 片；U1-f 正占着 `platform/plugin.txt` 时 N22-02 等它这一个 PR；S0 没有内容时那一轮给 T 片。第 2 轮有空位，因为 N22-03 排在 N22-02 之后，T 片要等试点通过；最后两轮有空位，因为只剩快照串行的片和收口。T02 排到第 10 轮只为这张表排得下，它没有后继，有空位就提前。**清单为空的 S 片取消后，总轮数还能少。**
+这是一个排得下的例子，不是死规定：约 12 轮，31 片（含 N14），收口之后再加一个门禁小 PR（N22-G）。05② C-1 没合入时 N22-03 往后挪，空位给下一个 T 片；U1-f 正占着 `platform/plugin.txt` 时 N22-02 等它这一个 PR；S0 没有内容时那一轮给 T 片。第 2 轮有空位，因为 N22-03 排在 N22-02 之后，T 片要等试点通过；最后三轮有空位，因为只剩快照串行的片和收口。**清单为空的 S 片取消后，总轮数还能少。**
 
 **尽量缩短的办法，都已经写进上面了：**
 
@@ -728,4 +728,4 @@ S 片：再加每个约束一个拒绝用例，PR 列出留下的检查和理由
 | AIC-16 | 规则在别处发布：保存得 `published_immutable`，页面进「已在别处发布」，输入还在；「存成新规则」不撞 key；直接调动作、传的是发布的那一版，按成功（幂等只对直接调动作的调用方：编辑器点发布先 `saveDraft`，`update` 对已发布记录一律 `published_immutable`，走不到这里） |
 | AIC-17 | 每个 T 片：`pnpm actions:update`、`pnpm api:update` 无差异，运行时检查和错误码没动，PR 带 S 清单。N22-02、N22-03 的 `api:update` 除外：只改 §8.2 写明的 5 份快照，差异只是字面量变窄，PR 写明对调用方兼容 |
 | AIC-18 | N22-Z：全仓处理器的输入参数上只剩 `bindActionHandler` 一处 `as` 和 §4.4 名单里的例外；公开合同的定义要么包了 `inputSchemaFor`，要么在 §4.4 名单里带理由；`defineAction` 的手写写法只剩 `input: unknown`；手写 `I` 被 N22-G 拦下；Skill 用新写法（`examples/plugin-sample`、`tooling/plugin-cli` 的模板是 JS，定义从 manifest 取，不用改）；读动作输入的 `text`、`optionalText` 只剩有理由的 |
-| AIC-19 | N22-G：新写一处处理器输入参数上的 `as`，门禁失败（变异用例），`bindOwnerPluginAction` 的输入参数上写 `as` 也失败；定义处写 `createActionDefinition<X, …>`、标 `ActionDefinition<X, …>` 时门禁失败（变异用例），合同包和 §4.4 名单通过；基线为 0；`bindActionHandler` 和 §4.4 名单里的例外通过，名单每条有理由；测试文件不查 |
+| AIC-19 | N22-G：新写一处处理器输入参数上的 `as`，门禁失败（变异用例），`bindOwnerPluginAction` 的输入参数上写 `as` 也失败；定义处写 `createActionDefinition<X, …>`、标 `ActionDefinition<X, …>` 时门禁失败（变异用例），合同包、SDK 和 §4.4 名单通过；类型参数化的帮手（`Object.entries<ActionDefinition<…>>`、`<I, O>(definition: ActionDefinition<I, O>)`）也通过，N22-G 只查定义处；基线为 0；`bindActionHandler` 和 §4.4 名单里的例外通过，名单每条有理由；测试文件不查 |

@@ -75,6 +75,21 @@ export const SANDBOX_PACKAGE_FILES = {
   prompts: "prompts.json",
 } as const;
 
+/**
+ * The content package format: the package of a plugin with only declarations (Manifest `kind: "content"`,
+ * specs/skill-packs/contract-design.md §3). `payload.files` hold exactly `manifest.json` and the bodies and resources the Manifest's
+ * `methods` declare, no more and no fewer, each at a relative path without `..`; there is no code, contract, interface or prompts
+ * file. The Host picks the content or the sandbox parse by the Manifest's `kind` and checks the signature the same way for both.
+ */
+export const CONTENT_PACKAGE_FILES = {
+  /** The Manifest, the same object as `payload.manifest`. */
+  manifest: "manifest.json",
+  /** The folder of every Skill: `skills/<skill_id>/`. */
+  skills: "skills",
+  /** A Skill's body inside its folder, so `skills/<skill_id>/SKILL.md`. */
+  body: "SKILL.md",
+} as const;
+
 /** One prompt a sandbox plugin declares; the Host registers it so the person sees and edits it with every other prompt. */
 export interface SandboxPackagePrompt {
   id: string;

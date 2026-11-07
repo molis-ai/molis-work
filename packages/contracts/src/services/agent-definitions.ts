@@ -25,6 +25,19 @@ export interface SignedAgentReference {
   entry_id: string;
 }
 
+/**
+ * The exact reference to one Skill (specs/skill-packs/contract-design.md §4.3): the signed source of `SignedAgentReference` with the
+ * Skill's own `version`, and the installation of `SignedAgentInstallation`. A round freezes these; a read is refused, never moved to
+ * another version, once any part of it is no longer current. Delegation's "this round's Skills" use it too (batch 09, 9-1).
+ */
+export interface SkillRef {
+  source: { kind: "plugin"; plugin_id: string; plugin_version: string; publisher_signature: string };
+  skill_id: string;
+  version: number;
+  install_id: string;
+  installation_generation: string;
+}
+
 /** Current installation selected by the Host, checked again at each new handoff. */
 export interface SignedAgentInstallation {
   install_id: string;

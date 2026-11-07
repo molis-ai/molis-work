@@ -123,15 +123,84 @@ export interface AgentEndingReviewDeclaration {
   prompt_id: string;
 }
 
+/** Which built-in Agent may pick a method a Plugin offers to others (Manifest `methods`). */
+export const SKILL_APPLIES_TO = ["assistant", "coding", "both"] as const;
+export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
+
+/** What a file a Skill ships besides its body is for, and the folder under `skills/<skill_id>/` it lives in. */
+export const SKILL_RESOURCE_FOLDERS = { reference: "references", script: "scripts", asset: "assets" } as const;
+export type SkillResourceRole = keyof typeof SKILL_RESOURCE_FOLDERS;
+
+/**
+ * One file a Skill ships besides its body, read on demand (`references/`), run only in the permission island and sandbox
+ * (`scripts/`, SKP-09), or used as is (`assets/`). The digest is checked when the package is assembled and on every read.
+ */
+export interface SkillResourceDeclaration {
+  /** `skills/<skill_id>/<folder of role>/…`, relative to the package root. */
+  path: string;
+  role: SkillResourceRole;
+  /** e.g. `text/markdown`, `text/x-python`, `image/png`. */
+  media_type: string;
+  bytes: number;
+  /** Lower-case hex SHA-256 of the file's bytes. */
+  sha256: string;
+}
+
+/**
+ * Prologue's `MAX_SKILL_BODY_CHARS` (`@prologue/sdk`, `skill/core/invoke`): the longest body a round takes whole. Written here
+ * again because contracts and the plugin SDK never depend on Prologue; change both together.
+ */
+export const MAX_SKILL_BODY_CHARS = 20_000;
+
+/**
+ * The limits a Skill declaration and its package are checked against (specs/skill-packs/contract-design.md §4.2). The package
+ * limits are `CHARACTER_IMPORT_LIMITS`' (`modules/character-import`): an imported folder and a package are held to the same.
+ */
+export const SKILL_LIMITS = {
+  descriptionChars: 1024,
+  whenChars: 500,
+  argumentHintChars: 80,
+  bodyLines: 500,
+  bodyChars: MAX_SKILL_BODY_CHARS,
+  resourcesPerSkill: 300,
+  skillsPerPackage: 128,
+  filesPerPackage: 4000,
+  fileBytes: 8 * 1024 * 1024,
+  packageBytes: 64 * 1024 * 1024,
+} as const;
+
+/**
+ * A Skill: a versioned, on-demand way of doing something, which grants nothing. In Manifest `methods` it is offered to other
+ * Agents; in `agent.skills` it is the Plugin's own Agent's. The two differ only in what they may write, and the SDK's checks say
+ * so: `applies_to`, `user_invocable` and `argument_hint` are only for `methods`. Every field after `tools` is optional for now;
+ * `description` and `applies_to` become required in `methods` with C-3 (contract-design §4.2).
+ */
 export interface AgentSkillDeclaration {
   skill_id: string;
   version: number;
   name: string;
   summary: string;
+  /** A declaration, not a grant: each must be in `SKILL_TOOLS` for `methods`; a round still needs the action's authorization. */
   tools: string[];
+  /** When to pick it, 1 to 1024 characters. */
+  description?: string;
+  when_to_use?: string;
+  when_not_to_use?: string;
+  /** `methods` only. */
+  applies_to?: SkillAppliesTo;
+  /** `methods` only. Omitted: the person may name it. */
+  user_invocable?: boolean;
+  /** `methods` only: what to write after the name when naming it, at most 80 characters. */
+  argument_hint?: string;
+  /** The body's path in the package, always `skills/<skill_id>/SKILL.md`; required in a signed package. */
+  body?: string;
+  resources?: SkillResourceDeclaration[];
+  /** The connector categories the body writes placeholders for (`~~project tracker`), as lower-case tokens such as `project-tracker`. */
+  connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends AgentSkillDeclaration {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
+  /** The body's text, not the package path a declaration's `body` names. */
   body: string;
 }
 

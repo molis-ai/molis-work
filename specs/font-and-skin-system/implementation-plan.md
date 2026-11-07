@@ -156,7 +156,7 @@ Host 中的 `interface/` 是平台配置的现有 App 边界内模块，不是�
 
 ```text
 发行物 / 每个拥有定义的包
-  resources/interface.json               共同规格（Design System）
+  resources/ui-spec.json                 共同规格（Design System）。2026-11-07 改名：沙箱包已有 interface.json
   resources/skins/soft-workbench.json     内置皮肤
   resources/skins/folio.json
   resources/fonts/*.json                 内置字体方案
@@ -300,9 +300,9 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 - Manifest 写 `ui.locales: { default, available }`，文件按约定放在包内 `locales/<语言>.json`，包里缺文件即拒装（2026-11-07 改：原写每种语言声明一个路径；约定路径少写一项，也不用校验路径）。这是合同改动，按 [合同变化规则](../../docs/system/CONTRACT-CHANGES.md) 刷新 API 快照。
 - 现行发行物只存 `{manifest, module_source}`（[release-artifacts.ts](../../packages/plugin-runtime/src/release-artifacts.ts) 的 `createPluginRuntimeReleaseArtifact`），插件代码读不到包里的别的文件，所以语言文件由平台读。2026-11-07 改：原写语言文件进发行物；发行物存档只有内置插件写，而内置插件走当前构建、不从存档恢复，所以不进存档。外部包走已签名的包文件，内置走包目录，见 [A 段合同设计稿](a-section-contract.md)第 6 节。内置插件现在的 Manifest `ui.messages`、`ui.translations` 与工作台 `*_EN` 词典是另一条路，切换后删掉，不留两份（`PluginRegistration.messages` 已经删了，见 [plugin-registration.ts](../../packages/contracts/src/platform/plugin-registration.ts)）。
-- 键由能力 id 导出，不另起名字；声明里的原文仍是默认语言，模型、MCP 工具说明与回执用它。2026-11-07 改：原写 `action.<capability_id>.title|description|summary`，这样的键过不了 `STABLE_KEY`（最多 5 段、开头是主人名），写法改成 `<主人名>.action.<能力 id 去掉插件前缀，点换连字符>.<部分>`，见 [A 段合同设计稿](a-section-contract.md)第 2.4 节。
+- 键由能力 id 导出，不另起名字；声明里的原文仍是默认语言，MCP 工具说明与回执用它；助理能力目录给模型的那份按 A 段设计稿第 15.5 节量过再定（2026-11-07 改，用户要求内容跟语言走）。2026-11-07 改：原写 `action.<capability_id>.title|description|summary`，这样的键过不了 `STABLE_KEY`（最多 5 段、开头是主人名），写法改成 `<主人名>.action.<能力 id 去掉插件前缀，点换连字符>.<部分>`，见 [A 段合同设计稿](a-section-contract.md)第 2.4 节。
 - 宿主按（插件、语言）解析一次，缓存键带语言；语言来自入口：页面请求用 `pageLocale()`（[web-locale.ts](../../apps/local-host/src/web-locale.ts)），动作里用执行上下文的 `locale`。助理步骤行的目标名现在在 `presentActivity`（[assistant-service.ts](../../apps/local-host/src/assistant/assistant-service.ts)）里按动作标题取，缓存不分语言，要改成按轮次的语言取。
-- 要换成按语言取的表面：助理步骤行与结果卡（[assistant-result-card.ts](../../apps/local-host/src/assistant/assistant-result-card.ts)）、助理的能力目录说明（[assistant-directory.ts](../../apps/local-host/src/assistant/assistant-directory.ts) 给模型的那份不换）、设置 › 助理的能力列表、能力库（[capabilities.ts](../../apps/workbench/src/capabilities.ts)）、对外授权的工具标题与调用记录。逐处列清单后在英文实走里断言（§6.1 的检查盲区）。
+- 要换成按语言取的表面：助理步骤行与结果卡（[assistant-result-card.ts](../../apps/local-host/src/assistant/assistant-result-card.ts)）、助理的能力目录说明（[assistant-directory.ts](../../apps/local-host/src/assistant/assistant-directory.ts) 给模型的那份按 A 段设计稿第 15.5 节量过再定）、设置 › 助理的能力列表、能力库（[capabilities.ts](../../apps/workbench/src/capabilities.ts)）、对外授权的工具标题与调用记录。逐处列清单后在英文实走里断言（§6.1 的检查盲区）。
 
 **⑦ 结果摘要**
 
@@ -367,15 +367,17 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 制作 Skill 随产品发布并登记，不安装到用户外部 Runtime 全局目录。验证 clean release 的资源与 Skill 存在、实际模型请求携带正确正文/版本；手册存在和文件存在仅是局部证据。
 
+**分批（用户 2026-11-07 要求写进开发流程和手册）：** 第 14 批先交插件手册一章、开发流程、`AGENTS.md`、术语表，只写今天走得通的；第 16 批交脚手架、`generated-*.md` 与 Builder 挂载章节、手册删旧写法；第 70 批只剩 `DESIGN.md` 的皮肤章节、个人助理的外观 Skill 和交付前核对。见 [A 段设计稿](a-section-contract.md)第 16 节。
+
 ## 11. 开发与切换顺序（仅属于本方案）
 
 | 阶段 | 产出与依赖 | 合入/切换条件 |
 | --- | --- | --- |
-| A：合同与共享文件工具 | 在现有 UI/Plugin 合同定义 JSON/TextRef/快照/资源协议，SDK `/ui` 及共享工具；从现有值提取完整基线文件 | 不加入空占位 API 或读取双轨；真实 Host/浏览器消费者、无 Node polyfill 的两包样例成立；先核对 §12 的资源门禁决定 |
+| A：合同与共享文件工具 | 在现有 UI/Plugin 合同定义 JSON/TextRef/快照/资源协议，SDK `/ui` 及共享工具；从现有值提取完整基线文件；回复语言（T10）；手册与开发流程（T9b） | 不加入空占位 API 或读取双轨；真实 Host/浏览器消费者、无 Node polyfill 的两包样例成立；先核对 §12 的资源门禁决定 |
 | B：基线与真实切片 | Host owner、首屏、共同组件/规格板、Soft/Folio、字体、单插件和 Builder 切片 | 在隔离 Home 的真实工作台验证，保留当前业务与布局，CSS 不依赖新尾层压旧层；切片不宣称全平台完成 |
-| C：全入口与文案转换 | 现存插件、嵌入、稳定键/绑定、目录/状态、生成插件发布副本和公开 SDK | 各包可在开发分支独立准备，最终整合后一次切换现行 translator/renderer；不合入已改稳定键却仍用旧 EN 的半成品 |
+| C：全入口与文案转换 | 现存插件、嵌入、稳定键（2026-11-07 改：不再有绑定标记，切语言走 A 段设计稿第 5.4 节的三方文字合并）、目录/状态、生成插件发布副本和公开 SDK；内容翻译（第 15 节）；脚手架与 Builder 挂载章节 | 各包可在开发分支独立准备，最终整合后一次切换现行 translator/renderer；不合入已改稳定键却仍用旧 EN 的半成品 |
 | D：自定义与助理 | 文件编辑/导入/库、校验/预览、应用/撤销/恢复、系统 Skill 与实际 prompt | 原助理轮次完成真实制作；无模型、无资源、并发、取消及重启路径成立 |
-| E：整体交付 | 全量共享核心回归、实际所有入口、发行物文件/Skill、手册与存量维护准备 | 工程、真实产品、真实模型、用户视觉分别记录；真实 Home 维护先准备副本/差异再按已有授权执行 |
+| E：整体交付 | 全量共享核心回归、实际所有入口、发行物文件/Skill、`DESIGN.md` 皮肤章节与存量维护准备（2026-11-07 改：手册前移到 A、C） | 工程、真实产品、真实模型、用户视觉分别记录；真实 Home 维护先准备副本/差异再按已有授权执行 |
 
 语言数据与调用点按主人准备，切换之前做同一行为的完整对照：中文/英文含义、参数、状态不变。切换之后删除 EN 聚合、中文键读取和被替换的样式/默认值，不长期保留 fallback adapter。该顺序放在本文件，需求书仍只定义目标、范围和验收。
 

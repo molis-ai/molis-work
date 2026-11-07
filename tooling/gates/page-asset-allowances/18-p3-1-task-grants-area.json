@@ -1,9 +1,9 @@
 {
-  "reason": "第 18 批 P3-1：工作台画在插件框外的任务「能读的数据」区域（specs/proactive-assistant/task-grants-platform-area.md §2–§4，S-task-grants-area）。plugin-frame.js 188432 → 202922（+14490）：框外区域的共用登记 framed-area.ts（摆放、相交、整块可见与命中检查、静止期与键盘停留）与区域本身 task-grants-area.ts（类别行、开关、允许与移除、带撤销和重试的变化行、框里报位置的一半）。workbench.css 1108720 → 1113618（+4898）：平台区域的标头、类别行、变化行、未就绪与在途状态（styles/platform-area.ts），类别行样式与组件板共用。实测对照 origin/main 8bd73418。已缩过：初版 +15822，控件只用一个名字（data-framed-control）、HTML 转义用 SDK 的 escapeHtml、框外摆放与报位置各一份 helper（over-frame.ts，审查卡与嵌入也改用它），英文词条放在外壳词典里，入场用共用的 craft-rise 而不另写关键帧；没有新增资源，也没有按需加载",
+  "reason": "第 18 批 P3-1：工作台画在插件框外的任务「能读的数据」区域（specs/proactive-assistant/task-grants-platform-area.md §2–§4，S-task-grants-area）。plugin-frame.js 188432 → 202922（+14490）：框外区域的共用登记 framed-area.ts（摆放、相交、整块可见与命中检查、静止期与键盘停留）与区域本身 task-grants-area.ts（类别行、开关、允许与移除、带撤销和重试的变化行、框里报位置的一半）。workbench.css 1108720 → 1113618（+4898）：平台区域的标头、类别行、变化行、未就绪与在途状态（styles/platform-area.ts），类别行样式与组件板共用。实测对照 origin/main 8bd73418。已缩过：初版 +15822，控件只用一个名字（data-framed-control）、HTML 转义用 SDK 的 escapeHtml、框外摆放与报位置各一份 helper（over-frame.ts，审查卡与嵌入也改用它），英文词条放在外壳词典里，入场用共用的 craft-rise 而不另写关键帧；没有新增资源，也没有按需加载。合入 P3-2 与 P3-3 之后（2026-11-07 整合），plugin-frame.js 对照 origin/main f12df790 实测 188432 → 203296（+14864）：P3-1 本身 +14490，加上同属这块区域的评审小修 3（页面不可见时等到可见再画）与小修 1（gate() 按下时现量位置），以及「授权与放行」一页共用这块区域的行画法（导出 taskGrantRowHtml 与 doneLine，状态说明改成一张表，净省 30 B）；评审小修那部分原先记在 18-p3-2-schedule-area.json，现在并到这里，不重复计",
   "review": "第 18 批统筹审 P3-1 的 PR 时核对这段增长；workbench.css 不到 10 KB，由第 18 批统筹按评审放行",
-  "userApproval": "plugin-frame.js 超过 10 KB：用户 2026-11-06 在第 18 批统筹会话的弹窗里选「先缩，再放行」，即先缩小、剩下的一次性放行（缩后实测 +14490）",
+  "userApproval": "plugin-frame.js 超过 10 KB：用户 2026-11-06 在第 18 批统筹会话的弹窗里选「先缩，再放行」，即先缩小、剩下的一次性放行（缩后实测 +14490）；用户 2026-11-07 在第 18 批统筹会话的弹窗里「批准合计 +14883」（含 P3-1 评审小修 1、3），整合后实测 +14864，在批准的合计之内",
   "assets": {
-    "/assets/molis-work-plugin-frame.js": 14490,
+    "/assets/molis-work-plugin-frame.js": 14864,
     "/assets/molis-work-workbench.css": 4898
   }
 }

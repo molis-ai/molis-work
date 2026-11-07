@@ -1,9 +1,8 @@
 {
-  "reason": "第 18 批 P3-2：Schedule 在任务详情里放平台的「能读的数据」区域（specs/proactive-assistant/task-grants-platform-area.md §10 P3-2）：schedule.js 14866 → 16602（+1736），放与关区域（browser/area.ts）、按 onChange 的两个布尔改列表与详情的标记（reads.ts）；schedule.css 2509 → 2703（+194），空元素占位与区域显示后让位的那几行。plugin-frame.js 202922 → 203223（+301）是同一分支的 P3-1 评审小修 3：页面不可见时放的区域等到可见再画（task-grants-area.ts）。实测：pnpm workspace:build 后 node scripts/gates/page-assets.mjs --base a515f98f76（P3-1 #1929 的头，与本分支的 merge-base 就是它），所以只含本片自己的增长，不含 P3-1 的；没有新增资源，单个资源都不到 10 KB",
+  "reason": "第 18 批 P3-2：Schedule 在任务详情里放平台的「能读的数据」区域（specs/proactive-assistant/task-grants-platform-area.md §10 P3-2）：schedule.js 14866 → 16602（+1736），放与关区域（browser/area.ts）、按 onChange 的两个布尔改列表与详情的标记（reads.ts）；schedule.css 2509 → 2703（+194），空元素占位与区域显示后让位的那几行。同一分支上 P3-1 评审小修 1、3 让 plugin-frame.js 增长的那部分，2026-11-07 整合时并进 18-p3-1-task-grants-area.json 一起计，这里不再列。实测：pnpm workspace:build 后 node scripts/gates/page-assets.mjs --base a515f98f76（P3-1 #1929 的头，与本分支的 merge-base 就是它），所以只含本片自己的增长，不含 P3-1 的；没有新增资源，单个资源都不到 10 KB",
   "review": "第 18 批统筹审 P3-2 的 PR 时核对这段增长",
   "assets": {
     "/assets/molis-work-plugins/schedule.js": 1736,
-    "/assets/molis-work-plugins/schedule.css": 194,
-    "/assets/molis-work-plugin-frame.js": 301
+    "/assets/molis-work-plugins/schedule.css": 194
   }
 }

@@ -77,7 +77,7 @@ type Listed = { categories: Category[]; subjects: Array<{ plugin_install_id: str
 const ref = (category: Category) => category.group_id === undefined ? { provider_id: category.provider_id } : { provider_id: category.provider_id, group_id: category.group_id };
 const rowName = (category: Category) => category.provider_id + "\n" + (category.group_id ?? "");
 
-test("TGA-21 TGA-22 TGA-24 授权与放行 reads once, takes a category back with one set of the rest, a task with one clear, and reads again only when changed elsewhere", { timeout: 180_000 }, async t => {
+test("TGA-24 TGA-25 TGA-27 授权与放行 reads once, takes a category back with one set of the rest, a task with one clear, and reads again only when changed elsewhere", { timeout: 180_000 }, async t => {
   const p = await open(t); if (!p) return;
   const { browser } = p;
   // The project's offered categories, and Schedule's installation: its tasks are the ones the page lists.
@@ -89,7 +89,7 @@ test("TGA-21 TGA-22 TGA-24 授权与放行 reads once, takes a category back wit
   await p.call({ mode: "set", plugin_install_id: install, key: "daily", categories: [ref(first), ref(second)], expected_revision: "" });
   await p.call({ mode: "set", plugin_install_id: install, key: "weekly", categories: [ref(first)], expected_revision: "" });
 
-  // TGA-21: one list, no installation named; one card per task under Schedule, one row per category the task holds, each granted.
+  // TGA-24: one list, no installation named; one card per task under Schedule, one row per category the task holds, each granted.
   await p.visit();
   const opened = await p.sent();
   const titled = (await p.call<Listed>({ mode: "list" })).installations.filter(item => item.titled).length;
@@ -103,7 +103,7 @@ test("TGA-21 TGA-22 TGA-24 授权与放行 reads once, takes a category back wit
   if (!titled) assert.match(await browser.evaluate<string>(`(${p.task(daily)}).querySelector("header strong").textContent`), /· 一个任务$/u, "a task its plugin does not name");
   await p.shot("zh-light-1440");
 
-  // TGA-22: taking one category back is one set of the task's other categories, with the revision read; the answer is shown as it is.
+  // TGA-25: taking one category back is one set of the task's other categories, with the revision read; the answer is shown as it is.
   const before = (await p.call<Listed>({ mode: "list" })).subjects.find(subject => subject.key === "daily")!;
   const mark = (await p.sent()).length;
   await p.pressIn(p.task(daily), `[data-task-grants-row]:first-child [data-task-grants-act="off"]`);
@@ -114,7 +114,7 @@ test("TGA-21 TGA-22 TGA-24 授权与放行 reads once, takes a category back wit
   const records = (await readMcpToolPreference(browser.homeDirectory)).action_grants.filter(grant => grant.client_id.endsWith(":daily"));
   assert.ok(records.length > 0 && records.every(grant => grant.provider_id === second.provider_id), "only the other category's records are left");
 
-  // TGA-24: the weekly task changed elsewhere after the page read it; the page's set is a conflict, it says so and reads once more.
+  // TGA-27: the weekly task changed elsewhere after the page read it; the page's set is a conflict, it says so and reads once more.
   const weeklyNow = (await p.call<Listed>({ mode: "list" })).subjects.find(subject => subject.key === "weekly")!;
   await p.call({ mode: "set", plugin_install_id: install, key: "weekly", categories: [ref(first), ref(second)], expected_revision: weeklyNow.revision });
   const held = JSON.stringify((await readMcpToolPreference(browser.homeDirectory)).action_grants.filter(grant => grant.client_id.endsWith(":weekly")));
@@ -125,7 +125,7 @@ test("TGA-21 TGA-22 TGA-24 授权与放行 reads once, takes a category back wit
   assert.match(await p.toast(), /已在别处改动，已刷新/u);
   assert.equal(JSON.stringify((await readMcpToolPreference(browser.homeDirectory)).action_grants.filter(grant => grant.client_id.endsWith(":weekly"))), held, "the refused set changed nothing");
 
-  // TGA-22: all of a task is one clear naming its installation, once the person says so in the dialog.
+  // TGA-25: all of a task is one clear naming its installation, once the person says so in the dialog.
   const mark3 = (await p.sent()).length;
   await p.pressIn(p.task(daily), `[data-task-grants-act="clear"]`);
   await browser.waitFor(`document.querySelector("dialog[open] [data-task-grants-act=confirm]")`);
@@ -176,11 +176,11 @@ const ANSWER = String.raw`(() => {
   };
 })()`;
 
-test("TGA-22 TGA-23 a category in each state has its own action, sent with the rest as read, and a task is named by its plugin's own titles, one more page only while unnamed", { timeout: 180_000 }, async t => {
+test("TGA-25 TGA-26 a category in each state has its own action, sent with the rest as read, and a task is named by its plugin's own titles, one more page only while unnamed", { timeout: 180_000 }, async t => {
   const p = await open(t, ANSWER); if (!p) return;
   const { browser } = p;
   await p.visit();
-  // TGA-23: the next page of titles only while a task is unnamed: install-a's to its last page (one task is never listed), install-c's
+  // TGA-26: the next page of titles only while a task is unnamed: install-a's to its last page (one task is never listed), install-c's
   // first page alone (it names its one task, though it says there is more); install-b's titles fail and its task is named by its plugin.
   const opened = await p.sent();
   assert.deepEqual(opened.filter(body => body.mode === "titles").map(body => [body.plugin_install_id, body.cursor]).sort(),
@@ -196,14 +196,18 @@ test("TGA-22 TGA-23 a category in each state has its own action, sent with the r
   assert.deepEqual(await p.rows("install-a\nmorning"), [["plugin.todo\n", "granted"], ["plugin.notes\npages", "needs_confirmation"], ["plugin.inbox\n", "unavailable"], ["plugin.feed\n", "removed"]].map(([name, status]) => ({ name, status })));
   const acts = await browser.evaluate<string[][]>(`[...(${p.task("install-a\nmorning")}).querySelectorAll("[data-task-grants-row]")].map(row => [...row.querySelectorAll("[data-task-grants-act]")].map(button => button.dataset.taskGrantsAct))`);
   assert.deepEqual(acts, [["off"], ["allow", "off"], ["off"], ["remove"]], "允许 only where there is more to allow, 移除 only where it is no longer offered");
+  // The rows are the area's own (task-grants-area.ts `taskGrantRowHtml`): the same row class and the same note for each state.
+  const notes = await browser.evaluate<Array<[string, string | null]>>(`[...(${p.task("install-a\nmorning")}).querySelectorAll("[data-task-grants-row]")].map(row => [row.className, row.querySelector("em")?.textContent ?? null])`);
+  assert.deepEqual(notes, [null, "有新的读取能力，允许之前读不到", "暂时读不到，授权还在", "这一类已不再提供"].map(note => ["mw-item task-grants-area__row", note]));
   await p.shot("zh-light-states");
 
-  // TGA-22: 允许 is the task's categories as read, this one with confirm; the others, the removed one by its provider alone, as they are.
+  // TGA-25: 允许 is the task's categories as read, this one with confirm; the others, the removed one by its provider alone, as they are.
   const mark = (await p.sent()).length;
   await p.pressIn(p.row("install-a\nmorning", "plugin.notes\npages"), "[data-task-grants-act=allow]");
   await browser.waitFor(`(${p.row("install-a\nmorning", "plugin.notes\npages")})?.dataset.status === "granted"`);
   assert.deepEqual((await p.sent()).slice(mark), [{ mode: "set", plugin_install_id: "install-a", key: "morning", expected_revision: "r1",
     categories: [{ provider_id: "plugin.todo" }, { provider_id: "plugin.notes", group_id: "pages", confirm: true }, { provider_id: "plugin.inbox" }, { provider_id: "plugin.feed" }] }]);
+  assert.equal(await p.toast(), "已允许笔记的新读取能力；不想要就关掉这一类", "what it did, said as the area says it");
   // 移除 takes the removed one off and keeps the rest as they are now, with the revision the answer gave.
   const mark2 = (await p.sent()).length;
   await p.pressIn(p.row("install-a\nmorning", "plugin.feed\n"), "[data-task-grants-act=remove]");
@@ -222,9 +226,9 @@ test("TGA-22 TGA-23 a category in each state has its own action, sent with the r
     for (const width of widths) {
       await browser.setViewport(width, 900, width < 500);
       await browser.evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
-      const layout = await browser.evaluate<{ scroll: boolean; wrapped: string[]; outside: string[] }>(`(() => { const lines = [...document.querySelectorAll(".task-grants-page__row, .task-grants-page__task-head")];
+      const layout = await browser.evaluate<{ scroll: boolean; wrapped: string[]; outside: string[] }>(`(() => { const lines = [...document.querySelectorAll(".task-grants-area__row, .task-grants-page__task-head")];
         return { scroll: document.documentElement.scrollWidth > innerWidth + 1,
-          wrapped: lines.filter(row => row.getBoundingClientRect().height > 56).map(row => row.textContent),
+          wrapped: lines.filter(row => row.getBoundingClientRect().height > 56 || [...row.querySelectorAll("strong, small, em")].some(part => part.getBoundingClientRect().height > 24)).map(row => row.textContent),
           outside: lines.filter(row => [...row.querySelectorAll("*")].some(part => part.getBoundingClientRect().right > row.closest(".task-grants-page__task").getBoundingClientRect().right + 1)).map(row => row.textContent) }; })()`);
       assert.deepEqual(layout, { scroll: false, wrapped: [], outside: [] }, `${scheme} ${width}: no sideways scroll, every row one line and inside its task`);
       await p.shot(`en-${scheme}-${width}`);

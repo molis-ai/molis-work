@@ -1,13 +1,15 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { taskGrantChange, taskGrantRows } from "./plugin-frame/task-grants-area.js";
+import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { doneLine, taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame/task-grants-area.js";
 
 /**
  * 授权与放行 in a project's settings (specs/proactive-assistant/task-grants-platform-area.md §5): every background task's grants,
  * grouped by the installation it is in, one row per category it holds. It reads once on open (`list`, then each installation's own
  * titles, §5.2) and never polls; a change is one `set` or `clear`, formed as the task's own area forms it (§3.6, the shared
- * `taskGrantChange`), and the answer is shown without reading again. The rows' words are the area's (`taskGrantRows`, the provider's
- * English from the shell dictionary or its own `ui.translations`). Everything is drawn with textContent.
+ * `taskGrantChange`), and the answer is shown without reading again. A row is the area's own (`taskGrantRowHtml`, with the
+ * provider's words from `taskGrantRows`), and what a change did is said as the area says it (`doneLine`). Everything drawn is
+ * escaped markup, as the area's is; one click listener on the list reads which control, which task and which row from the markup.
  */
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 type Row = ReturnType<typeof taskGrantRows>[number];
@@ -15,22 +17,17 @@ interface Installation { plugin_install_id: string; plugin_id: string | null; na
 interface Listed extends TaskGrantListResult { installations: Installation[] }
 interface Title { key: string; title: string; open: { surface: string; id: string } }
 interface TitlesPage { entries: Title[]; next_cursor: string | null }
+type Post = <T>(body: Record<string, unknown>) => Promise<T>;
 
 const page = globalThis as typeof globalThis & { L?: Translate; LF?: (pluginId: string, text: string) => string; molisWorkRequest: UiRequest };
 const L: Translate = (text, values) => page.L ? page.L(text, values) : Object.entries(values ?? {}).reduce((out, [key, value]) => out.split("{" + key + "}").join(String(value)), text);
-const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text?: string): HTMLElementTagNameMap[K] => {
-  const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node;
-};
-const button = (text: string, variant: string, act: string) => { const node = el("button", "mw-btn mw-btn--sm " + variant, text); node.type = "button"; node.dataset.taskGrantsAct = act; return node; };
-const badge = (text: string, tone: string) => { const node = el("span", "mw-badge mw-badge--" + tone, text); node.dataset.slot = "badge"; return node; };
-/** A row's state as a tag in its state's colour (DESIGN.md, a row is one line); the area's longer note is its tooltip. */
-const STATES: Record<string, [string, string, string]> = {
-  granted: ["已允许", "success", ""], needs_confirmation: ["有新的读取能力", "warning", "有新的读取能力，允许之前读不到"],
-  unavailable: ["暂时不可读", "neutral", "暂时读不到，授权还在"], removed: ["已不再提供", "neutral", "这一类已不再提供"],
-};
 const subjectId = (subject: Pick<TaskGrantSubject, "plugin_install_id" | "key">) => subject.plugin_install_id + "\n" + subject.key;
+/** A small button for one act; `about` names what it acts on, for a screen reader. */
+const button = (label: string, variant: string, act: string, about?: string) => {
+  const text = escape(L(label));
+  return `<button type="button" class="mw-btn mw-btn--sm ${variant}" data-task-grants-act="${act}"${about === undefined ? "" : ` aria-label="${text} · ${escape(about)}"`}>${text}</button>`;
+};
 
-type Post = <T>(body: Record<string, unknown>) => Promise<T>;
 /** The settings page's own toast: what a write did, or that it did not. */
 const toast = (text: string, error = false) => {
   const box = document.querySelector<HTMLElement>("[data-settings-toast], [data-toast]"); if (!box) return;
@@ -60,42 +57,27 @@ function openHref(project: string, target: Title): string {
   return "/projects/" + encodeURIComponent(project) + "/?" + query.toString();
 }
 
-/** The catalog's alert dialog: cancel is the default. */
+/** The catalog's alert dialog: cancel is the default (it has the focus, and Escape is cancel); the answer is the button's value. */
 function ask(root: HTMLElement, title: string, description: string): Promise<boolean> {
-  return new Promise(resolve => {
-    const dialog = el("dialog", "mw-dialog mw-dialog--alert"), form = el("form", "mw-form mw-dialog__shell"), header = el("header", "mw-form__header"), heading = el("div");
-    dialog.dataset.slot = "alert-dialog"; form.method = "dialog";
-    heading.append(el("h2", "", title), el("p", "", description)); header.append(heading);
-    const footer = el("footer", "mw-form__footer"), cancel = button(L("取消"), "mw-btn--secondary", "cancel"), yes = button(L("全部撤回"), "mw-btn--danger", "confirm");
-    cancel.classList.replace("mw-btn--sm", "mw-btn--md"); yes.classList.replace("mw-btn--sm", "mw-btn--md");
-    let answer = false;
-    cancel.addEventListener("click", () => dialog.close());
-    yes.addEventListener("click", () => { answer = true; dialog.close(); });
-    dialog.addEventListener("close", () => { dialog.remove(); resolve(answer); });
-    footer.append(cancel, yes); form.append(header, footer); dialog.append(form); root.append(dialog); dialog.showModal(); cancel.focus();
-  });
+  const holder = document.createElement("template");
+  holder.innerHTML = `<dialog class="mw-dialog mw-dialog--alert" data-slot="alert-dialog"><form method="dialog" class="mw-form mw-dialog__shell"><header class="mw-form__header"><div><h2>${escape(title)}</h2><p>${escape(description)}</p></div></header>`
+    + `<footer class="mw-form__footer"><button class="mw-btn mw-btn--md mw-btn--secondary" data-task-grants-act="cancel" autofocus>${escape(L("取消"))}</button><button class="mw-btn mw-btn--md mw-btn--danger" data-task-grants-act="confirm" value="1">${escape(L("全部撤回"))}</button></footer></form></dialog>`;
+  const dialog = holder.content.firstElementChild as HTMLDialogElement;
+  root.append(dialog); dialog.showModal();
+  return new Promise(resolve => dialog.addEventListener("close", () => { dialog.remove(); resolve(dialog.returnValue === "1"); }));
 }
 
-/** One category the task holds, on one line: its name and what it is, its state as a tag, and its one or two actions. */
-function rowElement(row: Row): HTMLLIElement {
-  const item = el("li", "mw-item task-grants-page__row"), copy = el("span", "task-grants-page__copy"), end = el("span", "mw-item__end");
-  item.dataset.taskGrantsRow = row.name; item.dataset.status = row.status;
-  const title = el("strong", "", row.title), description = el("small", "", row.description);
-  title.title = row.title; description.title = row.description; copy.append(title, description);
-  const [label, tone, note] = STATES[row.status]!, state = badge(L(label), tone);
-  if (note) state.title = L(note);
-  end.append(state);
-  if (row.status === "needs_confirmation") end.append(button(L("允许"), "mw-btn--secondary", "allow"));
-  end.append(row.status === "removed" ? button(L("移除"), "mw-btn--secondary", "remove") : button(L("撤回"), "mw-btn--ghost", "off"));
-  for (const control of end.querySelectorAll<HTMLButtonElement>("[data-task-grants-act]")) control.setAttribute("aria-label", control.textContent + " · " + row.title);
-  item.append(copy, end);
-  return item;
-}
+/**
+ * One category the task holds: the area's own row (`taskGrantRowHtml`: its name, what it is and the same note), with the page's
+ * buttons in place of the switch, since turning a category on belongs to the task. On one line here; the note is cut first.
+ */
+const rowHtml = (row: Row) => taskGrantRowHtml(L, row, (row.status === "needs_confirmation" ? button("允许", "mw-btn--secondary", "allow", row.title) : "")
+  + (row.status === "removed" ? button("移除", "mw-btn--secondary", "remove", row.title) : button("撤回", "mw-btn--ghost", "off", row.title)));
 
 export function bindTaskGrantsSettings(root: HTMLElement): void {
   if (root.dataset.taskGrantsBound === "1") return;
   root.dataset.taskGrantsBound = "1";
-  const endpoint = "/projects/" + encodeURIComponent(root.dataset.project ?? "") + "/api/settings/task-grants";
+  const project = root.dataset.project ?? "", endpoint = "/projects/" + encodeURIComponent(project) + "/api/settings/task-grants";
   const list = root.querySelector<HTMLElement>("[data-task-grants-list]")!;
   const post: Post = body => page.molisWorkRequest(endpoint, { body, fallback: L("操作没有完成") });
   let listed: Listed | null = null;
@@ -116,9 +98,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
       }));
       listed = next; draw();
     } catch {
-      const failed = el("div", "task-grants-page__state is-error");
-      failed.append(el("span", "", L("暂时读不到后台任务的授权")), button(L("重试"), "mw-btn--secondary", "reload"));
-      list.replaceChildren(failed);
+      list.innerHTML = `<div class="task-grants-page__state is-error"><span>${escape(L("暂时读不到后台任务的授权"))}</span>${button("重试", "mw-btn--secondary", "reload")}</div>`;
     } finally { list.removeAttribute("aria-busy"); }
   }
 
@@ -131,51 +111,32 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
     ?? L("{name} · 一个任务", { name: installName(listed?.installations.find(install => install.plugin_install_id === subject.plugin_install_id)) });
   const held = (subject: TaskGrantSubject) => taskGrantRows({ categories: listed!.categories, subject }).filter(row => row.status !== "off");
 
-  function categoryRow(subject: TaskGrantSubject, row: Row): HTMLLIElement {
-    const item = rowElement(row);
-    item.addEventListener("click", event => {
-      const act = (event.target as Element).closest<HTMLElement>("[data-task-grants-act]")?.dataset.taskGrantsAct;
-      if (act === "off" || act === "allow" || act === "remove") void change(subject, row, act);
-    });
-    return item;
-  }
-
-  function taskCard(subject: TaskGrantSubject): HTMLElement {
-    const card = el("article", "task-grants-page__task"), head = el("header", "task-grants-page__task-head"), target = titleOf(subject);
-    card.dataset.taskGrantsTask = subjectId(subject);
-    if (busy.has(subjectId(subject))) card.setAttribute("aria-busy", "true");
-    const name = el("strong", target ? "" : "is-unnamed", nameOf(subject)); name.title = name.textContent ?? "";
-    const actions = el("span", "task-grants-page__task-actions");
-    if (target) {
-      const open = el("a", "mw-btn mw-btn--sm mw-btn--ghost", L("打开")); open.href = openHref(root.dataset.project ?? "", target);
-      open.setAttribute("aria-label", L("打开") + " · " + target.title); actions.append(open);
-    }
-    const all = button(L("全部撤回"), "mw-btn--ghost", "clear"); all.setAttribute("aria-label", L("全部撤回") + " · " + nameOf(subject));
-    all.addEventListener("click", () => void clear(subject));
-    actions.append(all); head.append(name, actions);
-    const rows = el("ul", "task-grants-page__rows"); rows.append(...held(subject).map(row => categoryRow(subject, row)));
-    card.append(head, rows);
-    if (card.hasAttribute("aria-busy")) card.querySelectorAll<HTMLButtonElement>("button").forEach(control => { control.disabled = true; });
-    return card;
+  /** A task: its name (its plugin's title for it, or the plugin's name and "a task"), 打开 when it has one, 全部撤回, then its rows. */
+  function taskHtml(subject: TaskGrantSubject): string {
+    const target = titleOf(subject), name = escape(nameOf(subject)), open = escape(L("打开"));
+    return `<article class="task-grants-page__task" data-task-grants-task="${escape(subjectId(subject))}"${busy.has(subjectId(subject)) ? ' aria-busy="true"' : ""}>`
+      + `<header class="task-grants-page__task-head"><strong${target ? "" : ' class="is-unnamed"'} title="${name}">${name}</strong><span class="task-grants-page__task-actions">`
+      + (target ? `<a class="mw-btn mw-btn--sm mw-btn--ghost" href="${escape(openHref(project, target))}" aria-label="${open} · ${escape(target.title)}">${open}</a>` : "")
+      + `${button("全部撤回", "mw-btn--ghost", "clear", nameOf(subject))}</span></header><ul class="task-grants-page__rows">${held(subject).map(rowHtml).join("")}</ul></article>`;
   }
 
   function draw(): void {
     if (!listed) return;
     const subjects = listed.subjects.filter(subject => held(subject).length > 0);
-    if (!subjects.length) { list.replaceChildren(el("p", "task-grants-page__state", L("还没有后台任务能读这个项目的数据。在一个任务的「能读的数据」里打开一类之后，它会列在这里。"))); return; }
+    if (!subjects.length) { list.innerHTML = `<p class="task-grants-page__state">${escape(L("还没有后台任务能读这个项目的数据。在一个任务的「能读的数据」里打开一类之后，它会列在这里。"))}</p>`; return; }
     const groups = new Map<string, TaskGrantSubject[]>();
     for (const subject of subjects) groups.set(subject.plugin_install_id, [...groups.get(subject.plugin_install_id) ?? [], subject]);
     const installs = [...groups.keys()].map(id => listed!.installations.find(install => install.plugin_install_id === id) ?? { plugin_install_id: id, plugin_id: null, name: null, titled: false });
-    const sections = installs.sort((left, right) => installName(left).localeCompare(installName(right))).map(install => {
-      const section = el("section", "task-grants-page__group"), head = el("h3", "task-grants-page__group-head"), tasks = groups.get(install.plugin_install_id)!;
-      section.dataset.taskGrantsInstall = install.plugin_install_id;
-      head.append(el("span", "", installName(install)), badge(String(tasks.length), "neutral"));
+    list.innerHTML = installs.sort((left, right) => installName(left).localeCompare(installName(right))).map(install => {
+      const tasks = groups.get(install.plugin_install_id)!;
       // Named tasks first, by title; the ones the plugin did not name keep their order.
       const ordered = [...tasks].sort((left, right) => Number(!titleOf(left)) - Number(!titleOf(right)) || (titleOf(left) && titleOf(right) ? nameOf(left).localeCompare(nameOf(right)) : 0));
-      section.append(head, ...ordered.map(taskCard));
-      return section;
-    });
-    list.replaceChildren(...sections);
+      return `<section class="task-grants-page__group" data-task-grants-install="${escape(install.plugin_install_id)}"><h3 class="task-grants-page__group-head"><span>${escape(installName(install))}</span>`
+        + `<span class="mw-badge mw-badge--neutral" data-slot="badge">${tasks.length}</span></h3>${ordered.map(taskHtml).join("")}</section>`;
+    }).join("");
+    // A note cut short keeps its words as a tooltip; a task with a write in flight takes no other press.
+    list.querySelectorAll("em").forEach(note => { note.title = note.textContent!; });
+    list.querySelectorAll<HTMLButtonElement>("article[aria-busy] button").forEach(control => { control.disabled = true; });
   }
 
   /** Puts the task's new state in place: the answer of `set` is the task as it is now (§6), shown without reading again. */
@@ -198,10 +159,9 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
 
   /** Taking one category back, allowing one, or removing one no longer offered: one `set` of the task's categories as read, ± this one. */
   function change(subject: TaskGrantSubject, row: Row, act: "off" | "allow" | "remove"): Promise<void> {
-    const { categories } = taskGrantChange(act, row, subject), name = { name: row.title };
+    const sent = taskGrantChange(act, row, subject);
     return write(subject, async () => (await post<{ subject: TaskGrantSubject }>({ mode: "set", plugin_install_id: subject.plugin_install_id, key: subject.key,
-      categories, expected_revision: subject.revision })).subject, () => act === "allow" ? L("已允许{name}的新读取能力；不想要就撤回这一类", name)
-      : act === "remove" ? L("已移除{name}，这一类已不再提供", name) : L("已撤回{name}，下一次运行起读不到", name));
+      categories: sent.categories, expected_revision: subject.revision })).subject, () => doneLine(L, sent).text);
   }
 
   /** Everything a task may read, taken back in one `clear` once the person says so. */
@@ -212,7 +172,17 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
       () => L("已撤回「{task}」能读的全部数据", { task }));
   }
 
-  list.addEventListener("click", event => { if ((event.target as Element).closest("[data-task-grants-act=reload]")) void load(); });
+  // Which control, which task and which row, read from the markup: the task by its installation and key, the row by its category.
+  list.addEventListener("click", event => {
+    const control = (event.target as Element).closest<HTMLElement>("[data-task-grants-act]"), act = control?.dataset.taskGrantsAct;
+    if (act === "reload") { void load(); return; }
+    const card = control?.closest<HTMLElement>("[data-task-grants-task]")?.dataset.taskGrantsTask;
+    const subject = listed?.subjects.find(item => subjectId(item) === card);
+    if (!subject) return;
+    if (act === "clear") { void clear(subject); return; }
+    const row = held(subject).find(item => item.name === control!.closest<HTMLElement>("[data-task-grants-row]")?.dataset.taskGrantsRow);
+    if (row && (act === "off" || act === "allow" || act === "remove")) void change(subject, row, act);
+  });
   void load();
 }
 

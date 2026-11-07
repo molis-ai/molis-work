@@ -6,7 +6,7 @@
 - **结论（推荐）**：插件只经 SDK 说「在这个空元素的位置，为我这个任务放一块」；工作台把区域画在**插件框外**，作为插件框的兄弟节点叠在它上面，跟着插件报的位置走。这和现有的审查卡（`host.reviews.show`，`UiPageReviews`，`apps/workbench/src/browser/plugin-frame/reviews.ts`）、嵌入（`view.embed`，`embed.ts`）是同一种做法，新增的是防遮盖的几条检查（第 3 节）和一条安全不变量（第 4 节）。
 - **不碰的**：P2 的宿主任务主体与三个平台动作的实现（E）、Schedule 的页面（E，叠在 P3 后面接入）、`packages/contracts/src/platform/dom-events.ts`（推荐方案不需要新的 DOM 事件）。
 
-验收编号：本稿新增 `TGA-01`～`TGA-19`（第 4 节）、`TGA-20`（5.1，不属于安全不变量）与 `TGA-21`～`TGA-25`（5.3，「授权与放行」一页；`TGA-25` 是安全不变量 `S-task-grants-page`），测试名里写编号；需求侧仍是 PWA-148、PWA-151、PWA-154。
+验收编号：本稿新增 `TGA-01`～`TGA-19`（第 4 节）、`TGA-20`（5.1，不属于安全不变量）、`TGA-21`～`TGA-23`（第 10 节 P3-2，Schedule 接入）与 `TGA-24`～`TGA-28`（5.3，「授权与放行」一页；`TGA-28` 是安全不变量 `S-task-grants-page`），测试名里写编号；需求侧仍是 PWA-148、PWA-151、PWA-154。
 
 ## 1. 现状：插件页面怎样跑、平台已有的「框外区域」
 
@@ -274,7 +274,7 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 
 ### 5.3 落地与验收（P3-3）
 
-**落在哪里**（P3-3 写手按推荐定，待统筹核对）：项目设置里新的一节「授权与放行」（`/projects/<id>/settings/grants`，在「插件」之后；工作台里的设置封面是同一节）。任务主体按项目记，`agent.task_grants.*` 是项目范围的动作，所以放在项目设置，不放全局设置；以后产品建议 H1 的整页（按调用方、范围、到期列出全部授权）若要放到全局，再改位置。
+**落在哪里**（已定，第 18 批统筹 2026-11-07）：项目设置里新的一节「授权与放行」（`/projects/<id>/settings/grants`，在「插件」之后；工作台里的设置封面是同一节）。任务主体按项目记，`agent.task_grants.*` 是项目范围的动作，所以放在项目设置，不放全局设置；产品建议 H1 按调用方、范围、到期列出全部授权的全局整页归第 39 批，不在这一页。
 
 **宿主路由**：页面只经 `POST /projects/<id>/api/settings/task-grants`（`apps/local-host/src/task-grants-settings-http.ts`）。`mode` 为 `list`、`titles`、`set`、`clear`，每种只收自己的键，都以本人在这个项目里调用。`list` 原样转出 `agent.task_grants.list` 的回答，另附每个安装的显示名、插件 id 与它是否声明了 `task_subjects`（取自安装记录与它的 Manifest，不改动作的输出）。`titles` 由宿主找出这个安装 Manifest 的 `task_subjects.kind`，再找它自己对 `user` 开放、列出该 kind 的搜索条目动作，以 `{ cursor, limit: 500 }` 调一次，只回 `key`、`title` 与 `open`（条目没给 `open` 时按搜索来源声明的面补上）。
 
@@ -282,11 +282,11 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 
 | 编号 | 做了什么 | 断言 | 测试 |
 | --- | --- | --- | --- |
-| TGA-21 | 打开「授权与放行」 | 只发一次 `list`（不带安装）；按安装分组、每个任务一行，只列这个任务有记录的类及其状态；没有任何任务时是空状态 | `tests/task-grants-page.e2e.test.ts` |
-| TGA-22 | 撤回一类、允许、移除、全部撤回 | 各发一次请求：撤回与移除是带读到的 `revision` 的 `set`，类别是「底 − 这一类」，底里需确认、读不到、已不再提供的类原样带上、不带 `confirm`；允许是「底，这一类带 `confirm: true`」；全部撤回是一次 `clear`，写明 `plugin_install_id`；回答直接显示，不再读 | `tests/task-grants-page.e2e.test.ts` |
-| TGA-23 | 取任务标题 | 有任务主体、声明了 `task_subjects` 的安装各一次搜索条目请求（`cursor` 为 `null`），只有还没配齐且有 `next_cursor` 时才再取，同一个 `next_cursor` 不取第二次；配上的写标题与「打开」，配不上、没声明或搜索动作失败的写「插件名 · 一个任务」，照样给「全部撤回」 | `tests/security-invariants-task-grants-page.test.ts`、`tests/task-grants-page.e2e.test.ts` |
-| TGA-24 | 读过之后别处改了这个任务的授权 | `set` 得到 `actions.conflict`：提示「已在别处改动，已刷新」并重读一次，记录不变 | `tests/task-grants-page.e2e.test.ts` |
-| TGA-25 | 插件页面（框的取数桥头或外壳的页面头）调这条路由；请求里多出键 | 一律拒绝（403）、不写；多出任何键 `actions.input_invalid`；写入只落在路由所在项目、请求点名的安装与 key 下（安全不变量 `S-task-grants-page`） | `tests/security-invariants-task-grants-page.test.ts` |
+| TGA-24 | 打开「授权与放行」 | 只发一次 `list`（不带安装）；按安装分组、每个任务一行，只列这个任务有记录的类及其状态；没有任何任务时是空状态 | `tests/task-grants-page.e2e.test.ts` |
+| TGA-25 | 撤回一类、允许、移除、全部撤回 | 各发一次请求：撤回与移除是带读到的 `revision` 的 `set`，类别是「底 − 这一类」，底里需确认、读不到、已不再提供的类原样带上、不带 `confirm`；允许是「底，这一类带 `confirm: true`」；全部撤回是一次 `clear`，写明 `plugin_install_id`；回答直接显示，不再读 | `tests/task-grants-page.e2e.test.ts` |
+| TGA-26 | 取任务标题 | 有任务主体、声明了 `task_subjects` 的安装各一次搜索条目请求（`cursor` 为 `null`），只有还没配齐且有 `next_cursor` 时才再取，同一个 `next_cursor` 不取第二次；配上的写标题与「打开」，配不上、没声明或搜索动作失败的写「插件名 · 一个任务」，照样给「全部撤回」 | `tests/security-invariants-task-grants-page.test.ts`、`tests/task-grants-page.e2e.test.ts` |
+| TGA-27 | 读过之后别处改了这个任务的授权 | `set` 得到 `actions.conflict`：提示「已在别处改动，已刷新」并重读一次，记录不变 | `tests/task-grants-page.e2e.test.ts` |
+| TGA-28 | 插件页面（框的取数桥头或外壳的页面头）调这条路由；请求里多出键 | 一律拒绝（403）、不写；多出任何键 `actions.input_invalid`；写入只落在路由所在项目、请求点名的安装与 key 下（安全不变量 `S-task-grants-page`） | `tests/security-invariants-task-grants-page.test.ts` |
 
 ## 6. 调用次数（问题 6）
 
@@ -384,7 +384,7 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 | P3-0b Manifest `task_subjects` 合同 | 第 7 节 P3-0b | C1 | 本稿审过（可与 P3-0a 并行，先合） |
 | P3-1 区域与路由 | 外层画区域与六条检查（含 D1 的原因提示与 `task-grants-reveal`、D2 的常驻变化行）、框里的报位置、宿主路由、不变量记录 `S-task-grants-area` 与 TGA-01～19、高度两档的常量、组件板标本（平台区域外框与标头）、中英文词条 | D | P3-0a、P2 的三个平台动作已在宿主可调且 `set` 按 3.6 R1～R5 |
 | P3-2 Schedule 接入 | 任务详情里放空元素、`place`、用 `onChange` 更新列表标记；Manifest 加 `task_subjects: { kind: "schedule_task" }` | E（规则 7） | P3-1、P3-0b |
-| P3-3 「授权与放行」按任务列出 | 第 5 节（含 5.2 取标题） | D | P2、P3-0b |
+| P3-3 「授权与放行」按任务列出 | 第 5 节（含 5.2 取标题）；验收 TGA-24～28 见 5.3 | D | P2、P3-0b |
 
 **P3-2 的验收**（不属于第 4 节的安全不变量，测试名里写编号）：
 

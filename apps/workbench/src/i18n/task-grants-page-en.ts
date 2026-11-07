@@ -1,7 +1,7 @@
 /**
  * English for 授权与放行 in project settings (specs/proactive-assistant/task-grants-platform-area.md §5), drawn by
- * src/browser/task-grants-page.ts. The category rows' notes and the words it shares with the reads area (允许, 移除, taken back, the
- * changed-elsewhere and not-saved lines) are the area's, in TASK_GRANTS_AREA_EN; 打开, 撤回 (Withdraw), 取消 and 重试 are the shared words in `EN`.
+ * src/browser/task-grants-page.ts. The rows, their notes and what a change did are the reads area's (允许, 移除, withdrawn, the
+ * changed-elsewhere and not-saved lines), in TASK_GRANTS_AREA_EN; 打开, 撤回 (Withdraw), 取消 and 重试 are the shared words in `EN`.
  */
 export const TASK_GRANTS_PAGE_EN: Record<string, string> = {
   "授权与放行": "Access and approvals",
@@ -13,13 +13,8 @@ export const TASK_GRANTS_PAGE_EN: Record<string, string> = {
   "暂时读不到后台任务的授权": "Cannot read the background tasks' permissions right now",
   "{name} · 一个任务": "{name} · a task",
   "全部撤回": "Withdraw all",
-  "已允许": "Allowed",
-  "有新的读取能力": "Reads more now",
-  "暂时不可读": "Not readable for now",
-  "已不再提供": "No longer offered",
-  "已允许{name}的新读取能力；不想要就撤回这一类": "{name} may read its new data; withdraw it if you do not want that",
   "撤回这个任务能读的全部数据？": "Withdraw everything this task may read?",
   "「{task}」下一次运行起不再读任何插件的数据；要再读，到任务里重新打开。":
     "From its next run, “{task}” reads no plugin's data. To let it read again, turn categories on in the task.",
-  "已撤回「{task}」能读的全部数据": "Withdrew everything “{task}” may read",
+  "已撤回「{task}」能读的全部数据": "Everything “{task}” may read is withdrawn",
 };

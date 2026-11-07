@@ -58,7 +58,7 @@ async function world(t: TestContext) {
   return { f, open, records, titled };
 }
 
-test("S-task-grants-page TGA-25 the settings route is the person's own page's: a plugin page's headers, an extra key or another mode write nothing, and a write lands in the route's project", { timeout: 60_000 }, async t => {
+test("S-task-grants-page TGA-28 the settings route is the person's own page's: a plugin page's headers, an extra key or another mode write nothing, and a write lands in the route's project", { timeout: 60_000 }, async t => {
   const { f, open, records } = await world(t);
   const a = await open("Grants one"), b = await open("Grants two");
   const set = { mode: "set", plugin_install_id: a.install, key: "daily", categories: [await a.group(a.install)], expected_revision: "" };
@@ -101,7 +101,7 @@ test("S-task-grants-page TGA-25 the settings route is the person's own page's: a
     [`agent:task:${a.project.project_id}:${a.install}:daily`, `agent:task:${b.project.project_id}:${b.install}:daily`].sort());
 });
 
-test("S-task-grants-page TGA-21 TGA-23 the route lists every task once and names a task through its installation's own search source, one page of 500 at a time", { timeout: 60_000 }, async t => {
+test("S-task-grants-page TGA-24 TGA-26 the route lists every task once and names a task through its installation's own search source, one page of 500 at a time", { timeout: 60_000 }, async t => {
   const { open, titled } = await world(t);
   const a = await open("Grants titles");
   const mine = await a.group(a.install), theirs = await a.group(a.other);

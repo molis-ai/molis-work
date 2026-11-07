@@ -76,8 +76,10 @@ test("S-task-grants-page TGA-28 the settings route is the person's own page's: a
       assert.equal(refused.status, 403, JSON.stringify({ headers, mode: body.mode }));
     }
   }
-  // Without the control token, nothing either.
-  assert.notEqual((await f.request(a.endpoint, { method: "POST", authorized: false, body: { mode: "list" } })).status, 200);
+  // Without the control token, nothing either: the local request gate's one opaque refusal (web-http.ts `authorizeLocalWebRequest`).
+  const untokened = await f.request(a.endpoint, { method: "POST", authorized: false, body: { mode: "list" } });
+  assert.equal(untokened.status, 403);
+  assert.equal(((await untokened.json()) as { code: string }).code, "host.request_refused");
   assert.equal(await records(), written, "no plugin page wrote");
 
   // Each mode takes its own keys only: an actor, a project, another installation's name under another key, anything else is refused.

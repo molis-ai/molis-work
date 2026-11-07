@@ -101,7 +101,7 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 - **缩放**：浏览器缩放与桌面壳缩放对框里框外同比例生效，坐标都是 CSS 像素，不用另算。
 - **宽**：取插件报的宽，但**不小于 280 px、不大于框宽**。
 - **高与内容脱钩**（评审挡合并 3，统筹裁定）：高度**只按宽度取两档**——宽不足 480 px 一档、480 px 及以上一档，具体像素由 D 在组件板标本里定，定下后写成常量；不随类别多少、说明折行、状态行（`needs_confirmation`、`unavailable`、`removed`）、变化行的文字变化。区域分三段：上面的平台标头与说明固定、中间的类别列表在区域**内部滚动**、下面的变化行固定（D2）。两档的高度要让常见的项目（不超过 5 类）不用滚动；类别少时列表下面留空，没有可读来源时空状态画在同一高度里。插件只知道自己报的宽，所以从高度推不出本项目提供几类、装了哪些提供方。外层仍用 `ResizeObserver` 量内容，只用来决定列表要不要出滚动条，不回给框。插件不给高或给小了，区域照样按档画出，盖住的是插件自己的内容。
-- **窄屏 390**：区域宽约 358 px（框宽减边距），落在窄的一档；一类一行，说明折行，多出来的在列表里滚动。变化行在窄的一档固定两行高（「撤销」按组件板 `mw-toast` 的规则折到字下面），宽的一档一行高；放不下的字截断，全文放在 `title` 与读屏文字里。框宽不足 280 px 时（极窄的侧栏）区域藏起，不响应，空元素高度回 0。
+- **窄屏 390**：区域宽约 358 px（框宽减边距），落在窄的一档；一类一行，说明折行，多出来的在列表里滚动。变化行在窄的一档固定两行高（「撤销」折到字下面），宽的一档一行高；放不下的字截断，全文放在 `title` 与读屏文字里。框宽不足 280 px 时（极窄的侧栏）区域藏起，不响应，空元素高度回 0。
 - **层级**：区域的容器 `z-index` 高于审查卡与嵌入（它们是 1，区域用 2），插件无法用自己请来的嵌入或审查卡盖住它。
 - **几块之间**：一页最多 4 块。任意两块在视口里的矩形相交，相交的**两块都藏起、不响应**，直到分开（防止拿 A 的标头配 B 的开关）。
 
@@ -141,7 +141,7 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 
 ### 3.5 区域里画什么
 
-照定样 F：平台标头「Molis Work · 只有你能改」（加上这个安装的显示名，由外层从目录取，不由插件给）；一句「只能读，不能改；只给这个任务；随时可以撤回」；一类一行（提供方的显示名与「包含什么」，英文取该提供方的 `ui.translations`，同 `TaskGrantCategory` 的注释），末尾一个开关；状态行按 `TaskGrantCategoryState.status`：`needs_confirmation` 多一个「允许」，`unavailable` 写「暂时读不到，授权还在」，`removed` 写「这一类已不再提供」和「移除」。控件全部用组件板已有的（`mw-item`、`mw-switch`、`mw-toast` 带 `action`），新增的平台区域外框与标头按原型说明的「组件板新增」交 D 轨补标本。
+照定样 F：平台标头「Molis Work · 只有你能改」（加上这个安装的显示名，由外层从目录取，不由插件给）；一句「只能读，不能改；只给这个任务；随时可以撤回」；一类一行（提供方的显示名与「包含什么」，英文取该提供方的 `ui.translations`，同 `TaskGrantCategory` 的注释），末尾一个开关；状态行按 `TaskGrantCategoryState.status`：`needs_confirmation` 多一个「允许」，`unavailable` 写「暂时读不到，授权还在」，`removed` 写「这一类已不再提供」和「移除」。控件全部用组件板已有的（`mw-item`、`mw-switch`；变化行是 `mw-alert`，失败时 `mw-alert--danger`，它的「撤销」「重试」是 `mw-btn mw-btn--sm mw-btn--ghost`）。变化行用 `mw-alert` 而不是 `mw-toast`，因为它常驻在区域底部，是一行状态，不是来了又走的提示（DESIGN「Toasts」：提示只用 `.mw-toast` 一种，宿主只定它放在哪；常驻的状态与重试用 `mw-alert`）；底栏只定它的排法（一行截断、窄档两行），刚换了说法的一行用共用的 `craft-fade-in` 进来（走查修复）。新增的平台区域外框与标头按原型说明的「组件板新增」交 D 轨补标本。
 
 ### 3.6 读与写的时机，与 `set` 的类别怎样组
 
@@ -187,7 +187,7 @@ readonly taskGrants: UiPageTaskGrants<Element>;
 - **打开**：`place` 之后外层发一次 `read`。
 - **冲突**（`actions.conflict`，比如同一个任务同时开在主区和右侧、或「授权与放行」一页刚改过）：开关回到原位，重读一次，变化行写「已在别处改动，已刷新」，撤销作废。
 - **失败**：开关回到原位，变化行写「没能保存，原来的授权没变」加「重试」（PWA-154）。撤销失败（如上表 R5 的情形）也走这一条，并且这次撤销作废、不再给撤销。
-- **框重新可见**：重读一次。不轮询。
+- **框重新可见**：重读一次。不轮询。那时若有读取或写入还在路上，它可能是在隐藏期间的变化之前得到的回答，就等它结束后再读这一次（走查 O1）；隐藏时什么都不读。
 
 ## 4. 新的安全不变量（问题 3）
 
@@ -266,7 +266,7 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 ### 5.2 取标题的通路
 
 1. 页面先调一次 `agent.task_grants.list`（同上）。
-2. 对**有任务主体的每个安装**（通常只有 Schedule 一个），从目录找出它的 Manifest 声明的 `task_subjects.kind`，以本人身份调这个安装自己的、列出该 kind 的搜索条目动作（`SEARCH_ENTRIES` 合同，`{ cursor: null, limit: 500 }`），用 `subject.id === key` 配上标题与 `open`。一个安装一次；超过 500 条才按 `next_cursor` 再取，直到配齐或取完。
+2. 对**有任务主体的每个安装**（通常只有 Schedule 一个），从目录找出它的 Manifest 声明的 `task_subjects.kind`，以本人身份调这个安装自己的、列出该 kind 的搜索条目动作（`SEARCH_ENTRIES` 合同，`{ cursor: null, limit: 500 }`），用 `subject.id === key` 配上标题与 `open`。一个安装一次；超过 500 条才按 `next_cursor` 再取，直到配齐或取完；同一个 `next_cursor` 不取第二次，一个安装最多取 20 页（10,000 条，评审小修），之后还没配上的写「插件名 · 一个任务」，免得一个一直给新游标的提供方让这一页一直读下去。
 3. 配上的：一行写任务标题，加「打开」（`open` 给的面与对象）。配不上的（任务已归档或删掉、提供方没声明、搜索动作暂时不可用）：写「插件名 · 一个任务」；已归档或删掉的任务本该由 Schedule 清授权（实施方案 §3.4），这一页照样给「全部撤回」。
 4. 标题是提供方说的，只用于显示，不作任何授权依据；页面不缓存，每次打开现取。
 
@@ -280,11 +280,13 @@ task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaratio
 
 **画法**：每个任务一个容器，标题与「打开」「全部撤回」在一行；下面每个已授权的类一行（组件板的条目行 `mw-item`，类别名与说明取自区域共用的 `taskGrantRows`），状态是一个颜色对应的标签，末尾是「撤回」，`needs_confirmation` 另有「允许」，`removed` 只有「移除」。全部撤回先用组件板的确认对话框问一次。一行放不下时先截说明；手机宽度上带「允许」的行不显示标签（按钮本身说明了它），让类别名留得住。浏览器代码在 `apps/workbench/src/browser/task-grants-page.ts`，请求的组法用区域共用的 `taskGrantChange`。
 
+**改完说什么**（评审小修）：这一页没有开关，所以不照搬区域里指向开关的三句。「允许」之后写「已允许 X 的新读取能力；不想要可以撤回这一类」；撤回一个 `needs_confirmation` 或 `unavailable` 的类写「已撤回 X；要再读它，到任务的「能读的数据」里重新打开」；撤回已授权的类与「移除」和区域同一句（「已撤回 X，下一次运行起读不到」「已移除 X，这一类已不再提供」）。区域的说法不变。区域与这一页的句子里，类别名两边都留一个空格（照仓库里带名字的句子的写法，如「交给 {name} 继续」），英文插件名不会和中文挤在一起（走查 O2）；名字后面紧跟全角标点时不加。
+
 | 编号 | 做了什么 | 断言 | 测试 |
 | --- | --- | --- | --- |
 | TGA-24 | 打开「授权与放行」 | 只发一次 `list`（不带安装）；按安装分组、每个任务一行，只列这个任务有记录的类及其状态；没有任何任务时是空状态 | `tests/task-grants-page.e2e.test.ts` |
 | TGA-25 | 撤回一类、允许、移除、全部撤回 | 各发一次请求：撤回与移除是带读到的 `revision` 的 `set`，类别是「底 − 这一类」，底里需确认、读不到、已不再提供的类原样带上、不带 `confirm`；允许是「底，这一类带 `confirm: true`」；全部撤回是一次 `clear`，写明 `plugin_install_id`；回答直接显示，不再读 | `tests/task-grants-page.e2e.test.ts` |
-| TGA-26 | 取任务标题 | 有任务主体、声明了 `task_subjects` 的安装各一次搜索条目请求（`cursor` 为 `null`），只有还没配齐且有 `next_cursor` 时才再取，同一个 `next_cursor` 不取第二次；配上的写标题与「打开」，配不上、没声明或搜索动作失败的写「插件名 · 一个任务」，照样给「全部撤回」 | `tests/security-invariants-task-grants-page.test.ts`、`tests/task-grants-page.e2e.test.ts` |
+| TGA-26 | 取任务标题 | 有任务主体、声明了 `task_subjects` 的安装各一次搜索条目请求（`cursor` 为 `null`），只有还没配齐且有 `next_cursor` 时才再取，同一个 `next_cursor` 不取第二次，一个安装最多 20 页；配上的写标题与「打开」，配不上、没声明或搜索动作失败的写「插件名 · 一个任务」，照样给「全部撤回」 | `tests/security-invariants-task-grants-page.test.ts`、`tests/task-grants-page.e2e.test.ts` |
 | TGA-27 | 读过之后别处改了这个任务的授权 | `set` 得到 `actions.conflict`：提示「已在别处改动，已刷新」并重读一次，记录不变 | `tests/task-grants-page.e2e.test.ts` |
 | TGA-28 | 插件页面（框的取数桥头或外壳的页面头）调这条路由；请求里多出键 | 一律拒绝（403）、不写；多出任何键 `actions.input_invalid`；写入只落在路由所在项目、请求点名的安装与 key 下（安全不变量 `S-task-grants-page`） | `tests/security-invariants-task-grants-page.test.ts` |
 

@@ -1,14 +1,15 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { doneLine, taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame/task-grants-area.js";
+import { taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame/task-grants-area.js";
 
 /**
  * 授权与放行 in a project's settings (specs/proactive-assistant/task-grants-platform-area.md §5): every background task's grants,
  * grouped by the installation it is in, one row per category it holds. It reads once on open (`list`, then each installation's own
  * titles, §5.2) and never polls; a change is one `set` or `clear`, formed as the task's own area forms it (§3.6, the shared
  * `taskGrantChange`), and the answer is shown without reading again. A row is the area's own (`taskGrantRowHtml`, with the
- * provider's words from `taskGrantRows`), and what a change did is said as the area says it (`doneLine`). Everything drawn is
+ * provider's words from `taskGrantRows`); what a change did is said in the page's own words (`doneText`), since the page has no
+ * switch to point to. Everything drawn is
  * escaped markup, as the area's is; one click listener on the list reads which control, which task and which row from the markup.
  */
 type Translate = (text: string, values?: Record<string, string | number>) => string;
@@ -35,16 +36,19 @@ const toast = (text: string, error = false) => {
   setTimeout(() => box.classList.remove("is-visible"), error ? 5000 : 2600);
 };
 
-/** One installation's titles (§5.2): a page of up to 500 of its own entries; the next only while a task is still unnamed. */
+/**
+ * One installation's titles (§5.2): a page of up to 500 of its own entries; the next only while a task is still unnamed, and at
+ * most 20 pages (10,000 entries), so a provider that keeps giving new cursors cannot keep the page reading.
+ */
 async function readTitles(post: Post, install: string, keys: ReadonlySet<string>, found: Map<string, Title>): Promise<void> {
-  let cursor: string | null = null;
+  let cursor: string | null = null, pages = 0;
   const seen = new Set<string>();
   try {
     do {
       const answer: TitlesPage = await post<TitlesPage>({ mode: "titles", plugin_install_id: install, cursor });
       for (const entry of answer.entries) if (keys.has(entry.key)) found.set(entry.key, entry);
-      // A cursor given twice would never end; past it, the tasks still unnamed are named by their plugin.
-      cursor = [...keys].some(key => !found.has(key)) && answer.next_cursor && !seen.has(answer.next_cursor) ? answer.next_cursor : null;
+      // A cursor given twice would never end, nor would new ones forever; past either, the tasks still unnamed are named by their plugin.
+      cursor = ++pages < 20 && [...keys].some(key => !found.has(key)) && answer.next_cursor && !seen.has(answer.next_cursor) ? answer.next_cursor : null;
       if (cursor) seen.add(cursor);
     } while (cursor);
   } catch { /* Not named: the row says the plugin's name and "a task", and can still be taken back (§5.2 ③). */ }
@@ -73,6 +77,14 @@ function ask(root: HTMLElement, title: string, description: string): Promise<boo
  */
 const rowHtml = (row: Row) => taskGrantRowHtml(L, row, (row.status === "needs_confirmation" ? button("允许", "mw-btn--secondary", "allow", row.title) : "")
   + (row.status === "removed" ? button("移除", "mw-btn--secondary", "remove", row.title) : button("撤回", "mw-btn--ghost", "off", row.title)));
+
+/**
+ * What a change did, in the page's words: the area's line points at its switch, which this page does not have, so a category
+ * taken back that cannot simply be turned on again says where to turn it on (the task's 「能读的数据」).
+ */
+const doneText = (act: "off" | "allow" | "remove", row: Row) => L(act === "allow" ? "已允许 {name} 的新读取能力；不想要可以撤回这一类"
+  : act === "remove" ? "已移除 {name}，这一类已不再提供"
+  : row.status === "granted" ? "已撤回 {name}，下一次运行起读不到" : "已撤回 {name}；要再读它，到任务的「能读的数据」里重新打开", { name: row.title });
 
 export function bindTaskGrantsSettings(root: HTMLElement): void {
   if (root.dataset.taskGrantsBound === "1") return;
@@ -161,7 +173,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   function change(subject: TaskGrantSubject, row: Row, act: "off" | "allow" | "remove"): Promise<void> {
     const sent = taskGrantChange(act, row, subject);
     return write(subject, async () => (await post<{ subject: TaskGrantSubject }>({ mode: "set", plugin_install_id: subject.plugin_install_id, key: subject.key,
-      categories: sent.categories, expected_revision: subject.revision })).subject, () => doneLine(L, sent).text);
+      categories: sent.categories, expected_revision: subject.revision })).subject, () => doneText(act, row));
   }
 
   /** Everything a task may read, taken back in one `clear` once the person says so. */

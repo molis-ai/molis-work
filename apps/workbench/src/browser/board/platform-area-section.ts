@@ -36,7 +36,7 @@ const idle: TaskGrantsLine = { text: t("拨一下即生效，下一次运行起�
 /** One area as the shell holds it: a fixed width, the height step that width gets, the shell's markup inside. */
 function area(width: number, reads: typeof MIXED, line: TaskGrantsLine, options: { unready?: boolean; busy?: boolean } = {}): HTMLElement {
   const surface = document.createElement("section");
-  surface.className = "mw-platform-area task-grants-area";
+  surface.className = "mw-platform-area";
   surface.style.width = width + "px";
   surface.style.height = (width < 480 ? TASK_GRANTS_AREA_HEIGHTS.narrow : TASK_GRANTS_AREA_HEIGHTS.wide) + "px";
   surface.innerHTML = taskGrantsAreaHtml(t, owner, taskGrantRows(reads), line, Boolean(options.busy));
@@ -60,16 +60,16 @@ function line(width: number, said: TaskGrantsLine): HTMLElement {
 
 const put = (name: string, ...parts: HTMLElement[]) => document.querySelector(`[data-platform-area-specimen="${name}"]`)?.replaceChildren(...parts);
 put("wide", area(560, MIXED, idle));
-put("narrow", area(320, QUIET, { text: t("已允许读{name}，下一次运行起能读到", { name: CATEGORIES[1]!.title }), act: "undo" }));
+put("narrow", area(320, QUIET, { text: t("已允许读 {name}，下一次运行起能读到", { name: CATEGORIES[1]!.title }), act: "undo" }));
 put("unready", area(560, QUIET, idle, { unready: true }));
 put("busy", area(560, QUIET, idle, { busy: true }));
 put("empty", area(560, { categories: [], subject: { revision: "", categories: [] } }, idle));
 const name = { name: CATEGORIES[0]!.title };
 const LINES: TaskGrantsLine[] = [
   idle,
-  { text: t("已撤回{name}，下一次运行起读不到", name), act: "undo" },
-  { text: t("已允许{name}的新读取能力；不想要就关掉这一类", name) },
-  { text: t("已撤回{name}；要再读它，重新打开开关，会按它现在的读取能力允许", name) },
+  { text: t("已撤回 {name}，下一次运行起读不到", name), act: "undo" },
+  { text: t("已允许 {name} 的新读取能力；不想要就关掉这一类", name) },
+  { text: t("已撤回 {name}；要再读它，重新打开开关，会按它现在的读取能力允许", name) },
   { text: t("已撤销刚才的改动") },
   { text: t("已在别处改动，已刷新") },
   { text: t("刚移动过，请再拨一次") },

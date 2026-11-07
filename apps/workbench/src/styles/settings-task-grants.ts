@@ -18,7 +18,7 @@ export const TASK_GRANTS_SETTINGS_STYLES = `
 .task-grants-page__task[aria-busy]{cursor:progress}
 .task-grants-page__task[aria-busy] .mw-btn{opacity:.6}
 .task-grants-page__task-head{display:flex;align-items:center;gap:12px;min-height:40px;padding:2px 4px 2px 10px}
-.task-grants-page__task-head>strong{flex:1 1 auto;min-width:0;overflow:hidden;color:var(--ink);font-size:14px;font-weight:var(--weight-title,600);text-overflow:ellipsis;white-space:nowrap}
+.task-grants-page__task-head>strong{flex:1 1 auto;min-width:0;overflow:hidden;color:var(--ink);font-size:15px;font-weight:var(--weight-title,600);text-overflow:ellipsis;white-space:nowrap}
 .task-grants-page__task-head>strong.is-unnamed{color:var(--ink-soft);font-weight:var(--weight-control,500)}
 .task-grants-page__task-actions{display:flex;align-items:center;gap:8px;flex:none}
 .task-grants-page__rows{display:grid;grid-template-columns:minmax(0,1fr);margin:4px 0 0;padding:4px 0 0;list-style:none;box-shadow:inset 0 1px 0 var(--line)}

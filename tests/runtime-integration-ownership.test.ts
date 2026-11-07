@@ -139,6 +139,9 @@ test("ASR installation confirmation waiting in the real target queue cannot writ
   const firstPending = first.confirm({ runtime_id: "codex", plan_id: firstPlan.plan_id, decision: "confirmed" });
   t.after(async () => { release.resolve(); await firstPending.catch(() => undefined); });
   await entered.promise;
+  assert.equal(secondPlan.plan_id, firstPlan.plan_id, "identical previews name the same existing backup");
+  const backup = join(f.home, "runtime-config-backups", "codex", firstPlan.plan_id + ".bak");
+  const backupBefore = await readFile(backup), identityBefore = await filesystem.stat(backup);
   let withdrawn = false;
   const cancelled = new Error("old installation confirmation withdrawn");
   const pending = second.confirm({ runtime_id: "codex", plan_id: secondPlan.plan_id, decision: "confirmed" }, () => { if (withdrawn) throw cancelled; });
@@ -147,7 +150,9 @@ test("ASR installation confirmation waiting in the real target queue cannot writ
   assert.equal((await firstPending).status, "connected");
   await rejected;
   assert.equal((await second.detect("codex")).connection_state, "connected", "the legitimate first owner stays intact");
-  await assert.rejects(readFile(join(f.home, "runtime-config-backups", "codex", secondPlan.plan_id + ".bak")), { code: "ENOENT" });
+  assert.deepEqual(await readFile(backup), backupBefore, "withdrawal preserves the legitimate first owner's backup");
+  const identityAfter = await filesystem.stat(backup);
+  assert.deepEqual([identityAfter.dev, identityAfter.ino, identityAfter.mtimeMs], [identityBefore.dev, identityBefore.ino, identityBefore.mtimeMs], "the withdrawn waiter never rewrites that backup");
   assert.equal((await readdir(f.home)).includes("runtime-integration-attempts"), false, "a never-started cancelled confirmation records no new attempt");
 });
 

@@ -168,5 +168,5 @@ export type {PortableProject,ProjectReplicationOptions} from './portable-project
 
 export { ProjectRecycle } from "./recycle.js";
 export type { ProjectRecycleInput, ProjectRecycleObservation } from "./recycle.js";
-export { projectDatabasePath, projectDirectoryPath } from "./project-paths.js";
+export { projectDatabasePath, projectDirectoryPath, recordedStagedProjectDirectoryPath, stagedProjectDirectoryPath } from "./project-paths.js";
 export { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot, listProjectRoots, type ProjectRootDatabase, type ProjectRootRow } from "./project-root.js";

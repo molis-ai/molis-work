@@ -121,9 +121,13 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   await open(failedCheck.url);
   await click("[data-connector-token]"); await command("Input.insertText", { text: fixtureValue }, sessionId);
   await click("[data-connector-auth] button[type=submit]");
-  await waitFor("!document.querySelector('[data-connector-auth]') && /密钥存好了，但没通过检查/.test(document.querySelector('[data-connector-feedback]')?.textContent || '')");
-  assert.equal((await read(failedCheck.authorization_id)).status, "connected", "saving succeeded independently of identity verification");
+  // ASC-80: a key GitHub refuses is not saved; it is said under its field, and the prepared request stays open for another key.
+  await waitFor("document.querySelector('[data-connector-auth] [data-connector-key-error]')?.textContent.includes('拒绝了这把密钥')");
+  assert.match(await evaluate<string>("document.querySelector('[data-connector-auth] [data-protocol-result]').textContent"), /还没保存，填的还在/);
+  assert.equal((await read(failedCheck.authorization_id)).status, "prepared", "nothing was saved and the request can take another key");
+  assert.equal(await evaluate("document.querySelector('[data-connector-auth] [data-connector-token]').getAttribute('aria-invalid')"), "true");
   assert.equal(await evaluate(`document.documentElement.outerHTML.includes(${JSON.stringify(fixtureValue)})`), false);
+  assert.equal(withConnectorConnections(homeDirectory, store => store.list()).length, 1);
   await click("[data-setup-id] a[href='/capabilities/connections']");
   await waitFor("document.querySelector('[data-connectors-settings]:not([data-setup-id])')");
   // ASC-34: a real form submission reports the intent hold, keeps secrets out of the DOM, then observes owner activation.
@@ -134,10 +138,10 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   await click("[data-connector-auth] button[type=submit]");
   await waitFor("!document.querySelector('[data-connector-auth]') && /接入暂不提交/.test(document.querySelector('[data-connector-feedback]')?.textContent || '')");
   assert.equal((await read(held.authorization_id)).status, "pending");
-  assert.equal(withConnectorConnections(homeDirectory, store => store.list()).length, 2);
+  assert.equal(withConnectorConnections(homeDirectory, store => store.list()).length, 1);
   assert.equal(await evaluate(`document.documentElement.outerHTML.includes(${JSON.stringify(fixtureValue)})`), false);
   await localHost.homeActionClient().invoke(caller, connectorSetupIntentAction, { authorization_id: held.authorization_id, intent_revision: "new-request", decision: "retain" });
   await waitFor("/连接已保存/.test(document.querySelector('[data-connector-feedback]')?.textContent || '')", 15_000);
   assert.equal((await read(held.authorization_id)).status, "connected");
-  assert.equal(withConnectorConnections(homeDirectory, store => store.list()).length, 3);
+  assert.equal(withConnectorConnections(homeDirectory, store => store.list()).length, 2);
 });

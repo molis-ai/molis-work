@@ -9,7 +9,7 @@ import { ActionError, defineSearchEntriesAction } from "@molis-ai/molis-work-con
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
-const source = defineSearchEntriesAction("notes.search.entries", [{ kind: "notes_task", title: "任务", surface: "notes" }], "任务", []);
+const source = defineSearchEntriesAction("notes.search.entries", 1, [{ kind: "notes_task", title: "任务", surface: "notes" }], "任务", []);
 const problems = (subjects: unknown, actions: unknown[] = [source]) => manifestProblems(declarationManifest({ actions, task_subjects: subjects }));
 
 test("TGA-20: task_subjects naming a kind the plugin's own search source lists, open to the person, parses; a Manifest without it is unchanged", () => {
@@ -34,13 +34,13 @@ test("TGA-20: the kind is one this Manifest's own search source lists", () => {
 });
 
 test("TGA-20: the search source listing the kind is open to user, since the title is read as the person", () => {
-  const closed = defineSearchEntriesAction("notes.search.entries", [{ kind: "notes_task", title: "任务", surface: "notes" }], "任务", [], "project", ["agent"]);
+  const closed = defineSearchEntriesAction("notes.search.entries", 1, [{ kind: "notes_task", title: "任务", surface: "notes" }], "任务", [], "project", ["agent"]);
   // A search source closed to `user` breaks the search source protocol as well (the index is built as the person), so the
   // action checks report it too; the task_subjects rule names the declaration that depends on it.
   assert.equal(problems({ kind: "notes_task" }, [closed]),
     "能力 notes.search.entries@1 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置；task_subjects 的 kind notes_task 所在的搜索来源要对 user 开放（以本人身份取标题）");
   // One source open to the person is enough when another listing the same kind is not.
-  const other = defineSearchEntriesAction("notes.search.archive", [{ kind: "notes_task", title: "任务", surface: "notes" }], "任务", []);
+  const other = defineSearchEntriesAction("notes.search.archive", 1, [{ kind: "notes_task", title: "任务", surface: "notes" }], "任务", []);
   assert.ok(!problems({ kind: "notes_task" }, [closed, other]).includes("task_subjects"));
 });
 

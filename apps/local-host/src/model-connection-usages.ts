@@ -3,7 +3,7 @@ import { defineConnectorUsagesAction, type ConnectorUsagesInput } from "@molis-a
 import { modelCredentialMetadata, openConfiguredModels } from "./configured-models.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 
-export const modelConnectionUsages = defineConnectorUsagesAction("models.connection.usages", "模型配置使用的连接", ["connectors:management:read"], "home");
+export const modelConnectionUsages = defineConnectorUsagesAction("models.connection.usages", /* @version action.models.connection.usages */ 1, "模型配置使用的连接", ["connectors:management:read"], "home");
 export function modelConnectionUsagesHandler(home: string): ActionHandlerBinding {
   return { ...modelConnectionUsages, handle: (_caller, value) => {
     const id = (value as ConnectorUsagesInput).connection_id;

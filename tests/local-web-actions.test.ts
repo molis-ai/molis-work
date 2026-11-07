@@ -77,7 +77,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
-  const definition = defineSubjectContextAction("newcomer.notes.context", "newcomer-note", "新插件事项", ["newcomer:read"]);
+  const definition = defineSubjectContextAction("newcomer.notes.context", 1, "newcomer-note", "新插件事项", ["newcomer:read"]);
   let reads = 0;
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer", version: "1.0.0", name: "新插件事项",
     kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -484,7 +484,7 @@ test("S-15 with images:read revoked from its installation, the Images jobs route
 test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action only through its installation's grants", { timeout: 90_000 }, async t => {
   const { host, project } = await serveHomeRuntime(t);
   const { reference } = await project("路由写下的权限");
-  const definition = defineSubjectContextAction("capped.notes.context", "capped-note", "路由上限", ["capped:read"]);
+  const definition = defineSubjectContextAction("capped.notes.context", 1, "capped-note", "路由上限", ["capped:read"]);
   let reads = 0;
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.capped", version: "1.0.0", name: "路由上限",
     kind: "app", publisher: { publisher_id: "example", signature: "example-capped" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

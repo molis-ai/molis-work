@@ -4,7 +4,7 @@
 
 把 DropAgent 的材料 / 结果 / 剪贴板工作台挂进 Molis 目录与主工作面，视觉与交互跟 DropAgent。
 
-内置 Manifest 跟随产品 0.3.0，`copies` 集合同步明确选中的材料、结果和终态任务。`shelfSyncDocument` 复用 Module 的当前 v2 目录与原子文件端口，不自行联网或另建业务库；设置和剪贴板仍只在设备。实际 Home 动作与共同 Host 目录接线、临时 Rust/D1/R2 往返见 `tests/security-invariants-shelf-sync.test.ts` 与 `apps/sync-worker/shelf.test.mjs`。这些是隔离验证，不代表公网部署或真实双设备验收。
+内置 Manifest 跟随产品 0.1.0，`copies` 集合同步明确选中的材料、结果和终态任务。`shelfSyncDocument` 复用 Module 的当前 v1 目录与原子文件端口，不自行联网或另建业务库；设置和剪贴板仍只在设备。实际 Home 动作与共同 Host 目录接线、临时 Rust/D1/R2 往返见 `tests/security-invariants-shelf-sync.test.ts` 与 `apps/sync-worker/shelf.test.mjs`。这些是隔离验证，不代表公网部署或真实双设备验收。
 
 包名：`@molis-ai/molis-work-plugin-shelf`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -55,7 +55,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-project-knowledge-http.test
 - 不变量：
   - 架子的文件声明是 `SHELF_OWNER_FILES`（`catalog.json`、`files/`、`jobs/`，插件包导出）。Home 动作和项目里的动作（存到项目资料、接收项目成果）都由 Shelf 的 Runtime 实例提供（`src/registration.ts` 的 `runtime: { scope: "home", dual_instance }`，文件声明在 `src/manifest.ts` 的 `owner_files`，`src/home-plugin.ts`），文件走平台的 `services.ownerFiles`；Host 不再按这份声明装配自己的文件客户端（Shelf S4 删了 `shelf-actions.ts`，PG-026-S1），演示数据的示例由常驻宿主调 Shelf 的 `shelf.sample.seed` 放回（`apps/local-host/src/demo-plugin-seed.ts` 的 `seedDemoHomeSamples`，Shelf 没装上、没在跑或没授权就不动，演示照常做好）；动作端口里改架子的方法返回 `T | Promise<T>`，处理器都 `await`。
   - 文件夹放入整个不超过 32 MB（各文件之和；Store、桌面壳 `shelf_http.rs` 与面板三处同一个数，超了整个拒绝并说「拆成几个小一点的文件夹」，Shelf S3 起由 64 MB 改小；文件夹路由的请求体上限 45 MB，留给 base64 的膨胀）。
-  - 放入只收字节，调用方不再给真实路径（`shelf.items.admit@1`、`shelf.items.admit-folder@1`）；「原件已变」的提示只对经 `shelf.items.original`（仅本机界面，`materials:original`）登记过原件的材料有效，原件路径由平台的 `materials.claimOriginal` 保管，Shelf 只记哈希（① 裁定 D3）。抓网页是单独的 `shelf.items.capture`（`materials:fetch` + `materials:fetch_local`），`admit@2` 只要 `shelf:write` 与 `materials:read`（D8）。
+  - 放入只收字节，调用方不再给真实路径（`shelf.items.admit@1`、`shelf.items.admit-folder@1`）；「原件已变」的提示只对经 `shelf.items.original`（仅本机界面，`materials:original`）登记过原件的材料有效，原件路径由平台的 `materials.claimOriginal` 保管，Shelf 只记哈希（① 裁定 D3）。抓网页是单独的 `shelf.items.capture`（`materials:fetch` + `materials:fetch_local`），`admit@1` 只要 `shelf:write` 与 `materials:read`（D8）。
   - 预览：PDF 与 PNG、JPEG、WebP、GIF 由工作台的 `host.loadMedia` 取插件路由 `shelf.file` 的字节显示（PDF 先核对文件头）；其他格式显示抽取出的文字，加「下载这份文件」和（桌面壳里）「用系统打开」。
   - 不依赖 Goals 或 Artifacts 实现；交给项目的文字材料是过程项，由 Host 注入的公开端口写入，未绑项目时不能发布。
   - 个人架子的编辑、隐藏或移除不改项目里的旧版本。
@@ -85,4 +85,4 @@ Shelf 和结果面板使用 Host 注入的 UI 生命周期。卸载释放全局�
 
 这些客户端边界的回归在 `tests/shelf-client-boundaries.e2e.test.ts`，正式搜索与剪贴板隐私断言在 `tests/system-search-host.test.ts`；依次用 `node scripts/run-tests.mjs` 运行相应文件，浏览器批次需排时段。
 
-文字编辑为 `shelf.items.edit@2`，强制携带 `items.read@1` 的 `content_hash` 作为 `expected_content_hash`；对应 MCP 名为 shelf.items.edit__v2，不保留旧名。网页编辑从同一次原文件响应的 ETag 取得完整字节指纹，并只在成功保存后更新；冲突保留输入，不重读新指纹强行覆盖。文件读取和项目材料预览的现有合同不变。
+文字编辑为 `shelf.items.edit@1`，强制携带 `items.read@1` 的 `content_hash` 作为 `expected_content_hash`；对应 MCP 名为 shelf.items.edit__v1，不保留旧名。网页编辑从同一次原文件响应的 ETag 取得完整字节指纹，并只在成功保存后更新；冲突保留输入，不重读新指纹强行覆盖。文件读取和项目材料预览的现有合同不变。

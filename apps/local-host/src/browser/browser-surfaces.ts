@@ -58,7 +58,7 @@ export class BrowserSiteDecisions {
   private save(): void {
     fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
     const temp = `${this.file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify({ version: 1, assistant: this.assistant, sites: this.rows }, null, 2), { mode: 0o600 });
+    fs.writeFileSync(temp, JSON.stringify({ version: /* @version format.browser.site-decisions */ 1, assistant: this.assistant, sites: this.rows }, null, 2), { mode: 0o600 });
     fs.renameSync(temp, this.file);
   }
 

@@ -37,7 +37,7 @@ export function buildSourcePullIntent(request: SourcePullRequest): IntelligenceC
   if (request.kind === "web_query") {
     const query = normalizeQuery(request.query);
     return validateSearchIntentExactV1({
-      schema: "search-intent-v1",
+      schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1",
       operationId: request.operation_id,
       goal: `同步网页查询来源「${request.source_name}」到 Molis Work Feed`,
       taskProfile: "latest_monitoring",
@@ -77,7 +77,7 @@ export function buildSourcePullIntent(request: SourcePullRequest): IntelligenceC
     domain = new URL(feedUrl).hostname.toLowerCase();
   }
   return validateSearchIntentExactV1({
-    schema: "search-intent-v1",
+    schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1",
     operationId: request.operation_id,
     goal: `同步公开来源「${request.source_name}」到 Molis Work Feed`,
     taskProfile: "exact_rss_ingest",

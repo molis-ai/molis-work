@@ -70,6 +70,12 @@ test("S-12 RAC-104-S-04: the original vault backend/key is required and never re
   });
 });
 
+test("S-12 N36: a removed evidence recovery directory refuses snapshot without reading or deleting it", async t => {
+  const f = await smallSnapshotHome(t), digest = "a".repeat(64);
+  await f.file(`feed/evidence-recovered-v2/blobs/aa/${digest}.blob`, "unreadable original evidence");
+  await assertSnapshotRefused(f, "host.home_snapshot.unknown_data");
+});
+
 test("RAC-2378 an unregistered retired Sessions directory is refused without opening its contents", async t => {
   const f = await smallSnapshotHome(t);
   await f.file("sessions/opaque", "Retired data is never opened by the new Home");

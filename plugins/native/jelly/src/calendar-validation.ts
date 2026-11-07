@@ -70,7 +70,7 @@ export function validateJellySeries(series: JellySeries, categoryIds: Set<string
 }
 function uniqueIds(values: { id: string }[], label: string): void { jellyAssert(new Set(values.map(value => value.id)).size === values.length && values.every(value => value && typeof value.id === "string" && value.id.length > 0), `${label} ID 重复或无效`); }
 export function validateJellyWorkspace(state: JellyWorkspace): void {
-  jellyAssert(state && state.schema_version === 1 && Number.isSafeInteger(state.revision) && state.revision >= 0, "工作区版本无效");
+  jellyAssert(state && state.schema_version === /* @version format.jelly.workspace */ 1 && Number.isSafeInteger(state.revision) && state.revision >= 0, "工作区版本无效");
   for (const key of ["categories", "items", "series", "notes", "relations", "task_links", "applied_plan_ids"] as const) jellyAssert(Array.isArray(state[key]), `工作区 ${key} 无效`);
   uniqueIds(state.categories, "分类"); uniqueIds(state.items, "事项"); uniqueIds(state.series, "系列"); uniqueIds(state.notes, "笔记");
   const categoryIds = new Set(state.categories.map(value => value.id));

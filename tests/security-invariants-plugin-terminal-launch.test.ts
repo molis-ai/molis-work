@@ -574,12 +574,29 @@ test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the r
   t.after(() => { if (previousHome === undefined) delete process.env.HOME; else process.env.HOME = previousHome; });
   const runs = async () => existsSync(log) ? (await readFile(log, "utf8")).split("\n").filter(Boolean) : [];
   const panelId = (key: string) => panelOf(install.install_id, project.project_id, key);
+  // CCR-09: observe exits before starting the short-lived probe. An attach-only poll resizes the PTY and can race its close.
+  const socket = new WebSocket(f.origin.replace("http:", "ws:") + "/pty"), exits = new Map<string, number>();
+  t.after(() => socket.terminate());
+  let socketError: Error | undefined;
+  await new Promise<void>((resolve, reject) => {
+    socket.once("open", () => socket.send(JSON.stringify({ type: "auth", token: f.token })));
+    socket.on("error", error => { socketError = error; reject(error); });
+    socket.on("message", raw => {
+      const message = JSON.parse(raw.toString());
+      if (message.type === "ready") resolve();
+      if (message.type === "exit") exits.set(message.panelId, (exits.get(message.panelId) ?? 0) + 1);
+      if (message.type === "error") { socketError = new Error(String(message.message)); reject(socketError); }
+    });
+  });
   /** Opens the key with the runtime and waits until it ran and ended: what it was started with. */
   const start = async (key: string) => {
-    const before = (await runs()).length;
+    const before = (await runs()).length, exited = exits.get(panelId(key)) ?? 0;
     const answer = await run(f, probe, "project", "run", own => opened(own, { key, program: { runtime: "codex" }, directory }), { project });
     assert.equal(answer.outcome, "ok", `${key}: ${answer.message}`);
-    await until(async () => (await runs()).length > before && (await panelState(f, panelId(key))).attached === false, `${key}: the runtime ran and ended`);
+    await until(async () => {
+      if (socketError) throw socketError;
+      return (await runs()).length > before && (exits.get(panelId(key)) ?? 0) > exited;
+    }, `${key}: the runtime ran and ended`);
     return (await runs()).at(-1);
   };
   const reported = (key: string, session: string) => f.withCatalog({ homeDirectory: f.home }, catalog =>

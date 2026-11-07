@@ -50,7 +50,7 @@ test("ASR-11 expected Home plugin shapes are constructed once per form while eac
 
     // All readers have closed. A later writer may corrupt the same file; a warm expected cache must not accept it.
     for (const [index, sql, expected] of [
-      [0, "PRAGMA user_version=2", { code: "storage.schema_version_mismatch" }],
+      [0, "PRAGMA user_version=2", { code: "storage.store_too_new" }],
       [1, "DROP TABLE plugin_private_values", { code: "actions.execution_failed" }],
       [2, "UPDATE molis_storage_space SET space_id=?, descriptor=? WHERE singleton=1", { code: "actions.forbidden" }],
     ] as const) {

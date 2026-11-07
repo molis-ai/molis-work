@@ -35,7 +35,7 @@ test("RAC-2366 RAC-381-T1 a new Home records build trust and consent once; resta
     const shelf = await startShelf(home), first = consents(home);
     const db = new DatabaseSync(pathOf(home), { readOnly: true });
     try {
-      assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 4);
+      assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
       assert.equal(db.prepare("PRAGMA integrity_check").get()!.integrity_check, "ok");
       assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
     } finally { db.close(); }

@@ -42,10 +42,10 @@ interface Source {
 }
 
 const kinds = [{ kind: "note", title: "笔记", surface: "notes" }];
-const entries = defineSearchEntriesAction("notes.search.entries", kinds, "笔记", ["notes:read"]);
-const reader = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
+const entries = defineSearchEntriesAction("notes.search.entries", 1, kinds, "笔记", ["notes:read"]);
+const reader = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", ["notes:read"]);
 const personalKinds = [{ kind: "memo", title: "备忘", surface: "memos" }];
-const personalEntries = defineSearchEntriesAction("memos.search.entries", personalKinds, "备忘", ["memos:read"], "home");
+const personalEntries = defineSearchEntriesAction("memos.search.entries", 1, personalKinds, "备忘", ["memos:read"], "home");
 
 function source(notes: Note[] = []): Source {
   return { notes: new Map(notes.map(note => [note.id, note])), lists: 0, reads: 0, fail: false, availability: { available: true } };
@@ -53,8 +53,8 @@ function source(notes: Note[] = []): Source {
 function register(service: ActionService, state: Source, provider: { provider_id: string; project_id?: string; plugin_id?: string },
   capabilities: { entries?: string; reader?: string } = {}) {
   // A second provider in the same project needs its own capability ids: the registry holds one provider per (id, version, project).
-  const ownEntries = capabilities.entries ? defineSearchEntriesAction(capabilities.entries, kinds, "笔记", ["notes:read"]) : entries;
-  const ownReader = capabilities.reader ? defineSubjectContextAction(capabilities.reader, "note", "笔记", ["notes:read"]) : reader;
+  const ownEntries = capabilities.entries ? defineSearchEntriesAction(capabilities.entries, 1, kinds, "笔记", ["notes:read"]) : entries;
+  const ownReader = capabilities.reader ? defineSubjectContextAction(capabilities.reader, 1, "note", "笔记", ["notes:read"]) : reader;
   // RAC-2738: the spread comes after the default, so a caller that passes `plugin_id: undefined` explicitly overrides `"notes"` with
   // undefined instead of keeping it. That is how the tests write a provider without its own plugin id, and why the discarded reader's
   // `where` falls back to the provider id. Not a bug — keep this order if the helper changes.
@@ -132,7 +132,7 @@ test("search source protocol rejects declarations that do not honor the canonica
   const loose = { ...entries, action: { ...entries.action, output_schema: { type: "object" } } };
   assert.match(inspectActionDeclarations([loose], undefined).join(), /搜索来源协议/);
   // A source may be narrower than the default, never closed to the local person who builds the index.
-  const localOnly = defineSearchEntriesAction("notes.local.search.entries", [{ kind: "note", title: "笔记", surface: "notes" }], "本机笔记", ["notes:read"], "project", ["user"]);
+  const localOnly = defineSearchEntriesAction("notes.local.search.entries", 1, [{ kind: "note", title: "笔记", surface: "notes" }], "本机笔记", ["notes:read"], "project", ["user"]);
   assert.deepEqual(localOnly.action.audiences, ["user"]);
   assert.deepEqual(inspectActionDeclarations([localOnly], undefined), []);
   const agentOnly = { ...entries, action: { ...entries.action, audiences: ["agent", "mcp"] } };

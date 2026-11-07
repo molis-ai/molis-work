@@ -30,3 +30,9 @@ python3 -m http.server 64521 --bind 127.0.0.1 --directory docs/design/workbench-
 4. 切到 Frame Tab 后，把左侧 Session / Feed / 交付物拖进画布。拖到 Goal 画布会被拒绝。
 5. 点目录里的 Goal 只选中主画布上的卡片，不新开 Frame，也不打开工作框。
 6. 切到「灵感收集」看空 Frame；关 Frame Tab 后构图还在，卡片还在。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+工作台 Frame 容器切片
+
+历史原型，视觉已被取代

@@ -107,7 +107,7 @@ export interface SandboxOperationContract {
 }
 
 export interface SandboxPluginContract {
-  version: 1;
+  version: /* @version format.sandbox.contract */ 1;
   pluginId: string;
   revision: string;
   operations: SandboxOperationContract[];

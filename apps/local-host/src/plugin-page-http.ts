@@ -11,6 +11,7 @@ import { runningProjectPlatform } from "./project-plugins.js";
 import { runtimeStageOwner } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
+import { pageConnectionNeed } from "./plugin-connection-need-http.js";
 import { stageObjectAction } from "@molis-ai/molis-work-app-workbench";
 
 /** Resolve the same running stage half as rendering; the request names a surface, never an installation. */
@@ -50,11 +51,13 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
   const check = url.pathname === "/api/host/plugin-page-check" && request.method === "POST";
   const workspace = url.pathname === "/api/host/plugin-page-workspaces" && request.method === "POST";
   const slot = url.pathname === "/api/host/plugin-page-slot" && request.method === "POST";
-  if (!slot && !workspace && !files && !action && !check && !(url.pathname === "/api/host/plugin-pages" && request.method === "POST") && !(close && request.method === "DELETE")) return false;
+  const need = url.pathname === "/api/host/plugin-page-connection" && request.method === "POST";
+  if (!slot && !need && !workspace && !files && !action && !check && !(url.pathname === "/api/host/plugin-pages" && request.method === "POST") && !(close && request.method === "DELETE")) return false;
   try {
     if (!serverOptions.homeDirectory) throw new ActionError("actions.unavailable", "插件页面需要 Home");
     const pages = pluginPagesFor(serverOptions.homeDirectory);
     const body = await readLocalWebBody(request);
+    if (need) { sendLocalWebJson(response, 200, await pageConnectionNeed(context, project, body)); return true; }
     if (slot) {
       sendLocalWebJson(response, 200, await pageConnectionSlot(context, project, body)); return true;
     }

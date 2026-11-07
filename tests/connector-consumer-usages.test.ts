@@ -111,7 +111,7 @@ test("ASC-13 ASC-16: usage reporters are discovered by contract and a withdrawn 
   const home = await openTestHome(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   t.after(() => release.resolve());
   const account = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Report target", token: "fixture-report-target" }));
-  const first = defineConnectorUsagesAction("fixture.first.usages", "First owner", [], "home"), second = defineConnectorUsagesAction("fixture.second.usages", "Slow owner", [], "home");
+  const first = defineConnectorUsagesAction("fixture.first.usages", 1, "First owner", [], "home"), second = defineConnectorUsagesAction("fixture.second.usages", 1, "Slow owner", [], "home");
   const disposeFirst = home.host.actionRegistry().registerProvider({ provider: { provider_id: "fixture.first", title: "First owner", kind: "system" }, definitions: [first],
     handlers: [{ ...first, handle: () => ({ usages: [{ usage_id: "one", title: "Actual saved reference", enabled: true, actions: [] }] }) }] });
   const disposeSecond = home.host.actionRegistry().registerProvider({ provider: { provider_id: "fixture.second", title: "Slow owner", kind: "system" }, definitions: [second],

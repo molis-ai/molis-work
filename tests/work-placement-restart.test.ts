@@ -131,7 +131,7 @@ for (const operation of ["link", "convert"] as const) for (const stop of ["cance
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true, holding = true;
     // A failing step must not leave the owner reader held: closing the Host waits for it.
     t.after(async () => { holding = false; release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); });
-    const reader = defineSubjectContextAction("fixture.clip.read", "fixture-clip", "Fixture", [], "home");
+    const reader = defineSubjectContextAction("fixture.clip.read", 1, "fixture-clip", "Fixture", [], "home");
     host.actionRegistry().registerProvider({ provider: { provider_id: "fixture-clip", title: "Fixture", kind: "system" }, definitions: [reader],
       handlers: [{ ...reader, handle: async () => { if (holding) { entered.resolve(); await release.promise; }
         return subjectContext({ subject: { kind: "fixture-clip", id: "original" }, revision: "1", title: "Fixed source", content: "original body", goal_ids: [] }); } }] });

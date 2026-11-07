@@ -1,6 +1,6 @@
 ---
 method_id: work-operate-process
-version: 3
+version: 1
 kind: work_type
 name: "运营与流程"
 summary: "围绕角色、触发、交接、例外和度量建立可运行流程。"

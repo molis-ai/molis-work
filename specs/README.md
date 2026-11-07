@@ -7,6 +7,7 @@
 ## 在做的
 
 - [account-switch-refresh](account-switch-refresh/spec.md)：账号切换与平台刷新；用户 2026-11-07 授权按 ASR-01～16 实施单活动账号、旧授权撤销、区域释放、草稿与缓存隔离及请求内性能修复，工程与本人验收分别记录，尚未整体通过。
+- [ci-acceleration](ci-acceleration/spec.md)：CI P0/P1 提速，普通文档从 PR 到合并队列走轻量路径，增加单个 PR 分片并按耗时和浏览器容量平衡；2026-11-06 已获实施授权，负责人 Codex；本地实现与验证完成，待云端实测。
 
 - [team-memory](team-memory/spec.md)：独立团队记忆需求（BL-022）；像持续在线的 PMO 观察获准项目、沟通和工作，积累决策、风险、知识、偏好及协作模式，减少人与人／人与 AI／AI 与 AI 的上下文交接，支持主动协作、工作习惯与交付质量改善。成员个人发布仍需最终确认并告知不可撤回，管理员维护团队认知；形成、融合及使用策略待细化，尚未实现或验收。需求维护 Codex，实现待分配；不改变现有记忆 P0 边界。
 
@@ -66,6 +67,8 @@
 - [prologue-context-strategy](prologue-context-strategy/spec.md)：Prologue Context 的来源预算、trace、新鲜度与压缩剖面；独立需求，需求已整理，待评审后实施。
 - [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～89 与服务端批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。原范围、负责人和暂停边界保留，尚未启动产品实施。
 
+- [ci-conflict-reduction](ci-conflict-reduction/spec.md)：减少页面资源预算与其他高频生成记录的冲突及重复 CI；2026-11-06 已获实施授权，历史 PR 核查、实现与本地回归完成，待独立 CI 实测，负责人 Codex。
+
 ## 现行规范
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。
@@ -80,7 +83,7 @@
 
 ## 还没做的事
 
-都在 [BACKLOG.md](BACKLOG.md)，那是唯一来源。spec 里不再另记「未完成」。
+都在 [BACKLOG.md](BACKLOG.md)（条目正文在 `backlog/`，一项一文件），那是唯一来源。spec 里不再另记「未完成」。
 
 ## 规则
 
@@ -112,6 +115,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-07：[路线书审查复核与修复](archive/roadmap-audit-repair/spec.md)归档（已实现，负责人 Codex）；#1898、#1899、追加授权的 #1897 已合入 main，#1900 已合入 gh-pages 并部署；最终 CI、Full 与队列成功，保留首次失败和验证边界。
 
 - 2026-11-06：[Frame 相机同步修复](archive/frame-camera-pointer-sync/spec.md)归档（已实现，负责人 Codex D 轨）；#1859 已合入 main，真实回归、普通 CI 与保护队列通过，02 组合 Full 的其它首败另由原负责人结算。
 

@@ -193,13 +193,13 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     const project = await host.withProject(reference, project => project);
     project.store.db.exec("CREATE TABLE fixture_home_judgment_notes (id TEXT PRIMARY KEY, revision INTEGER NOT NULL, content TEXT NOT NULL)");
     project.store.db.prepare("INSERT INTO fixture_home_judgment_notes VALUES (?, 1, ?)").run(subject.id, "插件私有记录的原始正文");
-    const reader = defineSubjectContextAction("unknown.notes.read", subject.kind, "原笔记", ["notes:read"]);
-    const events = defineHomeEventsAction("unknown.notes.events", [subject.kind], "笔记事项", ["notes:read"]);
+    const reader = defineSubjectContextAction("unknown.notes.read", 1, subject.kind, "原笔记", ["notes:read"]);
+    const events = defineHomeEventsAction("unknown.notes.events", 1, [subject.kind], "笔记事项", ["notes:read"]);
     const write: ActionDefinition = { capability_id: "unknown.notes.finish", version: 1, operation: "command", action: {
       title: "完成笔记", description: "修改插件原记录", kind: "operation", scope: "project", audiences: ["user", "mcp"],
       permissions: ["notes:write"], subject_kinds: [subject.kind], input_schema: { type: "object", properties: { id: { type: "string" }, revision: { type: "integer" }, marker: { type: "string" } }, required: ["id", "revision", "marker"], additionalProperties: false },
       output_schema: { type: "object", properties: { changed: { type: "integer" } }, required: ["changed"] } } };
-    const offerQuery = defineSubjectOffersAction("unknown.notes.offers", [subject.kind], "笔记动作", ["notes:read"], [
+    const offerQuery = defineSubjectOffersAction("unknown.notes.offers", 1, [subject.kind], "笔记动作", ["notes:read"], [
       { offer_id: "notes.finish", title: "完成笔记", action: { capability_id: write.capability_id, version: 1 } },
     ]);
     let marker = "original", available = true;

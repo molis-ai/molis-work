@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 
-const due = defineDueRemindersAction("fixture.todo.reminders.due", ["todo"], "到期提醒", ["todo:read"]);
+const due = defineDueRemindersAction("fixture.todo.reminders.due", 1, ["todo"], "到期提醒", ["todo:read"]);
 
 test("a due-reminders query is declared in the Home with the whole contract", () => {
   assert.deepEqual(inspectActionDeclarations([due], undefined), []);

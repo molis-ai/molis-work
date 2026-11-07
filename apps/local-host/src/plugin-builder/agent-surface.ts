@@ -79,7 +79,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 
 /**
  * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
- * (`designer/3.2.0+user.2` for their second edit), so every run's record says so.
+ * (`designer/1+user.2` for their second edit), so every run's record says so.
  */
 export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
   return (name, shipped) => {

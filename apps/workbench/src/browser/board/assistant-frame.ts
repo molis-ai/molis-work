@@ -35,8 +35,8 @@ const PREFIX = "/__ui/catalog/assistant/sample";
 
 // The island's own memory, in memory: the open work and the tabs of every sample work, so the list and the tabs start full.
 // A sub-task opens from the work that handed it on, so only the works the person started have tabs.
-const held = new Map<string, string>([["molis.assistant.tabs", JSON.stringify(S.works.filter((work) => !work.delegated_by).map((work) => work.work_id))]]);
-if (data.current) held.set("molis.assistant.current", data.current);
+const held = new Map<string, string>([[`molis.assistant.tabs:${S.project.id}`, JSON.stringify(S.works.filter((work) => !work.delegated_by).map((work) => work.work_id))]]);
+if (data.current) held.set(`molis.assistant.current:${S.project.id}`, data.current);
 const real = window.localStorage;
 const mine = (key: string) => key.startsWith("molis.assistant.");
 const storage = {

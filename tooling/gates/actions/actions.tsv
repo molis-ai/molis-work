@@ -509,6 +509,7 @@ schedule.jobs.enabled	1	io.molis.work.schedule	io.molis.work.schedule	command	op
 schedule.operation.wakeup	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	concurrent	plugin	actions:invoke,notifications:write,plugins:read,schedule:read,schedule:write,storage:private	-	-	-	26a141b2b83f	6b95cd75c054	e043d8211b2d
 schedule.operations.recover	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	101d75fb1fb4	3a6d85c8b680	5e0374458cf9
 schedule.reminder.wakeup	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	concurrent	plugin	notifications:write,plugins:read,schedule:read,schedule:write,storage:private	-	-	-	26a141b2b83f	6b95cd75c054	e043d8211b2d
+schedule.reminders.list	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	-	agent,mcp,user,workflow	schedule:read	schedule_task	-	-	d746974fa9af	281e567b15dc	-
 schedule.reminders.recover	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	7d166bfb9194	94f0313dd382	5e0374458cf9
 schedule.search.entries	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	schedule:read	schedule_task	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	a54d5f58204b
 schedule.subject.read	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	schedule:read	schedule_task	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-
@@ -532,7 +533,7 @@ shelf.items.admit	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	ho
 shelf.items.admit-folder	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	user	shelf:read,shelf:write	shelf_item	-	-	8e781856c4e5	67ac7d2da11b	-
 shelf.items.capture	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	materials:fetch,materials:fetch_local,shelf:read,shelf:write	shelf_item	-	-	582eb05287f1	67ac7d2da11b	-
 shelf.items.delete	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	irreversible	concurrent	agent,mcp,user,workflow	materials:original,shelf:read,shelf:write	shelf_item	-	-	e7b581b16414	07a9ad95ba37	-
-shelf.items.edit	2	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:read,shelf:write	shelf_item	-	-	c57ba7b451af	5adc2c3c5d93	-
+shelf.items.edit	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:read,shelf:write	shelf_item	-	-	c57ba7b451af	5adc2c3c5d93	-
 shelf.items.file	1	io.molis.work.shelf	io.molis.work.shelf	query	query	home	read	concurrent	user	shelf:read	shelf_item	-	-	1bbda887db76	adfc29c8fac7	-
 shelf.items.hide	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:read,shelf:write	shelf_item	-	-	e7b581b16414	711ed75c6bfc	-
 shelf.items.list	1	io.molis.work.shelf	io.molis.work.shelf	query	query	home	read	concurrent	agent,mcp,user,workflow	shelf:read	shelf_item	-	-	d746974fa9af	d5e0651a7515	-

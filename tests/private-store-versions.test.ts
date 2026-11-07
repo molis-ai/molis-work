@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { SqliteSchemaVersionError, type SecretStore } from "@molis-ai/molis-work-storage";
+import { isSqliteVersionRefusal, type SecretStore } from "@molis-ai/molis-work-storage";
 import { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "@molis-ai/molis-work-app-local-host";
 
 // Each Alchemist project's search store used to have no version at all (repository-anti-corruption §4.11). It is now created
@@ -26,9 +26,9 @@ const secretStore = (): SecretStore => {
     backend: () => ({ kind: "aes-gcm-file", label: "explicit test memory", masterKeyExternal: false, formatVersion: 1 }) };
 };
 const refused = (found: number, expected: number, path: string) => (error: unknown) => {
-  assert.ok(error instanceof SqliteSchemaVersionError, String(error));
+  assert.ok(isSqliteVersionRefusal(error), String(error));
   assert.equal(error.code, "storage.schema_version_mismatch");
-  assert.deepEqual([error.found, error.expected, error.path], [found, expected, path]);
+  assert.deepEqual([error.details?.found, error.details?.expected, error.details?.path], [found, expected, basename(path)]);
   return true;
 };
 

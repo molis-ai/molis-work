@@ -27,7 +27,7 @@ export interface CodingExecutionReport extends CodingReport {
 
 /** Read only a genuine fixed Coding report; its source identity must agree with the exact Artifact. */
 export function codingReportPreview(artifact: FixedVersionRecord | null) {
-  if (!artifact || artifact.artifact_type_id !== CODING_REPORT_TYPE || artifact.schema_version !== 1
+  if (!artifact || artifact.artifact_type_id !== CODING_REPORT_TYPE || artifact.schema_version !== /* @version type.coding.report */ 1
     || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding"
     || artifact.content_kind !== "inline" || artifact.availability !== "available") return null;
   const report = artifact.payload as unknown as Partial<CodingExecutionReport> | null;
@@ -61,7 +61,7 @@ export function readCodingExecutionReport(artifacts: PluginArtifactClient, sessi
   const artifact = artifacts.read(reference);
   if (!artifact) return null;
   const report = artifact.payload as unknown as CodingExecutionReport | null;
-  if (artifact.artifact_type_id !== CODING_REPORT_TYPE || artifact.schema_version !== 1
+  if (artifact.artifact_type_id !== CODING_REPORT_TYPE || artifact.schema_version !== /* @version type.coding.report */ 1
     || !report || report.source?.session_id !== sessionId || report.run_id !== runId
     || typeof report.body_markdown !== "string" || typeof report.title !== "string") {
     throw new Error("保存的报告与当前会话或执行不匹配，不能替换成另一轮结果");

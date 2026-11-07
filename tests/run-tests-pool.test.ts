@@ -28,6 +28,13 @@ test("plan: the longest expected file starts first; a file with no recorded dura
   assert.deepEqual(Object.keys(plan(entries, {})[0]).sort(), ["browser", "expected", "file"]);
 });
 
+test("CIP-07 a new shard starts known long files first before it has a private duration cache", () => {
+  const entries = [{ file: "quick", browser: false }, { file: "slow", browser: true }, { file: "medium", browser: true }];
+  const weights = { quick: 10, slow: 600, medium: 120 };
+  assert.deepEqual(plan(entries, {}, weights).map(entry => entry.file), ["slow", "medium", "quick"]);
+  assert.deepEqual(plan(entries, { medium: 800 }, weights).map(entry => entry.file), ["medium", "slow", "quick"], "a runner can refine its own start order without changing shard ownership");
+});
+
 test("runQueue: never more than `jobs` files at once nor more than `browserJobs` browser files, and every file runs once", async () => {
   const queue = [
     ...Array.from({ length: 5 }, (_, index) => ({ file: `tests/e2e-${index}.e2e.test.ts`, browser: true })),
@@ -252,4 +259,28 @@ test("RAC-2452 --bail: the timeout note belongs to the attempt that was killed a
   assert.equal(run.status, 0, output);
   assert.equal(occurrences(output, "(killed after 10 s)"), 1, output);
   assert.ok(output.indexOf("(killed after 10 s)") < output.search(/\[retry 1\] ok\s+\S*slow\.test\.mjs/), "the note comes before the retry line");
+});
+
+test("CIP-06 CIP-08 a single-file shard keeps timeout, retries, failure status and timed summaries", () => {
+  const made = directory();
+  const slow = attemptFixture(made, "slow", 0, "if (attempt === 1) await new Promise((resolve) => setTimeout(resolve, 60_000));");
+  const shard = (file: string) => spawnSync(process.execPath, [runner, "--shard", "1/1", "--retries", "1", "--jobs", "1", "--timeout-seconds", "10", file], { encoding: "utf8", timeout: 120_000 });
+  const recovered = shard(slow);
+  const recovery = `${recovered.stdout}${recovered.stderr}`;
+  assert.equal(recovered.status, 0, recovery);
+  assert.equal(occurrences(recovery, "(killed after 10 s)"), 1, recovery);
+  assert.match(recovery, /\[retry 1\] ok\s+\S*slow\.test\.mjs/);
+  assert.match(recovery, /1 of 1 files passed \(1 only on a retry\)/);
+
+  const broken = shard(attemptFixture(made, "broken", 3));
+  const failure = `${broken.stdout}${broken.stderr}`;
+  assert.equal(broken.status, 1, failure);
+  assert.match(failure, /\[retry 1\] FAIL\s+\S*broken\.test\.mjs/);
+  assert.match(failure, /0 of 1 files passed/);
+
+  const stable = shard(attemptFixture(made, "stable", 0));
+  const success = `${stable.stdout}${stable.stderr}`;
+  assert.equal(stable.status, 0, success);
+  assert.match(success, /\[1\/1\] ok\s+\S*stable\.test\.mjs\s+\d+(?:\.\d+)?s\s+1\/1 tests/);
+  assert.match(success, /1 of 1 files passed in/);
 });

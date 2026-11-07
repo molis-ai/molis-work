@@ -10,9 +10,9 @@ export interface ContractDescriptor {
 }
 
 export const packageContract = {
-  contractId: "io.molis.work.platform.package.v1",
+  contractId: /* @version contract.io.molis.work.platform.package "io.molis.work.platform.package.v{version}" */ "io.molis.work.platform.package.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.package */ 1,
   maturity: "contract-only",
   ssot: "docs/SSOT-MATRIX.md",
 } as const satisfies ContractDescriptor;

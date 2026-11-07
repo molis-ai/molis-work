@@ -69,7 +69,7 @@ export async function createHomeSnapshot(
           });
       }
     const manifest: HomeSnapshotManifest = {
-      schema_version: 2,
+      schema_version: /* @version format.home.snapshot.manifest */ 1,
       space_digest: scope,
       product_version: PRODUCT_VERSION,
       created_at: new Date().toISOString(),

@@ -14,7 +14,7 @@ import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/pla
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PLUGIN_TRUST_SCHEMA_SQL, PluginRuntime, SqlitePluginConsentLedger, SqlitePluginRuntimeRepository, UNSIGNED_TRUST, alwaysOnAgreed, consentSubject, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { sqliteVersionRefusal } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // ac-trust T3 (specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4): the 常开 list is worked out from the consent ledger and the
@@ -426,7 +426,7 @@ for (const corruption of ["version", "structure"] as const) test(`MEM-42 later d
   await read(true);
   if (corruption === "version") db.exec("PRAGMA user_version = 2");
   else db.exec("DROP TABLE plugin_private_values");
-  const before = filesAt(f.home), refusal = { code: corruption === "version" ? "storage.schema_version_mismatch" : "actions.execution_failed" };
+  const before = filesAt(f.home), refusal = { code: corruption === "version" ? "storage.store_too_new" : "actions.execution_failed" };
   for (const project_id of [f.project.project_id, "absent-project"]) {
     const context = { ...caller, project_id };
     await assert.rejects(policy.snapshotForDiscovery(context), refusal);
@@ -463,8 +463,8 @@ test("RAC-401 S-34 a query before Host startup records nothing and the real supe
 for (const [name, corrupt, expected] of [
   ["non-SQLite bytes", (file: string) => writeFileSync(file, "not a SQLite database"), /not a database/u],
   ["empty existing file", (file: string) => writeFileSync(file, ""), { code: "storage.schema_version_mismatch" }],
-  ["wrong version", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 2"); } finally { db.close(); } }, { code: "storage.schema_version_mismatch" }],
-  ["current version with missing tables", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 4"); } finally { db.close(); } }, { code: "actions.execution_failed" }],
+  ["wrong version", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 2"); } finally { db.close(); } }, { code: "storage.store_too_new" }],
+  ["current version with missing tables", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 1"); } finally { db.close(); } }, { code: "actions.execution_failed" }],
 ] as const) {
   test(`RAC-401 S-34 an existing Runtime store with ${name} is refused, never treated as missing or repaired by a query`, async t => {
     const f = await catalogFixture(t);
@@ -506,13 +506,13 @@ for (const corruption of ["version", "structure"] as const) {
       const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
       assert.equal((await availability(caller, action)).available, false);
       const currentVersion = db.prepare("PRAGMA user_version").get()!.user_version;
-      assert.equal(currentVersion, 4, "the fault starts from the current Home Runtime schema");
+      assert.equal(currentVersion, 1, "the fault starts from the current Home Runtime schema");
       if (corruption === "version") db.exec("PRAGMA user_version = 2");
       else db.exec("DROP TABLE plugin_private_values");
       const consents = ledger.consents(goals.plugin_id), installs = repository.list();
       db.close();
       const before = filesAt(home), bytes = readFileSync(storePath(home));
-      const refusal = { code: corruption === "version" ? "storage.schema_version_mismatch" : "actions.execution_failed" };
+      const refusal = { code: corruption === "version" ? "storage.store_too_new" : "actions.execution_failed" };
       for (let attempt = 0; attempt < 2; attempt++) {
         assert.throws(() => catalog.listProjectPlugins(project.project_id), refusal);
         assert.throws(() => catalog.projectPluginMembership(project.project_id).hidden, refusal);
@@ -567,8 +567,8 @@ for (const corruption of ["version", "structure"] as const) {
   });
 }
 
-for (const error of [new SqliteSchemaVersionError("unrelated.db", 1, 4), new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v4 基线不一致，请保留故障库并检查其来源")]) {
-  test(`RAC-403 a ${error.name} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
+for (const [error, status] of [[sqliteVersionRefusal("unrelated.db", 2, 1), 503], [new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v1 基线不一致，请保留故障库并检查其来源"), 500]] as const) {
+  test(`RAC-403 a ${error.code} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
     const f = await serveHomeRuntime(t, { actionAvailability: (_caller, action) => {
       if (action.capability_id === goalsActions.collection.capability_id) throw error;
       return { available: true };
@@ -576,7 +576,7 @@ for (const error of [new SqliteSchemaVersionError("unrelated.db", 1, 4), new Act
     const one = await f.project("Other errors stay visible");
     for (const path of ["/", "/api/board", "/api/board/refresh"]) {
       const page = await f.request(`/projects/${one.project_id}${path}`);
-      assert.equal(page.status, 500);
+      assert.equal(page.status, status);
       assert.doesNotMatch(await page.text(), /data-home-plugin-store-unavailable/u);
     }
   });

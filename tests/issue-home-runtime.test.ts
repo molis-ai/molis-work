@@ -53,10 +53,10 @@ test("ISSUE-01 failed Home initialization preserves its database and only explic
     assert.equal((await fetch(`${origin}/api/plugins/${ISSUES_PLUGIN_ID}/retry`)).status, 405);
     const failedRetry = host.homePlugins!.retry();
     assert.equal(host.homePlugins!.retry(), failedRetry, "concurrent retries share a failed attempt too");
-    await assert.rejects(failedRetry, { code: "storage.schema_version_mismatch" });
+    await assert.rejects(failedRetry, { code: "storage.store_too_new" });
     // Repair only the isolated fixture; the rejected original remains intact beside it.
     await rename(path, join(directory, "rejected.db"));
-    await assert.rejects(host.homePlugins!.ready(), { code: "storage.schema_version_mismatch" });
+    await assert.rejects(host.homePlugins!.ready(), { code: "storage.store_too_new" });
     assert.equal((await fetch(`${origin}/plugins/issues`)).status, 503, "ordinary reads do not silently restart");
     const retries = await Promise.all(Array.from({ length: 4 }, () => retry()));
     for (const response of retries) { assert.equal(response.status, 200, await response.clone().text()); await response.text(); }

@@ -2,9 +2,9 @@ import type { ContractDescriptor } from "./package.js";
 import type { PluginReviewKind } from "../services/agent-host-reviews.js";
 
 export const platformPluginEventsContract = {
-  contractId: "io.molis.work.platform.plugin-events.v1",
+  contractId: /* @version contract.io.molis.work.platform.plugin-events "io.molis.work.platform.plugin-events.v{version}" */ "io.molis.work.platform.plugin-events.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.plugin-events */ 1,
   maturity: "partial",
   ssot: "docs/platform/PLUGIN-PLATFORM.md",
 } as const satisfies ContractDescriptor;
@@ -40,9 +40,9 @@ export interface HostEventType {
 }
 
 export const HOST_EVENT_TYPES: readonly HostEventType[] = [
-  { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, delivery: "addressed" },
-  { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: "workspace:read" },
-  { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: HOST_CONNECTIONS_OBSERVE_PERMISSION },
+  { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: /* @version event.host.review.settled */ 1, delivery: "addressed" },
+  { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, delivery: "broadcast", permission: "workspace:read" },
+  { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1, delivery: "broadcast", permission: HOST_CONNECTIONS_OBSERVE_PERMISSION },
 ];
 
 /** `source_plugin_id` and `source_install_id` of a host event's record. Never a plugin id: those are `io.molis.work.…`. */

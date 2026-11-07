@@ -589,7 +589,7 @@ function mapRun(row: Row): ListenerRunRecord {
 
 function summarizeConnectorReceipt(receipt: ConnectorReceipt): Record<string, unknown> {
   const common = {
-    schema: "molis-work-connector-receipt-v1",
+    schema: /* @version type.molis-work-connector-receipt "molis-work-connector-receipt-v{version}" */ "molis-work-connector-receipt-v1",
     receipt_id: receipt.receipt_id,
     connection_id: receipt.connection_id,
     driver_id: receipt.driver_id,

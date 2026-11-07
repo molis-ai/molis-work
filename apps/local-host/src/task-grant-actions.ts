@@ -36,7 +36,7 @@ type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectAct
  * The providers' declarations, from the Manifest each installation was installed with: the project's own installations first (a
  * dual-instance plugin's halves share one), then the Home's. A provider is an installation's id, or (a plugin the Host ships) its plugin
  * id, as the Plugin Runtime registers it. A plugin provider whose Manifest cannot be read offers nothing (`null`); a provider of the
- * Host's own has none to read (`{}`), and offers a task nothing either (`readableByTask`).
+ * Host's own has none to read (`{}`): it is one whole category if it declares `task_readable`, and offers nothing otherwise (`readableByTask`).
  */
 export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "homePlugins">, reference: LocalHostProjectReference): Promise<TaskGrantDeclarations> {
   const entries = await host.withProject(reference, runtime => installedPluginEntries(runtime.store.db));
@@ -205,7 +205,10 @@ async function listSubjects(ports: TaskGrantPorts, caller: ActionExecutionContex
   const person = asked.ownInstall === undefined;
   if (!subjects.length && !person) return { categories: [], subjects: [] };
   const { catalog, declarations } = await readCatalog(ports, asked, caller.signal);
-  return { categories: person ? offeredCategories(catalog, declarations.of).map(entry => entry.category) : [],
+  // Only what `set` takes as a new category (R5): one with nothing callable now is not offered; a subject that holds it sees it
+  // under its own state (`unavailable`), never as a switch that would be refused.
+  const offered = offeredCategories(catalog, declarations.of).filter(entry => entry.members.some(view => view.availability.available));
+  return { categories: person ? offered.map(entry => entry.category) : [],
     subjects: subjects.map(subject => subjectView(preference, subject, catalog, declarations.of)) };
 }
 

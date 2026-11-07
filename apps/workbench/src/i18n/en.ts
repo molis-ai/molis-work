@@ -2006,7 +2006,7 @@ Object.assign(EN, {
   "代码与发布": "Code & shipping",
   "任务与知识": "Tasks & knowledge",
   "设计": "Design",
-  "客户与增长": "Customers",
+  "客户与销售": "Customers & sales",
   "社交": "Social",
   "本机只显示令牌末四位": "This computer only shows the last four characters of the token",
   "账号属于这台电脑上的人，不是某个项目。凭据只进本机 SecretStore，这里不显示明文。": "The account belongs to the person on this computer, not to a project. Credentials go into the local SecretStore only; this page does not show them in plaintext.",

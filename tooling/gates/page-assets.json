@@ -39,8 +39,8 @@
     "/assets/molis-work-plugins/plugin-builder.js": 101339,
     "/assets/molis-work-plugins/ppt.css": 6158,
     "/assets/molis-work-plugins/ppt.js": 27357,
-    "/assets/molis-work-plugins/schedule.css": 1122,
-    "/assets/molis-work-plugins/schedule.js": 12561,
+    "/assets/molis-work-plugins/schedule.css": 2509,
+    "/assets/molis-work-plugins/schedule.js": 14866,
     "/assets/molis-work-plugins/shelf.css": 32914,
     "/assets/molis-work-plugins/shelf.js": 65319,
     "/assets/molis-work-plugins/text-stats.js": 1275,
@@ -48,9 +48,9 @@
     "/assets/molis-work-plugins/todo.js": 54044,
     "/assets/molis-work-plugins/workflows.css": 36597,
     "/assets/molis-work-plugins/workflows.js": 71563,
-    "/assets/molis-work-settings.css": 760704,
-    "/assets/molis-work-workbench.css": 1107725,
-    "/assets/molis-work-workbench.js": 885295,
+    "/assets/molis-work-settings.css": 761636,
+    "/assets/molis-work-workbench.css": 1108657,
+    "/assets/molis-work-workbench.js": 892831,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

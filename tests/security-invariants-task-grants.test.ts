@@ -18,6 +18,7 @@ import { agentHostCapabilities, type AgentActionClient, type AgentRunView, type 
 import {
   agentTaskGrantActions, type TaskGrantSetCategory, type TaskGrantListResult, type TaskGrantSubject,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { isLocalHostHttpError, readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { homePackage, mac, person as installer, ref } from "./fixtures/home-sandbox.js";
@@ -310,25 +311,26 @@ test("S-141 a task is only given reads: a provider's commands and writing querie
   assert.deepEqual((await w.records("agent:task:")).map(grant => grant.capability_id), [shelfRead.capability_id], "only the read was recorded");
 });
 
-test("S-141 a task is offered only plugins' categories: the Host's own providers are never one, naming one is refused, and a record of one reads nothing", { timeout: 120_000 }, async t => {
-  const w = await world(t), a = await w.open("Plugins only");
+test("S-141 a provider of the Host's own that does not declare task_readable is no category: not listed, naming one is refused, and a record of one reads nothing", { timeout: 120_000 }, async t => {
+  const w = await world(t), a = await w.open("Undeclared");
   let systemCalls = 0;
   const systemRead = query("fixture.system.read");
   t.after(w.localHost.actionRegistry(a.project.reference).registerProvider({ provider: { provider_id: "system.fixture", kind: "system", title: "System fixture",
     project_id: a.project.project_id }, definitions: [systemRead], handlers: [{ ...systemRead, handle: () => { systemCalls++; return {}; } }] }));
-  // The Host's own reads open to an Agent (search, project knowledge, memory, placement, and this one) have no Manifest and may read
-  // across plugins: none of them is a category, and naming any of them, beside a category that is offered, refuses the whole call.
+  // The Host's own reads open to an Agent that do not declare a task may read them (search, memory, placement, and this one) have no
+  // Manifest and may read across plugins: none of them is a category, and naming any of them, beside a category that is offered,
+  // refuses the whole call.
   const views = await w.localHost.inspectActions(w.person(a.project), a.project.reference);
-  const systemProviders = [...new Set(views.filter(view => view.provider.kind !== "plugin" && view.action.audiences.includes("agent") && view.operation === "query")
-    .map(view => view.provider.provider_id))].sort();
-  assert.ok(systemProviders.includes("system.fixture") && systemProviders.length > 1, `the catalog holds the Host's own reads: ${systemProviders.join(", ")}`);
+  const undeclared = [...new Set(views.filter(view => view.provider.kind !== "plugin" && view.provider.task_readable !== true
+    && view.action.audiences.includes("agent") && view.operation === "query").map(view => view.provider.provider_id))].sort();
+  assert.ok(undeclared.includes("system.fixture") && undeclared.length > 1, `the catalog holds the Host's own undeclared reads: ${undeclared.join(", ")}`);
   const offered = (await w.list(a.project)).categories;
-  assert.deepEqual(offered.filter(category => systemProviders.includes(category.provider_id) || !category.plugin_id), [], "every category is a plugin's");
-  for (const provider_id of systemProviders) {
+  assert.deepEqual(offered.filter(category => undeclared.includes(category.provider_id)), [], "no undeclared provider is a category");
+  for (const provider_id of undeclared) {
     await assert.rejects(a.set("daily", [a.group, { provider_id }]), { code: "actions.input_invalid" }, provider_id);
   }
   assert.deepEqual(await w.records("agent:task:"), [], "nothing of the refused calls was recorded");
-  // A record of one, however it got there, reads nothing: a task's round finds only plugins' reads, and the call is refused unrun.
+  // A record of one, however it got there, reads nothing: a task's round does not find it, and the call is refused unrun.
   await a.set("daily", [a.group]);
   await w.plant([{ client_id: a.subject("daily"), project_id: a.project.project_id, capability_id: systemRead.capability_id, version: 1, provider_id: "system.fixture", permissions: [], enabled: true }]);
   await a.run({ grant_subject: "daily" }, async gateway => {
@@ -337,6 +339,26 @@ test("S-141 a task is offered only plugins' categories: the Host's own providers
       (error: unknown) => error instanceof Error && "code" in error && ["mcp.action_revoked", "actions.missing"].includes(String(error.code)));
   });
   assert.equal(systemCalls, 0);
+});
+
+test("S-141 project knowledge is a category because its provider declares task_readable: listed, off by default, and readable once turned on", { timeout: 120_000 }, async t => {
+  const w = await world(t), a = await w.open("Knowledge");
+  const knowledge = { provider_id: KNOWLEDGE_PROVIDER_ID };
+  const offered = (await w.list(a.project)).categories.filter(category => category.provider_id === KNOWLEDGE_PROVIDER_ID);
+  assert.deepEqual(offered.map(category => [category.group_id ?? null, category.title]), [[null, "项目资料"]], "one whole category, in the provider's own name");
+  // Off by default: a task with nothing turned on finds none of it (§8 第 2 条, G1).
+  await a.run({ grant_subject: "daily" }, async gateway => { assert.deepEqual(await w.found(gateway), []); });
+  await a.set("daily", [knowledge]);
+  const recorded = (await w.records("agent:task:")).map(grant => grant.capability_id).sort();
+  assert.ok(recorded.includes(knowledgeActions.list.capability_id), `the reads are recorded: ${recorded.join(", ")}`);
+  for (const id of recorded) assert.ok(Object.values(knowledgeActions).some(action => action.capability_id === id), `${id} is one of its agent reads, not a management action`);
+  await a.run({ grant_subject: "daily" }, async gateway => {
+    assert.ok(gateway);
+    const views = await gateway.discover(), list = views.find(view => view.capability_id === knowledgeActions.list.capability_id);
+    assert.ok(list, "the task finds project knowledge");
+    const answer = await gateway.invoke(w.exact(list), {}) as { pieces?: unknown };
+    assert.ok(Array.isArray(answer.pieces), "and reads it");
+  });
 });
 
 test("S-141 a category that is not offered now is refused as a whole call: no group for a provider with groups (C3), a group it no longer declares (S3), a stale revision", { timeout: 120_000 }, async t => {
@@ -401,6 +423,22 @@ test("S-141 R5 a category new to the task whose provider is off records nothing 
   w.off.delete(shelfRead.capability_id);
   await a.set("daily", [a.group, a.shelf]);
   assert.equal((await w.records("agent:task:")).length, 2, "switched back on, it can be turned on");
+});
+
+test("S-141 R5 every category list offers is one set takes as a new category: one with nothing callable now is not offered, and a task holding it sees it unavailable", { timeout: 120_000 }, async t => {
+  const w = await world(t), a = await w.open("Offered is settable");
+  const offered = (await w.list(a.project)).categories;
+  assert.ok(offered.length > 2, "the built-in plugins, the fixtures and project knowledge offer categories");
+  for (const [index, category] of offered.entries()) {
+    const reference = { provider_id: category.provider_id, ...(category.group_id ? { group_id: category.group_id } : {}) };
+    await a.set(`k${index}`, [reference]).catch((error: unknown) => assert.fail(`list offered ${JSON.stringify(reference)} and set refused it: ${String(error)}`));
+  }
+  await a.set("daily", [a.shelf]);
+  w.off.add(shelfRead.capability_id);
+  const now = await w.list(a.project);
+  assert.equal(now.categories.some(category => category.provider_id === a.shelf.provider_id), false, "nothing of it callable now, the shelf is no switch");
+  assert.deepEqual(now.subjects.find(subject => subject.key === "daily")?.categories.map(category => [category.provider_id, category.status]),
+    [[a.shelf.provider_id, "unavailable"]], "the task that holds it sees it under its own state");
 });
 
 test("S-141 R1 a held category is taken by its records: a group no longer offered or no group at all keeps them, and the same reference new to a task is refused", { timeout: 120_000 }, async t => {

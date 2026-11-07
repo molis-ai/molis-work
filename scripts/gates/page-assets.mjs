@@ -342,16 +342,27 @@ const headErrors = (measured, budget, base) => {
 // reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
 // Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
 // one short fixed message; no cast.
-// Batch 18 P2 (Schedule's task reads, design F; admitted by the batch 18 coordinator on 2026-11-06): schedule.css 1269 -> 2841 B
-// (+1572): the list row's one kind mark (read files / read data), the 「能读的数据」 section's lines around the platform's area, and the
-// new and edit form in the detail pane instead of a dialog. schedule.js 12570 -> 14878 B (+2308): one `/grants` read per list open,
-// the kind marks and the 「需要重新确认」 badge, the reads section's lines and the in-pane form. Tried: the form reuses the board's
-// .mw-form and .mw-btn, the two kind icons share one kept slot shown by one attribute, the area's own drawing is left to the
-// platform (P3), no new asset. Rekeyed onto main's budget after #1884 (schedule.css 1122, schedule.js 12561, the minified build).
+// 13④a 连接页 ASC-73～79，#1886，统筹审过放行 (2026-11-06): the settings' 服务连接 page as plan A — rows grouped by use that open in
+// place, an account's four rows, 换账号 among accounts, the steps, 高级 and its draft. Keyed on merge-base 875fb6be (after #1877's
+// compiled client and minified sheets), so the ④b entries above are spent and replaced. settings.css and workbench.css +617 B
+// each: the catalog's row part only (the card it does not draw is split out of the parts' styles), the four rows' card with a
+// container query, the switch choice and the draft note. workbench.js +7536 B: the parts' row program (625 B) and the page's
+// switch, usages, steps and draft. Tried: the draft note is a server template, the progress is ④b's, repeated DOM idioms are
+// small helpers (about 990 B).
+// 13④a 自然高度折叠（#1886 的跟随 PR）: the catalog's connection row and the connection card in place open and close to their
+// natural height on the chevron's clock (行展开收起 · 250ms) instead of at once: `block-size` 0 → `auto` under
+// `@supports (interpolate-size:allow-keywords)`, rows kept one `1fr` row there. settings.css and workbench.css +315 B each, keyed
+// on merge-base 6a154c8d (after #1886), so the ④a entries are spent and replaced; workbench.js is unchanged, so its ④a entry
+// is spent and removed. Tried: one `naturalFold` helper for the four folds instead of four written-out blocks.
+// Batch 18 P2 (#1879, Schedule's task reads, design F; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new
+// asset): schedule.css +1387 (1122 → 2509) B: the list row's one kind mark (read files / read data), the 「能读的数据」 section's lines around
+// the platform's area, and the new and edit form in the detail pane instead of a dialog. schedule.js +2305 (12561 → 14866) B: one `/grants` read per
+// list open, the kind marks and the 「需要重新确认」 badge, the reads section's lines and the in-pane form. Keyed on merge-base
+// 585ae7af (main after #1892; the sheets were minified since the first measurement, 1269 → 2841). Tried: the form reuses the board's .mw-form and .mw-btn, the two kind icons share one kept slot shown by one attribute,
+// the area's own drawing is left to the platform (P3).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-settings.css": [827793, 830322],
-  "/assets/molis-work-workbench.css": [1204709, 1207238],
-  "/assets/molis-work-workbench.js": [1085847, 1089571],
+  "/assets/molis-work-settings.css": [761321, 761636],
+  "/assets/molis-work-workbench.css": [1108342, 1108657],
   "/assets/molis-work-plugin-frame.js": [188354, 188418],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],
@@ -359,8 +370,8 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/shelf.js": [64967, 65319],
   "/assets/molis-work-plugins/images.js": [19896, 21103],
   "/assets/molis-work-plugins/images.css": [7851, 7901],
-  "/assets/molis-work-plugins/schedule.css": [1122, 2694],
-  "/assets/molis-work-plugins/schedule.js": [12561, 14869],
+  "/assets/molis-work-plugins/schedule.css": [1122, 2509],
+  "/assets/molis-work-plugins/schedule.js": [12561, 14866],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

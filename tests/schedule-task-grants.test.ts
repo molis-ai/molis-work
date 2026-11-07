@@ -4,7 +4,7 @@
 // answers through a fake action client, so nothing below depends on how the Host keeps a grant.
 import assert from "node:assert/strict";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { actionEffect, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTaskGrantActions, TASK_GRANT_SUBJECT_KEY_PATTERN, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
@@ -158,7 +158,7 @@ function platform(subjects: TaskGrantSubject[] = []) {
 }
 
 function scheduleDatabase() {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.exec(SCHEDULE_PROJECT_DATABASE.schema);
   return db;
 }
@@ -189,7 +189,7 @@ test("PWA-149 a due round asks the platform once and starts the role its grants 
 });
 
 /** Schedule's own task actions over a library, with `archived` going to the platform as the Runtime binds it. */
-function taskHandlers(db: Database.Database, grants: ReturnType<typeof createScheduleTaskGrants>) {
+function taskHandlers(db: SqliteDatabase, grants: ReturnType<typeof createScheduleTaskGrants>) {
   const unused = () => { throw new Error("unused"); };
   const ports: ScheduleActionPorts = { listJobs: () => [], setEnabled: unused, recoverReminder: unused, listTasks: () => [], createTask: unused, updateTask: unused, setTaskEnabled: unused, openTask: unused,
     archiveTask: taskId => { db.prepare("UPDATE schedule_conversation_tasks SET archived = 1, enabled = 0 WHERE task_id = ?").run(taskId); },

@@ -10,7 +10,7 @@ import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js"
 // provider that drops a group, or a provider that starts declaring groups, takes the actions it no longer offers out of every task at
 // once: they are not readable, and `list` shows them as one `removed` category of that provider.
 
-/** What a provider's Manifest says about itself (its `summary`) and its read groups; `{}` for a provider the Host registers itself, which offers a task nothing (`readableByTask`). */
+/** What a provider's Manifest says about itself (its `summary`) and its read groups; `{}` for a provider the Host registers itself, which offers a task nothing unless it declares `task_readable` (`readableByTask`). */
 export interface ProviderDeclaration {
   readonly description?: string;
   readonly read_groups?: readonly PluginReadGroupDeclaration[];
@@ -31,15 +31,16 @@ const TEXT_LIMIT = 2000;
 const words = (value: string) => value.length > TEXT_LIMIT ? value.slice(0, TEXT_LIMIT) : value;
 
 /**
- * A task can be given only a plugin's actions (a provider with a Manifest), only what an agent may call, and only what reads: a query
- * whose effect is `read` (G3, as for the Home's aggregates). The Host's own providers (`system.*`: search, placement, memory, project
- * knowledge…) and an external MCP source declare no read groups and may read across plugins, so a category of theirs would get round
- * the per-plugin grouping the person turns on: none is offered, `list` names none, `set` naming one is refused as a whole call, and a
- * task's round does not find them (batch 18 P2, decided 2026-11-06).
+ * A task can be given only a plugin's actions (a provider with a Manifest) or those of a provider that declared, where the Host
+ * registers it, that a task may read it (`task_readable`); only what an agent may call; and only what reads: a query whose effect is
+ * `read` (G3, as for the Home's aggregates). Any other provider of the Host's own (`system.*`: search, placement, memory…) or an
+ * external MCP source declares no read groups and may read across plugins, so a category of theirs would get round the per-plugin
+ * grouping the person turns on: none is offered, `list` names none, `set` naming one is refused as a whole call, and a task's round
+ * does not find them. The Host names no provider here: the declaration is the provider's own (batch 18 P2, decided 2026-11-06).
  */
 export function readableByTask(view: ActionView): boolean {
-  return view.provider.kind === "plugin" && view.action.audiences.includes("agent") && view.operation === "query"
-    && actionEffect(view.action, view.capability_id) === "read";
+  return (view.provider.kind === "plugin" || view.provider.task_readable === true) && view.action.audiences.includes("agent")
+    && view.operation === "query" && actionEffect(view.action, view.capability_id) === "read";
 }
 
 /** The group an action is in under its provider's declaration now: `""` for a provider without groups, undefined when it gives the action to no task. */

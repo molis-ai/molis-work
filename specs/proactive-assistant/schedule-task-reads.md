@@ -56,7 +56,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 
 **按什么粒度记。** 用户勾的是「类」，记下的是**这一刻**目录里这一类的每个只读动作各一条：
 
-- 「类」是提供方在 Manifest 里声明的**读取分组**（用户 2026-11-05 定，第 9 节 O1）：一组有自己的 id、显示名、一句「包含什么」，列出本插件自己的几个动作；宿主装配时核对组里每个动作都是本插件的、`audiences` 含 `agent`、只读（判据见第 9 节 G3），不符就拒绝这份 Manifest。可勾的类就是目录里本项目可见的这些分组；名单从目录来，宿主里不写插件名（硬约束：不另写名单）。没声明分组的插件，它全部符合条件的动作合成一类（插件同等待遇：第三方不声明也能用）；声明了分组的插件，不在任何组里的动作不给任务主体。**类别只来自插件**（有 Manifest 的安装，第 18 批统筹 2026-11-06 定）：宿主自己的提供方（`system.*`，如搜索、放置、记忆、项目资料）与 MCP 来源没有 Manifest、可能跨插件读，会绕开按插件分组的授权，所以 `list` 不列它们，`set` 点名它们整次 `actions.input_invalid`，主体即使有它们的记录一轮里也找不到（宿主 `task-grant-categories.ts` 的 `readableByTask` 一处，S-141 ⑥）。本批的口径：待办 = Todo 的「待办」组，Inbox = Inbox 的「来信」组，日程 = Jelly 的「日历」组加 Schedule 的「提醒」组，目标 = Goals 的「目标」组；Jelly 的笔记、Schedule 的定时操作各自另成一组，默认不勾。
+- 「类」是提供方在 Manifest 里声明的**读取分组**（用户 2026-11-05 定，第 9 节 O1）：一组有自己的 id、显示名、一句「包含什么」，列出本插件自己的几个动作；宿主装配时核对组里每个动作都是本插件的、`audiences` 含 `agent`、只读（判据见第 9 节 G3），不符就拒绝这份 Manifest。可勾的类就是目录里本项目可见的这些分组；名单从目录来，宿主里不写插件名（硬约束：不另写名单）。没声明分组的插件，它全部符合条件的动作合成一类（插件同等待遇：第三方不声明也能用）；声明了分组的插件，不在任何组里的动作不给任务主体。**系统提供方默认不进任务类别**（第 18 批统筹 2026-11-06 定）：类别来自插件（有 Manifest 的安装），或来自在自己登记时声明 `task_readable: true` 的提供方（`ActionProvider.task_readable`，整个提供方算一类）。没有这一声明的系统提供方（`system.*`，如搜索、放置、记忆）与 MCP 来源没有 Manifest、可能跨插件读，会绕开按插件分组的授权，所以 `list` 不列它们，`set` 点名它们整次 `actions.input_invalid`，主体即使有它们的记录一轮里也找不到。宿主不写提供方名单，`task-grant-categories.ts` 的 `readableByTask` 只认 `kind` 为 `plugin` 或这一声明（S-141 ⑥）；本批只有项目资料（`system.knowledge`，只读本项目的资料、不跨插件）声明，所以它照第 8 节第 2 条作为一类出现、默认不勾。本批的口径：待办 = Todo 的「待办」组，Inbox = Inbox 的「来信」组，日程 = Jelly 的「日历」组加 Schedule 的「提醒」组，目标 = Goals 的「目标」组；Jelly 的笔记、Schedule 的定时操作各自另成一组，默认不勾。
 - 界面上每一类写明包含什么（就是分组声明里那一句，例如 Jelly「日历」写「日历事项与进展」），用户知道勾了什么。分组的显示名与说明照 Manifest 的其余文字一样走翻译（英文随插件包）。
 - 只读动作才收：宿主建授权时拒绝 `operation` 不是 `query` 的动作。
 - 以后提供方新增或改了只读动作、或往已勾的组里加了动作，已勾的类**不自动扩大**：新动作没有记录，读不到；版本或权限变了的动作，原记录不再匹配（`matches` 的现有规则），读不到。宿主在读授权时报出「这一类有未确认的读取能力」，任务卡片上标出来。
@@ -65,7 +65,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 
 - 平台动作 `agent.task_grants.set@1`：受众只有 `user`，输入是任务主体（插件安装与 key）和勾选的类；宿主在执行时重新读目录，整体替换这个主体的记录：主体原来就有记录的类原样保留（新增的能力仍未确认，提供方暂时不在时记录等它回来），只有新勾的类、和本人带 `confirm: true` 重新允许的类按此刻目录展开成动作记录，展开为空的整次拒绝（规则 R1～R5 见 `specs/proactive-assistant/task-grants-platform-area.md` §3.6（#1860），2026-11-05 统筹，#1860 评审）。插件、Agent、MCP 客户端、工作流都调不到（S-17 的同一条规矩）。
 - 平台动作 `agent.task_grants.clear@1`：受众 `user` 和 `plugin`；插件只能清**自己安装下**的主体。只减不增，所以给插件是安全的（Schedule 归档任务时调）。
-- 平台动作 `agent.task_grants.list@1`：受众 `user` 和 `plugin`，插件只能列自己安装下的主体；一次返回这个安装在本项目的全部主体与各类状态（`granted` 已授权、`needs_confirmation` 需重新确认、`unavailable` 暂时读不到、`removed` 已不再提供），任务列表打开时调一次，不按任务逐个请求（开工前检查第 9 项）。
+- 平台动作 `agent.task_grants.list@1`：受众 `user` 和 `plugin`，插件只能列自己安装下的主体；一次返回这个安装在本项目的全部主体与各类状态（`granted` 已授权、`needs_confirmation` 需重新确认、`unavailable` 暂时读不到、`removed` 已不再提供）；给本人的可勾类别只列 `set` 此刻能当新类接受的（R5）：此刻没有可调用动作的类（提供方停用、展开为空）不列，已持有它的主体在自己的状态里看到 `unavailable`；任务列表打开时调一次，不按任务逐个请求（开工前检查第 9 项）。
 - 「对外接入」一页（`apps/local-host/src/mcp-action-access.ts:54`）目前把授权里出现过的客户端 id 都列成可编辑的客户端：任务主体要从那份列表里排除，改在「授权与放行」一页按任务列出，可撤回（D 轨）。
 
 **谁读。** 只有宿主：插件 Agent 服务启动这一轮时把主体交给动作客户端；每次 Agent 调动作时由 `authorizeMcpActions` 重新读。
@@ -78,7 +78,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
    - 带了 `grant_subject` 的，启动请求设 `action_gateway: true`，动作客户端的身份换成任务主体（`preparePlugin(caller, subject)`，`apps/local-host/src/agent-host-composition.ts:263` 的 `actor_id` 从固定的 `agent:${runtimeId}` 改为由这里传入；审计作者照旧 `agent:<runtime>:<会话>`）。
    - **没带的业务角色不给网关**：插件启动的 Agent 不能借内置 Agent（`agent:prologue`）那份共用授权。这是今天的行为，写成不变量钉住。
 3. 网关（`horizontal/agent-host/src/run-start.ts` 的 `frozenGateway`）：角色只读，`operate` 为 false，写类工具一律回「只能读」（`adapters/prologue-action-gateway.ts:243`、`250`、`368`），这一层不用改。
-4. 目录：`find-capabilities` 只列这个主体被授权的动作（`resolveMcpActionContext` 按 `client_id` 过滤）。任务主体**没有默认放开的动作**：`openByDefault` 对任务主体一律 false，连项目资料也要勾（最少权限；项目资料作为一类出现、默认不勾，统筹 2026-11-04 定）。2026-11-06 改：类别只来自插件（§3.2），项目资料是宿主自己的提供方（`system.knowledge`），不再作为一类出现，任务主体读不到它。
+4. 目录：`find-capabilities` 只列这个主体被授权的动作（`resolveMcpActionContext` 按 `client_id` 过滤）。任务主体**没有默认放开的动作**：`openByDefault` 对任务主体一律 false，连项目资料也要勾（最少权限；项目资料作为一类出现、默认不勾，统筹 2026-11-04 定）。项目资料能成为一类，是因为它的提供方在登记时声明了 `task_readable`（§3.2）；别的系统提供方不声明，不是类别。
 
 ### 3.4 撤权、停用、删任务之后
 
@@ -204,7 +204,7 @@ P2 与 P3 改不同的文件，可以并行；两者都依赖 P0。按「一项�
 统筹 2026-11-04 定（[#1764 评论](https://github.com/molis-ai/molis-work/pull/1764)），三条都按方案的推荐：
 
 1. **勾选放在平台确认面**（3.7 方案 A），由 D 轨落；Schedule 只做入口和状态显示。
-2. **项目资料作为一类出现，默认不勾。**（2026-11-06 由本批统筹改：类别只来自插件，系统提供方不进任务类别，项目资料因此不出现，见 §3.2。）
+2. **项目资料作为一类出现，默认不勾。**（落法见 §3.2：它的提供方登记时声明 `task_readable`。）
 3. **新不变量的编号落地时顺延**（表里现在排到 S-107）。
 
 ## 9. 完整性复查（2026-11-05）

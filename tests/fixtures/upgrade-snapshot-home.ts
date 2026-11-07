@@ -40,7 +40,7 @@ export function upgradeHome(t: TestContext, options: { readonly journal?: "WAL" 
   let released = false;
   const release = () => { if (!released) owner?.release(); released = true; };
   t.after(() => { try { release(); } finally { rmSync(area, { recursive: true, force: true }); } });
-  const unit = { owner: owner!, home, runId: "run-1", relativePath: STORE } satisfies UpgradeSnapshotUnit;
+  const unit = { owner: owner!, lockDirectory: home, home, runId: "run-1", relativePath: STORE } satisfies UpgradeSnapshotUnit;
   return { area, home, outside, file, owner: owner!, unit, release, run: join(home, "upgrade", "run-1") };
 }
 

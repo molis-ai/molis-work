@@ -11,9 +11,13 @@ export interface UpgradeSqliteConnection extends SqliteBaselineDatabase {
   close(): unknown;
 }
 
-/** One store of one upgrade run. `home` is trusted and `relativePath` comes from the store's descriptor, never from a record (S-upgrade-snapshot-confinement). */
+/**
+ * One store of one upgrade run. `home` is trusted and `relativePath` comes from the store's descriptor, never from a record
+ * (S-upgrade-snapshot-confinement). `lockDirectory` is where this Home's owner lock lives, which the Host keeps inside the Home.
+ */
 export interface UpgradeSnapshotUnit {
   readonly owner: StorageOwner;
+  readonly lockDirectory: string;
   readonly home: string;
   readonly runId: string;
   readonly relativePath: string;
@@ -183,7 +187,7 @@ function assertOrdinaryStore(paths: UnitPaths): void {
  * has since changed, since that store may be the failed upgrade. Contents are copied as they are: nothing is decrypted or sealed again.
  */
 export function captureUpgradeSnapshot(unit: UpgradeSnapshotUnit, open: (file: string) => UpgradeSqliteConnection, keys?: readonly UpgradeSnapshotKeyDependency[]): UpgradeSnapshotEntry {
-  assertStorageOwner(unit.home, unit.owner);
+  assertStorageOwner(unit.lockDirectory, unit.owner);
   const paths = unitPaths(unit);
   assertOrdinaryStore(paths);
   const sqlite = checkpoint(paths, open);
@@ -224,7 +228,7 @@ function verifiedEntry(unit: UpgradeSnapshotUnit, paths: UnitPaths): UpgradeSnap
 
 /** Whether a snapshot still is what was taken, without touching the store: a resumed run checks this before it starts the transaction again (§6). */
 export function verifyUpgradeSnapshot(unit: UpgradeSnapshotUnit): UpgradeSnapshotEntry {
-  assertStorageOwner(unit.home, unit.owner);
+  assertStorageOwner(unit.lockDirectory, unit.owner);
   return verifiedEntry(unit, unitPaths(unit));
 }
 
@@ -239,7 +243,7 @@ export function verifyUpgradeSnapshot(unit: UpgradeSnapshotUnit): UpgradeSnapsho
  * version old and half the change kept, and reports whatever check failed next).
  */
 export function restoreUpgradeSnapshot(unit: UpgradeSnapshotUnit): UpgradeSnapshotEntry {
-  assertStorageOwner(unit.home, unit.owner);
+  assertStorageOwner(unit.lockDirectory, unit.owner);
   const paths = unitPaths(unit);
   if (present(paths.file)) attempt("invalid_path", paths.label, () => snapshotFileStat(paths.file));
   const entry = verifiedEntry(unit, paths);
@@ -282,8 +286,8 @@ export function assertUpgradeDiskSpace(home: string, relativePaths: readonly str
 }
 
 /** §5.4: snapshots stay until the next successful upgrade. Removes every other run; the directory's other files are not this function's, and a link goes without being followed. */
-export function pruneUpgradeSnapshots(owner: StorageOwner, home: string, keepRunId: string): void {
-  assertStorageOwner(home, owner);
+export function pruneUpgradeSnapshots({ owner, lockDirectory, home }: Pick<UpgradeSnapshotUnit, "owner" | "lockDirectory" | "home">, keepRunId: string): void {
+  assertStorageOwner(lockDirectory, owner);
   const label = UPGRADE_DIRECTORY;
   attempt("prune_failed", label, () => {
     if (!RUN_ID.test(keepRunId)) throw fail("invalid_path", label);

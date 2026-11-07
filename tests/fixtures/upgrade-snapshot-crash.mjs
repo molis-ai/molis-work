@@ -25,7 +25,7 @@ fs.openSync = function (path, ...args) { const fd = realOpen.call(this, path, ..
 syncBuiltinESMExports();
 
 const { acquireStorageOwner, captureUpgradeSnapshot, restoreUpgradeSnapshot } = await import("@molis-ai/molis-work-storage");
-const owner = acquireStorageOwner(home), unit = { owner, home, runId, relativePath };
+const owner = acquireStorageOwner(home), unit = { owner, lockDirectory: home, home, runId, relativePath };
 armed = true;
 if (operation === "capture") captureUpgradeSnapshot(unit, path => new DatabaseSync(path));
 else restoreUpgradeSnapshot(unit);

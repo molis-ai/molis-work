@@ -131,6 +131,10 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 
 读法：在做的 spec 读 `specs/<目录>/spec.md`，已归档的读 `specs/archive/<目录>/spec.md`，但只当定义用（前缀继续被占着，编号继续算有人定义，老测试的引用不会变成「没人认」；不要求覆盖、不报它自己的缺口；两份归档 spec 之间的重号和串用前缀也不报，因为已经改不了）。读不到的：spec 目录里的其他文件；编号写在 spec 里别的节或正文里不算定义；测试里提到编号就算引用，不看提到的位置是不是真的在证明那一条；只认 `git ls-files` 里的文件，新文件要先 `git add`。验证：`node scripts/run-tests.mjs tests/health-gates-spec-coverage.test.ts`（每种问题在临时仓库里被故意造一次，报告模式仍退出 0、`--strict` 退出 1；读法的每条规则也各有一个删掉就失败的用例：哪些文件算测试（`fixtures/` 下的 `*.test.*` 也不算；`vendor/`、`node_modules/`、`dist/`、`.impeccable/`、`fixtures/` 在仓库根和嵌在任何一层都一样）、豁免只认前 12 行里行首的那一句、编号不能粘在更长的词上（左边的大小写字母、数字、`_`、`-`，右边的字母、数字、`-`；紧挨着中文不算粘）、`[人工]` 只认带两个括号的整个标记（正文里的「人工」二字不算）、列表标记 `-`、`*`、`+`、`1.`、`1)` 都读、归档 spec 留下什么、仓库路径带空格与非 ASCII 字符）。
 
+## 处理器输入上的 `as`（`handler-input-casts.mjs`，AIC-20）
+
+N22 迁移期间的过渡计数，按文件、对照 merge-base 只许减少，N22-G 开绝对门禁时删掉（路线书决定 29）。它读代码，不属于文档类，所以直接挂在入口的 `METRICS` 上（两行），不经 `doc-gates.mjs`。口径和看不到的写法在 [tooling/gates/README.md](../../tooling/gates/README.md#按文件计数只许减少的项) 的 `handlerInputCasts` 一行；用例是 `tests/health-gates-handler-input-casts.test.ts`，CI 的 `tests/health-gates-*.test.ts` 那一步跑。删的时候删这个模块、入口那两行、这一节、那一行、`AGENTS.md` 那一条和这个测试文件。
+
 ## 怎么加一条规则
 
 1. 没有基线的检查：写 `scripts/gates/<名>.mjs`，导出 `(snapshot) => string[]`；`snapshot` 是 `{ files, read(file) }`（入库文件与读取函数）；在 `doc-gates.mjs` 的 `docGateProblems` 里加一行。不是文档类、要读合同或浏览器源码的检查（页面事件 `dom-events.mjs` 就是）自己挂在入口 `check-health-gates.mjs` 的 `absolute()` 里，入口只加一行引入和一处调用，规则与突变用例留在自己的模块和测试文件里，并在 `.github/workflows/ci.yml` 里给这个测试文件加一步（它不匹配 `tests/health-gates-*.test.ts`，也不在 `doc-reference-gates.test.ts` 里，不加这一步 CI 就不跑它的突变用例）。

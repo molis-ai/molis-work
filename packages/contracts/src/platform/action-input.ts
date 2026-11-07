@@ -1,8 +1,9 @@
 import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionSchema } from "./actions.js";
 
 /**
- * Connect a definition and its handler. The Kernel has checked the input against the definition's schema before `handle` runs, so this
- * is the one place in the platform where an action's input is taken as its declared type (specs/action-input-contracts §4.3).
+ * Connect a definition and its handler. The Kernel has checked the input against the definition's schema before `handle` runs, so the
+ * input is taken as its declared type here and a new handler writes no `input as X` of its own. Handlers written earlier keep theirs until
+ * the N22 slices migrate them (specs/action-input-contracts §4.3, §8.2).
  */
 export function bindActionHandler<I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>,
   extra?: Pick<ActionHandlerBinding, "execution" | "availability">): ActionHandlerBinding {

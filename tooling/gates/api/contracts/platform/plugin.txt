@@ -3428,6 +3428,11 @@ export interface PluginLocalToolsDeclaration {
     readonly custom_executables?: true;
 }
 
+export interface PluginLocalesDeclaration {
+    readonly default: string;
+    readonly available: readonly string[];
+}
+
 export interface PluginManifest {
     sync?: import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncDeclaration;
     schema_version: 1;
@@ -3500,6 +3505,7 @@ export interface PluginManifest {
         page_routes?: UiPageRouteDeclaration[];
         messages?: PluginMessagesDeclaration;
         translations?: PluginTranslationsDeclaration;
+        locales?: PluginLocalesDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;

@@ -110,6 +110,12 @@ export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: s
 /** A Plugin's English for words still keyed by their Chinese source text. */
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
+/** The languages a Plugin has words in; the words of each are the package's `locales/<language>.json`. */
+export interface PluginLocalesDeclaration {
+  readonly default: string;
+  readonly available: readonly string[];
+}
+
 export interface PluginManifest {
   /** Portable collections; requires an authorized owner adapter. */
   sync?: import("./plugin-sync.js").PluginSyncDeclaration;
@@ -193,6 +199,8 @@ export interface PluginManifest {
      * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
      */
     translations?: PluginTranslationsDeclaration;
+    /** The Plugin's languages. A Manifest that declares them writes neither `messages` nor `translations`: no Plugin takes both roads. */
+    locales?: PluginLocalesDeclaration;
   };
   /** named, typed connection points wired by the user inside a project. */
   ports?: PluginPortsDeclaration;

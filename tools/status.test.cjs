@@ -41,6 +41,29 @@ test('RAR-03/RAR-04 hard prerequisites, pauses, claims and incomplete design rem
   assert.equal(D.state['05'], 'done');
 });
 
+test('a status is read from its word, and a row the page cannot read is reported instead of silently counting as claimed', () => {
+  const read = rows => {
+    const D = structuredClone(fixture([batch('01', 'D'), batch('02', 'D'), batch('03', 'D')]));
+    const board = rows.map(([id, status]) => `| ${id} | ${id} | Codex-测试-本机 | | ${status} | |`).join('\n');
+    return runInNewContext(`${algorithm}\napplyBoard(board);({state:D.state,items:D.batches.map(b=>b.items[0]),off:boardOff})`, { D, board });
+  };
+  const readable = read([['01', '已合入'], ['02', '**暂停（等第 02 批结束）**：余项'], ['03', '已认领：定样已合入']]);
+  assert.equal(readable.off, 0);
+  assert.equal(readable.state['01'], 'done');
+  assert.equal(readable.state['02'], 'pause');
+  assert.equal(readable.items[1].note, '（等第 02 批结束）：余项');
+  assert.equal(readable.state['03'], 'doing');
+  const names = read([['01', '已认领：`project_runtime_settings` 待进基线'], ['02', '已合入'], ['03', '已合入']]);
+  assert.equal(names.items[0].note, '`project_runtime_settings` 待进基线');
+  const bracketed = read([['01', '已合入（11-05）'], ['02', '已合入。规则与检查'], ['03', '已认领：定样已合入']]);
+  assert.equal(bracketed.items[0].note, '11-05');
+  assert.equal(bracketed.items[1].note, '规则与检查');
+  const unreadable = read([['01', '规则与检查已于 11-05 合入'], ['02', '已合入'], ['03', '已合入']]);
+  assert.equal(unreadable.off, 1);
+  assert.equal(unreadable.items[0].s, '已认领');
+  assert.notEqual(unreadable.state['01'], 'done');
+});
+
 test('RAR-04 unmet partial dependencies stay visible until merged, without claiming completion', () => {
   const data = fixture([batch('01', 'C1'), batch('02', 'D', [], ['01'])]);
   const D = apply(data, {});

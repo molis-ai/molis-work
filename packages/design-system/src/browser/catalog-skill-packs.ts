@@ -6,37 +6,37 @@
 
 /** Called once by the board script, after the board is on the page. */
 export function wireCatalogSplit(): void {
-  document.querySelectorAll<HTMLElement>(".mw-catalog [data-split]").forEach((split) => {
-    const picks = () => [...split.querySelectorAll<HTMLButtonElement>("[data-split-pick]")];
-    const details = () => [...split.querySelectorAll<HTMLElement>("[data-split-detail]")];
-    const list = split.querySelector<HTMLElement>(".mw-split__list");
-    split.addEventListener("click", (event) => {
+  document.querySelectorAll<HTMLElement>(".mw-catalog [data-list-detail]").forEach((root) => {
+    const picks = () => [...root.querySelectorAll<HTMLButtonElement>("[data-list-pick]")];
+    const details = () => [...root.querySelectorAll<HTMLElement>("[data-list-panel]")];
+    const list = root.querySelector<HTMLElement>(".mw-list-detail__list");
+    root.addEventListener("click", (event) => {
       const origin = event.target as Element;
-      if (origin.closest("[data-split-back]")) {
-        split.removeAttribute("data-detail");
+      if (origin.closest("[data-list-back]")) {
+        root.removeAttribute("data-detail");
         picks().find((button) => button.getAttribute("aria-current") === "true")?.focus();
         return;
       }
-      const chosen = origin.closest<HTMLButtonElement>("[data-split-pick]");
+      const chosen = origin.closest<HTMLButtonElement>("[data-list-pick]");
       if (!chosen) return;
-      const key = chosen.dataset.splitPick;
+      const key = chosen.dataset.listPick;
       const changed = chosen.getAttribute("aria-current") !== "true";
       picks().forEach((button) => {
         if (button === chosen) button.setAttribute("aria-current", "true");
         else button.removeAttribute("aria-current");
       });
       details().forEach((detail) => {
-        const shown = detail.dataset.splitDetail === key;
+        const shown = detail.dataset.listPanel === key;
         detail.hidden = !shown;
         detail.classList.remove("is-entering");
         if (shown && changed) { void detail.offsetWidth; detail.classList.add("is-entering"); }
       });
-      split.setAttribute("data-detail", "");
+      root.setAttribute("data-detail", "");
       // One side at a time: the list has gone, so the focus follows to where the person is now reading.
       if (list && getComputedStyle(list).display === "none") details().find((detail) => !detail.hidden)?.querySelector<HTMLElement>("h3")?.focus();
     });
-    split.addEventListener("animationend", (event) => {
-      if ((event.target as Element).matches("[data-split-detail]")) (event.target as Element).classList.remove("is-entering");
+    root.addEventListener("animationend", (event) => {
+      if ((event.target as Element).matches("[data-list-panel]")) (event.target as Element).classList.remove("is-entering");
     });
   });
 }

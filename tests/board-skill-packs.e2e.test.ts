@@ -36,12 +36,12 @@ const SEEN = `(() => {
     // The sections that run past the board's edge (older sections do on a phone; the five new ones must not).
     overflowing: (() => { const r = document.querySelector('.mw-catalog').getBoundingClientRect().right; return [...document.querySelectorAll('.mw-catalog *')].filter((el) => el.getBoundingClientRect().width && el.getBoundingClientRect().right > r + 1).map((el) => el.closest('.mw-catalog__section')?.id ?? '-').filter((id, i, all) => all.indexOf(id) === i); })(),
     spills,
-    wrapped: [...lines('${SCOPE.split(", ").map((id) => `${id} .mw-status`).join(", ")}', 22), ...lines('.mw-pick__text small', 22)],
+    wrapped: [...lines('${SCOPE.split(", ").map((id) => `${id} .mw-status`).join(", ")}', 22), ...lines('.mw-item__pick > span:nth-child(2) > small', 22)],
     clippedNames: [...document.querySelectorAll('.mw-item--stack > span > strong')].filter(visible).filter((el) => el.scrollWidth > el.clientWidth + 0.5 || el.scrollHeight > el.clientHeight + 0.5).map((el) => el.textContent.slice(0, 24)),
     // The three-way choice stays inside its own item row.
     underSpills: [...document.querySelectorAll('.mw-item__under')].filter(visible).flatMap((under) => { const right = under.closest('li').getBoundingClientRect().right;
       return [under, ...under.querySelectorAll('*')].filter((el) => visible(el) && el.getBoundingClientRect().right > right + 0.5).slice(0, 1).map((el) => el.className + ' ' + Math.round(el.getBoundingClientRect().right) + '>' + Math.round(right)); }),
-    packTitles: [...document.querySelectorAll('.mw-pick__text small')].every((small) => small.title === small.textContent),
+    packTitles: [...document.querySelectorAll('.mw-item__pick > span:nth-child(2) > small')].every((small) => small.title === small.textContent),
     folds: [...document.querySelectorAll('#item-details summary')].map((s) => s.textContent.trim() + '|' + s.getAttribute('aria-label')),
   };
 })()`;
@@ -91,10 +91,10 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
     const locked = await evaluate<{ rows: number; enabled: number; radios: boolean }>(`(() => {
       const rows = [...document.querySelectorAll('#item-choice .mw-item--stack[data-off]')];
       return { rows: rows.length, enabled: rows.flatMap((row) => [...row.querySelectorAll('.mw-toggle')]).filter((b) => !b.disabled).length,
-        radios: [...document.querySelectorAll('#list-detail [data-split-detail][data-off] fieldset')].every((f) => f.disabled) }; })()`);
+        radios: [...document.querySelectorAll('#list-detail [data-list-panel][data-off] fieldset')].every((f) => f.disabled) }; })()`);
     assert.deepEqual(locked, { rows: 3, enabled: 0, radios: true });
     if (width <= 600) {
-      const small = await evaluate<string[]>(`[...document.querySelectorAll('#item-choice .mw-item__under .mw-toggle, #item-details summary, #alert-actions .mw-alert__actions .mw-btn, #item-choice .mw-alert__actions .mw-btn, .mw-pick')]
+      const small = await evaluate<string[]>(`[...document.querySelectorAll('#item-choice .mw-item__under .mw-toggle, #item-details summary, #alert-actions .mw-alert__actions .mw-btn, #item-choice .mw-alert__actions .mw-btn, .mw-item__pick')]
         .filter((el) => el.getBoundingClientRect().height).flatMap((el) => el.getBoundingClientRect().height >= 44 ? [] : [el.className + ' ' + Math.round(el.getBoundingClientRect().height)])`);
       assert.deepEqual(small, [], `${lang}: the segments, the folds' summaries, the alerts' buttons and the list's entries are 44px targets on a phone`);
     }
@@ -105,8 +105,8 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
         // Only the five sections are kept on the board, and the window grows to hold them, so one shot shows them whole.
         await evaluate(`(() => { let s = document.querySelector('#shot-only'); if (!s) { s = document.createElement('style'); s.id = 'shot-only'; document.head.append(s); }
           s.textContent = '.mw-catalog > .mw-catalog__section:not(${SECTIONS.map((id) => `#${id}`).join(", ")}) { display: none !important; }';
-          const narrow = document.querySelector('[data-split-narrow]'); narrow.removeAttribute('data-detail');
-          if (${face === "detail"}) narrow.querySelectorAll('[data-split-pick]')[3].click(); document.querySelector('.mw-catalog').scrollTop = 0; })()`);
+          const narrow = document.querySelector('[data-list-detail-narrow]'); narrow.removeAttribute('data-detail');
+          if (${face === "detail"}) narrow.querySelectorAll('[data-list-pick]')[3].click(); document.querySelector('.mw-catalog').scrollTop = 0; })()`);
         const height = await evaluate<number>("Math.ceil(document.querySelector('.mw-catalog').scrollHeight + document.querySelector('.mw-catalog').getBoundingClientRect().top + 12)");
         await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
         await evaluate("new Promise((resolve) => setTimeout(resolve, 400))");
@@ -122,35 +122,35 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
   // List and detail, wide: the first view plays nothing; choosing another entry moves its detail in once (craft-rise over
   // --dur-move), the focus stays in the list, and choosing the same entry again plays nothing.
   await open("zh", 1440);
-  const wide = "document.querySelector('[data-split]:not([data-split-narrow])')";
+  const wide = "document.querySelector('[data-list-detail]:not([data-list-detail-narrow])')";
   const first = await evaluate<{ entering: number; running: number; shown: string[]; current: string[] }>(`(() => { const split = ${wide};
-    return { entering: split.querySelectorAll('.is-entering').length, running: split.querySelector('[data-split-detail]:not([hidden])').getAnimations().length,
-      shown: [...split.querySelectorAll('[data-split-detail]:not([hidden]) h3')].map((h) => h.textContent), current: [...split.querySelectorAll('[aria-current=true]')].map((b) => b.dataset.splitPick) }; })()`);
-  assert.deepEqual(first, { entering: 0, running: 0, shown: ["写周度复盘"], current: ["split-wide-weekly"] }, "the first view shows the first entry at once");
-  const chosen = await evaluate<{ shown: string[]; animation: string; duration: number; dur: number; focus: string; listShown: boolean }>(`(() => { const split = ${wide}, pick = split.querySelectorAll('[data-split-pick]')[1];
-    pick.focus(); pick.click(); const detail = split.querySelector('[data-split-detail]:not([hidden])'), animation = detail.getAnimations()[0];
+    return { entering: split.querySelectorAll('.is-entering').length, running: split.querySelector('[data-list-panel]:not([hidden])').getAnimations().length,
+      shown: [...split.querySelectorAll('[data-list-panel]:not([hidden]) h3')].map((h) => h.textContent), current: [...split.querySelectorAll('[aria-current=true]')].map((b) => b.dataset.listPick) }; })()`);
+  assert.deepEqual(first, { entering: 0, running: 0, shown: ["写周度复盘"], current: ["list-wide-weekly"] }, "the first view shows the first entry at once");
+  const chosen = await evaluate<{ shown: string[]; animation: string; duration: number; dur: number; focus: string; listShown: boolean }>(`(() => { const split = ${wide}, pick = split.querySelectorAll('[data-list-pick]')[1];
+    pick.focus(); pick.click(); const detail = split.querySelector('[data-list-panel]:not([hidden])'), animation = detail.getAnimations()[0];
     const token = getComputedStyle(split).getPropertyValue('--dur-move').trim(), dur = token.endsWith('ms') ? parseFloat(token) : parseFloat(token) * 1000;
-    return { shown: [...split.querySelectorAll('[data-split-detail]:not([hidden]) h3')].map((h) => h.textContent.slice(0, 6)), animation: animation?.animationName ?? '', duration: Number(animation?.effect.getTiming().duration ?? 0), dur,
-      focus: document.activeElement.dataset.splitPick ?? document.activeElement.tagName, listShown: getComputedStyle(split.querySelector('.mw-split__list')).display !== 'none' }; })()`);
-  assert.deepEqual(chosen, { shown: ["把会议录音整"], animation: "craft-rise", duration: chosen.dur, dur: chosen.dur, focus: "split-wide-minutes", listShown: true }, "another entry's detail moves in; the list and the focus stay");
+    return { shown: [...split.querySelectorAll('[data-list-panel]:not([hidden]) h3')].map((h) => h.textContent.slice(0, 6)), animation: animation?.animationName ?? '', duration: Number(animation?.effect.getTiming().duration ?? 0), dur,
+      focus: document.activeElement.dataset.listPick ?? document.activeElement.tagName, listShown: getComputedStyle(split.querySelector('.mw-list-detail__list')).display !== 'none' }; })()`);
+  assert.deepEqual(chosen, { shown: ["把会议录音整"], animation: "craft-rise", duration: chosen.dur, dur: chosen.dur, focus: "list-wide-minutes", listShown: true }, "another entry's detail moves in; the list and the focus stay");
   await evaluate("new Promise((resolve) => setTimeout(resolve, 400))");
-  assert.equal(await evaluate<number>(`(() => { const split = ${wide}; split.querySelectorAll('[data-split-pick]')[1].click(); return split.querySelector('[data-split-detail]:not([hidden])').getAnimations().length; })()`), 0,
+  assert.equal(await evaluate<number>(`(() => { const split = ${wide}; split.querySelectorAll('[data-list-pick]')[1].click(); return split.querySelector('[data-list-panel]:not([hidden])').getAnimations().length; })()`), 0,
     "choosing the same entry again plays nothing");
   // Wide, with two columns, the list cuts no status word (cutting is only for a narrow list).
   for (const width of [1440, 1024]) for (const lang of ["zh", "en"]) {
     await open(lang, width);
     const cut = await evaluate<{ columns: number; cut: string[] }>(`(() => { const split = ${wide};
-      return { columns: getComputedStyle(split.querySelector('.mw-split__body')).gridTemplateColumns.split(' ').length,
-        cut: [...split.querySelectorAll('.mw-pick__end .mw-status > span')].filter((s) => s.scrollWidth > s.clientWidth).map((s) => s.textContent) }; })()`);
+      return { columns: getComputedStyle(split.querySelector('.mw-list-detail__body')).gridTemplateColumns.split(' ').length,
+        cut: [...split.querySelectorAll('.mw-item__end .mw-status > span')].filter((s) => s.scrollWidth > s.clientWidth).map((s) => s.textContent) }; })()`);
     assert.equal(cut.columns, 2, `${lang} ${width}px: list and detail side by side`);
     assert.deepEqual(cut.cut, [], `${lang} ${width}px: no status word is cut in the wide list`);
   }
   await open("zh", 1440);
   // A long pack name is cut on one line, its whole name on hover.
-  assert.ok(await evaluate<boolean>(`(() => { const small = ${wide}.querySelectorAll('.mw-pick__text small')[1]; return small.scrollWidth > small.clientWidth && small.title.length > 10; })()`));
+  assert.ok(await evaluate<boolean>(`(() => { const small = ${wide}.querySelectorAll('.mw-item__pick > span:nth-child(2) > small')[1]; return small.scrollWidth > small.clientWidth && small.title.length > 10; })()`));
   // Reduced motion: the detail changes at once.
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  assert.equal(await evaluate<number>(`(() => { const split = ${wide}; split.querySelectorAll('[data-split-pick]')[2].click(); return split.querySelector('[data-split-detail]:not([hidden])').getAnimations().length; })()`), 0,
+  assert.equal(await evaluate<number>(`(() => { const split = ${wide}; split.querySelectorAll('[data-list-pick]')[2].click(); return split.querySelector('[data-list-panel]:not([hidden])').getAnimations().length; })()`), 0,
     "with reduced motion nothing moves");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
 
@@ -158,16 +158,16 @@ test("08 skill packs: the board's five new parts, named, in both languages, insi
   // the focus to its title; 全部技能 goes back to the list with the focus on the entry it came from.
   for (const width of [1440, 390]) {
     await open("en", width);
-    const narrow = width === 390 ? wide : "document.querySelector('[data-split-narrow]')";
+    const narrow = width === 390 ? wide : "document.querySelector('[data-list-detail-narrow]')";
     const sides = () => evaluate<[boolean, boolean, boolean]>(`(() => { const split = ${narrow}, shown = (el) => el.checkVisibility();
-      return [shown(split.querySelector('.mw-split__list')), shown(split.querySelector('[data-split-detail]:not([hidden])')), shown(split.querySelector('[data-split-detail]:not([hidden]) [data-split-back]'))]; })()`);
+      return [shown(split.querySelector('.mw-list-detail__list')), shown(split.querySelector('[data-list-panel]:not([hidden])')), shown(split.querySelector('[data-list-panel]:not([hidden]) [data-list-back]'))]; })()`);
     assert.deepEqual(await sides(), [true, false, false], `${width}px: the list first`);
-    await evaluate(`(() => { const pick = ${narrow}.querySelectorAll('[data-split-pick]')[3]; pick.scrollIntoView({ block: 'center' }); pick.focus(); })()`);
+    await evaluate(`(() => { const pick = ${narrow}.querySelectorAll('[data-list-pick]')[3]; pick.scrollIntoView({ block: 'center' }); pick.focus(); })()`);
     for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, ...(type === "keyDown" ? { text: "\r" } : {}) }, sessionId);
     assert.deepEqual(await sides(), [false, true, true], `${width}px: Enter shows the detail alone, with 全部技能`);
     assert.equal(await evaluate<string>("document.activeElement.tagName + ' ' + document.activeElement.textContent"), "H3 Schedule a meeting", `${width}px: the focus moves to the detail's title`);
-    await evaluate(`${narrow}.querySelector('[data-split-detail]:not([hidden]) [data-split-back]').click()`);
+    await evaluate(`${narrow}.querySelector('[data-list-panel]:not([hidden]) [data-list-back]').click()`);
     assert.deepEqual(await sides(), [true, false, false], `${width}px: 全部技能 goes back to the list`);
-    assert.equal(await evaluate<string>("document.activeElement.dataset.splitPick ?? ''"), `${width === 390 ? "split-wide" : "split-narrow"}-schedule`, `${width}px: the focus is back on the entry`);
+    assert.equal(await evaluate<string>("document.activeElement.dataset.listPick ?? ''"), `${width === 390 ? "list-wide" : "list-narrow"}-schedule`, `${width}px: the focus is back on the entry`);
   }
 });

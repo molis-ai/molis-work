@@ -11,8 +11,13 @@ const bullets = (lines: readonly string[]) => lines.map(line => "- " + line);
 export const issuesSkills: readonly AgentSkillDefinition[] = [{
   skill_id: "issues-capture", version: /* @version method.issues-capture */ 1, name: "记录与管理个人问题",
   summary: "把用户在开发中遇到的问题记进个人 Issue：起标题、判类型、保存；也能查看、修改或删除。",
+  // `applies_to` is "assistant": it records through the business tools, which Coding's roles do not have.
   // Method tools are a declaration (contracts SKILL_TOOLS); the Assistant's gateway also offers change-reversible.
   tools: ["suggest-action", "ask-user", "find-capabilities", "read-capability", "change-capability"],
+  description: "用户在对话里说“记个 issue”“把这个问题记下来”，或要查看、修改、删除自己记过的个人问题时用；只记用户自己提出的问题，不分析原因，不给解决办法。",
+  when_to_use: "用户明确要把一个问题记下来留存；用户要看、改或删已记的个人问题。",
+  when_not_to_use: "用户要的是排查原因、修复问题或写解决方案；用户只是在描述问题而没有要记录的意思；要建团队共享的工单或任务。",
+  applies_to: "assistant",
   body: [
     "Issue 只记录用户自己提出的问题，原话由用户决定；你负责起标题、判类型，不分析原因，不给解决办法。",
     "",

@@ -141,6 +141,8 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
   assert.equal(binds[0]!.body?.operation, "bind");
   assert.equal((await p.bound())?.connection_id, first.slice(4), "the chosen account is on the source");
   await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "line"`);
+  // The card is drawn in the outer document first; the page's element gets its height from the size message after it, over the port.
+  await child.waitFor(`document.getElementById('card').getBoundingClientRect().height === ${LINE}`).catch(() => undefined);
   assert.equal(await child.evaluate("document.getElementById('card').getBoundingClientRect().height"), LINE, "ASC-66 the card folds into one line");
 
   // C3-5: what the frame heard: heights, that the card shows, and one answer; no account id, label of another account, or key.
@@ -205,6 +207,8 @@ test("S-plugin-connection-card ASC-68 C3-4 C3-8 C3-9 ASC-67 a press counts only 
   assert.equal(await p.bound(), null);
   await p.ask("card", "left:24px;top:24px;width:560px");
   await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "line"`);
+  // The card is drawn in the outer document first; the page's element gets its height from the size message after it, over the port.
+  await child.waitFor(`document.getElementById('card').getBoundingClientRect().height === ${LINE}`).catch(() => undefined);
   assert.equal(await child.evaluate("document.getElementById('card').getBoundingClientRect().height"), LINE, "C3-9 the same page asked again shows only the line");
 
   // C3-8: the page goes (its element removed) while the person aims at the card: the press after it writes nothing.

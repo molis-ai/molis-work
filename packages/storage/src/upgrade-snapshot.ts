@@ -11,7 +11,7 @@ export interface UpgradeSqliteConnection extends SqliteBaselineDatabase {
   close(): unknown;
 }
 
-/** The proof of holding a Home. `lockDirectory` is where its owner lock lives: the Host keeps it in `<home>/agent-runtime`, and it has to be inside this Home. */
+/** The proof of holding a Home. `lockDirectory` is where its owner lock lives: the Host keeps it in `<home>/agent-runtime`, and it has to be this Home or a directory directly under it. */
 export interface UpgradeHomeLock {
   readonly owner: StorageOwner;
   readonly lockDirectory: string;
@@ -80,13 +80,16 @@ function attempt<T>(reason: SnapshotFailure, label: string, work: () => T): T {
   catch (error) { throw isSnapshotFailure(error) ? error : fail(reason, label, error); }
 }
 
-/** A live lock is not enough: it has to be this Home's, or a caller could hold one Home and change another. */
+/**
+ * A live lock is not enough: it has to be this Home's, or a caller could hold one Home and change another. So the lock is in this Home or
+ * directly under it, because one Home can sit inside another, and a lock further down belongs to the Home in between.
+ */
 function assertHomeLock({ owner, lockDirectory, home }: UpgradeHomeLock): void {
   assertStorageOwner(lockDirectory, owner);
   const label = UPGRADE_DIRECTORY;
   attempt("invalid_path", label, () => {
     const inside = relative(realpathSync(home), realpathSync(lockDirectory));
-    if (inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside)) throw fail("invalid_path", label);
+    if (inside === ".." || inside.includes(sep) || isAbsolute(inside)) throw fail("invalid_path", label);
   });
 }
 
@@ -116,7 +119,7 @@ function unitPaths({ home, runId, relativePath }: UpgradeSnapshotUnit): UnitPath
   });
 }
 
-/** 0700 whatever the directory was before, so nothing is written into one others can read; a link in its place is not a directory. */
+/** 0700 whatever the directory was before, so nothing is written into one others can read; a link in its place, even one put there after `assertOrdinaryPlaces`, is not a directory. */
 function privateDirectory(path: string): void {
   const found = lstatSync(path, { throwIfNoEntry: false });
   if (!found) {
@@ -178,8 +181,11 @@ function journalLooksUnflushed(journal: string): boolean {
 /**
  * A rollback-journal store whose write was killed before the journal's flush keeps a journal SQLite ignores on every read and removes only
  * at the next write, which would stop the snapshot; this brings that removal forward (S-upgrade-journal-removal). A live writer's journal
- * has the same bytes, and reads and the checkpoint do not notice it, so the exclusive lock is what tells them apart: with a writer or reader
- * still on the file it fails and nothing is removed. A WAL store has no business with such a file, and it stays a refusal.
+ * has the same bytes, and reads and the checkpoint do not notice it, so the exclusive lock is what tells them apart: it fails, and nothing
+ * is removed, while a connection holds a lock on the file, in another process or in this copy of SQLite. An idle connection holds none and
+ * does not stop it. Another copy of SQLite in this process (`node:sqlite` beside `better-sqlite3`) is not seen at all, because file locks
+ * belong to the process: its writer loses the journal and its `COMMIT` fails, and only the caller's promise of no other connection on the
+ * file protects it. A WAL store has no business with such a file, and it stays a refusal.
  */
 function removeUnflushedJournal(db: UpgradeSqliteConnection, file: string): void {
   const journal = `${file}-journal`;
@@ -207,13 +213,20 @@ function checkpoint(paths: UnitPaths, open: (file: string) => UpgradeSqliteConne
   return sqlite;
 }
 
-/** A store only: regular, not linked, with no side file a connection would follow out of the Home. Checked before SQLite can write through them. */
-function assertOrdinaryStore(paths: UnitPaths): void {
+/**
+ * A store only: regular, not linked, with no side file a connection would follow out of the Home. And no link where its snapshot goes, so a
+ * capture that cannot finish is refused before the checkpoint has changed anything. All checked before a connection opens.
+ */
+function assertOrdinaryPlaces(paths: UnitPaths): void {
   attempt("invalid_path", paths.label, () => {
     snapshotFileStat(paths.file);
     for (const suffix of SIDECARS) {
       const found = lstatSync(paths.file + suffix, { throwIfNoEntry: false });
       if (found && !found.isFile()) throw fail("invalid_path", paths.label);
+    }
+    for (const directory of [paths.upgrade, paths.run]) {
+      const found = lstatSync(directory, { throwIfNoEntry: false });
+      if (found && !found.isDirectory()) throw fail("invalid_path", paths.label);
     }
   });
 }
@@ -227,7 +240,7 @@ function assertOrdinaryStore(paths: UnitPaths): void {
 export function captureUpgradeSnapshot(unit: UpgradeSnapshotUnit, open: (file: string) => UpgradeSqliteConnection, keys?: readonly UpgradeSnapshotKeyDependency[]): UpgradeSnapshotEntry {
   assertHomeLock(unit);
   const paths = unitPaths(unit);
-  assertOrdinaryStore(paths);
+  assertOrdinaryPlaces(paths);
   const sqlite = checkpoint(paths, open);
   return attempt("snapshot_write_failed", paths.label, () => {
     const mode = snapshotFileStat(paths.file).mode & 0o777, { size, sha256: digest } = snapshotFileDigest(paths.file);

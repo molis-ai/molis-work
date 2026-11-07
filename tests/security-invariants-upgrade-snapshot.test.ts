@@ -96,14 +96,20 @@ test("S-upgrade-snapshot-confinement S-143: a link on the way to the store or th
   await t.test("upgrade/ is a link to outside the Home", t => {
     const { area, home, outside, unit } = upgradeHome(t);
     symlinkSync(outside, join(home, "upgrade"));
-    assert.throws(() => capture(unit), failure("snapshot_write_failed", area));
+    assert.throws(() => captureUpgradeSnapshot(unit, neverOpened), failure("invalid_path", area));
     assert.deepEqual(readdirSync(outside), [], "nothing is written through it");
   });
   await t.test("the run directory is a link to outside the Home", t => {
     const { area, home, outside, unit } = upgradeHome(t);
     mkdirSync(join(home, "upgrade"), { mode: 0o700 });
     symlinkSync(outside, join(home, "upgrade", "run-1"));
-    assert.throws(() => capture(unit), failure("snapshot_write_failed", area));
+    assert.throws(() => captureUpgradeSnapshot(unit, neverOpened), failure("invalid_path", area));
+    assert.deepEqual(readdirSync(outside), []);
+  });
+  await t.test("a link put there after that check still gets nothing written through it", t => {
+    const { area, home, outside, unit } = upgradeHome(t);
+    const lateLink = (file: string) => { symlinkSync(outside, join(home, "upgrade")); return openNode(file); };
+    assert.throws(() => captureUpgradeSnapshot(unit, lateLink), failure("snapshot_write_failed", area));
     assert.deepEqual(readdirSync(outside), []);
   });
 });
@@ -177,6 +183,22 @@ test("S-upgrade-snapshot-confinement S-143: without this Home's live lock nothin
     assert.equal(sha256(first.file), changed);
     assert.ok(present(first.run));
   });
+  await t.test("the lock of a Home nested in this one is not this Home's, and this Home's lock is not the nested one's", t => {
+    const { area, home, file, unit, owner, run } = upgradeHome(t);
+    capture(unit);
+    changeStore(file);
+    const changed = sha256(file), nestedHome = join(home, "spaces", "acct"), lockDirectory = join(nestedHome, "agent-runtime");
+    const nested = acquireStorageOwner(lockDirectory);
+    t.after(() => nested.release());
+    const named = { ...unit, owner: nested, lockDirectory };
+    assert.throws(() => captureUpgradeSnapshot({ ...named, runId: "run-2" }, neverOpened), failure("invalid_path", area));
+    assert.throws(() => restoreUpgradeSnapshot(named), failure("invalid_path", area));
+    assert.throws(() => verifyUpgradeSnapshot(named), failure("invalid_path", area));
+    assert.throws(() => pruneUpgradeSnapshots(named, "run-2"), failure("invalid_path", area));
+    assert.throws(() => captureUpgradeSnapshot({ ...unit, owner, home: nestedHome }, neverOpened), failure("invalid_path", area));
+    assert.equal(sha256(file), changed);
+    assert.ok(present(run));
+  });
   await t.test("the Host's lock lives in the Home's agent-runtime, and the Home itself is then the wrong place to look", t => {
     const { home, file, unit, release } = upgradeHome(t);
     release();
@@ -189,11 +211,11 @@ test("S-upgrade-snapshot-confinement S-143: without this Home's live lock nothin
 });
 
 /** A writer in another process, stopped before its journal's flush, that commits when asked. */
-async function liveWriter(t: TestContext, file: string) {
+async function liveWriter(t: TestContext, file: string, synchronous = "FULL") {
   const child = spawn(process.execPath, ["--no-warnings", "--input-type=module", "-e", `
     import { DatabaseSync } from "node:sqlite";
     const db = new DatabaseSync(${JSON.stringify(file)});
-    db.exec("BEGIN; UPDATE notes SET body = 'still being written';");
+    db.exec("PRAGMA synchronous = ${synchronous}; BEGIN; UPDATE notes SET body = 'still being written';");
     process.stdout.write("ready\\n");
     process.stdin.once("data", () => { db.exec("COMMIT"); db.close(); process.exit(0); });`], { stdio: ["pipe", "pipe", "inherit"] });
   t.after(() => { child.kill("SIGKILL"); });
@@ -216,6 +238,43 @@ test("S-upgrade-journal-removal: a live writer's journal has a killed one's byte
       assert.deepEqual(notesOf(file).map(row => row.body), ["still being written", "still being written"], "the writer finished as if nothing had happened");
     });
   }
+  await t.test("with synchronous off its journal starts with the magic: not played back, not removed, and the store is refused", async t => {
+    const { area, file, unit, run } = upgradeHome(t, { journal: "DELETE" });
+    const writer = await liveWriter(t, file, "OFF"), journal = `${file}-journal`;
+    assert.notEqual(readFileSync(journal)[0], 0);
+    const before = sha256(journal), store = sha256(file);
+    assert.throws(() => capture(unit), failure("sidecars_remain", area));
+    assert.equal(sha256(journal), before);
+    assert.equal(sha256(file), store);
+    assert.equal(present(run), false);
+    await writer.commit();
+    assert.deepEqual(notesOf(file).map(row => row.body), ["still being written", "still being written"]);
+  });
+});
+
+test("S-upgrade-journal-removal: in this process only a connection holding a lock stops the removal, an idle one does not", async t => {
+  const unflushed = (file: string) => writeFileSync(`${file}-journal`, Buffer.alloc(4096));
+  await t.test("a read transaction", t => {
+    const { area, file, unit, run } = upgradeHome(t, { journal: "DELETE" });
+    const reader = openNode(file);
+    t.after(() => reader.close());
+    unflushed(file);
+    reader.exec("BEGIN; SELECT * FROM notes;");
+    assert.throws(() => capture(unit), failure("checkpoint_failed", area));
+    assert.equal(present(`${file}-journal`), true);
+    assert.equal(present(run), false);
+    reader.exec("COMMIT");
+  });
+  await t.test("an idle connection", t => {
+    const { file, unit } = upgradeHome(t, { journal: "DELETE" });
+    const idle = openNode(file);
+    t.after(() => idle.close());
+    unflushed(file);
+    capture(unit);
+    assert.equal(present(`${file}-journal`), false, "it holds no lock, and nothing of it is in that journal");
+    idle.exec("INSERT INTO notes VALUES ('3', 'c')");
+    assert.equal(notesOf(file).length, 3, "and it goes on writing");
+  });
 });
 
 test("S-upgrade-journal-removal: only an empty or zero-first-byte journal of a rollback-journal store goes", async t => {
@@ -228,7 +287,7 @@ test("S-upgrade-journal-removal: only an empty or zero-first-byte journal of a r
       assert.equal(present(run), false);
     }
   });
-  await t.test("a journal with its first byte set is SQLite's to play back, and what it holds comes back", t => {
+  await t.test("with nobody holding a lock, a journal with its first byte set is SQLite's to play back, and what it holds comes back", t => {
     const { file, unit } = upgradeHome(t, { journal: "DELETE" });
     const notes = notesOf(file);
     // A real hot journal, from a store written past the flush: removing it by hand would keep the half-done write.

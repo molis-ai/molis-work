@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import { chmodSync, closeSync, fsyncSync, lstatSync, openSync, readSync, realpathSync } from "node:fs";
-import Database from "better-sqlite3";
 import { isDeepStrictEqual } from "node:util";
 import { readDatabaseSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace } from "./space.js";
 import { snapshotProgramsMatch } from "./sqlite-baseline-inspection.js";
-import { openSqliteConnection } from "./sqlite-connection.js";
+import { openSqliteConnection, sqliteErrorName } from "./sqlite-connection.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   describeSqliteBaseline,
@@ -78,8 +77,7 @@ function inspect(
   } catch (error) {
     if (
       error !== options.signal?.reason &&
-      error instanceof Database.SqliteError &&
-      error.code === "SQLITE_ERROR"
+      sqliteErrorName(error) === "SQLITE_ERROR"
     )
       throw invalid(`快照库结构或完整性检查失败: ${file}`);
     throw error;
@@ -205,8 +203,7 @@ export async function backupSnapshotSqlite(
   } catch (error) {
     if (
       error !== options.signal?.reason &&
-      error instanceof Database.SqliteError &&
-      (error.code === "SQLITE_CORRUPT" || error.code === "SQLITE_NOTADB")
+      (sqliteErrorName(error) === "SQLITE_CORRUPT" || sqliteErrorName(error) === "SQLITE_NOTADB")
     )
       throw invalid(`快照库不是有效的 SQLite 数据: ${source}`);
     throw error;

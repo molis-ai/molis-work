@@ -86,7 +86,7 @@ test("opening a future catalog fails without rewriting its schema or project fac
 
     const databasePath = join(home, "projects", "catalog.db");
     const future = openTestSqlite(databasePath);
-    const supportedVersion = Number(future.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get());
+    const supportedVersion = Number(future.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value);
     const futureVersion = supportedVersion + 1;
     try {
       future.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(futureVersion));
@@ -106,11 +106,11 @@ test("opening a future catalog fails without rewriting its schema or project fac
     const preserved = openTestSqlite(databasePath, { readonly: true });
     try {
       assert.equal(
-        preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(),
+        preserved.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value,
         String(futureVersion),
       );
       assert.equal(
-        preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id),
+        preserved.prepare<unknown[], { display_name: unknown }>("SELECT display_name FROM projects WHERE project_id = ?").get(project.project_id)?.display_name,
         "保留项目",
       );
     } finally {

@@ -135,7 +135,7 @@ test("Web catalog owner reuses one connection, observes commits, and closes afte
   external.close();
   assert.deepEqual(await access.withCatalog({ homeDirectory: home }, c => c.getProject(project.project_id)), project);
   const metadata = openTestSqlite(join(home, "projects", "catalog.db"));
-  const version = metadata.prepare("SELECT value FROM catalog_meta WHERE key='schema_version'").pluck().get();
+  const version = metadata.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key='schema_version'").get()?.value;
   metadata.prepare("UPDATE catalog_meta SET value=? WHERE key='schema_version'").run(String(Number(version) + 1));
   await assert.rejects(access.warm(), error => (error as { code?: string }).code === "catalog.reader_too_old");
   metadata.prepare("UPDATE catalog_meta SET value=? WHERE key='schema_version'").run(version);

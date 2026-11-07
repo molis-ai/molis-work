@@ -34,7 +34,7 @@ function mark(project: ProjectRecord) {
 }
 function createdEvents(database: string, id: string) {
   const db = openTestSqlite(database, { readonly: true });
-  try { return db.prepare("SELECT count(*) FROM project_events WHERE project_id=? AND type='project.created'").pluck().get(id); }
+  try { return db.prepare<unknown[], { value: unknown }>("SELECT count(*) AS value FROM project_events WHERE project_id=? AND type='project.created'").get(id)?.value; }
   finally { db.close(); }
 }
 
@@ -132,7 +132,7 @@ test("PG-026-S4-04 a failure in demo post-initialization restores the previous d
       const rename = fs.rename;
       const countReceipts = () => {
         const db = openTestSqlite(catalog.databasePath, { readonly: true });
-        try { return db.prepare("SELECT count(*) FROM project_events WHERE type='project.demo_reset'").pluck().get(); } finally { db.close(); }
+        try { return db.prepare<unknown[], { value: unknown }>("SELECT count(*) AS value FROM project_events WHERE type='project.demo_reset'").get()?.value; } finally { db.close(); }
       };
       let backupDirectory: string | undefined, atPromotion: { official: unknown; aside: unknown; record: unknown; plugins: unknown; receipts: unknown } | undefined;
       t.mock.method(fs, "rename", async (...args: Parameters<typeof fs.rename>) => {
@@ -162,7 +162,7 @@ test("PG-026-S4-04 a failure in demo post-initialization restores the previous d
       assert.deepEqual(snapshot(project), before);
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), plugins);
       const db = openTestSqlite(catalog.databasePath, { readonly: true });
-      try { assert.equal(db.prepare("SELECT count(*) FROM project_events WHERE type='project.demo_reset'").pluck().get(), 0); }
+      try { assert.equal(db.prepare<unknown[], { value: unknown }>("SELECT count(*) AS value FROM project_events WHERE type='project.demo_reset'").get()?.value, 0); }
       finally { db.close(); }
     } finally { catalog.close(); }
   });

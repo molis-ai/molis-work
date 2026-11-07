@@ -73,7 +73,7 @@ test("RAC-2302 the project.created event records the project, not a path; the mo
     const { db, projects } = open(join(directory, "catalog.db"), directory);
     const record = projects.lifecycle.prepareRecord({ project_id: "project-b", display_name: "乙", data_class: "user" });
     projects.lifecycle.register(record, "project.created", "tester");
-    const payload = JSON.parse(String(db.prepare("SELECT payload_json FROM project_events WHERE type = 'project.created'").pluck().get()));
+    const payload = JSON.parse(String(db.prepare<unknown[], { payload_json: unknown }>("SELECT payload_json FROM project_events WHERE type = 'project.created'").get()?.payload_json));
     assert.deepEqual(payload, { project_id: "project-b" });
     assert.equal("updateDatabasePath" in projects.lifecycle, false);
     db.close();
@@ -95,7 +95,7 @@ test("RAC-2303 a current catalog reopens; another version is refused without cha
     assert.equal(reopened.getProject(project.project_id).database_path, join(home, "projects", project.project_id, "molis-work.db"));
     reopened.close();
     const wrong = openTestSqlite(file);
-    assert.equal(wrong.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(CATALOG_SCHEMA_VERSION));
+    assert.equal(wrong.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value, String(CATALOG_SCHEMA_VERSION));
     assert.equal(wrong.pragma("integrity_check", { simple: true }), "ok");
     assert.deepEqual(wrong.pragma("foreign_key_check"), []);
     wrong.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(CATALOG_SCHEMA_VERSION + 1));
@@ -105,8 +105,8 @@ test("RAC-2303 a current catalog reopens; another version is refused without cha
     assert.deepEqual(readFileSync(file), before);
     const preserved = openTestSqlite(file, { readonly: true });
     try {
-      assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(CATALOG_SCHEMA_VERSION + 1));
-      assert.equal(preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id), "current catalog");
+      assert.equal(preserved.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value, String(CATALOG_SCHEMA_VERSION + 1));
+      assert.equal(preserved.prepare<unknown[], { display_name: unknown }>("SELECT display_name FROM projects WHERE project_id = ?").get(project.project_id)?.display_name, "current catalog");
     } finally { preserved.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

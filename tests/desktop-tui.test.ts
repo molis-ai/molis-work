@@ -231,15 +231,9 @@ function addProjectFeedItem(
       INSERT INTO feed_sources (
         project_id, source_id, kind, name, description, status, enabled, item_count,
         origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
-      ) VALUES (@project_id, @source_id, @source_kind, @source_label, '测试来源', 'active', 1, 1,
-        'molis_work', @now, 'completed', NULL, @now, @now)
-    `).run({
-      project_id: project.project_id,
-      source_id: inbox ? "source-test-inbox" : "source-test",
-      source_kind: inbox ? "github" : "rss",
-      source_label: inbox ? "GitHub" : "测试 RSS",
-      now,
-    });
+      ) VALUES (?1, ?2, ?3, ?4, '测试来源', 'active', 1, 1,
+        'molis_work', ?5, 'completed', NULL, ?5, ?5)
+    `).run(project.project_id, inbox ? "source-test-inbox" : "source-test", inbox ? "github" : "rss", inbox ? "GitHub" : "测试 RSS", now);
     store.db.prepare(`
       INSERT INTO feed_items (
         project_id, item_id, source_id, kind, title, summary, body,
@@ -247,22 +241,22 @@ function addProjectFeedItem(
         tags_json, author, disposition, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        @project_id, @item_id, @source_id, @kind, @title,
-        '验证升格、绑定和终端上下文', '正文里包含需要核对的事实\nAuthorization: Bearer runtime-secret-token', @source_kind, @source_label,
-        @external_id, 'https://example.com/feed-item?access_token=url-secret-value', 'inbox', 'high', '["rss"]',
-        '测试作者', 'inbox', 1, @now, @now, @now, @now
+        ?1, ?2, ?3, ?4, ?5,
+        '验证升格、绑定和终端上下文', '正文里包含需要核对的事实\nAuthorization: Bearer runtime-secret-token', ?6, ?7,
+        ?8, 'https://example.com/feed-item?access_token=url-secret-value', 'inbox', 'high', '["rss"]',
+        '测试作者', 'inbox', 1, ?9, ?9, ?9, ?9
       )
-    `).run({
-      project_id: project.project_id,
-      item_id: itemId,
-      source_id: inbox ? "source-test-inbox" : "source-test",
-      kind: inbox ? "github_issue" : "article",
-      title: inbox ? "需要处理的 Inbox Message" : "用 Item 启动真实工作",
-      source_kind: inbox ? "github" : "rss",
-      source_label: inbox ? "GitHub" : "测试 RSS",
-      external_id: inbox ? "external-inbox-test" : "external-test",
+    `).run(
+      project.project_id,
+      itemId,
+      inbox ? "source-test-inbox" : "source-test",
+      inbox ? "github_issue" : "article",
+      inbox ? "需要处理的 Inbox Message" : "用 Item 启动真实工作",
+      inbox ? "github" : "rss",
+      inbox ? "GitHub" : "测试 RSS",
+      inbox ? "external-inbox-test" : "external-test",
       now,
-    });
+    );
     if (inbox) {
       createLocalFeedApplication(store.db).ensureInboxEntryForFeedItem(
         project.project_id,
@@ -277,17 +271,11 @@ function addProjectFeedItem(
         published_at, preview, content_hash, provenance_json, selected_for_context,
         imported_at, updated_at
       ) VALUES (
-        @project_id, 'material-test', @item_id, 'https://example.com/material',
-        @material_title, @source_label, @now, '资料预览会进入上下文\nclient_secret=material-secret-value', 'sha256:test',
-        '{"provider":"rss"}', 1, @now, @now
+        ?1, 'material-test', ?2, 'https://example.com/material',
+        ?3, ?4, ?5, '资料预览会进入上下文\nclient_secret=material-secret-value', 'sha256:test',
+        '{"provider":"rss"}', 1, ?5, ?5
       )
-    `).run({
-      project_id: project.project_id,
-      item_id: itemId,
-      material_title: inbox ? "Inbox 来源资料" : "测试来源资料",
-      source_label: inbox ? "GitHub" : "测试 RSS",
-      now,
-    });
+    `).run(project.project_id, itemId, inbox ? "Inbox 来源资料" : "测试来源资料", inbox ? "GitHub" : "测试 RSS", now);
   } finally {
     store.close();
   }

@@ -247,7 +247,11 @@ async function openTab(browser) {
 
 /** A new Chrome with an empty profile is what "cold" means here: no disk cache, no memory cache, only the language cookie. */
 async function openFresh(home, label, origin, locale) {
-  const browser = await ChromeHarness.start(join(home, "chrome", label), { executable: locateTestChrome(), commandTimeoutMs: 45_000 });
+  if (running.stopping) throw new Error("interrupted");
+  const starting = ChromeHarness.start(join(home, "chrome", label), { executable: locateTestChrome(), commandTimeoutMs: 45_000 });
+  running.starting.add(starting);
+  const browser = await starting;
+  running.starting.delete(starting);
   running.browsers.add(browser);
   const session = await openTab(browser);
   await session.command("Network.setCookie", { name: COOKIE, value: locale, url: origin });
@@ -391,7 +395,7 @@ function summarize(dir) {
 // ---- main -----------------------------------------------------------------------------------------------------------
 
 /** What this run started, and nothing else: an interrupted run stops these by the handles it holds and removes its own Home. */
-const running = { host: null, browsers: new Set(), home: null };
+const running = { host: null, browsers: new Set(), starting: new Set(), stopping: false, home: null };
 
 async function closeBrowser(browser) {
   running.browsers.delete(browser);
@@ -399,7 +403,9 @@ async function closeBrowser(browser) {
 }
 
 async function stopEverything() {
-  await Promise.allSettled([...running.browsers].map(closeBrowser));
+  running.stopping = true;
+  // A Chrome still starting has no handle yet: wait for it, or it outlives this run and writes into the Home removed below.
+  await Promise.allSettled([...running.starting, ...running.browsers].map(async (browser) => closeBrowser(await browser)));
   if (running.host) await stopHost(running.host);
   running.host = null;
   if (running.home) rmSync(running.home, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });

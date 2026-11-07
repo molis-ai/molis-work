@@ -13,7 +13,7 @@
     "url": "https://github.com/molis-ai/molis-work/issues"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24.15.0 <24.16.0"
   },
   "packageManager": "pnpm@11.9.0",
   "bin": {

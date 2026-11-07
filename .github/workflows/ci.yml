@@ -51,7 +51,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # Node built-ins only, no install.
       - name: Find this commit's merge queue run
@@ -110,7 +110,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
       - name: Install pnpm
@@ -217,7 +217,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
@@ -276,7 +276,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
@@ -410,7 +410,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
@@ -465,7 +465,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # API keys, GitHub/Slack tokens, AWS keys, private keys, JWTs and `api_key|secret|password|token = "…"` literals in
       # the lines this change adds. Known test fixtures are listed in tooling/gates/secret-allowlist.txt, each with a reason.
@@ -512,7 +512,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt --target wasm32-unknown-unknown
@@ -569,7 +569,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # shellcheck ships on the GitHub ubuntu runners. Warnings and errors fail; style notes do not.
       - name: shellcheck on every tracked shell script
@@ -675,7 +675,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # Node built-ins only, no install. It exits 0 with `whole` when anything goes wrong; if it still fails, the two jobs do not read
       # what it wrote and run the whole list, so a broken selection runs more, never less.
@@ -726,7 +726,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       - name: Install pnpm
         run: npm install --global "$(node -p 'require("./package.json").packageManager')"
@@ -799,7 +799,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # The version is the root package.json "packageManager", the pin the other jobs use.
       - name: Install pnpm
@@ -884,7 +884,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.14.0
+          node-version: 24.15.0
 
       # The version is the root package.json "packageManager", the pin the other jobs use.
       - name: Install pnpm

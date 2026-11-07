@@ -247,7 +247,7 @@ async function openTab(browser) {
 
 /** A new Chrome with an empty profile is what "cold" means here: no disk cache, no memory cache, only the language cookie. */
 async function openFresh(home, label, origin, locale) {
-  if (running.stopping) throw new Error("interrupted");
+  if (stopped) throw new Error("interrupted");
   const starting = ChromeHarness.start(join(home, "chrome", label), { executable: locateTestChrome(), commandTimeoutMs: 45_000 });
   running.starting.add(starting);
   const browser = await starting;
@@ -395,15 +395,21 @@ function summarize(dir) {
 // ---- main -----------------------------------------------------------------------------------------------------------
 
 /** What this run started, and nothing else: an interrupted run stops these by the handles it holds and removes its own Home. */
-const running = { host: null, browsers: new Set(), starting: new Set(), stopping: false, home: null };
+const running = { host: null, browsers: new Set(), starting: new Set(), home: null };
+let stopped = null;
 
 async function closeBrowser(browser) {
-  running.browsers.delete(browser);
-  await browser.close();
+  // Stays on the list until it has closed, so an interrupt during a normal close still waits for it.
+  try { await browser.close(); } finally { running.browsers.delete(browser); }
 }
 
-async function stopEverything() {
-  running.stopping = true;
+/** One cleanup per run, shared by both signals and main: a second caller waits for it rather than racing it, and the first signal's exit code stands. */
+function stopEverything() {
+  stopped ??= stopRun();
+  return stopped;
+}
+
+async function stopRun() {
   // A Chrome still starting has no handle yet: wait for it, or it outlives this run and writes into the Home removed below.
   await Promise.allSettled([...running.starting, ...running.browsers].map(async (browser) => closeBrowser(await browser)));
   if (running.host) await stopHost(running.host);
@@ -419,8 +425,9 @@ async function main() {
   const home = mkdtempSync(join(tmpdir(), "molis-first-screen-"));
   if (resolve(home) === join(homedir(), ".molis-work")) throw new Error("refusing the real Home");
   running.home = home;
+  // `on`, not `once`: with no listener a repeated signal would kill this process mid-cleanup and leave the Host, Chrome and Home behind.
   for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
-    process.once(signal, () => { void stopEverything().finally(() => process.exit(code)); });
+    process.on(signal, () => { void stopEverything().finally(() => process.exit(code)); });
   }
   mkdirSync(options.out, { recursive: true });
   try {

@@ -6,6 +6,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { computeVersions, generateVersions, readVersionInputs } from "../scripts/generate-versions.mjs";
+import { CODE_FILE, walkFiles } from "../scripts/script-paths.mjs";
 import { isTestFile, readSourceFiles, SOURCE_ROOTS, versionSource } from "../scripts/version-source.mjs";
 import { applyExceptions, checkExceptions, manifestFindings, markdownFindings, registeredFactProblems, sourceDeclarationFindings, strayMarkerFindings, versionDeclarationProblems } from "../scripts/gates/version-declarations.mjs";
 
@@ -764,4 +765,32 @@ test("VG-20 what the exceptions used to hold moves with the table, and no except
   const { outputs, problems } = computeVersions(raised, readVersionInputs(repository, real));
   assert.deepEqual(problems, []);
   for (const [key, file, written] of moved) assert.ok(outputs.get(file)?.includes(written), `${key} does not reach ${file}`);
+});
+
+test("VG-22 no script decides it is the one being run any way but isMainScript: the old ways exit 0 from a symlink, having checked nothing", () => {
+  const OLD_WAY = /\bresolve\(process\.argv\[1\]\)|pathToFileURL\(process\.argv\[1\]\)|=== *import\.meta\.url|import\.meta\.url *===|import\.meta\.main|require\.main/;
+  const scripts = walkFiles(repository, ["scripts"], (file: string) => CODE_FILE.test(file) && file !== "scripts/script-paths.mjs");
+  assert.ok(scripts.length > 100, "the walk found the scripts");
+  // initial-versions.mjs is U1-i's to change; it leaves this list in the change that fixes it.
+  assert.deepEqual(scripts.filter((file: string) => OLD_WAY.test(readFileSync(path.join(repository, file), "utf8"))), ["scripts/gates/initial-versions.mjs"]);
+
+  // And each really runs that way: through a symlink in a path with a space and Chinese it refuses a bad argument, or says what it checked.
+  // scripts/memory-evaluation/scale.mts is not run here (it starts an evaluation); the scan above is what covers it.
+  const directory = mkdtempSync(path.join(tmpdir(), "路径 with space-"));
+  scratch.push(directory);
+  const linked = (script: string, ...args: string[]) => {
+    const link = path.join(directory, script.replaceAll("/", "-"));
+    symlinkSync(path.join(repository, "scripts", script), link);
+    return spawnSync(process.execPath, [link, ...args], { encoding: "utf8" });
+  };
+  for (const script of ["build-workspace.mjs", "check-secrets.mjs", "ci-queue-verified.mjs", "ci-test-selection.mjs", "ci-shard-weights.mjs", "machine-slot.mjs", "gates/action-contract-snapshot.mjs", "gates/api-snapshot.mjs",
+    "gates/dom-events.mjs", "gates/native-checks.mjs", "gates/package-inventory.mjs", "gates/plugin-styles.mjs", "gates/security-invariants.mjs", "gates/translations.mjs"]) {
+    const result = linked(script, "--nonsense");
+    assert.equal(result.status, 2, `${script}: ${result.stdout}${result.stderr}`);
+  }
+  assert.equal(linked("gates/page-assets-measure.mjs").status, 2);
+  assert.match(linked("memory-evaluation/report.mts").stderr, /用法：report\.mts/);
+  assert.match(linked("generate-plugin-registry.mjs", "--check").stdout, /list every built-in plugin/);
+  assert.match(linked("package-owners.mjs").stdout, /^owners ok: /);
+  assert.match(linked("workspace-packages.mjs").stdout, /^\{/);
 });

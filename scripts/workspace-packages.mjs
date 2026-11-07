@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 import { checkDevRequirements } from "./package-dev-requirements.mjs";
 import { checkPackageOwners, packageOwner } from "./package-owners.mjs";
 
@@ -678,8 +679,7 @@ export function checkWorkspacePackages(repositoryRoot) {
   };
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
-if (invokedPath === import.meta.url) {
+if (isMainScript(import.meta.url)) {
   const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const result = checkWorkspacePackages(repositoryRoot);
   console.log(JSON.stringify(result, null, 2));

@@ -62,8 +62,8 @@ version: 1
 description: 写周度复盘；当用户要周报、周度回顾或跨插件总结时使用。
 when_to_use: 一周结束、需要跨插件综合结果时。
 when_not_to_use: 只要当天待办或单条状态时。
-tools: [read-file, search]        # 声明，不授予
-applies_to: both                  # assistant / coding / both
+tools: [find-capabilities, read-capability]   # 声明，不授予
+applies_to: both                               # assistant / coding / both
 user_invocable: true
 argument_hint: "<周期，可选>"
 ```

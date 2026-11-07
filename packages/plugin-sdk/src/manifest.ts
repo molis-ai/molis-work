@@ -352,7 +352,9 @@ function inspectRequirementDeclarations(parsed: PluginManifest): string[] {
     if (!text(requirement.reason)) {
       problems.push(`依赖 ${key} 必须说明用途`);
     }
-    if (!consumes.has(requirement.capability_id)) {
+    // A plugin with only declarations calls nothing, so its `consumes` stays empty; its `requires` only decides whether it can be
+    // enabled (specs/skill-packs/contract-design.md §3, batch 08 coordinator 2026-11-06).
+    if (parsed.kind !== "content" && !consumes.has(requirement.capability_id)) {
       problems.push(`依赖 ${key} 未列入 capabilities.consumes`);
     }
   }

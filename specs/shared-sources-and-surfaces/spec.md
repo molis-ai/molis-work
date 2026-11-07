@@ -76,7 +76,15 @@ interface RecentMaterial {
 - **不另起身份**：本机文件、导入文件和插件对象都用 `ActionSubject`。knowledge 的 `KnowledgePieceName`、search 的 `SearchEntry.subject` 已经是这个形状。
 - **出处现读，不存**：存在对话或任务里的只有 `MaterialRef`。显示出处时由平台现查，所以撤权以后显示「没有权限查看」，删除以后显示「已删除」，不会拿旧缓存绕过授权（WMD 第 5 节）。
 - **校验**：`assertMaterialRef` 放进 SDK（第 7 节），平台和作者用同一份。
-- **本机文件的 `read_revision` 是内容指纹（合同台定）**：就是读文件返回的 `fingerprint`（`workspace-files.ts:66,71`，文件字节的 sha256 十六进制），`knowledge.read` 的 `revision` 现在也是它（`horizontal/knowledge/src/workspace.ts:73`）。不用路径，也不用修改时间。超过读取上限的（`too-large`，8 MB）读不到内容，写 `size:<字节数>`，只比大小。`assertMaterialRef` 对 `workspace_file` 查这两种格式；不查的话，Files 侧栏的 `revision: id`（`plugins/native/files/src/actions.ts:99`，就是 id 本身）抄过来也能过，那样永远比不出变化。显示出处时现读重算，不一样就是 `changed`。它分不出是这份文件后来改过，还是另一份文件，所以只说「和引用时不是同一份」。这条改 C-1 的注释和 `assertMaterialRef`。
+- **本机文件的 `read_revision` 是内容指纹（合同台定）**：`fingerprint` 就是文件字节的 sha256 十六进制，文本读和 `bytes` 读算出来一样（`workspace-files.ts:66,71`），`knowledge.read` 的 `revision` 现在也是它（`horizontal/knowledge/src/workspace.ts:73`）。不用路径，也不用修改时间。`assertMaterialRef` 对 `workspace_file` 查格式：64 位十六进制，或 `size:<字节数>`；不查的话，Files 侧栏的 `revision: id`（`plugins/native/files/src/actions.ts:99`，就是 id 本身）抄过来也能过，那样永远比不出变化。这条改 C-1 的注释和 `assertMaterialRef`。
+
+  | 件 | 定法 |
+  | --- | --- |
+  | 写引用的人怎么得到它 | 读到内容的取 `fingerprint`。文本读回答 `too-large` 的写 `size:<字节数>`。文本读回答 `binary` 或解码失败的 `unsupported` 时内容已经读了（`workspace-files.ts:67,70`），实现片让这两种结果也带 `fingerprint`（`workspace-artifacts.ts:27`），不多花一次读；不是普通文件的 `unsupported`（`:49`）没有内容，也写不成引用 |
+  | 平台现读怎么比 | 不走读动作：文本读只到 256 KB，`bytes` 动作只给宿主运行的插件（`project-capabilities.ts:43`）。宿主工作区服务多一个内部函数 `fingerprintWorkspaceFile`，检查和 `readWorkspaceFile` 相同（根目录的 realpath、逐段 `lstat`、`O_NOFOLLOW`），边读边算，不进内存，不转 base64，上限 8 MB。引用是十六进制时：不一样是 `changed`；现在超过 8 MB 也是 `changed`，因为写引用时没超。引用是 `size:` 时只比 `lstat` 的大小 |
+  | 一次算几份 | `materials.recent@1` 一次最多 20 份，只比前 5 份的内容（新的在前，面板显示的就是这 5 份），最坏读 40 MB。第 6 份起只查文件在不在，`note` 写「内容没有核对」，打开时读文件本身就比了。不加缓存：这台机器上 5 个 8 MB 算 sha256 共 12 毫秒，主要成本是读盘 |
+
+  它分不出是这份文件后来改过，还是另一份文件，所以只说「和引用时不是同一份」。
 - **引用不因为换设备而变**（第 3 节「另一台设备上的引用」）：`subject.id` 写的是原设备的目录 id，对应关系在读的时候换算，不改写引用。这样同步回原设备照样能读，换一次对应，这个目录的引用一起跟着走。所以 `MaterialRef` 不加字段；要改的是 `MaterialOrigin`，多一个 `unmapped`。
 
 ### 2.1 最近用过
@@ -86,7 +94,7 @@ interface RecentMaterial {
 - **记在哪**：`modules/projects` 自己的一张表 `material_recent_uses`，在项目库里，`tooling/gates/table-owners.json` 记为 `modules/projects` 独占。它只是「最近用过」的列表，和观测采集层的「完整工作记录」（GLOSSARY）不是一回事，不叫工作记录。
 - **谁写**：引用发生的地方写，插件和平台走同一个写动作 `materials.recent.record@1`（command，`modules/projects` 提供，受众 user、plugin）。加入任务、在对话或文档里引用、从面板打开一份资料，都在自己的事提交成功之后调它；Pages、IM、Coding 这些发生在插件里的，也用这个动作，不 import Module，不开私路。
   - 输入只有 `refs: MaterialRef[]`（一次最多 10 个）。调用方和项目从调用上下文取，不从输入读。
-  - 平台先用调用方此刻的授权现读每个引用的出处，读不了的（`forbidden`、`missing`）不记、也不说明是哪一个，所以既不能替别人种记录，也不能借它探测别人的对象。
+  - 平台先用调用方此刻的授权现读每个引用的出处，读不了的（`forbidden`、`missing`、`unmapped`）不记、也不说明是哪一个，所以既不能替别人种记录，也不能借它探测别人的对象。
   - 只记引用，不记正文。被拒、取消、撤权的调用照 AGENTS 的规矩不写。
 - **谁读**：只读动作 `materials.recent@1`（query，`modules/projects` 提供，受众 user、plugin）。按调用方和项目返回 `{ items: RecentMaterial[] }`，新的在前，最多 20 份，面板取前 5 份。`ref` 是记下的引用，`origin` 是这次读的时候照第 2 节现读的出处，不存。
   - **给 user**：读不到的项照样返回，由出处的 `state` 说明（「没有权限查看」「已删除」「找不到位置」「未指定文件夹」），让本人知道那份资料还在不在。
@@ -129,10 +137,25 @@ interface ProjectDirectories {
 | `projects.directories.get@1` | 读项目的输入与输出 | user、plugin、agent、mcp（只读） |
 | `projects.directories.add_input@1` | 加一个输入目录 | user，并要用户在界面上确认（沿用现有的 `user_confirmed` 规则） |
 | `projects.directories.remove_input@1` | 移除一个输入目录，不删磁盘上的文件（WMD-02） | user |
-| `projects.directories.set_output@1` | 设或改输出目录，也可以把一个输入设为输出。不搬移、不删除、不覆盖旧文件（WMD-09） | user |
+| `projects.directories.set_output@1` | 设或改输出目录，也可以把一个输入设为输出，或设回默认位置。不搬移、不删除、不覆盖旧文件（WMD-09） | user |
 | `projects.directories.repair@1` | 文件夹换了位置以后，重新找到它 | user |
 | `projects.directories.map_source@1` | 把另一台设备的一个目录对应到本机的文件夹；已有对应就换掉 | user，并要用户在界面上确认 |
 | `projects.directories.unmap_source@1` | 取消对应，文件夹还是这个项目的目录，磁盘上的文件不动 | user |
+
+`set_output`、`map_source` 的目标写法一样，三选一（合同台定）：
+
+```ts
+type DirectoryTarget =
+  | { workspace_id: string }       // 这个项目已有的目录
+  | { workspace_path: string }     // 本机路径，走 add_input 的校验
+  | { default_output: true };      // 这个项目的默认输出目录，不带路径，文件夹没建也可以
+
+// set_output@1：  DirectoryTarget & { expected_revision: string }
+// map_source@1：  { source_workspace_id: string } & DirectoryTarget & { expected_revision: string }
+// unmap_source@1：{ source_workspace_id: string; expected_revision: string }
+```
+
+schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required: ["workspace_path"] }, { required: ["default_output"] }]`，`default_output` 是 `{ const: true }`。
 
 - 现有的 `projects.workspaces.add@1`、`projects.workspaces.repair@1` 并进上表的 `add_input`、`repair`，`projects.workspaces.unlink@1` 并进 `remove_input`，旧名不留（N35）；`is_default` 删掉（第 8 节）。这些删除都在实现片，同一次切换里改完调用方，那一片的 PR 写明对调用方的影响。C-1 只加不删，现有调用方不受影响：新动作在 C-1 只有声明，宿主还没登记，调用不到，所以不是两种写法并存。
 - **默认输出目录是真实的一行**：没有本机输入的项目也有输出目录（WMD-03）。它是 `workspaces` 里真实的一行，`modules/projects` 在建项目时写入；已有项目由升级段补上（第 8 节），回收站里的项目也补，否则恢复后没有输出目录。这一行不存路径，文件夹第一次要用时才建（下面「默认输出目录怎么存」）。所以「恰好一项带 output」和 `RunDirectories.output` 永远有东西可指。
@@ -147,26 +170,28 @@ interface ProjectDirectories {
 | 件 | 定法 |
 | --- | --- |
 | 位置 | `<Home>/outputs/<project_id>/`，账号 Home 各有一份。不放 `projects/<id>/` 下：快照会走进去，碰到符号链接或 SQLite 文件就拒绝整份（`home-snapshot-inventory.ts:89,108`），Coding 默认在输出目录工作，这两样都常见；永久删除时那个目录也是整个搬走的，留不下文件 |
-| 存什么 | `workspace_id` 是 `workspace-output-<哈希前 24 位十六进制>`，哈希是 `sha256(project_id + "\0" + 这个项目最早一条 project_events 的 event_id)`，「最早」按 `created_at, event_id` 排；`canonical_path` 是 `project-output:<project_id>`，`realpath_verified` 是 1，`display_name` 是占位的 `project-output`。用户自己选的目录照旧存绝对路径，新发 id。**两台设备上 id 必须不同，所以带上事件 id：** 事件 id 是每台设备建项目时各自随机发的，不同步（`portable-project.ts` 只投影 id、标题、时间和插件清单），`register` 在同一个事务里写第一条，所以每个项目都有；Home 整体拷到别处时跟着走，id 不变。id 相同的话，另一台设备上同路径的同名文件会被静默读到（下面「另一台设备上的引用」）。不直接随机，因为升级段不许随机（U1 §8.1）。id 也不能直接带 `project_id`：它可以含 `:`（`platform/placement.ts:22`），而 `parseWorkspaceFileSubjectId` 按第一个冒号切（`workspace-artifacts.ts:299`）；编码也不行，同步收的 id 最长 200 字符（`portable-project.ts:17`），编码后超过目录 id 200 字符的上限（C-1 的 `folderId`） |
-| 读 | 读这一列的只有 `workspace-repository.ts`，在那里把这种写法换成 `realpath(Home)/outputs/<project_id>`，`realpath_verified` 给 true，`display_name` 给「默认输出目录」（中文原文，界面用 `L()` 翻译，文案随定样）。下游和合同拿到的还是绝对路径，公开合同不变。`<project_id>` 过 `projectDirectoryPath`，这一行的关联只许是这个项目，否则 `catalog.project_storage_invalid` |
+| 存什么 | `workspace_id` 是 `workspace-output-<哈希前 24 位十六进制>`，哈希是 `sha256(project_id + "\0" + 这个项目最早一条 project_events 的 event_id)`，「最早」按 `created_at, event_id` 排；`canonical_path` 是 `project-output:<project_id>`，`realpath_verified` 存 0，`display_name` 是占位的 `project-output`。用户自己选的目录照旧存绝对路径，新发 id。**两台设备上 id 必须不同，所以带上事件 id：** 事件 id 是每台设备建项目时各自随机发的，不同步（`portable-project.ts` 只投影 id、标题、时间和插件清单），`register` 在同一个事务里写第一条，所以每个项目都有；Home 整体拷到别处时跟着走，id 不变。id 相同的话，另一台设备上同路径的同名文件会被静默读到（下面「另一台设备上的引用」）。不直接随机，因为升级段不许随机（U1 §8.1）。id 也不能直接带 `project_id`：它可以含 `:`（`platform/placement.ts:22`），而 `parseWorkspaceFileSubjectId` 按第一个冒号切（`workspace-artifacts.ts:299`）；编码也不行，同步收的 id 最长 200 字符（`portable-project.ts:17`），编码后超过目录 id 200 字符的上限（C-1 的 `folderId`） |
+| 读 | 读这一列的只有 `workspace-repository.ts`，在那里把这种写法换成 `realpathSync.native(Home)/outputs/<project_id>`，`realpath_verified` 给 true（存 0：这个文件有几条查询，漏换一条时 `project-output:<id>` 也进不了 `agent-host-composition.ts:260` 的授权目录），`display_name` 给「默认输出目录」（中文原文，界面用 `L()` 翻译，文案随定样）。下游和合同拿到的还是绝对路径，公开合同不变。`<project_id>` 过 `projectDirectoryPath`，这一行的关联只许是这个项目，否则 `catalog.project_storage_invalid` |
 | 按路径写或查 | 绝对路径到行的换算也只在 `workspace-repository.ts` 一处，见下面「路径到行」 |
 | 碰磁盘之前 | `project-paths.ts` 放两个函数，规则相同：id 过 `projectDirectoryPath`，逐级 `lstat` `outputs` 和 `<id>`，碰到符号链接或不是目录就拒绝（`catalog.project_storage_invalid`），最后核 realpath。一个只核，文件夹不在时回答「还没建」；一个核后建。`ProjectsModule` 把它们包成 `prepareWorkspaceDirectory(workspace_id, "read" \| "write")`，用户自己选的目录什么也不做。**拿这一行碰磁盘的地方都先过它：要写或要起进程的用 `write`，只读的用 `read`**，名单在下面「碰磁盘的调用方」。建项目、升级段、查询都不用 `write` |
 | 文件夹还没建 | 不算 `missing`，`state` 是 `ok`，列目录读到空 |
-| `repair` | 这一行不会是 `missing`，现有规则就不允许，不用另写 |
-| 改了输出目录 | 这一行没有关联了就删掉，文件留在原处（WMD-09）。设回默认位置时按同样的 id 再写一行 |
+| `repair` | 这一行不会是 `missing`，现有规则就不允许，不用另写。别的目录修到 `outputs/` 里，见下面「路径到行」 |
+| 改了输出目录 | 这一行没有关联了就删掉，文件留在原处（WMD-09）。设回默认位置用 `set_output` 的 `default_output: true`，不带路径：这时行已经没了，调用方手里没有 id，文件夹可能从没建过，路径也核实不了。服务按 `project_id` 和最早的事件算回同样的 id，写回这一行，不要求文件夹存在。时钟回拨才可能算出另一个 id，后果是旧引用回到未指定，可以重新指定 |
 | 登记 | `homeStores()` 加 `{ path: "outputs", snapshot: omittedSnapshot("…", "preserve") }`，owner `modules/projects`。`uninstall --purge-user-data` 随之清除 |
 | `HOME-DATA.md` 加一行 | `outputs/<project_id>/`：`modules/projects`；项目的默认输出目录，用户和 Agent 的产物，普通文件，无版本；不进快照，恢复不动；永久删除项目时按人的选择删或留，没问过的都留；purge 清除，含留下来的 |
 
 **路径到行**（合同台定）。上表只说了从行到路径，反方向也要定。终端、Coding、MCP 的工作目录都按路径写目录库：`plugin-terminal-service.ts:85-88` → `plugin-terminal-panels.ts:115` → `project-catalog.ts:420` → `project-binding-commands.ts:171,180` → `workspace.ts:120`。新项目的终端默认就开在默认输出目录，不定的话第一次开终端就发一个新 id，把绝对路径写进目录库：同一个文件夹两行，Home 拷到别处之后这一行还指着原 Home。
 
-所有按路径写或查的都走这一处：`add_input`、`set_output`、`addWorkspaceProject`（`system-agent-service.ts:53`、`web-onboarding.ts:99`）、运行上下文绑定、按路径解析（`project-resolution.ts:43`、`project-binding-commands.ts:122`、`project-setup.ts:52`）。路径先 realpath，再和 `realpath(Home)/outputs` 比：
+所有按路径写或查的都走这一处：`add_input`、`set_output`、`repair`、`map_source`、`addWorkspaceProject`（`system-agent-service.ts:53`、`web-onboarding.ts:99`）、运行上下文绑定、按路径解析（`project-resolution.ts:43`、`project-binding-commands.ts:122`、`project-setup.ts:52`）。路径先过 `realpathSync.native`，再和 `realpathSync.native(Home)/outputs` 比（`workspace.ts:26` 用的也是它，`realpathSync` 不归一大小写）：
 
-| 路径 | 查 | 用户明确要关联（`add_input`、`set_output`、`workspace_member`） | 运行上下文绑定（`session`） |
+| 路径 | 查 | 用户明确要关联（`add_input`、`set_output`、`map_source`、`workspace_member`） | 运行上下文绑定（`session`） |
 | --- | --- | --- | --- |
 | 不在 `outputs/` 下 | 按 `canonical_path` | 和别的目录一样 | 和别的目录一样 |
 | 正好是 `outputs/<id>` | 这一行；没有这一行就是没有 | 是这个项目的：认回，这一行没了就按同样的 id 再写。别的项目的：拒绝，`projects.directory_duplicate`（否则那个项目删除时，文件会被一起删掉） | 是这个项目的：认回。别的项目的：只绑会话 |
 | `outputs/` 里别的位置（子目录、`outputs` 本身） | 没有行 | 拒绝，`projects.directory_duplicate` | 只绑会话，不写目录行 |
 
+- `repair` 修到 `outputs/` 里（后两行）一律拒绝，`projects.directory_duplicate`，否则下面那道守卫不写表，动作却报成功。
+- 文件夹没建时路径核实不了，第二行走不到；要用默认位置，给 `default_output: true`。
 - 运行上下文绑定不能拒绝，否则终端开不了：`directory.path` 可以让工作目录落在子目录。这种会话靠会话绑定，新会话按路径解析不到项目，和用户自己选的目录的子目录一样。
 - `upsertWorkspace` 是写这张表的唯一一处，这里再守一次：路径落在 `outputs/` 里就不写这张表，只写关联。它的 `ON CONFLICT` 会更新 `canonical_path`，读出来的绝对路径再传回来就写回库了。
 - 还没有行的路径没有目录 id。`runtimeContextPersistenceId` 的 `workspace-request:` 键（`project-binding-validation.ts:51`）这时用路径哈希，只作请求键，不作目录 id。
@@ -177,7 +202,7 @@ interface ProjectDirectories {
 | --- | --- | --- |
 | 终端 `plugin-terminal-service.ts:292` | `write` | 建好再开。不建会报「终端工作目录不存在」 |
 | Character `character-native-execution.ts:80` | `write` | 建好再启动。不建 `realpathSync` 抛 ENOENT |
-| Agent 的轮次和会话（Coding `start-round.ts:143`、`routes-sessions.ts:238`、`routes-setup.ts:53,77`，`plugin-agent-service.ts:65`） | `write` | 建好再起进程。在宿主给 Agent 授权目录那一步（`agent-host-composition.ts:239-260`）做，插件不碰；每条路都经过这里这一点没有逐条跟到底，实现片确认 |
+| Agent 的轮次和会话（Coding `start-round.ts:143`、`routes-sessions.ts:238`、`routes-setup.ts:53,77`，`plugin-agent-service.ts:65`） | `write` | 建好再起进程。放在真正开始的路上：`horizontal/agent-host/src/index.ts:117,286` 核完 `authorizedDirectories` 之后，经 `AgentStartAuthority` 多一个宿主给的端口调，插件不碰。不放在 `startAuthority` 里：只是列动作也调它（`agent-host-composition.ts:190`），那样查询也建文件夹。stdio 连接器 `library-actions.ts:31` 同样在核完之后 |
 | Git 读 `workspace-git.ts:28,93`、`project-capabilities.ts:33` | `read` | 回答「不是仓库」，不起 git。现在是 `spawn git ENOENT`，`project-capabilities.ts:34` 的正则认不出来，面板显示错误 |
 | Git 写（`workspace-git-{operations,writers,index,integration,worktrees}.ts`） | `read` | 同上。没有仓库本来就写不了，不用建 |
 | Files `workspace-files.ts:19` | `read` | `directory` 读到空，`text`、`bytes` 回答 `missing`。现在根目录不在一律 `missing`，和「列目录读到空」不符 |
@@ -208,12 +233,14 @@ interface ProjectDirectories {
 | 选了删时还查什么 | 项目还有运行或排队的任务就拒绝（`isProjectBusy`，`catalog.project_task_live`），放在 `releaseProject` 之前。现在永久删除只查终端，别的进程还在写的话文件删不干净 |
 | 确认框打开之后又有了文件 | 打开时是空的、提交前有了文件：没问过，按留，不丢东西。打开时非空、选了删：一起删 |
 
+**这一问只出现在根 Home。** 账号 Home 上 `deleteProject` 直接拒绝（`project-deletion-service.ts:73`，判断的是存储空间的种类），项目只能进回收站，文件一直留到 purge。
+
 **留下来的文件夹（已知后果）。** 文件夹还在 `<Home>/outputs/<project_id>/`，以编号命名，界面上再也找不到。
 
 - **谁能找到：** 只有删除那一刻和在文件管理器里翻的人。`ProjectDeletionResult` 多一个 `kept_output_directory`（有文件留下时是绝对路径，不存库），设置页显示出来，MCP 的返回里也有，Agent 可以转告。之后只能到 Home 下按编号找，编号对应的项目名在收据 `project_deletions` 里，没有界面读它。
 - **purge：** `uninstall --purge-user-data` 把 `outputs` 整个清掉，含留下来的。不带 purge 的卸载不动。
 - **快照和恢复：** 快照不带，恢复不动。恢复出一个已经永久删除的项目时，文件夹还在就重新指上。
-- **同一个编号再建项目：** 普通项目的编号不重复；个人空间不支持永久删除（`project-deletion-service.ts:73`），同步来的项目也就碰不到。只有固定编号的示例项目会：删除后再建，认回留下的文件夹。示例项目重置也不动它，重建的只是种子数据。
+- **同一个编号再建项目：** 普通项目的编号不重复；账号 Home 不支持永久删除（下面），同步来的项目也就碰不到。只有固定编号的示例项目会：删除后再建，认回留下的文件夹。示例项目重置也不动它，重建的只是种子数据。
 - 没有「清理留下的文件夹」的入口。磁盘只涨不减这件事用户知道，等有人要再加。
 
 **另一台设备上的引用（用户 2026-11-07 定：加「指定文件夹」）。** 用户把引用对应到本机的文件夹。
@@ -222,31 +249,48 @@ interface ProjectDirectories {
 | --- | --- |
 | 一条对应管什么 | **一个项目里、另一台设备的一个目录**，主键 `(project_id, source_workspace_id)`。不是一个引用：同一个目录里的文件要逐份指定，几十份就指不动。不是一整个项目：一个项目在原设备上可以有多个目录，文件各在各的。不跨项目：对应的结果是这个项目的目录，授权是按项目的。多个原目录可以对应到同一个本机文件夹 |
 | 存在哪 | 目录库新表 `workspace_source_links`，`modules/projects` 独占：`project_id`、`source_workspace_id`、`workspace_id`、`bound_by`、时间。`project_id` 和 `workspace_id` 都带外键，`ON DELETE CASCADE`。只在本机：`portable-project.ts` 不投影它，同步内容里没有。跟着目录库进 Home 快照。升级段见第 8 节 |
-| 怎么读 | `resolveWorkspaceFileSubject(subject, directories)`，纯函数，放在 `parseWorkspaceFileSubjectId` 旁边：id 是这个项目的目录就是它，否则查 `source_links`，都没有返回 null。**只有读引用的地方调它**：`horizontal/knowledge/src/workspace.ts:68`、`plugins/native/files/src/actions.ts:108`、平台现读出处。它们拿到的是本机的目录 id，之后走现有的读动作，授权、realpath 和符号链接检查都不变。所以读动作和写动作都只认本机 id，**写入给原设备的 id 照旧被拒**，指定过的文件夹也只是输入目录，Agent 写不了（SSC-15） |
-| 谁能改 | `projects.directories.map_source@1`、`unmap_source@1`，提供方是现有的 `system.project-workspaces`，受众只有 user，权限 `projects:settings`，和 `add_input` 同一个声明工厂。插件、Agent、MCP 都调不到。操作者和项目从调用上下文来，输入里没有。输入是 `source_workspace_id` 加 `workspace_id` 或 `workspace_path` 二选一，加 `expected_revision`。已有对应时再调就是换。`unmap_source` 只去掉对应，文件夹还是这个项目的目录。`revision` 把对应算进去 |
-| 目标文件夹过哪些校验 | 给 `workspace_id`：必须已经是这个项目的目录。给 `workspace_path`：在同一个事务里走 `add_input`，所以 realpath 必须核实成功（`projects.directory_missing`，符号链接存的是它指向的真实路径），也走上面「路径到行」，别的项目的默认位置被拒。这个项目的默认输出目录可以选。另外落在 Home 里的（这个项目的默认位置除外）拒绝，`actions.input_invalid`：引用里的相对路径是另一台设备写的，不能让它指进 Home 的库和密钥。`add_input` 本身不加这条，那是现有行为，不在这里改 |
-| `source_workspace_id` 的校验 | 它只作键，不拼路径。形状同 `folderId`。这个 id 在本机目录库里已经有一行就拒绝（`projects.directory_duplicate`）：那是本机的目录，不能用对应改写它 |
+| 怎么读 | `resolveWorkspaceFileSubject(subject, directories)`，纯函数，放在 `parseWorkspaceFileSubjectId` 旁边：id 是这个项目的目录就是它，否则查 `source_links`，都没有返回 null。**只有读引用的地方调它**：`horizontal/knowledge/src/workspace.ts:68`、`plugins/native/files/src/actions.ts:108`、`plugins/native/files/src/browser/client.ts:14`、平台现读出处。它们拿到的是本机的目录 id，之后走现有的读动作，授权、realpath 和符号链接检查都不变。`plugins/native/files/src/browser/client.ts:14` 打开引用时自己切 id、和当前目录比，也要先换算，否则指定过的引用点开会提示不在当前目录。所以读动作和写动作都只认本机 id，**写入给原设备的 id 照旧被拒**。指定不改变目录的角色，指定到输入目录时 Agent 写不了（SSC-15） |
+| 谁能改 | `projects.directories.map_source@1`、`unmap_source@1`，提供方是现有的 `system.project-workspaces`，受众只有 user，权限 `projects:settings`，和 `add_input` 同一个声明工厂。插件、Agent、MCP 都调不到。操作者和项目从调用上下文来，输入里没有。输入是 `source_workspace_id` 加目标（`workspace_id`、`workspace_path`、`default_output: true` 三选一），加 `expected_revision`。已有对应时再调就是换。`unmap_source` 只去掉对应，文件夹还是这个项目的目录。`revision` 把对应算进去。合同写法在第 3 节开头 |
+| 目标文件夹过哪些校验 | 目标三种写法（`workspace_id`、`workspace_path`、`default_output: true`）过同一个检查。给 `workspace_id`：必须已经是这个项目的目录。给 `workspace_path`：在同一个事务里走 `add_input`，所以 realpath 必须核实成功（`projects.directory_missing`，符号链接存的是它指向的真实路径），也走上面「路径到行」，别的项目的默认位置被拒。给 `default_output`：这个项目的默认输出目录，文件夹没建也可以；这一行不在时补回来，角色是 input（指定不改变已有角色，见下面「怎么读」）。**目标和根 Home 不能互相包含**（这个项目的默认位置除外），`actions.input_invalid`：引用里的相对路径是另一台设备写的，不能让它指进 Home 的库和密钥，目标是 `~` 时 `.molis-work/…` 一样指得进去。根 Home 是 Home 本身；账号 Home（`<根 Home>/spaces/<spaceId>`，`space-web-server.ts:105`）比根 Home，这样也挡住根 Home 和别的账号 Home。两边都用 `realpathSync.native`，它才归一大小写。写法同 `home-snapshot-publication.ts:18,29`。`add_input` 本身不加这条，那是现有行为，不在这里改 |
+| `source_workspace_id` 的校验 | 它只作键，不拼路径。形状同 `folderId`。只有这个 id 已经是**这个项目的**目录才拒绝（`projects.directory_duplicate`）：那不是另一台设备的目录。目标就是这一行时（比如给的路径正好哈希到它），只写关联，不写对应。之后这个 id 被加进这个项目时，对应在同一个事务里去掉 |
 | 读的时候怎么跳不出去 | 引用的相对路径过 `parseFilePath`，`..` 进不来（`assertMaterialRef` 也查）。读文件时 `workspace-files.ts` 逐段 `lstat`、`O_NOFOLLOW`、核根目录的 realpath，符号链接不跟。对应到默认输出目录时先过 `prepareWorkspaceDirectory(…, "read")` |
-| 什么时候失效 | 目录从这个项目移除（`remove_input`、改输出目录后这一行没了），对应在同一个事务里去掉，引用回到未指定。`repair` 换路径时 id 不变，对应不动。文件夹找不到时照旧是 `missing`，由 `repair` 修 |
-| 另一台设备的文件夹名字 | 不同步（本机路径不同步这条不变），这台设备只知道 id 和相对路径。代价：界面上只能写文件名和相对路径，说不出「那台设备上的哪个文件夹」 |
+| 什么时候失效 | 目录从这个项目移除（`remove_input`、改输出目录后这一行没了），对应在同一个事务里去掉，引用回到未指定。`repair` 换路径时 id 不变，对应不动，所以这一行有对应时 `repair` 也过上面「目标和根 Home 不能互相包含」的检查。文件夹找不到时照旧是 `missing`，由 `repair` 修 |
+| 另一台设备的文件夹名字 | 不同步（本机路径不同步这条不变），这台设备只知道 id 和相对路径。代价：原设备上两个目录各有一个 `README.md` 时，这边看到两行一样的，指错了也看不出，所以定样要按 `source_workspace_id` 分组。`workspace-output-` 前缀认得出来，可以写「另一台设备的默认输出目录」，不用同步任何东西 |
+| 两片之间 | 目录实现片合入后、指定文件夹片合入前，不产出 `unmapped`，这些引用照旧是 `missing`，显示「找不到位置」。读取同样被拒，只是还没有入口 |
 
 **这台设备上同路径有同名文件时怎么办。** 分指定之前和指定之后：
 
-- **指定之前不读，也就不会静默读到别的文件。** 默认输出目录两台设备 id 不同（上表「存什么」），用户自己选的目录新发的 id 本来就不同，所以另一台设备的引用在这里一律解析不出来，出处是 `unmapped`，界面显示「未指定文件夹」。不靠比指纹挡，这样没有指纹的引用（`source_refs_json` 只存 `kind:id`）也一样。给 plugin 和 agent 的读取被拒，`materials.recent` 给 plugin 时和 `forbidden`、`missing` 一样不返回。
-- **指定之后读指定的那个文件夹里同路径的文件。** 这是用户说的对应，读到的就算内容不同也不拒绝，但要说出来：有指纹就比，不一样是 `changed`，提示「和引用时不是同一份」；比不了的（`source_refs_json`、`too-large` 只比大小）给 `note`，写明「内容没有核对」。`goals.inputs.bind` 绑本机文件时把指纹写进已有、也同步的 `input_bindings.snapshot_digest`（现在写 null），不改表。同路径没有文件是 `missing`。
-- **一处例外。** 脱钩之前建的行，id 是路径的哈希，两台设备路径相同时 id 也相同，这时不用指定就能读。这和用户在两边选了同一个路径是一回事，靠指纹提示。升级段不改这些 id（改了历史引用就断了）。
-- id 不在本机目录库时，分不清是另一台设备的目录，还是本机移除后删掉的目录，两种都显示未指定，都能指定。本机还有这一行、只是这个项目没关联，照旧是 `forbidden`（SSC-04）。
+- **指定之前不读，也就不会静默读到别的文件。** 默认输出目录两台设备 id 不同（上表「存什么」），用户自己选的目录脱钩之后新发的 id 也不同，所以另一台设备的引用在这里解析不出来，出处是 `unmapped`，界面显示「未指定文件夹」。给 plugin 和 agent 的读取被拒，`materials.recent` 给 plugin 时和 `forbidden`、`missing` 一样不返回。
+- **指定之后读指定的那个文件夹里同路径的文件。** 这是用户说的对应，读到的就算内容不同也不拒绝，但要说出来：有指纹就比，不一样是 `changed`，提示「和引用时不是同一份」；比不了的给 `note`，写明「内容没有核对」。同路径没有文件是 `missing`。
+- **`goals.inputs.bind` 带指纹。** 输入多一个可选的 `read_revision`，调用方读到什么传什么，只是提示，传错了最多多报一次 `changed`。处理器是同步的，不自己读文件。十六进制写成 `sha256:<hex>` 存进已有、也同步的 `input_bindings.snapshot_digest`（和 `goals.inputs.confirm` 同一种形状，`goal-entry-actions.ts:32`），比较时去掉前缀；`size:` 放不进这种形状，写 null。不改表，动作快照要跟着改。没有指纹的绑定显示「内容没有核对」。
+
+**还剩一种静默读：脱钩之前建的目录行。** 这种行的 id 是路径的哈希（`normalizeProjectWorkspace`）。两台设备都在实现片之前把同一个路径加进来（同用户名的两台 Mac 就可能），id 就相同，引用不用指定就走本机目录这条路。分来源看：
+
+| 引用 | 这种情况下 |
+| --- | --- |
+| `MaterialRef` | 实现片才有，`read_revision` 必填。内容不同是 `changed`，内容相同读到的就是同样的内容。不静默 |
+| 实现片之后的 `input_bindings` | 带指纹时同上。不带时界面显示「内容没有核对」 |
+| **实现片之前的 `input_bindings`（本机文件）** | `snapshot_digest` 是 null。界面显示「内容没有核对」，但 Agent 经 `goals.inputs.list` 看到后自己 `knowledge.read`，读到的是这台设备的文件，没有提示。**这是真正静默的那一种。** 现在没有界面调 `goals.inputs.bind`，只有 Agent、MCP 和工作流能写这种行（读代码） |
+| `goal_tree_proposal_items.source_refs_json` | 只存 `kind:id` 字符串，没有指纹，但也没有找到按它打开文件的地方（读代码），所以不读 |
+
+- **升级段不改这些 id。** 别的库也存着（`modules/characters/src/open.ts:37`、冻结的轮次），要逐库改，改漏了本机的历史就断了。
+- **范围。** 只有两台设备都在实现片之前加了同一个路径才会相同：一台设备上的旧行，遇到另一台实现片之后新发的 id，照样是 `unmapped`。所以实现片合入早于首次外部安装时，外部用户是 0。用户自己的设备：实现片之前第二台设备不加相同路径的目录就是 0；已经加了的，实现片之后在其中一台移除再加一次，发新 id，那台的旧引用变成未指定，可以指定。
+
+**相邻两种情况。**
+
+- **本机有这个 id 的行，但这个项目没有关联**（只关联别的项目，或从这个项目移除了）：和 id 不在目录库一样是 `unmapped`，可以指定。读取照旧被拒（SSC-04），对应只把这个项目接到它自己的目录，碰不到别的项目的文件夹。不做成 `forbidden`：那样没有出路，而且同一个操作的结果要看别的项目碰巧用没用这个文件夹。`forbidden` 留给这个项目的目录被撤权（`revoked`）。给的路径正好是这一行时，等于把同一个文件夹加进这个项目，只写关联。
+- **整份 Home 拷到第二台设备，两边都在用：** 不支持。两边是同一个 Home 的两份，所有 id 都相同，默认输出目录也一样，事件 id 也拷过去了，和上面的旧行同样静默。Home 拷过去之后只用一边是支持的。不做检测。
 
 **要定样的新状态（实现片先定样，这个 PR 不定样）：**
 
-1. 未指定的引用长什么样：资料面板的「最近用过」、选择器、引用和出处行、Goals 的输入。只有文件名和相对路径可以写。
+1. 未指定的引用长什么样：资料面板的「最近用过」、选择器、引用和出处行、Goals 的输入。只有文件名和相对路径可以写，要按 `source_workspace_id` 分组，用原设备上两个目录各有一个 `README.md` 来验收；默认输出目录写「另一台设备的默认输出目录」。
 2. 从哪里指定：未指定的那一行上的操作；选已有目录还是新选文件夹，这个项目的默认输出目录怎么放。
-3. 指定时的反馈：一次接回这个目录的全部引用，这件事要说得出来；指定的文件夹里同路径没有文件时的样子。
+3. 指定时的反馈：一次接回这个目录的全部引用，这件事要说得出来，同样按目录分组；指定的文件夹里同路径没有文件时的样子。
 4. 指定之后怎么看、怎么换、怎么取消：目录设置里每个目录的对应，出处行上的入口。
 5. 内容不一样时的「和引用时不是同一份」，和「内容没有核对」的说明。
 6. Agent 或插件读到未指定的引用被拒之后，人在哪里看到、怎么接着做。
 
-**代价。** 两个新动作、一张表、一段升级、一个解析函数和三处读的地方，加上面六个状态。05② 的实现片因此变大，所以拆成单独一片（第 9 节）。
+**代价。** 两个新动作、一张表、一段升级、一个解析函数和四处读的地方，加上面六个状态。05② 的实现片因此变大，所以拆成单独一片（第 9 节）。
 
 **目录的 id 和路径脱钩**（#1805 第 2 条）。现在 `workspace_id` 是路径哈希（`modules/projects/src/workspace.ts` 的 `normalizeProjectWorkspace`），`repair` 换了路径就换了 id，旧关联随之删掉；而资料引用写的是 `<workspace_id>:<相对路径>`，修复以后旧引用就指向一个不存在的 id。改成：
 
@@ -489,8 +533,8 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 **真实 Home 重建不等这份合同（用户 2026-11-06 定）：#1837 合入就按检查单重建。** 分界仍是 02③（统筹 2026-11-04 定），但顺序定了，这份稿子动表的部分都落在重建之后，不再进第 1 版：
 
 - `workspaces` 的 `is_default` 改 `roles`、默认输出目录那一行、删 `project_browsing_settings`、新增 `material_recent_uses`：都走 U1 升级段，并过金样回放（U2）。这几段用户已同意，写的时候不用再问。
-- 默认输出目录那一段（第 3 节「默认输出目录怎么存」）只读写库，不拿 Home，不建文件夹：对每个没有 output 的项目写一行和一条关联。SQL 算不了 sha256，所以写在段的 `run` 里，id 由 `project_id` 和这个项目最早的事件算出来，都是库里已有的列（U1 §8.1）。`workspaces` 不同步，所以每台设备跑出不同的 id 不违反 U1 §2.4「段要确定」：那一条说的是进同步的表。`workspaces` 的各列照第 3 节的「存什么」写，时间取项目的 `created_at`；关联的 `membership_id` 是 `workspace-output-membership-<同一个哈希>`，`bound_by` 是 `molis-work-upgrade`。回收站里的项目也补，不滤 `project_recycle`。这种写法和绝对路径撞不上 `UNIQUE`，`outputs/` 又是新目录，不会有用户早就加过的行，所以这一段不会让目录库失败。
-- `workspace_source_links`（第 3 节，用户 2026-11-07 定指定文件夹）同样走升级段，建一张空表，随「实现（指定文件夹）」那一片写。
+- 默认输出目录那一段（第 3 节「默认输出目录怎么存」）只读写库，不拿 Home，不建文件夹：对每个没有 output 的项目写一行和一条关联。SQL 算不了 sha256，所以写在段的 `run` 里，id 由 `project_id` 和这个项目最早的事件算出来，都是库里已有的列（U1 §8.1）。每个项目都有事件：`insertProject` 只在 `register` 里，同一个事务写第一条。手改的库没有事件时按 §8.1 抛，这个目录库升不上去，不另写恢复。`workspaces` 不同步，所以每台设备跑出不同的 id 不违反 U1 §2.4「段要确定」：那一条说的是进同步的表。`workspaces` 的各列照第 3 节的「存什么」写，时间取项目的 `created_at`；关联的 `membership_id` 是 `workspace-output-membership-<同一个哈希>`，`bound_by` 是 `molis-work-upgrade`。回收站里的项目也补，不滤 `project_recycle`。这种写法和绝对路径撞不上 `UNIQUE`，`outputs/` 又是新目录，不会有用户早就加过的行，所以这一段不会让目录库失败。
+- `workspace_source_links`（第 3 节，用户 2026-11-07 定指定文件夹）同样走升级段，建一张空表，随「实现（指定文件夹）」那一片写。不搬数据，也不是读取兼容，统筹 11-07 定不单独问用户。
 - 组合服务纠正表属第 15 批，到时同样走升级段。
 
 这些段写在 05② 的实现片里，那一片要等 U1 和四份门禁就位（U1 设计第 14 节）。**合同片不动表，也就不等 U1。** 不加读取兼容。`modules/projects` 现在没有升级段（#1805 第 6 条），实现片先给它登记第一段。
@@ -508,11 +552,11 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 | 片 | 内容 | 前置 |
 | --- | --- | --- |
-| C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；动表的部分不在这一片，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`（含 `source_links`）、`RunDirectories`，第 3 节的七个动作与 `materials.recent@1`、`materials.recent.record@1` 的声明；三个错误码；SDK 新的 `presentation` 子路径放 `assertMaterialRef`；api 快照（`contracts/modules/projects.txt`、新 `contracts/platform/project-materials.txt`、新 `plugin-sdk/presentation.txt`）。**只加不删**：现有动作、字段和端口都不动，不碰 `services/agent-host`。动作只声明、不登记，所以动作快照不变 | 不等 02 收尾（用户定放行，撞了就让路）：排在 #1837 之后入队，合入前补 4 处 `version: 1` 的 `@version` 标记和 `tooling/versions.json` 条目。`material_recent_uses` 表挪到实现片走 U1 升级段（用户 2026-11-06 定重建不等 C-1）；这一片只声明动作 |
+| C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；动表的部分不在这一片，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`（含 `source_links`）、`RunDirectories`，第 3 节的七个动作（`set_output`、`map_source` 的目标三选一）与 `materials.recent@1`、`materials.recent.record@1` 的声明；三个错误码；SDK 新的 `presentation` 子路径放 `assertMaterialRef`；api 快照（`contracts/modules/projects.txt`、新 `contracts/platform/project-materials.txt`、新 `plugin-sdk/presentation.txt`）。**只加不删**：现有动作、字段和端口都不动，不碰 `services/agent-host`。动作只声明、不登记，所以动作快照不变 | 不等 02 收尾（用户定放行，撞了就让路）：排在 #1837 之后入队，合入前补 4 处 `version: 1` 的 `@version` 标记和 `tooling/versions.json` 条目。`material_recent_uses` 表挪到实现片走 U1 升级段（用户 2026-11-06 定重建不等 C-1）；这一片只声明动作 |
 | C-2 呈现声明合同 | `platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind；`validatePresentationDeclaration`、`presentationText`、`presentationFormFields`、`renderPresentationForm` 的签名；api 快照 | 02 交接；D 轨把状态环取值下沉到 contracts 的 `platform/ui.ts` 之后 |
 | C-3 组合服务合同 | `services/surface-composition.ts`、`SurfaceGroup`、`surfaces.compose@1`、`surfaces.correct@1` 的声明；context-ledger 的关系类型表；`assertSurfaceDescription`；actions 快照 | C-2；第 14 批 A 段的 `TextRef` 合入 |
-| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；重写 `workspace-repository.ts` 的查询（`is_default` 换 `roles`）时，保留 `:22,57,69` 三处「回收的项目不算」的过滤（`project_recycle`，#1877 加的）；默认输出目录写在 `register` 里，升级段连回收的项目一起补（第 3 节）；第 3 节的路径到行、碰磁盘的调用方和永久删除；删除确认框多的一问和留下文件夹的提示是新状态，先定样；`goals.inputs.bind` 写指纹不在这一片；`RunDirectories` 随轮次视图和冻结轮次信息的字段加进 `services/agent-host`；收资料引用的地方都调 `assertMaterialRef`，它比 schema 严（查 `workspace_file` 的 id 落在目录内），只靠 schema 会放过 `ws1:../secret`；宿主的 `PROJECT_WORKSPACE_PROVIDER_ID`（`apps/local-host/src/project-workspace-actions.ts:7`）改成从合同取；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节） |
-| 实现（指定文件夹） | 第 3 节「另一台设备上的引用」：`workspace_source_links` 和它的升级段、登记 `map_source`、`unmap_source`、`resolveWorkspaceFileSubject` 和三处读的地方、`goals.inputs.bind` 写指纹、界面（六个状态先定样） | 上一行的目录实现片合入（目录 id 脱钩和默认输出目录都在那一片）；定样；U1 和四份门禁 |
+| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；重写 `workspace-repository.ts` 的查询（`is_default` 换 `roles`）时，保留 `:22,57,69` 三处「回收的项目不算」的过滤（`project_recycle`，#1877 加的）；默认输出目录写在 `register` 里，升级段连回收的项目一起补（第 3 节）；第 3 节的路径到行、碰磁盘的调用方和永久删除；第 2 节的 `fingerprintWorkspaceFile` 和 `binary`、`unsupported` 带指纹（改 `WorkspaceFileResult`）；这一片不产出 `unmapped`；删除确认框多的一问和留下文件夹的提示是新状态，先定样；`goals.inputs.bind` 写指纹不在这一片；`RunDirectories` 随轮次视图和冻结轮次信息的字段加进 `services/agent-host`；收资料引用的地方都调 `assertMaterialRef`，它比 schema 严（查 `workspace_file` 的 id 落在目录内），只靠 schema 会放过 `ws1:../secret`；宿主的 `PROJECT_WORKSPACE_PROVIDER_ID`（`apps/local-host/src/project-workspace-actions.ts:7`）改成从合同取；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节）。**发布排序：合入早于首次外部安装**，否则外部用户也有第 3 节「脱钩之前建的目录行」那个缺口 |
+| 实现（指定文件夹） | 第 3 节「另一台设备上的引用」：`workspace_source_links` 和它的升级段、登记 `map_source`、`unmap_source`、`resolveWorkspaceFileSubject` 和四处读的地方、产出 `unmapped`（从这一片起，解析不出的不再显示「找不到位置」）、`goals.inputs.bind` 多 `read_revision`（动作快照跟着改）、界面（六个状态先定样） | 上一行的目录实现片合入（目录 id 脱钩和默认输出目录都在那一片）；定样；U1 和四份门禁 |
 
 ## 10. D 轨的答复（2026-11-04 共审）
 
@@ -535,8 +579,8 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | 6 表与存储 | `workspaces` 去掉 `is_default`、改 `roles`；删 `project_browsing_settings`；新增 `material_recent_uses`（项目库，`modules/projects`）和组合服务的纠正表（项目库与它自己的 Home 库）。都登记进 `table-owners.json`，都走升级段（第 8 节）。新目录 `outputs/`：默认输出目录，登记进 `homeStores()`，第 3 节。新表 `workspace_source_links`（目录库，`modules/projects`），第 3 节 |
 | 7 兼容与迁移 | 不加读取兼容。哈希 id 照旧当不透明字符串用，不从路径推，不算兼容路径。重建之后才落的，走 U1 升级链，这几段用户 2026-11-06 已同意（§8），写的时候不用再问 |
 | 8 安全边界 | 碰。只有输出目录可写，有拒绝测试和不变量一行（SSC-15）；撤权、移除后马上拒绝（SSC-04）；`materials.recent` 给 plugin 不泄露无权项（SSC-12），`excluded` 件数只给 user；`record` 先按调用方授权现读、读不了不记；`host.workspace.changed@1` 的载荷改动核 S-54；默认输出目录的路径由可信 Home 推导，读、建、删都先核（SSC-21）；不写回目录库（SSC-22）；MCP、CLI 删不了这些文件，选择由入口给（SSC-23）；指定文件夹只有 user 能改，目标过校验，写入不认原设备的 id（SSC-27） |
-| 9 调用次数 | values 一次最多 50 个对象；授权核对复用 `discover()`；`record` 一次最多 10 个引用；描述可缓存，值另取 |
-| 10 升级与数据 | 「最近用过」与纠正记录的生命周期写在第 2.1、6 节：裁剪、停用卸载后怎么显示、删项目、Home 快照。默认输出目录不进快照，永久删除时非空才问，用户 2026-11-07 定，否掉的方案和理由在第 3 节（SSC-23）。另一台设备上的引用加指定文件夹，用户 2026-11-07 定，否掉的方案在第 3 节（SSC-25～28）。目录 id 修复后不变，历史引用照读（SSC-16） |
+| 9 调用次数 | values 一次最多 50 个对象；授权核对复用 `discover()`；`record` 一次最多 10 个引用；描述可缓存，值另取。`materials.recent@1` 一次只比前 5 份的内容，每份最多读 8 MB，边读边算（第 2 节）；其余只 `lstat` |
+| 10 升级与数据 | 「最近用过」与纠正记录的生命周期写在第 2.1、6 节：裁剪、停用卸载后怎么显示、删项目、Home 快照。默认输出目录不进快照，永久删除时非空才问，用户 2026-11-07 定，否掉的方案和理由在第 3 节（SSC-23）。另一台设备上的引用加指定文件夹，用户 2026-11-07 定，否掉的方案在第 3 节（SSC-25～28）；脱钩之前建的目录行还剩一种静默读，范围和出路在第 3 节（SSC-29）。目录 id 修复后不变，历史引用照读（SSC-16） |
 | 11 成果与过程项 | `pin` 分 current、fixed（成果库）、snapshot（过程项），不把过程项放进成果库 |
 | 12 页面与外壳 | 浏览位置只是页面状态；形态只用组件板已有的控件拼，缺的由 D 轨先补标本；页面事件按登记改，不新增未登记事件。删除确认框多的一问、留下文件夹的提示和指定文件夹的六个状态（第 3 节）都是新状态，实现片先定样 |
 | 13 错误 | `projects.directory_missing`、`projects.directory_revoked`、`projects.directory_duplicate`，在 `defineErrorCodes("projects", …)` 里声明，不新写 Error 子类 |
@@ -567,12 +611,13 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | SSC-17 | 没传 `workspace_id` 的读、写、执行都取输出目录；要用输入目录必须显式传，并按当前角色核对 | WMD-07、#1805 第 3 条 |
 | SSC-18 | 插件级概况的动作 schema 与平台定的一字不差，否则安装被拒；`start` 只能引用同一次注册里的动作 | #1798 第 12 节第 1 条 |
 | SSC-19 | 只换了授权、别的不变时，`surfaces.compose` 的 revision 也变 | #1798 评审 |
-| SSC-20 | 默认输出目录：目录库里没有路径；Home 拷到别处后读到新位置，原 Home 的文件不变；文件夹没建时 `state` 是 `ok`；升级段不拿 Home、不碰文件，回收站里的项目也有，同一个库两次跑出的 id 相同，两台设备上同一个项目的 id 不同；`project_id` 含 `:` 时引用照样切得对 | WMD-03、S-102 |
+| SSC-20 | 默认输出目录：目录库里没有路径；Home 拷到别处后读到新位置，原 Home 的文件不变；文件夹没建时 `state` 是 `ok`；升级段不拿 Home、不碰文件，回收站里的项目也有，同一个库两次跑出的 id 相同，两台设备上同一个项目的 id 不同（整份 Home 拷过去的除外）；`project_id` 含 `:` 时引用照样切得对 | WMD-03、S-102 |
 | SSC-21 | 这些都被拒（`catalog.project_storage_invalid`），Home 外没有新东西，有断言拒绝本身的测试和安全不变量一行（S-102 的延伸）：项目 id 是 `../../x`；`canonical_path` 手改成 `project-output:../../x`；这一行手工关联到别的项目；`outputs` 或 `outputs/<id>` 是符号链接（读、建各一条，终端和 Git 也拒绝）。选了删时 `outputs` 是符号链接：不删，Home 外的文件还在，这一步留着重试 | S-102 |
-| SSC-22 | 路径到行：`add_input`、`set_output` 给的路径是这个项目的默认位置时认回同一行，是别的项目的或 `outputs/` 里别的位置时被拒；在默认输出目录开终端以后，目录库里还是一行、没有绝对路径；工作目录在这里的会话能解析到所属项目；工作目录在子目录时终端能开，只绑会话，不写目录行；读出来的路径再传给 `upsertWorkspace`，这一行不变 | WMD-02、S-102 |
+| SSC-22 | 新项目改到自己的目录再用 `default_output: true` 设回默认，文件夹没建也成功，id 不变；路径到行：`add_input`、`set_output` 给的路径是这个项目的默认位置时认回同一行，是别的项目的或 `outputs/` 里别的位置时被拒；`repair` 修到 `outputs/` 里被拒；大小写不同的路径也认得出来；在默认输出目录开终端以后，目录库里还是一行、没有绝对路径；工作目录在这里的会话能解析到所属项目；工作目录在子目录时终端能开，只绑会话，不写目录行；读出来的路径再传给 `upsertWorkspace`，这一行不变 | WMD-02、S-102 |
 | SSC-23 | Home 快照不含 `outputs/`，里面有符号链接和 `.sqlite` 也不影响快照，恢复不动它；回收站里文件不动。永久删除：空的不问，非空时只有设置页问；选了留文件还在，结果里有路径；选了删文件没了，失败留着重试，里面的符号链接不跟过去；同一个键换选择被拒；还有任务时选了删被拒。MCP 请求带 `output_files: "delete"`、CLI 和卸载都留着（断言拒绝本身）；示例项目重建不动这些文件；purge 清掉留下的 | 第 3 节，用户 2026-11-07 定 |
 | SSC-24 | 文件夹没建时：新项目第一个终端能开，Character 能启动，Git 面板显示「不是仓库」，Files 列目录读到空 | 第 3 节 |
-| SSC-25 | 另一台设备的引用，指定之前：默认输出目录和用户自己选的目录都是 `unmapped`；这台设备同路径有同名文件时也不读，没有指纹的引用同样；plugin、agent 的读取被拒，`materials.recent` 给 plugin 时不返回 | 第 3 节，用户 2026-11-07 定 |
+| SSC-25 | 另一台设备的引用，指定之前（目录行是脱钩之后建的，旧行见 SSC-29）：默认输出目录和用户自己选的目录都是 `unmapped`；这台设备同路径有同名文件时也不读，没有指纹的引用同样；plugin、agent 的读取被拒，`materials.recent` 给 plugin 时不返回，`record` 不记；本机有这个 id 的行但这个项目没关联时也是 `unmapped`，可以指定，读取仍被拒 | 第 3 节，用户 2026-11-07 定 |
 | SSC-26 | 指定：一条对应接回这个目录的全部引用，引用文字不变，同步回原设备照读；换、取消各一次；目录移除后对应一起去掉；只影响这个项目；同步内容里没有这张表 | 第 3 节 |
-| SSC-27 | 这些都被拒，有断言拒绝本身的测试和安全不变量一行（S-102 的延伸）：plugin、agent、mcp 调 `map_source`；输入里带操作者或项目；目标 realpath 核实不了、是别的项目的默认位置、落在 Home 里；`source_workspace_id` 是本机已有的目录；写动作给原设备的 id；引用路径带 `..` 或经过符号链接 | S-102 |
-| SSC-28 | 指定之后：内容相同是 `ok`，不同是 `changed`，读取不被拒；比不了的有 `note`；`goals.inputs.bind` 绑本机文件时 `snapshot_digest` 有指纹；`read_revision` 不是这两种格式时 `assertMaterialRef` 拒绝 | 第 2、3 节 |
+| SSC-27 | 这些都被拒，有断言拒绝本身的测试和安全不变量一行（S-102 的延伸）：plugin、agent、mcp 调 `map_source`；输入里带操作者或项目；目标 realpath 核实不了、是别的项目的默认位置；目标落在 Home 里、包含 Home（`~`）、在账号 Home 上落在根 Home 或别的账号 Home 里，三种写法都查，路径大小写不同也查；有对应的目录 `repair` 到这些位置；`source_workspace_id` 是这个项目的目录；写动作给原设备的 id；引用路径带 `..` 或经过符号链接 | S-102 |
+| SSC-28 | 指定之后：内容相同是 `ok`，不同是 `changed`，读取不被拒；比不了的有 `note`；`goals.inputs.bind` 传了 `read_revision` 时 `snapshot_digest` 是 `sha256:<hex>`，`size:` 或没传时是 null 并显示「内容没有核对」；`read_revision` 不是这两种格式时 `assertMaterialRef` 拒绝。现读：`bytes` 读到的 300 KB 文本和 PDF 比内容；文本读 `too-large` 和超过 8 MB 的写 `size:`，只比大小，内容变了大小没变时比不出；`materials.recent@1` 一次只比前 5 份的内容，第 6 份起有 `note` | 第 2、3 节 |
+| SSC-29 | 脱钩之前建的行，两台设备路径相同：`MaterialRef` 内容不同是 `changed`；没有指纹的绑定显示「内容没有核对」；在一台设备上移除再加一次后 id 不同，变成 `unmapped`。这条用例钉住的是已知缺口，不是要的行为 | 第 3 节 |

@@ -412,7 +412,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     openShell("settings", "appearance");
   }, 0);
   // After the boot address opened the settings (the two timers above): the return trips are judged against the cover as it is then.
-  setTimeout(() => returns?.start(), 0);
+  // A host without return trips (the standalone settings page) schedules nothing.
+  if (returns) setTimeout(returns.start, 0);
   document.addEventListener("click", (event) => {
     const projectOpener = event.target.closest("[data-directory-open=project-settings]");
     if (projectOpener) {

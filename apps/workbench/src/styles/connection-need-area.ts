@@ -7,7 +7,7 @@
  * The accounts to choose from are the component board's choices, one a line.
  */
 export const CONNECTION_NEED_AREA_STYLES = `
-.connection-need-area__title{flex:1 0 100%;margin:0;overflow:hidden;font-size:14px;font-weight:var(--weight-strong,600);line-height:20px;text-overflow:ellipsis;white-space:nowrap}
+.connection-need-area__title{flex:1 0 100%;margin:0;overflow:hidden;font-size:15px;font-weight:var(--weight-strong,600);line-height:20px;text-overflow:ellipsis;white-space:nowrap}
 .connection-need-area .mw-platform-area__body{display:grid;align-content:start;gap:10px}
 .connection-need-area__quote{margin:0;padding:2px 0 2px 10px;border-left:2px solid var(--line);color:var(--muted);font-size:12px;line-height:18px;overflow-wrap:anywhere}
 .connection-need-area__text,.connection-need-area__wait{margin:0;font-size:13px;line-height:20px;overflow-wrap:anywhere}

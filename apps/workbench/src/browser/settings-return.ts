@@ -54,7 +54,8 @@ export interface SettingsReturn {
   saved(kind: ReturnNeed["kind"], known?: boolean): Promise<void>;
   /**
    * The document's start is done: the settings the boot address asks for (`?settings=`, `?settingsPath=`, as after switching the
-   * language) are open by now, so the trips are judged against the cover as it is. The settings directory calls it once.
+   * language) are open by now, so the trips are judged against the cover as it is. The settings directory calls it once, detached
+   * from this object (a timer callback), so it uses no `this`.
    */
   start(): void;
   paint(): void;

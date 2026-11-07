@@ -157,10 +157,10 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | | `PLUGIN_EVENTS_SCHEMA_SQL` | `plugin_events`、`plugin_event_cursors`、`plugin_event_resolutions` |
 | | `PLUGIN_WIRING_SCHEMA_SQL` | `plugin_port_bindings`、`plugin_port_artifact_bindings`、`plugin_input_groups`、`plugin_port_outputs` |
 | | `PLUGIN_PROJECT_DATABASES_SCHEMA_SQL` | `plugin_project_databases`（插件的表的账本：谁的、哪个发布者、第几版） |
-| `horizontal/scheduler` | `SCHEDULER_SCHEMA_SQL` | `schedule_jobs`、`schedule_wakeups` |
+| `horizontal/scheduler` | `SCHEDULER_SCHEMA_SQL` | `schedule_jobs`、`schedule_wakeups`、`schedule_action_bindings` |
 | `apps/local-host` | `PROJECT_BROWSING_SETTINGS_SCHEMA_SQL`（`src/project-browsing-settings.ts`） | `project_browsing_settings` |
 
-owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是空操作；改任何一段都要提高项目库的版本（`PROJECT_DATABASE_BASELINE.version`）。
+项目库的表由这份基线建。个别 owner 打开时还会执行 `IF NOT EXISTS`（见 BL-context-ledger-initialize-schema），在这里是空操作；改任何一段都要提高项目库的版本（`PROJECT_DATABASE_BASELINE.version`）。
 
 宿主自己按需建的表也不在基线里：`project_runtime_settings(project_id, runtime_id)`（`apps/local-host/src/project-runtime-settings.ts`）记项目选定的 Agent 运行时，第一次选择时才建表，没有行就是 Home 默认；读取不建表，删除项目时随项目库文件一起走。只有 `apps/local-host` 读写这张表，Coding 与 Characters 经 `projects.settings.runtime.read` 取。
 

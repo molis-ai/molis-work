@@ -186,7 +186,7 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
 | `memory-ledger.ts:110` | 自写 | 同上 |
 | `installed-plugin-libraries.ts:71`（账本） | 自写，核账漏 | 同上 |
 | `installed-plugin-libraries.ts:121`（已装的库） | 自写 | 留下，这是 U4 的版本；错误码改 §9.1 的码 |
-| `catalog-schema.ts:47-52`、`project-catalog-contract.ts:41-46` | `catalogSchemaCompatibilityError`、`catalog.reader_too_old` | 用适配读版本，走同一分类。`reader_too_old` 的提示语是 MCP 用的，保留文字改码 |
+| `catalog-schema.ts:47-52`、`project-catalog-contract.ts:41-46` | `catalogSchemaCompatibilityError`、`catalog.reader_too_old` | 用适配读版本，走同一分类。`reader_too_old` 的提示语先说升级 Molis Work，已升级的再重启并新开 Session |
 | `project-catalog-replication.ts:12`（读 `inspectCatalogFile`） | #1877 新增，宿主运行中，只读 | 同目录库走同一分类 |
 | `aggregate-copy-store.ts:28`（`openOwnerCopyStore`，#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | 改调 `checkSqliteBaselineVersion`。两个函数收基线却不进 `checkBaselineCalls` 名单（§11.3），一并登记 |
 | Alchemist `sync/open.ts:27-29`（#1877 新增） | 自写，抛 `SqliteSchemaVersionError` | 同上，分类用 Alchemist 自己的打开函数读到的版本 |

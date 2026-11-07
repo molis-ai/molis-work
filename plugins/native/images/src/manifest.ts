@@ -9,7 +9,7 @@ import { imagesSync } from './replication.js';
 
 import { IMAGES_MESSAGES } from "./messages.js";
 import { IMAGES_EN } from "./en.js";
-export const IMAGES_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.native.images.ui "io.molis.work.native.images.ui.v{version}" */ "io.molis.work.native.images.ui.v1";
+export const IMAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.images.ui.v1";
 const routes: PluginRouteDeclaration[] = [
   {route_id:"images.connections.list",method:"GET",path:"/connections",permission:"images:connections:read"},
   {route_id:"images.connections.save",method:"POST",path:"/connections",permission:"images:connections:write"},

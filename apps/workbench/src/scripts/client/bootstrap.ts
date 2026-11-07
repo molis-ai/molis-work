@@ -9,6 +9,9 @@ import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
  * - `paneMessages`: the one split-pane message check (S-30, `pane-messages.ts`), handed to the factories that listen for
  *   pane messages (the tab workspace, the context actions) so the page carries it once.
  */
+/** Page-local state: a saved directory from another version is not restored, and the page opens at the root. */
+const DESKTOP_NAVIGATION_STATE = /* @version format.workbench.navigation-state */ 1;
+
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const q = (selector) => document.querySelector(selector);
     const goalData = q("#molis-work-data");
@@ -48,7 +51,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         ? goalUiStorageKey + ":archive"
         : currentGoalUiStorageKey;
     const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.project_id);
-    const desktopNavigationStateVersion = 4;
+    const desktopNavigationStateVersion = ${DESKTOP_NAVIGATION_STATE};
     let immersiveNavigation = null;
     let frameContainer = null;
     let tabWorkspace = null;

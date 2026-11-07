@@ -190,7 +190,7 @@ function requiredText(value: unknown, field: string, maxLength: number): string 
  * ------------------------------------------------------------------ */
 
 export const WORKSPACE_REF_TYPE = /* @version type.workspace.ref "workspace.ref.v{version}" */ "workspace.ref.v1";
-export const WORKSPACE_REF_SCHEMA_VERSION = /* @version format.contracts.workspace_ref_schema */ 1;
+export const WORKSPACE_REF_SCHEMA_VERSION = /* @version type.workspace.ref */ 1;
 
 export const WORKSPACE_NAME_MAX_LENGTH = 256;
 export const WORKSPACE_HANDLE_MAX_LENGTH = 128;
@@ -327,7 +327,7 @@ export function samePath(left: readonly string[], right: readonly string[]): boo
  * ------------------------------------------------------------------ */
 
 export const FILE_SNAPSHOT_TYPE = /* @version type.files.snapshot "files.snapshot.v{version}" */ "files.snapshot.v1";
-export const FILE_SNAPSHOT_SCHEMA_VERSION = /* @version format.contracts.file_snapshot_schema */ 1;
+export const FILE_SNAPSHOT_SCHEMA_VERSION = /* @version type.files.snapshot */ 1;
 
 /** Above this, a snapshot is a reference rather than an inline payload. */
 export const FILE_SNAPSHOT_MAX_INLINE_BYTES = 1_048_576;
@@ -375,7 +375,7 @@ export function fileSnapshotFitsInline(content: FileSnapshot): boolean {
 }
 
 export const FILE_TEXT_SELECTION_TYPE = /* @version type.files.text-selection "files.text-selection.v{version}" */ "files.text-selection.v1";
-export const FILE_TEXT_SELECTION_SCHEMA_VERSION = /* @version format.contracts.file_text_selection_schema */ 1;
+export const FILE_TEXT_SELECTION_SCHEMA_VERSION = /* @version type.files.text-selection */ 1;
 
 export interface FileTextSelection extends FileSnapshot {
   /** UTF-16 code unit offsets into the file, half-open. */
@@ -425,7 +425,7 @@ export function selectionCitationLabel(selection: FileTextSelection): string {
  * ------------------------------------------------------------------ */
 
 export const FILES_COLLECTION_TYPE = /* @version type.files.collection "files.collection.v{version}" */ "files.collection.v1";
-export const FILES_COLLECTION_SCHEMA_VERSION = /* @version format.contracts.files_collection_schema */ 1;
+export const FILES_COLLECTION_SCHEMA_VERSION = /* @version type.files.collection */ 1;
 
 export interface FilesCollectionAccess {
   /** Opaque Host handle for the workspace root. Never a path. */
@@ -489,7 +489,7 @@ export function parseFilesCollection(content: unknown): FilesCollection {
  * ------------------------------------------------------------------ */
 
 export const DIFF_CHANGESET_TYPE = /* @version type.diff.changeset "diff.changeset.v{version}" */ "diff.changeset.v1";
-export const DIFF_CHANGESET_SCHEMA_VERSION = /* @version format.contracts.diff_changeset_schema */ 1;
+export const DIFF_CHANGESET_SCHEMA_VERSION = /* @version type.diff.changeset */ 1;
 
 export type ChangeSetSource =
   | { kind: "run"; run_id: string }
@@ -582,7 +582,7 @@ function parseChangeSetSource(value: unknown): ChangeSetSource {
  * ------------------------------------------------------------------ */
 
 export const GIT_RESULT_TYPE = /* @version type.git.result "git.result.v{version}" */ "git.result.v1";
-export const GIT_RESULT_SCHEMA_VERSION = /* @version format.contracts.git_result_schema */ 1;
+export const GIT_RESULT_SCHEMA_VERSION = /* @version type.git.result */ 1;
 
 export type GitResultOutcome =
   | "succeeded"

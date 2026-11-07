@@ -31,9 +31,9 @@ Returned recovery fields such as next_action=context_resolve_then_retry, require
 
 ## An older Runtime reader
 
-catalog.reader_too_old means a Runtime/catalog version mismatch. Report the actual and supported schema versions; do not edit or roll back the database. The running MCP process cannot hot-reload itself.
+catalog.reader_too_old means a newer build wrote the catalog than the Runtime reading it, and this build reads only its own version. Report the actual and supported schema versions; do not edit or roll back the database. The next step is to upgrade Molis Work to a build that reads it. If it has already been upgraded, the running MCP process cannot hot-reload itself: restart the service and continue from a new Session.
 
-Continue from an available new or forked Session with a compatible reader; ask for a new one only when needed. Before writing there, verify the actual host-visible task focus and call context_resolve. Navigation alone does not prove that the next message reached the new task. A suggested project still follows normal selection rules. Preserve the old task and its work; do not terminate it automatically or route writes through CLI/SQLite.
+Before writing there, verify the actual host-visible task focus and call context_resolve. Navigation alone does not prove that the next message reached the new task. A suggested project still follows normal selection rules. Preserve the old task and its work; do not terminate it automatically or route writes through CLI/SQLite.
 
 ## Project operations have different effects
 

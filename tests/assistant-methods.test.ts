@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, registerAssistantRuleActions } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
@@ -110,6 +110,12 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     assert.ok(!second.includes("用户为这一轮选定的方法"), "a chosen method is for its own round only");
     assert.ok(second.includes("可用的方法") && second.includes(PAGES_METHOD), "the round sees which methods it can read");
     assert.ok(second.includes("input 是对象，例如") && second.includes("method_id"), "and exactly how to read one (its input is an object)");
+    // The gateway matches capability, version and provider exactly, so the identity the round is told is the registered one, not a copy of it.
+    let registered: { definitions: Array<{ capability_id: string; version: number; provider_id: string }> } | undefined;
+    registerAssistantRuleActions({ registerProvider: (provider: NonNullable<typeof registered>) => { registered = provider; return () => {}; } } as never, () => service, home);
+    const methodRead = registered?.definitions.find(definition => definition.capability_id === "assistant.methods.read");
+    assert.ok(methodRead, "the read action is registered");
+    assert.ok(second.includes(`capability_id 为 assistant.methods.read，version 为 ${methodRead.version}，provider_id 为 ${methodRead.provider_id}。`), "the round is told the action's registered version");
 
     // Reading one, as the round's own read action does; one that is not offered here is refused with why.
     const read = await service.reads.readMethod(service.reads.workRecord(sent.work.work_id), PAGES_METHOD);

@@ -61,7 +61,7 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_READER_ROLE,
-      version: /* @version role.reader */ 1,
+      version: /* @version role.coding.reader */ 1,
       name: "阅读者",
       execution: "read-only",
       prompts: ["coding-base", "coding-reader"],

@@ -80,7 +80,7 @@ export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan
 export { hasReplicaHistory,replicaApplyingSql, replicaSchemaSql, initializeReplica, replicaMarkSql, replicaMarkRowsSql, queueReplicaChange, replicaTransaction, createSqliteReplica, namespacedReplicaDatabase, type ReplicaInputValue,type ReplicaOutputValue,type ReplicaDatabase, type SqliteReplica, type ReplicaReceiveDisposition } from './replica.js';
 export { AGGREGATE_REPLICA_SCHEMA_SQL, initializeAggregateReplication, createAggregateReplica, type AggregateDefinition, type AggregateRecords, type AggregateReplicaContext, type PortableRow } from './aggregate-replica.js';
 export { createProjectReplicaSection, installProjectReplicaJournal, validateProjectReplicaRows } from './project-replica.js';
-export { createProjectContentReplicaFactory, validateProjectContentReplication } from './project-replica-content.js';
+export { PROJECT_SECTIONS_INLINE_ENCODING, createProjectContentReplicaFactory, validateProjectContentReplication } from './project-replica-content.js';
 export { createProjectReplicaJournal, validateProjectReplicaJournal } from './project-replica-journal.js';
 export { mapReplicaSequences } from './replica-sequences.js';
 

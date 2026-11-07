@@ -1118,7 +1118,7 @@
  "tests/plugin-list-developer-mode.test.ts": 4,
  "tests/plugin-local-tools-declaration.test.ts": 3,
  "tests/plugin-local-tools-service.test.ts": 16,
- "tests/plugin-manifest-v2.test.ts": 1,
+ "tests/plugin-manifest.test.ts": 1,
  "tests/plugin-market-catalog.test.ts": 9,
  "tests/plugin-market-upgrade.e2e.test.ts": 22,
  "tests/plugin-materials-allowed-domains.test.ts": 1,

@@ -269,11 +269,6 @@
     "reason": "GitHub API 的日期版本，由外部服务制定，按 N34 约定不算自有版本。"
   },
   {
-    "file": "modules/artifacts/src/artifact-provider.ts",
-    "name": "plugin_version",
-    "reason": "平台成果的固定生产者身份，批次 02 写明产品复位时不动，写进已有成果的出处。"
-  },
-  {
     "file": "horizontal/agent-host/src/adapters/plugin-builder.ts",
     "name": "version",
     "reason": "每次创作运行临时发布的 Prologue 角色，修订号占位为 1，运行结束即弃。"
@@ -466,5 +461,225 @@
     "file": "plugins/native/git/src/browser/request.ts",
     "name": "version",
     "reason": "Git 内嵌页按路由拼出动作 id，发一个共同的版本；一张逐动作的表放不进页面资源预算。这个字面量与它能到的动作条目相等，由 tests/version-source.test.ts 核对，其中一个动作升版本时那条测试失败，届时再改成逐动作传。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-node-port.ts",
+    "name": "version",
+    "reason": "Prologue SDK 定义的命令回执（WORKSPACE_COMMAND_RECEIPT_KIND）的版本字段，我们只读取和比较，升级由 vendored SDK 决定。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-node-port.ts",
+    "name": "schema",
+    "reason": "Git 审查决定写进 Host 存储时带的 metadata 标签：宿主和 SDK 都不读、不比较这个值，改它没有业务含义。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-node-parts.ts",
+    "name": "schema",
+    "reason": "项目工作记录写进 Host 存储时带的 metadata 标签：宿主和 SDK 都不读、不比较这个值，改它没有业务含义。"
+  },
+  {
+    "file": "modules/artifacts/src/fixed-version-replication-shape.ts",
+    "name": "format",
+    "reason": "同一字段的两个编码判别值（内联 1、附件或分块 2），按内容大小选，不是版本；放进版本表，内联升版就和另一种编码相撞。"
+  },
+  {
+    "file": "modules/artifacts/src/sync-content.ts",
+    "name": "format",
+    "reason": "同一字段的两个编码判别值（内联 1、附件或分块 2），按内容大小选，不是版本；放进版本表，内联升版就和另一种编码相撞。"
+  },
+  {
+    "file": "packages/storage/src/project-replica-content.ts",
+    "name": "format",
+    "reason": "同一字段的两个编码判别值（内联 1、附件或分块 2），按内容大小选，不是版本；放进版本表，内联升版就和另一种编码相撞。"
+  },
+  {
+    "file": "apps/local-host/src/project-goal-content.ts",
+    "name": "format",
+    "reason": "同一字段的两个编码判别值（内联 1、附件或分块 2），按内容大小选，不是版本；放进版本表，内联升版就和另一种编码相撞。"
+  },
+  {
+    "file": "apps/workbench/src/artifacts/browser-ui.ts",
+    "name": "io.molis.work.native.artifacts.browser.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "apps/workbench/src/artifacts/reference-ui.ts",
+    "name": "io.molis.work.native.artifacts.reference.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/alchemist/src/ui.ts",
+    "name": "io.molis.work.native.alchemist.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/coding/src/ui.ts",
+    "name": "io.molis.work.native.coding.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/coding/src/ui.ts",
+    "name": "io.molis.work.native.coding.settings.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/cognia/src/ui.ts",
+    "name": "io.molis.work.cognia.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/dataset/src/ui.ts",
+    "name": "io.molis.work.native.dataset.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/diff/src/ui.ts",
+    "name": "io.molis.work.native.diff.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/feed/src/ui.ts",
+    "name": "io.molis.work.native.feed.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/files/src/ui.ts",
+    "name": "io.molis.work.native.files.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/form/src/ui.ts",
+    "name": "io.molis.work.native.form.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/git/src/ui.ts",
+    "name": "io.molis.work.native.git.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/context-ui.ts",
+    "name": "io.molis.work.native.goals.context.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/dialogs-ui.ts",
+    "name": "io.molis.work.native.goals.dialogs.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/document-ui.ts",
+    "name": "io.molis.work.native.goals.document.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/factors-ui.ts",
+    "name": "io.molis.work.native.goals.factors.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/momentum-ui.ts",
+    "name": "io.molis.work.native.goals.momentum.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/planning-ui.ts",
+    "name": "io.molis.work.native.goals.planning.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/policy-ui.ts",
+    "name": "io.molis.work.native.goals.policy.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/relation-ui.ts",
+    "name": "io.molis.work.native.goals.relations.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/settings-ui.ts",
+    "name": "io.molis.work.goals.settings.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/status-ui.ts",
+    "name": "io.molis.work.native.goals.status.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/goals/src/tree-ui.ts",
+    "name": "io.molis.work.native.goals.tree.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/images/src/manifest.ts",
+    "name": "io.molis.work.native.images.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/inbox/src/ui.ts",
+    "name": "io.molis.work.native.inbox.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/issues/src/manifest.ts",
+    "name": "io.molis.work.native.issues.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/jelly/src/ui.ts",
+    "name": "io.molis.work.jelly.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/lingguang/src/ui.ts",
+    "name": "io.molis.work.lingguang.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/pages/src/ui.ts",
+    "name": "io.molis.work.native.pages.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/plugin-builder/src/manifest.ts",
+    "name": "io.molis.work.plugin-builder.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/ppt/src/ui.ts",
+    "name": "io.molis.work.native.ppt.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/schedule/src/ui.ts",
+    "name": "io.molis.work.native.schedule.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/shelf/src/settings-ui.ts",
+    "name": "io.molis.work.native.shelf.settings.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/shelf/src/ui.ts",
+    "name": "io.molis.work.native.shelf.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/text-stats/src/ui.ts",
+    "name": "io.molis.work.native.text-stats.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/todo/src/ui.ts",
+    "name": "io.molis.work.native.todo.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "plugins/native/workflows/src/ui.ts",
+    "name": "io.molis.work.workflows.ui.v1",
+    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   }
 ]

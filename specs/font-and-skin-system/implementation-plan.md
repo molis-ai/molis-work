@@ -10,7 +10,9 @@
 
 采用 **JSON 定义文件 + 单份解析校验 + 现有组件渲染器 + Host 管理配置 + 每个文档的展示控制器**。
 
-文件承载字体方案、皮肤值、组件外观规格和语言文案。控件行为、业务布局、身份、授权与可靠写入仍由代码负责。不把程序序列化进 JSON，不生成任意 CSS/JS，也不引入新的通用配置框架、数据库或 workspace 包。
+A 段（路线书第 14 批）的合同写到字段级，在 [A 段合同设计稿](a-section-contract.md)；它和本文的字段、文件名不一致时，以它为准。
+
+文件承载字体方案、皮肤值、组件外观规格和语言文案。控件行为、业务布局、身份、授权与可靠写入仍由代码负责。不把程序序列化进 JSON，不生成任意 CSS/JS，也不引入新的通用配置框架或数据库；A 段不加 workspace 包，B 段的外观主人按下面第 3 节的说明进 `horizontal/`。
 
 三个明确取舍：
 
@@ -52,9 +54,9 @@ flowchart TD
 | 位置（新增位置均为提案） | 职责及禁止承担的事 |
 | --- | --- |
 | `packages/contracts` 的现有 `platform/ui`、`platform/plugin` 等子路径 | UI 中定义文件形状、资源/版本引用、`TextRef` 与展示快照，Plugin 中只补实际需要的资源声明；纯类型/声明式 schema，不做 I/O 或运行解析，不预先增加另一套合同子路径 |
-| `packages/plugin-sdk/src/ui/` | 共享文件解析、有限 resolver、消息工具与浏览器绑定，公开为可在 Node/浏览器使用的 `@molis-ai/molis-work-plugin-sdk/ui` 入口。只依赖 contracts，无 Node 内建模块、私有 Design System、Home 或模型依赖 |
+| `packages/plugin-sdk/src/ui/` | 共享文件解析、有限 resolver、消息工具与浏览器绑定，加在现有的 `@molis-ai/molis-work-plugin-sdk/ui` 入口里（这个入口已存在，不新开），Node 与浏览器都能用。只依赖 contracts，无 Node 内建模块、私有 Design System、Home 或模型依赖 |
 | `packages/design-system` | 保留 render helper、组件行为、固定选择器/状态映射、一次结构样式；内置规格/皮肤/字体资源置于包的 `resources/`，由公开资源描述交给 Host；不读用户配置文件 |
-| `apps/local-host/src/interface/` | `files` 管版本文件与原子提交，`assets` 管导入/路径/实际字体，`selection` 管选择/撤销/幂等，`snapshots` 管可重建投影，`actions` 管授权接缝，`preview` 管可信验收。使用函数与小组合对象，文件 owner 不导出私人存储实现 |
+| `horizontal/` 下的新包（2026-11-07 改：用户 2026-11-01 定新的平台服务放 `horizontal/`，原写 `apps/local-host/src/interface/`，B 段照此落） | `files` 管版本文件与原子提交，`assets` 管导入/路径/实际字体，`selection` 管选择/撤销/幂等，`snapshots` 管可重建投影，`actions` 管授权接缝，`preview` 管可信验收。使用函数与小组合对象，文件 owner 不导出私人存储实现 |
 | `apps/workbench` | 设置与标准板入口、首屏快照、设备偏好、文字绑定、显示状态；不直接写 Home、SQL 或调用私有模型客户端 |
 | `apps/desktop` | WebView 与菜单栏胶囊接入同一展示客户端；原生菜单/连接提示接收可信文字投影。Rust 不另建皮肤引擎、译文表或模型入口 |
 | `packages/ui-host` | 注入已准备的展示客户端/快照，挂载释放、嵌入的来源与版本校验；不解释皮肤业务或保存第二份选择 |
@@ -64,7 +66,7 @@ Host 中的 `interface/` 是平台配置的现有 App 边界内模块，不是�
 
 公开字段及校验 schema 在合同包集中定义；SDK 复用合同类型/schema，组件名单从共同规格与真实代码绑定核对，不再维护三套独立的字段/组件常量表。沿用已有类型和 schema 工具，不为此新建代码生成器或改造全仓 schema 系统。JSON 里的组件描述是元数据，可信代码绑定才决定执行能力。
 
-现有 [SDK 根入口](../../packages/plugin-sdk/src/index.ts)导入 `node:crypto`，不能直接给浏览器使用。新的 `/ui` 是为真实环境边界增加的窄入口，服务端也从它取同一份工具；无需新增 workspace 包，也不顺手拆 SDK 的其他出口。SDK 不输出私有组件 CSS：平台消费方由 Host 注入共同样式，外部自绘界面读取公开角色，渲染适配器留在各自边界。
+现有 [SDK 根入口](../../packages/plugin-sdk/src/index.ts)导入 `node:crypto`，不能直接给浏览器使用。新的 `/ui` 是为真实环境边界增加的窄入口，服务端也从它取同一份工具；无需新增 workspace 包，也不拆 SDK 的其他出口。SDK 不输出私有组件 CSS：平台消费方由 Host 注入共同样式，外部自绘界面读取公开角色，渲染适配器留在各自边界。
 
 浏览器工具采用可类型检查的模块和现有打包路径，不新增几百行未检查的 JS 模板字符串。依赖方向、公开出口、无 Node polyfill 和入口的实际消费，在落地时用 `boundary:check`、API 快照与真实两包外部样例证明。
 
@@ -137,7 +139,7 @@ Host 中的 `interface/` 是平台配置的现有 App 边界内模块，不是�
   "direction": "ltr",
   "revision": 1,
   "messages": {
-    "common.cancel": { "text": "Cancel" },
+    "common.cancel": "Cancel",
     "common.items": {
       "plural_arg": "count",
       "forms": { "one": "{count} item", "other": "{count} items" }
@@ -154,7 +156,7 @@ Host 中的 `interface/` 是平台配置的现有 App 边界内模块，不是�
 
 ```text
 发行物 / 每个拥有定义的包
-  resources/interface.json               共同规格（Design System）
+  resources/ui-spec.json                 共同规格（Design System）。2026-11-07 改名：沙箱包已有 interface.json
   resources/skins/soft-workbench.json     内置皮肤
   resources/skins/folio.json
   resources/fonts/*.json                 内置字体方案
@@ -206,7 +208,7 @@ Host 不能读取浏览器 localStorage。启动投影因此携带所选皮肤�
 
 1. 读取所选文件与资源，解析结构/引用/语义，核对校验记录对应的准确版本。新的草稿先完成必要真实渲染校验。
 2. 发起入口准备本次所需的 FontFace、配方和已挂载 owner 的语言表，实际资源失败则保持原版并报告；字体加载中可以显示声明后备，不宣称目标 face 已完成。准备结果绑定外观来源、当前文案/规格/资源版本及该文档本次更新序号；过期异步结果不能盖回较新的选择。纯确定切换复用同版本有效校验，不重新调用模型或重复浏览器全套验收。
-3. Home 级外观应用在短提交前调用 `beforeEffect()`，核对 revision/身份/授权，原子保存选择和 request_id 结果。语言只更新入口偏好，保留现有 Cookie 作为该维度的权威选择，不再同时创建另一份语言选择 owner；明暗/密度仍使用其现有设备存储。
+3. Home 级外观应用在短提交前调用 `beforeEffect()`，核对 revision/身份/授权，原子保存选择和 request_id 结果。语言只更新入口偏好，保留现有 Cookie 作为该维度的权威选择，不再同时创建另一份语言选择 owner；明暗/密度仍使用其现有设备存储。（2026-11-07 加：用户定没有页面的工作跟最后一次用的语言，这项 Home 级记录归宿主，不决定任何页面显示，不是第二份语言选择，见 A 段设计稿第 15.1 节。）
 4. 文档控制器在一次同步更新中切换变量/规则、消息投影与绑定属性，再发布改变事件；不让消费者在两种有效快照中间读取。保留原 DOM 节点、输入值、事件、草稿与执行会话，不以重新 mount 或整页 HTML 替换完成切换。较晚返回的片段/状态用当前文案重新投影，新增挂载先绑定当前快照，不能把请求发出时的语言重新插回页面。
 5. Host 通知 Home 级 revision 变化，各窗口读取权威快照；同入口语言变化经同源通知同步。通知只携带失效信号/版本，不授予写权限。窗口隐藏后恢复时先重读，再更新展示。
 
@@ -296,11 +298,11 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 **⑥ 语言文件怎样随插件走**
 
-- Manifest 为每种语言声明一个包内路径（如 `resources/locales/en.json`），校验与入口文件同一份 `assertPluginPackagePath`（[package-verification.ts](../../packages/plugin-runtime/src/package-verification.ts)），包里缺文件即拒装。现行 Manifest 唯一的文件字段是 `entrypoints[].entrypoint`，这是合同改动，按 [合同变化规则](../../docs/system/CONTRACT-CHANGES.md) 刷新 API 与动作快照。
-- 现行发行物只存 `{manifest, module_source}`（[release-artifacts.ts](../../packages/plugin-runtime/src/release-artifacts.ts) 的 `createPluginRuntimeReleaseArtifact`），装好后包里的别的文件读不到。语言文件要进发行物（解析后的内容随发行物签名与指纹走），内置插件的发行物构建（[native-plugin-release-artifact.ts](../../apps/local-host/src/native-plugin-release-artifact.ts)）同样读各插件的 `resources/locales/`。内置插件现在的 `PluginRegistration.messages` 与工作台 `*_EN` 词典是另一条路，切换后删掉，不留两份。
-- 键由能力 id 导出（`action.<capability_id>.title|description|summary`），不另起名字；声明里的原文仍是默认语言，模型、MCP 工具说明与回执用它。
+- Manifest 写 `ui.locales: { default, available }`，文件按约定放在包内 `locales/<语言>.json`，包里缺文件即拒装（2026-11-07 改：原写每种语言声明一个路径；约定路径少写一项，也不用校验路径）。这是合同改动，按 [合同变化规则](../../docs/system/CONTRACT-CHANGES.md) 刷新 API 快照。
+- 现行发行物只存 `{manifest, module_source}`（[release-artifacts.ts](../../packages/plugin-runtime/src/release-artifacts.ts) 的 `createPluginRuntimeReleaseArtifact`），插件代码读不到包里的别的文件，所以语言文件由平台读。2026-11-07 改：原写语言文件进发行物；发行物存档只有内置插件写，而内置插件走当前构建、不从存档恢复，所以不进存档。外部包走已签名的包文件，内置走包目录，见 [A 段合同设计稿](a-section-contract.md)第 6 节。内置插件现在的 Manifest `ui.messages`、`ui.translations` 与工作台 `*_EN` 词典是另一条路，切换后删掉，不留两份（`PluginRegistration.messages` 已经删了，见 [plugin-registration.ts](../../packages/contracts/src/platform/plugin-registration.ts)）。
+- 键由能力 id 导出，不另起名字；声明里的原文仍是默认语言，MCP 工具说明与回执用它；助理能力目录给模型的那份按 A 段设计稿第 15.5 节量过再定（2026-11-07 改，用户要求内容跟语言走）。2026-11-07 改：原写 `action.<capability_id>.title|description|summary`，这样的键过不了 `STABLE_KEY`（最多 5 段、开头是主人名），写法改成 `<主人名>.action.<能力 id 去掉插件前缀，点换连字符>.<部分>`，见 [A 段合同设计稿](a-section-contract.md)第 2.4 节。
 - 宿主按（插件、语言）解析一次，缓存键带语言；语言来自入口：页面请求用 `pageLocale()`（[web-locale.ts](../../apps/local-host/src/web-locale.ts)），动作里用执行上下文的 `locale`。助理步骤行的目标名现在在 `presentActivity`（[assistant-service.ts](../../apps/local-host/src/assistant/assistant-service.ts)）里按动作标题取，缓存不分语言，要改成按轮次的语言取。
-- 要换成按语言取的表面：助理步骤行与结果卡（[assistant-result-card.ts](../../apps/local-host/src/assistant/assistant-result-card.ts)）、助理的能力目录说明（[assistant-directory.ts](../../apps/local-host/src/assistant/assistant-directory.ts) 给模型的那份不换）、设置 › 助理的能力列表、能力库（[capabilities.ts](../../apps/workbench/src/capabilities.ts)）、对外授权的工具标题与调用记录。逐处列清单后在英文实走里断言（§6.1 的检查盲区）。
+- 要换成按语言取的表面：助理步骤行与结果卡（[assistant-result-card.ts](../../apps/local-host/src/assistant/assistant-result-card.ts)）、助理的能力目录说明（[assistant-directory.ts](../../apps/local-host/src/assistant/assistant-directory.ts) 给模型的那份按 A 段设计稿第 15.5 节量过再定）、设置 › 助理的能力列表、能力库（[capabilities.ts](../../apps/workbench/src/capabilities.ts)）、对外授权的工具标题与调用记录。逐处列清单后在英文实走里断言（§6.1 的检查盲区）。
 
 **⑦ 结果摘要**
 
@@ -365,15 +367,17 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 制作 Skill 随产品发布并登记，不安装到用户外部 Runtime 全局目录。验证 clean release 的资源与 Skill 存在、实际模型请求携带正确正文/版本；手册存在和文件存在仅是局部证据。
 
+**分批（用户 2026-11-07 要求写进开发流程和手册）：** 第 14 批先交插件手册一章、开发流程、`AGENTS.md`、术语表，只写今天走得通的；第 16 批交脚手架、`generated-*.md` 与 Builder 挂载章节、手册删旧写法；第 70 批只剩 `DESIGN.md` 的皮肤章节、个人助理的外观 Skill 和交付前核对。见 [A 段设计稿](a-section-contract.md)第 16 节。
+
 ## 11. 开发与切换顺序（仅属于本方案）
 
 | 阶段 | 产出与依赖 | 合入/切换条件 |
 | --- | --- | --- |
-| A：合同与共享文件工具 | 在现有 UI/Plugin 合同定义 JSON/TextRef/快照/资源协议，SDK `/ui` 及共享工具；从现有值提取完整基线文件 | 不加入空占位 API 或读取双轨；真实 Host/浏览器消费者、无 Node polyfill 的两包样例成立；先核对 §12 的资源门禁决定 |
+| A：合同与共享文件工具 | 在现有 UI/Plugin 合同定义 JSON/TextRef/快照/资源协议，SDK `/ui` 及共享工具；从现有值提取完整基线文件；回复语言（T10）；手册与开发流程（T9b） | 不加入空占位 API 或读取双轨；真实 Host/浏览器消费者、无 Node polyfill 的两包样例成立；先核对 §12 的资源门禁决定 |
 | B：基线与真实切片 | Host owner、首屏、共同组件/规格板、Soft/Folio、字体、单插件和 Builder 切片 | 在隔离 Home 的真实工作台验证，保留当前业务与布局，CSS 不依赖新尾层压旧层；切片不宣称全平台完成 |
-| C：全入口与文案转换 | 现存插件、嵌入、稳定键/绑定、目录/状态、生成插件发布副本和公开 SDK | 各包可在开发分支独立准备，最终整合后一次切换现行 translator/renderer；不合入已改稳定键却仍用旧 EN 的半成品 |
+| C：全入口与文案转换 | 现存插件、嵌入、稳定键（2026-11-07 改：不再有绑定标记，切语言走 A 段设计稿第 5.4 节的三方文字合并）、目录/状态、生成插件发布副本和公开 SDK；内容翻译（第 15 节）；脚手架与 Builder 挂载章节 | 各包可在开发分支独立准备，最终整合后一次切换现行 translator/renderer；不合入已改稳定键却仍用旧 EN 的半成品 |
 | D：自定义与助理 | 文件编辑/导入/库、校验/预览、应用/撤销/恢复、系统 Skill 与实际 prompt | 原助理轮次完成真实制作；无模型、无资源、并发、取消及重启路径成立 |
-| E：整体交付 | 全量共享核心回归、实际所有入口、发行物文件/Skill、手册与存量维护准备 | 工程、真实产品、真实模型、用户视觉分别记录；真实 Home 维护先准备副本/差异再按已有授权执行 |
+| E：整体交付 | 全量共享核心回归、实际所有入口、发行物文件/Skill、`DESIGN.md` 皮肤章节与存量维护准备（2026-11-07 改：手册前移到 A、C） | 工程、真实产品、真实模型、用户视觉分别记录；真实 Home 维护先准备副本/差异再按已有授权执行 |
 
 语言数据与调用点按主人准备，切换之前做同一行为的完整对照：中文/英文含义、参数、状态不变。切换之后删除 EN 聚合、中文键读取和被替换的样式/默认值，不长期保留 fallback adapter。该顺序放在本文件，需求书仍只定义目标、范围和验收。
 
@@ -405,7 +409,7 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 
 具体决定点：
 
-- 新增可加载的资源/字体路径会触及决定 #17；不能直接在 `page-assets.json` 加条目或改上限。先给出统一资源登记/预算方案与实测节省，确需改门禁再由用户决定，本轮不修改门禁。
+- 新增可加载的资源/字体路径按[页面资源体积](../../docs/cli-and-development.md#页面资源体积)的现行规则：对照 `origin/main` 的 merge-base 只许变小，必要增长的许可按任务放在 `tooling/gates/page-asset-allowances/`，新增资源或一次涨超过 10 KB 先问用户（2026-11-07 改：原文的「决定 #17」和 `page-assets.json` 都已过时）。先给出统一资源登记/预算方案与实测节省，确需改门禁再由用户决定，本轮不修改门禁。
 - 新的系统动作 provider、资源声明、JSON 词典根与原生文字绑定可能触及注册/依赖/静态门禁。沿真实接点登记并验证，不能通过别名调用、分散文件或隐藏路由绕过计数，也不能塞进现存巨大类以求数字不增长。必要门禁调整单列评审决定。
 - 真实 Home 的现行生成插件发布文案转换需要维护授权；Folio 的实际圆润字体和分发依据、额外首批语种还需明确（2026-11-04 用户已定：Folio 中英文都随产品带开源圆润字体、只在选用时加载；首批只做中英文，见[需求书 §12](spec.md#12-决策记录)；具体字体与字节随 A 段资源登记测出）。它们不阻止写本方案，但不能在交付时假称完成。
 

@@ -90,8 +90,9 @@ export interface UiTaskGrantsAreaState {
  * The page supplies an empty element and the task's key (`TASK_GRANT_SUBJECT_KEY_PATTERN`); the installation and project come
  * from the page's authority, never from the page. The shell draws the area over that place, outside the page, and keeps its
  * switches, words and writes: what this project offers stays with the shell. All the page gets back is a height for the element,
- * one of two steps chosen by its width alone, and `UiTaskGrantsAreaState` after a write. Resolves once shown; rejects when
- * unavailable, with one fixed message whatever the reason. `signal`, the element leaving the document or the page closing
+ * one of two steps chosen by its width alone, and `UiTaskGrantsAreaState` after a write. Resolves once shown; a page placed while
+ * out of sight (opened behind, say) waits and is drawn when it shows, so the page need not try again. Rejects when unavailable,
+ * with one fixed message whatever the reason. `signal`, the element leaving the document or the page closing
  * closes the area; placing the same element again changes its key.
  */
 export interface UiPageTaskGrants<Element = unknown> {

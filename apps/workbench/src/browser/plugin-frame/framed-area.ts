@@ -166,7 +166,9 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
           },
           gate(event, control) {
             if (!event.isTrusted || !surface.contains(control)) return { reason: "silent" };
-            const shown = entry.shown;
+            // Measured now, not as the last frame left it: a move within this frame is judged where the area really is.
+            const shown = holder.hidden ? null : rect(surface.getBoundingClientRect());
+            if (shown && !same(shown, entry.shown)) { entry.shown = shown; entry.movedAt = event.timeStamp; }
             if (!shown || entry.crossed || holder.hidden || !visible() || !wholeInView(entry, shown)) return { reason: "partial", reveal: true };
             if (!controlInView(entry, control)) return { reason: "partial", reveal: false };
             if (![control, surface.querySelector("[data-framed-area-head]"), surface.querySelector("[data-framed-area-foot]")].every(part => onTop(entry, part))) return { reason: "covered" };

@@ -141,6 +141,7 @@ function renderKindMark(p: ScheduleUiPrimitives): string {
  * 「能读的数据」 in a task's detail. What the person may switch on and off is the platform's to draw and write, in its own area
  * (batch 18 P3, specs/proactive-assistant/schedule-task-reads.md §3.7 F): Schedule only says where it goes and which task it is
  * for, and the lines around it say what Schedule can tell from the platform's list (counts and states, never another plugin's words).
+ * The page places the area on `data-schedule-reads-area` when the detail opens (browser/area.ts); until then it takes no room.
  */
 function renderReadsSection(task: ScheduleConversationTaskView, routePrefix: string, p: ScheduleUiPrimitives): string {
   const note = (state: string, warning: boolean, text: string) => `<div class="mw-alert${warning ? " mw-alert--warning" : ""}" data-schedule-reads-note="${state}" role="status" hidden><span>${text}</span></div>`;

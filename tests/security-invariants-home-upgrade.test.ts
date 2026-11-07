@@ -1,17 +1,17 @@
 // S-upgrade-lock-only, S-upgrade-too-new-untouched, S-upgrade-ledger-verified (docs/system/security-invariants/): the design's provisional
 // S-141, S-142, S-144 (specs/upgrade-continuity/upgrade-chain-design.md §10). Each test asserts the refusal, and that the refused thing changed nothing.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createDesktopUninstallService, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  acquireUpgradedHomeOwner, catalogManagementProject, configuredModelChoices, heldInstalls, MolisWorkWebServiceManager, runHomeUpgrade, runV1Cli, RuntimeIntegrationService,
+  acquireUpgradedHomeOwner, catalogManagementProject, configuredModelChoices, heldInstalls, MolisWorkWebServiceManager, pendingUpgradeUnits, runHomeUpgrade, runV1Cli, RuntimeIntegrationService,
 } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
 import {
-  BASELINE_V2, catalogHome, failingBaseline, ledgerFile, ledgerOf, notesDescriptor, raiseCatalogBaseline, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, versionOf, writeLedger, type LedgerOnDisk,
+  BASELINE_V2, catalogHome, failingBaseline, homeIdentityOf, ledgerFile, ledgerOf, notesDescriptor, raiseCatalogBaseline, raiseProjectBaseline, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, versionOf, writeLedger, type LedgerOnDisk,
 } from "./fixtures/home-upgrade-home.js";
 
 const CLOSED_PORT = "http://127.0.0.1:9";
@@ -105,6 +105,14 @@ test("S-upgrade-too-new-untouched: a store one version ahead is refused on every
   acquireStorageOwner(lock).release();
 });
 
+test("S-upgrade-lock-only: listing a Home's projects with no lock leaves no side files on a closed catalog", async t => {
+  const f = await catalogHome(t), before = readdirSync(dirname(f.catalog)).sort();
+  assert.equal(before.some(name => name.endsWith("-wal") || name.endsWith("-shm")), false);
+  raiseProjectBaseline(t);
+  assert.equal(pendingUpgradeUnits(f.home), 1);
+  assert.deepEqual(readdirSync(dirname(f.catalog)).sort(), before);
+});
+
 test("S-upgrade-too-new-untouched: a too-new store is never snapshotted", t => {
   const { home } = upgradeTestHome(t), file = seedStore(home, "notes", { version: 3 });
   useDescriptors(t, notesDescriptor("notes"));
@@ -150,6 +158,31 @@ test("S-upgrade-ledger-verified: a record from another Home is refused and not f
   const f = interruptedHome(t);
   writeLedger(f.home, { ...f.ledger, home_identity: "b".repeat(64) });
   assertRefusedUntouched(f);
+});
+
+// The one exception (§10): an account Home is upgraded before it has an identity file, so its record says `unbound`. That record is still
+// read once the Home is bound, but only while it has nothing left to do; one that would still steer a store is refused.
+test("S-upgrade-ledger-verified: an `unbound` record on a bound Home is refused while it has work left, and read once it is finished", async t => {
+  await t.test("work left: refused, not followed", t => {
+    const f = interruptedHome(t);
+    assert.notEqual(homeIdentityOf(f.home), "unbound", "this Home is bound");
+    for (const state of ["restoring", "snapshotted", "planned"]) {
+      writeLedger(f.home, { ...f.ledger, home_identity: "unbound", units: [{ ...f.ledger.units[0]!, state }] });
+      assertRefusedUntouched(f);
+    }
+  });
+  await t.test("finished: read, and the next round goes on", t => {
+    const { home } = upgradeTestHome(t), first = seedStore(home, "first", { space: null });
+    useDescriptors(t, notesDescriptor("first"));
+    runHomeUpgrade(home);
+    assert.equal(ledgerOf(home).home_identity, "unbound");
+    const later = seedStore(home, "later");
+    assert.notEqual(homeIdentityOf(home), "unbound", "bound since the record was written");
+    useDescriptors(t, notesDescriptor("first"), notesDescriptor("later"));
+    assert.deepEqual(runHomeUpgrade(home).units.map(unit => [unit.relative_path, unit.state]), [["later/later.db", "committed"]]);
+    assert.equal(versionOf(first), 2);
+    assert.equal(versionOf(later), 2);
+  });
 });
 
 test("S-upgrade-ledger-verified: a record whose `relative_path` leaves the Home, is absolute, or names no store is refused", async t => {

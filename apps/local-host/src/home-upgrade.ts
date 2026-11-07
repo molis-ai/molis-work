@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
-  acquireStorageOwner, assertNoPendingHomeRestore, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeFileSnapshot, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
+  acquireStorageOwner, assertNoPendingHomeRestore, entryAt, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeFileSnapshot, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
   pruneUpgradeSnapshots, readStorageSpace, readUpgradeStoreSpace, readUpgradeStoreVersion, readVersionedFileVersion, restoreUpgradeSnapshot, runSqliteUpgrade, upgradeFailedRefusal, upgradeNoSpaceRefusal, upgradeStepsProblem,
   upgradeVersionedFile, USER_VERSION_ACCESS, versionedFileStepsProblem,
   type StorageOwner, type StorageSpace,
@@ -81,10 +81,10 @@ type Look =
   | { readonly kind: "too_new" | "older"; readonly found: number }
   | { readonly kind: "refused"; readonly reason: string };
 
-/** Regular files only, reached without a link: what is refused here was never opened. */
+/** Regular files only, reached without a link: what is refused here was never opened. A file where its directory should be is no store at all. */
 function ordinaryFile(root: string, relativePath: string): "absent" | "ordinary" | "refused" {
   const file = join(root, relativePath);
-  const found = lstatSync(file, { throwIfNoEntry: false });
+  const found = entryAt(file);
   if (!found) return "absent";
   if (!found.isFile() || realpathSync(dirname(file)) !== dirname(file)) return "refused";
   return SIDECARS.every(suffix => lstatSync(file + suffix, { throwIfNoEntry: false })?.isFile() ?? true) ? "ordinary" : "refused";

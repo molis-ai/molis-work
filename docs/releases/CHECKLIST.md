@@ -68,7 +68,7 @@
 | PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/database.ts#PPT_DATABASE` | 低版本升级，高版本拒绝 |
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/database.ts#TODO_DATABASE` | 低版本升级，高版本拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/database.ts#WORKFLOWS_DATABASE` | 低版本升级，高版本拒绝 |
-| 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝。不进升级链（用户 2026-11-08 定，`specs/backlog/BL-377.md`） |
+| 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝。不进升级链（统筹按 `search.sqlite` 的同一理由并入：这个插件要重做，`specs/backlog/BL-377.md`） |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
 | 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 1 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
@@ -81,7 +81,7 @@
 | 电脑操作设置（JSON 文件，不是库） | `computer/settings.json` | 1 | `version` | `apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION` | 低版本升级；高版本或读不了时按关闭处理、拒绝写，文件不变 |
 | 电脑操作记录（JSON 文件，不是库） | `computer/records/<id>/record.json` | 1 | `version` | `apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION` | 低版本升级；高版本或读不了的这一条不显示、不写，文件不变 |
 | 插件的模型选择（JSON 文件，不是库） | `jelly/preferences.json` | 1 | `schema_version` | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION` | 低版本升级，高版本拒绝并保留原文件 |
-| 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝。不进升级链，也不清空：它存着研究报告引用的证据正文（用户 2026-11-08 定，`specs/backlog/BL-377.md`） |
+| 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝。不进升级链，也不清空：它存着研究报告引用的证据正文（用户 2026-11-08 定，理由是这个插件要重做，`specs/backlog/BL-377.md`） |
 
 Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-30干净重建取代。实现历史见 [Pages与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 当前版本只以上表和代码核对为准。2026-10-30用户决定统一为现行结构的第1版、旧Home搬开后重建；真实 Home 的统一起点已于 2026-11-07 生效（第 4 节）；本次合流保留 Personal 的个人同步技术表与高水位，将现行完整基线及本机持久化文件归一为 1（具体以上表为准）。现行同步集合也归一为 1；新 Home 不继承旧同步授权、游标或远端数据的采用结论。不增加读取兼容或请求内补表，不触及真实 Home。

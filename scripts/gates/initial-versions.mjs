@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { constantsIn, stepFroms, unwrapExpression } from "./upgrade-steps.mjs";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
 
 // Persistent formats (specs/upgrade-continuity/upgrade-chain-design.md §11.1, CONTRACT-CHANGES.md §3): after the unified origin these
@@ -71,50 +72,26 @@ function persistentVersionProblems(definition, version, chains) {
   return problems;
 }
 
-/** The `from` of each step of an array literal; undefined for anything else (a spread, a computed `from`), which then counts as no chain. */
-function literalFroms(array) {
-  if (!array || !ts.isArrayLiteralExpression(array)) return undefined;
-  const froms = [];
-  for (const element of array.elements) {
-    const from = ts.isObjectLiteralExpression(element)
-      ? element.properties.find(property => ts.isPropertyAssignment(property) && property.name.getText() === "from") : undefined;
-    if (!from || !ts.isNumericLiteral(from.initializer)) return undefined;
-    froms.push(Number(from.initializer.text));
-  }
-  return froms;
-}
-
-const stripped = (value) => {
-  let inner = value;
-  while (inner && (ts.isAsExpression(inner) || ts.isSatisfiesExpression(inner) || ts.isParenthesizedExpression(inner))) inner = inner.expression;
-  return inner;
-};
-
 /**
  * The chain one definition registers, read from its own file, with no build: `X_VERSION` (or `X_SCHEMA_VERSION`, or `SCHEMA_VERSION`) has its
  * steps in the array `X_UPGRADES` (`UPGRADES`) beside it, and a baseline object has them in its `upgrades`, in place or by that array's name.
  * Whatever this cannot read exactly is no chain, so it fails closed.
  */
 function chainInSource(file, source, name) {
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const declarations = new Map();
-  const visit = (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) declarations.set(node.name.text, stripped(node.initializer));
-    ts.forEachChild(node, visit);
-  };
-  visit(tree);
-  const value = declarations.get(name);
+  const constants = constantsIn(ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true));
+  const value = constants.get(name);
   if (!value) return undefined;
   if (ts.isNumericLiteral(value)) {
-    const froms = literalFroms(declarations.get(name.replace(/(?:_?SCHEMA)?_?VERSION$/, match => (match.startsWith("_") ? "_UPGRADES" : "UPGRADES"))));
+    const steps = name.replace(/(?:_?SCHEMA)?_?VERSION$/, match => (match.startsWith("_") ? "_UPGRADES" : "UPGRADES"));
+    const list = constants.get(steps), froms = list && ts.isArrayLiteralExpression(list) ? stepFroms(list, constants) : undefined;
     return froms && { version: Number(value.text), froms };
   }
   if (!ts.isObjectLiteralExpression(value)) return undefined;
-  const property = (key) => value.properties.find(item => ts.isPropertyAssignment(item) && item.name.getText() === key)?.initializer;
-  const version = property("version");
+  const property = (key) => value.properties.find(item => ts.isPropertyAssignment(item) && ts.isIdentifier(item.name) && item.name.text === key)?.initializer;
+  const version = unwrapExpression(property("version"));
   if (!version || !ts.isNumericLiteral(version)) return undefined;
   const upgrades = property("upgrades");
-  const froms = upgrades ? literalFroms(ts.isIdentifier(upgrades) ? declarations.get(upgrades.text) : upgrades) : [];
+  const froms = upgrades ? stepFroms(upgrades, constants) : [];
   return froms && { version: Number(version.text), froms };
 }
 

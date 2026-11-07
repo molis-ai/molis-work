@@ -1,6 +1,6 @@
 import { join, relative } from "node:path";
-import { lstatSync, readdirSync } from "node:fs";
-import { CATALOG_VERSION_ACCESS, catalogOwner, openHomeSqliteFile, openSqliteConnection, readUpgradeStore, SECRET_STORE_FILE, type HomeStore } from "@molis-ai/molis-work-storage";
+import { readdirSync } from "node:fs";
+import { CATALOG_VERSION_ACCESS, catalogOwner, entryAt, openHomeSqliteFile, openSqliteConnection, readUpgradeStore, SECRET_STORE_FILE, type HomeStore } from "@molis-ai/molis-work-storage";
 import { SHELF_CATALOG_FILE } from "@molis-ai/molis-work-module-shelf";
 import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
 import { COMPUTER_RECORD_FILE, COMPUTER_RECORD_ID } from "./computer/computer-records.js";
@@ -24,7 +24,7 @@ const CATALOG = join("projects", "catalog.db");
  */
 function projectDatabases(home: string): readonly string[] {
   const file = join(home, CATALOG);
-  if (!lstatSync(file, { throwIfNoEntry: false })) return [];
+  if (!entryAt(file)) return [];
   return readUpgradeStore(file, db => {
     if (CATALOG_VERSION_ACCESS.read(db) > CATALOG_BASELINE.version) return [];
     assertCatalogOwner(catalogOwner(db), file);
@@ -35,7 +35,7 @@ function projectDatabases(home: string): readonly string[] {
 /** A library partitioned by project has one file per project. No built-in plugin declares one today; the code it would use does. */
 function partitionFiles(home: string, store: HomeStore): readonly string[] {
   const projects = join(store.path, "projects");
-  if (!lstatSync(join(home, projects), { throwIfNoEntry: false })?.isDirectory()) return [];
+  if (!entryAt(join(home, projects))?.isDirectory()) return [];
   return readdirSync(join(home, projects)).sort().map(project => join(projects, project, store.library!.file ?? `${store.path}.db`));
 }
 
@@ -48,7 +48,7 @@ function libraryDescriptor(store: HomeStore): HomeUpgradeDescriptor {
 /** One round's record each. The folder's name is checked the way the owner checks it: anything else there is not a record. */
 function computerRecords(home: string): readonly string[] {
   const records = join("computer", "records");
-  if (!lstatSync(join(home, records), { throwIfNoEntry: false })?.isDirectory()) return [];
+  if (!entryAt(join(home, records))?.isDirectory()) return [];
   return readdirSync(join(home, records)).filter(name => COMPUTER_RECORD_ID.test(name)).sort().map(name => join(records, name, "record.json"));
 }
 

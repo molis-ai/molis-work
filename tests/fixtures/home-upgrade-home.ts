@@ -7,8 +7,8 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { CATALOG_BASELINE, registerHomeUpgradeDescriptors, type HomeUpgradeDescriptor, type HomeUpgradeStoreDescriptor } from "@molis-ai/molis-work-app-local-host";
-import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, type SqliteBaseline, type SqliteUpgradeStep, type StorageSpace } from "@molis-ai/molis-work-storage";
+import { CATALOG_BASELINE, PROJECT_DATABASE_BASELINE, registerHomeUpgradeDescriptors, type HomeUpgradeDescriptor, type HomeUpgradeStoreDescriptor } from "@molis-ai/molis-work-app-local-host";
+import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath, readStorageSpace, type SqliteBaseline, type SqliteUpgradeStep, type StorageSpace } from "@molis-ai/molis-work-storage";
 
 export const V1 = "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);";
 export const V2 = "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, tag TEXT NOT NULL DEFAULT '');";
@@ -67,6 +67,8 @@ export const stampFile = (home: string) => join(home, "upgrade", "state.json");
 export interface LedgerUnitOnDisk { kind: string; owner: string; relative_path: string; group: string | null; from: number; to: number; state: string; error: { code: string; reason: string } | null }
 export interface LedgerOnDisk { schema_version: number; home_identity: string; run_id: string; from: string | null; to: string; started_at: string; units: LedgerUnitOnDisk[] }
 
+/** What the upgrade record says a Home is: the digest of its identity file, or `unbound` before it has one. */
+export const homeIdentityOf = (home: string) => { const space = readStorageSpace(home); return space ? createHash("sha256").update(JSON.stringify(space)).digest("hex") : "unbound"; };
 export const ledgerOf = (home: string) => JSON.parse(readFileSync(ledgerFile(home), "utf8")) as LedgerOnDisk;
 export const unitOf = (home: string, name: string) => ledgerOf(home).units.find(unit => unit.relative_path === relativeStore(name));
 export const writeLedger = (home: string, ledger: LedgerOnDisk) => writeFileSync(ledgerFile(home), JSON.stringify(ledger), { mode: 0o600 });
@@ -83,6 +85,13 @@ export async function catalogHome(t: TestContext, version = 1) {
   catalog.close();
   onStore(catalogFile(f.home), db => db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(version)));
   return { ...f, project, catalog: catalogFile(f.home) };
+}
+
+/** Every project store one version older, as `raiseCatalogBaseline` does for the catalog. The real baseline carries no steps, so they are added and taken away. */
+export function raiseProjectBaseline(t: TestContext): void {
+  t.mock.property(PROJECT_DATABASE_BASELINE, "version", 2);
+  Object.defineProperty(PROJECT_DATABASE_BASELINE, "upgrades", { value: [{ from: 1, sql: PROBE_TABLE }], configurable: true });
+  t.after(() => { Reflect.deleteProperty(PROJECT_DATABASE_BASELINE, "upgrades"); });
 }
 
 /**

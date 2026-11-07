@@ -110,6 +110,7 @@ export { dumpSqliteText, countSqliteRows, SQLITE_DUMP_NORMALIZED_COLUMNS, type S
 export { inspectEvidenceContentSnapshot } from "./evidence-snapshot.js";
 export {
   assertVersionedFileWritable,
+  entryAt,
   readVersionedFile,
   readVersionedFileVersion,
   upgradeVersionedFile,

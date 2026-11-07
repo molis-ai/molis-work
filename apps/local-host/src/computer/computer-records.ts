@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { readVersionedFile, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { hostLog } from "../host-log.js";
 
 /**
  * One record per round that used the computer (specs/computer-use goal §5–6): the goal, the steps in time order with
@@ -37,7 +38,9 @@ export const COMPUTER_RECORD_ID = /^[a-z0-9-]{8,80}$/u;
 
 /** `computer/records/<id>/record.json`, one file per round. */
 export const COMPUTER_RECORD_FILE: VersionedFile<ComputerRecord> = { version: COMPUTER_RECORD_VERSION, field: "version", upgrades: COMPUTER_RECORD_UPGRADES, parse: value => {
-  if (typeof (value as Partial<ComputerRecord>).id !== "string" || !Array.isArray((value as Partial<ComputerRecord>).steps)) throw new Error("not a record");
+  // What `list` sorts by and `sweep` counts from: a record without them is not one, so it cannot stop the others being read or swept.
+  const { id, steps, started_at, ended_at } = value as Partial<ComputerRecord>;
+  if (typeof id !== "string" || !Array.isArray(steps) || typeof started_at !== "string" || (ended_at !== null && typeof ended_at !== "string")) throw new Error("not a record");
   return value as ComputerRecord;
 } };
 
@@ -93,6 +96,7 @@ export class ComputerRecords {
     // A record too new or not yet upgraded is not read, so nothing below can write over it.
     try {
       const seen = readVersionedFile(COMPUTER_RECORD_FILE, path.join(this.folder(id), "record.json"));
+      if (seen.status === "unreadable") hostLog.warn("host", "computer_record_unreadable", undefined, { id });
       return seen.status === "current" ? seen.value : null;
     } catch { return null; }
   }

@@ -2,21 +2,21 @@
 // (specs/upgrade-continuity/upgrade-chain-design.md §4.3). The refusals themselves are in tests/security-invariants-home-upgrade.test.ts.
 // Every action URL here is a closed local port.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { dirname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createDesktopUninstallService, inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  acquireUpgradedHomeOwner, createHomeSnapshot, createMolisWorkLocalHost, homeStores, LocalMcpServer, MolisWorkWebServiceManager, PROJECT_DATABASE_BASELINE, restoreHomeSnapshot, pendingUpgradeUnits, runHomeUpgrade, runLocalCli, runV1Cli, RuntimeIntegrationService,
+  acquireUpgradedHomeOwner, createHomeSnapshot, createMolisWorkLocalHost, homeStores, LocalMcpServer, MolisWorkWebServiceManager, restoreHomeSnapshot, runHomeUpgrade, runLocalCli, runV1Cli, RuntimeIntegrationService,
 } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, ensureStorageSpace, HOME_RESTORE_JOURNAL, homeSqlitePath, MEMORY_LEDGER_STORE, personalStorageSpace } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { assertSnapshotRefused, smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
 import {
-  ADD_TAG, catalogFile, catalogHome, catalogVersionOf, failingBaseline, ledgerFile, notesDescriptor, onStore, present, PROBE_TABLE, raiseCatalogBaseline, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, V2, versionOf,
+  ADD_TAG, catalogFile, catalogHome, catalogVersionOf, failingBaseline, homeIdentityOf, ledgerFile, notesDescriptor, onStore, present, raiseCatalogBaseline, raiseProjectBaseline, seedStore, sha256, stampFile, unitOf, upgradeTestHome, useDescriptors, V2, versionOf,
 } from "./fixtures/home-upgrade-home.js";
 
 const CLOSED_PORT = "http://127.0.0.1:9";
@@ -118,12 +118,6 @@ test("UPG1-13: a project outside the Home with an older catalog still upgrades: 
 });
 
 /** The project baseline has no `upgrades` of its own yet, so there is nothing for `t.mock.property` to replace. */
-function raiseProjectBaseline(t: TestContext): void {
-  t.mock.property(PROJECT_DATABASE_BASELINE, "version", 2);
-  Object.defineProperty(PROJECT_DATABASE_BASELINE, "upgrades", { value: [{ from: 1, sql: PROBE_TABLE }], configurable: true });
-  t.after(() => { Reflect.deleteProperty(PROJECT_DATABASE_BASELINE, "upgrades"); });
-}
-
 test("UPG1-13: a project store outside this Home is not this Home's to upgrade: it is refused and left alone", async t => {
   const f = await catalogHome(t), external = join(f.outside, "project.db");
   captureLog(t);
@@ -135,14 +129,6 @@ test("UPG1-13: a project store outside this Home is not this Home's to upgrade: 
   assert.equal(versionOf(external), 1);
   assert.equal(versionOf(f.project.database_path), 1, "this command took no lock on the Home, so its own store waits for the next start");
   assertLockFree(f.lock);
-});
-
-test("S-upgrade-lock-only: listing a Home's projects with no lock leaves no side files on a closed catalog", async t => {
-  const f = await catalogHome(t), before = readdirSync(dirname(f.catalog)).sort();
-  assert.equal(before.some(name => name.endsWith("-wal") || name.endsWith("-shm")), false);
-  raiseProjectBaseline(t);
-  assert.equal(pendingUpgradeUnits(f.home), 1);
-  assert.deepEqual(readdirSync(dirname(f.catalog)).sort(), before);
 });
 
 test("UPG1-16: a project in the recycle bin is upgraded with the rest, and opens once it is back", async t => {
@@ -400,7 +386,7 @@ test("UPG1-13: purge also removes `upgrade/`, and is not stopped by a bad record
 
 const homeLedger = (home: string, state: string) => {
   mkdirSync(join(home, "upgrade"), { recursive: true, mode: 0o700 });
-  writeFileSync(ledgerFile(home), JSON.stringify({ schema_version: 1, home_identity: "unbound", run_id: "1b4e28ba-2fa1-41d2-883f-0016d3cca427", from: null, to: "a".repeat(64), started_at: "2026-11-07T00:00:00.000Z",
+  writeFileSync(ledgerFile(home), JSON.stringify({ schema_version: 1, home_identity: homeIdentityOf(home), run_id: "1b4e28ba-2fa1-41d2-883f-0016d3cca427", from: null, to: "a".repeat(64), started_at: "2026-11-07T00:00:00.000Z",
     units: [{ kind: "sqlite", owner: "tests/notes", relative_path: "notes/notes.db", group: null, from: 1, to: 2, state, error: null }] }), { mode: 0o600 });
 };
 

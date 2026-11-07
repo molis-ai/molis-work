@@ -99,9 +99,12 @@ export function readUpgradeLedger(root: string): UpgradeLedger | undefined {
   const { schema_version, home_identity, run_id, from, to, started_at, units } = ledger;
   if (schema_version !== LEDGER_SCHEMA_VERSION || typeof home_identity !== "string" || typeof run_id !== "string" || !RUN_ID.test(run_id)
     || (from !== null && !fingerprint(from)) || !fingerprint(to) || typeof started_at !== "string" || !Array.isArray(units)) throw refused();
-  if (home_identity !== UNBOUND_HOME && home_identity !== homeIdentity(root)) throw refused();
   const parsed = units.map(parseUnit);
   if (new Set(parsed.map(unit => unit.relative_path)).size !== parsed.length) throw refused();
+  // §10: an account Home is upgraded before its identity file exists, so its record says `unbound`, and stays its record once the Home is
+  // bound. Only a finished one, though: a round is resumed under the lock before anything can bind the Home, so an unbound record that still
+  // has work to do on a bound Home was not left there by this Home, and nothing in it is acted on.
+  if (home_identity !== homeIdentity(root) && (home_identity !== UNBOUND_HOME || parsed.some(unfinishedUnit))) throw refused();
   return { schema_version, home_identity, run_id, from: from as string | null, to, started_at, units: parsed };
 }
 

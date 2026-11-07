@@ -172,6 +172,21 @@ test("UPG1-04: a store newer than this build is read for its version only, recor
   assert.equal(openRefusal(home, "other"), undefined);
 });
 
+test("UPG1-03: a file where a store's directory should be is no store: the round goes on, the Home opens, and nothing there is touched", t => {
+  const { home } = upgradeTestHome(t);
+  const other = seedStore(home, "other");
+  // `browser` and `computer` stand in the way of real descriptors (`browser/sites.json`, `computer/settings.json`, `computer/records/*`).
+  const strays = ["notes", "browser", "computer"].map(name => { const file = join(home, name); writeFileSync(file, `not a directory: ${name}`); return file; });
+  const before = strays.map(sha256);
+  useDescriptors(t, notesDescriptor("notes"), notesDescriptor("other"));
+  const report = runHomeUpgrade(home);
+  assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [["other/other.db", "committed"]]);
+  assert.equal(report.stamped, true, "nothing can stand at those paths, so every store there is current");
+  assert.equal(versionOf(other), 2);
+  assert.deepEqual(strays.map(sha256), before);
+  acquireUpgradedHomeOwner(home).release();
+});
+
 test("UPG1-08: a matching stamp opens nothing: the store could be anything", t => {
   const { home } = upgradeTestHome(t);
   const file = seedStore(home, "notes");

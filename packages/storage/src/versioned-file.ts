@@ -1,4 +1,4 @@
-import { lstatSync } from "node:fs";
+import { lstatSync, type Stats } from "node:fs";
 import { atomicWriteFileSync } from "./adapters/atomic-write.js";
 import { readSnapshotFile } from "./snapshot-files.js";
 import { sqliteStoreLabel, sqliteVersionRefusal, storageErrors, versionRefusalAfterSignal } from "./sqlite-baseline.js";
@@ -43,10 +43,19 @@ export function readVersionedFileVersion(file: Pick<VersionedFile, "field">, pat
   return versionIn(file, readJson(path));
 }
 
-/** A file where its directory should be means this one cannot exist. Anything else in the way (no permission) is for the read to find out. */
+/**
+ * What stands at a fixed path in a Home, without following a link. A file where one of its directories should be means nothing can stand
+ * there, the same as nothing at all. Anything else in the way (no permission) is thrown for the caller to find out.
+ */
+export function entryAt(path: string): Stats | undefined {
+  try { return lstatSync(path, { throwIfNoEntry: false }); }
+  catch (error) { if ((error as { code?: unknown }).code === "ENOTDIR") return undefined; throw error; }
+}
+
+/** Anything else in the way counts as there, so the read finds out what it is. */
 function fileThere(path: string): boolean {
-  try { return lstatSync(path, { throwIfNoEntry: false }) !== undefined; }
-  catch (error) { return (error as { code?: unknown }).code !== "ENOTDIR"; }
+  try { return entryAt(path) !== undefined; }
+  catch { return true; }
 }
 
 /** What every reader of a versioned file goes through. It only reads: nothing here changes the file, and an older one is not converted (§2.6). */

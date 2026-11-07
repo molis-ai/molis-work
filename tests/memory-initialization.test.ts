@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -211,8 +211,20 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
       assert.ok(generate);
       await assert.rejects(generate("must not dispatch", { timeoutMs: 500 }), { code: "actions.service_unavailable", message: "AI 执行服务尚未就绪或已停止，请稍后重试；材料已保留" });
     } finally { await unbound.close(); }
-    assert.deepEqual(files(home), before, "RAC-105-A-07: rejected entrances preserve all business bytes, modes and mtimes, excluding owner bookkeeping before it is read");
-    assert.deepEqual(readdirSync(home).sort(), directories, "the refused startup created no other Home stores");
+    // Upgrade-chain design §7 (UPG1-04): the upgrade process records a too-new store before refusing it. That record is the only new
+    // file, it names exactly this store, and the store itself and every other business file keep their bytes, modes and mtimes.
+    const after = files(home);
+    if (shape === "wrong-version") {
+      const { "upgrade/ledger.json": record, ...rest } = after;
+      assert.ok(record, "the too-new store is on the upgrade record");
+      const units = (JSON.parse(readFileSync(join(home, "upgrade", "ledger.json"), "utf8")) as { units: unknown[] }).units;
+      assert.deepEqual(units, [{ kind: "sqlite", owner: "packages/storage", relative_path: "memory/memory.db", group: null, from: 2, to: 1, state: "too_new", error: null }]);
+      assert.deepEqual(rest, before, "RAC-105-A-07: rejected entrances preserve all business bytes, modes and mtimes, excluding owner bookkeeping before it is read");
+      assert.deepEqual(readdirSync(home).filter(name => name !== "upgrade").sort(), directories, "the refused startup created no Home store beyond the upgrade record");
+    } else {
+      assert.deepEqual(after, before, "RAC-105-A-07: rejected entrances preserve all business bytes, modes and mtimes, excluding owner bookkeeping before it is read");
+      assert.deepEqual(readdirSync(home).sort(), directories, "the refused startup created no other Home stores");
+    }
     if (shape === "missing-ledger") assert.equal(existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)), false);
   });
 }

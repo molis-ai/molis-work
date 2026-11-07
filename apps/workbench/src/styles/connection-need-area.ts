@@ -3,7 +3,8 @@
  * §13.5): a platform area (`mw-platform-area`, styles/platform-area.ts) whose height is the shell's, two steps by width and one line
  * once folded. The header and the buttons hold their place; what the card says in between scrolls. The foot holds at most two
  * buttons (cancel and the step's own); in the narrow step they stack, each a 44px target, in the foot's 96px (ASC-71). Another way
- * (换一个) is a quiet button in the body. The accounts to choose from are the component board's choices, one a line.
+ * (换一个) is a quiet button in the body, beside the key field where there is one; what the card answers sits right under that field.
+ * The accounts to choose from are the component board's choices, one a line.
  */
 export const CONNECTION_NEED_AREA_STYLES = `
 .connection-need-area__title{flex:1 0 100%;margin:0;overflow:hidden;font-size:14px;font-weight:var(--weight-strong,600);line-height:20px;text-overflow:ellipsis;white-space:nowrap}
@@ -13,6 +14,7 @@ export const CONNECTION_NEED_AREA_STYLES = `
 .connection-need-area__wait:focus{outline:none}
 .connection-need-area__origin{margin:0;padding:8px 10px;border-radius:var(--sk-r-card,12px);background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:var(--weight-control,560);overflow-wrap:anywhere}
 .connection-need-area .mw-field{display:grid;gap:4px;margin:0}
+.connection-need-area__key{display:flex;align-items:end;gap:8px}.connection-need-area__key>.mw-field{flex:1;min-width:0}
 .connection-need-area__accounts{display:grid;gap:4px}.connection-need-area__accounts .mw-choice{min-width:0;min-height:40px;text-align:left}.connection-need-area__accounts .mw-choice__label{white-space:normal;overflow-wrap:anywhere}
 .connection-need-area__scope,.connection-need-area__hint{margin:0;color:var(--muted);font-size:12px;line-height:18px;overflow-wrap:anywhere}
 .connection-need-area__more{display:flex;justify-content:flex-start;min-width:0}

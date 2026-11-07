@@ -30,7 +30,7 @@ export const ASSISTANT_CONNECTION_PART = String.raw`  const connectionCard = (mo
       const typed = mount.querySelector(KEY)?.value || "";
       mount.innerHTML = next.html; mount.dataset.stage = next.state === "connected" || next.state === "cancelled" ? "line" : next.state;
       const key = mount.querySelector(KEY); if (key) key.value = typed;
-      if (next.state === "pending") timer = setTimeout(tick, 2000); else gone();
+      if (next.state === "pending") { window.addEventListener("focus", focused); timer = setTimeout(tick, 2000); } else gone();
     };
     const read = () => api(path).then(show, () => show({ state: "link" }));
     const tick = () => { if (!mount.isConnected) gone(); else if (document.hidden) document.addEventListener("visibilitychange", shown); else read(); };

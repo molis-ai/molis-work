@@ -16,14 +16,15 @@ export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
 /**
  * The settings' return bar, as the service-connections prototype's plan B top bar has it: an info alert (success once set up) with
- * where the person came from (`title`), what happens now (`body`) and, under them, one secondary button back. The body is a polite
- * live region, so a change of state is heard; the bar itself is a labelled region.
+ * where the person came from (`title`), what happens now (`body`) and, under them, one secondary button back (once the page is
+ * `gone` it closes the settings, without the back arrow). The body is a polite live region, so a change of state is heard; the bar
+ * itself is a labelled region.
  */
 export function renderReturnBar(options: { title: string; body: string; back: string; label: string; state?: ReturnBarState; className?: string }): string {
   const state = options.state ?? "waiting";
   return `<div class="${cx("mw-alert", state === "ready" ? "mw-alert--success" : "mw-alert--info", "mw-return-bar", options.className)}" data-slot="return-bar" data-return-bar-state="${state}" role="region" aria-label="${escapeHtml(options.label)}">`
     + `<strong data-return-bar-title>${escapeHtml(options.title)}</strong><p data-return-bar-body aria-live="polite">${escapeHtml(options.body)}</p>`
-    + `<div class="mw-return-bar__actions">${renderButton({ label: options.back, variant: "secondary", icon: "back", attrs: { "data-return-bar-back": "" } })}</div>`
+    + `<div class="mw-return-bar__actions">${renderButton({ label: options.back, variant: "secondary", ...(state === "gone" ? {} : { icon: "back" as const }), attrs: { "data-return-bar-back": "" } })}</div>`
     + `</div>`;
 }
 

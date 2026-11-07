@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
-import { LOGIN_URLS_OPENED, LOGIN_URLS_REFUSED } from "./fixtures/connection-login-urls.js";
+import { LOGIN_URLS_OPENED, LOGIN_URLS_REFUSED, loginOpens } from "./fixtures/connection-login-urls.js";
 
 // The bottom bar's client script is one template string: a single slip (a name declared twice, an unescaped newline)
 // stops the whole Assistant, search and plugin switching with it, and only a browser run would show it otherwise.
@@ -111,4 +111,10 @@ test("S-plugin-connection-card B1 the Assistant's card opens only an https login
   const check = new Function(`${script.slice(start, end)}; return isConnectionLoginUrl;`)() as (value: string) => boolean;
   for (const url of LOGIN_URLS_OPENED) assert.equal(check(url), true, url);
   for (const url of LOGIN_URLS_REFUSED) assert.equal(check(url), false, url);
+});
+
+test("S-plugin-connection-card B1 the Assistant's card checks the login address before it opens the browser or the window it reserved", () => {
+  const { opens, unchecked } = loginOpens(ASSISTANT_ISLAND_FACTORY_SCRIPT);
+  assert.equal(opens, 2, "the card opens the login in the system browser or in the window it reserved");
+  assert.deepEqual(unchecked, [], "each open comes after isConnectionLoginUrl");
 });

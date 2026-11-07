@@ -40,7 +40,7 @@ function figure(L: Say, caption: string, body: string): string {
 export function renderConnectionNeedSection(L: Say): string {
   const feed = "Feed", images = L("图片"), github = { service_title: "GitHub", reason: FEED_REASON, connection: null };
   const signedIn = { ...github, connection: { label: "yijunw0212" } };
-  const imageModel = { service_title: L("图像模型"), origin: "https://api.openai.com", connection: null };
+  const imageModel = { service_title: "图像模型", origin: "https://api.openai.com", connection: null };
   const stages: Array<[string, string, View]> = [
     [L("还没有账号 · 在浏览器登录"), feed, view("ask", github)],
     [L("已有账号 · 这件事用哪个"), feed, view("choose", github, { accounts: ACCOUNTS })],

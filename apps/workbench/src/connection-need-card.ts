@@ -30,8 +30,18 @@ export function isConnectionLoginUrl(value: string): boolean {
   return Boolean(url && (url.protocol === "https:" || isLoopbackHttpUrl(url)) && !url.username && !url.password);
 }
 
-/** A translation with a name put in: no space between two Chinese words (「连接 图像模型」 is 「连接图像模型」); a Latin name keeps its. */
-export const sayNamed = (t: Say): Say => (text, values) => t(text, values).replace(/(?<=[㐀-鿿]) (?=[㐀-鿿])/gu, "");
+/** An image target's name, as the Host gives it. */
+const IMAGE = "图像模型";
+
+/**
+ * A translation with a name put in: no space between two Chinese words (「连接 图像模型」 is 「连接图像模型」); a Latin name keeps its.
+ * An image target's name is not a service's but the words 图像模型 (the Host's), said in the person's language: in English a common
+ * noun, "image model" inside a sentence ("Connect image model") and "Image model" opening one ("Image model API key").
+ */
+export const sayNamed = (t: Say): Say => (text, values) => {
+  const common = values?.name === IMAGE && t(IMAGE), said = t(text, common ? { ...values, name: common } : values).replace(/(?<=[㐀-鿿]) (?=[㐀-鿿])/gu, "");
+  return common && said.startsWith(common) ? common[0]!.toUpperCase() + said.slice(1) : said;
+};
 
 /** The card's heights by width alone (§13.5 三第 2 条, the same steps as the platform area), and the one line it folds into. */
 export const CONNECTION_NEED_HEIGHTS = { narrow: 432, wide: 344, line: 48 } as const;
@@ -41,7 +51,8 @@ const PART = "connection-need-area__";
 /**
  * The card's markup: the platform's header, what the person can do now, and its buttons (§13.5 三第 3 条), one row a stage. The foot
  * holds at most the cancel and the step's own button, so the narrow step's two stacked 44px targets always fit (ASC-71); the other
- * way (换一个) is a button in the body, under what the card says.
+ * way (换一个) is a button in the body, under what the card says, or beside the key it is the other way to. Where a key is asked for,
+ * what the card answers (a refused key in red) stands right under the field, above the hint, so the wide step shows it unscrolled.
  */
 export function connectionNeedHtml(say: Say, owner: string, entry: ConnectionNeedView & { read: NonNullable<ConnectionNeedView["read"]> }): string {
   const t: (text: string, values?: Record<string, string | number>) => string = sayNamed(say), read = entry.read, name = read.service_title, account = read.connection?.label ?? "", image = entry.target?.kind === "image";
@@ -71,17 +82,18 @@ export function connectionNeedHtml(say: Say, owner: string, entry: ConnectionNee
     other: [t("登录回来的是 {account}。要把这一处换成它吗？别的地方不动。", { account: entry.other?.label ?? "" }), "switch*"],
   };
   const [text, acts, second = "", more = ""] = rows[entry.stage], keyed = ["paste", "key", "refused"].includes(entry.stage);
+  const note = p("note" + (entry.danger ? " is-error" : ""), entry.note, ' role="status"');
   // One form for every key the card asks for: an image's says where it goes (only that origin), where to find one and how it is kept
   // (the model settings' words, #1881); a service's that it is checked first.
   const field = keyed ? some("origin", read.origin ? t("这把密钥只发往 {origin}", { origin: read.origin }) : "")
-    + `<label class="mw-field"><span class="mw-field__label">${escape(t("{name} 的 API 密钥", { name }))}</span><input class="mw-input" type="password" autocomplete="off" spellcheck="false" data-connection-need-key${entry.danger ? ' aria-invalid="true"' : ""}></label>`
-    + (image ? some("hint", t("在你用的服务的控制台里找 API 密钥") + t("。加密存在这台电脑，保存后不再显示。")) : "") : "";
+    + `<div class="${PART}key"><label class="mw-field"><span class="mw-field__label">${escape(t("{name} 的 API 密钥", { name }))}</span><input class="mw-input" type="password" autocomplete="off" spellcheck="false" data-connection-need-key${entry.danger ? ' aria-invalid="true"' : ""}></label>${more ? buttons(more) : ""}</div>`
+    + note + (image ? some("hint", t("在你用的服务的控制台里找 API 密钥") + t("。加密存在这台电脑，保存后不再显示。")) : "") : "";
   const list = entry.stage === "choose" ? `<div class="mw-choice-group ${PART}accounts" role="group" aria-label="${escape(t("账号"))}">${entry.accounts.map(row =>
     `<button type="button" class="mw-choice" data-slot="choice" data-framed-control="${escape("use:" + row.connection_id)}"><span class="mw-choice__label">${escape(row.account_label || row.display_name)}</span></button>`).join("")}</div>` : "";
   return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-link"></use></svg>${escape(t("Molis Work · 连接"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
     + `${p("title", t("连接 {name}", { name }))}</header><div class="mw-platform-area__body" data-framed-scroll${entry.busy ? ' aria-busy="true"' : ""}>`
     + (read.reason ? p("quote", t("{owner} 说：{reason}", { owner, reason: read.reason })) : "")
     + (entry.stage === "running" ? p("wait", t("正在等你在浏览器里登录 {name}，点同意后会自动回到这里。", { name }), ' tabindex="-1"') : "") + some("text", text) + some("scope", second) + field + list
-    + (more ? `<div class="${PART}more">${buttons(more)}</div>` : "")
-    + `${p("note" + (entry.danger ? " is-error" : ""), entry.note, ' role="status"')}</div><footer class="${PART}foot" data-framed-area-foot>${buttons("cancel " + acts)}</footer>`;
+    + (more && !keyed ? `<div class="${PART}more">${buttons(more)}</div>` : "")
+    + `${keyed ? "" : note}</div><footer class="${PART}foot" data-framed-area-foot>${buttons("cancel " + acts)}</footer>`;
 }

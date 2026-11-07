@@ -23,3 +23,19 @@ export const LOGIN_URLS_REFUSED = [
   "not an address",
   "",
 ];
+
+/**
+ * The places a card's code opens the login address (the system browser, or the window it reserved), each checked by
+ * `isConnectionLoginUrl` between the line that reads the address and the line that opens it. Returns the opens that are not.
+ */
+export function loginOpens(source: string): { opens: number; unchecked: string[] } {
+  const unchecked: string[] = [];
+  let opens = 0;
+  for (const open of source.matchAll(/external\(url\)|location\.replace\(url\)/gu)) {
+    opens += 1;
+    const from = source.lastIndexOf("const url = ", open.index);
+    const between = from < 0 ? "" : source.slice(from, open.index);
+    if (!/if \(!isConnectionLoginUrl\(url\)\) throw /u.test(between)) unchecked.push(open[0]);
+  }
+  return { opens, unchecked };
+}

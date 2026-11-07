@@ -29,7 +29,7 @@ export const CONNECTION_NEED_EN: Record<string, string> = {
   "没有连上，这里什么都没改": "Not connected; nothing changed here",
   "这件事用哪个 {name} 账号？": "Which {name} account should this use?",
   "启用账号": "Enable account",
-  "图像模型": "Image model",
+  "图像模型": "image model",
   "原处的连接卡 · 平台区域版": "Connection card in place · platform area",
   "还没有账号 · 在浏览器登录": "No account yet · sign in in the browser",
   "已有账号 · 这件事用哪个": "Accounts exist · which one this uses",

@@ -341,6 +341,7 @@ export const PRIMITIVE_STYLES = `
   .mw-return-bar > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-return-bar__actions, .mw-resume-prompt__actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .mw-return-bar__actions { padding-top: 4px; }
+  .mw-return-bar[data-return-bar-state=gone] svg { display: none; }
   .mw-resume-prompt { display: grid; gap: 8px; animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   @media (prefers-reduced-motion: reduce) { .mw-resume-prompt { animation: none; } }
 

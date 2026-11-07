@@ -25,6 +25,32 @@ test("ASC-71 at 375 and 400 wide every stage of the connection card keeps its bu
     assert.deepEqual(stages.sort(), ["ask", "assistant", "choose", "disabled", "expired", "key", "line", "other", "paste", "refused", "running", "unsupported"], "every stage is on the board");
     assert.equal(await evaluate<number>(`document.querySelectorAll('#connection-need [data-board-review="d-track"]').length`), 12, "every specimen is marked for the D track");
     if (lang === "en") assert.equal(CJK.test(await evaluate<string>(`[...document.querySelectorAll('#connection-need .mw-platform-area')].map(card => card.textContent).join(" ").replace(/读取你为这个来源选好的账号/gu, "")`)), false, "in English the cards have no Chinese but the plugin's own quoted reason");
+    if (lang === "en") assert.deepEqual(await evaluate<string[]>(`(() => { const card = document.querySelector('[data-connection-need-specimen="refused"]');
+      return [card.querySelector('.connection-need-area__title').textContent, card.querySelector('.mw-field__label').textContent]; })()`),
+    ["Connect image model", "Image model API key"], "an image target's name is a common noun: lower case in a sentence, capitalised opening one");
+    // The wide step (560 × 344): what the card answers (a refused key, in red) and the other way (换一个) show without scrolling, whole.
+    const wide = await evaluate<Array<{ stage: string; problems: string[] }>>(`(() => {
+      const cards = [...document.querySelectorAll('#connection-need [data-connection-need-specimen]')].filter(card => !['line', 'assistant'].includes(card.dataset.stage));
+      for (const card of cards) { card.style.width = '560px'; card.style.height = '344px'; card.querySelector('.mw-platform-area__body').scrollTop = 0; }
+      document.body.offsetHeight;
+      const box = node => node.getBoundingClientRect();
+      return cards.map(card => {
+        const body = box(card.querySelector('.mw-platform-area__body')), problems = [];
+        const note = card.querySelector('.connection-need-area__note'), other = card.querySelector('.mw-platform-area__body [data-framed-control="other"]');
+        for (const [what, node] of [['the note', note && note.textContent ? note : null], ['the other way', other]]) {
+          if (!node) continue;
+          const b = box(node);
+          if (b.top < body.top - 0.5 || b.bottom > body.bottom + 0.5) problems.push(what + ' needs scrolling');
+          if (node.scrollWidth > node.clientWidth + 0.5) problems.push(what + ' is cut off');
+        }
+        if (note && note.textContent && card.querySelector('[data-connection-need-key]') && note.previousElementSibling !== card.querySelector('.connection-need-area__key')) problems.push('the note is not right under the key');
+        return { stage: card.dataset.stage, problems };
+      });
+    })()`);
+    assert.ok(wide.some(card => card.stage === "refused"), "the refused card was measured wide");
+    for (const card of wide) assert.deepEqual(card.problems, [], `${lang} 560 ${card.stage}`);
+    await evaluate("document.querySelector('[data-connection-need-specimen=\"refused\"]').scrollIntoView()");
+    await writeFile(new URL(`wide-refused-${lang}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
     for (const width of [375, 400]) {
       const found = await evaluate<Array<{ stage: string; buttons: number; problems: string[] }>>(`(() => {
         const cards = [...document.querySelectorAll('#connection-need [data-connection-need-specimen]')].filter(card => !['line', 'assistant'].includes(card.dataset.stage));

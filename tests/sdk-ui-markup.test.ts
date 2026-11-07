@@ -183,4 +183,7 @@ test("the resume prompt's buttons are renderButton's secondary text buttons, and
   assert.match(prompt, /class="mw-alert mw-alert--info"/u, "an info alert, as the connections page's 接着改／放弃改动");
   const bar = sdkUi.renderReturnBar({ title: "From Coding", body: "Goes back", back: "Go back now", label: "Where you came from" });
   assert.match(bar, /<p data-return-bar-body aria-live="polite">Goes back<\/p><div class="mw-return-bar__actions"><button [^>]*mw-btn--secondary[^>]*data-return-bar-back/u);
+  assert.match(bar, /data-return-bar-back[^>]*><svg aria-hidden="true"><use href="#icon-back">/u, "going back has the back arrow");
+  const gone = sdkUi.renderReturnBar({ title: "From Images", body: "The page is closed", back: "Close settings", label: "Where you came from", state: "gone" });
+  assert.match(gone, /data-return-bar-back[^>]*><span data-slot="button-label">Close settings<\/span><\/button>/u, "closing the settings has no back arrow");
 });

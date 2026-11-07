@@ -85,7 +85,6 @@ export const PAGES_EN: Record<string, string> = {
   "无标题": "Untitled",
   "已保存": "Saved",
   "保存失败": "Could not save",
-  "缺少项目": "Project is missing",
   "未分类": "Unfiled",
   "删除文件夹": "Delete folder",
   "会议纪要": "Meeting notes",

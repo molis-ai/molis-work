@@ -66,6 +66,7 @@ export const SKILL_PACK_BOARD_STYLES = `
   .mw-item__pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 8px 6px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
   .mw-item__pick:hover { background: var(--nav-hover); }
   .mw-item__pick[aria-current="true"] { background: var(--nav-active); }
+  .mw-item__pick:active:not(:disabled) { background: var(--nav-press); }
   .mw-item__pick:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   .mw-item__pick > span:nth-child(2) { display: grid; gap: 1px; flex: 1 1 0; min-width: 0; }
   /* The name wraps as it is; the pack it lives in takes one line, cut where room runs out, its whole name on hover. */
@@ -81,7 +82,8 @@ export const SKILL_PACK_BOARD_STYLES = `
   .mw-list-detail__detail h3:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
   .mw-list-detail__detail[data-off] h3 { color: var(--muted); }
   .mw-list-detail__detail > header > p { margin: 0; max-width: 640px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
-  .mw-list-detail__detail .mw-radio-group:disabled { opacity: .5; }
+  /* The radios fade by their own .42; their words go muted, as the title does, without a second opacity. */
+  .mw-list-detail__detail .mw-radio-group:disabled .mw-check-row { color: var(--muted); }
   .mw-list-detail__used { margin: 0; color: var(--muted); font-size: 12px; }
   .mw-list-detail__detail > .mw-list-detail__back { display: none; justify-self: start; }
   @container mw-list-detail (max-width: 640px) {

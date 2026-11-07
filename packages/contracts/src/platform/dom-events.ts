@@ -88,7 +88,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it, including the standalone Home settings host.",
   },
   "settings-return": {
-    files: ["apps/workbench/src/scripts/client/settings-return.ts", "apps/workbench/src/browser/return-trips.ts"],
+    files: ["apps/workbench/src/browser/settings-return.ts", "apps/workbench/src/browser/return-trips.ts"],
     state: "This window's return trips (specs/draft-and-return): where the person went into the settings from, what the settings had to make true and what goes back, kept in this tab's sessionStorage (molis-work:return-trips, molis-work:return-window, molis-work:return-window-handoff).",
   },
   attention: {

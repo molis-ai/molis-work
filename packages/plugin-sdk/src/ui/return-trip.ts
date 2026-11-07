@@ -8,8 +8,11 @@ import { cx, escapeHtml } from "./html.js";
  * and not now. Pages place the prompt and give the words; they draw neither themselves.
  */
 
-/** The bar's three states: waiting for what was asked, set up but not taken back automatically, and the page that is gone. */
-export type ReturnBarState = "waiting" | "ready" | "gone";
+/**
+ * The bar's states: waiting for what was asked; `look`, nothing to wait for (already set up when the settings opened, or an ordinary
+ * link that asked for nothing); set up but not taken back automatically; and the page that is gone.
+ */
+export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
 /**
  * The settings' return bar (an info alert with one secondary button). `title` names where the person came from; `body` says what

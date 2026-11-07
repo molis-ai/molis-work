@@ -104,8 +104,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const frames = [...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => frame.contentDocument);
     [document, ...frames].forEach((doc) => doc?.dispatchEvent(new CustomEvent("molis-work:model-ready")));
   };
-  const modelSaved = async ({ first } = {}) => {
-    try { await returns?.saved("model"); } finally { if (first) modelReady(); }
+  // A save whose answer already says this provider can run is not read again (specs/draft-and-return §3.4).
+  const modelSaved = async ({ first, ready } = {}) => {
+    try { await returns?.saved("model", ready === true); } finally { if (first) modelReady(); }
   };
   const bindEmbed = (root) => {
     const page = { ...pageOf(root), saved: (kind) => returns?.saved(kind) };

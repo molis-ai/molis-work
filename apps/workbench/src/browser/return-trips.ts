@@ -1,11 +1,8 @@
 /**
  * Return trips (specs/draft-and-return/spec.md §2): where the person went into the settings from, what the settings had to make true,
- * and what goes back. The one writer is the outer document's `settings-return` owner (scripts/client/settings-return.ts), which runs
- * these functions inside its template script; the frame host (plugin-frame/returns.ts) uses `placeOf` and `returnGo` from the same
- * source. Everything here is plain functions over small structural types, so the unit tests import them through the package entry.
- *
- * The functions are embedded into the browser script by their source text, so none of them may reach a module binding other than
- * `RETURN_TRIP_RULES` and the other functions of this file (the script declares each under the same name).
+ * and what goes back. The one writer is the outer document's `settings-return` owner (settings-return.ts, bundled with these
+ * functions); the frame host (plugin-frame/returns.ts) uses `placeOf` and `returnGo` from the same source. Everything here is plain
+ * functions over small structural types, with no DOM library, so the unit tests import them through the package entry.
  */
 
 export const RETURN_TRIP_RULES = {

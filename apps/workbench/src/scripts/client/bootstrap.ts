@@ -1,5 +1,4 @@
 import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
-import { SETTINGS_RETURN_FACTORY_SCRIPT } from "./settings-return.js";
 
 /**
  * AP3 Workbench client segment: bootstrap.
@@ -56,7 +55,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let frameContainer = null;
     let tabWorkspace = null;
     const paneMessages = ${PANE_MESSAGES_SCRIPT};
-    const settingsReturn = (${SETTINGS_RETURN_FACTORY_SCRIPT})({ translate: (...args) => L(...args), projectId: state.project?.project_id || "", prefix: routePrefix,
+    const settingsReturn = molisWorkSettingsReturn({ translate: (...args) => L(...args), projectId: state.project?.project_id || "", prefix: routePrefix,
       tabWorkspace: () => tabWorkspace, showToast: (...args) => showToast(...args), setDirectory: (...args) => setDesktopDirectory(...args) });
     let projectHome = null;
     let pluginWorkbench = null;

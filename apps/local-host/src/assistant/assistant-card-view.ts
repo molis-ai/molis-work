@@ -64,7 +64,9 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
     ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? "：" : ""}${card.outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
     ...(result ? { result: { title: result.title ?? say(result.summary), body: result.text ?? "",
-      ...(result.link ? { actions: [{ id: "result", label: say(result.link.label), href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN } }] } : {}) } } : {}),
+      ...(result.link ? { actions: [{ id: "result", label: say(result.link.label), href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN,
+        // 继续接入 names what the settings must make true, so the way back waits for it (specs/draft-and-return §4, R4): never read from the address.
+        ...(result.pending_connection ? { "data-return-setup": result.pending_connection.authorization_id } : {}) } }] } : {}) } } : {}),
     ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("请助理按最新状态重新准备") }] } : {}),
   });
 }

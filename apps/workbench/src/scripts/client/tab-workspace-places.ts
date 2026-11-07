@@ -214,9 +214,10 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
     document.dispatchEvent(new CustomEvent("molis-work:place-changed", { detail: { ...next, previous } }));
   };
   // Whether a return trip's place is still in the layout (specs/draft-and-return §2.4): the pane is there and has a view or a tab of the surface.
-  if (!embedded) document.addEventListener("molis-work:layout-holds", (event) => {
+  // \`embedded\` is declared after this part, so it is read when asked, never while the part is set up.
+  document.addEventListener("molis-work:layout-holds", (event) => {
     const detail = event.detail;
-    if (!detail || typeof detail !== "object" || typeof detail.pane !== "string" || typeof detail.surface !== "string") return;
+    if (embedded || !detail || typeof detail !== "object" || typeof detail.pane !== "string" || typeof detail.surface !== "string") return;
     const pane = paneById(detail.pane);
     detail.answer = Boolean(pane && (pane.viewPlugin === detail.surface || pane.tabs.some((tab) => tab.plugin === detail.surface)));
   });

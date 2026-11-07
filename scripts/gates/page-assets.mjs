@@ -359,9 +359,15 @@ const headErrors = (measured, budget, base) => {
 // (specs/assistant-service-connections/spec.md §13.5 C1). Keyed on main's budget 188418 (after #1884, whose P3-0a entry is spent
 // there and replaced; still the budget after #1886 and #1892): plugin-frame.js +14 B. Tried: the two placeholders share one `unavailable` function instead of
 // a second inline copy, one fixed Error, no frame message.
+// proactive-assistant §12.1 capsule fix (user approved asking for this admission, 2026-11-06): the input capsule's current work, tabs and
+// new-work draft are kept per project, so a line typed in project B no longer reaches a round of A: workbench.js +307 B (the same code measured +312 B before #1877 changed how the client is built, +319 B before #1886), the
+// per-project key helper, one chosen-project path through setProject and the place named before the title. Tried: removed the
+// chooser's own draft map (the island owns drafts now) and its swap code, dropped a tooltip naming the project and its translation,
+// shared the view reset between switching and setProject; a first cut was +557 B. Keyed on main's 892831 base after 13④a (#1886), whose workbench.js entry is spent there.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [761321, 761636],
   "/assets/molis-work-workbench.css": [1108342, 1108657],
+  "/assets/molis-work-workbench.js": [892831, 893138],
   "/assets/molis-work-plugin-frame.js": [188418, 188432],
   // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
   "/assets/molis-work-plugins/coding.js": [290006, 297761],

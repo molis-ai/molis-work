@@ -37,12 +37,20 @@ type GrantClient = Pick<BoundActionClient, "invoke">;
 
 /**
  * The installation's one handle on its tasks' grants. A clear that did not go through (the platform refused or was away) is kept and
- * tried again by the reconcile job, which also, once per start, clears every subject whose task is archived or gone.
+ * tried again by the reconcile job, which also, once per start, clears every subject whose task is archived or gone (a replica may
+ * have archived or removed it). That sweep asks the platform nothing of its own: it takes the subjects from the first list Schedule
+ * reads anyway (a due round reads one to choose its role), so a project that only starts makes no task grant call.
  */
 export function createScheduleTaskGrants(actions: GrantClient) {
   const pending = new Set<string>();
   let swept = false;
-  const list = () => actions.invoke(agentTaskGrantActions.list, {});
+  /** The subjects of the first list read since start, until the one sweep has gone through. */
+  let observed: readonly string[] | undefined;
+  const list = async () => {
+    const result = await actions.invoke(agentTaskGrantActions.list, {});
+    if (!swept) observed = result.subjects.map(subject => subject.key);
+    return result;
+  };
   const clear = async (key: string): Promise<void> => {
     try {
       await actions.invoke(agentTaskGrantActions.clear, { key });
@@ -59,19 +67,22 @@ export function createScheduleTaskGrants(actions: GrantClient) {
       await clear(key).catch(() => pending.add(key));
     },
     /**
-     * Called by the reconcile job with a reader of the tasks that are still live; lists the platform only until one sweep has gone
-     * through. The live tasks are read after the platform's list, so a task made and granted between the two is live, never cleared.
-     * Says whether it went through: one that did not is tried again on the job's next pass, and Schedule's own work does not wait on it.
+     * Called by the reconcile job with a reader of the tasks that are still live. It clears what is owed, and once per start the subjects
+     * of the first list read since (none read yet: nothing to sweep, and nothing is asked). The live tasks are read after that list, so
+     * a task made and granted between the two is live, never cleared. Says whether it went through: one that did not is tried again on
+     * the job's next pass, and Schedule's own work does not wait on it.
      */
     async reconcile(liveTasks: () => ReadonlySet<string>): Promise<boolean> {
       try {
-        const keys = swept ? [...pending] : (await list()).subjects.map(subject => subject.key);
+        const sweep = swept ? undefined : observed;
+        const keys = new Set([...pending, ...sweep ?? []]);
+        if (keys.size === 0) return true;
         const live = liveTasks();
         for (const key of keys) {
           if (live.has(key)) pending.delete(key);
           else await clear(key);
         }
-        swept = true;
+        if (sweep) { swept = true; observed = undefined; }
         return true;
       } catch {
         return false;

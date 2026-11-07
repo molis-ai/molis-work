@@ -104,7 +104,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 - **新角色** `brief`：`workspace: "business"`、`execution: "read-only"`、`host_tools: []`（业务角色可用的宿主工具都不需要），提示词 `schedule-brief`：说明手边是经目录查到的只读能力、读不到就说读不到、回复第一行的 IMPORTANT 标记沿用。原 `reader` 角色不变。
 - **任务种类不存表**：有任务主体授权的任务用 `brief`，没有的用 `reader`。到点时 Schedule 用一次 `agent.task_grants.list`（或按单个主体读）决定。所以 Schedule 的表、动作输入输出都不变，不碰 05 批的升级链（「首次改库结构前 U1 必须就位」）。
 - **就绪检查按种类**：`tasks.readiness` 的输出不变（`model`、`workspace`）；页面按任务种类解读：读数据的任务不要求工作区，要求至少一类已授权；读文件的任务照旧要工作区。
-- **归档清授权**：`tasks.archive` 成功后调 `agent.task_grants.clear`；对账作业（现有 `SCHEDULE_RECONCILE_JOB`）顺手清掉已归档或不存在任务的主体。
+- **归档清授权**：`tasks.archive` 成功后调 `agent.task_grants.clear`；对账作业（现有 `SCHEDULE_RECONCILE_JOB`）顺手清掉已归档或不存在任务的主体：没清成的 `clear` 留着重试；每次启动后扫一遍，用的是 Schedule 本来就要读的第一份 `list`（到点的一轮读它来选角色），对账作业自己不调，所以项目只是启动、没有任务到点时不产生任务授权调用（#1879 Full suite 的 `cli-goals-actions` 用例，2026-11-06）。
 - **界面**（用户 2026-11-04 定样，见 3.7 末）：任务详情里「能读的数据」一段，放平台区域（3.7）；任务列表的每行标出种类（读文件／读数据）和「需要重新确认」。新建任务改在详情里直接写，不再弹对话框；能读的数据在任务建好后选。
 
 ### 3.7 勾选与确认放在哪（要定样，并发预警）

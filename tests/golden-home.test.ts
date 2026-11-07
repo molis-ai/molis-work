@@ -299,7 +299,7 @@ describe("a generated golden Home", { concurrency: false }, () => {
     }, entry => entry.path.endsWith("/sync/sync.db"));
     const result = run(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 1);
-    assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 structure \S+ storage\.schema_version_mismatch$/mu, result.output);
+    assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 structure \S+ storage\.store_too_new$/mu, result.output);
   }, { timeout: 600_000 });
 
   test("a payload that does not match the manifest is reported as a damaged golden, not as a finding about the code", () => {

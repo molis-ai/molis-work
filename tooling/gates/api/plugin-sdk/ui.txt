@@ -84,7 +84,7 @@ export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "stat
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
-export type ReturnBarState = "waiting" | "ready" | "gone";
+export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
 export declare const STATE_RING_CORES: Record<string, string>;
 

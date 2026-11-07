@@ -9,6 +9,7 @@ import { askOverlap } from "./overlap.js";
 import type { Page } from "./page.js";
 import { renderPriority } from "./queued.js";
 import { readCurrent } from "./read.js";
+import { mountReturns } from "./returns.js";
 import { api, sessionPath, status } from "./request.js";
 import { select, surfaceChanged } from "./select.js";
 import type { Overlap, RoundSelection } from "./shapes.js";
@@ -99,6 +100,7 @@ function mountSend(page: Page) {
   const priority = q<HTMLButtonElement>("[data-coding-priority]");
   lifetime.listen(priority, "click", () => { void togglePriority(page, priority); });
   lifetime.listen(q("[data-coding-composer]"), "submit", event => { event.preventDefault(); void send(page); });
+  mountReturns(page, () => send(page));
 }
 
 /** Reads the session on show again while the page is visible, a little faster while a round is running. */

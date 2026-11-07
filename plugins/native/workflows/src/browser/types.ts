@@ -5,7 +5,7 @@ import type { WorkflowInstance, WorkflowLink, WorkflowPayload, WorkflowPayloadFi
 export type { Translate, WorkflowPayload, WorkflowStartItem };
 
 /** What the workbench hands the Workflows client: the shared host fields it uses, and the shell's view for an embedded step. */
-export interface WorkflowsHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "translate" | "route" | "pluginRoute" | "pluginId" | "readRefusal"> {
+export interface WorkflowsHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "translate" | "route" | "pluginRoute" | "pluginId" | "readRefusal" | "returns"> {
   readonly view: Pick<UiPageView<HTMLElement>, "embed">;
 }
 

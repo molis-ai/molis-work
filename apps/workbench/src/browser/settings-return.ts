@@ -92,6 +92,64 @@ function assistantSource(anchor: Element): { from: ReturnFrom; need?: ReturnNeed
   return { from, ...(need ? { need } : {}) };
 }
 
+/** Reads a need back from its owner, as the person, through the routes the settings already use (§3.4). */
+async function readNeed(need: ReturnNeed, fallback: string): Promise<boolean> {
+  if (need.kind === "model") {
+    const result = await molisWorkRequest<{ health?: { status?: string }[] }>("/api/settings/models", { fallback });
+    return (result.health || []).some(entry => entry?.status === "ready");
+  }
+  if (need.kind === "connection") {
+    const result = await molisWorkRequest<{ connections?: { state?: string }[] }>("/api/settings/connectors/connections?service_id=" + encodeURIComponent(need.service_id), { fallback });
+    return (result.connections || []).some(row => row?.state === "connected");
+  }
+  if (need.kind === "setup") {
+    const result = await molisWorkRequest<{ status?: string }>("/api/settings/connectors/authorizations/" + encodeURIComponent(need.authorization_id), { fallback });
+    return result?.status === "connected";
+  }
+  return false;
+}
+
+/** The layout's answer for a place (`molis-work:layout-holds`, tab-workspace-places.ts); undefined when nobody answered. */
+function holds(place: ReturnPlace): boolean | undefined {
+  const detail: Detail = { pane: place.pane, surface: place.surface };
+  document.dispatchEvent(new CustomEvent("molis-work:layout-holds", { detail }));
+  return typeof detail.answer === "boolean" ? detail.answer : undefined;
+}
+
+const placeOfTrip = (trip: ReturnTrip) => trip.from.kind === "assistant" ? null : trip.from.place ?? null;
+type BarState = "waiting" | "look" | "ready" | "gone";
+const setText = (node: Element | null | undefined, text: string) => { if (node && node.textContent !== text) node.textContent = text; };
+
+/**
+ * The return bar on the settings surface (U4): one, cloned from the surface's template, on top of the cover the trip was opened for;
+ * any other is removed. Its button calls `back` with the trip it shows.
+ */
+function paintReturnBar(L: SettingsReturnHost["translate"], kind: string | null, trip: ReturnTrip | null, view: { name: string; ready: boolean; back(id: string): void }) {
+  const surface = kind ? document.querySelector(`[data-work-surface="${CSS.escape(kind)}"]`) : null;
+  document.querySelectorAll("[data-settings-return-bar]").forEach(bar => { if (!trip || bar.parentElement !== surface) bar.remove(); });
+  if (!trip || !surface) return;
+  let bar = surface.querySelector<HTMLElement>(":scope > [data-settings-return-bar]");
+  if (!bar) {
+    const made = document.querySelector<HTMLTemplateElement>("template[data-settings-return-bar-template]")?.content.firstElementChild?.cloneNode(true);
+    if (!(made instanceof HTMLElement)) return;
+    bar = made;
+    made.querySelector("[data-return-bar-back]")?.addEventListener("click", () => view.back(made.dataset.settingsReturnBar || ""));
+    surface.prepend(made);
+  }
+  const place = placeOfTrip(trip);
+  const state: BarState = place !== null && holds(place) === false ? "gone" : view.ready ? "ready" : trip.met_at_open || trip.need.kind === "none" ? "look" : "waiting";
+  bar.dataset.settingsReturnBar = trip.id;
+  bar.dataset.returnBarState = state;
+  bar.classList.toggle("mw-alert--success", state === "ready");
+  bar.classList.toggle("mw-alert--info", state !== "ready");
+  const body = state === "gone" ? L("原来的页面已经关了，配好的设置都在。") : state === "ready" ? L("已经好了，可以回去了。")
+    : state === "look" ? L("看完点「回去」，回到原来的地方。")
+    : trip.need.kind === "model" ? L("配好模型后自动回去，你写的都还在。") : L("连好后自动回去，你写的都还在。");
+  setText(bar.querySelector("[data-return-bar-title]"), L("从「{name}」来", { name: view.name }));
+  setText(bar.querySelector("[data-return-bar-body]"), body);
+  setText(bar.querySelector("[data-return-bar-back] [data-slot=button-label]"), state === "waiting" ? L("现在回去") : L("回去"));
+}
+
 export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   const L = host.translate, project = host.projectId || "", prefix = host.prefix || "";
   if (!project || window.top !== window) return IDLE;
@@ -100,27 +158,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   const windowId = startReturnWindow(storage, Date.now(), landingPage(), () => crypto.randomUUID());
   const workspace = () => host.tabWorkspace() || null;
   const coverKind = () => workspace()?.exclusive?.() || null;
-  const fallback = L("请稍后重试");
-  const read = async (need: ReturnNeed): Promise<boolean> => {
-    if (need.kind === "model") {
-      const result = await molisWorkRequest<{ health?: { status?: string }[] }>("/api/settings/models", { fallback });
-      return (result.health || []).some(entry => entry?.status === "ready");
-    }
-    if (need.kind === "connection") {
-      const result = await molisWorkRequest<{ connections?: { state?: string }[] }>("/api/settings/connectors/connections?service_id=" + encodeURIComponent(need.service_id), { fallback });
-      return (result.connections || []).some(row => row?.state === "connected");
-    }
-    if (need.kind === "setup") {
-      const result = await molisWorkRequest<{ status?: string }>("/api/settings/connectors/authorizations/" + encodeURIComponent(need.authorization_id), { fallback });
-      return result?.status === "connected";
-    }
-    return false;
-  };
-  const holds = (place: ReturnPlace): boolean | undefined => {
-    const detail: Detail = { pane: place.pane, surface: place.surface };
-    document.dispatchEvent(new CustomEvent("molis-work:layout-holds", { detail }));
-    return typeof detail.answer === "boolean" ? detail.answer : undefined;
-  };
+  const fallback = L("请稍后重试"), read = (need: ReturnNeed) => readNeed(need, fallback);
   const ready = new Set<string>();
   const owner = createReturnOwner({
     storage, window: windowId, project, now: () => Date.now(), newId: () => crypto.randomUUID(),
@@ -131,7 +169,6 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     },
     changed: () => paint(),
   });
-  const placeOfTrip = (trip: ReturnTrip) => trip.from.kind === "assistant" ? null : trip.from.place ?? null;
   const nameOf = (trip: ReturnTrip) => {
     if (trip.from.kind === "assistant") return L("助理");
     const place = placeOfTrip(trip);
@@ -171,41 +208,9 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     else if (status === "ready" && trip.need.kind === "model") host.showToast?.(L("模型已连接，回到「{name}」接着做。", { name: nameOf(trip) }));
     else if (status === "ready" && trip.need.kind !== "none") host.showToast?.(L("已经连上，回到「{name}」。", { name: nameOf(trip) }));
   };
-  const barText = (trip: ReturnTrip, state: string) => {
-    const body = state === "gone" ? L("原来的页面已经关了，配好的设置都在。") : state === "ready" ? L("已经好了，可以回去了。")
-      : state === "look" ? L("看完点「回去」，回到原来的地方。")
-      : trip.need.kind === "model" ? L("配好模型后自动回去，你写的都还在。") : L("连好后自动回去，你写的都还在。");
-    return { title: L("从「{name}」来", { name: nameOf(trip) }), body, label: state === "waiting" ? L("现在回去") : L("回去") };
-  };
-  const setText = (node: Element | null | undefined, text: string) => { if (node && node.textContent !== text) node.textContent = text; };
-  const barFor = (surface: Element) => {
-    const shown = surface.querySelector<HTMLElement>(":scope > [data-settings-return-bar]");
-    if (shown) return shown;
-    const template = document.querySelector<HTMLTemplateElement>("template[data-settings-return-bar-template]");
-    const bar = template?.content.firstElementChild?.cloneNode(true);
-    if (!(bar instanceof HTMLElement)) return null;
-    bar.dataset.settingsReturnBar = "";
-    bar.querySelector("[data-return-bar-back]")?.addEventListener("click", () => void back(owner.find(bar.dataset.settingsReturnBar || "")));
-    surface.prepend(bar);
-    return bar;
-  };
   function paint() {
     const kind = coverKind(), trip = owner.current(kind);
-    const surface = kind ? document.querySelector(`[data-work-surface="${CSS.escape(kind)}"]`) : null;
-    document.querySelectorAll("[data-settings-return-bar]").forEach(bar => { if (!trip || bar.parentElement !== surface) bar.remove(); });
-    if (!trip || !surface) return;
-    const bar = barFor(surface);
-    if (!bar) return;
-    const place = placeOfTrip(trip), gone = place !== null && holds(place) === false;
-    const state = gone ? "gone" : ready.has(trip.id) ? "ready" : trip.met_at_open || trip.need.kind === "none" ? "look" : "waiting";
-    bar.dataset.settingsReturnBar = trip.id;
-    bar.dataset.returnBarState = state;
-    bar.classList.toggle("mw-alert--success", state === "ready");
-    bar.classList.toggle("mw-alert--info", state !== "ready");
-    const text = barText(trip, state);
-    setText(bar.querySelector("[data-return-bar-title]"), text.title);
-    setText(bar.querySelector("[data-return-bar-body]"), text.body);
-    setText(bar.querySelector("[data-return-bar-back] [data-slot=button-label]"), text.label);
+    paintReturnBar(L, kind, trip, { name: trip ? nameOf(trip) : "", ready: Boolean(trip && ready.has(trip.id)), back: id => void back(owner.find(id)) });
   }
   document.addEventListener("molis-work:return-claim", event => {
     const detail = detailOf(event);

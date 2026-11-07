@@ -12,9 +12,10 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { after, before, describe } from "node:test";
 import { fileURLToPath } from "node:url";
+import { brotliCompressSync, constants } from "node:zlib";
 import { countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
 import { assertTemporaryHome, compareGoldens, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
-import { moduleSourceReader, withModuleSources, withoutModuleSources, writeModuleSources } from "../scripts/golden/module-sources.mjs";
+import { MODULE_SOURCES_DIRECTORY, moduleSourceReader, withModuleSources, withoutModuleSources, writeModuleSources } from "../scripts/golden/module-sources.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GOLDEN_SCRIPT = path.join(root, "scripts/golden-home.mjs"), REPLAY_SCRIPT = path.join(root, "scripts/replay-golden-homes.mjs");
@@ -153,6 +154,19 @@ describe("what a dump holds in place of what cannot stay in it", () => {
     const [first] = written as { digest: string; payload: string }[];
     writeFileSync(path.join(directory, first!.payload), "damaged");
     assert.throws(() => moduleSourceReader(directory)(first!.digest), (error: { code?: string }) => error.code === "golden.payload_digest_mismatch");
+  });
+
+  test("a compressed copy is compared as the code it holds: another Node's compressor changes no finding, and other code still does", t => {
+    const generation = (name: string, quality: number, source: string) => {
+      const at = path.join(scratch(t), name), file = path.join(at, MODULE_SOURCES_DIRECTORY, "a.br");
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, brotliCompressSync(source, { params: { [constants.BROTLI_PARAM_QUALITY]: quality } }));
+      return { at, file };
+    };
+    const source = code.repeat(500), best = generation("best", 11, source), fast = generation("fast", 1, source);
+    assert.notDeepEqual(readFileSync(best.file), readFileSync(fast.file));
+    assert.deepEqual(compareGoldens(best.at, fast.at), []);
+    assert.deepEqual((compareGoldens(best.at, generation("other", 11, `${source} `).at) as { reason: string }[]).map(item => item.reason), ["differs"]);
   });
 
   test("the sample's sandbox entries get fixed fields in their own row, and the same text in any other row stays", () => {

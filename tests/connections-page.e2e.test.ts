@@ -256,6 +256,7 @@ test("ASC-73: a row opens in place to its natural height on the chevron's clock,
   assert.deepEqual(exceptions, []);
 });
 
+// RAR-07 also verifies returning from the OAuth tab before the next real click.
 test("ASC-78: a login shows its steps and, when cancelled, changes nothing; a key the service refuses is said as such", { timeout: 120_000 }, async t => {
   const browser = await openPage(t); if (!browser) return;
   const { page, open, next, answer, rows, origin, exceptions } = browser;

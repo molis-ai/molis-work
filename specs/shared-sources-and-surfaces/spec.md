@@ -272,7 +272,7 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 - **指定之后读指定的那个文件夹里同路径的文件。** 这是用户说的对应，读到的就算内容不同也不拒绝，但要说出来：有指纹就比，不一样是 `changed`，界面提示「和引用时不是同一份」；比不了的给 `note`，写明「内容没有核对」。同路径没有文件是 `missing`。这些只到界面，Agent 读文件不比（第 2 节）。
 - **`goals.inputs.bind` 带指纹。** 输入多一个可选的 `read_revision`，调用方读到什么传什么，只是提示，传错了最多多报一次 `changed`。处理器是同步的，不自己读文件。十六进制写成 `sha256:<hex>` 存进已有、也同步的 `input_bindings.snapshot_digest`（和 `goals.inputs.confirm` 同一种形状，`goal-entry-actions.ts:32`），比较时去掉前缀；`size:` 放不进这种形状，写 null。不改表，动作快照要跟着改。没有指纹的绑定显示「内容没有核对」。
 
-**还剩一种静默读：脱钩之前建的目录行。** 这种行的 id 是路径的哈希（`normalizeProjectWorkspace`）。同一个同步项目，两台设备都在目录实现片之前关联过同一个绝对路径，id 就相同，引用不用指定就走本机目录这条路。关联不只是手动加，在这个路径开过终端、绑过会话也算（`modules/private-work-context/src/project-binding-commands.ts:171,180`）。只关联别的项目不算，那样是 `unmapped`（下面）。**用户 2026-11-07 定：接受，写明。** 碰上还要先有同步：`modules/sync-replication` 现在只有个人空间本机联调，默认关闭（`docs/SSOT-MATRIX.md`），联网个人同步排在 M1 之后（路线图 SRV-1、SRV-2）。
+**还剩一种静默读：脱钩之前建的目录行。** 这种行的 id 是路径的哈希（`normalizeProjectWorkspace`）。同一个同步项目，两台设备都在目录实现片之前关联过同一个绝对路径，id 就相同，引用不用指定就走本机目录这条路。关联不只是手动加，在这个路径开过终端、绑过会话也算（`modules/private-work-context/src/project-binding-commands.ts:171,180`）。只关联别的项目不算，那样是 `unmapped`（下面）。**用户 2026-11-07 定：接受，写明。** 碰上还要先有同步：同步默认关闭，不设环境变量就没有（`modules/sync-replication/src/endpoint.ts:14-16`）；联网同步没有交付，个人同步排在 M1 之后（路线图 SRV-1、SRV-2）。同步晚到不清旧行，打开时照样碰得上。
 
 | 引用 | 人在界面上 | Agent 读 |
 | --- | --- | --- |
@@ -283,11 +283,11 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 
 - **否掉的两个方案。**
   - **旧绑定标成待确认。** 多一个 Goals 升级段，把没有指纹的旧 `workspace_file` 绑定标成 `proposed`。还要改 `goals.inputs.accept`：它现在只认 `feed_item`（`plugins/native/goals/src/input-actions.ts:108-109`），这种绑定认可不了。用户要逐条认可。重建之后这种行预计接近 0，也不改 Agent 读文件不比这一点。
-  - **目录 id 加每台设备的盐。** 盐是 Home 里只写一次的随机值，放进目录库 `catalog_meta` 的一个新键，不改表结构。`normalizeProjectWorkspace` 多一个参数，改 `workspace.ts:47`、`modules/projects/src/index.ts:144`、`project-catalog.ts:412`，模块级的 `contextBindingValidation` 和 `normalizeRuntimeWorkContext` 要改成按实例取（`project-catalog.ts:411-420`、`project-workspace-actions.ts:12`）。`modules/characters/src/open.ts:37` 这些下游把 id 当不透明字符串存，不用动。#1837 没有改这几个文件，不挡它。**但必须在真实 Home 重建之前合入**：之后已有的行没有盐，同一个路径算出新 id，撞 `canonical_path` 的唯一约束（`repository.ts:67`，`upsertWorkspace` 只处理 `workspace_id` 冲突），就要再补迁移或先按路径查行。重建因此多等这一个 PR。它只填重建到实现片这段窗口，实现片 `add` 发新 id 以后就没用了，算一次性代码。这段窗口里，另一台设备同路径的引用从读到本机文件变成读不了，指定文件夹片之前没有入口。整份 Home 拷贝照样不解决，盐也拷过去了。
+  - **目录 id 加每台设备的盐。** 盐是 Home 里只写一次的随机值，放进目录库 `catalog_meta` 的一个新键，不改表结构。`normalizeProjectWorkspace` 多一个参数，改 `workspace.ts:47`、`modules/projects/src/index.ts:144`、`project-catalog.ts:412`，模块级的 `contextBindingValidation` 和 `normalizeRuntimeWorkContext` 要改成按实例取（`project-catalog.ts:411-420`、`project-workspace-actions.ts:12`）。`catalog_meta` 归 `packages/storage`，读写要加在 `packages/storage/src/catalog-metadata.ts` 再接到目录的构造上。`modules/characters/src/open.ts:37` 这些下游把 id 当不透明字符串存，不用动。#1837 没有改这几个文件，不挡它。**但必须在真实 Home 重建之前合入**：之后已有的行没有盐，同一个路径算出新 id，撞 `canonical_path` 的唯一约束（`repository.ts:67`，`upsertWorkspace` 只处理 `workspace_id` 冲突），就要再补迁移或先按路径查行。重建因此多等这一个 PR。它只填重建到实现片这段窗口，实现片 `add` 发新 id 以后就没用了，算一次性代码。这段窗口里，另一台设备同路径的引用从读到本机文件变成读不了，指定文件夹片之前没有入口。整份 Home 拷贝照样不解决，盐也拷过去了。
 - **接受的后果。** 主要是上表 Agent 那一列：这种引用 Agent 读到的是本机同名文件，不比，不提示，可能不是引用时的内容。另外多一条判断（没有指纹就写「内容没有核对」）和一个发布排序条件。
 
 - **升级段不改这些 id。** 别的库也存着（`modules/characters/src/open.ts:37`、冻结的轮次），要逐库改，改漏了本机的历史就断了。
-- **范围。** 外部用户只有实现片晚于首次外部安装才会碰上：一台设备上的旧行，遇到另一台实现片之后新发的 id，照样是 `unmapped`。这个先后由统筹写进路线图依赖或发版清单（第 9 节）。自己的设备上已经有这种行的，要把这个路径从那台设备的**所有项目**移除，再加一次才发新 id：`removeWorkspaceIfEmpty`（`workspace-repository.ts:146`）只在没有任何关联时才删这一行，还有别的项目关联时加回来认回原来那一行。之后那台的旧引用变成未指定，可以指定。
+- **范围。** 外部用户只有实现片晚于首次外部安装才会碰上：一台设备上的旧行，遇到另一台实现片之后新发的 id，照样是 `unmapped`。这个先后写在[路线图依赖](../post-anticorruption-roadmap/reference/dependencies.md)（`MAT --> M1`）。自己的设备上已经有这种行的，要把这个路径从那台设备的**所有项目**移除，再加一次才发新 id：`removeWorkspaceIfEmpty`（`workspace-repository.ts:146`）只在没有任何关联时才删这一行，还有别的项目关联时加回来认回原来那一行。之后那台的旧引用变成未指定，可以指定。
 
 **相邻两种情况。**
 

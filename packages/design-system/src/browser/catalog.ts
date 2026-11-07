@@ -4,6 +4,7 @@
 import { wireCatalogKeepEdits } from "./catalog-keep-edits.js";
 import { wireCatalogAppearance } from "./catalog-appearance.js";
 import { wireCatalogPatterns } from "./catalog-patterns.js";
+import { wireCatalogSplit } from "./catalog-skill-packs.js";
 type Craft = { land(element: Element): void; celebrate(element: Element): void };
 const craft = () => (globalThis as typeof globalThis & { molisCraft?: Craft }).molisCraft;
 const all = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => [...scope.querySelectorAll<T>(selector)];
@@ -189,3 +190,4 @@ all(".mw-catalog .is-yield [data-slot=directory-row]").forEach((row) => {
 wireCatalogPatterns();
 wireCatalogKeepEdits();
 wireCatalogAppearance();
+wireCatalogSplit();

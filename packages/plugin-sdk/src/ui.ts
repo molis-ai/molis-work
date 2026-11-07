@@ -25,3 +25,6 @@ export * from "./ui/message-format.js";
 export * from "./ui/locale-pack.js";
 export * from "./ui/text-reader.js";
 export * from "./ui/strict-json.js";
+export * from "./ui/appearance-files.js";
+export * from "./ui/appearance-resolve.js";
+export * from "./ui/environment.js";

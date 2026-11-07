@@ -187,6 +187,19 @@ export interface SignedAgentReference {
     entry_id: string;
 }
 
+export interface SkillRef {
+    source: {
+        kind: "plugin";
+        plugin_id: string;
+        plugin_version: string;
+        publisher_signature: string;
+    };
+    skill_id: string;
+    version: number;
+    install_id: string;
+    installation_generation: string;
+}
+
 export declare const servicesAgentDefinitionsContract: {
     readonly contractId: "io.molis.work.service.agent-definitions.v1";
     readonly kind: "service";

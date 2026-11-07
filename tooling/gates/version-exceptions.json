@@ -2,330 +2,397 @@
   {
     "file": "apps/local-host/src/agent-host-composition.ts",
     "name": "appVersion",
+    "values": { "0.0.0": 1 },
     "reason": "传给 Prologue 的应用身份占位值，SDK 只校验格式，不读取也不比较，不是产品版本。"
   },
   {
     "file": "apps/local-host/src/model-provider-test.ts",
     "name": "appVersion",
+    "values": { "0.0.0": 1 },
     "reason": "传给 Prologue 的应用身份占位值，SDK 只校验格式，不读取也不比较，不是产品版本。"
   },
   {
     "file": "apps/local-host/src/assistant/assistant-inputs.ts",
     "name": "version",
+    "values": { "1": 3 },
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
     "file": "apps/local-host/src/assistant/assistant-memory-sources.ts",
     "name": "version",
+    "values": { "1": 4 },
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
     "file": "apps/local-host/src/context-onboarding-documents.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
     "file": "apps/local-host/src/context-onboarding-store.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
     "file": "apps/local-host/src/memory/memory-source-identity.ts",
     "name": "version",
+    "values": { "1": 2 },
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
     "file": "apps/local-host/src/memory/memory-sources.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
     "file": "packages/contracts/src/services/agent-inputs.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/prologue-original-inputs.ts",
     "name": "version",
+    "values": { "1": 4 },
     "reason": "不可变来源引用自身的修订号：这种来源写定后不再改，永远是第 1 版，不是产品声明的版本。"
   },
   {
     "file": "apps/local-host/src/character-import-plugins.ts",
     "name": "schema_version",
+    "values": { "1": 1 },
     "reason": "外部工具写的远程插件安装标记（.codex-remote-plugin-install.json），格式归对方，我们只读。"
   },
   {
     "file": "apps/local-host/src/connector-tool-install.ts",
     "name": "version",
+    "values": { "1.0.0": 1 },
     "reason": "托管工具目录里 package.json 的占位版本，只在目录内部用，没有读取比较或对外承诺。"
   },
   {
     "file": "apps/local-host/src/connector-tool-runtime.ts",
     "name": "UV_BOOTSTRAP_VERSION",
+    "values": { "0.12.19": 1 },
     "reason": "上游 uv 的发行版本号，决定下载哪个包，由上游制定，不是自有版本。"
   },
   {
     "file": "apps/local-host/src/demo-seed.ts",
     "name": "version",
+    "values": { "1": 1, "2": 1 },
     "reason": "演示项目的种子数据：记录修订号和事件类型的样例值，换值不改变任何合同。"
   },
   {
     "file": "apps/local-host/src/demo-seed.ts",
     "name": "type_version",
+    "values": { "1": 2 },
     "reason": "演示项目的种子数据：记录修订号和事件类型的样例值，换值不改变任何合同。"
   },
   {
     "file": "apps/local-host/src/judgment-rules-actions.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "预览未发布规则时临时拼的记录，修订号占位为 1，不写入也不对外。"
   },
   {
     "file": "apps/local-host/src/plugin-builder/build-checks.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "构建检查用的模拟宿主返回值，只在试跑生成的插件时存在，不进产品数据。"
   },
   {
     "file": "apps/local-host/src/plugin-builder/build-project.ts",
     "name": "version",
+    "values": { "0.0.0": 1 },
     "reason": "生成插件工作区的初始包版本，属于被生成的插件，不是平台的版本。"
   },
   {
     "file": "apps/local-host/src/plugin-builder/studio-ports.ts",
     "name": "version",
+    "values": { "0.0.0": 1 },
     "reason": "尚未发布的生成插件在创作台里预检时用的占位版本，发布时才有真实版本。"
   },
   {
     "file": "apps/local-host/src/plugin-builder/studio-preview.ts",
     "name": "version",
+    "values": { "0.0.0": 1 },
     "reason": "尚未发布的生成插件在创作台里预览时用的占位版本，发布时才有真实版本。"
   },
   {
     "file": "apps/local-host/src/sandbox-package-store.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "沙箱包在宿主侧派生动作时的构建修订号，属于第三方包自身的编号，不是平台版本。"
   },
   {
     "file": "packages/plugin-sdk/src/sandbox-manifest.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "沙箱包在宿主侧派生动作时的构建修订号，属于第三方包自身的编号，不是平台版本。"
   },
   {
     "file": "apps/mcp/src/launcher-validation.ts",
     "name": "protocolVersion",
+    "values": { "2024-11-05": 1 },
     "reason": "MCP 协议的日期版本，由外部标准制定，按 N34 约定不算自有版本。"
   },
   {
     "file": "apps/mcp/src/launcher-validation.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "校验启动器时对本机进程通报的客户端占位版本，不持久化、没有比较、没有对外承诺。"
   },
   {
     "file": "apps/sync-worker/testing.mjs",
+    "name": "schema_version",
+    "values": { "1": 1 },
     "reason": "同步 Worker 测试的公共辅助文件，只被 *.test.mjs 引用，不进产物。"
   },
   {
     "file": "apps/workbench/src/assistant-board-works.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "组件板样例里的展示数据，只用于预览外观，不是真实记录也不是版本声明。"
   },
   {
     "file": "plugins/native/diff/src/board-specimens.ts",
     "name": "content_version",
+    "values": { "3": 1 },
     "reason": "组件板样例里的展示数据，只用于预览外观，不是真实记录也不是版本声明。"
   },
   {
     "file": "packages/contracts/src/services/agent-host-memory.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "Prologue SDK 记忆清除决定的字段，形状由上游定义，我们按原样转交。"
   },
   {
     "file": "packages/plugin-runtime/src/project-database-statements.ts",
     "name": "PLUGIN_STATEMENT_SQLITE_VERSION",
+    "values": { "3.51.3": 1 },
     "reason": "随宿主打包的 SQLite 版本号，由依赖决定，不是自有版本。"
   },
   {
     "file": "packages/plugin-runtime/src/resolution.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "解析规则：字符串引用没写 @ 时指第 1 版。这是读法的约定，换数字会改变存量引用的含义。"
   },
   {
     "file": "plugins/native/alchemist/src/studio/domain/discovery/idea-card.ts",
     "name": "currentVersion",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/alchemist/src/studio/domain/discovery/idea-card.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/alchemist/src/studio/server/db/idea-repository.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/alchemist/src/studio/server/services/calibration-memory.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/alchemist/src/studio/server/services/idea-card-actions.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/alchemist/src/studio/server/services/workspace-operations.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/coding/src/change-html.ts",
     "name": "content_version",
+    "values": { "1": 1 },
     "reason": "只读对比两段文字时的占位内容版本，对比完就丢，不持久化也不比较。"
   },
   {
     "file": "plugins/native/coding/src/changeset.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "由内容派生、不可变的成果引用自身的修订号，内容变了换 id 而不是升这个数字。"
   },
   {
     "file": "plugins/native/coding/src/goal-context.ts",
     "name": "version",
+    "values": { "1": 2 },
     "reason": "由内容派生、不可变的成果引用自身的修订号，内容变了换 id 而不是升这个数字。"
   },
   {
     "file": "plugins/native/coding/src/plans.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "由内容派生、不可变的成果引用自身的修订号，内容变了换 id 而不是升这个数字。"
   },
   {
     "file": "plugins/native/coding/src/report.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "由内容派生、不可变的成果引用自身的修订号，内容变了换 id 而不是升这个数字。"
   },
   {
     "file": "plugins/native/coding/src/taskboard.ts",
     "name": "source_version",
+    "values": { "1": 1 },
     "reason": "由内容派生、不可变的成果引用自身的修订号，内容变了换 id 而不是升这个数字。"
   },
   {
     "file": "plugins/native/dataset/src/store.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/form/src/store.ts",
     "name": "version",
+    "values": { "1": 2 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/pages/src/store.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/ppt/src/store.ts",
     "name": "version",
+    "values": { "1": 2 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/goals/src/module/event-facts-config.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "目标事件类型由用户配置，新类型必须从第 1 版开始，这是记录修订号的规则。"
   },
   {
     "file": "plugins/native/goals/src/module/event-state.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/issues/src/store.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/issues/src/store.ts",
     "name": "expected_version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/native/jelly/src/import.ts",
     "name": "schemaVersion",
+    "values": { "1": 1, "5": 1 },
     "reason": "原 Jelly 备份文件的外部格式号，由旧产品定义，导入时只读取比较。"
   },
   {
     "file": "plugins/native/jelly/src/import.ts",
     "name": "schema_version",
+    "values": { "5": 1 },
     "reason": "记下导入来源的外部格式号（原 Jelly schema 5），是事实记录，不是当前写出的版本。"
   },
   {
     "file": "plugins/official-integrations/catalog/src/document-import.ts",
     "name": "NOTION_VERSION",
+    "values": { "2026-03-11": 1 },
     "reason": "Notion API 的日期版本，由外部服务制定，按 N34 约定不算自有版本。"
   },
   {
     "file": "plugins/official-integrations/github/src/provider.ts",
     "name": "GITHUB_API_VERSION",
+    "values": { "2026-03-10": 1 },
     "reason": "GitHub API 的日期版本，由外部服务制定，按 N34 约定不算自有版本。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/plugin-builder.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "每次创作运行临时发布的 Prologue 角色，修订号占位为 1，运行结束即弃。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/prologue-checkpoints.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "Prologue SDK 定义的文档格式字段，我们只读取和比较，升级由 vendored SDK 决定。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/prologue-review-documents.ts",
     "name": "version",
+    "values": { "1": 2 },
     "reason": "Prologue SDK 定义的文档格式字段，我们只读取和比较，升级由 vendored SDK 决定。"
   },
   {
     "file": "horizontal/memory/src/moves.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "horizontal/memory/src/service.ts",
     "name": "version",
+    "values": { "1": 4 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
   },
   {
     "file": "server/public/client.js",
     "name": "version",
+    "values": { "2": 1 },
     "reason": "公开演示页里写死的示例数据，这是成果记录的修订号，不是自有版本。"
   },
   {
     "file": "server/tooling/continuity-demo.mts",
     "name": "version",
+    "values": { "2": 2 },
     "reason": "跨设备接续演示脚本里示例成果的修订号，只在本机演示时写入。"
   },
   {
     "file": "server/tooling/continuity-demo.mts",
     "name": "plugin_version",
+    "values": { "1.0.0": 1 },
     "reason": "跨设备接续演示脚本里示例成果的生产者版本，只在本机演示时写入。"
   },
   {
     "file": "tooling/plugin-cli/src/create.ts",
     "name": "version",
+    "values": { "2.0.0": 2 },
     "reason": "新插件模板的初始版本，生成后归插件作者自己管理，不是平台的版本。"
   },
   {
     "file": "tooling/plugin-cli/src/create.ts",
     "name": "schema_version",
+    "values": { "1": 1 },
     "reason": "新插件模板里样例成果类型的初始版本，生成后归插件作者自己管理。"
   },
   {
     "file": "tooling/plugin-cli/src/sample-source.ts",
     "name": "version",
+    "values": { "1": 2 },
     "reason": "新插件模板里样例动作的初始版本，生成后归插件作者自己管理。"
   },
   {
     "file": "tooling/plugin-cli/src/sample-source.ts",
     "name": "schema_version",
+    "values": { "1": 1 },
     "reason": "新插件模板里样例成果类型的初始版本，生成后归插件作者自己管理。"
   },
   {
@@ -455,231 +522,493 @@
   {
     "file": "plugins/native/files/src/browser/request.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "Files 内嵌页按路由拼出动作 id，发一个共同的版本；一张逐动作的表放不进页面资源预算。这个字面量与它能到的动作条目相等，由 tests/version-source.test.ts 核对，其中一个动作升版本时那条测试失败，届时再改成逐动作传。"
   },
   {
     "file": "plugins/native/git/src/browser/request.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "Git 内嵌页按路由拼出动作 id，发一个共同的版本；一张逐动作的表放不进页面资源预算。这个字面量与它能到的动作条目相等，由 tests/version-source.test.ts 核对，其中一个动作升版本时那条测试失败，届时再改成逐动作传。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/prologue-node-port.ts",
     "name": "version",
+    "values": { "1": 1 },
     "reason": "Prologue SDK 定义的命令回执（WORKSPACE_COMMAND_RECEIPT_KIND）的版本字段，我们只读取和比较，升级由 vendored SDK 决定。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/prologue-node-port.ts",
     "name": "schema",
+    "values": { "1": 2 },
     "reason": "Git 审查决定写进 Host 存储时带的 metadata 标签：宿主和 SDK 都不读、不比较这个值，改它没有业务含义。"
   },
   {
     "file": "horizontal/agent-host/src/adapters/prologue-node-parts.ts",
     "name": "schema",
+    "values": { "1": 1 },
     "reason": "项目工作记录写进 Host 存储时带的 metadata 标签：宿主和 SDK 都不读、不比较这个值，改它没有业务含义。"
   },
   {
     "file": "modules/artifacts/src/fixed-version-replication-shape.ts",
     "name": "format",
+    "values": { "1": 1 },
     "reason": "成果同步的两个编码判别值（内联 1、附件 2）：版本内容超过 64 KB，或者是带原件的导入文档（不看大小），就走附件；不是版本。放进版本表，内联升版就和附件相撞。"
   },
   {
     "file": "modules/artifacts/src/sync-content.ts",
     "name": "format",
+    "values": { "2": 1 },
     "reason": "成果同步的两个编码判别值（内联 1、附件 2）：版本内容超过 64 KB，或者是带原件的导入文档（不看大小），就走附件；不是版本。放进版本表，内联升版就和附件相撞。"
   },
   {
     "file": "packages/storage/src/project-replica-content.ts",
     "name": "format",
+    "values": { "1": 1 },
     "reason": "项目内容同步的两个编码判别值（内联 1、分块 2）：超过 64 KB 的 Goal 内容分块，其余内联；不是版本。放进版本表，内联升版就和分块相撞。"
   },
   {
     "file": "apps/local-host/src/project-goal-content.ts",
     "name": "format",
+    "values": { "2": 1 },
     "reason": "项目内容同步的两个编码判别值（内联 1、分块 2）：超过 64 KB 的 Goal 内容分块，其余内联；不是版本。放进版本表，内联升版就和分块相撞。"
   },
   {
     "file": "apps/workbench/src/artifacts/browser-ui.ts",
     "name": "io.molis.work.native.artifacts.browser.v1",
+    "values": { "io.molis.work.native.artifacts.browser.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "apps/workbench/src/artifacts/reference-ui.ts",
     "name": "io.molis.work.native.artifacts.reference.v1",
+    "values": { "io.molis.work.native.artifacts.reference.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/alchemist/src/ui.ts",
     "name": "io.molis.work.native.alchemist.ui.v1",
+    "values": { "io.molis.work.native.alchemist.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/coding/src/ui.ts",
     "name": "io.molis.work.native.coding.ui.v1",
+    "values": { "io.molis.work.native.coding.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/coding/src/ui.ts",
     "name": "io.molis.work.native.coding.settings.v1",
+    "values": { "io.molis.work.native.coding.settings.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/cognia/src/ui.ts",
     "name": "io.molis.work.cognia.ui.v1",
+    "values": { "io.molis.work.cognia.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/dataset/src/ui.ts",
     "name": "io.molis.work.native.dataset.ui.v1",
+    "values": { "io.molis.work.native.dataset.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/diff/src/ui.ts",
     "name": "io.molis.work.native.diff.ui.v1",
+    "values": { "io.molis.work.native.diff.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/feed/src/ui.ts",
     "name": "io.molis.work.native.feed.ui.v1",
+    "values": { "io.molis.work.native.feed.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/files/src/ui.ts",
     "name": "io.molis.work.native.files.ui.v1",
+    "values": { "io.molis.work.native.files.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/form/src/ui.ts",
     "name": "io.molis.work.native.form.ui.v1",
+    "values": { "io.molis.work.native.form.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/git/src/ui.ts",
     "name": "io.molis.work.native.git.ui.v1",
+    "values": { "io.molis.work.native.git.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/context-ui.ts",
     "name": "io.molis.work.native.goals.context.v1",
+    "values": { "io.molis.work.native.goals.context.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/dialogs-ui.ts",
     "name": "io.molis.work.native.goals.dialogs.v1",
+    "values": { "io.molis.work.native.goals.dialogs.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/document-ui.ts",
     "name": "io.molis.work.native.goals.document.v1",
+    "values": { "io.molis.work.native.goals.document.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/factors-ui.ts",
     "name": "io.molis.work.native.goals.factors.v1",
+    "values": { "io.molis.work.native.goals.factors.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/momentum-ui.ts",
     "name": "io.molis.work.native.goals.momentum.v1",
+    "values": { "io.molis.work.native.goals.momentum.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/planning-ui.ts",
     "name": "io.molis.work.native.goals.planning.v1",
+    "values": { "io.molis.work.native.goals.planning.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/policy-ui.ts",
     "name": "io.molis.work.native.goals.policy.v1",
+    "values": { "io.molis.work.native.goals.policy.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/relation-ui.ts",
     "name": "io.molis.work.native.goals.relations.v1",
+    "values": { "io.molis.work.native.goals.relations.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/settings-ui.ts",
     "name": "io.molis.work.goals.settings.v1",
+    "values": { "io.molis.work.goals.settings.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/status-ui.ts",
     "name": "io.molis.work.native.goals.status.v1",
+    "values": { "io.molis.work.native.goals.status.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/goals/src/tree-ui.ts",
     "name": "io.molis.work.native.goals.tree.v1",
+    "values": { "io.molis.work.native.goals.tree.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/images/src/manifest.ts",
     "name": "io.molis.work.native.images.ui.v1",
+    "values": { "io.molis.work.native.images.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/inbox/src/ui.ts",
     "name": "io.molis.work.native.inbox.ui.v1",
+    "values": { "io.molis.work.native.inbox.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/issues/src/manifest.ts",
     "name": "io.molis.work.native.issues.ui.v1",
+    "values": { "io.molis.work.native.issues.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/jelly/src/ui.ts",
     "name": "io.molis.work.jelly.ui.v1",
+    "values": { "io.molis.work.jelly.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/lingguang/src/ui.ts",
     "name": "io.molis.work.lingguang.ui.v1",
+    "values": { "io.molis.work.lingguang.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/pages/src/ui.ts",
     "name": "io.molis.work.native.pages.ui.v1",
+    "values": { "io.molis.work.native.pages.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/plugin-builder/src/manifest.ts",
     "name": "io.molis.work.plugin-builder.ui.v1",
+    "values": { "io.molis.work.plugin-builder.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/ppt/src/ui.ts",
     "name": "io.molis.work.native.ppt.ui.v1",
+    "values": { "io.molis.work.native.ppt.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/schedule/src/ui.ts",
     "name": "io.molis.work.native.schedule.ui.v1",
+    "values": { "io.molis.work.native.schedule.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/shelf/src/settings-ui.ts",
     "name": "io.molis.work.native.shelf.settings.v1",
+    "values": { "io.molis.work.native.shelf.settings.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/shelf/src/ui.ts",
     "name": "io.molis.work.native.shelf.ui.v1",
+    "values": { "io.molis.work.native.shelf.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/text-stats/src/ui.ts",
     "name": "io.molis.work.native.text-stats.ui.v1",
+    "values": { "io.molis.work.native.text-stats.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/todo/src/ui.ts",
     "name": "io.molis.work.native.todo.ui.v1",
+    "values": { "io.molis.work.native.todo.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
     "file": "plugins/native/workflows/src/ui.ts",
     "name": "io.molis.work.workflows.ui.v1",
+    "values": { "io.molis.work.workflows.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
+  },
+  {
+    "file": "apps/local-host/src/alchemist-search.ts",
+    "name": "materials_v1",
+    "values": { "materials_v1": 1 },
+    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本。"
+  },
+  {
+    "file": "apps/local-host/src/demo-project-id.ts",
+    "name": "molis-work-v1-demo",
+    "values": { "molis-work-v1-demo": 1 },
+    "reason": "示例项目的固定 id，写进示例数据后不变；名字里的 v1 不被比较，也不会升。"
+  },
+  {
+    "file": "apps/local-host/src/demo-seed.ts",
+    "name": "demo-v1",
+    "values": { "demo-v1": 2 },
+    "reason": "示例数据写入时用的幂等键前缀，只在种子数据里出现，不是版本。"
+  },
+  {
+    "file": "apps/local-host/src/home-restore-owner-payload.ts",
+    "name": "home-snapshot-file/v1",
+    "values": { "home-snapshot-file/v1": 1 },
+    "reason": "写进已封存数据的固定绑定串：解封时一起校验，改它就解不开，是这份密文的一部分，不是会单独升的版本号。"
+  },
+  {
+    "file": "apps/local-host/src/home-snapshot-capture.ts",
+    "name": "home-snapshot-file/v1",
+    "values": { "home-snapshot-file/v1": 1 },
+    "reason": "写进已封存数据的固定绑定串：解封时一起校验，改它就解不开，是这份密文的一部分，不是会单独升的版本号。"
+  },
+  {
+    "file": "apps/local-host/src/installer/home-contract.ts",
+    "name": "molis-work-home-launcher-v1",
+    "values": { "molis-work-home-launcher-v1": 1 },
+    "reason": "Node 启动器的文件头。两种启动器（v1 是 Node，v2 是内置 Node 的 sh）同时存在，按整串认出归我们管的启动器，不是当前版本号。"
+  },
+  {
+    "file": "apps/local-host/src/installer/home-contract.ts",
+    "name": "molis-work-home-launcher-v2",
+    "values": { "molis-work-home-launcher-v2": 1 },
+    "reason": "内置 Node 的 sh 启动器的文件头。两种启动器（v1 是 Node，v2 是 sh）同时存在，按整串认出归我们管的启动器，不是当前版本号。"
+  },
+  {
+    "file": "apps/local-host/src/search-intelligence-client.ts",
+    "name": "feed-intent-v1",
+    "values": { "feed-intent-v1": 1 },
+    "reason": "搜索 SDK 的键命名空间，写进存储的键里，改它就找不到已有记录，不是当前版本号。"
+  },
+  {
+    "file": "apps/local-host/src/search-intelligence-client.ts",
+    "name": "search-evidence-layer/X/X/data/operation/v1",
+    "values": { "search-evidence-layer/X/X/data/operation/v1": 1 },
+    "reason": "搜索 SDK 存储键的布局，由上游 SDK 决定，这里只照着删记录；布局不符时同文件的检查会报错。"
+  },
+  {
+    "file": "apps/local-host/src/source-pull-intent.ts",
+    "name": "materials_v1",
+    "values": { "materials_v1": 2 },
+    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本。"
+  },
+  {
+    "file": "apps/mcp/src/protocol.ts",
+    "name": "protocolVersion",
+    "values": { "2025-03-26": 1 },
+    "reason": "客户端没有说版本时回落的 MCP 协议日期，由上游 MCP 协议决定，不是自有版本。"
+  },
+  {
+    "file": "apps/workbench/src/assistant-board-works.ts",
+    "name": "c-v1",
+    "values": { "c-v1": 1 },
+    "reason": "工作台组件板示例里一条活动记录的 id，展示用，不是版本。"
+  },
+  {
+    "file": "apps/workbench/src/project-settings-pages.ts",
+    "name": "project-settings-v2.",
+    "values": { "project-settings-v2.": 1 },
+    "reason": "页面 HTML 注释里提到的设计稿名字，不进页面行为，不是版本。"
+  },
+  {
+    "file": "packages/contracts/src/platform/work-executors.ts",
+    "name": "molis.work-executor.X.input.v1",
+    "values": { "molis.work-executor.X.input.v1": 1 },
+    "reason": "待修的绕过：工作执行器协议的类型名，读时按整串比较却写死 v1，新形状要手改；没有表条目，要加条目并改产品代码才能去掉，已报告（02 版本门禁片）。"
+  },
+  {
+    "file": "packages/contracts/src/platform/work-executors.ts",
+    "name": "molis.work-executor.X.output.v1",
+    "values": { "molis.work-executor.X.output.v1": 1 },
+    "reason": "待修的绕过：工作执行器协议的类型名，读时按整串比较却写死 v1，新形状要手改；没有表条目，要加条目并改产品代码才能去掉，已报告（02 版本门禁片）。"
+  },
+  {
+    "file": "packages/design-system/src/plugin-presentation-example.ts",
+    "name": "reading-v1",
+    "values": { "reading-v1": 1 },
+    "reason": "设计系统示例插件的 revision 示例值，只用于展示这个字段的写法，不是版本声明。"
+  },
+  {
+    "file": "packages/storage/src/adapters/file-secret-store.ts",
+    "name": "molis-work-secretstore-v1",
+    "values": { "molis-work-secretstore-v1": 1 },
+    "reason": "口令派生密钥用的固定盐：改它等于换掉派生出的密钥，写定后不动，不是当前版本号。"
+  },
+  {
+    "file": "packages/storage/src/adapters/file-secret-store.ts",
+    "name": "molis-work/home-payload/v1",
+    "values": { "molis-work/home-payload/v1": 1 },
+    "reason": "写进已封存数据的固定绑定串：解封时一起校验，改它就解不开，是这份密文的一部分，不是会单独升的版本号。"
+  },
+  {
+    "file": "packages/storage/src/adapters/local-payload-protection.ts",
+    "name": "molis-work-local-payload-v1",
+    "values": { "molis-work-local-payload-v1": 1 },
+    "reason": "本机密文信封的固定前缀，和算法绑在一起：解封时按整串比较，不解析数字；换算法由主人另起前缀，不是表里的版本。"
+  },
+  {
+    "file": "packages/storage/src/adapters/search-storage.ts",
+    "name": "molis-work-feed-aead-v1",
+    "values": { "molis-work-feed-aead-v1": 1 },
+    "reason": "本机密文信封的固定前缀，和算法绑在一起：解封时按整串比较，不解析数字；换算法由主人另起前缀，不是表里的版本。"
+  },
+  {
+    "file": "packages/storage/src/adapters/search-storage.ts",
+    "name": "molis-work-feed-cas-v1.X",
+    "values": { "molis-work-feed-cas-v1.X": 1 },
+    "reason": "乐观并发令牌的固定前缀，后面是随机数；令牌只按整串相等比较，不解析版本。"
+  },
+  {
+    "file": "plugins/native/alchemist/src/client-views.ts",
+    "name": "discovery.pulse.v1",
+    "values": { "discovery.pulse.v1": 1 },
+    "reason": "待修的绕过：Alchemist 页面脚本里手写的 type.discovery.pulse，表里升版本时这里不会跟着动。要改产品代码才能去掉，已报告（02 版本门禁片）。"
+  },
+  {
+    "file": "plugins/native/alchemist/src/studio/server/db/idea-repository.ts",
+    "name": "activity_X_v1",
+    "values": { "activity_X_v1": 1 },
+    "reason": "Alchemist 活动记录的 id，按 idea 拼成，写进记录后不升，不是版本。"
+  },
+  {
+    "file": "plugins/native/alchemist/src/studio/server/runtime/fixture-ai-runtime.ts",
+    "name": "fixture-research-v1",
+    "values": { "fixture-research-v1": 1 },
+    "reason": "Alchemist 演示运行时的模型 id，演示用，不被比较，不是版本。"
+  },
+  {
+    "file": "plugins/native/alchemist/src/studio/server/services/decision-workspace.ts",
+    "name": "mvpScopeVersion",
+    "values": { "1": 1 },
+    "reason": "还没有 MVP 范围时默认的修订号：这是 Alchemist 记录自身的修订，不是产品声明的版本。"
+  },
+  {
+    "file": "plugins/native/diff/src/board-specimens.ts",
+    "name": "auth/cookie-v1.ts",
+    "values": { "auth/cookie-v1.ts": 1 },
+    "reason": "Diff 组件板示例里的一个文件路径，展示用，不是版本。"
+  },
+  {
+    "file": "plugins/native/feed/src/source-request.ts",
+    "name": "materials_v1",
+    "values": { "materials_v1": 2 },
+    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本。"
+  },
+  {
+    "file": "plugins/official-integrations/catalog/src/index.ts",
+    "name": "adeptify-official-signature-v1",
+    "values": { "adeptify-official-signature-v1": 1 },
+    "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
+  },
+  {
+    "file": "plugins/official-integrations/catalog/src/index.ts",
+    "name": "connector.driver.X.v1",
+    "values": { "connector.driver.X.v1": 1 },
+    "reason": "待修的绕过：目录里每个连接器各拼一个 id，版本写死 v1；同插件 Manifest 的 type.connector.driver.catalog 升版本时这里不会跟着动。要改产品代码才能去掉，已报告（02 版本门禁片）。"
+  },
+  {
+    "file": "plugins/official-integrations/catalog/src/index.ts",
+    "name": "signal.adapter.X.v1",
+    "values": { "signal.adapter.X.v1": 1 },
+    "reason": "待修的绕过：目录里每个连接器各拼一个 id，版本写死 v1；同插件 Manifest 的 type.signal.adapter.catalog 升版本时这里不会跟着动。要改产品代码才能去掉，已报告（02 版本门禁片）。"
+  },
+  {
+    "file": "plugins/official-integrations/github/src/index.ts",
+    "name": "adeptify-official-signature-v1",
+    "values": { "adeptify-official-signature-v1": 1 },
+    "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
+  },
+  {
+    "file": "plugins/official-integrations/gmail/src/index.ts",
+    "name": "adeptify-official-signature-v1",
+    "values": { "adeptify-official-signature-v1": 1 },
+    "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
+  },
+  {
+    "file": "plugins/official-integrations/rss/src/index.ts",
+    "name": "adeptify-official-signature-v1",
+    "values": { "adeptify-official-signature-v1": 1 },
+    "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
+  },
+  {
+    "file": "plugins/official-integrations/web-query/src/index.ts",
+    "name": "adeptify-official-signature-v1",
+    "values": { "adeptify-official-signature-v1": 1 },
+    "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
+  },
+  {
+    "file": "plugins/official-integrations/youtube/src/index.ts",
+    "name": "adeptify-official-signature-v1",
+    "values": { "adeptify-official-signature-v1": 1 },
+    "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-adapter-capabilities.ts",
+    "name": "provider_version",
+    "values": { "0.0.0-rc.1": 1 },
+    "reason": "调用方没有给版本时的占位值，Prologue 只校验格式，不读取也不比较，不是自有版本。"
   }
 ]

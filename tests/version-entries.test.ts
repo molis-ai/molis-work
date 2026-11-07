@@ -6,7 +6,8 @@ import {
   DIFF_CHANGESET_SCHEMA_VERSION, DIFF_CHANGESET_TYPE, FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_SCHEMA_VERSION, FILE_TEXT_SELECTION_TYPE,
   FILES_COLLECTION_SCHEMA_VERSION, FILES_COLLECTION_TYPE, GIT_RESULT_SCHEMA_VERSION, GIT_RESULT_TYPE, WORKSPACE_REF_SCHEMA_VERSION, WORKSPACE_REF_TYPE,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { computeVersions, readVersionInputs, versionSource } from "../scripts/generate-versions.mjs";
+import { computeVersions, readVersionInputs } from "../scripts/generate-versions.mjs";
+import { versionSource } from "../scripts/version-source.mjs";
 
 // Each entry of tooling/versions.json has to be one thing: moving it moves what reads and writes that thing, all of it and nothing
 // else. Every number is 1 today, so a wrong marker or a split entry only shows at the first bump. These tests make that bump here.

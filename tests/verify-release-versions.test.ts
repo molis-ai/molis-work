@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
+import { declarationFindings } from "../scripts/gates/version-declarations.mjs";
 
 // docs/releases/POLICY.md: one product version, and the per-database version table in docs/releases/CHECKLIST.md is the
 // code's. The script is run against this repository (it must pass), and each rule is mutation-verified on a small scratch
@@ -14,7 +15,26 @@ const repository = fileURLToPath(new URL("..", import.meta.url));
 const scratch: string[] = [];
 let root = "";
 
+// Scratch files whose literals these release rules break one at a time; the declaration rules have their own file (tests/version-source.test.ts).
+// An exception names the literals it lets through, so the list is written from the fixture as it stands when the script runs.
+let scratchFiles = new Set<string>();
+const scratchLiterals = (...files: string[]) => { for (const file of files) scratchFiles.add(file); };
+const writeScratchExceptions = () => {
+  const counts = new Map<string, Record<string, number>>();
+  const findings: Array<{ file: string; name: string; value: string }> = existsSync(path.join(root, "tooling/versions.json")) ? declarationFindings(root) : [];
+  for (const { file, name, value } of findings) {
+    if (!scratchFiles.has(file)) continue;
+    const id = JSON.stringify([file, name]), values = counts.get(id) ?? {};
+    values[value] = (values[value] ?? 0) + 1;
+    counts.set(id, values);
+  }
+  put("tooling/gates/version-exceptions.json", JSON.stringify([...counts].map(([id, values]) => {
+    const [file, name] = JSON.parse(id);
+    return { file, name, values, reason: "scratch fixture for the release rules, not a declaration" };
+  })));
+};
 const run = (...args: string[]) => {
+  writeScratchExceptions();
   const result = spawnSync(process.execPath, [script, "--root", root, ...args], { encoding: "utf8" });
   return { code: result.status, out: `${result.stdout}${result.stderr}` };
 };
@@ -25,11 +45,6 @@ const ownVersion = (file: string, key: string, value: string | number, pattern?:
   source.versions[key] = value;
   if (pattern && !source.carriers.some((carrier: { file: string; pattern: string }) => carrier.file === file && carrier.pattern === pattern)) source.carriers.push({ file, key, pattern });
   put("tooling/versions.json", JSON.stringify(source));
-};
-// A scratch file whose literals these release rules break one at a time; the declaration rules have their own file (tests/version-source.test.ts).
-const scratchLiterals = (...files: string[]) => {
-  const list = JSON.parse(readFileSync(path.join(root, "tooling/gates/version-exceptions.json"), "utf8"));
-  put("tooling/gates/version-exceptions.json", JSON.stringify([...list, ...files.map(file => ({ file, reason: "scratch fixture for the release rules, not a declaration" }))]));
 };
 const edit = (file: string, from: string, to: string) => {
   const text = readFileSync(path.join(root, file), "utf8");
@@ -66,8 +81,8 @@ const buildFixture = () => {
   ownVersion("apps/desktop/src-tauri/Cargo.toml", "product.release", VERSION, '(\\[package\\]\\nname = "molis-work-desktop"\\nversion = ")[^"]+(")');
   ownVersion("apps/desktop/src-tauri/Cargo.lock", "product.release", VERSION, '(name = "molis-work-desktop"\\nversion = ")[^"]+(")');
   // These fixtures keep their versions in carriers so the rules below can break one literal at a time.
-  put("tooling/gates/version-exceptions.json", JSON.stringify(["apps/alpha/src/store.ts", "server/src/db.ts", "apps/local-host/src/product-version.ts"]
-    .map(file => ({ file, reason: "scratch fixture for the release table, its versions are carriers" }))));
+  scratchFiles = new Set(["apps/alpha/src/store.ts", "apps/alpha/src/characters.ts", "server/src/db.ts", "apps/local-host/src/product-version.ts"]);
+  for (const snapshot of ["actions", "host-actions", "scenes", "host-scenes"]) put(`tooling/gates/actions/${snapshot}.tsv`, "");
   put("pnpm-workspace.yaml", "# comment\npackages:\n  - 'apps/*'\n  - 'server'\n\noverrides:\n  x: 1\n");
   put("apps/alpha/package.json", JSON.stringify({ name: "alpha", version: "0.0.0", private: true }));
   put("apps/alpha/src/store.ts", [
@@ -222,6 +237,25 @@ test("a SqliteBaseline the table does not list fails", () => {
   put("apps/alpha/src/dist/more.ts", "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n");
   put("apps/alpha/src/node_modules/x/more.ts", "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n");
   assert.equal(run().code, 0);
+});
+
+test("VG-13 the release table reads a package's .ts, .js, .mts and .mjs under src/, and only those", () => {
+  const baseline = "export const MORE_BASELINE: SqliteBaseline = { version: 1, schema: `` };\n";
+  for (const file of ["apps/alpha/src/more.ts", "apps/alpha/src/more.js", "apps/alpha/src/more.mts", "apps/alpha/src/more.mjs", "apps/alpha/src/deep/tests/more.ts", "apps/alpha/src/target/more.ts", "apps/alpha/src/.build/more.ts", "server/src/more.ts"]) {
+    buildFixture();
+    scratchLiterals(file);
+    put(file, baseline);
+    failsWith(run(), `${file}#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list`);
+    rmSyncFile(file);
+  }
+  for (const file of ["apps/alpha/more.ts", "apps/alpha/tooling/more.ts", "apps/alpha/tests/more.ts", "apps/alpha/src/more.tsx", "apps/alpha/src/more.cjs", "apps/alpha/src/dist/more.ts", "apps/alpha/src/node_modules/x/more.ts", "apps/beta/src/more.ts"]) {
+    buildFixture();
+    scratchLiterals(file);
+    put(file, baseline);
+    const result = run();
+    assert.equal(result.code, 0, `${file}\n${result.out}`);
+    rmSyncFile(file);
+  }
 });
 
 test("a plugin-owned database declaration has a listed literal baseline with the same version", () => {
@@ -410,10 +444,10 @@ test("an unusable command line exits 2, not 0 or 1", () => {
 // REL-03: native Manifest versions are checked before any build or tag publication.
 test("a bundled plugin with a different or nonliteral version refuses release; integrations remain independent", () => {
   edit("pnpm-workspace.yaml", "  - 'server'", "  - 'server'\n  - 'plugins/native/*'\n  - 'plugins/official-integrations/*'");
-  ownVersion("plugins/native/alpha/src/manifest.ts", "manifest.schema", 2, '(schema_version: )\\d+()');
+  ownVersion("plugins/native/alpha/src/manifest.ts", "manifest.schema", 1, '(schema_version: )\\d+()');
   scratchLiterals("plugins/native/alpha/src/manifest.ts", "plugins/official-integrations/alpha/src/manifest.ts");
   put("plugins/native/alpha/package.json", JSON.stringify({ name: "native-alpha", version: "0.0.0", private: true }));
-  put("plugins/native/alpha/src/manifest.ts", `export const manifest = { schema_version: 2, version: '${VERSION}' };`);
+  put("plugins/native/alpha/src/manifest.ts", `export const manifest = { schema_version: 1, version: '${VERSION}' };`);
   put("plugins/official-integrations/alpha/package.json", JSON.stringify({ name: "integration-alpha", version: "0.0.0", private: true }));
   put("plugins/official-integrations/alpha/src/manifest.ts", `export const manifest = { version: "9.0.0" };`);
   assert.equal(run().code, 0);

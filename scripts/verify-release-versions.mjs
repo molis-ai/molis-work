@@ -16,6 +16,8 @@ import { generateVersions } from "./generate-versions.mjs";
 import { versionDeclarationProblems } from "./gates/version-declarations.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { walkFiles } from "./script-paths.mjs";
+import { withoutMarkers } from "./version-source.mjs";
 
 const USAGE = "usage: verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -39,7 +41,7 @@ const root = path.resolve(options.root ?? path.join(path.dirname(fileURLToPath(i
 const problems = [];
 const problem = message => problems.push(message);
 // Markers are comments next to the literal; the checks below read the literal.
-const inspectSource = (file, text) => /\.m?[tj]s$/.test(file) ? text.replace(/\/\* @version [^*]+\*\/\s*/g, "") : text;
+const inspectSource = (file, text) => /\.m?[tj]s$/.test(file) ? withoutMarkers(text) : text;
 const readOptional = file => existsSync(path.join(root, file)) ? inspectSource(file, readFileSync(path.join(root, file), "utf8")) : null;
 try {
   for (const file of generateVersions({ root })) problem(`${file}: differs from tooling/versions.json (run pnpm versions:generate)`);
@@ -225,18 +227,8 @@ function codeVersion(source, name) {
   return baselineVersion(source, name) ?? source.match(new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*=\\s*"?(\\d+)"?\\s*;`))?.[1] ?? null;
 }
 
-function sourceFiles(directory) {
-  const files = [];
-  const walk = relative => {
-    if (!existsSync(path.join(root, relative))) return;
-    for (const entry of readdirSync(path.join(root, relative), { withFileTypes: true })) {
-      if (entry.isDirectory()) { if (entry.name !== "node_modules" && entry.name !== "dist") walk(`${relative}/${entry.name}`); }
-      else if (/\.m?[tj]s$/.test(entry.name)) files.push(`${relative}/${entry.name}`);
-    }
-  };
-  walk(`${directory}/src`);
-  return files;
-}
+// A package's own source: .ts, .js, .mts and .mjs under src/. A baseline is a server-side declaration, so .tsx and .cjs are not read.
+const sourceFiles = directory => walkFiles(root, [`${directory}/src`], file => /\.m?[tj]s$/.test(file));
 
 // Each baseline in package sources is a database the table has to list, as `file#NAME`.
 function declaredBaselines(directories) {

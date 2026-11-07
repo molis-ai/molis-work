@@ -1,7 +1,6 @@
 import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
-import path from "node:path";
-import { projectDirectoryPath, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { projectDirectoryPath, recordedStagedProjectDirectoryPath, stagedProjectDirectoryPath, type ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
@@ -41,7 +40,7 @@ export class ManagedProjectDeletion {
 
     const project = this.projects.query.getProject(projectId);
     const projectDirectory = projectDirectoryPath(this.projectsDirectory, project.project_id);
-    const stagedDirectory = path.join(this.projectsDirectory, `.deleting-${project.project_id}-${randomUUID()}`);
+    const stagedDirectory = stagedProjectDirectoryPath(this.projectsDirectory, project.project_id, randomUUID());
     await fs.rename(projectDirectory, stagedDirectory);
     let catalogCommitted = false;
     try {
@@ -118,7 +117,8 @@ export class ManagedProjectDeletion {
       }
     }
     try {
-      await fs.rm(record.staged_directory, { recursive: true, force: true });
+      // The receipt's path is not trusted (S-102): it may have been edited, or come with a Home copied from somewhere else.
+      await fs.rm(recordedStagedProjectDirectoryPath(this.projectsDirectory, record.project_id, record.staged_directory), { recursive: true, force: true });
     } catch (error) {
       problems.push(error instanceof Error ? error.message : String(error));
     }

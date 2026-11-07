@@ -2,6 +2,7 @@ import path from "node:path";
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 const PROJECT_DATABASE_FILE = "molis-work.db";
+const STAGE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * The directory of one project: `<projects directory>/<project_id>`. The catalog stores no path (W5-17): this and `projectDatabasePath` are the
@@ -17,4 +18,23 @@ export function projectDirectoryPath(projectsDirectory: string, projectId: strin
 
 export function projectDatabasePath(projectsDirectory: string, projectId: string): string {
   return path.join(projectDirectoryPath(projectsDirectory, projectId), PROJECT_DATABASE_FILE);
+}
+
+/** Where a deletion moves a project's directory until it is removed: `<projects directory>/.deleting-<project_id>-<uuid>`. */
+export function stagedProjectDirectoryPath(projectsDirectory: string, projectId: string, uuid: string): string {
+  projectDirectoryPath(projectsDirectory, projectId);
+  return path.join(projectsDirectory, `.deleting-${projectId}-${uuid}`);
+}
+
+/**
+ * The staged directory a deletion receipt stands for, in this Home. The receipt records a whole path, and a catalog can be edited, restored or copied
+ * with its Home while a deletion is under way, so the directories in that value count for nothing: its last segment must be a name this project's
+ * deletion gives, and the directory above it is always this Home's projects directory. Anything else is refused and nothing may be removed for it.
+ */
+export function recordedStagedProjectDirectoryPath(projectsDirectory: string, projectId: string, recorded: string): string {
+  const name = path.basename(recorded), prefix = `.deleting-${projectId}-`;
+  if (!name.startsWith(prefix) || !STAGE_UUID.test(name.slice(prefix.length))) {
+    throw catalogErrors.project_storage_invalid("这条删除记录写的暂存目录不是这个项目删除时留下的，没有删除任何文件。从备份恢复目录库后再重试清理");
+  }
+  return stagedProjectDirectoryPath(projectsDirectory, projectId, name.slice(prefix.length));
 }

@@ -3,7 +3,7 @@
 // including what scripts/gates/page-assets.mjs does not see (the HTML and what is inlined in it, /api, pty-client).
 // It reports and never judges: it exits 0 whatever the numbers are and is not part of CI.
 //
-//   node scripts/first-screen-report.mjs [--out <dir>] [--port <n>] [--runs <n>] [--pages <id,id>] [--http-only]
+//   node scripts/first-screen-report.mjs [--out <dir>] [--port <n>] [--runs <n>] [--pages <id,id>] [--http-only | --reads-only]
 //   node scripts/first-screen-report.mjs --summarize <dir>     prints a saved run, median of the runs, without a Host or a browser
 //
 // Build first (`pnpm build`). It serves a temporary Home on a free port (never 4207/4208, never ~/.molis-work), stops only
@@ -14,7 +14,11 @@
 //
 // Out (default .impeccable/qa/review/first-screen, ignored): http.json, the page bytes read without a browser, with each page's
 // HTML beside it; browser.json, every request of every run, cold (a new Chrome with an empty profile) and warm (a new tab in that
-// Chrome); catalog-use.json, which language-catalog entries each first screen's code read. `--http-only` needs no slot.
+// Chrome); catalog-use.json, which language entries the code of every frame of the first screen read.
+//
+// `--http-only` needs no slot, but it is not the page's total: it reads the document and the files the document names, and misses
+// the hidden side document, whatever a script loads and all startup JSON, so `--summarize` has nothing to print for it.
+// `--reads-only` skips the timed visits and only writes catalog-use.json (still a browser, still the slot).
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -39,19 +43,27 @@ const bytes = (text) => Buffer.byteLength(text, "utf8");
 const gzip = (text) => gzipSync(text, { level: 9 }).length;
 const sized = (text) => ({ raw: bytes(text), gzip: gzip(text) });
 
+function integerAt(flag, text, least, most) {
+  const value = Number(text);
+  if (!Number.isInteger(value) || value < least || value > most) throw new Error(`${flag} wants a whole number from ${least} to ${most}, got ${text}`);
+  return value;
+}
+
 function parse(argv) {
-  const options = { out: join(ROOT, ".impeccable/qa/review/first-screen"), port: 0, runs: 3, httpOnly: false, pages: null, summarize: null };
+  const options = { out: join(ROOT, ".impeccable/qa/review/first-screen"), port: 0, runs: 3, httpOnly: false, readsOnly: false, pages: null, summarize: null };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (flag === "--out") options.out = resolve(argv[++index]);
-    else if (flag === "--port") options.port = Number(argv[++index]);
-    else if (flag === "--runs") options.runs = Number(argv[++index]);
+    else if (flag === "--port") options.port = integerAt(flag, argv[++index], 1, 65_535);
+    else if (flag === "--runs") options.runs = integerAt(flag, argv[++index], 1, 100);
     else if (flag === "--http-only") options.httpOnly = true;
+    else if (flag === "--reads-only") options.readsOnly = true;
     else if (flag === "--summarize") options.summarize = resolve(argv[++index]);
     else if (flag === "--pages") options.pages = argv[++index].split(",");
     else throw new Error(`unknown argument ${flag}`);
   }
   if (RESERVED_PORTS.has(options.port)) throw new Error(`port ${options.port} belongs to the real Home`);
+  if (options.httpOnly && options.readsOnly) throw new Error("--http-only and --reads-only exclude each other");
   return options;
 }
 
@@ -66,12 +78,15 @@ async function freePort(requested) {
   return RESERVED_PORTS.has(port) ? freePort(0) : port;
 }
 
-/** Three projects: a new one (the emptier case), one with every project-scoped plugin (the crowded case) and the demo (sample data). */
+/**
+ * Three projects: a new one (the emptier case), one with every project-scoped plugin (the crowded case) and the demo (sample data).
+ * The ids are fixed because the page derives bytes from them (`data-hue`, and every route that names the project).
+ */
 async function seed(home) {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try {
-    const plain = await catalog.createProject({ display_name: "默认项目", actor_id: "first-screen-report" });
-    const crowded = await catalog.createProject({ display_name: "全部插件", actor_id: "first-screen-report" });
+    const plain = await catalog.createProject({ project_id: "project-onboarding-00000000-0000-4000-8000-000000000001", display_name: "默认项目", actor_id: "first-screen-report" });
+    const crowded = await catalog.createProject({ project_id: "project-onboarding-00000000-0000-4000-8000-000000000002", display_name: "全部插件", actor_id: "first-screen-report" });
     for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: crowded.project_id, plugin_id, actor_id: "first-screen-report" });
     const demo = (await catalog.ensureDemoProject({ actor_id: "first-screen-report", user_confirmed: true })).project;
     return { plain: plain.project_id, crowded: crowded.project_id, demo: demo.project_id };
@@ -232,6 +247,7 @@ async function openTab(browser) {
 /** A new Chrome with an empty profile is what "cold" means here: no disk cache, no memory cache, only the language cookie. */
 async function openFresh(home, label, origin, locale) {
   const browser = await ChromeHarness.start(join(home, "chrome", label), { executable: locateTestChrome(), commandTimeoutMs: 45_000 });
+  running.browsers.add(browser);
   const session = await openTab(browser);
   await session.command("Network.setCookie", { name: COOKIE, value: locale, url: origin });
   return { browser, session };
@@ -251,7 +267,7 @@ async function readBrowser(origin, pages, runs, home, out) {
           await browser.command("Target.closeTarget", { targetId: session.targetId });
           const warm = await visit(browser, await openTab(browser), origin + page.path);
           samples.push({ cold, warm });
-        } finally { await browser.close(); }
+        } finally { await closeBrowser(browser); }
       }
       report[`${page.id}/${locale}`] = samples;
       writeFileSync(join(out, "browser.json"), `${JSON.stringify(report, null, 1)}\n`);
@@ -260,30 +276,90 @@ async function readBrowser(origin, pages, runs, home, out) {
   }
 }
 
-/** Records which catalog entries the page's own code reads, by standing behind the global the i18n script assigns. */
+/**
+ * Stands behind the globals the i18n script assigns, in every frame, and reports through a binding (a frame's own variable would be
+ * lost with the frame and cannot be read from a sandboxed one). A key is reported once per frame. A whole-catalog copy (parent.ts
+ * spreads the catalog into a frame's config) is reported as a copy, not as thousands of reads: it is the entries that follow an
+ * `ownKeys`, in that order. Not seen: a sandboxed plugin frame, whose `L` reads the copy it was handed (child.ts). It reported nothing
+ * here, also when attached to as a target of its own; `all_frames` lists it, so frames without a record stay visible.
+ */
 const RECORD_CATALOG_READS = `(() => {
-  const read = new Set();
-  let held;
-  globalThis.__firstScreenCatalogReads = read;
-  Object.defineProperty(globalThis, "MOLIS_WORK_MESSAGES", {
-    configurable: true,
-    get: () => held,
-    set: (value) => { held = new Proxy(value, { get: (target, key) => { if (typeof key === "string" && Object.hasOwn(target, key)) read.add(key); return target[key]; } }); },
+  const send = globalThis.__firstScreenRead;
+  if (typeof send !== "function") return;
+  const frame = location.protocol === "about:" ? location.href : location.pathname + location.search;
+  const seen = new Set();
+  const report = (kind, catalog, key) => {
+    const id = kind + "/" + catalog + "/" + key;
+    if (seen.has(id)) return;
+    seen.add(id);
+    send(JSON.stringify({ frame, kind, catalog, key }));
+  };
+  const watched = (target, catalog) => {
+    let copying = null;
+    let at = 0;
+    return new Proxy(target, {
+      ownKeys(from) {
+        copying = Reflect.ownKeys(from);
+        at = 0;
+        report("copy", catalog, copying.length);
+        return copying;
+      },
+      get(from, key) {
+        if (typeof key !== "string" || !Object.hasOwn(from, key)) return from[key];
+        if (copying && copying[at] === key) { at += 1; if (at === copying.length) copying = null; return from[key]; }
+        copying = null;
+        report("read", catalog, key);
+        return from[key];
+      },
+    });
+  };
+  const stand = (name, wrap) => {
+    let held;
+    Object.defineProperty(globalThis, name, { configurable: true, get: () => held, set: (value) => { report("catalog", name, Object.keys(value ?? {}).length); held = wrap(value); } });
+  };
+  stand("MOLIS_WORK_MESSAGES", (value) => watched(value, "messages"));
+  stand("MOLIS_WORK_PLUGIN_WORDS", (value) => {
+    const inner = new Map();
+    return new Proxy(value, {
+      get(from, plugin) {
+        const words = from[plugin];
+        if (typeof plugin !== "string" || !words || typeof words !== "object") return words;
+        if (!inner.has(plugin)) inner.set(plugin, watched(words, plugin));
+        return inner.get(plugin);
+      },
+    });
   });
 })();`;
 
-/** One more visit per page and language, after the timed ones: how much of the catalog the first screen's code really reads. */
+const framesOf = (tree) => [tree.frame.url, ...(tree.childFrames ?? []).flatMap(framesOf)];
+
+/** One more visit per page and language, after the timed ones: how much of the catalogs the first screen's code really reads, frame by frame. */
 async function readCatalogUse(origin, pages, home, out) {
   const report = {};
   for (const page of pages) {
     for (const locale of LOCALES) {
       const { browser, session } = await openFresh(home, `use-${page.id}-${locale}`, origin, locale);
+      const frames = {};
+      let exceptions = 0;
+      const stops = [
+        browser.on("Runtime.bindingCalled", (params, from) => {
+          if (from !== session.sessionId || params.name !== "__firstScreenRead") return;
+          const { frame, kind, catalog, key } = JSON.parse(params.payload);
+          const entry = (frames[frame] ??= { catalogs: {}, reads: {}, copies: [] });
+          if (kind === "catalog") entry.catalogs[catalog] = key;
+          else if (kind === "copy") entry.copies.push({ catalog, entries: key });
+          else (entry.reads[catalog] ??= []).push(key);
+        }),
+        browser.on("Runtime.exceptionThrown", (_params, from) => { if (from === session.sessionId) exceptions += 1; }),
+      ];
       try {
+        await session.command("Runtime.enable");
+        await session.command("Runtime.addBinding", { name: "__firstScreenRead" });
         await session.command("Page.addScriptToEvaluateOnNewDocument", { source: RECORD_CATALOG_READS });
         await visit(browser, session, origin + page.path);
-        const keys = await session.evaluate("[...(globalThis.__firstScreenCatalogReads ?? [])]");
-        report[`${page.id}/${locale}`] = { read: keys.length, keys };
-      } finally { await browser.close(); }
+        const { frameTree } = await session.command("Page.getFrameTree");
+        report[`${page.id}/${locale}`] = { frames, all_frames: framesOf(frameTree), exceptions };
+      } finally { for (const stop of stops) stop(); await closeBrowser(browser); }
     }
   }
   writeFileSync(join(out, "catalog-use.json"), `${JSON.stringify(report, null, 1)}\n`);
@@ -293,6 +369,8 @@ async function readCatalogUse(origin, pages, home, out) {
 
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 const KINDS = ["html", "css", "js", "font", "api"];
+/** What scripts/gates/page-assets.mjs measures, by path: its literal routes and the built-in packs all live under /assets/. */
+const GATED = (request) => request.url.startsWith("/assets/");
 
 function summarize(dir) {
   const report = JSON.parse(readFileSync(join(dir, "browser.json"), "utf8"));
@@ -303,12 +381,29 @@ function summarize(dir) {
       const count = (keep) => median(visits.map((visited) => visited.requests.filter(keep).length));
       const parts = KINDS.map((kind) => `${kind} ${wire((request) => request.kind === kind)}/${count((request) => request.kind === kind)}`);
       const times = ["dcl", "fcp", "load"].map((name) => `${name} ${median(visits.map((visited) => visited.timing[name]))}`);
-      process.stdout.write(`${page} ${state}: total ${wire(() => true)}/${count(() => true)} | ${parts.join(" ")} | ${times.join(" ")} ms | load average ${median(visits.map((visited) => visited.load_average)).toFixed(1)}\n`);
+      const shares = visits.map((visited) => visited.requests.filter(GATED).reduce((sum, request) => sum + request.wire, 0) / visited.requests.reduce((sum, request) => sum + request.wire, 0));
+      process.stdout.write(`${page} ${state}: total ${wire(() => true)}/${count(() => true)} | page-assets ${(median(shares) * 100).toFixed(1)}% | ${parts.join(" ")} | ${times.join(" ")} ms | load average ${median(visits.map((visited) => visited.load_average)).toFixed(1)}\n`);
     }
   }
 }
 
 // ---- main -----------------------------------------------------------------------------------------------------------
+
+/** What this run started, and nothing else: an interrupted run stops these by the handles it holds and removes its own Home. */
+const running = { host: null, browsers: new Set(), home: null };
+
+async function closeBrowser(browser) {
+  running.browsers.delete(browser);
+  await browser.close();
+}
+
+async function stopEverything() {
+  await Promise.allSettled([...running.browsers].map(closeBrowser));
+  if (running.host) await stopHost(running.host);
+  running.host = null;
+  if (running.home) rmSync(running.home, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  running.home = null;
+}
 
 async function main() {
   const options = parse(process.argv.slice(2));
@@ -316,12 +411,16 @@ async function main() {
   if (!existsSync(SERVER)) throw new Error("dist/web/server.js is missing; run pnpm build first");
   const home = mkdtempSync(join(tmpdir(), "molis-first-screen-"));
   if (resolve(home) === join(homedir(), ".molis-work")) throw new Error("refusing the real Home");
+  running.home = home;
+  for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+    process.once(signal, () => { void stopEverything().finally(() => process.exit(code)); });
+  }
   mkdirSync(options.out, { recursive: true });
-  let started;
   try {
     const port = await freePort(options.port);
     const projects = await seed(home);
-    started = await startHost(home, port);
+    const started = await startHost(home, port);
+    running.host = started.host;
     const pages = [
       { id: "arrival-empty", path: "/onboarding" },
       { id: "chooser", path: "/" },
@@ -334,15 +433,10 @@ async function main() {
     const chosen = options.pages ? pages.filter((page) => options.pages.includes(page.id)) : pages;
     const http = await readHttp(started.origin, chosen, options.out);
     writeFileSync(join(options.out, "http.json"), `${JSON.stringify(http, null, 1)}\n`);
-    if (!options.httpOnly) {
-      await readBrowser(started.origin, chosen, options.runs, home, options.out);
-      await readCatalogUse(started.origin, chosen, home, options.out);
-    }
+    if (!options.httpOnly && !options.readsOnly) await readBrowser(started.origin, chosen, options.runs, home, options.out);
+    if (!options.httpOnly) await readCatalogUse(started.origin, chosen, home, options.out);
     process.stdout.write(`written to ${options.out}\n`);
-  } finally {
-    if (started) await stopHost(started.host);
-    rmSync(home, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-  }
+  } finally { await stopEverything(); }
 }
 
 await main();

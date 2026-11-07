@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { openCharacterRuns, openCharacters, purgeCharactersProject } from "@molis-ai/molis-work-module-characters";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // BL-385: a project's deletion clears the native Character runs recorded in it (`character_runs`), whoever launched them,
 // and leaves other projects' runs and the person's drafts alone.
@@ -66,7 +66,7 @@ test("RAC-255 BL-385: a Home with no Characters library has nothing to clear and
   const file = join(old, "characters", "characters.sqlite"), db = new DatabaseSync(file);
   db.exec("PRAGMA user_version = 2"); db.close();
   const bytes = readFileSync(file);
-  assert.throws(() => purgeCharactersProject(old, "doomed"), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 1);
+  assert.throws(() => purgeCharactersProject(old, "doomed"), error => error instanceof ActionError && error.code === "storage.store_too_new" && error.details?.found === 2 && error.details?.expected === 1);
   assert.deepEqual(readFileSync(file), bytes, "the refusal writes nothing");
   writeFileSync(file, bytes);
 });

@@ -139,7 +139,7 @@ test("RAC-2360 RAC-496 a new library uses the current baseline, creates Feed's t
 test("RAC-2361 RAC-496 a noncurrent library is refused by the Host without rewriting it", t => {
   const file = scratch(t);
   const old = new DatabaseSync(file); old.exec(PROJECT_DATABASE_BASELINE.schema); old.exec("PRAGMA user_version = 2"); old.close();
-  assert.throws(() => new LocalProjectDatabase(file), (error: { found?: number; expected?: number }) => error.found === 2 && error.expected === PROJECT_DATABASE_BASELINE.version);
+  assert.throws(() => new LocalProjectDatabase(file), (error: { code?: string; details?: { found?: number; expected?: number } }) => error.code === "storage.store_too_new" && error.details?.found === 2 && error.details?.expected === PROJECT_DATABASE_BASELINE.version);
   const after = new DatabaseSync(file, { readOnly: true });
   try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 2, "and left as it was"); } finally { after.close(); }
 });

@@ -1,4 +1,4 @@
-import { isSqliteSchemaStructureMismatch, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { isSqliteSchemaStructureMismatch, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,8 +34,9 @@ for (const version of [0, 1, 2, 3, 5]) test(`W1-18-CHARACTER-SCHEMA-01 an existi
     // The common store baseline refuses it (C-06 moved the Characters store onto it): the path and the version found are named.
     assert.throws(() => openCharacters(home, "owner"), error => version === 1
       ? isSqliteSchemaStructureMismatch(error) && error.message.includes(filename)
-      : error instanceof SqliteSchemaVersionError && error.code === "storage.schema_version_mismatch"
-        && error.path === filename && error.found === version && error.expected === 1 && error.message.includes(filename));
+      : isSqliteVersionRefusal(error) && error.code === (version === 0 ? "storage.schema_version_mismatch" : "storage.store_too_new")
+        && error.details?.path === "characters.sqlite" && error.details?.found === version && error.details?.expected === 1
+        && error.message.includes("characters.sqlite") && !error.message.includes(home));
     assert.deepEqual(readFileSync(filename), bytes);
     assert.equal(statSync(filename).mode, mode);
     const check = new DatabaseSync(filename);

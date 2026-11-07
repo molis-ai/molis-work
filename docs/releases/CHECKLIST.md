@@ -80,7 +80,7 @@
 Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-30干净重建取代。实现历史见 [Pages与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 当前版本只以上表和代码核对为准。2026-10-30用户决定统一为现行结构的第1版、旧Home搬开后重建；真实 Home 的统一起点尚未生效；本次合流保留 Personal 的个人同步技术表与高水位，将现行完整基线及本机持久化文件归一为 1（具体以上表为准）。现行同步集合也归一为 1；新 Home 不继承旧同步授权、游标或远端数据的采用结论。不增加读取兼容或请求内补表，不触及真实 Home。
 
-版本号相同、结构不同的库**不一律拒绝**：`openBaselineHomeSqlite` 的只读结构核对只要求当前基线的每张表都在、且形状与基线一致，**允许额外的表**（项目库会带内置插件自己的表）；缺表或基线表形状不同才报 `storage.schema_structure_mismatch`，版本不符或有表无版本报 `storage.schema_version_mismatch`。所以「同号旧形状」既不能推成必拒，也不能推成必收：已知旧同号形状（旧角色库为1但没有 `character_runs`；#661之前的连接库为1；记忆账本旧1带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1）里，带额外表的不一定被这套结构核对拒掉；其他 owner 自己的路径、权限、密钥与 JSON 检查也不是这个函数的保证，仍由各自入口负责；数字重新从1起算不证明这些旧形状会被接受。重建前不要用新构建打开旧 Home。这里只引用既有记录，没有重新读取真实Home。
+版本号相同、结构不同的库**不一律拒绝**：`openBaselineHomeSqlite` 的只读结构核对只要求当前基线的每张表都在、且形状与基线一致，**允许额外的表**（项目库会带内置插件自己的表）；缺表或基线表形状不同才报 `storage.schema_structure_mismatch`；有表无版本报 `storage.schema_version_mismatch`，低版本报 `storage.upgrade_pending`，高版本报 `storage.store_too_new`。所以「同号旧形状」既不能推成必拒，也不能推成必收：已知旧同号形状（旧角色库为1但没有 `character_runs`；#661之前的连接库为1；记忆账本旧1带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1）里，带额外表的不一定被这套结构核对拒掉；其他 owner 自己的路径、权限、密钥与 JSON 检查也不是这个函数的保证，仍由各自入口负责；数字重新从1起算不证明这些旧形状会被接受。重建前不要用新构建打开旧 Home。这里只引用既有记录，没有重新读取真实Home。
 
 版本不符仍整体拒绝，不做历史读取转换、不自动升级。旧版本的逐段维护、采用、搬迁和残留清理计划全部取消；历史记录从Git查，不再作为安装步骤。待删的其他维护入口由[干净Home分片](../../specs/archive/repository-anti-corruption/slices/home-maintenance-window.md)收口。
 - 角色当前结构1保留character_runs原生执行记录、草稿与同步日志；既有检查记录的旧1没有character_runs，本单未重新读取旧Home；现行基线仍检查同号库的所属表是否齐全且形状一致；旧Home整体搬开后新建，不从Sessions或旧角色库迁移，原SQL与演练删除。

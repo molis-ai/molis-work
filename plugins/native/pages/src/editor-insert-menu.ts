@@ -6,7 +6,8 @@ import { applySlash, slashSession, dismissedMenuRange, menuKey, hoverMenuIndex }
 import { ownPagesTransient, readPagesImage } from "./editor-transient.js";
 import { pagesSchema } from "./schema.js";
 import type { Translate, PagesEditorMountOptions, PagesListItem } from "./editor-types.js";
-import { t, overlayRoot, dsIcon, escapeHtml, keepSelectedVisible, keepFocus } from "./editor-view-ui.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t, overlayRoot, dsIcon, keepSelectedVisible, keepFocus } from "./editor-view-ui.js";
 
 export const slashKey = new PluginKey<{ open: boolean; pos: number; query: string; index: number }>("pages-slash");
 

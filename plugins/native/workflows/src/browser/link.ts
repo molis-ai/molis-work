@@ -1,6 +1,7 @@
 import type { WorkflowLink, WorkflowLinkKind } from "../model.js";
 import { ruleKey } from "./chain.js";
-import { esc, ico, kindHelp, kindName, required, said, settle } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ico, kindHelp, kindName, required, said, settle } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { fitPop, markOpen, pillOf, placePop } from "./popover.js";
 import { saveFlow, chainOf } from "./save.js";

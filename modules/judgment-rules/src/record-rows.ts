@@ -12,7 +12,8 @@ import {
   type NoulCriteria,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { hashFunctionConfig } from "./hash.js";
-import { defaultCriteria, isRecord, normalizeCriteria, normalizeSubjectKinds } from "./record-rules.js";
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
+import { defaultCriteria, normalizeCriteria, normalizeSubjectKinds } from "./record-rules.js";
 
 export interface FunctionRow {
   id: string;

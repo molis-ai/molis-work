@@ -5,6 +5,7 @@ export type ReplicaOutputValue=SQLOutputValue;
 import { randomUUID } from 'node:crypto';
 import {syncError} from './project-replica-sync-errors.js';
 import {platformErrorKind} from '@molis-ai/molis-work-contracts/platform/actions';
+import {canonicalJsonValue} from '@molis-ai/molis-work-plugin-sdk';
 import {replicaRecovery} from './replica-recovery.js';
 import {replicaSerialization} from './replica-serialization.js';
 import type { SyncMutation, SyncEvent, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
@@ -250,8 +251,7 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
 }
 
 function canonical(value:unknown):string {
-  const sort=(v:unknown):unknown=>Array.isArray(v)?v.map(sort):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,x])=>[k,sort(x)])):v;
-  return JSON.stringify(sort(value));
+  return JSON.stringify(canonicalJsonValue(value));
 }
 
 /** JSON parser diagnostics may quote source text; never persist it as a sync failure reason. */

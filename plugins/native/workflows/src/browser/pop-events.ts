@@ -1,5 +1,6 @@
 import { ruleKey } from "./chain.js";
-import { messageOf, required, settle, targetOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { required, settle, targetOf } from "./dom.js";
 import { linkView, checkReady, switchKind } from "./link.js";
 import { openRun, } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";

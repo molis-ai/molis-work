@@ -1,6 +1,7 @@
 import { admitFiles, admitFolderEntry, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
-import { closest, messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { closest } from "./dom.js";
 import { copySelection, shelveClipboard } from "./clips.js";
 import { stopEdit } from "./edit.js";
 import { isConcealed, matchesPanelKey, stageBusy } from "./model.js";

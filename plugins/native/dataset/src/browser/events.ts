@@ -1,4 +1,4 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { DatasetPage } from "./types.js";
 
 interface PlacementChange { mode?: string; from?: { kind?: string; id?: string }; to?: { kind?: string } }

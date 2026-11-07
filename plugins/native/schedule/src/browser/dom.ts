@@ -1,5 +1,3 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-export { messageOf };
 import type { Translate } from "./types.js";
 
 export const required = <T extends Element = HTMLElement>(root: ParentNode, selector: string): T => {

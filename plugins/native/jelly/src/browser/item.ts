@@ -2,7 +2,9 @@ import { confirmDialog } from "./dialog.js";
 import { syncTaskIndicators } from "./note-sync.js";
 import { showNote } from "./page.js";
 import { loadList, command } from "./workspace.js";
-import { clockLabel, esc, messageOf, parseClock } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { clockLabel, parseClock } from "./util.js";
 import type { JellyOccurrence, JellyPage, JellyRelation, LinkedTask } from "./types.js";
 
 const PRIORITIES = ["none", "P0", "P1", "P2"] as const;

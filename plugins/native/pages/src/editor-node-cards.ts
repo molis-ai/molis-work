@@ -5,7 +5,8 @@ import { closePagesPopover, pagesPopoverAnchor } from "./editor-transient.js";
 import { taskStatusText } from "./card-content.js";
 import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { PagesEditorMountOptions, Translate } from "./editor-types.js";
-import { t, dsIcon, escapeHtml, overlayRoot, field, actions } from "./editor-view-ui.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t, dsIcon, overlayRoot, field, actions } from "./editor-view-ui.js";
 
 
 const CARD_LOOK = { ref: ["link", "选择文档"], task: ["clipboard", "任务"], event: ["calendar", "日程"] } as const;

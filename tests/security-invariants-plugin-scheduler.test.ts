@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginScheduleWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { DEMO_PROJECT_ID, captureHostLog, scheduleServiceFor, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred } from "./fixtures/home-runtime.js";
@@ -165,6 +166,7 @@ test("SYS-15-S5: real process death after an action claim cannot consume an unpr
 
 test("PG-039 RAC-206: the Host's project clock has no handler of its own: it cannot register a job without an installation, and an unbound row left in the library is never woken", async () => {
   const db = openTestSqlite(":memory:");
+  db.exec(SCHEDULER_SCHEMA_SQL);
   const later = new Date("2026-01-02T00:00:00.000Z"), clock = scheduleServiceFor(db, () => later);
   try {
     // Before: the Host built its clock with an in-process index, which any code in the Host could register a handler on, and a `register()` for jobs without an installation.

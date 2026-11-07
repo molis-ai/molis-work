@@ -1,4 +1,4 @@
-import { esc } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cogniaApi } from "./request.js";
 import type { CogniaApi, CogniaClientHost, Draft, Flow, Material, Preview, Receipt, Translate, Workspace } from "./types.js";
 

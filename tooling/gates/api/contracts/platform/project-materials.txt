@@ -30,7 +30,7 @@ export interface MaterialOrigin {
         display_name: string;
         roles: DirectoryRole[];
     };
-    state: "ok" | "changed" | "missing" | "forbidden" | "truncated" | "unreadable";
+    state: "ok" | "changed" | "missing" | "forbidden" | "truncated" | "unreadable" | "unmapped";
     note?: string;
 }
 

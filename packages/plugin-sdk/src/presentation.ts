@@ -23,16 +23,22 @@ function version(value: unknown): void {
   text(reference.artifact_id, "pin.version.artifact_id", MATERIAL_REF_LIMITS.artifact_id);
   positive(reference.version, "pin.version.version");
 }
-function subject(value: unknown): void {
+function subject(value: unknown): string {
   const named = closed(value, "subject", ["kind", "id"]);
   text(named.kind, "subject.kind", MATERIAL_REF_LIMITS.subject_kind);
   text(named.id, "subject.id", MATERIAL_REF_LIMITS.subject_id);
   if (named.kind === WORKSPACE_FILE_SUBJECT_KIND && !parseWorkspaceFileSubjectId(named.id)) throw refused("subject.id");
+  return named.kind;
 }
-function pin(value: unknown): void {
+/** A local file's revision: 64 hex digits are the sha256 of its bytes, the same as `knowledge.read`'s `revision`; `size:<bytes>` is its size alone, when its content cannot be read. */
+const WORKSPACE_FILE_REVISION = /^(?:[0-9a-f]{64}|size:\d+)$/u;
+function pin(value: unknown, kind: string): void {
   const mode = closed(value, "pin", ["mode", "read_revision", "version"]).mode;
-  if (mode === "current") text(closed(value, "pin", ["mode", "read_revision"]).read_revision, "pin.read_revision", MATERIAL_REF_LIMITS.revision);
-  else if (mode === "fixed" || mode === "snapshot") version(closed(value, "pin", ["mode", "version"]).version);
+  if (mode === "current") {
+    const revision = closed(value, "pin", ["mode", "read_revision"]).read_revision;
+    text(revision, "pin.read_revision", MATERIAL_REF_LIMITS.revision);
+    if (kind === WORKSPACE_FILE_SUBJECT_KIND && !WORKSPACE_FILE_REVISION.test(revision)) throw refused("pin.read_revision");
+  } else if (mode === "fixed" || mode === "snapshot") version(closed(value, "pin", ["mode", "version"]).version);
   else throw refused("pin.mode");
 }
 function range(value: unknown): void {
@@ -44,12 +50,11 @@ function range(value: unknown): void {
 
 /**
  * Whether this is a `MaterialRef`, for the platform when a reference enters a conversation or a task and for a plugin handed one by
- * someone else. Stricter than `MATERIAL_REF_SCHEMA`: a workspace file's id has to name a path inside its folder. A reference that passes
+ * someone else. Stricter than `MATERIAL_REF_SCHEMA`: a workspace file's id has to name a path inside its folder, and its current pin has to carry a file revision. A reference that passes
  * is well formed, nothing more: whether the caller may read it is decided when it is read.
  */
 export function assertMaterialRef(value: unknown): asserts value is MaterialRef {
   const ref = closed(value, "引用", ["subject", "pin", "range"]);
-  subject(ref.subject);
-  pin(ref.pin);
+  pin(ref.pin, subject(ref.subject));
   if (ref.range !== undefined) range(ref.range);
 }

@@ -142,13 +142,21 @@ export type DirectoryRole = "input" | "output";
 export interface ProjectDirectory extends ProjectWorkspaceRef {
   /** One folder is linked once: when it is both input and output, `roles` has both. */
   roles: DirectoryRole[];
-  state: "ok" | "missing" | "revoked";
+  state: "ok" | "missing";
 }
+
+/** Which folder a directory is named by: an existing one, a path to link, or the project's default location. */
+export type DirectoryTarget =
+  | { workspace_id: string }
+  | { workspace_path: string }
+  | { default_output: true };
 
 export interface ProjectDirectories {
   project_id: string;
   /** Exactly one carries `output`, also in a project with no local input (the default location the owner creates with the project). */
   directories: ProjectDirectory[];
+  /** Ids only, no paths. */
+  source_links: { source_workspace_id: string; workspace_id: string }[];
   /** Where changes commit from, as `expected_revision`. */
   revision: string;
 }
@@ -371,10 +379,12 @@ const PROJECT_DIRECTORIES_SCHEMA: ActionSchema = { type: "object", properties: {
   project_id: { type: "string" },
   directories: { type: "array", items: { type: "object", properties: { ...WORKSPACE_SCHEMA.properties,
     roles: { type: "array", items: { enum: ["input", "output"] }, minItems: 1, uniqueItems: true },
-    state: { enum: ["ok", "missing", "revoked"] },
+    state: { enum: ["ok", "missing"] },
   }, required: [...WORKSPACE_SCHEMA.required, "roles", "state"], additionalProperties: false } },
+  source_links: { type: "array", items: { type: "object", properties: { source_workspace_id: { type: "string" }, workspace_id: { type: "string" } },
+    required: ["source_workspace_id", "workspace_id"], additionalProperties: false } },
   revision: { type: "string" },
-}, required: ["project_id", "directories", "revision"], additionalProperties: false };
+}, required: ["project_id", "directories", "source_links", "revision"], additionalProperties: false };
 
 const expectedRevision = { type: "string", minLength: 1, maxLength: 200 };
 const closedInput = (properties: Record<string, unknown>): ActionSchema => ({ type: "object", properties: { ...properties, expected_revision: expectedRevision },
@@ -400,10 +410,21 @@ export const projectDirectoryActions = {
   // The folder stays on disk and can be added again, so the `remove` in the id does not make this irreversible.
   removeInput: directoryCommand<{ workspace_id: string }>("projects.directories.remove_input", "移除输入目录", "让一个文件夹不再是当前项目的输入目录；磁盘上的文件不动",
     closedInput({ workspace_id: folderId }), { effect: "write" }),
-  setOutput: directoryCommand<{ workspace_id: string } | { workspace_path: string }>("projects.directories.set_output", "设置输出目录", "设或改当前项目的输出目录，也可以把一个输入目录设为输出；旧文件不搬移、不删除、不覆盖",
-    { ...closedInput({ workspace_id: folderId, workspace_path: folderPath }), required: ["expected_revision"], oneOf: [{ required: ["workspace_id"] }, { required: ["workspace_path"] }] }),
+  setOutput: directoryCommand<DirectoryTarget>("projects.directories.set_output", "设置输出目录",
+    "设或改当前项目的输出目录，也可以把一个输入目录设为输出，或设回默认位置；旧文件不搬移、不删除、不覆盖",
+    { ...closedInput({ workspace_id: folderId, workspace_path: folderPath, default_output: { const: true } }),
+      required: ["expected_revision"],
+      oneOf: [{ required: ["workspace_id"] }, { required: ["workspace_path"] }, { required: ["default_output"] }] }),
   repair: directoryCommand<{ workspace_id: string; workspace_path: string }>("projects.directories.repair", "修复目录路径", "文件夹换了位置以后重新找到它：只在它失效时允许，目录的身份不变，关联它的每个项目一起跟着走",
     closedInput({ workspace_id: folderId, workspace_path: folderPath })),
+  mapSource: directoryCommand<{ source_workspace_id: string } & DirectoryTarget>("projects.directories.map_source", "指定对应的文件夹",
+    "把另一台设备或已换走的一个目录对应到当前项目的文件夹；已有对应就换掉；读的时候换算，引用不变",
+    { ...closedInput({ source_workspace_id: folderId, workspace_id: folderId, workspace_path: folderPath, default_output: { const: true } }),
+      required: ["source_workspace_id", "expected_revision"],
+      oneOf: [{ required: ["workspace_id"] }, { required: ["workspace_path"] }, { required: ["default_output"] }] }),
+  unmapSource: directoryCommand<{ source_workspace_id: string }>("projects.directories.unmap_source", "取消对应的文件夹",
+    "取消对应；文件夹还是当前项目的目录，磁盘上的文件不动",
+    closedInput({ source_workspace_id: folderId }), { effect: "write" }),
 };
 
 /** A person's and a plugin's recent materials in this project; the caller and the project come from the call context (§2.1). */

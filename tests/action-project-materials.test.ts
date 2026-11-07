@@ -7,7 +7,7 @@ import { actionEffect, ActionError, type ActionCallContext, type ActionDefinitio
 import { materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectDirectoryErrors, projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { FILE_PATH_MAX_SEGMENTS, FILE_SEGMENT_MAX_LENGTH, WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { MATERIAL_RECENT_KEEP,MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_LIMITS, type MaterialOrigin, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { MATERIAL_RECENT_KEEP, MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_LIMITS, type MaterialOrigin, type MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 
 // specs/shared-sources-and-surfaces §2, §2.1, §3, §7 (C-1): the contract alone. Nothing registers these actions in the product yet, so the
 // provider here is a stand-in that answers what each test gives it; the refusals are the schema's and the SDK's own, and the behaviour behind
@@ -26,8 +26,9 @@ function serving(answer: (capabilityId: string) => unknown = () => ({})) {
 const reference = (definition: unknown) => { const { capability_id, version } = definition as ActionDefinition; return { capability_id, version }; };
 const code = (expected: string) => (error: unknown) => (error as ActionError).code === expected;
 const invalid = code("actions.input_invalid");
+const noDirectories = { project_id: "p", directories: [], source_links: [], revision: "r2" };
 
-const currentFile: MaterialRef = { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: "ws1:docs/plan.md" }, pin: { mode: "current", read_revision: "sha:1" } };
+const currentFile: MaterialRef = { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: "ws1:docs/plan.md" }, pin: { mode: "current", read_revision: "a".repeat(64) } };
 const fixedArtifact: MaterialRef = { subject: { kind: "artifact", id: "a1" }, pin: { mode: "fixed", version: { artifact_id: "a1", version: 3 } } };
 const selection: MaterialRef = { subject: { kind: "pages.page", id: "page-1" }, pin: { mode: "snapshot", version: { artifact_id: "p9", version: 1 } }, range: { anchor: "intro", line: 4, length: 2, page: 1 } };
 
@@ -85,6 +86,15 @@ test("SSC-01: a workspace file id has to name a path inside its folder, which th
   assert.doesNotThrow(() => assertMaterialRef({ ...currentFile, subject: { kind: "pages.page", id: "../not-a-path" } }));
 });
 
+test("SSC-01: a local file's current pin carries its content's sha256 or its size; any other kind's revision stays its owner's", () => {
+  const pinned = (kind: string, id: string, read_revision: string) => ({ subject: { kind, id }, pin: { mode: "current", read_revision } });
+  for (const revision of ["a".repeat(64), "0123456789abcdef".repeat(4), "size:0", "size:12"]) assert.doesNotThrow(() => assertMaterialRef(pinned(WORKSPACE_FILE_SUBJECT_KIND, "ws1:a.md", revision)), revision);
+  for (const revision of ["sha:1", "a".repeat(63), "a".repeat(65), "A".repeat(64), `sha256:${"a".repeat(64)}`, "size:", "size:-1", "size:1.5"]) {
+    assert.throws(() => assertMaterialRef(pinned(WORKSPACE_FILE_SUBJECT_KIND, "ws1:a.md", revision)), (error: Error) => invalid(error) && error.message.includes("pin.read_revision"), revision);
+  }
+  assert.doesNotThrow(() => assertMaterialRef(pinned("pages.page", "page-1", "sha:1")));
+});
+
 test("SSC-01: an anchor is bounded as knowledge.read bounds it, so one that fits a reference can be read back", async () => {
   const readInput = knowledgeActions.read.action.input_schema as { properties: { anchor: { maxLength: number } } };
   assert.equal(MATERIAL_REF_LIMITS.anchor, readInput.properties.anchor.maxLength);
@@ -109,6 +119,8 @@ test("the declarations are complete, version 1, and the ones the design names", 
     "projects.directories.remove_input@1:command",
     "projects.directories.set_output@1:command",
     "projects.directories.repair@1:command",
+    "projects.directories.map_source@1:command",
+    "projects.directories.unmap_source@1:command",
     "materials.recent@1:query",
     "materials.recent.record@1:command",
   ]);
@@ -133,8 +145,10 @@ test("a plugin cannot change a project's directories, even with a legal input an
     [projectDirectoryActions.removeInput, { workspace_id: "w", expected_revision: "r" }],
     [projectDirectoryActions.setOutput, { workspace_id: "w", expected_revision: "r" }],
     [projectDirectoryActions.repair, { workspace_id: "w", workspace_path: "/w", expected_revision: "r" }],
+    [projectDirectoryActions.mapSource, { source_workspace_id: "s", workspace_id: "w", expected_revision: "r" }],
+    [projectDirectoryActions.unmapSource, { source_workspace_id: "s", expected_revision: "r" }],
   ];
-  const { service, calls } = serving(() => ({ project_id: "p", directories: [], revision: "r2" }));
+  const { service, calls } = serving(() => noDirectories);
   for (const [definition, input] of changes) await assert.rejects(service.invoke(context("plugin", ["projects:settings"]), reference(definition), input), code("actions.forbidden"));
   assert.deepEqual(calls, []);
   // The same inputs from the person reach the provider, so what refused the plugin was who it is, not what it sent.
@@ -142,34 +156,53 @@ test("a plugin cannot change a project's directories, even with a legal input an
   assert.equal(calls.length, changes.length);
 });
 
-test("WMD-02: removing an input leaves the folder on disk, so its id does not make it irreversible", () => {
-  const { capability_id, action } = projectDirectoryActions.removeInput;
-  assert.equal(actionEffect(action, capability_id), "write");
+test("WMD-02: removing an input or a mapping leaves the folder on disk, so neither is irreversible", () => {
+  for (const { capability_id, action } of [projectDirectoryActions.removeInput, projectDirectoryActions.unmapSource]) assert.equal(actionEffect(action, capability_id), "write", capability_id);
 });
 
 test("SSC-03: every change to the directories commits from a revision; a call without one is refused", async () => {
-  const { service, calls } = serving(() => ({ project_id: "p", directories: [], revision: "r2" }));
+  const { service, calls } = serving(() => noDirectories);
   const ask = (definition: unknown, input: unknown) => service.invoke(person, reference(definition), input);
   await assert.rejects(ask(projectDirectoryActions.addInput, { workspace_path: "/w" }), invalid);
   await assert.rejects(ask(projectDirectoryActions.removeInput, { workspace_id: "w" }), invalid);
   await assert.rejects(ask(projectDirectoryActions.setOutput, { workspace_id: "w" }), invalid);
   await assert.rejects(ask(projectDirectoryActions.repair, { workspace_id: "w", workspace_path: "/w" }), invalid);
+  await assert.rejects(ask(projectDirectoryActions.mapSource, { source_workspace_id: "s", workspace_id: "w" }), invalid);
+  await assert.rejects(ask(projectDirectoryActions.unmapSource, { source_workspace_id: "s" }), invalid);
   assert.deepEqual(calls, []);
   await ask(projectDirectoryActions.addInput, { workspace_path: "/w", expected_revision: "r1" });
   await ask(projectDirectoryActions.removeInput, { workspace_id: "w", expected_revision: "r1" });
   await ask(projectDirectoryActions.repair, { workspace_id: "w", workspace_path: "/w", expected_revision: "r1" });
-  assert.equal(calls.length, 3);
+  await ask(projectDirectoryActions.unmapSource, { source_workspace_id: "s", expected_revision: "r1" });
+  assert.equal(calls.length, 4);
+  await assert.rejects(ask(projectDirectoryActions.unmapSource, { expected_revision: "r1" }), invalid);
+  assert.equal(calls.length, 4);
 });
 
-test("SSC-03: an output is set from one folder, named by id or by path, never both or neither", async () => {
-  const { service, calls } = serving(() => ({ project_id: "p", directories: [], revision: "r2" }));
-  const set = (input: unknown) => service.invoke(person, reference(projectDirectoryActions.setOutput), input);
-  await set({ workspace_id: "w", expected_revision: "r1" });
-  await set({ workspace_path: "/w", expected_revision: "r1" });
-  assert.equal(calls.length, 2);
-  await assert.rejects(set({ workspace_id: "w", workspace_path: "/w", expected_revision: "r1" }), invalid);
-  await assert.rejects(set({ expected_revision: "r1" }), invalid);
-  assert.equal(calls.length, 2);
+for (const [name, definition, extra] of [
+  ["set_output", projectDirectoryActions.setOutput, {}],
+  ["map_source", projectDirectoryActions.mapSource, { source_workspace_id: "s" }],
+] as const) {
+  test(`SSC-03: ${name} names one folder, by id, by path or as the default location, never both or neither`, async () => {
+    const { service, calls } = serving(() => noDirectories);
+    const send = (input: Record<string, unknown>) => service.invoke(person, reference(definition), { ...extra, ...input, expected_revision: "r1" });
+    await send({ workspace_id: "w" });
+    await send({ workspace_path: "/w" });
+    await send({ default_output: true });
+    assert.equal(calls.length, 3);
+    await assert.rejects(send({ default_output: false }), invalid);
+    await assert.rejects(send({}), invalid);
+    await assert.rejects(send({ workspace_id: "w", workspace_path: "/w" }), invalid);
+    await assert.rejects(send({ workspace_id: "w", default_output: true }), invalid);
+    await assert.rejects(send({ workspace_id: "w", project_id: "other" }), invalid);
+    assert.equal(calls.length, 3);
+  });
+}
+
+test("SSC-03: map_source says which source it maps", async () => {
+  const { service, calls } = serving(() => noDirectories);
+  await assert.rejects(service.invoke(person, reference(projectDirectoryActions.mapSource), { workspace_id: "w", expected_revision: "r1" }), invalid);
+  assert.deepEqual(calls, []);
 });
 
 test("trusted identity does not come from input: the project, the actor and the confirmation are refused as fields", async () => {
@@ -183,13 +216,22 @@ test("trusted identity does not come from input: the project, the actor and the 
 
 test("SSC-03: a directory has at least one role, none repeated, and a known state", async () => {
   const directory = { workspace_id: "w", canonical_path: "/w", realpath_verified: true, display_name: "w" };
-  const answer = (directories: unknown[]) => serving(() => ({ project_id: "p", directories, revision: "r" })).service.invoke(person, reference(projectDirectoryActions.get), {});
+  const answer = (directories: unknown[]) => serving(() => ({ ...noDirectories, directories })).service.invoke(person, reference(projectDirectoryActions.get), {});
   await answer([{ ...directory, roles: ["input", "output"], state: "ok" }]);
   await assert.rejects(answer([{ ...directory, roles: [], state: "ok" }]));
   await assert.rejects(answer([{ ...directory, roles: ["input", "input"], state: "ok" }]));
   await assert.rejects(answer([{ ...directory, roles: ["reference"], state: "ok" }]));
   await assert.rejects(answer([{ ...directory, roles: ["output"], state: "gone" }]));
+  await assert.rejects(answer([{ ...directory, roles: ["output"], state: "revoked" }]), "a revoked folder is a refusal when it is used, not a state of the directory");
   await assert.rejects(answer([{ ...directory, roles: ["output"], state: "ok", is_default: true }]));
+});
+
+test("SSC-03: the answer always lists the source links, and a link holds two ids and no path", async () => {
+  const links = (source_links: unknown) => serving(() => ({ ...noDirectories, source_links })).service.invoke(person, reference(projectDirectoryActions.get), {});
+  await links([{ source_workspace_id: "s", workspace_id: "w" }]);
+  await assert.rejects(links(undefined));
+  await assert.rejects(links([{ source_workspace_id: "s" }]));
+  await assert.rejects(links([{ source_workspace_id: "s", workspace_id: "w", canonical_path: "/w" }]));
 });
 
 test("SSC-12: one record call takes 1 to 10 references, and its answer cannot say which were kept", async () => {
@@ -218,6 +260,11 @@ test("SSC-12: recent materials come back with an origin read just now, at most 2
   await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "object", owner: origin.owner, state: "cached" } }]));
   await assert.rejects(read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state: "ok" } }]), "a directory origin says which directory");
   await assert.rejects(read([{ ref: fixedArtifact, origin: { ...origin, source: "object" } }]), "only a directory origin carries one");
+  // `unmapped`: an id that is not this project's directory and has no folder named for it. Only a directory can be that, and it then has none to name.
+  await read([{ ref: currentFile, origin: { source: "directory", owner: origin.owner, state: "unmapped" } }]);
+  await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "object", owner: origin.owner, state: "unmapped" } }]));
+  await assert.rejects(read([{ ref: fixedArtifact, origin: { source: "import", owner: origin.owner, state: "unmapped" } }]));
+  await assert.rejects(read([{ ref: currentFile, origin: { ...origin, state: "unmapped" } }]));
 });
 
 test("the three refusals are declared codes of one error model, not error classes", () => {

@@ -32,9 +32,10 @@ export interface MaterialOrigin {
   source: "directory" | "import" | "object";
   /** For display. The platform finds the owner through the action catalog and does not authorize by this. */
   owner: { kind: "plugin" | "system"; id: string; title: string };
-  /** Present exactly when `source` is `directory`. */
+  /** Present when `source` is `directory` and `state` is not `unmapped`. */
   directory?: { workspace_id: string; display_name: string; roles: DirectoryRole[] };
-  state: "ok" | "changed" | "missing" | "forbidden" | "truncated" | "unreadable";
+  /** `unmapped`: the id is not a directory of this project, and no folder has been named for it. Only with `source: "directory"`, and then without `directory`. */
+  state: "ok" | "changed" | "missing" | "forbidden" | "truncated" | "unreadable" | "unmapped";
   note?: string;
 }
 
@@ -78,10 +79,14 @@ export const MATERIAL_ORIGIN_SCHEMA: ActionSchema = {
     source: { enum: ["directory", "import", "object"] },
     owner: closed({ kind: { enum: ["plugin", "system"] }, id: anyText, title: anyText }),
     directory: closed({ workspace_id: anyText, display_name: anyText, roles: { type: "array", items: { enum: roles }, minItems: 1, uniqueItems: true } }),
-    state: { enum: ["ok", "changed", "missing", "forbidden", "truncated", "unreadable"] },
+    state: { enum: ["ok", "changed", "missing", "forbidden", "truncated", "unreadable", "unmapped"] },
     note: anyText,
   }, ["source", "owner", "state"]),
-  if: { properties: { source: { const: "directory" } } },
-  then: { required: ["directory"] },
-  else: { not: { required: ["directory"] } },
+  if: { properties: { state: { const: "unmapped" } } },
+  then: { properties: { source: { const: "directory" } }, not: { required: ["directory"] } },
+  else: {
+    if: { properties: { source: { const: "directory" } } },
+    then: { required: ["directory"] },
+    else: { not: { required: ["directory"] } },
+  },
 };

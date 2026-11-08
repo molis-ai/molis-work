@@ -254,17 +254,18 @@ interface SkillInstallPreview {
 **来源**：
 
 - 本机 Agent 的 Skills 目录：Claude Code、Codex 等，即 `CHARACTER_IMPORT_RUNTIMES` 的五种，复用 Character 导入的扫描（`apps/local-host/src/character-import-scan.ts`）；
-- 项目授权目录里的 Skills：取代 Coding 的 `agent.skills.discover.v1` 和 `agent.skills.install.v1`（第 8 节）。
+- 项目授权目录里的 Skills：取代 Coding 的 `agent.skills.discover.v1` 和 `agent.skills.install.v1`（第 8 节）。不在第 08 批：要先定自己的读取授权，现在以 `skills.import_source_unavailable` 拒绝（spec §9，2026-11-08 用户定；[BL-skill-import-project-directory](../backlog/BL-skill-import-project-directory.md)）。
 
 **动作**（只给本人，`audiences: user`，没有 MCP 工具）：
 
 | 动作 | 输入 | 输出 |
 | --- | --- | --- |
-| `skills.import.preview@1` | `{ source: { kind: "runtime"; runtime_id } \| { kind: "project_directory"; directory_id } }` | `preview_id`；拟定的包身份（`plugin_id` 由来源种类和来源根目录确定地算出，同一来源再导入就是升级）；候选 Skill 列表，每项给 `name`、`description`、`file_count`、`bytes`、`compatibility`（`portable` 或 `native-only` 加 `reason`）、`runs_scripts`、`change`（`new`，或同名已装时 `upgrade`：会升级成新版本） |
-| `skills.import.confirm@1` | `{ preview_id; skill_ids: string[]; scope: "project" \| "home" }`，同样不带启用参数 | 与 `plugins.install.confirm` 相同 |
+| `skills.import.preview@1` | `{ source: { kind: "runtime"; runtime_id } \| { kind: "project_directory"; directory_id } }` | `preview_id`；拟定的包身份（`plugin_id` 由来源种类和来源根目录确定地算出，同一来源再导入就是升级）；候选 Skill 列表，每项给 `name`、`description`、`file_count`、`bytes`、`compatibility`（`portable` 或 `native-only` 加 `reason`）、`runs_scripts`、`change`（`new`，或同名已装时 `upgrade`：会升级成新版本）；能导入的给 `applies_to` 与 `applies_to_from`（`file` 或 `suggested`）；整次导入按来源预选的 `applies_to` |
+| `skills.import.confirm@1` | `{ preview_id; skill_ids: string[]; scope: "project" \| "home"; applies_to?: { skill_id; applies_to }[] }`，同样不带启用参数；`applies_to` 是本人为每个 SKILL.md 没写的选中技能选的「给谁用」，写了的不能改 | 与 `plugins.install.confirm` 相同 |
 
 **规则**：
 
+- 「给谁用」（spec §9，2026-11-08 用户定）：SKILL.md 写了 `applies_to` 的照它的；没写的由本人在确认里选，预览只按来源预选（编程工具的技能目录 `coding`，别的 `both`），预选本身不进包。缺、多、重复或改了作者取值的选择以 `import_applies_to_invalid` 拒绝。
 - 导入的是确认那一刻的固定拷贝，原目录之后的变化不影响已装的包。「重新导入」就是再走一次预览，按 4.3 自动加版本并列出差异；用户在宿主里改过的设置不被覆盖。
 - `native-only` 的 Skill 可以导入，但在内置引擎里显示「不可用」并写原因；只有本地 Agent 能用它。
 - 来源读取遵守 Character 导入已有的路径和大小限制，不读来源目录之外的文件。
@@ -362,8 +363,8 @@ interface SkillCatalogEntry {
 - **范围**：六个动作的 `scope` 都是 `home`，调用上下文带项目就是那个项目（连同装给个人空间的），不带就是个人空间。项目 id、操作者、调用方的安装都不进输入；输入 schema 一律 `additionalProperties: false`，夹带 `project_id`、`actor_id` 就被拒。`skills.settings.set@1` 与 `skills.import.confirm@1` 里的 `scope` 是第 6、7 节已有的二选一 `"project" | "home"`：`project` 指上下文里的项目，不能借它点名别的项目；上下文没有项目时由实现拒绝。
 - **权限**：读目录、正文、资源要 `skills:read`；改状态、导入要 `skills:manage`。宿主在 `local-owner-permissions.ts` 给本人这两项，随 08-7 接。导入的确认和 `plugins.install.confirm` 一样只认受保护入口的本人操作（`user_action`），随 08-8 接。
 - **`skills.settings.set@1` 的输出**是改完的那一项 `SkillCatalogEntry`，界面拿它就地刷新；`settings_revision` 在 `off`（没有行）时是 0。
-- **错误码**（`skillErrors`，主人 `skills`，只给这个新文件在 `tooling/gates/error-owners.json` 加了一条）：`not_found`、`read_refused`、`resource_undeclared`、`settings_conflict`、`settings_locked`（`details.reason` 是 `plugin_disabled`、`publisher_revoked`、`resource_invalid` 之一）、`scope_mismatch`（对装进项目的 Skill 写 `home`）、`import_source_unavailable`、`import_preview_unknown`、`import_skill_unknown`。
-- **导入的预览输出**：`{ preview_id, package: { plugin_id, version, installed_version }, candidates }`，候选的 `compatibility` 沿用 Character 导入的 `"portable" | "native-only"` 加 `reason`；候选数上限取 `CHARACTER_IMPORT_LIMITS.skills`（200），一次确认至多 `SKILL_LIMITS.skillsPerPackage`（128）个。
+- **错误码**（`skillErrors`，主人 `skills`，只给这个新文件在 `tooling/gates/error-owners.json` 加了一条）：`not_found`、`read_refused`、`resource_undeclared`、`settings_conflict`、`settings_locked`（`details.reason` 是 `plugin_disabled`、`publisher_revoked`、`resource_invalid` 之一）、`scope_mismatch`（对装进项目的 Skill 写 `home`）、`import_source_unavailable`、`import_preview_unknown`、`import_skill_unknown`、`import_applies_to_invalid`（08-8 加）。
+- **导入的预览输出**：`{ preview_id, package: { plugin_id, version, installed_version }, applies_to, candidates }`，候选的 `compatibility` 沿用 Character 导入的 `"portable" | "native-only"` 加 `reason`；候选数上限取 `CHARACTER_IMPORT_LIMITS.skills`（200），一次确认至多 `SKILL_LIMITS.skillsPerPackage`（128）个。
 - **都不等模型**，不声明 `scheduling: "concurrent"`。
 
 **渐进披露（SKP-05）**：目录项只带元数据。正文由 `skills.body.read` 按需读，资源由 `skills.resource.read` 按正文的指引读，不会整包进上下文。

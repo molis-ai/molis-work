@@ -1,7 +1,8 @@
 import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
 
-/** AP3 Workbench client segment: navigation-feed. The shell owns directory and work-surface switching. Plugin business clients live in their registered bundles. */
-export const CLIENT_NAVIGATION_FEED_SCRIPT = `
+/** AP3 Workbench client segment: navigation-surfaces. The shell owns directory and work-surface switching (07-1 口径 11: the name
+ * no longer says Feed, which left with FI-6). Plugin business clients live in their registered bundles. */
+export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
     const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
     const directoryPanelFor = (directory) => directory;
 

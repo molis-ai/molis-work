@@ -100,13 +100,61 @@ export interface MwButtonOptions {
 
 export type MwButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "link";
 
+export interface MwComposerAiLabels extends MwComposerLabels {
+    to: string;
+    stop: string;
+    supplement: string;
+    supplementTitle: string;
+    delivery: string;
+    deliveryGroup: string;
+}
+
+export interface MwComposerLabels {
+    input: string;
+    send: string;
+    sendTitle: string;
+    add: string;
+    voice: string;
+}
+
+export type MwComposerOptions = {
+    placeholder?: string;
+    text?: string;
+    status?: MwComposerStatus;
+    disabled?: {
+        caption: string;
+        reason: string;
+    };
+    attrs?: Record<string, AttrValue>;
+} & ({
+    kind: "plain";
+    labels: MwComposerLabels;
+    state?: "sending" | "failed" | "unknown";
+} | {
+    kind: "ai";
+    labels: MwComposerAiLabels;
+    receiver: {
+        label: string;
+        resetLabel?: string;
+    };
+    state?: "sending" | "running" | "failed" | "unknown";
+});
+
+export interface MwComposerStatus {
+    caption: string;
+    text: string;
+    action?: string;
+    tone?: MwStatusTone;
+    ring?: StateRingState;
+}
+
 export type MwControlSize = "sm" | "md" | "lg" | "icon";
 
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
 
 export type MwTone = "neutral" | "info" | "success" | "warning" | "danger";
 
-export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "status-todo", "status-progress", "status-waiting", "status-needs-you", "status-blocked", "status-done", "status-cancelled", "accepted", "activity", "alert", "archive", "arrow", "back", "bell", "blocked", "board", "book", "bookmark", "brand", "bug", "calendar", "check", "chevron-down", "chevron-left", "chevron-right", "chevron-up", "circle-alert", "circle", "claim", "clipboard", "clock", "cloud", "code", "columns", "completed", "copy", "database", "dot", "download", "edit", "evidence", "external", "eye", "eye-off", "file", "filter", "flag", "folder", "folder-open", "folder-tree", "git-branch", "git-compare", "frame", "globe", "grid", "grip", "hash", "history", "home", "idea", "image", "impact", "inbox", "info", "input", "key", "library", "link", "list", "list-ordered", "lock", "logout", "mail", "maximize", "message", "minus", "moon", "more", "network", "note", "output", "package", "panel", "paperclip", "pause", "pin", "pin-off", "play", "plus", "question", "ready", "redo", "refresh", "rejected", "review", "risk", "rows", "rss", "save", "search", "send", "settings", "share", "shield", "sidebar", "sparkles", "star", "sun", "switch", "system", "tag", "target", "terminal", "text", "timer", "trash", "tree", "tune", "undo", "upload", "user", "waiting", "wand", "workflow", "x", "zap"];
+export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "status-todo", "status-progress", "status-waiting", "status-needs-you", "status-blocked", "status-done", "status-cancelled", "accepted", "activity", "alert", "archive", "arrow", "back", "bell", "blocked", "board", "book", "bookmark", "brand", "bug", "calendar", "check", "chevron-down", "chevron-left", "chevron-right", "chevron-up", "circle-alert", "circle", "claim", "clipboard", "clock", "cloud", "code", "columns", "completed", "copy", "database", "dot", "download", "edit", "evidence", "external", "eye", "eye-off", "file", "filter", "flag", "folder", "folder-open", "folder-tree", "git-branch", "git-compare", "frame", "globe", "grid", "grip", "hash", "history", "home", "idea", "image", "impact", "inbox", "info", "input", "key", "library", "link", "list", "list-ordered", "lock", "logout", "mail", "maximize", "message", "mic", "minus", "moon", "more", "network", "note", "output", "package", "panel", "paperclip", "pause", "pin", "pin-off", "play", "plus", "question", "ready", "redo", "refresh", "rejected", "review", "risk", "rows", "rss", "save", "search", "send", "settings", "share", "shield", "sidebar", "sparkles", "star", "sun", "switch", "system", "tag", "target", "terminal", "text", "timer", "trash", "tree", "tune", "undo", "upload", "user", "waiting", "wand", "workflow", "x", "zap"];
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
 
@@ -444,6 +492,8 @@ export declare function renderChoice(options: {
     className?: string;
     attrs?: Record<string, AttrValue>;
 }): string;
+
+export declare function renderComposer(options: MwComposerOptions): string;
 
 export declare function renderDatePicker(options: {
     name?: string;

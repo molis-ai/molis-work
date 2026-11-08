@@ -74,7 +74,7 @@ export const PRIMITIVE_STYLES = `
     color: var(--action-ink);
     box-shadow: var(--lift-1);
   }
-  .mw-btn--primary:active:not(:disabled) {
+  .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
     background: color-mix(in srgb, var(--action) 82%, var(--action-ink));
   }
   /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own

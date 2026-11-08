@@ -201,7 +201,7 @@ export class ProjectWorkspaceService {
 
   private removeInput(current: ProjectDirectories, workspaceId: string, projectId: string, actorId: string): void {
     const directory = current.directories.find(item => item.workspace_id === workspaceId);
-    if (!directory?.roles.includes("input")) throw catalogErrors.workspace_membership_not_found("这个文件夹不是当前项目的输入目录");
+    if (!directory?.roles.includes("input")) throw catalogErrors.workspace_membership_not_found("这个目录不是当前项目的输入目录");
     if (directory.roles.includes("output")) {
       this.repository.workspaces.setMembershipRoles(workspaceId, projectId, ["output"], this.now());
       return;

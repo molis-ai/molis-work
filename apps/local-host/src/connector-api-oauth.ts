@@ -1,6 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorErrors, type ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
+import { assertSecretStoreWritable } from "@molis-ai/molis-work-storage";
 import { submitConnectorActivation } from "./connector-authorization-commit.js";
 import type { ConnectorActivation } from "./connector-activation.js";
 import { assertConnectorAuthorizationPending, beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
@@ -270,6 +271,8 @@ export async function startApiOAuth(home: string, input: {
 }
 async function exchange(home: string, config: OAuthConfiguration, method: PluginOAuthMethodDeclaration, input: { code?: string; refreshToken?: string },
   fetchImpl: typeof fetch): Promise<Json> {
+  // A code is spent and a refresh token rotated by this request: the vault that keeps the answer is asked before it goes.
+  assertSecretStoreWritable(home);
   if (config.brokerOrigin) {
     return jsonRequest(fetchImpl, `${config.brokerOrigin}/token`, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ service_id: config.serviceId, ...(input.refreshToken ? { grant_type: "refresh_token", refresh_token: input.refreshToken }

@@ -38,8 +38,8 @@ use tauri::{
     LogicalSize, Manager, PhysicalPosition, PhysicalRect, PhysicalSize, State, Url, WindowEvent,
 };
 use web_service::{
-    desktop_owns_web_service, ensure_molis_work_web, stop_owned_web_service, web_healthy,
-    WebServiceState,
+    desktop_owns_web_service, ensure_molis_work_web, start_molis_work_web, stop_owned_web_service,
+    wait_for_upgrading_web, web_healthy, Started, WebServiceState,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -316,6 +316,13 @@ fn should_attempt_web_recovery(consecutive_failures: u8, owns_web_child: bool) -
         MANAGED_WEB_FAILURES_BEFORE_FALLBACK
     };
     consecutive_failures >= threshold
+}
+
+/// A start that met this Home's Host proving it is upgrading waits the rest out on a thread of its
+/// own: an upgrade takes as long as the data does, and the windows and the tray, Quit among them,
+/// must go on answering. Every other start already has its answer and is shown as before.
+fn waits_off_main_thread(started: &Result<Started, String>) -> bool {
+    matches!(started, Ok(Started::Upgrading))
 }
 
 fn molis_work_reload_url(current: Option<Url>, fallback: &str) -> Option<Url> {
@@ -954,35 +961,55 @@ fn main() {
       }
       let resource_dir = app.path().resource_dir().ok();
       let service_state = app.state::<WebServiceState>();
-      let result = ensure_molis_work_web(resource_dir.as_deref(), service_state.inner());
+      let started = start_molis_work_web(resource_dir.as_deref(), service_state.inner());
       refresh_tray_quit_item(app.handle());
-      if let Some(window) = app.get_webview_window("main") {
-        match result {
-          Ok(()) => {
-            if let Ok(url) = Url::parse("http://127.0.0.1:4173/?desktop=1") {
-              let _ = window.navigate(url);
-            }
-            traffic_lights::pin_main_traffic_lights(&window);
-            if let Some(capsule) = app.get_webview_window("capsule") {
-              let capsule_state = app.state::<CapsuleStatusState>();
-              let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
-              if let Ok(url) = capsule_web_url(locale) {
-                let _ = capsule.navigate(url);
+      let shown = app.handle().clone();
+      let show_molis_work_web = move |result: Result<(), String>| {
+        let app = &shown;
+        if let Some(window) = app.get_webview_window("main") {
+          match result {
+            Ok(()) => {
+              if let Ok(url) = Url::parse("http://127.0.0.1:4173/?desktop=1") {
+                let _ = window.navigate(url);
+              }
+              traffic_lights::pin_main_traffic_lights(&window);
+              if let Some(capsule) = app.get_webview_window("capsule") {
+                let capsule_state = app.state::<CapsuleStatusState>();
+                let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
+                if let Ok(url) = capsule_web_url(locale) {
+                  let _ = capsule.navigate(url);
+                }
               }
             }
-          }
-          Err(error) => {
-            eprintln!("{error}");
-            let message = serde_json::to_string(&error)
-              .unwrap_or_else(|_| "\"Molis Work 启动失败\"".into());
-            let script = format!(
-              r#"document.body.innerHTML='<main style="font:14px -apple-system,sans-serif;max-width:640px;margin:12vh auto;padding:32px;color:#20232a"><h1 style="font-size:24px">Molis Work 无法启动</h1><p id="molis-work-bootstrap-error" style="line-height:1.7;color:#5f6673"></p></main>';document.getElementById('molis-work-bootstrap-error').textContent={message};"#
-            );
-            let _ = window.eval(&script);
-          }
+            Err(error) => {
+              eprintln!("{error}");
+              let message = serde_json::to_string(&error)
+                .unwrap_or_else(|_| "\"Molis Work 启动失败\"".into());
+              let script = format!(
+                r#"document.body.innerHTML='<main style="font:14px -apple-system,sans-serif;max-width:640px;margin:12vh auto;padding:32px;color:#20232a"><h1 style="font-size:24px">Molis Work 无法启动</h1><p id="molis-work-bootstrap-error" style="line-height:1.7;color:#5f6673"></p></main>';document.getElementById('molis-work-bootstrap-error').textContent={message};"#
+              );
+              let _ = window.eval(&script);
+            }
         }
+      };
+      // An upgrade is waited out on a thread of its own and shown on the main thread, as setup
+      // shows every other start. The health monitor starts after the wait, so the two never start
+      // a service at once.
+      if waits_off_main_thread(&started) {
+        let app = app.handle().clone();
+        let _ = thread::Builder::new()
+          .name("molis-work-web-upgrade".into())
+          .spawn(move || {
+            let service_state = app.state::<WebServiceState>();
+            let result = wait_for_upgrading_web(service_state.inner());
+            refresh_tray_quit_item(&app);
+            let _ = app.run_on_main_thread(move || show_molis_work_web(result));
+            start_web_health_monitor(app, resource_dir);
+          });
+      } else {
+        show_molis_work_web(started.map(|_| ()));
+        start_web_health_monitor(app.handle().clone(), resource_dir);
       }
-      start_web_health_monitor(app.handle().clone(), resource_dir);
       Ok(())
     })
     .on_page_load(|window, payload| {
@@ -1053,9 +1080,9 @@ mod tests {
         anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_molis_work_url,
         molis_work_reload_url, normalized_capsule_height, should_attempt_web_recovery,
         should_keep_window_on_close, should_show_main_on_reopen, stop_owned_web_service,
-        validated_molis_work_path, CapsuleLocale, WebServiceState,
+        validated_molis_work_path, waits_off_main_thread, CapsuleLocale, WebServiceState,
     };
-    use crate::web_service::desktop_owns_web_service;
+    use crate::web_service::{desktop_owns_web_service, Started};
     use std::process::Command;
     use tauri::{PhysicalPosition, PhysicalRect, PhysicalSize, Url};
 
@@ -1236,5 +1263,13 @@ mod tests {
     fn dock_reopen_brings_back_a_hidden_main_window_only() {
         assert!(should_show_main_on_reopen(false));
         assert!(!should_show_main_on_reopen(true));
+    }
+
+    #[test]
+    fn upg19_only_a_start_that_met_an_upgrading_host_waits_off_the_main_thread() {
+        let refused: Result<Started, String> = Err("尚未就绪".into());
+        assert!(waits_off_main_thread(&Ok(Started::Upgrading)));
+        assert!(!waits_off_main_thread(&Ok(Started::Ready)));
+        assert!(!waits_off_main_thread(&refused));
     }
 }

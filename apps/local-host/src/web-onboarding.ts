@@ -6,7 +6,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { bindGoalsWebActions, goalsHostActions } from "./goal-callers.js";
 import { onboardingPlanningHint } from "@molis-ai/molis-work-app-workbench";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
-import { molisWorkOnboardingStatus, dismissMolisWorkOnboarding, completeMolisWorkOnboarding } from "./onboarding.js";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { assertOnboardingWritable, molisWorkOnboardingStatus, dismissMolisWorkOnboarding, completeMolisWorkOnboarding } from "./onboarding.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import { webOnboardingInitializationInput, type WebOnboardingInitializationInput, type OnboardingRuntimePorts } from "./web-onboarding-input.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
@@ -19,6 +20,15 @@ interface OnboardingHttpPorts extends OnboardingRuntimePorts {
   renderOnboarding: ReturnType<typeof createLocalHostWorkbenchRenderer>["renderMolisWorkOnboarding"];
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
+}
+
+/**
+ * The two ways in below make something (the personal space, a project) and then write down that onboarding is done. A record this build
+ * may not replace is answered with its refusal before either is made (upgrade-chain-design §2.6), by the same check as the context journey's.
+ */
+function refusedBeforeMaking(response: ServerResponse, homeDirectory: string | undefined): boolean {
+  try { assertOnboardingWritable(homeDirectory); return false; }
+  catch (error) { const refusal = actionErrorResponse(error); sendJson(response, refusal.status, refusal.body); return true; }
 }
 
 export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
@@ -35,6 +45,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     }
     // “空白开始”不必先建项目：进入个人空间，之后随时建项目、把内容移过去。
     if (request.method === "POST" && url.pathname === "/api/onboarding/personal") {
+      if (refusedBeforeMaking(response, homeDirectory)) return true;
       try {
         const space = await ports.withCatalog({ homeDirectory }, catalog => catalog.ensurePersonalSpace());
         completeMolisWorkOnboarding(homeDirectory, space.project_id);
@@ -68,6 +79,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
         return true;
       }
+      if (refusedBeforeMaking(response, homeDirectory)) return true;
       let partialProjectPath: string | null = null;
       try {
         await ports.withCatalog({ homeDirectory }, async (catalog) => {

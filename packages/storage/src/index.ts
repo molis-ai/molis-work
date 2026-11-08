@@ -73,7 +73,7 @@ export {
 } from "./adapters/local-security-paths.js";
 
 export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore,
-  SECRET_STORE_FILE, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
+  SECRET_STORE_FILE, assertSecretStoreWritable, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 export { inspectSealedSecretsSnapshot, readSealedSecretSnapshotEntry, readExistingSecret, type SealedSecretsSnapshotInspection } from "./adapters/file-secret-store.js";
 export { sealExistingHomePayload, openExistingHomePayload, assertExistingHomeKeyReference, type SealedHomePayload } from "./adapters/file-secret-store.js";
 

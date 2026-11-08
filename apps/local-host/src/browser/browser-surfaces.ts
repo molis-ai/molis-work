@@ -56,7 +56,7 @@ export class BrowserSiteDecisions {
 
   get assistantEnabled(): boolean { return this.assistant; }
 
-  setAssistantEnabled(enabled: boolean): void { this.assistant = enabled; this.save(); }
+  setAssistantEnabled(enabled: boolean): void { this.save(this.rows, enabled); this.assistant = enabled; }
 
   list(): readonly SurfaceSiteDecision[] { return this.rows; }
 
@@ -64,17 +64,19 @@ export class BrowserSiteDecisions {
 
   set(scope: string, decision: "allow" | "block" | "forget"): readonly SurfaceSiteDecision[] {
     if (!/^https?:\/\/[^/?#\s]+$/u.test(scope)) throw new Error("网站必须写成 https://example.com 这样的来源，不带路径");
-    this.rows = this.rows.filter(row => row.scope !== scope);
-    if (decision !== "forget") this.rows.push({ scope, decision, at: new Date().toISOString() });
-    this.save();
+    const rows = this.rows.filter(row => row.scope !== scope);
+    if (decision !== "forget") rows.push({ scope, decision, at: new Date().toISOString() });
+    this.save(rows, this.assistant);
+    this.rows = rows;
     return this.rows;
   }
 
-  private save(): void {
+  /** The decisions in memory change only once they are on disk: a refused save (§2.6) leaves the browser deciding as it did before. */
+  private save(sites: readonly SurfaceSiteDecision[], assistant: boolean): void {
     assertVersionedFileWritable(BROWSER_SITES_FILE, this.file);
     fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
     const temp = `${this.file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify({ version: BROWSER_SITES_VERSION, assistant: this.assistant, sites: this.rows }, null, 2), { mode: 0o600 });
+    fs.writeFileSync(temp, JSON.stringify({ version: BROWSER_SITES_VERSION, assistant, sites }, null, 2), { mode: 0o600 });
     fs.renameSync(temp, this.file);
   }
 

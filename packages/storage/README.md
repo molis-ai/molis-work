@@ -133,6 +133,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 已有现行第1版 vault（包括 entries 为空）时必须读取它绑定的原有有效密钥；缺失或无效即拒绝读取、写入和后端诊断，不生成替代 key。恢复原 key 后可重新打开。回归见 [secret-store-missing-key.test.ts](../../tests/secret-store-missing-key.test.ts)。
   - 密文快照预检必须只读，不创建锁/目录/key；密文中有任一条认证失败就整体拒绝，不能因活 vault 损坏而拒绝检查健康快照。明确恢复读取仍核原 key、普通单链接文件及调用 owner 的引用归属。
   - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
+  - 写之前的检查只有一份（`writableFile`：按现行格式读出文件，再查除被删那一条以外的每个条目都是现行的密封格式），`put`、`delete`、`createIfAbsent`、`deleteIfPresent` 和导出的 `assertSecretStoreWritable(home)` 共用。后者先按 `SECRET_STORE_FILE` 调 `assertVersionedFileWritable`（拒绝码与别的带版本文件相同），再问 `writableFile`；只读、不解密、不要主密钥、不建锁库和目录。要把请求的回答存进这里的调用方，在发请求之前调它（宿主里的调用方见 `apps/local-host/README.md` 升级清单那一段）。只读的 `get` 只看自己那一条，别的条目坏了照样读得到。
   - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
   - 记忆账本只有成功开始写事务后才进入嵌套状态；连接锁导致开始失败后，同一实例的后续多步写入仍完整回滚或提交。回归见 [memory-ledger-transaction.test.ts](../../tests/memory-ledger-transaction.test.ts)。
   - 搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。

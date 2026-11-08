@@ -2,8 +2,7 @@ import { createPersonalPageHttp } from './personal-page-http.js';
 import { AccountRefreshPages } from './account-refresh-pages.js';
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
-import { personalCloudConfig, PersonalAuth, type PersonalAccountLease } from "./personal-auth.js";
+import { fileAccountSecrets, personalCloudConfig, PersonalAuth, type PersonalAccountLease } from "./personal-auth.js";
 import { sendLocalWebJson } from "./web-http.js";
 import { PersonalWebSessions, type AccountNavigation, type WebAccountSession, WEB_ACCOUNT_COOKIE } from './personal-web-sessions.js';
 
@@ -24,7 +23,7 @@ function loadPersonalAuth():{auth:PersonalAuth|null;error:string} {
   let config;
   try{config=personalCloudConfig();}
   catch{return {auth:null,error:'账号服务配置不完整，请检查配置。'};}
-  try{return {auth:config?new PersonalAuth(config,createFileSecretStore()):null,error:''};}
+  try{return {auth:config?new PersonalAuth(config,fileAccountSecrets()):null,error:''};}
   catch{return {auth:null,error:'客户端安全凭据存储不可用，请检查本机凭据存储权限。'};}
 }
 

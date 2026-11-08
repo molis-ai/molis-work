@@ -1,6 +1,6 @@
 # U1 升级链：设计
 
-状态：实现中（2026-11-06 设计，路线书第 05 批第 1 项）；U1-a（[#1908](https://github.com/molis-ai/molis-work/pull/1908)）、U1-b（[#1916](https://github.com/molis-ai/molis-work/pull/1916)）、U1-i（[#1926](https://github.com/molis-ai/molis-work/pull/1926)）已合入；U1-c、U1-d、U1-e、U1-g、U1-j 这一组同一个 PR 做完（同一条用户路径，用户 2026-11-08 定合在一起）；U1-f、U1-h 未做，U1-f 走公共合同队列，U1-h 归 F 轨。真实基线的版本都还是 1。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
+状态：实现中（2026-11-06 设计，路线书第 05 批第 1 项）；U1-a（[#1908](https://github.com/molis-ai/molis-work/pull/1908)）、U1-b（[#1916](https://github.com/molis-ai/molis-work/pull/1916)）、U1-i（[#1926](https://github.com/molis-ai/molis-work/pull/1926)）已合入；U1-c、U1-d、U1-e、U1-g、U1-j 这一组同一个 PR 做完（同一条用户路径，用户 2026-11-08 定合在一起）；U1-h 和 U1 之后的复查修复同一个 PR 做（F 轨的文件，用户 2026-11-08 同意由第 05 批写手做、F 轨事后审）；U1-f 未做，走公共合同队列。真实基线的版本都还是 1。用户 2026-11-06 定：升级链写进「当前保留机制」（§12）、四份门禁按 §11 改；真实 Home 重建不等 05② C-1，第一批真实升级段见 §14。行为与验收以[升级后持续可用](spec.md) §4、§9 和 §10 决策记录为准，本文只写怎么做。依据是 main `242d75d03` 和 #1790 头 `3585974c5`、#1837 头 `6feebb2ae`（只读），另有几条本机实测，都在正文里写明。2026-11-07 按合入 main 的 #1877（`35f808286`）勘误一轮：取锁点、账号子 Home、空间表、同步技术对象和不变量改号。
 
 **版本起点。** 各库已回到统一第 1 版：#1837 把它们归一，真实 Home 按检查单重建，统一起点登记在 `docs/releases/CHECKLIST.md` 第 4 节（#1914，2026-11-07）。#1837 把自有版本的维护入口收到 `tooling/versions.json`：代码里还是数字字面量，旁边一条 `/* @version <条目> */` 标记，由 `pnpm versions:generate` 改写，没有生成的常量文件。所以 §2.1 的写法不变；升版本是改表再生成，手改数字会被核对拦下；新基线同时加条目和标记。段的 `from` 不是版本声明，不用标记（`version-declarations.mjs` 的字段名单不含它）。
 
@@ -210,17 +210,17 @@ export function readVersionedFile<T>(file, path, home?): { status: "absent" } | 
 
 文件定义里没有路径：路径写在描述符上（`computer/records/<id>/record.json` 一个定义对应很多文件）。`unreadable` 是解析不了、没有能起步的版本，或主人的 `parse` 不接受；它和 `too_new`、`upgrade_pending` 一样不是可以覆盖的理由。
 
-升级过程：拷快照 → 按段变换 → `parse` 检查 → 写临时文件、fsync、rename、fsync 目录 → 记录 committed。读取路径不做变换。描述符可以写同一个 `group`：组里任何一个失败，整组放回（§8.2）。写之前调 `assertVersionedFileWritable`，见到这三种状态就拒绝，不写。
+升级过程：拷快照 → 按段变换 → `parse` 检查 → 写临时文件、fsync、rename、fsync 目录 → 记录 committed。读取路径不做变换。描述符可以写同一个 `group`：组里任何一个失败，整组放回（§8.2）。写之前调 `assertVersionedFileWritable`，见到这三种状态就拒绝，不写。**而且在这次写要做的别的事之前调**（2026-11-08 补，U1 之后的复查）：被拒的保存不能先建了东西、定了别的状态再拒；内存里的值也等写成了再改。一件事最后才写文件、前面要建东西的（引导建项目），在建之前先查同一条，查和写之间只有本宿主写这个文件，比它新的构建在它占着 Home 时打不开，所以查过的到写时仍可写；查后文件在磁盘上坏了，写时照样拒，那一次按别的失败处理。删除也算写：程序不读的文件不由它删（`computer/records/<id>/`）。
 
 | 文件 | 处理 | 片 |
 | --- | --- | --- |
-| `config/mcp-tools.json`、`shelf/catalog.json`、`jelly/preferences.json` | 进链，现有严格解析作 `parse`。`shelf/catalog.json` 的主人是 `modules/shelf`，升级过程用 Shelf 导出的文件定义，不把写权拿到宿主外（现在写走 `saveCatalog(writer, …)`，开工时核这条路在升级过程里怎么给 writer） | U1-e |
+| `config/mcp-tools.json`、`shelf/catalog.json`、`jelly/preferences.json` | 进链，现有严格解析作 `parse`。`shelf/catalog.json` 的主人是 `modules/shelf`，升级过程用 Shelf 导出的文件定义，不把写权拿到宿主外（现在写走 `saveCatalog(writer, …)`，开工时核这条路在升级过程里怎么给 writer）。前两个的写都先用同一份严格解析读原文件，读不过不写；`jelly/preferences.json` 的保存原来不看原文件就整份替换，2026-11-08 改成一开头先 `assertVersionedFileWritable`（装进来的插件那份 `plugin-files/<install_id>/.model-settings/preference.json` 走同一处） | U1-e |
 | `browser/sites.json` | **吞错要修**：`browser-surfaces.ts:65-72` 不看版本、`catch` 全吞成默认值，下次保存就覆盖。高版本文件被读成默认再写回，直接违反 UPG-05。改成：没有文件才是默认；版本高或读不了时用内存默认、**拒绝写**，并记诊断 | U1-e |
-| `computer/settings.json`、`config/onboarding.json`、`config/project-arrival.json` | 读时不看版本或只整形，同样的问题，同样改 | U1-e |
+| `computer/settings.json`、`config/onboarding.json`、`config/project-arrival.json` | 读时不看版本或只整形，同样的问题，同样改。`config/onboarding.json` 是引导最后才写的：采用整理、「空白开始」、`/api/onboarding/initialize` 三个入口先调 `assertOnboardingWritable` 再建项目或个人空间（2026-11-08 补） | U1-e |
 | `computer/records/<id>/record.json` | 进链，按目录枚举 | U1-e |
 | `feed/secrets.json` | 只有文件的版本 `format.secret-store.map` 进链，规则见 §8.2；`format.secret-store.envelope`、`format.secret-store.home-payload` 留在 1（用户 2026-11-08 定） | U1-e |
 | `config/installation.json`、`releases/*/release.json` | **同一接口，不同时机**：安装器读它们时程序还没有进宿主，所以由安装器（`installer/home-files.ts`）在读的地方调同一个升级函数（`upgradeVersionedFileInPlace`）；不在快照内（已在 `snapshotExclusions`）。**不留副本（2026-11-08 勘误，原写「备份放在同目录」）：** `config/` 多一个文件，`home snapshot` 按未登记配置报 `unknown_data`（`home-snapshot-inventory.ts:59`）；登记成排除项，恢复要求排除清单和快照逐条相等（`home-restore-stores.ts:101`），旧快照就恢复不了。写入是整份替换，失败时原文件不变。回退要旧内容时放哪里归 U6 | U1-e |
-| `config/web-service.json`、`config/uninstall.json`、`runtime-integrations/*.json`、`runtime-config-backups` | 机器收据或可再生成，版本不符时现状是拒绝。版本升了之前不用段；第一次要升时按同接口加 | 不做 |
+| `config/web-service.json`、`config/uninstall.json`、`runtime-integrations/*.json`、`runtime-config-backups` | 机器收据或可再生成。`runtime-integrations/*.json`、`runtime-config-backups` 版本不符时现状是拒绝；`config/web-service.json` 读时不看版本，只认 `owner`、`label` 与 plist 的哈希（plist 不在时重装会重写收据），`config/uninstall.json` 不按内容读（只算进卸载计划的哈希），每次卸载整份写（2026-11-08 复查时照实改，原写「版本不符时现状是拒绝」）。版本升了之前不用段；第一次要升时按同接口加，这两个那时补上版本检查 | 不做 |
 | `config/external-mcp-actions.json`、`config/connector-mcp-actions.json` | 无版本字段，现在不是带版本文件；要改结构先加版本。它们不在 `homeStores()` 里，见 §15.2 | 不做 |
 
 ## 3. 什么时候升：启动时一次做
@@ -379,7 +379,7 @@ apps/desktop/launchers/web/server.ts：
 
 | 入口 | 现在 | 升级中 |
 | --- | --- | --- |
-| 桌面 Tauri（`web_service.rs:253`） | 等 8 秒后杀服务，报启动失败 | **要改，F 轨文件**：`web_identity` 能验证 503 的 `upgrading`，见到就继续等、不算超时；没有 `upgrading` 仍按 8 秒。启动画面读 `upgrade` 显示进度归 U3（U1-h） |
+| 桌面 Tauri（`web_service.rs` 的 `wait_for_web`） | 等 8 秒后杀服务，报启动失败 | **已改（U1-h，F 轨文件）**：`web_identity` 的 `answer` 认 `HTTP/1.1 503 Service Unavailable`、证明可验、`status` 为 `upgrading`，和 MCP、托管服务认的是同一个形状；见到就继续等，8 秒从最后一次 `upgrading` 重新算，上限 30 分钟（和托管服务的 `UPGRADE_WAIT_MILLISECONDS` 相同）；没有 `upgrading`、或证明不过的 503 仍按 8 秒。已经在升级的宿主不再另起一个、也不替换它。后台请求（`authenticate`）只发给 `ok` 的服务。桌面在 Tauri 的 `setup` 里、也就是主线程上启动，所以启动（`start_molis_work_web`）见到第一次 `upgrading` 就把等待交出来，剩下的在自己的线程里等（`wait_for_upgrading_web`），等完经 `run_on_main_thread` 回主线程导航，健康巡检排在它之后；窗口和托盘（含退出）这期间照常响应。没有 `upgrading` 时主线程照旧至多等 8 秒。启动画面读 `upgrade` 显示进度归 U3 |
 | 托管服务（`web-service-platform.ts:129`） | 1 秒一探，要 `ok`，25 次后失败 | 进程带证明说 `upgrading` 时不消耗次数，继续等，上限 30 分钟（`UPGRADE_WAIT_MILLISECONDS`，防一个永远说升级中的进程）；不再说了就回到 25 次 |
 | 设置页（`settings-web-service.ts:32`） | 读 `/health` | 不会在升级中加载 |
 
@@ -647,7 +647,7 @@ U2-d 的 `tooling/gates/schemas/`（基线结构哈希）补上「改了建库�
 | U1-e 带版本文件 | `VersionedFile`、§2.6 的文件；修四个吞错的读路径；密钥段规则与测试；§11.1 那六项列进 CHECKLIST 第 3 节，字面量收成 `*_VERSION` 常量，从 `PERSISTENT_ENTRIES` 搬到 `PERSISTENT_CONSTANTS`，`UPG1-i-initial-11` 的 `CHAIN_FILES` 跟着改 | `packages/storage/src/{versioned-file,upgrade-snapshot}.ts`、`adapters/file-secret-store.ts`、`modules/shelf/src/{catalog-shape,files-catalog,index}.ts`、`apps/local-host/src/{mcp-settings-store,model-configuration,onboarding,project-arrival,versioned-file-read,browser/browser-surfaces,computer/computer-settings,computer/computer-records,home-upgrade,home-upgrade-ledger,home-upgrade-stores,platform-upgrade-stores}.ts`、`installer/{home-contract,home-files}.ts`、`docs/releases/CHECKLIST.md`、`scripts/gates/initial-versions.mjs` 和用例 | UPG1-06、07 | Opus 5.5 high | U1-c；Shelf 属 E 轨，Jelly 文件在宿主；预警 |
 | U1-f 插件表合同与范围检查 | `PluginDatabaseDeclaration.upgrades`、`HomeStoreDeclaration` 的段；§2.4 的三层检查和跑法，对所有插件同一份；装上的插件写了就拒绝（唯一的开关）；记进「2026-10-18 改」清单 | `packages/contracts/src/platform/plugin-database.ts`；`tooling/gates/api/contracts/platform/{plugin,plugin-registration}.txt`、`plugin-sdk/index.txt`；`packages/plugin-runtime/src/project-database.ts`、新 `plugin-upgrade-steps.ts`、`apps/local-host/src/{project-plugin-databases,plugin-sync-database,home-stores}.ts`；`docs/system/SECURITY-INVARIANTS.md`（S-46、S-147）；`specs/archive/repository-anti-corruption/spec.md` §1 | UPG1-10、14；S-147 | Opus 5.5 high | U1-c；**公共合同队列**（§15.1）；用户 2026-11-06 已定 |
 | U1-g 维护态 | `planHomeUpgrade`（含枚举账号 Home）、`runUpgradeMaintenance`、Worker、`/health` 新状态、MCP 映射 | `apps/desktop/launchers/web/server.ts`、新 `apps/local-host/src/{upgrade-maintenance,upgrade-maintenance-worker}.ts`、`home-upgrade.ts`、`mcp-resident-health.ts`、`mcp-resident-start.ts`、`installer/{web-service-contract,web-service-platform,web-service-process}.ts` | UPG1-11、13（MCP 生产路径）、15；S-146 | Opus | U1-c |
-| U1-h 桌面等待 | `web_identity` 验证 503 的 `upgrading`，`web_service.rs` 见到就不算超时 | `apps/desktop/adapters/tauri/src/{web_identity,web_service}.rs` | Rust 单测：`upgrading` 不被杀，无 `upgrading` 仍 8 秒 | Sonnet | U1-g；**F 轨独占**，由 F 落 |
+| U1-h 桌面等待 | `web_identity` 验证 503 的 `upgrading`，`web_service.rs` 见到就不算超时 | `apps/desktop/adapters/tauri/src/{web_identity,web_service}.rs`；`tests/security-invariants-upgrade-maintenance.test.ts` 钉住宿主那边的字节 | UPG-19；Rust 单测：`upgrading` 不被杀，无 `upgrading` 仍 8 秒，证明不过的 503 不算（`upg19_…`） | Sonnet | **已做**，和 U1 复查修复同一个 PR；**F 轨独占**，用户 2026-11-08 同意由第 05 批写手做、F 轨事后审 |
 | U1-i 门禁 | §11 四份 | `scripts/gates/{initial-versions,store-versions}.mjs`、`scripts/verify-release-versions.mjs`、`scripts/check-health-gates.mjs`、`docs/releases/CHECKLIST.md`、`tooling/gates/README.md` | 变异用例 | Opus | U1-a；用户 2026-11-06 同意四份，2026-11-07 同意把 `initial-versions.mjs` 的源码和持久化格式条目这半接进 `pnpm health:check`；在第一段真实升级之前 |
 | U1-j 结构比较记忆 | §3.2 | `packages/storage/src/sqlite-baseline.ts` | 文件变了就重比的拒绝测试；N56 预算 | Sonnet | U1-d |
 

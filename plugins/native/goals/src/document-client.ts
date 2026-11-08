@@ -43,8 +43,8 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       } catch (error) {
         if (isAbortError(error) || goalDocumentRequest !== controller) return null;
         // A Goal this project no longer has: its tab stays, struck through, and its pane says why (the workbench draws that).
-        if (error.status === 404) { document.dispatchEvent(new CustomEvent("molis-work:record-gone", { detail: { plugin: "goals", itemId: goalId } })); return false; }
-        // A refusal keeps the one copy this read has always shown; an unreachable Host says so.
+        if (error.status === 404) document.dispatchEvent(new CustomEvent("molis-work:record-gone", { detail: { plugin: "goals", itemId: goalId } }));
+        // A refusal, a missing Goal included, keeps the one copy this read has always shown; an unreachable Host says so.
         showError((error.status ? "" : error.message) || "无法读取这条 Goal 正文");
         return false;
       } finally {

@@ -1,6 +1,6 @@
 # 公共来源与呈现合同（路线书 05 ②）
 
-状态：实现中，2026-11-04 设计，只有 C-1 已合入。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-07 统筹定 C-1 只加不删（第 9 节），用户定默认输出目录的快照和永久删除，以及另一台设备上的引用加「指定文件夹」、接受脱钩之前目录行还剩的静默读（第 3 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。C-1 已合入（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，`91f820f55`），合审留下的事见第 9 节；03、04 定样已全部合入，统一起点已登记（#1914）。C-2 等 D 轨下沉状态环，C-3 等 14 批 `TextRef`，目录实现片等 C-2、C-3 合入，它的升级段另等 U1 和四份门禁（第 9 节）；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。2026-11-08 目录实现片（永久删除时问删还是留）和指定文件夹片（第 3 节的六个状态）的定样已出，在 [`docs/design/05-materials-directories/`](../../docs/design/05-materials-directories/README.md)，定样待用户拍板。
+状态：实现中，2026-11-04 设计，只有 C-1 已合入。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-06 按第 05 批核账勘误（动作版本、事件位置、Manifest 快照、C-1 与 U1 的先后），并按用户同日的决定改了第 8、9 节：真实 Home 重建不等 C-1，动表的部分走升级段。2026-11-07 统筹定 C-1 只加不删（第 9 节），用户定默认输出目录的快照和永久删除，以及另一台设备上的引用加「指定文件夹」、接受脱钩之前目录行还剩的静默读（第 3 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。C-1 已合入（[#1894](https://github.com/molis-ai/molis-work/pull/1894)，`91f820f55`），合审留下的事见第 9 节；03、04 定样已全部合入，统一起点已登记（#1914）。C-2 等 D 轨下沉状态环，C-3 等 14 批 `TextRef`，目录实现片等 C-2、C-3 合入，它的升级段另等 U1 和四份门禁（第 9 节）；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。2026-11-08 用户看实物定了目录实现片和指定文件夹片的定样：永久删除时问删还是留选 A3「选项就是确认」，指定文件夹选 B1「就地指定」（第 3 节「定样」，原型在 [`docs/design/05-materials-directories/`](../../docs/design/05-materials-directories/README.md)）。
 
 ## 0. 这份稿子做什么
 
@@ -233,7 +233,7 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 | 件 | 定法 |
 | --- | --- |
 | 谁问 | 只有设置页的删除确认框。打开时 `delete-scope`（`web-project-deletion.ts:48`）多回一项 `default_output`：`empty`、`has_files` 或 `unknown`，只看 `readdir` 有没有一项，不数不走。过不了上面的符号链接检查的是 `unknown` |
-| 确认框 | `has_files` 时多问一句，删还是留，不给默认选中：删了不能撤销。`empty`、`unknown` 不问，都按留。这是新状态，连同留下文件夹之后的提示，进实现片的定样，这个 PR 不定样。现在那句「关联工作目录中的代码和文件会保留」对用户自己选的目录仍然成立 |
+| 确认框 | `has_files` 时多问一句，删还是留，不给默认选中：删了不能撤销。`empty`、`unknown` 不问，都按留。这是新状态，连同留下文件夹之后的提示，用户 2026-11-08 看实物定了 A3「选项就是确认」（下面「定样」）。现在那句「关联工作目录中的代码和文件会保留」对用户自己选的目录仍然成立 |
 | 选择怎么传 | `DeleteProjectInput` 多一个 `output_files?: "keep" \| "delete"`，缺省是 `keep`。**和操作者一样由入口给：** 设置页的路由从请求里读并校验，别的值 400；MCP（`mcp-server.ts:114`、`mcp-context-gateway.ts:99`）、示例项目的删除（`removeDemoThroughService`、`demo remove`）和卸载（`local-uninstall.ts:31`）写死 `keep`，写在展开请求之后，不从请求读。MCP 工具的 schema 不加这个字段，所以 Agent 删不了这些文件。MCP 的 `project_delete` 说明写明文件留在原处 |
 | 选择怎么记 | 选了删，收据里多一步 `project-output`，失败重试、换进程都还在；选了留，没有这一步，不用改表。`request_fingerprint` 选了删才带 `output_files`，留的写法和现在一样，同一个键换了选择按 `deletion_idempotency_conflict` 拒绝 |
 | 不登记成 owner | 由 `ManagedProjectDeletion.runCleanup` 自己执行这一步，不进 `homeProjectOwners`：示例项目重建的 `clearAll`（`demo-project-lifecycle.ts:46,101`）会跑所有 owner，登记了就会删掉人没选删的文件 |
@@ -294,7 +294,7 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 - **本机有这个 id 的行，但这个项目没有关联**（只关联别的项目，或从这个项目移除了）：和 id 不在目录库一样是 `unmapped`，可以指定。读取照旧被拒（SSC-04），对应只把这个项目接到它自己的目录，碰不到别的项目的文件夹。不做成 `forbidden`：那样没有出路，而且会让人看出别的项目用没用这个文件夹。`forbidden` 是调用方没有读目录的授权（`horizontal/knowledge/src/workspace.ts:81`）。目录的 `state` 没有 `revoked`（合同台定）：移除以后这一行就没了，说不出谁会写这个取值。撤权按调用方的授权算，不是目录的状态；`projects.directory_revoked` 留给冻结轮次用到已经移除的目录时回答（SSC-04）。给的路径正好是这一行时，等于把同一个文件夹加进这个项目，只写关联。
 - **整份 Home 拷到第二台设备，两边都在用：** 不支持。两边是同一个 Home 的两份，所有 id 都相同，默认输出目录也一样，事件 id 也拷过去了，和上面的旧行同样静默。Home 拷过去之后只用一边是支持的。不做检测。
 
-**要定样的新状态（实现片先定样，这个 PR 不定样）：**
+**要定样的新状态（用户 2026-11-08 看实物定了，见下面「定样」）：**
 
 1. 未指定的引用长什么样：资料面板的「最近用过」、选择器、引用和出处行、Goals 的输入。只有文件名和相对路径可以写，要按 `source_workspace_id` 分组，用原设备上两个目录各有一个 `README.md` 来验收；默认输出目录分「这个项目原来的」和「另一台设备的」两种写法（上表）。
 2. 从哪里指定：未指定的那一行上的操作；选已有目录还是新选文件夹，这个项目的默认输出目录怎么放。
@@ -302,6 +302,17 @@ schema 是 `closedInput` 加 `oneOf: [{ required: ["workspace_id"] }, { required
 4. 指定之后怎么看、怎么换、怎么取消：目录设置里每个目录的对应，出处行上的入口。
 5. 内容不一样时的「和引用时不是同一份」，和「内容没有核对」的说明。
 6. Agent 或插件读到未指定的引用被拒之后，人在哪里看到、怎么接着做。
+
+**定样（用户 2026-11-08 看实物定）。** 原型在 [`docs/design/05-materials-directories/`](../../docs/design/05-materials-directories/README.md)，每个方案都能看浅色、深色，1440、1024、390 三种宽度，中英文。
+
+| 问题 | 定了 | 否掉的方案和理由 |
+| --- | --- | --- |
+| 永久删除时默认输出目录里有文件，确认框怎么问 | **A3 选项就是确认。** `has_files` 时两张交互卡片（`mw-ix-option`）代替原来的勾选框：「删除项目，文件留下」「删除项目和文件」，各写一句后果，下面一句「两种都会永久删除项目，不能撤销」。不预先选好，选了以后按钮才能按，按钮文字跟着选择写明后果。回答这一问本身就是「我知道后果」的确认，不用再勾一次；后果写在卡片上，不用回头对照，按下去之前按钮再说一遍。`empty`、`unknown` 不问，照旧是勾选框，所以两种情况下确认框样子不同 | A1 问一句，再勾选（原框里加两个单选，勾选照旧）：选、勾、按三步，两处都在说「不能撤销」；勾选框和单选挤在一起，最后按的是什么要回头看。A2 两个结束按钮（勾选照旧，底部「删除项目，留下文件」「删除项目和文件」并排）：两个破坏性按钮摆在一起，违背一个决定一个主操作；删和留的区别只在按钮字面上，容易按错 |
+| 另一台设备上的引用在哪里指定 | **B1 就地指定。** 在碰到它的地方指定：资料面板的「最近用过」、对话里读不到的提示、Goal 的输入、选资料的弹层。每个来源目录一个分组容器，组名下写同一个目录里还用过的文件，带「指定文件夹」，从按钮旁弹出同一个选择。未指定的引用一定是在某处碰到的，就地指定不打断手上的事；指定后的提示马上说出这个文件夹整体读得怎样（比如「3 份里找到 1 份」），指错了当场看得出来，带「撤销」。代价：分组容器在「最近用过」和选资料弹层里占地方，挤掉一些能读的行；同一个按钮出现在好几处（是同一个弹层） | B2 资料里一处（资料面板多一个来源组，只在那里指定，别处只给跳转）：从对话出发要多跳一次、换个地方找；「最近用过」里看不到刚才那份文件，要到下面的组里找。B3 一次接回（一个对话框列出所有未指定的目录，一次指定）：离开了碰到问题的地方，对话框里只有文件名，判断哪个对哪个更难；会顺手去指定眼下不需要的；多一个要学的弹窗 |
+
+- 两个方案之外随定样一起定的部分（各状态的字、按来源分组、指定的去处、之后怎么看换取消、「和引用时不是同一份」「内容没有核对」、Agent 读不到之后、删除时还有任务被拒、清理没做完时选择锁住）写在原型的 README，实现照原型。
+- 组件板没有新增。三处组件板已有、页面样式表还没有的样式，随第一个用到的页面搬进页面样式表：交互卡片 `mw-ix-option`（设置页的样式表现在不带）、提示里的按钮行 `mw-alert__actions`、菜单项的说明行 `mw-menu__desc`。
+- 备注：一个项目常有很多目录要接的话，B3 的对话框以后可以补成批量入口，和 B1 不冲突。
 
 **代价。** 两个新动作、一张表、一段升级、一个解析函数和四处读的地方，加上面六个状态。05② 的实现片因此变大，所以拆成单独一片（第 9 节）。
 
@@ -568,8 +579,8 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | C-1 资料与目录合同（**不碰 `packages/storage`，也不等 U1**：建表语句在 `modules/projects`，由 `apps/local-host/src/project-database-schema.ts` 汇进项目库基线；动表的部分不在这一片，见前置列） | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`（含 `source_links`）、`RunDirectories`，第 3 节的七个动作（`set_output`、`map_source` 的目标三选一）与 `materials.recent@1`、`materials.recent.record@1` 的声明；三个错误码；SDK 新的 `presentation` 子路径放 `assertMaterialRef`；api 快照（`contracts/modules/projects.txt`、新 `contracts/platform/project-materials.txt`、新 `plugin-sdk/presentation.txt`）。**只加不删**：现有动作、字段和端口都不动，不碰 `services/agent-host`。动作只声明、不登记，所以动作快照不变 | 不等 02 收尾（用户定放行，撞了就让路）：排在 #1837 之后入队，合入前补 4 处 `version: 1` 的 `@version` 标记和 `tooling/versions.json` 条目。`material_recent_uses` 表挪到实现片走 U1 升级段（用户 2026-11-06 定重建不等 C-1）；这一片只声明动作 |
 | C-2 呈现声明合同 | `platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind；`validatePresentationDeclaration`、`presentationText`、`presentationFormFields`、`renderPresentationForm` 的签名；api 快照 | 02 交接；D 轨把状态环取值下沉到 contracts 的 `platform/ui.ts` 之后 |
 | C-3 组合服务合同 | `services/surface-composition.ts`、`SurfaceGroup`、`surfaces.compose@1`、`surfaces.correct@1` 的声明；context-ledger 的关系类型表；`assertSurfaceDescription`；actions 快照 | C-2；第 14 批 A 段的 `TextRef` 合入 |
-| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；重写 `workspace-repository.ts` 的查询（`is_default` 换 `roles`）时，保留 `:22,57,69` 三处「回收的项目不算」的过滤（`project_recycle`，#1877 加的）；默认输出目录写在 `register` 里，升级段连回收的项目一起补（第 3 节）；第 3 节的路径到行、碰磁盘的调用方和永久删除；第 2 节的 `fingerprintWorkspaceFile` 和 `binary`、`unsupported` 带指纹（改 `WorkspaceFileResult`）；这一片不产出 `unmapped`；加读出处的动作之前先定第 2 节那几件并过评审；删除确认框多的一问和留下文件夹的提示是新状态，先定样；`goals.inputs.bind` 写指纹不在这一片；`RunDirectories` 随轮次视图和冻结轮次信息的字段加进 `services/agent-host`；收资料引用的地方都调 `assertMaterialRef`，它比 schema 严（查 `workspace_file` 的 id 落在目录内），只靠 schema 会放过 `ws1:../secret`；宿主的 `PROJECT_WORKSPACE_PROVIDER_ID`（`apps/local-host/src/project-workspace-actions.ts:7`）改成从合同取；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节）。**发布排序：合入早于首次外部安装**，否则外部用户也有第 3 节「脱钩之前建的目录行」那个缺口；这条依赖由统筹写进路线图依赖或发版清单，不只留在这里 |
-| 实现（指定文件夹） | 第 3 节「另一台设备上的引用」：`workspace_source_links` 和它的升级段、登记 `map_source`、`unmap_source`、`resolveWorkspaceFileSubject` 和四处读的地方、产出 `unmapped`（从这一片起，解析不出的不再显示「找不到位置」）、`goals.inputs.bind` 多 `read_revision`（动作快照跟着改）、界面（六个状态先定样） | 上一行的目录实现片合入（目录 id 脱钩和默认输出目录都在那一片）；定样；U1 和四份门禁 |
+| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、登记 C-1 声明的动作；重写 `workspace-repository.ts` 的查询（`is_default` 换 `roles`）时，保留 `:22,57,69` 三处「回收的项目不算」的过滤（`project_recycle`，#1877 加的）；默认输出目录写在 `register` 里，升级段连回收的项目一起补（第 3 节）；第 3 节的路径到行、碰磁盘的调用方和永久删除；第 2 节的 `fingerprintWorkspaceFile` 和 `binary`、`unsupported` 带指纹（改 `WorkspaceFileResult`）；这一片不产出 `unmapped`；加读出处的动作之前先定第 2 节那几件并过评审；删除确认框多的一问和留下文件夹的提示是新状态，定样已定（A3，第 3 节「定样」）；`goals.inputs.bind` 写指纹不在这一片；`RunDirectories` 随轮次视图和冻结轮次信息的字段加进 `services/agent-host`；收资料引用的地方都调 `assertMaterialRef`，它比 schema 严（查 `workspace_file` 的 id 落在目录内），只靠 schema 会放过 `ws1:../secret`；宿主的 `PROJECT_WORKSPACE_PROVIDER_ID`（`apps/local-host/src/project-workspace-actions.ts:7`）改成从合同取；同一次切换里删 `projects.settings.browsing-workspace.*` 和它的表、`projects.workspaces.add/repair/unlink`、`projects.workspace.read`、`is_default`、`preferredWorkspacePath`，改完所有读它们的地方（宿主的 `project-capabilities.ts`、`workspace-settings-events.ts` 和 Files、Git、Coding，第 4 节）；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨。第 8 节的升级段在这一片写 | C-1～C-3 合入；升级段另等 U1 和四份门禁（U1 设计第 14 节）。**发布排序：合入早于首次外部安装**，否则外部用户也有第 3 节「脱钩之前建的目录行」那个缺口；这条依赖由统筹写进路线图依赖或发版清单，不只留在这里 |
+| 实现（指定文件夹） | 第 3 节「另一台设备上的引用」：`workspace_source_links` 和它的升级段、登记 `map_source`、`unmap_source`、`resolveWorkspaceFileSubject` 和四处读的地方、产出 `unmapped`（从这一片起，解析不出的不再显示「找不到位置」）、`goals.inputs.bind` 多 `read_revision`（动作快照跟着改）、界面（六个状态的定样已定，B1，第 3 节「定样」） | 上一行的目录实现片合入（目录 id 脱钩和默认输出目录都在那一片）；U1 和四份门禁 |
 
 **C-1 合审留给实现片的事（[#1894](https://github.com/molis-ai/molis-work/pull/1894#issuecomment-6704624854)，2026-11-07）：**
 
@@ -607,7 +618,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | 9 调用次数 | values 一次最多 50 个对象；授权核对复用 `discover()`；`record` 一次最多 10 个引用；描述可缓存，值另取。`readMaterialOrigins` 一次只比前 5 份的内容，每份最多读 8 MB，边读边算，总时限 1 秒（第 2 节）；其余只 `lstat`；`record` 不比内容 |
 | 10 升级与数据 | 「最近用过」与纠正记录的生命周期写在第 2.1、6 节：裁剪、停用卸载后怎么显示、删项目、Home 快照。默认输出目录不进快照，永久删除时非空才问，用户 2026-11-07 定，否掉的方案和理由在第 3 节（SSC-23）。另一台设备上的引用加指定文件夹，用户 2026-11-07 定，否掉的方案在第 3 节（SSC-25～28）；脱钩之前建的目录行还剩一种静默读，用户 2026-11-07 定接受并写明，否掉「旧绑定标成待确认」和「目录 id 加设备盐」，范围、出路和两个方案的代价在第 3 节（SSC-29）。目录 id 修复后不变，历史引用照读（SSC-16） |
 | 11 成果与过程项 | `pin` 分 current、fixed（成果库）、snapshot（过程项），不把过程项放进成果库 |
-| 12 页面与外壳 | 浏览位置只是页面状态；形态只用组件板已有的控件拼，缺的由 D 轨先补标本；页面事件按登记改，不新增未登记事件。删除确认框多的一问、留下文件夹的提示和指定文件夹的六个状态（第 3 节）都是新状态，实现片先定样 |
+| 12 页面与外壳 | 浏览位置只是页面状态；形态只用组件板已有的控件拼，缺的由 D 轨先补标本；页面事件按登记改，不新增未登记事件。删除确认框多的一问、留下文件夹的提示和指定文件夹的六个状态（第 3 节）都是新状态，定样用户 2026-11-08 看实物定了（第 3 节「定样」） |
 | 13 错误 | `projects.directory_missing`、`projects.directory_revoked`、`projects.directory_duplicate`，在 `defineErrorCodes("projects", …)` 里声明，不新写 Error 子类 |
 | 14 冲突面 | C-1 只碰 contracts 的 `modules/projects`、新 `platform/project-materials`，SDK 新的 `presentation` 子路径，`tooling/gates/api/`（含新增 `plugin-sdk/presentation.txt`）、`tooling/gates/error-owners.json`、`tooling/versions.json` 和 `tooling/gates/version-exceptions.json`（#1837 之后才有，C-1 的九个动作键还没有快照行，走例外）。其余各片合起来：contracts 的 `services/agent-host`（实现片）、`platform/plugin-manifest`（快照在 `platform/plugin.txt`；排序见 #1806 第 10 节）、`platform/plugin-events`（快照 `platform/plugin-events.txt`，同名常量也进 `platform/plugin.txt`）；宿主的 `project-browsing-settings.ts`、`workspace-settings-events.ts`、`agent-host-composition.ts`；Git、Coding（B 轨）、`assistant-executor.ts`（A 轨）；`tooling/gates/actions/`、`tooling/gates/api/` |
 

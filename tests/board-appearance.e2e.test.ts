@@ -61,7 +61,7 @@ const SEEN = (roles: string[]) => `(() => {
     cut: sections.flatMap((s) => [...s.querySelectorAll('*')].filter((el) => visible(el) && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible' && !el.matches('.mw-sr-only, .mw-look-card__view, .mw-look-card__sample')).map((el) => s.id + ' ' + el.tagName.toLowerCase() + '.' + String(el.className).split(' ')[0] + ' ' + el.scrollWidth + '>' + el.clientWidth + ' ' + el.textContent.trim().slice(0, 16))),
     // The open menu stays inside its card, and inside the specimen that holds it, so it never lies over the next heading.
     menus: [...document.querySelectorAll('#look-card [data-compose-menu]:not([hidden])')].map((menu) => { const m = menu.getBoundingClientRect(), card = menu.closest('.mw-look-card').getBoundingClientRect(), fig = menu.closest('figure').getBoundingClientRect();
-      return { left: Math.round(m.left - card.left), right: Math.round(card.right - m.right), below: Math.round(fig.bottom - m.bottom) }; }),
+      return { left: Math.round(m.left - card.left), right: Math.round(card.right - m.right), below: Math.round(fig.bottom - m.bottom), room: Math.round(menu.closest('.mw-look-grid').getBoundingClientRect().bottom - m.bottom) }; }),
     smallTargets: buttons.filter((b) => b.getBoundingClientRect().height < 44 || b.getBoundingClientRect().width < 44).map((b) => name(b).slice(0, 24) + ' ' + Math.round(b.getBoundingClientRect().width) + 'x' + Math.round(b.getBoundingClientRect().height)),
     // A look is drawn from its own tokens: the baseline's are the page's whole, a sample changes some, and a pinned canvas keeps its theme.
     soft: differs(soft, root),
@@ -76,7 +76,7 @@ const SEEN = (roles: string[]) => `(() => {
 })()`;
 
 type Seen = {
-  sections: string[]; words: string; offScale: string[]; marks: number[]; unnamed: number; pageScroll: number; spills: string[]; cut: string[]; menus: Array<{ left: number; right: number; below: number }>; smallTargets: string[];
+  sections: string[]; words: string; offScale: string[]; marks: number[]; unnamed: number; pageScroll: number; spills: string[]; cut: string[]; menus: Array<{ left: number; right: number; below: number; room: number }>; smallTargets: string[];
   soft: string[]; teal: { differs: string[]; page: string; accent: string; rCard: string; ink: boolean }; warm: { differs: number; page: string }; font: string[];
   sheetBg: { soft: string; teal: string; page: string }; pinned: { light: number; dark: number; lightPage: string; darkPage: string }; contrast: Array<{ look: string; text: string; ratio: number }>; measured: number;
 };
@@ -107,7 +107,9 @@ test("FSS-66, FSS-67: the look card and the specimen card are named, whole and d
     assert.deepEqual(seen.spills, [], `${at}: nothing runs past its section`);
     assert.deepEqual(seen.cut, [], `${at}: words are wrapped, never cut`);
     assert.equal(seen.menus.length, 1, `${at}: one card's menu is open on the board`);
-    for (const menu of seen.menus) assert.ok(menu.left >= 0 && menu.right >= 0 && menu.below >= 0, `${at}: the open menu stays inside its card and its specimen (${JSON.stringify(menu)})`);
+    for (const menu of seen.menus) assert.ok(menu.left >= 0 && menu.right >= 0 && menu.below >= 0 && menu.room >= 0, `${at}: the open menu stays inside its card and its specimen (${JSON.stringify(menu)})`);
+    // The room under the card is for the touch size's taller menu: at desktop size no empty band is left under the menu (#1976 review ③ item 6).
+    if (width > 760) for (const menu of seen.menus) assert.ok(menu.room < 44, `${at}: no empty band under the menu (${JSON.stringify(menu)})`);
     if (width <= 390) assert.deepEqual(seen.smallTargets, [], `${at}: every control is a 44px target on a phone`);
 
     // FSS-67: the baseline look is the page's own tokens (the page is the baseline here), a sample changes some, and none of them leaks.

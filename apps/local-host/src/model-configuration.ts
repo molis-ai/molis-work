@@ -11,20 +11,27 @@ import { openConfiguredModels as openProviders, selectConfiguredTextModel, model
 import { hostCompleteText } from "./host-complete-text.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
+import type { VersionedFile, VersionedFileStep } from "@molis-ai/molis-work-storage";
 
 const errors = defineErrorCodes("host", { model_configuration_invalid: "invalid" });
 /** What the settings need of a declaration: where the choice is kept and the id of the consumer's own provider (a Home package's settings are derived without actions, BL-491). */
 export type ConsumerModelConfigurationDeclaration = Pick<PluginModelConfigurationDeclaration, "preference" | "custom_provider">;
 export const modelConfigurationInvalid = errors.model_configuration_invalid;
-interface PreferenceFile extends PluginModelSelection { schema_version: /* @version format.model.preference */ 1 }
+const MODEL_PREFERENCE_SCHEMA_VERSION = /* @version format.model.preference */ 1;
+const MODEL_PREFERENCE_UPGRADES: readonly VersionedFileStep[] = [];
+interface PreferenceFile extends PluginModelSelection { schema_version: typeof MODEL_PREFERENCE_SCHEMA_VERSION }
 function preferencePath(home: string, declaration: ConsumerModelConfigurationDeclaration): string { return join(home, declaration.preference.store_name, declaration.preference.file_name); }
 function readPreference(home: string, declaration: ConsumerModelConfigurationDeclaration): PreferenceFile | undefined {
   const path = preferencePath(home, declaration); if (!existsSync(path)) return undefined;
-  const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+  return parsePreference(JSON.parse(readFileSync(path, "utf8")));
+}
+/** The file behind a consumer's `model_configuration.preference`, for the upgrade process (§2.6). */
+export const MODEL_PREFERENCE_FILE: VersionedFile<PreferenceFile> = { version: MODEL_PREFERENCE_SCHEMA_VERSION, field: "schema_version", upgrades: MODEL_PREFERENCE_UPGRADES, parse: parsePreference };
+function parsePreference(value: unknown): PreferenceFile {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
   const pref = value as Partial<PreferenceFile>;
-  if (pref.schema_version !== /* @version format.model.preference */ 1 || typeof pref.provider_id !== "string" || !pref.provider_id.trim() || typeof pref.model_id !== "string" || !pref.model_id.trim()) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
-  return { schema_version: /* @version format.model.preference */ 1, provider_id: pref.provider_id, model_id: pref.model_id };
+  if (pref.schema_version !== MODEL_PREFERENCE_SCHEMA_VERSION || typeof pref.provider_id !== "string" || !pref.provider_id.trim() || typeof pref.model_id !== "string" || !pref.model_id.trim()) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
+  return { schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, provider_id: pref.provider_id, model_id: pref.model_id };
 }
 function atomicWrite(path: string, body: string): void {
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -88,7 +95,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
         opened.store.upsert({ provider_id: declaration.custom_provider.provider_id, display_name: declaration.custom_provider.display_name, base_url: baseUrl!, api_format: format ?? existing?.api_format ?? "openai-chat-completions", enabled: true, models,
           ...(selectedConnection?.credential_ref ? { credential_ref: selectedConnection.credential_ref } : {}) });
       }
-      atomicWrite(prefPath, JSON.stringify({ schema_version: /* @version format.model.preference */ 1, provider_id: providerId, model_id: modelId } satisfies PreferenceFile, null, 2) + "\n"); preferenceWritten = true;
+      atomicWrite(prefPath, JSON.stringify({ schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, provider_id: providerId, model_id: modelId } satisfies PreferenceFile, null, 2) + "\n"); preferenceWritten = true;
     }).immediate();
   } catch (error) {
     if (preferenceWritten) { if (oldPreference !== undefined) atomicWrite(prefPath, oldPreference); else unlinkSync(prefPath); }

@@ -144,7 +144,7 @@ export const projectWriteCheckersRoute: WebRoute<ProjectRuntimeContext> = { id: 
 /** The agent-built plugin studio: Prologue designer and code agent, sandboxed plugin backends. */
 export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-studio", handle: ({ request, response, url, store, options, serverOptions, pluginServices, composition, controlToken, localHost }) =>
   handleAgentStudioHttp(request, response, url, { store, projectId: options.projectId, homeDirectory: serverOptions.homeDirectory,
-    routePrefix: projectRoutePrefix(options),
+    routePrefix: projectRoutePrefix(options), accountRegistration:composition.accountRegistration,
     // The one model list the platform keeps (V-13): what plugins read through `services.model`.
     models: async () => serverOptions.homeDirectory ? configuredModelChoices(serverOptions.homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID,
     actions: pluginServices.actions,

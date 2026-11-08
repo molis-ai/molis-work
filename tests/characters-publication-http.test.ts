@@ -9,7 +9,7 @@ import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-
 import { freezeProjectCharacter } from "../apps/local-host/dist/characters-host.js";
 import { renderCharacters, renderMolisWorkCharactersClientScript } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 test("Character manager publishes confirmed personal drafts through real project Artifact routes without requiring Coding", async t => {
   const home = mkdtempSync(join(tmpdir(), "characters-http-"));

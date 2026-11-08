@@ -73,6 +73,7 @@
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。
 
+- [account-switch-refresh](account-switch-refresh/spec.md)：单活动账号与平台刷新规范；工程、本机与用户桌面候选操作的证据分开记录，当前更新见第 13 节，最终 CI、合并队列及 main 核对以 [PR #1932](https://github.com/molis-ai/molis-work/pull/1932) 实际记录为准。
 - [action-architecture](action-architecture/spec.md)：能力怎样注册、发现、调用、授权（§3「基本合同」）。
 - [plugin-platform-v2](plugin-platform-v2/spec.md)：插件能声明什么、宿主怎么装配、插件之间怎么交换。2026-10-18 补充 Skill Pack、目录元数据、hooks 与 LSP 声明。
 - [molis-work-architecture-reorganization](molis-work-architecture-reorganization/spec.md)：架构与包重组基线。

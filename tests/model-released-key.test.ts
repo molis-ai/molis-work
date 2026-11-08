@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // ASC-57: a model key nothing uses any more after a key change or a provider removal (spec assistant-service-connections §13.2).
 

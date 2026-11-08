@@ -150,8 +150,8 @@ test("UPG1-02: the snapshot records what the design asks of it, and a clean upgr
   assert.equal(entry.path, STORE);
   assert.equal(entry.mode, 0o640);
   assert.equal(entry.size, readFileSync(file).length);
-  assert.equal(entry.sqlite.user_version, 1);
-  assert.match(entry.sqlite.schema_sha256, /^[0-9a-f]{64}$/);
+  assert.equal(entry.sqlite!.user_version, 1);
+  assert.match(entry.sqlite!.schema_sha256, /^[0-9a-f]{64}$/);
   assert.equal(sha256(snapshot), entry.sha256);
   assert.deepEqual(verifyUpgradeSnapshot(unit), entry);
 

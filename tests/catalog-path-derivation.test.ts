@@ -101,7 +101,7 @@ test("RAC-2303 a current catalog reopens; another version is refused without cha
     wrong.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(CATALOG_SCHEMA_VERSION + 1));
     wrong.pragma("journal_mode = DELETE"); wrong.close();
     const before = readFileSync(file);
-    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), { code: "catalog.reader_too_old" });
+    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), { code: "storage.store_too_new" });
     assert.deepEqual(readFileSync(file), before);
     const preserved = openTestSqlite(file, { readonly: true });
     try {

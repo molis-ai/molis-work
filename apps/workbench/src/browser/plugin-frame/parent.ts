@@ -1,4 +1,5 @@
 import { collapsePage } from "./view.js";
+import { accountTransition } from "../account-transition.js";
 import { pagePlacement } from "./placement.js";
 import { pageReviews } from "./reviews.js";
 import { pageEmbeds } from "./embed.js";
@@ -96,6 +97,7 @@ function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] 
 
 /** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
+  if (accountTransition().preparing) throw new Error("Account is switching");
   const route = host.route ?? (path => path), scope = host.mountPluginClient(root);
   if (!scope) throw new Error("View is already mounted");
   // The owner's deferred client already wrote the same guard before it called this; only the raw mounts own it.
@@ -108,13 +110,30 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount, ...(root.dataset.pluginProducer ? { producer: root.dataset.pluginProducer } : {}) } : {}) }, scope });
   const surfaces = await subjectSurfaces(route, scope);
   scope.assertCurrent();
+  if (accountTransition().preparing) throw new Error("Account is switching");
   root.dataset.pluginPage = grant.page_id;
   const storagePrefix = "molis-plugin-page:" + grant.storage_scope + ":", storage = stored(storagePrefix);
   const frame = document.createElement("iframe"), channel = new MessageChannel();
   frame.setAttribute("sandbox", "allow-scripts allow-forms"); frame.setAttribute("referrerpolicy", "no-referrer");
   frame.title = root.dataset.workSurfaceLabel ?? pack.id; frame.dataset.pluginFrame = mount?.target_slot_id === "workbench.directory" ? pack.id + ":" + mount.surface : root.dataset.workSurface || pack.id;
   frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;background:transparent";
-  const port = channel.port1, requests = frameRequests(port, grant.page_id, scope);
+  const transition = accountTransition();
+  const businessScope = new Proxy(scope, {get(target, key) {
+    if (key === "assertCurrent") return () => { target.assertCurrent(); if (transition.preparing) throw new Error("Account is switching"); };
+    return Reflect.get(target, key);
+  }});
+  const port = channel.port1, requests = frameRequests(port, grant.page_id, businessScope);
+  let flushSequence = 0;
+  let draftsPrepared = false;
+  const draftWork = new Set<Promise<void>>();
+  const flushes = new Map<number, {resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>}>();
+  const flush = () => new Promise<void>((resolve, reject) => {
+    scope.assertCurrent(); draftsPrepared = false; const id = ++flushSequence;
+    const timer = setTimeout(() => { flushes.delete(id); reject(new Error(host.translate("草稿保存未完成，请返回原页面重试"))); }, 10000);
+    flushes.set(id, {resolve, reject, timer}); port.postMessage({type: "draft-flush", id});
+  });
+  scope.own(transition.page(root, flush, () => scope.dispose(), () => { draftsPrepared = false; port.postMessage({type: "draft-resume"}); }));
+  scope.own(() => { for (const pending of flushes.values()) { clearTimeout(pending.timer); pending.reject(new Error("View closed")); } flushes.clear(); });
   const documentReads = new Map<number, AbortController>();
   const cancelDocuments = () => { for (const controller of documentReads.values()) controller.abort(); documentReads.clear(); };
   scope.own(cancelDocuments);
@@ -178,6 +197,17 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
+    if (message.type === "draft-flushed") {
+      const pending = flushes.get(message.id); if (!pending) return;
+      flushes.delete(message.id); clearTimeout(pending.timer);
+      draftsPrepared = true;
+      if (message.error) pending.reject(new Error(host.translate("草稿保存未完成，请返回原页面重试")));
+      else void Promise.all([...draftWork]).then(() => pending.resolve(), error => pending.reject(error));
+      return;
+    }
+    // Preserve the last already-submitted unsaved declaration before the child's FIFO flush acknowledgement.
+    if (transition.preparing && !draftsPrepared && message.type === "context-report") { void contextMessage(message); return; }
+    if (transition.preparing && !["draft", "storage", "fetch", "abort", "pull"].includes(message.type)) return;
     if (message.type === "document-cancel") { documentReads.get(message.id)?.abort(); documentReads.delete(message.id); return; }
     if (message.type === "frame-asset-layout") { assetLayout(message); return; }
     if (message.type === "connection-slot-cancel") { connectionSlot.cancel(message.id); return; }
@@ -203,7 +233,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "task-grants-open" || message.type === "task-grants-layout" || message.type === "task-grants-close") { taskGrants(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
-    if (message.type === "draft") { void drafts(message); return; }
+    if (message.type === "draft") {
+      if (transition.preparing && draftsPrepared) { port.postMessage({type: "draft-result", id: message.id, error: "Account is switching"}); return; }
+      const work = drafts(message); draftWork.add(work);
+      void work.then(() => draftWork.delete(work), () => draftWork.delete(work)); return;
+    }
     if (message.type === "context-intake") { makeIntake(message); return; }
     if (message.type === "presentation") { presentation(message); return; }
     if (message.type === "modal") { modal(message.open); return; }
@@ -252,6 +286,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
         } else root.removeAttribute("data-assistant-context");
         if (message.expanded === "true" || message.expanded === "false") { childExpanded = message.expanded; root.setAttribute("data-expanded", message.expanded); }
       } else if (message.type === "storage" && ["localStorage", "sessionStorage"].includes(message.area) && typeof message.key === "string" && message.key.length < 512) {
+        if (transition.preparing && draftsPrepared) return;
         if (message.value === null) window[message.area].removeItem(storagePrefix + message.key);
         else if (typeof message.value === "string" && message.value.length <= 1024 * 1024) window[message.area].setItem(storagePrefix + message.key, message.value);
       }

@@ -34,7 +34,7 @@ export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly 
  * project comes from the path alone. Without the prefix the route runs in no project, as the person's own.
  */
 export async function handleHomePluginHttp(request: IncomingMessage, response: ServerResponse, incomingUrl: URL,
-  host: MolisWorkLocalHost, controlToken: string, csp: string, projectPlugins?: HomeRouteProjectPlugins): Promise<boolean> {
+  host: MolisWorkLocalHost, controlToken: string, csp: string, projectPlugins?: HomeRouteProjectPlugins, accountRegistration=false): Promise<boolean> {
   const prefixed = /^\/projects\/([^/]+)(\/(?:api\/plugins\/[^/]+\/.*|side\/[^/]+\/[^/]+|plugins\/[^/]+))$/u.exec(incomingUrl.pathname);
   const url = prefixed ? new URL(prefixed[2]! + incomingUrl.search, incomingUrl) : incomingUrl;
   // A page's key is a shipped plugin's project key or another Home plugin's id (dotted); see HomePluginHost.registered.
@@ -67,7 +67,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const message = error instanceof Error ? error.message : String(error);
     if (page && entry) {
       response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-      response.end(renderHomePluginPage(pageEntry(entry), null, message, controlToken, { L, htmlLang, clientI18nScript }, true, Boolean(sideView)));
+      response.end(renderHomePluginPage(pageEntry(entry), null, message, controlToken, { L, htmlLang, clientI18nScript, accountRegistration }, true, Boolean(sideView)));
     } else sendLocalWebJson(response, 503, { error: message });
     return true;
   }
@@ -104,10 +104,10 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     if (host.homePlugins.hasPackage(pluginId)) {
       const surface = host.homePlugins.packageSurface(pluginId);
       try {
-        const body = surface && url.searchParams.get("frame") === "workbench" ? host.homePlugins.packageDocument(pluginId, controlToken, project?.project_id ?? null)!
+        const body = surface && url.searchParams.get("frame") === "workbench" ? host.homePlugins.packageDocument(pluginId, controlToken, project?.project_id ?? null,accountRegistration)!
           : renderHomePluginPage(pageEntry(entry), null, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken,
             // A package that did not come back is not switched off, so "enable" would not mend it: its page says why and offers no switch.
-            { L, htmlLang, clientI18nScript }, false, false, project, surface ? `${project ? `/projects/${encodeURIComponent(project.project_id)}` : ""}/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined, Boolean(surface));
+            { L, htmlLang, clientI18nScript, accountRegistration }, false, false, project, surface ? `${project ? `/projects/${encodeURIComponent(project.project_id)}` : ""}/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined, Boolean(surface));
         response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
         response.end(body);
       } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
@@ -120,7 +120,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const surface = view?.descriptor.surfaces?.find(surface => surface.target_slot_id === slot);
     const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: { ...homeViewModel(pluginId), project_id: project?.project_id ?? null, route_prefix: project ? `/projects/${encodeURIComponent(project.project_id)}` : "", view_id: side } }) : null;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-    response.end(renderHomePluginPage(pageEntry(entry), html, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView), project));
+    response.end(renderHomePluginPage(pageEntry(entry), html, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript, accountRegistration }, false, Boolean(sideView), project));
     return true;
   }
   if (["enable", "disable", "uninstall"].includes(operation)) {

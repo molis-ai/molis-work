@@ -61,7 +61,7 @@ test("catalog session closes its catalog when work fails", async () => {
 test("a reader that is older than the catalog reports exact versions and a non-destructive recovery", () => {
   const error = catalogSchemaCompatibilityError(9, 8);
   assert.ok(error instanceof ActionError);
-  assert.equal(error.code, "catalog.reader_too_old");
+  assert.equal(error.code, "storage.store_too_new");
   assert.deepEqual(error.details, {
     actual_schema_version: 9,
     supported_schema_min: 1,
@@ -98,7 +98,7 @@ test("opening a future catalog fails without rewriting its schema or project fac
       () => openMolisWorkProjectCatalog({ homeDirectory: home }),
       (error: unknown) =>
         error instanceof ActionError
-        && error.code === "catalog.reader_too_old"
+        && error.code === "storage.store_too_new"
         && error.details?.actual_schema_version === futureVersion
         && error.details?.supported_schema_max === supportedVersion,
     );

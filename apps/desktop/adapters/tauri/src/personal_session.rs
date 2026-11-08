@@ -19,10 +19,11 @@ fn account_url(path: &str, method: &str) -> Result<Url, String> {
         "POST" => matches!(
             url.path(),
             "/api/personal/login"
+                | "/api/personal/login-cancel"
                 | "/api/personal/switch"
                 | "/api/personal/logout"
                 | "/api/personal/space"
-                | "/api/personal/local"
+                | "/api/personal/prepare"
         ),
         _ => false,
     };
@@ -126,12 +127,19 @@ mod tests {
             Some("127.0.0.1")
         );
         assert!(account_url("/api/personal/login?returnTo=%2F", "POST").is_ok());
+        assert!(account_url("/api/personal/login-cancel?attempt=attempt", "POST").is_ok());
         assert!(account_url("/api/personal/space?kind=personal", "POST").is_ok());
+        assert!(account_url(
+            "/api/personal/prepare?action=ack&page=page&id=preparation",
+            "POST"
+        )
+        .is_ok());
         for path in [
             "https://evil.test/",
             "//127.0.0.1:9999/",
             "/api/personal/../pages",
             "/api/personal/native-attach",
+            "/api/personal/local",
             "/account/callback",
             "/api/personal/login\r\nHeader:x",
         ] {

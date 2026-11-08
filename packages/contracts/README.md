@@ -85,7 +85,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - `ActionAvailability` 的拒绝分支可带 `kind`；Kernel 的动作与 typed 派发、SDK owner 绑定保留主人的分类，未给 kind 的取现行共同规则。此字段不改变动作 schema 或版本。
   - 改合同同时更新生产方、消费方、Skill 与手册，不留只有一边认识的字段。
   - 动作输入的类型工具只有类型和两个小函数，不加第三方依赖：外部作者只装 contracts 和 plugin-sdk（`specs/action-input-contracts/spec.md` §4.1）。
-  - 公开合同的动作（`services/*`、`modules/*` 和共享帮手）要留手写接口，schema 包 `inputSchemaFor`；包内部的动作要从 schema 推。现在还没有定义包上（N22-02、N22-03 才包），不要假设接口和 schema 已由编译器钉住。两种写法的取舍和过不了的名单在 §4.4。`inputSchemaFor` 没有关掉的参数，过不了就改接口或 schema，或者带理由进名单。
+  - 公开合同的动作（`services/*`、`modules/*` 和共享帮手）要留手写接口，schema 包 `inputSchemaFor`；包内部的动作要从 schema 推。共享帮手已经包上（N22-02），`services/*`、`modules/*` 的定义还没有（N22-03）；帮手里没包的是 `artifact` 三个（§4.4）和 `run.control`（等 S0）。帮手自己的 schema 用 `platform/closed-object-schema.ts` 保留字面量，它不进公开子路径。两种写法的取舍和过不了的名单在 §4.4。`inputSchemaFor` 没有关掉的参数，过不了就改接口或 schema，或者带理由进名单。
   - 导出的 schema 常量和帮手的类型在 API 快照里，加 `as const` 或改 `const` 泛型都要 `pnpm api:update`，排 api 队列（§4.5）。
   - Projects 的 `renameProject` 第四参为必填的原始名称观察值；Host HTTP、Workbench 表单和进程内调用同步更新。缺失或过期值按 `catalog.project_name_conflict` 拒绝，不提供旧签名别名或用新读取替换旧观察。
   - 项目目录的七个动作（`projectDirectoryActions`）和最近资料的两个动作（`materialRecentActions`）现在只声明，还没有提供方登记，调用得到 `actions.missing`。`ProjectDirectories.source_links` 只有 id 没有路径；目录的 `state` 只有 `ok`、`missing`；撤权按调用方的授权算，不是目录的状态；`projects.directory_revoked` 回答冻结轮次用到已经移除的目录。`MaterialOrigin` 的 `unmapped` 只用于 `source: "directory"`，这时不带 `directory`。规则见 [公共来源与呈现合同](../../specs/shared-sources-and-surfaces/spec.md)。

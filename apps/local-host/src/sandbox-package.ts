@@ -10,7 +10,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type SandboxAgentBody, type SandboxPackageManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
-import { parsePluginManifest, parsePluginPackageManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
@@ -79,7 +79,9 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...sandboxAgentBodyPaths(manifest)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
   if (files.size !== payload.files.length) refuse('包内文件路径重复');
-  for (const path of files.keys()) if (!wanted.includes(path)) refuse('包里有格式之外的文件：' + path);
+  // A path is the publisher's text: each one is named, quoted and cut short, as every package refusal names a file.
+  const outside = [...files.keys()].filter(path => !wanted.includes(path));
+  if (outside.length) refuseDeclarations(outside.map(path => ({ path, reason: '沙箱包的格式里没有这个文件' })));
   const entrypoint = files.get(SANDBOX_PACKAGE_FILES.entrypoint) ?? refuse('缺少 ' + SANDBOX_PACKAGE_FILES.entrypoint);
   if (!entrypoint.length || entrypoint.length > MAX_ENTRYPOINT_BYTES) refuse(SANDBOX_PACKAGE_FILES.entrypoint + ' 为空或太大');
 

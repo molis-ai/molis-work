@@ -69,6 +69,7 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
     insert(text) {
       c.field.setRangeText(text, c.field.selectionStart, c.field.selectionEnd, "end"); window.molisFit?.(c.field); drafts.save(); c.paint();
     },
+    attach(given) { if (given.length) void sender.upload(given); },
     destroy: release,
   };
 }

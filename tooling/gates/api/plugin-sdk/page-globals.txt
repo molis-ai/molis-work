@@ -81,6 +81,7 @@ export interface ComposerHandle {
     refresh(): void;
     focus(): void;
     insert(text: string): void;
+    attach(files: readonly File[]): void;
     destroy(): void;
 }
 

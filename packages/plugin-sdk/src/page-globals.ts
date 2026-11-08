@@ -221,7 +221,12 @@ export type ComposerOutcome =
   | { state: "failed"; message: string; unreadable?: readonly { index: number; reason: string }[] }
   | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
 
-export interface ComposerHandle { setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void; destroy(): void }
+export interface ComposerHandle {
+  setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
+  /** Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`. */
+  attach(files: readonly File[]): void;
+  destroy(): void;
+}
 
 declare global {
   interface Window {

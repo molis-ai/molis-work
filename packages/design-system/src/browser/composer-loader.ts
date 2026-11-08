@@ -50,7 +50,7 @@ function molisComposer(root: HTMLElement, options: ComposerOptions): ComposerHan
     if (handle) run(); else waiting.push(run);
   };
   return {
-    setRunning: later("setRunning"), refresh: later("refresh"), insert: later("insert"),
+    setRunning: later("setRunning"), refresh: later("refresh"), insert: later("insert"), attach: later("attach"),
     focus: () => { if (handle) handle.focus(); else root.querySelector<HTMLElement>(".mw-composer__input")?.focus(); },
     destroy: () => { if (handle) handle.destroy(); else { gone = true; waiting.length = 0; } },
   };

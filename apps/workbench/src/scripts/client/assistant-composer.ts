@@ -258,11 +258,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /** Words sent for the person by a page or by search, not typed in the box: what the person is writing stays where it is. */
   const say = (text, extra) => { sending += 1; return post(text, extra).catch((error) => { if (!String(input.value || "").trim()) setWords(text); showError(error); })
     .finally(() => { sending -= 1; syncComposer(); }); };
-  // Files the side pane takes go where every file goes: onto the composer, whose upload reads them.
-  function addFiles(chosen) {
-    const moved = new DataTransfer(); chosen.forEach((file) => moved.items.add(file));
-    compose.querySelector(".mw-composer__box")?.dispatchEvent(new DragEvent("drop", { dataTransfer: moved, bubbles: true, cancelable: true }));
-  }
+  // Files the side pane takes go where every file goes: onto the composer's strip, whose upload reads them.
+  function addFiles(chosen) { composer?.attach(chosen); }
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
   /* The conversation behind the receiver: its name on the receiver row opens it, and so does ⌘↵ on an empty box (the work in front,
      or the list of works when a new one is next and there are others). */

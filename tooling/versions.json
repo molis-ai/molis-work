@@ -1309,6 +1309,8 @@
     "type.molis.artifacts.referrers": 1,
     "type.molis.artifacts.referrers.request": 1,
     "type.molis.behavior-recommendation": 1,
+    "type.molis.composer.pick.items": 1,
+    "type.molis.composer.pick.query": 1,
     "type.molis.connector-usages-switch.input": 1,
     "type.molis.connector-usages-switch.output": 1,
     "type.molis.connector-usages.input": 1,

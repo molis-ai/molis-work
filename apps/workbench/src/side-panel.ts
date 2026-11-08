@@ -70,7 +70,7 @@ function sideEntries(primitives: SidePanelPrimitives, pluginTabs: readonly SideP
 export function renderSideStrip(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
   const { L, icon, escapeHtml } = primitives;
   const tab = (entry: SideEntry) => `<div class="tab-item" data-glyph-only title="${escapeHtml(entry.label)}"><button class="tab-item-trigger" type="button" role="tab" id="side-tab-${escapeHtml(entry.id)}" aria-controls="side-body-${escapeHtml(entry.id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.label)}"${entry.attrs}>${icon(entry.glyph).replace("<svg", '<svg class="tab-item-icon"')}<span class="tab-item-name" aria-hidden="true">${escapeHtml(entry.label)}</span></button>${entry.id === "tasks" ? `<span class="tab-count-badge" data-background-tasks-count aria-hidden="true" hidden>0</span>` : ""}</div>`;
-  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${L("右侧")}" data-side-tabs>${sideEntries(primitives, pluginTabs, views).map(tab).join("")}</div>`;
+  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${L("右侧")}" data-side-tabs data-overflow-fade>${sideEntries(primitives, pluginTabs, views).map(tab).join("")}</div>`;
 }
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {

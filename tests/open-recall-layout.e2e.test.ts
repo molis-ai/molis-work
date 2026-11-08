@@ -242,6 +242,15 @@ test("PFG-22 PFG-25 a tab moves to the right side and back, by counted requests;
   await click(`${LAYOUT_MENU} [data-layout-action=solo]`);
   await waitFor(sideAlone);
   assert.equal(await evaluate(covers), true);
+  // 601–760: the side's strip is the title bar's second row, so the side alone starts below that row, as its sheet does.
+  await command("Emulation.setDeviceMetricsOverride", { width: 700, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await waitFor("innerWidth === 700");
+  const below = await evaluate<{ panel: number; strip: number; bottom: number; covered: boolean }>(`(() => {
+    const panel = document.querySelector('.side-panel').getBoundingClientRect(), strip = document.querySelector('.immersive-titlebar > [data-side-tabs]').getBoundingClientRect();
+    return { panel: panel.top, strip: strip.bottom, bottom: panel.bottom, covered: ${covers} }; })()`);
+  assert.ok(below.covered && below.panel >= below.strip && below.panel - below.strip <= 24 && below.bottom <= 900, `700 wide, 独看 on the right starts below the strip row and stays on screen: ${JSON.stringify(below)}`);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await waitFor(`innerWidth === 1440 && ${sideAlone}`);
   await click("[data-layout-open]");
   await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
   assert.match(await evaluate<string>(`document.querySelector('${LAYOUT_MENU} [data-layout-action=solo]').textContent`), /独看中 · 显示全部/u);

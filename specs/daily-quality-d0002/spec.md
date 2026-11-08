@@ -24,4 +24,6 @@
 3. **D0002-03** 内部恢复也拒绝伪造团队范围，已有成果和事件游标不变；随后合法恢复可重试。
 4. **D0002-04** 跨设备服务仍能导出团队固定内容，但本地恢复不会将该导出当成共享授权；显式个人范围输入仍保留固定 ID、版本、摘要和内容。
 
-对应测试在 tests/security-invariants-artifact-declarations.test.ts（01–03）与 tests/cross-device-continuity.test.ts（04）。安全边界同步 S-81；既有必跑与 CI 结果按 PR 记录，不以本地定向测试替代 Full。
+5. **D0002-05** 编译后的独立 CLI 同样在目标创建前拒绝团队包；显式个人包仍可由真实 Catalog 与成果库恢复并读取。
+
+对应测试在 tests/security-invariants-artifact-declarations.test.ts（01–03）、tests/cross-device-continuity.test.ts（04）与 tests/cross-device-launcher.test.ts（05）。安全边界同步 S-81；既有必跑与 CI 结果按 PR 记录，不以本地定向测试替代 Full。

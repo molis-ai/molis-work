@@ -32,7 +32,7 @@ test('Jelly plans are previews, not writes, and schedule around real calendar oc
   const store=fixture(t);store.execute({type:'item.create',item:{title:'既有安排',start_date:day,start_time:540,end_time:600}});
   store.execute({type:'note.create',title:'发布',markdown:'准备发布材料\n确认说明'});
   const before=store.read(),note=before.notes[0]!;
-  const generated=await runJellyAi(before,{kind:'decompose',source_type:'note',source_id:note.id,today:day,start_time:540},{completeJson:async()=>({actions:[{title:'核对文档',notes:'说明完整',minutes:30}]})});
+  const generated=await runJellyAi(before,{source_type:'note',source_id:note.id,today:day,start_time:540},{completeJson:async()=>({actions:[{title:'核对文档',notes:'说明完整',minutes:30}]})});
   assert.ok('plan'in generated);assert.equal(generated.plan.actions[0]?.schedule?.start_time,600);assert.equal(store.read().revision,before.revision);
   store.execute({type:'plan.apply',plan:generated.plan},before.revision);assert.equal(store.read().items.length,2);assert.equal(store.read().task_links.length,1);
   store.execute({type:'plan.apply',plan:generated.plan},store.read().revision);assert.equal(store.read().items.length,2);
@@ -42,21 +42,21 @@ test('Jelly text-source plans apply even when the pasted text has surrounding wh
   const store=fixture(t);
   for(const text of ['写发布说明\n核对文档','写发布说明\n核对文档\n','  写发布说明\n核对文档\n\n']){
     const state=store.read(),before=state.revision;
-    const manual=await runJellyAi(state,{kind:'decompose',source_type:'text',text,manual:true},{});
+    const manual=await runJellyAi(state,{source_type:'text',text,manual:true},{});
     assert.equal(manual.plan.source_text,text.trim());assert.equal(manual.plan.source_hash,jellySourceHash(state,'text',null,manual.plan.source_text));
     store.execute({type:'plan.apply',plan:manual.plan},before);
     assert.ok(store.read().applied_plan_ids.includes(manual.plan.id),JSON.stringify(text));
-    const modeled=await runJellyAi(store.read(),{kind:'decompose',source_type:'text',text},{completeJson:async()=>({actions:[{title:'核对文档',notes:'',minutes:30}]})});
+    const modeled=await runJellyAi(store.read(),{source_type:'text',text},{completeJson:async()=>({actions:[{title:'核对文档',notes:'',minutes:30}]})});
     store.execute({type:'plan.apply',plan:modeled.plan},store.read().revision);assert.ok(store.read().applied_plan_ids.includes(modeled.plan.id),JSON.stringify(text));
   }
   assert.equal(store.read().applied_plan_ids.length,6);
 });
 test('Jelly AI failures retain source; no fabricated model output',async t=>{
   const store=fixture(t);store.execute({type:'note.create',title:'原笔记',markdown:'关于未来产品的一段真实原文'});const before=store.read(),id=before.notes[0]!.id;
-  await assert.rejects(()=>runJellyAi(before,{kind:'decompose',source_type:'note',source_id:id},{}),/尚未配置/);
-  await assert.rejects(()=>runJellyAi(before,{kind:'decompose',source_type:'note',source_id:id},{completeJson:async()=>null}),/计划需要/);
+  await assert.rejects(()=>runJellyAi(before,{source_type:'note',source_id:id},{}),/尚未配置/);
+  await assert.rejects(()=>runJellyAi(before,{source_type:'note',source_id:id},{completeJson:async()=>null}),/计划需要/);
   assert.deepEqual(store.read(),before);
-  const manual=await runJellyAi(before,{kind:'decompose',source_type:'note',source_id:id,manual:true},{});assert.ok('plan'in manual);assert.equal(manual.method,'manual');
+  const manual=await runJellyAi(before,{source_type:'note',source_id:id,manual:true},{});assert.ok('plan'in manual);assert.equal(manual.method,'manual');
 });
 test('public material reader rejects loopback, private, mapped, and link-local addresses',()=>{
  for(const ip of ['127.0.0.1','10.0.0.1','172.16.0.1','192.168.1.1','169.254.169.254','100.64.0.1','::1','::ffff:127.0.0.1','fe80::1','fc00::1'])assert.equal(isMaterialPublicAddress(ip),false,ip);
@@ -69,8 +69,8 @@ test('proposed slots preserve cross-midnight occupancy and report no slot when f
 });
 
 // Jelly counts a plan's lengths in whole characters (an emoji is one): a cut never lands between its two halves, and a limit lets through exactly what it names.
-const E='😀',manualPlan=(text:string)=>runJellyAi(emptyJellyWorkspace(),{kind:'decompose',source_type:'text',text,manual:true},{});
-const modelPlan=(question:string,notes:string,title='核对来源')=>runJellyAi(emptyJellyWorkspace(),{kind:'decompose',source_type:'text',text:'准备发布说明'},{completeJson:async()=>({actions:[{title,notes,minutes:30}],clarification_questions:[question]})});
+const E='😀',manualPlan=(text:string)=>runJellyAi(emptyJellyWorkspace(),{source_type:'text',text,manual:true},{});
+const modelPlan=(question:string,notes:string,title='核对来源')=>runJellyAi(emptyJellyWorkspace(),{source_type:'text',text:'准备发布说明'},{completeJson:async()=>({actions:[{title,notes,minutes:30}],clarification_questions:[question]})});
 test('RAC-1897 a manual plan cuts the plan title to 100 and a task title to 200 whole characters',async t=>{
   for(const c of [
     {name:'the 100th character is a two-unit one',line:'a'.repeat(99)+E+'尾'.repeat(10),plan:'a'.repeat(99)+E,task:'a'.repeat(99)+E+'尾'.repeat(10)},

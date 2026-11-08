@@ -9,6 +9,7 @@ import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { GOALS_MESSAGES } from "./messages.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_PAGE_EN } from "./page/en.js";
+import { GOALS_READ_GROUPS_EN } from "./read-groups-en.js";
 import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
 import { GOALS_CONTEXT_EN } from "./context-en.js";
 import { GOALS_DIALOGS_EN } from "./dialogs-en.js";
@@ -78,10 +79,10 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
  * being started and isolated by Plugin Runtime.
  */
 export const goalsManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: GOALS_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "Goals",
   summary: "确定目标，推进工作，留下结果。",
   kind: "native",
@@ -114,6 +115,11 @@ export const goalsManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS, ...GOALS_TERMINAL_ACTIONS],
+  // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
+  read_groups: [{ group_id: "goals", title: "目标", description: "目标的状态、正文、进展记录、关系与资料",
+    actions: ["goals.list", "goals.state.read", "goals.directory.read", "goals.document.read", "goals.collection.read", "goals.snapshot.read", "goals.subject.read",
+      "goals.search.entries", "goals.contract.read", "goals.events.list", "goals.events.latest", "goals.events.read", "goals.timeline.list", "goals.history.list",
+      "goals.history.read", "goals.relations.list", "goals.inputs.list", "goals.deliverables.list", "goals.artifact_inputs.list"] }],
   // The four kinds of edge Goals writes from a Goal to an exact version in the 成果库 (its inputs and deliverables, and the proposals
   // of either that a person confirms). `deliverable-actions.ts` writes them; the 成果库 reads them from here, by kind.
   artifacts: { produces: [], consumes: [], links: [
@@ -124,7 +130,7 @@ export const goalsManifest: PluginManifest = {
   databases: { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE },
   background: { jobs: [{ job_id: GOALS_CATCH_UP_JOB, reason: "项目打开时补开目标板，补齐待决定的提醒", permissions: ["storage:private", "attention:read", "attention:write", "journal:project"] }] },
   routes: GOALS_ROUTES,
-  sync: { protocol_version: 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: 2, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
+  sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: /* @version sync.collection.goals.project_goals */ 1, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
   ui: {
     messages: GOALS_MESSAGES,
     // English for the words still keyed by their Chinese text (PG-071); the order is the one the Host's catalog used to merge them in.
@@ -142,6 +148,7 @@ export const goalsManifest: PluginManifest = {
       ...GOALS_PLANNING_EN,
       ...GOALS_PROPOSAL_EN,
       ...GOALS_PAGE_EN,
+      ...GOALS_READ_GROUPS_EN,
     },
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID, GOALS_STAGE_CONTRIBUTION_ID],
     page_routes: GOALS_PAGE_ROUTES,

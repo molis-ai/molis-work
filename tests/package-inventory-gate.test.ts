@@ -70,8 +70,8 @@ before(() => {
   git("init", "-q", "-b", "main");
   buildProduct();
   commit("product"); // --table asks git for the history since the Cutover, so there must be one
-  writeDoc();
   put("tooling/gates/limits.json", JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }) + "\n");
+  writeDoc();
   git("add", "-A");
   assert.equal(run(healthScript, "--update").code, 0);
   commit("base");

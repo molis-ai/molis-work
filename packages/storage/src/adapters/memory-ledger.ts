@@ -15,7 +15,7 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
 import { readSnapshotFile, snapshotFileStat } from "../snapshot-files.js";
-import { describeSqliteBaseline, describeSqliteSchema } from "../sqlite-baseline.js";
+import { checkSqliteBaselineVersion, describeSqliteBaseline, describeSqliteSchema } from "../sqlite-baseline.js";
 import { snapshotProgramsMatch } from "../sqlite-baseline-inspection.js";
 import { readDatabaseSpace, readStorageSpace, STORAGE_SPACE_SCHEMA_SQL } from "../space.js";
 import { homeSqlitePath } from "../home-sqlite.js";
@@ -33,7 +33,7 @@ import { openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.
 export const MEMORY_LEDGER_STORE = "memory";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 1, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -107,11 +107,11 @@ export function inspectMemoryLedger(options: { homeDirectory: string; actorId: s
     });
     if (!unchanged()) throw inspectionErrors.changed("只读检查期间记忆账本已变化");
     db = new DatabaseSync(join(stage, "memory.db"), { readOnly: true });
-    const version = db.prepare("PRAGMA user_version").get()?.user_version;
+    const current = checkSqliteBaselineVersion(db, file, MEMORY_LEDGER_BASELINE, options.homeDirectory);
     const databaseSpace = readDatabaseSpace(db), homeSpace = readStorageSpace(options.homeDirectory);
     if (homeSpace && !isDeepStrictEqual(databaseSpace, homeSpace)) throw inspectionErrors.invalid("记忆账本的空间归属与 Home 不同");
     const expected = databaseSpace ? { ...MEMORY_LEDGER_BASELINE, schema: STORAGE_SPACE_SCHEMA_SQL + MEMORY_LEDGER_BASELINE.schema } : MEMORY_LEDGER_BASELINE;
-    if (version !== MEMORY_LEDGER_BASELINE.version || !snapshotProgramsMatch(db,expected.schema,false) || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(expected))
+    if (!current || !snapshotProgramsMatch(db,expected.schema,false) || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(expected))
       || db.prepare("PRAGMA integrity_check").all().some(row => Object.values(row).some(value => value !== "ok"))
       || db.prepare("PRAGMA foreign_key_check").all().length) throw inspectionErrors.invalid("记忆账本不是完整的现行结构");
     const prefs = (key: string) => {

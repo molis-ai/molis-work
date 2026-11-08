@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { readVersionedFile, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { hostLog } from "../host-log.js";
 
 /**
  * One record per round that used the computer (specs/computer-use goal §5–6): the goal, the steps in time order with
@@ -30,8 +32,20 @@ interface ComputerStep {
   readonly point?: { readonly x: number; readonly y: number };
 }
 
+const COMPUTER_RECORD_VERSION = /* @version format.computer.record */ 1;
+const COMPUTER_RECORD_UPGRADES: readonly VersionedFileStep[] = [];
+export const COMPUTER_RECORD_ID = /^[a-z0-9-]{8,80}$/u;
+
+/** `computer/records/<id>/record.json`, one file per round. */
+export const COMPUTER_RECORD_FILE: VersionedFile<ComputerRecord> = { version: COMPUTER_RECORD_VERSION, field: "version", upgrades: COMPUTER_RECORD_UPGRADES, parse: value => {
+  // What `list` sorts by and `sweep` counts from: a record without them is not one, so it cannot stop the others being read or swept.
+  const { id, steps, started_at, ended_at } = value as Partial<ComputerRecord>;
+  if (typeof id !== "string" || !Array.isArray(steps) || typeof started_at !== "string" || (ended_at !== null && typeof ended_at !== "string")) throw new Error("not a record");
+  return value as ComputerRecord;
+} };
+
 export interface ComputerRecord {
-  readonly version: 1;
+  readonly version: typeof COMPUTER_RECORD_VERSION;
   readonly id: string;
   readonly session_id: string;
   readonly run_id: string | null;
@@ -58,7 +72,7 @@ export class ComputerRecords {
   }
 
   private folder(id: string): string {
-    if (!/^[a-z0-9-]{8,80}$/u.test(id)) throw new Error("记录编号不对");
+    if (!COMPUTER_RECORD_ID.test(id)) throw new Error("记录编号不对");
     return path.join(this.root, id);
   }
 
@@ -73,13 +87,18 @@ export class ComputerRecords {
   }
 
   start(input: { readonly session_id: string; readonly run_id: string | null; readonly project_id: string | null; readonly goal: string }): ComputerRecord {
-    return this.save({ version: 1, id: randomUUID(), session_id: input.session_id, run_id: input.run_id, project_id: input.project_id,
+    return this.save({ version: COMPUTER_RECORD_VERSION, id: randomUUID(), session_id: input.session_id, run_id: input.run_id, project_id: input.project_id,
       goal: input.goal.slice(0, 4_000), started_at: new Date().toISOString(), ended_at: null, outcome: null, conclusion: "", unfinished: [],
       steps: [], shots_removed_at: null });
   }
 
   get(id: string): ComputerRecord | null {
-    try { return JSON.parse(fs.readFileSync(path.join(this.folder(id), "record.json"), "utf8")) as ComputerRecord; } catch { return null; }
+    // A record too new or not yet upgraded is not read, so nothing below can write over it.
+    try {
+      const seen = readVersionedFile(COMPUTER_RECORD_FILE, path.join(this.folder(id), "record.json"));
+      if (seen.status === "unreadable") hostLog.warn("host", "computer_record_unreadable", undefined, { id });
+      return seen.status === "current" ? seen.value : null;
+    } catch { return null; }
   }
 
   list(filter: { readonly session_id?: string } = {}): readonly ComputerRecord[] {

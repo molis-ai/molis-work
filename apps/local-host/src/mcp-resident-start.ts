@@ -63,11 +63,14 @@ async function waitForAttempt(promise: Promise<void>, signal: AbortSignal): Prom
 async function startResident(home: string, origin: string, controller: AbortController): Promise<void> {
   const deadline = performance.now() + 20_000, signal = controller.signal;
   let failure: ActionError | undefined;
-  const timeout = setTimeout(() => controller.abort(failure ?? new ActionError("actions.service_unavailable", "常驻宿主未在 20 秒内就绪，请检查安装或原 Home 占用后重试")), 20_000);
+  let upgrading = false;
+  const timedOut = () => new ActionError("actions.service_unavailable", upgrading ? "Molis Work 正在升级这个 Home 的数据，稍后再试" : "常驻宿主未在 20 秒内就绪，请检查安装或原 Home 占用后重试");
+  const timeout = setTimeout(() => controller.abort(failure ?? timedOut()), 20_000);
   let statusPipe: ReturnType<typeof spawn>["stdio"][number] | undefined;
   try {
     let health = await probeMcpResident(home, origin, signal);
     if (health === "ready") return;
+    upgrading = health === "upgrading";
     if (health === "absent") {
       const url = new URL(origin);
       if (url.hostname !== "127.0.0.1") throw new ActionError("actions.service_unavailable", "现有 Web 启动器无法提供此回环地址，请先启动配置的宿主");
@@ -105,10 +108,11 @@ async function startResident(home: string, origin: string, controller: AbortCont
       await delay(Math.min(250, deadline - performance.now()), undefined, { signal });
       health = await probeMcpResident(home, origin, signal);
       if (health === "ready") return;
+      upgrading = health === "upgrading";
       // A busy candidate can have lost to another MCP; wait for that owner rather than starting again.
       if (failure && failure.code !== "storage.owner.busy" && health === "absent") throw failure;
     }
-    throw failure ?? new ActionError("actions.service_unavailable", "常驻宿主未在 20 秒内就绪");
+    throw failure ?? (upgrading ? timedOut() : new ActionError("actions.service_unavailable", "常驻宿主未在 20 秒内就绪"));
   } catch (error) { if (signal.aborted) throw signal.reason; throw error; }
   finally { clearTimeout(timeout); statusPipe?.destroy(); }
 }

@@ -6,7 +6,7 @@ import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { listProviderModels, modelListRequest, readModelList } from "@molis-ai/molis-work-service-agent-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // ASC-56: the settings page asks a model service for its models (spec assistant-service-connections §13.2, PF-A04).
 

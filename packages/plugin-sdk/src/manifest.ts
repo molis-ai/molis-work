@@ -1,7 +1,7 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginSyncDeclaration } from "./plugin-sync.js";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { TEXT_REF_LIMITS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
@@ -18,6 +18,7 @@ import { integrationDeclarationProblems } from "./integration-declarations.js";
 import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
 import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
+import { localeDeclarationProblems } from "./locale-declarations.js";
 import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { pageRouteProblems } from "./page-routes.js";
@@ -35,7 +36,7 @@ const SEMVER = new RegExp(`^${NUMERIC}\\.${NUMERIC}\\.${NUMERIC}(?:-${PRERELEASE
 export function parsePluginManifest(input: unknown): PluginManifest {
   const manifest = record(input, "Manifest");
   const publisher = record(manifest.publisher, "publisher");
-  if (manifest.schema_version !== 1 || manifest.host_api_version !== 1) {
+  if (manifest.schema_version !== /* @version manifest.schema */ 1 || manifest.host_api_version !== /* @version host.api */ 1) {
     throw pluginErrors.manifest_invalid("Plugin Manifest schema_version 与 host_api_version 必须都是 1");
   }
   if (!text(manifest.plugin_id) || !PLUGIN_ID.test(manifest.plugin_id)
@@ -44,6 +45,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
     || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app")) {
     throw pluginErrors.manifest_invalid("Plugin Manifest 身份、名称、类型或版本不合法");
   }
+  // A text reference names its owner by this id and refuses a longer one, so a longer id would fail every page that draws the plugin's words.
+  if (manifest.plugin_id.length > TEXT_REF_LIMITS.owner) invalid(`plugin_id 最长 ${TEXT_REF_LIMITS.owner} 个字符`);
   inspectOptionalDeclarations(manifest);
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
@@ -103,7 +106,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
       for (const value of types) {
         const type = record(value, `${field}.${key}`);
         if (!text(type.artifact_type_id) || typeof type.schema_version !== "number"
-          || !Number.isSafeInteger(type.schema_version) || type.schema_version < 1) {
+          || !Number.isSafeInteger(type.schema_version) || type.schema_version < /* @version manifest.schema */ 1) {
           invalid("类型必须声明 type ID 与正整数 schema_version");
         }
       }
@@ -226,6 +229,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...inspectViewDeclarations(parsed, ui));
   problems.push(...pageRouteProblems(parsed));
   problems.push(...messageDeclarationProblems(parsed));
+  problems.push(...localeDeclarationProblems(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));

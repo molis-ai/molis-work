@@ -2,13 +2,13 @@ import { ActionError, type ActionCallContext, type ActionSceneDefinition, type A
 import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export const inboxNextScene: ActionSceneDefinition = {
-  scene_id: INBOX_NEXT_SCENE_ID, version: 1, title: "Inbox 下一步",
+  scene_id: INBOX_NEXT_SCENE_ID, version: /* @version scene.inbox.next */ 1, title: "Inbox 下一步",
   description: "根据事项内容推荐下一步，保存建议供用户选择，不自动执行建议。",
   trigger: "事项进入 Inbox 或用户要求重新判断", scope: "project", subject_kinds: ["inbox_entry"],
   permissions: ["inbox:read", "model:invoke", "judgments:write"], configuration_permissions: ["inbox:write"],
   event_schema: { type: "object", properties: { entry_id: { type: "string", minLength: 1 } }, required: ["entry_id"], additionalProperties: false },
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
-  result_type: "molis.behavior-recommendation.v1",
+  result_type: /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1",
   default_rule: { function_key: SYSTEM_INBOX_NEXT_FUNCTION_KEY, name: "挑 Inbox 下一步", instructions: "看这条 Inbox 该显示哪个按钮。", subject_kinds: ["inbox_entry"],
     options: [{ key: INBOX_DONE_OPTION_ID, description: "标记已处理" }, { key: INBOX_DISMISS_OPTION_ID, description: "忽略" }] },
   recommendation_labels: { "inbox.compose": "整理成稿", "inbox.verify": "先核查", "inbox.done": "做完了", "inbox.dismiss": "忽略" },

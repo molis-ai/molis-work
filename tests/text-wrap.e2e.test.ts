@@ -47,6 +47,26 @@ test("VUX-04: the board, the project page, a Pages document with long paths, lin
   assert.deepEqual(found, [], "no heading ends on a stub, no paragraph on a lone character, no text cut at its box");
 });
 
+test("VUX-04: the audit reports a lone character a reader can see, and not one its own box clips away", { timeout: 90_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
+  await waitFor("document.readyState === 'complete' && document.fonts.status === 'loaded'", 20_000);
+  // Five characters to a line and eleven in all, so every paragraph breaks 5, 5, 1 and only its box decides whether the 1 is drawn.
+  const line = "font-size: 16px; line-height: 20px; letter-spacing: 0; width: 80px; margin: 0; text-wrap: wrap;";
+  const words = (mark: string) => `${mark}乙丙丁戊己庚辛壬癸子`;
+  await evaluate(`(() => { const scope = document.createElement('div'); scope.setAttribute('data-audit-scope', ''); scope.innerHTML = ${JSON.stringify([
+    `<p style="${line}">${words("甲")}</p>`,
+    `<p style="${line} height: 60px; overflow: hidden;">${words("丑")}</p>`,
+    `<p style="${line} height: 40px; overflow: auto;">${words("寅")}</p>`,
+    `<p style="${line} display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;">${words("卯")}</p>`,
+    `<p style="${line} height: 40px; overflow: hidden;">${words("辰")}</p>`,
+  ].join(""))}; document.body.append(scope); })()`);
+  const orphans = (await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "orphan").map((issue) => [issue.text[0], issue.last]);
+  assert.deepEqual(orphans, [["甲", "子"], ["丑", "子"], ["寅", "子"]],
+    "on its own, in a box tall enough to draw it, and in a scroller that reaches it, the character is seen; past a clamp or a fixed height it is not");
+});
+
 test("VUX-04 VUX-30: the board's list-and-detail composition stacks when too narrow instead of squeezing its detail", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;

@@ -34,3 +34,9 @@ python3 -m http.server 4349 --bind 127.0.0.1 --directory docs/design/pages-assis
 此切片没有实现生产全部侧栏工具、多人协作、助理工具调用/审查、ProseMirror 锚点映射、真实存储与权限、运行投递恢复；也没有把评论工作自动混进全局会话。生产合同与实现顺序见 spec。
 
 图标是现有 Molis design-system（Lucide）sprite 的静态子集，浅深色/字体/边距遵循现有 Soft Workbench。没有引入第三方前端依赖。验证结果统一记录在 spec §7。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+Pages 侧栏与助理主区高保真交互切片
+
+参考原型；生产实施见 [spec](../../../specs/archive/pages-assistant-surfaces/spec.md)

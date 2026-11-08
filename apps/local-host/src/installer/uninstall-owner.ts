@@ -1,7 +1,7 @@
 import { acquireStorageOwner, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
-import { ensureHomeStorageOwner, retainHomeStorageResources } from "../home-storage-lifetime.js";
+import { acquireUpgradedHomeOwner, ensureHomeStorageOwner, retainHomeStorageResources } from "../home-storage-lifetime.js";
 import { hostErrors } from "../host-errors.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 
@@ -9,7 +9,8 @@ import type { MolisWorkLocalHost } from "../project-host.js";
 export async function withUninstallOwner<T>(home: string, host: MolisWorkLocalHost | undefined, operation: (owner: StorageOwner) => Promise<T>, purge = false): Promise<T> {
   if (!host || purge) {
     let owner: StorageOwner;
-    try { owner = acquireStorageOwner(agentRuntimeDirectory(home)); }
+    // Purging removes the data outright: neither a failed upgrade nor a full disk may stand in its way.
+    try { owner = purge ? acquireStorageOwner(agentRuntimeDirectory(home)) : acquireUpgradedHomeOwner(home); }
     catch (error) {
       if (purge && error instanceof ActionError && error.code === "storage.owner.busy") {
         throw new ActionError(error.code, "此 Home 仍由 App 或离线操作使用；请先关闭 App 并等待操作结束，再重试永久清除，尚未清除业务数据", { kind: error.kind, cause: error });

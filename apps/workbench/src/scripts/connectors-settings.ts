@@ -45,6 +45,9 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const itemOf = node => node?.closest('[data-connector-item]'), detailOf = node => node?.closest('[data-connector-detail]');
       const make = tag => document.createElement(tag);
       let waiting = null;
+      // A connection or an authorization this page finished: the workbench's return trip reads it back and, when it is met, takes the
+      // person back (specs/draft-and-return §2.5, R4). Only the settings section in the workbench has a page that hears it.
+      const settled = () => { void page.saved?.('connection'); void page.saved?.('setup'); };
       const stopWaiting = () => { if (waiting) { waiting.stopped = true; waiting.stop?.(); clearTimeout(waiting.timer); } waiting = null; remember(stateKey, null); };
       const busy = (node, on) => { if (node) { node.disabled = on; node.setAttribute('aria-busy', String(on)); } };
       const output = (node, message, error = false, details) => {
@@ -209,7 +212,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           read: async () => {
             try { const state = await api('authorizations/' + encodeURIComponent(authorizationId), undefined, 'GET'); if (state.commit_held) output(box.querySelector('[data-connector-feedback]'), L('正在核对你刚提出的新要求，接入暂不提交。请回到原对话继续。')); return state.status; } catch (error) { if (error.status === 404) return 'expired'; throw error; }
           },
-          connected: async () => { busy(start, false); step(area, 'login', 1, 'running'); await reload(service, notice); },
+          connected: async () => { busy(start, false); step(area, 'login', 1, 'running'); await reload(service, notice); settled(); },
           ended: status => {
             finish(); restoreState(item); step(area, 'login', 0, status === 'cancelled' ? 'cancelled' : 'failed');
             if (box.dataset.setupId) { reload(service).catch(refreshFailed); return; }
@@ -302,33 +305,78 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         return parts.length ? parts.join(form.dataset.credentialSeparator) : form.querySelector('[data-connector-token]').value.trim();
       };
       const pluginKeys = new Set(['model-api', 'image-api', 'typesafe', 'mcp-bearer']);
-      // A key is saved, then checked once by the host where it can be (§13.2): the steps say which of the two it is on.
+      // A key the host checks before it saves it (§13.1, §13.6 ④d): one the check did not pass is not saved and stays in its field. A
+      // refused key is said under that field, with the old key still in use when it was a replacement; a rate limit is the service's,
+      // and the same key is asked again by itself at the time the service gave, unless the person has typed since.
+      const unsavedCodes = ['connector.read.refused', 'connector.read.unreachable', 'connector.read.answered', 'connector.check.rate_limited'];
+      const keyInput = form => [...form.querySelectorAll('input[type=password]')].at(-1) || form.querySelector('input');
+      const clearUnsaved = form => {
+        clearTimeout(form.molisRetry);
+        form.querySelectorAll('[data-connector-key-error]').forEach(node => node.remove());
+        form.querySelectorAll('[aria-invalid]').forEach(input => input.removeAttribute('aria-invalid'));
+      };
+      const unsaved = (form, result, error, replacing) => {
+        if (!unsavedCodes.includes(error?.code)) return false;
+        const name = form.closest('[data-connection-item]')?.querySelector('.settings-connection-row__identity strong')?.textContent || L('这个服务');
+        const kept = replacing ? L('新密钥没有换上，旧密钥照常在用。') : L('还没保存，填的还在。');
+        if (error.code === 'connector.read.refused') {
+          const input = keyInput(form), note = make('p');
+          note.className = 'mw-field__error'; note.setAttribute('role', 'alert'); note.dataset.connectorKeyError = '';
+          note.textContent = replacing ? L('{name}拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。', { name })
+            : L('{name}拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。', { name });
+          input?.setAttribute('aria-invalid', 'true');
+          (form.matches('.settings-connection-inline') ? form : input?.closest('label') || form).append(note);
+          output(result, kept, true);
+          setTimeout(() => input?.focus()); // after the form is unlocked
+          return true;
+        }
+        if (error.code === 'connector.check.rate_limited') {
+          const at = Date.parse(error.body?.details?.retry_at || '');
+          const time = at > Date.now() ? new Date(at).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }) : '';
+          output(result, glue(time ? L('{name}说请求太多，这是服务那边的原因，不是你填错了。{time} 自动再查一次。', { name, time })
+            : L('{name}说请求太多，这是服务那边的原因，不是你填错了。稍后再试。', { name }), kept), true);
+          if (time) form.molisRetry = setTimeout(() => { if (form.isConnected && !form.querySelector('button[type=submit]')?.disabled) form.requestSubmit(); }, Math.min(at - Date.now(), 3600000) + 500);
+          return true;
+        }
+        output(result, glue(error.code === 'connector.read.unreachable' ? L('暂时连不上{name}，所以没有检查成。稍后再试。', { name })
+          : L('{name}没有确认这把密钥。检查有没有填对，再试一次。', { name }), kept), true);
+        return true;
+      };
+      box.querySelectorAll('[data-connector-auth], [data-connection-replace]').forEach(form => form.addEventListener('input', () => clearTimeout(form.molisRetry)));
       box.querySelectorAll('[data-connector-auth]').forEach(form => form.addEventListener('submit', event => {
         event.preventDefault(); const service = form.dataset.connectorAuth, result = resultFor(form), item = itemOf(form);
-        step(form, 'key', 1, 'running'); showState(item, 'running');
+        clearUnsaved(form); step(form, 'key', 1, 'running'); showState(item, 'running');
         return perform(form.querySelector('button[type=submit]'), result, async () => {
           const token = credentialValue(form);
-          output(result, L('正在保存并检查这把密钥…'));
+          output(result, L(pluginKeys.has(service) ? '正在保存这把密钥…' : '正在检查这把密钥，通过了才保存…'));
           const target = form.dataset.savedConnection || box.dataset.setupConnection;
-          const saved = target
-            ? await api(connectionPath(target), { token, setup_id: box.dataset.setupId }, 'PATCH')
-            : await api('connections', { service_id: service, display_name: nameFor(detailOf(form)), token, setup_id: box.dataset.setupId });
+          let saved;
+          try {
+            saved = target
+              ? await api(connectionPath(target), { token, setup_id: box.dataset.setupId }, 'PATCH')
+              : await api('connections', { service_id: service, display_name: nameFor(detailOf(form)), token, setup_id: box.dataset.setupId });
+          } catch (error) {
+            if (!unsaved(form, result, error, Boolean(target))) throw error;
+            restoreState(item); step(form, 'key', 1, error.code === 'connector.check.rate_limited' ? 'hold' : 'failed'); return;
+          }
           form.querySelectorAll('input').forEach(input => { input.value = ''; });
           if (saved.awaiting_intent) { await reload(service); return; }
           form.dataset.savedConnection = saved.connection.connection_id;
-          // The host's answer carries its check where it made one; a key it did not check here is checked once now, as before.
-          let refused = saved.verification?.available === false;
-          if (!saved.verification && !pluginKeys.has(service)) { try { await api(connectionPath(saved.connection.connection_id) + '/verify', {}); } catch { refused = true; } }
-          step(form, 'key', refused ? 1 : 2, refused ? 'failed' : 'done');
-          await reload(service, { id: saved.connection.connection_id, message: refused ? L('密钥存好了，但没通过检查：服务拒绝了它，或暂时连不上。可以检查后再试，或在「高级」里换一把。')
-            : L(pluginKeys.has(service) ? '密钥已保存。请在使用它的功能中完成配置和验证。' : '密钥存好了，检查也通过了。') });
+          step(form, 'key', 2, 'done');
+          await reload(service, { id: saved.connection.connection_id, message: L(saved.verification ? '密钥检查通过，已经存好。'
+            : pluginKeys.has(service) ? '密钥已保存。请在使用它的功能中完成配置和验证。' : '密钥已保存。请在用它的地方检查。') });
+          settled();
         }, () => { restoreState(item); step(form, 'key', 0, 'failed'); });
       }));
       box.querySelectorAll('[data-connection-replace], [data-connection-rename]').forEach(form => form.addEventListener('submit', event => {
         event.preventDefault(); const scope = form.closest('[data-connection-scope]'), replacing = form.hasAttribute('data-connection-replace');
-        return perform(form.querySelector('button'), scope.querySelector('[data-connection-result]'), async () => {
-          const saved = await api(connectionPath(scope.dataset.connectionScope), replacing ? { token: credentialValue(form) } : { display_name: form.querySelector('input').value.trim() }, 'PATCH');
-          await reload(scope.dataset.connectionService, { message: !replacing ? L('连接名称已更新。') : saved.verification?.available === false ? L('新密钥换上了，但没通过检查：服务拒绝了它，或暂时连不上。') : L(saved.verification ? '新密钥换上了，检查也通过了。' : '新密钥换上了。请在用它的地方检查。') });
+        const result = scope.querySelector('[data-connection-result]');
+        if (replacing) clearUnsaved(form);
+        return perform(form.querySelector('button'), result, async () => {
+          let saved;
+          try { saved = await api(connectionPath(scope.dataset.connectionScope), replacing ? { token: credentialValue(form) } : { display_name: form.querySelector('input').value.trim() }, 'PATCH'); }
+          catch (error) { if (replacing && unsaved(form, result, error, true)) return; throw error; }
+          await reload(scope.dataset.connectionService, { message: !replacing ? L('连接名称已更新。') : L(saved.verification ? '新密钥检查通过，已经换上。' : '新密钥换上了。请在用它的地方检查。') });
         });
       }));
       connectionAction('[data-connection-disconnect], [data-connection-manage]', async (scope, button) => {
@@ -573,7 +621,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         output(feedback, box.dataset.setupId ? glue(feedback.textContent, notice.message) : glue(notice.message, offered ? L('下面可以把用到原来那条的地方换到新连接。') : '')); remember(noticeKey, null);
         if (!offered) requestAnimationFrame(() => { reveal(feedback); feedback.focus?.({ preventScroll: true }); });
       } else if (opened && box.dataset.openConnector) requestAnimationFrame(() => opened.querySelector('[data-connection-toggle]')?.focus({ preventScroll: true }));
-      if (connected && panelFor(connected)) output(panelFor(connected).querySelector('[data-connector-feedback]'), L('官方授权已完成。请回到原来的应用窗口继续，或在这里设置使用范围。'));
+      if (connected && panelFor(connected)) output(panelFor(connected).querySelector('[data-connector-feedback]'), L('已连上。回到 Molis Work 的窗口继续；这一页可以关掉。'));
       box.querySelectorAll('[data-connector-next-link]').forEach(link => {
         const project = params.get('project') || /^\\/projects\\/([^/]+)/.exec(location.pathname)?.[1];
         const plugin = link.dataset.connectorNextLink; const next = new URL(link.getAttribute('href'), location.origin);

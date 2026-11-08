@@ -1,4 +1,4 @@
-import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import { JELLY_PROJECT_PLUGIN_ID, type JellyItem, type JellyNote, type JellyWorkspace } from "./contract.js";
 import type { JellyStore } from "./store.js";
 import { jellyErrors } from "./error.js";
@@ -12,9 +12,9 @@ const kinds = [
   { kind: JELLY_NOTE_SUBJECT_KIND, title: "笔记", surface: JELLY_PROJECT_PLUGIN_ID },
 ];
 export const jellySearchActions = {
-  entries: defineSearchEntriesAction("jelly.search.entries", kinds, "Jelly 日程与笔记", ["jelly:read"], "home"),
-  item: defineSubjectContextAction("jelly.item.subject.read", JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"], "home"),
-  note: defineSubjectContextAction("jelly.note.subject.read", JELLY_NOTE_SUBJECT_KIND, "Jelly 笔记", ["jelly:read"], "home"),
+  entries: defineSearchEntriesAction("jelly.search.entries", /* @version action.jelly.search.entries */ 1, kinds, "Jelly 日程与笔记", ["jelly:read"], "home"),
+  item: defineSubjectContextAction("jelly.item.subject.read", /* @version action.jelly.item.subject.read */ 1, JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"], "home"),
+  note: defineSubjectContextAction("jelly.note.subject.read", /* @version action.jelly.note.subject.read */ 1, JELLY_NOTE_SUBJECT_KIND, "Jelly 笔记", ["jelly:read"], "home"),
 };
 
 const itemText = (item: JellyItem) => [item.notes, item.completion_description, item.start_date === item.end_date ? item.start_date : `${item.start_date} — ${item.end_date}`].filter(Boolean).join("\n");
@@ -32,18 +32,17 @@ function jellySearchEntries(state: JellyWorkspace): SearchEntry[] {
 export function createJellySearchHandlers(withStore: <T>(run: (store: JellyStore) => T) => T): ActionHandlerBinding[] {
   const read = () => withStore(store => store.read());
   const missing = (label: string) => jellyErrors.not_found(`${label}已删除或已归档`);
-  const id = (input: unknown) => (input as { subject_id: string }).subject_id;
   return [
     bindSearchEntriesHandler(jellySearchActions.entries, () => jellySearchEntries(read())),
-    { ...jellySearchActions.item, handle: (_caller, input) => {
-      const item = [...read().items, ...read().series].find(entry => entry.id === id(input));
+    bindActionHandler(jellySearchActions.item, input => {
+      const item = [...read().items, ...read().series].find(entry => entry.id === input.subject_id);
       if (!item) throw missing("日程");
       return subjectContext({ subject: { kind: JELLY_ITEM_SUBJECT_KIND, id: item.id }, revision: item.updated_at, title: item.title, content: itemText(item), open: open(item.id) });
-    } },
-    { ...jellySearchActions.note, handle: (_caller, input) => {
-      const note = read().notes.find(entry => entry.id === id(input));
+    }),
+    bindActionHandler(jellySearchActions.note, input => {
+      const note = read().notes.find(entry => entry.id === input.subject_id);
       if (!note || note.archived_at) throw missing("笔记");
-      return subjectContext({ subject: { kind: JELLY_NOTE_SUBJECT_KIND, id: note.id }, revision: String(note.revision), title: note.title || "未命名笔记", content: noteText(note), open: open(note.id) }, input as { offset?: number });
-    } },
+      return subjectContext({ subject: { kind: JELLY_NOTE_SUBJECT_KIND, id: note.id }, revision: String(note.revision), title: note.title || "未命名笔记", content: noteText(note), open: open(note.id) }, input);
+    }),
   ];
 }

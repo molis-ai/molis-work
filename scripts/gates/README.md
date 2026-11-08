@@ -26,7 +26,7 @@
 | `docs/` 下没有原始采集和开发机路径 | `doc-raw-data.mjs` + `tooling/gates/limits.json` 的 `docsJsonBytes` | `raw data in docs: docs/<文件> is <n> bytes, over the …` / `raw data in docs: docs/<文件>:<行>: /Users/<名> is a path on a developer's machine …` | 原始采集放在仓库之外；路径写成 `~/.molis-work`、`~/<路径>` 或仓库相对路径。`archive/` 也查，没有基线，没有例外名单。口径与阈值的依据见下面「文档里的原始数据」 |
 | 页面事件都登记了 | `dom-events.mjs` + `packages/contracts/src/platform/dom-events.ts` | `DOM events: <文件>:<行> dispatches "<名>", which is not registered` / `… listens to …` / `… is registered but no source dispatches or listens to it` / `… owned by "<主人>", but none of its files … it` | 新事件在合同的 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码同一个改动，然后 `pnpm api:update`；名字写成字符串字面量（或「条件 ? 字面量 : 字面量」）。删了事件就删条目，主人的文件搬了就改 `PAGE_STATE_OWNERS`。不扫测试文件、`scripts/gates/`、夹具和构建产物。没有基线，直接挂在入口 `check-health-gates.mjs` 的 `absolute` 里（不经 `doc-gates.mjs`）；突变用例在 `tests/dom-events-contract.test.ts`（不在 `doc-reference-gates.test.ts`，CI 里单独一步）；`node scripts/gates/dom-events.mjs --report` 列出谁发谁听，并指出对不上的地方（那是线索不是失败，但真实代码里的每一条都要写进 UI Platform 的「现状与例外」，由同一个测试文件核对）。规则与登记含义见 [UI Platform](../../docs/platform/UI-PLATFORM.md#页面里的事件与状态归属) |
 
-包清单和存储版本登记同由健康门禁入口直接检查：`package-inventory.mjs` 只读 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，`store-versions.mjs` 只读 [CONTRACT-CHANGES.md「存储版本变更登记」](../../docs/system/CONTRACT-CHANGES.md#存储版本变更登记)，当前库版本仍读 CHECKLIST 第 3 节。两表不再从防腐 spec 取值，不双读或缺失兜底；完整口径、负例与已知局限见 [tooling/gates/README.md](../../tooling/gates/README.md)。
+包清单和存储版本登记同由健康门禁入口直接检查：`package-inventory.mjs` 只读 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，`store-versions.mjs` 只读 [CONTRACT-CHANGES.md「存储版本变更登记」](../../docs/system/CONTRACT-CHANGES.md#存储版本变更登记)，当前库版本仍读 CHECKLIST 第 3 节，统一起点登记读第 4 节那一行，登记之后还读升级段所在的代码文件。统一起点版本检查不用构建的那一半（`initial-versions.mjs` 的 `versionOriginProblems`）也由入口直接调用。两表不再从防腐 spec 取值，不双读或缺失兜底；完整口径、负例与已知局限见 [tooling/gates/README.md](../../tooling/gates/README.md)。
 
 ## 文档里的原始数据
 
@@ -130,6 +130,12 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 | `exempt-without-reason`、`exempt-but-numbered` | `验收编号：不适用` 没写理由；写了不适用却又定义了编号 |
 
 读法：在做的 spec 读 `specs/<目录>/spec.md`，已归档的读 `specs/archive/<目录>/spec.md`，但只当定义用（前缀继续被占着，编号继续算有人定义，老测试的引用不会变成「没人认」；不要求覆盖、不报它自己的缺口；两份归档 spec 之间的重号和串用前缀也不报，因为已经改不了）。读不到的：spec 目录里的其他文件；编号写在 spec 里别的节或正文里不算定义；测试里提到编号就算引用，不看提到的位置是不是真的在证明那一条；只认 `git ls-files` 里的文件，新文件要先 `git add`。验证：`node scripts/run-tests.mjs tests/health-gates-spec-coverage.test.ts`（每种问题在临时仓库里被故意造一次，报告模式仍退出 0、`--strict` 退出 1；读法的每条规则也各有一个删掉就失败的用例：哪些文件算测试（`fixtures/` 下的 `*.test.*` 也不算；`vendor/`、`node_modules/`、`dist/`、`.impeccable/`、`fixtures/` 在仓库根和嵌在任何一层都一样）、豁免只认前 12 行里行首的那一句、编号不能粘在更长的词上（左边的大小写字母、数字、`_`、`-`，右边的字母、数字、`-`；紧挨着中文不算粘）、`[人工]` 只认带两个括号的整个标记（正文里的「人工」二字不算）、列表标记 `-`、`*`、`+`、`1.`、`1)` 都读、归档 spec 留下什么、仓库路径带空格与非 ASCII 字符）。
+
+## 动作输入的两项过渡计数（`action-input-counts.mjs`，AIC-20）
+
+处理器输入上的 `as`（`handlerInputCasts`）和定义处手写的输入类型（`handwrittenActionInputs`）。N22 迁移期间按文件、对照 merge-base 只许减少，N22-G 开绝对门禁时删掉（路线书决定 29）。它们读代码，不属于文档类，所以直接挂在入口的 `METRICS` 上（三行：import、注释、push），不经 `doc-gates.mjs`。口径和看不到的写法在 [tooling/gates/README.md](../../tooling/gates/README.md#按文件计数只许减少的项) 的那两行；用例是 `tests/health-gates-action-input-counts.test.ts`，CI 的 `tests/health-gates-*.test.ts` 那一步跑。
+
+删的时候删这个模块、入口那三行、这一节、那两行、`AGENTS.md` 那一条和这个测试文件。
 
 ## 怎么加一条规则
 

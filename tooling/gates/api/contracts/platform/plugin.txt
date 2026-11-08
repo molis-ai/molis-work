@@ -97,23 +97,23 @@ export declare const ACTION_ERROR_KINDS: {
 export declare const ACTION_ERROR_KIND_NAMES: readonly ["invalid", "forbidden", "not_found", "conflict", "too_large", "rate_limited", "cancelled", "internal", "upstream", "unavailable", "timeout"];
 
 export declare const ACTION_REFERENCE_SCHEMA: {
-    type: string;
-    properties: {
-        capability_id: {
-            type: string;
-            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly capability_id: {
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        version: {
-            type: string;
-            minimum: number;
+        readonly version: {
+            readonly type: "integer";
+            readonly minimum: 1;
         };
-        provider_id: {
-            type: string;
-            minLength: number;
+        readonly provider_id: {
+            readonly type: "string";
+            readonly minLength: 1;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["capability_id", "version"];
+    readonly additionalProperties: false;
 };
 
 export declare const ACTION_SCENE_TARGETS_SCHEMA: {
@@ -125,8 +125,8 @@ export declare const ACTION_SCENE_TARGETS_SCHEMA: {
                 readonly type: "object";
                 readonly properties: {
                     readonly binding_id: {
-                        type: string;
-                        minLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
                     readonly title: {
                         readonly type: "string";
@@ -138,16 +138,16 @@ export declare const ACTION_SCENE_TARGETS_SCHEMA: {
                         readonly type: readonly ["string", "null"];
                     };
                     readonly scene_id: {
-                        type: string;
-                        minLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
                     readonly scene_version: {
                         readonly type: "integer";
                         readonly minimum: 1;
                     };
                     readonly provider_id: {
-                        type: string;
-                        minLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
                     readonly project_id: {
                         readonly type: readonly ["string", "null"];
@@ -162,8 +162,8 @@ export declare const ACTION_SCENE_TARGETS_SCHEMA: {
                                 type: string;
                             };
                             code: {
-                                type: string;
-                                minLength: number;
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
                             reason: {
                                 type: string;
@@ -178,8 +178,8 @@ export declare const ACTION_SCENE_TARGETS_SCHEMA: {
                                 type: string;
                             };
                             code: {
-                                type: string;
-                                minLength: number;
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
                             reason: {
                                 type: string;
@@ -196,46 +196,46 @@ export declare const ACTION_SCENE_TARGETS_SCHEMA: {
 };
 
 export declare const ACTION_SUBJECT_SCHEMA: {
-    type: string;
-    properties: {
-        kind: {
-            type: string;
-            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly kind: {
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        id: {
-            type: string;
-            minLength: number;
+        readonly id: {
+            readonly type: "string";
+            readonly minLength: 1;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["kind", "id"];
+    readonly additionalProperties: false;
 };
 
 export declare const ACTION_USAGES_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        action: {
-            type: string;
-            properties: {
-                capability_id: {
-                    type: string;
-                    minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly action: {
+            readonly type: "object";
+            readonly properties: {
+                readonly capability_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                version: {
-                    type: string;
-                    minimum: number;
+                readonly version: {
+                    readonly type: "integer";
+                    readonly minimum: 1;
                 };
-                provider_id: {
-                    type: string;
-                    minLength: number;
+                readonly provider_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["capability_id", "version"];
+            readonly additionalProperties: false;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["action"];
+    readonly additionalProperties: false;
 };
 
 export declare const ACTION_USAGES_INPUT_TYPE = "molis.action-usages.input.v1";
@@ -330,15 +330,15 @@ export declare const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = "molis.artifacts.link_s
 export declare const ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE = "molis.artifacts.link_subjects.v1";
 
 export declare const ARTIFACT_PIN_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        subject_id: {
-            type: string;
-            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly subject_id: {
+            readonly type: "string";
+            readonly minLength: 1;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["subject_id"];
+    readonly additionalProperties: false;
 };
 
 export declare const ARTIFACT_PIN_INPUT_TYPE = "molis.artifacts.pin.request.v1";
@@ -350,8 +350,8 @@ export declare const ARTIFACT_PIN_OUTPUT_SCHEMA: {
             type: string;
             properties: {
                 artifact_id: {
-                    type: string;
-                    minLength: number;
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
                 version: {
                     type: string;
@@ -585,6 +585,7 @@ export interface ActionProvider {
     readonly project_id?: string;
     readonly plugin_id?: string;
     readonly plugin_install_id?: string;
+    readonly task_readable?: true;
 }
 
 export interface ActionProviderRegistration {
@@ -615,6 +616,9 @@ export interface ActionResultPresentation {
         readonly label: string;
         readonly href: string;
     };
+    readonly pending_connection?: {
+        readonly authorization_id: string;
+    };
 }
 
 export interface ActionResultView {
@@ -624,6 +628,9 @@ export interface ActionResultView {
     readonly link?: {
         readonly label: string;
         readonly href_template: string;
+    };
+    readonly pending_connection?: {
+        readonly authorization_pointer: string;
     };
 }
 
@@ -1008,12 +1015,12 @@ export declare const DUE_REMINDER_COLLECTION_SCHEMA: {
             properties: {
                 surface: {
                     pattern: string;
-                    type: string;
-                    minLength: number;
+                    type: "string";
+                    minLength: 1;
                 };
                 title: {
-                    type: string;
-                    minLength: number;
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
             required: string[];
@@ -1027,34 +1034,34 @@ export declare const DUE_REMINDER_COLLECTION_SCHEMA: {
                 properties: {
                     reminder_id: {
                         maxLength: number;
-                        type: string;
-                        minLength: number;
+                        type: "string";
+                        minLength: 1;
                     };
                     due_at: {
-                        format: string;
-                        type: string;
-                        minLength: number;
+                        readonly format: "date-time";
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
                     title: {
                         maxLength: number;
-                        type: string;
-                        minLength: number;
+                        type: "string";
+                        minLength: 1;
                     };
                     subject: {
                         anyOf: ({
-                            type: string;
-                            properties: {
-                                kind: {
-                                    type: string;
-                                    minLength: number;
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
                                 };
-                                id: {
-                                    type: string;
-                                    minLength: number;
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
                                 };
                             };
-                            required: string[];
-                            additionalProperties: boolean;
+                            readonly required: readonly ["kind", "id"];
+                            readonly additionalProperties: false;
                         } | {
                             type: string;
                         })[];
@@ -1074,12 +1081,12 @@ export declare const DUE_REMINDER_COLLECTION_SCHEMA: {
                             properties: {
                                 surface: {
                                     pattern: string;
-                                    type: string;
-                                    minLength: number;
+                                    type: "string";
+                                    minLength: 1;
                                 };
                                 id: {
-                                    type: string;
-                                    minLength: number;
+                                    readonly type: "string";
+                                    readonly minLength: 1;
                                 };
                             };
                             required: string[];
@@ -1101,34 +1108,34 @@ export declare const DUE_REMINDER_SCHEMA: {
     properties: {
         reminder_id: {
             maxLength: number;
-            type: string;
-            minLength: number;
+            type: "string";
+            minLength: 1;
         };
         due_at: {
-            format: string;
-            type: string;
-            minLength: number;
+            readonly format: "date-time";
+            readonly type: "string";
+            readonly minLength: 1;
         };
         title: {
             maxLength: number;
-            type: string;
-            minLength: number;
+            type: "string";
+            minLength: 1;
         };
         subject: {
             anyOf: ({
-                type: string;
-                properties: {
-                    kind: {
-                        type: string;
-                        minLength: number;
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
-                    id: {
-                        type: string;
-                        minLength: number;
+                    readonly id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
                 };
-                required: string[];
-                additionalProperties: boolean;
+                readonly required: readonly ["kind", "id"];
+                readonly additionalProperties: false;
             } | {
                 type: string;
             })[];
@@ -1148,12 +1155,12 @@ export declare const DUE_REMINDER_SCHEMA: {
                 properties: {
                     surface: {
                         pattern: string;
-                        type: string;
-                        minLength: number;
+                        type: "string";
+                        minLength: 1;
                     };
                     id: {
-                        type: string;
-                        minLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
                 };
                 required: string[];
@@ -1166,21 +1173,21 @@ export declare const DUE_REMINDER_SCHEMA: {
 };
 
 export declare const DUE_REMINDER_WINDOW_SCHEMA: {
-    type: string;
-    properties: {
-        from: {
-            format: string;
-            type: string;
-            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly from: {
+            readonly format: "date-time";
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        to: {
-            format: string;
-            type: string;
-            minLength: number;
+        readonly to: {
+            readonly format: "date-time";
+            readonly type: "string";
+            readonly minLength: 1;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["from", "to"];
+    readonly additionalProperties: false;
 };
 
 export interface DueReminder {
@@ -1217,26 +1224,26 @@ export type ExactActionReference = ActionReference & {
 };
 
 export declare const FILE_CONTENT_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["subject"];
+    readonly additionalProperties: false;
 };
 
 export declare const FILE_CONTENT_INPUT_TYPE = "molis.files.content.request.v1";
@@ -1247,19 +1254,19 @@ export declare const FILE_CONTENT_OUTPUT_SCHEMA: {
     type: string;
     properties: {
         subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
         revision: {
             maxLength: number;
@@ -1295,19 +1302,19 @@ export declare const FILE_CONTENT_OUTPUT_SCHEMA: {
 export declare const FILE_CONTENT_OUTPUT_TYPE = "molis.files.content.v1";
 
 export declare const FILE_ENTRIES_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        cursor: {
-            type: string[];
+    readonly type: "object";
+    readonly properties: {
+        readonly cursor: {
+            readonly type: readonly ["string", "null"];
         };
-        limit: {
-            type: string;
-            minimum: number;
-            maximum: number;
+        readonly limit: {
+            readonly type: "integer";
+            readonly minimum: 1;
+            readonly maximum: 500;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["cursor", "limit"];
+    readonly additionalProperties: false;
 };
 
 export declare const FILE_ENTRIES_INPUT_TYPE = "molis.files.entries.window.v1";
@@ -1322,19 +1329,19 @@ export declare const FILE_ENTRIES_OUTPUT_SCHEMA: {
                 type: string;
                 properties: {
                     subject: {
-                        type: string;
-                        properties: {
-                            kind: {
-                                type: string;
-                                minLength: number;
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
-                            id: {
-                                type: string;
-                                minLength: number;
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
                         };
-                        required: string[];
-                        additionalProperties: boolean;
+                        readonly required: readonly ["kind", "id"];
+                        readonly additionalProperties: false;
                     };
                     revision: {
                         maxLength: number;
@@ -1366,7 +1373,7 @@ export declare const FILE_ENTRIES_OUTPUT_SCHEMA: {
                         minimum: number;
                     };
                     updated_at: {
-                        type: string[];
+                        readonly type: readonly ["string", "null"];
                     };
                     open: {
                         anyOf: ({
@@ -1395,7 +1402,7 @@ export declare const FILE_ENTRIES_OUTPUT_SCHEMA: {
             };
         };
         next_cursor: {
-            type: string[];
+            readonly type: readonly ["string", "null"];
         };
         collection_revision: {
             maxLength: number;
@@ -1415,19 +1422,19 @@ export declare const FILE_ENTRY_SCHEMA: {
     type: string;
     properties: {
         subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
         revision: {
             maxLength: number;
@@ -1459,7 +1466,7 @@ export declare const FILE_ENTRY_SCHEMA: {
             minimum: number;
         };
         updated_at: {
-            type: string[];
+            readonly type: readonly ["string", "null"];
         };
         open: {
             anyOf: ({
@@ -1523,118 +1530,118 @@ export declare const FRAGMENT_INTENTS: readonly [{
 }];
 
 export declare const FRAGMENT_OFFERS_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        fragment: {
-            type: string;
-            properties: {
-                object: {
-                    type: string;
-                    properties: {
-                        kind: {
-                            type: string;
-                            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly fragment: {
+            readonly type: "object";
+            readonly properties: {
+                readonly object: {
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly kind: {
+                            readonly type: "string";
+                            readonly minLength: 1;
                         };
-                        id: {
-                            type: string;
-                            minLength: number;
+                        readonly id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
                         };
-                        version: {
-                            type: string[];
+                        readonly version: {
+                            readonly type: readonly ["string", "integer"];
                         };
-                        title: {
-                            type: string;
-                            maxLength: number;
+                        readonly title: {
+                            readonly type: "string";
+                            readonly maxLength: 200;
                         };
                     };
-                    required: string[];
-                    additionalProperties: boolean;
+                    readonly required: readonly ["kind", "id"];
+                    readonly additionalProperties: false;
                 };
-                granularity: {
-                    enum: ("object" | "word" | "range" | "block" | "blocks" | "objects")[];
+                readonly granularity: {
+                    readonly enum: readonly ["word", "range", "block", "blocks", "objects", "object"];
                 };
-                targets: {
-                    type: string;
-                    minItems: number;
-                    maxItems: number;
-                    items: {
-                        type: string;
-                        properties: {
-                            kind: {
-                                enum: string[];
+                readonly targets: {
+                    readonly type: "array";
+                    readonly minItems: 1;
+                    readonly maxItems: 8;
+                    readonly items: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly enum: readonly ["text_range", "block", "object"];
                             };
-                            role: {
-                                enum: ("object" | "heading" | "paragraph" | "list" | "task" | "table" | "quote" | "code")[];
+                            readonly role: {
+                                readonly enum: readonly ["heading", "paragraph", "list", "task", "table", "quote", "code", "object"];
                             };
-                            text: {
-                                type: string;
-                                maxLength: number;
+                            readonly text: {
+                                readonly type: "string";
+                                readonly maxLength: 4000;
                             };
-                            truncated: {
-                                type: string;
+                            readonly truncated: {
+                                readonly type: "boolean";
                             };
-                            ref: {
-                                type: string;
-                                properties: {
-                                    kind: {
-                                        type: string;
-                                        minLength: number;
+                            readonly ref: {
+                                readonly type: "object";
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly type: "string";
+                                        readonly minLength: 1;
                                     };
-                                    id: {
-                                        type: string;
-                                        minLength: number;
+                                    readonly id: {
+                                        readonly type: "string";
+                                        readonly minLength: 1;
                                     };
-                                    version: {
-                                        type: string[];
+                                    readonly version: {
+                                        readonly type: readonly ["string", "integer"];
                                     };
-                                    title: {
-                                        type: string;
-                                        maxLength: number;
+                                    readonly title: {
+                                        readonly type: "string";
+                                        readonly maxLength: 200;
                                     };
                                 };
-                                required: string[];
-                                additionalProperties: boolean;
+                                readonly required: readonly ["kind", "id"];
+                                readonly additionalProperties: false;
                             };
                         };
-                        required: string[];
-                        additionalProperties: boolean;
+                        readonly required: readonly ["kind", "text"];
+                        readonly additionalProperties: false;
                     };
                 };
-                heading_path: {
-                    type: string;
-                    maxItems: number;
-                    items: {
-                        type: string;
-                        maxLength: number;
+                readonly heading_path: {
+                    readonly type: "array";
+                    readonly maxItems: 6;
+                    readonly items: {
+                        readonly type: "string";
+                        readonly maxLength: 200;
                     };
                 };
-                goal: {
-                    type: string;
-                    properties: {
-                        id: {
-                            type: string;
-                            minLength: number;
+                readonly goal: {
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly id: {
+                            readonly type: "string";
+                            readonly minLength: 1;
                         };
-                        title: {
-                            type: string;
-                            maxLength: number;
+                        readonly title: {
+                            readonly type: "string";
+                            readonly maxLength: 200;
                         };
                     };
-                    required: string[];
-                    additionalProperties: boolean;
+                    readonly required: readonly ["id", "title"];
+                    readonly additionalProperties: false;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["object", "granularity", "targets"];
+            readonly additionalProperties: false;
         };
-        request_id: {
-            maxLength: number;
-            type: string;
-            minLength: number;
+        readonly request_id: {
+            readonly maxLength: 200;
+            readonly type: "string";
+            readonly minLength: 1;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["fragment", "request_id"];
+    readonly additionalProperties: false;
 };
 
 export declare const FRAGMENT_OFFERS_INPUT_TYPE = "molis.fragment-offers.input.v1";
@@ -1648,32 +1655,32 @@ export declare const FRAGMENT_OFFERS_OUTPUT_SCHEMA: {
                 type: string;
                 properties: {
                     offer_id: {
-                        type: string;
-                        minLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
                     title: {
                         maxLength: number;
-                        type: string;
-                        minLength: number;
+                        type: "string";
+                        minLength: 1;
                     };
                     action: {
-                        type: string;
-                        properties: {
-                            capability_id: {
-                                type: string;
-                                minLength: number;
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly capability_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
-                            version: {
-                                type: string;
-                                minimum: number;
+                            readonly version: {
+                                readonly type: "integer";
+                                readonly minimum: 1;
                             };
-                            provider_id: {
-                                type: string;
-                                minLength: number;
+                            readonly provider_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
                         };
-                        required: string[];
-                        additionalProperties: boolean;
+                        readonly required: readonly ["capability_id", "version"];
+                        readonly additionalProperties: false;
                     };
                     input: {};
                     summary: {
@@ -1684,8 +1691,8 @@ export declare const FRAGMENT_OFFERS_OUTPUT_SCHEMA: {
                         type: string;
                         maxItems: number;
                         items: {
-                            type: string;
-                            minLength: number;
+                            readonly type: "string";
+                            readonly minLength: 1;
                         };
                     };
                     missing: {
@@ -1695,8 +1702,8 @@ export declare const FRAGMENT_OFFERS_OUTPUT_SCHEMA: {
                             type: string;
                             properties: {
                                 field: {
-                                    type: string;
-                                    minLength: number;
+                                    readonly type: "string";
+                                    readonly minLength: 1;
                                 };
                                 question: {
                                     type: string;
@@ -1768,6 +1775,12 @@ export interface FileSourceKind {
     title: string;
     surface: string;
 }
+
+export type FlatUnion<U> = Expand<{
+    [K in AllKeys<U> as IsRequired<U, K> extends true ? K : never]: ValueOf<U, K>;
+} & {
+    [K in AllKeys<U> as IsRequired<U, K> extends true ? never : K]?: Exclude<ValueOf<U, K>, undefined>;
+}>;
 
 export interface FragmentActionOffer {
     readonly offer_id: string;
@@ -1851,17 +1864,17 @@ export declare const HOME_EVENT_COLLECTION_SCHEMA: {
             properties: {
                 surface: {
                     pattern: string;
-                    minLength: number;
-                    type: string;
+                    minLength: 1;
+                    type: "string";
                 };
                 title: {
-                    minLength: number;
-                    type: string;
+                    readonly minLength: 1;
+                    readonly type: "string";
                 };
                 icon: {
                     pattern: string;
-                    minLength: number;
-                    type: string;
+                    minLength: 1;
+                    type: "string";
                 };
             };
             required: string[];
@@ -1873,28 +1886,28 @@ export declare const HOME_EVENT_COLLECTION_SCHEMA: {
                 type: string;
                 properties: {
                     event_id: {
-                        minLength: number;
-                        type: string;
+                        readonly minLength: 1;
+                        readonly type: "string";
                     };
                     subject: {
-                        type: string;
-                        properties: {
-                            kind: {
-                                type: string;
-                                minLength: number;
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
-                            id: {
-                                type: string;
-                                minLength: number;
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
                         };
-                        required: string[];
-                        additionalProperties: boolean;
+                        readonly required: readonly ["kind", "id"];
+                        readonly additionalProperties: false;
                     };
                     occurred_at: {
-                        format: string;
-                        minLength: number;
-                        type: string;
+                        readonly format: "date-time";
+                        readonly minLength: 1;
+                        readonly type: "string";
                     };
                     placement: {
                         enum: string[];
@@ -1903,21 +1916,21 @@ export declare const HOME_EVENT_COLLECTION_SCHEMA: {
                         enum: string[];
                     };
                     title: {
-                        minLength: number;
-                        type: string;
+                        readonly minLength: 1;
+                        readonly type: "string";
                     };
                     summary: {
-                        type: string;
+                        readonly type: "string";
                     };
                     content: {
-                        type: string;
+                        readonly type: "string";
                     };
                     facts: {
                         type: string;
                         items: {
                             type: string;
                             items: {
-                                type: string;
+                                readonly type: "string";
                             };
                             minItems: number;
                             maxItems: number;
@@ -1928,53 +1941,51 @@ export declare const HOME_EVENT_COLLECTION_SCHEMA: {
                     };
                     open: {
                         anyOf: ({
-                            type: string;
-                            properties: {
-                                kind: {
-                                    enum: string[];
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly enum: readonly ["item", "group", "surface"];
                                 };
-                                surface: {
+                                readonly surface: {
                                     pattern: string;
-                                    minLength: number;
-                                    type: string;
+                                    minLength: 1;
+                                    type: "string";
                                 };
-                                id: {
-                                    type: string[];
-                                    minLength: number;
+                                readonly id: {
+                                    readonly type: readonly ["string", "null"];
+                                    readonly minLength: 1;
                                 };
-                                title: {
-                                    minLength: number;
-                                    type: string;
+                                readonly title: {
+                                    readonly minLength: 1;
+                                    readonly type: "string";
                                 };
-                                label: {
-                                    minLength: number;
-                                    type: string;
+                                readonly label: {
+                                    readonly minLength: 1;
+                                    readonly type: "string";
                                 };
                             };
-                            required: string[];
-                            additionalProperties: boolean;
-                            anyOf: ({
-                                properties: {
-                                    kind: {
-                                        const: string;
-                                        enum?: undefined;
+                            readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                            readonly additionalProperties: false;
+                            readonly anyOf: readonly [{
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly const: "surface";
                                     };
-                                    id: {
-                                        type: string;
-                                    };
-                                };
-                            } | {
-                                properties: {
-                                    kind: {
-                                        enum: string[];
-                                        const?: undefined;
-                                    };
-                                    id: {
-                                        minLength: number;
-                                        type: string;
+                                    readonly id: {
+                                        readonly type: "null";
                                     };
                                 };
-                            })[];
+                            }, {
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly enum: readonly ["item", "group"];
+                                    };
+                                    readonly id: {
+                                        readonly minLength: 1;
+                                        readonly type: "string";
+                                    };
+                                };
+                            }];
                         } | {
                             type: string;
                         })[];
@@ -1993,28 +2004,28 @@ export declare const HOME_EVENT_SCHEMA: {
     type: string;
     properties: {
         event_id: {
-            minLength: number;
-            type: string;
+            readonly minLength: 1;
+            readonly type: "string";
         };
         subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
         occurred_at: {
-            format: string;
-            minLength: number;
-            type: string;
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
         };
         placement: {
             enum: string[];
@@ -2023,21 +2034,21 @@ export declare const HOME_EVENT_SCHEMA: {
             enum: string[];
         };
         title: {
-            minLength: number;
-            type: string;
+            readonly minLength: 1;
+            readonly type: "string";
         };
         summary: {
-            type: string;
+            readonly type: "string";
         };
         content: {
-            type: string;
+            readonly type: "string";
         };
         facts: {
             type: string;
             items: {
                 type: string;
                 items: {
-                    type: string;
+                    readonly type: "string";
                 };
                 minItems: number;
                 maxItems: number;
@@ -2048,53 +2059,51 @@ export declare const HOME_EVENT_SCHEMA: {
         };
         open: {
             anyOf: ({
-                type: string;
-                properties: {
-                    kind: {
-                        enum: string[];
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly enum: readonly ["item", "group", "surface"];
                     };
-                    surface: {
+                    readonly surface: {
                         pattern: string;
-                        minLength: number;
-                        type: string;
+                        minLength: 1;
+                        type: "string";
                     };
-                    id: {
-                        type: string[];
-                        minLength: number;
+                    readonly id: {
+                        readonly type: readonly ["string", "null"];
+                        readonly minLength: 1;
                     };
-                    title: {
-                        minLength: number;
-                        type: string;
+                    readonly title: {
+                        readonly minLength: 1;
+                        readonly type: "string";
                     };
-                    label: {
-                        minLength: number;
-                        type: string;
+                    readonly label: {
+                        readonly minLength: 1;
+                        readonly type: "string";
                     };
                 };
-                required: string[];
-                additionalProperties: boolean;
-                anyOf: ({
-                    properties: {
-                        kind: {
-                            const: string;
-                            enum?: undefined;
+                readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                readonly additionalProperties: false;
+                readonly anyOf: readonly [{
+                    readonly properties: {
+                        readonly kind: {
+                            readonly const: "surface";
                         };
-                        id: {
-                            type: string;
-                        };
-                    };
-                } | {
-                    properties: {
-                        kind: {
-                            enum: string[];
-                            const?: undefined;
-                        };
-                        id: {
-                            minLength: number;
-                            type: string;
+                        readonly id: {
+                            readonly type: "null";
                         };
                     };
-                })[];
+                }, {
+                    readonly properties: {
+                        readonly kind: {
+                            readonly enum: readonly ["item", "group"];
+                        };
+                        readonly id: {
+                            readonly minLength: 1;
+                            readonly type: "string";
+                        };
+                    };
+                }];
             } | {
                 type: string;
             })[];
@@ -2109,17 +2118,17 @@ export declare const HOME_EVENT_SOURCE_SCHEMA: {
     properties: {
         surface: {
             pattern: string;
-            minLength: number;
-            type: string;
+            minLength: 1;
+            type: "string";
         };
         title: {
-            minLength: number;
-            type: string;
+            readonly minLength: 1;
+            readonly type: "string";
         };
         icon: {
             pattern: string;
-            minLength: number;
-            type: string;
+            minLength: 1;
+            type: "string";
         };
     };
     required: string[];
@@ -2127,76 +2136,74 @@ export declare const HOME_EVENT_SOURCE_SCHEMA: {
 };
 
 export declare const HOME_EVENT_WINDOW_SCHEMA: {
-    type: string;
-    properties: {
-        from: {
-            format: string;
-            minLength: number;
-            type: string;
+    readonly type: "object";
+    readonly properties: {
+        readonly from: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
         };
-        to: {
-            format: string;
-            minLength: number;
-            type: string;
+        readonly to: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
         };
-        now: {
-            format: string;
-            minLength: number;
-            type: string;
+        readonly now: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["from", "to", "now"];
+    readonly additionalProperties: false;
 };
 
 export declare const HOME_OPEN_TARGET_SCHEMA: {
-    type: string;
-    properties: {
-        kind: {
-            enum: string[];
+    readonly type: "object";
+    readonly properties: {
+        readonly kind: {
+            readonly enum: readonly ["item", "group", "surface"];
         };
-        surface: {
+        readonly surface: {
             pattern: string;
-            minLength: number;
-            type: string;
+            minLength: 1;
+            type: "string";
         };
-        id: {
-            type: string[];
-            minLength: number;
+        readonly id: {
+            readonly type: readonly ["string", "null"];
+            readonly minLength: 1;
         };
-        title: {
-            minLength: number;
-            type: string;
+        readonly title: {
+            readonly minLength: 1;
+            readonly type: "string";
         };
-        label: {
-            minLength: number;
-            type: string;
+        readonly label: {
+            readonly minLength: 1;
+            readonly type: "string";
         };
     };
-    required: string[];
-    additionalProperties: boolean;
-    anyOf: ({
-        properties: {
-            kind: {
-                const: string;
-                enum?: undefined;
+    readonly required: readonly ["kind", "surface", "id", "title", "label"];
+    readonly additionalProperties: false;
+    readonly anyOf: readonly [{
+        readonly properties: {
+            readonly kind: {
+                readonly const: "surface";
             };
-            id: {
-                type: string;
-            };
-        };
-    } | {
-        properties: {
-            kind: {
-                enum: string[];
-                const?: undefined;
-            };
-            id: {
-                minLength: number;
-                type: string;
+            readonly id: {
+                readonly type: "null";
             };
         };
-    })[];
+    }, {
+        readonly properties: {
+            readonly kind: {
+                readonly enum: readonly ["item", "group"];
+            };
+            readonly id: {
+                readonly minLength: 1;
+                readonly type: "string";
+            };
+        };
+    }];
 };
 
 export declare const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
@@ -2354,6 +2361,48 @@ export declare const ITEM_DECLARATION_LIMITS: {
     readonly examples: 3;
 };
 
+export type InferActionInput<S> = S extends {
+    readonly const: infer C;
+} ? C : S extends {
+    readonly enum: readonly (infer E)[];
+} ? E : S extends {
+    readonly type: "object";
+    readonly properties: infer P;
+} ? Prop<P, S extends {
+    readonly required: infer R extends readonly string[];
+} ? (string extends R[number] ? readonly [] : R) : readonly []> : S extends {
+    readonly oneOf: readonly (infer U)[];
+} ? (U extends unknown ? InferActionInput<U> : never) : S extends {
+    readonly anyOf: readonly (infer U)[];
+} ? (U extends unknown ? InferActionInput<U> : never) : S extends {
+    readonly type: readonly (infer T)[];
+} ? (T extends unknown ? InferActionInput<Omit<S, "type"> & {
+    readonly type: T;
+}> : never) : S extends {
+    readonly type: "array";
+    readonly maxItems: 0;
+} ? [] : S extends {
+    readonly type: "array";
+    readonly items: infer I extends readonly unknown[];
+} ? OptionalFrom<{
+    -readonly [K in keyof I]: InferActionInput<I[K]>;
+}, S extends {
+    readonly minItems: infer N extends number;
+} ? N : 0> : S extends {
+    readonly type: "array";
+    readonly minItems: infer N extends number;
+    readonly maxItems: infer M extends number;
+    readonly items: infer I;
+} ? (number extends N ? InferActionInput<I>[] : number extends M ? InferActionInput<I>[] : N extends M ? RepeatTuple<InferActionInput<I>, N> : InferActionInput<I>[]) : S extends {
+    readonly type: "array";
+    readonly items: infer I;
+} ? InferActionInput<I>[] : S extends {
+    readonly type: "object";
+    readonly additionalProperties: infer A;
+} ? (A extends object ? Readonly<Record<string, InferActionInput<A>>> : Readonly<Record<string, unknown>>) : S extends {
+    readonly type: infer T;
+} ? (string extends T ? unknown : Simple<T>) : unknown;
+
 export type IntegrationProviderFailure = "needs_auth" | "configuration" | "network" | "provider" | "rate_limited" | "stale_history";
 
 export interface IntegrationProviderItem {
@@ -2431,37 +2480,37 @@ export interface MaterialSourceContent {
 export declare const PERSONAL_SPACE_PROJECT_ID = "personal";
 
 export declare const PLACEMENT_COPY_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
-        to_project_id: {
-            type: string;
-            minLength: number;
-            maxLength: number;
-            pattern: string;
+        readonly to_project_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 120;
+            readonly pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$";
         };
-        request_id: {
-            type: string;
-            minLength: number;
-            maxLength: number;
+        readonly request_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 200;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["subject", "to_project_id", "request_id"];
+    readonly additionalProperties: false;
 };
 
 export declare const PLACEMENT_COPY_INPUT_TYPE = "molis.placement.copy.input.v1";
@@ -2469,32 +2518,32 @@ export declare const PLACEMENT_COPY_INPUT_TYPE = "molis.placement.copy.input.v1"
 export declare const PLACEMENT_COPY_OUTPUT_TYPE = "molis.placement.copy.output.v1";
 
 export declare const PLACEMENT_MOVE_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
-        to_project_id: {
-            type: string;
-            minLength: number;
-            maxLength: number;
-            pattern: string;
+        readonly to_project_id: {
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 120;
+            readonly pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$";
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["subject", "to_project_id"];
+    readonly additionalProperties: false;
 };
 
 export declare const PLACEMENT_MOVE_INPUT_TYPE = "molis.placement.move.input.v1";
@@ -2507,25 +2556,25 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     type: string;
     properties: {
         subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
         project_id: {
-            type: string;
-            minLength: number;
-            maxLength: number;
-            pattern: string;
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 120;
+            readonly pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$";
         };
         revision: {
             type: string;
@@ -2550,6 +2599,10 @@ export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 export declare const PLUGIN_JUDGMENTS_READ_PERMISSION = "judgments:read";
 
 export declare const PLUGIN_JUDGMENTS_WRITE_PERMISSION = "judgments:write";
+
+export declare const PLUGIN_LOCALE_LIMITS: {
+    readonly available: 32;
+};
 
 export declare const PLUGIN_LOCAL_TOOLS_LIMITS: Readonly<{
     tools: 32;
@@ -3373,6 +3426,11 @@ export interface PluginLocalToolsDeclaration {
     readonly custom_executables?: true;
 }
 
+export interface PluginLocalesDeclaration {
+    readonly default: string;
+    readonly available: readonly string[];
+}
+
 export interface PluginManifest {
     sync?: import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncDeclaration;
     schema_version: 1;
@@ -3445,6 +3503,7 @@ export interface PluginManifest {
         page_routes?: UiPageRouteDeclaration[];
         messages?: PluginMessagesDeclaration;
         translations?: PluginTranslationsDeclaration;
+        locales?: PluginLocalesDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;
@@ -4362,19 +4421,19 @@ export declare const SANDBOX_PACKAGE_FILES: {
 };
 
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        cursor: {
-            type: string[];
+    readonly type: "object";
+    readonly properties: {
+        readonly cursor: {
+            readonly type: readonly ["string", "null"];
         };
-        limit: {
-            type: string;
-            minimum: number;
-            maximum: number;
+        readonly limit: {
+            readonly type: "integer";
+            readonly minimum: 1;
+            readonly maximum: 500;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["cursor", "limit"];
+    readonly additionalProperties: false;
 };
 
 export declare const SEARCH_ENTRIES_INPUT_TYPE = "molis.search.entries.window.v1";
@@ -4389,19 +4448,19 @@ export declare const SEARCH_ENTRIES_OUTPUT_SCHEMA: {
                 type: string;
                 properties: {
                     subject: {
-                        type: string;
-                        properties: {
-                            kind: {
-                                type: string;
-                                minLength: number;
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
-                            id: {
-                                type: string;
-                                minLength: number;
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
                         };
-                        required: string[];
-                        additionalProperties: boolean;
+                        readonly required: readonly ["kind", "id"];
+                        readonly additionalProperties: false;
                     };
                     revision: {
                         maxLength: number;
@@ -4417,7 +4476,7 @@ export declare const SEARCH_ENTRIES_OUTPUT_SCHEMA: {
                         maxLength: number;
                     };
                     updated_at: {
-                        type: string[];
+                        readonly type: readonly ["string", "null"];
                     };
                     content: {
                         enum: string[];
@@ -4449,7 +4508,7 @@ export declare const SEARCH_ENTRIES_OUTPUT_SCHEMA: {
             };
         };
         next_cursor: {
-            type: string[];
+            readonly type: readonly ["string", "null"];
         };
         collection_revision: {
             maxLength: number;
@@ -4469,19 +4528,19 @@ export declare const SEARCH_ENTRY_SCHEMA: {
     type: string;
     properties: {
         subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
         revision: {
             maxLength: number;
@@ -4497,7 +4556,7 @@ export declare const SEARCH_ENTRY_SCHEMA: {
             maxLength: number;
         };
         updated_at: {
-            type: string[];
+            readonly type: readonly ["string", "null"];
         };
         content: {
             enum: string[];
@@ -4551,43 +4610,43 @@ export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        subject_id: {
-            type: string;
-            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly subject_id: {
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        offset: {
-            type: string;
-            minimum: number;
+        readonly offset: {
+            readonly type: "integer";
+            readonly minimum: 0;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["subject_id"];
+    readonly additionalProperties: false;
 };
 
 export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
     type: string;
     properties: {
         offset: {
-            type: string;
-            minimum: number;
+            readonly type: "integer";
+            readonly minimum: 0;
         };
         length: {
-            type: string;
-            minimum: number;
+            readonly type: "integer";
+            readonly minimum: 0;
         };
         open: {
             type: string;
             properties: {
                 surface: {
                     pattern: string;
-                    type: string;
-                    minLength: number;
+                    type: "string";
+                    minLength: 1;
                 };
                 id: {
-                    type: string;
-                    minLength: number;
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
             required: string[];
@@ -4600,29 +4659,29 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
         goal_ids: {
             type: string;
             items: {
-                type: string;
-                minLength: number;
+                readonly type: "string";
+                readonly minLength: 1;
             };
             uniqueItems: boolean;
         };
         subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
         revision: {
-            type: string;
-            minLength: number;
+            readonly type: "string";
+            readonly minLength: 1;
         };
         title: {
             type: string;
@@ -4646,29 +4705,29 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
         goal_ids: {
             type: string;
             items: {
-                type: string;
-                minLength: number;
+                readonly type: "string";
+                readonly minLength: 1;
             };
             uniqueItems: boolean;
         };
         subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
         revision: {
-            type: string;
-            minLength: number;
+            readonly type: "string";
+            readonly minLength: 1;
         };
         title: {
             type: string;
@@ -4694,12 +4753,12 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
             properties: {
                 surface: {
                     pattern: string;
-                    type: string;
-                    minLength: number;
+                    type: "string";
+                    minLength: 1;
                 };
                 id: {
-                    type: string;
-                    minLength: number;
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
             required: string[];
@@ -4708,29 +4767,29 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
         goal_ids: {
             type: string;
             items: {
-                type: string;
-                minLength: number;
+                readonly type: "string";
+                readonly minLength: 1;
             };
             uniqueItems: boolean;
         };
         subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
         revision: {
-            type: string;
-            minLength: number;
+            readonly type: "string";
+            readonly minLength: 1;
         };
         title: {
             type: string;
@@ -4753,31 +4812,31 @@ export declare const SUBJECT_CONTEXT_PAGE_CHARS = 32000;
 export declare const SUBJECT_CONTEXT_TYPE = "molis.subject-context.v1";
 
 export declare const SUBJECT_OFFERS_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        subject: {
-            type: string;
-            properties: {
-                kind: {
-                    type: string;
-                    minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                id: {
-                    type: string;
-                    minLength: number;
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
         };
-        request_id: {
-            maxLength: number;
-            type: string;
-            minLength: number;
+        readonly request_id: {
+            readonly maxLength: 200;
+            readonly type: "string";
+            readonly minLength: 1;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["subject", "request_id"];
+    readonly additionalProperties: false;
 };
 
 export declare const SUBJECT_OFFERS_INPUT_TYPE = "molis.subject-offers.input.v1";
@@ -4788,40 +4847,40 @@ export declare const SUBJECT_OFFERS_OUTPUT_SCHEMA: {
         offers: {
             type: string;
             items: {
-                type: string;
-                properties: {
-                    offer_id: {
-                        type: string;
-                        minLength: number;
+                readonly type: "object";
+                readonly properties: {
+                    readonly offer_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
-                    title: {
-                        maxLength: number;
-                        type: string;
-                        minLength: number;
+                    readonly title: {
+                        readonly maxLength: 120;
+                        readonly type: "string";
+                        readonly minLength: 1;
                     };
-                    action: {
-                        type: string;
-                        properties: {
-                            capability_id: {
-                                type: string;
-                                minLength: number;
+                    readonly action: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly capability_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
-                            version: {
-                                type: string;
-                                minimum: number;
+                            readonly version: {
+                                readonly type: "integer";
+                                readonly minimum: 1;
                             };
-                            provider_id: {
-                                type: string;
-                                minLength: number;
+                            readonly provider_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
                         };
-                        required: string[];
-                        additionalProperties: boolean;
+                        readonly required: readonly ["capability_id", "version"];
+                        readonly additionalProperties: false;
                     };
-                    input: {};
+                    readonly input: {};
                 };
-                required: string[];
-                additionalProperties: boolean;
+                readonly required: readonly ["offer_id", "title", "action", "input"];
+                readonly additionalProperties: false;
             };
         };
     };
@@ -4832,40 +4891,40 @@ export declare const SUBJECT_OFFERS_OUTPUT_SCHEMA: {
 export declare const SUBJECT_OFFERS_OUTPUT_TYPE = "molis.subject-offers.output.v1";
 
 export declare const SUBJECT_OFFER_SCHEMA: {
-    type: string;
-    properties: {
-        offer_id: {
-            type: string;
-            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly offer_id: {
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        title: {
-            maxLength: number;
-            type: string;
-            minLength: number;
+        readonly title: {
+            readonly maxLength: 120;
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        action: {
-            type: string;
-            properties: {
-                capability_id: {
-                    type: string;
-                    minLength: number;
+        readonly action: {
+            readonly type: "object";
+            readonly properties: {
+                readonly capability_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
-                version: {
-                    type: string;
-                    minimum: number;
+                readonly version: {
+                    readonly type: "integer";
+                    readonly minimum: 1;
                 };
-                provider_id: {
-                    type: string;
-                    minLength: number;
+                readonly provider_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
                 };
             };
-            required: string[];
-            additionalProperties: boolean;
+            readonly required: readonly ["capability_id", "version"];
+            readonly additionalProperties: false;
         };
-        input: {};
+        readonly input: {};
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["offer_id", "title", "action", "input"];
+    readonly additionalProperties: false;
 };
 
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
@@ -5160,7 +5219,7 @@ export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "se
 
 export interface WorkExecutorActionOptions {
     readonly capability_id: string;
-    readonly version?: number;
+    readonly version: number;
     readonly title: string;
     readonly description: string;
     readonly permissions: readonly string[];
@@ -5391,6 +5450,8 @@ export declare function assertHomeEventWindow(window: HomeEventWindow): void;
 
 export declare function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient;
 
+export declare function bindActionHandler<I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>, extra?: Pick<ActionHandlerBinding, "execution" | "availability">): ActionHandlerBinding;
+
 export declare function bindArtifactCompare(definition: ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>, artifactTypeId: string, current: (objectId: string, caller: ActionCallContext) => unknown | null, same: (payload: unknown, object: unknown) => boolean, elsewhere?: (objectId: string, caller: ActionCallContext) => boolean): ActionHandlerBinding;
 
 export declare function bindArtifactContinue(definition: ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>, artifactTypeIds: readonly string[], start: (artifact: ArtifactVersionRecord, caller: ActionExecutionContext) => ArtifactContinueResult["open"] | Promise<ArtifactContinueResult["open"]>): ActionHandlerBinding;
@@ -5422,47 +5483,47 @@ export declare function browserSiteDeclarations(manifest: {
     readonly permissions: readonly PluginPermissionDeclaration[];
 }): readonly string[];
 
-export declare function defineActionUsagesAction(capabilityId: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<ActionUsagesInput, {
+export declare function defineActionUsagesAction(capabilityId: string, version: number, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<ActionUsagesInput, {
     usages: ActionUsage[];
 }>;
 
-export declare function defineArtifactCompareAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>;
+export declare function defineArtifactCompareAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>;
 
-export declare function defineArtifactContinueAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>;
+export declare function defineArtifactContinueAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>;
 
-export declare function defineArtifactLinkSubjectsAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult>;
+export declare function defineArtifactLinkSubjectsAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult>;
 
-export declare function defineArtifactPinAction(capabilityId: string, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult>;
+export declare function defineArtifactPinAction(capabilityId: string, version: number, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult>;
 
-export declare function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent>;
+export declare function defineArtifactPreviewAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent>;
 
-export declare function defineArtifactReferrersAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult>;
+export declare function defineArtifactReferrersAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult>;
 
-export declare function defineDueRemindersAction(capabilityId: string, kinds: string[], title: string, permissions: string[]): ActionDefinition<DueReminderWindow, DueReminderCollection>;
+export declare function defineDueRemindersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<DueReminderWindow, DueReminderCollection>;
 
 export declare function defineErrorCodes<const Reasons extends Readonly<Record<string, ActionErrorKind>>>(prefix: string, reasons: Reasons): ErrorCodeRaisers<Reasons>;
 
-export declare function defineFileContentAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<FileContentInput, FileContent>;
+export declare function defineFileContentAction(capabilityId: string, version: number, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<FileContentInput, FileContent>;
 
-export declare function defineFileEntriesAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<FileEntriesInput, FileEntriesPage>;
+export declare function defineFileEntriesAction(capabilityId: string, version: number, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<FileEntriesInput, FileEntriesPage>;
 
-export declare function defineFragmentOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], choices: readonly FragmentOfferChoice[], scope?: "project" | "home"): ActionDefinition<FragmentOffersInput, {
+export declare function defineFragmentOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[], choices: readonly FragmentOfferChoice[], scope?: "project" | "home"): ActionDefinition<FragmentOffersInput, {
     offers: FragmentActionOffer[];
 }>;
 
-export declare function defineHomeBackgroundTasksAction(capabilityId: string, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection>;
+export declare function defineHomeBackgroundTasksAction(capabilityId: string, version: number, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection>;
 
-export declare function defineHomeEventsAction(capabilityId: string, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection>;
+export declare function defineHomeEventsAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection>;
 
-export declare function defineObjectCopyAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
+export declare function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
 
-export declare function defineObjectMoveAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
+export declare function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
 
-export declare function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<SearchEntriesInput, SearchEntriesPage>;
+export declare function defineSearchEntriesAction(capabilityId: string, version: number, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<SearchEntriesInput, SearchEntriesPage>;
 
-export declare function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<SubjectContextRequest, ActionSubjectContext>;
+export declare function defineSubjectContextAction(capabilityId: string, version: number, kind: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<SubjectContextRequest, ActionSubjectContext>;
 
-export declare function defineSubjectOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
+export declare function defineSubjectOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
     offers: SubjectActionOffer[];
 }>;
 
@@ -5494,6 +5555,8 @@ export declare function fileContentOf(input: {
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
 
 export declare function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined;
+
+export declare const inputSchemaFor: <I>() => <const S extends ActionSchema>(schema: S & InputMatches<I, S>) => ActionSchema;
 
 export declare function isActionErrorKind(value: unknown): value is ActionErrorKind;
 
@@ -5737,6 +5800,12 @@ export declare function workExecutorRoleOf(action: {
 
 // Declarations the exports above refer to, which no entry exports itself:
 
+type AllKeys<U> = U extends unknown ? keyof U : never;
+
+type DeepExcess<I, T> = unknown extends T ? never : true extends IsUnion<NonNullable<T>> ? never : NonNullable<I> extends readonly unknown[] ? (NonNullable<T> extends readonly unknown[] ? ElementExcess<NonNullable<I>, NonNullable<T>> : never) : NonNullable<I> extends object ? (NonNullable<T> extends object ? (string extends keyof NonNullable<I> ? never : string extends keyof NonNullable<T> ? (unknown extends NonNullable<T>[string & keyof NonNullable<T>] ? keyof NonNullable<I> : never) : Exclude<keyof NonNullable<I>, keyof NonNullable<T>> | {
+    [K in keyof NonNullable<I> & keyof NonNullable<T>]-?: DeepExcess<NonNullable<I>[K], NonNullable<T>[K]>;
+}[keyof NonNullable<I> & keyof NonNullable<T>]) : never) : never;
+
 interface DestinationDeclaration {
     readonly title: string;
     readonly verb: string;
@@ -5746,10 +5815,44 @@ interface DestinationDeclaration {
     readonly places?: readonly SurfacePlace[];
 }
 
+type ElementExcess<I extends readonly unknown[], T extends readonly unknown[]> = {
+    [K in keyof I]-?: K extends keyof T ? DeepExcess<I[K], T[K]> : never;
+}[number];
+
+type Expand<T> = T extends object ? {
+    [K in keyof T]: T[K];
+} & {} : T;
+
+type InputMatches<I, S> = [InferActionInput<S>] extends [I] ? [I] extends [StrictTarget<InferActionInput<S>>] ? [DeepExcess<I, InferActionInput<S>>] extends [never] ? [DeepExcess<InferActionInput<S>, I>] extends [never] ? unknown : "schema 有接口没写的键" : "接口有 schema 不认识的键" : "接口比 schema 宽" : "schema 比接口松";
+
+type IsRequired<U, K extends PropertyKey> = [U] extends [U extends unknown ? (K extends keyof U ? (Pick<U, K> extends Required<Pick<U, K>> ? U : never) : never) : never] ? true : false;
+
+type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : never;
+
+type OptionalFrom<T extends readonly unknown[], Min extends number, Head extends unknown[] = []> = Head["length"] extends Min ? [...Head, ...Partial<T>] : T extends readonly [infer F, ...infer R] ? OptionalFrom<R, Min, [...Head, F]> : Head;
+
+type Prop<P, R extends readonly string[]> = Expand<{
+    readonly [K in keyof P & R[number]]: InferActionInput<P[K]>;
+} & {
+    readonly [K in Exclude<keyof P, R[number]>]?: InferActionInput<P[K]>;
+}>;
+
+type RepeatTuple<T, N extends number, Acc extends unknown[] = []> = Acc["length"] extends N ? Acc : Acc["length"] extends 8 ? T[] : RepeatTuple<T, N, [...Acc, T]>;
+
 type RoundRef = {
     session_id: string;
     run_id: string;
 };
+
+type Simple<T> = T extends "string" ? string : T extends "integer" | "number" ? number : T extends "boolean" ? boolean : T extends "null" ? null : T extends "object" ? Record<string, unknown> : T extends "array" ? unknown[] : unknown;
+
+type StrictTarget<T> = unknown extends T ? T : string extends keyof T ? (unknown extends T[keyof T] ? object : {
+    readonly [K in keyof T]: StrictTarget<T[K]>;
+}) : {
+    readonly [K in keyof T]: StrictTarget<T[K]>;
+};
+
+type ValueOf<U, K extends PropertyKey> = U extends unknown ? (K extends keyof U ? U[K] : never) : never;
 
 interface WorkflowStationSpec {
     id: string;

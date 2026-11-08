@@ -1,0 +1,7 @@
+{
+  "reason": "07-fix 从搜索打开记录到分屏窗格：窗格页载入后再请它选中记录（排在载入引出的视图交接之后，不再被交接盖回列表），窗格只转外面那一页发来、字段正好的那一份（S-30，窗格消息脚本里的 recordAsk，与 fromParent 共用）。复用已有的面查找与事件，没有新的帮手、重试计时器或登记条目",
+  "review": "07 批评审台审过：#1887 issuecomment-6689857617（0b950a3b67），merge-only 复核 issuecomment-6693351522（a77b2bdc1a）",
+  "assets": {
+    "/assets/molis-work-workbench.js": 727
+  }
+}

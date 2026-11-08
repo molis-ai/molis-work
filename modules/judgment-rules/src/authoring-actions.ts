@@ -32,8 +32,8 @@ const revision = { id, updated_at: { type: ["string", "null"], minLength: 1 } };
 type Revision = { id: string; updated_at?: string | null };
 type RecordResult = { function: JudgmentRuleRecord };
 
-function define<I, O>(suffix: string, title: string, description: string, input_schema: ActionSchema, output_schema: ActionSchema, write = false, preview = false, plugin = false): ActionDefinition<I, O> {
-  return { capability_id: `functions.authoring.${suffix}`, version: 1, operation: write ? "command" : "query", action: {
+function define<I, O>(suffix: string, version: number, title: string, description: string, input_schema: ActionSchema, output_schema: ActionSchema, write = false, preview = false, plugin = false): ActionDefinition<I, O> {
+  return { capability_id: `functions.authoring.${suffix}`, version: version, operation: write ? "command" : "query", action: {
     title, description, kind: write ? "operation" : "query", scope: "home", audiences: ["user", "agent", "workflow", "mcp", ...(plugin ? ["plugin" as const] : [])],
     permissions: preview ? ["functions:manage", "functions:invoke"] : ["functions:manage"], subject_kinds: [], input_schema, output_schema,
     ...(preview ? { scheduling: "concurrent" as const, execution: { cost: "metered" as const } } : {}),
@@ -41,31 +41,31 @@ function define<I, O>(suffix: string, title: string, description: string, input_
 }
 
 export const functionAuthoringActions = {
-  list: define<Record<string, never>, { functions: JudgmentRuleRecord[] }>("list", "管理判断规则", "读取草稿与已发布规则；需要规则管理权限。", input({}), { type: "object", properties: { functions: { type: "array", items: recordSchema } }, required: ["functions"] }, false, false, true),
-  get: define<{ id: string }, RecordResult>("get", "读取判断定义", "按稳定记录 ID 读取判断定义、样本和最后试跑。", input({ id }, ["id"]), recordResult),
-  create: define<{ primitive?: JudgmentRulePrimitive; name?: string; function_key?: string }, RecordResult>("create", "新建判断草稿", "创建可编辑草稿；不会自动发布或绑定。", input({ primitive, name: text, function_key: text }), recordResult, true, false, true),
-  update: define<Revision & { patch: JudgmentRuleDraftPatch }, RecordResult>("update", "保存判断草稿", "修改草稿；updated_at 用于拒绝过期编辑，已发布规则不可修改。", input({ ...revision, patch: patchSchema }, ["id", "patch"]), recordResult, true, false, true),
-  preview: define<Revision & { input: string }, RecordResult>("preview", "试跑判断", "使用判断服务执行输入并保存试跑结果，不执行建议的业务操作。", input({ ...revision, input: { type: "string", minLength: 1, maxLength: 8000 } }, ["id", "input"]), recordResult, true, true, true),
-  publish: define<Revision, RecordResult>("publish", "发布判断规则", "通过已有试跑及配置校验后发布不可变版本，进入可调用目录。", input(revision, ["id"]), recordResult, true, false, true),
-  delete: define<Revision, { ok: true }>("delete", "删除判断草稿", "仅删除草稿；已发布规则和历史不可删除。", input(revision, ["id"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
-  addSample: define<Revision & { input: string; label?: string }, RecordResult>("sample.add", "添加试跑样本", "将输入保存到规则的样本列表。", input({ ...revision, input: text, label: text }, ["id", "input"]), recordResult, true),
+  list: define<Record<string, never>, { functions: JudgmentRuleRecord[] }>("list", /* @version action.functions.authoring.list */ 1, "管理判断规则", "读取草稿与已发布规则；需要规则管理权限。", input({}), { type: "object", properties: { functions: { type: "array", items: recordSchema } }, required: ["functions"] }, false, false, true),
+  get: define<{ id: string }, RecordResult>("get", /* @version action.functions.authoring.get */ 1, "读取判断定义", "按稳定记录 ID 读取判断定义、样本和最后试跑。", input({ id }, ["id"]), recordResult),
+  create: define<{ primitive?: JudgmentRulePrimitive; name?: string; function_key?: string }, RecordResult>("create", /* @version action.functions.authoring.create */ 1, "新建判断草稿", "创建可编辑草稿；不会自动发布或绑定。", input({ primitive, name: text, function_key: text }), recordResult, true, false, true),
+  update: define<Revision & { patch: JudgmentRuleDraftPatch }, RecordResult>("update", /* @version action.functions.authoring.update */ 1, "保存判断草稿", "修改草稿；updated_at 用于拒绝过期编辑，已发布规则不可修改。", input({ ...revision, patch: patchSchema }, ["id", "patch"]), recordResult, true, false, true),
+  preview: define<Revision & { input: string }, RecordResult>("preview", /* @version action.functions.authoring.preview */ 1, "试跑判断", "使用判断服务执行输入并保存试跑结果，不执行建议的业务操作。", input({ ...revision, input: { type: "string", minLength: 1, maxLength: 8000 } }, ["id", "input"]), recordResult, true, true, true),
+  publish: define<Revision, RecordResult>("publish", /* @version action.functions.authoring.publish */ 1, "发布判断规则", "通过已有试跑及配置校验后发布不可变版本，进入可调用目录。", input(revision, ["id"]), recordResult, true, false, true),
+  delete: define<Revision, { ok: true }>("delete", /* @version action.functions.authoring.delete */ 1, "删除判断草稿", "仅删除草稿；已发布规则和历史不可删除。", input(revision, ["id"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
+  addSample: define<Revision & { input: string; label?: string }, RecordResult>("sample.add", /* @version action.functions.authoring.sample.add */ 1, "添加试跑样本", "将输入保存到规则的样本列表。", input({ ...revision, input: text, label: text }, ["id", "input"]), recordResult, true),
   // Removes one trial sample from the draft rule; another can be added again.
-  removeSample: withActionEffect(define<Revision & { sample_id: string }, RecordResult>("sample.remove", "移除试跑样本", "从判断规则草稿的试跑样本里移除指定的一条；需带读取时的修订号，之后可以再添加。已发布的规则版本不受影响。", input({ ...revision, sample_id: id }, ["id", "sample_id"]), recordResult, true), "write", false),
+  removeSample: withActionEffect(define<Revision & { sample_id: string }, RecordResult>("sample.remove", /* @version action.functions.authoring.sample.remove */ 1, "移除试跑样本", "从判断规则草稿的试跑样本里移除指定的一条；需带读取时的修订号，之后可以再添加。已发布的规则版本不受影响。", input({ ...revision, sample_id: id }, ["id", "sample_id"]), recordResult, true), "write", false),
 } as const;
 
 /** Contextual reads are composed by the Host from the same authorized action and scene clients. */
 export const functionContextActions = {
-  history: define<Record<string, never>, { judgments: JudgmentRecord[] }>("history", "判断调用记录", "读取当前项目或个人范围内保存的判断结果；不包含其他项目的历史。", input({}), { type: "object", properties: { judgments: { type: "array", items: { type: "object", required: ["judgment_id", "subject", "outcome"] } } }, required: ["judgments"] }),
-  targets: define<{ id: string }, { targets: readonly ActionSceneTarget[] }>("targets", "判断规则可配置位置", "读取消费方提供的真实配置位置、原绑定及修订号；不会创建规则或授予权限。", input({ id }, ["id"]), ACTION_SCENE_TARGETS_SCHEMA),
-  configure: define<{ id: string; scene_id: string; scene_version: number; provider_id: string; binding_id: string; expected_revision: string | null; enabled: boolean }, { ok: true }>("configure", "配置判断使用位置", "在消费方提供的位置启用、替换或停用当前规则；按原修订号写入，过期页面不能覆盖新配置。", input({
+  history: define<Record<string, never>, { judgments: JudgmentRecord[] }>("history", /* @version action.functions.authoring.history */ 1, "判断调用记录", "读取当前项目或个人范围内保存的判断结果；不包含其他项目的历史。", input({}), { type: "object", properties: { judgments: { type: "array", items: { type: "object", required: ["judgment_id", "subject", "outcome"] } } }, required: ["judgments"] }),
+  targets: define<{ id: string }, { targets: readonly ActionSceneTarget[] }>("targets", /* @version action.functions.authoring.targets */ 1, "判断规则可配置位置", "读取消费方提供的真实配置位置、原绑定及修订号；不会创建规则或授予权限。", input({ id }, ["id"]), ACTION_SCENE_TARGETS_SCHEMA),
+  configure: define<{ id: string; scene_id: string; scene_version: number; provider_id: string; binding_id: string; expected_revision: string | null; enabled: boolean }, { ok: true }>("configure", /* @version action.functions.authoring.configure */ 1, "配置判断使用位置", "在消费方提供的位置启用、替换或停用当前规则；按原修订号写入，过期页面不能覆盖新配置。", input({
     id, scene_id: id, scene_version: { type: "integer", minimum: 1 }, provider_id: id, binding_id: id, expected_revision: nullableText, enabled: { type: "boolean" },
   }, ["id", "scene_id", "scene_version", "provider_id", "binding_id", "expected_revision", "enabled"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
-  catalog: define<Record<string, never>, { catalog: JudgmentRuleAuthoringCatalog }>("catalog", "判断规则可用场景", "读取当前调用者范围内的消费场景、对象与结果选项；不可用项带原因，目录不授予执行权限。", input({}), {
+  catalog: define<Record<string, never>, { catalog: JudgmentRuleAuthoringCatalog }>("catalog", /* @version action.functions.authoring.catalog */ 1, "判断规则可用场景", "读取当前调用者范围内的消费场景、对象与结果选项；不可用项带原因，目录不授予执行权限。", input({}), {
     type: "object", properties: { catalog: { type: "object", properties: {
       subjects: { type: "array", items: { type: "object" } }, destinations: { type: "array", items: { type: "object" } }, options: { type: "array", items: { type: "object" } },
     }, required: ["subjects", "destinations", "options"] } }, required: ["catalog"],
   }),
-  usages: define<{ id: string }, { usages: ActionSceneUsage[] }>("usages", "判断规则实际使用位置", "读取当前范围由消费场景保存的真实绑定与可用状态；草稿没有生效绑定。", input({ id }, ["id"]), {
+  usages: define<{ id: string }, { usages: ActionSceneUsage[] }>("usages", /* @version action.functions.authoring.usages */ 1, "判断规则实际使用位置", "读取当前范围由消费场景保存的真实绑定与可用状态；草稿没有生效绑定。", input({ id }, ["id"]), {
     type: "object", properties: { usages: { type: "array", items: { type: "object", properties: { scene_id: id }, required: ["scene_id"] } } }, required: ["usages"],
   }),
 } as const;

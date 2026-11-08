@@ -101,7 +101,7 @@ const view = (capability_id: string, action: Partial<ActionView["action"]> = {},
 } as ActionView);
 const intake = (over: Record<string, unknown> = {}) => ({ intake_id: "note", item_kind: "note", title: "笔记", verb: "记成笔记", describe: "一条笔记", examples: ["一句话"],
   prepare: { capability_id: "notes.offers", version: 1 }, ...over });
-const offers = view("notes.offers", defineFragmentOffersAction("notes.offers", [FRAGMENT_ANY_OBJECT], "n", [], []).action, "query");
+const offers = view("notes.offers", defineFragmentOffersAction("notes.offers", 1, [FRAGMENT_ANY_OBJECT], "n", [], []).action, "query");
 const undo = { capability_id: "notes.remove", version: 1, input: { id: "note.id" } };
 
 for (const [name, entry, prepared] of [

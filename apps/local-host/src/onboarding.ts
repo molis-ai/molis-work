@@ -2,13 +2,18 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
+import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { readVersionedFileOr } from "./versioned-file-read.js";
 
 export const ONBOARDING_STATE_RELATIVE_PATH = path.join("config", "onboarding.json");
 
 export type FirstRunJourneyState = "pending" | "completed" | "dismissed";
 
+const ONBOARDING_SCHEMA_VERSION = /* @version format.home.onboarding */ 1;
+const ONBOARDING_UPGRADES: readonly VersionedFileStep[] = [];
+
 export interface MolisWorkOnboardingState {
-  schema_version: 1;
+  schema_version: typeof ONBOARDING_SCHEMA_VERSION;
   first_run: FirstRunJourneyState;
   completed_project_id: string | null;
   last_presented_step: number;
@@ -27,7 +32,7 @@ export interface MolisWorkOnboardingStatus {
 }
 
 const DEFAULT_ONBOARDING_STATE: MolisWorkOnboardingState = Object.freeze({
-  schema_version: 1,
+  schema_version: ONBOARDING_SCHEMA_VERSION,
   first_run: "pending",
   completed_project_id: null,
   last_presented_step: 0,
@@ -55,7 +60,7 @@ function normalizeState(value: unknown): MolisWorkOnboardingState {
   const record = value as Record<string, unknown>;
   const rawStep = Number(record.last_presented_step ?? 0);
   return {
-    schema_version: 1,
+    schema_version: ONBOARDING_SCHEMA_VERSION,
     first_run: validFirstRun(record.first_run),
     completed_project_id: optionalString(record.completed_project_id),
     last_presented_step: Number.isInteger(rawStep) && rawStep >= 0 && rawStep <= 8 ? rawStep : 0,
@@ -67,13 +72,11 @@ function normalizeState(value: unknown): MolisWorkOnboardingState {
   };
 }
 
+export const ONBOARDING_FILE: VersionedFile<MolisWorkOnboardingState> = { version: ONBOARDING_SCHEMA_VERSION, field: "schema_version", upgrades: ONBOARDING_UPGRADES, parse: normalizeState };
+
 export function readMolisWorkOnboardingState(homeDirectory?: string): MolisWorkOnboardingState {
   const statePath = path.join(molisWorkHome(homeDirectory), ONBOARDING_STATE_RELATIVE_PATH);
-  try {
-    return normalizeState(JSON.parse(readFileSync(statePath, "utf8")));
-  } catch {
-    return { ...DEFAULT_ONBOARDING_STATE };
-  }
+  return readVersionedFileOr(ONBOARDING_FILE, statePath, () => ({ ...DEFAULT_ONBOARDING_STATE }), molisWorkHome(homeDirectory));
 }
 
 export function readInstalledMolisWorkVersion(homeDirectory?: string): string | null {
@@ -96,6 +99,7 @@ export function writeMolisWorkOnboardingState(
   const statePath = path.join(home, ONBOARDING_STATE_RELATIVE_PATH);
   const tempPath = path.join(configDirectory, `.onboarding-${process.pid}-${randomUUID()}.tmp`);
   const normalized = normalizeState(state);
+  assertVersionedFileWritable(ONBOARDING_FILE, statePath, home);
   mkdirSync(configDirectory, { recursive: true });
   writeFileSync(tempPath, `${JSON.stringify(normalized, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   renameSync(tempPath, statePath);

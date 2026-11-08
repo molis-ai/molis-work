@@ -116,10 +116,16 @@ export function renderConnectionCard(view: ConnectionCardView): string {
 }
 
 const ROW = ".settings-connection-item > .settings-connection-row";
-// A fold takes its height at once and fades on the motion clock: layout properties (its rows) are not animated and curves
-// are tokens only (the soft-workbench motion rules); a closing part stays visible, for focus and the reader, until its fade ends.
-const FOLD_MOTION = "opacity var(--dur-move) var(--ease-quint)";
+// A fold opens to its natural height on the chevron's clock (the catalog's 行展开收起 · 250ms), the way the design system's
+// chevron folds do (packages/design-system styles/disclosure.ts): where the engine can animate to `auto` (`interpolate-size`),
+// `block-size` goes from 0 to `auto` with the motion tokens, its inner clip hiding what is not yet shown; elsewhere it opens at
+// once. Its rows stay one `1fr` row there, so nothing collapses before the height does; rows themselves are never animated.
+// disclosure.ts's own rule is for `details::details-content` and `content-visibility`; these folds are elements the parts'
+// program opens with `data-open`/`data-state`, hidden from focus by `visibility`, so the same shape is written for them here.
+const FOLD_MOTION = "block-size var(--dur-move) var(--ease-quint),opacity var(--dur-move) var(--ease-quint)";
+/** A closing part stays visible, for focus and the reader, until its motion ends. */
 const HIDE_AFTER_FADE = "visibility 0s var(--ease-quint) var(--dur-move)";
+const naturalFold = (fold: string, closed: string) => `@supports (interpolate-size:allow-keywords){${fold}{interpolate-size:allow-keywords}${closed}{grid-template-rows:1fr;block-size:0}}`;
 /** A fold's clip lets focus rings and shadows out once it has opened; it clips only while closed or moving. */
 const CLIP_OPEN = "overflow:visible;transition:overflow 0s var(--dur-move) allow-discrete";
 const TONE = { hold: "var(--tone-attention)", failed: "var(--tone-blocked)", done: "var(--tone-done)" };
@@ -147,6 +153,7 @@ export const SERVICE_CONNECTION_ITEM_STYLES = ""
   + `@media (pointer:coarse){.settings-connection-item__toggle.mw-btn{min-width:44px;min-height:44px}}`
   + `.settings-connection-item__fold{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;transition:${FOLD_MOTION},${HIDE_AFTER_FADE}}`
   + `.settings-connection-item[data-open=true]>.settings-connection-item__fold{grid-template-rows:1fr;opacity:1;visibility:visible;transition:${FOLD_MOTION},visibility 0s}`
+  + naturalFold(".settings-connection-item__fold", ".settings-connection-item:not([data-open=true])>.settings-connection-item__fold")
   + `.settings-connection-item__clip{min-height:0;overflow:hidden;margin-inline:-4px;padding-inline:4px}.settings-connection-item[data-open=true] .settings-connection-item__clip{${CLIP_OPEN}}`
   + `.settings-connection-item__body{padding:4px 0 24px 52px}`
   + `@media (prefers-reduced-motion:reduce){:is(.settings-connection-item__fold,.settings-connection-item__toggle svg){transition:none}}`
@@ -166,11 +173,14 @@ export const SERVICE_CONNECTION_CARD_STYLES = ""
   + `.connection-need__done{display:grid;grid-template-rows:0fr;opacity:0;margin:0;transition:${FOLD_MOTION}}`
   + `.connection-need[data-state=done]>.connection-need__done{grid-template-rows:1fr;opacity:1;transition-delay:var(--dur-press)}`
   + `.connection-need__line{min-height:0;overflow:hidden;font-size:13px}`
+  + naturalFold(".connection-need__fold", ".connection-need[data-state=done]>.connection-need__fold")
+  + naturalFold(".connection-need__done", ".connection-need:not([data-state=done])>.connection-need__done")
   + `.connection-need__done:focus{outline:none}.connection-need__done:focus-visible{outline:var(--focus-stroke);outline-offset:1px;border-radius:var(--r-tag)}`
   + `.mw-card.connection-card{width:auto;max-width:100%}`
   + `.connection-card__head{justify-content:flex-start;align-items:flex-start}.connection-card__head>div{min-width:0}.connection-card .mw-card__title{text-wrap:balance;overflow-wrap:anywhere}.connection-card .mw-card__title:lang(zh){word-break:keep-all}`
   + `.connection-card__fold{display:grid;grid-template-rows:1fr;transition:${FOLD_MOTION},visibility 0s}`
   + `.connection-need[data-state=ask] .connection-card__fold{grid-template-rows:0fr;opacity:0;visibility:hidden;transition:${FOLD_MOTION},${HIDE_AFTER_FADE}}`
+  + naturalFold(".connection-card__fold", ".connection-need[data-state=ask] .connection-card__fold")
   + `.connection-card__clip{min-height:0;overflow:hidden;margin-inline:-4px;padding-inline:4px}.connection-need:not([data-state=ask]) .connection-card__clip{${CLIP_OPEN}}`
   + `.connection-card__body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;padding-bottom:0}.connection-card__body .mw-status{max-width:100%;white-space:normal;line-height:1.4}.connection-card__fold:last-child .connection-card__body{padding-bottom:20px}`
   // Accounts to choose from stack one per line at the card's width; a long account line wraps instead of leaving the card.

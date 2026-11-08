@@ -39,5 +39,5 @@ const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Dataset 数
   { table: "dataset_receipts", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const DATASET_DATABASE: HomePluginDatabaseDeclaration = { project_rows: DATASET_PROJECT_ROWS, store_name: "dataset", version: 3,
+export const DATASET_DATABASE: HomePluginDatabaseDeclaration = { project_rows: DATASET_PROJECT_ROWS, store_name: "dataset", version: /* @version database.dataset_database */ 1,
   read_permission: "dataset:read", write_permission: "dataset:write", schema: DATASET_SCHEMA };

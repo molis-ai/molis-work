@@ -10,7 +10,7 @@ import { LINT_RULES, LINT_ROOTS, biomeEntry, createLintMetrics, isOwnRepository,
 
 // specs/archive/repository-anti-corruption §4.16 (W1-09): the static checks. A minimal Biome rule set (empty catch, `as unknown as`,
 // floating promises, explicit `any`, console, debugger) is counted per file like the other health gates: it may only fall,
-// a new file starts at 0, and the head is compared with the merge-base so that rewriting tooling/gates/baseline.json hides
+// a new file starts at 0, and the head is compared with the merge-base so that rewriting .git/molis-health-baseline.json hides
 // nothing. The definitions are in scripts/gates/lint.mjs and tooling/gates/lint/*.grit. Here
 //   1. every count is checked on small snippets (what it counts, and what it leaves out),
 //   2. the shape of biome.jsonc is compared with the merge-base's (the rule set only gets stricter: rules, the directories a rule
@@ -470,6 +470,7 @@ after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 
 const branch = (name: string, mutate: () => void) => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   git("clean", "-fdq");
   git("checkout", "-q", "-B", name);
   mutate();
@@ -601,6 +602,7 @@ test("a stricter rule set passes, and both sides are measured with the head's ru
 
 test("the report lists each count per file, next to the merge-base's", () => {
   git("checkout", "-q", "-f", "main");
+  assert.equal(gate("--update").code, 0);
   const text = gate("--report", "--base", "main").out;
   assert.match(text, /Empty catch blocks: 2 in 2 files/);
   assert.match(text, /`as unknown as` casts: 2 in 2 files/);
@@ -630,6 +632,6 @@ test("a repository without biome.jsonc has no static checks to fail (the scratch
     gitAt(bare, "add", "-A"); gitAt(bare, "commit", "-q", "-m", "x");
     const run = spawnSync(process.execPath, [script, "--root", bare, "--update"], { encoding: "utf8" });
     assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
-    assert.deepEqual(JSON.parse(readFileSync(path.join(bare, "tooling/gates/baseline.json"), "utf8")).explicitAny, {});
+    assert.deepEqual(JSON.parse(readFileSync(path.join(bare, ".git/molis-health-baseline.json"), "utf8")).explicitAny, {});
   } finally { rmSync(bare, { recursive: true, force: true }); }
 });

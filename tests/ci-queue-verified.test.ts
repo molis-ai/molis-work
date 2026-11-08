@@ -130,7 +130,7 @@ test("RAC-1900 the command: answers false without the environment, writes both o
 /** The two test jobs that joined Verify (decision #14, 2026-10-31): on a pull request they also wait for `test-selection`. */
 const TEST_JOBS = ["security-invariants", "product-subset"];
 /** The jobs that also wait for `test-selection`: the two test jobs, and the macOS Rust and Swift checks (用户 2026-11-04), skipped on a successful `none`. */
-const SELECTED_JOBS = [...TEST_JOBS, "native-checks"];
+const SELECTED_JOBS = [...TEST_JOBS, "native-checks", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "shell-checks"];
 const BLOCKING = ["gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS];
 const RESULTS = ["GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
 const TEST_RESULTS = ["SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
@@ -169,6 +169,7 @@ const contexts = (item: Case) => ({
   "github.event_name": item.event, "needs.queue-check.result": item.result, "needs.queue-check.outputs.verified": item.verified,
   "needs.test-selection.result": "success", "needs.test-selection.outputs.security_mode": "some", "needs.test-selection.outputs.product_mode": "some",
   "needs.test-selection.outputs.native_mode": "whole",
+  "needs.test-selection.outputs.documentation_mode": "code", "needs.test-selection.outputs.gate_rules_mode": "whole", "needs.test-selection.outputs.shell_mode": "whole",
 });
 
 test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothing else, and a blocking job is skipped only on its success and true", () => {

@@ -3,8 +3,8 @@
  * Evidence Layer, Feed's User-Agent, the MCP client version, and the client version the Codex session transport sends.
  * Nothing else in code spells it out; each of those takes it from here.
  *
- * It equals the `version` in the root package.json, as everything that carries the product version does
- * (docs/releases/POLICY.md section 1). `scripts/verify-release-versions.mjs` reads the line below and fails when they differ,
+ * Generated from tooling/versions.json#product.release, like the root package.json and every product carrier.
+ * See docs/releases/POLICY.md section 1. The generator and release verifier reject drift,
  * so the release pull request changes this one line along with the package files.
  */
-export const PRODUCT_VERSION = "0.3.0";
+export const PRODUCT_VERSION = /* @version product.release */ "0.1.0";

@@ -13,7 +13,7 @@ import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } f
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";

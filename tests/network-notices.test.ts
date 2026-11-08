@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_EN, ALCHEMIST_STYLES, alchemistActions, renderAlchemistWorkbench } from "@molis-ai/molis-work-plugin-alchemist";
 import { builderUiContribution, renderAgentStudio, renderStudioStage } from "@molis-ai/molis-work-plugin-builder";
 import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // W2-18 decisions 7 and 14: the interface says where the product goes online in the places where that happens, and the
 // docs page that lists every outbound class is linked from Settings.

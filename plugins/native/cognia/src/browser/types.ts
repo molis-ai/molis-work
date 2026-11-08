@@ -5,7 +5,7 @@ export type Translate = UiClientTranslate;
 
 /** What Cognia's page takes from the workbench's client host: the fields it uses, nothing it declares for itself. */
 export type CogniaClientHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
-  "scope" | "translate" | "route" | "pluginRoute" | "pluginId" | "confirm" | "prompt">;
+  "scope" | "translate" | "route" | "pluginRoute" | "pluginId" | "confirm" | "prompt" | "returns">;
 
 /** A material as the list shows it: no body, a short excerpt around the search term. */
 export type Summary = Omit<Material, "body" | "frontmatter"> & { excerpt: string };

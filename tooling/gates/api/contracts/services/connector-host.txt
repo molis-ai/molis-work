@@ -7,16 +7,16 @@ export declare const CONNECTOR_ACCOUNT_ORIGINS: Readonly<Record<string, readonly
 export declare const CONNECTOR_REQUEST_SERVICES: Readonly<Record<string, ConnectorRequestService>>;
 
 export declare const CONNECTOR_USAGES_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        connection_id: {
-            maxLength: number;
-            type: string;
-            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly connection_id: {
+            readonly maxLength: 160;
+            readonly type: "string";
+            readonly minLength: 1;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["connection_id"];
+    readonly additionalProperties: false;
 };
 
 export declare const CONNECTOR_USAGES_INPUT_TYPE = "molis.connector-usages.input.v1";
@@ -30,19 +30,19 @@ export declare const CONNECTOR_USAGES_OUTPUT_SCHEMA: {
                 type: string;
                 properties: {
                     usage_id: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 1000;
                     };
                     title: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 1000;
                     };
                     detail: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 1000;
                     };
                     enabled: {
                         type: string;
@@ -53,23 +53,23 @@ export declare const CONNECTOR_USAGES_OUTPUT_SCHEMA: {
                             type: string;
                             properties: {
                                 action: {
-                                    type: string;
-                                    properties: {
-                                        capability_id: {
-                                            type: string;
-                                            minLength: number;
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly capability_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
                                         };
-                                        version: {
-                                            type: string;
-                                            minimum: number;
+                                        readonly version: {
+                                            readonly type: "integer";
+                                            readonly minimum: 1;
                                         };
-                                        provider_id: {
-                                            type: string;
-                                            minLength: number;
+                                        readonly provider_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
                                         };
                                     };
-                                    required: string[];
-                                    additionalProperties: boolean;
+                                    readonly required: readonly ["capability_id", "version"];
+                                    readonly additionalProperties: false;
                                 };
                                 input: {
                                     type: string;
@@ -92,31 +92,31 @@ export declare const CONNECTOR_USAGES_OUTPUT_SCHEMA: {
 export declare const CONNECTOR_USAGES_OUTPUT_TYPE = "molis.connector-usages.output.v1";
 
 export declare const CONNECTOR_USAGES_SWITCH_INPUT_SCHEMA: {
-    type: string;
-    properties: {
-        from_connection_id: {
-            maxLength: number;
-            type: string;
-            minLength: number;
+    readonly type: "object";
+    readonly properties: {
+        readonly from_connection_id: {
+            readonly maxLength: 160;
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        to_connection_id: {
-            maxLength: number;
-            type: string;
-            minLength: number;
+        readonly to_connection_id: {
+            readonly maxLength: 160;
+            readonly type: "string";
+            readonly minLength: 1;
         };
-        usage_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-                maxLength: number;
+        readonly usage_ids: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 1000;
             };
-            minItems: number;
-            maxItems: number;
+            readonly minItems: 1;
+            readonly maxItems: 1000;
         };
     };
-    required: string[];
-    additionalProperties: boolean;
+    readonly required: readonly ["from_connection_id", "to_connection_id"];
+    readonly additionalProperties: false;
 };
 
 export declare const CONNECTOR_USAGES_SWITCH_INPUT_TYPE = "molis.connector-usages-switch.input.v1";
@@ -127,9 +127,9 @@ export declare const CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA: {
         switched: {
             type: string;
             items: {
-                type: string;
-                minLength: number;
-                maxLength: number;
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 1000;
             };
         };
         refused: {
@@ -138,9 +138,9 @@ export declare const CONNECTOR_USAGES_SWITCH_OUTPUT_SCHEMA: {
                 type: string;
                 properties: {
                     usage_id: {
-                        type: string;
-                        minLength: number;
-                        maxLength: number;
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 1000;
                     };
                     code: {
                         type: string;
@@ -163,19 +163,19 @@ export declare const CONNECTOR_USAGE_SCHEMA: {
     type: string;
     properties: {
         usage_id: {
-            type: string;
-            minLength: number;
-            maxLength: number;
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 1000;
         };
         title: {
-            type: string;
-            minLength: number;
-            maxLength: number;
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 1000;
         };
         detail: {
-            type: string;
-            minLength: number;
-            maxLength: number;
+            readonly type: "string";
+            readonly minLength: 1;
+            readonly maxLength: 1000;
         };
         enabled: {
             type: string;
@@ -186,23 +186,23 @@ export declare const CONNECTOR_USAGE_SCHEMA: {
                 type: string;
                 properties: {
                     action: {
-                        type: string;
-                        properties: {
-                            capability_id: {
-                                type: string;
-                                minLength: number;
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly capability_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
-                            version: {
-                                type: string;
-                                minimum: number;
+                            readonly version: {
+                                readonly type: "integer";
+                                readonly minimum: 1;
                             };
-                            provider_id: {
-                                type: string;
-                                minLength: number;
+                            readonly provider_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
                             };
                         };
-                        required: string[];
-                        additionalProperties: boolean;
+                        readonly required: readonly ["capability_id", "version"];
+                        readonly additionalProperties: false;
                     };
                     input: {
                         type: string;
@@ -550,11 +550,11 @@ export declare const connectorErrors: {
     "connector.mcp.provider": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
 };
 
-export declare function defineConnectorUsagesAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesInput, {
+export declare function defineConnectorUsagesAction(id: string, version: number, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesInput, {
     usages: ConnectorUsage[];
 }>;
 
-export declare function defineConnectorUsagesSwitchAction(id: string, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult>;
+export declare function defineConnectorUsagesSwitchAction(id: string, version: number, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesSwitchInput, ConnectorUsagesSwitchResult>;
 
 export declare const servicesConnectorHostContract: {
     readonly contractId: "io.molis.work.service.connector-host.v1";

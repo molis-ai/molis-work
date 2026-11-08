@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 if ! command -v node > /dev/null 2>&1; then
-  echo "✗ 未找到 node（需要 Node.js 24+），请先安装并加入 PATH" >&2
+  echo "✗ 未找到 node（需要 Node.js 24.15.x，确切版本见 .nvmrc），请先安装并加入 PATH" >&2
   exit 1
 fi
 

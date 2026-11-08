@@ -1,3 +1,4 @@
+import { ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS } from "@molis-ai/molis-work-service-account";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CHARACTER_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-characters";
@@ -21,6 +22,8 @@ import { PLACEMENT_PERMISSIONS, PLACEMENT_PROVIDER_ID } from "@molis-ai/molis-wo
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
+import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -41,6 +44,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
       .map(entry => [entry.manifest.plugin_id, asks(entry.manifest.actions ?? [])] as const),
     [ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTION_PERMISSIONS],
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
+    [ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS],
     [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
     [PLUGIN_INSTALL_PROVIDER_ID, PLUGIN_INSTALL_PERMISSIONS],
@@ -53,6 +57,8 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],
     [PLACEMENT_PROVIDER_ID, PLACEMENT_PERMISSIONS],
     [MEMORY_PROVIDER_ID, MEMORY_PERMISSIONS],
+    // The person sets a task's grants (`set` is offered to `user` alone; S-task-grant-subjects ⑤).
+    [TASK_GRANTS_PROVIDER_ID, asks(Object.values(agentTaskGrantActions))],
   ];
   const providers = new Map<string, readonly string[]>();
   for (const [provider, permissions] of entries) providers.set(provider, [...new Set([...providers.get(provider) ?? [], ...permissions])]);

@@ -1,8 +1,8 @@
 /** Frozen Send intent and receipts, inside the resident Assistant's existing client scope. */
 export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
-  const unsettled = new Map(), UNSENT_KEY = "molis.assistant.unsent";
+  const unsettled = new Map();
   // The one Send whose outcome is unknown, kept across a refresh so the same words go again under the same key (§7).
-  const unsent = () => { try { return JSON.parse(store.get(UNSENT_KEY) || "null") || {}; } catch { return {}; } };
+  const unsent = () => { try { return JSON.parse(store.get(scoped("unsent")) || "null") || {}; } catch { return {}; } };
   const sendTarget = () => curId || JSON.stringify([project?.id, nextScope, nextExec, nextMode, nextChar]);
   const retainSent = (work) => {
     if (activeSend?.work === work.work_id && activeSend.draft !== undefined) work = { ...work, draft: activeSend.draft };
@@ -22,7 +22,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       await fill(into.draft_from_composer, text).then(() => { input.value = ""; saveDraft(true); syncSend(); host.showToast?.(L("已写进问卷；按「提交回答」才交回")); }, showError);
       return;
     }
-    const again = unsettled.get(curId), byPage = pageText === text, kept = unsent();
+    const again = unsettled.get(curId), byPage = pageText === text, kept = unsent(), unsentKey = scoped("unsent");
     const body = { text, request_id: requestOverride || (kept.work === (curId || null) && kept.text === text ? kept.id : crypto.randomUUID()), context: pageContext(), materials: sendMaterials(), ...(byPage ? { written_by: "page" } : {}) };
     const character = curId ? pendingChar : nextChar || undefined;
     if (character !== undefined && allowsCharacter()) body.character = character ? { artifact_id: character.artifact_id, version: character.version } : null;
@@ -42,18 +42,18 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     const chooseSent = (work) => { curId = work.work_id; remember(); openTab(curId); };
     busy = true; activeSend = intent; syncSend(); problem = null; setPanel(true); scrollOwner()?.toLatest();
     closeStarts(); clearTimeout(draftTimer);
-    unsettled.set(intent.work, intent); store.set(UNSENT_KEY, JSON.stringify({ work: intent.work || null, text, id: intent.body.request_id }));
+    unsettled.set(intent.work, intent); store.set(unsentKey, JSON.stringify({ work: intent.work || null, text, id: intent.body.request_id }));
     try {
       await draftWrite;
       const res = await api("/send", "POST", intent.body, intent.route);
-      unsettled.delete(intent.work); store.set(UNSENT_KEY, null);
+      unsettled.delete(intent.work); store.set(unsentKey, null);
       const visible = here();
       retainSent(res.work);
       if (visible) {
         takeMaterials(intent);
         if (sameInput()) {
           clearTimeout(draftTimer); input.value = "";
-          if (store.get(NEW_DRAFT_KEY) === text) store.set(NEW_DRAFT_KEY, null);
+          if (store.get(scoped("new-draft")) === text) store.set(scoped("new-draft"), null);
         }
         chooseSent(res.work);
         if (pendingChar === intent.character) pendingChar = undefined;
@@ -67,12 +67,12 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const said = { answered: L("已作为回答发送"), queued: L("已保存，下一轮开始生效") }[res.outcome];
       if (visible && said) host.showToast?.(said);
     } catch (error) {
-      const unknown=error.code==="ui_host.outcome_unknown";if(!unknown){unsettled.delete(intent.work);store.set(UNSENT_KEY,null);}
+      const unknown=error.code==="ui_host.outcome_unknown";if(!unknown){unsettled.delete(intent.work);store.set(unsentKey,null);}
       const data=error.body?.details||{},visible=here();
       if (data.work) retainSent(data.work);
       if (visible) {
         if (data.work) {
-          if (sameInput() && store.get(NEW_DRAFT_KEY) === text) store.set(NEW_DRAFT_KEY, null);
+          if (sameInput() && store.get(scoped("new-draft")) === text) store.set(scoped("new-draft"), null);
           chooseSent(data.work);
           if (!sameInput()) saveDraft(true);
         }

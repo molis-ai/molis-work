@@ -31,11 +31,11 @@ function evidenceReferences(root: string): string[] {
   return refs;
 }
 
-/** Read through the original AEAD/hash and recovery-overlay semantics; no body, key or writable store escapes. */
+/** Authenticate the current evidence directory with its original AEAD/hash; no body, key or writable store escapes. */
 export function inspectEvidenceContentSnapshot(home: string, archiveFeedDirectory: string, archivedVault: string | undefined): { readonly contents: number } {
   if (!isAbsolute(home) || !isAbsolute(archiveFeedDirectory) || !directory(archiveFeedDirectory)) throw invalid();
   const root = join(archiveFeedDirectory, "evidence");
-  const refs = [...new Set([...evidenceReferences(root), ...evidenceReferences(root + "-recovered-v2")])];
+  const refs = evidenceReferences(root);
   if (!refs.length) return { contents: 0 };
   if (archivedVault === undefined) throw invalid();
   const keys = new Map<string, string | null>();

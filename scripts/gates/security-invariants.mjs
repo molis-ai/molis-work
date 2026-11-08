@@ -1,8 +1,8 @@
 // Gate: the security invariants document names tests that exist (specs/archive/repository-anti-corruption §4.18, W2-19).
 //
-// docs/system/SECURITY-INVARIANTS.md is a table: one row per invariant (`| S-01 | … |`), with the code that holds it and the
+// docs/system/security-invariants/ holds one row per invariant (`| S-01 | … |`), with the code that holds it and the
 // tests that assert its refusal. A table of promises is only worth what is behind it, so this reads the table and checks that
-//   - the row ids are S-01, S-02, … in order, each once;
+//   - stable numeric or semantic IDs are unique and match their independent filename;
 //   - every row names at least one test, and every test file it names exists;
 //   - every test named with title fragments (`tests/x.test.ts`「first」「second」…; a row may list several, none of them skipped)
 //     has each fragment in the file, so a renamed or deleted test cannot leave the row pointing at nothing;
@@ -11,10 +11,14 @@
 //   - every tests/security-invariants-*.test.ts file is named by some row, so a new invariant test cannot sit outside the table.
 // Not read: whether a named test asserts anything about its row. That is review; the tests themselves are mutation-verified
 // (tests/security-invariants-doc.test.ts) and each states the refusal it checks.
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+export const SECURITY_RECORDS = "docs/system/security-invariants/";
 export const SECURITY_DOC = "docs/system/SECURITY-INVARIANTS.md";
-const ROW = /^\|\s*(S-\d+)\s*\|/;
+const ROW = /^\|\s*(S-(?:\d+|[a-z][a-z0-9-]*))\s*\|/;
 // A file in backticks, then the whole run of 「…」 title fragments that follows it (none, one or several).
-const TEST_REFERENCE = /`(tests\/[^`\s]+\.test\.(?:ts|mjs))`((?:「[^」]+」)*)/g;
+const TEST_REFERENCE = /`(tests\/[^`\s]+\.test\.(?:ts|mjs))`([\s\S]*?)(?=`tests\/[^`\s]+\.test\.(?:ts|mjs)`|$)/g;
 const CI_COLUMN = 3;
 const LOCAL_COLUMN = 4;
 
@@ -32,6 +36,7 @@ function covers(tokens, file) {
 
 export function securityInvariantProblems(snapshot) {
   const text = snapshot.read(SECURITY_DOC);
+  const records = snapshot.files.filter(file => file.startsWith(SECURITY_RECORDS) && file !== `${SECURITY_RECORDS}README.md`);
   // A tree with no security-invariants test at all (the scratch repositories the other gates' tests build) has nothing to map;
   // a tree with tests and no document is the document having been deleted.
   const hasTests = snapshot.files.some((name) => /^tests\/security-invariants-[a-z0-9-]+\.test\.ts$/.test(name));
@@ -41,13 +46,19 @@ export function securityInvariantProblems(snapshot) {
   let packageScripts = {};
   try { packageScripts = JSON.parse(snapshot.read("package.json") ?? "{}").scripts ?? {}; } catch { problems.push("package.json cannot be read"); }
   const ciTokens = [...testTokens(String(packageScripts["test:security"] ?? "")), ...testTokens(String(packageScripts["test:contracts"] ?? "")), ...testTokens(snapshot.read(".github/workflows/ci.yml") ?? "")];
-  const named = new Set();
+  const named = new Set(), sources = new Map();
   const ids = [];
-  text.split("\n").forEach((line, index) => {
+  if (text.split("\n").some(line => ROW.test(line))) problems.push(`${SECURITY_DOC}: invariant rows belong in independent ${SECURITY_RECORDS} files`);
+  for (const file of records) {
+    if (!new RegExp(`^${SECURITY_RECORDS}S-(?:\\d+|[a-z][a-z0-9-]*)\\.md$`).test(file)) problems.push(`${file}: invalid record filename`);
+    const lines = (snapshot.read(file) ?? "").split("\n");
+    if (lines.filter(line => ROW.test(line)).length !== 1) problems.push(`${file}: expected exactly one invariant row`);
+    lines.forEach((line, index) => {
     const row = line.match(ROW);
     if (!row) return;
-    const where = `${SECURITY_DOC}:${index + 1}`;
+    const where = `${file}:${index + 1}`;
     const id = row[1];
+    if (`${id}.md` !== path.posix.basename(file)) problems.push(`${where}: ${id} must match its filename`);
     if (ids.includes(id)) problems.push(`${where}: ${id} is on two rows`);
     ids.push(id);
     const cells = line.split("|").slice(1, -1).map((cell) => cell.trim());
@@ -57,16 +68,28 @@ export function securityInvariantProblems(snapshot) {
       for (const { file, fragments } of list) {
         named.add(file);
         if (!files.has(file)) { problems.push(`${where}: ${id} names ${file}, which does not exist`); continue; }
-        const source = snapshot.read(file) ?? "";
+        if (!sources.has(file)) sources.set(file, snapshot.read(file) ?? "");
+        const source = sources.get(file);
         for (const fragment of fragments) if (!source.includes(fragment)) problems.push(`${where}: ${id} names 「${fragment}」 in ${file}, which says nothing of the sort`);
         if (column === "CI" && !covers(ciTokens, file)) problems.push(`${where}: ${id} lists ${file} as run by CI, but package.json test:security / test:contracts and ci.yml do not run it`);
       }
     }
   });
-  ids.forEach((id, index) => { if (id !== `S-${String(index + 1).padStart(2, "0")}`) problems.push(`${SECURITY_DOC}: the ids are ${ids.join(", ")}; they run S-01, S-02, … in order, and an id is never reused`); });
-  if (!ids.length) problems.push(`${SECURITY_DOC} has no invariant row (| S-01 | … |)`);
+  }
+  if (!ids.length) problems.push(`${SECURITY_DOC} has no invariant record`);
   for (const file of snapshot.files.filter((name) => /^tests\/security-invariants-[a-z0-9-]+\.test\.ts$/.test(name))) {
     if (!named.has(file)) problems.push(`${file} is named by no row of ${SECURITY_DOC}; add the invariant it holds, or the row that cites it`);
   }
   return problems;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (process.argv.slice(2).join(" ") !== "--report") { console.error("usage: security-invariants.mjs --report"); process.exitCode = 2; }
+  else {
+    const root = fileURLToPath(new URL("../../", import.meta.url));
+    console.log("| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |\n| --- | --- | --- | --- | --- |");
+    for (const file of readdirSync(path.join(root, SECURITY_RECORDS)).filter(file => /^S-.*\.md$/.test(file)).sort()) {
+      console.log(readFileSync(path.join(root, SECURITY_RECORDS, file), "utf8").split("\n").filter(line => ROW.test(line)).join("\n"));
+    }
+  }
 }

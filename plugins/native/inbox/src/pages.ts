@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PAGES_PROVIDER_ID, type InboxPagesDocument, type InboxPagesGeneration, type InboxPagesInputSnapshot } from "./pages-shapes.js";
@@ -22,7 +23,7 @@ export function inboxPagesMaterialReference(material: InboxPagesInputSnapshot): 
 export function inboxPagesRequestHash(input: InboxPagesInput): string {
   return createHash("sha256").update(JSON.stringify({ entryIds: [...new Set(input.entry_ids)].sort(),
     instructions: input.instructions.trim(), title: input.title.trim(),
-    ...(input.expected_materials ? { expected_materials: [...input.expected_materials].sort((a, b) => a.entry_id.localeCompare(b.entry_id)) } : {}),
+    ...(input.expected_materials ? { expected_materials: [...input.expected_materials].sort((a, b) => compareCodeUnits(a.entry_id, b.entry_id)) } : {}),
   })).digest("hex");
 }
 
@@ -67,7 +68,7 @@ export function createInboxPagesHandlers(ports: InboxPagesPorts) {
         if (expected) matches(await currentMaterials());
         await caller.beforeEffect();
       } };
-      await guarded.validate_authority!({ capability_id: "pages.generate", version: 1, provider_id: PAGES_PROVIDER_ID });
+      await guarded.validate_authority!({ capability_id: "pages.generate", version: /* @version action.pages.generate */ 1, provider_id: PAGES_PROVIDER_ID });
       const result = await ports.generate({ request_id: input.request_id, request_hash, inputs, instructions, title }, guarded);
       return { ...result, request_id: input.request_id, entry_ids: entryIds };
     },

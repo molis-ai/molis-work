@@ -106,7 +106,7 @@ export const builderSnapshot: HomeStoreSnapshotPolicy = {
 export const feedSnapshot: HomeStoreSnapshotPolicy = {
   entry: (_home, file) => /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("SecretStore mutex", "preserve")
     : file === "secrets.key" ? { kind: "key" } : file === "secrets.json"
-      || /^evidence(?:-recovered-v2)?(?:\/blobs(?:\/[0-9a-f]{2}(?:\/[0-9a-f]{64}\.blob)?)?)?$/u.test(file) ? { kind: "keep" } : unknown(file),
+      || /^evidence(?:\/blobs(?:\/[0-9a-f]{2}(?:\/[0-9a-f]{64}\.blob)?)?)?$/u.test(file) ? { kind: "keep" } : unknown(file),
   validateFile: async (home, file) => {
     if (file !== "secrets.json") return undefined;
     const inspected = inspectSealedSecretsSnapshot(home, readSnapshotFile(join(home, "feed", file), 32 * 1024 * 1024).toString("utf8"));

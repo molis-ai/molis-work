@@ -1,4 +1,5 @@
 import { ActionError, type ActionAudience, type ActionDefinition, type ActionHandlerBinding, type ActionCallContext } from "./actions.js";
+import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 import { SEARCH_OPEN_TARGET_SCHEMA, searchRevisionOf, type SearchOpenTarget } from "./search-sources.js";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, type ArtifactVersionRecord } from "../modules/artifacts.js";
@@ -9,10 +10,10 @@ import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, type ArtifactVersionRecord } 
  * A source that declares no content action is previewed through the plugin's subject reader (`<plugin>.subject.read`).
  * A plugin turned off leaves the directory, and its files leave the panel with it.
  */
-export const FILE_ENTRIES_INPUT_TYPE = "molis.files.entries.window.v1";
-export const FILE_ENTRIES_OUTPUT_TYPE = "molis.files.entries.page.v1";
-export const FILE_CONTENT_INPUT_TYPE = "molis.files.content.request.v1";
-export const FILE_CONTENT_OUTPUT_TYPE = "molis.files.content.v1";
+export const FILE_ENTRIES_INPUT_TYPE = /* @version type.molis.files.entries.window "molis.files.entries.window.v{version}" */ "molis.files.entries.window.v1";
+export const FILE_ENTRIES_OUTPUT_TYPE = /* @version type.molis.files.entries.page "molis.files.entries.page.v{version}" */ "molis.files.entries.page.v1";
+export const FILE_CONTENT_INPUT_TYPE = /* @version type.molis.files.content.request "molis.files.content.request.v{version}" */ "molis.files.content.request.v1";
+export const FILE_CONTENT_OUTPUT_TYPE = /* @version type.molis.files.content "molis.files.content.v{version}" */ "molis.files.content.v1";
 export const FILE_ENTRIES_PAGE_LIMIT = 500;
 /** One preview at most; larger files are shown as too large with the way to open them in their plugin. */
 export const FILE_CONTENT_MAX_BYTES = 8 * 1024 * 1024;
@@ -53,11 +54,11 @@ export interface FileContent {
 export const FILE_SOURCE_AUDIENCES: readonly ActionAudience[] = ["user"];
 
 const id = { type: "string", minLength: 1 };
-const nullableText = { type: ["string", "null"] };
+const nullableText = { type: ["string", "null"] } as const;
 const mediaType = { type: "string", minLength: 3, maxLength: 200, pattern: "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$" };
 const open = { anyOf: [{ type: "null" }, SEARCH_OPEN_TARGET_SCHEMA] };
 export const FILE_ENTRIES_INPUT_SCHEMA = { type: "object", properties: { cursor: nullableText, limit: { type: "integer", minimum: 1, maximum: FILE_ENTRIES_PAGE_LIMIT } },
-  required: ["cursor", "limit"], additionalProperties: false };
+  required: ["cursor", "limit"], additionalProperties: false } as const;
 export const FILE_ENTRY_SCHEMA = { type: "object", properties: {
   subject: ACTION_SUBJECT_SCHEMA, revision: { ...id, maxLength: 200 }, title: { type: "string", minLength: 1, maxLength: 1000 },
   folder: { type: "array", maxItems: 32, items: { type: "string", minLength: 1, maxLength: 255 } }, media_type: mediaType,
@@ -65,7 +66,7 @@ export const FILE_ENTRY_SCHEMA = { type: "object", properties: {
 }, required: ["subject", "revision", "title", "folder", "media_type", "size", "updated_at", "open"], additionalProperties: false };
 export const FILE_ENTRIES_OUTPUT_SCHEMA = { type: "object", properties: { entries: { type: "array", maxItems: FILE_ENTRIES_PAGE_LIMIT, items: FILE_ENTRY_SCHEMA },
   next_cursor: nullableText, collection_revision: { ...id, maxLength: 200 } }, required: ["entries", "next_cursor", "collection_revision"], additionalProperties: false };
-export const FILE_CONTENT_INPUT_SCHEMA = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false };
+export const FILE_CONTENT_INPUT_SCHEMA = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false } as const;
 export const FILE_CONTENT_OUTPUT_SCHEMA = { type: "object", properties: {
   subject: ACTION_SUBJECT_SCHEMA, revision: { ...id, maxLength: 200 }, title: { type: "string", minLength: 1, maxLength: 1000 }, media_type: mediaType,
   encoding: { enum: ["utf8", "base64"] }, data: { type: "string", maxLength: Math.ceil(FILE_CONTENT_MAX_BYTES * 4 / 3) + 4 }, truncated: { type: "boolean" },
@@ -77,19 +78,19 @@ const metadata = (kinds: readonly FileSourceKind[], title: string, permissions: 
 });
 
 /** One declaration per source: which kinds of files it lists and where each opens. Discovery confers no authority. */
-export function defineFileEntriesAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
+export function defineFileEntriesAction(capabilityId: string, version: number, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
   scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES): ActionDefinition<FileEntriesInput, FileEntriesPage> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "entries"),
+  return { capability_id: capabilityId, version: version, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "entries"),
     description: `分页列出${title}里的文件，供侧栏的文件标签展示；不修改数据。`,
-    input_type: FILE_ENTRIES_INPUT_TYPE, output_type: FILE_ENTRIES_OUTPUT_TYPE, input_schema: FILE_ENTRIES_INPUT_SCHEMA, output_schema: FILE_ENTRIES_OUTPUT_SCHEMA } };
+    input_type: FILE_ENTRIES_INPUT_TYPE, output_type: FILE_ENTRIES_OUTPUT_TYPE, input_schema: inputSchemaFor<FileEntriesInput>()(FILE_ENTRIES_INPUT_SCHEMA), output_schema: FILE_ENTRIES_OUTPUT_SCHEMA } };
 }
 
 /** Optional: the file itself for a preview, text or bytes, at most `FILE_CONTENT_MAX_BYTES`. */
-export function defineFileContentAction(capabilityId: string, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
+export function defineFileContentAction(capabilityId: string, version: number, kinds: readonly FileSourceKind[], title: string, permissions: readonly string[],
   scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = FILE_SOURCE_AUDIENCES): ActionDefinition<FileContentInput, FileContent> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "content"),
+  return { capability_id: capabilityId, version: version, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences, "content"),
     description: `读取${title}里一个文件的内容，供侧栏预览；不修改数据。`,
-    input_type: FILE_CONTENT_INPUT_TYPE, output_type: FILE_CONTENT_OUTPUT_TYPE, input_schema: FILE_CONTENT_INPUT_SCHEMA, output_schema: FILE_CONTENT_OUTPUT_SCHEMA } };
+    input_type: FILE_CONTENT_INPUT_TYPE, output_type: FILE_CONTENT_OUTPUT_TYPE, input_schema: inputSchemaFor<FileContentInput>()(FILE_CONTENT_INPUT_SCHEMA), output_schema: FILE_CONTENT_OUTPUT_SCHEMA } };
 }
 
 export function isFileEntriesSource(action: { input_type?: string; output_type?: string }): boolean {
@@ -117,8 +118,7 @@ export function fileEntriesPage(entries: readonly FileEntry[], input: FileEntrie
 export function bindFileEntriesHandler(definition: ActionDefinition<FileEntriesInput, FileEntriesPage>,
   list: (caller: ActionCallContext) => readonly FileEntry[] | Promise<readonly FileEntry[]>,
   availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding {
-  return { capability_id: definition.capability_id, version: definition.version, ...(availability ? { availability } : {}),
-    handle: async (caller, input) => fileEntriesPage(await list(caller), input as FileEntriesInput) };
+  return bindActionHandler(definition, async (input, caller) => fileEntriesPage(await list(caller), input), availability ? { availability } : undefined);
 }
 
 /** Text or bytes as a bounded preview: text is cut at the limit and marked, bytes over it are refused. */
@@ -139,13 +139,13 @@ export function fileContentOf(input: { subject: ActionSubject; revision: string;
  * A 成果 type's preview (specs/artifact-positioning A4): its owner turns one version into the file the 成果库 and the
  * side panel show. The Host passes the version it read; the owner only converts its own payload and reads no store.
  */
-export const ARTIFACT_PREVIEW_INPUT_TYPE = "molis.artifacts.preview.request.v1";
+export const ARTIFACT_PREVIEW_INPUT_TYPE = /* @version type.molis.artifacts.preview.request "molis.artifacts.preview.request.v{version}" */ "molis.artifacts.preview.request.v1";
 /** The same shape as a side panel file, under its own type: a preview is not a side panel file source. */
-export const ARTIFACT_PREVIEW_OUTPUT_TYPE = "molis.artifacts.preview.v1";
+export const ARTIFACT_PREVIEW_OUTPUT_TYPE = /* @version type.molis.artifacts.preview "molis.artifacts.preview.v{version}" */ "molis.artifacts.preview.v1";
 export interface ArtifactPreviewInput { artifact: ArtifactVersionRecord }
 
-export function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+export function defineArtifactPreviewAction(capabilityId: string, version: number, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: {
     title: `预览${typeTitle}`, description: `把一版${typeTitle}转成可读的文件，供成果库与侧栏预览、工作流从这一版起步；不修改数据。`,
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "workflow"], plugin: false,
     permissions: [...permissions], subject_kinds: ["artifact"],
@@ -161,12 +161,12 @@ export function isArtifactPreviewAction(action: { input_type?: string; output_ty
 /** The owner's half of a preview: its own payload into Markdown, CSV, text or bytes, checked to be its own type. */
 export function bindArtifactPreview(definition: ActionDefinition<ArtifactPreviewInput, FileContent>, artifactTypeId: string,
   convert: (artifact: ArtifactVersionRecord) => { media_type: string; text?: string; bytes?: Uint8Array; title?: string }): ActionHandlerBinding {
-  return { capability_id: definition.capability_id, version: definition.version, execution: "sync", handle: (_caller, input) => {
-    const artifact = (input as ArtifactPreviewInput).artifact;
+  return bindActionHandler(definition, input => {
+    const artifact = input.artifact;
     if (artifact?.artifact_type_id !== artifactTypeId) throw new ActionError("actions.input_invalid", "这一版不是这个插件能预览的类型");
     const content = convert(artifact);
     return fileContentOf({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(artifact) }, revision: String(artifact.version),
       title: content.title ?? artifact.title, media_type: content.media_type,
       ...(content.text !== undefined ? { text: content.text } : { bytes: content.bytes ?? new Uint8Array() }) });
-  } };
+  }, { execution: "sync" });
 }

@@ -15,9 +15,10 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       kanban.querySelectorAll("details[data-kanban-group]").forEach((group) => { group.open = true; });
     };
     if (shell && typeof ResizeObserver === "function") new ResizeObserver(openColumns).observe(shell);
+    // Native toggle does not bubble; retain desktop columns even when another surface hides them.
     workspace.addEventListener("toggle", (event) => {
-      if (event.target?.matches?.("details[data-kanban-group]")) openColumns();
-    });
+      if (event.target?.matches?.("[data-kanban-group]")) openColumns();
+    }, true);
     workspace.addEventListener("wheel", (event) => {
       const board = event.target.closest?.("[data-goal-kanban]");
       if (!board || board.hasAttribute("inert") || event.ctrlKey || event.metaKey) return;

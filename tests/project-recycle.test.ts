@@ -92,7 +92,7 @@ test('PCSYNC-20 frozen actual v23 catalog is refused before modifying any bytes'
   const file = join(home, 'projects', 'catalog.db'), db = openTestSqlite(file);
   db.exec(await readFile(new URL('./fixtures/project-catalog-v23.sql', import.meta.url), 'utf8'));db.close();
   const bytes = await readFile(file);
-  await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: home }), { code: 'catalog.unsupported_schema' });
+  await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: home }), { code: 'storage.store_too_new' });
   assert.deepEqual(await readFile(file), bytes);
 });
 
@@ -124,10 +124,10 @@ test('PCSYNC-20 receiver retains unknown project tombstones without ghost projec
  }finally{db.close();}
 });
 
-test('PCSYNC-20 actual frozen v24 catalog is refused unchanged by v26',async t=>{
+test('PCSYNC-20 actual frozen v24 catalog is refused unchanged by the unified v1 reader',async t=>{
  const home=await mkdtemp(join(tmpdir(),'molis-project-v24-'));t.after(()=>rm(home,{recursive:true,force:true}));
  prepareSyncTestHome(home);
  const {mkdir}=await import('node:fs/promises');await mkdir(join(home,'projects'));
  const file=join(home,'projects/catalog.db'),db=openTestSqlite(file);db.exec(await readFile(new URL('./fixtures/project-catalog-v24.sql',import.meta.url),'utf8'));db.close();
- const before=await readFile(file);await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'catalog.unsupported_schema'});assert.deepEqual(await readFile(file),before);
+ const before=await readFile(file);await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'storage.store_too_new'});assert.deepEqual(await readFile(file),before);
 });

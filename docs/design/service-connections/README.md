@@ -137,3 +137,9 @@ python3 -m http.server 4419 --bind 127.0.0.1 --directory docs/design/service-con
 - 选了哪个块、方案、状态存在浏览器的 `localStorage`（`molis-proto.service-connections.v2`），不代表产品的持久化、授权或恢复已经做好。
 - `window.protoJump` 只用于截图时直接跳到某个状态，不是产品接口。
 - M1 的范围还没定（路线书[决定第 18 项](../../../specs/post-anticorruption-roadmap/reference/decisions.md)），其中包括哪几家服务；这里的服务名单只为演示各种情况，不代表范围。
+
+<!-- 从设计索引保留的说明与决策；后续只在本目录维护。 -->
+
+服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒
+
+用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据

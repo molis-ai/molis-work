@@ -16,7 +16,7 @@ function supportedRuntimeId(value: string): SupportedRuntimeId | null {
   return isSupportedRuntimeId(value) ? value : null;
 }
 
-export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, response: ServerResponse, url: URL, runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager): Promise<boolean> {
+export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, response: ServerResponse, url: URL, runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager, assertAccountCurrent?: () => void): Promise<boolean> {
   if (request.method === "GET" && url.pathname === "/api/settings/runtimes") {
     sendJson(response, 200, { runtimes: await runtimeIntegrations.detectAll() });
     return true;
@@ -43,6 +43,7 @@ export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, r
     return true;
   }
   if (request.method === "POST" && url.pathname === "/api/settings/web-service/confirm") {
+    const current = assertAccountCurrent ?? (() => {}); current();
     const body = await readBody(request);
     const planId = typeof body.plan_id === "string" ? body.plan_id : "";
     const decision = body.decision === "confirmed" || body.decision === "declined" ? body.decision : null;
@@ -51,7 +52,7 @@ export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, r
       return true;
     }
     try {
-      const confirmation = await webService.confirmFromWeb({ plan_id: planId, decision }, serviceProcessId());
+      const confirmation = await webService.confirmFromWeb({ plan_id: planId, decision }, serviceProcessId(), current);
       if (confirmation.afterResponse) {
         response.once("finish", () => {
           void confirmation.afterResponse!().catch((error) => hostLog.error("web", "restart_failed", error));
@@ -81,6 +82,7 @@ export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, r
   }
   const runtimeConfirmMatch = url.pathname.match(/^\/api\/settings\/runtimes\/([^/]+)\/confirm$/);
   if (request.method === "POST" && runtimeConfirmMatch) {
+    const current = assertAccountCurrent ?? (() => {}); current();
     const runtimeId = supportedRuntimeId(decodeURIComponent(runtimeConfirmMatch[1]));
     const body = await readBody(request);
     const decision = body.decision === "confirmed" || body.decision === "declined" ? body.decision : null;
@@ -89,7 +91,7 @@ export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, r
       sendJson(response, 400, { error: "Runtime 接入确认缺少 plan 或明确决定" });
       return true;
     }
-    const result = await runtimeIntegrations.confirm({ runtime_id: runtimeId, plan_id: planId, decision });
+    const result = await runtimeIntegrations.confirm({ runtime_id: runtimeId, plan_id: planId, decision }, current);
     const successful = ["connected", "already_connected", "removed", "already_removed", "declined"].includes(result.status);
     sendJson(response, successful ? 200 : 409, result);
     return true;

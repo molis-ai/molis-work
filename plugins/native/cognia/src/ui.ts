@@ -1,6 +1,6 @@
 import type { UiContribution, UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
-export const COGNIA_UI_CONTRIBUTION_ID = "io.molis.work.cognia.ui.v1";
+export const COGNIA_UI_CONTRIBUTION_ID = /* @version contract.io.molis.work.cognia.ui "io.molis.work.cognia.ui.v{version}" */ "io.molis.work.cognia.ui.v1";
 export interface CogniaUiModel { primitives: { escape(value: unknown): string; text(value: string): string } }
 export const cogniaUiDescriptor: UiContributionDeclaration = { contribution_id: COGNIA_UI_CONTRIBUTION_ID, kind: "primary-page", navigation_id: "cognia", label: "Cognia", surfaces: [{ surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" }, { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] };
 export const cogniaUiContribution: UiContribution<CogniaUiModel> = { descriptor: cogniaUiDescriptor, render(request) { return request.surface === "directory" ? "" : renderCogniaWorkbench(request.model); } };
@@ -15,7 +15,7 @@ export function renderCogniaWorkbench({ primitives: p }: CogniaUiModel): string 
       <div class="cognia-filters"><label class="cognia-search">${icon("search")}<input class="mw-input" type="search" data-cognia-search aria-label="${t("cognia.search.placeholder")}" placeholder="${t("cognia.search.placeholder")}"></label><select class="mw-select" data-cognia-domain aria-label="${t("cognia.field.domain")}"><option value="">${t("cognia.filter.all-domains")}</option></select><select class="mw-select" data-cognia-source aria-label="${t("cognia.field.source")}"><option value="">${t("cognia.filter.all-sources")}</option></select><details class="cognia-manage"><summary class="mw-btn mw-btn--ghost">${icon("more")}${t("cognia.manage.title")}</summary><div>${button("cognia.manage.rename-domain", "rename-domain")}${button("cognia.manage.delete-domain", "delete-domain")}${button("cognia.manage.rename-source", "rename-source")}${button("cognia.manage.delete-source", "delete-source")}</div></details></div>
       <div class="cognia-selection">${tool("cognia.action.synthesize-selected", "synthesize", "sparkles")}<span data-cognia-selected>${t("cognia.selection.hint")}</span><span class="cognia-selection__gap" aria-hidden="true"></span>${tool("cognia.action.query", "query", "message")}${tool("cognia.action.drafts", "drafts", "review")}</div>
       <p class="cognia-model-note" data-cognia-model hidden>${t("cognia.model.none")}</p>
-      <a class="mw-btn mw-btn--ghost cognia-model-settings" href="/settings/models" data-cognia-action="model-settings" hidden>${t("cognia.model.settings")}</a>
+      <button type="button" class="mw-btn mw-btn--ghost cognia-model-settings" data-cognia-action="model-settings" hidden>${t("cognia.model.settings")}</button>
       <div data-cognia-rows aria-live="polite"><p class="cognia-empty mw-loading">${t("cognia.list.loading")}</p></div>
     </div>
     <section class="plugin-stage-workspace cognia-workspace" data-cognia-workspace hidden>

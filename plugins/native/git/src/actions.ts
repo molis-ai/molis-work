@@ -68,7 +68,7 @@ export function gitActionHandlers(context: PluginStartContext): ActionHandlerBin
     const reference = savedResults()[key(result)];
     if (!reference) return null;
     const artifact = services.outputs!.read(reference);
-    if (!artifact || artifact.artifact_type_id !== GIT_RESULT_TYPE || artifact.schema_version !== 1) throw gitErrors.invalid("原固定结果已不可读取；不会重新生成或覆盖");
+    if (!artifact || artifact.artifact_type_id !== GIT_RESULT_TYPE || artifact.schema_version !== /* @version format.contracts.git_result_schema */ 1) throw gitErrors.invalid("原固定结果已不可读取；不会重新生成或覆盖");
     const payload = artifact.payload as unknown as GitReviewedResult;
     if (payload.workspace_id !== result.workspace_id || payload.operation_id !== result.operation_id || payload.review?.review_id !== result.review.review_id) throw gitErrors.invalid("固定结果与原操作不匹配");
     return { reference, result: payload, saved_at: artifact.created_at };

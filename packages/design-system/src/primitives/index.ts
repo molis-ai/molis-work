@@ -46,3 +46,5 @@ export {
 } from "./arrival.js";
 export { renderPrimitiveCatalog, PRIMITIVE_CATALOG_IDS, type CatalogPluginIcon } from "./catalog.js";
 export { COMPOSER_BOARD_EN } from "./catalog-composer-en.js";
+export { KEEP_EDITS_BOARD_EN } from "./catalog-keep-edits-en.js";
+export { ITEM_ROW_STYLES } from "./catalog-patterns.js";

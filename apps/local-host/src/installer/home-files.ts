@@ -2,7 +2,8 @@ import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { isCurrentInstallManifest, isCurrentReleaseManifest, installationMatchesRelease, isOwnedLauncherText } from "./home-contract.js";
+import { upgradeVersionedFileInPlace } from "@molis-ai/molis-work-storage";
+import { INSTALLATION_FILE, RELEASE_FILE, isCurrentInstallManifest, isCurrentReleaseManifest, installationMatchesRelease, isOwnedLauncherText } from "./home-contract.js";
 import type { TextMutation, InstallManifest } from "./home-contract.js";
 
 export async function ensureDirectory(directory: string): Promise<void> {
@@ -33,6 +34,7 @@ export async function replaceOwnedJson(
   value: InstallManifest,
   mutations: TextMutation[],
 ): Promise<void> {
+  upgradeVersionedFileInPlace(INSTALLATION_FILE, filePath);
   const previous = await readTextIfPresent(filePath);
   if (previous != null) {
     const parsed = parseJson(previous, filePath);
@@ -45,6 +47,7 @@ export async function replaceOwnedJson(
 }
 
 export async function readOwnedJson(filePath: string): Promise<InstallManifest | null> {
+  upgradeVersionedFileInPlace(INSTALLATION_FILE, filePath);
   const text = await readTextIfPresent(filePath);
   if (text == null) return null;
   const parsed = parseJson(text, filePath);
@@ -59,6 +62,7 @@ export async function readInstalledRelease(homeDirectory: string) {
   const installation = await readOwnedJson(path.join(homeDirectory, "config", "installation.json"));
   if (!installation) return null;
   const releasePath = path.join(homeDirectory, installation.release_path, "release.json");
+  upgradeVersionedFileInPlace(RELEASE_FILE, releasePath);
   const release = await readJsonIfPresent<unknown>(releasePath);
   if (!isCurrentReleaseManifest(release) || !installationMatchesRelease(installation, release)) {
     throw installerErrors["installer.release.conflict"](`Molis Work 安装引用的 release 元数据不受支持: ${releasePath}`);

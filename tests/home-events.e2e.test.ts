@@ -18,9 +18,9 @@ test("an unknown plugin owns its Home event, context and real action; failure an
   store.db.prepare("INSERT INTO fixture_home_notes VALUES (?, ?, 0, 1)").run("own-note", "插件自己的原始记录");
   const read = () => store.db.prepare("SELECT content, done, revision FROM fixture_home_notes WHERE id = ?").get("own-note") as { content: string; done: number; revision: number };
   const subject = { kind: "fixture-note", id: "own-note" };
-  const events = defineHomeEventsAction("unknown.notes.home", [subject.kind], "笔记首页事项", ["fixture:read"]);
-  const context = defineSubjectContextAction("unknown.notes.context", subject.kind, "笔记上下文", ["fixture:read"]);
-  const offers = defineSubjectOffersAction("unknown.notes.offers", [subject.kind], "笔记动作", ["fixture:read"]);
+  const events = defineHomeEventsAction("unknown.notes.home", 1, [subject.kind], "笔记首页事项", ["fixture:read"]);
+  const context = defineSubjectContextAction("unknown.notes.context", 1, subject.kind, "笔记上下文", ["fixture:read"]);
+  const offers = defineSubjectOffersAction("unknown.notes.offers", 1, [subject.kind], "笔记动作", ["fixture:read"]);
   const complete: ActionDefinition = { capability_id: "unknown.notes.complete", version: 1, operation: "command", action: {
     title: "确认记录", description: "更新插件自己的原记录", kind: "operation", scope: "project", audiences: ["user"], permissions: ["fixture:write"], subject_kinds: [subject.kind],
     input_schema: { type: "object", properties: { revision: { type: "integer" }, request_id: { type: "string" } }, required: ["revision", "request_id"], additionalProperties: false },

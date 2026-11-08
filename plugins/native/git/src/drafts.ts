@@ -97,7 +97,7 @@ export function serializeStoredDrafts(stored: StoredDrafts): string {
     conflicts[workspaceId] = files;
   }
   return JSON.stringify({
-    version: 1,
+    version: /* @version format.git.drafts */ 1,
     drafts: Object.fromEntries(stored.drafts),
     conflicts,
   });

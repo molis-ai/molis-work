@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { readVersionedFileOr } from "../versioned-file-read.js";
 
 /**
  * The person's settings for the Assistant's use of this Mac (specs/computer-use goal §3–4), kept per Home:
@@ -12,6 +14,19 @@ import path from "node:path";
 interface ComputerForbiddenApp { readonly bundle_id: string; readonly name: string; readonly at: string }
 
 interface Saved { readonly enabled: boolean; readonly forbidden: readonly ComputerForbiddenApp[] }
+
+const COMPUTER_SETTINGS_VERSION = /* @version format.computer.settings */ 1;
+const COMPUTER_SETTINGS_UPGRADES: readonly VersionedFileStep[] = [];
+
+function parseSettings(value: unknown): Saved {
+  const parsed = value as { enabled?: unknown; forbidden?: unknown };
+  const forbidden = Array.isArray(parsed.forbidden) ? parsed.forbidden.filter((row): row is ComputerForbiddenApp => !!row && typeof row === "object"
+    && typeof (row as ComputerForbiddenApp).bundle_id === "string" && typeof (row as ComputerForbiddenApp).name === "string") : [];
+  // Only an explicit true turns it on.
+  return { enabled: parsed.enabled === true, forbidden };
+}
+
+export const COMPUTER_SETTINGS_FILE: VersionedFile<Saved> = { version: COMPUTER_SETTINGS_VERSION, field: "version", upgrades: COMPUTER_SETTINGS_UPGRADES, parse: parseSettings };
 
 export class ComputerSettings {
   private readonly file: string;
@@ -44,20 +59,16 @@ export class ComputerSettings {
   }
 
   private write(next: Saved): void {
+    assertVersionedFileWritable(COMPUTER_SETTINGS_FILE, this.file);
     fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
     const temp = `${this.file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify({ version: 1, ...next }, null, 2), { mode: 0o600 });
+    fs.writeFileSync(temp, JSON.stringify({ version: COMPUTER_SETTINGS_VERSION, ...next }, null, 2), { mode: 0o600 });
     fs.renameSync(temp, this.file);
     this.saved = next;
   }
 
+  /** A missing, damaged or too new file leaves the Assistant off the computer; `write` refuses to replace the last two. */
   private read(): Saved {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(this.file, "utf8")) as { enabled?: unknown; forbidden?: unknown };
-      const forbidden = Array.isArray(parsed.forbidden) ? parsed.forbidden.filter((row): row is ComputerForbiddenApp => !!row && typeof row === "object"
-        && typeof (row as ComputerForbiddenApp).bundle_id === "string" && typeof (row as ComputerForbiddenApp).name === "string") : [];
-      // Only an explicit true turns it on: a missing or damaged file leaves the Assistant off the computer.
-      return { enabled: parsed.enabled === true, forbidden };
-    } catch { return { enabled: false, forbidden: [] }; }
+    return readVersionedFileOr(COMPUTER_SETTINGS_FILE, this.file, () => ({ enabled: false, forbidden: [] }));
   }
 }

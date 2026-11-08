@@ -228,7 +228,7 @@ const IDEA_SCHEMA = { type: "object", additionalProperties: false, required: ["t
 function directory(options: { todoAvailable?: boolean } = {}): ActionView[] {
   return [
     view(todo, "todo.items.create", { intake: intake("todo", { prepare: { capability_id: "todo.fragment.offers", version: 1 } }), input_schema: SCHEMA, subject_kinds: ["todo_item"] }, "command", options.todoAvailable ?? true),
-    view(todo, "todo.fragment.offers", { ...defineFragmentOffersAction("todo.fragment.offers", [FRAGMENT_ANY_OBJECT], "t", [], [
+    view(todo, "todo.fragment.offers", { ...defineFragmentOffersAction("todo.fragment.offers", 1, [FRAGMENT_ANY_OBJECT], "t", [], [
       { offer_id: "todo", title: "记成待办", intent: "advance", apply: "record", hint: "h", action: { capability_id: "todo.items.create", version: 1 } }]).action }, "query"),
     view(pages, "lingguang.create", { intake: intake("idea", { material_field: "body" }), input_schema: IDEA_SCHEMA, subject_kinds: ["idea_item"] }),
     view(pages, "pages.insert", { attach: { attach_id: "insert", item_kind: "pages_document", title: "文档", verb: "插入到光标处", describe: "放进文档", positions: ["cursor"] },

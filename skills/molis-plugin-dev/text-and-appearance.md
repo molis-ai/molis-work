@@ -86,14 +86,19 @@ render() {
 - 代码里不读语言：没有 `navigator.language`、`currentLocale`，也不按语言写分支。语言由平台给，`t` 自己知道。
 - 一个键在所有语言里都查不到时，页面显示「这句话暂时显示不了」，宿主记一条问题。`validate` 只读语言文件、不读代码，所以写错的键要靠 `dev` 的输出看出来。
 
-**4. 检查和运行。**
+**4. 检查和运行。** `validate` 和 `dev` 都用 Molis Work 本体的命令 `molis-work plugin …`。它不在你装的 contracts、SDK 两个包里，装完它们 PATH 上也没有 `molis-work`。今天拿到它有两条路，命令后面的参数一样：
+
+- 在 Molis Work 仓库里 `pnpm build` 之后，在仓库根目录写 `node dist/cli/main.js plugin …`（`docs/platform/PLUGIN-DEVELOPMENT.md`「创建和运行」都这样写）。
+- 按 `docs/installation.md` 装过 Home 的，写全路径 `~/.molis-work/bin/molis-work plugin …`，它不在 PATH 上。公开安装包还没发布。
+
+仓库里另有一个独立工具 `molis-work-plugin`（`tooling/plugin-cli`），今天装不到仓库外面（`specs/backlog/BL-plugin-cli-standalone-install.md`），而且没有 Host：在它上面跑 `dev` 报 `plugin.host_required`，不是 Manifest 写错了，换成 `molis-work plugin dev`。
 
 ```bash
 molis-work plugin validate <项目>/manifest.json
 molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-development --locale zh
 ```
 
-`<grants>` 是逗号分隔的、Manifest 要的权限（下面的最小例子只要 `ui:register`）。
+`<grants>` 是逗号分隔的、Manifest 要的权限（下面的最小例子只要 `ui:register`）。`<开发状态目录>` 必须是新的、空的，或之前 `dev` 用过、带 `.molis-work-plugin-development.json` 标记的目录，普通的非空目录会被拒绝（`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」；错误码今天误报成 `plugin.manifest_invalid`，看 `message`，见 `specs/backlog/BL-plugin-cli-dev-uncoded-errors.md`）；中英文各跑一次可以用同一个。
 
 - `validate` 读 Manifest 旁边声明的语言文件。默认语言缺键（别的语言有、它没有）、参数和默认语言不一样、文字里有那五个字符、文件缺失、`owner` 或 `locale` 和声明不符：都失败，退出码 1，`message` 写哪个文件、哪个键、怎么改。只是别的语言少几个键不算失败，写进输出的 `locale_notes`（每条有 `file`、`code`、`locale`、`key`、`reason`、`fix`），那种语言暂时显示默认语言的字。
 - `dev` 加 `--locale <语言>` 用那种语言画页面，不写用 `default`。语言不在 `available` 里报 `actions.input_invalid` 并列出可选的；插件没写 `ui.locales` 却传了 `--locale`，同样报错，提示先写 `ui.locales`。中英文各跑一次，看输出 JSON 里 `rendered_ui` 的 HTML。
@@ -134,6 +139,8 @@ molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-de
 ## 最小的完整例子
 
 一个只画一页的 Integration 插件，中英文，参数带 `'` 和 `&`。上面第 2 步的 `locales/en.json`、`locales/zh.json` 放在同一目录。
+
+插件代码跑在 `molis-work` 的进程里，所以 Node 版本跟它走：24.15.x（仓库的 `.nvmrc`，根 `package.json` 的 `engines` 写 `>=24.15.0 <24.16.0`；contracts 和 SDK 两包写 `>=24`），`import … with { type: "json" }` 在这个版本能用。入口写成 `.mjs`，不管 `package.json` 的 `"type"` 都按 ES 模块读。`validate` 和 `dev` 不读 `package.json`，自己不用写；`npm install` 装两个包时会建一个。到 `pack` 时才要它：`files` 列出分发的文件（语言文件不用列，自动带上）。
 
 `manifest.json`：
 

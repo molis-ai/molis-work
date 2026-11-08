@@ -151,18 +151,18 @@ function renderFeedSourceRail(model: FeedUiModel): string {
 | 别的主人 | 各 1 个英文，中文在源码里 | 各 `locales/{en,zh}.json`。design-system 的 1 个是组件板用词，并进工作台 |
 | 合计 | 英文 57 个，中文散在 444 个文件 | **约 21 个主人，共约 42 个文件**（主人数第 16 批按实际定），源码里不再有译文。每加一种语言多约 21 个 |
 
-**工作台这一个文件是枢纽：** 并行 PR 都改它。键按字母排序、一行一个，不相邻的改动能自动合并；`validate` 查排序。
+**工作台这一个文件是枢纽：** 并行 PR 都改它。键按字母排序、一行一个，不相邻的改动能自动合并。排序今天只是写法约定：`validate`、解析器（`parseLocalePack`、`inspectLocaleSet`）和 CI 都不查，第 14 批没做。
 
 | 操作 | 动几处 | 跑什么 |
 | --- | --- | --- |
-| 加一句界面文字 | 2 处：代码里 `t("key")`，默认语言的语言文件加一行 | 插件作者跑 `molis-work-plugin validate` |
+| 加一句界面文字 | 2 处：代码里 `t("key")`，默认语言的语言文件加一行 | 插件作者跑 `molis-work plugin validate`（独立的 `molis-work-plugin` 今天装不到仓库外面，BL-plugin-cli-standalone-install） |
 | 改一句译文（插件或平台） | 1 处：语言文件那一行 | 不用跑。CI 解析全部语言文件 |
 | 别的语言缺键 | 只算覆盖率，不阻断 | 同上 |
 | 改一个颜色 | 1 处：皮肤文件 | 不用跑。改 Soft Workbench 的值 CI 会照常比页面资源 |
 | 给插件加一种语言 | 2 处：`locales/<语言>.json`，Manifest 的 `available` 加一个词 | `validate` |
-| 给平台主人加一种语言 | 1 处：语言目录里加一个文件 | 不用跑 |
-| 加一个平台文字主人 | 2 处：语言目录，登记表一行 | 不用跑 |
-| 加一款字体（先问用户） | 3 处：字体文件，字体方案，登记表一行（含 sha256、许可） | 报告脚本打印那一行的 sha256 |
+| 给平台主人加一种语言 | 今天至少 3 处：语言目录里加一个文件（读取器只要这一处，它读目录里有的）；`apps/workbench/src/i18n.ts` 的 `WEB_LOCALES`（页面和切换只给它列的语言）；`tests/ui-resources.test.ts` 钉住的语言名单（`en`、`zh`） | `tests/ui-resources.test.ts` |
+| 加一个平台文字主人 | 2 处：语言目录，登记表一行；包的 `package.json` `files` 还没有 `resources` 时是 3 处（发行物要带上，第 14 批的工作台就是这样）。另外 `tests/ui-resources.test.ts` 钉住了主人名单（今天只有 `workbench`），要一起改 | `tests/ui-resources.test.ts` |
+| 加一款字体（先问用户） | 3 处：字体文件，字体方案，登记表一行（含 sha256、许可）；许可的 `notice_path` 指向的说明（今天是 `fonts/README.md`）补上这款字体。要发给页面的，再在 `apps/local-host/src/web-assets.ts` 加它的路由；`tests/ui-resources.test.ts` 钉住了字体与路由名单，一起改 | 报告脚本打印那一行的 sha256；`tests/ui-resources.test.ts` |
 
 **不用 `tooling/versions.json` 的 `carriers` 改这些 JSON。** 格式版本升一号时文件形状也变了，只改数字的工具帮不上忙；`scripts/gates/version-declarations.mjs` 也不读这些 JSON。解析器发现 `format_version` 不符就拒绝，CI 的解析测试会拦住。这是对 `docs/releases/POLICY.md` 第 1 节「代码以外的文件只由 `carriers` 改写」的例外，T2 在同一个 PR 里把这条写进 POLICY。
 

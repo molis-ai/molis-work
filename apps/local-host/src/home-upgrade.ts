@@ -218,7 +218,11 @@ function advance(round: Round, store: Store): void {
     else if (descriptor.upgrade) descriptor.upgrade(file);
     else {
       const db = descriptor.open(file);
-      try { runSqliteUpgrade(db, file, descriptor.baselineFor?.(db) ?? descriptor.baseline, round.root, descriptor.version); }
+      // A store whose baseline depends on what it holds (the catalog of a personal space) says which one, read from the open file.
+      try {
+        const store = { ...descriptor, baseline: descriptor.baselineFor?.(db) ?? descriptor.baseline };
+        runSqliteUpgrade(db, file, store.baseline, round.root, store.version);
+      }
       finally { db.close(); }
     }
   } catch (error) { failure = error; failed = true; }

@@ -100,10 +100,17 @@ test("S-upgrade-too-new-untouched: `config/onboarding.json` one version ahead or
   assert.deepEqual(projects, [], "no project and no personal space");
 });
 
-test("S-upgrade-too-new-untouched: `feed/secrets.json` one version ahead or unreadable: a login is refused before it sends anything or spends its code", async t => {
+test("S-upgrade-too-new-untouched: `feed/secrets.json` one version ahead, unreadable or holding an entry that is not sealed: a login is refused before it sends anything or spends its code", async t => {
   const relative = join("feed", "secrets.json"), callback = "http://127.0.0.1:4173/account/callback";
   const config = { authOrigin: "https://auth.example", clientId: "too-new-vault" };
-  for (const [contents, code] of [[null, "storage.store_too_new"], ["{", "storage.schema_version_mismatch"]] as const) {
+  // What the vault turns out to be, from the one this build wrote: a newer build's, damaged, or with another owner's entry that is not a current
+  // envelope (version and structure fine: only the check `put` makes finds that one).
+  const vaults = [
+    ["storage.store_too_new", (vault: Record<string, unknown>) => ({ ...vault, version: versionAt(relative) + 1 }), { code: "storage.store_too_new" }],
+    ["storage.schema_version_mismatch", () => "{", { code: "storage.schema_version_mismatch" }],
+    ["an entry that is not sealed", (vault: Record<string, unknown>) => ({ ...vault, entries: { ...vault.entries as object, "another-owner:entry": "not-sealed" } }), /not AES-GCM sealed/u],
+  ] as const;
+  for (const [label, turn, refused] of vaults) {
     const { home } = upgradeTestHome(t), sent: string[] = [];
     let state = "";
     // Only the Auth peer is synthetic; the vault is the Home's real one, through the same store and check the account HTTP owner uses.
@@ -115,22 +122,24 @@ test("S-upgrade-too-new-untouched: `feed/secrets.json` one version ahead or unre
       return Response.json({ data: { userId: "vault-person", displayName: "Vault", emails: [], applicationId: "work", clientId: config.clientId } });
     };
     const auth = runWithMolisWorkHome(home, () => new PersonalAuth(config, fileAccountSecrets(), http));
-    // Someone is signed in and is switching accounts when the vault turns out to be a newer build's, or damaged.
+    // Someone is signed in and is switching accounts when the vault turns out to be one this build cannot write.
     await auth.begin(callback);
     await auth.complete("first-code", state);
     const lease = auth.accountLease(), generation = auth.accountGeneration();
     await auth.begin(callback, false, true);
-    const file = place(home, relative, contents ?? { ...json(join(home, relative)), version: versionAt(relative) + 1 }), before = sha256(file);
+    const file = place(home, relative, turn(json(join(home, relative)))), before = sha256(file);
     sent.length = 0;
-    await assert.rejects(auth.complete("second-code", state), { code });
-    assert.deepEqual(sent, [], `${code}: the code is not exchanged and no profile is read`);
-    assert.equal(auth.accountGeneration(), generation, `${code}: the signed-in account is not invalidated`);
-    assert.doesNotThrow(() => lease.assertCurrent(), `${code}: and its lease still holds`);
-    await assert.rejects(auth.begin(callback), { code });
-    assert.deepEqual(sent, [], `${code}: no new login is started either`);
-    assert.equal(auth.loginPending(), false, code);
-    assert.equal(sha256(file), before, code);
-    assert.deepEqual(temporaryFiles(file), [], `${code}: and no temporary file`);
+    await assert.rejects(auth.complete("second-code", state), refused);
+    assert.deepEqual(sent, [], `${label}: the code is not exchanged and no profile is read`);
+    assert.equal(auth.accountGeneration(), generation, `${label}: the signed-in account is not invalidated`);
+    assert.doesNotThrow(() => lease.assertCurrent(), `${label}: and its lease still holds`);
+    await assert.rejects(auth.begin(callback), refused);
+    assert.deepEqual(sent, [], `${label}: no new login is started either`);
+    assert.equal(auth.loginPending(), false, label);
+    assert.equal(sha256(file), before, label);
+    assert.deepEqual(temporaryFiles(file), [], `${label}: and no temporary file`);
+    // Reading is not writing: an entry of its own that is sealed is still read beside another owner's that is not.
+    if (label === "an entry that is not sealed") assert.equal(auth.identity()?.userId, "vault-person", "the read finds the account's own entry");
   }
 });
 

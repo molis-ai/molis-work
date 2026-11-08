@@ -24,7 +24,7 @@ import { execFileSync } from "node:child_process";
 import { withFileLock } from './file-lock.js';
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { atomicWriteFileSync } from "./atomic-write.js";
-import type { VersionedFile, VersionedFileStep } from "../versioned-file.js";
+import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "../versioned-file.js";
 import { readProductEnv, resolveHomeSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
 
 export interface SecretStore {
@@ -575,6 +575,26 @@ function assertSealedEntries(file: SecretsFile, exceptRef?: string): void {
   for (const [ref, sealed] of Object.entries(file.entries)) if (ref !== exceptRef) assertSealedEnvelope(sealed);
 }
 
+/** What every write finds before it changes anything: the map as this build reads it, with every entry but `exceptRef` a current envelope. */
+function writableFile(exceptRef?: string): SecretsFile {
+  const file = loadFile();
+  assertSealedEntries(file, exceptRef);
+  return file;
+}
+
+/**
+ * Whether a write to this Home's `feed/secrets.json` would be taken now, asked without writing. The version and structure are asked as for
+ * every versioned file (`assertVersionedFileWritable`, so the refusal has the same code), then every entry as `put` asks it (`writableFile`).
+ * For a caller about to send a request whose answer it keeps here: a refusal after the request cannot take it back. Nothing is decrypted or
+ * created, so no master key is needed.
+ */
+export function assertSecretStoreWritable(homeDirectory: string): void {
+  runWithMolisWorkHome(homeDirectory, () => {
+    assertVersionedFileWritable(SECRET_STORE_FILE, secretsPath(), resolveMolisWorkHome());
+    writableFile();
+  });
+}
+
 /** Per data-dir store instances so put/get share one master resolution. */
 const storeCache = new Map<string, SecretStore>();
 // A cancelled, denied, timed-out or invalid Keychain read must not open another
@@ -593,8 +613,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
   return {
     put(authRef, plaintext) {
       withSecretsLock(() => {
-        const file = loadFile();
-        assertSealedEntries(file);
+        const file = writableFile();
         const sealed = sealEnvelope(plaintext, master.key);
         assertSealedEnvelope(sealed);
         file.entries[authRef] = sealed;
@@ -613,8 +632,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
     },
     delete(authRef) {
       withSecretsLock(() => {
-        const file = loadFile();
-        assertSealedEntries(file, authRef);
+        const file = writableFile(authRef);
         delete file.entries[authRef];
         file.backend = master.kind;
         saveFile(file);
@@ -622,8 +640,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
     },
     createIfAbsent(authRef, plaintext) {
       return withSecretsLock(() => {
-        const file = loadFile();
-        assertSealedEntries(file);
+        const file = writableFile();
         if (Object.hasOwn(file.entries, authRef)) return false;
         const sealed = sealEnvelope(plaintext, master.key);
         assertSealedEnvelope(sealed);
@@ -636,8 +653,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
     },
     deleteIfPresent(authRef) {
       return withSecretsLock(() => {
-        const file = loadFile();
-        assertSealedEntries(file);
+        const file = writableFile();
         if (!Object.hasOwn(file.entries, authRef)) return false;
         delete file.entries[authRef];
         file.backend = master.kind;

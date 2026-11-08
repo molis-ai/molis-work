@@ -1,5 +1,4 @@
-import { join } from "node:path";
-import { assertVersionedFileWritable, readVersionedFile, resolveHomeSecurityDirectory, runWithMolisWorkHome, SECRET_STORE_FILE, sqliteStoreLabel, type VersionedFile } from "@molis-ai/molis-work-storage";
+import { readVersionedFile, sqliteStoreLabel, type VersionedFile } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
 
 /**
@@ -12,13 +11,4 @@ export function readVersionedFileOr<T>(file: VersionedFile<T>, path: string, fal
   if (seen.status === "current") return seen.value;
   if (seen.status !== "absent") hostLog.warn("host", "versioned_file_not_used", undefined, { file: sqliteStoreLabel(path, home), status: seen.status });
   return fallback();
-}
-
-/**
- * The Home's vault (`feed/secrets.json`), asked before a request whose answer it is to keep: a login's authorization code, a device code. The
- * store refuses the write itself as well, but by then the request has gone and cannot be taken back (§2.6: the refusal comes first).
- */
-export function assertHomeSecretsWritable(home: string): void {
-  const vault = runWithMolisWorkHome(home, () => join(resolveHomeSecurityDirectory(), "secrets.json"));
-  assertVersionedFileWritable(SECRET_STORE_FILE, vault, home);
 }

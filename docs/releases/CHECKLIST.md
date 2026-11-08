@@ -72,7 +72,7 @@
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
 | 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 1 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
-| 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取高版本（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出；账号登录和设备授权在发出请求之前就被拒（`assertHomeSecretsWritable`），授权码不被用掉；低版本升级 |
+| 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取高版本（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出；账号登录、设备授权、OAuth 与 MCP 的换令牌和刷新在发出请求之前就被拒（`assertSecretStoreWritable`，有别的条目坏了也一样），授权码不被用掉；低版本升级 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 1 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取高版本并报告配置错误，保留原文件，明确修复后恢复；低版本升级 |
 | Shelf 目录（JSON 文件，不是库） | `shelf/catalog.json` | 1 | `version` | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION` | 低版本升级，高版本拒绝 |
 | 新用户引导（JSON 文件，不是库） | `config/onboarding.json` | 1 | `schema_version` | `apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION` | 低版本由升级过程升。高版本或读不了（不是 JSON、没有版本号）时按没有引导过显示，日志记一行；完成或关掉引导时保存被拒并报错（高版本 `storage.store_too_new`，读不了 `storage.schema_version_mismatch`），文件不变。会先建东西的三个入口（整理后采用、「空白开始」进个人空间、`/api/onboarding/initialize`）在建项目、个人空间之前先查同一条，查不过就报这条拒绝，什么都不建，整理也不记下已采用。版本对时认不出的字段回默认值；文件不在当作没有引导过 |

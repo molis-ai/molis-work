@@ -2,7 +2,7 @@ import { connectorControl } from "./fixtures/connector-control.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 import assert from "node:assert/strict";
 import { connectorMethodsFor } from "../apps/local-host/dist/host-connector-methods.js";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -58,6 +58,26 @@ test("product OAuth starts without browser credentials and never mixes a custom 
     for (const [i, key] of [idKey, secretKey].entries()) { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; }
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("S-upgrade-too-new-untouched: an entry in the vault that is not sealed stops a callback's exchange and a refresh before either is sent; a read still finds its own entry", async () => {
+  const directory = home();
+  try {
+    let sent = 0;
+    const counted = (send: typeof fetch): typeof fetch => (async (url: unknown, init?: RequestInit) => { sent++; return send(url as string, init); }) as typeof fetch;
+    const a = await startApiOAuth(directory, { serviceId: "asana", displayName: "A", clientId: "app-a", clientSecret: "secret-a", origin });
+    await completeApiOAuth(directory, callback(a.authorization_url), transport("account-a"));
+    const b = await startApiOAuth(directory, { serviceId: "asana", displayName: "B", clientId: "app-b", clientSecret: "secret-b", origin });
+    // Version and structure are fine; one entry of another owner's is not a current envelope, which only the check `put` makes finds.
+    const vault = join(directory, "feed", "secrets.json"), file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
+    writeFileSync(vault, JSON.stringify({ ...file, entries: { ...file.entries, "another-owner:entry": "not-sealed" } }));
+    const before = readFileSync(vault, "utf8");
+    await assert.rejects(completeApiOAuth(directory, callback(b.authorization_url), counted(transport("account-b"))), /not AES-GCM sealed/u);
+    await assert.rejects(resolveApiOAuthToken(directory, a.connection_id, connectorControl(), true, counted(transport("account-a"))), /not AES-GCM sealed/u);
+    assert.equal(sent, 0, "neither the code nor the refresh token reached the service");
+    assert.equal(readFileSync(vault, "utf8"), before);
+    assert.equal(connectorProtocolSecrets(directory, a.connection_id).get("access"), "access-account-a", "a read still finds the connection's own entry");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("API OAuth connects, survives host reload, refreshes with its own app and refuses callback replay", async () => {

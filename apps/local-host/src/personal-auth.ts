@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { createFileSecretStore, resolveMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
-import { assertHomeSecretsWritable } from "./versioned-file-read.js";
+import { assertSecretStoreWritable, createFileSecretStore, resolveMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 
 export interface PersonalCloudConfig { authOrigin: string; clientId: string; desktopClientId?: string }
 export interface PersonalIdentity { userId: string; displayName: string; emails: string[]; applicationId: string }
@@ -21,10 +20,10 @@ type SavedAccount = Credentials | { identity: PersonalIdentity; clientId?: strin
  */
 export interface AccountSecrets extends Pick<SecretStore,'get'|'put'|'delete'> { assertWritable(): void }
 
-/** The vault of the Home the store is opened on, asked the way every versioned file is before a write. */
+/** The vault of the Home the store is opened on, asked as its own writes ask it (`assertSecretStoreWritable`). */
 export function fileAccountSecrets(): AccountSecrets {
   const store=createFileSecretStore(),home=resolveMolisWorkHome();
-  return {get:ref=>store.get(ref),put:(ref,value)=>store.put(ref,value),delete:ref=>store.delete(ref),assertWritable:()=>assertHomeSecretsWritable(home)};
+  return {get:ref=>store.get(ref),put:(ref,value)=>store.put(ref,value),delete:ref=>store.delete(ref),assertWritable:()=>assertSecretStoreWritable(home)};
 }
 type HttpFetch = typeof fetch;
 const random = () => randomBytes(32).toString("base64url");

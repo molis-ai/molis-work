@@ -144,18 +144,37 @@ test("RAC-2541: a verification address that is not https, carries an account, po
   assert.equal((await startDeviceOAuth(home, START)).verification_uri, "https://github.com/login/device?user_code=ABCD-EFGH");
 });
 
-test("S-upgrade-too-new-untouched: a vault one version ahead or damaged: the service is not asked for a device code, and the vault is as it was", async t => {
-  for (const [contents, code] of [[JSON.stringify({ version: SECRET_STORE_FILE.version + 1, backend: "aes-gcm-file", entries: {} }), "storage.store_too_new"],
-    ["{", "storage.schema_version_mismatch"]] as const) await t.test(code, async t => {
+test("S-upgrade-too-new-untouched: a vault one version ahead, damaged or holding an entry that is not sealed: the service is not asked for a device code, and the vault is as it was", async t => {
+  const vaults = [
+    ["storage.store_too_new", JSON.stringify({ version: SECRET_STORE_FILE.version + 1, backend: "aes-gcm-file", entries: {} }), { code: "storage.store_too_new" }],
+    ["storage.schema_version_mismatch", "{", { code: "storage.schema_version_mismatch" }],
+    ["an entry that is not sealed", JSON.stringify({ version: SECRET_STORE_FILE.version, backend: "aes-gcm-file", entries: { "another-owner:entry": "not-sealed" } }), /not AES-GCM sealed/u],
+  ] as const;
+  for (const [label, contents, refused] of vaults) await t.test(label, async t => {
     const home = homeOf(t), remote = github(t), vault = join(home, "feed", "secrets.json");
     mkdirSync(dirname(vault), { recursive: true });
     writeFileSync(vault, contents);
-    await assert.rejects(startDeviceOAuth(home, START), { code });
+    await assert.rejects(startDeviceOAuth(home, START), refused);
     assert.equal(remote.of(CODE_URL).length, 0, "no device code was asked for, so none waits at the service unshown");
     assert.equal(readFileSync(vault, "utf8"), contents);
     assert.deepEqual(readdirSync(dirname(vault)).filter(name => name.endsWith(".tmp")), [], "and no temporary file");
     assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
   });
+});
+
+test("S-upgrade-too-new-untouched: a poll does not ask for the token once the vault holds an entry that is not sealed: the vault is as it was", async t => {
+  const home = homeOf(t), time = clock(t), remote = github(t), vault = join(home, "feed", "secrets.json");
+  const started = await startDeviceOAuth(home, START);
+  const file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
+  writeFileSync(vault, JSON.stringify({ ...file, entries: { ...file.entries, "another-owner:entry": "not-sealed" } }));
+  const before = readFileSync(vault, "utf8");
+  assert.equal(sessionSecrets(home, started.state).get("device"), "private-device-code", "a read still finds the authorization's own entry");
+  time.advance(6);
+  remote.options.polls = [tokenAnswer];
+  await assert.rejects(pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }));
+  assert.equal(remote.of(TOKEN_URL).length, 0, "the token the person granted is not claimed into a vault that cannot keep it");
+  assert.equal(readFileSync(vault, "utf8"), before);
+  assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
 });
 
 test("RAC-2542: each authorization keeps its own interval: early polls send nothing, and slow_down moves only that authorization's", async t => {

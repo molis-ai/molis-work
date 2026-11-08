@@ -1,6 +1,6 @@
 # U2 金样 Home 与回放：设计
 
-状态：现行设计（2026-11-03 起草，2026-11-08 第一份金样入库时按实际改过一轮）。U2-a、U2-b、U2-c、U2-d 已做：`tests/fixtures/golden-homes/0.1.0` 入库，`golden-replay`（Linux）、`golden-replay-third-party`（macOS，相关路径才跑）、每天的 `golden-replay-nightly`、覆盖面门禁和建库语句门禁（§5 UPG-01，`tooling/gates/schemas/stores.tsv`）都开了。还没做的：U2-e 里「发布检查单加生成本版金样」这一步。§5 的门禁与 CI 用户 2026-11-06 同意全开，第三方这段 2026-11-07 定，§6 的决定 2026-11-08 定。N41 的 `scripts/gates/initial-versions.mjs` 在 U1 首次接手持久化版本时由连续升级与回放接替，做法见 [U1 设计](upgrade-chain-design.md) §11.1。行为与验收以[升级后持续可用](spec.md) §6、§9 为准，本文只写怎么做。
+状态：现行设计（2026-11-03 起草，2026-11-08 第一份金样入库时按实际改过一轮）。U2-a 至 U2-e 已做：`tests/fixtures/golden-homes/0.1.0` 入库，`golden-replay`（Linux）、`golden-replay-third-party`（macOS，相关路径才跑）、每天的 `golden-replay-nightly`、覆盖面门禁和建库语句门禁（§5 UPG-01，`tooling/gates/schemas/stores.tsv`）都开了，发布检查单（`docs/releases/CHECKLIST.md` 第 2 节）有了「生成本版金样并入库」这一步。§5 的门禁与 CI 用户 2026-11-06 同意全开，第三方这段 2026-11-07 定，§6 的决定 2026-11-08 定。N41 的 `scripts/gates/initial-versions.mjs` 在 U1 首次接手持久化版本时由连续升级与回放接替，做法见 [U1 设计](upgrade-chain-design.md) §11.1。行为与验收以[升级后持续可用](spec.md) §6、§9 为准，本文只写怎么做。
 
 验收编号沿用 `UPG-01`、`UPG-10`、`UPG-11`、`UPG-14`（§9）；本文新增的检查用 `UPG2-` 前缀，在 §7 列出。
 
@@ -92,7 +92,7 @@ node scripts/golden-home.mjs check  --version <版本>     # 重新生成到临�
 生成在三个时候做：
 
 - **统一起点**：第 02 批重建、版本回到 1 之后，生成第一份（`0.1.0`）。
-- **每次发版**：发布检查单里加一步「生成本版金样并入库」，由 F 轨在发布 PR 里做。
+- **每次发版**：发布检查单第 2 节的「生成本版金样并入库」，在发布 PR 里做。
 - **开发中升了某个库的版本**：那个 PR 自己加一份中间金样，目录名写成 `<下一个版本>-dev.<序号>`。
 
 ## 4. 怎样回放
@@ -171,7 +171,7 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 | U2-b 回放脚本 | `scripts/replay-golden-homes.mjs`；把 `probe` 抽成公共函数；按 §4 第 6 步的约定在 `tests/golden-writes/` 放各主人的最小写入用例（不改合同，第三方用语料的 `write`） | U2-a |
 | U2-c 第一份金样与挡合并作业（已做） | 生成 `0.1.0`，入库，开 `golden-replay` 任务和覆盖面门禁；相同代码和 Manifest 只存一份的压缩（§6）；macOS 作业和它的路径清单（§5）；每天的定时作业；Home 库样本（§2 第 9 条） | 第 02 批重建、版本回到 1；开任务与门禁用户已同意 |
 | U2-d 建库语句门禁（已做） | `tooling/gates/schemas/stores.tsv`、`pnpm schemas:update`、UPG-01（§5） | U1 合入；门禁用户已同意 |
-| U2-e 发布步骤 | 发布检查单加「生成本版金样」（定时作业已随 U2-c 开）；定时作业跑在 macOS，否则第三方这段每天也跑不到（`scripts/replay-golden-homes.mjs` 在 Linux 上报 `not-run`） | U2-c；定时作业用户已同意 |
+| U2-e 发布步骤（已做） | 发布检查单第 2 节加「生成本版金样并入库」：命令、在 macOS 的隔离临时 Home 里生成、入库后跑门禁、按确切值更新白名单。定时作业随 U2-c 开了（`.github/workflows/golden-replay-nightly.yml`）：每天在 macOS 上 `--all` 回放全部金样，第三方这段在 Linux 上报 `not-run`，所以必须在 macOS | U2-c；定时作业用户已同意；用户 2026-11-08 同意由第 05 批写手做，F 轨事后审 |
 
 按[决定 26](../post-anticorruption-roadmap/reference/decisions.md#decision-26)，本批由主会话派子代理，轨道只管独占文件；`scripts/golden-home.mjs`、`tests/` 不归 C1 独占。U2-a、U2-b 和 U1 串着写，理由是两边读同一份快照枚举、都要往 `packages/storage` 加东西，不是因为同轨；文件不重叠，开工时看 U1 进度，错开也行（[U1 设计](upgrade-chain-design.md) §15.1）。U2-e 是 F 轨。
 

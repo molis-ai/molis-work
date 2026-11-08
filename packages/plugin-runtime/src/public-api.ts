@@ -41,7 +41,7 @@ export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";
 export { pluginManifestDigest } from "./identity.js";
 export { loadDevelopmentLocalePacks, loadDevelopmentPlugin } from "./development-loader.js";
-export { assertPluginLocales, inspectPluginLocales, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleRead, type PluginLocaleReader } from "./locale-packs.js";
+export { assertPluginLocales, inspectPluginLocales, refuseLocaleProblems, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleRead, type PluginLocaleReader } from "./locale-packs.js";
 export { assertContributionMatchesManifest, offeredManifest, viewContributionId, type RedemptionScope } from "./contribution.js";
 export { bindRuntimeSyncCollection } from './sync-binding.js';
 export type { RuntimeSyncCollection, RuntimeSyncAuthority } from './sync-binding.js';

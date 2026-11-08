@@ -66,9 +66,14 @@ export function inspectPluginLocales(manifest: PluginLocaleManifest, read: Plugi
 /** `inspectPluginLocales` as a refusal: says every file and what to do. Answers what is left to tell, which does not stop anything. */
 export function assertPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[] {
   const problems = inspectPluginLocales(manifest, read);
+  refuseLocaleProblems(problems);
+  return problems;
+}
+
+/** Refuses the package over the `blocking` problems, naming every file and what to do; the one wording of that refusal for install, `validate`, `pack` and `dev`. */
+export function refuseLocaleProblems(problems: readonly LocaleSetProblem[]): void {
   const blocking = problems.filter((problem) => problem.blocking);
   if (blocking.length > 0) throw pluginErrors.package_invalid(`语言文件有问题：${blocking.map(({ file, key, reason, fix }) => `${file}${key === null ? "" : ` ${key}`}：${reason}；${fix}`).join("。")}`);
-  return problems;
 }
 
 /** The running side of a plugin's languages. A word's language may never be asked for, so its file is not read until it is. */

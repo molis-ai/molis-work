@@ -1,8 +1,8 @@
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
-import { pluginErrors, type PluginManifest, type PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { type PluginManifest, type PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectLocaleSet } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { loadDevelopmentLocalePacks, loadDevelopmentPlugin, PluginRuntime, UNSIGNED_TRUST, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { loadDevelopmentLocalePacks, loadDevelopmentPlugin, PluginRuntime, refuseLocaleProblems, UNSIGNED_TRUST, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
 import { developmentDeclarationOwners } from "./declaration-owners.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
@@ -52,8 +52,7 @@ function developmentLocale(manifest: PluginManifest, requested: string | undefin
 function refuseBrokenLocaleFiles(words: PluginLocaleReader, locale: string): void {
   const packs = [...new Set([words.default, locale])].flatMap(tag => words.pack(tag) ?? []);
   const read = words.problems().filter(problem => problem.blocking);
-  const blocking = read.length > 0 ? read : inspectLocaleSet(packs, { default: words.default }).filter(problem => problem.blocking);
-  if (blocking.length > 0) throw pluginErrors.package_invalid(`语言文件有问题：${blocking.map(({ file, key, reason, fix }) => `${file}${key === null ? "" : ` ${key}`}：${reason}；${fix}`).join("。")}`);
+  refuseLocaleProblems(read.length > 0 ? read : inspectLocaleSet(packs, { default: words.default }));
 }
 
 async function developPlugin(input: PluginDevelopmentInput, options: Parameters<typeof runPluginDevelopment>[1], definition: Awaited<ReturnType<typeof loadDevelopmentPlugin>>,

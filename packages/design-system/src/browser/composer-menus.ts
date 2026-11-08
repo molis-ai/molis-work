@@ -26,12 +26,14 @@ export function composerMenus(c: Composer): ComposerMenus {
   const { shell, field, labels, options, signal } = c;
   function show(menu: HTMLElement, html: string, focus = true) {
     if (c.open !== menu) c.close();
+    // Drawn again while the person is in it (the sources arrive, the `/` words narrow it): the focus stays in the menu instead of falling to the page, where Esc no longer reaches the composer.
+    const kept = menu.contains(document.activeElement);
     menu.innerHTML = html;
     menu.hidden = false; c.open = menu;
     // A menu rises from the composer: it is no taller than the room above it, so in a short window it scrolls instead of leaving the screen.
     menu.style.setProperty("--mw-composer-menu-room", `${Math.max(96, Math.floor(shell.getBoundingClientRect().top - 14))}px`);
     menu.parentElement?.querySelector("[aria-expanded]")?.setAttribute("aria-expanded", "true");
-    if (focus) menu.querySelector<HTMLElement>("[data-composer-query], [role^=menuitem]:not(:disabled)")?.focus({ preventScroll: true });
+    if (focus || kept) menu.querySelector<HTMLElement>("[data-composer-query], [role^=menuitem]:not(:disabled)")?.focus({ preventScroll: true });
   }
   c.close = (refocus = false) => {
     if (!c.open) return;

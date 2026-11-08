@@ -178,7 +178,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleMcpContextHttp(request, response, url, { home: storageHome, host: localHost, withCatalog,
             deletion: webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost }) })) return;
-          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
+          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog, serverOptions.mcpCredentialHomeDirectory ?? storageHome)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(

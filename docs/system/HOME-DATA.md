@@ -252,6 +252,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `config/installation.json` | 安装器；`apps/local-host/src/installer/home.ts`；读取先经 `installer/home-files.ts` 核当前完整形状及引用 release 的版本、摘要 | JSON · `schema_version` = 1（`installer/home-contract.ts`） | 程序 | 普通（`installer/uninstall-files.ts`，不符合当前完整形状则冲突并停止） |
+| `config/mcp-client-credentials/` | `apps/local-host/src/mcp-client-credentials.ts`；显式 Runtime 接入或实验 Server 本机管理员授权建立独立客户端凭据 | JSON · `format.mcp.client.credential` = 1 | 私钥不导出，快照保留原机现有值；恢复或旧接入缺凭据时须重新接入 | 普通卸载保留；purge 依 Home store 登记删除；移除 Runtime 接入只撤销对应客户端 |
 | `config/web-control-token` | `apps/local-host/src/web-control-token.ts:6`；缺失时生成 32 字节随机值，0600；桌面壳也读（`apps/desktop/adapters/tauri/src/shelf_http.rs:348`） | 文本 · 无版本 | 密钥，可重建（重建会使旧持有者失效） | 普通（有效时，`installer/uninstall-files.ts:25-29`） |
 | `config/web-service.json` | `apps/local-host/src/installer/web-service-platform.ts:36`：常驻 Web 服务的所有权收据 | JSON · `schema_version` = 1（`installer/web-service-contract.ts:54`） | 程序 | 普通（移除服务时随 plist 删，`installer/web-service-operations.ts:110-111`） |
 | `config/uninstall.json` | `installer/uninstall.ts:20`：卸载进度收据 | JSON · `schema_version` = 1 | 临时 | purge 成功后删（`installer/uninstall.ts:190`）；普通卸载保留 |

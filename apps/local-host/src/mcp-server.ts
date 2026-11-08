@@ -162,6 +162,7 @@ export class LocalMcpServer {
       if (!home) throw new ActionError("actions.home_required", "跨进程动作需要明确的 Runtime Home");
       const connected=await this.connectedResident(signal); checkContext();
       const service = new LocalActionGatewayClient({ url: this.actionServiceUrl, homeDirectory: connected.homeDirectory, controlToken:connected.controlToken,
+        credentialHomeDirectory: home,
         clientId: current.context.actor_id, projectId: current.context.project_id, runtimeSessionId });
       const context: ActionCallContext = { ...current.context,
         signal,

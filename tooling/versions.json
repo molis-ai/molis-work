@@ -1000,6 +1000,7 @@
     "format.issues.portable": 1,
     "format.jelly.portable": 1,
     "format.jelly.workspace": 1,
+    "format.mcp.client.credential": 1,
     "format.mcp.tool-preference": 1,
     "format.memory.export": 1,
     "format.model.preference": 1,

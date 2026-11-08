@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import test, { type TestContext } from "node:test";
-import { LocalMcpServer, createMcpResidentStarter, type EnsureMcpResidentHost } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, LocalMcpServer, createMcpResidentStarter, type EnsureMcpResidentHost } from "@molis-ai/molis-work-app-local-host";
 import { serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
@@ -70,6 +70,7 @@ async function tempHome(dispose: Cleanup): Promise<string> {
   const home = await mkdtemp(join(tmpdir(), "mcp-tools-list-"));
   await mkdir(join(home, "config"));
   await writeFile(join(home, "config/web-control-token"), randomBytes(32).toString("base64url"));
+  changeMcpClientCredential(home, `runtime:${RUNTIME.runtime_id}`, "connect");
   dispose.push(() => rm(home, { recursive: true, force: true }));
   return home;
 }

@@ -387,6 +387,9 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (embedded) return;
     if (state.solo) apply();
     if (!event.detail?.open) { if (column === "side") column = "main"; syncHistoryButtons(); markFocus(); return; }
+    // On a phone only one column shows: the side opening (by an event, the Assistant or ⌘\\, the focus where it was) is the one shown,
+    // so 主区 | 右侧 says 右侧.
+    if (window.matchMedia("(max-width: 760px)").matches && column !== "side") { column = "side"; syncHistoryButtons(); markFocus(); }
     if (event.detail.tab) { rememberPlace("side", event.detail.tab, sideKept); persistHistory(); syncHistoryButtons(); }
   });
   // ⌘⇧↵ / Ctrl+Shift+Enter shows only the focused pane, and brings the rest back (口径 2); a pane page hands it up.

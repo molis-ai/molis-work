@@ -292,6 +292,14 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
     await waitFor(`(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(tab)} }, cancelable: true })), document.querySelector('${strip} [aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(tab)})`, 5_000);
     await waitFor(`!${outside}.includes(${JSON.stringify(tab)})`, 3_000);
   }
+  // 07-1 S3: on a phone only one column shows, so the side opened by an event (the focus where it was, as the Assistant or ⌘\
+  // opens it) is the one shown, and 主区 | 右侧 says 右侧.
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.querySelector('[data-pane-switch=side]')`, 15_000);
+  await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+  await waitFor("document.querySelector('[data-pane-switch=side]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-pane-switch=main]')?.getAttribute('aria-pressed') === 'false'", 5_000)
+    .catch(async () => assert.fail(`390: the side opened by an event shows 右侧 pressed (${await evaluate<string>("JSON.stringify([...document.querySelectorAll('[data-pane-switch]')].map(b => b.dataset.paneSwitch + ':' + b.getAttribute('aria-pressed')))")})`));
   // 07-1 S3: just after a group closes, a 360 or 320 phone row cannot hold the switch, a 98px current tab, the undo chip,
   // 全部标签 and ＋ at once (English is the wider switch). The row scrolls rather than clips, as scheme A narrows the tabs to
   // 96px and then scrolls: the current tab is in view as the chip comes in, each part shows whole once scrolled to, and ＋ is

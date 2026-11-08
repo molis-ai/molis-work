@@ -402,23 +402,18 @@ const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plu
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
 /**
- * ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached. Since 07-1 S4b a Home
- * tool with a chord (Issue) is reached by its glyph on the right side of the titlebar, no longer a titlebar button of its own.
- * That glyph row scrolls sideways where the window is too narrow for every glyph (07-1 S1, the right side's tabs), so a glyph the
- * row has scrolled out of sight is reached by scrolling the row to it: it is measured where the row brings it (scrolled into view
- * along the row only), and must then be inside the window and neither clipped nor covered, as the titlebar button had to be.
+ * ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached, without scrolling
+ * anything to it. Since 07-1 S4b a Home tool with a chord (Issue) is reached by its glyph on the right side of the titlebar, no
+ * longer a titlebar button of its own; on a phone the glyph row scrolls, and the Home tool leads it there, so it is in view as the
+ * page draws (the always-there entry the person kept at the top right, 10-12).
  */
 async function assertHomeToolsReachable(browser: Browser): Promise<void> {
   const report = await browser.evaluate<{ count: number; blocked: string[] }>(`(() => {
     const nodes = [...document.querySelectorAll('[data-side-tabs] [data-side-keys]')];
     const blocked = nodes.filter(el => {
-      const row = el.closest('.tab-glyph-row'), before = row ? row.scrollLeft : 0;
-      if (row && row.scrollWidth > row.clientWidth) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
       const inside = r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
-      const reached = inside && [r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
-      if (row) row.scrollLeft = before;
-      return !reached;
+      return !inside || ![r.top + 2, r.top + r.height / 2, r.bottom - 2].every(y => el.contains(document.elementFromPoint(x, y)));
     }).map(el => el.textContent.trim() || el.getAttribute('aria-label') || el.parentElement.title);
     return { count: nodes.length, blocked };
   })()`);

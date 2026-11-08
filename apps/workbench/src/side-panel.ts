@@ -144,10 +144,13 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
    between them: the glyphs keep their 44px targets and scroll sideways, and reveal() keeps the current one in view (measured:
    three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. The strip's 2px block padding
    (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. The drag
-   line is zero wide beside the tabs (immersive-navigation.ts), so here it would only cost the row a gap: it is left out. */
+   line is zero wide beside the tabs (immersive-navigation.ts), so here it would only cost the row a gap: it is left out.
+   A Home tool with a chord (Issue) is the always-there entry the person keeps at the top right (ISSUE-30, decided 10-12): here it
+   leads the glyphs, so it is in view without scrolling the row; the arrow keys walk the glyphs in the order they are drawn. */
 @media(max-width:600px){
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{display:none}
+ .side-strip>.tab-item:has(>[data-side-keys]){order:-1}
 }
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
    titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
@@ -344,7 +347,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     save();
   });
   strip.addEventListener('keydown',event=>{
-    const list=tabs(),at=list.findIndex(button=>button===document.activeElement);if(at<0)return;
+    // In the order the glyphs are drawn: a phone draws a Home tool with a chord first (the styles above).
+    const list=tabs().sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left),at=list.findIndex(button=>button===document.activeElement);if(at<0)return;
     if(event.key==='Delete'){event.preventDefault();close(list[at]);return;}
     if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();menuFor(list[at]);return;}
     const next=event.key==='ArrowRight'?list[(at+1)%list.length]:event.key==='ArrowLeft'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;

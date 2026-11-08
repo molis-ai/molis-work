@@ -130,7 +130,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + var(--side-gap) + var(--sheet-inset,14px))}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
  body[data-side-open=true] .side-strip{min-width:0}
- .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;scrollbar-width:none;justify-content:safe flex-end}
+ .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;justify-content:safe flex-end}
  .immersive-titlebar>.side-strip{flex:1 0 100%}
  .immersive-titlebar:has(>.titlebar-layout)>.side-strip{flex-basis:calc(100% - 80px)}
  .arrival-page .side-strip{flex:0 1 auto}

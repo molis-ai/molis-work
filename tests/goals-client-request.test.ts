@@ -66,7 +66,7 @@ test("PG094-09: archiving a Goal is one write with the control token, and its fa
   assert.equal(write!.url, ORIGIN + "/projects/p1/api/plugins/io.molis.work.goals/goals/G%201/archive");
   assert.equal(write!.method, "POST");
   assert.equal(write!.cache, "no-store");
-  assert.equal(write!.headers["x-molis-work-control-token"], "control-token");
+  assert.equal(write!.headers["x-molis-work-page-session"], "control-token");
   assert.equal(write!.headers["x-molis-work-idempotency-key"], "one-time-key");
   assert.deepEqual(JSON.parse(write!.body!), { archived: true, reason: "用户在 Molis Work 手动归档已完成 Goal" });
 
@@ -112,7 +112,7 @@ test("PG094-09: a Goal document read keeps its one refusal copy, and an unreacha
   assert.equal(read!.url, ORIGIN + "/api/goals/GONE/document?view=current");
   assert.equal(read!.method, "GET");
   assert.equal(read!.cache, "no-store");
-  assert.equal(read!.headers["x-molis-work-control-token"], undefined);
+  assert.equal(read!.headers["x-molis-work-page-session"], undefined);
   assert.ok(read!.signal instanceof AbortSignal);
 
   const lost = await run(unreachable, ["CORE"]);

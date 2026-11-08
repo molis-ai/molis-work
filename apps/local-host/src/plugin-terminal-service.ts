@@ -278,10 +278,17 @@ async function terminalDirectory(home: string, directory: PluginTerminalDirector
     const catalog = pluginCatalogFor(home);
     if (!catalog) throw new ActionError("actions.unavailable", "项目目录暂时读不到");
     const named = directory.workspace_id;
-    const linked = await catalog({ homeDirectory: home }, projects => named === undefined ? projects.preferredWorkspacePath(projectId)
-      : projects.listWorkspaceDirectory(projectId).find(record => record.workspace_id === named)?.canonical_path);
+    // No folder named is the output (SSC-17); a folder that is only an input is read, never run in (user 2026-11-08). A default output
+    // directory not made yet is made here, after its checks, before the terminal opens in it (SSC-24).
+    const linked = await catalog({ homeDirectory: home }, projects => {
+      const directories = projects.projectDirectories(projectId).directories;
+      const folder = named === undefined ? directories.find(item => item.roles.includes("output")) : directories.find(item => item.workspace_id === named);
+      if (!folder) return undefined;
+      if (!folder.roles.includes("output")) throw new ActionError("actions.forbidden", "这个文件夹只是输入目录，只能读；在项目设置里设为输出再开");
+      return projects.prepareWorkspaceDirectory(folder.workspace_id, "write").path;
+    });
     check();
-    if (!linked) throw named === undefined ? new ActionError("actions.unavailable", "这个项目还没有关联工作目录")
+    if (!linked) throw named === undefined ? new ActionError("actions.unavailable", "这个项目还没有输出目录")
       : new ActionError("actions.forbidden", "不是本项目已关联的工作目录");
     rootPath = linked;
   }

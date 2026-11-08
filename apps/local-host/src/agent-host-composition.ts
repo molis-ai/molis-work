@@ -332,31 +332,21 @@ async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: Molis
   }];
 }
 
-/** The two catalog queries needed to answer "which directory is this project bound to". */
+/** The catalog query that answers "which directory is this project bound to": its directories, with their roles. */
 export interface WorkspaceLookupPorts {
-  preferredWorkspacePath(projectId: string): string | null;
-  listWorkspaceDirectory(projectId?: string): readonly ProjectWorkspaceRef[];
+  projectDirectories(projectId: string): { directories: readonly (ProjectWorkspaceRef & { roles: readonly string[] })[] };
 }
 
 /**
- * The workspace a project is bound to, or null when it has none.
- *
- * Prefers the path the user set as preferred, and falls back to the single
- * bound directory when there is exactly one. With several bound and no
- * preference it returns null rather than picking: guessing which directory an
- * Agent may write in is not a choice this code gets to make.
+ * The project's output directory: where what names no folder reads, writes and runs (specs/shared-sources-and-surfaces §3, SSC-17).
+ * Every registered project has exactly one; a project in the recycle bin lists none, and gets null.
  */
 export function workspaceRefFor(
   ports: WorkspaceLookupPorts,
   projectId: string,
 ): ProjectWorkspaceRef | null {
-  const bound = ports.listWorkspaceDirectory(projectId);
-  if (bound.length === 0) return null;
-  const preferred = ports.preferredWorkspacePath(projectId);
-  if (preferred !== null) {
-    return bound.find((entry) => entry.canonical_path === preferred) ?? null;
-  }
-  return bound.length === 1 ? bound[0]! : null;
+  const output = ports.projectDirectories(projectId).directories.find(entry => entry.roles.includes("output"));
+  return output ? { workspace_id: output.workspace_id, canonical_path: output.canonical_path, realpath_verified: output.realpath_verified, display_name: output.display_name } : null;
 }
 
 function inferenceClient(initialize: () => Promise<void>, current: () => Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined): PrologueInferenceClient {

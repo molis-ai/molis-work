@@ -7,6 +7,11 @@ import { parseFilePath, WORKSPACE_BYTES_LIMIT, type WorkspaceFileQuery, type Wor
 const TEXT_LIMIT = 256 * 1024;
 const DIRECTORY_LIMIT = 1000;
 
+/** A file's content as a reference's `read_revision`: the sha256 of its bytes, the same as `knowledge.read`'s revision. */
+export function fingerprintWorkspaceFile(content: Uint8Array): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
 /** Read-only adapter; Projects remains the owner of the live workspace membership. */
 export async function readWorkspaceFile(
   query: WorkspaceFileQuery,
@@ -63,13 +68,14 @@ export async function readWorkspaceFile(
         || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) return { outcome: "changed" };
       if (used > limit) return { outcome: "too-large", bytes: used, limit };
       const content = bytes.subarray(0, used);
-      if (query.kind === "bytes") return { outcome: "bytes", data: content.toString("base64"), bytes: used, fingerprint: createHash("sha256").update(content).digest("hex") };
-      if (content.includes(0)) return { outcome: "binary" };
+      // Whatever the content turns out to be, it was read: a reference can be written from its fingerprint (§2).
+      const fingerprint = fingerprintWorkspaceFile(content);
+      if (query.kind === "bytes") return { outcome: "bytes", data: content.toString("base64"), bytes: used, fingerprint };
+      if (content.includes(0)) return { outcome: "binary", fingerprint };
       let text: string;
       try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content); }
-      catch { return { outcome: "unsupported" }; }
-      return { outcome: "text", text, fingerprint: createHash("sha256").update(content).digest("hex"),
-        mode: after.mode & 0o100 ? "100755" : "100644" };
+      catch { return { outcome: "unsupported", fingerprint }; }
+      return { outcome: "text", text, fingerprint, mode: after.mode & 0o100 ? "100755" : "100644" };
     } finally { await file.close(); }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;

@@ -1,9 +1,9 @@
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectDirectoryActions, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { pickLocalDirectory } from "./directory-picker.js";
-import { decodeLocalWebPathPart, respondLocalWebRefusal } from "./web-http.js";
+import { respondLocalWebRefusal } from "./web-http.js";
 
-/** The page's half of a project's folder membership; the membership itself is the project setting's actions (`project-workspace-actions.ts`). */
+/** The page's half of a project's directories; the directories themselves are the project setting's actions (`project-workspace-actions.ts`). */
 export interface ProjectWorkspaceHttpContext {
   method: string | undefined;
   pathname: string;
@@ -14,6 +14,16 @@ export interface ProjectWorkspaceHttpContext {
   /** Opens the system folder window on the computer running this host. */
   pickDirectory(): ReturnType<typeof pickLocalDirectory>;
 }
+
+/** The settings page's changes, each one of `projects.directories.*`, by the name the page posts. */
+const CHANGES: Readonly<Record<string, ActionDefinition<never, ProjectDirectories>>> = {
+  add_input: projectDirectoryActions.addInput as ActionDefinition<never, ProjectDirectories>,
+  remove_input: projectDirectoryActions.removeInput as ActionDefinition<never, ProjectDirectories>,
+  set_output: projectDirectoryActions.setOutput as ActionDefinition<never, ProjectDirectories>,
+  repair: projectDirectoryActions.repair as ActionDefinition<never, ProjectDirectories>,
+  map_source: projectDirectoryActions.mapSource as ActionDefinition<never, ProjectDirectories>,
+  unmap_source: projectDirectoryActions.unmapSource as ActionDefinition<never, ProjectDirectories>,
+};
 
 async function pickWorkspace(context: ProjectWorkspaceHttpContext) {
   // A body that is not JSON or too large is refused like on every other route, by the Host's exit.
@@ -29,64 +39,29 @@ async function pickWorkspace(context: ProjectWorkspaceHttpContext) {
   }
 }
 
-async function addWorkspace(context: ProjectWorkspaceHttpContext) {
-  const body = await context.readBody();
-  const workspacePath = typeof body.workspace_path === "string" ? body.workspace_path.trim() : "";
-  if (body.user_confirmed !== true || !workspacePath) {
-    context.respond(400, { error: "请选择目录并确认关联当前 Project" });
-    return;
-  }
+/** GET reads the directories; POST `{ change, input }` makes one change, its input checked by the action's own schema (with `expected_revision`). */
+async function directories(context: ProjectWorkspaceHttpContext) {
   try {
-    context.respond(201, await context.actions.invoke(projectWorkspaceActions.add, { workspace_path: workspacePath }));
+    if (context.method === "GET") { context.respond(200, await context.actions.invoke(projectDirectoryActions.get, {})); return; }
+    const body = await context.readBody();
+    const definition = typeof body.change === "string" && Object.hasOwn(CHANGES, body.change) ? CHANGES[body.change] : undefined;
+    if (!definition || Object.keys(body).some(key => key !== "change" && key !== "input")) { context.respond(400, { error: "目录改动无效" }); return; }
+    context.respond(200, await context.actions.invoke(definition, body.input as never));
   } catch (error) {
     respondLocalWebRefusal(context, error);
   }
 }
 
-async function repairWorkspace(context: ProjectWorkspaceHttpContext, encodedWorkspaceId: string) {
-  const body = await context.readBody();
-  const nextPath = typeof body.workspace_path === "string" ? body.workspace_path.trim() : "";
-  if (body.user_confirmed !== true || !nextPath) {
-    context.respond(400, { error: "请输入新的绝对路径并确认修复" });
-    return;
-  }
-  try {
-    const workspaceId = decodeLocalWebPathPart(encodedWorkspaceId);
-    context.respond(200, await context.actions.invoke(projectWorkspaceActions.repair, { workspace_id: workspaceId, workspace_path: nextPath }));
-  } catch (error) {
-    respondLocalWebRefusal(context, error);
-  }
-}
-
-async function unlinkWorkspace(context: ProjectWorkspaceHttpContext, encodedWorkspaceId: string) {
-  const body = await context.readBody();
-  if (body.user_confirmed !== true) {
-    context.respond(400, { error: "请确认解除当前 Project 的工作目录关系" });
-    return;
-  }
-  try {
-    const workspaceId = decodeLocalWebPathPart(encodedWorkspaceId);
-    context.respond(200, await context.actions.invoke(projectWorkspaceActions.unlink, { workspace_id: workspaceId }));
-  } catch (error) {
-    respondLocalWebRefusal(context, error);
-  }
-}
-
-/** The handler for this request, with the folder id its path names; null when the request is not one of these four. */
 function workspaceRoute(method: string | undefined, pathname: string): ((context: ProjectWorkspaceHttpContext) => Promise<void>) | null {
   if (method === "POST" && pathname === "/api/workspaces/pick") return pickWorkspace;
-  if (method === "POST" && pathname === "/api/workspaces") return addWorkspace;
-  const repair = method === "PATCH" ? pathname.match(/^\/api\/workspaces\/([^/]+)\/path$/) : null;
-  if (repair) return (context) => repairWorkspace(context, repair[1]);
-  const unlink = method === "POST" ? pathname.match(/^\/api\/workspaces\/([^/]+)\/unlink$/) : null;
-  if (unlink) return (context) => unlinkWorkspace(context, unlink[1]);
+  if ((method === "GET" || method === "POST") && pathname === "/api/project-settings/directories") return directories;
   return null;
 }
 
 /**
- * Linking, repairing and unlinking the project's folders, and the folder window that picks one. A folder is a project
- * setting kept by the Home catalog; this only adapts the form to its actions. Starting a Session in a folder stays with Work.
- * A refused action answers by its kind and with its code; the folder window's answers (cancelled, busy, unavailable) are results.
+ * The project's inputs and output as the settings page reads and changes them, and the folder window that picks one. They are a project
+ * setting kept by the Home catalog; this only adapts the form to its actions, as the person under the project setting's permission. A
+ * refused action answers by its kind and with its code; the folder window's answers (cancelled, busy, unavailable) are results.
  */
 export async function handleProjectWorkspaceHttp(context: ProjectWorkspaceHttpContext): Promise<boolean> {
   const route = workspaceRoute(context.method, context.pathname);

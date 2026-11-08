@@ -1,10 +1,19 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import { storageErrors, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
+import { fillProjectOutputs, PROJECTS_CATALOG_UPGRADE_1_SQL, verifyProjectOutputs } from "@molis-ai/molis-work-module-projects";
 
-export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 1;
-/** Each step takes the catalog from `from` to `from + 1`. They sit beside the version, which is what they answer to; none yet. */
-export const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [];
+export const CATALOG_SCHEMA_VERSION = /* @version database.home.catalog */ 2;
+/**
+ * Each step takes the catalog from `from` to `from + 1`. They sit beside the version, which is what they answer to.
+ *
+ * 1 → 2 (specs/shared-sources-and-surfaces §3, §8): a project's folders get input and output roles, every project its default output
+ * directory, and `workspace_source_links` starts empty. The Projects tables' part is `modules/projects`' own; it rebuilds the memberships
+ * table and touches no file of the Home.
+ */
+export const CATALOG_UPGRADES: readonly SqliteUpgradeStep[] = [
+  { from: 1, sql: PROJECTS_CATALOG_UPGRADE_1_SQL, run: fillProjectOutputs, verify: verifyProjectOutputs, rebuilds_tables: true },
+];
 export const CATALOG_OWNER = /* @version type.molis-work-project-catalog "molis-work-project-catalog-v{version}" */ "molis-work-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {

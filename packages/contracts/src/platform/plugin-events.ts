@@ -65,10 +65,10 @@ export interface HostReviewSettledPayload {
  * them again. It carries no review, operation, outcome or installation: it tells every subscriber that holds `workspace:read`
  * only what any of them could read for itself. Treat every `cause` alike; new causes come as new values: `plugin-operation` is a
  * plugin's person-reviewed operation, `agent-change` an Agent's own approved file edit, command or Git step in that workspace,
- * `workspace-settings` the project's folder settings changed (a folder linked, repaired or unlinked, or the browsing folder chosen)
- * and `workspace_id` names that folder (BL-521), and `project-opened` the project's plugin platform has just been opened through the
- * Host's web entry and tells what a subscriber could not hear while none ran: `workspace_id` names the folder the project browses
- * then, or is empty when it has none (BL-521).
+ * `workspace-settings` the project's folders changed (one added or removed as an input, made the output, repaired, or named for another
+ * device's folder) and `workspace_id` names each folder concerned, one event apiece (BL-521), and `project-opened` the project's plugin
+ * platform has just been opened through the Host's web entry and tells what a subscriber could not hear while none ran: `workspace_id`
+ * names the project's output directory then (which folder a page shows is that page's own state, never a setting).
  */
 export interface HostWorkspaceChangedPayload {
   workspace_id: string;

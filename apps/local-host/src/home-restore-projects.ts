@@ -36,7 +36,7 @@ export function inspectRestoreProjectDatabase(db: SqliteDatabase, file: string, 
 
 /** Catalog identities are absolute references to this original Home, never destinations chosen by manifest text. */
 export function inspectRestoreProjectReferences(db: SqliteDatabase, home: string, incomingPaths: ReadonlySet<string>): ReadonlySet<string> {
-  const projects = new ProjectsModule({ db, projects_directory: join(home, "projects"), plugins: BUILTIN_PLUGIN_REGISTRY }).query.listProjects();
+  const projects = new ProjectsModule({ db, projects_directory: join(home, "projects"), outputs_directory: join(home, "outputs"), plugins: BUILTIN_PLUGIN_REGISTRY }).query.listProjects();
   const ids = new Set<string>();
   for (const project of projects) {
     const id = project.project_id;

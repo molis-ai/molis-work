@@ -26,7 +26,7 @@ import type { ProjectDirectoryRow } from "./workspace-repository.js";
  */
 export function normalizeProjectWorkspace(
   input: { canonical_path: string; realpath_verified: boolean } | null | undefined,
-): ProjectWorkspaceRef | undefined {
+): { canonical_path: string; realpath_verified: boolean; display_name: string } | undefined {
   if (!input || typeof input.canonical_path !== "string") return undefined;
   const suppliedPath = input.canonical_path.trim();
   if (!suppliedPath || !path.isAbsolute(suppliedPath)) return undefined;
@@ -38,8 +38,8 @@ export function normalizeProjectWorkspace(
   } catch {
     realpathVerified = input.realpath_verified === true;
   }
+  // No folder id: a path names its row only through `workspaceIdAt` (§3 「路径到行」).
   return {
-    workspace_id: `workspace-${createHash("sha256").update(canonicalPath).digest("hex").slice(0, 24)}`,
     canonical_path: canonicalPath,
     realpath_verified: realpathVerified,
     display_name: path.basename(canonicalPath) || canonicalPath,
@@ -133,8 +133,14 @@ export class ProjectWorkspaceService {
     this.link(this.requiredProjectId(projectId), this.requiredActorId(actorId), workspace.canonical_path, "session", ["input"]);
   }
 
+  /**
+   * A runtime context's folder stops offering this project: its link goes. The project's output is left as it is (false): every project
+   * keeps its one output (SSC-17), and which folder that is changes only in the project's settings (`set_output`).
+   */
   unlink(workspaceId: string, projectId: string, actorId: string): boolean {
     return this.repository.transaction(() => {
+      const own = this.repository.workspaces.projectDirectoryRows(this.requiredProjectId(projectId)).find(row => row.workspace_id === workspaceId);
+      if (own?.roles.includes("output")) return false;
       const changes = this.repository.workspaces.removeWorkspaceMembership(
         this.requiredWorkspaceId(workspaceId),
         this.requiredProjectId(projectId),

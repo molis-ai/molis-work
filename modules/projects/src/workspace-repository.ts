@@ -76,7 +76,7 @@ export class WorkspaceRepository {
   listWorkspaceMemberships(): ProjectWorkspaceMembership[] {
     return (this.db.prepare(`
       SELECT membership.membership_id, membership.workspace_id, workspace.canonical_path,
-        workspace.display_name AS workspace_name, workspace.realpath_verified,
+        workspace.display_name, workspace.realpath_verified,
         membership.project_id, membership.role_input, membership.role_output, membership.bound_by,
         membership.created_at, membership.updated_at
       FROM workspace_project_memberships AS membership

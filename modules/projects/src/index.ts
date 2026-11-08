@@ -124,6 +124,10 @@ export class ProjectsModule implements ProjectsApplicationApi {
       projectDirectories: (projectId) => this.workspaces.directories(projectId),
       outputDirectory: (projectId) => this.workspaces.outputDirectory(projectId),
       defaultOutputDirectoryId: (projectId) => projectOutputId(repository.db, this.records.get(projectId).project_id),
+      workspaceIdAt: (canonicalPath) => {
+        const place = repository.workspaces.placeOf(canonicalPath);
+        return place.kind === "inside-outputs" ? null : place.row?.workspace_id ?? null;
+      },
       workspaceProjectSelections: (workspaceId) => repository.workspaces.workspaceProjectSelections(workspaceId),
       listProjectDeletions: () => this.records.listDeletions().map(receipt => ({ ...receipt, owner_steps: this.deletionSteps.list(receipt.deletion_id) })),
     };

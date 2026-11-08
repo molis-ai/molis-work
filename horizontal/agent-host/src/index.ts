@@ -1,3 +1,4 @@
+export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
 import { agentErrors } from "./errors.js";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -47,6 +48,7 @@ export {
   type ModelSelectionPort,
   type ResolvedModelSelection,
 } from "./model-configuration.js";
+export { fetchModelList, listProviderModels, modelListErrors, modelListRequest, readModelList, type ListedModel, type ModelListSend } from "./model-list.js";
 export { registerAgentHostCapabilities } from "./capability-registration.js";
 export { runViewVersion } from "./run-wait.js";
 export { actionDigest } from "./action-digest.js";

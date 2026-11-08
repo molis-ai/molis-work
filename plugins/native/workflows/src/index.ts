@@ -14,6 +14,9 @@ export { WORKFLOWS_ACTIONS, WORKFLOWS_ACTION_PERMISSIONS, createWorkflowsActionH
 export { workflowsManifest } from "./manifest.js";
 export { ownWorkflowsStores, WorkflowsStore, WORKFLOWS_DATABASE, WORKFLOWS_HOME_STORE } from "./store.js";
 export type { WorkflowsSql, WorkflowsSqlValue, WorkflowsStores } from "./store.js";
+export { workflowsSync, workflowsCollection } from './replication.js';
 export type { WorkflowSummary } from "./store.js";
 
 export { createWorkflowContentPorts } from "./content-client.js";
+
+export { syncBindings as createWorkflowsSyncBindings } from "./sync-binding.js";

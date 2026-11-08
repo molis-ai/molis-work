@@ -8,10 +8,12 @@ export interface WebProjectNavigation {
   data_class?: "user" | "regenerable_demo";
   database_path?: string;
   source?: "created";
+  /** Host observation only; never an installation or activation request. */
+  plugin_requirements?: readonly { plugin_id: string; installed: boolean }[];
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories" | "sync";
 type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "rules" | "planning";
 

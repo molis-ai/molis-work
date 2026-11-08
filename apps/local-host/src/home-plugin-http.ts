@@ -316,7 +316,7 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     if (options?.views && !Object.hasOwn(options.views, key)) continue;
     if (host.hasPackage(pluginId)) {
       const surface = host.packageSurface(pluginId);
-      if (surface) html.push(installedStageSection({ pluginId, surface, label: entry.manifest.name, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
+      if (surface) html.push(installedStageSection({ pluginId, surface, label: entry.manifest.name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
       else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
       continue;
     }

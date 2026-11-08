@@ -148,6 +148,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/plugin-store-unavailable.ts": "Host static recovery document for an unreadable Home ledger; no plugin content or client (ac-trust-install §7.3, RAC-404)",
   "apps/workbench/src/side-view-document.ts": "宿主排版的侧栏文档",
   "apps/local-host/src/web-project-platform-routes.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",
+  "apps/local-host/src/personal-http.ts": "Host 账号回调响应：仅 /account/callback 的失败提示；成功 303 返回工作台，不属于插件页面",
   "apps/workbench/src/arrival/shell.ts": "进入页",
   "apps/workbench/src/arrival/chooser.ts": "进入页：项目选择",
   "apps/workbench/src/onboarding-renderer.ts": "进入页：Onboarding",
@@ -158,6 +159,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/primitive-catalog.ts": "开发规格板",
   "apps/workbench/src/condition-frame.ts": "开发规格板：条件与状态的框架页",
   "apps/workbench/src/assistant-board-frame.ts": "开发规格板：助理信息与任务的框架页",
+  "apps/workbench/src/navigation-specimens.ts": "开发规格板：工作台导航的框架页",
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",
   "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",
@@ -171,4 +173,7 @@ test("only the listed source files produce a whole page", () => {
   const producers = files.filter(file => /<!doctype html>|renderWorkbenchDocument\(|\bshell\.document\(|\bdocument: \(request: WorkbenchDocumentRenderRequest\)/i.test(readFileSync(file, "utf8")));
   assert.deepEqual(producers.filter(file => !(file in PAGE_PRODUCERS)), [], "a new page producer needs a registered Host workbench entrypoint or a documented exception");
   assert.deepEqual(Object.keys(PAGE_PRODUCERS).filter(file => !producers.includes(file)), [], "a producer that is gone leaves the list");
+  const accountResponse = readFileSync("apps/local-host/src/personal-http.ts", "utf8");
+  assert.equal((accountResponse.match(/<!doctype html>/gi) ?? []).length, 1,
+    "the Host account registration covers only its existing failure response; another document requires review");
 });

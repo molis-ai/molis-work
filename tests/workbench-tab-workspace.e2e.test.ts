@@ -142,10 +142,12 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE]') != null"), true);
   await browser.setViewport(1440, 1000);
   await evaluate(`(() => { for (let i = 0; i < 32; i += 1) document.querySelector("[data-tab-close]")?.click(); })()`);
-  // Closing every tab, plugin tabs included, leaves the project's home.
-  await waitFor("document.querySelectorAll(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item').length === 0");
+  // Closing every tab, plugin tabs included, leaves the project's home, which is no tab (07-S2). The work's tabs only: 07-S1 put
+  // the right side's glyph tabs (also .tab-item) in the title bar, outside the work's strips, so they are not counted.
+  const workTabs = "document.querySelectorAll(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item:not([data-side-tabs] .tab-item)').length";
+  await waitFor(`${workTabs} === 0`);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
-  await waitFor("document.querySelectorAll(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item').length === 0 && document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
+  await waitFor(`${workTabs} === 0 && document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')`);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
 

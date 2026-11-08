@@ -11,9 +11,9 @@ import {
   createProjectsSchema,
   ProjectsModule,
 } from "@molis-ai/molis-work-module-projects";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 
-function createModule(db: Database.Database, directory: string): ProjectsModule {
+function createModule(db: SqliteDatabase, directory: string): ProjectsModule {
   let sequence = 0;
   return new ProjectsModule({
     db,
@@ -21,12 +21,13 @@ function createModule(db: Database.Database, directory: string): ProjectsModule 
     plugins: { has: id => id === "goals", companions: () => [] },
     now: () => `2026-09-02T00:00:${String(sequence).padStart(2, "0")}.000Z`,
     id: (prefix) => `${prefix}-${++sequence}`,
+    plugins: { has: id => id === "pages", companions: () => [] },
   });
 }
 
 test("Projects Module owns canonical project identity and workspace membership", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
@@ -47,6 +48,12 @@ test("Projects Module owns canonical project identity and workspace membership",
     projects.lifecycle.register(second, "project.created", "user-1");
 
     assert.equal(projects.query.listProjects().length, 2, "duplicate display names do not change identity");
+    // PERSAF-05: a never-installed plugin and an explicit user removal are different facts.
+    assert.equal(projects.query.wasProjectPluginRemoved(first.project_id, "pages"), false);
+    projects.commands.addProjectPlugin({ project_id: first.project_id, plugin_id: "pages", actor_id: "user-1" });
+    projects.commands.removeProjectPlugin({ project_id: first.project_id, plugin_id: "pages", actor_id: "user-1" });
+    assert.equal(projects.query.wasProjectPluginRemoved(first.project_id, "pages"), true);
+    assert.equal(projects.query.wasProjectPluginRemoved(second.project_id, "pages"), false);
     assert.deepEqual(projects.query.selections().map((project) => project.project_id), [first.project_id, second.project_id]);
     // I4-01: the Host's existing missing-project classification is preserved by the owner.
     assert.throws(() => projects.query.getProject("absent-project"), (error: unknown) => {
@@ -113,9 +120,9 @@ test("Projects Module owns canonical project identity and workspace membership",
 });
 
 /** A catalog with two projects, so that a directory can belong to one or to both. */
-function withTwoProjects(run: (env: { db: Database.Database; projects: ProjectsModule; first: string; second: string; link: (projectId: string, path: string) => string }) => void): void {
+function withTwoProjects(run: (env: { db: SqliteDatabase; projects: ProjectsModule; first: string; second: string; link: (projectId: string, path: string) => string }) => void): void {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
@@ -134,7 +141,7 @@ function withTwoProjects(run: (env: { db: Database.Database; projects: ProjectsM
     rmSync(directory, { recursive: true, force: true });
   }
 }
-const rows = (db: Database.Database, table: "workspaces" | "workspace_project_memberships"): number =>
+const rows = (db: SqliteDatabase, table: "workspaces" | "workspace_project_memberships"): number =>
   Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
 
 test("RAC-2453 deleting a project's memberships removes the directory records that no project belongs to any more", () => {

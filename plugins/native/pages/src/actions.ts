@@ -1,3 +1,4 @@
+import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -47,8 +48,6 @@ function promptMaterialsOf(inputs: readonly PagesInputSnapshot[], prior: PagesGe
   return prior.status === "completed" && prior.document_id ? null : prior.inputs;
 }
 const id = { type: "string", minLength: 1, pattern: "\\S" };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-const array = (items: unknown) => ({ type: "array", items });
 const body = object({ type: { const: "doc" }, content: array({}) }, ["type"]);
 const pageProperties = { id, project_id: id, title: text, body, folder_id: text, starred: { type: "boolean" }, goal_id: text,
   artifact_id: text, artifact_version: { type: "integer", minimum: 0 }, created_at: text, updated_at: text, version: { type: "integer", minimum: 1 } };
@@ -77,11 +76,11 @@ export const PAGES_SUBJECT_KIND = "pages_document";
 export const PAGES_READABLE_EXTENSIONS = [".md", ".markdown", ".txt", ".html", ".htm", ".csv", ".docx", ".zip"];
 export const PAGES_READABLE_FILE = new RegExp(`(?:${PAGES_READABLE_EXTENSIONS.map(extension => extension.replace(".", "\\.")).join("|")})$`, "iu");
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"], scheduling?: ActionDefinition["action"]["scheduling"]): ActionDefinition<I, O> {
-  return { capability_id: `pages.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
-    kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
+  return createActionDefinition<I, O>(`pages.${name}`, operation, { title, description, ...(execution ? { execution } : {}),
+    audiences: ["user", "workflow", "agent", "mcp"],
     permissions, subject_kinds: [PAGES_SUBJECT_KIND], input_schema: input, output_schema: output,
     ...(operation === "command" && (output as { properties?: Record<string, unknown> }).properties?.document ? { result_subject: { id: "document.id", revision: "document.version" } } : {}),
-    ...(scheduling ? { scheduling } : {}) } };
+    ...(scheduling ? { scheduling } : {}) });
 }
 const withAction = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<ActionDefinition["action"]>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, ...extra } });
 const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => withAction(definition, { effect: "read" });

@@ -348,6 +348,7 @@ export interface AssistantNotice {
         origin: string;
     };
     created_at: string;
+    settings_path?: string;
     open?: {
         surface: string;
         id: string;
@@ -360,7 +361,7 @@ export interface AssistantNotice {
     };
 }
 
-export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read";
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read" | "connection";
 
 export interface AssistantObjectRef {
     kind: string;
@@ -632,6 +633,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     materials?: AssistantMaterial[];
     written_by?: "page";
     target?: "answer" | "steer";
+    delivery?: AgentSteerMode;
     reask?: AgentQuestionReask;
     request_id: string;
 }

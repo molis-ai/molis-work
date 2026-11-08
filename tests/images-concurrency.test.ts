@@ -24,7 +24,7 @@ async function until(check: () => boolean | Promise<boolean>) {
   }
 }
 
-// One Home has one execution owner: the resident Web Host. The standard MCP launcher forwards its calls there,
+// PCSYNC-MCP-RECONNECT-03: One Home has one execution owner: the resident Web Host. The standard MCP launcher forwards its calls there,
 // as in production, so both entries act on the same live jobs. Owner-crash recovery is covered by images-service.
 test("Images Web and the standard MCP launcher share live jobs through the resident Host, deduplicate and cancel from either side", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "images-concurrency-"));

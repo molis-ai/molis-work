@@ -15,7 +15,7 @@
 const W = "body.immersive-workbench";
 const GROUP_IN = ".tab-group:is([data-plugin-group],[data-tab-group])";
 const REMOVED = `${W} .tab-strip .tab-group[data-plugin-group][data-group-state=removed]`;
-const STRIP_BUTTON = ".tab-text-button";
+const STRIP_BUTTON = ".tab-strip-button";
 const UNFOCUSED = `${W} .tab-strip[data-unfocused]`;
 const PINNED_GROWN = `${W} .tab-strip .tab-item[data-pinned].is-grown`;
 const SWITCH = `${W} .tab-pane-switch`;
@@ -30,13 +30,14 @@ export const WORKBENCH_NAVIGATION_STYLES = `
 ${UNFOCUSED} .tab-item[aria-current]{background:var(--nav-active);box-shadow:none}
 ${UNFOCUSED} ${GROUP_IN} .tab-item[aria-current]{background:color-mix(in srgb,var(--group-color) 18%,transparent);box-shadow:none}
 ${UNFOCUSED} .tab-item[aria-current]::after{display:none}
-/* The strip's own text buttons (.tab-text-button): every tab, once the strip cannot hold them; the way back from one pane only. */
+/* The strip's own text buttons (.tab-strip-button): every tab, once the strip cannot hold them; the way back from one pane only. */
 ${STRIP_BUTTON}{flex:none;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border:0;border-radius:var(--r-control,8px);background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-weight:var(--weight-control,500);white-space:nowrap;cursor:pointer;transition:background-color ${EASE},color ${EASE}}
 ${STRIP_BUTTON} svg{width:14px;height:14px;flex:none}
 ${STRIP_BUTTON}:hover{background:var(--nav-hover);color:var(--ink)}
 ${STRIP_BUTTON}:active{background:var(--nav-press,var(--nav-active))}
 ${STRIP_BUTTON}:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
 .tab-all-button[aria-expanded="true"]{background:var(--nav-active);color:var(--ink)}
+.titlebar-layout>.mw-btn[aria-expanded="true"]{background:var(--nav-hover);color:var(--ink)}
 .tab-all-count{color:var(--muted);font-variant-numeric:tabular-nums}
 .tab-solo-chip{background:var(--accent-soft);color:var(--accent-strong,var(--accent))}
 .tab-solo-chip:hover{background:color-mix(in srgb,var(--accent) 18%,var(--paper));color:var(--accent-strong,var(--accent))}
@@ -74,7 +75,7 @@ ${REMOVED}>*{--group-color:var(--faint);--group-fill:var(--faint)}
 ${SWITCH}{display:none;flex:none;margin-right:4px}
 /* A pinned tab widens in place like the right side's glyphs (glyph-tabs.ts). */
 ${PINNED_GROWN}{width:max-content;max-width:208px;padding:0 10px 0 8px;background:var(--nav-hover);color:var(--ink)}
-${PINNED_GROWN} .tab-item-name{display:block;animation:tab-name-in ${EASE} both}
+${PINNED_GROWN} .tab-item-name{display:block;animation:craft-fade-in ${EASE} both}
 /* The window's one layout button (a ghost icon .mw-btn) at the titlebar's end, after a hairline; with the right side hidden, its glyphs sit before it. */
 .titlebar-layout{position:relative;display:flex;align-items:center;flex:none;gap:4px;padding-left:9px}
 .titlebar-layout::before{content:"";position:absolute;left:0;top:50%;width:1px;height:16px;margin-top:-8px;background:var(--line-strong)}
@@ -82,6 +83,8 @@ ${PINNED_GROWN} .tab-item-name{display:block;animation:tab-name-in ${EASE} both}
    "open beside" stays shown and the row's place moves left of it. */
 @media (max-width:760px),(pointer:coarse){
 ${STRIP_BUTTON}{height:44px;min-width:44px}
+/* The small icon button is a fixed 28px square (primitives.ts); here it is the strip's touch target. */
+.titlebar-layout>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}
 .tab-menu .mw-menu__item{min-height:44px}
 .tab-menu-row>.tab-menu-beside{opacity:1;transform:none}
 .tab-menu-row>.mw-menu__item{padding-right:calc(var(--ops-btn) + 8px)}

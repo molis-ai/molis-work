@@ -132,7 +132,19 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }
-@media(min-width:601px) and (max-width:760px){html body.immersive-workbench .immersive-workspace{grid-template-rows:auto minmax(0,1fr)}html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}}
+/* On a phone the strip shares the title bar's first row with the history buttons and the Home tools, and takes the room left
+   between them: the glyphs keep their 44px targets and scroll sideways, and reveal() keeps the current one in view (measured:
+   three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. The strip's 2px block padding
+   (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. */
+@media(max-width:600px){html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}}
+/* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
+   titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
+   strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */
+@media(min-width:601px) and (max-width:760px){
+ html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) var(--dock-h)}
+ html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}
+ html body.immersive-workbench .side-panel{max-height:calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h,48px) - 28px)}
+}
 @media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
 `.replace(/\n\s*/g, "");
 
@@ -280,8 +292,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   };
   const toggle=()=>{setOpen(!open,{focus:true});save();};
   const reopen=record=>{
+    const before=side().open;
     if(!ops.reopenSideTab(getState(),record))return false;
-    if(side().open&&!open)setOpen(true,{tab:record.tab.itemId});else if(record.active&&open)select(record.tab.itemId);else draw();
+    if(undo?.record===record)undo=null;
+    if(side().open&&!before&&!open)setOpen(true,{tab:record.tab.itemId});else if(record.active&&open)select(record.tab.itemId);else draw();
     if(strip.contains(document.activeElement))buttons().find(button=>button.dataset.sideTab===record.tab.itemId)?.focus({preventScroll:true});
     save();return true;
   };
@@ -393,8 +407,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   new MutationObserver(()=>draw()).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});
   paint();select(current());
   (window.requestIdleCallback||setTimeout)(()=>strip.querySelectorAll('[data-side-keys]').forEach(tab=>load(panel.querySelector('[data-side-body="'+tab.dataset.sideTab+'"]'))),{timeout:4000});
-  // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again.
-  const restore=()=>{settle();paint();if(side().open!==open)setOpen(side().open);else draw();};
+  // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again. A
+  // narrow window (760 and under, where only the focused pane shows: the side is a sheet over half the work) loads with the
+  // side collapsed, its tabs, current tab and width as kept; the saved open stays, so a wide window opens it again.
+  const restore=()=>{settle();paint();const show=side().open&&!matchMedia('(max-width:760px)').matches;if(show!==open)setOpen(show);else draw();};
   return {open:(key,target)=>request({tab:key,target}),restore,toggle,isOpen:()=>open};
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");
 

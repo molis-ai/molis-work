@@ -1,3 +1,4 @@
+import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema, type ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesRecord } from "./contract.js";
 import { pagesErrors } from "./error.js";
@@ -11,7 +12,6 @@ import type { PagesStores } from "./store.js";
  */
 const id = { type: "string", minLength: 1, pattern: "\\S" };
 const position = { type: "integer", minimum: 0 };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const input = { id, expected_version: { type: "integer", minimum: 1 }, anchor: position, head: position,
   text: { type: "string", minLength: 1, maxLength: 100_000, description: "要放进文档的纯文字，一行一段" } };
 const source = object({ title: { type: "string", minLength: 1, maxLength: 200 }, url: { type: "string", maxLength: 2000 } }, ["title"]);
@@ -20,12 +20,12 @@ type LandingInput = Omit<PagesLandingWrite, "mode"> & { id: string; expected_ver
 type LandingOutput = { document: PagesRecord; change_id: string };
 
 function define(document: ActionSchema, mode: PagesLandingMode, verb: string, describe: string, positions: readonly ItemAttachPosition[]): ActionDefinition<LandingInput, LandingOutput> {
-  return { capability_id: `pages.landing.${mode}`, version: 1, operation: "command", action: { title: verb, description: describe,
-    kind: "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["pages:write"], subject_kinds: ["pages_document"],
+  return createActionDefinition<LandingInput, LandingOutput>(`pages.landing.${mode}`, "command", { title: verb, description: describe,
+    audiences: ["user", "workflow", "agent", "mcp"], permissions: ["pages:write"], subject_kinds: ["pages_document"],
     input_schema: object(mode === "quote" ? { ...input, source } : input), output_schema: object({ document, change_id: id }),
     result_subject: { id: "document.id", revision: "document.version" },
     attach: { attach_id: mode, item_kind: "pages_document", positions, title: "文档", verb, describe, material_field: "text" },
-    undo: { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } } } };
+    undo: { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } } });
 }
 
 /** `document` is the schema of a Pages document, the same one every Pages action returns. */

@@ -1,4 +1,5 @@
 import { ProjectDeletionRepository } from "./deletion-repository.js";
+import { createProjectRecycleSchema } from "./recycle.js";
 import { createDeletionStepsSchema } from "./deletion-steps.js";
 import { ProjectRecordsRepository } from "./project-records-repository.js";
 import type { ProjectsSqliteDatabase } from "./sqlite.js";
@@ -10,8 +11,8 @@ export class ProjectsRepository {
   readonly workspaces: WorkspaceRepository;
   readonly deletions: ProjectDeletionRepository;
 
-  constructor(readonly db: ProjectsSqliteDatabase, projectsDirectory: string) {
-    this.projects = new ProjectRecordsRepository(db, projectsDirectory);
+  constructor(readonly db: ProjectsSqliteDatabase, projectsDirectory: string, spaceId?: string) {
+    this.projects = new ProjectRecordsRepository(db, projectsDirectory, spaceId);
     this.workspaces = new WorkspaceRepository(db);
     this.deletions = new ProjectDeletionRepository(db);
   }
@@ -38,6 +39,11 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
       plugin_id TEXT NOT NULL,
       added_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
+    CREATE TABLE IF NOT EXISTS project_portable_plugins (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
     CREATE TABLE IF NOT EXISTS project_plugin_exclusions (
@@ -96,4 +102,5 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS project_deletions_project_idx
       ON project_deletions(project_id, deleted_at, deletion_id);
   `);
+  createProjectRecycleSchema(db);
 }

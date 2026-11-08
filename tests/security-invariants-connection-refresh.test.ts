@@ -7,11 +7,11 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { checkConnectorConnection, completeApiOAuth, connectorAccountActionProvider, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
-import { createFileSecretStore, homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { ASSISTANT_STORE_NAME, AssistantStore, checkConnectorConnection, completeApiOAuth, connectorAccountActionProvider, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, resolveApiConnection, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { runInPluginAction, type PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
+import { createFileSecretStore, homeSqlitePath, openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { DatabaseSync } from "node:sqlite";
 
 // S-70 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X3): a 401 to a credential the Host can
@@ -246,6 +246,50 @@ test("S-70 RAC-349 a refresh the token endpoint refuses marks the account for re
   assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");
   assert.equal((await port.request(target, dispatch())).status, 200);
   assert.deepEqual(seen.at(-1), "Bearer renewed-access");
+});
+
+test("S-70 ASC-58 a refresh refused during a plugin's request tells the person once to log in again, and reconnecting settles it", { timeout: 30_000 }, async t => {
+  const home = await connected(t);
+  tokenEndpoint(t, () => json({ error: "invalid_grant" }, 400));
+  const { options } = await asana(t, ["stale-access"]);
+  const port = createPluginConnectionsPort(home, options), [account] = listConnectorConnectionViews(home, "asana");
+  const definition = { capability_id: "example.refresh.sync", version: 1, operation: "command", action: { title: "sync", description: "probe", scope: "home", kind: "operation",
+    subject_kinds: [], audiences: ["user"], permissions: ["connections:use"], scheduling: "concurrent", input_schema: { type: "object" } } } as ActionDefinition;
+  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: ["connections:use"], beforeEffect: async () => {},
+    current_action: { capability_id: definition.capability_id, version: 1, provider_id: target.plugin_id } } as ActionExecutionContext;
+  const send = () => runInPluginAction({ install_id: target.install_id, installation_generation: "g1", definition, caller }, () => port.request(target, dispatch()));
+  const notices = () => {
+    const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
+    try { return new AssistantStore(db).openNotices(LOCAL_PERSON_ACTOR_ID).filter(notice => notice.kind === "connection"); } finally { db.close(); }
+  };
+  await assert.rejects(send(), code("connector.plugin_requests.connection_unavailable"));
+  const [notice, ...more] = notices();
+  assert.equal(more.length, 0);
+  assert.deepEqual([notice?.text, notice?.work_title, notice?.settings_path], ["服务连接「{name}」的登录已失效，需要重新登录。", "Asana", "/settings/connectors?connector=asana"]);
+  assert.doesNotMatch(JSON.stringify(notice), /stale-access|refresh-1|invalid_grant/, "no token and no raw error in the notice");
+  // Refused before it is sent while the mark stands: not another failure, not another notice.
+  await assert.rejects(send(), code("connector.plugin_requests.connection_unavailable"));
+  assert.equal(notices().length, 1);
+  // The person reconnects the same account: the problem is over.
+  await authorize(home, "renewed-access", account!.connection_id);
+  assert.equal(notices().length, 0);
+});
+
+test("S-70 RAC-349 a forced refresh that goes through clears the mark: the account is shown connected and the plugin's next request is sent", { timeout: 30_000 }, async t => {
+  const home = await connected(t);
+  let accepts = false;
+  const refreshes = tokenEndpoint(t, () => accepts ? json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }) : json({ error: "invalid_grant" }, 400));
+  const { seen, options } = await asana(t, ["stale-access"]);
+  const port = createPluginConnectionsPort(home, options), [account] = listConnectorConnectionViews(home, "asana");
+  await assert.rejects(port.request(target, dispatch()), code("connector.plugin_requests.connection_unavailable"));
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "reauth_required");
+  // A Host reader of the account forces a refresh (a document import does after a 401); this time the token endpoint answers.
+  accepts = true;
+  assert.equal((await resolveApiConnection(home, account!.connection_id, connectorControl(), "asana", true, options)).token, "fresh-access");
+  assert.equal(refreshes.length, 2);
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected", "the refresh that went through cleared the mark");
+  assert.equal((await port.request(target, dispatch())).status, 200);
+  assert.equal(seen.at(-1), "Bearer fresh-access");
 });
 
 test("S-70 RAC-349 a network failure while refreshing refuses only this request: nothing is marked and the next request tries again", { timeout: 30_000 }, async t => {

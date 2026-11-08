@@ -16,7 +16,12 @@ export function focusEditor(page: ShelfPage): void {
 /** Saves the copy being edited; saves go one after another, and a failure stays on the page with the typed text. */
 export async function saveCopy(page: ShelfPage, id: string | undefined, text: string): Promise<void> {
   if (!id) return;
-  const next = page.editWrites.catch(() => undefined).then(() => post<SnapshotAnswer>(page, "/items/" + encodeURIComponent(id) + "/edit", { text }));
+  const base = page.editBase;
+  const next = page.editWrites.catch(() => undefined).then(async () => {
+    const payload = await post<SnapshotAnswer & { content_hash: string }>(page, "/items/" + encodeURIComponent(id) + "/edit", { text, expected_content_hash: base?.id === id ? base.hash : "" });
+    if (base) base.hash = payload.content_hash;
+    return payload;
+  });
   page.editWrites = next;
   try {
     const payload = await next;
@@ -64,7 +69,7 @@ export async function startEdit(page: ShelfPage): Promise<void> {
   const button = page.bench.querySelector<HTMLButtonElement>("[data-shelf-edit]");
   if (button) button.disabled = true;
   try {
-    const text = await readFullText(page, item);
+    const text = await readFullText(page, item, true);
     if (page.selected?.item_id !== item.item_id || page.selClip) return;
     page.editDraft = text;
     page.editing = true;

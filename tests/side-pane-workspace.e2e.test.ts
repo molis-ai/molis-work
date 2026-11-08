@@ -238,19 +238,27 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const shown = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility())`;
   const outside = `(() => { const box = document.querySelector('${strip}').getBoundingClientRect(); return ${shown}.filter(tab => { const at = tab.getBoundingClientRect(); return at.left < Math.max(0, box.left) - 0.5 || at.right > Math.min(innerWidth, box.right) + 0.5; }).map(tab => tab.dataset.sideTab); })()`;
-  for (const width of [601, 700, 760]) {
-    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  for (const [width, height] of [[601, 900], [700, 900], [760, 900], [700, 420]]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
     await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
     await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
     const tabs = await evaluate<string[]>(`${shown}.map(tab => tab.dataset.sideTab)`);
-    assert.ok(tabs.includes("tasks") && tabs.length >= 6, `${width}: ${JSON.stringify(tabs)}`);
-    assert.deepEqual(await evaluate<string[]>(outside), [], `${width}: every tab is inside the strip and the window`);
-    assert.equal(await evaluate<boolean>(`(() => { const s = document.querySelector('${strip}'); return s.scrollWidth <= s.clientWidth + 1; })()`), true, `${width}: nothing scrolled out of sight`);
+    assert.ok(tabs.includes("tasks") && tabs.length >= 6, `${width}×${height}: ${JSON.stringify(tabs)}`);
+    assert.deepEqual(await evaluate<string[]>(outside), [], `${width}×${height}: every tab is inside the strip and the window`);
+    assert.equal(await evaluate<boolean>(`(() => { const s = document.querySelector('${strip}'); return s.scrollWidth <= s.clientWidth + 1; })()`), true, `${width}×${height}: nothing scrolled out of sight`);
     const rows = await evaluate<{ strip: number; tabs: number }>(`(() => ({ strip: document.querySelector('${strip}').getBoundingClientRect().top, tabs: document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().top }))()`);
-    assert.ok(rows.strip > rows.tabs, `${width}: the side's strip is on a row below the main tabs (${JSON.stringify(rows)})`);
-    const stage = await evaluate<number>("document.querySelector('[data-plugin-stage]').getBoundingClientRect().top - document.querySelector('.immersive-titlebar').getBoundingClientRect().bottom");
-    assert.ok(stage >= -0.5, `${width}: the work starts below the taller title bar (${stage})`);
+    assert.ok(rows.strip > rows.tabs, `${width}×${height}: the side's strip is on a row below the main tabs (${JSON.stringify(rows)})`);
+    // The strip's own box, not the title bar's: a bar pinned at one row lets the strip spill over the work below it.
+    const below = await evaluate<{ strip: number; stage: number; panel: number; corner: boolean }>(`(() => {
+      const stage = document.querySelector('[data-plugin-stage]').getBoundingClientRect();
+      const corner = document.elementFromPoint(stage.right - 12, stage.top + 12);
+      return { strip: document.querySelector('${strip}').getBoundingClientRect().bottom, stage: stage.top, panel: document.querySelector('.side-panel').getBoundingClientRect().top,
+        corner: Boolean(corner && document.querySelector('[data-plugin-stage]').contains(corner) && !corner.closest('${strip}')) };
+    })()`);
+    assert.ok(below.stage >= below.strip - 0.5, `${width}×${height}: the work starts below the side's strip (${JSON.stringify(below)})`);
+    assert.ok(below.panel >= below.strip - 0.5, `${width}×${height}: the side sheet starts below its strip (${JSON.stringify(below)})`);
+    assert.equal(below.corner, true, `${width}×${height}: the main area's top right corner is the work's own, not the strip`);
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 320, height: 720, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
@@ -260,6 +268,45 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
     await waitFor(`(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(tab)} }, cancelable: true })), document.querySelector('${strip} [aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(tab)})`, 5_000);
     await waitFor(`!${outside}.includes(${JSON.stringify(tab)})`, 3_000);
   }
+});
+
+// PFG-22, 定样第 9 条 (760 and under shows only the focused pane): a window that wide or narrower loads with the side collapsed,
+// its tabs, current tab and width as kept, and opening it shows that current tab again; a wide window keeps an open side open.
+// The saved layout keeps the side open, so going back to a wide window does not lose it.
+test("PFG-22 定样第 9 条 a narrow window loads with the side collapsed and its tabs kept; a wide one reloads it open", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const shown = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility()).map(tab => tab.dataset.sideTab)`;
+  const load = async (width: number, height: number, mobile: boolean) => {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+    await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.body.dataset.sideOpen`, 15_000);
+  };
+  await load(1440, 900, false);
+  await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+  await waitFor(`${stored}?.side?.open === true && ${current} === 'tasks'`, 5_000);
+  const tabs = await evaluate<string[]>(shown);
+
+  await load(1440, 900, false);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks'`, 5_000);
+
+  await load(390, 844, true);
+  // Give a late restore the chance to open it before reading that it stayed collapsed.
+  await evaluate("new Promise(resolve => setTimeout(resolve, 600))");
+  assert.equal(await evaluate("document.body.dataset.sideOpen"), "false", "a phone loads with the side collapsed");
+  assert.deepEqual(await evaluate<string[]>(shown), tabs, "every side tab is still there");
+  assert.equal(await evaluate(current), "tasks", "the current tab is kept");
+  assert.equal(await evaluate(`${stored}?.side?.open`), true, "the saved layout keeps the side open for a wide window");
+  await click(`${strip} [data-side-tab="tasks"]`);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks' && !document.querySelector('[data-side-body="tasks"]').hidden`, 5_000);
+
+  // 601 to 760 counts as narrow too.
+  await load(700, 900, false);
+  await evaluate("new Promise(resolve => setTimeout(resolve, 600))");
+  assert.equal(await evaluate("document.body.dataset.sideOpen"), "false", "700 wide loads with the side collapsed");
+  await load(1440, 900, false);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && ${current} === 'tasks'`, 5_000);
 });
 
 // 07-S1 review, small fix 2: a plugin taken out of the project keeps its side tab where it was, marked removed, as the main

@@ -30,13 +30,13 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
   }
   // S11 moved the two production Modules (Goals and Governance) into their plugin; FI-5 merged four production packages (the Feed, Sources
   // and Signals Modules, the listener host) into the Feed plugin. PG-077 removes the Artifact plugin shell; its existing platform
-  // Module remains production. Re-measured distribution, 2026-10-30.
+  // Module remains production. Personal synchronization adds the slice module-sync-replication.
   const counts = {};
   for (const item of WORKSPACE_PACKAGES) {
     assert.ok(PACKAGE_MATURITY.includes(item.maturity), `${item.path}: ${item.maturity}`);
     counts[item.maturity] = (counts[item.maturity] ?? 0) + 1;
   }
-  assert.deepEqual(counts, { production: 47, experimental: 2, slice: 14 });
+  assert.deepEqual(counts, { production: 47, experimental: 2, slice: 15 });
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "modules/artifacts").map(item => item.maturity), ["production"]);
   assert.equal(WORKSPACE_PACKAGES.some(item => item.path === "plugins/native/artifacts"), false, "only the retired shell disappears");
 });

@@ -87,14 +87,14 @@ test("Form actions share original data, six question types and snapshot-backed s
   const another = await fixture(t); assert.deepEqual((await another.bound.invoke(actions.list, {})).forms, []);
 });
 
-test("Form deletion rolls back all rows on failure", async t => {
+test("Form deletion rolls back earlier rows when an undeclared trigger refuses the final delete", async t => {
   const f = await fixture(t), db = openHomeSqliteDatabase(f.home, "form");
   try {
     let { form } = await f.bound.invoke(actions.create, { title: "Old form" });
     form = (await f.bound.invoke(actions.update, { id: form.id, questions, expected_version: form.version })).form;
     await f.bound.invoke(actions.submit, { id: form.id, answers, expected_version: form.version, request_id: "kept-submission" });
     db.exec("CREATE TRIGGER fail_form_delete BEFORE DELETE ON forms BEGIN SELECT RAISE(ABORT, 'fixture delete failure'); END");
-    await assert.rejects(f.bound.invoke(actions.delete, { id: form.id }), /fixture delete failure/);
+    await assert.rejects(f.bound.invoke(actions.delete, { id: form.id }), /not authorized/);
     assert.equal((await f.bound.invoke(actions.results, { id: form.id })).submissions.length, 1);
     db.exec("DROP TRIGGER fail_form_delete");
     await f.bound.invoke(actions.delete, { id: form.id });
@@ -106,13 +106,15 @@ test("Form fixed publication survives partial success, actor isolation, restart 
   const f = await fixture(t); const { form } = await f.bound.invoke(actions.create, { title: "Original snapshot" });
   const db = openHomeSqliteDatabase(f.home, "form");
   try {
-    db.exec("CREATE TRIGGER fail_form_publication BEFORE UPDATE OF artifact_version ON forms WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failure'); END");
-    await assert.rejects(f.bound.invoke(actions.promote, { id: form.id }), /fixture association failure/);
+    const sentinel = (await f.bound.invoke(actions.create, { title: "Published constraint fixture" })).form;
+    await f.bound.invoke(actions.promote, { id: sentinel.id });
+    db.exec("CREATE UNIQUE INDEX fail_form_publication ON forms ((1)) WHERE artifact_version > 0");
+    await assert.rejects(f.bound.invoke(actions.promote, { id: form.id }), /UNIQUE constraint failed/);
     assert.equal((await f.bound.invoke(actions.get, { id: form.id })).form.publication_pending!.version, 1);
     await assert.rejects(f.bound.invoke(actions.delete, { id: form.id }), { code: "form.publication_pending" });
     await f.bound.invoke(actions.update, { id: form.id, title: "Later edit" });
     await assert.rejects(f.client.invoke({ ...f.caller, actor_id: "other" }, actions.promote, { id: form.id }), { code: "form.publication_owner" });
-    db.exec("DROP TRIGGER fail_form_publication");
+    db.exec("DROP INDEX fail_form_publication");
   } finally { db.close(); }
   await f.host.closeProject(f.ref);
   const restored = await f.bound.invoke(actions.promote, { id: form.id });

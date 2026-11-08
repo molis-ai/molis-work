@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { insideOpenPluginCall, type PluginInstance } from "./action-scope.js";
 
 /**
@@ -95,7 +96,7 @@ function members(target: object): Map<string, PropertyDescriptor> {
 }
 
 const isClient = (value: unknown): value is object =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && !ArrayBuffer.isView(value) && !isThenable(value);
+  isRecord(value) && !ArrayBuffer.isView(value) && !isThenable(value);
 
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   (typeof value === "object" || typeof value === "function") && value !== null && typeof Reflect.get(value, "then") === "function";

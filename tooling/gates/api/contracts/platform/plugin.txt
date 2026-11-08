@@ -2289,6 +2289,10 @@ export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration
 }
 
 export interface HomeStoreDeclaration {
+    readonly replication?: (home: string, ownerId: string) => {
+        close(): void;
+        replica(context: import('./plugin-sync-registration.js').AggregateReplicaContext): import('./sync-transport.js').SyncReplicaAdapter;
+    };
     readonly path: string;
     readonly library?: {
         readonly baseline: {
@@ -2626,6 +2630,7 @@ export interface PluginAgentRunInput {
     task: string;
     workspace_id?: string;
     timeout_ms?: number;
+    grant_subject?: string;
 }
 
 export interface PluginAgentRunResult {
@@ -2636,6 +2641,7 @@ export interface PluginAgentRunResult {
 
 export interface PluginAppContribution {
     kind: "app";
+    sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];
@@ -3009,6 +3015,14 @@ export interface PluginExecutorHandle {
 }
 
 export interface PluginHostServices {
+    readonly sync?: import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncClient;
+    readonly savedHistory?: {
+        view(json: string): import("@molis-ai/molis-work-contracts/services/agent-host").AgentSavedHistoryView;
+        validate(json: string): {
+            sessionId: string;
+        };
+        read(runtimeId: string, sessionId: string): Promise<string>;
+    };
     readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
     readonly projects?: import("platform/plugin-projects").PluginProjectsClient;
@@ -3360,6 +3374,7 @@ export interface PluginLocalToolsDeclaration {
 }
 
 export interface PluginManifest {
+    sync?: import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncDeclaration;
     schema_version: 1;
     plugin_id: string;
     version: string;
@@ -3456,6 +3471,8 @@ export interface PluginManifest {
     notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
+    read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
+    task_subjects?: import("platform/plugin-task-subjects").PluginTaskSubjectsDeclaration;
 }
 
 export interface PluginManifestDatabases {
@@ -3906,6 +3923,13 @@ export interface PluginProjectsClient {
     }): Promise<Readonly<Record<string, boolean>>>;
 }
 
+export interface PluginReadGroupDeclaration {
+    readonly group_id: string;
+    readonly title: string;
+    readonly description: string;
+    readonly actions: readonly string[];
+}
+
 export interface PluginRequirementDeclaration {
     capability_id: string;
     version: number;
@@ -4062,9 +4086,129 @@ export interface PluginStartContext {
     grants: readonly string[];
     project_id?: string;
     readonly actor_id?: string;
+    readonly sync?: import('./plugin-sync.js').PluginSyncContext;
+    readonly copy?: import('./plugin-sync.js').PluginSyncContext;
     input_group?: string;
     readonly services?: PluginHostServices;
     requireGrant(permission: string): void;
+}
+
+export interface PluginSyncBinding {
+    readonly hasReference?: (projectId: string, assetId: string, version?: number) => boolean;
+    readonly prepareUploads?: () => Promise<readonly {
+        key: string;
+        error: unknown;
+    }[]>;
+    readonly collection_id: string;
+    readonly replica: import('./sync-transport.js').SyncReplicaAdapter;
+    readonly content?: import('./sync-transport.js').SyncContentCodec;
+    readonly copy?: (direction: 'source' | 'target') => import('../services/placement.js').ProjectCopyOwner;
+    readonly locate?: (key: string) => string | null;
+}
+
+export interface PluginSyncBusinessDatabase extends PluginSyncBusinessReader {
+    exec(sql: string): unknown;
+    prepare(sql: string): {
+        get(...parameters: import('./plugin-database.js').PluginSqlValue[]): import('./plugin-database.js').PluginSqlRow | undefined;
+        all(...parameters: import('./plugin-database.js').PluginSqlValue[]): import('./plugin-database.js').PluginSqlRow[];
+        run(...parameters: import('./plugin-database.js').PluginSqlValue[]): unknown;
+    };
+}
+
+export interface PluginSyncBusinessReader {
+    prepare(sql: string): {
+        get(...parameters: import('./plugin-database.js').PluginSqlValue[]): import('./plugin-database.js').PluginSqlRow | undefined;
+        all(...parameters: import('./plugin-database.js').PluginSqlValue[]): import('./plugin-database.js').PluginSqlRow[];
+    };
+}
+
+export interface PluginSyncClient {
+    sections(collectionId: string, definition: import("platform/plugin-sync-sections").SyncSectionsDefinition): PluginSyncBinding;
+    collectionCopy(collectionId: string, definition: PluginSyncCollectionDefinition, direction: 'source' | 'target'): import('../services/placement.js').ProjectCopyOwner;
+    collection(collectionId: string, definition: PluginSyncCollectionDefinition): import("@molis-ai/molis-work-contracts/platform/sync-transport").SyncReplicaAdapter;
+    retain(collectionId: string, transaction: import('./plugin-database.js').PluginDatabaseTransaction, key: string, value: unknown): void;
+    aggregate(collectionId: string, definitions: readonly SyncAggregateDefinition[]): import('./sync-transport.js').SyncReplicaAdapter;
+    copy(collectionId: string, definitions: readonly SyncAggregateDefinition[], direction: 'source' | 'target'): import('../services/placement.js').ProjectCopyOwner;
+}
+
+export interface PluginSyncCollection {
+    readonly id: string;
+    readonly title: string;
+    readonly schema_version: number;
+    readonly database?: "home" | "project";
+    readonly requires: readonly string[];
+    readonly tracking?: readonly SyncTrackedTable[];
+    readonly sections?: import("platform/plugin-sync-sections").SyncSectionsDeclaration;
+    readonly aggregates?: readonly SyncAggregateDeclaration[];
+}
+
+export interface PluginSyncCollectionCopy {
+    readonly kind: string;
+    keys(database: PluginSyncBusinessReader, projectId: string): readonly string[];
+    key(reference: import('../services/placement.js').ProjectCopyReference): string;
+    validate(asset: import('../services/placement.js').ProjectCopyAsset, context: import('./plugin-sync-registration.js').AggregateReplicaContext): void;
+    references(asset: import('../services/placement.js').ProjectCopyAsset): readonly import('../services/placement.js').ProjectCopyReference[];
+    fork(asset: import('../services/placement.js').ProjectCopyAsset, identity: import('../services/placement.js').ProjectCopyIdentity): import('../services/placement.js').ProjectCopyAsset;
+    equivalent(left: unknown, right: unknown): boolean;
+}
+
+export interface PluginSyncCollectionDefinition {
+    readonly copy?: PluginSyncCollectionCopy;
+    readonly tracking: readonly SyncTrackedTable[];
+    create(database: PluginSyncBusinessDatabase, context: PluginSyncOwnerContext): PluginSyncCollectionOwner;
+}
+
+export interface PluginSyncCollectionOwner {
+    authorizeKey(key: string, value?: unknown): void;
+    read(key: string): unknown | null;
+    apply(key: string, value: unknown | null): void;
+    canUpload?(key: string): boolean;
+    belongsToProject?(key: string, projectId: string, retained: () => readonly import('./sync-transport.js').SyncMutation[]): boolean;
+    locate?(key: string): string | null;
+}
+
+export interface PluginSyncContext {
+    readonly spaceId: string;
+    readonly documents?: Readonly<Record<string, import("platform/plugin-sync-registration").SyncDocumentStorage>>;
+    assertActive(): void;
+}
+
+export interface PluginSyncDeclaration {
+    readonly protocol_version: 1;
+    readonly collections: readonly PluginSyncCollection[];
+}
+
+export interface PluginSyncIdentity {
+    readonly plugin_id: string;
+    readonly publisher_id: string;
+    readonly publisher_signature: string;
+}
+
+export type PluginSyncOwnerContext = import('./plugin-sync-registration.js').AggregateReplicaContext & {
+    readonly actorId: string;
+};
+
+export interface PluginSyncSnapshot extends PluginSyncIdentity {
+    readonly protocol_version: 1;
+    readonly spaceId: string;
+    readonly projectId: string;
+    readonly collection_id: string;
+    readonly schema_version: number;
+    readonly source_revision: string;
+    readonly payload: unknown;
+}
+
+export interface PluginSyncSnapshotAdapter {
+    readonly declaration: PluginSyncDeclaration;
+    read(collectionId: string): PluginSyncSnapshot;
+    apply(snapshot: PluginSyncSnapshot, expectedRevision: string): {
+        status: "applied" | "unchanged";
+        revision: string;
+    };
+}
+
+export interface PluginTaskSubjectsDeclaration {
+    readonly kind: string;
 }
 
 export interface PluginTerminalClient {
@@ -4128,7 +4272,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -4851,6 +4995,134 @@ export interface SubjectOffersInput {
 
 export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;
+}
+
+export type SyncAggregateDeclaration = Omit<SyncAggregateDefinition, 'validate' | 'dependencies' | 'copy'>;
+
+export interface SyncAggregateDefinition {
+    kind: string;
+    table: string;
+    columns: readonly string[];
+    children: readonly {
+        table: string;
+        parent: string;
+        columns: readonly string[];
+        orderBy: string;
+        identityColumns?: readonly string[];
+    }[];
+    versionColumn?: string;
+    timestampVersionColumn?: string;
+    busyColumn?: string;
+    validate(value: SyncAggregateRecords): void;
+    dependencies?(value: SyncAggregateRecords, context: import('./plugin-sync-registration.js').AggregateReplicaContext, projectId: string, database?: PluginSyncBusinessReader): void;
+    copy?: {
+        kind: string;
+        references?(value: SyncAggregateRecords, projectId: string): readonly import('../services/placement.js').ProjectCopyReference[];
+        rebase?(value: SyncAggregateRecords, identity: import('../services/placement.js').ProjectCopyIdentity): void;
+    };
+}
+
+export interface SyncAggregateRecords {
+    record: SyncPortableRow;
+    children: Record<string, SyncPortableRow[]>;
+}
+
+export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit" | "unavailable";
+
+export type SyncKeyPart = {
+    readonly column: string;
+} | {
+    readonly literal: string | number | null;
+} | {
+    readonly scope: "projectId";
+};
+
+export type SyncPortableRow = Record<string, string | number | null>;
+
+export interface SyncSectionDeclaration {
+    readonly id: string;
+    readonly tables: readonly SyncSectionTable[];
+    readonly journalTypes: readonly string[];
+    readonly receiptOperations: readonly string[];
+    readonly sequenceFields: readonly string[];
+}
+
+export interface SyncSectionDefinition extends SyncSectionDeclaration {
+    validate(rows: ProjectReplicaRows, projectId: string): void;
+    project?(rows: ProjectReplicaRows, projectId: string): ProjectReplicaRows;
+    beforeClear?(local: ProjectReplicaRows, projectId: string): void;
+    restore?(rows: ProjectReplicaRows, local: ProjectReplicaRows, projectId: string): ProjectReplicaRows;
+    contentRefs?(rows: ProjectReplicaRows, projectId: string): readonly string[];
+}
+
+export interface SyncSectionTable {
+    readonly name: string;
+    readonly columns: readonly string[];
+    readonly keys: readonly string[];
+    readonly keepRoot?: boolean;
+    readonly projectColumn?: string;
+    readonly parent?: {
+        readonly table: string;
+        readonly column: string;
+        readonly key: string;
+        readonly projectColumn?: string;
+    };
+}
+
+export interface SyncSectionsDeclaration {
+    readonly kind: string;
+    readonly business: readonly SyncSectionDeclaration[];
+    readonly platform: readonly ('goal-context' | 'attention')[];
+    readonly journal: boolean;
+    readonly journalIgnoredTypes?: readonly string[];
+}
+
+export interface SyncSectionsDefinition extends Omit<SyncSectionsDeclaration, 'business'> {
+    readonly business: readonly SyncSectionDefinition[];
+    validate?(facts: Readonly<Record<string, ProjectReplicaRows>>): void;
+}
+
+export interface SyncTrackedTable {
+    readonly existsAny?: readonly {
+        readonly table: string;
+        readonly match: readonly {
+            readonly column: string;
+            readonly rowColumn: string;
+        }[];
+    }[];
+    readonly updateAny?: readonly {
+        readonly changed: readonly string[];
+        readonly where?: readonly {
+            readonly column: string;
+            readonly op: "in" | "not-null";
+            readonly values?: readonly string[];
+        }[];
+    }[];
+    readonly table: string;
+    readonly key: readonly SyncKeyPart[];
+    readonly lookup?: {
+        readonly table: string;
+        readonly match: readonly {
+            column: string;
+            rowColumn: string;
+        }[];
+    };
+    readonly where?: readonly {
+        column: string;
+        op: 'eq' | 'gt';
+        value: string | number | null | {
+            readonly actorId: true;
+        };
+    }[];
+    readonly revision?: {
+        readonly table: string;
+        readonly key: readonly {
+            column: string;
+            rowColumn: string;
+        }[];
+        readonly column: string;
+        readonly rowColumn: string;
+    };
 }
 
 export declare const WORKFLOW_CONTENT_SCHEMAS: {

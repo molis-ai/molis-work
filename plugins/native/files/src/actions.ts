@@ -1,5 +1,5 @@
 import { defineFileContentAction, defineFileEntriesAction, fileContentOf, fileEntriesPage, type ActionDefinition, type ActionHandlerBinding, type FileEntry, type FileEntriesInput, type FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
+import { createActionDefinition, bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { object, id, integer, path, rootPath, workspace, fileResult, nullable, snapshot, publication } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -9,11 +9,8 @@ import type { ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modul
 import { parseReadingPosition, serializeReadingPosition, READING_POSITION_KEY, type ReadingPosition } from "./position.js";
 import { filesErrors } from "./errors.js";
 
-
-const define = <Input, Output>(capability_id: string, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => ({
-  capability_id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project",
-    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema },
-});
+const define = <Input, Output>(capability_id: string, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => createActionDefinition<Input, Output>(capability_id, "command", { title, description,
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema });
 /**
  * An action that cannot work without reading the linked folder says so: it needs the one workspace read action, and the
  * callers of the action hold `workspace:read` for it (a declaration never grants what the dependency needs).

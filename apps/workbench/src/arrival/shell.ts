@@ -30,6 +30,8 @@ export interface ArrivalPrimitives extends ArrivalShellPrimitives {
 type ArrivalScreen = "chooser" | "opening" | "welcome" | "onboard" | "update";
 
 interface ArrivalTitlebarOptions {
+  /** The chooser keeps the account/space switcher available before opening a project. */
+  account?: boolean;
   /** The AI caption sits beside the wordmark on the chooser only. */
   caption?: boolean;
   /** The Home tools, capabilities, settings and the right side's tabs; the opening has none of them. */
@@ -73,7 +75,8 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     // The right side's tabs end the bar, as on a project page: the Home's side views, and the background tasks where they are read.
     const side = renderSideStrip(p, homePluginSideTabs(), { projectTools: false, tasks: options.tasks === true });
     const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}${side.includes("data-side-tab=") ? side : ""}</span>`;
-    return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${global}</nav>`;
+    const account = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" data-account-link aria-label="${L("账号管理")}">${icon("user")}<span data-slot="button-label" data-personal-name>${L("未登录")}</span></button>` : "";
+    return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${account}${global}</nav>`;
   }
 
   /** The titlebar: the mark and its wordmark, the caption on the chooser, and what is within reach on the right. */

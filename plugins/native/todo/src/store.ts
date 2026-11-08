@@ -82,7 +82,7 @@ export class TodoStore extends TodoStoreWrites {
    */
   revert(target: { change_id?: string; batch_id?: string }, access: TodoAccess): { items: TodoItem[]; removed_ids: string[] } {
     const rows = target.batch_id
-      ? changeRows(this.db.all("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY rowid", [target.batch_id]))
+      ? changeRows(this.db.all("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY revision_after, rowid", [target.batch_id]))
       : changeRows(this.db.all("SELECT * FROM todo_changes WHERE change_id = ?", [target.change_id ?? ""]));
     if (!rows.length) throw todoErrors.not_found("找不到要撤销的修改");
     const changes = rows.map(changeFromRow);

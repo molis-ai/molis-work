@@ -78,6 +78,9 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
+    // The platform's reads area (specs/proactive-assistant/task-grants-platform-area.md) is not drawn yet: every `place` is refused
+    // with one fixed error and nothing reaches the shell. P3-1 replaces this with the frame half that reports the element's place.
+    taskGrants: { place: () => Promise.reject(new Error("Unavailable")) },
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,

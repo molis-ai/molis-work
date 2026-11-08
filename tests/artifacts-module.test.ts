@@ -3,7 +3,7 @@ import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-s
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import * as artifactsPackage from "@molis-ai/molis-work-module-artifacts";
 import {
   artifactContentDigest,
@@ -22,7 +22,7 @@ import type {
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 function createHarness() {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE project_root (
@@ -337,7 +337,7 @@ test("Artifact reference digest mismatch is rollback-safe, and the owner schema 
     db.close();
   }
 
-  const schemaDb = new Database(":memory:");
+  const schemaDb = openTestSqlite(":memory:");
   try {
     schemaDb.exec(`
       CREATE TABLE project_root (

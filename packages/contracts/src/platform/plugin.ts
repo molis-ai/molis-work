@@ -16,6 +16,7 @@ export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
+export * from "./plugin-sync.js";
 export * from "./plugin-database.js";
 export * from "./plugin-attention.js";
 export * from "./plugin-scenes.js";
@@ -105,6 +106,8 @@ export interface PluginIntegrationContribution {
  */
 export interface PluginAppContribution {
   kind: "app";
+  /** Optional implemented collections; a declared but undelivered collection stays unavailable. */
+  sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
   /** Renderers for the views the Manifest declares. */
@@ -143,6 +146,10 @@ export interface PluginStartContext {
   project_id?: string;
   /** Trusted local owner for HTTP entrypoint binding; never read from business arguments. */
   readonly actor_id?: string;
+  /** Trusted personal-space binding. Absent in local spaces and bare executors. */
+  readonly sync?: import('./plugin-sync.js').PluginSyncContext;
+  /** Space identity for explicitly authorized saved-content copying; never grants sync admission. */
+  readonly copy?: import('./plugin-sync.js').PluginSyncContext;
   /** Input group the Host validated at activation. Undefined means no selection; never the first group. */
   input_group?: string;
   /** Available when running through the application Host, not a bare reference executor. */
@@ -153,7 +160,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -324,6 +331,8 @@ export interface IntegrationProviderPort {
 export { pluginErrors } from "./plugin-errors.js";
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "./plugin-agents.js";
+export type { PluginReadGroupDeclaration } from "./plugin-read-groups.js";
+export type { PluginTaskSubjectsDeclaration } from "./plugin-task-subjects.js";
 
 export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "./plugin-installations.js";
 

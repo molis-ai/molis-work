@@ -2,7 +2,7 @@ import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionL
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
-import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
+import { objectSchema as object, compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 import { diffViewText, renderDiff, type DiffViewText } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { diffErrors } from "./errors.js";
@@ -10,7 +10,6 @@ import { DIFF_EN } from "./en.js";
 import { DIFF_MESSAGES, DIFF_TEMPLATES } from "./messages.js";
 import { DIFF_LABELS } from "./ui.js";
 
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
 const text = { type: "string" }, version = { type: "integer", minimum: 1 }, count = { type: "integer", minimum: 0 }, boolean = { type: "boolean" };
 const reference = object({ artifact_id: { type: "string", minLength: 1 }, version });
 const side = object({ workspace_id: text, workspace_name: text, path: text, source_plugin_id: text, content_version: version });

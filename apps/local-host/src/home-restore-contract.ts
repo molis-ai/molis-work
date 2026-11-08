@@ -16,6 +16,7 @@ export interface HomeRestoreIncomingFile {
 }
 export interface HomeRestoreDirectory { readonly path: string; readonly mode: number }
 export interface HomeRestoreInputs {
+  readonly initializeLocalSpace?: string;
   readonly manifest: HomeSnapshotManifest;
   readonly registry: HomeSnapshotStoreRegistry;
   readonly files: ReadonlyMap<string, HomeRestoreIncomingFile>;

@@ -1,3 +1,4 @@
+import {renderSyncIndicator} from './sync-indicator.js';
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { withPluginWords } from "./i18n.js";
@@ -255,7 +256,7 @@ export function renderWorkbenchBar(
     <div class="bar-end">
       <div class="bar-side"><button class="bar-chat" type="button" data-side-toggle aria-expanded="false" aria-controls="side-panel" data-craft-tip="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}" aria-label="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}">${icon("sidebar")}</button></div>
       ${renderSidePanel(primitives, parts.sideTabs ?? [], { tasks: true })}
-      ${parts.projectChrome}
+      ${renderSyncIndicator(primitives)}${parts.projectChrome}
     </div>
   </div>`;
 }

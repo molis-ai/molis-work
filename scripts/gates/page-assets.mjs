@@ -263,10 +263,32 @@ const headErrors = (measured, budget, base) => {
 // workbench.js +169 B: the fallback naming asks no surfaces without a project, and the attention poll stops at its first 404 per
 // address. (The BL-952 and N53 entries these two replace are spent: the merge-base budget holds their ceilings.) Tried: the shared
 // read is one Map with no expiry timer, the project check reads the body's existing data-project-id, no new helper or asset.
+// BL-952 (2026-11-04): the selection reader skips headings inside a closed dialog or a hidden element, +56 B on workbench.js and on
+// plugin-frame.js (the same reader). Tried: one `closest` test with a short selector, no feature check, no second path.
+// WORK-03 (2026-11-05, explicitly approved by the user): product-local account forms and protected GET.
+// Reuses existing controls and request helper, minifies the typed browser program, and adds no served asset.
+// Exact growth: workbench.js +6876 B, plugin-frame.js +54 B, each stylesheet +452 B; see specs/unified-account/spec.md.
+// WORK-04 (2026-11-05, explicitly approved by the user): provider window/native opener, cancellation and result polling.
+// Reuses the same dialog, request helper and existing native bridge; minified into workbench.js, +1562 B more (8438 B total).
+// WORK-05 (2026-11-05, explicitly approved by the user): profile and security forms share verification helpers, minified in the existing bundle. +8,994 bytes over 1,083,008; no other asset changes.
+// WORK-06 (2026-11-05, explicitly approved by the user): tenant/member/platform forms reuse the account UI and pagination; +8,918 bytes over 1,092,002, minified in the same bundle with no new assets.
+// WORK-07 (2026-11-05, explicitly approved by the user): subscription, seat and platform forms share cards, fields and error states; +10,408 bytes over 1,100,920, minified into the existing bundle. No other assets grow.
+// WORK-08 (2026-11-05, explicitly approved by the user up to +2,374 bytes): entitlement sources reuse subscription UI and the request helper; final +2,340 bytes over 1,111,328 after removing invalid cross-batch revision comparison. Other assets unchanged.
+// T-01 integration: rebase the already approved account deltas onto main a00f5ba1.
+// The integrated measurement adds exactly the same account bytes: +410 / +452 / +39629 / +54.
+// Upstream growth is already in main; this rebases the admission and grants no additional growth.
+// K-07 (2026-11-06, explicitly approved): arrival side panels follow the stage grid above the wrapping bar.
+// Scoped selectors were shortened; arrival.css adds exactly 273 B over 690296, with no new asset.
+// Main #1747 reduced workbench.css by 4 B; preserve its approved +452 B on the new 1194521 B base.
+// ASC-56 (第 13 批⑦, approved by the user on 2026-11-05): the model settings page fetches the models a service offers and lists
+// them with the board's combobox to filter and pick. settings.css +271 B and workbench.css +271 B (header alignment, the picked mark,
+// the listed name), workbench.js +2357 B (fetch, filter, pick, keyboard). These add on top of the account entries above, which
+// share the same merge-base. Tried: the picker reuses `.model-field` and the board's combobox styles, the save and the fetch share
+// one key helper, the list header needs no wrapper; a first cut was +754/+754/+3441.
 // 07-S0 (workbench navigation specimens; 07 批评审台与 D 轨合审审过（#1852）): the README's new tab-strip, titlebar and
 // three-zone bar classes ship in the product sheets so the 07 slices reuse them instead of redrawing.
-// workbench.css +9524 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
-// the phone titlebar's strip (6241 B), the glyph row with its own tab and count (2736 B, glyph-tabs.ts) and the bar zones (547 B).
+// workbench.css +9705 B: tab tiers, the all-tabs and ＋ menus, gone/removed marks, the layout button's hairline, touch rules and
+// the phone titlebar's strip (6422 B), the glyph row with its own tab and count (2736 B, glyph-tabs.ts) and the bar zones (547 B).
 // arrival.css +3283 B: the same glyph row, which the arrival titlebar draws without the project page's tab rules, and the bar
 // zones. settings.css +547 B: the bar zones through craft-finish. (The BL-953 entries for these three are spent: the merge-base
 // budget holds their ceilings.) Tried: the board-only scaffolding stays inline on the board's frame page; the layout button is
@@ -274,38 +296,74 @@ const headErrors = (measured, budget, base) => {
 // body.immersive-workbench prefix where no rule competes (it stays on the tab, group and toggle overrides); one class for the
 // strip's text buttons and one per state for the glyph tab instead of repeated :is() lists; a rule duplicating the base tab
 // weight removed; the three blocks are written without spaces after ':' and ';', as the host only strips comments and indentation.
-// 07-S1 (the right side joins the tab workspace, 待 07 批评审台审; stacked on 07-S0, so keyed on its budget): workbench.js
-// +9930 B: the side's rules in the workspace state (withSidePane: open, select, close and reopen through the shared closed
-// stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background tasks as a side view
-// with its count, and a removed plugin's tabs kept and marked with the stage that says how to add it back. After the review
-// (B1-B3 and its small fixes) it is +12340 B: a removed plugin's side tab drawn in place, the strip keeping its current tab in
-// view, ⌘\ heard after an editor, and a collapse undone with its tab. 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S1），
-// 待 07 批评审台审代码冗余. plugin-frame.js +129 B: Mod+Backslash handed up from a frame, named by the character typed.
-// The sheets fall (workbench.css -1219 B, arrival.css -5247 B, against 07-S0's adc08f54f budget): the side's own
-// tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab classes, less the narrow strip's scroll. (The N53/N54 entries
-// for these two scripts are spent once 07-S0 lands: its budget holds their ceilings.) Tried: the side reuses the workspace's
-// persist, closed stack and removed-plugin check instead of keeping its own; the old side-tab, side-ratio and discussion-ratio
-// keys are dropped, not read; the rules' comments sit above the function, not in the shipped body.
-// 07-S2 (open, recall and layout; stacked on 07-S1, so keyed on its a1685bf39 budget, whose 07-S1 entries are spent there):
-// workbench.js +13623 B: ＋ as an open-only list from the Host's directory (three sections, where each one already is, ⌥↵
-// beside, search), the titlebar's layout menu (split, move to the right, 独看 as `solo`, merge, collapse, equal widths, close,
-// go to a column; 独看 of the right side too, which takes the stage, as the design has it, numbered as they read; the focused item kept in view), the tab menu's move and side-by-side rows, one recall for the Dock, ＋, the switcher and deep links, a main
-// tab moved to the right side in the pane page and back, and the side's own way back (返回) and remembered closed tabs. About
-// 5 KB of it is the code's comments, which the client scripts ship as written (a build that drops them is its own change).
-// 用户 2026-11-05 弹窗批准超过 10 KB 的一次性放行（07-S2），07 批评审台审过（#1867）. workbench.css +136 B: 独看 of the right side (the
-// side over the stage, the main stage and the divider hidden, kept: 233 B), less the strip's split button and the old layout
-// menu's bare-button rules, gone, and the design system's dead .tab-split-button selectors (-95 B in each of the three
-// sheets, so arrival.css and settings.css fall too); 独看 also hides the other panes, the layout button ends the title bar
-// (44 px where the pointer is coarse), a cover's name may give way in a short one, and ＋ stays lit while its list is open. Tried: the right side's tab menu and undo chip are the main area's (only the way
-// in, with no tab workspace, keeps small ones of its own, inline in its page), which took 1.2 KB back; the home tab's code,
-// the per-strip split button and the old ＋ menu are gone rather than kept beside the new ones.
+// On main's base after ASC-56 (settings.css 826998, workbench.css 1194792) the account and ASC-56 entries for those two are spent,
+// so 07-S0 keys its own there; arrival.css still shares the 689886 key with the account admission, and 07-S0's ceiling there
+// also covers the account PR's +683 B. Whichever lands second moves its own entry onto the new base.
+// BL-912 (07-S4a, admitted by the 07 batch review desk, 2026-11-05): a Home package's tab uses the icon its stage view picked: workbench.js +37 B, the
+// one tab-strip line reads the section's `data-installed-plugin-icon` before it falls back to the default. Tried: no new helper or
+// table, the attribute is read in the statement that already chose the default. On main's new 1077477 base it is its own entry; the
+// account entry keyed on 1075120 is spent there (ASC-56 used it), so it is replaced.
+// FCS-01/02 (#1859, independently reviewed): camera-only Frame sync retains the pressed block and completed body.
+// The exact main 2e973052 merge tree measured workbench.js 1077514 -> 1077683 B (+169) in CI job 127713083627.
+// Tried moving inline comments out of the factory; the Host already strips them, so it saved nothing. No new helper or byte-golf.
+// ASC-57 (第 13 批②, 2026-11-06): after a key change or a provider removal the page points out the old key nothing uses and
+// offers to remove it or keep it. settings.css +248 B and workbench.css +248 B (the notice and the delete confirm share one
+// spaced row, which also stops the confirm's two buttons touching), workbench.js +1035 B (the notice, remove, keep). Keyed on
+// the merge-base after #1859. Tried: the notice reuses the delete confirm's rule and buttons, removing the key edits
+// the select in place instead of reloading the page, the host names no key so the page needs no second string.
+// ASC-59 (第 13 批③, #1865; admitted by the batch 13 coordinator on 2026-11-06: under 10 KB, no new asset): after logging in again
+// to a remote MCP service, the connections page offers to move what used the old connection to the new one, says what it could and
+// could not check (Coding's MCP settings, unread reporters), asks once before removing the old one (with cancel), and names the new
+// connection apart from the old. workbench.js +6558 B over 1078718, the budget at merge-base b1e0e5b6 (main after #1858; ASC-57's
+// entry keyed on 1077683 is spent there and replaced). Tried, from a first cut of +6199: the switch outcome counted per
+// usage instead of per code, the pair checked on the rows themselves instead of a serialized helper, the reasons table cut to the
+// codes an MCP connection's consumers can answer, errors through the page's own fail(), the two explanations and the two removal
+// confirmations sharing one sentence each; no new style or asset.
+// ASC-58 (13 批⑥, #1870, admitted by the coordinator after the review desk's measurement, 2026-11-06): a connection's notice in
+// the Assistant's "等你处理": workbench.js +573 B, keyed on main's budget 1085274 (after #1865 and #1790; ASC-59's workbench.js entry keyed on 1078718
+// is spent there, so it is replaced). About 330 B are the three English notice sentences and the rule kind's name (they follow the
+// UI language); the rest is `connection` in URGENT, the one-regex settings-path check, the open branch and hiding "打开". Tried:
+// the page sends the registered molis-work:open-settings-path and leaves the same-origin and S-47 parameter checks to the
+// settings' own listener (no third copy); the status and rule-form wording added in review is rendered by the Host, not shipped.
+// ASC-60～63 (第 13 批④b, #1881, admitted by the batch 13 coordinator after the review desk on 2026-11-06): the model settings page
+// and Images' image-service dialog as plan A. settings.css +2529 B and workbench.css +2529 B: the catalog's step progress as it is
+// (about 1.25 KB, split out of SERVICE_CONNECTION_PART_STYLES and referenced, not copied), the four rows, 高级, the save bar, the
+// rate-limit box and the model row's two lines (container queries; its icon buttons take the ID field's height so the first line shares one top edge). workbench.js +3724 B: the progress function shared with the
+// catalog (819 B, bundled from service-connection-item.ts), the coded check's split (a refused key under its field, saying whether
+// it was the new key or the one in use; the 429 recheck) and ↵ to save. images.js +1207 B: the presets' models and sizes, the
+// service choice and 高级, the compose form's size list; images.css +50 B: 高级's field spacing (the old preset rules removed).
+// Keyed on merge-base after #1870 (workbench.js 1085847, workbench.css 1204709, images.js 19896); the ASC-58 workbench.js entry is
+// spent there, so it is replaced. Tried: only the progress part of the shared styles is carried, not the rows and cards (about 3 KB); the rows,
+// alert and fold are existing components with layout only; the progress function is inlined in the existing script, no new asset;
+// what a 429 kept is said once. Removing spaces from the new rules would save about 80 B and was not done.
+// P3-0a (第 18 批, #1884; admitted by the batch 18 coordinator on 2026-11-06: under 10 KB, no new asset): the plugin host
+// contract gains `taskGrants`, and until P3-1 draws the area the frame answers it with a refusing placeholder:
+// plugin-frame.js +64 B, keyed on main's budget 188354 (after #1880). The plugin-frame.js entry keyed on 208271 (the +54 B #1843
+// reserved for the unified account) is spent there, since the budget is no longer 208271, so it is replaced, not summed.
+// Tried: from a first cut of +118 B (a module constant with a named DOMException and a long message) to an inline object with
+// one short fixed message; no cast.
+// 07-S1 (the right side joins the tab workspace; 用户 2026-11-05 一次性放行 workbench.js，07 批评审台审过 #1853，冗余两处记入 S2):
+// workbench.js +9673 B on main's budget (885295, after #1877 and #1880): the side's rules in the workspace state (withSidePane: open, select, close and reopen
+// through the shared closed stack, width, per-project restore), the glyph strip's grow, current and menu handling, the background
+// tasks as a side view with its count, a removed plugin's side tab drawn in place with the stage that says how to add it back, the
+// strip keeping its current tab in view, ⌘\ heard after an editor, and a collapse undone with its tab. The ASC-60～63 entry
+// keyed on 1085847 is spent on this base (main's budget 885295 is below its ceiling), so it is replaced. plugin-frame.js +129 B on
+// main's 188418 (after #1884): Mod+Backslash handed up from a frame, named by the character typed; P3-0a's entry keyed on 188354
+// is spent the same way, so it is replaced. The sheets fall (workbench.css -757 B, arrival.css -4768 B): the side's own tab and badge rules and the titlebar's background-tasks button gave way to 07-S0's glyph-tab
+// classes. Tried: the side reuses the workspace's persist, closed stack and removed-plugin check instead of keeping its own; the
+// old side-tab, side-ratio and discussion-ratio keys are dropped, not read; the rules' comments sit above the function, not in the
+// shipped body; the removed placeholder is one template (-262 B).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [689886, 693169],
-  "/assets/molis-work-plugins/coding.css": [74624, 75514],
-  "/assets/molis-work-settings.css": [826727, 827274],
-  "/assets/molis-work-workbench.css": [1202826, 1202962],
-  "/assets/molis-work-workbench.js": [1087460, 1101083],
-  "/assets/molis-work-plugin-frame.js": [208271, 208400],
+  "/assets/molis-work-settings.css": [827793, 830322],
+  "/assets/molis-work-workbench.css": [1204709, 1207238],
+  "/assets/molis-work-workbench.js": [885295, 894968],
+  "/assets/molis-work-plugin-frame.js": [188418, 188547],
+  // Same approved personal delta (+7755 B), rebased onto main 242d75d0; no additional growth.
+  "/assets/molis-work-plugins/coding.js": [290006, 297761],
+  "/assets/molis-work-plugins/cognia.js": [22157, 22189],
+  "/assets/molis-work-plugins/shelf.js": [64967, 65319],
+  "/assets/molis-work-plugins/images.js": [19896, 21103],
+  "/assets/molis-work-plugins/images.css": [7851, 7901],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

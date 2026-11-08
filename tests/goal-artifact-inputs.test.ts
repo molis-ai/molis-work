@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { LocalProjectDatabase, seedDemoGoals, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
@@ -99,7 +99,7 @@ test("a document taken as a Goal's input 「固定这一版」 is pinned by Page
 });
 
 test("inputs from anyone but the person are proposals, kept apart from deliverables", async () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   const ledger = createContextLedger(db, { authorize: () => true });
   const actions = new ActionService();
   actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: "project" },

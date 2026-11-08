@@ -1,3 +1,4 @@
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { ContextualDraft } from "@molis-ai/molis-work-contracts/services/contextual";
 import { assertActionInput, compileActionSchema } from "@molis-ai/molis-work-kernel";
 import type { HostTextRequestOptions } from "../host-complete-text.js";
@@ -40,7 +41,6 @@ export interface DraftInput {
 type DraftOutcome = Pick<ContextualDraft, "input" | "basis" | "missing" | "editable" | "kept" | "notes"> & Partial<Pick<ContextualDraft, "summary" | "said" | "fallback" | "model">>;
 
 const DRAFT_TIMEOUT_MS = 25_000;
-const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const present = (value: unknown): boolean => value !== undefined && value !== null && !(typeof value === "string" && !value.trim()) && !(Array.isArray(value) && value.length === 0);
 
 /** What needs no model: the provider's computed input, else the material placed in its field, and the request's name. */

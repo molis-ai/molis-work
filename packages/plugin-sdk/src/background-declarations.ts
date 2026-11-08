@@ -1,3 +1,4 @@
+import { isRecord } from "./json-value.js";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // The shape of a Manifest's `background` (PG-038): the jobs an activation may keep (`services.background.keep`). Only the shape and the
@@ -53,8 +54,4 @@ function wakeupProblems(value: unknown, actions: readonly ActionDefinition[]): s
     seen.add(key);
   }
   return problems;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

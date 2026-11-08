@@ -29,7 +29,7 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   const whole = (job: "security" | "product", input: Partial<Record<keyof Affected, unknown>> | null, pattern: RegExp, list: Array<string | { file: string; browser: boolean }> = LIST) => {
     const decision = decideJob({ job, list, affected: input, failure: input ? undefined : "affected-tests failed: boom" });
     assert.equal(decision.mode, "whole", `${pattern}: ${JSON.stringify(decision)}`);
-    assert.deepEqual(decision.shards, [1, 2], "whole is the two legs of today");
+    assert.deepEqual(decision.shards, job === "security" ? [1, 2, 3, 4] : [1, 2, 3], "whole is every leg of the job: four for the security invariants, three for the product subset");
     assert.deepEqual(decision.files, [], "whole names no files: an empty list is what the jobs read as the whole list");
     assert.ok(decision.reasons.some((reason: string) => pattern.test(reason)), `${pattern} in ${JSON.stringify(decision.reasons)}`);
   };
@@ -99,13 +99,15 @@ test("RAC-1760 every file the selection, affected-tests and the two runners load
   for (const file of product) assert.ok(trigger("product", file), `product: ${file} is loaded by its runner`);
 });
 
-test("RAC-1761 none skips the job; some runs the touched files on one runner when they fit in one shard, the smokes counted apart", () => {
+test("RAC-1761 none skips the job; some runs the touched files on as many runners as they need at the size of a shard, the smokes counted apart", () => {
   const none = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching("tests/not-in-the-list.test.ts") }) });
   assert.equal(none.mode, "none");
   assert.deepEqual(none.files, []);
-  const one = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 5), "tests/not-in-the-list.test.ts") }) });
-  assert.deepEqual({ mode: one.mode, shards: one.shards, files: one.files }, { mode: "some", shards: [1], files: LIST.slice(0, 5) }, "five of ten fit in one leg");
-  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 6)) }) }).shards, [1, 2], "six of ten do not");
+  const one = decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 3), "tests/not-in-the-list.test.ts") }) });
+  assert.deepEqual({ mode: one.mode, shards: one.shards, files: one.files }, { mode: "some", shards: [1], files: LIST.slice(0, 3) }, "three of ten fit in one of four legs (a shard of ten files is three)");
+  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 4)) }) }).shards, [1, 2], "four of ten do not");
+  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 6)) }) }).shards, [1, 2], "six of ten fill two legs of three");
+  assert.deepEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: touching(...LIST.slice(0, 8)) }) }).shards, [1, 2, 3], "eight of ten need a third");
   const smokes = PRODUCT.filter((entry) => entry.browser).map((entry) => entry.file);
   assert.deepEqual(decideJob({ job: "product", list: PRODUCT, affected: affected({ tests: touching(...smokes.slice(0, 2), LIST[0]!) }) }).shards, [1], "two of four smokes fit in one leg");
   assert.deepEqual(decideJob({ job: "product", list: PRODUCT, affected: affected({ tests: touching(...smokes.slice(0, 3), LIST[0]!) }) }).shards, [1, 2], "three of four smokes do not, however few other files");
@@ -124,7 +126,7 @@ test("RAC-1762 the outputs: files only for some, an anchored pattern that matche
   assert.ok(!only.test(`${LIST[1]}x`) && !only.test(`x${LIST[1]}`) && !only.test("tests/item-1-test-ts"), "anchored, and a dot is a dot");
   const whole = decideJob({ job: "security", list: LIST, affected: null });
   const wholeLines = outputLines({ security: whole, product: whole });
-  assert.ok(wholeLines.includes("security_files=") && wholeLines.includes("product_only=") && wholeLines.includes("security_shards=[1,2]"), wholeLines.join(" | "));
+  assert.ok(wholeLines.includes("security_files=") && wholeLines.includes("product_only=") && wholeLines.includes("security_shards=[1,2,3,4]"), wholeLines.join(" | "));
 });
 
 test("RAC-1762 the security list is test:security with its globs expanded over tests/", () => {
@@ -198,7 +200,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   commit("an invariant test");
   const invariant = select(root);
   assert.equal(invariant.outputs.security_mode, "whole", invariant.text);
-  assert.equal(invariant.outputs.security_shards, "[1,2]");
+  assert.equal(invariant.outputs.security_shards, "[1,2,3,4]");
   assert.equal(invariant.outputs.product_mode, "none", "the invariant test is not in the product list");
 
   const broken = select(root, "no-such-ref");
@@ -264,7 +266,7 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
     const job = jobBlock(name);
     assert.match(job, /^    needs: \[test-selection, queue-check\]$/m, name);
     assert.ok(job.includes(`    if: \${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (github.event_name != 'pull_request' || needs.test-selection.result != 'success' || needs.test-selection.outputs.${key}_mode != 'none') }}`), `${name}: only successful none skips on a PR; all other selections run, except a trusted verified push`);
-    assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '[1, 2]') }}`), `${name}: two legs unless a selection that succeeded said one`);
+    assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '${key === "security" ? "[1, 2, 3, 4]" : "[1, 2, 3]"}') }}`), `${name}: every leg unless a selection that succeeded said fewer`);
     assert.doesNotMatch(job, /^    continue-on-error:/m, `${name} blocks: a red run turns Verify red (decision #14, 2026-10-31)`);
     assert.ok(job.includes("${{ matrix.shard }}/${{ strategy.job-total }}"), `${name}: the shard is counted out of the legs that run`);
   }
@@ -282,26 +284,26 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
   const SECURITY_NONE = { ...SOME, security_mode: "none" };
   const PRODUCT_NONE = { ...SOME, product_mode: "none" };
   type Expected = { runs: boolean; shards?: number[]; list?: string };
-  const all: Expected = { runs: true, shards: [1, 2], list: "" };
+  const everything = { security: { runs: true, shards: [1, 2, 3, 4], list: "" } as Expected, product: { runs: true, shards: [1, 2, 3], list: "" } as Expected };
   const some: Expected = { runs: true, shards: [1], list: "some" };
   const none: Expected = { runs: false };
   const both = (expected: Expected) => ({ security: expected, product: expected });
   const cases: Array<[string, string, Record<string, string>, { security: Expected; product: Expected }]> = [
     ["pull_request", "success", NONE, both(none)],
     ["pull_request", "success", SOME, both(some)],
-    ["pull_request", "success", WHOLE, both(all)],
-    ["pull_request", "success", EMPTY, both(all)],
-    ["pull_request", "success", UNKNOWN, both(all)],
+    ["pull_request", "success", WHOLE, everything],
+    ["pull_request", "success", EMPTY, everything],
+    ["pull_request", "success", UNKNOWN, everything],
     ["pull_request", "success", SECURITY_NONE, { security: none, product: some }],
     ["pull_request", "success", PRODUCT_NONE, { security: some, product: none }],
     ...["failure", "cancelled", "skipped"].flatMap(result =>
       [NONE, SOME, WHOLE, EMPTY, UNKNOWN, SECURITY_NONE, PRODUCT_NONE].map(left =>
-        ["pull_request", result, left, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>])),
+        ["pull_request", result, left, everything] as [string, string, Record<string, string>, ReturnType<typeof both>])),
     ...["merge_group", "push", "schedule", "workflow_dispatch"].flatMap(event => [
-      [event, "skipped", EMPTY, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
+      [event, "skipped", EMPTY, everything] as [string, string, Record<string, string>, ReturnType<typeof both>],
       // A selector cannot legitimately succeed on these events; even stale successful some/none outputs are ignored.
-      [event, "success", SOME, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
-      [event, "success", NONE, both(all)] as [string, string, Record<string, string>, ReturnType<typeof both>],
+      [event, "success", SOME, everything] as [string, string, Record<string, string>, ReturnType<typeof both>],
+      [event, "success", NONE, everything] as [string, string, Record<string, string>, ReturnType<typeof both>],
     ]),
   ];
   for (const [name, key, env] of [["security-invariants", "security", "SELECTED"], ["product-subset", "product", "ONLY"]] as const) {

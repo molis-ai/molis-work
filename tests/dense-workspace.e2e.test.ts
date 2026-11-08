@@ -22,7 +22,8 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await click('[data-plugin-id=goals]');
   for(const id of ids)await openGoalFrame(`[data-goal-stage-list] [data-select-goal="${id}"]`);
-  assert.ok(await evaluate("document.querySelectorAll('.tab-item').length>=12"));
+  // The work's tabs only: 07-S1 put the right side's glyph tabs (also .tab-item) in the title bar on real pages, an expected change.
+  assert.ok(await evaluate("document.querySelectorAll('.tab-item:not([data-side-tabs] .tab-item)').length>=12"));
   await click('[data-plugin-id=feed]');
   for(const direction of ['right','bottom']) {
     await click('[data-layout-open]');await click(`[data-layout-split=${direction}]`);

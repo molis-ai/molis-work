@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, realpathSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -133,10 +133,16 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
 /** Owner-derived published bytes only; downloads do not initialize an identity or accept a caller-supplied path. */
 export async function readStudioDistribution(root: string, release: AgentRelease): Promise<PluginPackageBundle> {
   if (!release.distribution) throw new Error('这个版本没有签名分发包');
-  const directory = versionDirectory(root, release.buildId, release.version); releaseParent(root, release.buildId);
+  if (lstatSync(root).isSymbolicLink()) throw new Error('签名分发物不可读取');
+  const local = versionDirectory(root, release.buildId, release.version);
+  // Locally published releases have a version directory. Received bytes live only in immutable, hash-named staging.
+  const staged = relative(realpathSync(root), release.directory);
+  const received = /^sync\/[0-9a-f]{64}\/release-[1-9][0-9]*$/u.test(staged) && staged.endsWith('/release-' + release.version);
+  const directory = received ? join(realpathSync(root), staged) : local;
+  if (!received) releaseParent(root, release.buildId);
   const stat = lstatSync(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('签名分发物不可读取');
-  const { bundle } = verifyPluginPackageSignature(JSON.parse((await readBuildFile(directory, SIGNED, 64 * 1024 * 1024)).toString('utf8')));
+  const { bundle } = verifyPluginPackageSignature(JSON.parse((await readBuildFile(received ? realpathSync(root) : directory, received ? staged + '/' + SIGNED : SIGNED, 64 * 1024 * 1024)).toString('utf8')));
   if (bundle.payload.manifest.plugin_id !== release.pluginId || bundle.payload.manifest.version !== releaseVersion(release.version)
     || bundle.payload.manifest.publisher.signature !== release.distribution.publisher_key_id
     || (bundle.payload.manifest.runtime?.scope ?? 'project') !== release.distribution.runtime_scope) throw new Error('签名分发物与发布记录不符');

@@ -13,6 +13,23 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 const SPECIMENS = ["tiers", "unfocused", "all-tabs", "undo", "solo", "plus", "marks", "pane-switch", "grow", "badge", "sheets", "layout", "titlebar", "bar"];
 const WIDTHS = [1440, 1024, 390] as const;
 const CJK = /[㐀-鿿]/;
+// T01-NAV-FADE-01: both sheets resolve the shared name fade; the project sheet also carries pinned tabs.
+const FADES = `(() => {
+  const root = document.documentElement, still = root.hasAttribute('data-craft-still');
+  root.removeAttribute('data-craft-still');
+  try {
+    const selectors = ['[data-nav-sheet-row] [data-glyph-only]'];
+    if (document.querySelector('link[rel=stylesheet]').getAttribute('href').endsWith('workbench.css')) selectors.push('[data-nav-specimen=grow] [data-pinned]');
+    return selectors.map((selector) => {
+      const tab = document.querySelector(selector), name = tab.querySelector('.tab-item-name'), grown = tab.classList.contains('is-grown');
+      tab.classList.remove('is-grown'); name.getBoundingClientRect(); tab.classList.add('is-grown');
+      const animation = name.getAnimations().find((item) => item instanceof CSSAnimation);
+      const seen = { name: animation?.animationName, opacity: animation?.effect.getKeyframes().map((frame) => frame.opacity), duration: animation?.effect.getTiming().duration };
+      if (!grown) tab.classList.remove('is-grown');
+      return seen;
+    });
+  } finally { if (still) root.setAttribute('data-craft-still', ''); }
+})()`;
 const SPILL = `(() => { const W = document.documentElement.clientWidth;
   return [...document.querySelectorAll('.mw-navs__item')].flatMap((item) => [...item.querySelectorAll('*')].filter((el) => {
     const box = el.getBoundingClientRect(); if (!box.width || box.right <= W + 1) return false;
@@ -67,6 +84,19 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
       assert.ok(phone.title[0] <= phone.title[1], `${lang} ${state}: the current tab's title reads in full (${phone.title})`);
       assert.ok(phone.count, `${lang} ${state}: 全部标签 shows its whole count`);
       assert.deepEqual([phone.shown, phone.squeezed], [1, 0], `${lang} ${state}: only the current tab shows, at full width`);
+      const small = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar=${state}] :is(.tab-add-button, .tab-all-button, .titlebar-layout > .mw-btn, .tab-undo-chip)')].flatMap((b) => {
+        const box = b.getBoundingClientRect(); return box.width >= 44 && box.height >= 44 ? [] : [String(b.className).split(' ').pop() + ' ' + Math.round(box.width) + '×' + Math.round(box.height)]; })`);
+      assert.deepEqual(small, [], `${lang} ${state}: ＋, 全部标签, 布局 and the undo chip are 44 × 44 targets`);
+    }
+    // Each of the titlebar's menus opens inside the window (the page hides what runs past it sideways).
+    const outside = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar] [data-nav-menu-for]')].filter((b) => b.getBoundingClientRect().width).flatMap((b) => {
+      b.click(); const menu = document.getElementById(b.getAttribute('aria-controls')), box = menu.getBoundingClientRect(), edge = document.documentElement.clientWidth;
+      const seen = !menu.hidden && box.width > 0 && box.left >= 0 && box.right <= edge ? [] : [b.closest('[data-nav-titlebar]').dataset.navTitlebar + ' ' + menu.id + ' ' + Math.round(box.left) + '→' + Math.round(box.right) + ' of ' + edge];
+      b.click(); return seen; })`);
+    assert.deepEqual(outside, [], `${lang} ${width}px: the titlebar's ＋, 全部标签 and 布局 menus open inside the window`);
+    if (width <= 760) {
+      const send = await evaluate<[number, number]>("(() => { const box = document.querySelector('[data-nav-composer] .mw-btn').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()");
+      assert.ok(send[0] >= 44 && send[1] >= 44, `${lang}: the composer's send button is a 44 × 44 target on a phone (${send})`);
     }
     // Nothing in the titlebar covers ＋ or 全部标签: the glyph row keeps its width and the strip gives way.
     const covered = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar] :is(.tab-add-button, .tab-all-button)')].filter((b) => b.getBoundingClientRect().width).flatMap((b) => {
@@ -121,11 +151,15 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
   // A menu button opens its menu; Esc closes it and gives the focus back to the button.
   const menu = await evaluate<{ opened: boolean; focusInside: boolean; closed: boolean; back: boolean }>(`(async () => {
     const button = document.querySelector('[data-nav-titlebar=ok] .titlebar-layout > .mw-btn'), menu = document.getElementById(button.getAttribute('aria-controls'));
+    const idle = getComputedStyle(button).backgroundColor, probe = document.createElement('i');
+    probe.style.background = 'var(--nav-hover)'; document.body.append(probe); const hover = getComputedStyle(probe).backgroundColor; probe.remove();
     button.click(); const opened = !menu.hidden && button.getAttribute('aria-expanded') === 'true', focusInside = menu.contains(document.activeElement);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const lit = getComputedStyle(button).backgroundColor === hover && hover !== idle;
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    return { opened, focusInside, closed: menu.hidden, back: document.activeElement === button };
+    return { opened, focusInside, lit, closed: menu.hidden, back: document.activeElement === button };
   })()`);
-  assert.deepEqual(menu, { opened: true, focusInside: true, closed: true, back: true });
+  assert.deepEqual(menu, { opened: true, focusInside: true, lit: true, closed: true, back: true }, "布局 opens its menu and looks open while it is, Esc closes it");
 
   // The glyph row is drawn by the arrival page's sheet too, without the project page's tab rules, and looks the same.
   const GLYPHS = `[...document.querySelectorAll('[data-nav-sheet-row] .tab-item')].map((tab) => {
@@ -142,6 +176,7 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
       await waitFor("document.readyState === 'complete' && !!document.querySelector('[data-nav-sheet-row] .tab-item')", 15_000);
       assert.equal(await evaluate<string>("document.querySelector('link[rel=stylesheet]').getAttribute('href')"), `/assets/molis-work-${sheet}.css`);
       drawn.push(await evaluate<string[]>(GLYPHS));
+      assert.deepEqual(await evaluate(FADES), Array.from({ length: sheet === "workbench" ? 2 : 1 }, () => ({ name: "craft-fade-in", opacity: ["0", "1"], duration: 130 })), `${theme} ${sheet}: glyph and pinned labels use the shared 130ms opacity fade`);
     }
     assert.equal(drawn[0]?.length, 5);
     assert.deepEqual(drawn[1], drawn[0], `${theme}: the arrival sheet draws the glyph row as the project page's does`);

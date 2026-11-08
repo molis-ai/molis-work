@@ -1,3 +1,4 @@
+import { syncBindings } from "./sync-binding.js";
 import { ActionError, resolveActionSubject, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assembleFeedApplication } from "./application-assembly.js";
@@ -199,7 +200,7 @@ export function createFeedPlugin(): PluginDefinition {
       return handlers[route_id]!({ params: request.params, request: { method: request.method, pathname: request.pathname,
         query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } }));
-    return { kind: "app", views: [feedUiContribution], action_scenes: [sceneRuntime.handler], routes,
+    return { kind: "app", sync: syncBindings(context), views: [feedUiContribution], action_scenes: [sceneRuntime.handler], routes,
       onEvent: (_event, delivery) => { delivery.beforeEffect(); watch.changed(); }, actions: [
       ...writer.writing(FEED_PROJECT_ACTIONS.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding)))),
       ...mine.filter(binding => own.has(idOf(binding))),

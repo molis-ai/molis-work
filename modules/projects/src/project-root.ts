@@ -15,7 +15,11 @@ export interface ProjectRootRow {
   readonly created_at: string;
 }
 
-export interface ProjectRootDatabase {
+interface ProjectRootReader {
+  prepare(sql: string): { all(...params: unknown[]): unknown[] };
+}
+
+export interface ProjectRootDatabase extends ProjectRootReader {
   prepare(sql: string): {
     run(...params: unknown[]): { changes: number | bigint };
     all(...params: unknown[]): unknown[];
@@ -29,7 +33,7 @@ export function writeProjectRoot(db: ProjectRootDatabase, projectId: string, cre
 }
 
 /** The root rows of a library, oldest first. */
-export function listProjectRoots(db: ProjectRootDatabase): ProjectRootRow[] {
+export function listProjectRoots(db: ProjectRootReader): ProjectRootRow[] {
   return (db.prepare("SELECT project_id, created_at FROM project_root ORDER BY created_at, project_id").all() as Array<Record<string, unknown>>)
     .map(row => ({ project_id: String(row.project_id), created_at: String(row.created_at) }));
 }

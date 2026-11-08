@@ -104,6 +104,7 @@ const NATIVE_PLUGIN_ENTRIES = nativePluginEntries(REPOSITORY_ROOT);
 export const REGISTERED_PLUGINS = NATIVE_PLUGIN_ENTRIES.filter((entry) => entry.registration !== undefined);
 
 export const WORKSPACE_PACKAGES = [
+  entry("modules/sync-replication", "@molis-ai/molis-work-contracts/modules/sync-replication", { maturity: "slice", extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"] }),
   entry("apps/server", "@molis-ai/molis-work-contracts/platform/app-host", {
     maturity: "experimental",
     extraWorkspaceDependencies: [
@@ -182,6 +183,7 @@ export const WORKSPACE_PACKAGES = [
     ],
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-module-sync-replication",
       "@molis-ai/molis-work-server",
       "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-plugin-sandbox",
@@ -278,6 +280,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("packages/storage", "@molis-ai/molis-work-contracts/platform/storage", {
     maturity: "production",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     extraDependencies: {
       "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
       "better-sqlite3": "12.8.0"
@@ -307,6 +310,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("packages/test-kit", "@molis-ai/molis-work-contracts/platform/testing", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"],
     capabilities: [
       "workspace-boundary-policy",
       "headless-chrome-driver",
@@ -337,6 +341,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("modules/private-work-context", "@molis-ai/molis-work-contracts/modules/private-work-context", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"],
     capabilities: [
       "runtime-context-bindings"
     ]
@@ -371,6 +376,7 @@ export const WORKSPACE_PACKAGES = [
       "characters.actions.v1"
     ],
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"
     ]
   }),
@@ -382,6 +388,7 @@ export const WORKSPACE_PACKAGES = [
       "functions.evaluate"
     ],
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"
     ]
   }),
@@ -394,6 +401,7 @@ export const WORKSPACE_PACKAGES = [
       "agent.run.start"
     ],
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"
     ],
     extraDependencies: {

@@ -246,6 +246,7 @@ export interface AgentFrozenRole {
     };
     character_skill_ids?: string[];
     subagent_workspaces?: AgentSubagentWorkspace[];
+    directories?: RunDirectories;
     subagents?: AgentFrozenSubagentRole[];
     character?: AgentFrozenCharacter;
     role_id: string;
@@ -1684,7 +1685,7 @@ export interface AgentSubagentView {
 }
 
 export interface AgentSubagentWorkspace {
-    workspace_id: string;
+    worktree_id: string;
     directory: AgentWorkingDirectory;
 }
 
@@ -2047,6 +2048,7 @@ interface AgentFrozenStartFields {
     execution_plan?: AgentExecutionPlan;
     continues_step_board_of?: string;
     subagent_workspaces?: AgentSubagentWorkspace[];
+    directories?: RunDirectories;
     character?: AgentFrozenCharacter;
     role_id: string;
     role_version: number;

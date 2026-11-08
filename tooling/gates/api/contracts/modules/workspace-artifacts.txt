@@ -231,7 +231,6 @@ export interface PreparedWriterDirectory {
     branch: string;
     base_commit: string;
     canonical_path: string;
-    workspace_id: string | null;
     problem?: string;
 }
 
@@ -423,7 +422,7 @@ export interface WriterIntegrationSource {
 
 export interface WriterIntegrationView {
     workspace_id: string;
-    writer_workspace_id: string;
+    worktree_id: string;
     source_path: string;
     target_path: string;
     branch: string;

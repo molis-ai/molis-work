@@ -5,6 +5,22 @@ import { uiTextErrors } from "./text-errors.js";
 // A piece of text as data (specs/font-and-skin-system/a-section-contract.md §2). `TEXT_REF_SCHEMA` cannot say which fields go together, so
 // `textRefProblems` is what refuses a bad reference, and `ownedTextRef` is the one place an owner is written into one.
 
+/**
+ * The first segment of every key an owner writes: the last segment of a plugin_id (`io.molis.work.notes` -> `notes`), or a platform owner's own
+ * name. One rule for the SDK, the Host's text context and the author's tools; nothing beside it takes a plugin_id apart.
+ */
+export const textKeyPrefix = (owner: string): string => messageOwnerOf(owner);
+
+/**
+ * Where owners are found by the first segment of a key (`t`), two owners of one prefix would answer each other's keys: refuses `owner` when
+ * `taken`, the owner that already holds its prefix, is another one.
+ */
+export function refuseSharedTextPrefix(taken: string | null | undefined, owner: string): void {
+  if (taken !== null && taken !== undefined && taken !== owner) {
+    throw uiTextErrors.text_owner_conflict(`${taken} 和 ${owner} 的键都以 ${textKeyPrefix(owner)} 开头，t 分不出是谁的：改其中一个的 plugin_id 最后一段`);
+  }
+}
+
 /** The shape of a placeholder, the same as `message-declarations.ts` holds a Manifest's words to. */
 const ARG_NAME = /^[A-Za-z_]\w*$/u;
 const REF_FIELDS = new Set(["key", "args", "fallback", "literal"]);
@@ -104,7 +120,7 @@ function bindingProblems(ref: unknown, owner: unknown): readonly string[] {
 }
 
 function bound(ref: TextRef, owner: string): OwnedTextRef {
-  if ("literal" in ref) return { literal: ref.literal };
+  if ("literal" in ref && ref.literal !== undefined) return { literal: ref.literal };
   return { ...ref, owner: ref.key.startsWith(`${SHARED_OWNER}.`) ? PLATFORM_TEXT_OWNER : owner };
 }
 

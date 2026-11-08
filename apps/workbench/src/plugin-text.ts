@@ -1,5 +1,5 @@
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiLocalePack, UiMessage } from "@molis-ai/molis-work-contracts/platform/ui";
+import { refuseSharedTextPrefix, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The words of every text owner this process has, for the Host's text context (specs/font-and-skin-system/a-section-contract.md §5.2, §8.3). One table
 // per owner, never merged into one. Who registers: a plugin's session when it opens (and takes them back when it is released), the Host for the platform's
@@ -17,24 +17,19 @@ export interface PluginTextReader {
 export interface PluginTextOptions {
   /**
    * Whether this owner's code runs in this process and so may call `t`, which finds an owner by the first segment of a key. Only those enter that
-   * index, where two owners of one last segment are refused (`ui.text_owner_conflict`). `say` finds every owner by its full name, so a sandboxed
+   * index, where two owners of one last segment are refused (`ui.text_owner_conflict`, the SDK's `refuseSharedTextPrefix`). `say` finds every owner by its full name, so a sandboxed
    * plugin or a content pack, whose `t` runs elsewhere, is registered without it and never stops another owner from loading.
    */
   readonly t: boolean;
 }
-
-const pluginTextErrors = /* @__PURE__ */ defineErrorCodes("ui", { text_owner_conflict: "conflict" });
 
 interface Registration { readonly reader: PluginTextReader; readonly t: boolean }
 
 /** Per owner, oldest first. Two projects can run two versions of one plugin: the newest answers, a key it lacks falls to the older one. */
 const registered = new Map<string, Registration[]>();
 
-/** A key's first segment: the last segment of a plugin_id, or a platform owner's name (`message-declarations.ts`, `messageOwnerOf`). */
-const prefixOf = (owner: string): string => owner.slice(owner.lastIndexOf(".") + 1);
-
 function indexedOwner(prefix: string): string | null {
-  for (const [owner, list] of registered) if (prefixOf(owner) === prefix && list.some((entry) => entry.t)) return owner;
+  for (const [owner, list] of registered) if (textKeyPrefix(owner) === prefix && list.some((entry) => entry.t)) return owner;
   return null;
 }
 
@@ -43,12 +38,7 @@ function indexedOwner(prefix: string): string | null {
  * registered twice, and its words leave when both sessions are released. Taking back twice does nothing.
  */
 export function registerPluginText(reader: PluginTextReader, options: PluginTextOptions): () => void {
-  if (options.t) {
-    const taken = indexedOwner(prefixOf(reader.owner));
-    if (taken !== null && taken !== reader.owner) {
-      throw pluginTextErrors.text_owner_conflict(`${taken} 和 ${reader.owner} 的键都以 ${prefixOf(reader.owner)} 开头，t 分不出是谁的：改其中一个的 plugin_id 最后一段`);
-    }
-  }
+  if (options.t) refuseSharedTextPrefix(indexedOwner(textKeyPrefix(reader.owner)), reader.owner);
   const entry: Registration = { reader, t: options.t };
   registered.set(reader.owner, [...(registered.get(reader.owner) ?? []), entry]);
   return () => {

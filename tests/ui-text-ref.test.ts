@@ -48,6 +48,15 @@ test("FSS-42: an owner in a declaration is refused, and only ownedTextRef fills 
   assert.deepEqual(ownedTextRef({ literal: "甲" }, OWNER), { literal: "甲" }, "a literal shows as it is and has no owner to bind");
 });
 
+test("FSS-42: a key written beside a literal of undefined is a key: it binds its owner and keeps its key", () => {
+  // A JavaScript caller can hand { key, literal: undefined }; JSON cannot. Whether a literal is there is one rule: its value, not its name.
+  const ref: unknown = { key: "notes.a", literal: undefined };
+  assert.deepEqual(textRefProblems(ref), []);
+  const bound = ownedTextRef(ref as TextRef, OWNER) as { owner?: string; key?: string };
+  assert.equal(bound.owner, OWNER);
+  assert.equal(bound.key, "notes.a");
+});
+
 test("FSS-42: in a bound position a key needs its owner, and a literal still has none", () => {
   assert.deepEqual(textRefProblems({ owner: OWNER, key: "notes.a" }, { owned: true }), []);
   assert.deepEqual(textRefProblems({ literal: "甲" }, { owned: true }), []);

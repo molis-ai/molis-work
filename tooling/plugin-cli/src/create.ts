@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { UI_FORMAT_VERSIONS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { samplePluginSource, samplePluginActions, sampleArtifactType, SAMPLE_ARTIFACT_TYPE_ID } from "./sample-source.js";
 
 export interface CreatePluginProjectInput {
@@ -36,7 +37,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
   await mkdir(directory);
   await mkdir(join(directory, "locales"));
   // A key starts with the last segment of the plugin_id, so the sample's keys follow the id it was made with.
-  const owner = input.plugin_id.slice(input.plugin_id.lastIndexOf(".") + 1);
+  const owner = textKeyPrefix(input.plugin_id);
   const files: Record<string, string> = {
     "manifest.json": JSON.stringify(manifest, null, 2) + "\n",
     "index.mjs": samplePluginSource.replaceAll('t("notes.', `t("${owner}.`),

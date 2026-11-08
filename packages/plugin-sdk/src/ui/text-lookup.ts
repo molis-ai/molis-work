@@ -1,8 +1,8 @@
 import type { OwnedTextRef, TextArg, UiLocalePack, UiMessage, UiSayOptions, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
-import { messageOwnerOf, PLATFORM_TEXT_OWNER } from "../message-declarations.js";
+import { PLATFORM_TEXT_OWNER } from "../message-declarations.js";
 import { formatMessage } from "./message-format.js";
 import { uiTextErrors } from "./text-errors.js";
-import { textRefProblems } from "./text-ref.js";
+import { refuseSharedTextPrefix, textKeyPrefix, textRefProblems } from "./text-ref.js";
 
 // Finding a word (specs/font-and-skin-system/a-section-contract.md §2.3, §5.2). Not published: `t` and `say` read a provider from the global context,
 // `createTextReader` builds one from language packs, and both come here. Everything answers in plain text; a caller escapes once, on the whole text.
@@ -96,7 +96,7 @@ export function sayText(provider: UiTextProvider, ref: OwnedTextRef, options: Ui
     report(provider, { code: "ui.text_ref_invalid" });
     return guarded(provider, () => unavailableText(provider, options.locale ?? null), UI_TEXT_UNAVAILABLE);
   }
-  if ("literal" in merged) return merged.literal;
+  if ("literal" in merged && merged.literal !== undefined) return merged.literal;
   return guarded(provider, () => {
     const locale = options.locale === undefined ? languageFor(provider, merged.owner, `say("${merged.key}")`) : options.locale ?? provider.defaultLocale(merged.owner);
     const text = wordText(provider, merged, locale);
@@ -109,9 +109,8 @@ export function sayText(provider: UiTextProvider, ref: OwnedTextRef, options: Ui
 export function prefixIndex(packs: readonly UiLocalePack[]): ReadonlyMap<string, string> {
   const owners = new Map<string, string>();
   for (const { owner } of packs) {
-    const name = messageOwnerOf(owner);
-    const taken = owners.get(name);
-    if (taken !== undefined && taken !== owner) throw uiTextErrors.text_owner_conflict(`${taken} 和 ${owner} 的键都以 ${name} 开头，t 分不出是谁的`);
+    const name = textKeyPrefix(owner);
+    refuseSharedTextPrefix(owners.get(name), owner);
     owners.set(name, owner);
   }
   return owners;

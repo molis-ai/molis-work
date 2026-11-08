@@ -69,6 +69,12 @@ function inProduction<T>(locale: string | null, run: (problems: ReadonlyArray<{ 
   }
 }
 
+test("FSS-42: say treats { owner, key, literal: undefined } as the key it is, never as an empty literal", () => {
+  const input: unknown = { owner: OWNER, key: "notes.main.title", literal: undefined };
+  assert.equal(withText("en", () => say.text(input as OwnedTextRef)), "Notes");
+  assert.equal(withText("zh", () => say(input as OwnedTextRef)), "笔记");
+});
+
 test("FSS-44: `t` and `format` take the language from the context, with no parameter for it", () => {
   const text = () => [t("notes.main.title"), t("notes.main.saved", { count: 3 }), t("common.save")];
   assert.deepEqual(withText("en", text), ["Notes", "Saved 3 notes", "Save"]);

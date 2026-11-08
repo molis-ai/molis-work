@@ -50,7 +50,7 @@ function sayPlain(ref: OwnedTextRef, options?: UiSayOptions): string {
   const provider = installedProvider();
   if (provider !== null) return sayText(provider, ref, options);
   if (textRefProblems(ref, { owned: true }).length > 0) return UI_TEXT_UNAVAILABLE;
-  if ("literal" in ref) return ref.literal;
+  if ("literal" in ref && ref.literal !== undefined) return ref.literal;
   throw noProvider(`say("${ref.key}")`);
 }
 

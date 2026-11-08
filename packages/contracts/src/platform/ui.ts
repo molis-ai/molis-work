@@ -60,10 +60,12 @@ export interface UiViewSelection {
   readonly intent?: "open" | "select";
 }
 
-/** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
+/**
+ * Current-project directories only: a page may ask to add an input folder, which the trusted Host confirms first. Which folder a page
+ * shows is that page's own state (specs/shared-sources-and-surfaces §3); the project keeps no browsing choice to select.
+ */
 export interface UiPageWorkspaces {
   add(path: string): Promise<{ workspace_id: string }>;
-  select(workspaceId: string): Promise<void>;
 }
 
 /** A Host-owned review surface. The page supplies filters and a slot, never a decision or review contents. */

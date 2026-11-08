@@ -5,7 +5,7 @@ import {
   type MaterialOriginAnswer, type MaterialOriginQuery, type MaterialRef, type RecentMaterial,
 } from "../platform/project-materials.js";
 
-export { projectDirectoryErrors } from "./projects-errors.js";
+export { directoryInputOnly, projectDirectoryErrors } from "./projects-errors.js";
 
 // Keep the Catalog's current transport classification; project absence is a 404.
 const projectErrors = defineErrorCodes("catalog", {

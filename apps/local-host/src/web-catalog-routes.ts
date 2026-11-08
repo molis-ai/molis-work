@@ -81,7 +81,8 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
   { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url, () => homeActions(localHost)) },
   // Outside a project the unified input lists the Home sources only (S-composer-source-call).
-  { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url, () => homeActions(localHost)) },
+  { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
+    (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
   { id: "placement", handle: ({ request, response, url, localHost }) => handlePlacementHttp(request, response, url, () => homeActions(localHost)) },
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ActionSubject, ActionView, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionSubject, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COMPOSER_PICK_INPUT_TYPE, COMPOSER_PICK_OUTPUT_TYPE, composerErrors, type ComposerPickInput, type ComposerPickOutput } from "@molis-ai/molis-work-contracts/platform/composer";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
@@ -13,12 +13,18 @@ import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./we
  * - `sources` reads the directory now: a source turned off, uninstalled or no longer granted is not listed.
  * - `pick` reads it again and calls only the exact source the menu listed, else `composer.source_unavailable`; the source gets
  *   `query`, `limit` and the page's current object as `near` only when its kind is one of the source's own `subject_kinds`.
+ * - The call carries the request's abort: a page that moved on (a newer query, the menu closed) closes the request, so a pick not
+ *   started yet is not run and one under way gets the cancellation on its `caller.signal` (N42–N56: a late pick costs nothing).
  */
-export async function handleComposerSourcesHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: () => BoundActionClient): Promise<boolean> {
+export async function handleComposerSourcesHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: (signal: AbortSignal) => BoundActionClient): Promise<boolean> {
   if (url.pathname !== "/api/composer/sources" && url.pathname !== "/api/composer/pick") return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
+  const left = new AbortController();
+  const cancel = () => left.abort(new ActionError("actions.cancelled", "这次选取已经结束"));
+  const closed = () => { if (!response.writableEnded) cancel(); };
+  request.once("aborted", cancel); response.once("close", closed);
   try {
-    const body = await readBody(request), client = actions();
+    const body = await readBody(request), client = actions(left.signal);
     const layer = body.layer === "plain" ? "plain" : "ai";
     const listed = (await client.discover()).filter((view) => isSource(view, layer));
     if (url.pathname === "/api/composer/sources") {
@@ -34,8 +40,8 @@ export async function handleComposerSourcesHttp(request: IncomingMessage, respon
     sendJson(response, 200, await client.invoke<ComposerPickInput, ComposerPickOutput>(definition, input));
   } catch (error) {
     const failure = actionErrorResponse(error);
-    sendJson(response, failure.status, failure.body);
-  }
+    if (!response.destroyed) sendJson(response, failure.status, failure.body);
+  } finally { request.off("aborted", cancel); response.off("close", closed); }
   return true;
 }
 

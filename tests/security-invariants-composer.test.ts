@@ -166,6 +166,27 @@ test("S-composer-source-call item 3: a source turned off is not listed, an open 
   assert.equal(source.seen.length, calls, "the source is not called");
 });
 
+test("S-composer-source-call N42–N56: a pick the page let go of is cancelled at its source; the next one runs as usual", async (t) => {
+  const { source, post, f, project } = await composerHome(t);
+  const [entry] = (await post("/api/composer/sources", { layer: "plain" })).body.sources as Array<Record<string, unknown>>;
+  const body = { layer: "plain", capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, query: "访谈", limit: 5 };
+  source.hold();
+  const left = new AbortController();
+  const asked = f.request(`/projects/${encodeURIComponent(project.project_id)}/api/composer/pick`, { method: "POST", body, signal: left.signal }).catch((error: unknown) => error);
+  for (let tries = 0; !source.held.length && tries < 200; tries += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(source.held.length, 1, "the pick reached its source and waits there");
+  assert.equal(source.held[0]!.aborted, false);
+  left.abort();
+  assert.ok((await asked) instanceof Error, "the page's own request is gone");
+  for (let tries = 0; !source.held[0]!.aborted && tries < 200; tries += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(source.held[0]!.aborted, true, "the source's call gets the page's abort on its signal");
+  source.release();
+  const calls = source.seen.length;
+  const next = await post("/api/composer/pick", body);
+  assert.deepEqual([next.status, (next.body.items as Array<{ title: string }>).map((item) => item.title)], [200, ["访谈记录", "访谈提纲"]]);
+  assert.equal(source.seen.length, calls + 1, "one request, one call");
+});
+
 test("S-composer-source-call item 4: a picked note the target cannot read stops the send; nothing is written", async (t) => {
   const { source, mount, post } = await composerHome(t);
   const material = { kind: "material", ref: { subject: { kind: NOTE_KIND, id: "n1" }, pin: { mode: "current", read_revision: "r1" } }, title: "访谈记录",

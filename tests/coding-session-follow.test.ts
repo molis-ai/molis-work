@@ -10,7 +10,7 @@ import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/s
 import { agentCollaborationActions as collaboration, type AgentCollaborationWait, type AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -30,8 +30,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
   let waitSignal: AbortSignal | undefined, releaseWait: (() => void) | undefined;
   const view = (phase: string) => ({ ref: { session_id: "sdk", run_id: "r1" }, phase, frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input, options?: { signal?: AbortSignal }): Promise<Output> {
-    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, display_name: "work", realpath_verified: true }] as Output;
-    if (definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id) return { workspace_id: "work", canonical_path: root, display_name: "work", realpath_verified: true } as Output;
+    if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: root, display_name: "work" }] as Output;
     if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
     if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
@@ -139,7 +138,7 @@ async function codingJobs() {
     { ...collaboration.read, handle: async () => ({ sessions: held ? [structuredClone(held)] : [] }) }] });
   const agentHost = { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
     const id = definition.capability_id, input = args as unknown[];
-    if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, display_name: "work", realpath_verified: true }] as Output;
+    if (id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: root, display_name: "work" }] as Output;
     if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (id === agent.listActions.capability_id) return [] as Output;
     if (id === agent.readSession.capability_id) return { runs: [] } as Output;

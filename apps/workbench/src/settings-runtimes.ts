@@ -33,7 +33,7 @@ export function renderRuntimeSettings(view: MolisWorkSettingsView, primitives: R
     </article>`;
   }).join("");
   return `<section class="settings-document" aria-labelledby="settings-title">
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("AI 与执行工具")}</h1>${renderHint({ id: "settings-hint-runtimes", label: L("如何生效"), text: L("当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。Session 与运行位置请进入对应项目的 Sessions 管理。") })}</div><p>${L("不接入也能正常使用 Goal Tree、待决定和记录。只有想让 AI 工具直接读取或推进 Goal 时才需要连接；每次修改前都会先展示变化并由你确认。")}</p></header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("AI 与执行工具")}</h1>${renderHint({ id: "settings-hint-runtimes", label: L("如何生效"), text: L("当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。接入后，在对应的外部 Runtime 里新开会话即可使用。") })}</div><p>${L("不接入也能正常使用 Goal Tree、待决定和记录。只有想让 AI 工具直接读取或推进 Goal 时才需要连接；每次修改前都会先展示变化并由你确认。")}</p></header>
     <section class="settings-section" aria-label="${L("AI 与执行工具")}">${rows || `<div class="settings-empty"><strong>${L("没有可探测的 Runtime")}</strong><span>${L("Molis Work 本体仍可使用；稍后安装 Runtime 后再回来检查。")}</span></div>`}</section>
   </section>`;
 }

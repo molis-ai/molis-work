@@ -5,6 +5,10 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       const goalId = String(trigger.dataset.goalId || "").trim();
       const goalTitle = String(trigger.dataset.goalTitle || goalId).trim();
       if (!goalId) return;
+      // The way back is a point that is shown: the menu summary the entry folded out of, else the entry itself —
+      // never a button that closing the menu hides.
+      const menu = trigger.closest("details");
+      trashTrigger = shown(menu && menu.querySelector(":scope > summary")) || shown(trigger);
       trashIntent = { goalId, goalTitle, trashed };
       trashError.hidden = true;
       trashError.textContent = "";
@@ -33,9 +37,12 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
 
     const closeGoalTrashDialog = () => {
       if (!trashDialog?.open || trashPending) return;
+      // This close binds its own trigger: a dialog opened before its refresh settles neither inherits nor clears it.
+      const back = trashTrigger;
+      trashTrigger = null;
       trashDialog.close();
       trashIntent = null;
-      refreshBoard();
+      void Promise.resolve(refreshBoard()).finally(() => settleTrashFocus(back));
     };
 
     const submitGoalTrashForm = async () => {
@@ -66,6 +73,8 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
           : ["restored", "already_active"];
         if (!expected.includes(result.status)) throw new Error(L("Molis Work 返回了无法识别的回收站状态"));
         redirecting = true;
+        // Navigation replaces the page, so the trigger is dropped here and no focus is restored on the way out.
+        trashTrigger = null;
         trashDialog.close();
         clearCollectionUiState();
         navigate(route((intent.trashed ? "/trash/goals/" : "/goals/") + encodeURIComponent(intent.goalId)));
@@ -182,6 +191,7 @@ export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const trashError = document.querySelector("[data-goal-trash-error]");
     const trashSubmit = document.querySelector("[data-goal-trash-submit]");
     let trashIntent = null;
+    let trashTrigger = null;
     let trashPending = false;
     const setTrashPending = (pending) => {
       trashPending = pending;
@@ -195,6 +205,36 @@ export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       closeGoalTrashDialog();
     });
+    // A close that did not go through closeGoalTrashDialog leaves no stale trigger behind; the event may land after a
+    // reopen, so a dialog that is open again keeps the trigger its own open just set.
+    trashDialog?.addEventListener("close", () => {
+      if (!trashDialog.open) trashTrigger = null;
+    });
+    // Whichever way the dialog closes short of a confirmed trash or restore, the close binds its own return point, and
+    // focus goes back to it once the board's refresh has settled: to it while it is still shown, else to the page's
+    // visible create entry — and only while the person has not already settled focus somewhere visible of their own and
+    // no dialog (a reopened trash dialog, the create dialog) holds focus. A stale hidden remnant (the folded-away entry
+    // the menu hides, the old dialog's own focus) does not block the way back. A confirmed trash or restore navigates.
+    // Shown is more than a box: the focus a closing dialog hands back can still carry geometry from menu content its
+    // fold has already closed, so every closed details ancestor decides — only a detail's own first summary line shows.
+    const shown = (element) => {
+      if (!element || !element.isConnected || !element.getClientRects().length || element.closest("[hidden]")) return null;
+      for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        if (ancestor.tagName !== "DETAILS" || ancestor.open) continue;
+        const summary = Array.prototype.find.call(ancestor.children, (child) => child.tagName === "SUMMARY");
+        if (!summary || !summary.contains(element)) return null;
+      }
+      return element;
+    };
+    const settleTrashFocus = (back) => {
+      if (!back || trashDialog?.open || document.querySelector("dialog[open]")) return;
+      const current = document.activeElement;
+      // Unset focus — none, the body, the root — is not a choice the person made: the way back stays open.
+      const chosen = current instanceof Element && current !== document.body && current !== document.documentElement
+        && current !== back && shown(current);
+      if (chosen) return;
+      (shown(back) || shown(document.querySelector("[data-open-create]")))?.focus({ preventScroll: true });
+    };
 ${GOALS_TRASH_DIALOG_SCRIPT}
 ${GOALS_CREATE_COMPOSE_SCRIPT}
     const readCreateDraft = () => {

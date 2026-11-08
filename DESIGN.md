@@ -404,7 +404,7 @@ Under `prefers-reduced-motion`, and under automation (`navigator.webdriver`), no
 
 ## Focus and accessibility
 
-Keyboard focus is `--focus-stroke`: a 2px copper outline at a 1px offset (`--focus-stroke-inset`), on every button, tab, row, summary and link. Fields — `mw-input`, `mw-textarea` and the `mw-select` trigger — answer focus with a full copper border (3:1 or better on its surface) and a 3px copper halo at 16% (`FIELD_FOCUS`) instead of the stroke, and an input group turns from wash to white. A control never shows both. Writing surfaces marked `data-plain-field` answer with a copper underline instead of a box. Focus never relies on colour change alone and is never removed.
+Keyboard focus is `--focus-stroke`: a 2px `--focus-ring` outline at a 1px offset (`--focus-stroke-inset`), on every button, tab, row, summary and link. Fields — `mw-input`, `mw-textarea` and the `mw-select` trigger — answer focus with a full border in the focus colour (3:1 or better on its surface) and a 3px halo at 16% (`FIELD_FOCUS`) instead of the stroke, and an input group turns from wash to white. A control never shows both. Writing surfaces marked `data-plain-field` answer with an underline in the focus colour instead of a box. Focus never relies on colour change alone and is never removed.
 
 Every interactive target is at least 32px on desktop (28px compact) and 44px on phones and coarse pointers, with one scoped exception below. What the strip and the bar open is a target too: on a phone or with a coarse pointer a button, a summary, an input or a link in their lists, menus, notices and offers (the "+" menu and the choosers, the materials' remove mark, the notices' buttons, the switcher's pin and add buttons, the Dock's "+N" list, the project menu, the strip's open-plugin, layout, tab and group menus with a group's name field and colour swatches, the opened Assistant panel with its tab bar, its list of all works, the details of a work and the controls a conversation can hold) and every `mw-menu` item are 44px at the least (a described item grows past it); a fine-pointer desktop window keeps the sizes they have there (a 34px menu row; a colour swatch is a 32px target with an 18px dot drawn inside it, 44px with a coarse pointer), and none of those lists holds a control under the 32px floor (28px compact) except, on a fine-pointer desktop only, the opened Assistant panel: its tab bar's 28px buttons and 20px close mark, and its body's 22–28px controls, are a known gap (specs/BACKLOG.md BL-127). Text on paper meets 4.5:1 down to `--faint`. The directory, tab strip and plugin switcher have full keyboard paths (Arrow, Home, End); dialogs trap focus, close on Escape and return focus to their opener. Status uses text or a glyph besides colour.
 
@@ -586,7 +586,7 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 ### Do
 
 - **Do** build hierarchy from spacing, weight and meaningful boundaries; keep work on the one continuous sheet and let only raised things cast a shadow.
-- **Do** use ink blue for the one primary action and a selected choice, the accent blue for focus, links and in-progress, and status colours only for status.
+- **Do** use ink blue for the one primary action and a selected choice, the accent blue for focus (the shared `--focus-ring` / `--focus-stroke`), links and in-progress, and status colours only for status.
 - **Do** take every colour, corner, height and duration from the shared tokens; add a missing one to `palette.ts` or the final layer rather than a local value.
 - **Do** keep the current tab, loaded body, selected directory item and owned terminal consistent without copying domain state.
 - **Do** retain source links, exact Artifact versions and original record IDs; make current facts distinct from historical evidence.
@@ -627,7 +627,7 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 - **Don't** fight an earlier rule with `!important`, a per-plugin override or a restated token value; fix the source.
 - **Don't** force a font weight globally, synthesise bold, or use weights other than 400 / 500 / 600.
 - **Don't** outline a floating layer, draw a card inside the sheet by default, blur the scrim, or paint gradients outside the opening and Welcome's ambient light and the goal card's warm light (the overflow fade is a mask, not a painted band).
-- **Don't** fill a button with copper, draw focus in ink or blue, or remove a focus indicator.
+- **Don't** fill a button with copper, draw focus with anything but the shared focus tokens (`--focus-ring` / `--focus-stroke`), or remove a focus indicator.
 - **Don't** celebrate anything but a real completion or a real arrival, and never on first render.
 - **Don't** hide a complex feature, disable an entry, swallow an error or show placeholder data to make a page look calmer.
 - **Don't** turn a disabled composer, Session demo, reserved module or browser screenshot into a claim of an integrated feature.

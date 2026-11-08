@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
 import { BUILTIN_PLUGIN_CATALOG, createWorkbenchLocale, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostWorkbenchRenderer, installHostUiText } from "@molis-ai/molis-work-app-local-host";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { FIELD_FIT_CLIENT_SCRIPT, FIELD_FIT_STYLES, FLOATING_DETAILS_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { IM_CLIENT_SCRIPT, IM_STYLES } from "@molis-ai/molis-work-im-ui";
+
+// The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
+installHostUiText();
 
 // W3-10: the pages that are written inline (their programs are not part of /assets/, so the helper costs the page-asset
 // budget nothing) carry the one request helper instead of their own copy of the headers function. Each page is rendered
